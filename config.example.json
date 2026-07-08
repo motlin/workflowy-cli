@@ -1,0 +1,21 @@
+{
+	"archiveGroups": [
+		{
+			"name": "Work Tasks",
+			"inputPaths": [
+				["Work", "Current", "Tasks"],
+				["Work", "Inbox"]
+			],
+			"outputPaths": [["Work", "Journal", "Archive"]]
+		},
+		{
+			"name": "Personal Tasks",
+			"inputPaths": [
+				["Personal", "Next"],
+				["Personal", "Inbox"]
+			],
+			"outputPaths": [["Personal", "Journal", "Archive"]]
+		}
+	],
+	"dataSource": "auto"
+}

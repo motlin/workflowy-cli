@@ -1,0 +1,59 @@
+# Datasette config (settings + canned queries) for the Workflowy cache.
+# Loaded via `datasette -c datasette.yml`.
+settings:
+    # The cache has ~145k current nodes (many more historical rows); the 1s
+    # default is too low for the agent's exploratory joins.
+    sql_time_limit_ms: 10000
+    max_returned_rows: 2000
+
+databases:
+    workflowy:
+        queries:
+            current_nodes:
+                title: Current node versions
+                description: Live tree rows only (system_to is the open-ended sentinel).
+                sql: |-
+                    SELECT id, name, note, parent_id
+                    FROM node_content
+                    WHERE system_to = '9999-12-31 23:59:59'
+                    LIMIT 100
+
+            search:
+                title: Full-text search
+                description: FTS5 search over node text. Enter a query in :q (e.g. groceries).
+                sql: |-
+                    SELECT
+                      node_id,
+                      snippet(node_fts, 1, '[', ']', '…', 20) AS snippet
+                    FROM node_fts
+                    WHERE node_fts MATCH :q
+                    LIMIT 50
+
+            recently_modified:
+                title: Recently modified nodes
+                description: Current nodes ordered by last modified time.
+                sql: |-
+                    SELECT
+                      c.id,
+                      c.name,
+                      datetime(m.modified_at, 'unixepoch') AS modified_at,
+                      c.parent_id
+                    FROM node_content c
+                    JOIN node_metadata m
+                      ON m.node_id = c.id
+                     AND m.system_to = '9999-12-31 23:59:59'
+                    WHERE c.system_to = '9999-12-31 23:59:59'
+                      AND m.modified_at IS NOT NULL
+                    ORDER BY m.modified_at DESC
+                    LIMIT 100
+
+            node_children:
+                title: Children of a node
+                description: Current direct children of the node whose id is :parent_id.
+                sql: |-
+                    SELECT id, name, note
+                    FROM node_content
+                    WHERE parent_id = :parent_id
+                      AND system_to = '9999-12-31 23:59:59'
+                    ORDER BY name
+                    LIMIT 500

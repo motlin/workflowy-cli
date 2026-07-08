@@ -1,0 +1,345 @@
+import {captureOutput} from '@oclif/test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import type {MockInstance} from 'vite-plus/test';
+import Update from '../../../src/commands/node/update.js';
+import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from '../../db/migration-helper.js';
+import {createTestNode} from '../../helpers/node-fixtures.js';
+
+describe('node update command', () => {
+	let originalEnv: typeof process.env;
+	let fetchStub: MockInstance;
+	let tempDir: string;
+	let testDatabase: TestDatabase;
+
+	beforeEach(() => {
+		originalEnv = {...process.env};
+
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-update-test-'));
+		const testDbPath = path.join(tempDir, 'test.sqlite');
+		testDatabase = createTestDatabase(testDbPath);
+		process.env.WORKFLOWY_DB_PATH = testDbPath;
+		process.env.WORKFLOWY_API_KEY = 'test-api-key';
+
+		fetchStub = vi.spyOn(globalThis, 'fetch');
+	});
+
+	afterEach(() => {
+		process.env = originalEnv;
+
+		cleanupTestDatabase(testDatabase);
+
+		if (fs.existsSync(tempDir)) {
+			fs.rmSync(tempDir, {recursive: true, force: true});
+		}
+	});
+
+	describe('environment variable validation', () => {
+		it('requires WORKFLOWY_API_KEY', async () => {
+			delete process.env.WORKFLOWY_API_KEY;
+
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'node-id', name: 'Test', parentId: null})],
+			});
+
+			await expect(Update.run(['--id', 'node-id', '--name', 'New Name'])).rejects.toThrow(
+				'WORKFLOWY_API_KEY environment variable is required',
+			);
+		});
+	});
+
+	describe('flag validation', () => {
+		it('requires either --id or --path', async () => {
+			await expect(Update.run(['--name', 'New Name'])).rejects.toThrow('Either --id or --path is required');
+		});
+
+		it('requires at least one update field', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'node-id', name: 'Test', parentId: null})],
+			});
+
+			await expect(Update.run(['--id', 'node-id'])).rejects.toThrow(
+				'At least one of --name, --note, --clear-note, or --layout-mode must be provided',
+			);
+		});
+	});
+
+	describe('dry run mode', () => {
+		it('shows API call without executing for name update', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'node-id', name: 'Original Name', parentId: null})],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Update.run(['--id', 'node-id', '--name', 'New Name', '--dry-run']);
+			});
+
+			// Dry run outputs human-readable text, not JSON
+			expect(stdout).toContain('Would execute API call');
+			expect(stdout).toContain('Method: POST');
+			expect(stdout).toContain('https://workflowy.com/api/v1/nodes/node-id');
+			expect(stdout).toContain('"name": "New Name"');
+			expect(fetchStub).not.toHaveBeenCalled();
+		});
+
+		it('shows note in dry run output', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'node-id', name: 'Test', parentId: null})],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Update.run(['--id', 'node-id', '--note', 'New note content', '--dry-run']);
+			});
+
+			expect(stdout).toContain('"note": "New note content"');
+		});
+
+		it('shows layout mode in dry run output', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'node-id', name: 'Test', parentId: null})],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Update.run(['--id', 'node-id', '--layout-mode', 'board', '--dry-run']);
+			});
+
+			expect(stdout).toContain('"layoutMode": "board"');
+		});
+
+		it('shows clear-note in dry run output', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'node-id', name: 'Test', note: 'Old note', parentId: null})],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Update.run(['--id', 'node-id', '--clear-note', '--dry-run']);
+			});
+
+			expect(stdout).toContain('"note": ""');
+		});
+	});
+
+	describe('updating by ID', () => {
+		it('sends correct request body for name update', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'update-id', name: 'Old Name', parentId: null})],
+			});
+
+			let capturedBody: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.body) {
+					capturedBody = init.body as string;
+				}
+				return new Response(JSON.stringify({node: {id: 'update-id', name: 'New Name'}}), {status: 200});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'update-id', '--name', 'New Name']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			const body = JSON.parse(capturedBody!);
+			expect(body).toStrictEqual({name: 'New Name'});
+		});
+
+		it('sends correct request body for note update', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'update-id', name: 'Test', parentId: null})],
+			});
+
+			let capturedBody: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.body) {
+					capturedBody = init.body as string;
+				}
+				return new Response(JSON.stringify({node: {id: 'update-id', name: 'Test', note: 'New note'}}), {
+					status: 200,
+				});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'update-id', '--note', 'New note']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			const body = JSON.parse(capturedBody!);
+			expect(body).toStrictEqual({note: 'New note'});
+		});
+
+		it('sends empty note to clear with --clear-note', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'update-id', name: 'Test', note: 'Old note', parentId: null})],
+			});
+
+			let capturedBody: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.body) {
+					capturedBody = init.body as string;
+				}
+				return new Response(JSON.stringify({node: {id: 'update-id', name: 'Test', note: ''}}), {status: 200});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'update-id', '--clear-note']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			const body = JSON.parse(capturedBody!);
+			expect(body).toStrictEqual({note: ''});
+		});
+
+		it('sends correct request body for layout mode update', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'update-id', name: 'Test', parentId: null})],
+			});
+
+			let capturedBody: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.body) {
+					capturedBody = init.body as string;
+				}
+				return new Response(
+					JSON.stringify({node: {id: 'update-id', name: 'Test', data: {layoutMode: 'document'}}}),
+					{
+						status: 200,
+					},
+				);
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'update-id', '--layout-mode', 'document']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			const body = JSON.parse(capturedBody!);
+			expect(body).toStrictEqual({layoutMode: 'document'});
+		});
+
+		it('sends all fields when updating multiple', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'update-id', name: 'Old Name', parentId: null})],
+			});
+
+			let capturedBody: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.body) {
+					capturedBody = init.body as string;
+				}
+				return new Response(JSON.stringify({node: {id: 'update-id', name: 'New Name', note: 'New note'}}), {
+					status: 200,
+				});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run([
+						'--id',
+						'update-id',
+						'--name',
+						'New Name',
+						'--note',
+						'New note',
+						'--layout-mode',
+						'board',
+					]);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			const body = JSON.parse(capturedBody!);
+			expect(body).toStrictEqual({
+				name: 'New Name',
+				note: 'New note',
+				layoutMode: 'board',
+			});
+		});
+	});
+
+	describe('updating by path', () => {
+		it('resolves path to correct node ID', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'work-id', name: 'Work', parentId: null}),
+					createTestNode({id: 'tasks-id', name: 'Tasks', parentId: 'work-id'}),
+					createTestNode({id: 'target-id', name: 'My Task', parentId: 'tasks-id'}),
+				],
+			});
+
+			let capturedUrl: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
+				capturedUrl = url instanceof Request ? url.url : String(url);
+				return new Response(JSON.stringify({node: {id: 'target-id', name: 'Updated Task'}}), {status: 200});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--path', 'Work,Tasks,My Task', '--name', 'Updated Task']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			expect(capturedUrl).toBe('https://workflowy.com/api/v1/nodes/target-id');
+		});
+
+		it('errors when path not found', async () => {
+			// Cache is empty, API returns empty children for root (path not found)
+			fetchStub.mockResolvedValue(new Response(JSON.stringify({nodes: []}), {status: 200}));
+
+			await expect(Update.run(['--path', 'Missing,Path', '--name', 'New Name'])).rejects.toThrow(
+				'Node not found at path: Missing > Path',
+			);
+		});
+	});
+
+	describe('output', () => {
+		// Note: Full output with success message requires integration testing
+		// due to command creating separate DB connections. API calls and path
+		// display are tested here; success message tested via integration tests.
+
+		it('displays full path when updating', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'work-id', name: 'Work', parentId: null}),
+					createTestNode({id: 'target-id', name: 'Target', parentId: 'work-id'}),
+				],
+			});
+
+			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
+
+			const {stdout} = await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'target-id', '--name', 'Updated']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			expect(stdout).toContain('Updating node: Work > Target');
+		});
+	});
+
+	describe('command metadata', () => {
+		it('has correct description', () => {
+			expect(Update.description).toBe('Update a Workflowy node');
+		});
+
+		it('has examples', () => {
+			expect(Update.examples!.length).toBeGreaterThan(0);
+		});
+	});
+});

@@ -1,0 +1,86 @@
+{
+	"name": "workflowy-cli",
+	"description": "CLI for managing Workflowy nodes via API",
+	"version": "0.1.0",
+	"packageManager": "pnpm@11.10.0",
+	"author": "Craig P. Motlin",
+	"type": "module",
+	"bin": {
+		"workflowy": "./bin/run.js"
+	},
+	"dependencies": {
+		"@oclif/core": "^4.11.14",
+		"@oclif/plugin-help": "^6",
+		"@workflowy/shared": "workspace:*",
+		"drizzle-orm": "^0.45.2",
+		"better-sqlite3": "12.11.1"
+	},
+	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.110.0",
+		"@oclif/test": "^4",
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/node": "^26.1.0",
+		"drizzle-kit": "^0.31.10",
+		"eslint": "^10.6.0",
+		"fallow": "^3.0.0",
+		"vitest": "catalog:",
+		"markdownlint-cli2": "^0.23.0",
+		"oclif": "^4",
+		"shx": "^0.4.0",
+		"tsx": "^4.23.0",
+		"typescript": "^6.0.3",
+		"vite": "catalog:",
+		"vite-plus": "catalog:"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"files": [
+		"./bin",
+		"./dist",
+		"./oclif.manifest.json"
+	],
+	"keywords": [
+		"oclif",
+		"cli",
+		"workflowy",
+		"api"
+	],
+	"license": "Apache 2.0",
+	"main": "dist/index.js",
+	"oclif": {
+		"bin": "workflowy",
+		"dirname": "workflowy",
+		"commands": "./packages/cli/dist/commands",
+		"plugins": [
+			"@oclif/plugin-help"
+		],
+		"topicSeparator": " "
+	},
+	"scripts": {
+		"preinstall": "npx only-allow pnpm",
+		"build": "shx rm -rf dist && tsc -b",
+		"oxlint": "vp lint . --fix",
+		"oxlint:ci": "vp lint . --format github",
+		"fmt": "vp fmt",
+		"fmt:ci": "vp fmt --check",
+		"fallow": "fallow dead-code",
+		"fallow:ci": "fallow dead-code",
+		"typecheck": "tsc --noEmit",
+		"postpack": "shx rm -f oclif.manifest.json",
+		"prepack": "oclif manifest",
+		"test": "vp test run",
+		"test:ui": "vp test --ui",
+		"test:watch": "vp test",
+		"eval:structural": "vp test run --config vitest.config.evals.ts test/evals/structural",
+		"eval:deterministic": "vp test run --config vitest.config.evals.ts --test-timeout 120000 test/evals/behavioral/scenarios",
+		"eval:leaf": "vp test run --config vitest.config.evals.ts --test-timeout 300000 test/evals/behavioral/scenarios/leaf",
+		"eval:orchestrator": "vp test run --config vitest.config.evals.ts --test-timeout 600000 test/evals/behavioral/scenarios/orchestrator",
+		"eval:e2e": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral/scenarios/e2e",
+		"eval:behavioral": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral",
+		"version": "oclif readme && git add README.md",
+		"prepublishOnly": "npm run build && npm test && npm run oxlint",
+		"prepare": "vp config"
+	},
+	"types": "dist/index.d.ts"
+}

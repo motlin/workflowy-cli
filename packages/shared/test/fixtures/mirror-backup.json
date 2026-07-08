@@ -1,0 +1,29 @@
+[
+	{
+		"id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+		"nm": "Projects",
+		"ct": 1700000000,
+		"lm": 1700000100,
+		"metadata": {},
+		"ch": [
+			{
+				"id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+				"ct": 1700000200,
+				"lm": 1700000300,
+				"metadata": {}
+			}
+		]
+	},
+	{
+		"id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+		"nm": "Quarterly planning",
+		"ct": 1700000400,
+		"lm": 1700000500,
+		"metadata": {
+			"mirror": {
+				"originalId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+				"isMirrorRoot": true
+			}
+		}
+	}
+]

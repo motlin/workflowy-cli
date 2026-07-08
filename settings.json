@@ -1,0 +1,5 @@
+{
+	"permissions": {
+		"allow": ["Skill(workflowy-tasks:*)", "SlashCommand(/workflowy-tasks:*)"]
+	}
+}

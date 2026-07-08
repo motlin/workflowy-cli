@@ -1,0 +1,55 @@
+# Datasette metadata: human/agent-facing descriptions for the Workflowy cache.
+# Loaded via `datasette -m metadata.yml`. The database name `workflowy` is
+# derived from the filename workflowy.sqlite.
+databases:
+    workflowy:
+        description: >-
+            Read-only, write-through cache of Workflowy. Bitemporal: most tables keep historical versions. A row is CURRENT when system_to = '9999-12-31 23:59:59'; always filter on that to see the live tree unless you want history. Never write to this database.
+
+
+        tables:
+            node_content:
+                description: >-
+                    Node text, versioned. Columns: id, name, note, parent_id, system_from, system_to. Current rows have system_to = '9999-12-31 23:59:59'. Build the tree by joining parent_id -> id (both current).
+
+
+            node_metadata:
+                description: >-
+                    Per-node timestamps (created/modified/completed), priority, layout_mode, and shortId. Bitemporal; filter system_to = '9999-12-31 23:59:59' for current. Join to node_content on the node id.
+
+
+            mirrors:
+                description: >-
+                    Mirror relationships. originalId holds the real text; the mirror node is empty and points back via originalId. See backlinks for links.
+
+
+            backlinks:
+                description: Link relationships between nodes (nodeId, sourceId, targetId).
+            tags:
+                description: >-
+                    Tag color assignments (name, color). Non-bitemporal (plain created/updated timestamps).
+
+
+            calendar_metadata:
+                description: >-
+                    Calendar-specific node metadata (root marking, level flags, dates). See also calendar_levels.
+
+
+            calendar_levels:
+                description: Normalized calendar level flags (day/week/month/year) per node.
+            node_fts:
+                description: >-
+                    FTS5 full-text index over node text. Query with: SELECT node_id, content FROM node_fts WHERE node_fts MATCH 'term'. Columns: node_id (unindexed), content. Porter/unicode61 tokenizer.
+
+
+            node_embeddings:
+                description: >-
+                    Vector embeddings stored as opaque BLOBs (model 'minilm'). Not usable in plain SQL — ignore for querying.
+
+
+            config:
+                description: Local key-value app config (key, value). Non-bitemporal.
+            # Internal/shadow tables — ignore when querying:
+            #   node_fts_data, node_fts_idx, node_fts_content, node_fts_docsize,
+            #   node_fts_config  (FTS5 shadow tables for node_fts)
+            #   __drizzle_migrations  (ORM migration bookkeeping)

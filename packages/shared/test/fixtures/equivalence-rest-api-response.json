@@ -1,0 +1,44 @@
+{
+	"nodes": [
+		{
+			"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+			"name": "Inbox",
+			"note": null,
+			"parent_id": null,
+			"priority": 0,
+			"completed": false,
+			"createdAt": 1700000000,
+			"modifiedAt": 1700000100,
+			"completedAt": null,
+			"data": {
+				"layoutMode": "bullets"
+			}
+		},
+		{
+			"id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+			"name": "Buy milk",
+			"note": null,
+			"parent_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+			"priority": 0,
+			"completed": false,
+			"createdAt": 1700000200,
+			"modifiedAt": 1700000300,
+			"completedAt": null,
+			"data": {}
+		},
+		{
+			"id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+			"name": "Finish report",
+			"note": "Due Friday.",
+			"parent_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+			"priority": 1,
+			"completed": true,
+			"createdAt": 1700000400,
+			"modifiedAt": 1700000500,
+			"completedAt": 1700000600,
+			"data": {
+				"layoutMode": "board"
+			}
+		}
+	]
+}

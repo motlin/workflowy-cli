@@ -1,0 +1,53 @@
+{
+	"name": "@workflowy/web",
+	"version": "0.0.0",
+	"description": "Web UI for Workflowy with React frontend and Hono API server",
+	"type": "module",
+	"main": "dist/server/index.js",
+	"types": "dist/server/index.d.ts",
+	"scripts": {
+		"dev": "concurrently \"vp run dev:server\" \"vp run dev:client\"",
+		"dev:server": "tsx watch src/server/index.ts",
+		"dev:client": "vp dev",
+		"build": "tsc && vp build",
+		"typecheck": "tsc --noEmit",
+		"storybook": "storybook dev --port 6006",
+		"build-storybook": "storybook build"
+	},
+	"dependencies": {
+		"@hono/node-server": "^2.0.8",
+		"@tanstack/react-query": "^5.101.2",
+		"@tanstack/react-virtual": "^3.14.5",
+		"@workflowy/shared": "workspace:*",
+		"better-sqlite3": "^12.11.1",
+		"diff": "^9.0.0",
+		"drizzle-orm": "^0.45.2",
+		"hono": "^4.12.27",
+		"react": "^19.2.7",
+		"react-dom": "^19.2.7",
+		"react-hotkeys-hook": "^5.3.3",
+		"react-router-dom": "^7.18.1",
+		"sqlite-vec": "^0.1.9",
+		"zod": "^4.4.3",
+		"zustand": "^5.0.14"
+	},
+	"devDependencies": {
+		"@storybook/addon-a11y": "^10.4.6",
+		"@storybook/addon-docs": "^10.4.6",
+		"@storybook/react-vite": "^10.4.6",
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/node": "^26.1.0",
+		"@types/react": "^19.2.17",
+		"@types/react-dom": "^19.1.6",
+		"@vitejs/plugin-react": "^6.0.3",
+		"concurrently": "^10.0.3",
+		"storybook": "^10.4.6",
+		"tsx": "^4.23.0",
+		"typescript": "^6.0.3",
+		"vite": "catalog:",
+		"vite-plus": "catalog:"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	}
+}
