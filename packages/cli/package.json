@@ -1,0 +1,69 @@
+{
+	"name": "@workflowy/cli",
+	"description": "CLI for managing Workflowy nodes via API",
+	"version": "0.1.0",
+	"author": "Craig P. Motlin",
+	"type": "module",
+	"bin": {
+		"workflowy": "./bin/run.js"
+	},
+	"dependencies": {
+		"@oclif/core": "^4.11.14",
+		"@oclif/plugin-help": "^6",
+		"@workflowy/shared": "workspace:*",
+		"@xenova/transformers": "^2.17.2",
+		"better-sqlite3": "^12.11.1",
+		"chalk": "^5.6.2",
+		"drizzle-orm": "^0.45.2",
+		"dropbox": "^10.34.0",
+		"node-html-parser": "^9.0.0",
+		"pino": "^10.3.1",
+		"sql-formatter": "^15.8.2",
+		"sql-highlight": "^6.1.0",
+		"@tobilu/qmd": "^2.5.3",
+		"sqlite-vec": "^0.1.9",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@oclif/test": "^4",
+		"oclif": "^4",
+		"pino-pretty": "^13.1.3",
+		"shx": "^0.4.0",
+		"ts-json-schema-generator": "^2.9.0",
+		"tsx": "^4.23.0",
+		"typescript": "^7.0.2",
+		"vite-plus": "catalog:"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"files": [
+		"./bin",
+		"./dist",
+		"./oclif.manifest.json"
+	],
+	"keywords": [
+		"oclif",
+		"cli",
+		"workflowy",
+		"api"
+	],
+	"license": "Apache 2.0",
+	"main": "dist/index.js",
+	"oclif": {
+		"bin": "workflowy",
+		"dirname": "workflowy",
+		"commands": "./dist/commands",
+		"plugins": [
+			"@oclif/plugin-help"
+		],
+		"topicSeparator": " "
+	},
+	"scripts": {
+		"build": "shx rm -rf dist && tsc -b",
+		"typecheck": "tsc --noEmit",
+		"postpack": "shx rm -f oclif.manifest.json",
+		"prepack": "oclif manifest"
+	},
+	"types": "dist/index.d.ts"
+}

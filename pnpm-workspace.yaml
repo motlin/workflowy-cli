@@ -1,0 +1,31 @@
+packages:
+    - 'packages/*'
+confirmModulesPurge: false
+onlyBuiltDependencies:
+    - esbuild
+catalog:
+    vite: npm:@voidzero-dev/vite-plus-core@0.2.2
+    vitest: npm:@voidzero-dev/vite-plus-test@0.1.24
+    vite-plus: 0.2.2
+overrides:
+    vite: 'catalog:'
+    vitest: 'catalog:'
+peerDependencyRules:
+    allowAny:
+        - vite
+        - vitest
+    allowedVersions:
+        vite: '*'
+        vitest: '*'
+allowBuilds:
+    better-sqlite3: true
+    esbuild: true
+    fallow: true
+    node-llama-cpp: false
+    protobufjs: false
+    sharp: true
+    tree-sitter-go: false
+    tree-sitter-javascript: false
+    tree-sitter-python: false
+    tree-sitter-rust: false
+    tree-sitter-typescript: false

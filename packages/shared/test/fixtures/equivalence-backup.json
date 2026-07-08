@@ -1,0 +1,31 @@
+[
+	{
+		"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+		"nm": "Inbox",
+		"ct": 1700000000,
+		"lm": 1700000100,
+		"metadata": {
+			"layoutMode": "bullets"
+		},
+		"ch": [
+			{
+				"id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+				"nm": "Buy milk",
+				"ct": 1700000200,
+				"lm": 1700000300,
+				"metadata": {}
+			},
+			{
+				"id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+				"nm": "Finish report",
+				"no": "Due Friday.",
+				"ct": 1700000400,
+				"lm": 1700000500,
+				"cp": 1700000600,
+				"metadata": {
+					"layoutMode": "board"
+				}
+			}
+		]
+	}
+]

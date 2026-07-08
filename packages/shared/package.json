@@ -1,0 +1,73 @@
+{
+	"name": "@workflowy/shared",
+	"version": "0.0.0",
+	"description": "Shared code between CLI and web packages",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./api": {
+			"types": "./dist/api/index.d.ts",
+			"import": "./dist/api/index.js"
+		},
+		"./db": {
+			"types": "./dist/db/index.d.ts",
+			"import": "./dist/db/index.js"
+		},
+		"./schemas": {
+			"types": "./dist/schemas/index.d.ts",
+			"import": "./dist/schemas/index.js"
+		},
+		"./types": {
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/types/index.js"
+		},
+		"./temporal": {
+			"types": "./dist/temporal/index.d.ts",
+			"import": "./dist/temporal/index.js"
+		},
+		"./html": {
+			"types": "./dist/html/index.d.ts",
+			"import": "./dist/html/index.js"
+		},
+		"./workflowy": {
+			"types": "./dist/workflowy/index.d.ts",
+			"import": "./dist/workflowy/index.js"
+		},
+		"./cache": {
+			"types": "./dist/cache/index.d.ts",
+			"import": "./dist/cache/index.js"
+		},
+		"./changes": {
+			"types": "./dist/changes/index.d.ts",
+			"import": "./dist/changes/index.js"
+		},
+		"./utils": {
+			"types": "./dist/utils/index.d.ts",
+			"import": "./dist/utils/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc && shx cp -r src/db/migrations dist/db/",
+		"dev": "tsc --watch",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.45.2",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"shx": "^0.4.0",
+		"typescript": "^7.0.2"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	}
+}

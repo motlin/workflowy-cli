@@ -1,0 +1,394 @@
+---
+name: refine-journal-prep
+description: Prep half of journal refinement — load metadata, scan one archive month plus the recent live calendar window, compute people/hobby/category/typo/emoji refinements, and stage them to .llm/gtd/review/proposals/refine-journal.json. Autonomous only; mutates no nodes and does not advance Scanner-State.
+---
+
+# Refine Journal — Prep
+
+Compute the next archive month's journal refinements plus the recent live-calendar window and **stage** them. This is the autonomous, parallel-safe half of the journal refinement split — the matching/compute work, plus all the heavy people/hobby/category/typo/emoji rules. It mirrors `refine-inbox` (which writes `🔍` suggestions for `inbox` to apply); here the apply half is `refine-journal-apply`, which reads the staged file.
+
+Carries the full refinement rules; the apply command is thin. Stage proposals to `.llm/gtd/review/proposals/refine-journal.json` per `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` (the on-disk schema). Then stop.
+
+## Prep contract (read this first)
+
+This command runs inside a Phase 0 prep subagent (`${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`). Obey the prep contract strictly:
+
+- **Autonomous only.** Never call `AskUserQuestion` / `TaskCreate` / `TaskUpdate` / `TodoWrite`. Ambiguities are staged (⚠️ + an `ambiguity` block), never resolved interactively here.
+- **No node mutation.** Make **zero** `node update` / `node create` calls. The only output is the staged JSON file under `.llm/gtd/review/`.
+- **No Scanner-State advance.** Do **not** add the archive month to `months_completed`, move `last_completed_month`, or write recent-live coverage. That happens only in `refine-journal-apply`, so an aborted prep never skips a month or marks live entries covered. You may set `current_month_in_progress` for visibility, but do not advance.
+- **Read, don't rebuild, metadata.** The DAG runs `metadata-sync` once before fan-out. Read the cached `.llm/gtd/metadata/` files; never trigger a concurrent rebuild.
+- **`--dry-run`** is the verification mode: compute and write the `.json`, but the assertion is that zero `node` writes happen — which is already true for prep. Honor it as a no-op that still stages.
+
+## Pick the archive month and recent window
+
+State lives under `Metadata > ⚙️ Scanner State > refine-journal` as a JSON child node:
+
+```json
+{
+	"last_completed_month": "2025-06",
+	"months_completed": ["2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11"],
+	"total_entries_updated": 89,
+	"direction": "backwards",
+	"current_month_in_progress": null,
+	"recent_live_months_reviewed": ["2026-06", "2026-07"],
+	"recent_live_reviewed_at": "2026-07-05T09:30:00-04:00",
+	"recent_live_entries_reviewed": 42
+}
+```
+
+> Run `./bin/run.js node get --help` to verify available flags before constructing commands.
+
+```bash
+./bin/run.js node get --path "Metadata,⚙️ Scanner State,refine-journal" --depth 2
+```
+
+Read this state, then pick the archive month immediately **before** `last_completed_month` (backwards through time). If no state exists yet, check whether `refine-calendar` or `calendar-people-tagging` state exists and migrate from it (same format, just rename the key). Do not write the advance back here.
+
+Also compute the recent live window: the current calendar month and the prior calendar month, based on the local date at runtime. This window is always scanned every run, regardless of `months_completed` or `recent_live_months_reviewed`, because live entries are still changing and newly-created entries otherwise never receive emoji, people, hobby, typo, media, or `#exercise` refinements.
+
+Track the two concepts separately:
+
+- **Archive progress** uses `last_completed_month` and `months_completed` only for the backwards archive cursor.
+- **Recent live coverage** uses `recent_live_months_reviewed`, `recent_live_reviewed_at`, and `recent_live_entries_reviewed` only for reporting that the live current/prior window was covered. Never add recent live months to `months_completed`.
+
+## Load metadata (read cache)
+
+Refresh the cache only if it is stale (more than 1 day old); otherwise read it as-is. In the DAG, the single `metadata-sync` has already run, so this is normally a no-op read.
+
+```bash
+# Only if running standalone and the cache is stale
+if [ ! -f .llm/gtd/metadata/people.json ] || [ "$(find .llm/gtd/metadata/people.json -mtime +1)" ]; then
+  ${CLAUDE_PLUGIN_ROOT}/scripts/sync-metadata.sh
+fi
+```
+
+### People
+
+Use the cached people tree at `.llm/gtd/metadata/people.json` — it contains the full tree at depth 6, including deeply nested groups (e.g., Friends > Book Club > @JaneDoe).
+
+Build a compact lookup of all @Name tags and their paths:
+
+```bash
+jq '[.. | objects | select(.name? and (.name | type == "string") and (.name | startswith("@")) and (.name | test("^@[A-Z]"))) | {name, id, shortId}]' .llm/gtd/metadata/people.json
+```
+
+Also read `.llm/gtd/people-disambiguation.md` for nickname/typo mappings. Update that file when new disambiguations are resolved.
+
+**When matching a name, always search the full cached tree** — do not rely on partial CLI fetches. Names can be nested 5+ levels deep.
+
+### Hobbies
+
+Use the cached hobbies registry at `.llm/gtd/metadata/hobbies-registry.json` and extract a compact lookup (tag, full name, aliases):
+
+```bash
+jq '[.children[] | .name as $section | .children[] | select(.name | length > 0) | {
+  tag: (.name | gsub("<[^>]+>"; "") | gsub("^[^#]*"; "")),
+  section: $section,
+  fullName: ([.children[]? | select(.name | startswith("Full name:"))]
+    | .[0].name // null | if . then ltrimstr("Full name: ") else null end),
+  aliases: [.children[]? | select((.name | test("^(Full name:|Emoji:|Start:|End:|Status:|Type:|Details:|People:)")) | not) | .name]
+}]' .llm/gtd/metadata/hobbies-registry.json
+```
+
+This reduces ~130KB of raw data to ~4KB. Both `🟢 Current` and `📦 Archived` hobbies are included — archived hobbies still appear in past calendar entries.
+
+Use the `tag` field for the replacement text, `fullName` for primary matching (e.g., "Blood on the Clocktower" → `#botc`), and `aliases` for secondary matching (descriptions that may contain matchable terms).
+
+### Emoji mappings
+
+Extract emoji mappings from the cached hobbies registry:
+
+```bash
+jq '[.. | objects | select(.name and (.name | type == "string")) |
+    (.name | gsub("<[^>]+>"; "") | gsub("^[^#]*"; "") | ltrimstr("#") | gsub("^\\s+|\\s+$"; "")) as $tag |
+    (.children[]?.name | select(type == "string" and startswith("Emoji: ")) | sub("^Emoji: *"; "")) as $emoji |
+    select($emoji and ($tag | length > 0)) | {key: $tag, value: $emoji}]
+  | from_entries' .llm/gtd/metadata/hobbies-registry.json
+```
+
+This produces a tag→emoji lookup like:
+
+```json
+{
+	"exercise": "💪",
+	"reading": "📚",
+	"gaming": "🎮",
+	"running": "🏃"
+}
+```
+
+## Fetch archive and recent live entries
+
+Use the calendar archive path with the target archive month:
+
+```bash
+./bin/run.js node get --path "Personal,📅 Calendar,🗃️ Archive,2020 - 2029 decade,<year>,<month>" --depth 3
+```
+
+Then fetch the live calendar root and keep only current-month and prior-month entries outside `🗃️ Archive`:
+
+```bash
+./bin/run.js node get --id 6bf42551caa3 --depth 4
+```
+
+If the CLI in this checkout does not support `--id` for `node get`, use the path form for the same node:
+
+```bash
+./bin/run.js node get --path "Personal,📅 Calendar" --depth 4
+```
+
+When scanning the live tree:
+
+- Exclude the `🗃️ Archive` subtree entirely.
+- Include entries dated in the current or prior month, whether they are direct children of `📅 Calendar` or nested under live year/month containers.
+- Use the entry date from the calendar node header, not modified time.
+- De-duplicate by full node UUID if an entry appears in both the archive fetch and live fetch.
+
+## Compute refinements
+
+For each in-scope archive or recent live entry, scan for all refinement types simultaneously, applying the rules below. **Tag first, emoji second** so tag-based emoji mappings work. Never truncate entry text. Do not present anything — compute the full `before`/`after` and the exact `applyOps`, then stage.
+
+Also apply the shared `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`.
+
+### Change type indicators
+
+| Icon | Type      | Description                                                 |
+| ---- | --------- | ----------------------------------------------------------- |
+| 👤   | People    | Name → @Name (independent)                                  |
+| 🎮   | Hobby     | Activity name → #hobby-tag (independent)                    |
+| 🏷️   | Category  | Add category tag (e.g., #exercise) — depends on hobby match |
+| 📺   | Media     | Normalize SxxEyy + add #watched (independent)               |
+| ✏️   | Typo      | Spelling/grammar correction (independent)                   |
+| 😀   | Emoji     | Add emoji prefix — runs **after** all tagging               |
+| ⚠️   | Ambiguous | Needs user input — stage an `ambiguity` block               |
+
+### People tagging rules
+
+#### Matching
+
+- Match person names (first, last, or full) against the `👥 People` metadata tree
+- Check `.llm/gtd/people-disambiguation.md` for known nickname/typo mappings
+- Generic references like "my parents", "Mom", "Dad" — tag as the specific individuals **only when it is a genuine relational reference**, never when the word is part of an event or place name (e.g. a "Parents Night Out" event)
+- Re-tagging is a judgment call, not a script — follow `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`
+
+#### Inline replacement
+
+Replace names inline where they appear in the text — never append tags at the end:
+
+```text
+Before: Alice and Bob hosted a murder mystery dinner
+After:  @AliceBrown and @BobBrown hosted a murder mystery dinner
+```
+
+Replace the phrase directly with the tag — no parentheticals:
+
+```text
+✅ @Person went
+❌ <relationship> (@Person) went
+```
+
+Skip the replacement if a tag already follows the reference, and leave possessive phrasing intact when guarding (see Possessives after @tags).
+
+#### Transcribed text and Otter bullets
+
+- **Never tag inside quoted/transcribed text.** When an entry transcribes someone's message or speech (e.g. `Speaker: Hi …`), keep the quote verbatim — only the speaker label gets a tag.
+- **Never edit Otter meeting-transcript bullets** (`• Speaker N …` children of Otter meeting nodes). Exclude them from tagging sweeps.
+
+#### Ambiguity
+
+- Two people with the same name — guess based on context, but stage a ⚠️ `ambiguity` block with the candidate options rather than committing.
+- Nicknames or abbreviations — check the disambiguation file first; if still unresolved, stage ⚠️.
+- Unknown people mentioned frequently — stage ⚠️ noting they may need a `gtd:create-person` entry (do not create it in prep).
+
+#### Possessives after @tags
+
+Workflowy treats `@Name's` (with apostrophe-s) as a **different tag** from `@Name`. To avoid creating duplicate tags, always insert a space before the possessive:
+
+```text
+✅ @Alex 's teachers called
+❌ @Alex's teachers called
+```
+
+When scanning entries, do NOT "fix" `@Name 's` by removing the space — the space is intentional. If you encounter `@Name's` without a space, add one.
+
+#### Verify existing @ mentions
+
+When an entry already contains `@Name` mentions, verify they exist in metadata. If an `@Name` mention does not match any person in metadata, stage it as a ⚠️ flag for the user.
+
+### Hobby tagging rules
+
+#### Matching
+
+- Match activity/game/hobby names against the `🎮 Hobbies Registry` metadata
+- Both `🟢 Current` and `📦 Archived` hobbies are valid matches for historical entries
+- Match the hobby's descriptive name, not just the tag (e.g., "Pickleball" matches `#pickleball`, "sourdough" matches `#sourdough`)
+
+#### Inline replacement
+
+Replace the hobby name inline where it appears — never append at the end:
+
+```text
+Before: Lost 3 games of pickleball in a row
+After:  Lost 3 games of #pickleball in a row
+```
+
+When a hobby name appears multiple times in one entry, only tag the first occurrence.
+
+#### Unknown hobbies
+
+If an activity appears frequently but isn't in the registry, stage a ⚠️ noting it may need a `gtd:create-hobby` entry (do not create it in prep).
+
+### Category tag rules
+
+When a hobby match is found (e.g., "DigIn" → `#DigIn`), check the hobby's full registry name for additional `#tags`. If the registry entry name contains a category tag (e.g., `#DigIn - Shaun T's 30-min low-impact... #exercise`), append that category tag to the entry.
+
+```text
+Before: #DigIn Phase II, week 3, day 3, back 2.
+After:  #DigIn Phase II, week 3, day 3, back 2. #exercise
+```
+
+Only append category tags that aren't already present in the entry text.
+
+### Media notation rules
+
+For entries that log watched TV or movies, standardize the notation and tag.
+
+#### Detection
+
+An entry describes watched screen media when **any** of these hold:
+
+- It contains season/episode notation (`Season N Episode M`, `SxEy`, `NxM`, etc.)
+- A watch verb (watched / watching / saw / finished / binged / rewatched) appears next to a show or movie title
+- The line already starts with 📺 or 🎬
+
+#### Normalize season/episode → `SxxEyy`
+
+Convert to zero-padded, uppercase `S`/`E` (the Plex/Sonarr/scene standard, and what this repo's TV Time scanners already emit). Match and convert:
+
+| Input                                          | Output   |
+| ---------------------------------------------- | -------- |
+| `Season 1 Episode 2`                           | `S01E02` |
+| `S1E2` / `s1e2`                                | `S01E02` |
+| `1x02`                                         | `S01E02` |
+| `episode 2` (with a season already in context) | `S01E02` |
+
+Ranges → write the full `SxxEyy` on **both** ends: `S03E01-S03E03` (not `S03E01-E03`). Two **non-contiguous** episodes → spell both out with "and": `S01E06 and S01E07`. Leave a bare `Season N` with **no** episode named as words — only the `SxxEyy` shorthand is normalized.
+
+**If a season/episode number looks wrong, raise it with the user** (the apply phase asks interactively; in prep, stage a ⚠️) rather than silently changing it.
+
+#### Append `#watched`
+
+Add `#watched` once, at the end of the line, if not already present. `#watched` is medium-agnostic (TV, movies, documentaries, plays). Do **not** use `#watch` — that is reserved for want-to-watch / to-do items.
+
+#### Leading emoji
+
+- `📺` for TV (episode/season context)
+- `🎬` for a movie
+
+This overrides the generic tag→emoji default for `#watched` (which is `📺`). If the entry already starts with an emoji, leave it. For a mixed entry (e.g. exercise + some TV watching), do **not** force a 📺/🎬 prefix — keep the existing leading emoji.
+
+#### Do not alter
+
+Titles, dates, `<time>` elements, bracket dates, or `@people` tags.
+
+#### Worked example
+
+```text
+Before: 📺 Watched half of Fallout Season 1 Episode 2 with @Bob in our AirBnB.
+After:  📺 Watched half of Fallout S01E02 with @Bob in our Airbnb. #watched
+```
+
+(`Season 1 Episode 2 → S01E02`, `#watched` appended, `AirBnB → Airbnb` typo; `@Bob` untouched.)
+
+### Typo fixing rules
+
+#### What to fix
+
+- Spelling errors (e.g., "gamess" → "games", "recieved" → "received")
+- Missing or doubled words (e.g., "went went" → "went")
+- Obvious punctuation errors (e.g., missing period, double spaces)
+- Capitalization at the start of the entry, after a leading emoji, and at the start of sentences
+- Clear proper nouns and initialisms (e.g., "new york" → "New York", "pdf" → "PDF")
+
+#### What NOT to fix
+
+- Intentional informal style apart from basic sentence/proper-noun capitalization (e.g., casual abbreviations)
+- Unclear proper nouns or unusual names — these may be correct
+- Content changes — never alter meaning, only surface-level typos
+- Workflowy formatting (HTML tags, `<time>` elements, bracket dates)
+- Space before possessive `'s` after @tags — `@Name 's` is intentional (see People tagging rules)
+- Ordinary mid-sentence verbs or phrasing (e.g., `@Alice and I drove` keeps `drove` lowercase)
+
+#### When uncertain
+
+If you're unsure whether something is a typo or intentional, stage it as a ⚠️ proposal with an `ambiguity` block and let the user decide at apply time.
+
+### Emoji rules
+
+**Hard coverage invariant: every in-scope, non-archive entry that does not already start with an emoji MUST produce exactly one proposal.** "Needs changes" explicitly includes "lacks a leading emoji" — an emoji-less entry that needs no people/hobby/typo/media fix still gets an emoji proposal. No emoji-less entry may be left without a proposal.
+
+- Entry already starts with emoji → skip the emoji step (other change types may still apply; no emoji proposal needed).
+- Entry has a hashtag with a preferred emoji in the tag→emoji metadata, or is media (📺/🎬) → use it (this is unambiguous; stage it as a **normal** Accept/Reject change, no ⚠️). With multiple matching hashtags, use the emoji from the **first** hashtag in the text.
+- No tag-based emoji → stage a **⚠️ emoji proposal** whose `ambiguity` block carries **exactly 4 contextual emoji options** drawn from the theme table below, each option a single emoji with a 1-3 word rationale (e.g. `🤦 mistake`, `⏰ alarm`, `🚗 commute`, `😴 overslept`). The apply walk adds an "Other" option automatically so the user can type a custom emoji.
+
+When adding a leading emoji, the composed `after` text must still apply the shared capitalization rules: capitalize the first word after the emoji (`🚗 Drove home`), and normalize clear proper nouns/initialisms (`New York`, `PDF`). This also applies to ⚠️ emoji proposals whose final emoji is chosen during apply.
+
+#### Emoji suggestions by theme
+
+Pick the **4 best-fitting** emoji for the entry from this table (you may pull from more than one theme row) and use them as the `ambiguity.options`.
+
+| Theme             | Suggested Emojis |
+| ----------------- | ---------------- |
+| Exercise/Workout  | 💪 🏋️ 🏃         |
+| Food/Cooking      | 🍗 🍕 🌮 🌭 🍽️   |
+| TV/Streaming      | 📺 🎬            |
+| Board Games       | 🎲 🎮 💣         |
+| Work/Office       | 💼 💻 📞         |
+| Medical/Health    | 💉 💊 🏥         |
+| Family/Kids       | 👨‍👩‍👧‍👦 📚 🎵         |
+| Weather           | ❄️ 🌧️ ☀️         |
+| Travel/Driving    | 🚗 ✈️ 🛹         |
+| Shopping          | 🎯 🛒 📦         |
+| Theater/Shows     | 🎭 🎫            |
+| Money/Finance     | 💰 🪙            |
+| Home/Cleaning     | 🏠 🧹            |
+| Religion          | ✡️ ⛪            |
+| Social/Party      | 🎉 🎊            |
+| Funny/Quotes      | 😂 💬            |
+| Mistakes/Problems | 🤦 ⚠️            |
+
+## Stage the proposals
+
+Write `.llm/gtd/review/proposals/refine-journal.json` exactly per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. Create the directory first:
+
+```bash
+mkdir -p .llm/gtd/review/proposals
+```
+
+For each entry that needs changes (including any entry that merely **lacks a leading emoji**), emit one proposal with:
+
+- `nodeId` — the entry's **full UUID** (never a short id; short ids 404 on writes).
+- `header` — the entry date (e.g. `"Feb 9"`).
+- `before` / `after` — the **full** original and proposed text, never truncated.
+- `changes[]` — one `{ type, icon, detail }` per change, using the indicators above.
+- `ambiguity` — present only on ⚠️ proposals: `{ prompt, options[] }` (e.g. `@FrankWilson` / `@EvanMiller` / `Skip tagging`).
+- `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>'` command(s) the apply walk runs verbatim on Accept. Entries with apostrophes use `'"'"'` escaping inside the single-quoted `--name`. For a ⚠️ proposal where the final text depends on the user's choice, stage the op for the most-likely option (or omit `applyOps` and let the apply command build it from the chosen option) — the apply command resolves the ambiguity before running.
+
+### Emoji coverage self-check
+
+Before writing the file, verify no emoji-less entry was silently dropped:
+
+- Enumerate every in-scope, non-archive entry that does **not** already start with an emoji.
+- Assert each such entry appears in `proposals[]` (as a normal emoji change or a ⚠️ emoji proposal). Any entry missing a proposal is a bug — stage it now (⚠️ with exactly 4 options) before writing the file.
+- Record `emojiLessEntries` (entries enumerated) and `emojiProposalsStaged` (those that got an emoji proposal). They **must** be equal across the combined archive plus recent live scope.
+
+Set top-level fields:
+
+- `task`: `"refine-journal"` (matches the `🔑 Key` and the filename).
+- `taskNodeId`: full UUID of the refine-journal task node (so the apply walk can advance its review date).
+- `generatedAt`: ISO-8601 timestamp with offset.
+- `status`: `"ready"` if any proposals; `"empty"` if the combined archive plus recent live scope is already fully refined (idempotent re-run); `"error"` if prep failed.
+- `presentation`: `"Refine calendar journal"`.
+- `summary`: `{ archiveMonth, recentLiveMonths, entriesReviewed, archiveEntriesReviewed, recentLiveEntriesReviewed, proposalsStaged, emojiLessEntries, emojiProposalsStaged }` plus a breakdown by change type (people/hobby/category/media/typo/emoji counts) for the final review summary. `emojiLessEntries` must equal `emojiProposalsStaged` (coverage invariant).
+
+Do **not** mutate any node and do **not** advance Scanner-State. Return a one-line summary of what was staged (archive month, recent live months, entries reviewed with archive/recent split, proposals staged, emoji coverage `emojiProposalsStaged/emojiLessEntries`, status) and stop.

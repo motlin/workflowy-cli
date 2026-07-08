@@ -1,0 +1,22 @@
+{
+	"$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+	"name": "workflowy-gtd",
+	"description": "Workflowy CLI tooling and a GTD system built on top of it — one product, two plugins",
+	"owner": {
+		"name": "Craig Motlin"
+	},
+	"plugins": [
+		{
+			"name": "workflowy",
+			"description": "Workflowy foundation: CLI usage conventions, HTML/date formats, calendar journaling, and node tooling",
+			"category": "productivity",
+			"source": "./plugins/workflowy"
+		},
+		{
+			"name": "gtd",
+			"description": "Getting Things Done on Workflowy: capture, inbox refinement, journaling, and daily reviews. Requires the workflowy plugin.",
+			"category": "productivity",
+			"source": "./plugins/gtd"
+		}
+	]
+}

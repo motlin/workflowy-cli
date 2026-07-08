@@ -1,0 +1,209 @@
+{
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1764117600000,
+			"tag": "0001_initial",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1764370200000,
+			"tag": "0002_backup_imports_temporal",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1764622800000,
+			"tag": "0003_remove_backup_data_imported_at",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1764875400000,
+			"tag": "0004_backup_data_import_filename",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1765128000000,
+			"tag": "0005_remove_backup_ct_lm",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "6",
+			"when": 1765380600000,
+			"tag": "0006_remove_is_mirror_root",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "6",
+			"when": 1765633200000,
+			"tag": "0007_remove_is_virtual_root",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "6",
+			"when": 1765885800000,
+			"tag": "0008_remove_s3_files_is_file",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "6",
+			"when": 1766138400000,
+			"tag": "0009_multi_model_embeddings",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "6",
+			"when": 1766391000000,
+			"tag": "0010_create_references_roots",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "6",
+			"when": 1766643600000,
+			"tag": "0011_revert_multi_model_embeddings",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "6",
+			"when": 1766896200000,
+			"tag": "0012_add_nodes_priority",
+			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "6",
+			"when": 1767148800000,
+			"tag": "0013_pk_system_from",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "6",
+			"when": 1767401400000,
+			"tag": "0014_split_nodes_table",
+			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "6",
+			"when": 1767654000000,
+			"tag": "0015_add_short_id",
+			"breakpoints": true
+		},
+		{
+			"idx": 15,
+			"version": "6",
+			"when": 1767906600000,
+			"tag": "0016_move_short_id_to_metadata",
+			"breakpoints": true
+		},
+		{
+			"idx": 16,
+			"version": "6",
+			"when": 1768520697410,
+			"tag": "0016_glossy_zeigeist",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "6",
+			"when": 1768773300000,
+			"tag": "0017_drop_nodes_table",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "6",
+			"when": 1769025900000,
+			"tag": "0018_add_config_table",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "6",
+			"when": 1769278500000,
+			"tag": "0019_add_collapsed",
+			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "6",
+			"when": 1769531100000,
+			"tag": "0020_consolidate_mirrors",
+			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "6",
+			"when": 1769783700000,
+			"tag": "0021_remove_metadata_original_id",
+			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "6",
+			"when": 1770036300000,
+			"tag": "0022_add_calendar_levels",
+			"breakpoints": true
+		},
+		{
+			"idx": 23,
+			"version": "6",
+			"when": 1770288900000,
+			"tag": "0023_extract_collapsed",
+			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "6",
+			"when": 1770541500000,
+			"tag": "0024_add_node_fts",
+			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "6",
+			"when": 1778716800000,
+			"tag": "0025_drop_dead_columns",
+			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "6",
+			"when": 1778803200000,
+			"tag": "0026_drop_surrogate_ids",
+			"breakpoints": true
+		},
+		{
+			"idx": 27,
+			"version": "6",
+			"when": 1778889600000,
+			"tag": "0027_add_s3_files_is_deleted",
+			"breakpoints": true
+		},
+		{
+			"idx": 28,
+			"version": "6",
+			"when": 1778976000000,
+			"tag": "0028_add_tags_table",
+			"breakpoints": true
+		}
+	]
+}

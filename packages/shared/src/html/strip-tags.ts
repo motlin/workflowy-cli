@@ -1,0 +1,10 @@
+export function stripHtmlTags(html: string): string {
+	return html
+		.replaceAll(/<[^>]*>/g, '')
+		.replaceAll('&nbsp;', ' ')
+		.replaceAll('&amp;', '&')
+		.replaceAll('&lt;', '<')
+		.replaceAll('&gt;', '>')
+		.replaceAll('&quot;', '"')
+		.trim();
+}

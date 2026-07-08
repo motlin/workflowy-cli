@@ -1,0 +1,230 @@
+import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
+import type {Node} from '@workflowy/shared/types';
+import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
+import {randomUUID} from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
+import {QueryHelpers} from '../../src/services/query-helpers.js';
+import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from '../db/migration-helper.js';
+import {createTestNode, getShortId, splitNodeIntoContentAndMetadata} from '../helpers/node-fixtures.js';
+
+function insertTestNodes(
+	db: ReturnType<typeof createTestDatabase>['db'],
+	testNodes: ReturnType<typeof createTestNode>[],
+) {
+	const contents = testNodes.map((n) => splitNodeIntoContentAndMetadata(n).content);
+	const metadatas = testNodes.map((n) => splitNodeIntoContentAndMetadata(n).metadata);
+	db.insert(nodeContent).values(contents).run();
+	db.insert(nodeMetadata).values(metadatas).run();
+}
+
+describe('QueryHelpers', () => {
+	let testDatabase: TestDatabase;
+	let queryHelpers: QueryHelpers;
+
+	beforeEach(() => {
+		const tempDbPath = path.join(os.tmpdir(), `test-workflowy-${randomUUID()}.sqlite`);
+		testDatabase = createTestDatabase(tempDbPath);
+
+		queryHelpers = new QueryHelpers(testDatabase.db);
+	});
+
+	afterEach(() => {
+		cleanupTestDatabase(testDatabase);
+	});
+
+	describe('getNodeById', () => {
+		it('returns node when it exists', async () => {
+			insertTestNodes(testDatabase.db, [
+				createTestNode({
+					id: 'test-node',
+					name: 'Test Node',
+					note: 'Test note',
+					parentId: null,
+					priority: 100,
+					createdAt: new Date(1_700_000_000 * 1000),
+					modifiedAt: new Date(1_700_001_000 * 1000),
+					completedAt: null,
+					layoutMode: 'bullets',
+				}),
+			]);
+
+			const node = await queryHelpers.getNodeById('test-node');
+
+			// Delete dynamic systemFrom field before deep equality comparison
+			const actualSystemFrom = node!.systemFrom;
+			delete (node as Partial<Node>).systemFrom;
+
+			expect(node).toStrictEqual({
+				id: 'test-node',
+				shortId: getShortId('test-node'),
+				name: 'Test Node',
+				note: 'Test note',
+				parentId: null,
+				priority: 100,
+				createdAt: new Date(1_700_000_000 * 1000),
+				modifiedAt: new Date(1_700_001_000 * 1000),
+				completedAt: null,
+				layoutMode: 'bullets',
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemTo: FAR_FUTURE_DATE,
+			});
+
+			// Verify systemFrom is a valid timestamp
+			expect(typeof actualSystemFrom).toBe('string');
+		});
+
+		it('returns undefined for non-existent ID', async () => {
+			const node = await queryHelpers.getNodeById('non-existent');
+			expect(node).toBeUndefined();
+		});
+	});
+
+	describe('getChildren', () => {
+		beforeEach(async () => {
+			insertTestNodes(testDatabase.db, [
+				createTestNode({id: 'parent', name: 'Parent', parentId: null}),
+				createTestNode({id: 'child-1', name: 'Child 1', parentId: 'parent', priority: 300}),
+				createTestNode({id: 'child-2', name: 'Child 2', parentId: 'parent', priority: 100}),
+				createTestNode({id: 'child-3', name: 'Child 3', parentId: 'parent', priority: 200}),
+			]);
+		});
+
+		it('returns children ordered by priority when available', async () => {
+			const children = await queryHelpers.getChildren('parent');
+
+			expect(children).toHaveLength(3);
+
+			// Verify ordering by checking the IDs in expected order
+			expect(children.map((c) => c.id)).toStrictEqual(['child-2', 'child-3', 'child-1']);
+			expect(children.map((c) => c.priority)).toStrictEqual([100, 200, 300]);
+		});
+
+		it('returns root nodes when parentId is null', async () => {
+			const roots = await queryHelpers.getChildren(null);
+
+			expect(roots).toHaveLength(1);
+			expect(roots.map((r) => r.id)).toStrictEqual(['parent']);
+		});
+
+		it('returns empty array for parent with no children', async () => {
+			const children = await queryHelpers.getChildren('child-1');
+			expect(children).toStrictEqual([]);
+		});
+
+		it('maintains order when priority not available', async () => {
+			insertTestNodes(testDatabase.db, [
+				createTestNode({id: 'other-parent', name: 'Other Parent', parentId: null, priority: null}),
+				createTestNode({id: 'other-child-1', name: 'Other Child 1', parentId: 'other-parent', priority: null}),
+				createTestNode({id: 'other-child-2', name: 'Other Child 2', parentId: 'other-parent', priority: null}),
+			]);
+
+			const children = await queryHelpers.getChildren('other-parent');
+
+			expect(children).toHaveLength(2);
+			expect(children.map((c) => c.id)).toStrictEqual(['other-child-1', 'other-child-2']);
+			// The canonical Node defaults a missing DB priority to 0.
+			expect(children.map((c) => c.priority)).toStrictEqual([0, 0]);
+		});
+	});
+
+	describe('getCompletedTasks', () => {
+		it('returns only completed tasks ordered by completion time', async () => {
+			insertTestNodes(testDatabase.db, [
+				createTestNode({
+					id: 'task-1',
+					name: 'Completed Task 1',
+					parentId: null,
+					createdAt: new Date(1_700_000_000 * 1000),
+					modifiedAt: new Date(1_700_001_000 * 1000),
+					completedAt: new Date(1_700_002_000 * 1000),
+				}),
+				createTestNode({
+					id: 'task-2',
+					name: 'Incomplete Task',
+					parentId: null,
+					createdAt: new Date(1_700_000_000 * 1000),
+					modifiedAt: new Date(1_700_001_000 * 1000),
+					completedAt: null,
+				}),
+				createTestNode({
+					id: 'task-3',
+					name: 'Completed Task 2',
+					parentId: null,
+					createdAt: new Date(1_700_000_000 * 1000),
+					modifiedAt: new Date(1_700_001_000 * 1000),
+					completedAt: new Date(1_700_001_500 * 1000),
+				}),
+			]);
+
+			const completed = await queryHelpers.getCompletedTasks();
+
+			expect(completed).toHaveLength(2);
+			// Verify ordering: task-3 completed earlier (1_700_001_500), task-1 completed later (1_700_002_000)
+			expect(completed.map((c) => c.id)).toStrictEqual(['task-3', 'task-1']);
+		});
+
+		it('returns empty array when no completed tasks exist', async () => {
+			insertTestNodes(testDatabase.db, [
+				createTestNode({
+					id: 'incomplete',
+					name: 'Incomplete',
+					parentId: null,
+					completedAt: null,
+				}),
+			]);
+
+			const completed = await queryHelpers.getCompletedTasks();
+			expect(completed).toStrictEqual([]);
+		});
+	});
+
+	describe('findNodeByPath', () => {
+		beforeEach(async () => {
+			insertTestNodes(testDatabase.db, [
+				createTestNode({id: 'work', name: '<span>Work</span>', parentId: null}),
+				createTestNode({id: 'journal', name: 'Journal', parentId: 'work'}),
+				createTestNode({id: 'archive', name: '<span class="colored">Archive</span>', parentId: 'journal'}),
+				createTestNode({id: 'personal', name: 'Personal', parentId: null}),
+			]);
+		});
+
+		it('finds node by path from root', async () => {
+			const node = await queryHelpers.findNodeByPath(['Work', 'Journal', 'Archive']);
+
+			// Verify node identity and that name contains Archive with HTML tags
+			expect(node!.id).toBe('archive');
+			expect(node!.name).toBe('<span class="colored">Archive</span>');
+		});
+
+		it('finds node with HTML tags in name', async () => {
+			const node = await queryHelpers.findNodeByPath(['Work']);
+
+			expect(node!.id).toBe('work');
+			expect(node!.name).toBe('<span>Work</span>');
+		});
+
+		it('returns undefined for non-existent path', async () => {
+			const node = await queryHelpers.findNodeByPath(['Work', 'NonExistent']);
+			expect(node).toBeUndefined();
+		});
+
+		it('returns undefined for empty path', async () => {
+			const node = await queryHelpers.findNodeByPath([]);
+			expect(node).toBeUndefined();
+		});
+
+		it('finds node from specified root', async () => {
+			const node = await queryHelpers.findNodeByPath(['Journal', 'Archive'], 'work');
+
+			expect(node!.id).toBe('archive');
+		});
+
+		it('finds root-level node', async () => {
+			const node = await queryHelpers.findNodeByPath(['Personal']);
+
+			expect(node!.id).toBe('personal');
+		});
+	});
+});
