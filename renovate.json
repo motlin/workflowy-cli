@@ -2,6 +2,8 @@
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": ["config:recommended"],
 	"enabledManagers": ["npm"],
+	"minimumReleaseAge": "1 day",
+	"internalChecksFilter": "strict",
 	"automerge": true,
 	"platformAutomerge": true,
 	"packageRules": [
