@@ -119,6 +119,8 @@ This produces a tag→emoji lookup like:
 
 ## Fetch archive and recent live entries
 
+**Read live text fresh — never from a stale snapshot.** The DAG's `📥 Import` barrier has already rewritten the local cache to the current API state, so you must derive every entry's `before` from a fresh `node get` run **now**, in this prep. Do **not** reuse a prior run's staged `refine-journal.json`, an older `.llm` calendar dump, or entry text carried in context from an earlier step — those can be several edits behind, and staging a stale `before` makes the apply either re-propose an already-applied change or (worse) overwrite text the user expanded after the older read. The `--expect-name` guard on every op is the backstop, but the `before` you stage should already match live text. When in doubt, re-fetch the specific node with `./bin/run.js node get --id <full-uuid> --json --fields name` and use that exact string.
+
 Use the calendar archive path with the target archive month:
 
 ```bash
@@ -372,7 +374,7 @@ For each entry that needs changes (including any entry that merely **lacks a lea
 - `before` / `after` — the **full** original and proposed text, never truncated.
 - `changes[]` — one `{ type, icon, detail }` per change, using the indicators above.
 - `ambiguity` — present only on ⚠️ proposals: `{ prompt, options[] }` (e.g. `@FrankWilson` / `@EvanMiller` / `Skip tagging`).
-- `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>'` command(s) the apply walk runs verbatim on Accept. Entries with apostrophes use `'"'"'` escaping inside the single-quoted `--name`. For a ⚠️ proposal where the final text depends on the user's choice, stage the op for the most-likely option (or omit `applyOps` and let the apply command build it from the chosen option) — the apply command resolves the ambiguity before running.
+- `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>' --expect-name '<full before text>'` command(s) the apply walk runs verbatim on Accept. The `--expect-name` guard is **mandatory** (see `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` → Stale-write guard): it makes the CLI refuse the write if the entry changed between prep and apply, so a live edit is never silently clobbered. Pass the proposal's full `before` string as `--expect-name`. Entries with apostrophes use `'"'"'` escaping inside **both** single-quoted values. For a ⚠️ proposal where the final text depends on the user's choice, stage the op for the most-likely option (still with `--expect-name '<before>'`) or omit `applyOps` and let the apply command build it (it appends `--expect-name` too) — the apply command resolves the ambiguity before running.
 
 ### Emoji coverage self-check
 

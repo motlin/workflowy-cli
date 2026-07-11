@@ -97,7 +97,7 @@ For each entry that needs formatting changes, emit one proposal with:
 - `before` / `after` — the **full** original and normalized text, never truncated.
 - `changes[]` — one `{ type, icon, detail }` per fix. Use `{"type": "format", "icon": "🏷️", "detail": "..."}` for formatting fixes (e.g. `"add 💪 prefix"`, `"#digin → #DigIn"`, `"week 3 day 2 → week 3, day 2"`, `"Back and Biceps capitalized"`, `"removed period before #exercise"`).
 - `ambiguity` — present only on ⚠️ proposals: `{ prompt, options[] }`.
-- `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>'` command(s) the apply walk runs verbatim on Accept. Entries with apostrophes use `'"'"'` escaping inside the single-quoted `--name`.
+- `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>' --expect-name '<full before text>'` command(s) the apply walk runs verbatim on Accept. The `--expect-name` guard is **mandatory** (see `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` → Stale-write guard): pass the proposal's full `before` so the CLI refuses the write if the entry changed since prep. Entries with apostrophes use `'"'"'` escaping inside **both** single-quoted values. Derive `before` from a fresh read of the live cache the barrier just imported, not a stale snapshot.
 
 Set top-level fields:
 

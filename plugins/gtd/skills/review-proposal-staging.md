@@ -91,7 +91,7 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<key>.j
 | `after` | **Full** proposed text. Never truncated. |
 | `changes` | Array of `{ type, icon, detail }` describing each change (see icon table). |
 | `ambiguity` | Optional `{ prompt, options[] }` when prep could not decide. Replaces the standard Accept/Reject options for that item. |
-| `applyOps` | Array of exact CLI command strings the walk runs **verbatim** on Accept, never re-deriving them. |
+| `applyOps` | Array of exact CLI command strings the walk runs **verbatim** on Accept, never re-deriving them. Any `node update --name` op **must** carry `--expect-name '<before>'` (see below). |
 
 ### Change icons
 
@@ -107,6 +107,16 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<key>.j
 ### `applyOps` are authoritative
 
 Prep stages the **exact** commands so the walk never re-computes a refinement (re-deriving in a different context risks divergence). Each op is a complete `node …` invocation with the full UUID and final text already escaped for the shell (entries with apostrophes use `'"'"'` escaping inside the single-quoted `--name`). Writes go through the CLI only — never edit SQLite directly. If a proposal has no `applyOps`, Accept is a no-op (used for confirm-only gates that the apply command handles specially) — **except** an emoji `ambiguity` proposal, where prep omits `applyOps` on purpose and the walk builds the `node update` from the chosen emoji (see Batch-present below).
+
+#### Stale-write guard (`--expect-name`) — mandatory on every name update
+
+Prep and apply are separated in time; between them the user (or another task) may edit the node, so the staged `before` can drift from the node's live text. Applying a stale `after` verbatim would then **overwrite the newer text and lose data** (e.g. replacing a long, hand-expanded journal entry with a short refined stub). To make that impossible, **every `node update … --name '<after>'` op MUST also pass `--expect-name '<before>'`** — the exact, fully-escaped `before` string from the proposal:
+
+```bash
+./bin/run.js node update --id <full-uuid> --name '<after>' --expect-name '<before>'
+```
+
+`--expect-name` makes the CLI refuse the write (non-zero exit, no mutation) unless the node's **current** name equals `<before>`. So a drifted node is a loud, safe no-op instead of silent data loss. The walk treats that refusal as a **stale skip**: do not retry it blind, surface it (`⏭️ skipped <header> — changed since prep`), and leave the item for the next run. When the walk builds an op itself (emoji picker "Other", "Accept with note"), it must likewise append `--expect-name '<before>'`.
 
 ## Briefing Schema (`🤖 Auto` tasks)
 
@@ -166,6 +176,8 @@ If a proposal carries an `ambiguity` block, use its `prompt` as the question and
 ### Apply accepted ops
 
 After each batch's answers, immediately run the `applyOps` for every Accepted proposal **verbatim** (or the user's edited command for "Accept with note"). Then present the next batch. Applying per-batch (not at the end) keeps the work incremental and crash-safe.
+
+If an op exits non-zero with a `does not match --expect-name` message, the node changed since prep read it (see the Stale-write guard above): count it as a **stale skip**, report it inline (`⏭️ skipped <header> — changed since prep`), and do **not** re-run the op without `--expect-name`. It resurfaces next run against fresh text.
 
 ### Advance Scanner-State
 

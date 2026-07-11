@@ -269,6 +269,60 @@ describe('node update command', () => {
 		});
 	});
 
+	describe('--expect-name precondition', () => {
+		it('refuses to update when current name does not match --expect-name', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({
+						id: 'guard-id',
+						name: 'Long current text the user expanded later',
+						parentId: null,
+					}),
+				],
+			});
+
+			await expect(
+				Update.run(['--id', 'guard-id', '--name', 'Short stub', '--expect-name', 'Stale original text']),
+			).rejects.toThrow(/does not match --expect-name/);
+
+			expect(fetchStub).not.toHaveBeenCalled();
+		});
+
+		it('proceeds with the update when current name matches --expect-name', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'guard-id', name: 'Exact current name', parentId: null})],
+			});
+
+			let called = false;
+			fetchStub.mockImplementation(async (_url: RequestInfo | URL, _init?: RequestInit) => {
+				called = true;
+				return new Response(JSON.stringify({node: {id: 'guard-id', name: 'New Name'}}), {status: 200});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'guard-id', '--name', 'New Name', '--expect-name', 'Exact current name']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			expect(called).toBe(true);
+		});
+
+		it('refuses when the node no longer exists in the cache', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'other-id', name: 'Other', parentId: null})],
+			});
+
+			await expect(
+				Update.run(['--id', 'missing-id', '--name', 'New Name', '--expect-name', 'Anything']),
+			).rejects.toThrow(/does not match --expect-name/);
+
+			expect(fetchStub).not.toHaveBeenCalled();
+		});
+	});
+
 	describe('updating by path', () => {
 		it('resolves path to correct node ID', async () => {
 			seedTestData(testDatabase, {

@@ -57,6 +57,10 @@ export default class Update extends Command {
 		'layout-mode': Flags.string({
 			description: 'Layout mode for the node (e.g., "todo", "document", "board")',
 		}),
+		'expect-name': Flags.string({
+			description:
+				"Refuse the update unless the node's current name exactly equals this value (guards against overwriting text that changed since it was read)",
+		}),
 		'dry-run': Flags.boolean({
 			char: 'd',
 			description: 'Show the API call that would be made without executing',
@@ -87,6 +91,18 @@ export default class Update extends Command {
 		const pathBuilder = new PathBuilder(database);
 
 		const nodeId = await resolveNodeId(flags, cacheService, apiClient);
+
+		if (flags['expect-name'] !== undefined && !flags['dry-run']) {
+			const current = await cacheService.getNode(nodeId);
+			if (!current || current.name !== flags['expect-name']) {
+				this.error(
+					`Refusing to update ${nodeId}: current name does not match --expect-name ` +
+						`(the node likely changed since it was read).\n` +
+						`  expected: ${JSON.stringify(flags['expect-name'])}\n` +
+						`  actual:   ${JSON.stringify(current?.name ?? null)}`,
+				);
+			}
+		}
 
 		const fullPath = await pathBuilder.buildFullPath(nodeId);
 
