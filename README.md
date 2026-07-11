@@ -8,8 +8,7 @@ CLI for managing Workflowy nodes via API.
 
 - [workflowy-cli](#workflowy-cli)
 - [Usage](#usage)
-- [Commands](#commands)
-    <!-- tocstop -->
+- [Commands](#commands) <!-- tocstop -->
 
 # Usage
 
