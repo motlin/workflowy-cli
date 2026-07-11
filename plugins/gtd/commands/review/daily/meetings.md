@@ -118,11 +118,10 @@ For each candidate, record: a clean one-line description, the source meeting nam
 
 ### Step 7: Confirm each candidate
 
-Present candidates one at a time using AskUserQuestion. Show the description, the source meeting (as a clickable link), and the reasoning. Offer three options:
+Present candidates one at a time using AskUserQuestion. Show the description, the source meeting (as a clickable link), and the reasoning. Offer **two** options:
 
 - **Add to inbox** — create an inbox node in Step 8
-- **Skip** — not a real follow-up; drop it
-- **Already handled** — a real follow-up but already done; drop it
+- **Skip** — drop it (whether it's noise, not the user's, or a real follow-up that's already done — all three drop the same way; this command records nothing on skip, so there's no behavioral difference and no reason to split "skip" from "already handled")
 
 - Batch into multiple questions per AskUserQuestion call if needed.
 - Never auto-add — every item needs explicit confirmation.
@@ -132,8 +131,17 @@ Present candidates one at a time using AskUserQuestion. Show the description, th
 For each confirmed item, create a node under `Inbox`:
 
 ```bash
-./bin/run.js node create --parent-id <inbox-id> --name "<follow-up description>"
+./bin/run.js node create --parent-id <inbox-id> --name "<enriched follow-up description>"
 ```
+
+**Enrich the description while you still have the meeting fresh in context — get ahead of refinement.** You just read the transcript, so you know things the later `/gtd:inbox` refinement would have to re-derive from a bare title. Fold whatever you can infer into the node name (and pick the right inbox — Work vs Personal — for the item):
+
+- **@people** the item involves (resolve to canonical @mentions), e.g. `@Vicky`, `@Talia`.
+- **Work vs personal** context — a `#work`/`#personal` tag, and file it under the matching Inbox.
+- **A due date** if the meeting implied one (`<time>` element per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`), or a soft-urgency note if it's event-driven but undated.
+- Any concrete specifics the transcript gave (names, amounts, deliverable details) so the item reads on its own.
+
+Keep it a single actionable line; put longer context in provenance children below. Don't invent facts the meeting didn't contain — enrich only from what was actually said.
 
 Add the provenance — meeting link and brief source context — as **child nodes**, never as a Workflowy note (see CLAUDE.local.md):
 
