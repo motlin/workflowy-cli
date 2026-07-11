@@ -76,7 +76,7 @@ USAGE
 
 Generate vector embeddings for all Workflowy nodes
 
-```
+```text
 USAGE
   $ workflowy ai embed [-b <value>] [-f] [-m minilm|mpnet|bge|openai-small|openai-large]
 
@@ -101,7 +101,7 @@ EXAMPLES
 
 Sync Workflowy nodes into qmd index and generate embeddings
 
-```
+```text
 USAGE
   $ workflowy ai qmd-embed [-f]
 
@@ -121,7 +121,7 @@ EXAMPLES
 
 Search Workflowy nodes using qmd hybrid search (BM25 + vector + LLM reranking)
 
-```
+```text
 USAGE
   $ workflowy ai qmd-search -q <value> [-j] [-l <value>] [-t <value>] [-d] [-m hybrid|vector|keyword]
 
@@ -151,7 +151,7 @@ EXAMPLES
 
 Semantically search through Workflowy nodes using vector embeddings
 
-```
+```text
 USAGE
   $ workflowy ai search -q <value> [-j] [-l <value>] [-t <value>] [-d] [-m
     minilm|mpnet|bge|openai-small|openai-large] [--mode vector|keyword|hybrid]
@@ -190,7 +190,7 @@ EXAMPLES
 
 Compress local backups: keep recent days as per-file .zst, fold older days into solid monthly archives
 
-```
+```text
 USAGE
   $ workflowy backups archive [--keep-days <value>] [--source Data|History]
 
@@ -215,7 +215,7 @@ EXAMPLES
 
 Manage cache configuration settings like the Workflowy epoch
 
-```
+```text
 USAGE
   $ workflowy cache config [-g <value>] [-s <value>] [--fetch-epoch]
 
@@ -240,7 +240,7 @@ EXAMPLES
 
 Import all nodes from Workflowy API export endpoint
 
-```
+```text
 USAGE
   $ workflowy cache import-api [-d] [-v]
 
@@ -261,7 +261,7 @@ EXAMPLES
 
 Import a Workflowy backup file into the cache database
 
-```
+```text
 USAGE
   $ workflowy cache import-backup [-f <value>] [--latest] [--embeddings] [-b <value>] [-y] [--force]
 
@@ -290,7 +290,7 @@ EXAMPLES
 
 Import all missing backups from Dropbox into cache
 
-```
+```text
 USAGE
   $ workflowy cache import-backups [--embeddings] [-b <value>]
 
@@ -313,7 +313,7 @@ EXAMPLES
 
 Show cache database status and statistics
 
-```
+```text
 USAGE
   $ workflowy cache status [--json]
 
@@ -333,7 +333,7 @@ EXAMPLES
 
 Sync a specific node and optionally its children from the Workflowy API to the cache
 
-```
+```text
 USAGE
   $ workflowy cache sync-node [-i <value> | -p <value>] [-r]
 
@@ -359,7 +359,7 @@ EXAMPLES
 
 Roll back all temporal tables to a previous point in time. This is a destructive operation for disaster recovery.
 
-```
+```text
 USAGE
   $ workflowy cache temporal-rollback --to <value> [--exclude <value>...] [--dry-run] [-y]
 
@@ -384,7 +384,7 @@ EXAMPLES
 
 Reclaim dead pages from the cache database by running VACUUM, shrinking the file on disk
 
-```
+```text
 USAGE
   $ workflowy cache vacuum [--json]
 
@@ -404,7 +404,7 @@ EXAMPLES
 
 Convert text dates to native Workflowy dates in calendar archive day nodes
 
-```
+```text
 USAGE
   $ workflowy calendar migrate-dates [-d] [-a <value>] [-b <value>] [-D <value>] [--year <value>]
 
@@ -446,7 +446,7 @@ EXAMPLES
 
 Authenticate with Dropbox to get a refresh token
 
-```
+```text
 USAGE
   $ workflowy dropbox auth
 
@@ -461,7 +461,7 @@ EXAMPLES
 
 Download all Workflowy backups from Dropbox that are not already downloaded locally
 
-```
+```text
 USAGE
   $ workflowy dropbox download-backup [--json] [-f Data|History] [-d <value>] [-q]
 
@@ -491,7 +491,7 @@ EXAMPLES
 
 List all available Workflowy backup files in Dropbox from both Data and History folders
 
-```
+```text
 USAGE
   $ workflowy dropbox list-backups [-a]
 
@@ -509,7 +509,7 @@ EXAMPLES
 
 Load inbox items from Workflowy for GTD processing
 
-```
+```text
 USAGE
   $ workflowy gtd inboxes load [--depth <value>]
 
@@ -533,7 +533,7 @@ EXAMPLES
 
 Deduplicate journal entries against existing calendar
 
-```
+```text
 USAGE
   $ workflowy gtd journal dedup [--json] [-t <value>]
 
@@ -562,7 +562,7 @@ EXAMPLES
 
 Sync GTD metadata from Workflowy to local JSON
 
-```
+```text
 USAGE
   $ workflowy gtd metadata sync [-s cache|api]
 
@@ -589,7 +589,7 @@ EXAMPLES
 
 Otter.ai API wrapper for fetching meetings
 
-```
+```text
 USAGE
   $ workflowy gtd otter api COMMAND [--otid <value>] [--page-size <value>] [--cursor <value>] [--modified-after
     <value>]
@@ -628,7 +628,7 @@ EXAMPLES
 
 Import Otter meetings to Workflowy Calendar
 
-```
+```text
 USAGE
   $ workflowy gtd otter import [-d <value>] [-m <value>] [--reset] [--calendar-id <value>] [--dry-run]
 
@@ -664,7 +664,7 @@ EXAMPLES
 
 Sync Otter meetings with action items
 
-```
+```text
 USAGE
   $ workflowy gtd otter sync [--page-size <value>] [--cursor <value>] [--modified-after <value>] [--concurrency
     <value>]
@@ -694,7 +694,7 @@ EXAMPLES
 
 Load existing tasks for duplicate detection
 
-```
+```text
 USAGE
   $ workflowy gtd tasks load [--json] [-l <value>]
 
@@ -723,7 +723,7 @@ EXAMPLES
 
 Load declined items from Session Memory
 
-```
+```text
 USAGE
   $ workflowy gtd tasks load-declined [--json] [-l <value>]
 
@@ -752,7 +752,7 @@ EXAMPLES
 
 Display help for workflowy.
 
-```
+```text
 USAGE
   $ workflowy help [COMMAND...] [-n]
 
@@ -772,7 +772,7 @@ _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/6.2.53
 
 Show nodes changed since a given time
 
-```
+```text
 USAGE
   $ workflowy node changes [-s <value>] [--json]
 
@@ -799,7 +799,7 @@ EXAMPLES
 
 Mark a Workflowy node as completed
 
-```
+```text
 USAGE
   $ workflowy node complete [-i <value> | -p <value>] [-d]
 
@@ -839,7 +839,7 @@ EXAMPLES
 
 Create a new Workflowy node or tree of nodes from JSON
 
-```
+```text
 USAGE
   $ workflowy node create [-n <value> | --json <value> | --json-file <value>] [--parent-id <value> |
     --parent-path <value>] [--note <value>] [--layout-mode <value>] [--position top|bottom] [-d] [--create-path]
@@ -924,7 +924,7 @@ EXAMPLES
 
 Delete a Workflowy node
 
-```
+```text
 USAGE
   $ workflowy node delete [-i <value> | -p <value>] [-d]
 
@@ -958,7 +958,7 @@ EXAMPLES
 
 Read a single Workflowy node with optional children
 
-```
+```text
 USAGE
   $ workflowy node get [-f] [-j] [--depth <value>] [-l] [--fields <value>...] [-i <value> | -p <value>] [-m]
 
@@ -1028,7 +1028,7 @@ EXAMPLES
 
 List Workflowy nodes by parent node ID
 
-```
+```text
 USAGE
   $ workflowy node list [-f] [-j] [--depth <value>] [-l] [--fields <value>...] [-p <value>] [-d auto|api|cache]
     [--incomplete]
@@ -1061,7 +1061,7 @@ EXAMPLES
 
 Move a single node to a new location by ID or path
 
-```
+```text
 USAGE
   $ workflowy node move [--node-id <value> | --node-path <value>] [--parent-id <value> | --parent-path <value>]
     [-d] [-p top|bottom]
@@ -1118,7 +1118,7 @@ EXAMPLES
 
 Show JSON output schema for node commands (for LLM discovery)
 
-```
+```text
 USAGE
   $ workflowy node schema [-c get|list|search|changes]
 
@@ -1145,7 +1145,7 @@ EXAMPLES
 
 Search Workflowy nodes by text in names and notes
 
-```
+```text
 USAGE
   $ workflowy node search -q <value> [-l <value>] [--incomplete] [-j]
 
@@ -1172,7 +1172,7 @@ EXAMPLES
 
 Mark a Workflowy node as not completed
 
-```
+```text
 USAGE
   $ workflowy node uncomplete [-i <value> | -p <value>] [-d]
 
@@ -1212,7 +1212,7 @@ EXAMPLES
 
 Update a Workflowy node
 
-```
+```text
 USAGE
   $ workflowy node update [-i <value> | -p <value>] [-n <value>] [--note <value> | --clear-note] [--layout-mode
     <value>] [-d]
@@ -1269,7 +1269,7 @@ EXAMPLES
 
 Format a single node from JSON input with name and URL
 
-```
+```text
 USAGE
   $ workflowy workflowy utils format-node
 
@@ -1298,7 +1298,7 @@ EXAMPLES
 
 Resolve a Workflowy path to a node ID
 
-```
+```text
 USAGE
   $ workflowy workflowy utils path-to-id -p <value> [-r <value>] [-d auto|api|cache]
 
