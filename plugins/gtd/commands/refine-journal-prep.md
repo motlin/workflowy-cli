@@ -386,7 +386,7 @@ Before writing the file, verify no emoji-less entry was silently dropped:
 
 Set top-level fields:
 
-- `task`: `"refine-journal"` (matches `Key: refine-journal` and the filename).
+- `task`: `"refine-journal"` (inferred from the prep command and matches the filename).
 - `generatedAt`: ISO-8601 timestamp with offset.
 - `status`: `"ready"` if any proposals; `"empty"` if the combined archive plus recent live scope is already fully refined (idempotent re-run); `"error"` if prep failed.
 - `presentation`: `"Refine calendar journal"`.

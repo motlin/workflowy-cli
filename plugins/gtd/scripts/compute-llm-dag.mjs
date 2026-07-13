@@ -3,23 +3,22 @@ import {readFileSync} from 'node:fs';
 import {addInterval, buildTimeElement, parseTimeISO, swapTimeElement} from './compute-overdue.mjs';
 
 const ROOT_NAMES = ['Import', 'Prep', 'Presentation'];
-const KEY_PREFIX = 'Key: ';
 const INTERVAL_PREFIX = 'Interval: ';
 const INTERVAL_PATTERN = /^(\d+)([dmy])$/;
+const TASK_COMMAND_PATTERN = /^\/[a-z0-9-]+:([a-z0-9-]+)(?:\s|$)/;
 
 const shellSingleQuote = (value) => `'${String(value).replaceAll("'", `'"'"'`)}'`;
 
 const markerChildren = (node, prefix) => (node.children ?? []).filter((child) => String(child.name).startsWith(prefix));
 
-function singleMarker(node, prefix, context, required) {
+function optionalMarker(node, prefix, context) {
 	const matches = markerChildren(node, prefix);
 	if (matches.length > 1) throw new Error(`${context} has multiple ${prefix.trim()} markers`);
-	if (required && matches.length === 0) throw new Error(`${context} is missing ${prefix.trim()} marker`);
 	return matches[0]?.name.slice(prefix.length) ?? null;
 }
 
 function parseInterval(node, context) {
-	const value = singleMarker(node, INTERVAL_PREFIX, context, false);
+	const value = optionalMarker(node, INTERVAL_PREFIX, context);
 	if (value === null) return {amount: 1, unit: 'd'};
 	const match = value.match(INTERVAL_PATTERN);
 	if (!match || Number(match[1]) === 0) throw new Error(`${context} has invalid interval "${value}"`);
@@ -28,10 +27,12 @@ function parseInterval(node, context) {
 
 function isMarker(child) {
 	const name = String(child.name);
-	return name.startsWith(KEY_PREFIX) || name.startsWith(INTERVAL_PREFIX) || name === 'Auto';
+	return name.startsWith(INTERVAL_PREFIX) || name === 'Auto';
 }
 
 function instructions(node, context) {
+	const obsoleteKey = (node.children ?? []).find((child) => String(child.name).startsWith('Key:'));
+	if (obsoleteKey) throw new Error(`${context} has obsolete Key marker "${obsoleteKey.name}"`);
 	const result = (node.children ?? []).filter((child) => !isMarker(child) && String(child.name).trim() !== '');
 	if (result.length === 0) throw new Error(`${context} has no instructions`);
 	return result;
@@ -43,25 +44,34 @@ function taskDisplayName(name) {
 		.trim();
 }
 
+function taskSlug(taskInstructions, context) {
+	const commandSlugs = taskInstructions
+		.map((instruction) => String(instruction.name).trim().match(TASK_COMMAND_PATTERN)?.[1])
+		.filter(Boolean);
+	if (commandSlugs.length !== 1) throw new Error(`${context} must have exactly one plugin command`);
+	return commandSlugs[0].replace(/-(?:prep|auto)$/, '');
+}
+
 function parsePrepTask(node, today) {
-	const context = `prep task "${taskDisplayName(node.name)}"`;
-	const key = singleMarker(node, KEY_PREFIX, context, true);
-	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key)) throw new Error(`${context} has invalid key "${key}"`);
+	const name = taskDisplayName(node.name);
+	const context = `prep task "${name}"`;
+	const taskInstructions = instructions(node, context);
+	const slug = taskSlug(taskInstructions, context);
 	const dueDate = parseTimeISO(node.name);
-	if (dueDate === null) throw new Error(`prep key "${key}" is missing its date`);
-	const interval = parseInterval(node, `prep key "${key}"`);
+	if (dueDate === null) throw new Error(`${context} is missing its date`);
+	const interval = parseInterval(node, context);
 	const autoMarkers = (node.children ?? []).filter((child) => child.name === 'Auto');
-	if (autoMarkers.length > 1) throw new Error(`prep key "${key}" has multiple Auto markers`);
+	if (autoMarkers.length > 1) throw new Error(`${context} has multiple Auto markers`);
 	const due = node.completedAt === null && dueDate <= today;
 	const nextDate = addInterval(today, interval);
 	const newName = swapTimeElement(node.name, buildTimeElement(nextDate));
 
 	return {
-		key,
-		name: taskDisplayName(node.name),
+		slug,
+		name,
 		id: node.id,
 		shortId: node.shortId,
-		instructions: instructions(node, `prep key "${key}"`),
+		instructions: taskInstructions,
 		auto: autoMarkers.length === 1,
 		due,
 		dueDate,
@@ -75,31 +85,31 @@ function parsePrepTask(node, today) {
 }
 
 function parsePresentationTask(node) {
-	const context = `presentation task "${taskDisplayName(node.name)}"`;
-	const key = singleMarker(node, KEY_PREFIX, context, true);
+	const name = taskDisplayName(node.name);
+	const context = `presentation task "${name}"`;
 	if (parseTimeISO(node.name) !== null) {
-		throw new Error(`presentation key "${key}" must inherit its date from prep`);
+		throw new Error(`${context} must inherit its date from prep`);
 	}
 	if (markerChildren(node, INTERVAL_PREFIX).length > 0) {
-		throw new Error(`presentation key "${key}" must inherit its interval from prep`);
+		throw new Error(`${context} must inherit its interval from prep`);
 	}
 	if ((node.children ?? []).some((child) => child.name === 'Auto')) {
-		throw new Error(`presentation key "${key}" cannot be Auto`);
+		throw new Error(`${context} cannot be Auto`);
 	}
 	return {
-		key,
-		name: taskDisplayName(node.name),
+		name,
 		id: node.id,
 		shortId: node.shortId,
-		instructions: instructions(node, `presentation key "${key}"`),
+		instructions: instructions(node, context),
 	};
 }
 
-function uniqueByKey(tasks, context) {
+function uniqueBy(tasks, property, context) {
 	const result = new Map();
 	for (const task of tasks) {
-		if (result.has(task.key)) throw new Error(`${context} has duplicate key "${task.key}"`);
-		result.set(task.key, task);
+		const value = task[property];
+		if (result.has(value)) throw new Error(`${context} has duplicate ${property} "${value}"`);
+		result.set(value, task);
 	}
 	return result;
 }
@@ -137,32 +147,35 @@ export function computeLlmDag(tree, today) {
 	});
 	const allPrepTasks = parsedBranches.flatMap((branch) => branch.tasks);
 	const allPresentationTasks = (presentationNode.children ?? []).map(parsePresentationTask);
-	const prepByKey = uniqueByKey(allPrepTasks, 'Prep');
-	const presentationByKey = uniqueByKey(allPresentationTasks, 'Presentation');
+	const prepByName = uniqueBy(allPrepTasks, 'name', 'Prep');
+	uniqueBy(allPrepTasks, 'slug', 'Prep');
+	const presentationByName = uniqueBy(allPresentationTasks, 'name', 'Presentation');
 
 	for (const prepTask of allPrepTasks) {
-		if (prepTask.auto && presentationByKey.has(prepTask.key)) {
-			throw new Error(`auto prep key "${prepTask.key}" must not have a presentation task`);
+		if (prepTask.auto && presentationByName.has(prepTask.name)) {
+			throw new Error(`auto prep task "${prepTask.name}" must not have a presentation task`);
 		}
-		if (!prepTask.auto && !presentationByKey.has(prepTask.key)) {
-			throw new Error(`prep key "${prepTask.key}" has no presentation task`);
+		if (!prepTask.auto && !presentationByName.has(prepTask.name)) {
+			throw new Error(`prep task "${prepTask.name}" has no matching presentation task`);
 		}
 	}
 	for (const presentationTask of allPresentationTasks) {
-		if (!prepByKey.has(presentationTask.key)) {
-			throw new Error(`presentation key "${presentationTask.key}" has no prep task`);
+		if (!prepByName.has(presentationTask.name)) {
+			throw new Error(`presentation task "${presentationTask.name}" has no matching prep task`);
 		}
 	}
 
 	const prepBranches = parsedBranches
 		.map((branch) => ({...branch, tasks: branch.tasks.filter((task) => task.due)}))
 		.filter((branch) => branch.tasks.length > 0);
-	const dueKeys = new Set(allPrepTasks.filter((task) => task.due).map((task) => task.key));
-	const presentation = allPresentationTasks.filter((task) => dueKeys.has(task.key));
+	const dueNames = new Set(allPrepTasks.filter((task) => task.due).map((task) => task.name));
+	const presentation = allPresentationTasks
+		.filter((task) => dueNames.has(task.name))
+		.map((task) => ({...task, slug: prepByName.get(task.name).slug}));
 	const skipped = allPrepTasks
 		.filter((task) => !task.due)
 		.map((task) => ({
-			key: task.key,
+			slug: task.slug,
 			reason: task.dueDate > today ? 'future' : 'completed',
 			dueDate: task.dueDate,
 		}));

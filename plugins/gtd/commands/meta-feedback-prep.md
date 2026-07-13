@@ -96,7 +96,7 @@ For each surviving candidate, emit one proposal:
       '' >> .llm/todo.md
     ```
 
-Set top-level fields: `task` = `"meta-feedback"` (matches `Key: meta-feedback` and the filename); `generatedAt` = ISO-8601 with offset; `presentation` = `"Daily review meta-feedback"`; `summary` = `{sessionsScanned, turnsConsidered, candidates, proposalsStaged, droppedAlreadyDone, droppedDeclined}`. Set `status`: `"ready"` if any proposals; `"empty"` if nothing survived reconciliation (idempotent re-run); `"error"` if the scan failed.
+Set top-level fields: `task` = `"meta-feedback"` (inferred from the prep command and matches the filename); `generatedAt` = ISO-8601 with offset; `presentation` = `"Daily review meta-feedback"`; `summary` = `{sessionsScanned, turnsConsidered, candidates, proposalsStaged, droppedAlreadyDone, droppedDeclined}`. Set `status`: `"ready"` if any proposals; `"empty"` if nothing survived reconciliation (idempotent re-run); `"error"` if the scan failed.
 
 Do **not** mutate any node, write `.llm/todo.md`, or advance the watermark. Return a one-line summary (sessions scanned, proposals staged, dropped-as-already-done count) and stop.
 
@@ -104,7 +104,7 @@ Do **not** mutate any node, write `.llm/todo.md`, or advance the watermark. Retu
 
 For the daily review to run this automatically, the task must exist as a node in the Phase 0 DAG container (`Personal > 🔄 Review > 🔄 Daily Review > LLM Tasks:`), per `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`. Add, via `./bin/run.js node create`:
 
-- under `Prep`, a dated `Daily review meta-feedback` task with `/gtd:meta-feedback-prep` and `Key: meta-feedback` children;
-- under `Presentation`, an undated `Daily review meta-feedback` task with `/gtd:meta-feedback-apply` and `Key: meta-feedback` children, placed last.
+- under `Prep`, a dated `Daily review meta-feedback` task with a `/gtd:meta-feedback-prep` child;
+- under `Presentation`, an undated `Daily review meta-feedback` task with a `/gtd:meta-feedback-apply` child, placed last.
 
 It has no shared-subtree writers, so it fans out as an independent parallel prep leaf — it only reads transcripts and stages a file. This is a live Workflowy change, so make it deliberately (not from inside a prep subagent).

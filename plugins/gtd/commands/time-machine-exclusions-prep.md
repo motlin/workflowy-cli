@@ -22,7 +22,7 @@ Capture the null-delimited result without losing the command's exit status. A fa
 
 ## Stage the result
 
-Create `.llm/gtd/review/proposals/` and write the proposal for key `time-machine-exclusions`.
+Create `.llm/gtd/review/proposals/` and write the proposal for the inferred slug `time-machine-exclusions`.
 
 - No unmatched directories: stage `status: "empty"`, `summary.missingExclusions: 0`, and an empty `proposals` array.
 - Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, and create one confirm-only proposal with empty `applyOps`.

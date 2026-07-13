@@ -50,32 +50,33 @@ The planner validates this plain structure before anything fans out:
 LLM Tasks:
   Import
   Prep
-    Task name <time...>
-      /command-or-instructions
-      Key: task-key
+    Scan email for events <time...>
+      /gtd:email-calendar-prep
       Interval: 7d
+    Birthdays <time...>
+      /gtd:birthdays-auto
       Auto
     Serial: group name
-      Task name <time...>
-        /command-or-instructions
-        Key: task-key
+      Refine calendar journal <time...>
+        /gtd:refine-journal-prep
   Presentation
-    Task name
-      /command-or-instructions
-      Key: task-key
+    Scan email for events
+      /gtd:email-calendar-apply
+    Refine calendar journal
+      /gtd:refine-journal-apply
 ```
 
-`Key` is required and links prep to presentation. `Interval` is optional and defaults to `1d`; supported units are `d`, `m`, and `y`. `Auto` is only for prep tasks that have no presentation entry. Presentation inherits its due state and interval from prep, so it carries no date. Placement already identifies prep versus presentation; `#llm-task`, `· prep`, `· apply`, marker emoji, and duplicate dates are invalid clutter.
+Prep and presentation pair by their identical date-stripped task names. The planner infers the artifact slug from the prep command by removing a trailing `-prep` or `-auto`; `/gtd:email-calendar-prep` therefore stages `email-calendar`. `Interval` is optional and defaults to `1d`; supported units are `d`, `m`, and `y`. `Auto` is only for prep tasks that have no presentation entry. Presentation inherits its due state, slug, and interval from prep, so it carries no date. Placement already identifies prep versus presentation; `Key:`, `#llm-task`, `· prep`, `· apply`, marker emoji, and duplicate dates are invalid clutter.
 
-The planner rejects unexpected root children, duplicate or unmatched keys, invalid intervals, missing prep dates, dates on presentation tasks, and presentation entries for auto tasks. Any validation error halts the review.
+The planner rejects unexpected root children, obsolete `Key:` markers, duplicate or unmatched task names, duplicate inferred slugs, invalid intervals, missing prep dates, dates on presentation tasks, and presentation entries for auto tasks. Any validation error halts the review.
 
 Tasks elsewhere in `Personal > 🔄 Review` remain recurring-review tasks and use their section's cadence. They are not part of this DAG.
 
 ### Present the due plan
 
-List every due prep task and its inherited presentation entry from `phase0-plan.json` before execution. Show the human name, instructions, key, Workflowy link, whether it is auto, and whether its branch is parallel or serial. Show the import barrier as done.
+List every due prep task and its inherited presentation entry from `phase0-plan.json` before execution. Show the human name, instructions, Workflowy link, whether it is auto, and whether its branch is parallel or serial. Show the import barrier as done.
 
-Ask once whether to skip tasks. A skip is keyed: skipping prep also skips its presentation. Auto tasks and the import barrier are mandatory. If no tasks are due, continue without prompting; if only mandatory tasks are due, run them without the skip question.
+Ask once whether to skip tasks. Skipping prep also skips its name-matched presentation. Auto tasks and the import barrier are mandatory. If no tasks are due, continue without prompting; if only mandatory tasks are due, run them without the skip question.
 
 ### Execute the plan
 
@@ -83,15 +84,15 @@ Follow `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md` and `${CLAUDE_PLUGIN_ROOT
 
 - Run metadata sync once.
 - Dispatch each `parallel` prep branch independently and each `serial` branch through one ordered controller, capped at five concurrent prep units.
-- Start the presentation walk as soon as the branches are in flight. Block only for the current key's staged result.
+- Start the presentation walk as soon as the branches are in flight. Block only for the current task's staged result.
 - Treat `status: "empty"` as successful work with no prompt.
-- After a paired apply succeeds, run that key's `advance.applyOp` from `phase0-plan.json` verbatim in the background.
-- After an auto task succeeds, run its key's `advance.applyOp` the same way.
+- After a paired apply succeeds, run that task's `advance.applyOp` from `phase0-plan.json` verbatim in the background.
+- After an auto task succeeds, run its `advance.applyOp` the same way.
 - On skip, failure, or unverified work, leave the date unchanged.
 
 The executor owns date advancement. Prep, apply, and auto commands never update their own schedule. This keeps one date on the prep node and makes arbitrary intervals deterministic.
 
-Interpret non-marker children as commands or instructions. `/gtd:...` invokes a plugin command; shell commands run in Bash; nested children add detail. `Key`, `Interval`, and `Auto` are markers, not instructions.
+Interpret non-marker children as commands or instructions. `/gtd:...` invokes a plugin command; shell commands run in Bash; nested children add detail. `Interval` and `Auto` are markers, not instructions.
 
 Do not create Claude Code built-in tasks (`TaskCreate`, `TaskUpdate`, or `TodoWrite`).
 

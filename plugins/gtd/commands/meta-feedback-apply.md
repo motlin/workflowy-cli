@@ -17,7 +17,7 @@ Track progress through `.llm/` files, Workflowy nodes, and inline status updates
 
 ## Run the shared apply routine
 
-Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for key `meta-feedback` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. Per-proposal specifics:
+Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for slug `meta-feedback` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. Per-proposal specifics:
 
 - Present `before` (the current behavior **and** the verbatim user quote with its date) and `after` (the proposed skill change). The user is reviewing their own past feedback, so always show the quote.
 - **Accept** → run the proposal's `applyOp` verbatim (it appends the improvement as a task to `.llm/todo.md`).
@@ -32,7 +32,7 @@ After the last batch, advance tracking — only here, never in prep:
 
 - **Watermark** under `Metadata > ⚙️ Scanner State > daily-review-meta-feedback`: set the single JSON child to `{"last_reviewed_iso":"<now-iso>"}` so the next run only scans transcripts after this review. Create the node and child if absent (mirror the `meeting-followup-reviewer` create steps in `meetings.md`).
 
-Return success or empty after the watermark persists. The DAG executor owns the keyed prep date.
+Return success or empty after the watermark persists. The DAG executor owns the prep date.
 
 ## Summary
 

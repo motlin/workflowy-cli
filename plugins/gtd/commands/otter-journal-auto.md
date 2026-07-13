@@ -74,7 +74,7 @@ mkdir -p .llm/gtd/review/briefings
 
 ## Summary
 
-The daily review folds the staged `lines` into the final summary. Return verified success or empty with a one-line status. Return failure on scan or state errors. The DAG executor advances the keyed prep date only after success or empty.
+The daily review folds the staged `lines` into the final summary. Return verified success or empty with a one-line status. Return failure on scan or state errors. The DAG executor advances the prep date only after success or empty.
 
 ## Idempotency
 

@@ -1,5 +1,5 @@
 ---
-description: The prep-to-apply staging contract for daily-review tasks, including proposal and briefing schemas and the shared confirmation routine. Scheduling belongs to the keyed DAG executor.
+description: The prep-to-apply staging contract for daily-review tasks, including proposal and briefing schemas and the shared confirmation routine. Scheduling belongs to the DAG executor.
 globs: ${CLAUDE_PLUGIN_ROOT}/commands/**
 ---
 
@@ -13,12 +13,12 @@ The pattern mirrors the existing journal/capture staging pipeline (`${CLAUDE_PLU
 
 ```text
 .llm/gtd/review/
-  proposals/<key>.json     # one per prep-staged interactive task
-  briefings/<key>.json     # one per Auto task
+  proposals/<slug>.json     # one per prep-staged interactive task
+  briefings/<slug>.json     # one per Auto task
 ```
 
-- `<key>` is the `Key: <slug>` shared by prep and presentation. It is the sole link between the prep that wrote the file and the apply that reads it. `Auto` prep tasks stage a briefing under the same key and have no presentation node.
-- Prep that only stages JSON makes **no** Workflowy writes. `process-inbox` is the exception: its prep (refine-inbox) stages `🔍` suggestion nodes in Workflowy instead of a JSON file, but the key-linkage idea is identical.
+- `<slug>` comes from the prep command after removing a trailing `-prep` or `-auto`. Prep and presentation link through their identical visible task names; the presentation entry inherits the prep slug. `Auto` prep tasks stage a briefing under their inferred slug and have no presentation node.
+- Prep that only stages JSON makes **no** Workflowy writes. `refine-inbox` is the exception: it stages `🔍` suggestion nodes in Workflowy instead of a JSON file, while its name-matched `/gtd:inbox` presentation performs the moves.
 - Create the directories before staging:
 
 ```bash
@@ -27,7 +27,7 @@ mkdir -p .llm/gtd/review/proposals .llm/gtd/review/briefings
 
 ## Proposal Schema
 
-A prep command for an interactive task writes `.llm/gtd/review/proposals/<key>.json`:
+A prep command for an interactive task writes `.llm/gtd/review/proposals/<slug>.json`:
 
 ```json
 {
@@ -62,7 +62,7 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<key>.j
 
 | Field | Meaning |
 | --- | --- |
-| `task` | Task slug from `Key`. Matches the filename. |
+| `task` | Task slug inferred from the prep command. Matches the filename. |
 | `generatedAt` | ISO-8601 timestamp with offset. Used for idempotency / staleness checks. |
 | `status` | `ready` \| `needs-interactive` \| `empty` \| `error` (see below). |
 | `presentation` | Human label the walk shows while presenting this task. |
@@ -118,7 +118,7 @@ Prep and apply are separated in time; between them the user (or another task) ma
 
 ## Briefing Schema
 
-An `Auto` task does its autonomous work during fan-out, then stages a briefing fragment instead of a confirmable proposal. It has no presentation entry and never prompts. Write `.llm/gtd/review/briefings/<key>.json`:
+An `Auto` task does its autonomous work during fan-out, then stages a briefing fragment instead of a confirmable proposal. It has no presentation entry and never prompts. Write `.llm/gtd/review/briefings/<slug>.json`:
 
 ```json
 {
@@ -131,7 +131,7 @@ An `Auto` task does its autonomous work during fan-out, then stages a briefing f
 
 | Field         | Meaning                                                             |
 | ------------- | ------------------------------------------------------------------- |
-| `task`        | Task slug from `Key`.                                               |
+| `task`        | Task slug inferred from the prep command.                           |
 | `status`      | `ready` \| `empty` \| `error`.                                      |
 | `lines`       | Briefing lines folded verbatim into the final summary.              |
 | `autoApplied` | Actions the task already performed autonomously (for transparency). |
@@ -142,9 +142,9 @@ Every `*-apply` command (`refine-journal-apply`, `refine-exercise-apply`, `email
 
 ### Read the staged proposal
 
-Read `.llm/gtd/review/proposals/<key>.json` for the command's key. Branch on `status`:
+Read `.llm/gtd/review/proposals/<slug>.json` for the command's inferred task slug. Branch on `status`:
 
-- `empty` → return empty without prompting; the DAG executor advances the keyed prep date.
+- `empty` → return empty without prompting; the DAG executor advances the prep date.
 - `needs-interactive` → run the task's interactive logic **inline** (graceful degradation) and return success only after verification.
 - `error` → surface the error and return failure; the date stays unchanged.
 - `ready` → continue with the batch-present loop below.
@@ -185,7 +185,7 @@ If the staged file carries a top-level `scannerState` object, persist it to the 
 ```bash
 CHILD_ID=$(./bin/run.js node get --path "Metadata,⚙️ Scanner State,<task>" --depth 1 --json --fields children \
   | jq -r '.children[0].id')
-NEXT_STATE=$(jq -c '.scannerState' .llm/gtd/review/proposals/<key>.json)
+NEXT_STATE=$(jq -c '.scannerState' .llm/gtd/review/proposals/<slug>.json)
 ./bin/run.js node update --id "$CHILD_ID" --name "$NEXT_STATE"
 ```
 
@@ -193,7 +193,7 @@ The `otter-journal-scanner` state (`{cursor, session_start, last_synced_otid, re
 
 ### Return the apply result
 
-After the last batch and any task-specific state update, return success, empty, skipped, or failure to the DAG executor. The executor owns scheduling and runs the key's precomputed `advance.applyOp` only for success or empty. Task-specific progress such as scanner state still advances during apply, after the accepted operations are verified.
+After the last batch and any task-specific state update, return success, empty, skipped, or failure to the DAG executor. The executor owns scheduling and runs the task's precomputed `advance.applyOp` only for success or empty. Task-specific progress such as scanner state still advances during apply, after the accepted operations are verified.
 
 ### Idempotency
 
@@ -201,6 +201,6 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 
 ## Verification
 
-- **Schema shape-check:** `jq` each staged file against the fields above (`jq -e '.task and .status and (.proposals|type=="array")' .llm/gtd/review/proposals/<key>.json`).
+- **Schema shape-check:** `jq` each staged file against the fields above (`jq -e '.task and .status and (.proposals|type=="array")' .llm/gtd/review/proposals/<slug>.json`).
 - **Dry-run staging:** a prep `--dry-run` writes the `.json` but makes **zero** `node update`/`node create` calls — only `.llm/gtd/review/` is touched.
 - **applyOps fidelity:** the walk runs `applyOps` verbatim; a stubbed-Accept walk over a fixture asserts the exact staged commands ran and the executor received success.

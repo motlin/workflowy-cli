@@ -101,7 +101,7 @@ For each entry that needs formatting changes, emit one proposal with:
 
 Set top-level fields:
 
-- `task`: `"refine-exercise"` (matches `Key: exercise` and the filename).
+- `task`: `"refine-exercise"` (inferred from the prep command and matches the filename).
 - `generatedAt`: ISO-8601 timestamp with offset.
 - `status`: `"ready"` if any proposals; `"empty"` if every `#exercise` entry in the month is already canonical; `"error"` if prep failed.
 - `presentation`: `"Refine #exercise"`.

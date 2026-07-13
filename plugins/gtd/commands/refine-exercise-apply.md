@@ -21,7 +21,7 @@ Track progress through `.llm/` files, Workflowy nodes, and inline status updates
 
 ## Run the shared apply routine
 
-Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for key `refine-exercise` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. The skill is authoritative for the presentation format, the Accept / Reject / Accept-with-note options, ambiguity handling, and shell escaping.
+Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for slug `refine-exercise` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. The skill is authoritative for the presentation format, the Accept / Reject / Accept-with-note options, ambiguity handling, and shell escaping.
 
 - On `status: "empty"`, return empty without prompting.
 - On `status: "needs-interactive"`, run the full formatting pass inline and return success after verification.
@@ -29,7 +29,7 @@ Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-prop
 
 ## Return progress
 
-Return success after the last verified batch, or empty when no changes were needed. The DAG executor owns the keyed prep date.
+Return success after the last verified batch, or empty when no changes were needed. The DAG executor owns the prep date.
 
 ## Summary
 

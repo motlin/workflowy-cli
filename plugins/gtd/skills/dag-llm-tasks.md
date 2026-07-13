@@ -1,11 +1,11 @@
 ---
-description: Reference for validating and executing the daily review's keyed prep and presentation DAG, including inherited scheduling, parallel and serial prep, auto tasks, and shared-state safeguards.
+description: Reference for validating and executing the daily review's prep and presentation DAG, including inferred task identity, inherited scheduling, parallel and serial prep, auto tasks, and shared-state safeguards.
 globs: ${CLAUDE_PLUGIN_ROOT}/commands/review/**
 ---
 
 # DAG LLM Tasks
 
-The daily review executes `Personal > 🔄 Review > 🔄 Daily Review > LLM Tasks:` as a dependency DAG. Tree placement defines execution phase; keys link prep work to presentation; optional markers add only the information that placement cannot express.
+The daily review executes `Personal > 🔄 Review > 🔄 Daily Review > LLM Tasks:` as a dependency DAG. Tree placement defines execution phase, identical task names link prep work to presentation, and optional markers add only the information that placement cannot express.
 
 ## Canonical tree
 
@@ -18,38 +18,32 @@ LLM Tasks:
     Serial: Calendar journal
       Otter journal <time...>
         /gtd:otter-journal-auto
-        Key: otter-journal
         Auto
       Refine calendar journal <time...>
         /gtd:refine-journal-prep
-        Key: refine-journal
-    Refine inbox <time...>
+    Process inbox <time...>
       /gtd:refine-inbox
-      Key: process-inbox
     Time Machine exclusions <time...>
       /gtd:time-machine-exclusions-prep
-      Key: time-machine-exclusions
   Presentation
     Refine calendar journal
       /gtd:refine-journal-apply
-      Key: refine-journal
     Process inbox
       /gtd:inbox
-      Key: process-inbox
     Time Machine exclusions
       /gtd:time-machine-exclusions-apply
-      Key: time-machine-exclusions
 ```
 
 The schema is strict:
 
 - Root children are exactly `Import`, `Prep`, and `Presentation`.
-- Every prep task has one `Key: <slug>` and one `<time>` element.
-- A paired presentation task has the same key and no date.
+- Every prep task has one plugin command and one `<time>` element.
+- A paired presentation task has the identical date-stripped name and no date.
+- The prep command supplies the artifact slug after removing a trailing `-prep` or `-auto`; presentation inherits that slug.
 - `Interval: <amount><unit>` is optional on prep and defaults to `1d`; units are `d`, `m`, and `y`.
-- `Auto` marks prep that completes without presentation. Auto keys must not appear under `Presentation`.
+- `Auto` marks prep that completes without presentation. Auto task names must not appear under `Presentation`.
 - `Serial: <name>` groups prep tasks that must run top-to-bottom. Other direct children of `Prep` are independent parallel branches.
-- Task names are human labels. Do not add `#llm-task`, `prep`, `apply`, or marker emoji to names; placement and markers already carry that information.
+- Do not add `Key:`, `#llm-task`, `prep`, `apply`, or marker emoji to task names or children; names, commands, placement, and optional markers already carry that information.
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs` before execution. Its output is the authoritative `.llm/gtd/review/phase0-plan.json`; validation failure halts the review.
 
@@ -77,15 +71,15 @@ Dispatch one background controller per due branch from the plan:
 - A `serial` branch runs its due tasks in tree order, waiting for each before starting the next.
 - Keep at most five prep controllers in flight.
 
-Each prep worker is autonomous, never prompts, and stages `.llm/gtd/review/proposals/<key>.json`. Auto workers complete their autonomous work and stage `.llm/gtd/review/briefings/<key>.json`.
+Each prep worker is autonomous, never prompts, and stages `.llm/gtd/review/proposals/<slug>.json`. Auto workers complete their autonomous work and stage `.llm/gtd/review/briefings/<slug>.json`.
 
 ## Presentation walk
 
-Begin presentation as soon as prep controllers are running. Walk the plan's presentation array in order and wait only for the current key's staged result. Later slow work must not delay an earlier ready key.
+Begin presentation as soon as prep controllers are running. Walk the plan's presentation array in order and wait only for the current task's staged result. Later slow work must not delay an earlier ready task.
 
 Apply commands read their staged result and return one of:
 
-- success: work is verified; the executor dispatches the key's date operation.
+- success: work is verified; the executor dispatches the task's date operation.
 - empty: nothing needed attention; the executor dispatches the date operation without prompting.
 - skipped: the user deferred the work; the date stays unchanged.
 - failure: work or verification failed; halt and leave the date unchanged.
@@ -99,9 +93,9 @@ Continue reaping prep controllers and background date writes throughout the walk
 - Serialize tasks that write the same Workflowy subtree.
 - Keep parallel branches on distinct write targets.
 - Use the plan's presentation order, never completion race order.
-- Report a pending key and elapsed time when its prep delays presentation.
+- Report a pending task and elapsed time when its prep delays presentation.
 - Fetch only required fields and redirect deep trees to `.llm/` rather than placing them in agent context.
 
 ## Completion
 
-Drain prep controllers and every date write before relinking. Surface failures by key. Summarize applied, empty, skipped, failed, and advanced tasks, then append auto briefing lines.
+Drain prep controllers and every date write before relinking. Surface failures by task name. Summarize applied, empty, skipped, failed, and advanced tasks, then append auto briefing lines.

@@ -15,4 +15,4 @@ Read `.llm/gtd/review/proposals/time-machine-exclusions.json` and act on its sta
 
 On “not now” or skip, return skipped and leave the date unchanged. On confirmation, rerun the no-sudo check from `/gtd:time-machine-exclusions-prep` before returning success. If paths remain or verification fails, show the result and return failure; never advance based on confirmation alone.
 
-The apply command never runs `sudo` and never updates the task date. The Phase 0 executor owns the key-linked date operation.
+The apply command never runs `sudo` and never updates the task date. The Phase 0 executor owns the name-matched date operation.
