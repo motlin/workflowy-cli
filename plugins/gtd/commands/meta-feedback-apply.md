@@ -1,6 +1,6 @@
 ---
 name: meta-feedback-apply
-description: Apply half of daily-review meta-feedback — read the staged .llm/gtd/review/proposals/meta-feedback.json, walk the batches-of-4 AskUserQuestion confirmation loop, file accepted skill-improvements as tasks in .llm/todo.md, record declines, then advance the meta-feedback watermark and review date.
+description: Apply staged daily-review feedback, record accepted or declined improvements, advance the watermark, and return a verified scheduler result.
 ---
 
 # Meta-Feedback — Apply
@@ -24,14 +24,15 @@ Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-prop
 - **Accept with note** → file the user's edited wording instead of the staged title.
 - **Reject** → make no task, and **record the decline** so prep never re-surfaces it: append `{fingerprint, summary, declinedAt}` to `.llm/gtd/review/meta-feedback-declined.json` (create the file as `[]` if missing), using the proposal's `fingerprint`.
 
-On `status: "empty"`, report "no new feedback to fold in" and still advance the watermark and review date below. On `status: "error"`, surface the error and offer to run `/gtd:meta-feedback-prep` inline, then proceed.
+On `status: "empty"`, report "no new feedback to fold in", advance the watermark, and return empty. On `status: "error"`, surface the error and return failure.
 
 ## Advance progress (apply only)
 
 After the last batch, advance tracking — only here, never in prep:
 
 - **Watermark** under `Metadata > ⚙️ Scanner State > daily-review-meta-feedback`: set the single JSON child to `{"last_reviewed_iso":"<now-iso>"}` so the next run only scans transcripts after this review. Create the node and child if absent (mirror the `meeting-followup-reviewer` create steps in `meetings.md`).
-- **Review date**: dispatch a **background** date-write advancing the meta-feedback task node's review date per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, using `taskNodeId` from the staged file.
+
+Return success or empty after the watermark persists. The DAG executor owns the keyed prep date.
 
 ## Summary
 

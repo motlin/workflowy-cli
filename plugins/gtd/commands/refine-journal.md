@@ -8,7 +8,7 @@ description: Refine calendar journal entries (people, hobby, category, typo, emo
 This command was split into two focused halves so the daily review's Phase 0 DAG can run the autonomous compute in parallel and defer the interactive confirmation:
 
 - **`/gtd:refine-journal-prep`** — load metadata, scan the next month, compute people/hobby/category/typo/emoji refinements, and stage them to `.llm/gtd/review/proposals/refine-journal.json`. Mutates no nodes; does not advance Scanner-State.
-- **`/gtd:refine-journal-apply`** — read the staged file, walk the batches-of-4 confirmation loop, apply accepted updates, advance Scanner-State and the review date.
+- **`/gtd:refine-journal-apply`** — read the staged file, walk the batches-of-4 confirmation loop, apply accepted updates, and advance Scanner-State. The daily-review executor owns scheduling.
 
 For a standalone manual run, invoke them in order: run `/gtd:refine-journal-prep`, then `/gtd:refine-journal-apply`.
 

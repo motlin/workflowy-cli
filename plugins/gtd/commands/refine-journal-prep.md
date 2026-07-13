@@ -119,7 +119,7 @@ This produces a tag→emoji lookup like:
 
 ## Fetch archive and recent live entries
 
-**Read live text fresh — never from a stale snapshot.** The DAG's `📥 Import` barrier has already rewritten the local cache to the current API state, so you must derive every entry's `before` from a fresh `node get` run **now**, in this prep. Do **not** reuse a prior run's staged `refine-journal.json`, an older `.llm` calendar dump, or entry text carried in context from an earlier step — those can be several edits behind, and staging a stale `before` makes the apply either re-propose an already-applied change or (worse) overwrite text the user expanded after the older read. The `--expect-name` guard on every op is the backstop, but the `before` you stage should already match live text. When in doubt, re-fetch the specific node with `./bin/run.js node get --id <full-uuid> --json --fields name` and use that exact string.
+**Read live text fresh — never from a stale snapshot.** The DAG's `Import` barrier has already rewritten the local cache to the current API state, so derive every entry's `before` from a fresh `node get` run in this prep. Do not reuse a prior staged proposal, an older `.llm` calendar dump, or entry text carried from an earlier step. The `--expect-name` guard is the backstop, but staged `before` text should already match live data.
 
 Use the calendar archive path with the target archive month:
 
@@ -386,8 +386,7 @@ Before writing the file, verify no emoji-less entry was silently dropped:
 
 Set top-level fields:
 
-- `task`: `"refine-journal"` (matches the `🔑 Key` and the filename).
-- `taskNodeId`: full UUID of the refine-journal task node (so the apply walk can advance its review date).
+- `task`: `"refine-journal"` (matches `Key: refine-journal` and the filename).
 - `generatedAt`: ISO-8601 timestamp with offset.
 - `status`: `"ready"` if any proposals; `"empty"` if the combined archive plus recent live scope is already fully refined (idempotent re-run); `"error"` if prep failed.
 - `presentation`: `"Refine calendar journal"`.

@@ -24,142 +24,105 @@ When _any_ step fails — a command errors, a script exits non-zero, an MCP is d
 
 "Continuing" is a decision that must be **earned by positive verification**, never assumed. If you cannot verify success, you have not succeeded — halt. Silently recovering or pressing on with degraded data corrupts every downstream step (a stale cache makes refinement skip the newest entries, dedup re-propose handled items, and dates advance on work that never happened). A halted review the user can re-run beats a completed review built on sand.
 
-### The 📥 Import barrier must be _verified_, not assumed
+### The import barrier must be verified
 
-The `📥 Import` barrier exists so the whole fan-out reads **today's** data. Before any prep fan-out:
+The `Import` barrier exists so the whole fan-out reads today's data. Before any prep fan-out:
 
 - Run the import **without masking its exit code** (do not pipe the barrier command through `tail`/`head`; capture output to a file and read it, or check `${PIPESTATUS[0]}`).
 - **Positively verify the live API sync landed:** `cache import-api` printed its `Fetched N nodes … / +A added, ~U updated, =… unchanged, -D deleted` summary, the node count is sane, and today's data is actually present (e.g. today's calendar date node exists). Exit code alone is insufficient.
 - If the import errored, hung, or cannot be verified, **HALT** — do not fan out on a stale cache. Fix the cause (or ask the user to) and re-run the barrier from the top.
 
-## Phase 0: LLM Tasks
+## Automated Tasks
 
-Run the `📥 Import` barrier first (step 0a in the DAG skill — it's mandatory, and the fetch must read a fresh cache), then fetch the canonical `LLM Tasks:` container and run any items whose date is on or before today. These are automated tasks that should run before the human-oriented review.
+Run the mandatory import barrier, then execute due tasks from `Personal > 🔄 Review > 🔄 Daily Review > LLM Tasks:`. The tree is a dependency DAG: prep work fans out, serial groups preserve write ordering, and presentation follows a fixed order.
 
-The LLM Tasks phase is a **dependency DAG**, not a flat list. The container's tree shape encodes parallelism and order: a `📥 Import` barrier, an `⚙️ Prep` group whose leaf children prep in parallel (with a `🔗 … serial chain` sub-group for same-subtree writers), and a `🙋 Presentation` group walked in fixed sibling order. The group-parsing, prep fan-out, staging contract, confirmation walk, and shared-state safeguards live in `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`; the on-disk proposal/briefing schema and the shared apply routine live in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. This command keeps barrier / fetch / filter / skip-gate and invokes those skills.
-
-### Fetch
-
-Reads the cache the barrier just rewrote:
+### Fetch and validate the plan
 
 ```bash
 mkdir -p .llm/gtd/review
 ./bin/run.js node get --path "Personal,🔄 Review,🔄 Daily Review,LLM Tasks:" --depth 6 --json --fields name,shortId,id,children,completedAt > .llm/gtd/review/phase0-llm-tasks.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs .llm/gtd/review/phase0-llm-tasks.json > .llm/gtd/review/phase0-plan.json
 ```
 
-Depth 6 reaches the chain grandchildren and each node's `🔑 Key` / `🤖 Auto` marker children. The container's children are the groups `📥 Import …`, `⚙️ Prep …`, and `🙋 Presentation …` (matched by leading emoji, not exact text — the user may retitle them).
+The planner validates this plain structure before anything fans out:
 
-### Filter
+```text
+LLM Tasks:
+  Import
+  Prep
+    Task name <time...>
+      /command-or-instructions
+      Key: task-key
+      Interval: 7d
+      Auto
+    Serial: group name
+      Task name <time...>
+        /command-or-instructions
+        Key: task-key
+  Presentation
+    Task name
+      /command-or-instructions
+      Key: task-key
+```
 
-The skip-gate works at the **task** level (the prep leaves and presentation children), not the group parents. Keep a task only if it:
+`Key` is required and links prep to presentation. `Interval` is optional and defaults to `1d`; supported units are `d`, `m`, and `y`. `Auto` is only for prep tasks that have no presentation entry. Presentation inherits its due state and interval from prep, so it carries no date. Placement already identifies prep versus presentation; `#llm-task`, `· prep`, `· apply`, marker emoji, and duplicate dates are invalid clutter.
 
-- Has a `<time>` element in its name with a start date on or before today
-- Has `completedAt` equal to `null`
+The planner rejects unexpected root children, duplicate or unmatched keys, invalid intervals, missing prep dates, dates on presentation tasks, and presentation entries for auto tasks. Any validation error halts the review.
 
-**Date comparison:** Parse `startYear`, `startMonth`, `startDay` from the `<time>` element and compare as ISO date strings (`"2026-04-20" <= "2026-04-20"`). Tasks with no `<time>` element or with future dates are skipped. Filtering never splits or merges a group — a skipped node just doesn't run; the surviving group structure (which leaf preps in parallel, which chain is serial, the presentation sibling order) is unchanged.
+Tasks elsewhere in `Personal > 🔄 Review` remain recurring-review tasks and use their section's cadence. They are not part of this DAG.
 
-**Scope:** the LLM Tasks phase only processes the canonical `LLM Tasks:` container at `Personal > 🔄 Review > 🔄 Daily Review > LLM Tasks:`. Scattered `#llm-task` items inside other review sections (e.g. `🔄 Monthly Review`, `☀️ Low priority daily tasks`) are handled by the Recurring Review phase (`/gtd:review:daily:due`), which has its own `#llm-task` subsection. If a user tags something `#llm-task` with a date outside both the canonical container and the review tree, it will not be surfaced automatically — they should move it into `LLM Tasks:`.
+### Present the due plan
 
-### Present and skip-gate
+List every due prep task and its inherited presentation entry from `phase0-plan.json` before execution. Show the human name, instructions, key, Workflowy link, whether it is auto, and whether its branch is parallel or serial. Show the import barrier as done.
 
-List ALL due-and-incomplete LLM tasks up front in a single message before any execution, grouped under their `⚙️ Prep` / `🙋 Presentation` headings so the user sees what will run in parallel and the order they'll be asked to confirm:
+Ask once whether to skip tasks. A skip is keyed: skipping prep also skips its presentation. Auto tasks and the import barrier are mandatory. If no tasks are due, continue without prompting; if only mandatory tasks are due, run them without the skip question.
 
-- For each task, show the task name (strip HTML tags for display, render `<a href>` as markdown links)
-- Show child instruction nodes indented below, recursively (but not the `🔑 Key` / `🤖 Auto` marker children — surface those as a `key: <slug>` / `auto` annotation instead)
-- Show the Workflowy URL: `https://workflowy.com/#/<shortId>`
-- Mark mandatory tasks as **"always runs"** — these are not user-skippable because downstream tasks depend on them. The `📥 Import` barrier already ran; show it as done. `🤖 Auto` tasks run non-interactively and are also not skippable in the presentation walk.
+### Execute the plan
 
-After presenting the summary, gate the run with a single yes/no AskUserQuestion:
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md` and `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`:
 
-- Question: `Skip any LLM tasks?`
-- Options: `No — run everything (Recommended)` first, then `Yes — let me pick what to skip`
-- `multiSelect: false`
-- Default expectation is `No`; if the user picks `No` (or "Other" with equivalent intent), execute the full DAG without further prompting
+- Run metadata sync once.
+- Dispatch each `parallel` prep branch independently and each `serial` branch through one ordered controller, capped at five concurrent prep units.
+- Start the presentation walk as soon as the branches are in flight. Block only for the current key's staged result.
+- Treat `status: "empty"` as successful work with no prompt.
+- After a paired apply succeeds, run that key's `advance.applyOp` from `phase0-plan.json` verbatim in the background.
+- After an auto task succeeds, run its key's `advance.applyOp` the same way.
+- On skip, failure, or unverified work, leave the date unchanged.
 
-If the user picks `Yes`, issue a follow-up AskUserQuestion to choose which skippable tasks to skip:
+The executor owns date advancement. Prep, apply, and auto commands never update their own schedule. This keeps one date on the prep node and makes arbitrary intervals deterministic.
 
-- Use `multiSelect: true`
-- One option per skippable task (label: short task name); plus "Other" added automatically by the tool
-- AskUserQuestion allows at most 4 options per question. If there are more than 4 skippable tasks, split them across multiple questions within the same AskUserQuestion call (it accepts up to 4 questions)
-- Mandatory tasks (the `📥 Import` barrier, which already ran) must not appear as options
-- A skipped **prep** task and its `🔑 Key`-linked **presentation** task are skipped together. Skipping a head-of-chain task does not skip the rest of its `🔗 … serial chain` — only the selected node.
-- Tasks the user selects are skipped; everything else runs
+Interpret non-marker children as commands or instructions. `/gtd:...` invokes a plugin command; shell commands run in Bash; nested children add detail. `Key`, `Interval`, and `Auto` are markers, not instructions.
 
-**Skip-the-prompt edge cases:**
-
-- Zero due LLM tasks: skip the confirmation entirely, no prompt, move on to the Relink Orphaned Children phase
-- No skippable tasks (only mandatory ones due): skip the yes/no prompt and run everything
-
-### Execute the DAG
-
-Once the skip-gate resolves, hand the surviving (un-skipped) tasks to the DAG executor: follow the **Execution Algorithm** (steps 0b–0f; 0a already ran) in `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md` — read-groups, single metadata-sync, background prep fan-out, streaming confirmation walk, drain + summarize — using the staging contract and shared apply routine in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. That skill owns the prep subagent contract, the ≤5 concurrency cap, the serial-chain rule, and the drain-before-fan-out safeguard; this command only feeds it the skip-gate result.
-
-The handoff must preserve the DAG skill's hybrid timing: after launching prep subagents/controllers in the background, begin the `🙋 Presentation` walk immediately. Do **not** wait for every prep branch to finish before asking the first confirmation question. The walk blocks only at the current presentation item until that item's own staged proposal is ready; slower later siblings such as the calendar chain or refine-inbox must not hold earlier ready items hostage.
-
-Two project-specific bindings the executor needs:
-
-- Date advancement (interval mapping, `<time>` format, background dispatch / drain) is in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` — see [Updating dates](#updating-dates-after-each-apply).
-- The 0f summary folds in the `🤖 Auto` briefing fragments — see [Summary](#summary).
-
-Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) anywhere in the LLM Tasks phase.
-
-### Executing instructions
-
-Each task node's instruction is its **prep** or **apply** command, linked to its presentation sibling by `🔑 Key`. Interpret a node's instruction children:
-
-- Skill / command invocation (e.g. `/gtd:refine-journal-prep`) → invoke it with the rest of the text as arguments
-- `<code>command</code>` → run the command in bash
-- Plain text → follow the instructions as described
-- Nested children → treat as sub-instructions or details for the parent instruction (the `🔑 Key` and `🤖 Auto` children are markers, not instructions)
-
-A node's instruction is a prep **or** an apply command, never run together inline: the prep command fans out in a subagent during 0d and the `🔑 Key`-linked apply command runs on the main thread during 0e (see `dag-llm-tasks.md`). The lone exception is a task that degrades to `needs-interactive`, which runs its full logic inline at its presentation slot.
+Do not create Claude Code built-in tasks (`TaskCreate`, `TaskUpdate`, or `TodoWrite`).
 
 ### Handling failures
 
-Never silently skip a task or quietly leave its date unchanged because something failed. If a task cannot complete — especially an MCP server failing to connect, a network error, an auth failure, or a tool returning errors — **stop and ask the user before moving on**.
+Never silently skip a task. If a command, MCP, network call, validation, or verification fails, stop and surface the failure. Retry once or twice when reasonable, then ask the user whether to fix it or explicitly skip it. A skipped or failed task keeps its date.
 
-- After a retry or two, if the failure persists, issue an `AskUserQuestion` describing what failed and the error
-- Offer the user the chance to fix it together first (e.g. reconnect the MCP, re-auth, fix network) — do not treat skipping as the default
-- Only skip the task if the user explicitly confirms it is okay to skip
-- If the user chooses to skip, say so plainly and leave the task's date unchanged so it retries next run — but only after that explicit confirmation
-- A prep subagent that fails stages `status: "error"`; the walk surfaces that error at the task's presentation slot and offers to run inline (it does **not** silently advance the date)
+Drain every background date write before a cache import, before leaving this phase, and before relinking. Follow `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` for dispatch and verification.
 
-Do not proceed to the next task on a hidden assumption that skipping is fine.
+### Summarize
 
-### Updating dates after each apply
+Drain the writes and report applied, skipped, failed, and advanced counts. Fold auto briefing lines from `.llm/gtd/review/briefings/` into the same summary.
 
-A task's date advances **only when its apply step completes** (or its `🤖 Auto` work finishes), never during prep — so an aborted prep run never skips a day. Update the date using the interval mapping, `<time>` format, and CLI commands in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, dispatching each `node update` / `node create` date write as a **background** Bash job (`run_in_background: true`) per the "Background Dispatch, Verify, and Drain" protocol there. Track each dispatched job, reap finished jobs every ~5 tasks, and surface any failures inline with the task name.
-
-**CRITICAL — drain before any cache reimport.** The `📥 Import` barrier's `cache import-api` overwrites local SQLite from the API (write-through model), so a not-yet-landed background date-write fed stale data to the prep fan-out would make already-handled tasks reappear as due. The full ordering rule (drain the import _and_ all pending date-writes before fan-out, and again before the Relink Orphaned Children phase) is the "Drain before fan-out" safeguard in `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`.
-
-### Summary
-
-After the confirmation walk, drain all remaining background date-writes (wait for outstanding jobs, surface any failures), then show a brief summary that folds in the `🤖 Auto` briefing fragments from `.llm/gtd/review/briefings/`:
-
-```text
-🤖 LLM Tasks: 3 applied, 1 skipped, 0 remaining
-  ✓ 3 dates advanced
-  🎂 Jane Doe turns 40 on Fri — card mailed, gift TBD
-```
-
-## Phase 1: Relink Orphaned Children
+## Relink Orphaned Children
 
 Invoke `/gtd:review:daily:relink` — move any children that have accumulated on the GTD bucket navigation links under `Metadata` onto the real nodes their links point to. Mechanical and automatic (no prompts); runs here so it operates on the freshly-imported cache. Report its summary.
 
-## Phase 2: Meeting Follow-up Review
+## Meeting Follow-up Review
 
 Invoke `/gtd:review:daily:meetings` to walk meetings ingested since last review, flag probable follow-ups (especially from direct manager), and drop confirmed items into Inbox.
 
-## Phase 3: Morning Overview
+## Morning Overview
 
 Invoke `/gtd:review:daily:overview` — morning orientation (calendar, reminders, next actions, inbox)
 
-## Phase 4: Recurring Review
+## Recurring Review
 
 After overview completes, invoke `/gtd:review:daily:due` — walk through overdue recurring review items.
 
 **Note:** LLM tasks already processed in the LLM Tasks phase will have updated dates and won't appear as overdue in the Recurring Review phase.
 
-## Phase 5: File Loose Tasks
+## File Loose Tasks
 
-Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then sweep loose tasks under both roots (Work and Personal) into the `⏰ Tasks (due dates)` / `📌 Tasks (asap)` buckets, categorizing within asap. Proposes a destination per task and walks them one at a time for confirmation. Relink (Phase 1) already ran, so strays are on the real roots; silent-skip when no loose tasks remain.
+Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then sweep loose tasks under both roots (Work and Personal) into the `⏰ Tasks (due dates)` / `📌 Tasks (asap)` buckets, categorizing within asap. Proposes a destination per task and walks them one at a time for confirmation. Relink already ran, so strays are on the real roots; silent-skip when no loose tasks remain.

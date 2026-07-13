@@ -5,7 +5,13 @@ globs: ${CLAUDE_PLUGIN_ROOT}/commands/review/**
 
 # Review Date Updates
 
-## Section Interval Mapping
+## Keyed DAG intervals
+
+Phase 0 tasks take cadence from an optional `Interval: <amount><unit>` child on the prep node; the default is `1d`. Presentation nodes inherit the prep schedule and carry no date or interval. `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs` validates the pair and writes the exact next-date operation to `.llm/gtd/review/phase0-plan.json`.
+
+The DAG executor runs that operation only after verified success or an empty result. Task commands never update their own Phase 0 schedule.
+
+## Recurring-review section intervals
 
 The executable source of truth for this table is `${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs`, which the Recurring Review (`due.md`) runs to compute overdue items and stage each one's `node update`. Keep the two in sync when adding a section. The table below mirrors it for reference.
 

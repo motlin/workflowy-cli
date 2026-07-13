@@ -5,14 +5,14 @@ description: Auto half of daily-review Otter ingestion — scan Otter.ai for mee
 
 # Otter → Journal — Auto
 
-Ingest new Otter.ai meetings into the Workflowy `📆 Calendar` **without prompting**. Cursor-based dedup plus a calendar-match backstop already guarantee only genuinely-new meetings are created, so a per-run yes/no gate added nothing but friction — this task is a `🤖 Auto` node (like `🎂 Birthdays`): it does its full autonomous work during Phase 0 fan-out and stages a **briefing** fragment instead of a confirmable proposal.
+Ingest new Otter.ai meetings into the Workflowy `📆 Calendar` without prompting. Cursor-based dedup plus a calendar-match backstop ensure only new meetings are created. The live prep task carries `Auto`, so it stages a briefing fragment instead of a confirmable proposal.
 
-It is the head of the `🔗 Calendar journal — serial chain` (`${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`): it creates the entries that `refine-journal-prep` and `refine-exercise-prep` then refine, so it must run — and now also **create** — before them. Because it creates inline, the downstream refine preps in the same chain see the newly-added meetings this run.
+It is the head of `Serial: Calendar journal`: it creates the entries that `refine-journal-prep` and `refine-exercise-prep` then refine.
 
 ## Auto contract (read this first)
 
 - **Fully autonomous.** Never call `AskUserQuestion` / `TaskCreate` / `TaskUpdate` / `TodoWrite`. There is no confirmation gate; deduplicated new meetings are created automatically.
-- **Read, don't rebuild, metadata.** The DAG runs the `📥 Import` barrier and `metadata-sync` once before fan-out. Read the cache as-is.
+- **Read, don't rebuild, metadata.** The DAG runs the import barrier and `metadata-sync` once before fan-out. Read the cache as-is.
 - **Idempotent via the cursor.** Dedup is cursor-based (`last_synced_otid`) with a calendar-match backstop, so a re-run creates nothing new.
 
 ## Load scanner state
@@ -33,7 +33,7 @@ State lives under `Metadata > ⚙️ Scanner State > otter-journal-scanner` as a
 
 ## Refresh the dedup cache
 
-New Otter meetings are flat direct children of `📆 Calendar`. The `📥 Import` barrier already refreshed these, so this is normally a fast no-op:
+New Otter meetings are flat direct children of `📆 Calendar`. The import barrier already refreshed these, so this is normally a fast no-op:
 
 ```bash
 ./bin/run.js cache sync-node --path "📆 Calendar"
@@ -50,10 +50,6 @@ Task tool:
 ```
 
 (The scanner reuses `${CLAUDE_PLUGIN_ROOT}/scripts/otter_sync.py` / `otter-api.sh` for pagination; `OTTER_USERNAME` / `OTTER_PASSWORD` must be set. If the scan fails — auth, network, API — create nothing, stage a briefing with `status: "error"` carrying the error, and stop; the review surfaces it and the cursor is untouched, so the meetings resurface next run.)
-
-## Advance the review date (auto only)
-
-After the scanner returns (entries created and live state advanced), advance this task node's own review date by dispatching a **background** date-write per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` (interval mapping + `<time>` format + drain protocol). The task node's `<time>` is embedded in its name — rewrite it to today + interval. Advancing only after the auto work completes means an aborted run never skips a day.
 
 ## Stage the briefing
 
@@ -78,7 +74,7 @@ mkdir -p .llm/gtd/review/briefings
 
 ## Summary
 
-The daily review's Phase 0f folds the staged `lines` into the final summary. Return a one-line status (meetings scanned, created, deduped, newest meeting date, status) and stop.
+The daily review folds the staged `lines` into the final summary. Return verified success or empty with a one-line status. Return failure on scan or state errors. The DAG executor advances the keyed prep date only after success or empty.
 
 ## Idempotency
 

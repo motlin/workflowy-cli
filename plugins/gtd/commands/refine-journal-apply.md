@@ -1,6 +1,6 @@
 ---
 name: refine-journal-apply
-description: Apply half of journal refinement — read the staged .llm/gtd/review/proposals/refine-journal.json, walk the batches-of-4 AskUserQuestion confirmation loop, apply accepted node updates, then advance the refine-journal Scanner-State and review date.
+description: Apply staged journal refinements, then advance refine-journal Scanner-State and return a verified result to the daily-review scheduler.
 ---
 
 # Refine Journal — Apply
@@ -19,15 +19,17 @@ Track progress through `.llm/` files, Workflowy nodes, and inline status updates
 
 Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for key `refine-journal` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. The skill is authoritative for the presentation format, the Accept / Reject / Accept-with-note options, ambiguity handling, and shell escaping. Two refine-journal specifics:
 
-- On `status: "empty"`, still advance Scanner-State and the review date (prep ran and found no work), then stop. See **Advance progress** below.
-- On `status: "needs-interactive"` or `"error"`, fall back to running the full interactive refinement inline (load metadata, scan the month, propose in batches), then advance state as below.
+- On `status: "empty"`, still advance Scanner-State, then return empty. The DAG executor advances the keyed prep date.
+- On `status: "needs-interactive"`, run the full interactive refinement inline, then advance state and return success after verification.
+- On `status: "error"`, surface the error and return failure.
 
 ## Advance progress (apply only)
 
-After the last batch, advance the task's tracking — this happens **only** here, never in prep, so an aborted prep never skips a month:
+After the last batch, advance task-specific tracking. This happens only here, never in prep, so an aborted prep never skips a month:
 
 - **Scanner-State** under `Metadata > ⚙️ Scanner State > refine-journal`: read the JSON child, add the completed archive month from `summary.archiveMonth` to `months_completed`, set `last_completed_month` to that archive month, clear `current_month_in_progress`, and bump `total_entries_updated` by the number applied. Also record the recent live coverage from prep separately as `recent_live_months_reviewed`, `recent_live_reviewed_at` (use staged `generatedAt`), and `recent_live_entries_reviewed` (from `summary.recentLiveEntriesReviewed`). Do **not** add current/prior live months to `months_completed`; that array is only the backwards archive cursor. Write the compact single-line JSON back via the CLI.
-- **Review date**: dispatch a **background** date-write to advance the refine-journal task node's review date per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` (interval mapping + `<time>` format + drain protocol), using `taskNodeId` from the staged file.
+
+Return success or empty after Scanner-State is persisted. The DAG executor owns the review date.
 
 ## Summary
 

@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 // Compute the overdue recurring-review items from a fetched review tree.
 //
-// This is the deterministic half of the daily review's Recurring Review (Phase 4)
-// and the Phase 0 LLM-task date filter: it parses each leaf item's <time> element,
-// finds the ones due on or before today, and stages the exact `node update` command
-// that advances each item to today + its section's interval. Doing the date math in
-// one place keeps the model from re-deriving it (and from re-tripping the
-// new Date() ISO-vs-local footgun) on every run.
+// This is the deterministic half of the daily review's Recurring Review.
+// It parses each recurring leaf item's <time> element, finds the ones due on or
+// before today, and stages the exact update that advances each item from its section's
+// interval. The Phase 0 planner imports the shared date helpers from this module.
 //
 // Usage:
 //   node compute-overdue.mjs [tree.json] [--today YYYY-MM-DD] [--print]
@@ -20,15 +18,15 @@
 import {readFileSync} from 'node:fs';
 
 const SECTION_INTERVALS = [
-	['Daily Review', {num: 1, unit: 'd'}],
-	['Frequently Important', {num: 1, unit: 'd'}],
-	['Low priority daily', {num: 1, unit: 'd'}],
-	['Do goals for today', {num: 1, unit: 'd'}],
-	['Weekly Review', {num: 7, unit: 'd'}],
-	['Monthly Review', {num: 1, unit: 'm'}],
-	['Every 2 months', {num: 2, unit: 'm'}],
-	['Every 6 months', {num: 6, unit: 'm'}],
-	['Annual Review', {num: 1, unit: 'y'}],
+	['Daily Review', {amount: 1, unit: 'd'}],
+	['Frequently Important', {amount: 1, unit: 'd'}],
+	['Low priority daily', {amount: 1, unit: 'd'}],
+	['Do goals for today', {amount: 1, unit: 'd'}],
+	['Weekly Review', {amount: 7, unit: 'd'}],
+	['Monthly Review', {amount: 1, unit: 'm'}],
+	['Every 2 months', {amount: 2, unit: 'm'}],
+	['Every 6 months', {amount: 6, unit: 'm'}],
+	['Annual Review', {amount: 1, unit: 'y'}],
 ];
 
 const TIME_RE = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"[^>]*>.*?<\/time>/;
@@ -53,14 +51,14 @@ function lastDayOfMonth(year, month1) {
 	return new Date(Date.UTC(year, month1, 0)).getUTCDate();
 }
 
-export function addInterval(iso, {num, unit}) {
+export function addInterval(iso, {amount, unit}) {
 	const [y, m, d] = iso.split('-').map(Number);
 	if (unit === 'd') {
-		const dt = new Date(Date.UTC(y, m - 1, d + num));
+		const dt = new Date(Date.UTC(y, m - 1, d + amount));
 		return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 	}
 	if (unit === 'm' || unit === 'y') {
-		const totalMonths = (unit === 'y' ? num * 12 : num) + (m - 1);
+		const totalMonths = (unit === 'y' ? amount * 12 : amount) + (m - 1);
 		const year = y + Math.floor(totalMonths / 12);
 		const month1 = (totalMonths % 12) + 1;
 		// Clamp the day so e.g. Jan 31 + 1 month -> Feb 28, never rolling into March.
@@ -108,9 +106,7 @@ export function computeOverdue(tree, todayISO) {
 
 		const walk = (node) => {
 			for (const child of node.children ?? []) {
-				// Skip the Phase 0 `LLM Tasks:` container and its whole subtree — the daily
-				// review's LLM Tasks phase owns those dated #llm-tasks (📥 Import barrier,
-				// 💾 Time Machine, etc.), so surfacing them here double-handles them.
+				// The keyed DAG owns the entire LLM Tasks subtree, so recurring review must not surface it.
 				if (String(child.name).includes('LLM Tasks:')) continue;
 				const due = parseTimeISO(child.name);
 				if (due && due <= todayISO) {

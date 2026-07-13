@@ -11,7 +11,7 @@ Carries the full formatting rules; the apply command is thin. Stage proposals to
 
 ## Why this runs after refine-journal
 
-In the daily review's Phase 0 DAG (`${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`), this prep is the **last** link of the `🔗 Calendar journal — serial chain` (otter → refine-journal → exercise). It re-formats the **same** calendar-journal entries `refine-journal` just tagged, so it must run **after** `refine-journal-prep` returns — never as a parallel sibling. By the time this runs, the month's entries already carry their people/hobby/category/emoji tags; this pass only normalizes the **formatting** of the `#exercise` entries on top of that.
+In the daily review DAG, this prep is the last task in `Serial: Calendar journal` (otter → refine-journal → exercise). It reformats the same entries `refine-journal` just tagged, so it must run after `refine-journal-prep`, never as a parallel sibling.
 
 ## Prep contract (read this first)
 
@@ -19,7 +19,7 @@ This command runs inside a Phase 0 prep subagent. Obey the prep contract strictl
 
 - **Autonomous only.** Never call `AskUserQuestion` / `TaskCreate` / `TaskUpdate` / `TodoWrite`. Ambiguities are staged (⚠️ + an `ambiguity` block), never resolved interactively here.
 - **No node mutation.** Make **zero** `node update` / `node create` calls. The only output is the staged JSON file under `.llm/gtd/review/`.
-- **No state advance.** Do **not** advance any Scanner-State or review date. That happens only in `refine-exercise-apply`, so an aborted prep never skips a month.
+- **No state advance.** Do not advance Scanner-State or the review date. Apply owns task-specific state; the DAG executor owns scheduling.
 - **Read, don't rebuild, metadata.** The DAG runs `metadata-sync` once before fan-out. Read the cached `.llm/gtd/metadata/` files; never trigger a concurrent rebuild.
 - **`--dry-run`** is the verification mode: compute and write the `.json`, but the assertion is that zero `node` writes happen — already true for prep. Honor it as a no-op that still stages.
 
@@ -101,8 +101,7 @@ For each entry that needs formatting changes, emit one proposal with:
 
 Set top-level fields:
 
-- `task`: `"refine-exercise"` (matches the `🔑 Key` and the filename).
-- `taskNodeId`: full UUID of the refine-exercise task node (so the apply walk can advance its review date).
+- `task`: `"refine-exercise"` (matches `Key: exercise` and the filename).
 - `generatedAt`: ISO-8601 timestamp with offset.
 - `status`: `"ready"` if any proposals; `"empty"` if every `#exercise` entry in the month is already canonical; `"error"` if prep failed.
 - `presentation`: `"Refine #exercise"`.

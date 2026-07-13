@@ -21,14 +21,14 @@ test('parseTimeISO returns null when there is no time element', () => {
 });
 
 test('intervalForSection matches by substring, ignoring emoji prefixes', () => {
-	assert.deepEqual(intervalForSection('🔄 Daily Review'), {num: 1, unit: 'd'});
-	assert.deepEqual(intervalForSection('⬆️ Frequently Important'), {num: 1, unit: 'd'});
-	assert.deepEqual(intervalForSection('☀️ Low priority daily tasks'), {num: 1, unit: 'd'});
-	assert.deepEqual(intervalForSection('🗓️ Weekly Review'), {num: 7, unit: 'd'});
-	assert.deepEqual(intervalForSection('Monthly Review'), {num: 1, unit: 'm'});
-	assert.deepEqual(intervalForSection('Every 2 months'), {num: 2, unit: 'm'});
-	assert.deepEqual(intervalForSection('Every 6 months'), {num: 6, unit: 'm'});
-	assert.deepEqual(intervalForSection('Annual Review'), {num: 1, unit: 'y'});
+	assert.deepEqual(intervalForSection('🔄 Daily Review'), {amount: 1, unit: 'd'});
+	assert.deepEqual(intervalForSection('⬆️ Frequently Important'), {amount: 1, unit: 'd'});
+	assert.deepEqual(intervalForSection('☀️ Low priority daily tasks'), {amount: 1, unit: 'd'});
+	assert.deepEqual(intervalForSection('🗓️ Weekly Review'), {amount: 7, unit: 'd'});
+	assert.deepEqual(intervalForSection('Monthly Review'), {amount: 1, unit: 'm'});
+	assert.deepEqual(intervalForSection('Every 2 months'), {amount: 2, unit: 'm'});
+	assert.deepEqual(intervalForSection('Every 6 months'), {amount: 6, unit: 'm'});
+	assert.deepEqual(intervalForSection('Annual Review'), {amount: 1, unit: 'y'});
 });
 
 test('intervalForSection returns null when the section needs a user-chosen interval', () => {
@@ -37,15 +37,15 @@ test('intervalForSection returns null when the section needs a user-chosen inter
 });
 
 test('addInterval advances days, weeks, months, and years', () => {
-	assert.equal(addInterval('2026-06-24', {num: 1, unit: 'd'}), '2026-06-25');
-	assert.equal(addInterval('2026-06-24', {num: 7, unit: 'd'}), '2026-07-01');
-	assert.equal(addInterval('2026-06-24', {num: 1, unit: 'm'}), '2026-07-24');
-	assert.equal(addInterval('2026-06-24', {num: 1, unit: 'y'}), '2027-06-24');
+	assert.equal(addInterval('2026-06-24', {amount: 1, unit: 'd'}), '2026-06-25');
+	assert.equal(addInterval('2026-06-24', {amount: 7, unit: 'd'}), '2026-07-01');
+	assert.equal(addInterval('2026-06-24', {amount: 1, unit: 'm'}), '2026-07-24');
+	assert.equal(addInterval('2026-06-24', {amount: 1, unit: 'y'}), '2027-06-24');
 });
 
 test('addInterval clamps a month rollover to the last day rather than skipping a month', () => {
 	// Jan 31 + 1 month must not roll into March.
-	assert.equal(addInterval('2026-01-31', {num: 1, unit: 'm'}), '2026-02-28');
+	assert.equal(addInterval('2026-01-31', {amount: 1, unit: 'm'}), '2026-02-28');
 });
 
 test('buildTimeElement computes the weekday and keeps the trailing space', () => {

@@ -1,5 +1,5 @@
 ---
-description: The prep→apply staging contract for the daily review's Phase 0. Use when writing a *-prep command that stages proposals or a *-apply command that consumes them — the .llm/gtd/review/ directory layout, the proposal and briefing JSON schemas, and the shared "read staged proposals → batch-present via AskUserQuestion → apply accepted applyOps verbatim → advance date" routine. Read it before adding or changing any review prep/apply pair.
+description: The prep-to-apply staging contract for daily-review tasks, including proposal and briefing schemas and the shared confirmation routine. Scheduling belongs to the keyed DAG executor.
 globs: ${CLAUDE_PLUGIN_ROOT}/commands/**
 ---
 
@@ -13,11 +13,11 @@ The pattern mirrors the existing journal/capture staging pipeline (`${CLAUDE_PLU
 
 ```text
 .llm/gtd/review/
-  proposals/<key>.json     # one per prep-staged interactive task (has a 🙋 Presentation entry)
-  briefings/<key>.json     # one per 🤖 Auto task (no presentation entry; briefing line only)
+  proposals/<key>.json     # one per prep-staged interactive task
+  briefings/<key>.json     # one per Auto task
 ```
 
-- `<key>` is the `🔑 Key: <slug>` shared by a task's prep node and its presentation node (`refine-journal`, `exercise`, `email-calendar`, `process-inbox`). It is the sole link between the prep that wrote the file and the apply that reads it. `🤖 Auto` tasks (`birthdays`, `otter-journal`) stage a briefing under the same key instead of a paired proposal (see Briefing Schema).
+- `<key>` is the `Key: <slug>` shared by prep and presentation. It is the sole link between the prep that wrote the file and the apply that reads it. `Auto` prep tasks stage a briefing under the same key and have no presentation node.
 - Prep that only stages JSON makes **no** Workflowy writes. `process-inbox` is the exception: its prep (refine-inbox) stages `🔍` suggestion nodes in Workflowy instead of a JSON file, but the key-linkage idea is identical.
 - Create the directories before staging:
 
@@ -32,7 +32,6 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<key>.j
 ```json
 {
 	"task": "refine-journal",
-	"taskNodeId": "<full-uuid-of-the-prep-node>",
 	"generatedAt": "2026-06-22T14:03:00-07:00",
 	"status": "ready",
 	"presentation": "Refine calendar journal",
@@ -63,8 +62,7 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<key>.j
 
 | Field | Meaning |
 | --- | --- |
-| `task` | Task slug = the `🔑 Key`. Matches the filename. |
-| `taskNodeId` | Full UUID of the task's prep node, so the walk can advance its date. |
+| `task` | Task slug from `Key`. Matches the filename. |
 | `generatedAt` | ISO-8601 timestamp with offset. Used for idempotency / staleness checks. |
 | `status` | `ready` \| `needs-interactive` \| `empty` \| `error` (see below). |
 | `presentation` | Human label the walk shows while presenting this task. |
@@ -118,9 +116,9 @@ Prep and apply are separated in time; between them the user (or another task) ma
 
 `--expect-name` makes the CLI refuse the write (non-zero exit, no mutation) unless the node's **current** name equals `<before>`. So a drifted node is a loud, safe no-op instead of silent data loss. The walk treats that refusal as a **stale skip**: do not retry it blind, surface it (`⏭️ skipped <header> — changed since prep`), and leave the item for the next run. When the walk builds an op itself (emoji picker "Other", "Accept with note"), it must likewise append `--expect-name '<before>'`.
 
-## Briefing Schema (`🤖 Auto` tasks)
+## Briefing Schema
 
-A `🤖 Auto` task (e.g. `birthdays`, `otter-journal`) does its **full** autonomous work — prep _and_ apply — during fan-out, then stages a briefing fragment instead of a confirmable proposal. It has no `🙋 Presentation` entry and never prompts. Write `.llm/gtd/review/briefings/<key>.json`:
+An `Auto` task does its autonomous work during fan-out, then stages a briefing fragment instead of a confirmable proposal. It has no presentation entry and never prompts. Write `.llm/gtd/review/briefings/<key>.json`:
 
 ```json
 {
@@ -133,7 +131,7 @@ A `🤖 Auto` task (e.g. `birthdays`, `otter-journal`) does its **full** autonom
 
 | Field         | Meaning                                                             |
 | ------------- | ------------------------------------------------------------------- |
-| `task`        | Task slug = the `🔑 Key`.                                           |
+| `task`        | Task slug from `Key`.                                               |
 | `status`      | `ready` \| `empty` \| `error`.                                      |
 | `lines`       | Briefing lines folded verbatim into the final summary.              |
 | `autoApplied` | Actions the task already performed autonomously (for transparency). |
@@ -146,8 +144,9 @@ Every `*-apply` command (`refine-journal-apply`, `refine-exercise-apply`, `email
 
 Read `.llm/gtd/review/proposals/<key>.json` for the command's key. Branch on `status`:
 
-- `empty` → report "nothing to apply" and advance the date (the prep ran and found no work; treat as a clean no-op for the day).
-- `needs-interactive` or `error` → run the task's interactive logic **inline** (graceful degradation), then advance the date as that logic normally would.
+- `empty` → return empty without prompting; the DAG executor advances the keyed prep date.
+- `needs-interactive` → run the task's interactive logic **inline** (graceful degradation) and return success only after verification.
+- `error` → surface the error and return failure; the date stays unchanged.
 - `ready` → continue with the batch-present loop below.
 
 ### Batch-present via AskUserQuestion
@@ -190,11 +189,11 @@ NEXT_STATE=$(jq -c '.scannerState' .llm/gtd/review/proposals/<key>.json)
 ./bin/run.js node update --id "$CHILD_ID" --name "$NEXT_STATE"
 ```
 
-The `otter-journal-scanner` state (`{cursor, session_start, last_synced_otid, reached_beginning}`) is the shape this mechanism was modeled on — `last_synced_otid` is the cursor-based dedup boundary, `cursor` / `session_start` bound the in-progress scan window, and `reached_beginning` flags a fully back-filled history. Note that `otter-journal` itself no longer uses this staged-`scannerState`→apply path: as a `🤖 Auto` task it advances that cursor **directly** in the scanner's `create` mode. This generic Advance Scanner-State step remains for any interactive apply task that stages a top-level `scannerState`.
+The `otter-journal-scanner` state (`{cursor, session_start, last_synced_otid, reached_beginning}`) is the shape this mechanism was modeled on. `otter-journal` is Auto and advances its cursor directly in create mode. This generic step remains for interactive apply tasks that stage top-level `scannerState`.
 
-### Advance the task's date
+### Return the apply result
 
-After the last batch, advance the task node's review date by dispatching a **background** date-write per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` (interval mapping + `<time>` format + drain protocol). Use `taskNodeId` from the staged file. Advancing only on apply — never in prep — means an aborted prep run never skips a day. Tasks that track their own progress advance that state on apply too, never in prep — generic `scannerState` blocks via the Advance Scanner-State step above, task-specific progress (e.g. refine-journal's Scanner-State node) in the apply command's own logic.
+After the last batch and any task-specific state update, return success, empty, skipped, or failure to the DAG executor. The executor owns scheduling and runs the key's precomputed `advance.applyOp` only for success or empty. Task-specific progress such as scanner state still advances during apply, after the accepted operations are verified.
 
 ### Idempotency
 
@@ -204,4 +203,4 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 
 - **Schema shape-check:** `jq` each staged file against the fields above (`jq -e '.task and .status and (.proposals|type=="array")' .llm/gtd/review/proposals/<key>.json`).
 - **Dry-run staging:** a prep `--dry-run` writes the `.json` but makes **zero** `node update`/`node create` calls — only `.llm/gtd/review/` is touched.
-- **applyOps fidelity:** the walk runs `applyOps` verbatim; a stubbed-Accept walk over a fixture asserts the exact staged commands ran and the date-advance dispatched.
+- **applyOps fidelity:** the walk runs `applyOps` verbatim; a stubbed-Accept walk over a fixture asserts the exact staged commands ran and the executor received success.

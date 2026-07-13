@@ -1,6 +1,6 @@
 ---
 name: refine-exercise-apply
-description: 'Apply half of #exercise formatting — read the staged .llm/gtd/review/proposals/refine-exercise.json, walk the batched AskUserQuestion confirmation loop, apply accepted node updates, then advance the refine-exercise review date.'
+description: 'Apply staged #exercise formatting updates and return a verified result to the daily-review scheduler.'
 ---
 
 # Refine #exercise — Apply
@@ -9,11 +9,11 @@ The interactive half of the exercise-formatting split. It reads what `refine-exe
 
 ## Prerequisite
 
-Run `/gtd:refine-exercise-prep` first (in the daily review it runs automatically as the last link of the Phase 0 `🔗 Calendar journal — serial chain`, after `refine-journal-prep`). It stages `.llm/gtd/review/proposals/refine-exercise.json`.
+Run `/gtd:refine-exercise-prep` first. In the daily review it is the last task in `Serial: Calendar journal`, after `refine-journal-prep`. It stages `.llm/gtd/review/proposals/refine-exercise.json`.
 
 ## Presentation order
 
-In the daily review's `🙋 Presentation` group, this task's node is placed **below** `Refine calendar journal · apply`, so the walk presents it **after** refine-journal. That keeps the user reviewing each entry's tags (refine-journal) before its formatting (exercise), and guarantees the `before` text shown here reflects refine-journal's already-applied edits rather than stale pre-refine text.
+Under `Presentation`, this task is below `Refine calendar journal`, so the walk presents it after refine-journal. That keeps tag review ahead of formatting and ensures the displayed `before` text reflects accepted refinement edits.
 
 ## Do not use the built-in task list
 
@@ -23,12 +23,13 @@ Track progress through `.llm/` files, Workflowy nodes, and inline status updates
 
 Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for key `refine-exercise` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. The skill is authoritative for the presentation format, the Accept / Reject / Accept-with-note options, ambiguity handling, and shell escaping.
 
-- On `status: "empty"`, still advance the review date (prep ran and found every entry already canonical), then stop.
-- On `status: "needs-interactive"` or `"error"`, fall back to running the full formatting pass inline (scan the month's `#exercise` entries, normalize per the rules in `${CLAUDE_PLUGIN_ROOT}/commands/refine-exercise-prep.md`, propose in batches), then advance the date.
+- On `status: "empty"`, return empty without prompting.
+- On `status: "needs-interactive"`, run the full formatting pass inline and return success after verification.
+- On `status: "error"`, surface the error and return failure.
 
-## Advance progress (apply only)
+## Return progress
 
-After the last batch, dispatch a **background** date-write to advance the refine-exercise task node's review date per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` (interval mapping + `<time>` format + drain protocol), using `taskNodeId` from the staged file. Advancing only on apply — never in prep — means an aborted prep never skips a day.
+Return success after the last verified batch, or empty when no changes were needed. The DAG executor owns the keyed prep date.
 
 ## Summary
 
