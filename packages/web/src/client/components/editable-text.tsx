@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import type {NodeResponse} from '../../node-types.js';
 import {createPortal} from 'react-dom';
 import {useQueryClient} from '@tanstack/react-query';
 import {useOutlineStore} from '../stores/outline.js';
@@ -81,18 +82,6 @@ function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): n
 	}
 
 	return null;
-}
-
-interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
 }
 
 interface EditableTextProps {

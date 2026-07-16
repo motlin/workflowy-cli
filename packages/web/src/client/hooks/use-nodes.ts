@@ -1,38 +1,6 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import type {NodeResponse} from '../../node-types.js';
 import {useOutlineStore} from '../stores/outline.js';
-
-/**
- * Response format matching Workflowy API.
- * Matches NodeResponse from server/routes/nodes.ts
- */
-interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-	hasChildren?: boolean;
-	isMirror?: boolean;
-	attachment?: NodeAttachment | null;
-}
-
-/**
- * File attachment metadata for a node. Mirrors NodeAttachment from
- * server/routes/nodes.ts. `isDeleted` marks attachments whose underlying file
- * Workflowy has removed — the client renders these as deleted rather than live.
- */
-interface NodeAttachment {
-	fileName: string;
-	fileType: string;
-	objectFolder: string | null;
-	imageOriginalWidth: number | null;
-	imageOriginalHeight: number | null;
-	isDeleted: boolean;
-}
 
 interface CreateNodeRequest {
 	parent_id?: string;

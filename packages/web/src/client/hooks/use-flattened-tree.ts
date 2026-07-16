@@ -1,24 +1,8 @@
 import {useQueries, useQueryClient} from '@tanstack/react-query';
+import type {NodeResponse} from '../../node-types.js';
 import {useMemo} from 'react';
 import {useOutlineStore} from '../stores/outline.js';
 import {useChildren} from './use-nodes.js';
-
-/**
- * Response format matching Workflowy API.
- */
-interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-	hasChildren?: boolean;
-	isMirror?: boolean;
-}
 
 /**
  * A flattened node includes the original node data plus its depth in the tree.

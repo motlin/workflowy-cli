@@ -1,4 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
+import type {NodeResponse} from '../../node-types.js';
 import {useHotkeys} from 'react-hotkeys-hook';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
@@ -12,18 +13,6 @@ import {
 	useUpdateNode,
 } from './use-nodes.js';
 import {useVisibleNodes} from './use-visible-nodes.js';
-
-interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-}
 
 /**
  * Keyboard shortcuts for the outline view.

@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {createPortal} from 'react-dom';
 import {useNodeNavigation, uuidToShortId} from '../navigation.js';
-import type {NodeResponse} from './outline-node.js';
+import type {NodeResponse} from '../../node-types.js';
 
 interface MirrorLocationPath {
 	id: string;

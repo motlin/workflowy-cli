@@ -1,6 +1,7 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineNode and RecursiveOutlineTree is intentional.
 import {useQueryClient} from '@tanstack/react-query';
+import type {NodeAttachment, NodeResponse} from '../../node-types.js';
 import {useState} from 'react';
 import {useNodeNavigation, uuidToShortId} from '../navigation.js';
 import {useNodeDragDrop} from '../hooks/use-node-drag-drop.js';
@@ -11,40 +12,6 @@ import {EditableText} from './editable-text.js';
 import {resolveLayoutMode} from './layout-mode.js';
 import {NodeContextMenuButton} from './node-context-menu.js';
 import {RecursiveOutlineTree} from './outline-tree.js';
-
-/**
- * Response format matching Workflowy API.
- */
-export interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-	hasChildren?: boolean;
-	isMirror?: boolean;
-	originalNodeId?: string | null;
-	attachment?: NodeAttachment | null;
-}
-
-/**
- * File attachment metadata for a node. Mirrors NodeAttachment from the server
- * REST DTO. When `isDeleted` is true the file has been removed in Workflowy, so
- * the indicator is rendered as a deleted (struck-through, dimmed) marker rather
- * than as a live attachment.
- */
-interface NodeAttachment {
-	fileName: string;
-	fileType: string;
-	objectFolder: string | null;
-	imageOriginalWidth: number | null;
-	imageOriginalHeight: number | null;
-	isDeleted: boolean;
-}
 
 /**
  * Renders a file-attachment indicator beneath a node's text. Live attachments

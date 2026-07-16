@@ -1,18 +1,7 @@
 import {useQueryClient} from '@tanstack/react-query';
+import type {NodeResponse} from '../../node-types.js';
 import {useMemo} from 'react';
 import {useOutlineStore} from '../stores/outline.js';
-
-interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-}
 
 /**
  * Builds a flattened list of visible node IDs in display order.

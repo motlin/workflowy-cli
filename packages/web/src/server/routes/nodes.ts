@@ -1,4 +1,5 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
+import type {NodeAttachment, NodeResponse} from '../../node-types.js';
 import {CacheService, NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {mirrors as mirrorsTable, nodeContent, s3Files} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
@@ -29,40 +30,6 @@ async function resolveNodeId(id: string): Promise<string | null> {
 function resolveMirrorToOriginal(nodeId: string): string {
 	const reader = new NodeReader(getDatabase());
 	return reader.getById(nodeId)?.mirror.originalNodeId ?? nodeId;
-}
-
-/**
- * Response format matching Workflowy API exactly.
- * See: https://beta.workflowy.com/api-reference/
- */
-interface NodeResponse {
-	id: string;
-	parent_id: string | null;
-	name: string | null;
-	note: string | null;
-	priority: number;
-	data: {layoutMode: string | null};
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-	hasChildren: boolean;
-	isMirror: boolean;
-	originalNodeId: string | null;
-	attachment: NodeAttachment | null;
-}
-
-/**
- * File attachment metadata for a node, derived from the `s3_files` cache table.
- * `isDeleted` is true when Workflowy has removed the underlying file — the
- * client renders these as deleted/hidden rather than as live attachments.
- */
-interface NodeAttachment {
-	fileName: string;
-	fileType: string;
-	objectFolder: string | null;
-	imageOriginalWidth: number | null;
-	imageOriginalHeight: number | null;
-	isDeleted: boolean;
 }
 
 /**
