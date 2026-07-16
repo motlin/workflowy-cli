@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
+import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
 
@@ -12,11 +13,6 @@ interface RelatedNode {
 
 interface RelatedResponse {
 	results: RelatedNode[];
-}
-
-function stripHtml(html: string | null): string {
-	if (!html) return '';
-	return html.replaceAll(/<[^>]*>/g, '');
 }
 
 function formatSimilarityScore(distance: number): string {

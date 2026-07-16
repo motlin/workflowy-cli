@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import type {ChangeSummary, ChangeTreeNode, NodeChange} from '@workflowy/shared/changes';
@@ -9,11 +10,6 @@ interface ChangesResponse {
 	tree: ChangeTreeNode[];
 	summary: ChangeSummary;
 	cutoffDate: string;
-}
-
-function stripHtml(html: string | null): string {
-	if (!html) return '';
-	return html.replaceAll(/<[^>]*>/g, '');
 }
 
 function getChangeLabels(change: NodeChange): string[] {

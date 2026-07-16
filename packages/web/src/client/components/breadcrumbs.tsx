@@ -1,4 +1,5 @@
 import {useNodeNavigation} from '../navigation.js';
+import {stripHtmlTags} from '@workflowy/shared/html';
 import {useAncestors} from '../hooks/use-nodes.js';
 
 interface BreadcrumbItem {
@@ -10,16 +11,6 @@ interface BreadcrumbItem {
  * Strips HTML tags from node names for display.
  * Matches the stripHtmlTags method from PathBuilder service.
  */
-function stripHtmlTags(html: string): string {
-	return html
-		.replaceAll(/<[^>]*>/g, '')
-		.replaceAll('&nbsp;', ' ')
-		.replaceAll('&amp;', '&')
-		.replaceAll('&lt;', '<')
-		.replaceAll('&gt;', '>')
-		.replaceAll('&quot;', '"')
-		.trim();
-}
 
 /**
  * Breadcrumb separator using production Workflowy SVG.

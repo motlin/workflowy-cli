@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {createPortal} from 'react-dom';
 import {useNodeNavigation, uuidToShortId} from '../navigation.js';
 import type {NodeResponse} from './outline-node.js';
@@ -41,11 +42,6 @@ function formatTimestamp(unixTimestamp: number | null): string {
 		hour: '2-digit',
 		minute: '2-digit',
 	});
-}
-
-function stripHtml(html: string | null): string {
-	if (!html) return '';
-	return html.replaceAll(/<[^>]*>/g, '');
 }
 
 function truncate(text: string, maxLength: number): string {

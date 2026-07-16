@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
 
@@ -60,11 +61,6 @@ function setStoredModel(model: EmbeddingModelKey): void {
 	if (typeof globalThis !== 'undefined') {
 		localStorage.setItem(STORAGE_KEY, model);
 	}
-}
-
-function stripHtml(html: string | null): string {
-	if (!html) return '';
-	return html.replaceAll(/<[^>]*>/g, '');
 }
 
 function highlightMatches(text: string, query: string): string {

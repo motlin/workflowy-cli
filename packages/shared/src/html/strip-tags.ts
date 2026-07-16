@@ -1,4 +1,5 @@
-export function stripHtmlTags(html: string): string {
+export function stripHtmlTags(html: string | null): string {
+	if (!html) return '';
 	return html
 		.replaceAll(/<[^>]*>/g, '')
 		.replaceAll('&nbsp;', ' ')

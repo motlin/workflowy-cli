@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
+import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useHotkeys} from 'react-hotkeys-hook';
 import {useOutlineStore} from '../stores/outline.js';
 
@@ -9,12 +10,6 @@ interface NodeData {
 	name: string | null;
 	note: string | null;
 	children?: NodeData[];
-}
-
-function stripHtml(html: string): string {
-	const tmp = document.createElement('div');
-	tmp.innerHTML = html;
-	return tmp.textContent ?? '';
 }
 
 function formatPlainText(nodes: NodeData[], depth: number = 0): string {

@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useNavigate} from 'react-router-dom';
 import {z} from 'zod';
 import {useOutlineStore} from '../stores/outline.js';
@@ -16,11 +17,6 @@ interface NodeResult {
 
 interface SearchResponse {
 	results: NodeResult[];
-}
-
-function stripHtml(html: string | null): string {
-	if (!html) return '';
-	return html.replaceAll(/<[^>]*>/g, '');
 }
 
 function getRecentNodeIds(): string[] {
