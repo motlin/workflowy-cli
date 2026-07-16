@@ -502,7 +502,7 @@ export class CacheService {
 					createdAt: timestampToDate(node.createdAt),
 					modifiedAt: timestampToDate(node.modifiedAt),
 					completedAt: timestampToDate(node.completedAt),
-					layoutMode: node.data?.layoutMode || null,
+					layoutMode: normalizeLayoutMode(node.data?.layoutMode),
 					systemFrom: systemFromStr,
 					systemTo: FAR_FUTURE_DATE,
 				})
@@ -537,7 +537,12 @@ export class CacheService {
 			currentIndex++;
 		}
 
-		// Close all node records (set systemTo to now)
+		// Close all node records (set systemTo to now). A genuine deletion also closes the
+		// node's own relationship records (backlinks, virtualRootIds): the node is gone, so no
+		// backup import will re-supply them. This does NOT replay the sync data-loss bug (#1712),
+		// which blanked these for nodes still present — here the nodes are actually deleted. Rows
+		// are filtered by nodeId, so a surviving node's backlink that merely targets a deleted
+		// node is left untouched.
 		this.database.transaction((tx) => {
 			for (const id of descendantIds) {
 				tx.update(nodeContent)
@@ -547,6 +552,14 @@ export class CacheService {
 				tx.update(nodeMetadata)
 					.set({systemTo: now})
 					.where(and(eq(nodeMetadata.nodeId, id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
+					.run();
+				tx.update(backlinks)
+					.set({systemTo: now})
+					.where(and(eq(backlinks.nodeId, id), eq(backlinks.systemTo, FAR_FUTURE_DATE)))
+					.run();
+				tx.update(virtualRootIds)
+					.set({systemTo: now})
+					.where(and(eq(virtualRootIds.nodeId, id), eq(virtualRootIds.systemTo, FAR_FUTURE_DATE)))
 					.run();
 			}
 		});

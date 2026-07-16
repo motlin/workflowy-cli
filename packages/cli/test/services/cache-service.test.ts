@@ -1,4 +1,4 @@
-import {nodeContent} from '@workflowy/shared/db';
+import {backlinks, nodeContent, nodeMetadata, virtualRootIds} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
 import {eq} from 'drizzle-orm';
 import fs from 'node:fs';
@@ -253,6 +253,17 @@ describe('CacheService (shared)', () => {
 			expect(node).not.toBeNull();
 			expect(node!.id).toBe('root');
 		});
+
+		it('matches exactly, never on a substring', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'archive', name: 'Review Archive', parentId: null})],
+			});
+
+			// 'Review' is a substring of 'Review Archive' but must not match: this API is exact-only.
+			const node = await cacheService.findNodeByPath(['Review']);
+
+			expect(node).toBeNull();
+		});
 	});
 
 	describe('storeApiResponse', () => {
@@ -408,6 +419,16 @@ describe('CacheService (shared)', () => {
 			const activeRecord = allRecords.find((r) => r.systemTo === FAR_FUTURE_DATE)!;
 			expect(activeRecord.name).toBe('Updated');
 		});
+
+		it('normalizes layoutMode on a brand-new insert', async () => {
+			// 'bullets' is the default layout and normalizes to null (see normalizeLayoutMode).
+			const apiNode = createApiNode({id: 'new-node', name: 'New Node', parent_id: null});
+
+			await cacheService.insertNode(apiNode, null);
+
+			const meta = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, 'new-node')).get()!;
+			expect(meta.layoutMode).toBeNull();
+		});
 	});
 
 	describe('deleteNode', () => {
@@ -442,6 +463,60 @@ describe('CacheService (shared)', () => {
 			const node2 = await cacheService.getNode('node-2');
 			expect(node2).toBeDefined();
 			expectActiveRecord(node2!);
+		});
+
+		it('closes backlinks and virtualRootIds for the deleted subtree', async () => {
+			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'parent', name: 'Parent', parentId: null}),
+					createTestNode({id: 'child', name: 'Child', parentId: 'parent'}),
+				],
+				backlinks: [
+					{
+						nodeId: 'child',
+						sourceId: 'child',
+						targetId: 'other',
+						systemFrom: from,
+						systemTo: FAR_FUTURE_DATE,
+					},
+				],
+				virtualRootIds: [
+					{nodeId: 'parent', virtualRootId: 'vroot-1', systemFrom: from, systemTo: FAR_FUTURE_DATE},
+				],
+			});
+
+			await cacheService.deleteNode('parent');
+
+			const bl = testDatabase.db.select().from(backlinks).where(eq(backlinks.nodeId, 'child')).get()!;
+			expect(bl.systemTo).not.toBe(FAR_FUTURE_DATE);
+			const vr = testDatabase.db.select().from(virtualRootIds).where(eq(virtualRootIds.nodeId, 'parent')).get()!;
+			expect(vr.systemTo).not.toBe(FAR_FUTURE_DATE);
+		});
+
+		it('leaves a surviving node backlink that merely targets the deleted node', async () => {
+			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'survivor', name: 'Survivor', parentId: null}),
+					createTestNode({id: 'target', name: 'Target', parentId: null}),
+				],
+				// Owned by the survivor (nodeId=survivor), pointing at the deleted node.
+				backlinks: [
+					{
+						nodeId: 'survivor',
+						sourceId: 'survivor',
+						targetId: 'target',
+						systemFrom: from,
+						systemTo: FAR_FUTURE_DATE,
+					},
+				],
+			});
+
+			await cacheService.deleteNode('target');
+
+			const bl = testDatabase.db.select().from(backlinks).where(eq(backlinks.nodeId, 'survivor')).get()!;
+			expect(bl.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 	});
 
