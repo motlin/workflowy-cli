@@ -49,6 +49,10 @@
 		"./utils": {
 			"types": "./dist/utils/index.d.ts",
 			"import": "./dist/utils/index.js"
+		},
+		"./search": {
+			"types": "./dist/search/index.d.ts",
+			"import": "./dist/search/index.js"
 		}
 	},
 	"files": [
