@@ -197,8 +197,8 @@ importers:
   packages/web:
     dependencies:
       '@hono/node-server':
-        specifier: ^2.0.8
-        version: 2.0.8(hono@4.12.30)
+        specifier: ^2.0.9
+        version: 2.0.9(hono@4.12.30)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -998,8 +998,8 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hono/node-server@2.0.8':
-    resolution: {integrity: sha512-GuCWzLxwg218fy1JaHculFsdcuY12hxit83V+algozTPnwhNjLrRL/Alg9OYjLZLoUZ1rw/S4CdTMsnkSKCmFA==}
+  '@hono/node-server@2.0.9':
+    resolution: {integrity: sha512-cNMw3ziCdDcx0+ldta60zvUL5XO0OLt521n2hjPp0PB0ugczDCEczXsf33qQbkKIXWGFQ03f0LC85u6YK8pCLA==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -6091,7 +6091,7 @@ snapshots:
     dependencies:
       hono: 4.12.9
 
-  '@hono/node-server@2.0.8(hono@4.12.30)':
+  '@hono/node-server@2.0.9(hono@4.12.30)':
     dependencies:
       hono: 4.12.30
 
