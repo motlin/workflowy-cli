@@ -1,4 +1,5 @@
 import {Hono} from 'hono';
+import {PathBuilder} from '@workflowy/shared/cache';
 import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
 import {type ParsedQuery, parseSearchQuery} from '@workflowy/shared/search';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
@@ -98,48 +99,6 @@ function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 		metadataConditions,
 		needsMetadataJoin: metadataConditions.length > 0,
 	};
-}
-
-// 🔗 Build the parent path for a node by traversing up the parentId chain
-async function buildParentPath(database: ReturnType<typeof getDatabase>, nodeId: string): Promise<string> {
-	const pathParts: string[] = [];
-	let currentId: string | null = nodeId;
-
-	// First, get the parent of the search result node
-	const startNode = database
-		.select({parentId: nodeContent.parentId})
-		.from(nodeContent)
-		.where(and(eq(nodeContent.id, currentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-		.get();
-
-	if (!startNode) {
-		return '';
-	}
-
-	currentId = startNode.parentId;
-
-	// Traverse up the parent chain
-	while (currentId !== null) {
-		const parentNode = database
-			.select({
-				id: nodeContent.id,
-				name: nodeContent.name,
-				parentId: nodeContent.parentId,
-			})
-			.from(nodeContent)
-			.where(and(eq(nodeContent.id, currentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-			.get();
-
-		if (!parentNode) {
-			break;
-		}
-
-		const nodeName = parentNode.name ? stripHtmlTags(parentNode.name) : 'Untitled';
-		pathParts.unshift(nodeName);
-		currentId = parentNode.parentId;
-	}
-
-	return pathParts.join(' > ');
 }
 
 // 📊 Extract scoring terms from parsed query for result ranking
@@ -283,15 +242,32 @@ searchRouter.post('/', async (c) => {
 	// Apply pagination after scoring and sorting
 	const paginatedResults = scoredResults.slice(offset, offset + limit);
 
-	// Build parent paths for each result
-	const results: SearchResult[] = await Promise.all(
-		paginatedResults.map(async ({id, name, note}) => ({
-			id,
-			name,
-			note,
-			parentPath: await buildParentPath(database, id),
-		})),
+	// Build parent paths in two batched queries (parentId lookup + PathBuilder) rather
+	// than walking the ancestor chain per result. The parent path excludes the result
+	// node itself, so it is the full path of the node's parent.
+	const parentIdOf = new Map<string, string | null>(
+		database
+			.select({id: nodeContent.id, parentId: nodeContent.parentId})
+			.from(nodeContent)
+			.where(
+				and(
+					inArray(
+						nodeContent.id,
+						paginatedResults.map((r) => r.id),
+					),
+					eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+				),
+			)
+			.all()
+			.map((row) => [row.id, row.parentId]),
 	);
+	const parentIds = [...new Set([...parentIdOf.values()].filter((id): id is string => id !== null))];
+	const pathByParent = await new PathBuilder(database).buildFullPathsBatch(parentIds);
+
+	const results: SearchResult[] = paginatedResults.map(({id, name, note}) => {
+		const parentId = parentIdOf.get(id) ?? null;
+		return {id, name, note, parentPath: parentId ? (pathByParent.get(parentId) ?? '') : ''};
+	});
 
 	return c.json({results, totalCount});
 });

@@ -33,17 +33,17 @@ export class PathBuilder {
 	}
 
 	/**
-	 * Build full paths for multiple nodes efficiently using level-by-level batching.
-	 * This reduces O(nodes × depth) queries to O(depth) queries.
+	 * Build the ancestor name-parts (root-first, blanks skipped) for multiple nodes
+	 * using level-by-level batching, reducing O(nodes × depth) queries to O(depth).
 	 *
 	 * Algorithm:
 	 * 1. Start with the set of node IDs we need paths for
 	 * 2. Query all those nodes to get their names and parent IDs
 	 * 3. Collect unique parent IDs not yet in our map
 	 * 4. Repeat until we've reached all roots (no more new parents)
-	 * 5. Reconstruct paths by walking the in-memory map
+	 * 5. Reconstruct each path by walking the in-memory map
 	 */
-	async buildFullPathsBatch(nodeIds: string[]): Promise<Map<string, string>> {
+	async buildFullPathPartsBatch(nodeIds: string[]): Promise<Map<string, string[]>> {
 		if (nodeIds.length === 0) {
 			return new Map();
 		}
@@ -84,7 +84,7 @@ export class PathBuilder {
 			currentIds = [...new Set(nextIds)];
 		}
 
-		const pathMap = new Map<string, string>();
+		const partsMap = new Map<string, string[]>();
 
 		for (const nodeId of nodeIds) {
 			const pathParts: string[] = [];
@@ -102,9 +102,21 @@ export class PathBuilder {
 				currentId = info.parentId;
 			}
 
-			pathMap.set(nodeId, pathParts.join(' > '));
+			partsMap.set(nodeId, pathParts);
 		}
 
+		return partsMap;
+	}
+
+	/**
+	 * Build full `' > '`-joined paths for multiple nodes.
+	 */
+	async buildFullPathsBatch(nodeIds: string[]): Promise<Map<string, string>> {
+		const partsMap = await this.buildFullPathPartsBatch(nodeIds);
+		const pathMap = new Map<string, string>();
+		for (const [id, parts] of partsMap) {
+			pathMap.set(id, parts.join(' > '));
+		}
 		return pathMap;
 	}
 

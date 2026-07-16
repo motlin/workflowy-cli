@@ -1,4 +1,5 @@
 import {Hono} from 'hono';
+import {PathBuilder} from '@workflowy/shared/cache';
 import {and, count, eq, ne, sql} from 'drizzle-orm';
 import {nodeContent, nodeEmbeddings} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
@@ -29,40 +30,22 @@ interface RelatedResponse {
 	results: RelatedNode[];
 }
 
-function buildPath(database: ReturnType<typeof getDatabase>, nodeId: string): string[] {
-	const path: string[] = [];
-	let currentId: string | null = nodeId;
-
-	while (currentId) {
-		const node = database
-			.select({id: nodeContent.id, name: nodeContent.name, parentId: nodeContent.parentId})
-			.from(nodeContent)
-			.where(and(eq(nodeContent.id, currentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-			.get();
-
-		if (!node) {
-			break;
-		}
-
-		const name = node.name ? stripHtmlTags(node.name) : '';
-		if (name) {
-			path.unshift(name);
-		}
-
-		currentId = node.parentId;
+/** Fill each node's ancestor path in one batched PathBuilder query. */
+async function fillPaths(database: ReturnType<typeof getDatabase>, nodes: RelatedNode[]): Promise<void> {
+	const parts = await new PathBuilder(database).buildFullPathPartsBatch(nodes.map((n) => n.id));
+	for (const node of nodes) {
+		node.path = parts.get(node.id) ?? [];
 	}
-
-	return path;
 }
 
-function findSimilarNodes(
+async function findSimilarNodes(
 	database: ReturnType<typeof getDatabase>,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
 	limit: number,
 	threshold: number,
-): RelatedNode[] {
+): Promise<RelatedNode[]> {
 	const results = database
 		.select({
 			nodeId: nodeEmbeddings.nodeId,
@@ -87,23 +70,25 @@ function findSimilarNodes(
 		.limit(limit)
 		.all();
 
-	return results.map((result) => ({
+	const nodes: RelatedNode[] = results.map((result) => ({
 		id: result.nodeId,
 		name: result.name,
 		note: result.note,
 		distance: result.distance,
-		path: buildPath(database, result.nodeId),
+		path: [],
 	}));
+	await fillPaths(database, nodes);
+	return nodes;
 }
 
-function findParentCandidates(
+async function findParentCandidates(
 	database: ReturnType<typeof getDatabase>,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
 	limit: number,
 	threshold: number,
-): RelatedNode[] {
+): Promise<RelatedNode[]> {
 	// Parent candidates are nodes that:
 	// 1. Are semantically similar to the source
 	// 2. Already have children (are likely container nodes)
@@ -167,7 +152,7 @@ function findParentCandidates(
 				name: result.name,
 				note: result.note,
 				distance: result.distance,
-				path: buildPath(database, result.nodeId),
+				path: [],
 			});
 
 			if (candidates.length >= limit) {
@@ -176,17 +161,18 @@ function findParentCandidates(
 		}
 	}
 
+	await fillPaths(database, candidates);
 	return candidates;
 }
 
-function findLinkTargets(
+async function findLinkTargets(
 	database: ReturnType<typeof getDatabase>,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
 	limit: number,
 	threshold: number,
-): RelatedNode[] {
+): Promise<RelatedNode[]> {
 	// Link targets prioritize nodes with meaningful names (not just empty/bullet points)
 	// and are not the source node itself
 	const results = database
@@ -223,7 +209,7 @@ function findLinkTargets(
 				name: result.name,
 				note: result.note,
 				distance: result.distance,
-				path: buildPath(database, result.nodeId),
+				path: [],
 			});
 
 			if (targets.length >= limit) {
@@ -232,6 +218,7 @@ function findLinkTargets(
 		}
 	}
 
+	await fillPaths(database, targets);
 	return targets;
 }
 
@@ -278,15 +265,15 @@ relatedRouter.post('/', async (c) => {
 
 	switch (type) {
 		case 'similar': {
-			results = findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
+			results = await findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
 		case 'parent-candidates': {
-			results = findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
+			results = await findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
 		case 'link-targets': {
-			results = findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
+			results = await findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
 	}
