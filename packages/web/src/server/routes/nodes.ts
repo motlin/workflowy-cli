@@ -1,5 +1,5 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {CacheService, NodeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
+import {CacheService, NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {mirrors as mirrorsTable, nodeContent, s3Files} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import type {Node} from '@workflowy/shared/types';
@@ -178,12 +178,13 @@ nodesRouter.get('/', async (c) => {
 	}
 
 	const db = getDatabase();
-	const reader = new NodeReader(db);
 
-	const results = reader.getChildren(parentId);
+	// NodeTreeReader resolves the mirror name/note fallback (a blank mirror copy
+	// borrows its original's content) and fails loudly on inverted relationships.
+	const nodes = await new NodeTreeReader(new CacheService(db)).readChildren(parentId, {depth: 0});
 
 	// Determine which nodes have children (single query for efficiency)
-	const nodeIds = results.map((n) => n.id);
+	const nodeIds = nodes.map((n) => n.id);
 	const parentIdsWithChildren = new Set<string>();
 	if (nodeIds.length > 0) {
 		const childRows = db
@@ -199,53 +200,17 @@ nodesRouter.get('/', async (c) => {
 	// Batch-load file attachments for all returned nodes.
 	const attachments = loadAttachments(nodeIds);
 
-	// Transform to Workflowy API response format, resolving the mirror
-	// name/note fallback for nodes whose own name is empty.
-	const nodeResponses: NodeResponse[] = results.map((node) => {
-		const derived = resolveNameNote(reader, node);
-		return nodeToRestDto(node, {
+	const nodeResponses: NodeResponse[] = nodes.map((node) =>
+		nodeToRestDto(node, {
 			hasChildren: parentIdsWithChildren.has(node.id),
-			name: derived.name,
-			note: derived.note,
+			name: node.name,
+			note: node.note,
 			attachment: attachments.get(node.id) ?? null,
-		});
-	});
+		}),
+	);
 
 	return c.json({nodes: nodeResponses});
 });
-
-/**
- * Resolve the display name and note for a node, applying the mirror
- * fallback: in Workflowy's data model either side of a mirror pair may
- * carry the content, so a node with an empty name borrows it from its
- * mirror counterpart.
- */
-function resolveNameNote(reader: NodeReader, node: Node): {name: string | null; note: string | null} {
-	if (node.name) {
-		return {name: node.name, note: node.note};
-	}
-	// This node is a mirror copy — borrow content from the original.
-	if (node.mirror.originalNodeId) {
-		const original = reader.getById(node.mirror.originalNodeId);
-		if (original?.name) {
-			return {name: original.name, note: original.note};
-		}
-	}
-	// This node may be an original whose mirrors carry the content.
-	const db = getDatabase();
-	const mirrorRows = db
-		.select({mirrorId: mirrorsTable.mirrorId})
-		.from(mirrorsTable)
-		.where(and(eq(mirrorsTable.originalId, node.id), eq(mirrorsTable.systemTo, FAR_FUTURE_DATE)))
-		.all();
-	for (const row of mirrorRows) {
-		const mirrorNode = reader.getById(row.mirrorId);
-		if (mirrorNode?.name) {
-			return {name: mirrorNode.name, note: mirrorNode.note};
-		}
-	}
-	return {name: node.name, note: node.note};
-}
 
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
 nodesRouter.get('/:id', async (c) => {
@@ -256,42 +221,11 @@ nodesRouter.get('/:id', async (c) => {
 	}
 
 	const db = getDatabase();
-	const reader = new NodeReader(db);
 
-	const node = reader.getById(id);
+	// NodeTreeReader resolves the mirror name/note fallback and mirror flags.
+	const [node] = await new NodeTreeReader(new CacheService(db)).readNodes([id], {depth: 0});
 	if (!node) {
 		return c.json({error: 'Node not found'}, 404);
-	}
-
-	// Resolve name/note from mirror pair — either side may carry the content.
-	let resolvedName = node.name;
-	let resolvedNote = node.note;
-	let isMirror = node.mirror.isMirror;
-	let originalNodeId = node.mirror.originalNodeId;
-	if (node.mirror.originalNodeId) {
-		// This node is a mirror copy — get name from original.
-		const original = reader.getById(node.mirror.originalNodeId);
-		if (original?.name) {
-			resolvedName = original.name;
-			resolvedNote = original.note;
-		}
-	}
-	if (!resolvedName) {
-		// This node might be an original with empty name — check mirrors for content.
-		const mirrorRow = db
-			.select({mirrorId: mirrorsTable.mirrorId})
-			.from(mirrorsTable)
-			.where(and(eq(mirrorsTable.originalId, id), eq(mirrorsTable.systemTo, FAR_FUTURE_DATE)))
-			.get();
-		if (mirrorRow) {
-			isMirror = true;
-			originalNodeId = id;
-			const mirrorNode = reader.getById(mirrorRow.mirrorId);
-			if (mirrorNode?.name) {
-				resolvedName = mirrorNode.name;
-				resolvedNote = mirrorNode.note;
-			}
-		}
 	}
 
 	// Check if this node has children
@@ -304,16 +238,12 @@ nodesRouter.get('/:id', async (c) => {
 
 	const attachment = loadAttachments([id]).get(id) ?? null;
 
-	const nodeResponse: NodeResponse = {
-		...nodeToRestDto(node, {
-			hasChildren: childCheck !== undefined,
-			name: resolvedName,
-			note: resolvedNote,
-			attachment,
-		}),
-		isMirror,
-		originalNodeId: isMirror ? originalNodeId : null,
-	};
+	const nodeResponse: NodeResponse = nodeToRestDto(node, {
+		hasChildren: childCheck !== undefined,
+		name: node.name,
+		note: node.note,
+		attachment,
+	});
 
 	// Wrap in { node: ... } to match Workflowy API format
 	return c.json({node: nodeResponse});
