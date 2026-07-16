@@ -50,13 +50,17 @@ export class CacheService extends BaseCacheService {
 		return results;
 	}
 
-	async getChildrenWithMergedData(parentId: string | null) {
+	async getChildrenWithMergedData(
+		parentId: string | null,
+	): Promise<Awaited<ReturnType<BaseCacheService['getChildrenWithMergedData']>>> {
 		const result = await super.getChildrenWithMergedData(parentId);
 		logger.logSqlResult('getChildrenWithMergedData', result);
 		return result;
 	}
 
-	async getChildrenForMultipleParents(parentIds: string[]) {
+	async getChildrenForMultipleParents(
+		parentIds: string[],
+	): Promise<Awaited<ReturnType<BaseCacheService['getChildrenForMultipleParents']>>> {
 		const result = await super.getChildrenForMultipleParents(parentIds);
 		logger.logSqlResult('getChildrenForMultipleParents', result);
 		return result;
