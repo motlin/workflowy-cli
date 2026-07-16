@@ -2,67 +2,89 @@ import {captureOutput} from '@oclif/test';
 import Schema from '../../../src/commands/node/schema.js';
 
 const EXPECTED_STDOUT = `// Output type for: node get --json
-// Source: EnhancedCacheNode
+// Source: NodeTree
 interface NodeGetOutput {
   children?: NodeGetOutput[];
-  linkTargets?: ({ shortId: string | null; children?: NodeGetOutput[]; id: string; name: string | null; note: string | null; parentId: string | null; priority: number | null; createdAt: string | null; modifiedAt: string | null; completedAt: string | null; layoutMode: string | null; systemFrom: string; systemTo: string; mirrorsAsOriginal?: { mirrorId: string }[]; mirrorsAsCopy?: { originalId: string }[]; backlinks?: { sourceId: string; targetId: string }[]; virtualRootIds?: { virtualRootId: string }[]; aiMetadata?: { inChat: number } | null; s3File?: { fileName: string; fileType: string; objectFolder: string | null; isAnimatedGif: number | null; imageOriginalWidth: number | null; imageOriginalHeight: number | null; imageOriginalPixels: number | null; isDeleted: number | null } | null; changesMetadata?: { ctBy: number } | null; referencesRoot?: { nodeId: string } | null; calendar?: { root: number | null; level: string | null; value: string | null; dateId: number | null; timestamp: number | null; foundDates: number | null; levels?: { day: number | null; week: number | null; month: number | null; year: number | null } | null } | null })[];
-  isMirror?: boolean;
-  mirrorOf?: string;
+  linkTargets?: LinkTarget[];
+  inChat: boolean;
+  hasReferencesRoot: boolean;
   id: string;
   shortId: string | null;
+  parentId: string | null;
   name: string | null;
   note: string | null;
-  parentId: string | null;
-  priority: number | null;
+  priority: number;
+  layoutMode: string | null;
   createdAt: string | null;
   modifiedAt: string | null;
   completedAt: string | null;
-  layoutMode: string | null;
+  collapsed: boolean;
+  mirror: { isMirror: boolean; originalNodeId: string | null };
   systemFrom: string;
   systemTo: string;
-  mirrorsAsOriginal?: { mirrorId: string }[];
-  mirrorsAsCopy?: { originalId: string }[];
-  backlinks?: { sourceId: string; targetId: string }[];
-  virtualRootIds?: { virtualRootId: string }[];
-  aiMetadata?: { inChat: number } | null;
-  s3File?: { fileName: string; fileType: string; objectFolder: string | null; isAnimatedGif: number | null; imageOriginalWidth: number | null; imageOriginalHeight: number | null; imageOriginalPixels: number | null; isDeleted: number | null } | null;
-  changesMetadata?: { ctBy: number } | null;
-  referencesRoot?: { nodeId: string } | null;
-  calendar?: { root: number | null; level: string | null; value: string | null; dateId: number | null; timestamp: number | null; foundDates: number | null; levels?: { day: number | null; week: number | null; month: number | null; year: number | null } | null } | null;
 }
 
+
+interface LinkTarget {
+  shortId: string | null;
+  children?: NodeGetOutput[];
+  id: string;
+  parentId: string | null;
+  name: string | null;
+  note: string | null;
+  priority: number;
+  layoutMode: string | null;
+  createdAt: string | null;
+  modifiedAt: string | null;
+  completedAt: string | null;
+  collapsed: boolean;
+  mirror: { isMirror: boolean; originalNodeId: string | null };
+  systemFrom: string;
+  systemTo: string;
+}
 
 
 // Output type for: node list --json
-// Source: EnhancedCacheNode
+// Source: NodeTree
 interface NodeListOutput {
   children?: NodeListOutput[];
-  linkTargets?: ({ shortId: string | null; children?: NodeListOutput[]; id: string; name: string | null; note: string | null; parentId: string | null; priority: number | null; createdAt: string | null; modifiedAt: string | null; completedAt: string | null; layoutMode: string | null; systemFrom: string; systemTo: string; mirrorsAsOriginal?: { mirrorId: string }[]; mirrorsAsCopy?: { originalId: string }[]; backlinks?: { sourceId: string; targetId: string }[]; virtualRootIds?: { virtualRootId: string }[]; aiMetadata?: { inChat: number } | null; s3File?: { fileName: string; fileType: string; objectFolder: string | null; isAnimatedGif: number | null; imageOriginalWidth: number | null; imageOriginalHeight: number | null; imageOriginalPixels: number | null; isDeleted: number | null } | null; changesMetadata?: { ctBy: number } | null; referencesRoot?: { nodeId: string } | null; calendar?: { root: number | null; level: string | null; value: string | null; dateId: number | null; timestamp: number | null; foundDates: number | null; levels?: { day: number | null; week: number | null; month: number | null; year: number | null } | null } | null })[];
-  isMirror?: boolean;
-  mirrorOf?: string;
+  linkTargets?: LinkTarget[];
+  inChat: boolean;
+  hasReferencesRoot: boolean;
   id: string;
   shortId: string | null;
+  parentId: string | null;
   name: string | null;
   note: string | null;
-  parentId: string | null;
-  priority: number | null;
+  priority: number;
+  layoutMode: string | null;
   createdAt: string | null;
   modifiedAt: string | null;
   completedAt: string | null;
-  layoutMode: string | null;
+  collapsed: boolean;
+  mirror: { isMirror: boolean; originalNodeId: string | null };
   systemFrom: string;
   systemTo: string;
-  mirrorsAsOriginal?: { mirrorId: string }[];
-  mirrorsAsCopy?: { originalId: string }[];
-  backlinks?: { sourceId: string; targetId: string }[];
-  virtualRootIds?: { virtualRootId: string }[];
-  aiMetadata?: { inChat: number } | null;
-  s3File?: { fileName: string; fileType: string; objectFolder: string | null; isAnimatedGif: number | null; imageOriginalWidth: number | null; imageOriginalHeight: number | null; imageOriginalPixels: number | null; isDeleted: number | null } | null;
-  changesMetadata?: { ctBy: number } | null;
-  referencesRoot?: { nodeId: string } | null;
-  calendar?: { root: number | null; level: string | null; value: string | null; dateId: number | null; timestamp: number | null; foundDates: number | null; levels?: { day: number | null; week: number | null; month: number | null; year: number | null } | null } | null;
 }
 
+
+interface LinkTarget {
+  shortId: string | null;
+  children?: NodeListOutput[];
+  id: string;
+  parentId: string | null;
+  name: string | null;
+  note: string | null;
+  priority: number;
+  layoutMode: string | null;
+  createdAt: string | null;
+  modifiedAt: string | null;
+  completedAt: string | null;
+  collapsed: boolean;
+  mirror: { isMirror: boolean; originalNodeId: string | null };
+  systemFrom: string;
+  systemTo: string;
+}
 
 
 // Output type for: node search --json

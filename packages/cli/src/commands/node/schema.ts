@@ -28,14 +28,14 @@ interface CommandTypeMapping {
 const COMMAND_TYPE_MAP: Record<string, CommandTypeMapping> = {
 	get: {
 		description: 'node get --json',
-		sourceFile: path.resolve(PKG_ROOT, 'src/commands/base-list-command.ts'),
-		typeName: 'EnhancedCacheNode',
+		sourceFile: path.resolve(PKG_ROOT, '../shared/src/cache/node-tree-reader.ts'),
+		typeName: 'NodeTree',
 		interfaceName: 'NodeGetOutput',
 	},
 	list: {
 		description: 'node list --json',
-		sourceFile: path.resolve(PKG_ROOT, 'src/commands/base-list-command.ts'),
-		typeName: 'EnhancedCacheNode',
+		sourceFile: path.resolve(PKG_ROOT, '../shared/src/cache/node-tree-reader.ts'),
+		typeName: 'NodeTree',
 		interfaceName: 'NodeListOutput',
 	},
 	search: {

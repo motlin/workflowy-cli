@@ -220,9 +220,10 @@ describe('node get command', () => {
 						parentId: null,
 						systemFrom,
 					}),
+					// A mirror carries no content of its own; it inherits the original's.
 					createTestNode({
 						id: 'mirror-id',
-						name: 'Mirror Node',
+						name: '',
 						parentId: null,
 						systemFrom,
 					}),
@@ -243,9 +244,10 @@ describe('node get command', () => {
 
 			const output = JSON.parse(stdout);
 			expect(output.id).toBe('mirror-id');
+			expect(output.name).toBe('Original Node');
 			expect(output.mirror).toStrictEqual({
 				isMirror: true,
-				originalId: 'original-id',
+				originalNodeId: 'original-id',
 			});
 		});
 
@@ -334,8 +336,8 @@ describe('node get command', () => {
 			expect(output.children).toHaveLength(1);
 			expect(output.children[0].name).toBe('Original Content');
 			expect(output.children[0].note).toBe('Original note');
-			expect(output.children[0].isMirror).toBe(true);
-			expect(output.children[0].mirrorOf).toBe('original-node-id');
+			expect(output.children[0].mirror.isMirror).toBe(true);
+			expect(output.children[0].mirror.originalNodeId).toBe('original-node-id');
 		});
 
 		it('resolves mirror children with filtered fields', async () => {
@@ -380,8 +382,8 @@ describe('node get command', () => {
 			const output = JSON.parse(stdout);
 			expect(output.children).toHaveLength(1);
 			expect(output.children[0].name).toBe('Original Content');
-			expect(output.children[0].isMirror).toBe(true);
-			expect(output.children[0].mirrorOf).toBe('original-node-id');
+			expect(output.children[0].mirror.isMirror).toBe(true);
+			expect(output.children[0].mirror.originalNodeId).toBe('original-node-id');
 		});
 
 		it('fetches children of original node for mirror children', async () => {
@@ -441,7 +443,7 @@ describe('node get command', () => {
 			expect(output.children).toHaveLength(1);
 			const mirrorChild = output.children[0];
 			expect(mirrorChild.name).toBe('Original Content');
-			expect(mirrorChild.isMirror).toBe(true);
+			expect(mirrorChild.mirror.isMirror).toBe(true);
 			expect(mirrorChild.children).toHaveLength(2);
 			expect(mirrorChild.children[0].name).toBe('Grandchild 1');
 			expect(mirrorChild.children[1].name).toBe('Grandchild 2');
@@ -534,6 +536,8 @@ describe('node get command', () => {
 				collapsed: false,
 				mirror: {isMirror: false, originalNodeId: null},
 				systemTo: FAR_FUTURE_DATE,
+				inChat: false,
+				hasReferencesRoot: false,
 			});
 		});
 	});

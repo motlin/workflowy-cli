@@ -115,6 +115,15 @@ export class NodeTreeReader {
 		return this.buildTrees(rootRows, options);
 	}
 
+	/** Read the given nodes as subtrees to the requested depth, preserving caller order. */
+	async readNodes(nodeIds: string[], options: ReadTreeOptions): Promise<NodeTree[]> {
+		if (nodeIds.length === 0) return [];
+		const rows = await this.cache.getMergedDataForNodes(nodeIds);
+		const byId = new Map(rows.map((row) => [row.id, row]));
+		const ordered = nodeIds.map((id) => byId.get(id)).filter((row): row is NodeWithRelations => row !== undefined);
+		return this.buildTrees(ordered, options);
+	}
+
 	private async buildTrees(rootRows: NodeWithRelations[], options: ReadTreeOptions): Promise<NodeTree[]> {
 		const {depth, followLinks = false} = options;
 		const roots = rootRows.map((row) => rawToTree(row));

@@ -1,7 +1,8 @@
+import {type NodeTree, NodeTreeReader} from '@workflowy/shared/cache';
 import {Flags} from '@oclif/core';
 import {logger} from '../../services/logger.js';
 import {htmlToAnsi} from '../../utils/html-to-ansi.js';
-import {BaseListCommand, type EnhancedCacheNode, type ListCommandFlags} from '../base-list-command.js';
+import {BaseListCommand, type ListCommandFlags} from '../base-list-command.js';
 
 interface GetFlags extends ListCommandFlags {
 	id?: string;
@@ -69,18 +70,13 @@ export default class Get extends BaseListCommand {
 
 		this.initializeApiClient();
 
-		let node: EnhancedCacheNode | null = null;
 		let nodeId: string | undefined;
-		let isMirror = false;
-		let originalId: string | null = null;
 
-		// First try to find the node ID
+		// Resolve the node ID from --id (UUID or short ID) or --path.
 		if (typedFlags.id) {
 			const idInput = typedFlags.id;
-			// Check if this is a short ID (12 hex characters) or a full UUID
 			const shortIdPattern = /^[0-9a-f]{12}$/i;
 			if (shortIdPattern.test(idInput)) {
-				// Resolve short ID to full UUID
 				const resolvedId = await this.cacheService.resolveShortIdToUuid(idInput);
 				if (resolvedId) {
 					nodeId = resolvedId;
@@ -93,7 +89,6 @@ export default class Get extends BaseListCommand {
 			}
 		} else if (typedFlags.path) {
 			const nodePath = typedFlags.path.split(',').map((s) => s.trim());
-
 			const cachedNode = await this.cacheService.findNodeByPath(nodePath);
 			if (cachedNode) {
 				nodeId = cachedNode.id;
@@ -102,84 +97,38 @@ export default class Get extends BaseListCommand {
 			}
 		}
 
-		// Check if this node is a mirror
-		if (nodeId) {
-			originalId = await this.cacheService.getMirrorOriginal(nodeId);
-			if (originalId) {
-				isMirror = true;
-				if (typedFlags['follow-mirror']) {
-					logger.debug(`Node ${nodeId} is a mirror of ${originalId}, following to original`);
-					nodeId = originalId;
-				}
+		if (!nodeId) {
+			this.error('Could not resolve a node ID');
+		}
+
+		// Detect a mirror so we can report it (or follow it) before reading the tree.
+		let isMirror = false;
+		let originalId: string | null = await this.cacheService.getMirrorOriginal(nodeId);
+		if (originalId) {
+			isMirror = true;
+			if (typedFlags['follow-mirror']) {
+				logger.debug(`Node ${nodeId} is a mirror of ${originalId}, following to original`);
+				nodeId = originalId;
+				originalId = null;
 			}
 		}
 
-		// Fetch node data if we don't have it yet
-		if (!node && nodeId) {
-			const cachedNode = await this.cacheService.getNode(nodeId);
-			if (cachedNode) {
-				node = cachedNode;
-			}
-		}
-
+		const trees = await new NodeTreeReader(this.cacheService).readNodes([nodeId], {
+			depth: typedFlags.depth,
+			followLinks: typedFlags['follow-links'],
+		});
+		const node = trees[0];
 		if (!node) {
 			this.error(`Node not found with ID: ${nodeId}`);
 		}
 
-		// Fetch children if depth > 0
-		let nodeWithChildren: EnhancedCacheNode = {...node};
-		if (typedFlags.depth > 0) {
-			const nodesWithChildren = await this.fetchChildrenByDepthLevel(
-				[node],
-				typedFlags.depth,
-				typedFlags['follow-links'],
-			);
-			nodeWithChildren = nodesWithChildren[0];
-		}
-
-		await this.applyMirrorNameFallbackRecursive(nodeWithChildren);
-
-		// Display output
-		await this.displayNodeWithChildren(nodeWithChildren, typedFlags, {isMirror, originalId});
-	}
-
-	private async applyMirrorNameFallback(node: EnhancedCacheNode): Promise<void> {
-		if (node.name) return;
-		for (const m of node.mirrorsAsCopy ?? []) {
-			const original = await this.cacheService.getNode(m.originalId);
-			if (original?.name) {
-				node.name = original.name;
-				if (!node.note) node.note = original.note;
-				return;
-			}
-		}
-		for (const m of node.mirrorsAsOriginal ?? []) {
-			const mirrorNode = await this.cacheService.getNode(m.mirrorId);
-			if (mirrorNode?.name) {
-				node.name = mirrorNode.name;
-				if (!node.note) node.note = mirrorNode.note;
-				return;
-			}
-		}
-	}
-
-	private async applyMirrorNameFallbackRecursive(node: EnhancedCacheNode): Promise<void> {
-		await this.applyMirrorNameFallback(node);
-		for (const child of node.children ?? []) {
-			await this.applyMirrorNameFallbackRecursive(child);
-		}
-		for (const target of node.linkTargets ?? []) {
-			await this.applyMirrorNameFallback(target as EnhancedCacheNode);
-			for (const child of target.children ?? []) {
-				await this.applyMirrorNameFallbackRecursive(child);
-			}
-		}
+		await this.displayNodeWithChildren(node, typedFlags, {isMirror, originalId});
 	}
 
 	private async displayNodeWithChildren(
-		node: EnhancedCacheNode,
+		node: NodeTree,
 		flags: GetFlags,
-		mirrorInfo?: {isMirror: boolean; originalId: string | null},
+		mirrorInfo: {isMirror: boolean; originalId: string | null},
 	): Promise<void> {
 		const fullPath = await this.pathBuilder.buildFullPath(node.id);
 
@@ -188,73 +137,55 @@ export default class Get extends BaseListCommand {
 			if (flags.fields) {
 				const parsedFields = this.parseFields(flags.fields);
 				outputNode = this.filterNodeFields(node, parsedFields);
-				// Always include path in filtered output if path field is requested
 				if (parsedFields.includes('path')) {
 					outputNode.path = fullPath;
 				}
 			} else {
-				outputNode = {
-					...node,
-					path: fullPath,
-				};
-			}
-			// Add mirror info if the original node was a mirror (before following)
-			if (mirrorInfo?.isMirror && !flags['follow-mirror']) {
-				outputNode.mirror = {
-					isMirror: true,
-					originalId: mirrorInfo.originalId,
-				};
+				outputNode = {...node, path: fullPath};
 			}
 			this.log(JSON.stringify(outputNode, null, 2));
+			return;
+		}
+
+		// Node header.
+		this.log(`Node: ${fullPath}`);
+		this.log(`🔗 \u001B[90mhttps://workflowy.com/#/${node.id}\u001B[0m`);
+
+		if (mirrorInfo.isMirror && !flags['follow-mirror'] && mirrorInfo.originalId) {
+			this.log(`\u001B[33m🪞 This is a mirror of: ${mirrorInfo.originalId}\u001B[0m`);
+			this.log(`   Use --follow-mirror (-m) to view the original node`);
+		}
+		this.log('');
+
+		if (flags.depth > 0 && node.children && node.children.length > 0) {
+			this.log(`${htmlToAnsi(node.name ?? '')}`);
+			this.log(`Children (${this.countDescendants(node)} nodes):`);
+			await this.displayNodes(node.children, flags);
+		} else if (flags.depth > 0) {
+			this.log(`${htmlToAnsi(node.name ?? '')}`);
+			this.log('No children');
 		} else {
-			// Display the node header
-			this.log(`Node: ${fullPath}`);
-			this.log(`\u{1F517} \u001B[90mhttps://workflowy.com/#/${node.id}\u001B[0m`);
-
-			// Display mirror info if this was a mirror and we didn't follow it
-			if (mirrorInfo?.isMirror && !flags['follow-mirror'] && mirrorInfo.originalId) {
-				this.log(`\u001B[33m\u{1FA9E} This is a mirror of: ${mirrorInfo.originalId}\u001B[0m`);
-				this.log(`   Use --follow-mirror (-m) to view the original node`);
+			this.log(`Name: ${htmlToAnsi(node.name ?? '')}`);
+			if (node.note) {
+				this.log(`Note: ${node.note}`);
 			}
-			this.log('');
-
-			// If we have children and depth was requested, display as tree
-			if (flags.depth > 0 && node.children && node.children.length > 0) {
-				this.log(`${htmlToAnsi(node.name ?? '')}`);
-				this.log(`Children (${this.countDescendants(node)} nodes):`);
-				await this.displayChildrenAsTree(node.children, flags);
-			} else if (flags.depth > 0) {
-				this.log(`${htmlToAnsi(node.name ?? '')}`);
-				this.log('No children');
-			} else {
-				// Show detailed node info when not fetching children
-				this.log(`Name: ${htmlToAnsi(node.name ?? '')}`);
-				if (node.note) {
-					this.log(`Note: ${node.note}`);
-				}
-				this.log(`Completed: ${node.completedAt !== null}`);
-				if (node.createdAt) {
-					this.log(`Created: ${node.createdAt.toISOString()}`);
-				}
-				if (node.modifiedAt) {
-					this.log(`Modified: ${node.modifiedAt.toISOString()}`);
-				}
-				if (node.completedAt) {
-					this.log(`Completed At: ${node.completedAt.toISOString()}`);
-				}
-				if (node.layoutMode) {
-					this.log(`Layout: ${node.layoutMode}`);
-				}
+			this.log(`Completed: ${node.completedAt !== null}`);
+			if (node.createdAt) {
+				this.log(`Created: ${node.createdAt.toISOString()}`);
+			}
+			if (node.modifiedAt) {
+				this.log(`Modified: ${node.modifiedAt.toISOString()}`);
+			}
+			if (node.completedAt) {
+				this.log(`Completed At: ${node.completedAt.toISOString()}`);
+			}
+			if (node.layoutMode) {
+				this.log(`Layout: ${node.layoutMode}`);
 			}
 		}
 	}
 
-	private async displayChildrenAsTree(children: EnhancedCacheNode[], flags: GetFlags): Promise<void> {
-		// Use the parent's displayNodes but wrap children in a fake parent structure
-		await this.displayNodes(children, flags);
-	}
-
-	private countDescendants(node: EnhancedCacheNode): number {
+	private countDescendants(node: NodeTree): number {
 		let count = 0;
 		if (node.children) {
 			for (const child of node.children) {

@@ -211,6 +211,67 @@ export class CacheService {
 	}
 
 	/**
+	 * Get the joined-relation rows for a specific set of node IDs (any parents),
+	 * in the same shape as {@link getChildrenWithMergedData}. Used to seed a
+	 * subtree read from arbitrary root nodes rather than from a single parent.
+	 */
+	async getMergedDataForNodes(nodeIds: string[]): Promise<NodeWithRelations[]> {
+		if (nodeIds.length === 0) return [];
+
+		const results = this.database.query.nodeContent
+			.findMany({
+				where: and(inArray(nodeContent.id, nodeIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)),
+				with: {
+					metadata: true,
+					mirrorsAsOriginal: {where: eq(mirrors.systemTo, FAR_FUTURE_DATE)},
+					mirrorsAsCopy: {where: eq(mirrors.systemTo, FAR_FUTURE_DATE)},
+					backlinks: {where: eq(backlinks.systemTo, FAR_FUTURE_DATE)},
+					virtualRootIds: {where: eq(virtualRootIds.systemTo, FAR_FUTURE_DATE)},
+					aiMetadata: true,
+					s3File: true,
+					changesMetadata: true,
+					referencesRoot: true,
+					calendar: {
+						columns: {
+							root: true,
+							level: true,
+							value: true,
+							dateId: true,
+							timestamp: true,
+							foundDates: true,
+						},
+						with: {levels: true},
+					},
+				},
+			})
+			.sync();
+
+		return results.map((result) => ({
+			id: result.id,
+			shortId: result.metadata?.shortId ?? null,
+			name: result.name,
+			note: result.note,
+			parentId: result.parentId,
+			priority: result.metadata?.priority ?? null,
+			createdAt: result.metadata?.createdAt ?? null,
+			modifiedAt: result.metadata?.modifiedAt ?? null,
+			completedAt: result.metadata?.completedAt ?? null,
+			layoutMode: result.metadata?.layoutMode ?? null,
+			systemFrom: result.systemFrom,
+			systemTo: result.systemTo,
+			mirrorsAsOriginal: result.mirrorsAsOriginal,
+			mirrorsAsCopy: result.mirrorsAsCopy,
+			backlinks: result.backlinks,
+			virtualRootIds: result.virtualRootIds,
+			aiMetadata: result.aiMetadata,
+			s3File: result.s3File,
+			changesMetadata: result.changesMetadata,
+			referencesRoot: result.referencesRoot,
+			calendar: result.calendar,
+		}));
+	}
+
+	/**
 	 * Store API response data for nodes
 	 * @param apiNodes Array of nodes from the API
 	 * @param parentId The parent ID these nodes belong to (null for root)
