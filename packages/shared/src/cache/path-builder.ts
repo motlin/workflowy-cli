@@ -1,10 +1,9 @@
-import {nodeContent} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {and, eq, inArray} from 'drizzle-orm';
+import * as schema from '../db/schema.js';
+import {nodeContent} from '../db/schema.js';
+import {stripHtmlTags} from '../html/strip-tags.js';
+import {and, inArray} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {logger} from './logger.js';
+import {currentVersion} from './cache-temporal.js';
 
 // SQLite 3.32.0+ has SQLITE_MAX_VARIABLE_NUMBER = 32766
 // Use 10000 to stay safely under while minimizing query count
@@ -15,6 +14,12 @@ interface NodeInfo {
 	parentId: string | null;
 }
 
+/**
+ * Builds ancestor paths, plain-text content, and leaf/non-leaf classification for
+ * nodes, using level-by-level batched queries. Shared by the CLI (path headers,
+ * search enrichment, embeddings) and the web server (path enrichment) so ancestor
+ * walking lives in one place.
+ */
 export class PathBuilder {
 	private database: BetterSQLite3Database<typeof schema>;
 
@@ -45,7 +50,6 @@ export class PathBuilder {
 
 		const nodeMap = new Map<string, NodeInfo>();
 		let currentIds = [...new Set(nodeIds)];
-		let queryCount = 0;
 
 		while (currentIds.length > 0) {
 			const nextIds: string[] = [];
@@ -60,9 +64,8 @@ export class PathBuilder {
 						parentId: nodeContent.parentId,
 					})
 					.from(nodeContent)
-					.where(and(inArray(nodeContent.id, chunk), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.where(and(inArray(nodeContent.id, chunk), currentVersion(nodeContent)))
 					.all();
-				queryCount++;
 
 				for (const row of results) {
 					if (!nodeMap.has(row.id)) {
@@ -80,10 +83,6 @@ export class PathBuilder {
 
 			currentIds = [...new Set(nextIds)];
 		}
-
-		logger.debug(
-			`buildFullPathsBatch: ${nodeIds.length} nodes, ${nodeMap.size} unique ancestors, ${queryCount} queries`,
-		);
 
 		const pathMap = new Map<string, string>();
 
@@ -134,7 +133,7 @@ export class PathBuilder {
 					note: nodeContent.note,
 				})
 				.from(nodeContent)
-				.where(and(inArray(nodeContent.id, chunk), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.where(and(inArray(nodeContent.id, chunk), currentVersion(nodeContent)))
 				.all();
 
 			for (const node of results) {
@@ -167,7 +166,7 @@ export class PathBuilder {
 					parentId: nodeContent.parentId,
 				})
 				.from(nodeContent)
-				.where(and(inArray(nodeContent.parentId, chunk), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.where(and(inArray(nodeContent.parentId, chunk), currentVersion(nodeContent)))
 				.all();
 
 			for (const row of results) {
@@ -176,8 +175,6 @@ export class PathBuilder {
 				}
 			}
 		}
-
-		logger.debug(`getNonLeafNodeIds: ${nodeIds.length} nodes checked, ${nonLeafIds.size} are non-leaf`);
 
 		return nonLeafIds;
 	}
@@ -204,7 +201,7 @@ export class PathBuilder {
 					note: nodeContent.note,
 				})
 				.from(nodeContent)
-				.where(and(inArray(nodeContent.parentId, chunk), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.where(and(inArray(nodeContent.parentId, chunk), currentVersion(nodeContent)))
 				.all();
 
 			for (const row of results) {
@@ -226,8 +223,6 @@ export class PathBuilder {
 		for (const [parentId, childTexts] of childrenMap) {
 			contentMap.set(parentId, childTexts.join('\n'));
 		}
-
-		logger.debug(`buildChildrenTextBatch: ${parentIds.length} parents, ${contentMap.size} with children`);
 
 		return contentMap;
 	}

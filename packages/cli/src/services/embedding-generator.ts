@@ -4,7 +4,7 @@ import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/tempor
 import {and, eq, sql} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {DEFAULT_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
-import {PathBuilder} from './path-builder.js';
+import {PathBuilder} from '@workflowy/shared/cache';
 
 export type EmbeddingGeneratorOptions = {
 	batchSize: number;

@@ -6,7 +6,7 @@ import {and, eq, sql} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {EMBEDDING_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
 import {logger} from './logger.js';
-import {PathBuilder} from './path-builder.js';
+import {PathBuilder} from '@workflowy/shared/cache';
 
 export type SearchMode = 'vector' | 'keyword' | 'hybrid';
 

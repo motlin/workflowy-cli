@@ -1,11 +1,10 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
+import {PathBuilder, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {Command, Flags} from '@oclif/core';
 import {createDatabase} from '../../db/index.js';
 import {CacheService} from '../../services/cache.js';
 import {logger} from '../../services/logger.js';
 import {resolveNodeId, resolveParent} from '@workflowy/shared/utils';
-import {PathBuilder} from '../../services/path-builder.js';
 
 export default class Move extends Command {
 	static override description = 'Move a single node to a new location by ID or path';

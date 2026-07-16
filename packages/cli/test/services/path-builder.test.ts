@@ -1,4 +1,4 @@
-import {PathBuilder} from '../../src/services/path-builder.js';
+import {PathBuilder} from '@workflowy/shared/cache';
 import {
 	cleanupTestDatabase,
 	createInMemoryTestDatabase,

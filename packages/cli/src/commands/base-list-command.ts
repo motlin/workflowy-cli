@@ -1,11 +1,10 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {type NodeTree, NodeTreeReader, systemFromToDate} from '@workflowy/shared/cache';
+import {type NodeTree, NodeTreeReader, PathBuilder, systemFromToDate} from '@workflowy/shared/cache';
 import type {WorkflowyNode} from '@workflowy/shared/types';
 import {Command, Flags} from '@oclif/core';
 import {createDatabase} from '../db/index.js';
 import {CacheService} from '../services/cache.js';
 import {logger} from '../services/logger.js';
-import {PathBuilder} from '../services/path-builder.js';
 import {formatDuration} from '../utils/format-duration.js';
 import {htmlToAnsi} from '../utils/html-to-ansi.js';
 

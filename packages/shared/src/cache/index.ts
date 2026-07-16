@@ -9,6 +9,7 @@ export {
 } from './cache-temporal.js';
 export {type ApplyRowsResult, applyRows, type NormalizedRowsByTable} from './importer.js';
 export {NodeReader} from './node-reader.js';
+export {PathBuilder} from './path-builder.js';
 export {type LinkTarget, type NodeTree, NodeTreeReader, type ReadTreeOptions} from './node-tree-reader.js';
 export type {
 	NormalizedAiMetadataRow,

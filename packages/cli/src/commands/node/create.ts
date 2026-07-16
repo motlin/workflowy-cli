@@ -1,5 +1,5 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
+import {PathBuilder, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {getWorkflowyUrl} from '@workflowy/shared/workflowy';
 import {Command, Flags} from '@oclif/core';
 import fs from 'node:fs';
@@ -8,7 +8,6 @@ import {createDatabase} from '../../db/index.js';
 import {CacheService} from '../../services/cache.js';
 import {logger} from '../../services/logger.js';
 import {resolveOrCreateNodePath, resolveParent} from '@workflowy/shared/utils';
-import {PathBuilder} from '../../services/path-builder.js';
 
 /**
  * Schema for a node in the JSON input structure, with recursively nested

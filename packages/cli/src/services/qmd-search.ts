@@ -14,7 +14,7 @@ import {
 	type SearchResult as QmdSearchResult,
 	type QMDStore,
 } from '@tobilu/qmd';
-import {PathBuilder} from './path-builder.js';
+import {PathBuilder} from '@workflowy/shared/cache';
 import {logger} from './logger.js';
 
 function hashContent(content: string): string {
