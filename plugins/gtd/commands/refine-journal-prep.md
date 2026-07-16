@@ -327,37 +327,11 @@ If you're unsure whether something is a typo or intentional, stage it as a ⚠�
 
 ### Emoji rules
 
-**Hard coverage invariant: every in-scope, non-archive entry that does not already start with an emoji MUST produce exactly one proposal.** "Needs changes" explicitly includes "lacks a leading emoji" — an emoji-less entry that needs no people/hobby/typo/media fix still gets an emoji proposal. No emoji-less entry may be left without a proposal.
+Every in-scope entry that does not already start with an emoji must produce one proposal. An emoji-less entry that needs no people/hobby/typo/media fix still gets an emoji proposal.
 
 - Entry already starts with emoji → skip the emoji step (other change types may still apply; no emoji proposal needed).
-- Entry has a hashtag with a preferred emoji in the tag→emoji metadata, or is media (📺/🎬) → use it (this is unambiguous; stage it as a **normal** Accept/Reject change, no ⚠️). With multiple matching hashtags, use the emoji from the **first** hashtag in the text.
-- No tag-based emoji → stage a **⚠️ emoji proposal** whose `ambiguity` block carries **exactly 4 contextual emoji options** drawn from the theme table below, each option a single emoji with a 1-3 word rationale (e.g. `🤦 mistake`, `⏰ alarm`, `🚗 commute`, `😴 overslept`). The apply walk adds an "Other" option automatically so the user can type a custom emoji.
-
-When adding a leading emoji, the composed `after` text must still apply the shared capitalization rules: capitalize the first word after the emoji (`🚗 Drove home`), and normalize clear proper nouns/initialisms (`New York`, `PDF`). This also applies to ⚠️ emoji proposals whose final emoji is chosen during apply.
-
-#### Emoji suggestions by theme
-
-Pick the **4 best-fitting** emoji for the entry from this table (you may pull from more than one theme row) and use them as the `ambiguity.options`.
-
-| Theme             | Suggested Emojis |
-| ----------------- | ---------------- |
-| Exercise/Workout  | 💪 🏋️ 🏃         |
-| Food/Cooking      | 🍗 🍕 🌮 🌭 🍽️   |
-| TV/Streaming      | 📺 🎬            |
-| Board Games       | 🎲 🎮 💣         |
-| Work/Office       | 💼 💻 📞         |
-| Medical/Health    | 💉 💊 🏥         |
-| Family/Kids       | 👨‍👩‍👧‍👦 📚 🎵         |
-| Weather           | ❄️ 🌧️ ☀️         |
-| Travel/Driving    | 🚗 ✈️ 🛹         |
-| Shopping          | 🎯 🛒 📦         |
-| Theater/Shows     | 🎭 🎫            |
-| Money/Finance     | 💰 🪙            |
-| Home/Cleaning     | 🏠 🧹            |
-| Religion          | ✡️ ⛪            |
-| Social/Party      | 🎉 🎊            |
-| Funny/Quotes      | 😂 💬            |
-| Mistakes/Problems | 🤦 ⚠️            |
+- Entry has a hashtag with a preferred emoji in the tag→emoji metadata → use it. With multiple matching hashtags, use the emoji from the **first** hashtag in the text.
+- No tag-based emoji → stage a **⚠️ emoji proposal** whose `ambiguity` block carries **exactly 4 contextual emoji options**, each option a single emoji with a 1-3 word rationale (e.g. `🤦 mistake`, `⏰ alarm`, `🚗 commute`, `😴 overslept`). The apply walk adds an "Other" option automatically so the user can type a custom emoji.
 
 ## Stage the proposals
 
@@ -380,7 +354,7 @@ For each entry that needs changes (including any entry that merely **lacks a lea
 
 Before writing the file, verify no emoji-less entry was silently dropped:
 
-- Enumerate every in-scope, non-archive entry that does **not** already start with an emoji.
+- Enumerate every in-scope entry (archive and recent live alike) that does **not** already start with an emoji.
 - Assert each such entry appears in `proposals[]` (as a normal emoji change or a ⚠️ emoji proposal). Any entry missing a proposal is a bug — stage it now (⚠️ with exactly 4 options) before writing the file.
 - Record `emojiLessEntries` (entries enumerated) and `emojiProposalsStaged` (those that got an emoji proposal). They **must** be equal across the combined archive plus recent live scope.
 
