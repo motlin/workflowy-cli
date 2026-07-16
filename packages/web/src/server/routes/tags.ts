@@ -2,11 +2,12 @@ import {Hono} from 'hono';
 import {tags} from '@workflowy/shared/db';
 import {eq} from 'drizzle-orm';
 import {getDatabase} from '../db.js';
+import {TAG_COLORS} from '../../tag-colors.js';
 
 export const tagsRouter = new Hono();
 
-// Workflowy's tag color palette. Assignments outside this set are rejected.
-const VALID_COLORS = new Set(['red', 'orange', 'yellow', 'green', 'teal', 'sky', 'blue', 'purple', 'pink', 'gray']);
+// Assignments outside the shared tag color palette are rejected.
+const VALID_COLORS = new Set<string>(TAG_COLORS);
 
 interface TagColorBody {
 	color?: string;

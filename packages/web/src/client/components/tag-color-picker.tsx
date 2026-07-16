@@ -1,4 +1,5 @@
 import {createPortal} from 'react-dom';
+import {TAG_COLORS, type TagColorName} from '../../tag-colors.js';
 
 /**
  * Floating color picker for assigning a color to a tag (#tag / @mention),
@@ -12,9 +13,7 @@ import {createPortal} from 'react-dom';
  */
 
 // Workflowy's tag color palette, in the same order as its picker.
-const TAG_COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'sky', 'blue', 'purple', 'pink', 'gray'] as const;
-
-export type TagColorName = (typeof TAG_COLORS)[number];
+export type {TagColorName};
 
 interface TagColorPickerProps {
 	top: number;
