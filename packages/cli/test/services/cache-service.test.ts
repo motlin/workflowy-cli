@@ -267,6 +267,69 @@ describe('CacheService (shared)', () => {
 	});
 
 	describe('storeApiResponse', () => {
+		it('preserves mirror, backlink, and virtualRootId rows on sync (#1712)', async () => {
+			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'parent', name: 'Parent', parentId: null}),
+					createTestNode({id: 'child', name: 'Child', parentId: 'parent'}),
+					createTestNode({id: 'orig', name: 'Original', parentId: 'elsewhere'}),
+				],
+				mirrors: [{originalId: 'orig', mirrorId: 'child', systemFrom: from, systemTo: FAR_FUTURE_DATE}],
+				backlinks: [
+					{
+						nodeId: 'child',
+						sourceId: 'child',
+						targetId: 'other',
+						systemFrom: from,
+						systemTo: FAR_FUTURE_DATE,
+					},
+				],
+				virtualRootIds: [{nodeId: 'child', virtualRootId: 'vr', systemFrom: from, systemTo: FAR_FUTURE_DATE}],
+			});
+
+			// Sync the child back under its parent (a routine cache refresh).
+			await cacheService.storeApiResponse(
+				[createApiNode({id: 'child', name: 'Child', parent_id: 'parent'})],
+				'parent',
+			);
+
+			// These records come only from backup imports; the sync must leave them open.
+			expect(testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'child')).get()!.systemTo).toBe(
+				FAR_FUTURE_DATE,
+			);
+			expect(testDatabase.db.select().from(backlinks).where(eq(backlinks.nodeId, 'child')).get()!.systemTo).toBe(
+				FAR_FUTURE_DATE,
+			);
+			expect(
+				testDatabase.db.select().from(virtualRootIds).where(eq(virtualRootIds.nodeId, 'child')).get()!.systemTo,
+			).toBe(FAR_FUTURE_DATE);
+		});
+
+		it('scopes the sibling metadata phase-out to the synced parent', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'parentA', name: 'A', parentId: null}),
+					createTestNode({id: 'childA', name: 'Child A', parentId: 'parentA'}),
+					createTestNode({id: 'parentB', name: 'B', parentId: null}),
+					createTestNode({id: 'childB', name: 'Child B', parentId: 'parentB'}),
+				],
+			});
+
+			// Sync parentA's children (only childA). Nodes under parentB must be untouched.
+			await cacheService.storeApiResponse(
+				[createApiNode({id: 'childA', name: 'Child A', parent_id: 'parentA'})],
+				'parentA',
+			);
+
+			const childBMeta = testDatabase.db
+				.select()
+				.from(nodeMetadata)
+				.where(eq(nodeMetadata.nodeId, 'childB'))
+				.get()!;
+			expect(childBMeta.systemTo).toBe(FAR_FUTURE_DATE);
+		});
+
 		it('inserts new nodes', async () => {
 			const apiNodes = [
 				createApiNode({id: 'node-1', name: 'Node 1', parent_id: null, priority: 0}),

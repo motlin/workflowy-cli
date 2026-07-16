@@ -1,10 +1,20 @@
 import * as schema from '../db/schema.js';
-import {backlinks, mirrors, nodeContent, nodeMetadata, virtualRootIds} from '../db/schema.js';
+import {
+	aiMetadata,
+	backlinks,
+	changesMetadata,
+	mirrors,
+	nodeContent,
+	nodeMetadata,
+	referencesRoots,
+	s3Files,
+	virtualRootIds,
+} from '../db/schema.js';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '../temporal/constants.js';
 import type {Node} from '../types/node.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
 import {uuidToShortId} from '../workflowy/constants.js';
-import {and, eq, inArray, isNull, like, notInArray, or} from 'drizzle-orm';
+import {and, eq, inArray, isNull, like, notInArray, or, sql} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {
 	contentMatches,
@@ -465,6 +475,28 @@ export class CacheService {
 						})
 						.run();
 				}
+
+				// Mirrors, backlinks, and virtual-root rows are sourced ONLY from backup imports — the API
+				// response never carries them, so expiring them here would be permanent data loss, not a
+				// refresh (#1712). Leave them untouched; backup imports own their lifecycle and genuine
+				// deletions are handled by deleteNode(). The attribute tables below are refreshed per node
+				// because the API sync is authoritative for them.
+				tx.update(aiMetadata)
+					.set({systemTo: systemTimestampStr})
+					.where(and(eq(aiMetadata.nodeId, apiNode.id), currentVersion(aiMetadata)))
+					.run();
+				tx.update(s3Files)
+					.set({systemTo: systemTimestampStr})
+					.where(and(eq(s3Files.nodeId, apiNode.id), currentVersion(s3Files)))
+					.run();
+				tx.update(changesMetadata)
+					.set({systemTo: systemTimestampStr})
+					.where(and(eq(changesMetadata.nodeId, apiNode.id), currentVersion(changesMetadata)))
+					.run();
+				tx.update(referencesRoots)
+					.set({systemTo: systemTimestampStr})
+					.where(and(eq(referencesRoots.nodeId, apiNode.id), currentVersion(referencesRoots)))
+					.run();
 			}
 
 			// Phase out cached children that are no longer in API response (deleted nodes)
@@ -472,7 +504,23 @@ export class CacheService {
 			if (parentId !== null) {
 				const phaseOutSystemToStr = formatTemporalTimestamp(fetchTimestamp);
 				const apiNodeIds = apiNodes.map((n) => n.id);
+				// nodeMetadata has no parentId, so scope its phase-out to this parent's children
+				// via a subquery against nodeContent — and run it FIRST, while those content rows
+				// still hold the current version the subquery matches on.
+				const metadataUnderParent = sql`${nodeMetadata.nodeId} IN (
+					SELECT id FROM node_content WHERE parent_id = ${parentId} AND system_to = ${FAR_FUTURE_DATE}
+				)`;
 				if (apiNodeIds.length > 0) {
+					tx.update(nodeMetadata)
+						.set({systemTo: phaseOutSystemToStr})
+						.where(
+							and(
+								currentVersion(nodeMetadata),
+								notInArray(nodeMetadata.nodeId, apiNodeIds),
+								metadataUnderParent,
+							),
+						)
+						.run();
 					tx.update(nodeContent)
 						.set({systemTo: phaseOutSystemToStr})
 						.where(
@@ -483,12 +531,12 @@ export class CacheService {
 							),
 						)
 						.run();
+				} else {
+					// API returned 0 children: phase out all cached children of this parent.
 					tx.update(nodeMetadata)
 						.set({systemTo: phaseOutSystemToStr})
-						.where(and(currentVersion(nodeMetadata), notInArray(nodeMetadata.nodeId, apiNodeIds)))
+						.where(and(currentVersion(nodeMetadata), metadataUnderParent))
 						.run();
-				} else {
-					// If API returns 0 children, phase out all cached children of this parent
 					tx.update(nodeContent)
 						.set({systemTo: phaseOutSystemToStr})
 						.where(and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent)))
