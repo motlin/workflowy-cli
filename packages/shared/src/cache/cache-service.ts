@@ -6,7 +6,13 @@ import type {WorkflowyNode} from '../types/workflowy.js';
 import {uuidToShortId} from '../workflowy/constants.js';
 import {and, eq, inArray, isNull, like, notInArray, or} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {contentMatches, metadataMatches, normalizeLayoutMode, systemFromToDate} from './cache-temporal.js';
+import {
+	contentMatches,
+	currentVersion,
+	metadataMatches,
+	normalizeLayoutMode,
+	systemFromToDate,
+} from './cache-temporal.js';
 import {NodeReader} from './node-reader.js';
 
 /**
@@ -147,8 +153,8 @@ export class CacheService {
 	async getChildrenWithMergedData(parentId: string | null): Promise<NodeWithRelations[]> {
 		const whereClause =
 			parentId === null
-				? and(isNull(nodeContent.parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-				: and(eq(nodeContent.parentId, parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE));
+				? and(isNull(nodeContent.parentId), currentVersion(nodeContent))
+				: and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent));
 
 		const results = this.database.query.nodeContent
 			.findMany({
@@ -156,16 +162,16 @@ export class CacheService {
 				with: {
 					metadata: true,
 					mirrorsAsOriginal: {
-						where: eq(mirrors.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(mirrors),
 					},
 					mirrorsAsCopy: {
-						where: eq(mirrors.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(mirrors),
 					},
 					backlinks: {
-						where: eq(backlinks.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(backlinks),
 					},
 					virtualRootIds: {
-						where: eq(virtualRootIds.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(virtualRootIds),
 					},
 					aiMetadata: true,
 					s3File: true,
@@ -237,7 +243,7 @@ export class CacheService {
 		const pattern = `%${query}%`;
 
 		const conditions = [
-			eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+			currentVersion(nodeContent),
 			or(like(nodeContent.name, pattern), like(nodeContent.note, pattern)),
 		];
 		if (incomplete) {
@@ -253,10 +259,7 @@ export class CacheService {
 				completedAt: nodeMetadata.completedAt,
 			})
 			.from(nodeContent)
-			.innerJoin(
-				nodeMetadata,
-				and(eq(nodeContent.id, nodeMetadata.nodeId), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
-			)
+			.innerJoin(nodeMetadata, and(eq(nodeContent.id, nodeMetadata.nodeId), currentVersion(nodeMetadata)))
 			.where(and(...conditions))
 			.limit(limit)
 			.all();
@@ -272,13 +275,13 @@ export class CacheService {
 
 		const results = this.database.query.nodeContent
 			.findMany({
-				where: and(inArray(nodeContent.id, nodeIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)),
+				where: and(inArray(nodeContent.id, nodeIds), currentVersion(nodeContent)),
 				with: {
 					metadata: true,
-					mirrorsAsOriginal: {where: eq(mirrors.systemTo, FAR_FUTURE_DATE)},
-					mirrorsAsCopy: {where: eq(mirrors.systemTo, FAR_FUTURE_DATE)},
-					backlinks: {where: eq(backlinks.systemTo, FAR_FUTURE_DATE)},
-					virtualRootIds: {where: eq(virtualRootIds.systemTo, FAR_FUTURE_DATE)},
+					mirrorsAsOriginal: {where: currentVersion(mirrors)},
+					mirrorsAsCopy: {where: currentVersion(mirrors)},
+					backlinks: {where: currentVersion(backlinks)},
+					virtualRootIds: {where: currentVersion(virtualRootIds)},
 					aiMetadata: true,
 					s3File: true,
 					changesMetadata: true,
@@ -335,7 +338,7 @@ export class CacheService {
 			const parentExists = this.database
 				.select({id: nodeContent.id})
 				.from(nodeContent)
-				.where(and(eq(nodeContent.id, parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.where(and(eq(nodeContent.id, parentId), currentVersion(nodeContent)))
 				.get();
 
 			if (!parentExists) {
@@ -375,13 +378,13 @@ export class CacheService {
 				const existingContent = tx
 					.select()
 					.from(nodeContent)
-					.where(and(eq(nodeContent.id, apiNode.id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(nodeContent.id, apiNode.id), currentVersion(nodeContent)))
 					.get();
 
 				const existingMetadata = tx
 					.select()
 					.from(nodeMetadata)
-					.where(and(eq(nodeMetadata.nodeId, apiNode.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(nodeMetadata.nodeId, apiNode.id), currentVersion(nodeMetadata)))
 					.get();
 
 				if (existingContent) {
@@ -404,7 +407,7 @@ export class CacheService {
 					if (contentChanged) {
 						tx.update(nodeContent)
 							.set({systemTo: systemTimestampStr})
-							.where(and(eq(nodeContent.id, apiNode.id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+							.where(and(eq(nodeContent.id, apiNode.id), currentVersion(nodeContent)))
 							.run();
 						tx.insert(nodeContent)
 							.values({
@@ -421,7 +424,7 @@ export class CacheService {
 					if (metadataChanged) {
 						tx.update(nodeMetadata)
 							.set({systemTo: systemTimestampStr})
-							.where(and(eq(nodeMetadata.nodeId, apiNode.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
+							.where(and(eq(nodeMetadata.nodeId, apiNode.id), currentVersion(nodeMetadata)))
 							.run();
 						tx.insert(nodeMetadata)
 							.values({
@@ -475,25 +478,20 @@ export class CacheService {
 						.where(
 							and(
 								eq(nodeContent.parentId, parentId),
-								eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+								currentVersion(nodeContent),
 								notInArray(nodeContent.id, apiNodeIds),
 							),
 						)
 						.run();
 					tx.update(nodeMetadata)
 						.set({systemTo: phaseOutSystemToStr})
-						.where(
-							and(
-								eq(nodeMetadata.systemTo, FAR_FUTURE_DATE),
-								notInArray(nodeMetadata.nodeId, apiNodeIds),
-							),
-						)
+						.where(and(currentVersion(nodeMetadata), notInArray(nodeMetadata.nodeId, apiNodeIds)))
 						.run();
 				} else {
 					// If API returns 0 children, phase out all cached children of this parent
 					tx.update(nodeContent)
 						.set({systemTo: phaseOutSystemToStr})
-						.where(and(eq(nodeContent.parentId, parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+						.where(and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent)))
 						.run();
 				}
 			}
@@ -520,14 +518,14 @@ export class CacheService {
 		const existingContent = this.database
 			.select()
 			.from(nodeContent)
-			.where(and(eq(nodeContent.id, node.id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+			.where(and(eq(nodeContent.id, node.id), currentVersion(nodeContent)))
 			.get();
 
 		const existingMetadata = existingContent
 			? this.database
 					.select()
 					.from(nodeMetadata)
-					.where(and(eq(nodeMetadata.nodeId, node.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(nodeMetadata.nodeId, node.id), currentVersion(nodeMetadata)))
 					.get()
 			: null;
 
@@ -556,7 +554,7 @@ export class CacheService {
 					this.database
 						.update(nodeContent)
 						.set({systemTo: systemTimestampStr})
-						.where(and(eq(nodeContent.id, node.id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+						.where(and(eq(nodeContent.id, node.id), currentVersion(nodeContent)))
 						.run();
 					this.database
 						.insert(nodeContent)
@@ -575,7 +573,7 @@ export class CacheService {
 					this.database
 						.update(nodeMetadata)
 						.set({systemTo: systemTimestampStr})
-						.where(and(eq(nodeMetadata.nodeId, node.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
+						.where(and(eq(nodeMetadata.nodeId, node.id), currentVersion(nodeMetadata)))
 						.run();
 					this.database
 						.insert(nodeMetadata)
@@ -642,7 +640,7 @@ export class CacheService {
 			const children = this.database
 				.select({id: nodeContent.id})
 				.from(nodeContent)
-				.where(and(eq(nodeContent.parentId, parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.where(and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent)))
 				.all();
 			for (const child of children) {
 				descendantIds.push(child.id);
@@ -660,19 +658,19 @@ export class CacheService {
 			for (const id of descendantIds) {
 				tx.update(nodeContent)
 					.set({systemTo: now})
-					.where(and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(nodeContent.id, id), currentVersion(nodeContent)))
 					.run();
 				tx.update(nodeMetadata)
 					.set({systemTo: now})
-					.where(and(eq(nodeMetadata.nodeId, id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(nodeMetadata.nodeId, id), currentVersion(nodeMetadata)))
 					.run();
 				tx.update(backlinks)
 					.set({systemTo: now})
-					.where(and(eq(backlinks.nodeId, id), eq(backlinks.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(backlinks.nodeId, id), currentVersion(backlinks)))
 					.run();
 				tx.update(virtualRootIds)
 					.set({systemTo: now})
-					.where(and(eq(virtualRootIds.nodeId, id), eq(virtualRootIds.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(virtualRootIds.nodeId, id), currentVersion(virtualRootIds)))
 					.run();
 			}
 		});
@@ -724,20 +722,20 @@ export class CacheService {
 
 		const children = this.database.query.nodeContent
 			.findMany({
-				where: and(inArray(nodeContent.parentId, parentIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)),
+				where: and(inArray(nodeContent.parentId, parentIds), currentVersion(nodeContent)),
 				with: {
 					metadata: true,
 					mirrorsAsOriginal: {
-						where: eq(mirrors.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(mirrors),
 					},
 					mirrorsAsCopy: {
-						where: eq(mirrors.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(mirrors),
 					},
 					backlinks: {
-						where: eq(backlinks.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(backlinks),
 					},
 					virtualRootIds: {
-						where: eq(virtualRootIds.systemTo, FAR_FUTURE_DATE),
+						where: currentVersion(virtualRootIds),
 					},
 					aiMetadata: true,
 					s3File: true,
@@ -819,7 +817,7 @@ export class CacheService {
 	async resolveShortIdToUuid(shortId: string): Promise<string | null> {
 		const result = this.database.query.nodeMetadata
 			.findFirst({
-				where: and(eq(nodeMetadata.shortId, shortId), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+				where: and(eq(nodeMetadata.shortId, shortId), currentVersion(nodeMetadata)),
 				columns: {nodeId: true},
 			})
 			.sync();
@@ -837,7 +835,7 @@ export class CacheService {
 
 		const results = this.database.query.nodeMetadata
 			.findMany({
-				where: and(inArray(nodeMetadata.shortId, shortIds), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+				where: and(inArray(nodeMetadata.shortId, shortIds), currentVersion(nodeMetadata)),
 				columns: {nodeId: true, shortId: true},
 			})
 			.sync();
@@ -859,7 +857,7 @@ export class CacheService {
 		const result = this.database
 			.select({originalId: mirrors.originalId})
 			.from(mirrors)
-			.where(and(eq(mirrors.mirrorId, mirrorId), eq(mirrors.systemTo, FAR_FUTURE_DATE)))
+			.where(and(eq(mirrors.mirrorId, mirrorId), currentVersion(mirrors)))
 			.get();
 		return result?.originalId ?? null;
 	}

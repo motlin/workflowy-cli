@@ -1,3 +1,16 @@
+import {eq, type SQL} from 'drizzle-orm';
+import type {AnySQLiteColumn} from 'drizzle-orm/sqlite-core';
+import {FAR_FUTURE_DATE} from '../temporal/constants.js';
+
+/**
+ * Drizzle predicate selecting the current (open) temporal version of a row:
+ * `systemTo = FAR_FUTURE_DATE`. Centralizes the "current version" filter that
+ * would otherwise be open-coded at every temporal query.
+ */
+export function currentVersion(table: {systemTo: AnySQLiteColumn}): SQL {
+	return eq(table.systemTo, FAR_FUTURE_DATE);
+}
+
 /**
  * Convert systemFrom ISO8601 string to Date.
  * systemFrom is stored as 'YYYY-MM-DD HH:MM:SS' (UTC).

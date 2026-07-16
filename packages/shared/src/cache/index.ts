@@ -1,6 +1,7 @@
 export {CacheService, type NodeWithRelations, type TextSearchOptions, type TextSearchRow} from './cache-service.js';
 export {
 	contentMatches,
+	currentVersion,
 	metadataComparisonStats,
 	metadataMatches,
 	normalizeLayoutMode,

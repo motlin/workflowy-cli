@@ -1,9 +1,9 @@
 import * as schema from '../db/schema.js';
 import {mirrors, nodeContent, nodeMetadata} from '../db/schema.js';
-import {FAR_FUTURE_DATE} from '../temporal/constants.js';
 import type {Node} from '../types/node.js';
 import {and, eq, inArray, isNull} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
+import {currentVersion} from './cache-temporal.js';
 
 /**
  * Raw joined row shape returned by the nodeContent + nodeMetadata queries.
@@ -38,7 +38,7 @@ export class NodeReader {
 	getById(id: string): Node | null {
 		const result = this.database.query.nodeContent
 			.findFirst({
-				where: and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)),
+				where: and(eq(nodeContent.id, id), currentVersion(nodeContent)),
 				with: {metadata: true},
 			})
 			.sync();
@@ -55,8 +55,8 @@ export class NodeReader {
 	getChildren(parentId: string | null): Node[] {
 		const whereClause =
 			parentId === null
-				? and(isNull(nodeContent.parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-				: and(eq(nodeContent.parentId, parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE));
+				? and(isNull(nodeContent.parentId), currentVersion(nodeContent))
+				: and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent));
 
 		const results = this.database.query.nodeContent
 			.findMany({
@@ -87,7 +87,7 @@ export class NodeReader {
 	getByShortId(shortId: string): Node | null {
 		const metadataRow = this.database.query.nodeMetadata
 			.findFirst({
-				where: and(eq(nodeMetadata.shortId, shortId), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+				where: and(eq(nodeMetadata.shortId, shortId), currentVersion(nodeMetadata)),
 				columns: {nodeId: true},
 			})
 			.sync();
@@ -108,7 +108,7 @@ export class NodeReader {
 
 		const results = this.database.query.nodeContent
 			.findMany({
-				where: and(inArray(nodeContent.id, ids), eq(nodeContent.systemTo, FAR_FUTURE_DATE)),
+				where: and(inArray(nodeContent.id, ids), currentVersion(nodeContent)),
 				with: {metadata: true},
 			})
 			.sync();
@@ -129,7 +129,7 @@ export class NodeReader {
 		const mirrorRow = this.database
 			.select({originalId: mirrors.originalId})
 			.from(mirrors)
-			.where(and(eq(mirrors.mirrorId, nodeId), eq(mirrors.systemTo, FAR_FUTURE_DATE)))
+			.where(and(eq(mirrors.mirrorId, nodeId), currentVersion(mirrors)))
 			.get();
 		return mirrorRow?.originalId ?? null;
 	}
@@ -146,7 +146,7 @@ export class NodeReader {
 		const mirrorRows = this.database
 			.select({mirrorId: mirrors.mirrorId, originalId: mirrors.originalId})
 			.from(mirrors)
-			.where(and(inArray(mirrors.mirrorId, nodeIds), eq(mirrors.systemTo, FAR_FUTURE_DATE)))
+			.where(and(inArray(mirrors.mirrorId, nodeIds), currentVersion(mirrors)))
 			.all();
 		for (const row of mirrorRows) {
 			map.set(row.mirrorId, row.originalId);
