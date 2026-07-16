@@ -4,7 +4,7 @@ import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '../temporal/constants.js
 import type {Node} from '../types/node.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
 import {uuidToShortId} from '../workflowy/constants.js';
-import {and, eq, inArray, isNull, notInArray} from 'drizzle-orm';
+import {and, eq, inArray, isNull, like, notInArray, or} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {contentMatches, metadataMatches, normalizeLayoutMode, systemFromToDate} from './cache-temporal.js';
 import {NodeReader} from './node-reader.js';
@@ -63,6 +63,22 @@ export type NodeWithRelations = {
 			year: number | null;
 		} | null;
 	} | null;
+};
+
+/** Options for {@link CacheService.searchText}. */
+export type TextSearchOptions = {
+	query: string;
+	limit?: number;
+	incomplete?: boolean;
+};
+
+/** A single text-search hit: the matched node's identity and content. */
+export type TextSearchRow = {
+	id: string;
+	shortId: string | null;
+	name: string | null;
+	note: string | null;
+	completedAt: Date | null;
 };
 
 /**
@@ -208,6 +224,42 @@ export class CacheService {
 			referencesRoot: result.referencesRoot,
 			calendar: result.calendar,
 		}));
+	}
+
+	/**
+	 * Substring-search node names and notes, returning the current version of each
+	 * matching node. The single text-search primitive behind both the CLI `node
+	 * search` command and the MCP `workflowy_search` tool; each adapter formats the
+	 * rows its own way (CLI adds a path, MCP a URL).
+	 */
+	async searchText(options: TextSearchOptions): Promise<TextSearchRow[]> {
+		const {query, limit = 20, incomplete = false} = options;
+		const pattern = `%${query}%`;
+
+		const conditions = [
+			eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+			or(like(nodeContent.name, pattern), like(nodeContent.note, pattern)),
+		];
+		if (incomplete) {
+			conditions.push(isNull(nodeMetadata.completedAt));
+		}
+
+		return this.database
+			.select({
+				id: nodeContent.id,
+				name: nodeContent.name,
+				note: nodeContent.note,
+				shortId: nodeMetadata.shortId,
+				completedAt: nodeMetadata.completedAt,
+			})
+			.from(nodeContent)
+			.innerJoin(
+				nodeMetadata,
+				and(eq(nodeContent.id, nodeMetadata.nodeId), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+			)
+			.where(and(...conditions))
+			.limit(limit)
+			.all();
 	}
 
 	/**

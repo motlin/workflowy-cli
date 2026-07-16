@@ -1,4 +1,4 @@
-export {CacheService, type NodeWithRelations} from './cache-service.js';
+export {CacheService, type NodeWithRelations, type TextSearchOptions, type TextSearchRow} from './cache-service.js';
 export {
 	contentMatches,
 	metadataComparisonStats,

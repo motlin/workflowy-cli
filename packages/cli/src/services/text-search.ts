@@ -1,16 +1,10 @@
-import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
+import {CacheService, type TextSearchOptions} from '@workflowy/shared/cache';
 import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {and, eq, isNull, like, or} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {logger} from './logger.js';
 import {PathBuilder} from './path-builder.js';
 
-export type TextSearchOptions = {
-	query: string;
-	limit?: number;
-	incomplete?: boolean;
-};
+export type {TextSearchOptions};
 
 export type TextSearchResult = {
 	shortId: string | null;
@@ -20,57 +14,29 @@ export type TextSearchResult = {
 };
 
 export class TextSearchService {
-	private database: BetterSQLite3Database<typeof schema>;
+	private cacheService: CacheService;
 	private pathBuilder: PathBuilder;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
-		this.database = database;
+		this.cacheService = new CacheService(database);
 		this.pathBuilder = new PathBuilder(database);
 	}
 
 	async search(options: TextSearchOptions): Promise<TextSearchResult[]> {
-		const {query, limit = 20, incomplete = false} = options;
+		const rows = await this.cacheService.searchText(options);
+		logger.logSqlResult('textSearch', rows);
 
-		const pattern = `%${query}%`;
-
-		const conditions = [
-			eq(nodeContent.systemTo, FAR_FUTURE_DATE),
-			or(like(nodeContent.name, pattern), like(nodeContent.note, pattern)),
-		];
-
-		if (incomplete) {
-			conditions.push(isNull(nodeMetadata.completedAt));
-		}
-
-		const results = this.database
-			.select({
-				id: nodeContent.id,
-				name: nodeContent.name,
-				note: nodeContent.note,
-				shortId: nodeMetadata.shortId,
-			})
-			.from(nodeContent)
-			.innerJoin(
-				nodeMetadata,
-				and(eq(nodeContent.id, nodeMetadata.nodeId), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
-			)
-			.where(and(...conditions))
-			.limit(limit)
-			.all();
-		logger.logSqlResult('textSearch', results);
-
-		if (results.length === 0) {
+		if (rows.length === 0) {
 			return [];
 		}
 
-		const nodeIds = results.map((r) => r.id);
-		const pathMap = await this.pathBuilder.buildFullPathsBatch(nodeIds);
+		const pathMap = await this.pathBuilder.buildFullPathsBatch(rows.map((r) => r.id));
 
-		return results.map((result) => ({
-			shortId: result.shortId,
-			name: result.name,
-			note: result.note,
-			path: pathMap.get(result.id) ?? '',
+		return rows.map((row) => ({
+			shortId: row.shortId,
+			name: row.name,
+			note: row.note,
+			path: pathMap.get(row.id) ?? '',
 		}));
 	}
 }
