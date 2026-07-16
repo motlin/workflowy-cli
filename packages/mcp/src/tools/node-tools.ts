@@ -1,5 +1,6 @@
-import {z} from 'zod';
+import {NodeTreeReader} from '@workflowy/shared/cache';
 import {resolveNodeId, resolveOrCreateNodePath, resolveParent} from '@workflowy/shared/utils';
+import {z} from 'zod';
 import {getApiClient, getCacheService, getWriteThroughClient} from '../services.js';
 import type {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 
@@ -20,7 +21,7 @@ export function registerNodeTools(server: McpServer): void {
 			const apiClient = getApiClient();
 
 			const nodeId = await resolveNodeId({id, path}, cacheService, apiClient);
-			const node = await cacheService.getNode(nodeId);
+			const [node] = await new NodeTreeReader(cacheService).readNodes([nodeId], {depth: 0});
 
 			if (!node) {
 				return {content: [{type: 'text', text: `Node not found: ${nodeId}`}], isError: true};
@@ -47,35 +48,11 @@ export function registerNodeTools(server: McpServer): void {
 				resolvedParentId = await resolveParent({id: parentId, path: parentPath}, cacheService, apiClient);
 			}
 
-			const children = await cacheService.getChildren(resolvedParentId);
-
-			async function fetchWithDepth(nodes: typeof children, currentDepth: number): Promise<unknown[]> {
-				if (currentDepth >= depth) {
-					return nodes.map((n) => ({
-						id: n.id,
-						name: n.name,
-						note: n.note,
-						completedAt: n.completedAt,
-						priority: n.priority,
-					}));
-				}
-
-				const result = [];
-				for (const node of nodes) {
-					const nodeChildren = await cacheService.getChildren(node.id);
-					result.push({
-						id: node.id,
-						name: node.name,
-						note: node.note,
-						completedAt: node.completedAt,
-						priority: node.priority,
-						children: await fetchWithDepth(nodeChildren, currentDepth + 1),
-					});
-				}
-				return result;
-			}
-
-			const result = await fetchWithDepth(children, 1);
+			// This tool's `depth` counts levels of nodes returned (1 = immediate children only),
+			// whereas readChildren's depth counts levels below each returned node, so subtract one.
+			const result = await new NodeTreeReader(cacheService).readChildren(resolvedParentId, {
+				depth: Math.max(0, depth - 1),
+			});
 			return {content: [{type: 'text', text: JSON.stringify(result, null, 2)}]};
 		},
 	);
