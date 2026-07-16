@@ -46,6 +46,15 @@ export function uuidToShortId(uuid: string): string {
 }
 
 /**
+ * Whether a value is a Workflowy short ID: exactly 12 hex characters, as it
+ * appears in a Workflowy URL. Reads accept a short ID and resolve it to a full
+ * UUID; full UUIDs (with hyphens) are not short IDs.
+ */
+export function isShortId(value: string): boolean {
+	return /^[\da-f]{12}$/i.test(value);
+}
+
+/**
  * Generates a Workflowy deep link URL for a node.
  * Example: "3435cb92-d00d-45be-9950-b1ed4735574c" → "https://workflowy.com/#/b1ed4735574c"
  */

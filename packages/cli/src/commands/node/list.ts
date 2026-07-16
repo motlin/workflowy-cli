@@ -1,3 +1,4 @@
+import {isShortId} from '@workflowy/shared/workflowy';
 import {Flags} from '@oclif/core';
 import {BaseListCommand} from '../base-list-command.js';
 import {ListByIdService} from '../../services/list-by-id.js';
@@ -43,8 +44,7 @@ export default class List extends BaseListCommand {
 			// Resolve parent ID, supporting short IDs (12 hex chars from Workflowy URLs)
 			let parentId: string | null = flags['parent-id'] ?? null;
 			if (parentId) {
-				const shortIdPattern = /^[0-9a-f]{12}$/i;
-				if (shortIdPattern.test(parentId)) {
+				if (isShortId(parentId)) {
 					const resolvedId = await this.cacheService.resolveShortIdToUuid(parentId);
 					if (resolvedId) {
 						logger.debug(`Resolved short ID ${parentId} to full UUID ${resolvedId}`);

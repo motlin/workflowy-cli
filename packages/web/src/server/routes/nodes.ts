@@ -3,18 +3,17 @@ import {CacheService, NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} f
 import {mirrors as mirrorsTable, nodeContent, s3Files} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import type {Node} from '@workflowy/shared/types';
+import {isShortId} from '@workflowy/shared/workflowy';
 import {and, eq, inArray} from 'drizzle-orm';
 import {Hono} from 'hono';
 import {getDatabase} from '../db.js';
-
-const SHORT_ID_PATTERN = /^[\da-f]{12}$/i;
 
 /**
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
  * Returns the full UUID, or null if a short ID couldn't be resolved.
  */
 async function resolveNodeId(id: string): Promise<string | null> {
-	if (!SHORT_ID_PATTERN.test(id)) {
+	if (!isShortId(id)) {
 		return id;
 	}
 	const db = getDatabase();

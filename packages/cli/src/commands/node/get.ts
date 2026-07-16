@@ -1,4 +1,5 @@
 import {type NodeTree, NodeTreeReader} from '@workflowy/shared/cache';
+import {isShortId} from '@workflowy/shared/workflowy';
 import {Flags} from '@oclif/core';
 import {logger} from '../../services/logger.js';
 import {htmlToAnsi} from '../../utils/html-to-ansi.js';
@@ -75,8 +76,7 @@ export default class Get extends BaseListCommand {
 		// Resolve the node ID from --id (UUID or short ID) or --path.
 		if (typedFlags.id) {
 			const idInput = typedFlags.id;
-			const shortIdPattern = /^[0-9a-f]{12}$/i;
-			if (shortIdPattern.test(idInput)) {
+			if (isShortId(idInput)) {
 				const resolvedId = await this.cacheService.resolveShortIdToUuid(idInput);
 				if (resolvedId) {
 					nodeId = resolvedId;
