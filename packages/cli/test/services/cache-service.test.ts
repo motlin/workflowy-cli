@@ -1,4 +1,4 @@
-import {backlinks, nodeContent, nodeMetadata, virtualRootIds} from '@workflowy/shared/db';
+import {backlinks, mirrors, nodeContent, nodeMetadata, virtualRootIds} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
 import {eq} from 'drizzle-orm';
 import fs from 'node:fs';
@@ -492,6 +492,32 @@ describe('CacheService (shared)', () => {
 			expect(bl.systemTo).not.toBe(FAR_FUTURE_DATE);
 			const vr = testDatabase.db.select().from(virtualRootIds).where(eq(virtualRootIds.nodeId, 'parent')).get()!;
 			expect(vr.systemTo).not.toBe(FAR_FUTURE_DATE);
+		});
+
+		it('closes mirror rows on both sides of a genuine deletion', async () => {
+			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'copy', name: '', parentId: null}),
+					createTestNode({id: 'orig', name: 'Original', parentId: 'elsewhere'}),
+					createTestNode({id: 'copy2', name: '', parentId: null}),
+					createTestNode({id: 'orig2', name: 'Original 2', parentId: 'elsewhere'}),
+				],
+				mirrors: [
+					// Deleting the copy must close the row via mirrorId.
+					{originalId: 'orig', mirrorId: 'copy', systemFrom: from, systemTo: FAR_FUTURE_DATE},
+					// Deleting the original must close the row via originalId.
+					{originalId: 'orig2', mirrorId: 'copy2', systemFrom: from, systemTo: FAR_FUTURE_DATE},
+				],
+			});
+
+			await cacheService.deleteNode('copy');
+			await cacheService.deleteNode('orig2');
+
+			const byCopy = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'copy')).get()!;
+			expect(byCopy.systemTo).not.toBe(FAR_FUTURE_DATE);
+			const byOriginal = testDatabase.db.select().from(mirrors).where(eq(mirrors.originalId, 'orig2')).get()!;
+			expect(byOriginal.systemTo).not.toBe(FAR_FUTURE_DATE);
 		});
 
 		it('leaves a surviving node backlink that merely targets the deleted node', async () => {

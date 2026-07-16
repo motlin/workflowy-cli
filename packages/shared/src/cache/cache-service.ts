@@ -649,8 +649,8 @@ export class CacheService {
 		}
 
 		// Close all node records (set systemTo to now). A genuine deletion also closes the
-		// node's own relationship records (backlinks, virtualRootIds): the node is gone, so no
-		// backup import will re-supply them. This does NOT replay the sync data-loss bug (#1712),
+		// node's own relationship records (backlinks, virtualRootIds, mirrors): the node is gone,
+		// so no backup import will re-supply them. This does NOT replay the sync data-loss bug (#1712),
 		// which blanked these for nodes still present — here the nodes are actually deleted. Rows
 		// are filtered by nodeId, so a surviving node's backlink that merely targets a deleted
 		// node is left untouched.
@@ -671,6 +671,12 @@ export class CacheService {
 				tx.update(virtualRootIds)
 					.set({systemTo: now})
 					.where(and(eq(virtualRootIds.nodeId, id), currentVersion(virtualRootIds)))
+					.run();
+				// A mirror row keys the deleted node as either the copy or the original; close
+				// it from whichever side, so a deleted node leaves no dangling mirror link.
+				tx.update(mirrors)
+					.set({systemTo: now})
+					.where(and(or(eq(mirrors.mirrorId, id), eq(mirrors.originalId, id)), currentVersion(mirrors)))
 					.run();
 			}
 		});
