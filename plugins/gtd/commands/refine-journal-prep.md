@@ -309,6 +309,7 @@ After:  📺 Watched half of Fallout S01E02 with @Bob in our Airbnb. #watched
 - Spelling errors (e.g., "gamess" → "games", "recieved" → "received")
 - Missing or doubled words (e.g., "went went" → "went")
 - Obvious punctuation errors (e.g., missing period, double spaces)
+- **Whitespace: always strip leading and trailing whitespace** from any entry you compose an `after` for. A stray leading or trailing space is itself a fixable typo — an entry whose _only_ flaw is leading/trailing whitespace **still generates its own proposal**, even if it already begins with an emoji and needs no other change (this is the one whitespace-only exception to "already starts with emoji → skip"). The `--expect-name` guard still carries the exact original (spaces included) as `before`.
 - Capitalization at the start of the entry, after a leading emoji, and at the start of sentences
 - Clear proper nouns and initialisms (e.g., "new york" → "New York", "pdf" → "PDF")
 
