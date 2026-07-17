@@ -642,6 +642,32 @@ describe('cache-import service', () => {
 				targetId: 'target-node',
 			});
 		});
+
+		it('closes a backlink globally when it disappears on re-import, even if the node keeps none', async () => {
+			const withBacklink = [
+				{
+					id: 'bn',
+					nm: 'Has Backlink',
+					metadata: {backlink: {sourceID: 'source-node', targetID: 'target-node'}},
+				},
+			];
+			await importBackup(testDatabase.db, writeBackupFile(withBacklink), 'backup.json');
+
+			// Re-import: the node still exists, but its only backlink is gone. A full
+			// backup is the complete desired state, so the removed backlink must close —
+			// per-node-scoped phase-out would wrongly leave it open (the node has no
+			// incoming backlinks to trigger a scan of its existing ones).
+			const withoutBacklink = [{id: 'bn', nm: 'Has Backlink'}];
+			await importBackup(testDatabase.db, writeBackupFile(withoutBacklink), 'backup.json');
+
+			const open = testDatabase.db
+				.select()
+				.from(backlinks)
+				.where(eq(backlinks.nodeId, 'bn'))
+				.all()
+				.filter((b) => b.systemTo === FAR_FUTURE_DATE);
+			expect(open).toHaveLength(0);
+		});
 	});
 
 	describe('validation errors', () => {

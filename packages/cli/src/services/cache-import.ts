@@ -859,141 +859,77 @@ export async function importBackup(
 		);
 		logTiming(`Processed mirrors: ${mirrorResult.inserted} inserted, ${mirrorResult.phasedOut} closed`);
 
-		// OPTIMIZATION: Process backlinks with bulk load + batch operations
-		// Load all existing backlinks into a Map for O(1) lookups
-		const existingBacklinksMap = new Map<string, Set<string>>();
-		const existingBacklinksResult = tx
-			.select()
-			.from(backlinks)
-			.where(eq(backlinks.systemTo, FAR_FUTURE_DATE))
-			.all();
-		for (const b of existingBacklinksResult) {
-			const key = `${b.sourceId}|${b.targetId}`;
-			const nodeSet = existingBacklinksMap.get(b.nodeId) || new Set();
-			nodeSet.add(key);
-			existingBacklinksMap.set(b.nodeId, nodeSet);
-		}
+		// Merge backlinks through the shared engine (composite key: nodeId +
+		// sourceId + targetId). A full backup is the complete desired state, so this
+		// is a GLOBAL merge: any current backlink whose key is absent from the backup
+		// is closed — including every backlink of a node that lost all of them. The
+		// former per-node loop only scanned nodes that still had incoming backlinks,
+		// so it silently leaked the backlinks of a node that dropped to zero.
+		const dedupedBacklinks = [
+			...new Map(backlinkRecords.map((b) => [joinKey(b.nodeId, b.sourceId, b.targetId), b])).values(),
+		];
+		const currentBacklinkRows = tx.select().from(backlinks).where(eq(backlinks.systemTo, FAR_FUTURE_DATE)).all();
+		const backlinkResult = temporalMerge(
+			tx,
+			{
+				table: backlinks,
+				keyColumns: [backlinks.nodeId, backlinks.sourceId, backlinks.targetId],
+				systemToColumn: backlinks.systemTo,
+				incomingKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
+					joinKey(b.nodeId, b.sourceId, b.targetId),
+				currentKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
+					joinKey(b.nodeId, b.sourceId, b.targetId),
+				contentMatches: () => true, // backlink rows carry no content beyond their key
+				buildInsertRow: (b: {nodeId: string; sourceId: string; targetId: string}) => ({
+					nodeId: b.nodeId,
+					sourceId: b.sourceId,
+					targetId: b.targetId,
+				}),
+			},
+			dedupedBacklinks,
+			currentBacklinkRows,
+			importTimestampStr,
+		);
+		logTiming(`Processed backlinks: ${backlinkResult.inserted} inserted, ${backlinkResult.phasedOut} closed`);
 
-		// Group incoming backlinks by nodeId
-		const backlinksByNode = new Map<string, Array<{sourceId: string; targetId: string}>>();
-		for (const backlink of backlinkRecords) {
-			const existing = backlinksByNode.get(backlink.nodeId) || [];
-			existing.push({sourceId: backlink.sourceId, targetId: backlink.targetId});
-			backlinksByNode.set(backlink.nodeId, existing);
-		}
-
-		// Collect backlinks to insert
-		const backlinksToInsert: Array<{
-			nodeId: string;
-			sourceId: string;
-			targetId: string;
-			systemFrom: string;
-			systemTo: string;
-		}> = [];
-
-		for (const [nodeId, incomingBacklinks] of backlinksByNode) {
-			const existingSet = existingBacklinksMap.get(nodeId) || new Set();
-			const incomingSet = new Set(incomingBacklinks.map((b) => `${b.sourceId}|${b.targetId}`));
-
-			// Close rows in existing but not in incoming
-			for (const existingKey of existingSet) {
-				if (!incomingSet.has(existingKey)) {
-					const [sourceId, targetId] = existingKey.split('|');
-					tx.update(backlinks)
-						.set({systemTo: importTimestampStr})
-						.where(
-							and(
-								eq(backlinks.nodeId, nodeId),
-								eq(backlinks.sourceId, sourceId),
-								eq(backlinks.targetId, targetId),
-								eq(backlinks.systemTo, FAR_FUTURE_DATE),
-							),
-						)
-						.run();
-				}
-			}
-
-			// Collect new backlinks for batch insert
-			for (const incoming of incomingBacklinks) {
-				const key = `${incoming.sourceId}|${incoming.targetId}`;
-				if (!existingSet.has(key)) {
-					backlinksToInsert.push({
-						nodeId,
-						sourceId: incoming.sourceId,
-						targetId: incoming.targetId,
-						systemFrom: importTimestampStr,
-						systemTo: FAR_FUTURE_DATE,
-					});
-				}
-			}
-		}
-
-		// Batch insert backlinks
-		for (let i = 0; i < backlinksToInsert.length; i += BULK_BATCH_SIZE) {
-			const batch = backlinksToInsert.slice(i, i + BULK_BATCH_SIZE);
-			if (batch.length > 0) {
-				tx.insert(backlinks).values(batch).run();
-			}
-		}
-		logTiming(`Processed backlinks: ${backlinksToInsert.length} inserted`);
-
-		// OPTIMIZATION: Process virtual root IDs with bulk operations
-		const existingVirtualRootIdsMap = new Map<string, Set<string>>();
-		const existingVirtualRootIdsResult = tx
+		// Merge virtual root IDs through the shared engine (composite key: nodeId +
+		// virtualRootId). Also a GLOBAL merge — a node that lost all of its virtual
+		// roots has them closed, which the former per-node loop could not do. The
+		// backup carries these as one record per node with a list of ids, so flatten
+		// to one desired-state row per (nodeId, virtualRootId) pair first.
+		const dedupedVirtualRootIds = [
+			...new Map(
+				virtualRootIdRecords.flatMap((r) =>
+					r.virtualRootIds.map((v) => [joinKey(r.nodeId, v), {nodeId: r.nodeId, virtualRootId: v}] as const),
+				),
+			).values(),
+		];
+		const currentVirtualRootIdRows = tx
 			.select()
 			.from(virtualRootIds)
 			.where(eq(virtualRootIds.systemTo, FAR_FUTURE_DATE))
 			.all();
-		for (const r of existingVirtualRootIdsResult) {
-			const nodeSet = existingVirtualRootIdsMap.get(r.nodeId) || new Set();
-			nodeSet.add(r.virtualRootId);
-			existingVirtualRootIdsMap.set(r.nodeId, nodeSet);
-		}
-
-		const virtualRootIdsToInsert: Array<{
-			nodeId: string;
-			virtualRootId: string;
-			systemFrom: string;
-			systemTo: string;
-		}> = [];
-		for (const record of virtualRootIdRecords) {
-			const existingSet = existingVirtualRootIdsMap.get(record.nodeId) || new Set();
-			const incomingSet = new Set(record.virtualRootIds);
-
-			for (const existingVirtualRootId of existingSet) {
-				if (!incomingSet.has(existingVirtualRootId)) {
-					tx.update(virtualRootIds)
-						.set({systemTo: importTimestampStr})
-						.where(
-							and(
-								eq(virtualRootIds.nodeId, record.nodeId),
-								eq(virtualRootIds.virtualRootId, existingVirtualRootId),
-								eq(virtualRootIds.systemTo, FAR_FUTURE_DATE),
-							),
-						)
-						.run();
-				}
-			}
-
-			for (const incoming of record.virtualRootIds) {
-				if (!existingSet.has(incoming)) {
-					virtualRootIdsToInsert.push({
-						nodeId: record.nodeId,
-						virtualRootId: incoming,
-						systemFrom: importTimestampStr,
-						systemTo: FAR_FUTURE_DATE,
-					});
-				}
-			}
-		}
-
-		for (let i = 0; i < virtualRootIdsToInsert.length; i += BULK_BATCH_SIZE) {
-			const batch = virtualRootIdsToInsert.slice(i, i + BULK_BATCH_SIZE);
-			if (batch.length > 0) {
-				tx.insert(virtualRootIds).values(batch).run();
-			}
-		}
-		logTiming(`Processed virtual root IDs: ${virtualRootIdsToInsert.length} inserted`);
+		const virtualRootIdResult = temporalMerge(
+			tx,
+			{
+				table: virtualRootIds,
+				keyColumns: [virtualRootIds.nodeId, virtualRootIds.virtualRootId],
+				systemToColumn: virtualRootIds.systemTo,
+				incomingKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
+				currentKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
+				contentMatches: () => true, // virtual-root rows carry no content beyond their key
+				buildInsertRow: (r: {nodeId: string; virtualRootId: string}) => ({
+					nodeId: r.nodeId,
+					virtualRootId: r.virtualRootId,
+				}),
+			},
+			dedupedVirtualRootIds,
+			currentVirtualRootIdRows,
+			importTimestampStr,
+		);
+		logTiming(
+			`Processed virtual root IDs: ${virtualRootIdResult.inserted} inserted, ${virtualRootIdResult.phasedOut} closed`,
+		);
 
 		// Close out nodes that were deleted in Workflowy (not present in this backup)
 		// Uses in-memory orphan IDs computed earlier - this is fail-safe:
