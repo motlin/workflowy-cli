@@ -4,7 +4,7 @@ import {useQueryClient} from '@tanstack/react-query';
 import {nodeKeys} from '../node-cache.js';
 import type {NodeAttachment, NodeResponse} from '../../node-types.js';
 import {useState} from 'react';
-import {useNodeNavigation, uuidToShortId} from '../navigation.js';
+import {nodeRoute, useNodeNavigation} from '../navigation.js';
 import {useNodeDragDrop} from '../hooks/use-node-drag-drop.js';
 import {useDeleteNode, useToggleComplete} from '../hooks/use-nodes.js';
 import {useOutlineStore} from '../stores/outline.js';
@@ -236,7 +236,7 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 					className={bulletClasses}
 					data-handbook="bullet.handle"
 					draggable
-					href={`/node/${uuidToShortId(node.id)}`}
+					href={nodeRoute(node.id)}
 					onClick={handleBulletClick}
 					onDragEnd={handleDragEnd}
 					onDragStart={handleDragStart}
@@ -481,7 +481,7 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 					className={bulletClasses}
 					data-handbook="bullet.handle"
 					draggable
-					href={`/node/${uuidToShortId(node.id)}`}
+					href={nodeRoute(node.id)}
 					onClick={handleBulletClick}
 					onDragEnd={handleDragEnd}
 					onDragStart={handleDragStart}

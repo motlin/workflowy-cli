@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {nodeRoute} from '../navigation.js';
 import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useNavigate} from 'react-router-dom';
 import {z} from 'zod';
@@ -116,7 +117,7 @@ export function JumpMenu() {
 		(node: NodeResult) => {
 			addRecentNode(node.id);
 			toggleJumpMenu();
-			void navigate(`/node/${node.id}`);
+			void navigate(nodeRoute(node.id));
 		},
 		[navigate, toggleJumpMenu],
 	);

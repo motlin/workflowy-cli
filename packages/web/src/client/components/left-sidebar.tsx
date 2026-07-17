@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {nodeRoute} from '../navigation.js';
 import {useNavigate} from 'react-router-dom';
 import {useChildren, useCreateNode, useNode} from '../hooks/use-nodes.js';
 import {useOutlineStore} from '../stores/outline.js';
@@ -112,7 +113,7 @@ function StarredPageItem({nodeId}: {nodeId: string}) {
 	const {data: node} = useNode(nodeId);
 
 	const handleClick = () => {
-		void navigate(`/node/${nodeId}`);
+		void navigate(nodeRoute(nodeId));
 	};
 
 	const handleRemove = (event: React.MouseEvent) => {
@@ -197,7 +198,7 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 	const {data: children} = useChildren(isExpanded ? nodeId : null);
 
 	const handleClick = () => {
-		void navigate(`/node/${nodeId}`);
+		void navigate(nodeRoute(nodeId));
 	};
 
 	const handleToggle = (event: React.MouseEvent) => {

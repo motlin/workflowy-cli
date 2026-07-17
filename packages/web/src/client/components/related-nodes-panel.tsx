@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
+import {nodeRoute} from '../navigation.js';
 import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
@@ -76,7 +77,7 @@ export function RelatedNodesPanel() {
 
 	const handleNavigateToNode = useCallback(
 		(nodeId: string) => {
-			void navigate(`/node/${nodeId}`);
+			void navigate(nodeRoute(nodeId));
 		},
 		[navigate],
 	);

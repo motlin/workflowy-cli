@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {createPortal} from 'react-dom';
-import {useNodeNavigation, uuidToShortId} from '../navigation.js';
+import {nodeRoute, useNodeNavigation} from '../navigation.js';
 import type {NodeResponse} from '../../node-types.js';
 
 interface MirrorLocationPath {
@@ -111,7 +111,7 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 								</div>
 								<a
 									className="mirrors-modal-location-path"
-									href={`/node/${uuidToShortId(loc.id)}`}
+									href={nodeRoute(loc.id)}
 									onClick={(event) => handleNavigate(loc.id, event)}
 								>
 									<span className="mirrors-modal-location-number">{index + 1}.</span>

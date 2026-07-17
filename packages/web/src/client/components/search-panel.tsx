@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {nodeRoute} from '../navigation.js';
 import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
@@ -215,7 +216,7 @@ export function SearchPanel() {
 		(result: SearchResult) => {
 			addRecentSearch(query);
 			toggleSearchPanel();
-			void navigate(`/node/${result.id}`);
+			void navigate(nodeRoute(result.id));
 		},
 		[addRecentSearch, navigate, query, toggleSearchPanel],
 	);

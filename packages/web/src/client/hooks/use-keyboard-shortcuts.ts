@@ -1,4 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
+import {nodeRoute} from '../navigation.js';
 import {nodeKeys} from '../node-cache.js';
 import type {NodeResponse} from '../../node-types.js';
 import {useHotkeys} from 'react-hotkeys-hook';
@@ -133,7 +134,7 @@ export function useKeyboardShortcuts() {
 		'meta+.',
 		() => {
 			if (selectedId) {
-				void navigate(`/node/${selectedId}`);
+				void navigate(nodeRoute(selectedId));
 			}
 		},
 		{
@@ -154,7 +155,7 @@ export function useKeyboardShortcuts() {
 
 			const parentId = zoomedNode?.parent_id;
 			if (parentId) {
-				void navigate(`/node/${parentId}`);
+				void navigate(nodeRoute(parentId));
 			} else {
 				// No parent means we're at a root node, go to root view
 				void navigate('/');
@@ -669,7 +670,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			const previousSibling = sortedSiblings[currentIndex - 1];
-			void navigate(`/node/${previousSibling.id}`);
+			void navigate(nodeRoute(previousSibling.id));
 		},
 		{
 			preventDefault: true,
@@ -702,7 +703,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			const nextSibling = sortedSiblings[currentIndex + 1];
-			void navigate(`/node/${nextSibling.id}`);
+			void navigate(nodeRoute(nextSibling.id));
 		},
 		{
 			preventDefault: true,
@@ -1044,7 +1045,7 @@ export function useKeyboardShortcuts() {
 				if (response.ok) {
 					const data = (await response.json()) as {results: Array<{id: string; name: string | null}>};
 					if (data.results.length > 0) {
-						void navigate(`/node/${data.results[0].id}`);
+						void navigate(nodeRoute(data.results[0].id));
 						return;
 					}
 				}

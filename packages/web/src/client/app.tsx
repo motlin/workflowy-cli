@@ -2,7 +2,6 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useEffect} from 'react';
 import {BrowserRouter, Route, Routes, useParams} from 'react-router-dom';
 
-import {uuidToShortId} from './navigation.js';
 import {ChangesView} from './components/changes-view.js';
 import {ErrorBoundary} from './components/error-boundary.js';
 import {ErrorNotifications} from './components/error-notification.js';
