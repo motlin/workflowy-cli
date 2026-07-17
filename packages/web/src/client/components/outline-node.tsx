@@ -1,6 +1,7 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineNode and RecursiveOutlineTree is intentional.
 import {useQueryClient} from '@tanstack/react-query';
+import {nodeKeys} from '../node-cache.js';
 import type {NodeAttachment, NodeResponse} from '../../node-types.js';
 import {useState} from 'react';
 import {useNodeNavigation, uuidToShortId} from '../navigation.js';
@@ -50,7 +51,7 @@ interface VirtualizedOutlineNodeProps {
  */
 function collectDescendantIds(nodeId: string, queryClient: ReturnType<typeof useQueryClient>): string[] {
 	const result: string[] = [nodeId];
-	const children = queryClient.getQueryData<NodeResponse[]>(['nodes', 'children', nodeId]);
+	const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(nodeId));
 	if (children) {
 		for (const child of children) {
 			result.push(...collectDescendantIds(child.id, queryClient));

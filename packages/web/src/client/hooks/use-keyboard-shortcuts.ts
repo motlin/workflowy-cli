@@ -1,4 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
+import {nodeKeys} from '../node-cache.js';
 import type {NodeResponse} from '../../node-types.js';
 import {useHotkeys} from 'react-hotkeys-hook';
 import {useNavigate} from 'react-router-dom';
@@ -331,7 +332,7 @@ export function useKeyboardShortcuts() {
 			const parentId = selectedNode.parent_id;
 
 			// Get siblings to calculate position after the selected node
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 			const selectedNodePriority = selectedNode.priority;
 
@@ -404,7 +405,7 @@ export function useKeyboardShortcuts() {
 
 			// Get siblings of the selected node
 			const parentId = selectedNode.parent_id;
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 			if (!siblings) {
@@ -456,7 +457,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Get the parent node to find the grandparent
-			const parentQueryKey = ['nodes', 'detail', parentId];
+			const parentQueryKey = nodeKeys.detail(parentId);
 			const parentNode = queryClient.getQueryData<NodeResponse>(parentQueryKey);
 
 			// Need parent node data to get grandparent_id
@@ -469,7 +470,7 @@ export function useKeyboardShortcuts() {
 			const grandparentId = parentNode.parent_id;
 
 			// Get parent's siblings to calculate position after the parent
-			const grandparentChildrenKey = ['nodes', 'children', grandparentId];
+			const grandparentChildrenKey = nodeKeys.children(grandparentId);
 			const parentSiblings = queryClient.getQueryData<NodeResponse[]>(grandparentChildrenKey);
 			const parentPriority = parentNode.priority;
 
@@ -584,7 +585,7 @@ export function useKeyboardShortcuts() {
 
 			// Get siblings of the selected node
 			const parentId = selectedNode.parent_id;
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 			if (!siblings || siblings.length < 2) {
@@ -634,7 +635,7 @@ export function useKeyboardShortcuts() {
 
 			// Get siblings of the selected node
 			const parentId = selectedNode.parent_id;
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 			if (!siblings || siblings.length < 2) {
@@ -686,7 +687,7 @@ export function useKeyboardShortcuts() {
 			const parentId = selectedNode.parent_id;
 
 			// Get siblings to calculate position after the selected node
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 			const selectedNodePriority = selectedNode.priority;
 
@@ -736,7 +737,7 @@ export function useKeyboardShortcuts() {
 
 			// Get siblings of the selected node
 			const parentId = selectedNode.parent_id;
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 			if (!siblings || siblings.length < 2) {
@@ -778,7 +779,7 @@ export function useKeyboardShortcuts() {
 
 			// Get siblings of the selected node
 			const parentId = selectedNode.parent_id;
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 			if (!siblings || siblings.length < 2) {

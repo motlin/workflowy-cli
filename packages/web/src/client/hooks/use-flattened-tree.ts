@@ -1,4 +1,5 @@
 import {useQueries, useQueryClient} from '@tanstack/react-query';
+import {nodeKeys} from '../node-cache.js';
 import type {NodeResponse} from '../../node-types.js';
 import {useMemo} from 'react';
 import {useOutlineStore} from '../stores/outline.js';
@@ -119,7 +120,7 @@ export function useFlattenedTree(rootParentId: string | null) {
 
 		// Helper to get cached data
 		const getCached = (parentId: string): NodeResponse[] | undefined =>
-			queryClient.getQueryData<NodeResponse[]>(['nodes', 'children', parentId]);
+			queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
 
 		// Collect cached children for all expanded nodes
 		const collectCached = (nodes: NodeResponse[] | undefined): void => {
@@ -149,7 +150,7 @@ export function useFlattenedTree(rootParentId: string | null) {
 	// This ensures we re-render when any children data changes
 	const childrenQueries = useQueries({
 		queries: expandedNodeIds.map((nodeId) => ({
-			queryKey: ['nodes', 'children', nodeId] as const,
+			queryKey: nodeKeys.children(nodeId),
 			queryFn: () => fetchChildren(nodeId),
 		})),
 	});

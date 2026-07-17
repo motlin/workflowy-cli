@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {nodeKeys} from '../node-cache.js';
 import type {NodeResponse} from '../../node-types.js';
 import {createPortal} from 'react-dom';
 import {useQueryClient} from '@tanstack/react-query';
@@ -202,7 +203,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		}
 
 		// Get siblings to calculate position after the current node
-		const queryKey = ['nodes', 'children', parentId];
+		const queryKey = nodeKeys.children(parentId);
 		const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 		// Position the new sibling right after this node.

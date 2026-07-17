@@ -1,4 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
+import {nodeKeys} from '../node-cache.js';
 import type {NodeResponse} from '../../node-types.js';
 import {useMemo} from 'react';
 import {useOutlineStore} from '../stores/outline.js';
@@ -20,7 +21,7 @@ export function useVisibleNodes(): string[] {
 		const visibleIds: string[] = [];
 
 		const collectVisibleNodes = (parentId: string | null) => {
-			const queryKey = ['nodes', 'children', parentId];
+			const queryKey = nodeKeys.children(parentId);
 			const children = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
 			if (!children) {

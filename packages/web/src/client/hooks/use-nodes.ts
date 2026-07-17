@@ -1,5 +1,6 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import type {NodeResponse} from '../../node-types.js';
+import {nodeKeys} from '../node-cache.js';
 import {useOutlineStore} from '../stores/outline.js';
 
 interface CreateNodeRequest {
@@ -15,13 +16,6 @@ interface UpdateNodeRequest {
 	note?: string;
 	layoutMode?: string;
 }
-
-const nodeKeys = {
-	all: ['nodes'] as const,
-	children: (parentId: string | null) => [...nodeKeys.all, 'children', parentId] as const,
-	detail: (nodeId: string) => [...nodeKeys.all, 'detail', nodeId] as const,
-	ancestors: (nodeId: string) => [...nodeKeys.all, 'ancestors', nodeId] as const,
-};
 
 async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
 	const url = parentId === null ? '/api/v1/nodes' : `/api/v1/nodes?parent_id=${encodeURIComponent(parentId)}`;
