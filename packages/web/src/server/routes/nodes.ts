@@ -1,25 +1,23 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
 import type {NodeAttachment, NodeResponse} from '../../node-types.js';
-import {CacheService, NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
+import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {mirrors as mirrorsTable, nodeContent, s3Files} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import type {Node} from '@workflowy/shared/types';
 import {isShortId} from '@workflowy/shared/workflowy';
 import {and, eq, inArray} from 'drizzle-orm';
 import {Hono} from 'hono';
-import {getDatabase} from '../db.js';
+import {type AppEnv, type ServerContext} from '../context.js';
 
 /**
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
  * Returns the full UUID, or null if a short ID couldn't be resolved.
  */
-async function resolveNodeId(id: string): Promise<string | null> {
+async function resolveNodeId(ctx: ServerContext, id: string): Promise<string | null> {
 	if (!isShortId(id)) {
 		return id;
 	}
-	const db = getDatabase();
-	const cacheService = new CacheService(db);
-	return cacheService.resolveShortIdToUuid(id);
+	return ctx.cacheService.resolveShortIdToUuid(id);
 }
 
 /**
@@ -27,8 +25,8 @@ async function resolveNodeId(id: string): Promise<string | null> {
  * Otherwise return the same ID. Used when fetching children —
  * a mirror's children are the original node's children.
  */
-function resolveMirrorToOriginal(nodeId: string): string {
-	const reader = new NodeReader(getDatabase());
+function resolveMirrorToOriginal(ctx: ServerContext, nodeId: string): string {
+	const reader = new NodeReader(ctx.db);
 	return reader.getById(nodeId)?.mirror.originalNodeId ?? nodeId;
 }
 
@@ -76,13 +74,12 @@ function nodeToRestDto(
  * attachment are absent from the map. `isDeleted` is normalized to a boolean —
  * the column stores 1/0/NULL, and anything other than 1 means "not deleted".
  */
-function loadAttachments(nodeIds: string[]): Map<string, NodeAttachment> {
+function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, NodeAttachment> {
 	const map = new Map<string, NodeAttachment>();
 	if (nodeIds.length === 0) {
 		return map;
 	}
-	const db = getDatabase();
-	const rows = db
+	const rows = ctx.db
 		.select({
 			nodeId: s3Files.nodeId,
 			fileName: s3Files.fileName,
@@ -109,25 +106,22 @@ function loadAttachments(nodeIds: string[]): Map<string, NodeAttachment> {
 }
 
 /**
- * Helper to get CacheService and WriteThrough client
+ * Build the write-through client from the context, or undefined when no API key
+ * is configured (read-only mode).
  */
-function getServices(apiKey?: string) {
-	const db = getDatabase();
-	const cacheService = new CacheService(db);
-
-	if (apiKey) {
-		const apiClient = new WorkflowyApiClient(apiKey, undefined, process.env.WORKFLOWY_API_URL);
-		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
-		return {db, cacheService, client};
+function getWriteClient(ctx: ServerContext): WorkflowyWriteThroughClient | undefined {
+	if (!ctx.apiKey) {
+		return undefined;
 	}
-
-	return {db, cacheService, client: undefined};
+	const apiClient = new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
+	return new WorkflowyWriteThroughClient(apiClient, ctx.cacheService);
 }
 
-export const nodesRouter = new Hono();
+export const nodesRouter = new Hono<AppEnv>();
 
 // GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
 nodesRouter.get('/', async (c) => {
+	const ctx = c.get('ctx');
 	const parentIdParam = c.req.query('parent_id');
 
 	// Workflowy API accepts "None" for top-level nodes, or omitting the param
@@ -135,19 +129,19 @@ nodesRouter.get('/', async (c) => {
 
 	// Resolve short ID to full UUID if needed
 	if (parentId) {
-		const resolved = await resolveNodeId(parentId);
+		const resolved = await resolveNodeId(ctx, parentId);
 		if (!resolved) {
 			return c.json({error: 'Parent node not found'}, 404);
 		}
 		// If the node is a mirror, fetch the original's children
-		parentId = resolveMirrorToOriginal(resolved);
+		parentId = resolveMirrorToOriginal(ctx, resolved);
 	}
 
-	const db = getDatabase();
+	const {db} = ctx;
 
 	// NodeTreeReader resolves the mirror name/note fallback (a blank mirror copy
 	// borrows its original's content) and fails loudly on inverted relationships.
-	const nodes = await new NodeTreeReader(new CacheService(db)).readChildren(parentId, {depth: 0});
+	const nodes = await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0});
 
 	// Determine which nodes have children (single query for efficiency)
 	const nodeIds = nodes.map((n) => n.id);
@@ -164,7 +158,7 @@ nodesRouter.get('/', async (c) => {
 	}
 
 	// Batch-load file attachments for all returned nodes.
-	const attachments = loadAttachments(nodeIds);
+	const attachments = loadAttachments(ctx, nodeIds);
 
 	const nodeResponses: NodeResponse[] = nodes.map((node) =>
 		nodeToRestDto(node, {
@@ -180,16 +174,17 @@ nodesRouter.get('/', async (c) => {
 
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
 nodesRouter.get('/:id', async (c) => {
+	const ctx = c.get('ctx');
 	const rawId = c.req.param('id');
-	const id = await resolveNodeId(rawId);
+	const id = await resolveNodeId(ctx, rawId);
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
 
-	const db = getDatabase();
+	const {db} = ctx;
 
 	// NodeTreeReader resolves the mirror name/note fallback and mirror flags.
-	const [node] = await new NodeTreeReader(new CacheService(db)).readNodes([id], {depth: 0});
+	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
 	if (!node) {
 		return c.json({error: 'Node not found'}, 404);
 	}
@@ -202,7 +197,7 @@ nodesRouter.get('/:id', async (c) => {
 		.limit(1)
 		.get();
 
-	const attachment = loadAttachments([id]).get(id) ?? null;
+	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
 
 	const nodeResponse: NodeResponse = nodeToRestDto(node, {
 		hasChildren: childCheck !== undefined,
@@ -217,8 +212,9 @@ nodesRouter.get('/:id', async (c) => {
 
 // POST /api/v1/nodes - Create node
 nodesRouter.post('/', async (c) => {
-	const apiKey = process.env.WORKFLOWY_API_KEY;
-	if (!apiKey) {
+	const ctx = c.get('ctx');
+	const client = getWriteClient(ctx);
+	if (!client) {
 		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
 	}
 
@@ -245,7 +241,6 @@ nodesRouter.post('/', async (c) => {
 		return c.json({error: 'parent_id is required'}, 400);
 	}
 
-	const {client} = getServices(apiKey);
 	if (!client) {
 		return c.json({error: 'Failed to initialize client'}, 500);
 	}
@@ -283,12 +278,13 @@ nodesRouter.post('/', async (c) => {
 
 // POST /api/v1/nodes/:id - Update node
 nodesRouter.post('/:id', async (c) => {
-	const apiKey = process.env.WORKFLOWY_API_KEY;
-	if (!apiKey) {
+	const ctx = c.get('ctx');
+	const client = getWriteClient(ctx);
+	if (!client) {
 		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
 	}
 
-	const id = await resolveNodeId(c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param('id'));
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
@@ -304,7 +300,7 @@ nodesRouter.post('/:id', async (c) => {
 		return c.json({error: 'At least one of name, note, or layoutMode is required'}, 400);
 	}
 
-	const {cacheService, client} = getServices(apiKey);
+	const {cacheService} = ctx;
 	if (!client) {
 		return c.json({error: 'Failed to initialize client'}, 500);
 	}
@@ -339,17 +335,18 @@ nodesRouter.post('/:id', async (c) => {
 
 // DELETE /api/v1/nodes/:id - Delete node
 nodesRouter.delete('/:id', async (c) => {
-	const apiKey = process.env.WORKFLOWY_API_KEY;
-	if (!apiKey) {
+	const ctx = c.get('ctx');
+	const client = getWriteClient(ctx);
+	if (!client) {
 		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
 	}
 
-	const id = await resolveNodeId(c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param('id'));
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
 
-	const {cacheService, client} = getServices(apiKey);
+	const {cacheService} = ctx;
 	if (!client) {
 		return c.json({error: 'Failed to initialize client'}, 500);
 	}
@@ -367,17 +364,18 @@ nodesRouter.delete('/:id', async (c) => {
 
 // POST /api/v1/nodes/:id/complete - Mark node as completed
 nodesRouter.post('/:id/complete', async (c) => {
-	const apiKey = process.env.WORKFLOWY_API_KEY;
-	if (!apiKey) {
+	const ctx = c.get('ctx');
+	const client = getWriteClient(ctx);
+	if (!client) {
 		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
 	}
 
-	const id = await resolveNodeId(c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param('id'));
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
 
-	const {cacheService, client} = getServices(apiKey);
+	const {cacheService} = ctx;
 	if (!client) {
 		return c.json({error: 'Failed to initialize client'}, 500);
 	}
@@ -412,12 +410,13 @@ nodesRouter.post('/:id/complete', async (c) => {
 
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
 nodesRouter.get('/:id/ancestors', async (c) => {
-	const id = await resolveNodeId(c.req.param('id'));
+	const ctx = c.get('ctx');
+	const id = await resolveNodeId(ctx, c.req.param('id'));
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
 
-	const reader = new NodeReader(getDatabase());
+	const reader = new NodeReader(ctx.db);
 
 	// Build ancestor chain by following parent_id pointers
 	const ancestors: NodeResponse[] = [];
@@ -444,17 +443,18 @@ nodesRouter.get('/:id/ancestors', async (c) => {
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
 nodesRouter.get('/:id/mirrors', async (c) => {
+	const ctx = c.get('ctx');
 	const rawId = c.req.param('id');
-	const id = await resolveNodeId(rawId);
+	const id = await resolveNodeId(ctx, rawId);
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
 
-	const db = getDatabase();
+	const {db} = ctx;
 	const reader = new NodeReader(db);
 
 	// First, resolve to the original node (in case we were given a mirror ID)
-	const originalId = resolveMirrorToOriginal(id);
+	const originalId = resolveMirrorToOriginal(ctx, id);
 
 	// Find all mirrors of the original node
 	const mirrorRows = db
@@ -510,17 +510,18 @@ nodesRouter.get('/:id/mirrors', async (c) => {
 
 // POST /api/v1/nodes/:id/uncomplete - Mark node as not completed
 nodesRouter.post('/:id/uncomplete', async (c) => {
-	const apiKey = process.env.WORKFLOWY_API_KEY;
-	if (!apiKey) {
+	const ctx = c.get('ctx');
+	const client = getWriteClient(ctx);
+	if (!client) {
 		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
 	}
 
-	const id = await resolveNodeId(c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param('id'));
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
 
-	const {cacheService, client} = getServices(apiKey);
+	const {cacheService} = ctx;
 	if (!client) {
 		return c.json({error: 'Failed to initialize client'}, 500);
 	}
@@ -555,12 +556,13 @@ nodesRouter.post('/:id/uncomplete', async (c) => {
 
 // POST /api/v1/nodes/:id/move - Move node to new parent
 nodesRouter.post('/:id/move', async (c) => {
-	const apiKey = process.env.WORKFLOWY_API_KEY;
-	if (!apiKey) {
+	const ctx = c.get('ctx');
+	const client = getWriteClient(ctx);
+	if (!client) {
 		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
 	}
 
-	const id = await resolveNodeId(c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param('id'));
 	if (!id) {
 		return c.json({error: 'Node not found'}, 404);
 	}
@@ -578,7 +580,7 @@ nodesRouter.post('/:id/move', async (c) => {
 		return c.json({error: 'parent_id is required'}, 400);
 	}
 
-	const {cacheService, client} = getServices(apiKey);
+	const {cacheService} = ctx;
 	if (!client) {
 		return c.json({error: 'Failed to initialize client'}, 500);
 	}
