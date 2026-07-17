@@ -1,5 +1,12 @@
 export {CacheService, type TextSearchOptions, type TextSearchRow} from './cache-service.js';
 export {
+	type CreatedNodeTree,
+	createNodeTree,
+	type NodeTreeSpec,
+	NodeTreeSpecSchema,
+	type TreeWriteClient,
+} from './create-node-tree.js';
+export {
 	contentMatches,
 	currentVersion,
 	metadataComparisonStats,

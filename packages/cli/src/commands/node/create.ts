@@ -1,42 +1,19 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {PathBuilder, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
+import {
+	type CreatedNodeTree,
+	createNodeTree,
+	type NodeTreeSpec,
+	NodeTreeSpecSchema,
+	PathBuilder,
+	WorkflowyWriteThroughClient,
+} from '@workflowy/shared/cache';
 import {getWorkflowyUrl} from '@workflowy/shared/workflowy';
 import {Command, Flags} from '@oclif/core';
 import fs from 'node:fs';
-import {z} from 'zod';
 import {createDatabase} from '../../db/index.js';
 import {CacheService} from '../../services/cache.js';
 import {logger} from '../../services/logger.js';
 import {resolveOrCreateNodePath, resolveParent} from '@workflowy/shared/utils';
-
-/**
- * Schema for a node in the JSON input structure, with recursively nested
- * children. The recursive `children` field uses a Zod v4 getter so the schema
- * is the single source of truth and `z.infer` resolves the recursion.
- */
-const JsonNodeInputSchema = z.object({
-	name: z.string(),
-	note: z.string().optional(),
-	layoutMode: z.string().optional(),
-	get children() {
-		return z.array(JsonNodeInputSchema).optional();
-	},
-});
-
-/**
- * A node in the JSON input structure, derived from {@link JsonNodeInputSchema}.
- */
-type JsonNodeInput = z.infer<typeof JsonNodeInputSchema>;
-
-/**
- * Result of creating a node tree, including the root and all descendants.
- */
-interface CreatedNodeResult {
-	id: string;
-	name: string;
-	createdAt: number;
-	children: CreatedNodeResult[];
-}
 
 /**
  * Read all content from stdin as a string
@@ -284,7 +261,7 @@ export default class Create extends Command {
 		}
 
 		// Validate JSON structure
-		const parseResult = JsonNodeInputSchema.safeParse(jsonInput);
+		const parseResult = NodeTreeSpecSchema.safeParse(jsonInput);
 		if (!parseResult.success) {
 			this.error(`Invalid JSON structure: ${parseResult.error.message}`);
 		}
@@ -303,13 +280,8 @@ export default class Create extends Command {
 		this.log(`Parent: ${parentPath}`);
 		this.log('');
 
-		const result = await this.createNodeTree(
-			nodeTree,
-			parentId,
-			apiClient,
-			cacheService,
-			flags.position as 'top' | 'bottom' | undefined,
-		);
+		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
+		const result = await createNodeTree(nodeTree, parentId, client, flags.position as 'top' | 'bottom' | undefined);
 
 		// Output results
 		this.log('Successfully created node tree:');
@@ -322,54 +294,9 @@ export default class Create extends Command {
 	}
 
 	/**
-	 * Recursively create a tree of nodes.
-	 *
-	 * @param nodeInput - The node structure to create
-	 * @param parentId - The parent node ID
-	 * @param apiClient - The API client for creating nodes
-	 * @param cacheService - The cache service for updating local cache
-	 * @param position - Position for the root node. Children always use 'bottom' to preserve array order.
-	 */
-	private async createNodeTree(
-		nodeInput: JsonNodeInput,
-		parentId: string,
-		apiClient: WorkflowyApiClient,
-		cacheService: CacheService,
-		position?: 'top' | 'bottom',
-	): Promise<CreatedNodeResult> {
-		// Create the current node
-		const newNode = await apiClient.createNode({
-			parent_id: parentId,
-			name: nodeInput.name,
-			note: nodeInput.note,
-			layoutMode: nodeInput.layoutMode,
-			position,
-		});
-
-		// Update cache for this node (use insertNode to avoid expiring siblings)
-		await cacheService.insertNode(newNode, parentId);
-
-		// Recursively create children - always use 'bottom' to preserve array order
-		const childResults: CreatedNodeResult[] = [];
-		if (nodeInput.children && nodeInput.children.length > 0) {
-			for (const child of nodeInput.children) {
-				const childResult = await this.createNodeTree(child, newNode.id, apiClient, cacheService, 'bottom');
-				childResults.push(childResult);
-			}
-		}
-
-		return {
-			id: newNode.id,
-			name: newNode.name,
-			createdAt: newNode.createdAt,
-			children: childResults,
-		};
-	}
-
-	/**
 	 * Print the created tree structure
 	 */
-	private printCreatedTree(node: CreatedNodeResult, depth: number): void {
+	private printCreatedTree(node: CreatedNodeTree, depth: number): void {
 		const indent = '  '.repeat(depth);
 		this.log(`${indent}- ${node.name}`);
 		this.log(`${indent}  ID: ${node.id}`);
@@ -384,7 +311,7 @@ export default class Create extends Command {
 	 * Flatten created nodes into an array of {id, name, parentId} objects
 	 */
 	private flattenCreatedNodes(
-		node: CreatedNodeResult,
+		node: CreatedNodeTree,
 		parentId?: string,
 	): Array<{id: string; name: string; parentId: string | null}> {
 		const result: Array<{id: string; name: string; parentId: string | null}> = [
@@ -406,7 +333,7 @@ export default class Create extends Command {
 	 * Show dry-run output for JSON mode
 	 */
 	private async dryRunJsonMode(
-		nodeTree: JsonNodeInput,
+		nodeTree: NodeTreeSpec,
 		parentId: string,
 		database: ReturnType<typeof createDatabase>,
 	): Promise<void> {
@@ -429,7 +356,7 @@ export default class Create extends Command {
 	/**
 	 * Print a preview of the node tree that would be created
 	 */
-	private printNodeTreePreview(node: JsonNodeInput, depth: number): void {
+	private printNodeTreePreview(node: NodeTreeSpec, depth: number): void {
 		const indent = '  '.repeat(depth);
 		this.log(`${indent}- ${node.name}`);
 		if (node.note) {
@@ -449,7 +376,7 @@ export default class Create extends Command {
 	/**
 	 * Count total nodes in a tree
 	 */
-	private countNodes(node: JsonNodeInput): number {
+	private countNodes(node: NodeTreeSpec): number {
 		let count = 1;
 		if (node.children) {
 			for (const child of node.children) {
