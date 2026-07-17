@@ -3,6 +3,7 @@ import type {NodeResponse} from '../../node-types.js';
 import {createPortal} from 'react-dom';
 import {useQueryClient} from '@tanstack/react-query';
 import {useOutlineStore} from '../stores/outline.js';
+import {insertAfterPriority, sortByPriority} from '../tree-position.js';
 import {useCreateNode, useUpdateNode} from '../hooks/use-nodes.js';
 import {useRemoveTagColor, useSetTagColor, useTagColors, type TagColors} from '../hooks/use-tag-colors.js';
 import {TagColorPicker, type TagColorName} from './tag-color-picker.js';
@@ -204,19 +205,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const queryKey = ['nodes', 'children', parentId];
 		const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 
-		let position: number;
-		if (siblings) {
-			const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
-			const currentIndex = sortedSiblings.findIndex((sibling) => sibling.id === nodeId);
-			if (currentIndex === -1 || currentIndex === sortedSiblings.length - 1) {
-				position = priority + 100;
-			} else {
-				const nextPriority = sortedSiblings[currentIndex + 1].priority;
-				position = Math.floor((priority + nextPriority) / 2);
-			}
-		} else {
-			position = priority + 100;
-		}
+		// Position the new sibling right after this node.
+		const position = insertAfterPriority(siblings ? sortByPriority(siblings) : [], nodeId, priority);
 
 		stopEditing();
 

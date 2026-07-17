@@ -3,6 +3,7 @@ import type {NodeResponse} from '../../node-types.js';
 import {useHotkeys} from 'react-hotkeys-hook';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
+import {insertAfterPriority, insertBeforePriority, sortByPriority} from '../tree-position.js';
 import {
 	useChildren,
 	useCreateNode,
@@ -334,23 +335,12 @@ export function useKeyboardShortcuts() {
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 			const selectedNodePriority = selectedNode.priority;
 
-			// Position after the selected node
-			// Find the next sibling's priority to position between them
-			let position: number;
-			if (siblings) {
-				const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
-				const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-				if (selectedIndex === -1 || selectedIndex === sortedSiblings.length - 1) {
-					// Selected is last or not found, position after
-					position = selectedNodePriority + 100;
-				} else {
-					// Position between selected and next sibling
-					const nextPriority = sortedSiblings[selectedIndex + 1].priority;
-					position = Math.floor((selectedNodePriority + nextPriority) / 2);
-				}
-			} else {
-				position = selectedNodePriority + 100;
-			}
+			// Position after the selected node, between it and its next sibling.
+			const position = insertAfterPriority(
+				siblings ? sortByPriority(siblings) : [],
+				selectedId,
+				selectedNodePriority,
+			);
 
 			// Create the new node
 			createNodeMutation.mutate(
@@ -422,7 +412,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the previous one
-			const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(siblings);
 			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
 
 			// Can't indent if there's no previous sibling
@@ -483,22 +473,12 @@ export function useKeyboardShortcuts() {
 			const parentSiblings = queryClient.getQueryData<NodeResponse[]>(grandparentChildrenKey);
 			const parentPriority = parentNode.priority;
 
-			// Position after the parent node
-			let position: number;
-			if (parentSiblings) {
-				const sortedSiblings = [...parentSiblings].sort((a, b) => a.priority - b.priority);
-				const parentIndex = sortedSiblings.findIndex((sibling) => sibling.id === parentId);
-				if (parentIndex === -1 || parentIndex === sortedSiblings.length - 1) {
-					// Parent is last or not found, position after
-					position = parentPriority + 100;
-				} else {
-					// Position between parent and next sibling
-					const nextPriority = sortedSiblings[parentIndex + 1].priority;
-					position = Math.floor((parentPriority + nextPriority) / 2);
-				}
-			} else {
-				position = parentPriority + 100;
-			}
+			// Position after the parent node, between it and its next sibling.
+			const position = insertAfterPriority(
+				parentSiblings ? sortByPriority(parentSiblings) : [],
+				parentId,
+				parentPriority,
+			);
 
 			moveNodeMutation.mutate({
 				nodeId: selectedId,
@@ -612,7 +592,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the previous one
-			const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(siblings);
 			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
 
 			// Can't move up if already at the top
@@ -622,17 +602,8 @@ export function useKeyboardShortcuts() {
 
 			const previousSibling = sortedSiblings[selectedIndex - 1];
 
-			// Calculate new position: just before the previous sibling
-			// If there's a sibling before the previous one, position between them
-			// Otherwise, position before the previous sibling
-			let newPosition: number;
-			if (selectedIndex >= 2) {
-				const beforePrevious = sortedSiblings[selectedIndex - 2];
-				newPosition = Math.floor((beforePrevious.priority + previousSibling.priority) / 2);
-			} else {
-				// Moving to first position
-				newPosition = previousSibling.priority - 100;
-			}
+			// Position just before the previous sibling.
+			const newPosition = insertBeforePriority(sortedSiblings, previousSibling.id, previousSibling.priority);
 
 			moveNodeMutation.mutate({
 				nodeId: selectedId,
@@ -671,7 +642,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the next one
-			const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(siblings);
 			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
 
 			// Can't move down if already at the bottom
@@ -681,17 +652,8 @@ export function useKeyboardShortcuts() {
 
 			const nextSibling = sortedSiblings[selectedIndex + 1];
 
-			// Calculate new position: just after the next sibling
-			// If there's a sibling after the next one, position between them
-			// Otherwise, position after the next sibling
-			let newPosition: number;
-			if (selectedIndex + 2 < sortedSiblings.length) {
-				const afterNext = sortedSiblings[selectedIndex + 2];
-				newPosition = Math.floor((nextSibling.priority + afterNext.priority) / 2);
-			} else {
-				// Moving to last position
-				newPosition = nextSibling.priority + 100;
-			}
+			// Position just after the next sibling.
+			const newPosition = insertAfterPriority(sortedSiblings, nextSibling.id, nextSibling.priority);
 
 			moveNodeMutation.mutate({
 				nodeId: selectedId,
@@ -728,22 +690,12 @@ export function useKeyboardShortcuts() {
 			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
 			const selectedNodePriority = selectedNode.priority;
 
-			// Position after the selected node
-			let position: number;
-			if (siblings) {
-				const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
-				const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-				if (selectedIndex === -1 || selectedIndex === sortedSiblings.length - 1) {
-					// Selected is last or not found, position after
-					position = selectedNodePriority + 100;
-				} else {
-					// Position between selected and next sibling
-					const nextPriority = sortedSiblings[selectedIndex + 1].priority;
-					position = Math.floor((selectedNodePriority + nextPriority) / 2);
-				}
-			} else {
-				position = selectedNodePriority + 100;
-			}
+			// Position after the selected node, between it and its next sibling.
+			const position = insertAfterPriority(
+				siblings ? sortByPriority(siblings) : [],
+				selectedId,
+				selectedNodePriority,
+			);
 
 			// Create the duplicate node with the same name and note
 			createNodeMutation.mutate(
@@ -792,7 +744,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the previous one
-			const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(siblings);
 			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
 
 			// Can't jump to previous if already at the first sibling
@@ -834,7 +786,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the next one
-			const sortedSiblings = [...siblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(siblings);
 			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
 
 			// Can't jump to next if already at the last sibling
@@ -867,7 +819,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the previous one
-			const sortedSiblings = [...zoomedNodeSiblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(zoomedNodeSiblings);
 			const currentIndex = sortedSiblings.findIndex((sibling) => sibling.id === zoomedNodeId);
 
 			// Can't focus previous if already at the first sibling
@@ -900,7 +852,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Sort siblings by priority to find the next one
-			const sortedSiblings = [...zoomedNodeSiblings].sort((a, b) => a.priority - b.priority);
+			const sortedSiblings = sortByPriority(zoomedNodeSiblings);
 			const currentIndex = sortedSiblings.findIndex((sibling) => sibling.id === zoomedNodeId);
 
 			// Can't focus next if already at the last sibling
