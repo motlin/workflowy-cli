@@ -4,7 +4,16 @@ import type {NodeResponse} from '../../node-types.js';
 import {useHotkeys} from 'react-hotkeys-hook';
 import {useNavigate} from 'react-router-dom';
 import {useOutlineStore} from '../stores/outline.js';
-import {insertAfterPriority, insertBeforePriority, sortByPriority} from '../tree-position.js';
+import {sortByPriority} from '../tree-position.js';
+import {
+	nextSelectionAfterDelete,
+	planDuplicate,
+	planIndent,
+	planInsertSiblingAfter,
+	planMoveDown,
+	planMoveUp,
+	planOutdent,
+} from '../tree-ops.js';
 import {
 	useChildren,
 	useCreateNode,
@@ -328,36 +337,13 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Get the parent_id (same as selected node's parent)
-			const parentId = selectedNode.parent_id;
-
-			// Get siblings to calculate position after the selected node
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-			const selectedNodePriority = selectedNode.priority;
-
-			// Position after the selected node, between it and its next sibling.
-			const position = insertAfterPriority(
-				siblings ? sortByPriority(siblings) : [],
-				selectedId,
-				selectedNodePriority,
-			);
-
-			// Create the new node
-			createNodeMutation.mutate(
-				{
-					parent_id: parentId ?? undefined,
-					name: '',
-					position,
+			createNodeMutation.mutate(planInsertSiblingAfter(queryClient, selectedNode), {
+				onSuccess(createdNode) {
+					// Select and start editing the new node
+					select(createdNode.id);
+					startEditing(createdNode.id);
 				},
-				{
-					onSuccess(createdNode) {
-						// Select and start editing the new node
-						select(createdNode.id);
-						startEditing(createdNode.id);
-					},
-				},
-			);
+			});
 		},
 		{
 			preventDefault: true,
@@ -403,31 +389,8 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Get siblings of the selected node
-			const parentId = selectedNode.parent_id;
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-			if (!siblings) {
-				return;
-			}
-
-			// Sort siblings by priority to find the previous one
-			const sortedSiblings = sortByPriority(siblings);
-			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-
-			// Can't indent if there's no previous sibling
-			if (selectedIndex <= 0) {
-				return;
-			}
-
-			const previousSibling = sortedSiblings[selectedIndex - 1];
-
-			// Move the selected node to be a child of the previous sibling
-			moveNodeMutation.mutate({
-				nodeId: selectedId,
-				parent_id: previousSibling.id,
-			});
+			const payload = planIndent(queryClient, selectedNode);
+			if (payload) moveNodeMutation.mutate(payload);
 		},
 		{
 			preventDefault: true,
@@ -450,42 +413,8 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Can't outdent if node is at root level (no parent)
-			const parentId = selectedNode.parent_id;
-			if (parentId === null) {
-				return;
-			}
-
-			// Get the parent node to find the grandparent
-			const parentQueryKey = nodeKeys.detail(parentId);
-			const parentNode = queryClient.getQueryData<NodeResponse>(parentQueryKey);
-
-			// Need parent node data to get grandparent_id
-			if (parentNode === undefined) {
-				return;
-			}
-
-			// Move the selected node to be a sibling of its parent (child of grandparent)
-			// grandparentId can be null if parent is at root level
-			const grandparentId = parentNode.parent_id;
-
-			// Get parent's siblings to calculate position after the parent
-			const grandparentChildrenKey = nodeKeys.children(grandparentId);
-			const parentSiblings = queryClient.getQueryData<NodeResponse[]>(grandparentChildrenKey);
-			const parentPriority = parentNode.priority;
-
-			// Position after the parent node, between it and its next sibling.
-			const position = insertAfterPriority(
-				parentSiblings ? sortByPriority(parentSiblings) : [],
-				parentId,
-				parentPriority,
-			);
-
-			moveNodeMutation.mutate({
-				nodeId: selectedId,
-				parent_id: grandparentId,
-				position,
-			});
+			const payload = planOutdent(queryClient, selectedNode);
+			if (payload) moveNodeMutation.mutate(payload);
 		},
 		{
 			preventDefault: true,
@@ -519,22 +448,9 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Find the node to select after deletion (previous sibling or parent)
-			const currentIndex = visibleNodes.indexOf(selectedId);
-			let nextSelectedId: string | null = null;
-
-			if (currentIndex > 0) {
-				// Select previous visible node
-				nextSelectedId = visibleNodes[currentIndex - 1];
-			} else if (selectedNode.parent_id !== null) {
-				// No previous sibling, select parent
-				nextSelectedId = selectedNode.parent_id;
-			}
-
-			// Delete the node
+			const nextSelectedId = nextSelectionAfterDelete(visibleNodes, selectedNode);
 			deleteNodeMutation.mutate(selectedId, {
 				onSuccess() {
-					// Select the next node after deletion
 					select(nextSelectedId);
 				},
 			});
@@ -583,34 +499,8 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Get siblings of the selected node
-			const parentId = selectedNode.parent_id;
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-			if (!siblings || siblings.length < 2) {
-				return;
-			}
-
-			// Sort siblings by priority to find the previous one
-			const sortedSiblings = sortByPriority(siblings);
-			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-
-			// Can't move up if already at the top
-			if (selectedIndex <= 0) {
-				return;
-			}
-
-			const previousSibling = sortedSiblings[selectedIndex - 1];
-
-			// Position just before the previous sibling.
-			const newPosition = insertBeforePriority(sortedSiblings, previousSibling.id, previousSibling.priority);
-
-			moveNodeMutation.mutate({
-				nodeId: selectedId,
-				parent_id: parentId,
-				position: newPosition,
-			});
+			const payload = planMoveUp(queryClient, selectedNode);
+			if (payload) moveNodeMutation.mutate(payload);
 		},
 		{
 			preventDefault: true,
@@ -633,34 +523,8 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Get siblings of the selected node
-			const parentId = selectedNode.parent_id;
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-			if (!siblings || siblings.length < 2) {
-				return;
-			}
-
-			// Sort siblings by priority to find the next one
-			const sortedSiblings = sortByPriority(siblings);
-			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-
-			// Can't move down if already at the bottom
-			if (selectedIndex === -1 || selectedIndex >= sortedSiblings.length - 1) {
-				return;
-			}
-
-			const nextSibling = sortedSiblings[selectedIndex + 1];
-
-			// Position just after the next sibling.
-			const newPosition = insertAfterPriority(sortedSiblings, nextSibling.id, nextSibling.priority);
-
-			moveNodeMutation.mutate({
-				nodeId: selectedId,
-				parent_id: parentId,
-				position: newPosition,
-			});
+			const payload = planMoveDown(queryClient, selectedNode);
+			if (payload) moveNodeMutation.mutate(payload);
 		},
 		{
 			preventDefault: true,
@@ -683,36 +547,12 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Get the parent_id (same as selected node's parent)
-			const parentId = selectedNode.parent_id;
-
-			// Get siblings to calculate position after the selected node
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-			const selectedNodePriority = selectedNode.priority;
-
-			// Position after the selected node, between it and its next sibling.
-			const position = insertAfterPriority(
-				siblings ? sortByPriority(siblings) : [],
-				selectedId,
-				selectedNodePriority,
-			);
-
-			// Create the duplicate node with the same name and note
-			createNodeMutation.mutate(
-				{
-					parent_id: parentId ?? undefined,
-					name: selectedNode.name ?? '',
-					note: selectedNode.note ?? undefined,
-					position,
+			createNodeMutation.mutate(planDuplicate(queryClient, selectedNode), {
+				onSuccess(createdNode) {
+					// Select the new duplicate node
+					select(createdNode.id);
 				},
-				{
-					onSuccess(createdNode) {
-						// Select the new duplicate node
-						select(createdNode.id);
-					},
-				},
-			);
+			});
 		},
 		{
 			preventDefault: true,
@@ -885,22 +725,10 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// Find the node to select after deletion (previous sibling or parent)
-			const currentIndex = visibleNodes.indexOf(selectedId);
-			let nextSelectedId: string | null = null;
-
-			if (currentIndex > 0) {
-				// Select previous visible node
-				nextSelectedId = visibleNodes[currentIndex - 1];
-			} else if (selectedNode.parent_id !== null) {
-				// No previous sibling, select parent
-				nextSelectedId = selectedNode.parent_id;
-			}
-
-			// Delete the node (force delete - no checks for empty/children)
+			// Force delete - no checks for empty/children.
+			const nextSelectedId = nextSelectionAfterDelete(visibleNodes, selectedNode);
 			deleteNodeMutation.mutate(selectedId, {
 				onSuccess() {
-					// Select the next node after deletion
 					select(nextSelectedId);
 				},
 			});

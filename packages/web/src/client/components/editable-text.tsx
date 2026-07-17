@@ -1,10 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {nodeKeys} from '../node-cache.js';
-import type {NodeResponse} from '../../node-types.js';
 import {createPortal} from 'react-dom';
 import {useQueryClient} from '@tanstack/react-query';
 import {useOutlineStore} from '../stores/outline.js';
-import {insertAfterPriority, sortByPriority} from '../tree-position.js';
+import {planInsertSiblingAfter} from '../tree-ops.js';
 import {useCreateNode, useUpdateNode} from '../hooks/use-nodes.js';
 import {useRemoveTagColor, useSetTagColor, useTagColors, type TagColors} from '../hooks/use-tag-colors.js';
 import {TagColorPicker, type TagColorName} from './tag-color-picker.js';
@@ -202,29 +200,17 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 		}
 
-		// Get siblings to calculate position after the current node
-		const queryKey = nodeKeys.children(parentId);
-		const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-		// Position the new sibling right after this node.
-		const position = insertAfterPriority(siblings ? sortByPriority(siblings) : [], nodeId, priority);
+		const payload = planInsertSiblingAfter(queryClient, {id: nodeId, parent_id: parentId, priority});
 
 		stopEditing();
 
 		// Create the new node
-		createNodeMutation.mutate(
-			{
-				parent_id: parentId ?? undefined,
-				name: '',
-				position,
+		createNodeMutation.mutate(payload, {
+			onSuccess(createdNode) {
+				select(createdNode.id);
+				startEditing(createdNode.id);
 			},
-			{
-				onSuccess(createdNode) {
-					select(createdNode.id);
-					startEditing(createdNode.id);
-				},
-			},
-		);
+		});
 	}, [
 		nodeId,
 		parentId,
