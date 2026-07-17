@@ -13,6 +13,7 @@ import {
 import * as schema from '@workflowy/shared/db';
 import {
 	applyRows,
+	joinKey,
 	type NormalizedAiMetadataRow,
 	type NormalizedCalendarLevelsRow,
 	type NormalizedCalendarMetadataRow,
@@ -21,6 +22,7 @@ import {
 	type NormalizedNodeMetadataRow,
 	type NormalizedReferencesRootsRow,
 	type NormalizedS3FileRow,
+	temporalMerge,
 } from '@workflowy/shared/cache';
 import {BackupFileSchema, type BackupNode, BackupNodeSchema} from '@workflowy/shared/schemas';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
@@ -831,72 +833,31 @@ export async function importBackup(
 	logTiming(`Content updates: ${contentUpdated}, Metadata updates: ${metadataUpdated}`);
 
 	database.transaction((tx) => {
-		// Load existing mirrors into Set for comparison (key = "originalId:mirrorId")
-		const existingMirrorsSet = new Set<string>();
-		const existingMirrorsResult = tx.select().from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)).all();
-		for (const mirror of existingMirrorsResult) {
-			existingMirrorsSet.add(`${mirror.originalId}:${mirror.mirrorId}`);
-		}
-
-		// Deduplicate incoming mirror records and identify new ones to insert
-		const incomingMirrorsSet = new Set<string>();
-		const mirrorsToInsert: Array<{
-			originalId: string;
-			mirrorId: string;
-			systemFrom: string;
-			systemTo: string;
-		}> = [];
-
-		for (const mirror of mirrorRecords) {
-			const key = `${mirror.originalId}:${mirror.mirrorId}`;
-			// Skip duplicates from incoming data
-			if (incomingMirrorsSet.has(key)) continue;
-			incomingMirrorsSet.add(key);
-
-			// Only insert if not already in database
-			if (!existingMirrorsSet.has(key)) {
-				mirrorsToInsert.push({
-					originalId: mirror.originalId,
-					mirrorId: mirror.mirrorId,
-					systemFrom: importTimestampStr,
-					systemTo: FAR_FUTURE_DATE,
-				});
-			}
-		}
-
-		// Find mirrors to close (exist in DB but not in incoming)
-		const mirrorsToCloseKeys: string[] = [];
-		for (const existingKey of existingMirrorsSet) {
-			if (!incomingMirrorsSet.has(existingKey)) {
-				mirrorsToCloseKeys.push(existingKey);
-			}
-		}
-
-		// Batch close removed mirrors
-		if (mirrorsToCloseKeys.length > 0) {
-			for (const key of mirrorsToCloseKeys) {
-				const [originalId, mirrorId] = key.split(':');
-				tx.update(mirrors)
-					.set({systemTo: importTimestampStr})
-					.where(
-						and(
-							eq(mirrors.systemTo, FAR_FUTURE_DATE),
-							eq(mirrors.originalId, originalId),
-							eq(mirrors.mirrorId, mirrorId),
-						),
-					)
-					.run();
-			}
-		}
-
-		// Batch insert mirrors
-		for (let i = 0; i < mirrorsToInsert.length; i += BULK_BATCH_SIZE) {
-			const batch = mirrorsToInsert.slice(i, i + BULK_BATCH_SIZE);
-			if (batch.length > 0) {
-				tx.insert(mirrors).values(batch).run();
-			}
-		}
-		logTiming(`Processed mirrors: ${mirrorsToInsert.length} inserted, ${mirrorsToCloseKeys.length} closed`);
+		// Merge mirror relationships through the shared engine (composite key:
+		// originalId + mirrorId). Dedupe incoming first, since temporalMerge treats
+		// each incoming row as a desired-state row and would otherwise double-insert
+		// a repeated pair.
+		const dedupedMirrors = [...new Map(mirrorRecords.map((m) => [joinKey(m.originalId, m.mirrorId), m])).values()];
+		const currentMirrorRows = tx.select().from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)).all();
+		const mirrorResult = temporalMerge(
+			tx,
+			{
+				table: mirrors,
+				keyColumns: [mirrors.originalId, mirrors.mirrorId],
+				systemToColumn: mirrors.systemTo,
+				incomingKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
+				currentKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
+				contentMatches: () => true, // mirror rows carry no content beyond their key
+				buildInsertRow: (m: {originalId: string; mirrorId: string}) => ({
+					originalId: m.originalId,
+					mirrorId: m.mirrorId,
+				}),
+			},
+			dedupedMirrors,
+			currentMirrorRows,
+			importTimestampStr,
+		);
+		logTiming(`Processed mirrors: ${mirrorResult.inserted} inserted, ${mirrorResult.phasedOut} closed`);
 
 		// OPTIMIZATION: Process backlinks with bulk load + batch operations
 		// Load all existing backlinks into a Map for O(1) lookups

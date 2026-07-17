@@ -33,6 +33,7 @@ export type {
 	WithoutTemporal,
 } from './normalized-rows.js';
 export {
+	joinKey,
 	type TemporalMergeConfig,
 	type TemporalMergeResult,
 	temporalMerge,

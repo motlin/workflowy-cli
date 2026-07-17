@@ -1,4 +1,4 @@
-import {and, eq, sql} from 'drizzle-orm';
+import {and, eq, type SQL, sql} from 'drizzle-orm';
 import type {SQLiteColumn, SQLiteTable} from 'drizzle-orm/sqlite-core';
 import {FAR_FUTURE_DATE} from '../temporal/index.js';
 
@@ -8,6 +8,29 @@ import {FAR_FUTURE_DATE} from '../temporal/index.js';
  * lists short enough to avoid a stack overflow when joining thousands of items.
  */
 const BULK_BATCH_SIZE = 1000;
+
+/**
+ * Separator for composite merge keys. ASCII unit separator (U+001F) — a control
+ * character that cannot appear in a Workflowy id, so joined keys never collide
+ * (unlike ad-hoc `:` / `|` separators). Composite-key callers must build their
+ * `incomingKey`/`currentKey` with {@link joinKey} so they match the SQL-side
+ * concatenation used for phase-out.
+ */
+const KEY_SEP = '\u001F';
+
+/** Join key parts with the composite-key separator. */
+export function joinKey(...parts: string[]): string {
+	return parts.join(KEY_SEP);
+}
+
+/** SQL expression concatenating the key columns with {@link KEY_SEP}. */
+function keyExpression(columns: SQLiteColumn[]): SQL {
+	let expr: SQL = sql`${columns[0]}`;
+	for (let i = 1; i < columns.length; i++) {
+		expr = sql`${expr} || ${KEY_SEP} || ${columns[i]}`;
+	}
+	return expr;
+}
 
 /**
  * Result of a {@link temporalMerge} call.
@@ -31,11 +54,14 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 	 */
 	table: SQLiteTable;
 	/**
-	 * Column on `table` used to phase out current rows by key. For
-	 * single-column natural keys this is the id column (e.g. `nodeContent.id`
-	 * or `nodeMetadata.nodeId`).
+	 * Column(s) on `table` used to phase out current rows by key. For a
+	 * single-column natural key, pass the id column as `keyColumn` (e.g.
+	 * `nodeContent.id`). For a composite natural key (e.g. `mirrors` keyed by
+	 * `(originalId, mirrorId)`), pass `keyColumns` and build `incomingKey`/
+	 * `currentKey` with {@link joinKey}. Exactly one of the two must be set.
 	 */
-	keyColumn: SQLiteColumn;
+	keyColumn?: SQLiteColumn;
+	keyColumns?: SQLiteColumn[];
 	/**
 	 * The `system_to` column on `table`. Phase-out filters and the closing
 	 * update target this column.
@@ -115,7 +141,10 @@ export function temporalMerge<TIncoming, TCurrent>(
 	currentRows: TCurrent[],
 	importedAt: string,
 ): TemporalMergeResult {
-	const {table, keyColumn, systemToColumn, incomingKey, currentKey, contentMatches, buildInsertRow} = config;
+	const {table, keyColumn, keyColumns, systemToColumn, incomingKey, currentKey, contentMatches, buildInsertRow} =
+		config;
+	const columns = keyColumns ?? (keyColumn ? [keyColumn] : []);
+	const keyMatchExpr = keyExpression(columns);
 
 	const currentByKey = new Map<string, TCurrent>();
 	for (const row of currentRows) {
@@ -165,7 +194,10 @@ export function temporalMerge<TIncoming, TCurrent>(
 		tx.update(table)
 			.set({systemTo: importedAt})
 			.where(
-				and(eq(systemToColumn, FAR_FUTURE_DATE), sql`${keyColumn} IN (SELECT node_id FROM temp_phase_out_ids)`),
+				and(
+					eq(systemToColumn, FAR_FUTURE_DATE),
+					sql`${keyMatchExpr} IN (SELECT node_id FROM temp_phase_out_ids)`,
+				),
 			)
 			.run();
 	}
