@@ -49,6 +49,24 @@ describe('node-resolver service', () => {
 			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
 		});
 
+		it('resolves a short ID from the cache', async () => {
+			const fullId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: fullId, shortId: 'eeeeeeeeeeee', name: 'Test node', parentId: null})],
+			});
+
+			const result = await resolveNodeId({id: 'eeeeeeeeeeee'}, cacheService, mockApiClient as never);
+
+			expect(result).toBe(fullId);
+			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
+		});
+
+		it('throws an error when a short ID is not in the cache', async () => {
+			await expect(resolveNodeId({id: 'aaaaaaaaaaaa'}, cacheService, mockApiClient as never)).rejects.toThrow(
+				'No node found for short ID: aaaaaaaaaaaa',
+			);
+		});
+
 		it('resolves path from cache', async () => {
 			seedTestData(testDatabase, {
 				nodes: [

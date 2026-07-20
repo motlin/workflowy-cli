@@ -201,14 +201,15 @@ describe('calendar:fix-photo-groups command', () => {
 		expect(fetchStub).not.toHaveBeenCalled();
 	});
 
-	it('restricts work to one group with --node-id', async () => {
+	it('restricts work to one group using its short ID', async () => {
+		const wrapperId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 		seedTestData(testDatabase, {
 			nodes: [
 				createTestNode({id: 'day', name: 'Sat, May 23, 2026', parentId: null}),
 				createTestNode({id: 'entry', name: 'Drove to a friend’s house', parentId: 'day'}),
-				createTestNode({id: 'wrapper', name: '', parentId: 'entry'}),
-				createTestNode({id: 'photo-1', name: '', parentId: 'wrapper', priority: 100}),
-				createTestNode({id: 'photo-2', name: '', parentId: 'wrapper', priority: 200}),
+				createTestNode({id: wrapperId, shortId: 'eeeeeeeeeeee', name: '', parentId: 'entry'}),
+				createTestNode({id: 'photo-1', name: '', parentId: wrapperId, priority: 100}),
+				createTestNode({id: 'photo-2', name: '', parentId: wrapperId, priority: 200}),
 				createTestNode({id: 'other-entry', name: 'Another entry', parentId: 'day'}),
 				createTestNode({id: 'other-wrapper', name: '', parentId: 'other-entry'}),
 				createTestNode({id: 'photo-3', name: '', parentId: 'other-wrapper', priority: 100}),
@@ -223,7 +224,7 @@ describe('calendar:fix-photo-groups command', () => {
 		});
 
 		await captureOutput(async () => {
-			await FixPhotoGroups.run(['--node-id', 'wrapper', '--delay', '0']);
+			await FixPhotoGroups.run(['--node-id', 'eeeeeeeeeeee', '--delay', '0']);
 		});
 
 		const movedIds = requests

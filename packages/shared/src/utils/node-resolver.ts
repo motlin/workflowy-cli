@@ -1,6 +1,7 @@
 import type {WorkflowyApiClient} from '../api/index.js';
 import type {CacheService} from '../cache/index.js';
 import {isSystemTarget} from '../types/index.js';
+import {isShortId} from '../workflowy/index.js';
 
 /**
  * Resolves a node ID from either a direct ID or a path.
@@ -20,6 +21,13 @@ export async function resolveNodeId(
 	apiClient: WorkflowyApiClient,
 ): Promise<string> {
 	if (flags.id) {
+		if (isShortId(flags.id)) {
+			const nodeId = await cacheService.resolveShortIdToUuid(flags.id);
+			if (!nodeId) {
+				throw new Error(`No node found for short ID: ${flags.id}`);
+			}
+			return nodeId;
+		}
 		return flags.id;
 	}
 

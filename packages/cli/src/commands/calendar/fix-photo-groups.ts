@@ -1,6 +1,7 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
 import {WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
+import {resolveNodeId} from '@workflowy/shared/utils';
 import {Command, Flags} from '@oclif/core';
 import {sql} from 'drizzle-orm';
 import {createDatabase} from '../../db/index.js';
@@ -137,7 +138,7 @@ export default class FixPhotoGroups extends Command {
 		'<%= config.bin %> <%= command.id %> --dry-run',
 		'',
 		'# Fix a single group by wrapper or entry ID',
-		'<%= config.bin %> <%= command.id %> --node-id fc1061e3-7c2b-4656-9674-b03bd2f9bf47',
+		'<%= config.bin %> <%= command.id %> --node-id b03bd2f9bf47',
 		'',
 		'# Fix the first five groups',
 		'<%= config.bin %> <%= command.id %> --batch-size 5',
@@ -150,7 +151,7 @@ export default class FixPhotoGroups extends Command {
 			default: false,
 		}),
 		'node-id': Flags.string({
-			description: 'Limit processing to the group with this wrapper or entry ID',
+			description: 'Limit processing by wrapper or entry UUID or 12-character short ID',
 		}),
 		'batch-size': Flags.integer({
 			char: 'b',
@@ -167,11 +168,17 @@ export default class FixPhotoGroups extends Command {
 		const {flags} = await this.parse(FixPhotoGroups);
 
 		const database = createDatabase();
+		const cacheService = new CacheService(database);
+		const apiClient = new WorkflowyApiClient(
+			process.env.WORKFLOWY_API_KEY ?? '',
+			logger,
+			process.env.WORKFLOWY_API_URL,
+		);
 		const rows = loadCandidateRows(database);
 
 		let groups = buildPhotoGroups(rows);
 		if (flags['node-id']) {
-			const wanted = flags['node-id'];
+			const wanted = await resolveNodeId({id: flags['node-id']}, cacheService, apiClient);
 			groups = groups.filter((group) => group.wrapperId === wanted || group.entryId === wanted);
 			if (groups.length === 0) {
 				this.error(`No photo group found for node ${wanted}`);
@@ -220,8 +227,6 @@ export default class FixPhotoGroups extends Command {
 			this.error('WORKFLOWY_API_KEY environment variable is required');
 		}
 
-		const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
-		const cacheService = new CacheService(database);
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
 		const {delay} = flags;
 
