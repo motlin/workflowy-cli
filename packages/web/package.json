@@ -33,7 +33,7 @@
 	},
 	"devDependencies": {
 		"@storybook/addon-a11y": "^10.5.0",
-		"@storybook/addon-docs": "^10.5.0",
+		"@storybook/addon-docs": "^10.5.2",
 		"@storybook/react-vite": "^10.5.0",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^26.1.0",
