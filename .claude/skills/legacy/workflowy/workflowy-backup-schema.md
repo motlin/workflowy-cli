@@ -60,9 +60,7 @@ unix_timestamp = backup_timestamp + WORKFLOWY_EPOCH;
 	"ct": 9437457,
 	"lm": 405904342,
 	"metadata": {"layoutMode": "bullets"},
-	"ch": [
-		/* embedded children */
-	]
+	"ch": [/* embedded children */]
 }
 ```
 
