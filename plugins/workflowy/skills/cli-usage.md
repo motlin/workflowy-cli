@@ -18,9 +18,11 @@ description: Rules for running Workflowy CLI commands. MUST be followed when exe
   .. | objects | select(.name? and (.name | test("pattern"))) | "\(.id) | \(.name)"
 '
 
-# Get full UUID from shortId (needed for node update — shortIds return 404)
+# Get the full UUID behind a shortId
 ./bin/run.js node get --id <shortId> --depth 0 --json | jq -r '.id'
 ```
+
+- **Short IDs work for writes.** `--id`, `--node-id`, and `--parent-id` accept a 12-character short ID; the CLI expands it from the cache and errors if it finds no match. Only raw API calls need the full UUID.
 
 - **Ghost nodes: if a node reads fine but every write 404s, deep-refresh its parent.** When `node get` returns a node (even with `--force-refresh`) but `node move`/`node update`/`node delete` on it fails with `404`, the node is a "ghost": it still exists in the local cache but was deleted or replaced on the server, usually by concurrent editing on workflowy.com. `--force-refresh` does NOT fix this — it reads the stale cache. Run a recursive API sync of a PARENT to drop the ghost IDs and pull current server state, then re-fetch IDs and retry:
 
