@@ -2,7 +2,7 @@
 	"name": "workflowy-cli",
 	"description": "CLI for managing Workflowy nodes via API",
 	"version": "0.1.0",
-	"packageManager": "pnpm@11.10.0",
+	"packageManager": "pnpm@11.15.0",
 	"author": "Craig P. Motlin",
 	"type": "module",
 	"bin": {
@@ -80,7 +80,7 @@
 		"eval:behavioral": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral",
 		"version": "oclif readme && git add README.md",
 		"prepublishOnly": "npm run build && npm test && npm run oxlint",
-		"prepare": "vp config"
+		"prepare": "VITE_GIT_HOOKS=0 vp config"
 	},
 	"types": "dist/index.d.ts"
 }
