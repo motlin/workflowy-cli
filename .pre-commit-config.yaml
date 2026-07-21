@@ -36,12 +36,6 @@ repos:
             language: system
             pass_filenames: false
             always_run: true
-          - id: vp-staged
-            name: vp staged
-            entry: vp staged
-            language: system
-            pass_filenames: false
-            types: [file]
           - id: markdownlint-cli2
             name: markdownlint-cli2
             entry: vp exec markdownlint-cli2
