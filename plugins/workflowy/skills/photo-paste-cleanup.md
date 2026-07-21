@@ -20,10 +20,10 @@ Always preview first — the command mutates Workflowy through the API:
 ./bin/run.js calendar fix-photo-groups --dry-run
 ```
 
-Fix one group at a time while verifying, passing either the blank wrapper's ID or the entry's ID:
+Fix one group at a time while verifying, passing either the blank wrapper's ID or the entry's ID. A 12-character short ID from a Workflowy URL works as well as a full UUID:
 
 ```bash
-./bin/run.js calendar fix-photo-groups --node-id <wrapper-or-entry-id>
+./bin/run.js calendar fix-photo-groups --node-id b03bd2f9bf47
 ```
 
 Other flags: `--batch-size N` to cap how many groups get fixed, `--delay MS` for the pause between API calls (default 1000).
