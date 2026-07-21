@@ -4,6 +4,27 @@ import {isSystemTarget} from '../types/index.js';
 import {isShortId} from '../workflowy/index.js';
 
 /**
+ * Expands a 12-character short ID from the Workflowy URL into a full UUID.
+ * Anything already UUID-shaped passes through untouched.
+ *
+ * @param id - A full UUID or a short ID
+ * @param cacheService - The cache service holding the short-ID index
+ * @returns The full UUID
+ * @throws Error if a short ID has no match in the cache
+ */
+async function resolveIdOrShortId(id: string, cacheService: CacheService): Promise<string> {
+	if (!isShortId(id)) {
+		return id;
+	}
+
+	const nodeId = await cacheService.resolveShortIdToUuid(id);
+	if (!nodeId) {
+		throw new Error(`No node found for short ID: ${id}`);
+	}
+	return nodeId;
+}
+
+/**
  * Resolves a node ID from either a direct ID or a path.
  * First checks the cache, then falls back to the API.
  *
@@ -21,14 +42,7 @@ export async function resolveNodeId(
 	apiClient: WorkflowyApiClient,
 ): Promise<string> {
 	if (flags.id) {
-		if (isShortId(flags.id)) {
-			const nodeId = await cacheService.resolveShortIdToUuid(flags.id);
-			if (!nodeId) {
-				throw new Error(`No node found for short ID: ${flags.id}`);
-			}
-			return nodeId;
-		}
-		return flags.id;
+		return resolveIdOrShortId(flags.id, cacheService);
 	}
 
 	const nodePath = flags.path!.split(',').map((s) => s.trim());
@@ -182,7 +196,7 @@ export async function resolveParent(
 		if (isSystemTarget(flags.id)) {
 			return flags.id;
 		}
-		return flags.id;
+		return resolveIdOrShortId(flags.id, cacheService);
 	}
 
 	const nodePath = flags.path!.split(',').map((s) => s.trim());

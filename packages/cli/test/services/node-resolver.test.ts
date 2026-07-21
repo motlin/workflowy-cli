@@ -142,6 +142,24 @@ describe('node-resolver service', () => {
 			expect(result).toBe('inbox');
 		});
 
+		it('resolves a short ID from the cache', async () => {
+			const fullId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: fullId, shortId: 'eeeeeeeeeeee', name: 'Parent', parentId: null})],
+			});
+
+			const result = await resolveParent({id: 'eeeeeeeeeeee'}, cacheService, mockApiClient as never);
+
+			expect(result).toBe(fullId);
+			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
+		});
+
+		it('throws an error when a short ID is not in the cache', async () => {
+			await expect(resolveParent({id: 'aaaaaaaaaaaa'}, cacheService, mockApiClient as never)).rejects.toThrow(
+				'No node found for short ID: aaaaaaaaaaaa',
+			);
+		});
+
 		it('resolves path from cache', async () => {
 			seedTestData(testDatabase, {
 				nodes: [
