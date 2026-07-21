@@ -12,7 +12,7 @@ import {isShortId} from '../workflowy/index.js';
  * @returns The full UUID
  * @throws Error if a short ID has no match in the cache
  */
-async function resolveIdOrShortId(id: string, cacheService: CacheService): Promise<string> {
+export async function resolveIdOrShortId(id: string, cacheService: CacheService): Promise<string> {
 	if (!isShortId(id)) {
 		return id;
 	}

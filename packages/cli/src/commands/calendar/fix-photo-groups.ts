@@ -1,7 +1,7 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
 import {WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {resolveNodeId} from '@workflowy/shared/utils';
+import {resolveIdOrShortId} from '@workflowy/shared/utils';
 import {Command, Flags} from '@oclif/core';
 import {sql} from 'drizzle-orm';
 import {createDatabase} from '../../db/index.js';
@@ -169,16 +169,12 @@ export default class FixPhotoGroups extends Command {
 
 		const database = createDatabase();
 		const cacheService = new CacheService(database);
-		const apiClient = new WorkflowyApiClient(
-			process.env.WORKFLOWY_API_KEY ?? '',
-			logger,
-			process.env.WORKFLOWY_API_URL,
-		);
 		const rows = loadCandidateRows(database);
 
 		let groups = buildPhotoGroups(rows);
 		if (flags['node-id']) {
-			const wanted = await resolveNodeId({id: flags['node-id']}, cacheService, apiClient);
+			// Cache-only resolution keeps --dry-run usable without an API key.
+			const wanted = await resolveIdOrShortId(flags['node-id'], cacheService);
 			groups = groups.filter((group) => group.wrapperId === wanted || group.entryId === wanted);
 			if (groups.length === 0) {
 				this.error(`No photo group found for node ${wanted}`);
@@ -227,6 +223,7 @@ export default class FixPhotoGroups extends Command {
 			this.error('WORKFLOWY_API_KEY environment variable is required');
 		}
 
+		const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
 		const {delay} = flags;
 

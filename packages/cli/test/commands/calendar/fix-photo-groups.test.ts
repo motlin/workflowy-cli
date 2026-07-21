@@ -234,6 +234,28 @@ describe('calendar:fix-photo-groups command', () => {
 		expect(movedIds).toStrictEqual(['photo-2', 'photo-1']);
 	});
 
+	it('resolves a short ID for a dry run without an API key', async () => {
+		delete process.env.WORKFLOWY_API_KEY;
+		const wrapperId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+		seedTestData(testDatabase, {
+			nodes: [
+				createTestNode({id: 'day', name: 'Sat, May 23, 2026', parentId: null}),
+				createTestNode({id: 'entry', name: 'Drove to a friend’s house', parentId: 'day'}),
+				createTestNode({id: wrapperId, shortId: 'eeeeeeeeeeee', name: '', parentId: 'entry'}),
+				createTestNode({id: 'photo-1', name: '', parentId: wrapperId, priority: 100}),
+				createTestNode({id: 'photo-2', name: '', parentId: wrapperId, priority: 200}),
+			],
+			s3Files: [s3File('photo-1', 'image.jpeg'), s3File('photo-2', 'image.jpeg')],
+		});
+
+		const {stdout} = await captureOutput(async () => {
+			await FixPhotoGroups.run(['--node-id', 'eeeeeeeeeeee', '--dry-run']);
+		});
+
+		expect(stdout).toContain(wrapperId);
+		expect(fetchStub).not.toHaveBeenCalled();
+	});
+
 	it('requires WORKFLOWY_API_KEY when not doing a dry run', async () => {
 		delete process.env.WORKFLOWY_API_KEY;
 		seedWrappedGroup(testDatabase);
