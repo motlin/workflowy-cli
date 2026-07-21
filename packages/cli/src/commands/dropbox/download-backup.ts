@@ -196,13 +196,14 @@ export default class DownloadBackup extends Command {
 				conditionalLog(`Downloading: ${backupFile.name} (${sizeMB} MB)`);
 
 				const downloadResponse = await dropbox.filesDownload({path: backupFile.path_lower || ''});
+				const {fileBinary} = downloadResponse.result;
 
-				if (!('fileBinary' in downloadResponse.result)) {
+				if (fileBinary === undefined) {
 					this.warn(`Failed to download: ${backupFile.name}`);
 					continue;
 				}
 
-				const fileContent = Buffer.from(downloadResponse.result.fileBinary as ArrayBuffer);
+				const fileContent = Buffer.from(fileBinary);
 				fs.writeFileSync(outputPath, compressBuffer(fileContent));
 
 				const fileStats = fs.statSync(outputPath);
