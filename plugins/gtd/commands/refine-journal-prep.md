@@ -278,6 +278,10 @@ Ranges → write the full `SxxEyy` on **both** ends: `S03E01-S03E03` (not `S03E0
 
 **If a season/episode number looks wrong, raise it with the user** (the apply phase asks interactively; in prep, stage a ⚠️) rather than silently changing it.
 
+#### Look up the real season, episode, and title
+
+For a watched-media entry, **look up the show/movie's actual season number, episode number, and episode title** (web search) rather than relying only on what the entry says — the entry is often vague ("the finale", "season two episode one") or has a wrong/misspelled title. Enrich the text to `SxxEyy "Title"` form (straight quotes), e.g. `finished the finale` → `finished the S01E06 finale "The Morrow"`. The **apply** walk performs the lookup interactively and confirms the full enriched before/after with the user (never truncated); prep stages the best-known form and marks anything it could not resolve confidently as ⚠️. Do this **consistently** for every media entry, not just ambiguous ones.
+
 #### Append `#watched`
 
 Add `#watched` once, at the end of the line, if not already present. `#watched` is medium-agnostic (TV, movies, documentaries, plays). Do **not** use `#watch` — that is reserved for want-to-watch / to-do items.
@@ -310,6 +314,7 @@ After:  📺 Watched half of Fallout S01E02 with @Bob in our Airbnb. #watched
 - Missing or doubled words (e.g., "went went" → "went")
 - Obvious punctuation errors (e.g., missing period, double spaces)
 - **Whitespace: always strip leading and trailing whitespace** from any entry you compose an `after` for. A stray leading or trailing space is itself a fixable typo — an entry whose _only_ flaw is leading/trailing whitespace **still generates its own proposal**, even if it already begins with an emoji and needs no other change (this is the one whitespace-only exception to "already starts with emoji → skip"). The `--expect-name` guard still carries the exact original (spaces included) as `before`.
+- **Decode HTML entities to their literal characters** in the visible text: `&quot;` → `"`, `&amp;` → `&`, `&#39;`/`&apos;` → `'`, `&lt;`/`&gt;` → `<`/`>`. Workflowy renders these entities, but the raw stored text should hold the literal character. An entry whose only flaw is an undecoded entity still generates its own proposal. Never introduce curly/smart quotes — always straight `"` and `'`.
 - Capitalization at the start of the entry, after a leading emoji, and at the start of sentences
 - Clear proper nouns and initialisms (e.g., "new york" → "New York", "pdf" → "PDF")
 

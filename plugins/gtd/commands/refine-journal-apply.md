@@ -34,6 +34,12 @@ Each proposal carries a `scope` (`"recent"` or `"archive"`). Split the walk in t
 
 If the staged proposals carry no `scope` (older prep output), treat them all as `recent` for backward compatibility.
 
+### Presentation fidelity
+
+- **Never truncate.** Every confirmation must show the **complete** `before` and `after` text, not an edits-only diff or an abbreviated snippet — the user cannot judge a change out of context.
+- **Media lookups.** For any watched-media (📺 / 🎬 / `#watched`) proposal, look up the show/movie's actual season number, episode number, and title via web search and present the full enriched `after` (`SxxEyy "Title"`, straight quotes) for confirmation — do this consistently, not only when the entry looks ambiguous.
+- **Decode HTML entities** (`&quot;`→`"`, `&amp;`→`&`, `&#39;`→`'`) and never introduce curly/smart quotes when composing or editing the `after`.
+
 ## Advance progress (apply only)
 
 After the last batch, advance task-specific tracking. This happens only here, never in prep, so an aborted prep never skips a month:
