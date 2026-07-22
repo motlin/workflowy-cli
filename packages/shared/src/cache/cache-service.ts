@@ -10,6 +10,7 @@ import {
 	s3Files,
 	virtualRootIds,
 } from '../db/schema.js';
+import {stripHtmlTags} from '../html/strip-tags.js';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '../temporal/constants.js';
 import type {Node} from '../types/node.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
@@ -133,7 +134,10 @@ export class CacheService {
 	 */
 	async getChildByName(parentId: string | null, name: string): Promise<Node | null> {
 		const children = this.nodeReader.getChildren(parentId);
-		return children.find((child) => child.name === name) ?? null;
+		// Names may carry inline HTML formatting (e.g. a colored <span> around
+		// "Personal"). Callers pass plain-text path segments, so fall back to a
+		// tag-stripped comparison when the raw name does not match exactly.
+		return children.find((child) => child.name === name || stripHtmlTags(child.name) === name) ?? null;
 	}
 
 	/**

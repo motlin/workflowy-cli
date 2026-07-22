@@ -178,6 +178,23 @@ describe('CacheService (shared)', () => {
 			expect(root).not.toBeNull();
 			expect(root!.id).toBe('root');
 		});
+
+		it('matches a plain segment against an HTML-formatted (colored) name', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({
+						id: 'personal',
+						name: '<span class="colored c-blue">Personal</span>',
+						parentId: null,
+					}),
+				],
+			});
+
+			const child = await cacheService.getChildByName(null, 'Personal');
+
+			expect(child).not.toBeNull();
+			expect(child!.id).toBe('personal');
+		});
 	});
 
 	describe('getNodeWithMergedData', () => {
@@ -252,6 +269,24 @@ describe('CacheService (shared)', () => {
 
 			expect(node).not.toBeNull();
 			expect(node!.id).toBe('root');
+		});
+
+		it('resolves a path through an HTML-formatted (colored) ancestor', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({
+						id: 'personal',
+						name: '<span class="colored c-blue">Personal</span>',
+						parentId: null,
+					}),
+					createTestNode({id: 'review', name: '🔄 Review', parentId: 'personal'}),
+				],
+			});
+
+			const node = await cacheService.findNodeByPath(['Personal', '🔄 Review']);
+
+			expect(node).not.toBeNull();
+			expect(node!.id).toBe('review');
 		});
 
 		it('matches exactly, never on a substring', async () => {
