@@ -38,6 +38,6 @@ app.route('/api/related', relatedRouter);
 app.get('/health', (c) => c.json({status: 'ok'}));
 
 const port = 3000;
-console.log(`Server running at http://localhost:${port}`);
+console.log(`Server running at http://127.0.0.1:${port}`);
 
-serve({fetch: app.fetch, port});
+serve({fetch: app.fetch, hostname: '127.0.0.1', port});

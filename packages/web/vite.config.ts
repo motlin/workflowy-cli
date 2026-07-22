@@ -4,10 +4,15 @@ import {defineConfig} from 'vite-plus';
 export default defineConfig({
 	root: 'src/client',
 	server: {
-		port: 5173,
-		allowedHosts: process.env['VITE_ALLOWED_HOSTS']?.split(',').filter(Boolean) ?? [],
+		port: 5175,
+		strictPort: true,
+		host: '127.0.0.1',
+		allowedHosts: [
+			'workflowy.m4.notlin.com',
+			...(process.env['VITE_ALLOWED_HOSTS']?.split(',').filter(Boolean) ?? []),
+		],
 		proxy: {
-			'/api': 'http://localhost:3000',
+			'/api': 'http://127.0.0.1:3000',
 		},
 	},
 	build: {
