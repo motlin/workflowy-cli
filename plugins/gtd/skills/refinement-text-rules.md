@@ -7,6 +7,14 @@ description: 'Cross-cutting rules for any pass that rewrites the visible text of
 
 Shared rules for any pass that rewrites the human-readable text of a node. These are independent of what is being tagged (people, hobbies, media) — apply them in every refinement pass.
 
+## Trim surrounding whitespace
+
+The Workflowy mobile UI leaves a trailing space on most nodes, and pasting leaves stray leading space — so a large share of nodes carry invisible edge whitespace. Whenever you compose an `after`/`composedText` for a node, **strip leading and trailing whitespace and collapse any internal run of spaces to one.**
+
+- A node whose _only_ flaw is leading/trailing whitespace still warrants a fix — stage the trimmed text as its own proposal rather than skipping it.
+- Trim the visible text, not Workflowy markup: leave the internal structure of `<a …>` / `<time …>` elements alone; only strip whitespace at the very start/end of the whole name and collapse double-spaces in prose.
+- Never treat trailing/leading whitespace as meaningful — it never is.
+
 ## Clean up stray HTML entities
 
 Workflowy stores node text as HTML, but ordinary prose does not need entity-encoded punctuation. CLI quirks and pasting sometimes leave literal entities in the visible text. Whenever you refine a node, decode stray entities in the prose a reader sees:
