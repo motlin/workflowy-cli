@@ -342,9 +342,12 @@ Write `.llm/gtd/review/proposals/refine-journal.json` exactly per the schema in 
 mkdir -p .llm/gtd/review/proposals
 ```
 
+**Order recent before archive.** Emit every `scope: "recent"` proposal (current/prior live-month entries) first, then every `scope: "archive"` proposal. The apply walk relies on this ordering: it presents the recent block, then **asks** before touching the archive block. Recent entries are what the user actually expects a daily run to refine; the backwards archive backfill is opt-in per run.
+
 For each entry that needs changes (including any entry that merely **lacks a leading emoji**), emit one proposal with:
 
 - `nodeId` — the entry's **full UUID** (never a short id; short ids 404 on writes).
+- `scope` — `"recent"` for a current/prior live-month entry, `"archive"` for an entry from the backwards archive month. Required on every proposal; the apply walk gates the archive block on it.
 - `header` — the entry date (e.g. `"Feb 9"`).
 - `before` / `after` — the **full** original and proposed text, never truncated.
 - `changes[]` — one `{ type, icon, detail }` per change, using the indicators above.
