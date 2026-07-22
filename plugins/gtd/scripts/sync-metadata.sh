@@ -99,6 +99,43 @@ jq -r '.children[] | select(.name != null) | "\(.id)\t\(.name)"' "$OUTPUT_DIR/me
     fi
 done
 
+# Phase 3: Build the tag-frequency map from the SQLite write-through cache.
+# Gives refinement agents the "how many nodes use this tag" signal they need to
+# tell a canonical tag (used widely) from a one-off typo/junk tag (used once).
+# Read-only query against the cache — never mutates it.
+DB="$PROJECT_ROOT/workflowy.sqlite"
+if command -v python3 >/dev/null 2>&1 && [ -f "$DB" ]; then
+    python3 - "$DB" "$OUTPUT_DIR/metadata/tag-frequency.json" <<'PY'
+import sqlite3, re, sys, json
+from collections import Counter
+db, out = sys.argv[1], sys.argv[2]
+con = sqlite3.connect(db)
+rows = con.execute(
+    "SELECT name FROM node_content "
+    "WHERE system_to='9999-12-31 23:59:59' AND name LIKE '%#%'"
+).fetchall()
+tagre = re.compile(r'(?<![\w&])#([A-Za-z][A-Za-z0-9_-]*)')
+htmlre = re.compile(r'<[^>]+>')
+c = Counter()
+for (nm,) in rows:
+    if not nm:
+        continue
+    for m in tagre.findall(htmlre.sub(' ', nm)):
+        c['#' + m] += 1
+data = {
+    "generatedFrom": "workflowy.sqlite",
+    "distinctTags": len(c),
+    "taggedRowsScanned": len(rows),
+    "tags": dict(sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))),
+}
+with open(out, "w") as f:
+    json.dump(data, f, indent=2)
+print(f"Phase 3: tag-frequency.json ({len(c)} distinct tags)")
+PY
+else
+    echo "Phase 3: skipped tag-frequency.json (python3 or workflowy.sqlite missing)" >&2
+fi
+
 echo ""
 echo "Sync complete. Structure:"
 find "$OUTPUT_DIR/metadata" -name "*.json" | sort | head -30

@@ -58,6 +58,21 @@ jq -r '.children[] | select(.name | contains("<context>")) | .linkTargets[0].id'
 ./bin/run.js node update --id "<itemId>" --name "<suggestedText>"
 ```
 
+- **Step 2.5: Register accepted new tags** (only when the move carries an approved `🏷️ New tag:` proposal)
+
+If the user accepted a `🏷️ New tag: #foo → add to <registry>` proposal, create the tag as a child of the confirmed registry node so future refinements treat it as known. Skip entirely when there is no accepted new-tag proposal — never invent one.
+
+```bash
+# Registry parent IDs come from the synced metadata (do not hardcode):
+#   🏷️ Context Tags   → jq -r '.id' .llm/gtd/metadata/context-tags.json
+#   🎮 Hobbies Registry → jq -r '.id' .llm/gtd/metadata/hobbies-registry.json
+#   a project          → the project's target file under .llm/gtd/metadata/projects/
+REGISTRY_ID=$(jq -r '.id' .llm/gtd/metadata/hobbies-registry.json)
+./bin/run.js node create --parent-id "$REGISTRY_ID" --name "#foo" --position bottom
+```
+
+Typos and dropped junk need no separate step here — they are already baked into `<suggestedText>` from text-composer.
+
 - **Step 3: Remove refinement aggregate**
 
 Delete the "🔍 Refinement" aggregate node (contains all suggestions):

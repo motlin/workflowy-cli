@@ -117,6 +117,17 @@ This produces a tag→emoji lookup like:
 }
 ```
 
+### Tag frequency (for tag hygiene)
+
+Read `.llm/gtd/metadata/tag-frequency.json` — a `{ "tags": { "#tag": count, … } }` map of how many current nodes use each tag across the whole tree, produced by `sync-metadata.sh`. It is the signal for the Tag hygiene rules below: a canonical tag is used widely; a one-off typo or junk tag is used once.
+
+```bash
+# Counts for the tags found in an entry, plus the top canonical tags to match casing against
+jq '.tags' .llm/gtd/metadata/tag-frequency.json
+```
+
+Combine with the registry lookups already loaded (hobbies registry, context-tags, project tags) to form the "known tag" set — every registered tag plus any tag with count ≥ 10.
+
 ## Fetch archive and recent live entries
 
 **Read live text fresh — never from a stale snapshot.** The DAG's `Import` barrier has already rewritten the local cache to the current API state, so derive every entry's `before` from a fresh `node get` run in this prep. Do not reuse a prior staged proposal, an older `.llm` calendar dump, or entry text carried from an earlier step. The `--expect-name` guard is the backstop, but staged `before` text should already match live data.
@@ -154,15 +165,16 @@ Also apply the shared `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`.
 
 ### Change type indicators
 
-| Icon | Type      | Description                                                 |
-| ---- | --------- | ----------------------------------------------------------- |
-| 👤   | People    | Name → @Name (independent)                                  |
-| 🎮   | Hobby     | Activity name → #hobby-tag (independent)                    |
-| 🏷️   | Category  | Add category tag (e.g., #exercise) — depends on hobby match |
-| 📺   | Media     | Normalize SxxEyy + add #watched (independent)               |
-| ✏️   | Typo      | Spelling/grammar correction (independent)                   |
-| 😀   | Emoji     | Add emoji prefix — runs **after** all tagging               |
-| ⚠️   | Ambiguous | Needs user input — stage an `ambiguity` block               |
+| Icon | Type        | Description                                                 |
+| ---- | ----------- | ----------------------------------------------------------- |
+| 👤   | People      | Name → @Name (independent)                                  |
+| 🎮   | Hobby       | Activity name → #hobby-tag (independent)                    |
+| 🏷️   | Category    | Add category tag (e.g., #exercise) — depends on hobby match |
+| 📺   | Media       | Normalize SxxEyy + add #watched (independent)               |
+| ✏️   | Typo        | Spelling/grammar correction (independent)                   |
+| #️⃣   | Tag hygiene | Fix a tag typo/casing, or flag an unregistered/junk tag     |
+| 😀   | Emoji       | Add emoji prefix — runs **after** all tagging               |
+| ⚠️   | Ambiguous   | Needs user input — stage an `ambiguity` block               |
 
 ### People tagging rules
 
@@ -330,6 +342,16 @@ After:  📺 Watched half of Fallout S01E02 with @Bob in our Airbnb. #watched
 #### When uncertain
 
 If you're unsure whether something is a typo or intentional, stage it as a ⚠️ proposal with an `ambiguity` block and let the user decide at apply time.
+
+### Tag hygiene rules
+
+For each `#tag` already written in an entry, classify it against the known-tag set (registries ∪ tags with count ≥ 10) and its frequency count:
+
+- **Casing/typo variant** — the tag is unregistered but a near-miss of a known tag: a casing variant (`#Jira`→`#jira`, `#avalon`→`#Avalon` — prefer the _more frequent_ casing), a small edit-distance slip, or an obvious singular/plural/hyphen variant. Emit a `#️⃣` change that rewrites the tag inline to the canonical spelling (a normal proposal with `applyOps`, exactly like a typo fix). This is where the bulk of real cleanup lives — casing dups scattered across journal entries.
+- **Unregistered but legit** — used on ≥ 3 nodes, no near-miss. Stage a **⚠️** noting it may need a registry entry (`gtd:create-hobby` for an activity, or a `🏷️ Context Tags` entry for a location/mode), naming the guessed registry. Do not register it in prep, and do not alter the entry text.
+- **One-off junk** — count ≤ 1, resolves nowhere, not a plausible new tag (e.g. a sentence-fragment tag). Stage a **⚠️** proposing removal from the entry, with the text-with-tag-removed as the candidate `after`. Let the user decide — never silently strip a tag.
+
+Only surface tags that clearly fall into one of these buckets; when frequency data is missing or a tag is ambiguous, leave it untouched. Never invent or add a tag that the entry does not already contain.
 
 ### Emoji rules
 

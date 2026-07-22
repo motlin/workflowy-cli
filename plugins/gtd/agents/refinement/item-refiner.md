@@ -44,7 +44,7 @@ Use a SINGLE message with MULTIPLE Task tool calls in parallel. Pass the prompt:
 - `gtd:due-date-detector` - Parse dates and urgency
 - `gtd:url-linker` - Extract URLs and provenance
 - `gtd:context-tagger` - Suggest location/mode tags
-- `gtd:tag-cleaner` - Validate existing tags
+- `gtd:tag-cleaner` - Classify existing tags: fix typos, propose registering new tags, drop one-off junk
 - `gtd:agenda-detector` - Detect meeting-discussion topics to route to 📋 Meeting agendas
 
 Wait for all to complete and collect their JSON outputs.
@@ -129,6 +129,10 @@ done
     {"name": "👤 Person: <@Name>"},
     {"name": "💡 Project: <#tag> (<confidence>% match)"},
     {"name": "📅 Due: <date>"},
+    {"name": "✏️ Typo: #Jira → #jira"},
+    {"name": "🏷️ New tag: #onewheel → add to 🎮 Hobbies Registry? (420 nodes)"},
+    {"name": "🗑️ Drop tag: #s (one-off, resolves nowhere)"},
+    {"name": "⚠️ Invalid @mention: @Bobb"},
     {"name": "🗣️ Agenda: raise with <@Name> #agenda #work"},
     {"name": "📍 Move to: <full path>", "children": [
       {"name": "📊 Confidence: <X>%"}
@@ -148,19 +152,24 @@ Only include children that have actual values from Phase A/B results.
 
 **Children Order (inside 🔍 Refinement):**
 
-| Order | Child              | Source                           |
-| ----- | ------------------ | -------------------------------- |
-| 1     | 📜 Provenance:     | From scanner (capture time)      |
-| 2     | ➕ Added:          | From scanner (capture time)      |
-| 3     | 🏠 Context:        | context-tagger                   |
-| 4     | 👤 Person:         | people-tagger                    |
-| 5     | 💡 Project:        | project-tagger                   |
-| 6     | 📅 Due:            | due-date-detector                |
-| 7     | ⚠️ Invalid:        | tag-cleaner (if any)             |
-| 7.5   | 🗣️ Agenda:         | agenda-detector (if discussion)  |
-| 8     | 📍 Move to:        | destination-guesser              |
-| 8.1   | └── 📊 Confidence: | destination-guesser (sub-bullet) |
-| 9     | ✏️ Text:           | text-composer                    |
+| Order | Child                | Source                           |
+| ----- | -------------------- | -------------------------------- |
+| 1     | 📜 Provenance:       | From scanner (capture time)      |
+| 2     | ➕ Added:            | From scanner (capture time)      |
+| 3     | 🏠 Context:          | context-tagger                   |
+| 4     | 👤 Person:           | people-tagger                    |
+| 5     | 💡 Project:          | project-tagger                   |
+| 6     | 📅 Due:              | due-date-detector                |
+| 7     | ✏️ Typo:             | tag-cleaner (per typo)           |
+| 7.1   | 🏷️ New tag:          | tag-cleaner (per newTag)         |
+| 7.2   | 🗑️ Drop tag:         | tag-cleaner (per junk)           |
+| 7.3   | ⚠️ Invalid @mention: | tag-cleaner (per invalidMention) |
+| 7.5   | 🗣️ Agenda:           | agenda-detector (if discussion)  |
+| 8     | 📍 Move to:          | destination-guesser              |
+| 8.1   | └── 📊 Confidence:   | destination-guesser (sub-bullet) |
+| 9     | ✏️ Text:             | text-composer                    |
+
+Emit one row per entry in each tag-cleaner array; omit the row entirely when the array is empty. `🏷️ New tag:` and `✏️ Typo:` are **proposals the user approves** — never pre-apply the registry write; item-mover handles accepted typos/drops in the text, and an accepted `🏷️ New tag:` is written to its registry during the `/gtd:inbox` execute phase.
 
 **The 📊 Confidence Node:**
 
