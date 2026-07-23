@@ -11,7 +11,7 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@workflowy/shared": "workspace:*",
-		"better-sqlite3": "^12.11.1",
+		"better-sqlite3": "^13.0.1",
 		"drizzle-orm": "^0.45.2",
 		"zod": "^4.4.3"
 	},
