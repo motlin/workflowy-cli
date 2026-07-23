@@ -202,10 +202,10 @@ importers:
         version: 2.0.10(hono@4.12.31)
       '@tanstack/react-query':
         specifier: ^5.101.2
-        version: 5.101.2(react@19.2.7)
+        version: 5.101.2(react@19.2.8)
       '@tanstack/react-virtual':
         specifier: ^3.14.6
-        version: 3.14.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 3.14.6(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@workflowy/shared':
         specifier: workspace:*
         version: link:../shared
@@ -222,17 +222,17 @@ importers:
         specifier: ^4.12.31
         version: 4.12.31
       react:
-        specifier: ^19.2.7
-        version: 19.2.7
+        specifier: ^19.2.8
+        version: 19.2.8
       react-dom:
-        specifier: ^19.2.7
-        version: 19.2.7(react@19.2.7)
+        specifier: ^19.2.8
+        version: 19.2.8(react@19.2.8)
       react-hotkeys-hook:
         specifier: ^5.3.3
-        version: 5.3.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 5.3.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react-router-dom:
         specifier: ^7.18.1
-        version: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 7.18.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       sqlite-vec:
         specifier: ^0.1.9
         version: 0.1.9
@@ -241,17 +241,17 @@ importers:
         version: 4.4.3
       zustand:
         specifier: ^5.0.14
-        version: 5.0.14(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
+        version: 5.0.14(@types/react@19.2.17)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
       '@storybook/addon-a11y':
         specifier: ^10.5.3
-        version: 10.5.3(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+        version: 10.5.3(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
       '@storybook/addon-docs':
         specifier: ^10.5.2
-        version: 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+        version: 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
       '@storybook/react-vite':
         specifier: ^10.5.2
-        version: 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)
+        version: 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -272,7 +272,7 @@ importers:
         version: 10.0.3
       storybook:
         specifier: ^10.5.2
-        version: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+        version: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
       tsx:
         specifier: ^4.23.0
         version: 4.23.0
@@ -4677,10 +4677,10 @@ packages:
     resolution: {integrity: sha512-aEZ9qP+/M+58x2qgfSFEWH1BxLyHe5+qkLNJOZQb5iGS017jpbRnoKhNRrXPeA6RfBrZO5wZrT9DMC1UqE1f1w==}
     engines: {node: ^20.9.0 || >=22}
 
-  react-dom@19.2.7:
-    resolution: {integrity: sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==}
+  react-dom@19.2.8:
+    resolution: {integrity: sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ==}
     peerDependencies:
-      react: ^19.2.7
+      react: ^19.2.8
 
   react-hotkeys-hook@5.3.3:
     resolution: {integrity: sha512-aswgyWUnE25hmhzHTfKDmKzsaSE5DJ4LKaU/o6rQSXkDd/1Bh9TfAFQbHkf6fLy11HvlYkp+cDDarGdhmCDhoQ==}
@@ -4708,8 +4708,8 @@ packages:
       react-dom:
         optional: true
 
-  react@19.2.7:
-    resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
+  react@19.2.8:
+    resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
 
   readable-stream@3.6.2:
@@ -6344,11 +6344,11 @@ snapshots:
 
   '@kwsites/promise-deferred@1.1.1': {}
 
-  '@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.7)':
+  '@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.8)':
     dependencies:
       '@types/mdx': 2.0.14
       '@types/react': 19.2.17
-      react: 19.2.7
+      react: 19.2.8
 
   '@modelcontextprotocol/sdk@1.29.0(supports-color@10.2.2)(zod@4.2.1)':
     dependencies:
@@ -6926,21 +6926,21 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@storybook/addon-a11y@10.5.3(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
+  '@storybook/addon-a11y@10.5.3(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
     dependencies:
       '@storybook/global': 5.0.0
       axe-core: 4.12.1
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
 
-  '@storybook/addon-docs@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
+  '@storybook/addon-docs@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
     dependencies:
-      '@mdx-js/react': 3.1.1(@types/react@19.2.17)(react@19.2.7)
-      '@storybook/csf-plugin': 10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
-      '@storybook/icons': 2.1.0(react@19.2.7)
-      '@storybook/react-dom-shim': 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      '@mdx-js/react': 3.1.1(@types/react@19.2.17)(react@19.2.8)
+      '@storybook/csf-plugin': 10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+      '@storybook/icons': 2.1.0(react@19.2.8)
+      '@storybook/react-dom-shim': 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
       ts-dedent: 2.3.0
     optionalDependencies:
       '@types/react': 19.2.17
@@ -6951,10 +6951,10 @@ snapshots:
       - vite
       - webpack
 
-  '@storybook/builder-vite@10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
+  '@storybook/builder-vite@10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
     dependencies:
-      '@storybook/csf-plugin': 10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      '@storybook/csf-plugin': 10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
       ts-dedent: 2.3.0
       vite: '@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)'
     transitivePeerDependencies:
@@ -6962,9 +6962,9 @@ snapshots:
       - rollup
       - webpack
 
-  '@storybook/csf-plugin@10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
+  '@storybook/csf-plugin@10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
     dependencies:
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
       unplugin: 2.3.11
     optionalDependencies:
       esbuild: 0.28.1
@@ -6972,32 +6972,32 @@ snapshots:
 
   '@storybook/global@5.0.0': {}
 
-  '@storybook/icons@2.1.0(react@19.2.7)':
+  '@storybook/icons@2.1.0(react@19.2.8)':
     dependencies:
-      react: 19.2.7
+      react: 19.2.8
 
-  '@storybook/react-dom-shim@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
+  '@storybook/react-dom-shim@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))':
     dependencies:
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
     optionalDependencies:
       '@types/react': 19.2.17
       '@types/react-dom': 19.2.3(@types/react@19.2.17)
 
-  '@storybook/react-vite@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)':
+  '@storybook/react-vite@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
       '@joshwooding/vite-plugin-react-docgen-typescript': 0.7.0(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(typescript@7.0.2)
       '@rollup/pluginutils': 5.4.0
-      '@storybook/builder-vite': 10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
-      '@storybook/react': 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)
+      '@storybook/builder-vite': 10.5.2(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+      '@storybook/react': 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)
       empathic: 2.0.1
       magic-string: 0.30.21
-      react: 19.2.7
+      react: 19.2.8
       react-docgen: 8.0.3(supports-color@10.2.2)
-      react-dom: 19.2.7(react@19.2.7)
+      react-dom: 19.2.8(react@19.2.8)
       resolve: 1.22.12
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
       tsconfig-paths: 4.2.0
       vite: '@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)'
     optionalDependencies:
@@ -7010,15 +7010,15 @@ snapshots:
       - supports-color
       - webpack
 
-  '@storybook/react@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)':
+  '@storybook/react@10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
       '@storybook/global': 5.0.0
-      '@storybook/react-dom-shim': 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
-      react: 19.2.7
+      '@storybook/react-dom-shim': 10.5.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)))
+      react: 19.2.8
       react-docgen: 8.0.3(supports-color@10.2.2)
       react-docgen-typescript: 2.4.0(typescript@7.0.2)
-      react-dom: 19.2.7(react@19.2.7)
-      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
+      react-dom: 19.2.8(react@19.2.8)
+      storybook: 10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))
     optionalDependencies:
       '@types/react': 19.2.17
       '@types/react-dom': 19.2.3(@types/react@19.2.17)
@@ -7032,16 +7032,16 @@ snapshots:
 
   '@tanstack/query-core@5.101.2': {}
 
-  '@tanstack/react-query@5.101.2(react@19.2.7)':
+  '@tanstack/react-query@5.101.2(react@19.2.8)':
     dependencies:
       '@tanstack/query-core': 5.101.2
-      react: 19.2.7
+      react: 19.2.8
 
-  '@tanstack/react-virtual@3.14.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tanstack/react-virtual@3.14.6(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@tanstack/virtual-core': 3.17.4
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   '@tanstack/virtual-core@3.17.4': {}
 
@@ -9700,33 +9700,33 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  react-dom@19.2.7(react@19.2.7):
+  react-dom@19.2.8(react@19.2.8):
     dependencies:
-      react: 19.2.7
+      react: 19.2.8
       scheduler: 0.27.0
 
-  react-hotkeys-hook@5.3.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-hotkeys-hook@5.3.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   react-is@17.0.2: {}
 
-  react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-router-dom@7.18.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      react-router: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      react-router: 7.18.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
 
-  react-router@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-router@7.18.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
       cookie: 1.1.1
-      react: 19.2.7
+      react: 19.2.8
       set-cookie-parser: 2.7.2
     optionalDependencies:
-      react-dom: 19.2.7(react@19.2.7)
+      react-dom: 19.2.8(react@19.2.8)
 
-  react@19.2.7: {}
+  react@19.2.8: {}
 
   readable-stream@3.6.2:
     dependencies:
@@ -10065,10 +10065,10 @@ snapshots:
 
   steno@4.0.2: {}
 
-  storybook@10.5.2(@types/react@19.2.17)(react@19.2.7)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)):
+  storybook@10.5.2(@types/react@19.2.17)(react@19.2.8)(vite-plus@0.2.5(@types/node@26.1.0)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.0)(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.0)(typescript@7.0.2)(yaml@2.9.0)):
     dependencies:
       '@storybook/global': 5.0.0
-      '@storybook/icons': 2.1.0(react@19.2.7)
+      '@storybook/icons': 2.1.0(react@19.2.8)
       '@testing-library/dom': 10.4.1
       '@testing-library/jest-dom': 6.9.1
       '@testing-library/user-event': 14.6.1(@testing-library/dom@10.4.1)
@@ -10082,7 +10082,7 @@ snapshots:
       oxc-resolver: 11.24.2
       recast: 0.23.12
       semver: 7.8.5
-      use-sync-external-store: 1.6.0(react@19.2.7)
+      use-sync-external-store: 1.6.0(react@19.2.8)
       ws: 8.21.1
     optionalDependencies:
       '@types/react': 19.2.17
@@ -10374,9 +10374,9 @@ snapshots:
 
   url-join@4.0.1: {}
 
-  use-sync-external-store@1.6.0(react@19.2.7):
+  use-sync-external-store@1.6.0(react@19.2.8):
     dependencies:
-      react: 19.2.7
+      react: 19.2.8
 
   util-deprecate@1.0.2: {}
 
@@ -10582,8 +10582,8 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zustand@5.0.14(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)):
+  zustand@5.0.14(@types/react@19.2.17)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8)):
     optionalDependencies:
       '@types/react': 19.2.17
-      react: 19.2.7
-      use-sync-external-store: 1.6.0(react@19.2.7)
+      react: 19.2.8
+      use-sync-external-store: 1.6.0(react@19.2.8)
