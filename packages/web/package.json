@@ -41,7 +41,7 @@
 		"@types/react-dom": "^19.1.6",
 		"@vitejs/plugin-react": "^6.0.4",
 		"concurrently": "^10.0.3",
-		"storybook": "^10.5.2",
+		"storybook": "^10.5.3",
 		"tsx": "^4.23.0",
 		"typescript": "^7.0.2",
 		"vite": "catalog:",
