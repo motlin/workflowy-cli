@@ -2,7 +2,13 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {assistantSummary, extractFeedback, isHumanUserMessage, userText} from './scan-review-feedback.mjs';
+import {
+	assistantSummary,
+	extractFeedback,
+	hasCommandInvocation,
+	isHumanUserMessage,
+	userText,
+} from './scan-review-feedback.mjs';
 
 const humanTyped = {
 	type: 'user',
@@ -39,6 +45,17 @@ const assistantToolUse = {
 		],
 	},
 };
+
+test('hasCommandInvocation matches only the requested command stub', () => {
+	assert.deepStrictEqual(
+		[
+			'<command-name>/gtd:review:daily</command-name>',
+			'available skill: gtd:review:daily performs the morning review',
+			'<command-name>/gtd:review:daily:overview</command-name>',
+		].map((raw) => hasCommandInvocation(raw, 'gtd:review:daily')),
+		[true, false, false],
+	);
+});
 
 test('isHumanUserMessage accepts typed text (string and text-block array)', () => {
 	assert.equal(isHumanUserMessage(humanTyped), true);

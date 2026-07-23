@@ -80,6 +80,10 @@ export function assistantSummary(obj) {
 	return text ? `said "${text.slice(0, 120)}"` : '';
 }
 
+export function hasCommandInvocation(raw, marker) {
+	return raw.includes(`<command-name>/${marker}</command-name>`);
+}
+
 function cap(text) {
 	return text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + '…' : text;
 }
@@ -139,7 +143,7 @@ function main(argv) {
 		const path = join(dir, name);
 		if (statSync(path).mtimeMs < cutoff) continue;
 		const raw = readFileSync(path, 'utf8');
-		if (!raw.includes(marker)) continue;
+		if (!hasCommandInvocation(raw, marker)) continue;
 		const objs = parseLines(raw);
 		const startTs = objs.find((o) => o.timestamp)?.timestamp ?? null;
 		if (startTs && Date.parse(startTs) < cutoff) continue;
