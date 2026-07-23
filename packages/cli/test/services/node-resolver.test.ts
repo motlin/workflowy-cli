@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type {WorkflowyApiClient} from '@workflowy/shared/api';
+import type {MockInstance} from 'vite-plus/test';
 import {CacheService} from '../../src/services/cache.js';
 import {
 	resolveNodeId,
@@ -17,8 +19,8 @@ describe('node-resolver service', () => {
 	let testDatabase: TestDatabase;
 	let cacheService: CacheService;
 	let mockApiClient: {
-		findNodeByPath: ReturnType<typeof vi.fn>;
-		createNode: ReturnType<typeof vi.fn>;
+		findNodeByPath: MockInstance<WorkflowyApiClient['findNodeByPath']>;
+		createNode: MockInstance<WorkflowyApiClient['createNode']>;
 	};
 
 	beforeEach(() => {
@@ -28,8 +30,8 @@ describe('node-resolver service', () => {
 		cacheService = new CacheService(testDatabase.db);
 
 		mockApiClient = {
-			findNodeByPath: vi.fn(),
-			createNode: vi.fn(),
+			findNodeByPath: vi.fn<WorkflowyApiClient['findNodeByPath']>(),
+			createNode: vi.fn<WorkflowyApiClient['createNode']>(),
 		};
 	});
 
@@ -81,7 +83,7 @@ describe('node-resolver service', () => {
 		});
 
 		it('falls back to API when not in cache', async () => {
-			mockApiClient.findNodeByPath.mockResolvedValue({id: 'api-resolved-id'});
+			mockApiClient.findNodeByPath.mockResolvedValue(createApiNode({id: 'api-resolved-id'}));
 
 			const result = await resolveNodeId({path: 'Missing,Path'}, cacheService, mockApiClient as never);
 
@@ -172,7 +174,7 @@ describe('node-resolver service', () => {
 		});
 
 		it('falls back to API for path resolution', async () => {
-			mockApiClient.findNodeByPath.mockResolvedValue({id: 'api-parent-id'});
+			mockApiClient.findNodeByPath.mockResolvedValue(createApiNode({id: 'api-parent-id'}));
 
 			const result = await resolveParent({path: 'Missing,Parent'}, cacheService, mockApiClient as never);
 
