@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type {MockInstance} from 'vite-plus/test';
 import {CacheService} from '../../src/services/cache.js';
 import {
 	resolveNodeId,
@@ -18,8 +17,8 @@ describe('node-resolver service', () => {
 	let testDatabase: TestDatabase;
 	let cacheService: CacheService;
 	let mockApiClient: {
-		findNodeByPath: MockInstance;
-		createNode: MockInstance;
+		findNodeByPath: ReturnType<typeof vi.fn>;
+		createNode: ReturnType<typeof vi.fn>;
 	};
 
 	beforeEach(() => {
