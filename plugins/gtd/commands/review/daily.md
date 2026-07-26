@@ -76,7 +76,7 @@ Tasks elsewhere in `Personal > 🔄 Review` remain recurring-review tasks and us
 
 List every due prep task and its inherited presentation entry from `phase0-plan.json` before execution. Show the human name, instructions, Workflowy link, whether it is auto, and whether its branch is parallel or serial. Show the import barrier as done.
 
-Ask once whether to skip tasks. Skipping prep also skips its name-matched presentation. Auto tasks and the import barrier are mandatory. If no tasks are due, continue without prompting; if only mandatory tasks are due, run them without the skip question.
+Ask about skipping in exactly **one** `AskUserQuestion` question, never two or more, no matter how many tasks are due. The user must be able to decline every skip with a single answer, so make the first option a "run everything" choice. When more due tasks exist than the four option slots allow, do not split the question across multiple questions — list the skippable tasks in the question text and let the user name any exceptions through "Other". Skipping prep also skips its name-matched presentation. Auto tasks and the import barrier are mandatory. If no tasks are due, continue without prompting; if only mandatory tasks are due, run them without the skip question.
 
 ### Execute the plan
 
