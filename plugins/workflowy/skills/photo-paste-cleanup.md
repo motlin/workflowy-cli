@@ -47,6 +47,14 @@ The command only reverses a group when it has evidence, because a wrong reversal
 
 Filenames and MIME types live in the `s3_files` table, which **only backup imports populate** — `import-api` never writes it. Photos pasted since the last backup have no filename evidence, so recent loose groups get skipped. Import a fresh backup before expecting the newest pastes to be fixable.
 
+A cluster with no attachment row at all never becomes a group, so it is neither fixed nor counted among the ones left alone. The summary reports those separately:
+
+```text
+6 not examined: no attachment data in the cache
+```
+
+A non-zero count there means `cache import-backups` is behind. The command also warns outright when a backup on disk is newer than the newest `s3_files` row. Treat both as "run the import first, then re-run" — a stale cache makes a partial sweep look like a complete one.
+
 ## Verifying a Fix
 
 Re-read the entry and confirm the wrapper is gone and the order flipped:
