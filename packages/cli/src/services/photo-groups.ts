@@ -106,10 +106,11 @@ function byPriority(a: {priority: number}, b: {priority: number}): number {
 }
 
 /**
- * Group blank photo nodes into wrapped groups (a blank node holding only blank
- * leaves) and loose groups (a run of adjacent blank leaves under a real entry).
+ * Collect every candidate cluster, including those with no attachment evidence.
+ * {@link buildPhotoGroups} drops the unevidenced ones; {@link
+ * countGroupsWithoutEvidence} reports how many that was.
  */
-export function buildPhotoGroups(rows: CachedNodeRow[]): PhotoGroup[] {
+function collectCandidateGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 	const childrenByParent = new Map<string, CachedNodeRow[]>();
 	for (const row of rows) {
 		if (!row.parentId) continue;
@@ -134,15 +135,12 @@ export function buildPhotoGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 			children.every((child) => isBlankLeaf(child));
 
 		if (isWrapper) {
-			const members = children.map((child) => toMember(child));
-			if (hasImageEvidence(members)) {
-				groups.push({
-					kind: 'wrapped',
-					entryId: row.parentId as string,
-					wrapperId: row.id,
-					members,
-				});
-			}
+			groups.push({
+				kind: 'wrapped',
+				entryId: row.parentId as string,
+				wrapperId: row.id,
+				members: children.map((child) => toMember(child)),
+			});
 			continue;
 		}
 
@@ -155,16 +153,62 @@ export function buildPhotoGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 				continue;
 			}
 			if (run.length >= MINIMUM_GROUP_SIZE) {
-				const members = run.map((member) => toMember(member));
-				if (hasImageEvidence(members)) {
-					groups.push({kind: 'loose', entryId: row.id, wrapperId: null, members});
-				}
+				groups.push({
+					kind: 'loose',
+					entryId: row.id,
+					wrapperId: null,
+					members: run.map((member) => toMember(member)),
+				});
 			}
 			run = [];
 		}
 	}
 
 	return groups;
+}
+
+/**
+ * Group blank photo nodes into wrapped groups (a blank node holding only blank
+ * leaves) and loose groups (a run of adjacent blank leaves under a real entry).
+ *
+ * Clusters with no confirmed image attachment are excluded: blank leaves alone
+ * prove nothing, and pasted HTML tables produce the same shape.
+ */
+export function buildPhotoGroups(rows: CachedNodeRow[]): PhotoGroup[] {
+	return collectCandidateGroups(rows).filter((group) => hasImageEvidence(group.members));
+}
+
+/**
+ * How many clusters {@link buildPhotoGroups} dropped for want of attachment
+ * data. Attachment rows reach the cache only through backup imports, so a stale
+ * cache silently hides real photo groups; surfacing this count is what stops a
+ * partial sweep from reading as a complete one.
+ */
+export function countGroupsWithoutEvidence(rows: CachedNodeRow[]): number {
+	return collectCandidateGroups(rows).filter((group) => !hasImageEvidence(group.members)).length;
+}
+
+/**
+ * Warn when a backup on disk is newer than the newest attachment row imported.
+ *
+ * Only backup imports populate `s3_files`, so photos pasted after the last
+ * import carry no filename or MIME type and drop out of the sweep entirely.
+ *
+ * @param newestRow Newest `s3_files.system_from`, in `YYYY-MM-DD HH:MM:SS.sss` UTC.
+ * @param newestBackup Backup date of the newest backup file on disk.
+ * @returns The warning text, or null when the cache is current enough.
+ */
+export function describeStaleAttachmentData(newestRow: string | null, newestBackup: Date | null): string | null {
+	if (newestRow === null || newestBackup === null) return null;
+
+	const importedThrough = Date.parse(`${newestRow.replace(' ', 'T')}Z`);
+	if (Number.isNaN(importedThrough) || newestBackup.getTime() <= importedThrough) return null;
+
+	return (
+		`attachment data is stale: newest s3_files row is ${newestRow.slice(0, 10)}, ` +
+		`but a ${newestBackup.toISOString().slice(0, 10)} backup is on disk. ` +
+		`Run 'cache import-backups' first or recent photos stay invisible.`
+	);
 }
 
 /** Decide what order a group's photos belong in, and whether to touch it at all. */

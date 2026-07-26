@@ -7,7 +7,16 @@ import {sql} from 'drizzle-orm';
 import {createDatabase} from '../../db/index.js';
 import {CacheService} from '../../services/cache.js';
 import {logger} from '../../services/logger.js';
-import {buildPhotoGroups, planPhotoGroup, type CachedNodeRow, type PhotoGroup} from '../../services/photo-groups.js';
+import {
+	buildPhotoGroups,
+	countGroupsWithoutEvidence,
+	describeStaleAttachmentData,
+	planPhotoGroup,
+	type CachedNodeRow,
+	type PhotoGroup,
+} from '../../services/photo-groups.js';
+import {listBackups} from '../../utils/backup-archive.js';
+import path from 'node:path';
 
 /** Position argument for the move API: negative is top, zero or more is bottom. */
 const MOVE_TO_BOTTOM = 0;
@@ -123,6 +132,26 @@ function loadEntryTitles(database: ReturnType<typeof createDatabase>, entryIds: 
 	);
 }
 
+/**
+ * Newest attachment row in the cache versus the newest backup sitting on disk.
+ * Only backup imports populate `s3_files`, so when the newest backup is younger
+ * than the newest row, photos pasted since that import are invisible here.
+ */
+function findStaleAttachmentData(database: ReturnType<typeof createDatabase>): string | null {
+	const row = database.all<{newest: string | null}>(sql`SELECT MAX(system_from) AS newest FROM s3_files`)[0];
+
+	let newestBackup: Date | null = null;
+	try {
+		for (const backup of listBackups(path.join(process.cwd(), 'backups'))) {
+			if (newestBackup === null || backup.backupDate > newestBackup) newestBackup = backup.backupDate;
+		}
+	} catch {
+		return null;
+	}
+
+	return describeStaleAttachmentData(row?.newest ?? null, newestBackup);
+}
+
 function describeGroup(group: PhotoGroup, titles: Map<string, string>): string {
 	const title = titles.get(group.entryId);
 	const entry = title ? `entry ${group.entryId} "${title.slice(0, 60)}"` : `entry ${group.entryId}`;
@@ -193,6 +222,18 @@ export default class FixPhotoGroups extends Command {
 		}
 		for (const [reason, count] of skipCounts) {
 			this.log(`  ${count} left alone: ${reason}`);
+		}
+
+		// Reported separately from the plan tally: these clusters never became
+		// groups at all, so without this line a stale cache reads as a clean sweep.
+		const withoutEvidence = countGroupsWithoutEvidence(rows);
+		if (withoutEvidence > 0) {
+			this.log(`  ${withoutEvidence} not examined: no attachment data in the cache`);
+		}
+
+		const staleness = findStaleAttachmentData(database);
+		if (staleness) {
+			this.warn(staleness);
 		}
 
 		const toProcess = flags['batch-size'] ? fixable.slice(0, flags['batch-size']) : fixable;

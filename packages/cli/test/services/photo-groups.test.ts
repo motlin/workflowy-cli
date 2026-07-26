@@ -1,5 +1,7 @@
 import {
 	buildPhotoGroups,
+	countGroupsWithoutEvidence,
+	describeStaleAttachmentData,
 	parseImageSequence,
 	planPhotoGroup,
 	type CachedNodeRow,
@@ -135,6 +137,33 @@ describe('buildPhotoGroups', () => {
 		expect(buildPhotoGroups(rows)).toStrictEqual([]);
 	});
 
+	it('counts clusters dropped for missing attachment data', () => {
+		// Attachment rows only arrive via backup imports, so a stale cache hides
+		// real photo groups. buildPhotoGroups still drops them; the count is what
+		// keeps the drop from being silent.
+		const rows = [
+			row({id: 'entry', name: 'A day out', parentId: 'day', childCount: 2}),
+			row({id: 'wrapper', parentId: 'entry', priority: 100, childCount: 2}),
+			row({id: 'unknown-a', parentId: 'wrapper', priority: 100}),
+			row({id: 'unknown-b', parentId: 'wrapper', priority: 200}),
+			photoRow({id: 'known-a', parentId: 'entry', priority: 200}),
+			photoRow({id: 'known-b', parentId: 'entry', priority: 300}),
+		];
+
+		expect(buildPhotoGroups(rows).map((group) => group.entryId)).toStrictEqual(['entry']);
+		expect(countGroupsWithoutEvidence(rows)).toBe(1);
+	});
+
+	it('counts nothing when every cluster has attachment data', () => {
+		const rows = [
+			row({id: 'entry', name: 'A day out', parentId: 'day', childCount: 2}),
+			photoRow({id: 'photo-a', parentId: 'entry', priority: 100}),
+			photoRow({id: 'photo-b', parentId: 'entry', priority: 200}),
+		];
+
+		expect(countGroupsWithoutEvidence(rows)).toBe(0);
+	});
+
 	it('ignores mirrors, which render blank but hold no photo', () => {
 		const rows = [
 			row({id: 'entry', name: 'A day out', parentId: 'day', childCount: 1}),
@@ -256,5 +285,28 @@ describe('planPhotoGroup', () => {
 		expect(
 			planPhotoGroup({kind: 'loose', entryId: 'entry', wrapperId: null, members: shuffled}).orderedIds,
 		).toStrictEqual(['c', 'b', 'a']);
+	});
+});
+
+describe('describeStaleAttachmentData', () => {
+	it('warns when a backup on disk is newer than the newest imported attachment row', () => {
+		const warning = describeStaleAttachmentData('2026-07-14 14:37:25.424', new Date('2026-07-26T00:00:00Z'));
+
+		expect(warning).toContain('2026-07-14');
+		expect(warning).toContain('2026-07-26');
+		expect(warning).toContain('cache import-backups');
+	});
+
+	it('stays quiet when the newest backup is already imported', () => {
+		expect(describeStaleAttachmentData('2026-07-26 18:30:28.251', new Date('2026-07-26T00:00:00Z'))).toBeNull();
+	});
+
+	it('stays quiet when either side is unknown', () => {
+		expect(describeStaleAttachmentData(null, new Date('2026-07-26T00:00:00Z'))).toBeNull();
+		expect(describeStaleAttachmentData('2026-07-14 14:37:25.424', null)).toBeNull();
+	});
+
+	it('stays quiet rather than warning on an unparsable timestamp', () => {
+		expect(describeStaleAttachmentData('not-a-timestamp', new Date('2026-07-26T00:00:00Z'))).toBeNull();
 	});
 });
