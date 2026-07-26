@@ -31,8 +31,9 @@ Create `.llm/gtd/review/proposals/` and write the proposal for the inferred slug
 Use this sweep command in the ready proposal:
 
 ```bash
-find "$HOME/projects" -type d \( -name node_modules -o -name target -o -name build -o -name dist \) -prune -print0 |
-	sudo xargs -0 -n40 tmutil addexclusion -p
+${CLAUDE_PLUGIN_ROOT}/scripts/add-time-machine-exclusions.sh
 ```
+
+The script does the same `find … | sudo xargs tmutil addexclusion -p` sweep, then verifies every path with `tmutil isexcluded` and exits non-zero if any remain. Stage the resolved absolute path so the user can run it without expanding the variable.
 
 `sudo` requires the user, so prep never runs the sweep. Return a one-line count and stop.
