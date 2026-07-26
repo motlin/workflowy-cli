@@ -1063,9 +1063,48 @@ describe('cache-import service', () => {
 		// are source content timestamps, so the `timestamp` argument passed to
 		// importBackup (a cache-write time) does not affect them.
 		const DATE_EARLIER = new Date('2026-04-01T00:00:00Z');
+		const DATE_MIDDLE = new Date('2026-04-05T00:00:00Z');
 		const DATE_LATER = new Date('2026-04-10T00:00:00Z');
 		const T_EARLIER = Math.floor(DATE_EARLIER.getTime() / 1000);
+		const T_MIDDLE = Math.floor(DATE_MIDDLE.getTime() / 1000);
 		const T_LATER = Math.floor(DATE_LATER.getTime() / 1000);
+
+		// Regression: the local watermark once read node_content.systemFrom, a
+		// cache-write time that `cache import-api` stamps with the wall clock on
+		// every daily run. That made the cache look newer than every backup
+		// forever, so backup imports silently stopped contributing the fields only
+		// backups carry (attachments, mirrors). Both write times below are
+		// deliberately newer than both content watermarks; only the content
+		// timestamps may drive the comparison. They differ from each other because
+		// two versions of one node cannot share a system_from.
+		const WRITE_1 = new Date('2026-05-01T00:00:00Z');
+		const WRITE_2 = new Date('2026-05-02T00:00:00Z');
+
+		it('ignores the cache write time when comparing watermarks', async () => {
+			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_EARLIER, lm: T_EARLIER}]);
+			await importBackup(testDatabase.db, seedPath, 'backup.json', false, WRITE_1);
+
+			const newerPath = writeBackupFile([
+				{id: 'node-1', nm: 'Renamed', ct: T_EARLIER, lm: T_MIDDLE},
+				{id: 'node-2', nm: 'Added', ct: T_MIDDLE, lm: T_MIDDLE},
+			]);
+			const result = await importBackup(testDatabase.db, newerPath, 'backup.json', false, WRITE_2);
+
+			expect(result.skipped).toBe(false);
+			expect(result.localWatermark).toBe('2026-04-01 00:00:00.000');
+			expect(result.incomingWatermark).toBe('2026-04-05 00:00:00.000');
+			expect(result.nodesPreserved).toBe(0);
+			expect(result.nodesAdded).toBe(1);
+
+			const activeNames = testDatabase.db
+				.select()
+				.from(nodeContent)
+				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+				.all()
+				.map((n) => n.name ?? '')
+				.sort();
+			expect(activeNames).toStrictEqual(['Added', 'Renamed']);
+		});
 
 		it('imports a stale snapshot while protecting the nodes it predates', async () => {
 			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
