@@ -46,7 +46,8 @@ export default class ImportBackup extends Command {
 			default: false,
 		}),
 		force: Flags.boolean({
-			description: 'Bypass the stale-snapshot watermark guard and import even if the cache has newer data',
+			description:
+				'Take the snapshot verbatim: do not protect cached nodes newer than it, tombstoning anything it omits',
 			default: false,
 		}),
 	};
@@ -157,13 +158,11 @@ export default class ImportBackup extends Command {
 
 			const importElapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 
-			if (stats.skipped) {
-				this.log('\n⚠ Skipped import: local cache has newer data than the backup snapshot.');
-				this.log(`  Local high watermark:    ${stats.localWatermark}`);
-				this.log(`  Incoming high watermark: ${stats.incomingWatermark}`);
-				this.log('  The backup file is likely a stale snapshot. Re-run with --force to import anyway.');
-				this.log(`(${stats.totalNodes.toLocaleString()} nodes in ${importElapsedSeconds}s)`);
-				return;
+			if (stats.nodesPreserved > 0) {
+				this.log(
+					`\n🛡  Snapshot predates the cache (snapshot ${stats.incomingWatermark}, cache ${stats.localWatermark}); ` +
+						`kept ${stats.nodesPreserved.toLocaleString()} newer node(s) it does not describe.`,
+				);
 			}
 
 			const changedCount = stats.nodesAdded + stats.nodesUpdated + stats.nodesDeleted;

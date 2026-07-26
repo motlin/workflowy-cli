@@ -73,6 +73,32 @@ describe('temporalMerge with a composite key', () => {
 		expect(open).toStrictEqual(['A/X', 'C/Z']); // B/Y phased out
 	});
 
+	it('keeps preserved keys open even when they are absent from the incoming set', () => {
+		seedTestData(testDatabase, {
+			mirrors: [
+				{originalId: 'A', mirrorId: 'X', systemFrom: from, systemTo: FAR_FUTURE_DATE},
+				{originalId: 'B', mirrorId: 'Y', systemFrom: from, systemTo: FAR_FUTURE_DATE},
+			],
+		});
+
+		const now = formatTemporalTimestamp(new Date());
+		const result = testDatabase.db.transaction((tx) =>
+			temporalMerge(
+				tx,
+				{...config, preserveKeys: new Set([joinKey('B', 'Y')])},
+				[{originalId: 'A', mirrorId: 'X'}],
+				currentMirrors(testDatabase),
+				now,
+			),
+		);
+
+		expect(result).toStrictEqual({inserted: 0, phasedOut: 0, unchanged: 1});
+		const open = currentMirrors(testDatabase)
+			.map((m) => `${m.originalId}/${m.mirrorId}`)
+			.sort();
+		expect(open).toStrictEqual(['A/X', 'B/Y']);
+	});
+
 	it('does not collide keys that a naive ":" separator would merge', () => {
 		// Under `${originalId}:${mirrorId}` both rows hash to "a:b:c".
 		seedTestData(testDatabase, {

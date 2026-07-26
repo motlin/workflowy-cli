@@ -16,6 +16,7 @@ export type BackupImportStats = {
 	metadataUpdated: number;
 	priorityUpdated: number;
 	importTimestamp: Date;
+	nodesPreserved: number;
 	skipped?: boolean;
 	skipReason?: string;
 	localWatermark?: string | null;

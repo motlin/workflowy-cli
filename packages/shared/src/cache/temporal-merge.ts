@@ -88,6 +88,16 @@ export interface TemporalMergeConfig<TIncoming, TCurrent> {
 	 */
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 	buildInsertRow: (incoming: TIncoming) => Record<string, any>;
+	/**
+	 * Keys that must never be phased out for being absent from `incoming`.
+	 *
+	 * A backup snapshot only testifies to the state of the tree at the moment it
+	 * was taken, so it cannot prove that a node written after that moment was
+	 * deleted. Callers importing an older snapshot pass those newer keys here to
+	 * keep them open. A preserved key that *is* present in `incoming` follows the
+	 * normal content-comparison path.
+	 */
+	preserveKeys?: ReadonlySet<string>;
 }
 
 /**
@@ -141,8 +151,17 @@ export function temporalMerge<TIncoming, TCurrent>(
 	currentRows: TCurrent[],
 	importedAt: string,
 ): TemporalMergeResult {
-	const {table, keyColumn, keyColumns, systemToColumn, incomingKey, currentKey, contentMatches, buildInsertRow} =
-		config;
+	const {
+		table,
+		keyColumn,
+		keyColumns,
+		systemToColumn,
+		incomingKey,
+		currentKey,
+		contentMatches,
+		buildInsertRow,
+		preserveKeys,
+	} = config;
 	const columns = keyColumns ?? (keyColumn ? [keyColumn] : []);
 	const keyMatchExpr = keyExpression(columns);
 
@@ -181,7 +200,7 @@ export function temporalMerge<TIncoming, TCurrent>(
 
 	let phasedOut = keysToPhaseOut.length;
 	for (const key of currentByKey.keys()) {
-		if (!incomingKeys.has(key)) {
+		if (!incomingKeys.has(key) && !preserveKeys?.has(key)) {
 			keysToPhaseOut.push(key);
 			phasedOut++;
 		}

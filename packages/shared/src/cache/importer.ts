@@ -137,11 +137,21 @@ function mergeNodeKeyedTable<TIncoming, TCurrent extends {systemTo: string}>(
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 	buildInsertRow: (incoming: TIncoming) => Record<string, any>,
 	importedAt: string,
+	preserveKeys?: ReadonlySet<string>,
 ): TemporalMergeResult {
 	const currentRows = tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all() as TCurrent[];
 	return temporalMerge(
 		tx,
-		{table, keyColumn, systemToColumn, incomingKey, currentKey, contentMatches: contentEquals, buildInsertRow},
+		{
+			table,
+			keyColumn,
+			systemToColumn,
+			incomingKey,
+			currentKey,
+			contentMatches: contentEquals,
+			buildInsertRow,
+			preserveKeys,
+		},
 		incoming,
 		currentRows,
 		importedAt,
@@ -160,11 +170,14 @@ function mergeNodeKeyedTable<TIncoming, TCurrent extends {systemTo: string}>(
  * @param database   Drizzle database instance.
  * @param rowsByTable Desired current state per destination table.
  * @param importedAt Temporal timestamp string for this import.
+ * @param preserveNodeIds Nodes that must stay open even when absent from
+ *   `rowsByTable`, because the incoming data predates them.
  */
 export function applyRows(
 	database: BetterSQLite3Database<typeof schema>,
 	rowsByTable: NormalizedRowsByTable,
 	importedAt: string,
+	preserveNodeIds?: ReadonlySet<string>,
 ): ApplyRowsResult {
 	const result: ApplyRowsResult = {};
 
@@ -187,6 +200,7 @@ export function applyRows(
 					}),
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -209,6 +223,7 @@ export function applyRows(
 					}),
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -225,6 +240,7 @@ export function applyRows(
 				calendarMetadataMatches,
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -240,6 +256,7 @@ export function applyRows(
 				calendarLevelsMatches,
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -255,6 +272,7 @@ export function applyRows(
 				(current, incoming) => current.inChat === incoming.inChat,
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -270,6 +288,7 @@ export function applyRows(
 				s3Matches,
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -285,6 +304,7 @@ export function applyRows(
 				(current, incoming) => current.ctBy === incoming.ctBy,
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 
@@ -300,6 +320,7 @@ export function applyRows(
 				() => true,
 				(row) => ({...row}),
 				importedAt,
+				preserveNodeIds,
 			);
 		}
 	});

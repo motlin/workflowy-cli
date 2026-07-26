@@ -387,6 +387,51 @@ describe('cache-import service', () => {
 		});
 	});
 
+	describe('import of a snapshot older than the cache', () => {
+		// A backup only describes the tree as of the moment it was taken, so it
+		// cannot testify that a node written afterwards was deleted. Nodes newer
+		// than the snapshot survive; everything else still merges normally.
+		const currentBackup = [
+			{id: 'node-1', nm: 'Original', ct: 1000, lm: 1000},
+			{id: 'node-2', nm: 'Added after the snapshot', ct: 5000, lm: 5000},
+		];
+		const olderSnapshot = [{id: 'node-1', nm: 'Renamed in the older snapshot', ct: 1000, lm: 2000}];
+
+		async function importBoth(force: boolean): Promise<ImportResult> {
+			const currentPath = writeBackupFile(currentBackup);
+			await importBackup(testDatabase.db, currentPath, 'backup.json', false, T0);
+
+			const olderPath = path.join(tempDir, 'older.json');
+			fs.writeFileSync(olderPath, JSON.stringify(olderSnapshot));
+			return importBackup(testDatabase.db, olderPath, 'older.json', false, T1, force);
+		}
+
+		function activeNames(): string[] {
+			return testDatabase.db
+				.select()
+				.from(nodeContent)
+				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+				.all()
+				.map((n) => n.name ?? '')
+				.sort();
+		}
+
+		it('applies the snapshot but keeps nodes newer than it', async () => {
+			const result = await importBoth(false);
+
+			expect(result.skipped).toBe(false);
+			expect(result.nodesPreserved).toBe(1);
+			expect(activeNames()).toStrictEqual(['Added after the snapshot', 'Renamed in the older snapshot']);
+		});
+
+		it('phases out the newer nodes when forced', async () => {
+			const result = await importBoth(true);
+
+			expect(result.nodesPreserved).toBe(0);
+			expect(activeNames()).toStrictEqual(['Renamed in the older snapshot']);
+		});
+	});
+
 	describe('temporal timestamps', () => {
 		it('uses correct systemFrom timestamp for new records', async () => {
 			const backupContent = [{id: 'node-1', nm: 'Test Node'}];
@@ -1014,32 +1059,36 @@ describe('cache-import service', () => {
 	});
 
 	describe('stale-snapshot watermark guard', () => {
-		// Backup ct/lm/cp are Unix seconds (epoch=0 in this suite). The local
-		// watermark is the newest active node_content.systemFrom, set by the
-		// timestamp argument passed to importBackup.
+		// Backup ct/lm/cp are Unix seconds (epoch=0 in this suite). Both watermarks
+		// are source content timestamps, so the `timestamp` argument passed to
+		// importBackup (a cache-write time) does not affect them.
 		const DATE_EARLIER = new Date('2026-04-01T00:00:00Z');
 		const DATE_LATER = new Date('2026-04-10T00:00:00Z');
 		const T_EARLIER = Math.floor(DATE_EARLIER.getTime() / 1000);
 		const T_LATER = Math.floor(DATE_LATER.getTime() / 1000);
 
-		it('aborts when the local cache is newer than the backup snapshot', async () => {
+		it('imports a stale snapshot while protecting the nodes it predates', async () => {
 			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
 			await importBackup(testDatabase.db, seedPath, 'backup.json', false, DATE_LATER);
-
-			const rowsBefore = testDatabase.db.select().from(nodeContent).all();
 
 			const stalePath = writeBackupFile([{id: 'node-2', nm: 'Stale', ct: T_EARLIER, lm: T_EARLIER}]);
 			const result = await importBackup(testDatabase.db, stalePath, 'backup.json', false, DATE_LATER);
 
-			expect(result.skipped).toBe(true);
-			expect(result.skipReason).toContain('Local cache has newer data');
+			expect(result.skipped).toBe(false);
 			expect(result.localWatermark).toBe('2026-04-10 00:00:00.000');
 			expect(result.incomingWatermark).toBe('2026-04-01 00:00:00.000');
-			expect(result.nodesAdded).toBe(0);
+			expect(result.nodesAdded).toBe(1);
+			expect(result.nodesPreserved).toBe(1);
 			expect(result.nodesDeleted).toBe(0);
 
-			const rowsAfter = testDatabase.db.select().from(nodeContent).all();
-			expect(rowsAfter).toStrictEqual(rowsBefore);
+			const activeIds = testDatabase.db
+				.select()
+				.from(nodeContent)
+				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+				.all()
+				.map((n) => n.id)
+				.sort();
+			expect(activeIds).toStrictEqual(['node-1', 'node-2']);
 		});
 
 		it('proceeds when the backup snapshot is newer than the local cache', async () => {
@@ -1076,7 +1125,7 @@ describe('cache-import service', () => {
 			expect(result.nodesAdded).toBe(1);
 		});
 
-		it('imports a stale snapshot anyway when force is passed', async () => {
+		it('takes the stale snapshot verbatim when force is passed', async () => {
 			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
 			await importBackup(testDatabase.db, seedPath, 'backup.json', false, DATE_LATER);
 
@@ -1085,8 +1134,18 @@ describe('cache-import service', () => {
 
 			expect(result.skipped).toBeFalsy();
 			expect(result.nodesAdded).toBe(1);
+			expect(result.nodesPreserved).toBe(0);
 			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-2')).get()!;
 			expectActiveRecord(node2);
+
+			// node-1 is absent from the forced snapshot, so it is tombstoned.
+			const node1 = testDatabase.db
+				.select()
+				.from(nodeContent)
+				.where(eq(nodeContent.id, 'node-1'))
+				.all()
+				.find((n) => n.systemTo === FAR_FUTURE_DATE);
+			expect(node1).toBeUndefined();
 		});
 	});
 });

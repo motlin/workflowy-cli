@@ -27,7 +27,7 @@ import {
 import {BackupFileSchema, type BackupNode, BackupNodeSchema} from '@workflowy/shared/schemas';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
 import {backupToUnixTime, uuidToShortId} from '@workflowy/shared/workflowy';
-import {and, eq, inArray, lt, max} from 'drizzle-orm';
+import {and, eq, inArray, lt} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {ZodError} from 'zod';
 import {readBackupFile} from '../utils/backup-archive.js';
@@ -281,6 +281,11 @@ function calculatePriorities(
 	return result;
 }
 
+/** Convert a cached timestamp column to Unix seconds, the unit backups use. */
+function toUnixSeconds(value: Date | null): number | null {
+	return value ? Math.floor(value.getTime() / 1000) : null;
+}
+
 export interface ImportBackupResult {
 	totalNodes: number;
 	nodesAdded: number;
@@ -292,6 +297,8 @@ export interface ImportBackupResult {
 	metadataUpdated: number;
 	priorityUpdated: number;
 	importTimestamp: Date;
+	/** Nodes newer than the snapshot that were kept instead of being tombstoned. */
+	nodesPreserved: number;
 	skipped?: boolean;
 	skipReason?: string;
 	localWatermark?: string | null;
@@ -562,23 +569,22 @@ export async function importBackup(
 	);
 
 	// Guard against stale-snapshot data loss from the bulk-export endpoint.
-	// The bulk-export API occasionally returns a pre-computed snapshot that
-	// predates local writes still present in our cache; the merge phase-out
-	// logic below would silently tombstone those newer items. The per-node REST
-	// API is always fresh and does not need this guard, so it lives here in the
-	// bulk-export adapter only.
+	// The bulk-export API returns a snapshot taken at a point in time, and the
+	// merge phase-out logic below tombstones anything absent from it — including
+	// nodes written after the snapshot, which it cannot testify about. The
+	// per-node REST API is always fresh and does not need this guard, so it lives
+	// here in the bulk-export adapter only.
 	//
-	// Compare two high watermarks numerically (Unix ms). The local watermark is
-	// the newest active node_content.systemFrom; the incoming watermark is the
-	// newest createdAt/modifiedAt/completedAt across the backup payload.
-	const localRow = database
-		.select({max: max(nodeContent.systemFrom)})
-		.from(nodeContent)
-		.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-		.get();
-	const localWatermark: string | null = localRow?.max ?? null;
-	const localWatermarkMs = localWatermark === null ? null : Date.parse(`${localWatermark.replace(' ', 'T')}Z`);
-
+	// Rather than refuse the whole import, protect only the nodes the snapshot
+	// cannot speak for: those whose own createdAt/modifiedAt/completedAt is newer
+	// than the snapshot's high watermark. Everything else merges normally, so an
+	// older backup still contributes the fields only backups carry (attachments,
+	// mirrors) without rolling back newer writes.
+	//
+	// Both watermarks are source content timestamps in Unix ms. Note that
+	// node_content.systemFrom is a cache-write time, not a content time — using it
+	// as the local watermark made every backup look stale forever, because
+	// `cache import-api` stamps it with the wall clock on each daily run.
 	let incomingMaxUnix = 0;
 	for (const n of nodesToProcess) {
 		if (n.createdAt !== null && n.createdAt > incomingMaxUnix) incomingMaxUnix = n.createdAt;
@@ -589,27 +595,10 @@ export async function importBackup(
 	const incomingWatermark: string | null =
 		incomingWatermarkMs === null ? null : formatTemporalTimestamp(new Date(incomingWatermarkMs));
 
-	if (!force && localWatermarkMs !== null && incomingWatermarkMs !== null && localWatermarkMs > incomingWatermarkMs) {
-		return {
-			totalNodes: nodesToProcess.length,
-			nodesAdded: 0,
-			nodesUpdated: 0,
-			nodesUnchanged: 0,
-			nodesDeleted: 0,
-			nodesPhasedOut: 0,
-			contentUpdated: 0,
-			metadataUpdated: 0,
-			priorityUpdated: 0,
-			importTimestamp,
-			skipped: true,
-			skipReason:
-				`Local cache has newer data (${localWatermark}) than the backup snapshot (${incomingWatermark}). ` +
-				`The bulk-export endpoint likely returned a stale snapshot; refusing to import to avoid tombstoning newer local writes. ` +
-				`Pass force to override.`,
-			localWatermark,
-			incomingWatermark,
-		};
-	}
+	// The local watermark and the protected id set are computed once
+	// existingMetadataMap is loaded, below.
+	let localWatermark: string | null = null;
+	let protectedIds = new Set<string>();
 
 	// Reset diagnostic counters before comparison phase
 	metadataComparisonStats.reset();
@@ -643,6 +632,32 @@ export async function importBackup(
 	}
 	logTiming(`Loaded ${existingMetadataMap.size} existing metadata records into Map`);
 
+	// Newest content timestamp already in the cache, and the ids the incoming
+	// snapshot predates. `force` waives the protection and imports the snapshot
+	// verbatim, tombstoning anything it omits.
+	let localMaxUnix = 0;
+	for (const metadata of existingMetadataMap.values()) {
+		for (const stamp of [metadata.createdAt, metadata.modifiedAt, metadata.completedAt]) {
+			const unix = toUnixSeconds(stamp);
+			if (unix !== null && unix > localMaxUnix) localMaxUnix = unix;
+		}
+	}
+	localWatermark = localMaxUnix === 0 ? null : formatTemporalTimestamp(new Date(localMaxUnix * 1000));
+
+	if (!force && incomingMaxUnix > 0) {
+		const backupNodeIds = new Set(nodesToProcess.map((n) => n.id));
+		for (const [nodeId, metadata] of existingMetadataMap) {
+			if (backupNodeIds.has(nodeId)) continue;
+			const newest = Math.max(
+				toUnixSeconds(metadata.createdAt) ?? 0,
+				toUnixSeconds(metadata.modifiedAt) ?? 0,
+				toUnixSeconds(metadata.completedAt) ?? 0,
+			);
+			if (newest > incomingMaxUnix) protectedIds.add(nodeId);
+		}
+	}
+	logTiming(`Protected ${protectedIds.size} nodes newer than the snapshot`);
+
 	// resolvedPriorities is populated by the classification block below and read
 	// when building the node_metadata rows.
 	const resolvedPriorities = new Map<string, number>();
@@ -653,7 +668,7 @@ export async function importBackup(
 		// This is fail-safe: empty orphan set = nothing closed
 		// (vs the old approach where empty backup set = everything closed)
 		const backupNodeIds = new Set(nodesToProcess.map((n) => n.id));
-		orphanIds = [...existingContentMap.keys()].filter((id) => !backupNodeIds.has(id));
+		orphanIds = [...existingContentMap.keys()].filter((id) => !backupNodeIds.has(id) && !protectedIds.has(id));
 
 		// Sanity check: if backup has far fewer nodes than DB, something is wrong
 		if (nodesToProcess.length < existingContentMap.size * 0.5 && existingContentMap.size > 1000) {
@@ -825,6 +840,7 @@ export async function importBackup(
 			referencesRoots: referencesRootsRows,
 		},
 		importTimestampStr,
+		protectedIds,
 	);
 	logTiming(
 		`Merged node-keyed tables: ${mergeResult.nodeContent?.inserted ?? 0} content, ` +
@@ -1022,6 +1038,8 @@ export async function importBackup(
 		metadataUpdated,
 		priorityUpdated,
 		importTimestamp,
+		nodesPreserved: protectedIds.size,
+		skipped: false,
 		localWatermark,
 		incomingWatermark,
 	};
