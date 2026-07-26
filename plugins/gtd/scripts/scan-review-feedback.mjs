@@ -61,6 +61,40 @@ export function userText(obj) {
 	return text || null;
 }
 
+const ASK_PREFIXES = ['The user answered:', 'Your questions have been answered:'];
+
+function toolResultText(obj) {
+	if (obj?.type !== 'user') return null;
+	const block = contentBlocks(obj).find((b) => b?.type === 'tool_result');
+	if (!block) return null;
+	const content = block.content ?? block.text;
+	if (typeof content === 'string') return content;
+	if (Array.isArray(content)) {
+		return content
+			.filter((b) => b?.type === 'text' && typeof b.text === 'string')
+			.map((b) => b.text)
+			.join('\n');
+	}
+	return null;
+}
+
+// AskUserQuestion answers reach the transcript as tool_result blocks, so
+// isHumanUserMessage rejects them — yet they carry real user decisions,
+// including free-text typed into "Other". Match on the leading prefix only:
+// tool output that merely quotes the phrase mid-stream is not an answer.
+export function isAskUserQuestionAnswer(obj) {
+	const text = toolResultText(obj);
+	if (typeof text !== 'string') return false;
+	const trimmed = text.trimStart();
+	return ASK_PREFIXES.some((p) => trimmed.startsWith(p));
+}
+
+export function askAnswerText(obj) {
+	if (!isAskUserQuestionAnswer(obj)) return null;
+	const text = toolResultText(obj).trim();
+	return text || null;
+}
+
 export function assistantSummary(obj) {
 	if (obj?.type !== 'assistant') return '';
 	const blocks = contentBlocks(obj);
@@ -88,7 +122,11 @@ function cap(text) {
 	return text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + '…' : text;
 }
 
-export function extractFeedback(objs) {
+export function extractFeedback(objs, {cutoff = null} = {}) {
+	// Filter individual turns by timestamp rather than dropping whole sessions:
+	// a session opened days before the window still accumulates new feedback.
+	// Undated turns are kept — a missing timestamp is not evidence of staleness.
+	const withinWindow = (ts) => cutoff === null || !ts || Date.parse(ts) >= cutoff;
 	const turns = [];
 	let lastAssistant = '';
 	for (const obj of objs) {
@@ -97,8 +135,12 @@ export function extractFeedback(objs) {
 			if (s) lastAssistant = s;
 			continue;
 		}
+		const ts = obj?.timestamp ?? null;
+		if (!withinWindow(ts)) continue;
 		if (isHumanUserMessage(obj)) {
-			turns.push({ts: obj.timestamp ?? null, text: cap(userText(obj)), prevAssistant: lastAssistant});
+			turns.push({ts, source: 'typed', text: cap(userText(obj)), prevAssistant: lastAssistant});
+		} else if (isAskUserQuestionAnswer(obj)) {
+			turns.push({ts, source: 'ask', text: cap(askAnswerText(obj)), prevAssistant: lastAssistant});
 		}
 	}
 	return {turns};
@@ -146,8 +188,7 @@ function main(argv) {
 		if (!hasCommandInvocation(raw, marker)) continue;
 		const objs = parseLines(raw);
 		const startTs = objs.find((o) => o.timestamp)?.timestamp ?? null;
-		if (startTs && Date.parse(startTs) < cutoff) continue;
-		const {turns} = extractFeedback(objs);
+		const {turns} = extractFeedback(objs, {cutoff});
 		if (turns.length === 0) continue;
 		sessions.push({sessionId: objs[0]?.sessionId ?? name.replace('.jsonl', ''), file: path, startTs, turns});
 	}

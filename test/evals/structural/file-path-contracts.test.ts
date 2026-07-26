@@ -293,6 +293,8 @@ describe('Structural Eval: File Path Contracts', () => {
 		const knownOrphans = new Set([
 			// Legacy refine agents reference a project taxonomy file with no producer
 			'.llm/gtd-project-taxonomy.json',
+			// Private journal vocabulary is supplied outside the repository
+			'.llm/gtd/journal-vocabulary.md',
 			// people-disambiguation.md is referenced but has no producer agent
 			'.llm/gtd/people-disambiguation.md',
 			// Refinement proposals file referenced without a producer

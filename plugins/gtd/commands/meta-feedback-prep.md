@@ -38,7 +38,11 @@ Run the scanner — it does the heavy JSONL filtering and emits a compact extrac
 node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-review-feedback.mjs --since "<last_reviewed_iso>" > .llm/gtd/review/meta-feedback-scan.json
 ```
 
-`meta-feedback-scan.json` is `[{sessionId, file, startTs, turns: [{ts, text, prevAssistant}]}]`, covering only sessions that ran `/gtd:review:daily` since the watermark. Read it from disk; do not re-parse the raw `.jsonl`.
+`meta-feedback-scan.json` is `[{sessionId, file, startTs, turns: [{ts, source, text, prevAssistant}]}]`, covering only sessions that ran `/gtd:review:daily`. Read it from disk; do not re-parse the raw `.jsonl`.
+
+`startTs` is when the _session_ opened, which is often well before the watermark — a single long-lived session can span several days of reviews. Turns are filtered individually by `ts`, so treat every turn in the file as in-window and never re-filter by `startTs`.
+
+`source` distinguishes `"typed"` (the user wrote it) from `"ask"` (an `AskUserQuestion` answer, including free text typed into "Other"). Both are real user decisions and both count as feedback; `ask` turns carry the question alongside the chosen answer, so quote only the answer when citing one.
 
 ## Classify the feedback
 

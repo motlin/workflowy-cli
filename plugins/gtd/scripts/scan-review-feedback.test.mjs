@@ -3,9 +3,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
+	askAnswerText,
 	assistantSummary,
 	extractFeedback,
 	hasCommandInvocation,
+	isAskUserQuestionAnswer,
 	isHumanUserMessage,
 	userText,
 } from './scan-review-feedback.mjs';
@@ -121,6 +123,115 @@ test('extractFeedback returns human turns with the preceding assistant action, i
 	assert.match(turns[0].prevAssistant, /Bash/);
 	assert.equal(turns[1].text, 'we ALWAYS work on the skill first');
 	assert.equal(turns[0].ts, '2026-06-23T22:15:18.000Z');
+});
+
+test('extractFeedback keeps only turns at or after the cutoff, not whole sessions', () => {
+	const before = {
+		type: 'user',
+		timestamp: '2026-07-21T10:00:00.000Z',
+		message: {role: 'user', content: 'old turn from an earlier review'},
+	};
+	const after = {
+		type: 'user',
+		timestamp: '2026-07-24T10:00:00.000Z',
+		message: {role: 'user', content: 'the new correction'},
+	};
+	const cutoff = Date.parse('2026-07-23T00:00:00.000Z');
+	const {turns} = extractFeedback([before, assistantToolUse, after], {cutoff});
+	assert.deepStrictEqual(
+		turns.map((t) => t.text),
+		['the new correction'],
+	);
+});
+
+test('extractFeedback without a cutoff keeps every turn', () => {
+	const {turns} = extractFeedback([humanTyped, humanTypedBlockArray]);
+	assert.equal(turns.length, 2);
+});
+
+test('extractFeedback keeps turns whose timestamp is missing', () => {
+	const undated = {type: 'user', message: {role: 'user', content: 'undated but real'}};
+	const {turns} = extractFeedback([undated], {cutoff: Date.parse('2026-07-23T00:00:00.000Z')});
+	assert.deepStrictEqual(
+		turns.map((t) => t.text),
+		['undated but real'],
+	);
+});
+
+const askAnswer = {
+	type: 'user',
+	timestamp: '2026-07-26T17:15:33.000Z',
+	toolUseResult: {},
+	message: {
+		role: 'user',
+		content: [
+			{
+				type: 'tool_result',
+				tool_use_id: 'q1',
+				content: 'The user answered: "Skip any prep tasks?"="figure out why it\'s broken"',
+			},
+		],
+	},
+};
+
+const askAnswerMulti = {
+	type: 'user',
+	timestamp: '2026-07-26T17:20:00.000Z',
+	toolUseResult: {},
+	message: {
+		role: 'user',
+		content: [
+			{
+				type: 'tool_result',
+				tool_use_id: 'q2',
+				content:
+					'Your questions have been answered: "Skip set A"="Run all three", "Skip set B"="Run all three"',
+			},
+		],
+	},
+};
+
+// Bash output that merely quotes the phrase must not be mistaken for an answer.
+const bashEcho = {
+	type: 'user',
+	timestamp: '2026-07-26T17:21:00.000Z',
+	toolUseResult: {},
+	message: {
+		role: 'user',
+		content: [
+			{
+				type: 'tool_result',
+				tool_use_id: 'b1',
+				content: '{"txt":"RESULT:The user answered: \\"something\\"=\\"else\\""}',
+			},
+		],
+	},
+};
+
+test('isAskUserQuestionAnswer recognizes both answer prefixes', () => {
+	assert.equal(isAskUserQuestionAnswer(askAnswer), true);
+	assert.equal(isAskUserQuestionAnswer(askAnswerMulti), true);
+});
+
+test('isAskUserQuestionAnswer rejects tool output that merely quotes the phrase', () => {
+	assert.equal(isAskUserQuestionAnswer(bashEcho), false);
+	assert.equal(isAskUserQuestionAnswer(toolResultEcho), false);
+	assert.equal(isAskUserQuestionAnswer(humanTyped), false);
+});
+
+test('askAnswerText returns the raw answer payload', () => {
+	assert.match(askAnswerText(askAnswer), /figure out why it's broken/);
+	assert.match(askAnswerText(askAnswerMulti), /Run all three/);
+	assert.equal(askAnswerText(bashEcho), null);
+});
+
+test('extractFeedback captures AskUserQuestion answers as turns, marked by source', () => {
+	const {turns} = extractFeedback([assistantToolUse, humanTyped, askAnswer]);
+	assert.equal(turns.length, 2);
+	assert.equal(turns[0].source, 'typed');
+	assert.equal(turns[1].source, 'ask');
+	assert.match(turns[1].text, /figure out why it's broken/);
+	assert.equal(turns[1].ts, '2026-07-26T17:15:33.000Z');
 });
 
 test('extractFeedback caps very long turn text so the extract stays compact', () => {

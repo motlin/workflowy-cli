@@ -35,6 +35,17 @@ Refined journal text should read as proper sentences, even when the original ent
 
 Do not title-case the whole entry, and do not change ordinary mid-sentence verbs or casual phrasing. For example, `@Alice and I drove` keeps `drove` lowercase because it is a mid-sentence verb, not a sentence start or proper noun.
 
+## Emoji selection reflects who did it, not just the topic
+
+When choosing a leading emoji, the actor matters as much as the activity. Two entries about the same subject take different emoji depending on whether the user did the thing or someone else did it for them. Housework is the standard case:
+
+- The user personally cleaning → 🧹
+- A hired cleaning service doing it → 🧽
+
+Apply the same actor-first reasoning to other delegated chores (lawn care, repairs, laundry): pick the emoji that distinguishes "I did this" from "someone was hired to do this", so the journal stays scannable by who spent the effort.
+
+Household-specific vocabulary that signals a hired service — the nicknames the user actually types — lives in `.llm/gtd/journal-vocabulary.md`, not in this file. Read it before deciding the actor.
+
 ## Re-tagging a name is a judgment call, not a script
 
 Turning a written name into an `@mention` cannot be fully mechanized. The recurring failure is matching on the **first name alone** and attaching a tracked person, when the surrounding **surname or context** points to someone — or something — else:
