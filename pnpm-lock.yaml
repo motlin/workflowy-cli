@@ -40,7 +40,7 @@ importers:
         version: 0.113.0(zod@4.4.3)
       '@oclif/test':
         specifier: ^4
-        version: 4.1.20(@oclif/core@4.12.0)(supports-color@8.1.1)
+        version: 4.1.21(@oclif/core@4.12.0)(supports-color@8.1.1)
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -131,7 +131,7 @@ importers:
     devDependencies:
       '@oclif/test':
         specifier: ^4
-        version: 4.1.20(@oclif/core@4.12.0)(supports-color@10.2.2)
+        version: 4.1.21(@oclif/core@4.12.0)(supports-color@10.2.2)
       oclif:
         specifier: ^4
         version: 4.23.27(@types/node@26.1.0)(supports-color@10.2.2)
@@ -1364,8 +1364,8 @@ packages:
     resolution: {integrity: sha512-UKWXSisocp/0Mpob2JCOUymUwtRYIrlXEQdX73KvBgIqzrKiVILz+AOuL0HQexw3DZzu+2o7cKw8gyXe3FX3bA==}
     engines: {node: '>=18.0.0'}
 
-  '@oclif/test@4.1.20':
-    resolution: {integrity: sha512-gvamjt80ZPDeYQlwdeXDce/zTrSDkcw5LdTqTuM1L2cyQ0bu9R7DbB4stNLBjtAX+CG0JCuJzpLbPi+Ui769uQ==}
+  '@oclif/test@4.1.21':
+    resolution: {integrity: sha512-3Hsqv1mo7P/n8qXKJ4nLTYISA3oPzXGZDc4R9ioi5hpK1lQ7UI1ZcLkt0aKJ1qMKrYStzk20IWhcPRT0Vpteyw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@oclif/core': '>= 3.0.0'
@@ -6575,7 +6575,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@oclif/test@4.1.20(@oclif/core@4.12.0)(supports-color@10.2.2)':
+  '@oclif/test@4.1.21(@oclif/core@4.12.0)(supports-color@10.2.2)':
     dependencies:
       '@oclif/core': 4.12.0
       ansis: 3.17.0
@@ -6583,7 +6583,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@oclif/test@4.1.20(@oclif/core@4.12.0)(supports-color@8.1.1)':
+  '@oclif/test@4.1.21(@oclif/core@4.12.0)(supports-color@8.1.1)':
     dependencies:
       '@oclif/core': 4.12.0
       ansis: 3.17.0
