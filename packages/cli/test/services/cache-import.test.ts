@@ -181,16 +181,16 @@ describe('cache-import service', () => {
 			const parent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'parent-1')).get()!;
 			expect(parent.parentId).toBeNull();
 
-			const childContentRecords = ['child-1', 'child-2'].map(
-				(id) => testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
+			const childContentRecords = ['child-1', 'child-2'].map((id) =>
+				testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
 			);
 			expect(childContentRecords.map((c) => ({id: c.id, parentId: c.parentId}))).toStrictEqual([
 				{id: 'child-1', parentId: 'parent-1'},
 				{id: 'child-2', parentId: 'parent-1'},
 			]);
 
-			const childMetaRecords = ['child-1', 'child-2'].map(
-				(id) => testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, id)).get()!,
+			const childMetaRecords = ['child-1', 'child-2'].map((id) =>
+				testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, id)).get()!,
 			);
 			expect(childMetaRecords.map((m) => ({nodeId: m.nodeId, priority: m.priority}))).toStrictEqual([
 				{nodeId: 'child-1', priority: 0},
@@ -332,8 +332,8 @@ describe('cache-import service', () => {
 			const initialPath = writeBackupFile(initialBackup);
 			await importBackup(testDatabase.db, initialPath, 'backup.json');
 
-			const metas = ['node-1', 'node-2'].map(
-				(id) => testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, id)).get()!,
+			const metas = ['node-1', 'node-2'].map((id) =>
+				testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, id)).get()!,
 			);
 			expect(metas.map((m) => ({nodeId: m.nodeId, priority: m.priority}))).toStrictEqual([
 				{nodeId: 'node-1', priority: 0},
@@ -350,8 +350,8 @@ describe('cache-import service', () => {
 			const initialPath = writeBackupFile(initialBackup);
 			await importBackup(testDatabase.db, initialPath, 'backup.json');
 
-			const records = ['child-1', 'parent-a'].map(
-				(id) => testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
+			const records = ['child-1', 'parent-a'].map((id) =>
+				testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
 			);
 			expect(records.map((r) => ({id: r.id, parentId: r.parentId}))).toStrictEqual([
 				{id: 'child-1', parentId: 'parent-a'},

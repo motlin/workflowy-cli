@@ -147,8 +147,8 @@ describe('cache-import-api service', () => {
 				priorityUpdated: 0,
 			});
 
-			const records = ['parent-1', 'child-1', 'child-2'].map(
-				(id) => testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
+			const records = ['parent-1', 'child-1', 'child-2'].map((id) =>
+				testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
 			);
 			expect(records.map((r) => ({id: r.id, parentId: r.parentId}))).toStrictEqual([
 				{id: 'parent-1', parentId: null},
