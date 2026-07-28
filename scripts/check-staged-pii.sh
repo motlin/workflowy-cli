@@ -3,7 +3,10 @@ set -euo pipefail
 
 denylist_path=".llm/personal-names-denylist.txt"
 
-mapfile -t staged_paths < <(git diff --cached --name-only --diff-filter=ACMR -- plugins .claude)
+staged_paths=()
+while IFS= read -r staged_path; do
+	staged_paths+=("$staged_path")
+done < <(git diff --cached --name-only --diff-filter=ACMR -- plugins .claude)
 if [ "${#staged_paths[@]}" -eq 0 ]; then
 	exit 0
 fi
@@ -13,7 +16,10 @@ if [ ! -f "$denylist_path" ]; then
 	exit 1
 fi
 
-mapfile -t denylist_patterns < <(sed 's/[[:space:]]*#.*$//' "$denylist_path" | sed '/^[[:space:]]*$/d')
+denylist_patterns=()
+while IFS= read -r denylist_pattern; do
+	denylist_patterns+=("$denylist_pattern")
+done < <(sed 's/[[:space:]]*#.*$//' "$denylist_path" | sed '/^[[:space:]]*$/d')
 if [ "${#denylist_patterns[@]}" -eq 0 ]; then
 	echo "PII guard blocked this commit: $denylist_path is empty."
 	exit 1
