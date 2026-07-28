@@ -35,17 +35,6 @@ Refined journal text should read as proper sentences, even when the original ent
 
 Do not title-case the whole entry, and do not change ordinary mid-sentence verbs or casual phrasing. For example, `@Alice and I drove` keeps `drove` lowercase because it is a mid-sentence verb, not a sentence start or proper noun.
 
-## Emoji selection reflects who did it, not just the topic
-
-When choosing a leading emoji, the actor matters as much as the activity. Two entries about the same subject take different emoji depending on whether the user did the thing or someone else did it for them. Housework is the standard case:
-
-- The user personally cleaning → 🧹
-- A hired cleaning service doing it → 🧽
-
-Apply the same actor-first reasoning to other delegated chores (lawn care, repairs, laundry): pick the emoji that distinguishes "I did this" from "someone was hired to do this", so the journal stays scannable by who spent the effort.
-
-Household-specific vocabulary that signals a hired service — the nicknames the user actually types — lives in `.llm/gtd/journal-vocabulary.md`, not in this file. Read it before deciding the actor.
-
 ## Re-tagging a name is a judgment call, not a script
 
 Turning a written name into an `@mention` cannot be fully mechanized. The recurring failure is matching on the **first name alone** and attaching a tracked person, when the surrounding **surname or context** points to someone — or something — else:
@@ -59,4 +48,6 @@ So evaluate **every** candidate tag on its own, using the full name and the surr
 - If a generic role word ("parents", "kids", "the girls") is part of a proper-noun event or place name, it is not a relational reference — do not substitute people.
 - If a tag already contains the surname and the surname repeats as the next word, the trailing word is an orphan — drop it: `@AliceBrown Brown` → `@AliceBrown`.
 
-**When in doubt, leave it plain. A missing tag is cheap to add later; a wrong tag silently corrupts attribution.** If you think a name resolves to a tracked person but are not certain, raise it with the user rather than guessing.
+### Resolve names mentioned together as a group, not one at a time
+
+When two or more first names appear together in one entry ("it was also Alice and Bob", "we went with Carol and Dave"), they are usually a couple, a family, or a household — so resolve them **jointly**, not independently. Independent resolution produces mismatched pairs.
