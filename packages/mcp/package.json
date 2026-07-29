@@ -9,7 +9,7 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@modelcontextprotocol/sdk": "^1.30.0",
 		"@workflowy/shared": "workspace:*",
 		"better-sqlite3": "^13.0.1",
 		"drizzle-orm": "^0.45.2",
