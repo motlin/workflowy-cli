@@ -26,7 +26,7 @@
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"react-hotkeys-hook": "^5.3.3",
-		"react-router-dom": "^7.18.1",
+		"react-router-dom": "^7.18.2",
 		"sqlite-vec": "^0.1.9",
 		"zod": "^4.4.3",
 		"zustand": "^5.0.14"
