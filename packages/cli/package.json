@@ -16,7 +16,7 @@
 		"chalk": "^6.0.0",
 		"drizzle-orm": "^0.45.2",
 		"dropbox": "^10.38.0",
-		"node-html-parser": "^9.0.0",
+		"node-html-parser": "^9.0.1",
 		"pino": "^10.3.1",
 		"sql-formatter": "^15.8.2",
 		"sql-highlight": "^6.1.0",
