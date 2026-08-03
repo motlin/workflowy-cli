@@ -22,7 +22,7 @@
 		"@types/node": "^26.1.2",
 		"drizzle-kit": "^0.31.10",
 		"eslint": "^10.8.0",
-		"fallow": "^3.10.0",
+		"fallow": "^3.11.0",
 		"vitest": "catalog:",
 		"markdownlint-cli2": "^0.23.2",
 		"oclif": "^4",
