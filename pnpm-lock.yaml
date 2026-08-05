@@ -108,8 +108,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.2)
       dropbox:
-        specifier: ^10.40.0
-        version: 10.40.0
+        specifier: ^10.41.0
+        version: 10.41.0
       node-html-parser:
         specifier: ^9.0.1
         version: 9.0.1
@@ -3347,8 +3347,8 @@ packages:
       sqlite3:
         optional: true
 
-  dropbox@10.40.0:
-    resolution: {integrity: sha512-ZNfRwKupqUDxDFxrPNAtGgpqW3ASMJ2tLXUuNRXK3aotwyt8cw4kD3X6O0a722mlbL9AuNN94Cv/jh31+a6BbQ==}
+  dropbox@10.41.0:
+    resolution: {integrity: sha512-ZwrwadXhQrPGnyDU5pTDHpl6L2kwVMsubbSnh0MIbgvNdwKhbQT7Z3ddyqRTCvQ+U79enOsPqNOhe4+J9qWn2Q==}
     engines: {node: '>=22'}
 
   dunder-proto@1.0.1:
@@ -8052,7 +8052,7 @@ snapshots:
       '@types/better-sqlite3': 9.6.0
       better-sqlite3: 13.0.2
 
-  dropbox@10.40.0: {}
+  dropbox@10.41.0: {}
 
   dunder-proto@1.0.1:
     dependencies:
