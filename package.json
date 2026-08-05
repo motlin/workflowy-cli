@@ -9,7 +9,7 @@
 		"workflowy": "./bin/run.js"
 	},
 	"dependencies": {
-		"@oclif/core": "^4.13.2",
+		"@oclif/core": "^4.13.3",
 		"@oclif/plugin-help": "^6",
 		"@workflowy/shared": "workspace:*",
 		"drizzle-orm": "^0.45.2",
