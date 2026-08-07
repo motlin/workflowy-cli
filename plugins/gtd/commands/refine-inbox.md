@@ -59,7 +59,7 @@ After refinement completes, fetch the item to see the written suggestion:
 Parse the `🔍 Refinement` child to extract:
 
 - `refinementNodeId` - ID of the `🔍 Refinement` node
-- `moveToNodeId` - ID of the `📍 Move to:` child
+- `moveToNodeId` - ID of the `📍 Move to:` child. This node holds the destination **path as text**; it is not the destination parent. Use it only to rewrite the suggestion (`node update --name "📍 Move to: …"`), never as a `node move --parent-id` target, and never stage it in a proposals JSON — see the one-id rule in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`.
 - `destination` - path from `📍 Move to:` child (text after the prefix)
 - `confidence` - from `📊 Confidence:` sub-child
 - `suggestedText` - from `✏️ Text:` child
@@ -203,7 +203,7 @@ Extract items with `🔍 Refinement` children. For each, build a review record w
 
 - `itemId`, `itemName`
 - `refinementNodeId` - ID of the `🔍 Refinement` node
-- `moveToNodeId` - ID of the `📍 Move to:` child
+- `moveToNodeId` - ID of the `📍 Move to:` child. This node holds the destination **path as text**; it is not the destination parent. Use it only to rewrite the suggestion (`node update --name "📍 Move to: …"`), never as a `node move --parent-id` target, and never stage it in a proposals JSON — see the one-id rule in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`.
 - `destination` - path from `📍 Move to:` child
 - `confidence` - from `📊 Confidence:` sub-child
 - `suggestedText` - from `✏️ Text:` child

@@ -91,6 +91,14 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<slug>.
 | `ambiguity` | Optional `{ prompt, options[] }` when prep could not decide. Replaces the standard Accept/Reject options for that item. |
 | `applyOps` | Array of exact CLI command strings the walk runs **verbatim** on Accept, never re-deriving them. Any `node update --name` op **must** carry `--expect-name '<before>'` (see below). |
 
+#### One id per proposal
+
+`nodeId` is the **only** bare node id a proposal may carry. Every other id belongs inside an `applyOps` string, already bound to its flag (`--parent-id <uuid>`). A second bare id field is read by whoever applies the proposal as a write target, and it is usually the wrong node.
+
+The concrete trap: `refine-inbox` names the `📍 Move to:` child of a `🔍 Refinement` suggestion `moveToNodeId` (see `${CLAUDE_PLUGIN_ROOT}/commands/refine-inbox.md`). That node holds the destination **path as text** — it is not the destination parent, and it is deleted along with its suggestion node during apply. Staging it moves the item under its own suggestion, or 404s once the suggestion is gone. Destinations resolve by path or from `.llm/gtd/metadata/` at apply time, never from a staged id.
+
+Inert per-task fields (counts, labels, `fingerprint`, `inbox`) are fine; only id-shaped fields are barred.
+
 ### Change icons
 
 | Icon | Type        | Description                                   |
@@ -155,6 +163,15 @@ Present `proposals[]` in **batches of up to 4** using `AskUserQuestion` — one 
 
 For each proposal, the question text includes the full `before`, the full `after`, and the `changes[]` rendered as `<icon> <detail>` lines. Use `header` for the question header.
 
+### Everything the user approves goes inside the question
+
+The user reads the `AskUserQuestion` body, not the scrolling console and not the filesystem. So:
+
+- **Never** point at an external artifact to approve in bulk — no "I wrote the 40 proposals to `/tmp/proposals.md`, tell me which to accept", no "accept items 3-17", no console dump followed by "look good?". If it is not in the question body, it was not shown.
+- **Never** exceed 4 proposals per `AskUserQuestion` call. More rounds is the correct cost.
+- **Always show the resolved `after`**, never a template. An emoji proposal's `after` line renders the actual recommended emoji (`👦 @Alice had a playdate…`), never `<emoji>` or a placeholder — the user is picking between concrete rendered strings, and a placeholder makes the choice unreadable.
+- The staged emoji is the **first** option and is labeled as the recommendation; the remaining `ambiguity.options` follow, and `AskUserQuestion` adds "Other" for a custom emoji.
+
 Options per proposal:
 
 - **Accept** — run this proposal's `applyOps` verbatim.
@@ -201,6 +218,13 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 
 ## Verification
 
-- **Schema shape-check:** `jq` each staged file against the fields above (`jq -e '.task and .status and (.proposals|type=="array")' .llm/gtd/review/proposals/<slug>.json`).
+- **Schema shape-check:** run the validator on each staged file before the walk consumes it. It exits non-zero and names the offending proposals on a stray id, a short-id `nodeId`, a `--name` op missing `--expect-name`, a non-`ready` status carrying proposals, or a missing required field:
+
+    ```bash
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/<slug>.json
+    ```
+
+    A file that fails validation is a prep bug: fix the prep command rather than hand-editing the artifact.
+
 - **Dry-run staging:** a prep `--dry-run` writes the `.json` but makes **zero** `node update`/`node create` calls — only `.llm/gtd/review/` is touched.
 - **applyOps fidelity:** the walk runs `applyOps` verbatim; a stubbed-Accept walk over a fixture asserts the exact staged commands ran and the executor received success.
