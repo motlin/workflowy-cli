@@ -1,6 +1,6 @@
 ---
 name: refine-journal-prep
-description: Prep half of journal refinement — load metadata, scan one archive month plus the recent live calendar window, compute people/hobby/category/typo/emoji refinements, and stage them to .llm/gtd/review/proposals/refine-journal.json. Autonomous only; mutates no nodes and does not advance Scanner-State.
+description: Prep half of journal refinement — load metadata, scan the recent live calendar window (plus one archive month only in archive mode), compute people/hobby/category/typo/emoji refinements, and stage them to .llm/gtd/review/proposals/refine-journal.json. Autonomous only; mutates no nodes and does not advance Scanner-State.
 ---
 
 # Refine Journal — Prep
@@ -18,6 +18,15 @@ This command runs inside a Phase 0 prep subagent (`${CLAUDE_PLUGIN_ROOT}/skills/
 - **No Scanner-State advance.** Do **not** add the archive month to `months_completed`, move `last_completed_month`, or write recent-live coverage. That happens only in `refine-journal-apply`, so an aborted prep never skips a month or marks live entries covered. You may set `current_month_in_progress` for visibility, but do not advance.
 - **Read, don't rebuild, metadata.** The DAG runs `metadata-sync` once before fan-out. Read the cached `.llm/gtd/metadata/` files; never trigger a concurrent rebuild.
 - **`--dry-run`** is the verification mode: compute and write the `.json`, but the assertion is that zero `node` writes happen — which is already true for prep. Honor it as a no-op that still stages.
+
+## Scope: recent by default, archive only on request
+
+Two modes, and the default is the narrow one:
+
+- **Recent mode (default, and always what the daily review runs).** Scan only the recent live window. Stage no `scope: "archive"` proposals and do not read the archive cursor at all.
+- **Archive mode.** Additionally scan one backwards archive month. Enter this mode **only** when the invocation explicitly asks for it — a standalone `/gtd:refine-journal` run whose arguments request archive backfill (e.g. `archive`, `backfill`, or a named month). The Phase 0 DAG never requests it.
+
+The backwards walk was generating almost nothing but "this 2022 entry lacks a leading emoji" and drowning the handful of real fixes on recent entries, so it is opt-in. When in recent mode, skip the archive month selection below and leave `last_completed_month` / `months_completed` untouched.
 
 ## Pick the archive month and recent window
 
@@ -42,9 +51,9 @@ State lives under `Metadata > ⚙️ Scanner State > refine-journal` as a JSON c
 ./bin/run.js node get --path "Metadata,⚙️ Scanner State,refine-journal" --depth 2
 ```
 
-Read this state, then pick the archive month immediately **before** `last_completed_month` (backwards through time). If no state exists yet, check whether `refine-calendar` or `calendar-people-tagging` state exists and migrate from it (same format, just rename the key). Do not write the advance back here.
+**In archive mode only**, read this state, then pick the archive month immediately **before** `last_completed_month` (backwards through time). If no state exists yet, check whether `refine-calendar` or `calendar-people-tagging` state exists and migrate from it (same format, just rename the key). Do not write the advance back here.
 
-Also compute the recent live window: the current calendar month and the prior calendar month, based on the local date at runtime. This window is always scanned every run, regardless of `months_completed` or `recent_live_months_reviewed`, because live entries are still changing and newly-created entries otherwise never receive emoji, people, hobby, typo, media, or `#exercise` refinements.
+Compute the recent live window in both modes: the current calendar month and the prior calendar month, based on the local date at runtime. This window is always scanned every run, regardless of `months_completed` or `recent_live_months_reviewed`, because live entries are still changing and newly-created entries otherwise never receive emoji, people, hobby, typo, media, or `#exercise` refinements.
 
 Track the two concepts separately:
 
@@ -132,7 +141,7 @@ Combine with the registry lookups already loaded (hobbies registry, context-tags
 
 **Read live text fresh — never from a stale snapshot.** The DAG's `Import` barrier has already rewritten the local cache to the current API state, so derive every entry's `before` from a fresh `node get` run in this prep. Do not reuse a prior staged proposal, an older `.llm` calendar dump, or entry text carried from an earlier step. The `--expect-name` guard is the backstop, but staged `before` text should already match live data.
 
-Use the calendar archive path with the target archive month:
+In archive mode, use the calendar archive path with the target archive month (skip this fetch entirely in recent mode):
 
 ```bash
 ./bin/run.js node get --path "Personal,📅 Calendar,🗃️ Archive,2020 - 2029 decade,<year>,<month>" --depth 3
@@ -161,7 +170,9 @@ When scanning the live tree:
 
 For each in-scope archive or recent live entry, scan for all refinement types simultaneously, applying the rules below. **Tag first, emoji second** so tag-based emoji mappings work. Never truncate entry text. Do not present anything — compute the full `before`/`after` and the exact `applyOps`, then stage.
 
-Also apply the shared `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`.
+Also apply the shared `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`, including its actor-first emoji rule.
+
+Read `.llm/gtd/journal-vocabulary.md` when it exists (gitignored; holds the household shorthand and the voice-to-text mishearing table). It resolves terms that look like typos but are not, and mishearings that look correct but are not — neither is inferable from the entry text alone. Never copy its contents into `plugins/`.
 
 ### Change type indicators
 
@@ -352,6 +363,21 @@ For each `#tag` already written in an entry, classify it against the known-tag s
 - **One-off junk** — count ≤ 1, resolves nowhere, not a plausible new tag (e.g. a sentence-fragment tag). Stage a **⚠️** proposing removal from the entry, with the text-with-tag-removed as the candidate `after`. Let the user decide — never silently strip a tag.
 
 Only surface tags that clearly fall into one of these buckets; when frequency data is missing or a tag is ambiguous, leave it untouched. Never invent or add a tag that the entry does not already contain.
+
+#### Sweep the tail of a casing variant in one proposal
+
+Fixing a casing variant one entry per daily run never finishes — `#Milestone` sat at 4 remaining uses while single entries trickled through. When the frequency map shows a variant has **≤ 10 remaining uses repo-wide**, stage **one** proposal that fixes every remaining occurrence instead of one proposal per entry:
+
+- Find every current node still carrying the variant. `LIKE` is case-insensitive in SQLite, so match case-sensitively with `GLOB`:
+
+    ```bash
+    ./bin/run.js node search --query "<tag>" --limit 50 --json
+    ```
+
+- `header` names the tag (e.g. `"#Milestone → #milestone (4 uses)"`), `before`/`after` list every affected entry in full, and `applyOps` holds **one** `node update … --expect-name` op per entry.
+- A single stale entry only fails its own op; the rest of the sweep still applies.
+
+Above 10 remaining uses, keep the per-entry behavior — a huge multi-entry proposal is unreviewable.
 
 ### Emoji rules
 

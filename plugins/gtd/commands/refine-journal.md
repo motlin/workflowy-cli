@@ -12,4 +12,10 @@ This command was split into two focused halves so the daily review's Phase 0 DAG
 
 For a standalone manual run, invoke them in order: run `/gtd:refine-journal-prep`, then `/gtd:refine-journal-apply`.
 
+## Archive backfill is opt-in, and this is where you ask for it
+
+Prep defaults to **recent mode** — the current and prior live calendar months only. The backwards archive walk runs only when the invocation asks for it, and the daily review never does; almost every archive proposal was "this old entry lacks a leading emoji", which buried the handful of real fixes on recent entries.
+
+To backfill history, say so when invoking this command (`/gtd:refine-journal archive`, or name a month). Prep then also scans the next month backwards from `last_completed_month`, and apply gates that block behind its own confirmation before touching anything.
+
 The on-disk contract both halves share is documented in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`.

@@ -25,10 +25,10 @@ Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-prop
 
 ### Recent first, then ask before the archive block
 
-Each proposal carries a `scope` (`"recent"` or `"archive"`). Split the walk in two, and **never present archive entries without an explicit go-ahead** — a daily run is expected to refine recent entries, not silently grind decade-old archive months:
+Each proposal carries a `scope` (`"recent"` or `"archive"`). In recent mode — which is what the daily review always runs — prep stages no archive proposals at all, so the walk is just the recent block. Archive proposals appear only from an explicit standalone archive-mode run.
 
-1. **Recent block.** Present every `scope: "recent"` proposal first (batches of 4), applying accepted ops as usual.
-2. **Archive gate.** If any `scope: "archive"` proposals remain, ask once via a single `AskUserQuestion`: whether to also refine the `N` archive entries from `summary.archiveMonth` now (options: do them now / skip the archive this run). Put the month and count in the question text.
+- **Recent block.** Present every `scope: "recent"` proposal (batches of 4), applying accepted ops as usual.
+- **Archive gate.** If any `scope: "archive"` proposals are present, ask once via a single `AskUserQuestion` whether to refine the `N` archive entries from `summary.archiveMonth` now (options: do them now / skip the archive this run). Put the month and count in the question text.
     - **Accepted** → present the archive block (batches of 4) and apply as usual, then advance the archive cursor in Scanner-State (below).
     - **Skipped** → make no archive writes and **do not** advance the archive cursor (`months_completed` / `last_completed_month` / `current_month_in_progress` stay put) so the same month is offered again next run. Still record recent-live coverage and return success.
 
@@ -55,7 +55,7 @@ Return success or empty after Scanner-State is persisted. The DAG executor owns 
 
 Output a brief summary folded into the daily review:
 
-- Archive month applied
+- Archive month applied (archive mode only)
 - Recent live months reviewed
 - Total entries reviewed (from `summary.entriesReviewed`)
 - Total entries updated / skipped
