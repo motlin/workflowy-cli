@@ -136,7 +136,7 @@ For each confirmed item, create a node under `Inbox`:
 
 **Enrich the description while you still have the meeting fresh in context — get ahead of refinement.** You just read the transcript, so you know things the later `/gtd:inbox` refinement would have to re-derive from a bare title. Fold whatever you can infer into the node name (and pick the right inbox — Work vs Personal — for the item):
 
-- **@people** the item involves (resolve to canonical @mentions), e.g. `@Vicky`, `@Talia`.
+- **@people** the item involves (resolve to canonical @mentions), e.g. `@Alice`, `@Bob`.
 - **Work vs personal** context — a `#work`/`#personal` tag, and file it under the matching Inbox.
 - **A due date** if the meeting implied one (`<time>` element per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`), or a soft-urgency note if it's event-driven but undated.
 - Any concrete specifics the transcript gave (names, amounts, deliverable details) so the item reads on its own.
