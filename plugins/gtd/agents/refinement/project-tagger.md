@@ -8,7 +8,7 @@ description: |
     <example>
     Context: Refining an inbox item that reads "Order new cabinet pulls for the kitchen remodel"
     user: "Refine item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Returns {tag: '#home-renovation', confidence: 0.88, reasoning: 'kitchen remodel maps to the home-renovation project'}]"
+    assistant: "[Returns {tag: '#home-renovation', confidence: 'high', reasoning: 'kitchen remodel maps to the home-renovation project'}]"
     <commentary>
     The item clearly belongs to one active project, so the tagger returns that project's tag.
     </commentary>
@@ -17,7 +17,7 @@ description: |
     <example>
     Context: Refining an inbox item that reads "Buy milk"
     user: "Refine item 1234"
-    assistant: "[Returns {tag: null, confidence: 0.9, reasoning: 'generic errand with no project match'}]"
+    assistant: "[Returns {tag: null, confidence: 'high', reasoning: 'generic errand with no project match'}]"
     <commentary>
     No project matches, so the tagger returns null rather than guessing.
     </commentary>
@@ -33,11 +33,11 @@ Return ONLY this JSON:
 ```json
 {
 	"tag": "#home-renovation",
-	"confidence": 0.88,
+	"confidence": "high",
 	"reasoning": "Kitchen remodel maps to the home-renovation project."
 }
 ```
 
 - `tag`: the matched project's `#tag`, or `null` when nothing fits.
-- `confidence`: 0.0-1.0.
+- `confidence`: `high`, `medium`, or `low` — never a number or a percentage.
 - `reasoning`: one short sentence.

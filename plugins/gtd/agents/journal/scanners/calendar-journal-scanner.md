@@ -36,7 +36,7 @@ Past calendar events (meetings, appointments, activities).
 	"children": ["10:00am - 10:30am", "Zoom"],
 	"source": "calendar",
 	"category": "meeting",
-	"confidence": 0.95
+	"confidence": "high"
 }
 ```
 

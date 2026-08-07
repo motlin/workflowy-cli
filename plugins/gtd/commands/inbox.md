@@ -92,10 +92,10 @@ Call John about project
     ├── ➕ Added: <time ...>Mon, Jan 5, 2026</time>
     ├── 🏠 Context: #home #call
     ├── 👤 Person: @JohnSmith (found "John")
-    ├── 💡 Project: #home-renovation (85% match)
+    ├── 💡 Project: #home-renovation (high confidence)
     ├── 📅 Due: Fri, Jan 3, 2025
     ├── 📍 Move to: Personal > ☑️ Next > Work
-    │   └── 📊 Confidence: 90%
+    │   └── 📊 Confidence: high
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
@@ -104,7 +104,7 @@ For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to
 **Handling missing data:**
 
 - No `📍 Move to:` -> Skip item (cannot move without destination)
-- No `📊 Confidence:` -> Treat as low confidence (0.0)
+- No `📊 Confidence:` -> Treat as `low` confidence
 - No `✏️ Text:` -> Keep original item text
 - No `📜 Provenance:` -> Set to null
 
@@ -122,7 +122,7 @@ Present each item with its suggested destination and confidence. Always include 
 - The "Other" option (auto-added by AskUserQuestion) lets the user specify a different destination or action
 
 ```text
-Question: "'Buy groceries' -> ☑️ Next Actions (55%)"
+Question: "'Buy groceries' -> ☑️ Next Actions (medium confidence)"
 
 Options:
 - "Accept" (☑️ Next Actions)

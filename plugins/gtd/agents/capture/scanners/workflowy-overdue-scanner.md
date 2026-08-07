@@ -3,14 +3,14 @@ name: workflowy-overdue-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan the Workflowy review tree for tasks with past due dates that need rescheduling or completion. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan the Workflowy review tree for tasks with past due dates that need rescheduling or completion. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Workflowy overdue scan
     user: "Scan Workflowy for overdue tasks"
     assistant: "[Scans Workflowy review tree for past due dates, returns JSON to .llm/gtd/capture/scans/workflowy-overdue.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -128,27 +128,24 @@ if (timeMatch) {
 
 ## Assess Confidence
 
-Calculate a confidence score (0.0-1.0) based on how overdue the item is:
+Assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage — based on how overdue the item is:
 
-**High Confidence (0.85-0.95):**
+**`high`:**
 
 - Very overdue (> 14 days past due)
 - Has clear task language (action verbs like "do", "complete", "submit")
 - Contains urgency indicators in name or note
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium`:**
 
 - Moderately overdue (7-14 days past due)
 - Standard task formatting
 - Has parent context (part of a project)
-
-**Medium Confidence (0.55-0.70):**
-
 - Recently overdue (3-7 days past due)
 - May be a recurring or flexible deadline
 - Ambiguous task vs reference content
 
-**Lower Confidence (0.40-0.55):**
+**`low`:**
 
 - Just overdue (1-2 days past due)
 - May have been intentionally postponed
@@ -167,7 +164,7 @@ Create items with the following structure:
 
 - **id**: `workflowy-overdue-<12-char-id>` using the first 12 chars of the Workflowy node ID
 - **title**: Original node name (preserve exactly, including HTML formatting)
-- **confidence**: Calculated confidence score
+- **confidence**: The assigned confidence label (`high`, `medium`, or `low`)
 - **metadata**: Additional context
 
 **Metadata includes:**
@@ -195,7 +192,7 @@ Each item includes `children` with provenance info. Strip `<time>` HTML tags fro
 		{
 			"id": "workflowy-overdue-abc123def456",
 			"title": "Submit expense report",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: workflowy://abc123def456-7890-abcd-ef12-34567890abcd"},
 				{"name": "➕ Added: <time startYear=\"2026\" startMonth=\"1\" startDay=\"4\">Sat, Jan 4, 2026</time>"},
@@ -213,7 +210,7 @@ Each item includes `children` with provenance info. Strip `<time>` HTML tags fro
 		{
 			"id": "workflowy-overdue-xyz789uvw012",
 			"title": "Review quarterly goals",
-			"confidence": 0.65,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: workflowy://xyz789uvw012-3456-ghij-7890-klmnopqrstuv"},
 				{"name": "➕ Added: <time startYear=\"2026\" startMonth=\"1\" startDay=\"4\">Sat, Jan 4, 2026</time>"},

@@ -44,7 +44,7 @@ Title format: "Read: [title]", "Watched: [title]", "Studied: [title]"
 	"sourceUrl": "https://example.com/building-ai-agents",
 	"source": "chrome",
 	"category": "article",
-	"confidence": 0.7
+	"confidence": "medium"
 }
 ```
 

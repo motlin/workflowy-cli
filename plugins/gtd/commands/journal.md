@@ -152,7 +152,7 @@ Each scanner returns events in this format:
   "eventTime": "HH:MM",
   "source": "<scanner-name>",
   "category": "<event-category>",
-  "confidence": 0.85,
+  "confidence": "high",
   "metadata": {
     "...source-specific fields..."
   }

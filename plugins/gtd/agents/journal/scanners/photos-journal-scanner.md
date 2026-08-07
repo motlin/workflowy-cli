@@ -36,7 +36,7 @@ Look for photos from the last 7 days that indicate:
 	"children": ["New York, NY"],
 	"source": "photos",
 	"category": "activity",
-	"confidence": 0.75
+	"confidence": "medium"
 }
 ```
 

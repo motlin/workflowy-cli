@@ -18,7 +18,7 @@ All journal scanners write to `.llm/gtd/journal/scans/<source>.json`.
   "children": ["Detail 1", "Detail 2"],
   "source": "<source>",
   "category": "purchase|travel|meeting|activity|task",
-  "confidence": 0.85,
+  "confidence": "high",
   "metadata": { ... }
 }
 ```
@@ -32,7 +32,7 @@ All journal scanners write to `.llm/gtd/journal/scans/<source>.json`.
 | `eventDate`  | `YYYY-MM-DD`                                      |
 | `emoji`      | Source emoji (see below)                          |
 | `source`     | Scanner name                                      |
-| `confidence` | 0.0-1.0                                           |
+| `confidence` | `"high"`, `"medium"`, or `"low"` — never a number |
 
 ## Optional Fields
 

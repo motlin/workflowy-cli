@@ -3,14 +3,14 @@ name: otter-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan Otter.ai meeting transcripts for action items and follow-ups from recent meetings. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan Otter.ai meeting transcripts for action items and follow-ups from recent meetings. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Otter.ai scan
     user: "Scan Otter transcripts for capturable items"
     assistant: "[Scans Otter.ai transcripts, returns JSON to .llm/gtd/capture/scans/otter.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -131,9 +131,9 @@ Skip items that match declined items from `declined.json`. Match by the generate
 
 ## Assess Confidence
 
-For each action item, calculate a confidence score (0.0-1.0) based on:
+For each action item, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage.
 
-**High Confidence (0.85-0.95):**
+**`high`:**
 
 - Explicit action item markers ("action item:", "TODO:")
 - Clear assignment with owner mentioned
@@ -141,21 +141,18 @@ For each action item, calculate a confidence score (0.0-1.0) based on:
 - First-person commitment ("I'll do X by Friday")
 - Request with specific ask ("can you send me the report?")
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium`:**
 
 - "next steps" or "takeaways" context
 - "we need to" or "we should" without specific owner
 - Clear follow-up mention ("follow up with John")
 - Meeting from the last 3 days
-
-**Medium Confidence (0.55-0.70):**
-
 - General discussion of things to do
 - Questions that may need follow-up
 - "let's discuss" without clear action
 - Meeting from 4-7 days ago
 
-**Lower Confidence (0.40-0.55):**
+**`low`:**
 
 - Vague suggestions
 - Items without clear ownership
@@ -199,7 +196,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "otter-abc123def456",
 			"title": "Send updated timeline to stakeholders",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: otter://abc123def456"},
 				{
@@ -219,7 +216,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "otter-xyz789uvw012",
 			"title": "[Team Sync] - Follow up with Alice on budget approval",
-			"confidence": 0.78,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: otter://xyz789uvw012"},
 				{

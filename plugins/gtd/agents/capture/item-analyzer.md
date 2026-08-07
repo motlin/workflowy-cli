@@ -71,23 +71,23 @@ If the item appears to relate to a specific project (based on keywords, tags, or
 
 ## Confidence Adjustment
 
-Adjust the original confidence score based on findings:
+Adjust the scanner's confidence label up or down one step (`low` ↔ `medium` ↔ `high`) based on findings:
 
-- **Boost (+0.1)**: Item matches a known project's domain
-- **Boost (+0.05)**: Item has actionable keywords (review, fix, update, call, email)
-- **Lower (-0.2)**: Possible duplicate found
-- **Lower (-0.3)**: Already-done check matched
-- **Lower (-0.1)**: No clear action verb in title
+- **Raise**: Item matches a known project's domain
+- **Raise**: Item has actionable keywords (review, fix, update, call, email)
+- **Lower**: Possible duplicate found
+- **Lower**: Already-done check matched
+- **Lower**: No clear action verb in title
 
-Cap final confidence at 0.0-1.0.
+The final `confidence` is one of `high`, `medium`, or `low` — never a number or a percentage.
 
 ## Determine Recommendation
 
 Based on final analysis:
 
-- `capture`: Confidence >= 0.85 AND no duplicate AND not already done
+- `capture`: `high` confidence AND no duplicate AND not already done
 - `skip`: Is a duplicate OR already done OR in declined list
-- `ask`: Confidence < 0.85 AND not skip (needs user clarification)
+- `ask`: `medium` or `low` confidence AND not skip (needs user clarification)
 
 ## Write Output
 
@@ -105,7 +105,7 @@ Write the analysis to `.llm/gtd/capture/analysis/<itemId>.json`:
 	"source": "chrome",
 	"originalTitle": "PR review for auth fix",
 	"recommendation": "capture",
-	"confidence": 0.92,
+	"confidence": "high",
 	"reasoning": "No duplicate found. Matches open PR in github-scanner.",
 	"suggestedTitle": "Review PR #123: auth fix",
 	"duplicateOf": null,
@@ -122,7 +122,7 @@ Write the analysis to `.llm/gtd/capture/analysis/<itemId>.json`:
 | `source`         | string       | Scanner source (chrome, github, gmail, etc.)                           |
 | `originalTitle`  | string       | Original title from scanned item                                       |
 | `recommendation` | string       | One of: `capture`, `skip`, `ask`                                       |
-| `confidence`     | number       | Final adjusted confidence (0.0-1.0)                                    |
+| `confidence`     | string       | Final adjusted confidence: `high`, `medium`, or `low`                  |
 | `reasoning`      | string       | Human-readable explanation of the recommendation                       |
 | `suggestedTitle` | string       | Improved title based on style patterns (or original if no improvement) |
 | `duplicateOf`    | string\|null | ID of duplicate task if found, null otherwise                          |
@@ -138,7 +138,7 @@ After writing the file, return a brief JSON summary:
 	"status": "success",
 	"itemId": "tab-abc123def456",
 	"recommendation": "capture",
-	"confidence": 0.92,
+	"confidence": "high",
 	"outputFile": ".llm/gtd/capture/analysis/tab-abc123def456.json"
 }
 ```

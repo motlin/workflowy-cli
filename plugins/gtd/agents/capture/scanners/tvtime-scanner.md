@@ -3,14 +3,14 @@ name: tvtime-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan TV Time for shows to watch — watchlist, upcoming episodes, and shows to catch up on. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan TV Time for shows to watch — watchlist, upcoming episodes, and shows to catch up on. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs TV Time scan
     user: "Scan TV Time for capturable items"
     assistant: "[Scans TV Time data, returns JSON to .llm/gtd/capture/scans/tvtime.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -120,27 +120,24 @@ Skip shows that match declined items from `declined.json`. Match by the generate
 
 ## Assess Confidence
 
-For each show, calculate a confidence score (0.0-1.0) based on how actionable the item is:
+For each show, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage — based on how actionable the item is:
 
-**High Confidence (0.85-0.95):**
+**`high`:**
 
 - Show has new unwatched episode that just aired (within 7 days)
 - Show has only 1-2 unwatched episodes (easy to catch up)
 - Show the user watches regularly (based on watch history)
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium`:**
 
 - Show has 3-5 unwatched episodes
 - Show has upcoming episode this week
 - Show user hasn't watched in 2-4 weeks
-
-**Medium Confidence (0.55-0.70):**
-
 - Show has 6-10 unwatched episodes
 - Show user hasn't watched in 1-2 months
 - Show in watchlist but not started
 
-**Lower Confidence (0.40-0.55):**
+**`low`:**
 
 - Show significantly behind (10+ unwatched episodes)
 - Show user hasn't watched in 3+ months
@@ -170,7 +167,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "tvtime-368207-s03e05",
 			"title": "Watch Invincible S03E05",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: tvtime://368207/s03e05"},
 				{
@@ -192,7 +189,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "tvtime-421220",
 			"title": "Catch up on Graveyard (5 episodes behind)",
-			"confidence": 0.72,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: tvtime://421220"},
 				{
@@ -212,7 +209,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "tvtime-459059",
 			"title": "Start watching Hascelikler And the City",
-			"confidence": 0.55,
+			"confidence": "low",
 			"children": [
 				{"name": "📜 Provenance: tvtime://459059"},
 				{

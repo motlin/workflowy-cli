@@ -33,11 +33,11 @@ Return ONLY this JSON:
 ```json
 {
 	"tags": ["#call"],
-	"confidence": 0.8,
+	"confidence": "high",
 	"reasoning": "Task is a phone call."
 }
 ```
 
 - `tags`: array of `#tag` strings drawn from the context metadata; `[]` when none fit.
-- `confidence`: 0.0-1.0.
+- `confidence`: `high`, `medium`, or `low` — never a number or a percentage.
 - `reasoning`: one short sentence.

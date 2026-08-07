@@ -8,7 +8,7 @@ description: |
     <example>
     Context: Tagger results add @Alex plus #buy #errands to a notebook task
     user: "Compose text for item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Returns {composedText: 'Buy a notebook for @Alex #buy #errands', changes: ['+@Alex', '+#buy', '+#errands'], confidence: 0.86}]"
+    assistant: "[Returns {composedText: 'Buy a notebook for @Alex #buy #errands', changes: ['+@Alex', '+#buy', '+#errands'], confidence: 'high'}]"
     <commentary>
     The composer applies the people, context, and project tags onto the original text.
     </commentary>
@@ -17,7 +17,7 @@ description: |
     <example>
     Context: agenda-detector flagged the item as a topic to raise with @Bob
     user: "Compose text for item 1234"
-    assistant: "[Returns {composedText: 'Ask @Bob about build server permissions #agenda #work', changes: ['+@Bob', '+#agenda', '+#work'], confidence: 0.9}]"
+    assistant: "[Returns {composedText: 'Ask @Bob about build server permissions #agenda #work', changes: ['+@Bob', '+#agenda', '+#work'], confidence: 'high'}]"
     <commentary>
     Agenda items carry #agenda #work plus the target @person so they match the Meeting agendas shape.
     </commentary>
@@ -42,10 +42,10 @@ Return ONLY this JSON:
 {
 	"composedText": "Buy a notebook for @Alex #buy #errands",
 	"changes": ["+@Alex", "+#buy", "+#errands"],
-	"confidence": 0.86
+	"confidence": "high"
 }
 ```
 
 - `composedText`: the original text rewritten with all tags/mentions applied.
 - `changes`: array of short edit notes (`+@Alex`, `-#homereno`, …).
-- `confidence`: 0.0-1.0.
+- `confidence`: `high`, `medium`, or `low` — never a number or a percentage.

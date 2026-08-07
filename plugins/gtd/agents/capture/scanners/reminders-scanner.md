@@ -3,14 +3,14 @@ name: reminders-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan Apple Reminders (via iMCP) for incomplete reminders — especially those without due dates, which are migration candidates. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan Apple Reminders (via iMCP) for incomplete reminders — especially those without due dates, which are migration candidates. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Reminders scan
     user: "Scan Reminders for capturable items"
     assistant: "[Scans Apple Reminders via iMCP, returns JSON to .llm/gtd/capture/scans/reminders.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -87,28 +87,25 @@ Skip reminders that match declined items from `declined.json`. Match by the gene
 
 ## Assess Confidence
 
-For each reminder, calculate a confidence score (0.0-1.0) based on migration potential:
+For each reminder, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage — based on migration potential:
 
-**High Confidence (0.85-0.95):**
+**`high`:**
 
 - Reminder is overdue (past due date, not completed)
 - Reminder has no due date and is in a generic list (like "Reminders")
 - Reminder has no alarm set (pure task, not a time-based notification)
 - Reminder is very old (created > 30 days ago if date available)
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium`:**
 
 - Reminder is due today (may need immediate attention in Workflowy)
 - Reminder has no due date but is in a specific list
 - Reminder has low priority
-
-**Medium Confidence (0.55-0.70):**
-
 - Reminder is due within next 7 days
 - Reminder has notes attached
 - Reminder has medium priority
 
-**Lower Confidence (0.40-0.55):**
+**`low`:**
 
 - Reminder has an alarm set (may want to keep in Reminders for notifications)
 - Reminder has high priority (may be actively managed in Reminders)
@@ -138,7 +135,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "reminders-abc123def456",
 			"title": "Review quarterly goals",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: reminders://manual"},
 				{
@@ -158,7 +155,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "reminders-xyz789uvw012",
 			"title": "Pay electric bill",
-			"confidence": 0.88,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: reminders://manual"},
 				{

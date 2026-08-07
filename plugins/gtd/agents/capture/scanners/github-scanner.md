@@ -3,14 +3,14 @@ name: github-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan GitHub via the gh CLI for open PRs you authored and PRs requesting your review. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence scores.
+    Scan GitHub via the gh CLI for open PRs you authored and PRs requesting your review. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs GitHub scan
     user: "Scan GitHub for capturable items"
     assistant: "[Scans GitHub PRs, returns JSON to .llm/gtd/capture/scans/github.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -83,27 +83,26 @@ date +%s
 
 ## Assess Confidence
 
-For each item, calculate a confidence score (0.0-1.0) based on:
+For each item, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage.
 
 **Review Requests (higher priority - someone is waiting on you):**
 
-- Stale review request (>3 days old): Score 0.95 (very urgent)
-- Review request 1-3 days old: Score 0.85
-- Fresh review request (<1 day): Score 0.75
+- Stale review request (>3 days old): `high` (very urgent)
+- Review request 1-3 days old: `high`
+- Fresh review request (<1 day): `medium`
 
 **Authored PRs:**
 
-- Stale PR (>7 days with no update): Score 0.90 (needs attention)
-- PR with review activity: Score 0.80 (reviewer is waiting)
-- Draft PR: Score 0.60 (lower priority, WIP)
-- Fresh active PR: Score 0.65 (normal flow)
+- Stale PR (>7 days with no update): `high` (needs attention)
+- PR with review activity: `medium` (reviewer is waiting)
+- Draft PR: `medium` (lower priority, WIP)
+- Fresh active PR: `medium` (normal flow)
 
 Confidence guidelines:
 
-- 0.9+: Urgent action needed (stale, blocking others)
-- 0.8-0.9: Probably actionable (awaiting activity)
-- 0.7-0.8: Should capture (active but needs follow-up)
-- 0.6-0.7: Worth capturing (drafts, new items)
+- `high`: Urgent action needed (stale, blocking others)
+- `medium`: Worth capturing (awaiting activity, active but needs follow-up, drafts, new items)
+- `low`: Marginal (nothing is waiting on you)
 
 ## Generate Items
 
@@ -127,7 +126,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "github-review-456",
 			"title": "Review PR #456: Fix authentication bug",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: github://owner/repo-name/456"},
 				{
@@ -149,7 +148,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "github-authored-123",
 			"title": "Follow up on PR #123: Add new feature",
-			"confidence": 0.8,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: github://owner/repo-name/123"},
 				{
@@ -169,7 +168,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "github-authored-789",
 			"title": "Finish draft PR #789: WIP refactoring",
-			"confidence": 0.6,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: github://owner/repo-name/789"},
 				{

@@ -384,7 +384,7 @@ def main() -> None:
                 "eventTime": dt.strftime("%H:%M"),
                 "source": "otter",
                 "category": "meeting",
-                "confidence": 0.95,
+                "confidence": "high",
                 "metadata": {
                     "meetingId": otid,
                     "participants": "Multiple participants",

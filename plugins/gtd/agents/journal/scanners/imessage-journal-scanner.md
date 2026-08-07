@@ -63,7 +63,7 @@ Look for past-tense patterns:
 	"emoji": "💬",
 	"source": "imessage",
 	"category": "activity",
-	"confidence": 0.75
+	"confidence": "medium"
 }
 ```
 

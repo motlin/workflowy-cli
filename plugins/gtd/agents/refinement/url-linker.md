@@ -34,12 +34,12 @@ Return ONLY this JSON:
 {
 	"urls": ["https://example.com/spec"],
 	"provenance": "Chrome tab",
-	"confidence": 0.9,
+	"confidence": "high",
 	"reasoning": "Link and source found in a child node."
 }
 ```
 
 - `urls`: array of URLs found; `[]` when none.
 - `provenance`: short capture-source string, or `null`.
-- `confidence`: 0.0-1.0.
+- `confidence`: `high`, `medium`, or `low` — never a number or a percentage.
 - `reasoning`: one short sentence.

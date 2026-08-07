@@ -145,7 +145,7 @@ Write results to `.llm/gtd/capture/scans/calendar.json`.
 		{
 			"id": "calendar-abc123def456",
 			"title": "Send Q4 report to finance team",
-			"confidence": 0.95,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: calendar://abc123def456"},
 				{

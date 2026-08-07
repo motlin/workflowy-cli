@@ -36,7 +36,7 @@ Completed tasks. Convert to past tense:
 	"emoji": "☑️",
 	"source": "things3",
 	"category": "task",
-	"confidence": 0.95
+	"confidence": "high"
 }
 ```
 

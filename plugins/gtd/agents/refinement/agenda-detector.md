@@ -8,7 +8,7 @@ description: |
     <example>
     Context: Refining an inbox item that reads "Ask Bob about the new build server permissions"
     user: "Refine item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Returns {isAgendaItem: true, targetPerson: '@Bob', confidence: 0.9, reasoning: 'discussion-intent phrasing -- ask X about Y'}]"
+    assistant: "[Returns {isAgendaItem: true, targetPerson: '@Bob', confidence: 'high', reasoning: 'discussion-intent phrasing -- ask X about Y'}]"
     <commentary>
     The phrasing "ask X about Y" signals a topic to raise with a person, not a task the user does alone.
     </commentary>
@@ -17,7 +17,7 @@ description: |
     <example>
     Context: Refining an inbox item that reads "Email Bob the Q3 numbers"
     user: "Refine item 1234"
-    assistant: "[Returns {isAgendaItem: false, targetPerson: null, confidence: 0.85, reasoning: 'direct action the user performs (email), not a topic to raise in a meeting'}]"
+    assistant: "[Returns {isAgendaItem: false, targetPerson: null, confidence: 'high', reasoning: 'direct action the user performs (email), not a topic to raise in a meeting'}]"
     <commentary>
     "Email X" / "Send X" / "Call X" are direct communications the user performs, not queued meeting topics.
     </commentary>
@@ -70,14 +70,14 @@ Return ONLY this JSON:
 {
 	"isAgendaItem": true,
 	"targetPerson": "@Bob",
-	"confidence": 0.9,
+	"confidence": "high",
 	"reasoning": "Discussion-intent phrasing ('ask X about Y') directed at a person; route to Meeting agendas."
 }
 ```
 
 - `isAgendaItem`: boolean.
 - `targetPerson`: `"@Name"` reference, or `null` when no person is named or `isAgendaItem` is false.
-- `confidence`: 0.0-1.0.
+- `confidence`: `high`, `medium`, or `low` — never a number or a percentage.
 - `reasoning`: one short sentence explaining the classification.
 
 When not an agenda item:
@@ -86,7 +86,7 @@ When not an agenda item:
 {
 	"isAgendaItem": false,
 	"targetPerson": null,
-	"confidence": 0.85,
+	"confidence": "high",
 	"reasoning": "Direct action the user performs (email), not a topic to raise in a meeting."
 }
 ```

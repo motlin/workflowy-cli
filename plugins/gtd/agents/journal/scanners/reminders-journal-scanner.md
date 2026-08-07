@@ -32,7 +32,7 @@ Completed reminders with their completion dates.
 	"emoji": "✅",
 	"source": "reminders",
 	"category": "task",
-	"confidence": 0.9
+	"confidence": "high"
 }
 ```
 

@@ -3,14 +3,14 @@ name: things3-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan the Things 3 database for non-recurring, actionable tasks, excluding recurring tasks (garbage day, etc.) and far-future scheduled items. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan the Things 3 database for non-recurring, actionable tasks, excluding recurring tasks (garbage day, etc.) and far-future scheduled items. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Things 3 scan
     user: "Scan Things 3 for capturable items"
     assistant: "[Scans Things 3 database, returns JSON to .llm/gtd/capture/scans/things3.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -144,30 +144,27 @@ Skip tasks that match declined items from `declined.json`. Match by the generate
 
 ## Assess Confidence
 
-For each task, calculate a confidence score (0.0-1.0) based on how well it fits Workflowy's ASAP/due model:
+For each task, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage — based on how well it fits Workflowy's ASAP/due model:
 
-**High Confidence (0.85-0.95) - ASAP candidates:**
+**`high` — ASAP candidates:**
 
 - Task is in Today area (actively managed)
 - Task is old and stale (created > 30 days ago)
 - Task has notes/details attached (rich content)
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium`:**
 
 - Task is in Anytime with no deadline (pure ASAP task)
 - Task has been sitting for 7-30 days
-
-**Medium Confidence (0.55-0.70):**
-
 - Recently created tasks in Anytime
 - Tasks in flux (modified recently)
 
-**Lower Confidence (0.40-0.55):**
+**`low`:**
 
 - Fresh tasks (created < 3 days ago)
 - Tasks that appear to still be actively managed
 
-**Exclude entirely (set confidence to 0.0):**
+**Exclude entirely (drop the item rather than emitting it):**
 
 - Tasks with future deadlines > 7 days out
 - Note-like content (long text without actionable verbs)
@@ -196,7 +193,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "things3-abc123def456",
 			"title": "Review quarterly goals",
-			"confidence": 0.88,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: things3://ABC123DEF456-ABCD-1234-EFGH-567890IJKLMN"},
 				{
@@ -216,7 +213,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "things3-xyz789uvw012",
 			"title": "Research new productivity tools",
-			"confidence": 0.72,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: things3://XYZ789UVW012-WXYZ-5678-ABCD-901234EFGHIJ"},
 				{

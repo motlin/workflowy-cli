@@ -34,12 +34,12 @@ Return ONLY this JSON:
 {
 	"due": "2026-04-15",
 	"urgency": "high",
-	"confidence": 0.85,
+	"confidence": "high",
 	"reasoning": "Explicit deadline in the text."
 }
 ```
 
 - `due`: `YYYY-MM-DD`, or `null` when no date is present.
 - `urgency`: `"high"`, `"medium"`, or `"low"`.
-- `confidence`: 0.0-1.0.
+- `confidence`: `high`, `medium`, or `low` — never a number or a percentage.
 - `reasoning`: one short sentence.

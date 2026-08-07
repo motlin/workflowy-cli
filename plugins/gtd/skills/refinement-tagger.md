@@ -32,12 +32,12 @@ Classify against `ITEM_NAME` plus any note/children context — captured items o
 - `.llm/gtd/metadata/people.json` — canonical people roster. It is large: extract with `jq`, never read the whole file into context.
 - `.llm/gtd/metadata/contexts.json` — location/mode `#tags` (`#home`, `#call`, `#errands`, …).
 
-If a needed file is missing or stale, emit a null/empty result with low confidence rather than guessing — a missing tag is cheap to add later.
+If a needed file is missing or stale, emit a null/empty result with `low` confidence rather than guessing — a missing tag is cheap to add later.
 
 ## Output contract
 
 - Return **ONLY** the JSON object for this agent's one dimension — no prose, no markdown fence in the actual reply, nothing else. `item-refiner` parses the raw object.
-- Always include a `confidence` field, `0.0`–`1.0`.
+- Always include a `confidence` field, and make it one of the three labels `"high"`, `"medium"`, or `"low"` — never a number or a percentage. A model cannot calibrate 0.72 against 0.78, and rendering those digits to the user implies a precision that does not exist.
 - When there is no signal, emit the empty form (`null`, `[]`, or `false`) rather than inventing a value. Silence beats a wrong tag.
 - Keep `reasoning` to one short sentence; it is for the human reviewing the `🔍 Refinement` node, not for downstream logic.
 

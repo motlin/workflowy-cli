@@ -3,14 +3,14 @@ name: imessage-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan recent iMessages (via iMCP) for actionable messages — requests, questions, commitments, time-sensitive content. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan recent iMessages (via iMCP) for actionable messages — requests, questions, commitments, time-sensitive content. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs iMessage scan
     user: "Scan iMessages for capturable items"
     assistant: "[Scans iMessages via iMCP, returns JSON to .llm/gtd/capture/scans/imessage.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -84,9 +84,9 @@ Skip messages that match declined items from `declined.json`. Match by the gener
 
 ## Assess Confidence
 
-For each remaining message, calculate a confidence score (0.0-1.0) based on:
+For each remaining message, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage.
 
-**High Confidence (0.85-0.95):**
+**`high` — clearly actionable (explicit request or urgent question):**
 
 - Message contains "?" with explicit request
 - Contains "urgent", "asap", "action required"
@@ -94,32 +94,22 @@ For each remaining message, calculate a confidence score (0.0-1.0) based on:
 - Multiple actionable patterns match
 - Message is more than 1 day old (user has not handled it)
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium` — probably actionable, or unclear intent:**
 
 - Contains "please", "can you", "would you"
 - Contains meeting/appointment references
 - Contains "review", "feedback", "help"
 - Sender is a named contact
 - Message is less than 1 day old
-
-**Medium Confidence (0.55-0.70):**
-
 - Contains a question mark but no other indicators
 - Generic request language without urgency
 - Commitment made by sender (may need to track)
 
-**Lower Confidence (0.40-0.55):**
+**`low` — likely informational:**
 
 - Vague follow-up language
 - Unclear if action is needed
 - Informational messages with slight action hints
-
-Confidence guidelines:
-
-- 0.85+: Clearly actionable (explicit request or urgent question)
-- 0.70-0.85: Probably actionable (question or request from known person)
-- 0.55-0.70: Maybe actionable (unclear intent or commitment to track)
-- <0.55: Low priority (likely informational)
 
 ## Generate Items
 
@@ -152,7 +142,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "imessage-abc123def456",
 			"title": "Reply to @John Smith: send the report",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: imessage://chat123456"},
 				{
@@ -171,7 +161,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "imessage-xyz789uvw012",
 			"title": "Follow up with @Alice Chen: project status update",
-			"confidence": 0.75,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: imessage://chat789012"},
 				{

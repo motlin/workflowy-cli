@@ -3,14 +3,14 @@ name: chrome-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan Chrome's open tabs for capturable items. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence scores, and can close tabs after capture.
+    Scan Chrome's open tabs for capturable items. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence labels, and can close tabs after capture.
 
     <example>
     Context: Bulk capture orchestrator needs Chrome scan
     user: "Scan Chrome for capturable items"
     assistant: "[Scans Chrome open tabs, returns JSON to .llm/gtd/capture/scans/chrome.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -68,18 +68,17 @@ From open tabs, exclude these URL patterns:
 
 ## Assess Confidence
 
-For each open tab, calculate a confidence score (0.0-1.0) based on:
+For each open tab, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage — based on:
 
-- **Domain type**: GitHub PRs, docs pages, task tools score higher
-- **Title keywords**: "TODO", "review", "draft", "PR" increase confidence
+- **Domain type**: GitHub PRs, docs pages, task tools rate higher
+- **Title keywords**: "TODO", "review", "draft", "PR" raise the label
 - **Tab position**: Earlier tabs may indicate older, forgotten items
 
 Confidence guidelines:
 
-- 0.9+: Very likely actionable (GitHub PR, task management tool, Jira)
-- 0.7-0.9: Probably actionable (documentation, articles with task keywords)
-- 0.5-0.7: Maybe actionable (general reading, reference material)
-- <0.5: Low priority (social media, entertainment)
+- `high`: Very likely actionable (GitHub PR, task management tool, Jira)
+- `medium`: Probably or maybe actionable (documentation, articles with task keywords, general reading, reference material)
+- `low`: Low priority (social media, entertainment)
 
 ## Write Output
 
@@ -95,7 +94,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "tab-abc123def456",
 			"title": "Review PR: Add feature #123",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: chrome://tab-abc123def456"},
 				{

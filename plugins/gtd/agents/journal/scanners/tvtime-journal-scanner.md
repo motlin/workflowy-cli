@@ -37,7 +37,7 @@ Look for episodes marked as watched in the last 7 days.
 	"children": ["Tomorrow"],
 	"source": "tvtime",
 	"category": "entertainment",
-	"confidence": 0.9
+	"confidence": "high"
 }
 ```
 

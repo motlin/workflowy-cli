@@ -157,7 +157,7 @@ jq -s '.' .llm/gtd/capture/analysis/*.json 2>/dev/null || echo '[]'
 Present each low-confidence item with context:
 
 ```text
-Question: "Item: '<title>' from <source>. Confidence: <confidence>%. Reason: <reasoning>. What would you like to do?"
+Question: "Item: '<title>' from <source>. Confidence: <confidence>. Reason: <reasoning>. What would you like to do?"
 
 Options:
 - "Capture to inbox (Recommended)"

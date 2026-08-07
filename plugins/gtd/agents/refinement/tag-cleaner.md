@@ -67,7 +67,7 @@ Return ONLY this JSON:
 	],
 	"junk": [{"tag": "#s", "count": 1, "reason": "one-off fragment, resolves nowhere"}],
 	"invalidMentions": ["@Bobb"],
-	"confidence": 0.85,
+	"confidence": "high",
 	"reasoning": "One casing typo, one unregistered hobby tag, one junk fragment."
 }
 ```

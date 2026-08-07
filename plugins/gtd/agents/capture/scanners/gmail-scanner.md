@@ -3,14 +3,14 @@ name: gmail-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan the Gmail inbox (via the Gmail IMAP MCP) for unread emails needing action. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan the Gmail inbox (via the Gmail IMAP MCP) for unread emails needing action. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Gmail scan
     user: "Scan Gmail for capturable items"
     assistant: "[Scans Gmail inbox, returns JSON to .llm/gtd/capture/scans/gmail.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -87,37 +87,27 @@ Skip emails that match declined items from `declined.json`. Match by the generat
 
 ## Assess Confidence
 
-For each remaining email, calculate a confidence score (0.0-1.0) based on:
+For each remaining email, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage.
 
-**High Confidence (0.85-0.95):**
+**`high` — clearly actionable (explicit request or question):**
 
 - Subject contains "?", "urgent", "asap", "action required", "please respond"
 - Sender is a known contact or has a person name (not company name)
 - Email is more than 1 day old (user has not handled it)
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium` — probably actionable, or unclear intent:**
 
 - Subject contains "review", "meeting", "question", "feedback"
 - Sender domain is work-related
 - Email is unread but less than 1 day old
-
-**Medium Confidence (0.55-0.70):**
-
 - General unread emails from unknown senders
 - No clear action indicators
 - May be newsletter-like but not clearly automated
 
-**Lower Confidence (0.40-0.55):**
+**`low` — likely informational:**
 
 - Appears promotional or newsletter
 - Mass email indicators (unsubscribe in subject)
-
-Confidence guidelines:
-
-- 0.85+: Clearly actionable (explicit request or question)
-- 0.70-0.85: Probably actionable (human sender, relevant topic)
-- 0.55-0.70: Maybe actionable (unclear intent)
-- <0.55: Low priority (likely informational)
 
 ## Generate Items
 
@@ -149,7 +139,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "gmail-abc123def456",
 			"title": "Reply to John Smith: project timeline question",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: gmail://18c9a3b4e5f6g7h8"},
 				{
@@ -169,7 +159,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "gmail-xyz789uvw012",
 			"title": "Review for Alice Chen: Q4 report",
-			"confidence": 0.78,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: gmail://18c9a3b4e5f6g7h9"},
 				{

@@ -68,7 +68,7 @@ Present for review:
 
 ```text
 AskUserQuestion:
-  Question: "'<item name>' → <destination> (<confidence>%)\nText: '<suggestedText>'"
+  Question: "'<item name>' → <destination> (<confidence> confidence)\nText: '<suggestedText>'"
   Header: "Review"
   Options:
   - "Accept" - keep suggestion as-is
@@ -180,10 +180,10 @@ Call John about project
     ├── ➕ Added: <time ...>Mon, Jan 5, 2026</time>
     ├── 🏠 Context: #home #call
     ├── 👤 Person: @JohnSmith (found "John")
-    ├── 💡 Project: #home-renovation (85% match)
+    ├── 💡 Project: #home-renovation (high confidence)
     ├── 📅 Due: Fri, Jan 3, 2025
     ├── 📍 Move to: Personal > ☑️ Next > Work
-    │   └── 📊 Confidence: 90%
+    │   └── 📊 Confidence: high
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
@@ -215,7 +215,7 @@ Create one question per item, up to 4 questions per call:
 ```text
 AskUserQuestion (up to 4 questions):
 
-  Question: "'<itemName>' → <destination> (<confidence>%)\nText: '<suggestedText>'"
+  Question: "'<itemName>' → <destination> (<confidence> confidence)\nText: '<suggestedText>'"
   Header: "Item N/total"
   Options:
   - "Accept" - keep suggestion as-is

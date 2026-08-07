@@ -3,14 +3,14 @@ name: photos-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan recent Apple Photos for screenshots, receipts, documents, and whiteboards that may represent tasks. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence scores.
+    Scan recent Apple Photos for screenshots, receipts, documents, and whiteboards that may represent tasks. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Photos scan
     user: "Scan Photos for capturable items"
     assistant: "[Scans iCloud photos via iMCP or AppleScript, returns JSON to .llm/gtd/capture/scans/photos.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -111,28 +111,25 @@ Skip photos that match declined items from `declined.json`. Match by the generat
 
 ## Assess Confidence
 
-For each photo, calculate a confidence score (0.0-1.0) based on:
+For each photo, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage.
 
-**High Confidence (0.85-0.95):**
+**`high`:**
 
 - Screenshot with recognizable app/document content
 - Photo from a scanning app
 - Photo with filename suggesting receipt ("receipt", "invoice", "bill")
 - Photo with whiteboard/document indicators
 
-**Medium-High Confidence (0.70-0.85):**
+**`medium`:**
 
 - Screenshot without clear context
 - Recent photo (last 24-48 hours) that might need processing
 - Photo with text detected
-
-**Medium Confidence (0.55-0.70):**
-
 - Photo taken in a work-like setting
 - Photo with ambiguous content
 - Older screenshot (3-7 days)
 
-**Lower Confidence (0.40-0.55):**
+**`low`:**
 
 - Regular camera photos
 - Photos that look like casual/personal content
@@ -163,7 +160,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "photos-abc123def456",
 			"title": "Process screenshot: Slack conversation",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: photos://ABC123-DEF456-GHI789"},
 				{
@@ -182,7 +179,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "photos-xyz789uvw012",
 			"title": "Process receipt: business expense",
-			"confidence": 0.88,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: photos://XYZ789-UVW012-RST345"},
 				{
@@ -202,7 +199,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "photos-def456ghi789",
 			"title": "Process whiteboard: 2025-12-28",
-			"confidence": 0.85,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: photos://DEF456-GHI789-JKL012"},
 				{

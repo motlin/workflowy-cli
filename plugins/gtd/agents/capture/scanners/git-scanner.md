@@ -3,14 +3,14 @@ name: git-scanner
 model: sonnet
 color: cyan
 description: |
-    Scan git repositories under ~/projects for unpushed commits, uncommitted changes, and stashes. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence scores.
+    Scan git repositories under ~/projects for unpushed commits, uncommitted changes, and stashes. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence labels.
 
     <example>
     Context: Bulk capture orchestrator needs Git scan
     user: "Scan Git repos for capturable items"
     assistant: "[Scans ~/projects for repos with work, returns JSON to .llm/gtd/capture/scans/git.json]"
     <commentary>
-    Returns structured JSON with items and confidence scores for the orchestrator to process.
+    Returns structured JSON with items and confidence labels for the orchestrator to process.
     </commentary>
     </example>
 ---
@@ -105,19 +105,18 @@ date +%s
 
 ## Assess Confidence
 
-For each capturable item, calculate a confidence score (0.0-1.0) based on:
+For each capturable item, assign a confidence label — `high`, `medium`, or `low`, never a number or a percentage — based on:
 
-- **Stale repos**: Score 0.9+ (forgotten work needs attention)
-- **Many unpushed commits**: Higher score (more accumulated work)
-- **Dirty repos**: Score 0.7-0.8 (work in progress)
-- **Stashes**: Score 0.6-0.7 (possibly forgotten)
+- **Stale repos**: `high` (forgotten work needs attention)
+- **Many unpushed commits**: `high` (more accumulated work)
+- **Dirty repos**: `medium` (work in progress)
+- **Stashes**: `medium` (possibly forgotten)
 
 Confidence guidelines:
 
-- 0.9+: Very likely actionable (stale unpushed work)
-- 0.8-0.9: Probably actionable (multiple unpushed commits)
-- 0.7-0.8: Should capture (uncommitted changes)
-- 0.6-0.7: Worth capturing (stashes to review)
+- `high`: Very likely actionable (stale unpushed work, multiple unpushed commits)
+- `medium`: Worth capturing (uncommitted changes, stashes to review)
+- `low`: Marginal (a single trivial change, or a repo you touched today)
 
 ## Generate Items
 
@@ -143,7 +142,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "git-my-app-unpushed",
 			"title": "Push my-app branch feature (3 commits)",
-			"confidence": 0.92,
+			"confidence": "high",
 			"children": [
 				{"name": "📜 Provenance: git:///home/alice/repos/my-app"},
 				{
@@ -166,7 +165,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "git-dotfiles-dirty",
 			"title": "Commit changes in dotfiles on main",
-			"confidence": 0.75,
+			"confidence": "medium",
 			"children": [
 				{"name": "📜 Provenance: git:///home/alice/repos/dotfiles"},
 				{
@@ -184,7 +183,7 @@ Each item includes `children` with provenance info:
 		{
 			"id": "git-notes-stashes",
 			"title": "Review 2 stashes in notes",
-			"confidence": 0.65,
+			"confidence": "medium",
 			"children": [
 				{"name": "📂 /home/alice/repos/notes"},
 				{"name": "2 stashed changes waiting for review"},

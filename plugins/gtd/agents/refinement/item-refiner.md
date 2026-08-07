@@ -127,7 +127,7 @@ done
     {"name": "➕ Added: [2026-01-05]"},
     {"name": "🏠 Context: <#tags>"},
     {"name": "👤 Person: <@Name>"},
-    {"name": "💡 Project: <#tag> (<confidence>% match)"},
+    {"name": "💡 Project: <#tag> (<confidence> confidence)"},
     {"name": "📅 Due: <date>"},
     {"name": "✏️ Typo: #Jira → #jira"},
     {"name": "🏷️ New tag: #onewheel → add to 🎮 Hobbies Registry? (420 nodes)"},
@@ -135,7 +135,7 @@ done
     {"name": "⚠️ Invalid @mention: @Bobb"},
     {"name": "🗣️ Agenda: raise with <@Name> #agenda #work"},
     {"name": "📍 Move to: <full path>", "children": [
-      {"name": "📊 Confidence: <X>%"}
+      {"name": "📊 Confidence: <high|medium|low>"}
     ]},
     {"name": "✏️ Text: <composed text with all tags>"}
   ]
@@ -173,14 +173,14 @@ Emit one row per entry in each tag-cleaner array; omit the row entirely when the
 
 **The 📊 Confidence Node:**
 
-The `📊 Confidence:` node is a **child** of `📍 Move to:`, not a sibling. This associates the confidence score with the destination suggestion:
+The `📊 Confidence:` node is a **child** of `📍 Move to:`, not a sibling. This associates the confidence with the destination suggestion:
 
 ```text
 📍 Move to: Personal > ☑️ Next > Work
-└── 📊 Confidence: 90%
+└── 📊 Confidence: high
 ```
 
-The confidence value (0.0-1.0 from destination-guesser) should be displayed as a percentage. During the execute phase, `/gtd:inbox` reads this sub-bullet to determine whether to auto-accept (>90%) or ask for confirmation (<70%).
+Write destination-guesser's label verbatim — `high`, `medium`, or `low`, never a number or a percentage. During the execute phase, `/gtd:inbox` reads this sub-bullet: `high` may be auto-accepted, `medium` and `low` are confirmed with the user.
 
 **The ✏️ Text Node:**
 
@@ -208,7 +208,7 @@ Return a summary JSON for the parent orchestrator:
 	"destination": {
 		"path": "Personal > ☑️ Next > Work",
 		"targetId": "abc123",
-		"confidence": 0.9
+		"confidence": "high"
 	},
 	"suggestedText": "Call @John about #project-name #call",
 	"provenance": "things3://abc123"
