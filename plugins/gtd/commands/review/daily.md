@@ -12,6 +12,18 @@ The Meeting Follow-up Review, Morning Overview, and Recurring Review phases dele
 
 If you discover a bug in a skill, command, or script **while running the review** — a script that errors, a command that does the wrong thing, a wrong assumption baked into these docs — stop the review and fix the skill first, then resume. Do not work around it inline and press on. Fixing the skill is red/green TDD (write the failing test, fix, run `vp check` / `vp test` per the project precommit checklist), and it takes priority over finishing the day's review, because every future run benefits. This is distinct from a data/MCP failure (see [Handling failures](#handling-failures)); that path is about pausing and asking, this one is about the tooling itself being wrong.
 
+## Never offer to pause or wrap up
+
+The review runs every phase to completion. Only a verified failure halts it, and only the user may choose to stop. Never raise the length of the run as a question, in any phrasing:
+
+- "This session has run very long — continue or wrap up?"
+- "There are N items left. Continue or pause?"
+- "Do you want me to continue the last phases now, or finish this tomorrow?"
+- "We're deep into the context budget — should I stop here?"
+- any variant that offers to defer, postpone, or skip remaining phases, or that asks about elapsed time, item volume, session length, or context/usage budget.
+
+These questions read as trying to skip steps. The user has already asked for the whole review by invoking it; volume is not new information they need to rule on. Keep working and let them interrupt if they want to stop. This applies to every phase, not just the recurring walk — `daily/due.md` bans the same openers inside its item loop.
+
 ## Never work around a failure — HALT
 
 **This is the highest-priority rule in the review. Read it as absolute.**

@@ -183,7 +183,11 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/serve-overview.mjs --html .llm/gtd/review/ove
 
 It prints `OVERVIEW_URL http://127.0.0.1:7842/`. Confirm it's actually up before pointing the user at it — `curl -sS -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:7842/` should print `200` (don't use `lsof` for this check; it can hang stat-ing network mounts). Then `open http://127.0.0.1:7842/`.
 
-**Wait for submit, then apply.** Poll `.llm/gtd/review/overview-checks.json` until `submitted` is `true` (the user clicked Done). Then for each entry with `checked: true`, complete it by `source`:
+**Approve through Claude Code, not the page's Done button.** The page is for _reading_ the overview; the approval happens in this conversation. Never block on an unbounded poll waiting for a submit that usually never comes.
+
+After opening the page, immediately ask with a single `AskUserQuestion` what to complete — listing the completable items (Next Actions, Delegate, overdue/today Reminders, Inbox) as `multiSelect` options so the user picks them right here. Read `.llm/gtd/review/overview-checks.json` first: if the user did click Done, it already holds their selections and you fold those in rather than re-asking.
+
+Then for each selected entry, complete it by `source`:
 
 - `workflowy` → `./bin/run.js node complete --id <data-id>`
 - `reminder` → iMCP has no complete tool, so use `osascript` (see [Completing Apple Reminders](#completing-apple-reminders) below)
@@ -192,7 +196,7 @@ Report which items were completed. Then stop the server (`pkill -f serve-overvie
 
 ### Next Step
 
-Do **not** prompt "what would you like to do next?" — the daily review's phase ordering is deterministic. After the page is submitted and completions applied, proceed directly: when invoked as part of `/gtd:review:daily`, the orchestrator advances to the next phase (Recurring Review). When invoked standalone, simply end after logging completion.
+Do **not** prompt "what would you like to do next?" — the daily review's phase ordering is deterministic. After completions are applied, proceed directly: when invoked as part of `/gtd:review:daily`, the orchestrator advances to the next phase (Recurring Review). When invoked standalone, simply end after logging completion.
 
 ### Log Completion
 

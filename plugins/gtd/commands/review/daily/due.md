@@ -81,10 +81,37 @@ Task **execution** stays foreground. If a task runs `cache import-api` / `just d
 
 - Show the item name with embedded URLs rendered as clickable markdown links. Parse `<a href="...">text</a>` in the node name and render as `[text](url)` so the user can click them in the terminal.
 - Show the Workflowy URL for the item itself
-- Wait for user response: done, skip, or freeform notes. Freeform notes are added as a new child node of the item via `node create`, **dispatched in the background** (a separate job from the date write, per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`), then the item is treated as done.
+- Wait for user response: done, skip, or freeform text. A freeform answer is **not** automatically completion — classify it first (see **Freeform: note versus continued work**).
+- Before writing anything into an item, **read its full subtree** (see **Read the subtree before writing**). Showing children is not the same as reading them.
 - If the item has children, show them indented below
 - After recording "Done" and **dispatching the date write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`. See **Update Item Date on Done** below.
 - After all items in a section are handled, move to the next section
+
+### Freeform: note versus continued work
+
+A freeform answer is either a **note** or **continued work**, and they end very differently:
+
+- **Note** — a remark to record and move past ("went well", "waiting on the vendor"). File it as a child node via `node create`, **dispatched in the background** (a separate job from the date write, per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`), treat the item as done, and continue.
+- **Continued work** — an instruction, a correction, new information, or a request to keep going on this item ("I plugged in another drive, go inventory it", "that is wrong, redo it"). Stay on the item and do the work. Do **not** advance the date and do **not** present the next item.
+
+When continued work is in progress, only an explicit "done" or "skip" from the user ends the item. Silence, a completed sub-task, or your own sense that the work looks finished never earns the date write. When the answer is genuinely ambiguous, treat it as continued work — resuming a finished item is cheap; advancing a date on unfinished work hides it for a whole interval.
+
+### Read the subtree before writing
+
+Before writing into a review item, fetch and read its full subtree:
+
+```bash
+./bin/run.js node get --id <full-uuid> --depth 4 --json
+```
+
+Then conform to what is already there:
+
+- **Match the existing format.** If sibling entries share a shape, the new entry uses that shape rather than one you invent.
+- **Match the existing placement.** A new entry belongs alongside its siblings — not appended at the end of the item, and not nested under an unrelated child.
+- **Keep instruction children separate from data children.** Nodes that tell you what to do are not entries; never interleave new data into them.
+- **Execute conditional instructions whose trigger currently holds.** When the subtree says "if X is present, do Y" and X is present right now, do Y as part of handling the item instead of deferring it.
+
+Showing an item's children to the user is not reading them. Skipping this step produces writes that look plausible and are structurally wrong.
 
 ## Update Item Date on Done
 
