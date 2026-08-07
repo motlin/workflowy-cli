@@ -29,8 +29,12 @@ Do not fan out on a partial credential set. A halted barrier costs one restart; 
 Run the barrier without piping or masking either exit status:
 
 ```bash
-op run -- just daily
-./bin/run.js cache sync-node --path "Personal,🔄 Review" --recursive
+direnv exec . op run -- just daily
+direnv exec . ./bin/run.js cache sync-node --path "Personal,🔄 Review" --recursive
 ```
+
+`direnv exec .` is required, not optional. The `op://` references and the literal `WORKFLOWY_API_KEY` live in the gitignored `.envrc`, and direnv loads it through a **prompt hook** that only fires in interactive shells. Every Bash tool call is a fresh non-interactive shell, so the hook never runs and the whole `.envrc` is silently absent — `op run` then has no `op://` refs to resolve and the barrier dies on `Dropbox credentials not set` at `cache import-backups`. Running it bare works from the user's own terminal and fails only under automation, which is exactly the asymmetry that makes it easy to reintroduce.
+
+`direnv exec .` is idempotent — harmless when direnv already loaded the environment — so always prefix the barrier with it rather than testing whether the variables happen to be set.
 
 Verify that `cache import-api` reported fetched and changed node counts, the counts are sane, the subtree sync succeeded, and today's data is present. Return success only after positive verification. On error, timeout, missing summary, or stale data, return failure and halt the daily review.
