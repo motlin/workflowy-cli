@@ -50,6 +50,7 @@ Detect each piece by **emoji prefix** (`📋` / `✅` / `📄` / `⏰` / `📌`)
 
 - **`✅ Tasks` wrapper** — if the root already has a `✅ Tasks` child holding the two buckets, leave it. If the buckets are direct children of the root (Personal today), `node create` a `✅ Tasks` child, then `node move` the `⏰` bucket and the `📌` bucket into it, due-dates first.
 - **Sibling containers** — ensure `📋 Meeting agendas` and `📄 Drafts` exist as peers of `✅ Tasks`; create any missing one **empty**. Order the three to match Work (`📋 Meeting agendas`, `✅ Tasks`, `📄 Drafts`); since `node move` positions only `top` / `bottom`, sequence the moves to land that order (move `📋` to `top`, then `📄` to `bottom`). Container order relative to loose tasks is cosmetic — loose tasks get filed away below.
+- **No timeframe sub-buckets** — the `⏰` bucket holds dated tasks directly. If a `Today` / `This week` / `This month` container is found inside it, that is pre-migration data: move its children up into the bucket, give any child missing a `<time>` the date its container implied (`resolveTimeframe`), then delete the empty container. Report this as a migration, not a routine normalization.
 
 Report what was created/moved (or "already normalized") before continuing.
 
@@ -66,13 +67,15 @@ Loose tasks may sit **directly under the root** or **directly under `✅ Tasks`*
 
 ## Build the per-root taxonomy
 
-Read each root's `📌 Tasks (asap)` bucket and capture its existing **category children** verbatim (full UUID + label) — this is the only allowed category set for that root (Work: `Platform Upgrades`, `Set up meetings`, `Administrative`, `🧐 Design docs for my review`, `✍️ Docs and drafts for me to write`, `💻 Coding`, …; Personal: `👤 Personal`, `🏠 Home`, …). Read the `⏰ Tasks (due dates)` bucket's `Today` / `This week` / `This month` sub-buckets (full UUIDs). Never invent a category — if nothing fits, the destination is the top of the asap bucket itself (uncategorized).
+Read each root's `📌 Tasks (asap)` bucket and capture its existing **category children** verbatim (full UUID + label) — this is the only allowed category set for that root (Work: `Platform Upgrades`, `Set up meetings`, `Administrative`, `🧐 Design docs for my review`, `✍️ Docs and drafts for me to write`, `💻 Coding`, …; Personal: `👤 Personal`, `🏠 Home`, …). Never invent a category — if nothing fits, the destination is the top of the asap bucket itself (uncategorized).
+
+The `⏰ Tasks (due dates)` bucket has **no sub-buckets**. A due-dated task goes directly into the bucket carrying a `<time>` element on the node itself; the timeframe is expressed as a date, not as a container. Capture only the bucket's own full UUID.
 
 ## Recommend a destination per task
 
 For each loose task, pick a recommended destination from signals already on the node — no external calls. The due-vs-asap split is a **judgment call**, so the recommendation is a starting point the user confirms or overrides, not a hard rule.
 
-- **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`.
+- **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`. **Resolve the timeframe to a concrete date** with `resolveTimeframe` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs` (`Today` → today, `This week` → the upcoming Friday, `This month` → the last day of the month) and build its `<time>` element with `buildTimeElement`. Never compute the date or its weekday by hand.
 - **Lean `📌 asap` + category** otherwise, matching that root's taxonomy by tag / keyword: `#code` / build / PR work → `💻 Coding`; `#write` / `#document` / drafting → `✍️ Docs and drafts for me to write`; "review … doc" / `#document by` → `🧐 Design docs for my review`; meeting or 1:1 setup → `Set up meetings`; jira / admin → `Administrative`; platform-upgrade work → `Platform Upgrades`; `#home` → `🏠 Home`; personal/family → `👤 Personal`. No match → top of the asap bucket, uncategorized.
 
 Keep the driving signal as a short `reason` string for the walk to show.
@@ -95,25 +98,38 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 			"header": "OpenRewrite legal",
 			"name": "Follow up with Legal on OpenRewrite contribution approval, report back #openrewrite #work",
 			"recommended": {
-				"destLabel": "⏰ due-dates → This week",
-				"destUuid": "<timeframe-uuid>",
+				"destLabel": "⏰ due-dates → This week (2026-08-14)",
+				"destUuid": "<due-bucket-uuid>",
+				"timeframe": "This week",
+				"due": "2026-08-14",
 				"position": "bottom"
 			},
 			"reason": "\"report back\" — someone is waiting",
 			"alternatives": [
 				{"destLabel": "📌 asap → 💻 Coding", "destUuid": "<category-uuid>", "position": "bottom"},
 				{"destLabel": "📌 asap (uncategorized)", "destUuid": "<asap-bucket-uuid>", "position": "top"},
-				{"destLabel": "⏰ due-dates → This month", "destUuid": "<timeframe-uuid>", "position": "bottom"}
+				{
+					"destLabel": "⏰ due-dates → This month (2026-08-31)",
+					"destUuid": "<due-bucket-uuid>",
+					"timeframe": "This month",
+					"due": "2026-08-31",
+					"position": "bottom"
+				}
 			],
 			"applyOps": [
-				"./bin/run.js node move --node-id <full-uuid-of-the-loose-task> --parent-id <timeframe-uuid> -p bottom"
+				"./bin/run.js node update --id <full-uuid-of-the-loose-task> --name '<name with the <time> element appended>'",
+				"./bin/run.js node move --node-id <full-uuid-of-the-loose-task> --parent-id <due-bucket-uuid> -p bottom"
 			]
 		}
 	]
 }
 ```
 
-`applyOps` holds the **recommended** move, escaped and ready to run verbatim. Every `destUuid` (recommended and alternatives) is a full UUID resolved during taxonomy-building. `status` is `empty` when no loose tasks remain (idempotent re-run) and `error` if prep failed.
+`applyOps` holds the **recommended** destination's commands, escaped and ready to run verbatim, **in order**. A due-dates destination is two ops — stamp the date, then move — because the date lives on the node rather than in a container. An asap destination is the move alone, and carries no `timeframe` / `due`. Every `destUuid` is a full UUID resolved during taxonomy-building; for due-dates that is always the `⏰` bucket itself.
+
+Compute `due` from `timeframe` with `resolveTimeframe`, and the `<time>` element with `buildTimeElement`, both from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs`. A task whose text already carries a `<time>` keeps it — stamp nothing and emit the move alone.
+
+`status` is `empty` when no loose tasks remain (idempotent re-run) and `error` if prep failed.
 
 If invoked with `--dry-run`, stop here: the staged JSON exists and **zero** `node move` calls have run.
 
@@ -129,7 +145,9 @@ Task 3/12: Follow up with Legal on OpenRewrite approval, report back #openrewrit
 
 Options per task (first = the recommended destination): the recommended destination, then 2-3 `alternatives`, then **Skip** (leave the task loose). Render embedded `<a href>` links as markdown so they're clickable; strip other HTML for display.
 
-On a destination choice, run that destination's move — the recommended choice runs `applyOps` verbatim; an alternative runs `node move --node-id <taskUuid> --parent-id <chosenDestUuid> -p <position>`. **Dispatch each move as a background Bash job** (`run_in_background: true`) per the **Background Dispatch, Verify, and Drain** protocol in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`: track each job, reap finished jobs every ~5 tasks, surface failures inline by task name, and present the next task immediately without waiting. On **Skip**, change nothing and move on.
+On a destination choice, run that destination's commands — the recommended choice runs `applyOps` verbatim and in order; an alternative runs the same shape rebuilt for the chosen destination (a due-dates alternative stamps its `<time>` first, then moves; an asap alternative is `node move --node-id <taskUuid> --parent-id <chosenDestUuid> -p <position>` alone). **Dispatch each task's ops as one background Bash job** (`run_in_background: true`) per the **Background Dispatch, Verify, and Drain** protocol in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` — chain the stamp and the move with `&&` inside a single job so a failed stamp never leaves a task filed under a deadline it doesn't carry. Track each job, reap finished jobs every ~5 tasks, surface failures inline by task name, and present the next task immediately without waiting. On **Skip**, change nothing and move on.
+
+Anything filed into `⏰ due-dates` with a date of today reaches the Recurring Review's due walk later in this same run — that phase ordering is deliberate, so do not try to pre-empt it by asking whether the task is already done.
 
 ## Ordering
 
