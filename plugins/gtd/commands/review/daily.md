@@ -1,10 +1,17 @@
 ---
-description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, walk overdue recurring review items, and file loose tasks. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
+description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, process the inbox, file loose tasks, and walk every dated item that needs handling today. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
 ---
 
 # Daily Review
 
-Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, then get oriented with the morning overview and process any overdue recurring review items.
+Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, empty the inbox, file loose tasks, and finish by walking everything dated that needs handling today.
+
+The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done:
+
+```text
+LLM Tasks → Relink → Meetings → Overview → Process Inbox → File Loose Tasks → Recurring Review
+                                    (producers of dated tasks) ──────────────↗
+```
 
 The Meeting Follow-up Review, Morning Overview, and Recurring Review phases delegate to `/gtd:review:daily:meetings`, `:overview`, and `:due`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
 
@@ -130,12 +137,18 @@ Invoke `/gtd:review:daily:meetings` to walk meetings ingested since last review,
 
 Invoke `/gtd:review:daily:overview` — morning orientation (calendar, reminders, next actions, inbox)
 
-## Recurring Review
+## Process Inbox
 
-After overview completes, invoke `/gtd:review:daily:due` — walk through overdue recurring review items.
-
-**Note:** LLM tasks already processed in the LLM Tasks phase will have updated dates and won't appear as overdue in the Recurring Review phase.
+Invoke `/gtd:refine-inbox`, then `/gtd:inbox` — refine each inbox item with a 🔍 Refinement suggestion, then walk the confirm-and-move loop that files them to their GTD destinations. Runs here because the Meeting Follow-up phase just dropped confirmed follow-ups into Inbox and nothing else in the review would ever pick them up. Filing them now means anything that lands with a date reaches the due walk in this same run. Silent-skip when all inboxes are empty.
 
 ## File Loose Tasks
 
 Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then sweep loose tasks under both roots (Work and Personal) into the `⏰ Tasks (due dates)` / `📌 Tasks (asap)` buckets, categorizing within asap. Proposes a destination per task and walks them one at a time for confirmation. Relink already ran, so strays are on the real roots; silent-skip when no loose tasks remain.
+
+## Recurring Review
+
+Invoke `/gtd:review:daily:due` — two segments walked back to back: overdue recurring review items in `Personal > 🔄 Review`, then one-shot due tasks merged from the Workflowy `⏰` buckets, Things 3, and Apple Reminders.
+
+**This phase runs last, and the order matters.** File Loose Tasks and Process Inbox are both _producers_ of dated tasks — filing something as due today must be followed by the walk that asks whether it's done, not preceded by it. Running the walk earlier would hide everything the earlier phases just created for a full day.
+
+**Note:** LLM tasks already processed in the LLM Tasks phase will have updated dates and won't appear as overdue here.

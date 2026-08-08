@@ -142,61 +142,26 @@ Also check the root Inbox:
 
 Format as "📥 **Inbox Status:**" showing count for each. If combined count > 10, suggest running `/gtd:inbox` after daily review.
 
-### Interactive overview (HTML in the browser)
+### This phase orients; it does not act
 
-Present the overview as a **served HTML page the user marks up in the browser**, not a console wall of text — the user checks off what they've done and the review applies those completions. (Still print a one-line console digest — counts of calendar items / overdue reminders / next actions / inbox — so the run has a textual record and a fallback if the browser fails.)
+Print the overview to the console and stop. **Do not offer to complete, move, or edit anything here.**
 
-**Render the page.** Build the page from the gathered sections (today + tomorrow calendar, reminders, next actions, delegate, inbox) using the `review-proposal-batch` skill, and write it to `.llm/gtd/review/overview.html`. Make each **completable** item a checkbox row carrying the data attributes the server reads:
+Every actionable outcome belongs to a later phase, and each has a walk built for it:
 
-- `data-id` — for Workflowy items the **full UUID**; for Apple Reminders the reminder **title**.
-- `data-source` — `workflowy` or `reminder`.
-- `data-label` — the human-readable item text (used in the apply summary).
+| What the user wants to do           | Where it happens                     |
+| ----------------------------------- | ------------------------------------ |
+| Complete or reschedule a dated task | Recurring Review — due-items segment |
+| File an inbox item                  | Process Inbox                        |
+| Move a loose task into a bucket     | File Loose Tasks                     |
+| Handle a recurring item             | Recurring Review — recurring segment |
 
-```html
-<label
-	><input
-		type="checkbox"
-		data-id="<full-uuid>"
-		data-source="workflowy"
-		data-label="Pay rent"
-	/>
-	Pay rent</label
->
-<label
-	><input
-		type="checkbox"
-		data-id="Take out trash"
-		data-source="reminder"
-		data-label="Take out trash"
-	/>
-	Take out trash</label
->
-```
+This used to be a served HTML page with checkbox rows. It was removed: a checkbox can only express _complete_, but the real outcomes are move, edit, reschedule, and discuss — so items got checked off in the browser and then re-litigated in conversation anyway. One interaction model (`AskUserQuestion`, one item at a time) now covers the whole review.
 
-Calendar events are display-only (no checkbox). Next Actions, Delegate, overdue/today Reminders, and Inbox items are completable.
-
-**Serve it and open it.** Start the server in the background and open the page:
-
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/serve-overview.mjs --html .llm/gtd/review/overview.html --out .llm/gtd/review/overview-checks.json --port 7842 &
-```
-
-It prints `OVERVIEW_URL http://127.0.0.1:7842/`. Confirm it's actually up before pointing the user at it — `curl -sS -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:7842/` should print `200` (don't use `lsof` for this check; it can hang stat-ing network mounts). Then `open http://127.0.0.1:7842/`.
-
-**Approve through Claude Code, not the page's Done button.** The page is for _reading_ the overview; the approval happens in this conversation. Never block on an unbounded poll waiting for a submit that usually never comes.
-
-After opening the page, immediately ask with a single `AskUserQuestion` what to complete — listing the completable items (Next Actions, Delegate, overdue/today Reminders, Inbox) as `multiSelect` options so the user picks them right here. Read `.llm/gtd/review/overview-checks.json` first: if the user did click Done, it already holds their selections and you fold those in rather than re-asking.
-
-Then for each selected entry, complete it by `source`:
-
-- `workflowy` → `./bin/run.js node complete --id <data-id>`
-- `reminder` → iMCP has no complete tool, so use `osascript` (see [Completing Apple Reminders](#completing-apple-reminders) below)
-
-Report which items were completed. Then stop the server (`pkill -f serve-overview.mjs`). If the user wants a move rather than a completion, they can say so and you run `./bin/run.js node move --node-id <full-uuid> --parent-path "Section,Subsection" -p top|bottom` (Someday → `-p top`, else `-p bottom`); the page itself is for completion only.
+If the user does ask for an immediate change while reading the overview, just do it — that's a normal request, not a phase. Don't build a prompt loop around it.
 
 ### Next Step
 
-Do **not** prompt "what would you like to do next?" — the daily review's phase ordering is deterministic. After completions are applied, proceed directly: when invoked as part of `/gtd:review:daily`, the orchestrator advances to the next phase (Recurring Review). When invoked standalone, simply end after logging completion.
+Do **not** prompt "what would you like to do next?" — the daily review's phase ordering is deterministic. When invoked as part of `/gtd:review:daily`, the orchestrator advances to the next phase (Process Inbox). When invoked standalone, simply end after logging completion.
 
 ### Log Completion
 
@@ -224,15 +189,10 @@ osascript -e 'tell application "Fantastical" to parse sentence "Meeting with Joh
 
 ## Completing Apple Reminders
 
-Reminders are surfaced by `reminders-fetcher` (read-only), and **iMCP exposes no complete/update tool** — only `reminders_create` / `reminders_fetch` / `reminders_lists`. To actually mark an Apple Reminder done (e.g. when the user checks one off in Quick Edits), use `osascript` against the Reminders app:
+Completion happens in the Recurring Review's due-items segment, not here — `collect-due-items.mjs` stages the exact `osascript` per reminder, because **iMCP exposes no complete/update tool** (only `reminders_create` / `reminders_fetch` / `reminders_lists`).
 
-```applescript
-tell application "Reminders"
-	set matches to (reminders of list "Reminders" whose completed is false and name is "<title>")
-	if (count of matches) > 0 then set completed of (item 1 of matches) to true
-end tell
-```
+Two gotchas that apply wherever that op runs:
 
-- The fetcher returns `list: null`, so iterate `lists` to find the right one if it isn't the default "Reminders" list.
 - **Recurring reminders roll forward**: completing the overdue instance creates a fresh incomplete one at the next occurrence — verify with `reminders_fetch completed:false query:"<title>"`. You can't permanently clear a repeating series without deleting it; leave it unless the user asks.
 - The Reminders/AppleScript bridge **can wedge** (an ~8s script once hung past 25s mid-iCloud-sync). Run it backgrounded with a timeout guard (`kill -9` after ~25s) and confirm the result via the fast `reminders_fetch`, not the script's own output.
+- The fetcher returns `list: null`, so the staged op targets the default "Reminders" list; iterate `lists` if a title isn't found there.
