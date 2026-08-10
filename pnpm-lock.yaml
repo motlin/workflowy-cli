@@ -244,8 +244,8 @@ importers:
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
       '@storybook/addon-a11y':
-        specifier: ^10.5.6
-        version: 10.5.6(storybook@10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0)))
+        specifier: ^10.5.7
+        version: 10.5.7(storybook@10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0)))
       '@storybook/addon-docs':
         specifier: ^10.5.6
         version: 10.5.6(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0)))
@@ -2064,10 +2064,10 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@storybook/addon-a11y@10.5.6':
-    resolution: {integrity: sha512-pMqbmtvkIgb7/kVE2BTNovGhSerRXWsVag62zpwQe0SwYYkgN+1Q9h4TYuIe2+npGkxgwALCjwtqkcnpOoND+A==}
+  '@storybook/addon-a11y@10.5.7':
+    resolution: {integrity: sha512-I30rsNz6aA3xg3811MEry40uJDHP3l5SOkfqtmNkp7y4NdqTDdKhmbhhDAZQX1WWEk6GeMBGr3AJ3TCz7r7JmQ==}
     peerDependencies:
-      storybook: ^10.5.6
+      storybook: ^10.5.7
 
   '@storybook/addon-docs@10.5.6':
     resolution: {integrity: sha512-zyUJBrrpC9NTrmsREaVFNr+9WW6pikJtmRvo7GgZGqthEyhjQKSarHrW0aNWkwae2ep3jp1CZi8vIUVG1Dnp0w==}
@@ -2830,8 +2830,8 @@ packages:
     resolution: {integrity: sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ==}
     engines: {node: '>=8.0.0'}
 
-  axe-core@4.12.1:
-    resolution: {integrity: sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==}
+  axe-core@4.13.0:
+    resolution: {integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==}
     engines: {node: '>=4'}
 
   b4a@1.7.3:
@@ -6967,10 +6967,10 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@storybook/addon-a11y@10.5.6(storybook@10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0)))':
+  '@storybook/addon-a11y@10.5.7(storybook@10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0)))':
     dependencies:
       '@storybook/global': 5.0.0
-      axe-core: 4.12.1
+      axe-core: 4.13.0
       storybook: 10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))
 
   '@storybook/addon-docs@10.5.6(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(storybook@10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0)))':
@@ -7616,7 +7616,7 @@ snapshots:
 
   atomic-sleep@1.0.0: {}
 
-  axe-core@4.12.1: {}
+  axe-core@4.13.0: {}
 
   b4a@1.7.3: {}
 
