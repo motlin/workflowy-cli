@@ -20,6 +20,8 @@ Then confirm the **iMCP** tools are registered in this session by listing them (
 - `op vault list` fails → halt. Tell the user to unlock the 1Password desktop app (Settings → Developer → "Integrate with 1Password CLI" must be on). Do not suggest `eval $(op signin)`: it exports `OP_SESSION_*` into one shell, and every Bash tool call gets a fresh shell, so that token never reaches the barrier.
 - iMCP tools absent → halt. Tell the user to run `/mcp`, **then restart the Claude Code session**.
 
+Both halt messages must be plain-text responses that end the turn. Do **not** use `AskUserQuestion`: an open prompt prevents the user from typing `/mcp` and gets in the way of unlocking 1Password until they press Esc. State the recovery action in plain text and return control immediately.
+
 The restart is not optional. A server connected mid-session via `/mcp` reaches the main thread only; subagents build their tool registry from the session's startup configuration, so every prep controller spawned afterward still sees no `mcp__imcp__*` tools no matter how long it waits or how many times it is redispatched. Only a session that starts with iMCP already connected gives prep tasks Apple/iCloud calendar access.
 
 Do not fan out on a partial credential set. A halted barrier costs one restart; a fan-out on missing credentials costs the whole review and silently degrades Apple-calendar deduplication.

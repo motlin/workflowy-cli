@@ -31,6 +31,8 @@ A fetcher or scanner that cannot recover iMCP returns this as its final JSON, in
 
 A command that invokes such an agent must check for `status: "imcp-unavailable"` in the result and **halt immediately** — display the `message` to the user and stop. The check is on `status` alone; `fatal` is informational only. **Never proceed because `fatal: false`** — that flag does not authorize graceful degradation. Also never proceed because the agent returned partial Workflowy or AppleScript data alongside the unavailability flag; partial data is not a fallback. Halt without offering the user a "continue anyway" option.
 
+The reconnect halt must be a plain-text response that ends the turn. **Never issue `AskUserQuestion` for this halt**: while that prompt is open, the user cannot type `/mcp` without first pressing Esc. Tell the user how to reconnect in plain text, then return control immediately.
+
 ## Photos scanner exception
 
 The photos scanner has a legitimate non-iMCP path (AppleScript against the Photos app). It should attempt iMCP recovery first, then fall back to AppleScript. It returns a fatal error **only if both iMCP and AppleScript fail** — AppleScript success is real data, not degradation.
