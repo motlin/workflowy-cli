@@ -23,6 +23,7 @@ Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-prop
 - **Accept** → run the proposal's `applyOp` verbatim (it appends the improvement as a task to `.llm/todo.md`).
 - **Accept with note** → file the user's edited wording instead of the staged title.
 - **Reject** → make no task, and **record the decline** so prep never re-surfaces it: append `{fingerprint, summary, declinedAt}` to `.llm/gtd/review/meta-feedback-declined.json` (create the file as `[]` if missing), using the proposal's `fingerprint`.
+- **Challenge** → keep the proposal active when the answer questions its premise or redirects the framing (for example, "why?" or "the real problem is X"). If the challenge text was not supplied with the answer, ask for it. Re-read the current contents of every target file named by the proposal, verify whether the stated problem still exists, answer the challenge from that evidence, then re-present the same proposal with both the challenge and the answer before moving to another proposal. If the redirect rejects the proposal as framed, make no task and record the decline exactly as for **Reject** before continuing; do not treat it as **Accept with note** or leave it unrecorded.
 
 On `status: "empty"`, report "no new feedback to fold in", advance the watermark, and return empty. On `status: "error"`, surface the error and return failure.
 
