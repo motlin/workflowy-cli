@@ -9,7 +9,7 @@ Two segments, walked back to back as one continuous question sequence:
 - **Segment 1 — recurring items.** Items in `Personal > 🔄 Review` that come back on an interval. Handling one advances its date by its section's cadence.
 - **Segment 2 — due items.** One-shot tasks that should be done once and go away, merged from the Workflowy `⏰ Tasks (due dates)` buckets, Things 3, and Apple Reminders. Handling one completes, reschedules, or drops it.
 
-Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. The segments stay separate because their write-backs differ: a recurring item always returns, a one-shot task should not.
+Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. The segments stay separate because their write-backs differ: a recurring item normally returns, while a one-shot task should not.
 
 ## Do not use the built-in task list
 
@@ -53,7 +53,15 @@ The section → interval table lives in `compute-overdue.mjs` (the executable so
 
 ## Recurring item options
 
-Done / skip / notes, per the walk skill. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+Done / skip / notes / retire, per the walk skill. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+
+On **retire**, the user has explicitly said the recurring item should no longer exist. Delete it by full UUID:
+
+```bash
+./bin/run.js node delete --id <uuid>
+```
+
+Dispatch the delete as the item's outcome write. Do **not** run `applyOp` or otherwise advance the date. Continue to the next item and count this one as retired in the finish summary.
 
 ## LLM tasks (#llm-task)
 
@@ -139,4 +147,4 @@ Do not silently leave a task undated. An undated task in the due-dates bucket is
 
 ## Finish
 
-Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced · 9 due items completed, 4 rescheduled, 2 dropped` — or list failures by item name instead of reporting success.
+Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 2 retired · 9 due items completed, 4 rescheduled, 2 dropped` — or list failures by item name instead of reporting success.

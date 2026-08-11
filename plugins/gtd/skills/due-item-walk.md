@@ -42,12 +42,13 @@ Item 1/8: Record status in workflowy Status (due: 2026-02-09, overdue by 12 days
 - If the item has children, show them indented below.
 - After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
 
-## Freeform: note versus continued work
+## Freeform: note, continued work, or retire
 
-A freeform answer is either a **note** or **continued work**, and they end very differently:
+A freeform answer is a **note**, **continued work**, or **retire**, and they end very differently:
 
 - **Note** — a remark to record and move past ("went well", "waiting on the vendor"). File it as a child node, **dispatched in the background** as a separate job from the outcome write, treat the item as handled, and continue.
 - **Continued work** — an instruction, a correction, new information, or a request to keep going on this item ("I plugged in another drive, go inventory it", "that is wrong, redo it"). Stay on the item and do the work. Do **not** write the outcome and do **not** present the next item.
+- **Retire** — an explicit statement that a recurring item should no longer exist. Follow the recurring walk's retire operation, do **not** advance its date, count it as retired, and continue. This class does not apply to one-shot due items; use their **Drop** outcome instead.
 
 When continued work is in progress, only an explicit "done" or "skip" ends the item. Silence, a completed sub-task, or your own sense that the work looks finished never earns the write. When the answer is genuinely ambiguous, treat it as continued work — resuming a finished item is cheap; recording completion on unfinished work hides it for a whole interval.
 
