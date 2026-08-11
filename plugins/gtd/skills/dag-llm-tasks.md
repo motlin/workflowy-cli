@@ -63,7 +63,13 @@ If freshness cannot be positively verified, halt.
 
 ## Prep fan-out
 
-Before dispatching anything, **stop prep controllers left over from an earlier or aborted fan-out**. List the running background agents and terminate any prep controller that is not part of this dispatch. A restarted review otherwise stacks new controllers on top of live ones: the five-in-flight cap stops being real, and a controller presumed hung can wake up hours later and overwrite the artifact a retry already staged — silently replacing the proposals the walk is mid-way through presenting. Treat a controller that stops answering a status ping as still dangerous until it is actually stopped, not merely assumed dead.
+Before dispatching anything:
+
+1. List all running background agents.
+2. Stop every prep controller left over from an earlier or aborted fan-out. Treat a controller that stops answering a status ping as still running until it is actually stopped.
+3. Verify that no earlier prep controller remains, then dispatch the new set.
+
+A restarted review otherwise stacks new controllers on top of live ones: the five-in-flight cap stops being real, and a controller presumed hung can wake up hours later and overwrite the artifact a retry already staged — silently replacing the proposals the walk is mid-way through presenting.
 
 Run metadata sync once before fan-out. Prep workers read the resulting `.llm/gtd/metadata/` cache and never rebuild it concurrently.
 
