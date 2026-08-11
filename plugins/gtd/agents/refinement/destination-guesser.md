@@ -32,6 +32,8 @@ Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the l
 
 ## Search for a topical home before defaulting to a generic bucket
 
+Never return either Next-Actions container root — `Work > ☑️ Next (Work)` or `Personal > ☑️ Next (Personal)` — as the destination. These are containers, not leaf destinations. When no more specific topical home applies, resolve the item to the appropriate leaf bucket: `⏰ Tasks (due dates)` when it has a due date, or `📌 Tasks (asap)` otherwise. Do not rely on the File Loose Tasks phase to sweep an item out of a container root later.
+
 The synced destination metadata does not list every node, so a weakly-tagged item lands in a generic `📌 Tasks (asap)` bucket even when a purpose-built node already exists (a reading list, a per-person feedback area, a reference subtree). The user then redirects it by hand — repeatedly, for the same kinds of items.
 
 So whenever you are about to return a generic Next-Actions bucket at anything below `high` confidence, first search Workflowy for a more specific existing home:
