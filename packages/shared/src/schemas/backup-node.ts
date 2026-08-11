@@ -78,6 +78,8 @@ const CalendarSchema = z
 		dateId: z.number().optional(),
 		timestamp: z.number().optional(),
 		found_dates: z.boolean().optional(),
+		// Workflowy emits this unused setting, which strict validation must accept.
+		day_prefix: z.boolean().optional(),
 	})
 	.strict();
 

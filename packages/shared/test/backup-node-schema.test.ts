@@ -23,3 +23,19 @@ describe('MetadataSchema table field', () => {
 		expect(node.metadata.table).toStrictEqual({headers: true});
 	});
 });
+
+describe('CalendarSchema day_prefix field', () => {
+	it('accepts the day_prefix key on calendar metadata', () => {
+		const result = MetadataSchema.parse({calendar: {root: true, day_prefix: true}});
+		expect(result.calendar).toStrictEqual({root: true, day_prefix: true});
+	});
+
+	it('accepts a node whose calendar metadata carries day_prefix', () => {
+		const node = BackupNodeSchema.parse({
+			id: 'abc',
+			nm: '📆 Calendar',
+			metadata: {calendar: {root: true, day_prefix: true}},
+		});
+		expect(node.metadata.calendar?.day_prefix).toBe(true);
+	});
+});
