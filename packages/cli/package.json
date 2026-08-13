@@ -15,7 +15,7 @@
 		"better-sqlite3": "^13.0.3",
 		"chalk": "^6.0.0",
 		"drizzle-orm": "^0.45.2",
-		"dropbox": "^10.44.0",
+		"dropbox": "^10.45.0",
 		"node-html-parser": "^9.0.1",
 		"pino": "^10.3.1",
 		"sql-formatter": "^15.8.2",
