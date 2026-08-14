@@ -29,7 +29,7 @@
 		"react-router-dom": "^7.18.2",
 		"sqlite-vec": "^0.1.9",
 		"zod": "^4.4.3",
-		"zustand": "^5.0.14"
+		"zustand": "^5.0.15"
 	},
 	"devDependencies": {
 		"@storybook/addon-a11y": "^10.5.6",
