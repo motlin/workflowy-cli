@@ -268,8 +268,8 @@ importers:
         specifier: ^6.0.5
         version: 6.0.5(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))
       concurrently:
-        specifier: ^10.0.4
-        version: 10.0.4
+        specifier: ^10.0.5
+        version: 10.0.5
       storybook:
         specifier: ^10.5.6
         version: 10.5.6(@types/react@19.2.18)(react@19.2.8)(vite-plus@0.2.7(@types/node@26.1.2)(@voidzero-dev/vite-plus-core@0.2.5(@types/node@26.1.2)(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.1)(tsx@4.23.9)(typescript@7.0.2)(yaml@2.9.0))
@@ -3092,8 +3092,8 @@ packages:
     resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
     engines: {node: '>= 12'}
 
-  concurrently@10.0.4:
-    resolution: {integrity: sha512-trZql+7l/0+WRAsAnEdctr4+iiOS6ZrViI6H8QWcCF9MFS/LT0dKpe8vluB1to6it+OxSI4VospFTIFMW8DJRw==}
+  concurrently@10.0.5:
+    resolution: {integrity: sha512-JaP/CoftUrCcAFW/g//RbgEGwlelnEae6cfBLgH6ZdO6s8jPkn6p9SB9u6pdVxYXoiSnFqseOlHfrEfF82TVOg==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -7887,7 +7887,7 @@ snapshots:
 
   commander@8.3.0: {}
 
-  concurrently@10.0.4:
+  concurrently@10.0.5:
     dependencies:
       chalk: 5.6.2
       rxjs: 7.8.2
