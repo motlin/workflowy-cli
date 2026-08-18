@@ -20,7 +20,7 @@
 		"pino": "^10.3.1",
 		"sql-formatter": "^15.8.2",
 		"sql-highlight": "^6.1.0",
-		"@tobilu/qmd": "^2.5.3",
+		"@tobilu/qmd": "^2.8.3",
 		"sqlite-vec": "^0.1.9",
 		"zod": "^4.4.3"
 	},
