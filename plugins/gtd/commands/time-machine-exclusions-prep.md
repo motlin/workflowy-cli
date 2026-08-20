@@ -37,3 +37,5 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/add-time-machine-exclusions.sh
 The script does the same `find … | sudo xargs tmutil addexclusion -p` sweep, then verifies every path with `tmutil isexcluded` and exits non-zero if any remain. Stage the resolved absolute path so the user can run it without expanding the variable.
 
 `sudo` requires the user, so prep never runs the sweep. Return a one-line count and stop.
+
+**Tell the user to run it in a real terminal, never through Claude Code's `!` prefix.** `sudo` needs a controlling terminal to prompt for a password, and the `!` prefix does not supply one. Suggesting `! <script>` produces one of two bad outcomes: `sudo: a terminal is required to read the password`, or — when a cached credential expires mid-run — a silent hang on a prompt nobody can see, which once blocked a review for 30 minutes. The script now checks for this up front and refuses with instructions, but the apply step should not send the user down that path to begin with. Point them at Terminal or iTerm.

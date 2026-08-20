@@ -10,6 +10,26 @@ if [ ! -d "$ROOT" ]; then
 	exit 1
 fi
 
+# sudo needs a controlling terminal to prompt for a password. Claude Code's `!`
+# prefix, and any other non-interactive wrapper, does not give it one: sudo then
+# either fails with "a terminal is required" or (with a cached credential that
+# expires mid-run) hangs waiting on a prompt nobody can see. Checking up front
+# turns both of those into one clear instruction. Skip the check when sudo
+# already has a valid cached credential, since no prompt will be needed.
+if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
+	cat >&2 <<-'MSG'
+		This script needs sudo, and sudo needs a real terminal to ask for your password.
+		It cannot run through Claude Code's `!` prefix or any other non-interactive wrapper.
+
+		Open Terminal or iTerm and run:
+		  /Users/craig/projects/workflowy/plugins/gtd/scripts/add-time-machine-exclusions.sh
+
+		Alternatively, authenticate first so no prompt is needed, then re-run here:
+		  sudo -v
+	MSG
+	exit 1
+fi
+
 echo "Scanning $ROOT for node_modules / target / build / dist ..."
 
 # -prune stops the walk at each match, so nested build output inside an excluded
