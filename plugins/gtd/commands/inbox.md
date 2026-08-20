@@ -108,6 +108,21 @@ For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to
 - No `✏️ Text:` -> Keep original item text
 - No `📜 Provenance:` -> Set to null
 
+### Never ask how to file the inbox
+
+**The item count is never grounds to ask.** As soon as the refinement suggestions are parsed, present item 1. Never open with a listing of the proposed moves followed by a presentation-mode question — "How should I file them?", "file all as proposed / walk one at a time / group by destination?", "want me to auto-accept the high-confidence ones?". The batch-of-4 loop below, one `AskUserQuestion` per item, is the only mode.
+
+These openers are all banned, however phrased:
+
+- "Here are the 10 proposed moves — file all as proposed, or walk them one at a time?"
+- "Most of these are high confidence; should I just apply those and only ask about the rest?"
+- "That's a lot of items — want to do Personal now and Work tomorrow?"
+- any "that's a lot" / "this is tedious" editorializing about the count.
+
+Printing a one-line count as context for item 1 is fine. Printing a count _and stopping_ is not.
+
+The only correct first move after parsing the refinement suggestions is to present item 1.
+
 ### Review & Execute in Batches (Phases 3-4 interleaved)
 
 **Critical pattern: Review 4 items, then immediately execute moves/deletes for those 4 before reviewing the next batch.** This ensures progress is saved even if the session is interrupted. Never accumulate all decisions before executing.
