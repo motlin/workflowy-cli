@@ -9,7 +9,9 @@ import {
 	fromThings,
 	fromWorkflowy,
 	resolveTimeframe,
+	skipKey,
 } from './collect-due-items.mjs';
+import {foldSkipLog} from './compute-overdue.mjs';
 
 const TODAY = '2026-08-07'; // a Friday
 
@@ -358,4 +360,41 @@ test('moveToAsap is absent when the root has no asap bucket', () => {
 	root.root.children[1].children = [root.root.children[1].children[0]]; // drop the asap bucket
 	const [item] = fromWorkflowy([root], TODAY);
 	assert.equal(item.ops.moveToAsap, undefined);
+});
+
+test('resolveTimeframe reaches the longer horizons offered to repeatedly skipped tasks', () => {
+	assert.equal(resolveTimeframe('Next month', TODAY), '2026-09-07');
+	assert.equal(resolveTimeframe('Next quarter', TODAY), '2026-11-07');
+});
+
+test('resolveTimeframe still rejects a timeframe it does not know', () => {
+	assert.throws(() => resolveTimeframe('Someday', TODAY), /unknown timeframe/);
+});
+
+test('skipKey namespaces an item id by source so two systems cannot collide', () => {
+	assert.equal(skipKey({source: 'things', id: 'abc'}), 'things:abc');
+	assert.equal(skipKey({source: 'reminders', id: 'abc'}), 'reminders:abc');
+});
+
+test('collectDueItems reports a zero skip streak when there is no history', () => {
+	const rows = collectDueItems(
+		{things: {due: [{id: 'things-1', title: 'Renew the passport', due: '2026-07-01'}]}},
+		TODAY,
+	);
+	assert.equal(rows[0].skipStreak, 0);
+	assert.equal(rows[0].skippedSince, null);
+});
+
+test('collectDueItems carries each item skip streak onto its row', () => {
+	const skipStreaks = foldSkipLog([
+		{key: 'things:things-1', outcome: 'skip', date: '2026-08-05'},
+		{key: 'things:things-1', outcome: 'skip', date: '2026-08-06'},
+	]);
+	const rows = collectDueItems(
+		{things: {due: [{id: 'things-1', title: 'Renew the passport', due: '2026-07-01'}]}},
+		TODAY,
+		{skipStreaks},
+	);
+	assert.equal(rows[0].skipStreak, 2);
+	assert.equal(rows[0].skippedSince, '2026-08-05');
 });

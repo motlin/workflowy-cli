@@ -32,6 +32,8 @@ Each section name determines the interval used when advancing an item's date:
 
 Match by substring in the section name. If a section doesn't match any pattern, ask the user for the interval.
 
+This table is also a ladder, ordered shortest interval to longest. Making a repeatedly skipped item less frequent means moving it to the next row down and dating it by that row's interval — `compute-overdue.mjs` stages that move on every row as `lengthen`. `Every few years` is never an automatic target because it has no interval to compute a date from.
+
 ## `<time>` Element Format
 
 ```html

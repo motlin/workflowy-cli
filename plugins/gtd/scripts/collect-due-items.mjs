@@ -12,12 +12,22 @@
 //
 // Usage:
 //   node collect-due-items.mjs --workflowy roots.json --things things.json \
-//     --reminders reminders.json [--today YYYY-MM-DD] [--print]
+//     --reminders reminders.json [--today YYYY-MM-DD] [--print] [--skip-log path]
+//
+// Rows carry `skipStreak` folded from the shared skip log that compute-overdue.mjs --record
+// writes, so the walk can offer a longer horizon to a task it keeps re-asking about.
 //
 // Every input is optional; a missing source contributes nothing rather than failing.
 
 import {readFileSync} from 'node:fs';
-import {buildTimeElement, parseTimeISO, swapTimeElement} from './compute-overdue.mjs';
+import {
+	addInterval,
+	buildTimeElement,
+	DEFAULT_SKIP_LOG_PATH,
+	loadSkipStreaks,
+	parseTimeISO,
+	swapTimeElement,
+} from './compute-overdue.mjs';
 import {bottomTier, readLadder} from './asap-tiers.mjs';
 
 const DUE_BUCKET_PREFIX = '⏰';
@@ -64,6 +74,10 @@ export function resolveTimeframe(label, todayISO) {
 		return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 	}
 	if (/^this month$/i.test(label)) return `${y}-${pad(m)}-${pad(lastDayOfMonth(y, m))}`;
+	// The long horizons exist for tasks the walk keeps re-asking about: pushing one out by a
+	// quarter is the honest alternative to nudging it a week at a time forever.
+	if (/^next month$/i.test(label)) return addInterval(todayISO, {amount: 1, unit: 'm'});
+	if (/^next quarter$/i.test(label)) return addInterval(todayISO, {amount: 3, unit: 'm'});
 	throw new Error(`unknown timeframe: ${label}`);
 }
 
@@ -262,12 +276,20 @@ export function fromReminders(reminders, todayISO) {
 	});
 }
 
-export function collectDueItems(sources, todayISO) {
+// Ids are only unique within their own system, so the shared skip log namespaces them by source.
+export function skipKey(item) {
+	return `${item.source}:${item.id}`;
+}
+
+export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {}) {
 	const rows = [
 		...fromWorkflowy(sources.workflowy, todayISO),
 		...fromThings(sources.things, todayISO),
 		...fromReminders(sources.reminders, todayISO),
-	];
+	].map((row) => {
+		const streak = skipStreaks.get(skipKey(row)) ?? null;
+		return {...row, skipStreak: streak?.skipStreak ?? 0, skippedSince: streak?.skippedSince ?? null};
+	});
 
 	// Undated items sort last: they still need handling, but a real deadline outranks a maybe.
 	return rows
@@ -294,9 +316,11 @@ function main(argv) {
 	const paths = {workflowy: null, things: null, reminders: null};
 	let today = localTodayISO();
 	let print = false;
+	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === '--today') today = args[++i];
 		else if (args[i] === '--print') print = true;
+		else if (args[i] === '--skip-log') skipLogPath = args[++i];
 		else if (args[i] === '--workflowy') paths.workflowy = args[++i];
 		else if (args[i] === '--things') paths.things = args[++i];
 		else if (args[i] === '--reminders') paths.reminders = args[++i];
@@ -305,6 +329,7 @@ function main(argv) {
 	const rows = collectDueItems(
 		{workflowy: readJSON(paths.workflowy), things: readJSON(paths.things), reminders: readJSON(paths.reminders)},
 		today,
+		{skipStreaks: loadSkipStreaks(skipLogPath)},
 	);
 
 	if (!print) {
@@ -314,7 +339,8 @@ function main(argv) {
 
 	for (const r of rows) {
 		const when = r.due ? `due ${r.due} (overdue ${r.overdueByDays}d)` : '⚠️ no date';
-		process.stdout.write(`  [${r.source}] ${when} — ${r.title.slice(0, 90)}\n`);
+		const streak = r.skipStreak >= 2 ? ` ⏭️ skipped ${r.skipStreak}x` : '';
+		process.stdout.write(`  [${r.source}] ${when}${streak} — ${r.title.slice(0, 90)}\n`);
 	}
 	const undated = rows.filter((r) => r.needsDate).length;
 	process.stdout.write(`\nTOTAL DUE: ${rows.length}${undated ? ` (${undated} missing a date)` : ''}\n`);

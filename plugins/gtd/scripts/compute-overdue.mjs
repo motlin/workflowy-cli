@@ -7,15 +7,21 @@
 // interval. The Phase 0 planner imports the shared date helpers from this module.
 //
 // Usage:
-//   node compute-overdue.mjs [tree.json] [--today YYYY-MM-DD] [--print]
+//   node compute-overdue.mjs [tree.json] [--today YYYY-MM-DD] [--print] [--skip-log path]
+//   node compute-overdue.mjs --record <itemId> --outcome <skip|done|lengthen|retire|...>
 //
 // Default tree path: .llm/gtd/review/tree.json. Default today: the local date.
 // Without --print, emits the overdue rows as JSON to stdout.
 //
+// --record appends one outcome to the skip log so the next run knows how many times in a row an
+// item was skipped. Each row then carries `skipStreak` plus a staged `lengthen` op that moves the
+// item to the next longer cadence -- repeated skipping usually means the cadence is wrong.
+//
 // The section -> interval table mirrors plugins/gtd/skills/review-date-updates.md;
 // this script is the executable source of truth for it.
 
-import {readFileSync} from 'node:fs';
+import {appendFileSync, mkdirSync, readFileSync} from 'node:fs';
+import {dirname} from 'node:path';
 
 const SECTION_INTERVALS = [
 	['Daily Review', {amount: 1, unit: 'd'}],
@@ -86,6 +92,93 @@ export function swapTimeElement(name, newTimeElement) {
 	return String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/, '') + ' ';
 }
 
+// The skip log is an append-only JSONL record of what happened to each item on each run. It is
+// append-only on purpose: the walk dispatches its writes as concurrent background jobs, and a
+// read-modify-write of a single JSON blob would silently lose outcomes when two land at once.
+export const DEFAULT_SKIP_LOG_PATH = '.llm/gtd/review/skip-log.jsonl';
+
+function parseSkipLog(text) {
+	const entries = [];
+	for (const line of String(text).split('\n')) {
+		if (!line.trim()) continue;
+		try {
+			const entry = JSON.parse(line);
+			if (entry?.key && entry?.outcome && entry?.date) entries.push(entry);
+		} catch {
+			// A truncated line from an interrupted run costs one item's history, never the whole log.
+		}
+	}
+	return entries;
+}
+
+/**
+ * Fold the log into a per-item streak of consecutive runs that ended in `skip`.
+ *
+ * Outcomes collapse per day so re-running the review cannot inflate a streak, and the last
+ * outcome recorded for a day wins so a correction overrides the entry it replaces.
+ */
+export function foldSkipLog(entries) {
+	const byKey = new Map();
+	for (const {key, outcome, date} of entries ?? []) {
+		if (!byKey.has(key)) byKey.set(key, new Map());
+		byKey.get(key).set(date, outcome);
+	}
+
+	const streaks = new Map();
+	for (const [key, byDate] of byKey) {
+		const dates = [...byDate.keys()].sort();
+		let skipStreak = 0;
+		let skippedSince = null;
+		for (let i = dates.length - 1; i >= 0; i--) {
+			if (byDate.get(dates[i]) !== 'skip') break;
+			skipStreak++;
+			skippedSince = dates[i];
+		}
+		streaks.set(key, {skipStreak, skippedSince});
+	}
+	return streaks;
+}
+
+export function loadSkipStreaks(path = DEFAULT_SKIP_LOG_PATH) {
+	try {
+		return foldSkipLog(parseSkipLog(readFileSync(path, 'utf8')));
+	} catch {
+		return new Map(); // No log yet means no history, which is not an error.
+	}
+}
+
+export function recordOutcome(key, outcome, {date = localTodayISO(), path = DEFAULT_SKIP_LOG_PATH} = {}) {
+	const entry = {key, outcome, date};
+	mkdirSync(dirname(path), {recursive: true});
+	appendFileSync(path, JSON.stringify(entry) + '\n');
+	return entry;
+}
+
+const UNIT_DAYS = {d: 1, m: 30, y: 365};
+
+// Only for ordering the cadence ladder -- month and year lengths are approximations, and the real
+// date math stays in addInterval.
+export function intervalDays(interval) {
+	return interval === null ? Infinity : UNIT_DAYS[interval.unit] * interval.amount;
+}
+
+/**
+ * The next rung up the cadence ladder: the section in this tree whose interval is the shortest one
+ * still longer than `interval`. A recurring item's cadence IS its section, so lengthening the
+ * cadence means moving the node, not editing a field.
+ */
+export function nextLongerSection(sections, interval) {
+	if (interval === null) return null; // Unknown cadence -- ask the user rather than guessing a rung.
+	const current = intervalDays(interval);
+	const candidates = (sections ?? [])
+		.filter((section) => !String(section.name).includes('🗃️ Routine Archive'))
+		.map((section) => ({name: section.name, id: section.id, interval: intervalForSection(section.name)}))
+		// A section with no known interval cannot stage a date, so it is not a move target.
+		.filter((section) => section.interval !== null && intervalDays(section.interval) > current)
+		.sort((a, b) => intervalDays(a.interval) - intervalDays(b.interval));
+	return candidates[0] ?? null;
+}
+
 function shellSingleQuote(s) {
 	return `'${String(s).replaceAll("'", `'"'"'`)}'`;
 }
@@ -96,13 +189,34 @@ function daysBetween(fromISO, toISO) {
 	return Math.round((b - a) / 86_400_000);
 }
 
-export function computeOverdue(tree, todayISO) {
+/**
+ * Stage the "this comes back too often" outcome: advance the date by the NEXT LONGER cadence and
+ * move the item into that section. Repeated skipping usually means the cadence is wrong rather
+ * than that the item is dead, so this is the alternative to deleting it.
+ */
+function buildLengthen(target, child, todayISO) {
+	if (!target?.id) return null; // Top of the ladder, or a section we cannot address by id.
+	const nextDate = addInterval(todayISO, target.interval);
+	const newName = swapTimeElement(child.name, buildTimeElement(nextDate));
+	return {
+		section: target.name,
+		sectionId: target.id,
+		interval: target.interval,
+		nextDate,
+		newName,
+		applyOp: `./bin/run.js node update --id ${child.id} --name ${shellSingleQuote(newName)} && ./bin/run.js node move --node-id ${child.id} --parent-id ${target.id} -p bottom`,
+	};
+}
+
+export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 	const sections = tree.children ?? [];
 	const rows = [];
 
 	sections.forEach((section, sectionIndex) => {
 		if (String(section.name).includes('🗃️ Routine Archive')) return;
 		const interval = intervalForSection(section.name);
+		// Every item in a section shares its cadence, so the rung above it is resolved once here.
+		const lengthenTarget = nextLongerSection(sections, interval);
 
 		const walk = (node) => {
 			for (const child of node.children ?? []) {
@@ -118,6 +232,7 @@ export function computeOverdue(tree, todayISO) {
 						newName = swapTimeElement(child.name, buildTimeElement(nextDate));
 						applyOp = `./bin/run.js node update --id ${child.id} --name ${shellSingleQuote(newName)}`;
 					}
+					const streak = skipStreaks.get(child.id) ?? null;
 					rows.push({
 						section: section.name,
 						sectionIndex,
@@ -135,6 +250,9 @@ export function computeOverdue(tree, todayISO) {
 						nextTimeElement: nextDate ? buildTimeElement(nextDate) : null,
 						newName,
 						applyOp,
+						skipStreak: streak?.skipStreak ?? 0,
+						skippedSince: streak?.skippedSince ?? null,
+						lengthen: buildLengthen(lengthenTarget, child, todayISO),
 					});
 				}
 				if (child.children?.length) walk(child);
@@ -157,14 +275,27 @@ function main(argv) {
 	let treePath = '.llm/gtd/review/tree.json';
 	let today = localTodayISO();
 	let print = false;
+	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
+	let recordKey = null;
+	let outcome = null;
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === '--today') today = args[++i];
 		else if (args[i] === '--print') print = true;
+		else if (args[i] === '--skip-log') skipLogPath = args[++i];
+		else if (args[i] === '--record') recordKey = args[++i];
+		else if (args[i] === '--outcome') outcome = args[++i];
 		else if (!args[i].startsWith('--')) treePath = args[i];
 	}
 
+	if (recordKey) {
+		if (!outcome) throw new Error('--record requires --outcome');
+		const entry = recordOutcome(recordKey, outcome, {date: today, path: skipLogPath});
+		process.stdout.write(JSON.stringify(entry) + '\n');
+		return;
+	}
+
 	const tree = JSON.parse(readFileSync(treePath, 'utf8'));
-	const rows = computeOverdue(tree, today);
+	const rows = computeOverdue(tree, today, {skipStreaks: loadSkipStreaks(skipLogPath)});
 
 	if (!print) {
 		process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
@@ -182,6 +313,9 @@ function main(argv) {
 			const tags = [
 				it.isLlmTask ? '[#llm-task]' : '',
 				it.hasKids ? '(has kids)' : '',
+				it.skipStreak >= 2
+					? `⏭️ skipped ${it.skipStreak}x → offer ${it.lengthen?.section ?? 'a longer cadence'}`
+					: '',
 				it.needsInterval ? '⚠️ needs interval' : `→ ${it.nextDate}`,
 			]
 				.filter(Boolean)

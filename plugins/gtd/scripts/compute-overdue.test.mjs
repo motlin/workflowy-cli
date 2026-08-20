@@ -2,12 +2,20 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {
 	addInterval,
 	buildTimeElement,
 	computeOverdue,
+	foldSkipLog,
+	intervalDays,
 	intervalForSection,
+	loadSkipStreaks,
+	nextLongerSection,
 	parseTimeISO,
+	recordOutcome,
 	swapTimeElement,
 } from './compute-overdue.mjs';
 
@@ -211,4 +219,216 @@ test('computeOverdue flags sections that need a user-chosen interval', () => {
 	assert.equal(rows[0].needsInterval, true);
 	assert.equal(rows[0].nextDate, null);
 	assert.equal(rows[0].applyOp, null);
+});
+
+test('intervalDays orders every cadence from daily to annual', () => {
+	assert.equal(intervalDays({amount: 1, unit: 'd'}), 1);
+	assert.equal(intervalDays({amount: 7, unit: 'd'}), 7);
+	assert.ok(intervalDays({amount: 1, unit: 'm'}) > intervalDays({amount: 7, unit: 'd'}));
+	assert.ok(intervalDays({amount: 1, unit: 'y'}) > intervalDays({amount: 6, unit: 'm'}));
+	assert.equal(intervalDays(null), Infinity);
+});
+
+const LADDER_SECTIONS = [
+	{name: '⬆️ Frequently Important', id: 'sec-freq'},
+	{name: '🗓️ Weekly Review', id: 'sec-weekly'},
+	{name: '📅 Monthly Review', id: 'sec-monthly'},
+	{name: '🗓️ Every 6 months', id: 'sec-6mo'},
+	{name: '🎆 Annual Review', id: 'sec-annual'},
+	{name: '🗃️ Routine Archive', id: 'sec-archive'},
+	{name: 'Every few years', id: 'sec-fewyears'},
+];
+
+test('nextLongerSection climbs one rung of the cadence ladder', () => {
+	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'd'}).id, 'sec-weekly');
+	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 7, unit: 'd'}).id, 'sec-monthly');
+	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'm'}).id, 'sec-6mo');
+	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 6, unit: 'm'}).id, 'sec-annual');
+});
+
+test('nextLongerSection returns null at the top of the ladder and for unknown cadences', () => {
+	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'y'}), null);
+	assert.equal(nextLongerSection(LADDER_SECTIONS, null), null);
+});
+
+test('nextLongerSection never targets the archive', () => {
+	const sections = [
+		{name: '🔄 Daily Review', id: 'sec-daily'},
+		{name: '🗃️ Routine Archive', id: 'sec-archive'},
+	];
+	assert.equal(nextLongerSection(sections, {amount: 1, unit: 'd'}), null);
+});
+
+test('foldSkipLog counts consecutive trailing skips per item', () => {
+	const streaks = foldSkipLog([
+		{key: 'id-a', outcome: 'done', date: '2026-08-10'},
+		{key: 'id-a', outcome: 'skip', date: '2026-08-11'},
+		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
+		{key: 'id-b', outcome: 'skip', date: '2026-08-12'},
+	]);
+	assert.equal(streaks.get('id-a').skipStreak, 2);
+	assert.equal(streaks.get('id-a').skippedSince, '2026-08-11');
+	assert.equal(streaks.get('id-b').skipStreak, 1);
+});
+
+test('foldSkipLog resets the streak when the item is finally handled', () => {
+	const streaks = foldSkipLog([
+		{key: 'id-a', outcome: 'skip', date: '2026-08-10'},
+		{key: 'id-a', outcome: 'skip', date: '2026-08-11'},
+		{key: 'id-a', outcome: 'done', date: '2026-08-12'},
+	]);
+	assert.equal(streaks.get('id-a').skipStreak, 0);
+	assert.equal(streaks.get('id-a').skippedSince, null);
+});
+
+test('foldSkipLog collapses repeats from the same day so a re-run cannot inflate a streak', () => {
+	const streaks = foldSkipLog([
+		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
+		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
+		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
+	]);
+	assert.equal(streaks.get('id-a').skipStreak, 1);
+});
+
+test('foldSkipLog lets a same-day correction overwrite an earlier outcome', () => {
+	const streaks = foldSkipLog([
+		{key: 'id-a', outcome: 'skip', date: '2026-08-11'},
+		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
+		{key: 'id-a', outcome: 'done', date: '2026-08-12'},
+	]);
+	assert.equal(streaks.get('id-a').skipStreak, 0);
+});
+
+test('recordOutcome appends to the log and loadSkipStreaks reads it back', () => {
+	const dir = mkdtempSync(join(tmpdir(), 'gtd-skip-'));
+	const logPath = join(dir, 'skip-log.jsonl');
+	recordOutcome('id-a', 'skip', {date: '2026-08-11', path: logPath});
+	recordOutcome('id-a', 'skip', {date: '2026-08-12', path: logPath});
+	recordOutcome('id-b', 'done', {date: '2026-08-12', path: logPath});
+
+	const streaks = loadSkipStreaks(logPath);
+	assert.equal(streaks.get('id-a').skipStreak, 2);
+	assert.equal(streaks.get('id-b').skipStreak, 0);
+	rmSync(dir, {recursive: true, force: true});
+});
+
+test('loadSkipStreaks treats a missing log as no history', () => {
+	const streaks = loadSkipStreaks(join(tmpdir(), 'gtd-skip-does-not-exist', 'skip-log.jsonl'));
+	assert.equal(streaks.size, 0);
+});
+
+test('computeOverdue reports a zero skip streak when there is no history', () => {
+	const rows = computeOverdue(FIXTURE, '2026-06-26');
+	assert.equal(rows[0].skipStreak, 0);
+	assert.equal(rows[0].skippedSince, null);
+});
+
+test('computeOverdue carries each item skip streak onto its row', () => {
+	const streaks = foldSkipLog([
+		{key: 'id-reminders', outcome: 'skip', date: '2026-06-24'},
+		{key: 'id-reminders', outcome: 'skip', date: '2026-06-25'},
+	]);
+	const rows = computeOverdue(FIXTURE, '2026-06-26', {skipStreaks: streaks});
+	const reminders = rows.find((r) => r.id === 'id-reminders');
+	assert.equal(reminders.skipStreak, 2);
+	assert.equal(reminders.skippedSince, '2026-06-24');
+});
+
+const LADDER_TREE = {
+	children: [
+		{
+			name: '🔄 Daily Review',
+			id: 'sec-daily',
+			priority: 3,
+			children: [
+				{
+					name: 'Change batteries in the front door lock <time startYear="2026" startMonth="6" startDay="24">Wed, Jun 24, 2026</time> ',
+					id: 'id-batteries',
+					shortId: 'sid-batteries',
+					children: [],
+				},
+			],
+		},
+		{name: '🗓️ Weekly Review', id: 'sec-weekly', priority: 5, children: []},
+		{name: '🎆 Annual Review', id: 'sec-annual', priority: 8, children: []},
+	],
+};
+
+test('computeOverdue stages a lengthen op that moves the item up one cadence rung', () => {
+	const rows = computeOverdue(LADDER_TREE, '2026-06-26');
+	const {lengthen} = rows[0];
+	assert.equal(lengthen.section, '🗓️ Weekly Review');
+	assert.equal(lengthen.sectionId, 'sec-weekly');
+	assert.deepEqual(lengthen.interval, {amount: 7, unit: 'd'});
+	assert.equal(lengthen.nextDate, '2026-07-03');
+	assert.match(lengthen.newName, /startDay="3"/);
+	assert.match(lengthen.newName, /startMonth="7"/);
+	assert.ok(lengthen.applyOp.includes(`node update --id id-batteries --name `));
+	assert.ok(lengthen.applyOp.includes(lengthen.newName));
+	assert.ok(lengthen.applyOp.includes('node move --node-id id-batteries --parent-id sec-weekly'));
+});
+
+test('computeOverdue leaves lengthen null at the top of the ladder', () => {
+	const tree = {
+		children: [
+			{
+				name: '🎆 Annual Review',
+				id: 'sec-annual',
+				priority: 8,
+				children: [
+					{
+						name: 'Review the will <time startYear="2026" startMonth="1" startDay="1">Thu, Jan 1, 2026</time> ',
+						id: 'id-will',
+						shortId: 'sid-will',
+						children: [],
+					},
+				],
+			},
+		],
+	};
+	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
+});
+
+test('computeOverdue leaves lengthen null when the section interval is unknown', () => {
+	const tree = {
+		children: [
+			{
+				name: 'Every few years',
+				id: 'sec-fewyears',
+				priority: 1,
+				children: [
+					{
+						name: 'Replace smoke detectors <time startYear="2026" startMonth="1" startDay="1">Thu, Jan 1, 2026</time> ',
+						id: 'id-smoke',
+						shortId: 'sid-smoke',
+						children: [],
+					},
+				],
+			},
+			{name: '🎆 Annual Review', id: 'sec-annual', priority: 8, children: []},
+		],
+	};
+	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
+});
+
+test('computeOverdue leaves lengthen null when the target section has no id to move into', () => {
+	const tree = {
+		children: [
+			{
+				name: '🔄 Daily Review',
+				id: 'sec-daily',
+				priority: 3,
+				children: [
+					{
+						name: 'Water the plants <time startYear="2026" startMonth="6" startDay="24">Wed, Jun 24, 2026</time> ',
+						id: 'id-plants',
+						shortId: 'sid-plants',
+						children: [],
+					},
+				],
+			},
+			{name: '🗓️ Weekly Review', priority: 5, children: []},
+		],
+	};
+	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
 });

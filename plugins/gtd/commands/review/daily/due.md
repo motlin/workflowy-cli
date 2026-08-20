@@ -39,7 +39,7 @@ Run the date math in a script — never re-derive it by hand. `compute-overdue.m
 node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs .llm/gtd/review/tree.json > .llm/gtd/review/overdue.json
 ```
 
-`overdue.json` is an ordered array (by section priority, then due date) where each row carries `section`, `shortId`, `id`, `name`, `due`, `overdueByDays`, `isLlmTask`, `hasKids`, `nextDate`, `newName`, and `applyOp` (the verbatim `node update` to run on "done"). The script already skips `🗃️ Routine Archive`, skips future-dated items, compares dates as ISO strings (avoiding the `new Date()` UTC-vs-local footgun), and clamps month rollovers (Jan 31 + 1 month → Feb 28). Pass `--print` instead of redirecting for a human-readable dump while debugging.
+`overdue.json` is an ordered array (by section priority, then due date) where each row carries `section`, `shortId`, `id`, `name`, `due`, `overdueByDays`, `isLlmTask`, `hasKids`, `nextDate`, `newName`, `applyOp` (the verbatim `node update` to run on "done"), `skipStreak` / `skippedSince` folded from the skip log, and `lengthen` (the staged move to the next longer cadence). The script already skips `🗃️ Routine Archive`, skips future-dated items, compares dates as ISO strings (avoiding the `new Date()` UTC-vs-local footgun), and clamps month rollovers (Jan 31 + 1 month → Feb 28). Pass `--print` instead of redirecting for a human-readable dump while debugging.
 
 The script assumes the canonical shape: section headers carry no date, intermediate groups carry no date, and the `<time>` lives on the **leaf item**. **If the data doesn't match — a `<time>` on an intermediate group, or a "leaf" whose children each carry their own date — stop and ask the user to fix the data in Workflowy** rather than reinterpreting it here.
 
@@ -55,6 +55,8 @@ The section → interval table lives in `compute-overdue.mjs` (the executable so
 
 Done / skip / notes / retire, per the walk skill. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
 
+Record every outcome to the skip log, keyed by the row's `id`, per the walk skill's record step.
+
 On **retire**, the user has explicitly said the recurring item should no longer exist. Delete it by full UUID:
 
 ```bash
@@ -62,6 +64,27 @@ On **retire**, the user has explicitly said the recurring item should no longer 
 ```
 
 Dispatch the delete as the item's outcome write. Do **not** run `applyOp` or otherwise advance the date. Continue to the next item and count this one as retired in the finish summary.
+
+## Less often: the cadence outcome for a repeatedly skipped item
+
+A recurring item's cadence **is** its section, so making it less frequent means moving it down the ladder — `🔄 Daily Review` → `🗓️ Weekly Review` → `📅 Monthly Review` → `🗓️ Every 2 months` → `🗓️ Every 6 months` → `🎆 Annual Review`. `compute-overdue.mjs` stages that whole move on every row as `lengthen`:
+
+```json
+{
+	"section": "🗓️ Weekly Review",
+	"sectionId": "<uuid of that section>",
+	"interval": {"amount": 7, "unit": "d"},
+	"nextDate": "2026-07-03",
+	"newName": "<the item name with its time element advanced to nextDate>",
+	"applyOp": "<node update writing newName> && <node move into sectionId>"
+}
+```
+
+When a row has `skipStreak >= 2` and a non-null `lengthen`, add an explicit outcome labelled with the target cadence — **Less often → 🗓️ Weekly Review** — and show the streak in the question body (`Skipped 3 runs in a row since 2026-08-11.`). Place it above Done/Skip and above Retire. Repeatedly skipping a daily item usually means it should not be daily, not that it should be deleted, so **Retire is never the promoted answer to a streak**.
+
+On that outcome, dispatch `lengthen.applyOp` **verbatim** — it advances the `<time>` by the new interval and moves the node into the new section in one chained command — and record the outcome as `lengthen`. Count it in the finish summary as a cadence change, not as a date advance.
+
+`lengthen` is `null` when the item is already at the top of the ladder, when its section has no recognized interval, or when the target section is missing from the fetched tree. In that case ask the user for the new cadence and build the move by hand per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`.
 
 ## LLM tasks (#llm-task)
 
@@ -120,7 +143,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs \
   > .llm/gtd/review/due-items.json
 ```
 
-Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `childCount`, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
+Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `childCount`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
 
 **Source semantics the collector already resolved, so the walk doesn't have to:**
 
@@ -140,6 +163,16 @@ First option is the most likely outcome, per the walk skill:
 - **Drop** — run `ops.drop`. For Workflowy this deletes the node; for Things and Reminders it cancels or deletes the task. Confirm before dropping anything with `childCount > 0`.
 - **Skip** — write nothing.
 
+Record every outcome to the skip log, keyed `<source>:<id>` (`things:ABC123`, `workflowy:<uuid>`, `reminders:<title>`), per the walk skill's record step.
+
+## Push it out: the cadence outcome for a repeatedly skipped task
+
+Each row carries `skipStreak` and `skippedSince`. When `skipStreak >= 2`, show the streak in the question body and promote a **longer horizon** above the ordinary reschedule — a task nudged from "today" to "this week" three runs running is a task whose date is fiction. `resolveTimeframe` accepts `Next month` and `Next quarter` alongside the usual timeframes, so build the write exactly as a reschedule: resolve the label, then `applyReschedule(item, iso)`.
+
+For a Workflowy row, `ops.moveToAsap` remains the better answer when the streak is really about a task that never had a deadline. Offer the longer horizon for work with a real but movable deadline, and `moveToAsap` for work with none.
+
+**Drop stays available and stays unpromoted.** A streak means the date was wrong, not that the task is dead.
+
 ## Items missing a date
 
 A row with `needsDate: true` is a Workflowy task filed into the `⏰` bucket without a `<time>`. The bucket means "this has a deadline", so a missing date is a data defect, not a valid state. Present these at the end of the segment and ask for a date using the same `Today` / `This week` / `This month` / `Other` options. Running `ops.reschedule` on an undated node appends the new element rather than swapping one.
@@ -148,4 +181,4 @@ Do not silently leave a task undated. An undated task in the due-dates bucket is
 
 ## Finish
 
-Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 2 retired · 9 due items completed, 4 rescheduled, 2 dropped` — or list failures by item name instead of reporting success.
+Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 3 cadences lengthened, 2 retired · 9 due items completed, 4 rescheduled, 2 pushed out, 2 dropped` — or list failures by item name instead of reporting success.

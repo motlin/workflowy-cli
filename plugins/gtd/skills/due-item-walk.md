@@ -1,6 +1,6 @@
 ---
 name: due-item-walk
-description: The one-item-at-a-time walk protocol shared by every dated-item review — presentation rules, banned openers, freeform handling, and the read-before-write requirement. Load when running the Recurring Review's recurring or due segments, or any review that walks a precomputed ordered working set.
+description: The one-item-at-a-time walk protocol shared by every dated-item review — presentation rules, banned openers, freeform handling, skip-streak cadence changes, and the read-before-write requirement. Load when running the Recurring Review's recurring or due segments, or any review that walks a precomputed ordered working set.
 ---
 
 # Due-Item Walk
@@ -79,6 +79,28 @@ Dispatch every write as a background Bash job and follow **Background Dispatch, 
 
 On skip, write nothing. The item keeps its date and resurfaces on the next run. This is the correct outcome for anything the user did not actually handle — a skipped item the user sees again beats a silently advanced one they never see.
 
+## Record every outcome to the skip log
+
+Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|drop|moveToAsap>
+```
+
+The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.
+
+Record **every** outcome, not just skips — a streak only resets when a handled outcome lands. Skipping the record command for "done" leaves the item looking abandoned on the next run.
+
+## A skip streak means the cadence is wrong, not that the item is dead
+
+Every row carries `skipStreak` (consecutive runs that ended in skip) and `skippedSince`. When `skipStreak >= 2`:
+
+- **Say it in the question body**, read from the row: `Skipped 3 runs in a row since 2026-08-11.` The annotation must live in the question — a streak you only remember from earlier in the conversation is gone by the next session.
+- **Promote a cadence change as an explicit outcome**, placed above the ordinary outcomes. Repeatedly skipping an item almost always means it comes back too often, not that it should stop existing. A recurring item lengthens its interval; a one-shot task pushes out to a longer horizon. The segment's own command file names the exact op.
+- **Keep retire and drop available, but never as the promoted option.** They are for an item the user says is genuinely dead, not the default reading of a skip streak.
+
+A streak is not a reason to skip the item or to editorialize about the backlog. Present the item, offer the cadence change, and move on.
+
 ## Finish
 
-Drain all outstanding background writes, then print a one-line summary (`✓ 12 dates advanced`), or list any failed items by name instead of reporting success. Also drain before any step that runs `cache import-api` / `just daily` — an import can clobber items whose API write has not yet landed.
+Drain all outstanding background writes, then print a one-line summary (`✓ 12 dates advanced, 2 cadences lengthened`), or list any failed items by name instead of reporting success. Also drain before any step that runs `cache import-api` / `just daily` — an import can clobber items whose API write has not yet landed.
