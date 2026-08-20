@@ -2,7 +2,14 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectDueItems, fromReminders, fromThings, fromWorkflowy, resolveTimeframe} from './collect-due-items.mjs';
+import {
+	applyReschedule,
+	collectDueItems,
+	fromReminders,
+	fromThings,
+	fromWorkflowy,
+	resolveTimeframe,
+} from './collect-due-items.mjs';
 
 const TODAY = '2026-08-07'; // a Friday
 
@@ -240,4 +247,48 @@ test('resolveTimeframe converts the file-tasks timeframes into concrete dates', 
 test('resolveTimeframe picks the upcoming Friday mid-week', () => {
 	assert.equal(resolveTimeframe('This week', '2026-08-03'), '2026-08-07'); // Monday -> Friday
 	assert.equal(resolveTimeframe('This week', '2026-08-08'), '2026-08-14'); // Saturday -> next Friday
+});
+
+/**
+ * Regression test for the reschedule placeholder. Workflowy stores dates as a `<time>` element,
+ * but the Things and Reminders ops are AppleScript and need a plain date string. The walk was
+ * documented to substitute `buildTimeElement(iso)` into every `{{date}}`, which injected HTML
+ * markup into `set due date ... to date "..."` and set a garbage date. `applyReschedule` makes
+ * the substitution source-aware so the caller never picks the format.
+ */
+test('applyReschedule substitutes a <time> element for Workflowy items', () => {
+	const [item] = fromWorkflowy(
+		[
+			workflowyRoot({
+				tasks: [
+					{
+						name: 'Ship the thing <time startYear="2026" startMonth="6" startDay="1">Mon, Jun 1, 2026</time>',
+						id: 'wf-uuid',
+					},
+				],
+			}),
+		],
+		TODAY,
+	);
+	const cmd = applyReschedule(item, '2026-08-31');
+	assert.match(cmd, /startYear="2026" startMonth="8" startDay="31"/);
+	assert.doesNotMatch(cmd, /\{\{date\}\}/);
+});
+
+test('applyReschedule substitutes an AppleScript date string for Things items', () => {
+	const [item] = fromThings({due: [{id: 'things-1', title: 'Refill the propane tank', due: '2026-04-25'}]}, TODAY);
+	const cmd = applyReschedule(item, '2026-08-31');
+	assert.doesNotMatch(cmd, /<time/);
+	assert.doesNotMatch(cmd, /\{\{date\}\}/);
+	assert.match(cmd, /date "August 31, 2026"/);
+});
+
+test('applyReschedule substitutes an AppleScript date string for Reminders items', () => {
+	const [item] = fromReminders(
+		{overdue: [{title: 'Replace the HEPA filters', dueDate: '2026-08-07T00:00:00-04:00'}]},
+		TODAY,
+	);
+	const cmd = applyReschedule(item, '2026-08-31');
+	assert.doesNotMatch(cmd, /<time/);
+	assert.match(cmd, /date "August 31, 2026"/);
 });

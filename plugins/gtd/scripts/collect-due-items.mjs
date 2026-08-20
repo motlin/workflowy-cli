@@ -65,6 +65,38 @@ export function resolveTimeframe(label, todayISO) {
 	throw new Error(`unknown timeframe: ${label}`);
 }
 
+const MONTH_NAMES = [
+	'January',
+	'February',
+	'March',
+	'April',
+	'May',
+	'June',
+	'July',
+	'August',
+	'September',
+	'October',
+	'November',
+	'December',
+];
+
+// AppleScript's `date "..."` parses a plain human date. Workflowy's `<time>` element is HTML and
+// means nothing to it, so the two sources need different substitutions for the same placeholder.
+function appleScriptDate(iso) {
+	const [y, m, d] = iso.split('-').map(Number);
+	return `${MONTH_NAMES[m - 1]} ${d}, ${y}`;
+}
+
+/**
+ * Fill a row's `reschedule` template for the new date, choosing the representation the row's
+ * source actually understands. Callers pass an ISO date and never format it themselves — picking
+ * the wrong one silently writes a garbage date rather than failing.
+ */
+export function applyReschedule(item, iso) {
+	const replacement = item.source === 'workflowy' ? buildTimeElement(iso) : appleScriptDate(iso);
+	return item.ops.reschedule.split('{{date}}').join(replacement);
+}
+
 function workflowyOps(node, due) {
 	// The reschedule op is a template: substitute {{date}} with buildTimeElement(iso) to get the
 	// runnable command. Keeping the element out of the template means the weekday label is always

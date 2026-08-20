@@ -135,7 +135,7 @@ Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `
 First option is the most likely outcome, per the walk skill:
 
 - **Done** — run `ops.complete` verbatim.
-- **Reschedule** — offer `Today`, `This week`, `This month`, and `Other`. Convert the choice to a date with `resolveTimeframe` from `collect-due-items.mjs` (never by hand — "this week" means the upcoming Friday and the weekday must be computed). Then substitute the resulting `<time>` element, built with `buildTimeElement`, into `ops.reschedule`'s `{{date}}` placeholder and run it.
+- **Reschedule** — offer `Today`, `This week`, `This month`, and `Other`. Convert the choice to a date with `resolveTimeframe` from `collect-due-items.mjs` (never by hand — "this week" means the upcoming Friday and the weekday must be computed), then build the command with `applyReschedule(item, iso)` from the same module and run it. **Never substitute `{{date}}` yourself.** The three sources need different representations — Workflowy takes a `<time>` element, Things and Reminders take an AppleScript `date "August 31, 2026"` string — and dropping HTML into an `osascript` call sets a garbage date instead of failing. `applyReschedule` picks the right one from the row's `source`.
 - **Drop** — run `ops.drop`. For Workflowy this deletes the node; for Things and Reminders it cancels or deletes the task. Confirm before dropping anything with `childCount > 0`.
 - **Skip** — write nothing.
 
