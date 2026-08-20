@@ -18,6 +18,7 @@
 
 import {readFileSync} from 'node:fs';
 import {buildTimeElement, parseTimeISO, swapTimeElement} from './compute-overdue.mjs';
+import {bottomTier, readLadder} from './asap-tiers.mjs';
 
 const DUE_BUCKET_PREFIX = '⏰';
 const TASKS_WRAPPER_PREFIX = '✅';
@@ -134,7 +135,10 @@ export function fromWorkflowy(roots, todayISO) {
 		const bucket = containers.find((c) => String(c.name).startsWith(DUE_BUCKET_PREFIX));
 		if (!bucket) continue;
 		const asapBucket = containers.find((c) => String(c.name).startsWith(ASAP_BUCKET_PREFIX));
-		const asapTarget = asapBucket?.id ?? null;
+		// A task with no real deadline is not urgent, so it joins the bottom rung of the asap
+		// ladder rather than the top of the bucket. A bucket still carrying category containers
+		// has no ladder yet, and falls back to the bucket root until file-tasks migrates it.
+		const asapTarget = asapBucket ? (bottomTier(readLadder(asapBucket))?.id ?? asapBucket.id) : null;
 
 		// Only the bucket's own children (and those of a legacy timeframe container) are tasks.
 		// A task's children are sub-steps, notes, and provenance -- never tasks in their own right.

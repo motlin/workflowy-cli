@@ -7,9 +7,11 @@
 // AppleScript is the only bridge that does both. Reading and writing through one bridge keeps the
 // ids consistent between what was shown and what gets acted on.
 //
-// Two working sets, unioned by collect-due-items.mjs:
-//   due   -- anything with a deadline on or before today, whatever list it lives in
-//   today -- the Today list, which is what Things itself says to do now
+// Three working sets. collect-due-items.mjs unions the first two:
+//   due     -- anything with a deadline on or before today, whatever list it lives in
+//   today   -- the Today list, which is what Things itself says to do now
+//   anytime -- undated Anytime tasks, which nothing ever surfaces because nothing is due. These
+//              are not due items; file-tasks sweeps them into the personal 📌 asap ladder.
 //
 // Usage: node fetch-things-due.mjs [--today YYYY-MM-DD] > things.json
 
@@ -65,18 +67,30 @@ function localTodayISO() {
 	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/**
+ * Split the two raw Things lists into the review's working sets. Things treats Anytime as a
+ * superset that already contains Today, so the Today ids come off the Anytime list once, up front,
+ * and both splits work from that remainder rather than trusting the list membership.
+ */
+export function partitionThings({todayList, anytime}, todayISO) {
+	const inToday = new Set(todayList.map((t) => t.id));
+	const anytimeOnly = anytime.filter((t) => !inToday.has(t.id));
+
+	const due = [...todayList, ...anytimeOnly].filter((t) => t.due && t.due <= todayISO);
+	// A dated Anytime task is already handled -- either it is due now and in `due`, or it will
+	// surface on its own date. Only the undated ones are invisible and need the asap sweep.
+	const undatedAnytime = anytimeOnly.filter((t) => !t.due);
+
+	return {due, today: todayList, anytime: undatedAnytime};
+}
+
 function main(argv) {
 	const args = argv.slice(2);
 	let today = localTodayISO();
 	for (let i = 0; i < args.length; i++) if (args[i] === '--today') today = args[++i];
 
-	const todayList = run('Today');
-	// Things treats Anytime as a superset that already contains Today, so the union needs a dedup.
-	const anytime = run('Anytime');
-	const seen = new Set();
-	const due = [...todayList, ...anytime].filter((t) => t.due && t.due <= today && !seen.has(t.id) && seen.add(t.id));
-
-	process.stdout.write(JSON.stringify({due, today: todayList}, null, 2) + '\n');
+	const sets = partitionThings({todayList: run('Today'), anytime: run('Anytime')}, today);
+	process.stdout.write(JSON.stringify(sets, null, 2) + '\n');
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);

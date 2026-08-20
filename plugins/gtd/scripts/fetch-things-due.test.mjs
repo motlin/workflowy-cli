@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {FIELD_SEP, parseThingsRows, RECORD_SEP} from './fetch-things-due.mjs';
+import {FIELD_SEP, parseThingsRows, partitionThings, RECORD_SEP} from './fetch-things-due.mjs';
 
 const row = (...fields) => fields.join(FIELD_SEP);
 const out = (...rows) => rows.join(RECORD_SEP) + RECORD_SEP;
@@ -40,5 +40,49 @@ test('parseThingsRows skips malformed records rather than emitting partial rows'
 	assert.deepEqual(
 		parseThingsRows(raw).map((r) => r.id),
 		['good'],
+	);
+});
+
+const task = (id, due, list) => ({id, title: `task ${id}`, due, list});
+
+test('partitionThings unions Today and Anytime into the due set without duplicating a task', () => {
+	const todayList = [task('a', '2026-08-01', 'Today'), task('b', null, 'Today')];
+	const anytime = [task('a', '2026-08-01', 'Anytime'), task('c', '2026-08-05', 'Anytime')];
+
+	const {due, today} = partitionThings({todayList, anytime}, '2026-08-07');
+
+	assert.deepEqual(
+		due.map((t) => [t.id, t.list]),
+		[
+			['a', 'Today'],
+			['c', 'Anytime'],
+		],
+	);
+	assert.equal(today, todayList);
+});
+
+test('partitionThings leaves tasks due after today out of the due set', () => {
+	const {due} = partitionThings({todayList: [], anytime: [task('later', '2026-09-01', 'Anytime')]}, '2026-08-07');
+	assert.deepEqual(due, []);
+});
+
+/**
+ * Things "Anytime" is where undated personal work piles up invisibly -- nothing ever surfaces it,
+ * because nothing is due. The review sweeps it into the personal asap ladder instead, so these
+ * rows are reported separately from `due` and carry no date.
+ */
+test('partitionThings reports undated Anytime tasks separately for the asap sweep', () => {
+	const todayList = [task('in-today', null, 'Today')];
+	const anytime = [
+		task('in-today', null, 'Anytime'),
+		task('undated', null, 'Anytime'),
+		task('dated', '2026-09-01', 'Anytime'),
+	];
+
+	const {anytime: sweep} = partitionThings({todayList, anytime}, '2026-08-07');
+
+	assert.deepEqual(
+		sweep.map((t) => t.id),
+		['undated'],
 	);
 });

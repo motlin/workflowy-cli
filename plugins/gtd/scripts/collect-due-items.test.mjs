@@ -13,7 +13,12 @@ import {
 
 const TODAY = '2026-08-07'; // a Friday
 
-function workflowyRoot({rootKey = 'personal', bucketName = '⏰ Tasks (due dates) (personal)', tasks = []} = {}) {
+function workflowyRoot({
+	rootKey = 'personal',
+	bucketName = '⏰ Tasks (due dates) (personal)',
+	tasks = [],
+	asapChildren = [{name: 'Not a due task', id: 'x'}],
+} = {}) {
 	return {
 		rootKey,
 		root: {
@@ -29,7 +34,7 @@ function workflowyRoot({rootKey = 'personal', bucketName = '⏰ Tasks (due dates
 						{
 							name: '📌 Tasks (asap) (personal)',
 							id: 'asap-uuid',
-							children: [{name: 'Not a due task', id: 'x'}],
+							children: asapChildren,
 						},
 					],
 				},
@@ -299,7 +304,7 @@ test('applyReschedule substitutes an AppleScript date string for Reminders items
  * pushed forward run after run instead of moving to the bucket it belongs in. `moveToAsap` files
  * it under `📌 Tasks (asap)` and strips the `<time>` element, since that bucket carries no dates.
  */
-test('fromWorkflowy files an undeadlined task into the asap bucket without its date', () => {
+test('fromWorkflowy falls back to the asap bucket root when it has no tier ladder', () => {
 	const [item] = fromWorkflowy(
 		[workflowyRoot({tasks: [dated('Turn rollups into a shared marketplace', '2026-08-07', 'ffffffffffff6666')]})],
 		TODAY,
@@ -309,6 +314,43 @@ test('fromWorkflowy files an undeadlined task into the asap bucket without its d
 	assert.match(item.ops.moveToAsap, /node update --id ffffffffffff6666 --name /);
 	assert.doesNotMatch(item.ops.moveToAsap, /<time/);
 	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid/);
+});
+
+/**
+ * A task that never had a real deadline is not urgent by definition, so it lands on the bottom
+ * rung of the asap ladder rather than at the top of the bucket where it would outrank everything
+ * the user deliberately promoted.
+ */
+test('moveToAsap targets the bottom tier when the asap bucket has a ladder', () => {
+	const [item] = fromWorkflowy(
+		[
+			workflowyRoot({
+				tasks: [dated('Turn rollups into a shared marketplace', '2026-08-07', 'ffffffffffff6666')],
+				asapChildren: [
+					{name: '1st', id: 'tier-1-uuid', children: []},
+					{name: '2nd', id: 'tier-2-uuid', children: []},
+					{name: '3rd', id: 'tier-3-uuid', children: []},
+				],
+			}),
+		],
+		TODAY,
+	);
+
+	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id tier-3-uuid -p bottom/);
+});
+
+test('moveToAsap ignores category containers left over from before the tier migration', () => {
+	const [item] = fromWorkflowy(
+		[
+			workflowyRoot({
+				tasks: [dated('Turn rollups into a shared marketplace', '2026-08-07', 'ffffffffffff6666')],
+				asapChildren: [{name: '💻 Coding', id: 'cat-coding-uuid', children: []}],
+			}),
+		],
+		TODAY,
+	);
+
+	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid -p bottom/);
 });
 
 test('moveToAsap is absent when the root has no asap bucket', () => {

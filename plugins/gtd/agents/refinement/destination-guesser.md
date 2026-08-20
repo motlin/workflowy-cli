@@ -32,7 +32,9 @@ Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the l
 
 ## Search for a topical home before defaulting to a generic bucket
 
-Never return either Next-Actions container root — `Work > ☑️ Next (Work)` or `Personal > ☑️ Next (Personal)` — as the destination. These are containers, not leaf destinations. When no more specific topical home applies, resolve the item to the appropriate leaf bucket: `⏰ Tasks (due dates)` when it has a due date, or `📌 Tasks (asap)` otherwise. Do not rely on the File Loose Tasks phase to sweep an item out of a container root later.
+Never return either Next-Actions container root — `Work > ☑️ Next (Work)` or `Personal > ☑️ Next (Personal)` — as the destination. These are containers, not leaf destinations. When no more specific topical home applies, resolve the item to the appropriate leaf: `⏰ Tasks (due dates)` when it has a due date, or the **bottom tier of the `📌 Tasks (asap)` ladder** otherwise. Do not rely on the File Loose Tasks phase to sweep an item out of a container root later.
+
+The asap bucket's children are ordinal priority tiers (`1st`, `2nd`, `3rd`, …), not categories. A refined inbox item is never ranked yet, so it always lands on the **bottom** tier — the deepest one that exists — and never on a tier the user has curated. Read the ladder with `readLadder` / `bottomTier` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` rather than guessing a tier name, and fall back to the bucket itself only when the bucket has no ladder yet. Never return a leftover category container (`💻 Coding`, `Administrative`, `🏠 Home`, …) — those are pre-migration data that File Loose Tasks removes, and what the task _is_ belongs on its text as a `#tag`. See `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`.
 
 The synced destination metadata does not list every node, so a weakly-tagged item lands in a generic `📌 Tasks (asap)` bucket even when a purpose-built node already exists (a reading list, a per-person feedback area, a reference subtree). The user then redirects it by hand — repeatedly, for the same kinds of items.
 
