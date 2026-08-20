@@ -21,6 +21,7 @@ import {buildTimeElement, parseTimeISO, swapTimeElement} from './compute-overdue
 
 const DUE_BUCKET_PREFIX = '⏰';
 const TASKS_WRAPPER_PREFIX = '✅';
+const ASAP_BUCKET_PREFIX = '📌';
 // Legacy containers from before due dates lived on the nodes themselves. Tasks nest one level
 // deeper inside these, so the collector descends through them until the data is migrated.
 const TIMEFRAME_NAMES = ['Today', 'This week', 'This month'];
@@ -97,18 +98,31 @@ export function applyReschedule(item, iso) {
 	return item.ops.reschedule.split('{{date}}').join(replacement);
 }
 
-function workflowyOps(node, due) {
+function workflowyOps(node, due, asapTargetId) {
 	// The reschedule op is a template: substitute {{date}} with buildTimeElement(iso) to get the
 	// runnable command. Keeping the element out of the template means the weekday label is always
 	// computed, never typed.
 	const rescheduledName = due
 		? swapTimeElement(node.name, '{{date}}')
 		: `${String(node.name).replace(/\s+$/, '')} {{date}}`;
-	return {
+	const ops = {
 		complete: `./bin/run.js node complete --id ${node.id}`,
 		reschedule: `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(rescheduledName)}`,
 		drop: `./bin/run.js node delete --id ${node.id}`,
 	};
+
+	// Not every overdue task actually has a deadline. Without this outcome the walk can only push
+	// the date forward, so an undeadlined task resurfaces every run forever. Moving it to the asap
+	// bucket is the real fix, and the date has to come off because that bucket holds none.
+	if (asapTargetId) {
+		const undatedName = String(node.name)
+			.replace(/<time[^>]*>.*?<\/time>/g, '')
+			.replace(/\s+/g, ' ')
+			.trim();
+		ops.moveToAsap = `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(undatedName)} && ./bin/run.js node move --node-id ${node.id} --parent-id ${asapTargetId} -p bottom`;
+	}
+
+	return ops;
 }
 
 export function fromWorkflowy(roots, todayISO) {
@@ -119,6 +133,8 @@ export function fromWorkflowy(roots, todayISO) {
 		const containers = wrapper ? (wrapper.children ?? []) : (root.children ?? []);
 		const bucket = containers.find((c) => String(c.name).startsWith(DUE_BUCKET_PREFIX));
 		if (!bucket) continue;
+		const asapBucket = containers.find((c) => String(c.name).startsWith(ASAP_BUCKET_PREFIX));
+		const asapTarget = asapBucket?.id ?? null;
 
 		// Only the bucket's own children (and those of a legacy timeframe container) are tasks.
 		// A task's children are sub-steps, notes, and provenance -- never tasks in their own right.
@@ -148,7 +164,7 @@ export function fromWorkflowy(roots, todayISO) {
 					group: group ?? String(bucket.name),
 					url: node.shortId ? `https://workflowy.com/#/${node.shortId}` : null,
 					childCount: (node.children ?? []).length,
-					ops: workflowyOps(node, due),
+					ops: workflowyOps(node, due, asapTarget),
 				});
 			}
 		}

@@ -292,3 +292,28 @@ test('applyReschedule substitutes an AppleScript date string for Reminders items
 	assert.doesNotMatch(cmd, /<time/);
 	assert.match(cmd, /date "August 31, 2026"/);
 });
+
+/**
+ * Regression test for the missing walk outcome. A task filed under `⏰ Tasks (due dates)` that has
+ * no real deadline was only ever offered Done / Reschedule / Drop / Skip, so it got its date
+ * pushed forward run after run instead of moving to the bucket it belongs in. `moveToAsap` files
+ * it under `📌 Tasks (asap)` and strips the `<time>` element, since that bucket carries no dates.
+ */
+test('fromWorkflowy files an undeadlined task into the asap bucket without its date', () => {
+	const [item] = fromWorkflowy(
+		[workflowyRoot({tasks: [dated('Turn rollups into a shared marketplace', '2026-08-07', 'ffffffffffff6666')]})],
+		TODAY,
+	);
+
+	assert.ok(item.ops.moveToAsap, 'expected a moveToAsap op');
+	assert.match(item.ops.moveToAsap, /node update --id ffffffffffff6666 --name /);
+	assert.doesNotMatch(item.ops.moveToAsap, /<time/);
+	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid/);
+});
+
+test('moveToAsap is absent when the root has no asap bucket', () => {
+	const root = workflowyRoot({tasks: [dated('Orphan', '2026-08-07', 'aaaaaaaaaaaa7777')]});
+	root.root.children[1].children = [root.root.children[1].children[0]]; // drop the asap bucket
+	const [item] = fromWorkflowy([root], TODAY);
+	assert.equal(item.ops.moveToAsap, undefined);
+});
