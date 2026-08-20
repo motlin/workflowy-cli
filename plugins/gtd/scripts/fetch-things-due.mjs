@@ -17,7 +17,8 @@
 
 import {execFileSync} from 'node:child_process';
 
-// ASCII unit/record separators: a task title can contain any punctuation, but never these.
+// ASCII unit/record separators: a task title or note can contain any punctuation -- including
+// newlines and pipes -- but never these.
 export const FIELD_SEP = '\x1f';
 export const RECORD_SEP = '\x1e';
 
@@ -34,8 +35,8 @@ export function parseThingsRows(raw) {
 		.split(RECORD_SEP)
 		.filter((record) => record.length > 0)
 		.map((record) => record.split(FIELD_SEP))
-		.filter((fields) => fields.length === 4)
-		.map(([id, title, due, list]) => ({id, title, due: normalizeDate(due), list}));
+		.filter((fields) => fields.length === 5)
+		.map(([id, title, due, list, notes]) => ({id, title, due: normalizeDate(due), list, notes: notes || null}));
 }
 
 function script(listName) {
@@ -52,7 +53,7 @@ tell application "Things3"
 		else
 			set ds to ((year of dd) as string) & "-" & ((month of dd) as integer) & "-" & ((day of dd) as string)
 		end if
-		set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & rs
+		set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & rs
 	end repeat
 	return out
 end tell`;

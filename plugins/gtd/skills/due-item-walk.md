@@ -1,6 +1,6 @@
 ---
 name: due-item-walk
-description: The one-item-at-a-time walk protocol shared by every dated-item review — presentation rules, banned openers, freeform handling, skip-streak cadence changes, and the read-before-write requirement. Load when running the Recurring Review's recurring or due segments, or any review that walks a precomputed ordered working set.
+description: The one-item-at-a-time walk protocol shared by every dated-item review — presentation rules, the context that must be shown before each question, banned openers, freeform handling, skip-streak cadence changes, and the read-before-write requirement. Load when running the Recurring Review's recurring or due segments, or any review that walks a precomputed ordered working set.
 ---
 
 # Due-Item Walk
@@ -27,20 +27,60 @@ The only correct first move after computing the working set is to present item 1
 
 ## Present one item at a time
 
-Use `AskUserQuestion`, never a batch. The user clears items quickly by tapping the first option.
+Use `AskUserQuestion`, never a batch. The user clears items quickly by tapping the first option. After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
 
-Show the item's group context and overdue math read straight from the working set — never recomputed by hand:
+## Show the item, do not just name it
 
-```markdown
-**⬆️ Frequently Important** — 8 overdue items
+A title is not an item. "Inventory the drives" with 71 children is a different question from the same title with none, and nobody can decide about what they cannot see. Showing it is not extra credit — it is the work of asking. The row already carries the context, staged by the same script that staged the ops:
 
-Item 1/8: Record status in workflowy Status (due: 2026-02-09, overdue by 12 days) https://workflowy.com/#/aabb1122
+| Field                     | What it holds                                                         |
+| ------------------------- | --------------------------------------------------------------------- |
+| `url`                     | the item itself — a Workflowy node, a `things:///show?id=…` deep link |
+| `links`                   | every http(s) URL in the item's own name and note                     |
+| `note`                    | the node's note, when it has one                                      |
+| `modifiedAt`              | when the item last changed                                            |
+| `childCount` / `children` | the direct children: title, note, own child count, url                |
+
+Before asking about an item:
+
+- **Open what it points at.** `open` every URL in `links`, and `open` the row's own `url`. Opening is how the user sees a 71-child subtree or the page an item is really about; a child list in the terminal summarizes it, it is not the thing. Chain them into one backgrounded Bash call so nothing waits on the browser.
+- **Fetch the rest of the subtree when one level is not enough.** `children` is depth 1. When any child has children of its own, pull the whole thing before asking:
+
+    ```bash
+    ./bin/run.js node get --id <full-uuid> --depth 4 --json
+    ```
+
+    This is the same fetch "Read the subtree before writing" already demands. Doing it now means it informs the question instead of only the write.
+
+- **Read what you fetched.** A subtree often answers the question — prior entries say what "done" looks like here, and a conditional instruction whose trigger holds right now is part of handling the item.
+
+Never present an item you have not looked at. An item asked blind gets skipped, and a skipped item comes back tomorrow costing the same question again.
+
+## Print the context block immediately before the question
+
+Terminal output scrolls. Context printed early — before a fetch, before an `open`, before a paragraph of narration — has scrolled off by the time `AskUserQuestion` renders, so it is context the user never saw. Gathering it and then burying it is the same as not gathering it.
+
+The context block is therefore the **last thing** emitted before the `AskUserQuestion` call, with nothing in between: no tool call, no "let me check…", no recap of what you just did. Gather everything first, then print, then ask, as one uninterrupted move.
+
+The block, read straight from the working set and never recomputed by hand:
+
+```text
+**⬆️ Frequently Important** — item 3/8
+
+**Inventory the drives** — due 2026-02-09, overdue by 12 days
+https://workflowy.com/#/aabb1122 · last changed 2026-06-20 · opened in Workflowy
+Note: started from [the spec](https://example.com/spec)
+3 children:
+    - Drive A (2 children)
+    - Drive B — spare
+    - Drive C
+Skipped 3 runs in a row since 2026-08-11.
 ```
 
 - Render embedded URLs as clickable markdown. Parse `<a href="...">text</a>` in the node name and emit `[text](url)`; strip other HTML for display.
-- Show the item's own URL when it has one.
-- If the item has children, show them indented below.
-- After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
+- List the children. Cap the list around 20 and close with `… and 51 more — open in Workflowy`, so a huge subtree does not push the item's own heading off screen.
+- Say what you opened, so the user knows which tab or app belongs to this question.
+- Repeat the deciding facts — overdue math, child count, skip streak — in the `AskUserQuestion` body. The block is terminal output; only the question text survives into the next session.
 
 ## Freeform: note, continued work, or retire
 
@@ -54,7 +94,7 @@ When continued work is in progress, only an explicit "done" or "skip" ends the i
 
 ## Read the subtree before writing
 
-Before writing into any item, fetch and read its full subtree:
+Before writing into any item, fetch and read its full subtree — the same fetch the context block already required, so it is usually still on screen:
 
 ```bash
 ./bin/run.js node get --id <full-uuid> --depth 4 --json

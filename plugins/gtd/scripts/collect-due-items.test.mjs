@@ -398,3 +398,65 @@ test('collectDueItems carries each item skip streak onto its row', () => {
 	assert.equal(rows[0].skipStreak, 2);
 	assert.equal(rows[0].skippedSince, '2026-08-05');
 });
+
+test('fromWorkflowy carries the subtree context the walk shows before asking', () => {
+	const task = dated('Inventory the drives', '2026-08-01', 'dddddddddddd1111');
+	task.note = 'started at https://example.com/notes';
+	task.modifiedAt = '2026-07-30T09:15:00Z';
+	task.children = [
+		{
+			name: 'Drive A <time startYear="2026" startMonth="1" startDay="2">Fri, Jan 2, 2026</time> ',
+			shortId: 'sid-a',
+			children: [{name: 'nested'}],
+		},
+		{name: 'Drive B', shortId: null, note: 'spare', children: []},
+	];
+	const [item] = fromWorkflowy([workflowyRoot({tasks: [task]})], TODAY);
+	assert.equal(item.note, 'started at https://example.com/notes');
+	assert.equal(item.modifiedAt, '2026-07-30T09:15:00Z');
+	assert.equal(item.childCount, 2);
+	assert.deepEqual(item.children, [
+		{title: 'Drive A', note: null, childCount: 1, url: 'https://workflowy.com/#/sid-a'},
+		{title: 'Drive B', note: 'spare', childCount: 0, url: null},
+	]);
+	assert.deepEqual(item.links, ['https://example.com/notes']);
+});
+
+test('fromThings carries the task note so the walk can show it', () => {
+	const [item] = fromThings(
+		{due: [{id: 'T1', title: 'Renew passport', due: '2026-08-01', list: 'Today', notes: 'form DS-82'}]},
+		TODAY,
+	);
+	assert.equal(item.note, 'form DS-82');
+	assert.equal(item.modifiedAt, null);
+	assert.deepEqual(item.children, []);
+	assert.deepEqual(item.links, []);
+});
+
+test('fromReminders carries the reminder note so the walk can show it', () => {
+	const [item] = fromReminders(
+		{overdue: [{title: 'Pay the tolls', dueDate: '2026-08-05T09:00:00', list: 'Reminders', notes: 'account 4821'}]},
+		TODAY,
+	);
+	assert.equal(item.note, 'account 4821');
+	assert.deepEqual(item.children, []);
+	assert.deepEqual(item.links, []);
+});
+
+test('a URL in a Things note becomes a link the walk opens', () => {
+	const [item] = fromThings(
+		{
+			due: [
+				{
+					id: 'T2',
+					title: 'Watch the Factorio talk',
+					due: '2026-08-01',
+					list: 'Today',
+					notes: 'https://youtube.com/watch?v=abc',
+				},
+			],
+		},
+		TODAY,
+	);
+	assert.deepEqual(item.links, ['https://youtube.com/watch?v=abc']);
+});

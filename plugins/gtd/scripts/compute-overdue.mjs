@@ -44,6 +44,56 @@ export function parseTimeISO(name) {
 	return m ? `${m[1]}-${pad(+m[2])}-${pad(+m[3])}` : null;
 }
 
+/** Node text as a human reads it: no <time> element, no tags, no other HTML. */
+export function stripMarkup(name) {
+	return String(name)
+		.replace(/<time[^>]*>.*?<\/time>/g, '')
+		.replace(/<[^>]+>/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+export function workflowyUrl(shortId) {
+	return shortId ? `https://workflowy.com/#/${shortId}` : null;
+}
+
+const HREF_RE = /href="([^"]+)"/g;
+const BARE_URL_RE = /https?:\/\/[^\s"'<>)]+/g;
+
+/** Every http(s) URL reachable from a node's own text, in the order a reader meets them. */
+export function extractLinks(...texts) {
+	const urls = [];
+	for (const text of texts) {
+		if (!text) continue;
+		const str = String(text);
+		for (const m of str.matchAll(HREF_RE)) urls.push(m[1]);
+		for (const m of str.matchAll(BARE_URL_RE)) urls.push(m[0].replace(/[.,;:]+$/, ''));
+	}
+	return [...new Set(urls.filter((u) => /^https?:\/\//.test(u)))];
+}
+
+/**
+ * Everything the walk shows the user *before* asking what to do with an item: the note, when it
+ * last moved, and the child titles. An item is unanswerable without its subtree -- "Inventory the
+ * drives" with 71 children is a different question from the same title with none -- so the working
+ * set carries the context rather than making the walk fetch it one item at a time.
+ */
+export function nodeContext(node) {
+	const kids = node.children ?? [];
+	return {
+		note: node.note ?? null,
+		modifiedAt: node.modifiedAt ?? null,
+		childCount: kids.length,
+		children: kids.map((kid) => ({
+			title: stripMarkup(kid.name),
+			note: kid.note ?? null,
+			childCount: (kid.children ?? []).length,
+			url: workflowyUrl(kid.shortId),
+		})),
+		links: extractLinks(node.name, node.note),
+	};
+}
+
 export function intervalForSection(sectionName) {
 	const name = String(sectionName);
 	for (const [pattern, interval] of SECTION_INTERVALS) {
@@ -243,7 +293,8 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						due,
 						overdueByDays: daysBetween(due, todayISO),
 						isLlmTask: /#llm-task/.test(child.name),
-						hasKids: (child.children ?? []).length > 0,
+						url: workflowyUrl(child.shortId),
+						...nodeContext(child),
 						interval,
 						needsInterval,
 						nextDate,
@@ -312,7 +363,7 @@ function main(argv) {
 		for (const it of items) {
 			const tags = [
 				it.isLlmTask ? '[#llm-task]' : '',
-				it.hasKids ? '(has kids)' : '',
+				it.childCount ? `(${it.childCount} children)` : '',
 				it.skipStreak >= 2
 					? `⏭️ skipped ${it.skipStreak}x → offer ${it.lengthen?.section ?? 'a longer cadence'}`
 					: '',

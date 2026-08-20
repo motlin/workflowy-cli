@@ -24,9 +24,13 @@ import {
 	addInterval,
 	buildTimeElement,
 	DEFAULT_SKIP_LOG_PATH,
+	extractLinks,
 	loadSkipStreaks,
+	nodeContext,
 	parseTimeISO,
+	stripMarkup,
 	swapTimeElement,
+	workflowyUrl,
 } from './compute-overdue.mjs';
 import {bottomTier, readLadder} from './asap-tiers.mjs';
 
@@ -36,6 +40,11 @@ const ASAP_BUCKET_PREFIX = '📌';
 // Legacy containers from before due dates lived on the nodes themselves. Tasks nest one level
 // deeper inside these, so the collector descends through them until the data is migrated.
 const TIMEFRAME_NAMES = ['Today', 'This week', 'This month'];
+// Only Workflowy tasks have a subtree. A Things or Reminders task is its title plus its note, and
+// it still fills the same context shape so the walk prints one block without branching on source.
+function noteOnlyContext(title, notes) {
+	return {note: notes ?? null, modifiedAt: null, childCount: 0, children: [], links: extractLinks(title, notes)};
+}
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -47,14 +56,6 @@ function daysBetween(fromISO, toISO) {
 	const a = new Date(fromISO + 'T00:00:00Z');
 	const b = new Date(toISO + 'T00:00:00Z');
 	return Math.round((b - a) / 86_400_000);
-}
-
-function stripMarkup(name) {
-	return String(name)
-		.replace(/<time[^>]*>.*?<\/time>/g, '')
-		.replace(/<[^>]+>/g, '')
-		.replace(/\s+/g, ' ')
-		.trim();
 }
 
 function lastDayOfMonth(year, month1) {
@@ -180,8 +181,8 @@ export function fromWorkflowy(roots, todayISO) {
 					overdueByDays: due ? daysBetween(due, todayISO) : null,
 					needsDate: due === null,
 					group: group ?? String(bucket.name),
-					url: node.shortId ? `https://workflowy.com/#/${node.shortId}` : null,
-					childCount: (node.children ?? []).length,
+					url: workflowyUrl(node.shortId),
+					...nodeContext(node),
 					ops: workflowyOps(node, due, asapTarget),
 				});
 			}
@@ -232,7 +233,7 @@ export function fromThings(things, todayISO) {
 			needsDate: false,
 			group: task.list ?? 'Things',
 			url: `things:///show?id=${task.id}`,
-			childCount: 0,
+			...noteOnlyContext(task.title, task.notes),
 			ops: thingsOps(task.id),
 		});
 	}
@@ -270,7 +271,7 @@ export function fromReminders(reminders, todayISO) {
 			needsDate: false,
 			group: r.list ?? 'Reminders',
 			url: null,
-			childCount: 0,
+			...noteOnlyContext(r.title, r.notes),
 			ops: remindersOps(r.title),
 		};
 	});

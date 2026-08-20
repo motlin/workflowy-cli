@@ -14,6 +14,7 @@ import {
 	intervalForSection,
 	loadSkipStreaks,
 	nextLongerSection,
+	nodeContext,
 	parseTimeISO,
 	recordOutcome,
 	swapTimeElement,
@@ -178,11 +179,11 @@ test('computeOverdue annotates overdue days, llm-task, and child count', () => {
 	assert.equal(reminders.due, '2026-06-24');
 	assert.equal(reminders.overdueByDays, 2);
 	assert.equal(reminders.isLlmTask, false);
-	assert.equal(reminders.hasKids, false);
+	assert.equal(reminders.childCount, 0);
 
 	const factorio = rows.find((r) => r.id === 'id-factorio');
 	assert.equal(factorio.isLlmTask, true);
-	assert.equal(factorio.hasKids, true);
+	assert.equal(factorio.childCount, 1);
 });
 
 test('computeOverdue stages the next date and a verbatim node update applyOp', () => {
@@ -431,4 +432,72 @@ test('computeOverdue leaves lengthen null when the target section has no id to m
 		],
 	};
 	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
+});
+
+test('nodeContext gathers the context the walk shows before asking', () => {
+	const node = {
+		name: 'Inventory the drives <a href="https://example.com/spec">spec</a> <time startYear="2026" startMonth="6" startDay="24">Wed, Jun 24, 2026</time> ',
+		id: 'id-drives',
+		shortId: 'sid-drives',
+		note: 'see https://example.com/notes',
+		modifiedAt: '2026-06-20T11:02:00Z',
+		children: [
+			{
+				name: 'Drive A <time startYear="2026" startMonth="1" startDay="2">Fri, Jan 2, 2026</time> ',
+				shortId: 'sid-a',
+				children: [{name: 'nested'}],
+			},
+			{name: 'Drive B', shortId: null, note: 'spare', children: []},
+		],
+	};
+	const context = nodeContext(node);
+	assert.equal(context.childCount, 2);
+	assert.equal(context.note, 'see https://example.com/notes');
+	assert.equal(context.modifiedAt, '2026-06-20T11:02:00Z');
+	assert.deepEqual(context.children, [
+		{title: 'Drive A', note: null, childCount: 1, url: 'https://workflowy.com/#/sid-a'},
+		{title: 'Drive B', note: 'spare', childCount: 0, url: null},
+	]);
+	// Links are what the walk opens, so the node's own href and any bare URL in the note both count.
+	assert.deepEqual(context.links, ['https://example.com/spec', 'https://example.com/notes']);
+});
+
+test('nodeContext returns an empty context for a childless, noteless node', () => {
+	assert.deepEqual(nodeContext({name: 'Bare', children: []}), {
+		note: null,
+		modifiedAt: null,
+		childCount: 0,
+		children: [],
+		links: [],
+	});
+});
+
+test('computeOverdue carries the item context so the walk can show it before asking', () => {
+	const tree = {
+		children: [
+			{
+				name: '🔄 Daily Review',
+				priority: 3,
+				children: [
+					{
+						name: 'Inventory the drives <time startYear="2026" startMonth="6" startDay="24">Wed, Jun 24, 2026</time> ',
+						id: 'id-drives',
+						shortId: 'sid-drives',
+						note: 'started last week',
+						modifiedAt: '2026-06-20T11:02:00Z',
+						children: [{name: 'Drive A', shortId: 'sid-a', children: []}],
+					},
+				],
+			},
+		],
+	};
+	const [row] = computeOverdue(tree, '2026-06-26');
+	assert.equal(row.url, 'https://workflowy.com/#/sid-drives');
+	assert.equal(row.note, 'started last week');
+	assert.equal(row.modifiedAt, '2026-06-20T11:02:00Z');
+	assert.equal(row.childCount, 1);
+	assert.deepEqual(row.children, [
+		{title: 'Drive A', note: null, childCount: 0, url: 'https://workflowy.com/#/sid-a'},
+	]);
+	assert.deepEqual(row.links, []);
 });

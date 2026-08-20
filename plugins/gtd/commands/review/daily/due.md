@@ -9,7 +9,7 @@ Two segments, walked back to back as one continuous question sequence:
 - **Segment 1 — recurring items.** Items in `Personal > 🔄 Review` that come back on an interval. Handling one advances its date by its section's cadence.
 - **Segment 2 — due items.** One-shot tasks that should be done once and go away, merged from the Workflowy `⏰ Tasks (due dates)` buckets, Things 3, and Apple Reminders. Handling one completes, reschedules, or drops it.
 
-Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. The segments stay separate because their write-backs differ: a recurring item normally returns, while a one-shot task should not.
+Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, showing each item's real context immediately before its question, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. The segments stay separate because their write-backs differ: a recurring item normally returns, while a one-shot task should not.
 
 ## Do not use the built-in task list
 
@@ -25,8 +25,8 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 
 ```bash
 mkdir -p .llm/gtd/review
-./bin/run.js node get --path "Personal,🔄 Review" --depth 3 --json \
-  --fields id,shortId,name,priority,children > .llm/gtd/review/tree.json
+./bin/run.js node get --path "Personal,🔄 Review" --depth 4 --json \
+  --fields id,shortId,name,note,modifiedAt,priority,children > .llm/gtd/review/tree.json
 ```
 
 **Re-fetch after any data import** (`just daily`, `cache import-api`, etc.) — re-run the fetch above to overwrite `tree.json` and recompute the overdue list. Stale data causes wrong "overdue by N days" math and already-resolved prompts.
@@ -39,7 +39,7 @@ Run the date math in a script — never re-derive it by hand. `compute-overdue.m
 node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs .llm/gtd/review/tree.json > .llm/gtd/review/overdue.json
 ```
 
-`overdue.json` is an ordered array (by section priority, then due date) where each row carries `section`, `shortId`, `id`, `name`, `due`, `overdueByDays`, `isLlmTask`, `hasKids`, `nextDate`, `newName`, `applyOp` (the verbatim `node update` to run on "done"), `skipStreak` / `skippedSince` folded from the skip log, and `lengthen` (the staged move to the next longer cadence). The script already skips `🗃️ Routine Archive`, skips future-dated items, compares dates as ISO strings (avoiding the `new Date()` UTC-vs-local footgun), and clamps month rollovers (Jan 31 + 1 month → Feb 28). Pass `--print` instead of redirecting for a human-readable dump while debugging.
+`overdue.json` is an ordered array (by section priority, then due date) where each row carries `section`, `shortId`, `id`, `name`, `due`, `overdueByDays`, `isLlmTask`, `nextDate`, `newName`, `applyOp` (the verbatim `node update` to run on "done"), `skipStreak` / `skippedSince` folded from the skip log, and `lengthen` (the staged move to the next longer cadence). It also carries the context each question needs — `url`, `note`, `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the item's name and note) — which is why the fetch above asks for `note,modifiedAt` at depth 4. Show it per **Show the item, do not just name it** in the walk skill. The script already skips `🗃️ Routine Archive`, skips future-dated items, compares dates as ISO strings (avoiding the `new Date()` UTC-vs-local footgun), and clamps month rollovers (Jan 31 + 1 month → Feb 28). Pass `--print` instead of redirecting for a human-readable dump while debugging.
 
 The script assumes the canonical shape: section headers carry no date, intermediate groups carry no date, and the `<time>` lives on the **leaf item**. **If the data doesn't match — a `<time>` on an intermediate group, or a "leaf" whose children each carry their own date — stop and ask the user to fix the data in Workflowy** rather than reinterpreting it here.
 
@@ -53,7 +53,7 @@ The section → interval table lives in `compute-overdue.mjs` (the executable so
 
 ## Recurring item options
 
-Done / skip / notes / retire, per the walk skill. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+Done / skip / notes / retire, per the walk skill. Before each question, `open` the row's `url` (and any `links` it carries) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
 
 Record every outcome to the skip log, keyed by the row's `id`, per the walk skill's record step.
 
@@ -119,8 +119,8 @@ mkdir -p .llm/gtd/review
 Read `linkTargets[0].id` for each child to get each root's full UUID, then for each root:
 
 ```bash
-./bin/run.js node get --id <rootUuid> --depth 4 --json \
-  --fields id,shortId,name,completedAt,priority,children > .llm/gtd/review/root-<work|personal>.json
+./bin/run.js node get --id <rootUuid> --depth 5 --json \
+  --fields id,shortId,name,note,modifiedAt,completedAt,priority,children > .llm/gtd/review/root-<work|personal>.json
 ```
 
 Combine them into the collector's input shape — an array of `{rootKey, root}` — at `.llm/gtd/review/due-workflowy.json`.
@@ -143,7 +143,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs \
   > .llm/gtd/review/due-items.json
 ```
 
-Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `childCount`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
+Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. It also carries the context each question needs — `note` (the Workflowy note, the Things note, the Reminders note), `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the title and note) — which is why the Workflowy fetch above asks for `note,modifiedAt` at depth 5. Show it per **Show the item, do not just name it** in the walk skill: `open` the row's `url` and its `links`, print the children, and print all of it immediately before the `AskUserQuestion`. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
 
 **Source semantics the collector already resolved, so the walk doesn't have to:**
 
