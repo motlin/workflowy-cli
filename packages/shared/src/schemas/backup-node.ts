@@ -109,6 +109,12 @@ const TableSchema = z
 	})
 	.strict();
 
+const VideoSchema = z
+	.object({
+		duration: z.number().optional(),
+	})
+	.strict();
+
 const MetadataSchema = z
 	.object({
 		layoutMode: z.string().optional(),
@@ -131,6 +137,11 @@ const MetadataSchema = z
 		// rendered as tables, but no consumer reads it. Keep declared so
 		// MetadataSchema.strict() doesn't reject backups that contain it.
 		table: TableSchema.optional(),
+		// Accepted-but-ignored: a video attachment carries its duration in seconds,
+		// but no consumer reads it. Keep declared so MetadataSchema.strict() doesn't
+		// reject backups that contain one — a single video anywhere in the tree
+		// otherwise aborts the whole import.
+		video: VideoSchema.optional(),
 	})
 	.strict();
 

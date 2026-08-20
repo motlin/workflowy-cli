@@ -39,3 +39,26 @@ describe('CalendarSchema day_prefix field', () => {
 		expect(node.metadata.calendar?.day_prefix).toBe(true);
 	});
 });
+
+/**
+ * Regression test for video attachments. Uploading a video puts
+ * `metadata.video = {duration: <seconds>}` on the node. `MetadataSchema` is
+ * `.strict()`, so a single video anywhere in the tree aborted the entire backup
+ * import with an `unrecognized_keys` ZodError. Accepted-but-ignored: no consumer
+ * reads the duration, it just must not be rejected.
+ */
+describe('MetadataSchema video field', () => {
+	it('accepts the video key on metadata', () => {
+		const result = MetadataSchema.parse({video: {duration: 12.542}});
+		expect(result.video).toStrictEqual({duration: 12.542});
+	});
+
+	it('accepts a node whose metadata carries a video attachment', () => {
+		const node = BackupNodeSchema.parse({
+			id: 'abc',
+			nm: '🎥 Emu wrangling video',
+			metadata: {video: {duration: 12.542}},
+		});
+		expect(node.metadata.video?.duration).toBe(12.542);
+	});
+});
