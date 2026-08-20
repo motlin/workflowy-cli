@@ -54,6 +54,11 @@ check: install
 test *args: build-shared
     CHAI_TRUNCATE_THRESHOLD=0 vp test run {{args}}
 
+# Run the plugin script tests, which vitest does not glob
+[group('test')]
+test-plugins:
+    node --test plugins/gtd/scripts/*.test.mjs
+
 # Type-check the project
 [group('build')]
 typecheck: install
@@ -133,7 +138,7 @@ pre-commit: build-shared
 
 # Run all pre-commit checks
 [group('workflow')]
-precommit: check typecheck build fallow test manifest eval-structural pre-commit
+precommit: check typecheck build fallow test test-plugins manifest eval-structural pre-commit
     @echo "All pre-commit checks passed!"
 
 # Backup database before operations that modify it
