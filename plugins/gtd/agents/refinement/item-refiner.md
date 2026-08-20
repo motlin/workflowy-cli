@@ -39,6 +39,8 @@ Launch ALL Phase A tagger subagents in parallel using the Task tool.
 
 Use a SINGLE message with MULTIPLE Task tool calls in parallel. Pass the prompt: "Refine item $ITEM_ID"
 
+**Every tagger call MUST be synchronous — pass `run_in_background: false` on each one.** Subagents default to running in the background, and a backgrounded tagger hands control straight back: the refiner then "finishes" with nothing to fan in, writes no `🔍 Refinement` node, and reports success anyway. The caller sees a refined item count that does not match reality. Parallel here means several synchronous calls in one message, not detached ones.
+
 - `gtd:project-tagger` - Detect/suggest project tags
 - `gtd:people-tagger` - Detect/suggest @Name mentions (see `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`)
 - `gtd:due-date-detector` - Parse dates and urgency
@@ -70,7 +72,7 @@ EOF
 
 ## Phase B: Composers (Sequential)
 
-Phase B composers depend on each other - run them in order using the Task tool.
+Phase B composers depend on each other - run them in order using the Task tool. These calls are also synchronous: pass `run_in_background: false`, and do not start the next composer until the previous one has returned its JSON.
 
 ### Launch gtd:destination-guesser
 
@@ -149,6 +151,8 @@ echo "Refinement node count: $COUNT"
 ```
 
 Only include children that have actual values from Phase A/B results.
+
+**Never report success without that verification printing `OK`.** The count check is the only proof the refinement landed; returning "refined" on an unverified write makes the orchestrator move on to `/gtd:inbox`, which then finds nothing to file.
 
 **Children Order (inside 🔍 Refinement):**
 

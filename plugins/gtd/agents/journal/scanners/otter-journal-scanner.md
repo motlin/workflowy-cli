@@ -205,8 +205,20 @@ Build action items children from `speech_action_items`:
 ./bin/run.js node search --query "otter.ai/u/<otid>" --limit 1 --json
 ```
 
-- If the search now finds it → the create succeeded despite the error; treat as created (record the otid below, move on).
+- If the search now finds it → the create **started**, but do not treat existence as success. See the structural audit below.
 - If still not found → wait a few seconds for the rate limit to clear, then retry the create once. Re-check again before any further retry.
+
+**Existence is not completeness — audit the structure.** A 429 can land the entry and then truncate the rest of the tree mid-write. The `otter.ai/u/<otid>` child is created _before_ the `Outline` subtree, so the URL search matches a half-written entry just as readily as a complete one. Treating that match as success leaves a meeting in the calendar with an empty `Outline`, and because its otid is recorded and the cursor advances past it, nothing ever revisits it.
+
+So after any create that errored, compare the entry against the Otter source and repair rather than re-create:
+
+```bash
+./bin/run.js node get --id <new-entry-id> --depth 3 --json --fields name,children
+```
+
+Check the action-item count, the number of `Outline` sections, and the segment count under each section against the source. If any are short, create only the missing children — never delete and re-create the entry, which would lose the otid link and risk a duplicate. Re-audit after repairing.
+
+This is worth doing for every created entry when a run hit any 429, not just the entry that reported one: observed in the 2026-08-14 run, where `Biweekly Review` was created with 0 of 5 outline sections and its own 429 had been dismissed as "already landed."
 
 After the node exists (created cleanly, or confirmed created after an error), record the otid in the session guard file so later pages in this same run do not re-create it:
 
