@@ -53,9 +53,10 @@ Default to the bottom tier when the signal is weak. Promotion is cheap; a wrongl
 
 ## Migrating a bucket that still has categories
 
-A bucket whose children include category containers (anything `readLadder` returns in `unfiled` that has children of its own) is pre-migration data. Migrate it in this order:
+A bucket whose children include category containers is pre-migration data. Migrate it in this order:
 
-- **Size the ladder.** Count every task in the bucket, including the ones loose at the top level. `tiersNeededFor(count)` gives the depth to build (34 work tasks → 5 tiers; 10 personal tasks → 3).
+- **Identify categories by name, never by "has children."** A category container is one of the known category names listed above. Having children does not make a node a category — most ordinary tasks in these buckets carry children holding research notes, links, and findings, and one work task carries 82 of them. Un-nesting those would dump a task's context into the bucket root and orphan it from the task it explains. Match the name; when a node's name is not on the list, it is a task, however many children it has.
+- **Size the ladder.** Count every task in the bucket, including the ones loose at the top level. `tiersNeededFor(count)` gives the depth to build.
 - **Confirm the tag mapping.** Propose one `category → #tag` row per category and confirm the whole table with the user in a single question. Prefer a tag already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry over a newly coined one — `🤖 LLM tasks` → `#llm-task` and `Reading` → `#read` already exist; a category with no established tag needs the user to name it.
 - **Tag, then un-nest.** Append the mapped `#tag` to each task in that category (`node update --name`), then move the task out of the container.
 - **Build the ladder and delete the husks.** Create the tiers, then delete each emptied category container.
