@@ -3,6 +3,8 @@
 # Requires sudo. Run directly; the daily review never runs sudo itself.
 set -euo pipefail
 
+SCRIPT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/$(basename -- "${BASH_SOURCE[0]}")"
+
 ROOT="${1:-$HOME/projects}"
 
 if [ ! -d "$ROOT" ]; then
@@ -17,12 +19,12 @@ fi
 # turns both of those into one clear instruction. Skip the check when sudo
 # already has a valid cached credential, since no prompt will be needed.
 if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
-	cat >&2 <<-'MSG'
+	cat >&2 <<-MSG
 		This script needs sudo, and sudo needs a real terminal to ask for your password.
-		It cannot run through Claude Code's `!` prefix or any other non-interactive wrapper.
+		It cannot run through Claude Code's \`!\` prefix or any other non-interactive wrapper.
 
 		Open Terminal or iTerm and run:
-		  /Users/craig/projects/workflowy/plugins/gtd/scripts/add-time-machine-exclusions.sh
+		  $SCRIPT_PATH
 
 		Alternatively, authenticate first so no prompt is needed, then re-run here:
 		  sudo -v
