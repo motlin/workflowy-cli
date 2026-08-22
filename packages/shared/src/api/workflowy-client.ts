@@ -30,6 +30,13 @@ export interface RetryOptions {
 	maxDelayMs?: number;
 }
 
+/**
+ * Cap on how much of an error response body is quoted back. Enough for
+ * Workflowy's block notice, short of pasting an HTML error page into a stack
+ * trace.
+ */
+const MAX_ERROR_BODY_CHARS = 500;
+
 const DEFAULT_MAX_RETRIES = 8;
 const DEFAULT_BASE_DELAY_MS = 1000;
 const DEFAULT_MAX_DELAY_MS = 30_000;
@@ -90,6 +97,30 @@ export class WorkflowyApiClient {
 		this.maxDelayMs = retryOptions?.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
 	}
 
+	/**
+	 * Build an error carrying the server's own explanation, not just the status
+	 * line. Workflowy puts the only actionable detail in the response body -- an
+	 * abuse-protection 403 names the support address, the blocked IP, and a
+	 * reference code. Reporting a bare "403" makes an IP block indistinguishable
+	 * from a bad key, an expired token, or an exhausted quota.
+	 */
+	private async describeFailure(prefix: string, response: Response): Promise<Error> {
+		const statusLine = `${prefix}: ${response.status} ${response.statusText}`;
+
+		let body: string;
+		try {
+			body = (await response.text()).trim();
+		} catch {
+			return new Error(statusLine);
+		}
+
+		if (!body) {
+			return new Error(statusLine);
+		}
+
+		return new Error(`${statusLine}\n${body.slice(0, MAX_ERROR_BODY_CHARS)}`);
+	}
+
 	private getHeaders(): Record<string, string> {
 		return {
 			Authorization: `Bearer ${this.apiKey}`,
@@ -142,7 +173,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('API request failed', response);
 			}
 
 			const data = await response.json();
@@ -201,7 +232,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to get node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to get node', response);
 			}
 
 			const data = await response.json();
@@ -238,7 +269,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to create node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to create node', response);
 			}
 
 			const data = await response.json();
@@ -290,7 +321,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to update node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to update node', response);
 			}
 
 			const data = await response.json();
@@ -322,7 +353,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to delete node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to delete node', response);
 			}
 
 			const duration = performance.now() - startTime;
@@ -351,7 +382,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to complete node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to complete node', response);
 			}
 
 			const data = await response.json();
@@ -383,7 +414,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to uncomplete node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to uncomplete node', response);
 			}
 
 			const data = await response.json();
@@ -425,7 +456,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to move node: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('Failed to move node', response);
 			}
 
 			const data = await response.text();
@@ -457,7 +488,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('API request failed', response);
 			}
 
 			const data = await response.json();
@@ -492,7 +523,7 @@ export class WorkflowyApiClient {
 			});
 
 			if (!response.ok) {
-				throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+				throw await this.describeFailure('API request failed', response);
 			}
 
 			const data = await response.json();
