@@ -115,6 +115,18 @@ Each row in the working set carries its outcome commands already built and shell
 
 Dispatch every write as a background Bash job and follow **Background Dispatch, Verify, and Drain** in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`: track each job, reap finished jobs every ~5 items, surface failures inline by item name, and present the next item without waiting.
 
+## Clear a fictional deadline
+
+Every one-shot due-item walk offers **Clear the date** for a real task whose deadline is fiction. This is a handled outcome, not a skip or reschedule: remove the date entirely and record `clearDate` so the skip streak resets.
+
+The destination depends on the source:
+
+- **Workflowy** moves into a chosen tier of that root's `📌 Tasks (asap)` ladder with its `<time>` removed.
+- **Things 3** stays in Things with its due date cleared. Do not ask for a Workflowy tier because the task is not moving to Workflowy.
+- **Apple Reminders** cannot clear a due date. Create the task in a chosen Workflowy asap tier, then delete the reminder and verify both sides before treating the outcome as handled.
+
+When the destination is a Workflowy asap ladder, load `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`, show the current occupants and capacity of each tier, and ask one follow-up tier question using **soon / medium / eventually / bottom** for `1st` / `2nd` / `3rd` / the current bottom tier. Use `readLadder`, `tierCapacity`, and `planInsertion`; show and apply the demotion cascade before filing the task. Never silently choose a tier or hand-calculate capacity.
+
 ## Skip leaves everything unchanged
 
 On skip, write nothing. The item keeps its date and resurfaces on the next run. This is the correct outcome for anything the user did not actually handle — a skipped item the user sees again beats a silently advanced one they never see.
@@ -124,7 +136,7 @@ On skip, write nothing. The item keeps its date and resurfaces on the next run. 
 Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|drop|moveToAsap>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|clearDate|drop>
 ```
 
 The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.

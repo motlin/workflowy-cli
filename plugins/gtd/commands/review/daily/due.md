@@ -163,17 +163,38 @@ First option is the most likely outcome, per the walk skill:
 
 - **Done** — run `ops.complete` verbatim.
 - **Reschedule** — offer `Today`, `This week`, `This month`, and `Other`. Convert the choice to a date with `resolveTimeframe` from `collect-due-items.mjs` (never by hand — "this week" means the upcoming Friday and the weekday must be computed), then build the command with `applyReschedule(item, iso)` from the same module and run it. **Never substitute `{{date}}` yourself.** The three sources need different representations — Workflowy takes a `<time>` element, Things and Reminders take an AppleScript `date "August 31, 2026"` string — and dropping HTML into an `osascript` call sets a garbage date instead of failing. `applyReschedule` picks the right one from the row's `source`.
-- **Not actually due → move to asap** — run `ops.moveToAsap` (Workflowy rows only). The task is real but has no deadline, so it belongs in `📌 Tasks (asap)` rather than the `⏰` bucket. The op strips the `<time>` element and moves the node in one chained command, landing it on the **bottom tier** of that bucket's priority ladder — a task that never had a deadline has not earned a rank, and the user promotes it later during File Loose Tasks if it deserves one. **Offer this on every Workflowy row that carries it** — without it the only way to clear an undeadlined task is to keep pushing its date, which is why tasks reach 40+ days overdue while being "handled" every run. Reschedule is for work that genuinely has a deadline you're moving; this is for work that never had one.
+- **Clear the date** — offer this on **every** row. The task is real but the deadline is fiction, so this is different from rescheduling it again. Follow the shared walk's **Clear a fictional deadline** protocol and record `clearDate`. The source mechanics are mandatory:
+    - **Workflowy** — load the matching root's asap ladder from the staged Workflowy data and ask which tier should receive the task. Use `planInsertion` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs`, show and apply its demotion cascade, then run `ops.moveToAsap` verbatim. That op removes the `<time>` and lands on the bottom tier; if the user chose a higher tier, move the task from the bottom tier to `planInsertion.targetId` after the demotions.
+    - **Things 3** — clear the due date in place with `set due date of to do id "<id>" to missing value`. Leave the task in Things and do not ask for a Workflowy tier.
+    - **Apple Reminders** — `set due date of r to missing value` fails with `Can't make missing value into type date (-1700)`. Ask for a Workflowy asap tier, create the task there, then queue the reminder deletion in the batched Reminders write. Verify the new Workflowy node and verify through `reminders_fetch` that the reminder is gone before considering it handled.
 - **Drop** — run `ops.drop`. For Workflowy this deletes the node; for Things and Reminders it cancels or deletes the task. Confirm before dropping anything with `childCount > 0`.
 - **Skip** — write nothing.
 
 Record every outcome to the skip log, keyed `<source>:<id>` (`things:ABC123`, `workflowy:<uuid>`, `reminders:<title>`), per the walk skill's record step.
 
+### Apple Reminders writes freeze — batch them, never write one per item
+
+Reminders accepts a small number of AppleScript writes and then stops responding: `osascript` hangs until the timeout kills it, exits non-zero (124), and applies nothing. Reads through `reminders_fetch` keep working the whole time, which is what makes it confusing — the data is reachable, only writes are frozen. Quitting and relaunching Reminders.app clears it, but only for the next few writes.
+
+So do **not** write a reminder per walk item. Instead:
+
+1. Walk every reminder row and collect the user's decisions in memory. Workflowy and Things writes still happen immediately; only Reminders is deferred.
+2. After the last item, quit and relaunch Reminders.app (`osascript -e 'tell application "Reminders" to quit'`, `pkill -9 -x Reminders` if it survives, `open -a Reminders`, sleep ~10).
+3. Apply every reminder change in **one** `osascript` file with a generous `timeout` (180s), using handlers that look each reminder up by name and return a per-item status line.
+4. **Verify with `reminders_fetch`, never with the script's exit code.** A batch that times out part-way still applies everything it reached, so diff the incomplete list against the decisions and retry only the stragglers individually.
+
+Two behaviors that look like failures and are not:
+
+- A **recurring** reminder does not disappear when completed — it rolls forward to its next occurrence. `Take the NAD plus` completing out of Aug 17 and reappearing dated Aug 23 is success, not a no-op.
+- `trash` and Finder's AppleScript `delete` both exit 0 while silently failing on filenames containing emoji or fullwidth punctuation. `mv` to `~/.Trash` is the reliable path when clearing files.
+
+Never report a reminder handled on the strength of an exit code. Every one of these paths has returned 0 while doing nothing.
+
 ## Push it out: the cadence outcome for a repeatedly skipped task
 
 Each row carries `skipStreak` and `skippedSince`. When `skipStreak >= 2`, show the streak in the question body and promote a **longer horizon** above the ordinary reschedule — a task nudged from "today" to "this week" three runs running is a task whose date is fiction. `resolveTimeframe` accepts `Next month` and `Next quarter` alongside the usual timeframes, so build the write exactly as a reschedule: resolve the label, then `applyReschedule(item, iso)`.
 
-For a Workflowy row, `ops.moveToAsap` remains the better answer when the streak is really about a task that never had a deadline. Offer the longer horizon for work with a real but movable deadline, and `moveToAsap` for work with none.
+For a row whose deadline was never real, **Clear the date** remains the better answer. Offer the longer horizon for work with a real but movable deadline, and clear the date for work with none.
 
 **Drop stays available and stays unpromoted.** A streak means the date was wrong, not that the task is dead.
 
