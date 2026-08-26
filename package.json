@@ -19,7 +19,7 @@
 		"@anthropic-ai/sdk": "^0.115.0",
 		"@oclif/test": "^4",
 		"@types/better-sqlite3": "^9.6.0",
-		"@types/node": "^26.1.2",
+		"@types/node": "^26.3.0",
 		"drizzle-kit": "^0.31.10",
 		"eslint": "^10.8.0",
 		"fallow": "^3.14.0",
