@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {FIELD_SEP, parseThingsRows, partitionThings, RECORD_SEP} from './fetch-things-due.mjs';
+import {FIELD_SEP, OSASCRIPT_TIMEOUT_MS, parseThingsRows, partitionThings, RECORD_SEP} from './fetch-things-due.mjs';
 
 const row = (...fields) => fields.join(FIELD_SEP);
 const out = (...rows) => rows.join(RECORD_SEP) + RECORD_SEP;
@@ -86,4 +86,8 @@ test('partitionThings reports undated Anytime tasks separately for the asap swee
 		sweep.map((t) => t.id),
 		['undated'],
 	);
+});
+
+test('the osascript budget leaves room for a large Anytime backlog', () => {
+	assert.equal(OSASCRIPT_TIMEOUT_MS, 180_000);
 });

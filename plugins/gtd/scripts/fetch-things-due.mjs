@@ -59,8 +59,15 @@ tell application "Things3"
 end tell`;
 }
 
+// Anytime is the list nothing ever prunes, so the AppleScript round-trip grows with the backlog
+// and a cold Things 3 has to launch before it answers at all. 30s was enough when the list was
+// small and started timing out once it wasn't.
+export const OSASCRIPT_TIMEOUT_MS = 180_000;
+
 function run(listName) {
-	return parseThingsRows(execFileSync('osascript', ['-e', script(listName)], {encoding: 'utf8', timeout: 30_000}));
+	return parseThingsRows(
+		execFileSync('osascript', ['-e', script(listName)], {encoding: 'utf8', timeout: OSASCRIPT_TIMEOUT_MS}),
+	);
 }
 
 function localTodayISO() {
