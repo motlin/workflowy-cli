@@ -18,7 +18,7 @@ The pattern mirrors the existing journal/capture staging pipeline (`${CLAUDE_PLU
 ```
 
 - `<slug>` comes from the prep command after removing a trailing `-prep` or `-auto`. Prep and presentation link through their identical visible task names; the presentation entry inherits the prep slug. `Auto` prep tasks stage a briefing under their inferred slug and have no presentation node.
-- Prep that only stages JSON makes **no** Workflowy writes. `refine-inbox` is the exception: it stages `🔍` suggestion nodes in Workflowy instead of a JSON file, while its name-matched `/gtd:inbox` presentation performs the moves.
+- Prep that only stages JSON makes **no** Workflowy writes, with two explicit exceptions. `refine-inbox` stages `🔍` suggestion nodes in Workflowy instead of a JSON file, while its name-matched `/gtd:inbox` presentation performs the moves. `birthdays-prep` advances stale next-occurrence fields with guarded `--expect-name` updates before staging its proposal, and reports those mechanical rolls in `autoApplied`; it never applies an interactive proposal during prep.
 - Create the directories before staging:
 
 ```bash
@@ -226,5 +226,5 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 
     A file that fails validation is a prep bug: fix the prep command rather than hand-editing the artifact.
 
-- **Dry-run staging:** a prep `--dry-run` writes the `.json` but makes **zero** `node update`/`node create` calls — only `.llm/gtd/review/` is touched.
+- **Dry-run staging:** a prep `--dry-run` writes the `.json` but makes **zero** `node update`/`node create` calls — only `.llm/gtd/review/` is touched. `birthdays-prep` is the guarded-write exception described above and must stage every roll in `autoApplied`.
 - **applyOps fidelity:** the walk runs `applyOps` verbatim; a stubbed-Accept walk over a fixture asserts the exact staged commands ran and the executor received success.

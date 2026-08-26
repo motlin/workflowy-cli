@@ -73,14 +73,18 @@ LLM Tasks:
       /gtd:email-calendar-prep
       Interval: 7d
     Birthdays <time...>
-      /gtd:birthdays-auto
-      Auto
+      /gtd:birthdays-prep
     Serial: group name
+      Otter journal <time...>
+        /gtd:otter-journal-auto
+        Auto
       Refine calendar journal <time...>
         /gtd:refine-journal-prep
   Presentation
     Scan email for events
       /gtd:email-calendar-apply
+    Birthdays
+      /gtd:birthdays-apply
     Refine calendar journal
       /gtd:refine-journal-apply
 ```
