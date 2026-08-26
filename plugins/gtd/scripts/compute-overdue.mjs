@@ -176,7 +176,8 @@ export function foldSkipLog(entries) {
 
 	const streaks = new Map();
 	for (const [key, byDate] of byKey) {
-		const dates = [...byDate.keys()].sort();
+		// ISO YYYY-MM-DD keys sort chronologically.
+		const dates = [...byDate.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 		let skipStreak = 0;
 		let skippedSince = null;
 		for (let i = dates.length - 1; i >= 0; i--) {
