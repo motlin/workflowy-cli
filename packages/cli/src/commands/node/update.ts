@@ -25,6 +25,9 @@ export default class Update extends Command {
 		'# Clear the note from a node',
 		'<%= config.bin %> <%= command.id %> --id abc123 --clear-note',
 		'',
+		"# Clear a mirror's own name so it inherits from the original again",
+		'<%= config.bin %> <%= command.id %> --id abc123 --clear-name',
+		'',
 		'# Preview the API call without updating',
 		'<%= config.bin %> <%= command.id %> --id abc123 --name "Updated" --dry-run',
 	];
@@ -43,6 +46,13 @@ export default class Update extends Command {
 		name: Flags.string({
 			char: 'n',
 			description: 'New name for the node',
+			exclusive: ['clear-name'],
+		}),
+		'clear-name': Flags.boolean({
+			description:
+				"Clear the node's own name. Use on a mirror that was accidentally given text of its own; a mirror must inherit its content from the original.",
+			default: false,
+			exclusive: ['name'],
 		}),
 		note: Flags.string({
 			description: 'New note/description for the node',
@@ -74,8 +84,8 @@ export default class Update extends Command {
 			this.error('Either --id or --path is required');
 		}
 
-		if (!flags.name && !flags.note && !flags['clear-note'] && !flags['layout-mode']) {
-			this.error('At least one of --name, --note, --clear-note, or --layout-mode must be provided');
+		if (!flags.name && !flags['clear-name'] && !flags.note && !flags['clear-note'] && !flags['layout-mode']) {
+			this.error('At least one of --name, --clear-name, --note, --clear-note, or --layout-mode must be provided');
 		}
 
 		const apiKey = process.env.WORKFLOWY_API_KEY;
@@ -109,6 +119,8 @@ export default class Update extends Command {
 			const requestBody: {name?: string; note?: string; layoutMode?: string} = {};
 			if (flags.name) {
 				requestBody.name = flags.name;
+			} else if (flags['clear-name']) {
+				requestBody.name = '';
 			}
 			if (flags.note) {
 				requestBody.note = flags.note;
@@ -133,7 +145,7 @@ export default class Update extends Command {
 			this.log(`Updating node: ${fullPath}`);
 
 			await client.updateNode(nodeId, {
-				name: flags.name,
+				name: flags['clear-name'] ? '' : flags.name,
 				note: flags['clear-note'] ? '' : flags.note,
 				layoutMode: flags['layout-mode'],
 			});
@@ -142,6 +154,8 @@ export default class Update extends Command {
 			this.log(`Successfully updated node`);
 			if (flags.name) {
 				this.log(`  New name: ${flags.name}`);
+			} else if (flags['clear-name']) {
+				this.log(`  Name cleared`);
 			}
 			if (flags.note) {
 				this.log(`  New note: ${flags.note}`);

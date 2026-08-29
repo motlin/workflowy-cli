@@ -60,7 +60,7 @@ describe('node update command', () => {
 			});
 
 			await expect(Update.run(['--id', 'node-id'])).rejects.toThrow(
-				'At least one of --name, --note, --clear-note, or --layout-mode must be provided',
+				'At least one of --name, --clear-name, --note, --clear-note, or --layout-mode must be provided',
 			);
 		});
 	});
@@ -196,6 +196,34 @@ describe('node update command', () => {
 
 			const body = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({note: ''});
+		});
+
+		it('sends empty name to clear with --clear-name', async () => {
+			// A mirror node must inherit its text from the original. When a write accidentally
+			// gives it a name of its own, the cache refuses to read the whole subtree, and
+			// --name cannot undo it because oclif rejects an empty string.
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'mirror-id', name: ' #write', parentId: null})],
+			});
+
+			let capturedBody: string | undefined;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.body) {
+					capturedBody = init.body as string;
+				}
+				return new Response(JSON.stringify({node: {id: 'mirror-id', name: ''}}), {status: 200});
+			});
+
+			await captureOutput(async () => {
+				try {
+					await Update.run(['--id', 'mirror-id', '--clear-name']);
+				} catch {
+					// Ignore errors from cache update
+				}
+			});
+
+			const body = JSON.parse(capturedBody!);
+			expect(body).toStrictEqual({name: ''});
 		});
 
 		it('sends correct request body for layout mode update', async () => {
