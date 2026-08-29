@@ -7,6 +7,24 @@ import {FIELD_SEP, OSASCRIPT_TIMEOUT_MS, parseThingsRows, partitionThings, RECOR
 const row = (...fields) => fields.join(FIELD_SEP);
 const out = (...rows) => rows.join(RECORD_SEP) + RECORD_SEP;
 
+test('partitionThings carries the Someday list through for the Workflowy sweep', () => {
+	// Someday is a third backlog that nothing prunes. It has to reach the sweep as its own
+	// set, and a task already sitting in Today or Anytime must not be duplicated into it.
+	const shared = {id: 'dup', title: 'In both lists', due: null, list: 'Anytime', notes: null};
+	const sets = partitionThings(
+		{
+			todayList: [],
+			anytime: [shared],
+			someday: [shared, {id: 's1', title: 'Learn woodworking', due: null, list: 'Someday', notes: null}],
+		},
+		'2026-08-27',
+	);
+	assert.deepEqual(
+		sets.someday.map((t) => t.id),
+		['s1'],
+	);
+});
+
 test('parseThingsRows splits the record-separated AppleScript output', () => {
 	const raw = out(
 		row('JMwVZ', 'Pay temple dues', '2026-8-1', 'Today', 'bring the receipt'),

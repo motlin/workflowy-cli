@@ -195,8 +195,27 @@ Append the same kind of topic `#tag` a Workflowy proposal would carry, and nothi
 
 Default every one of these to the **bottom tier** — a task that has sat undated in Anytime has not earned a rank. Offer a higher tier as an alternative, subject to the same cascade rules. Offer **Skip** (leave it in Things) as well; this list is long and the user is entitled to leave items behind. Never complete the Things task before the Workflowy create succeeds — chain the two with `&&` in one background job so a failed create can't silently destroy the task.
 
+## Sweep Things "Someday" into the Workflowy Someday lists
+
+Someday is the third Things backlog nothing prunes, and it is the one the user is least likely to open on their own. The goal is a single database: work that lives in Things is work the daily review never sees, so it drifts until it is either stale or forgotten. `fetch-things-due.mjs` returns it as `someday`, already deduped against Today and Anytime.
+
+Unlike the Anytime sweep, these do **not** go on the asap ladder — a someday item is explicitly not a next action. They go to the matching Workflowy `🌱 Someday` node: `Personal > 🌱 Someday` or `Work > 🌱 Someday`. Resolve both ids from `.llm/gtd/metadata/someday/personal-someday.json` and `work-someday.json`.
+
+Each one is a **create-and-complete pair**, exactly like the Anytime sweep — create under the chosen Someday node, then close the Things original, chained with `&&` in one background job so a failed create can never destroy the task:
+
+```bash
+./bin/run.js node create --parent-id <somedayUuid> --name '<title><tags>' --position bottom
+osascript -e 'tell application "Things3" to set status of to do id "<thingsId>" to completed'
+```
+
+Walk them in batches of up to 4. Offer **Personal Someday**, **Work Someday**, **Delete** (the idea is dead), and **Skip** (leave it in Things). Carry the Things note across as a child node when it holds a link or context the title alone loses. Append a topic `#tag` the same way the Anytime sweep does, and nothing more.
+
+Someday items are old by construction, so **Delete is a normal outcome here, not a failure** — a five-year-old idea the user no longer wants is the main thing this sweep is for. Never bulk-delete; every drop is confirmed.
+
 ## Finish
 
 Drain all outstanding background moves (wait for jobs, surface any failures), then print a one-line summary — e.g. `✓ 14 tasks filed (9 asap, 5 due-dates), 6 swept from Things Anytime, 3 skipped` — or list failed moves by task name instead of reporting success. If `status` was `empty` and the Anytime list is also empty, say so and skip the walk entirely.
+
+Report the Someday sweep on its own line (`✓ 30 swept from Things Someday: 18 personal, 4 work, 8 deleted`), since it lands outside the ladders.
 
 Then re-read each ladder and report any tier over its cap. The bottom tier is allowed to run over between rebalances; any tier above it being over cap means a demotion failed, and that has to be named rather than left to the next run.

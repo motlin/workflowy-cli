@@ -80,7 +80,7 @@ function localTodayISO() {
  * superset that already contains Today, so the Today ids come off the Anytime list once, up front,
  * and both splits work from that remainder rather than trusting the list membership.
  */
-export function partitionThings({todayList, anytime}, todayISO) {
+export function partitionThings({todayList, anytime, someday = []}, todayISO) {
 	const inToday = new Set(todayList.map((t) => t.id));
 	const anytimeOnly = anytime.filter((t) => !inToday.has(t.id));
 
@@ -89,7 +89,12 @@ export function partitionThings({todayList, anytime}, todayISO) {
 	// surface on its own date. Only the undated ones are invisible and need the asap sweep.
 	const undatedAnytime = anytimeOnly.filter((t) => !t.due);
 
-	return {due, today: todayList, anytime: undatedAnytime};
+	// Someday is a third unpruned backlog. A task can sit in Someday and still show up in the
+	// other lists, so drop anything already accounted for rather than sweeping it twice.
+	const seen = new Set([...inToday, ...anytimeOnly.map((t) => t.id)]);
+	const somedayOnly = someday.filter((t) => !seen.has(t.id));
+
+	return {due, today: todayList, anytime: undatedAnytime, someday: somedayOnly};
 }
 
 function main(argv) {
@@ -97,7 +102,7 @@ function main(argv) {
 	let today = localTodayISO();
 	for (let i = 0; i < args.length; i++) if (args[i] === '--today') today = args[++i];
 
-	const sets = partitionThings({todayList: run('Today'), anytime: run('Anytime')}, today);
+	const sets = partitionThings({todayList: run('Today'), anytime: run('Anytime'), someday: run('Someday')}, today);
 	process.stdout.write(JSON.stringify(sets, null, 2) + '\n');
 }
 
