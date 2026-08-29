@@ -26,7 +26,7 @@ The reconnect instruction must be a plain-text response that ends the turn. Do *
 
 A review missing calendar/reminders data is not useful. The user must reconnect iMCP and re-run, even if it means the review is delayed. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
 
-**iMCP self-heal preflight:** Before invoking `calendar-fetcher` / `reminders-fetcher`, proactively restart a stale iMCP so the fetchers don't trip the halt rule. iMCP wedges after days of uptime (alive but unresponsive). Check the helper's age:
+**iMCP self-heal preflight:** Before invoking `calendar-fetcher` / `reminders-fetcher`, proactively restart a stale iMCP so the fetchers don't trip the halt rule. iMCP stops responding after days of uptime (the app is still running but answers nothing). Check the helper's age:
 
 ```bash
 IMCP_AGE=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs)

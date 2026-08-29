@@ -1,5 +1,5 @@
 ---
-description: Recovery protocol for GTD agents and commands that depend on iMCP (mcp__imcp__* tools — calendar, reminders, contacts, photos). Use whenever an iMCP tool errors or reports the server disconnected: kill the wedged helper, relaunch, retry once, and on continued failure halt with the fatal-error contract rather than returning empty data. Also covers the reminders-completion capability gap and the photos-scanner AppleScript fallback.
+description: Recovery protocol for GTD agents and commands that depend on iMCP (mcp__imcp__* tools — calendar, reminders, contacts, photos). Use whenever an iMCP tool errors or reports the server disconnected: stop the stuck helper, relaunch, retry once, and on continued failure halt with the fatal-error contract rather than returning empty data. Also covers the reminders-completion capability gap and the photos-scanner AppleScript fallback.
 ---
 
 # iMCP Recovery Protocol
@@ -11,7 +11,7 @@ Shared protocol for any GTD agent or command that depends on iMCP (`mcp__imcp__*
 When a step requires an `mcp__imcp__*` tool:
 
 - Call the required iMCP tool. Empty results are valid data, not failures — only connection/availability errors trigger recovery.
-- On failure (tool unavailable, connection error, error response indicating iMCP not connected), **kill any hung server before relaunching** — iMCP commonly wedges after days of uptime (alive but unresponsive), and `open -a iMCP` alone only focuses the stale app without restarting the hung helper:
+- On failure (tool unavailable, connection error, error response indicating iMCP not connected), **quit any unresponsive server before relaunching** — iMCP commonly stops responding after days of uptime (the app is still running but answers nothing), and `open -a iMCP` alone only focuses the stale app without restarting the stuck helper:
     - Find the helper: `pgrep -f 'iMCP.app/Contents/MacOS/imcp-server'` (or `ps aux | grep -i imcp`).
     - If found, `kill <pid>` (then `kill -9 <pid>` if it survives).
     - Relaunch a fresh server: `open -a iMCP` (installed at `/Applications/iMCP.app`), `sleep 5`, retry the call **once**.
@@ -39,4 +39,4 @@ The photos scanner has a legitimate non-iMCP path (AppleScript against the Photo
 
 ## Capability gap: completing reminders
 
-iMCP cannot **complete or update** Apple Reminders — it exposes only `reminders_create` / `reminders_fetch` / `reminders_lists`. This is a missing capability, not an outage, so it does not trigger the recovery procedure above. The fallback is `osascript` against the Reminders app — see `commands/review/daily/overview.md` → "Completing Apple Reminders" for the snippet and the recurring-rollforward / bridge-wedge caveats.
+iMCP cannot **complete or update** Apple Reminders — it exposes only `reminders_create` / `reminders_fetch` / `reminders_lists`. This is a missing capability, not an outage, so it does not trigger the recovery procedure above. The fallback is `osascript` against the Reminders app — see `commands/review/daily/overview.md` → "Completing Apple Reminders" for the snippet and the recurring-rollforward / bridge-failure caveats.
