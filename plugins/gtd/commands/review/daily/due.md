@@ -59,7 +59,7 @@ The section → interval table lives in `compute-overdue.mjs` (the executable so
 
 ## Recurring item options
 
-Done / skip / notes / retire, per the walk skill. Before each question, `open` the row's `url` (and any `links` it carries) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+Done / skip / notes / retire, per the walk skill. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
 
 Record every outcome to the skip log, keyed by the row's `id`, per the walk skill's record step.
 
@@ -149,7 +149,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs \
   > .llm/gtd/review/due-items.json
 ```
 
-Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. It also carries the context each question needs — `note` (the Workflowy note, the Things note, the Reminders note), `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the title and note) — which is why the Workflowy fetch above asks for `note,modifiedAt` at depth 5. Show it per **Show the item, do not just name it** in the walk skill: `open` the row's `url` and its `links`, print the children, and print all of it immediately before the `AskUserQuestion`. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
+Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. It also carries the context each question needs — `note` (the Workflowy note, the Things note, the Reminders note), `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the title and note) — which is why the Workflowy fetch above asks for `note,modifiedAt` at depth 5. Show it per **Show the item, do not just name it** in the walk skill: `open` the row's external `links` (not its workflowy.com `url`), print the children, and print all of it immediately before the `AskUserQuestion`. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
 
 **Source semantics the collector already resolved, so the walk doesn't have to:**
 

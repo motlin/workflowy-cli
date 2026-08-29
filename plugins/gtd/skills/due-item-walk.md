@@ -43,7 +43,9 @@ A title is not an item. "Inventory the drives" with 71 children is a different q
 
 Before asking about an item:
 
-- **Open what it points at.** `open` every URL in `links`, and `open` the row's own `url`. Opening is how the user sees a 71-child subtree or the page an item is really about; a child list in the terminal summarizes it, it is not the thing. Chain them into one backgrounded Bash call so nothing waits on the browser.
+- **Open the external links, not the node.** `open` every URL in `links` — a PR, a doc, an article is the thing the item is about, and nothing in the terminal substitutes for it. Chain them into one backgrounded Bash call so nothing waits on the browser.
+- **Never open a workflowy.com permalink.** That SPA takes seconds to boot and interrupts whatever the user is doing, to show a node whose text the question already carries. For a row with no children and no note there is nothing there to see at all. Print the link inline as markdown instead and let the user click it if they want it.
+- **For a big subtree, open the local mirror.** When a row has enough children that a printed list is unhelpful (roughly 8+, or any child with children of its own), open `https://workflowy.m4.notlin.com/node/<shortId>` — the project's own web app, which serves the same node in ~15ms instead of Workflowy's multi-second load. Fall back to printing the tree if that host does not respond.
 - **Fetch the rest of the subtree when one level is not enough.** `children` is depth 1. When any child has children of its own, pull the whole thing before asking:
 
     ```bash
@@ -79,6 +81,7 @@ Skipped 3 runs in a row since 2026-08-11.
 
 - Render embedded URLs as clickable markdown. Parse `<a href="...">text</a>` in the node name and emit `[text](url)`; strip other HTML for display.
 - List the children. Cap the list around 20 and close with `… and 51 more — open in Workflowy`, so a huge subtree does not push the item's own heading off screen.
+- **Completed children are already gone.** `nodeContext()` filters them out and `childCount` is the open count, so read the list as-is. Never read a finished child aloud as a live candidate, and never re-add one you spot in a raw `node get` — a recurring item that mirrors a bucket is mostly finished work, and asking about it wastes the question.
 - Say what you opened, so the user knows which tab or app belongs to this question.
 - Repeat the deciding facts — overdue math, child count, skip streak — in the `AskUserQuestion` body. The block is terminal output; only the question text survives into the next session.
 
@@ -109,11 +112,25 @@ Then conform to what is already there:
 
 Showing an item's children to the user is not reading them. Skipping this step produces writes that look plausible and are structurally wrong.
 
+## Recompute when the date rolls over
+
+A long review crosses midnight, and every staged `applyOp` baked in the local date at the moment prep ran. Running a stale op verbatim writes yesterday's arithmetic — the wrong next date, the wrong weekday label.
+
+Before each segment, compare the prep date staged in `overdue.json` against the current local date. When they differ, re-run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --today YYYY-MM-DD` with today's date and walk the fresh rows. This is the same guard `birthdays-prep.md` / `birthdays-apply.md` apply through `generatedFor`.
+
 ## Run staged ops verbatim
 
 Each row in the working set carries its outcome commands already built and shell-escaped. Run them **verbatim**. Do not rebuild a `<time>` element, an `osascript` call, or a `node update` by hand — the script is the source of truth for date math and escaping, and hand-built writes are where wrong weekdays and quoting bugs come from.
 
 Dispatch every write as a background Bash job and follow **Background Dispatch, Verify, and Drain** in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`: track each job, reap finished jobs every ~5 items, surface failures inline by item name, and present the next item without waiting.
+
+## Make it recurring
+
+Some one-shot due items are not one-shots at all — they are habits filed in the wrong place. When the user says an item belongs in the recurring review, that is this outcome, not a reschedule.
+
+Ask which `Personal > 🔄 Review` section receives it (⬆️ Frequently Important, Weekly, Monthly, …), move the node under that section, and write the section's cadence `<time>` per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`. Record the outcome as `reschedule` in the skip log so the streak resets.
+
+Non-Workflowy rows take the same shape **Clear a fictional deadline** already uses for Reminders: create the Workflowy recurring node under the chosen section, then delete the Things task or Apple Reminder, and verify both sides before treating the outcome as handled.
 
 ## Clear a fictional deadline
 
@@ -126,6 +143,10 @@ The destination depends on the source:
 - **Apple Reminders** cannot clear a due date. Create the task in a chosen Workflowy asap tier, then delete the reminder and verify both sides before treating the outcome as handled.
 
 When the destination is a Workflowy asap ladder, load `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`, show the current occupants and capacity of each tier, and ask one follow-up tier question using **soon / medium / eventually / bottom** for `1st` / `2nd` / `3rd` / the current bottom tier. Use `readLadder`, `tierCapacity`, and `planInsertion`; show and apply the demotion cascade before filing the task. Never silently choose a tier or hand-calculate capacity.
+
+## Say it in plain words
+
+Everything the walk reports is read by a person, not a maintainer. Describe what happened in ordinary language — "Reminders stopped accepting writes", "the app froze", "the sync never finished". Never use insider terms for failure states: **wedged**, _hung_, _pegged_, _thrashing_, _deadlocked_. If a word would not appear in a note to a friend, it does not belong in a status line.
 
 ## Skip leaves everything unchanged
 
