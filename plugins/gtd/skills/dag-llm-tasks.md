@@ -69,7 +69,7 @@ Before dispatching anything:
 2. Stop every prep controller left over from an earlier or aborted fan-out. Treat a controller that stops answering a status ping as still running until it is actually stopped.
 3. Verify that no earlier prep controller remains, then dispatch the new set.
 
-A restarted review otherwise stacks new controllers on top of live ones: the five-in-flight cap stops being real, and a controller presumed hung can wake up hours later and overwrite the artifact a retry already staged — silently replacing the proposals the walk is mid-way through presenting.
+A restarted review otherwise stacks new controllers on top of live ones: the five-in-flight cap stops being real, and a controller presumed stuck can wake up hours later and overwrite the artifact a retry already staged — silently replacing the proposals the walk is mid-way through presenting.
 
 Run metadata sync once before fan-out. Prep workers read the resulting `.llm/gtd/metadata/` cache and never rebuild it concurrently.
 
@@ -78,6 +78,8 @@ Dispatch one background controller per due branch from the plan:
 - A `parallel` branch contains one independent task.
 - A `serial` branch runs its due tasks in tree order, waiting for each before starting the next.
 - Keep at most five prep controllers in flight.
+
+**A subagent cannot answer a credential prompt.** Any `op run` inside a prep worker must be wrapped in `timeout` (90s is enough once the barrier has warmed authorization). Unbounded, it blocks on a 1Password desktop prompt the user never sees, and the controller reports nothing until it is killed — 22 minutes in one run. On a timeout the worker returns a failure naming the credential, it never retries silently, and the executor surfaces it rather than treating the branch as slow.
 
 Each prep worker is autonomous, never prompts, and stages `.llm/gtd/review/proposals/<slug>.json`. Auto workers complete their autonomous work and stage `.llm/gtd/review/briefings/<slug>.json`.
 
