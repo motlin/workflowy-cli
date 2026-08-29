@@ -462,6 +462,30 @@ test('nodeContext gathers the context the walk shows before asking', () => {
 	assert.deepEqual(context.links, ['https://example.com/spec', 'https://example.com/notes']);
 });
 
+test('nodeContext drops completed children so finished work is never read aloud as open', () => {
+	// A recurring item that mirrors a bucket: most candidates are already done.
+	const node = {
+		name: 'Set goals for today',
+		shortId: 'sid-goals',
+		children: [
+			{
+				name: 'Transfer stock to Temple Sinai',
+				shortId: 'sid-1',
+				completedAt: '2026-08-19T12:00:00Z',
+				children: [],
+			},
+			{name: 'Cancel Apple iCloud Subscriptions', shortId: 'sid-2', completedAt: 1755600000, children: []},
+			{name: 'Respond to blog comments', shortId: 'sid-3', completedAt: null, children: []},
+		],
+	};
+	const context = nodeContext(node);
+	// childCount is the open count, not the raw child count.
+	assert.equal(context.childCount, 1);
+	assert.deepEqual(context.children, [
+		{title: 'Respond to blog comments', note: null, childCount: 0, url: 'https://workflowy.com/#/sid-3'},
+	]);
+});
+
 test('nodeContext returns an empty context for a childless, noteless node', () => {
 	assert.deepEqual(nodeContext({name: 'Bare', children: []}), {
 		note: null,
@@ -470,6 +494,40 @@ test('nodeContext returns an empty context for a childless, noteless node', () =
 		children: [],
 		links: [],
 	});
+});
+
+test('computeOverdue skips items that are already completed', () => {
+	// A recurring item the user finished still carries its old <time>. Surfacing it asks
+	// the user about work they already did, which is how 10 of 51 rows in one run were dead.
+	const tree = {
+		children: [
+			{
+				name: '🔄 Daily Review',
+				priority: 3,
+				children: [
+					{
+						name: 'Already done <time startYear="2026" startMonth="6" startDay="1">Mon, Jun 1, 2026</time>',
+						id: 'id-done',
+						shortId: 'sid-done',
+						completedAt: 1786587745,
+						children: [],
+					},
+					{
+						name: 'Still open <time startYear="2026" startMonth="6" startDay="1">Mon, Jun 1, 2026</time>',
+						id: 'id-open',
+						shortId: 'sid-open',
+						completedAt: null,
+						children: [],
+					},
+				],
+			},
+		],
+	};
+	const rows = computeOverdue(tree, '2026-08-26');
+	assert.deepEqual(
+		rows.map((r) => r.id),
+		['id-open'],
+	);
 });
 
 test('computeOverdue carries the item context so the walk can show it before asking', () => {

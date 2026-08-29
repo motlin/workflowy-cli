@@ -79,7 +79,10 @@ export function extractLinks(...texts) {
  * set carries the context rather than making the walk fetch it one item at a time.
  */
 export function nodeContext(node) {
-	const kids = node.children ?? [];
+	// A recurring item that mirrors a bucket accumulates finished children. Reading those
+	// aloud as live candidates is how the walk asks about work that is already done, so
+	// completed children are dropped here and childCount reports the open count only.
+	const kids = (node.children ?? []).filter((kid) => kid.completedAt == null);
 	return {
 		note: node.note ?? null,
 		modifiedAt: node.modifiedAt ?? null,
@@ -277,8 +280,11 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 				// mirrored under "Set goals for today". Those reflections are one-shot Next Actions,
 				// not recurring items, so neither the mirror nor anything beneath it is a row here.
 				if (child.mirror?.isMirror) continue;
+				// A finished item keeps its old <time>. Asking about it is asking about work
+				// that is already done, so completion wins over the date.
+				const isCompleted = child.completedAt != null;
 				const due = parseTimeISO(child.name);
-				if (due && due <= todayISO) {
+				if (due && due <= todayISO && !isCompleted) {
 					const needsInterval = interval === null;
 					const nextDate = needsInterval ? null : addInterval(todayISO, interval);
 					let newName = null;
