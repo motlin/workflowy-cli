@@ -22,7 +22,7 @@
 		"sql-highlight": "^6.1.0",
 		"@tobilu/qmd": "^2.5.3",
 		"sqlite-vec": "^0.1.9",
-		"zod": "^4.4.3"
+		"zod": "^4.5.4"
 	},
 	"devDependencies": {
 		"@oclif/test": "^4",
