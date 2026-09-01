@@ -7,7 +7,7 @@ description: Walk everything dated that needs handling today — overdue recurri
 Two segments, walked back to back as one continuous question sequence:
 
 - **Segment 1 — recurring items.** Items in `Personal > 🔄 Review` that come back on an interval. Handling one advances its date by its section's cadence.
-- **Segment 2 — due items.** One-shot tasks that should be done once and go away, merged from the Workflowy `⏰ Tasks (due dates)` buckets, Things 3, and Apple Reminders. Handling one completes, reschedules, or drops it.
+- **Segment 2 — due items.** One-shot tasks that should be done once and go away, merged from the Workflowy `⏰ Tasks (due dates)` buckets, Things 3, and Apple Reminders. Handling one completes, reschedules, moves it to Workflowy, or drops it.
 
 Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, showing each item's real context immediately before its question, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. The segments stay separate because their write-backs differ: a recurring item normally returns, while a one-shot task should not.
 
@@ -161,13 +161,17 @@ Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `
 
 ## Due item options
 
-First option is the most likely outcome, per the walk skill:
+First option is the most likely outcome, per the walk skill. That is **Done** on Workflowy and Things rows and **Move to Workflowy** on Reminders rows — a dated reminder has nothing the `⏰` bucket does not do better, so moving it is almost always the answer.
 
 - **Done** — run `ops.complete` verbatim.
+- **Move to Workflowy** — offer on every **Things** and **Reminders** row; a Workflowy row is already home. The task is real and its date is real, but it lives in the wrong database. Follow the shared walk's **Move to Workflowy** protocol and record `moveToWorkflowy`. This keeps the date; **Clear the date** below is the separate outcome for a deadline that was fiction. The source mechanics are mandatory:
+    - **Both sources** — create the task under the matching root's `⏰ Tasks (due dates)` bucket, with the row's `due` appended to the title as a `<time>` element built by `buildTimeElement` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs` — the same stamp the file-tasks sweeps apply, never a hand-built one. Resolve the bucket UUID from the staged `root-<work|personal>.json` (the `⏰` child under the `✅ Tasks` wrapper), not from memory. Things and Reminders rows carry `rootKey: null`, so default to **Personal** and offer **Work** only when the title reads as work. Carry the row's `note` across as a child node when it holds a link or context the title alone loses. Append a topic `#tag` the same way the file-tasks sweeps do, and nothing more.
+    - **Things 3** — a create-and-complete pair in one background job, chained with `&&` so a failed create can never destroy the task: `./bin/run.js node create --parent-id <dueBucketUuid> --name '<title><time element>' --position bottom && <ops.complete verbatim>`. Verify the node landed in the bucket and `return status of to do id "<id>"` reads `completed` — never trust the exit code.
+    - **Apple Reminders** — run the Workflowy create now and, once it has returned, queue the reminder deletion (`ops.drop`) into the batched Reminders write below. Verify the new node and verify through `reminders_fetch` that the reminder is gone before counting it moved.
 - **Reschedule** — offer `Today`, `This week`, `This month`, and `Other`. Convert the choice to a date with `resolveTimeframe` from `collect-due-items.mjs` (never by hand — "this week" means the upcoming Friday and the weekday must be computed), then build the command with `applyReschedule(item, iso)` from the same module and run it. **Never substitute `{{date}}` yourself.** The three sources need different representations — Workflowy takes a `<time>` element, Things and Reminders take an AppleScript `date "August 31, 2026"` string — and dropping HTML into an `osascript` call sets a garbage date instead of failing. `applyReschedule` picks the right one from the row's `source`.
-- **Clear the date** — offer this on **every** row. The task is real but the deadline is fiction, so this is different from rescheduling it again. Follow the shared walk's **Clear a fictional deadline** protocol and record `clearDate`. The source mechanics are mandatory:
+- **Clear the date** — offer this on **every** row. The task is real but the deadline is fiction, so this is different from rescheduling it again, and different from **Move to Workflowy**, which keeps the date and only changes the store. Follow the shared walk's **Clear a fictional deadline** protocol and record `clearDate`. The source mechanics are mandatory:
     - **Workflowy** — load the matching root's asap ladder from the staged Workflowy data and ask which tier should receive the task. Use `planInsertion` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs`, show and apply its demotion cascade, then run `ops.moveToAsap` verbatim. That op removes the `<time>` and lands on the bottom tier; if the user chose a higher tier, move the task from the bottom tier to `planInsertion.targetId` after the demotions.
-    - **Things 3** — clear the due date in place with `set due date of to do id "<id>" to missing value`. Leave the task in Things and do not ask for a Workflowy tier.
+    - **Things 3** — clear the due date in place with `delete due date of to do id "<id>"`. Leave the task in Things and do not ask for a Workflowy tier. Do **not** use `set due date … to missing value`: Things raises the same `Can't make missing value into type date (-1700)` error Reminders does, and the assignment silently accomplishes nothing. `delete due date` is the form that works. Verify with `return due date of to do id "<id>"`, which reads back `missing value` once it is cleared — never trust the exit code.
     - **Apple Reminders** — `set due date of r to missing value` fails with `Can't make missing value into type date (-1700)`. Ask for a Workflowy asap tier, create the task there, then queue the reminder deletion in the batched Reminders write. Verify the new Workflowy node and verify through `reminders_fetch` that the reminder is gone before considering it handled.
 - **Drop** — run `ops.drop`. For Workflowy this deletes the node; for Things and Reminders it cancels or deletes the task. Confirm before dropping anything with `childCount > 0`.
 - **Skip** — write nothing.
@@ -180,7 +184,7 @@ Reminders accepts a small number of AppleScript writes and then stops responding
 
 So do **not** write a reminder per walk item. Instead:
 
-1. Walk every reminder row and collect the user's decisions in memory. Workflowy and Things writes still happen immediately; only Reminders is deferred.
+1. Walk every reminder row and collect the user's decisions in memory. Workflowy and Things writes still happen immediately; only Reminders is deferred. A **Move to Workflowy** answer therefore splits: its Workflowy create runs now, and its reminder deletion joins this batch.
 2. After the last item, quit and relaunch Reminders.app (`osascript -e 'tell application "Reminders" to quit'`, `pkill -9 -x Reminders` if it survives, `open -a Reminders`, sleep ~10).
 3. Apply every reminder change in **one** `osascript` file with a generous `timeout` (180s), using handlers that look each reminder up by name and return a per-item status line.
 4. **Verify with `reminders_fetch`, never with the script's exit code.** A batch that times out part-way still applies everything it reached, so diff the incomplete list against the decisions and retry only the stragglers individually.
@@ -208,4 +212,4 @@ Do not silently leave a task undated. An undated task in the due-dates bucket is
 
 ## Finish
 
-Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 3 cadences lengthened, 2 retired · 9 due items completed, 4 rescheduled, 2 pushed out, 2 dropped` — or list failures by item name instead of reporting success.
+Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 3 cadences lengthened, 2 retired · 9 due items completed, 4 rescheduled, 2 pushed out, 3 moved to Workflowy, 1 date cleared, 2 dropped` — or list failures by item name instead of reporting success.

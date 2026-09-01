@@ -187,7 +187,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-things-due.mjs > .llm/gtd/review/anytim
 The `anytime` array holds undated Anytime tasks with the Today list already deduped out. Each one is a **create-and-complete pair**, not a move: Workflowy and Things are separate stores, so filing means creating the task under the chosen tier and then closing the Things original.
 
 ```bash
-./bin/run.js node create --parent-id <tier-uuid> --name '<title><tags>' -p bottom
+./bin/run.js node create --parent-id <tier-uuid> --name '<title><tags>' --position bottom
 osascript -e 'tell application "Things3" to set status of to do id "<thingsId>" to completed'
 ```
 

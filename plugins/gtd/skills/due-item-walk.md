@@ -132,9 +132,23 @@ Ask which `Personal > 🔄 Review` section receives it (⬆️ Frequently Import
 
 Non-Workflowy rows take the same shape **Clear a fictional deadline** already uses for Reminders: create the Workflowy recurring node under the chosen section, then delete the Things task or Apple Reminder, and verify both sides before treating the outcome as handled.
 
+## Move to Workflowy
+
+A Things task or Apple Reminder that reaches a due walk with a real date is usually a task in the wrong database, not a task with the wrong date. The goal is a single database, so every one-shot due-item walk offers **Move to Workflowy** on Things and Reminders rows, and places it **first** on Reminders rows — a dated reminder has nothing the `⏰ Tasks (due dates)` bucket does not do better, and it is the answer the user gives almost every time. Workflowy rows never carry it; they are already home.
+
+This is a handled outcome, not a reschedule and not **Clear the date**: the date stays, only the store changes. Record `moveToWorkflowy` so the skip streak resets.
+
+The shape is the create-then-close pairing the file-tasks Things sweeps use:
+
+- **Create first.** File the task under the matching root's `⏰ Tasks (due dates)` bucket, carrying the row's `due` across as a script-built `<time>` element, never a hand-built one.
+- **Close second, never before.** Complete the Things task or delete the reminder only after the create has returned. For Things, chain the pair with `&&` in one background job so a failed create cannot destroy the task. For Reminders, the deletion joins the batched Reminders write instead — one write per item freezes the app — so the create runs now and the delete lands with the batch.
+- **Verify both sides.** The new node is in the bucket, and the original is gone: `status of to do id` reads `completed` in Things, and `reminders_fetch` no longer lists the reminder. An exit code proves neither.
+
+The segment's own command file names the exact ops and the bucket lookup.
+
 ## Clear a fictional deadline
 
-Every one-shot due-item walk offers **Clear the date** for a real task whose deadline is fiction. This is a handled outcome, not a skip or reschedule: remove the date entirely and record `clearDate` so the skip streak resets.
+Every one-shot due-item walk offers **Clear the date** for a real task whose deadline is fiction. This is a handled outcome, not a skip or reschedule: remove the date entirely and record `clearDate` so the skip streak resets. When the deadline is real and only the store is wrong, that is **Move to Workflowy**, not this.
 
 The destination depends on the source:
 
@@ -157,7 +171,7 @@ On skip, write nothing. The item keeps its date and resurfaces on the next run. 
 Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|clearDate|drop>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|drop>
 ```
 
 The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.
