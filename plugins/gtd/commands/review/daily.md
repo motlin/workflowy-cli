@@ -17,7 +17,30 @@ The Meeting Follow-up Review, Morning Overview, and Recurring Review phases dele
 
 ## When a skill breaks, fix the skill first
 
-If you discover a bug in a skill, command, or script **while running the review** — a script that errors, a command that does the wrong thing, a wrong assumption baked into these docs — stop the review and fix the skill first, then resume. Do not work around it inline and press on. Fixing the skill is red/green TDD (write the failing test, fix, run `vp check` / `vp test` per the project precommit checklist), and it takes priority over finishing the day's review, because every future run benefits. This is distinct from a data/MCP failure (see [Handling failures](#handling-failures)); that path is about pausing and asking, this one is about the tooling itself being wrong.
+This rule covers **actual breakage only**: a script that errors or exits non-zero, a command that does the wrong thing, a wrong assumption baked into these docs that makes a step produce wrong results. If you hit one of those **while running the review**, stop the review and fix the skill first, then resume. Do not work around it inline and press on. Fixing the skill is red/green TDD (write the failing test, fix, run `vp check` / `vp test` per the project precommit checklist), and it takes priority over finishing the day's review, because every future run benefits. This is distinct from a data/MCP failure (see [Handling failures](#handling-failures)); that path is about pausing and asking, this one is about the tooling itself being wrong.
+
+It does **not** cover anything the review could finish without. An improvement idea is not breakage, however good it is, and it never stops the walk — it goes to the mid-run notes file, next.
+
+## An improvement noticed mid-walk never stops the walk
+
+An improvement idea that surfaces mid-walk — a preference the user states, a nicer way to present an item, a maybe-better option, a design question about how a phase works — is **not** a reason to stop, poll the user, or switch to editing skills. The walk continues to the next item. It is also not something to carry in context until the end of the run: by then the item name, the phase, and the user's exact words are gone, and the meta-feedback task receives a vague summary instead of a usable candidate.
+
+**Append it to a file immediately, then present the next item.** The sink is `.llm/gtd/review/mid-run-notes.md`. Append one bullet per observation under a `## YYYY-MM-DD` heading (add today's heading if it is missing), carrying four labeled fields:
+
+- **Phase** — which phase was running.
+- **Trigger** — what the walk was doing, and the name of the item it was on.
+- **Improvement** — the proposed change, concrete enough that a later reader who was not there can file it.
+- **User words** — the exact quote when the user said something; `(none — assistant observation)` when it was your own idea.
+
+```markdown
+## 2026-08-31
+
+- Phase: Recurring Review / one-shot due. Trigger: item "Renew passport" (Workflowy ⏰ bucket). Improvement: show the note's first line inline in the question instead of only the URL. User words: "I can't tell what this is without clicking through."
+```
+
+Append with `printf '%s\n' ... >>` or a heredoc — never rewrite the file — and present the next item in the same turn. `/gtd:meta-feedback-prep` reads this file as a first-class candidate source alongside the transcripts and archives it once its candidates are staged, so nothing written here is lost and nothing has to be remembered.
+
+This is the same ban as [Never offer to pause or wrap up](#never-offer-to-pause-or-wrap-up) and `due-item-walk.md`'s "Never ask how to scope the walk", applied to ideas instead of volume: an improvement is not new information the user needs to rule on now, and the only correct next move is the next item. A design poll mid-walk ("want me to change how this phase works?") is the same forbidden question wearing a suggestion.
 
 ## Never offer to pause or wrap up
 

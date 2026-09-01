@@ -1,11 +1,11 @@
 ---
 name: meta-feedback-prep
-description: Prep half of daily-review meta-feedback — scan recent daily-review transcripts for user corrections and preferences, reconcile against what's already implemented, and stage skill-improvement proposals to .llm/gtd/review/proposals/meta-feedback.json. Autonomous only; mutates no nodes and does not advance the watermark.
+description: Prep half of daily-review meta-feedback — scan recent daily-review transcripts and the mid-run notes file for user corrections and preferences, reconcile against what's already implemented, and stage skill-improvement proposals to .llm/gtd/review/proposals/meta-feedback.json. Autonomous only; mutates no nodes and does not advance the watermark.
 ---
 
 # Meta-Feedback — Prep
 
-Mine the recent daily-review transcripts for feedback the user gave mid-review — corrections, preferences, "always/never" rules, time-wasters, "this should be a script", "these could run in parallel" — and **stage** the ones worth folding back into the skills. This is the autonomous, parallel-safe half; the apply half (`meta-feedback-apply`) files accepted improvements as tasks.
+Mine the recent daily-review transcripts, plus the mid-run notes file the review appends to as it goes, for feedback the user gave mid-review — corrections, preferences, "always/never" rules, time-wasters, "this should be a script", "these could run in parallel" — and **stage** the ones worth folding back into the skills. This is the autonomous, parallel-safe half; the apply half (`meta-feedback-apply`) files accepted improvements as tasks.
 
 The whole point is that almost every daily review produces feedback that ought to change the skills themselves, and that feedback otherwise evaporates. Carry the full mining + reconciliation logic here; the apply command is thin. Stage to `.llm/gtd/review/proposals/meta-feedback.json` per `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` (the on-disk schema). Then stop.
 
@@ -14,7 +14,7 @@ The whole point is that almost every daily review produces feedback that ought t
 This command runs inside a Phase 0 prep subagent (`${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`). Obey the prep contract strictly:
 
 - **Autonomous only.** Never call `AskUserQuestion` / `TaskCreate` / `TaskUpdate` / `TodoWrite`. Every judgment is staged as a proposal, never resolved interactively here.
-- **No mutation.** Make **zero** `node update` / `node create` calls and do **not** write to `.llm/todo.md`. The only output is the staged JSON file under `.llm/gtd/review/`.
+- **No mutation.** Make **zero** `node update` / `node create` calls and do **not** write to `.llm/todo.md`. The only outputs are the staged JSON file under `.llm/gtd/review/` and the archive move of the mid-run notes file described below.
 - **No watermark advance.** Do **not** move the `daily-review-meta-feedback` Scanner-State. That happens only in `meta-feedback-apply`, so an aborted prep never skips a window of transcripts.
 - **`--dry-run`** is a no-op that still stages the `.json` (prep makes no writes regardless).
 
@@ -44,9 +44,24 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-review-feedback.mjs --since "<last_revie
 
 `source` distinguishes `"typed"` (the user wrote it) from `"ask"` (an `AskUserQuestion` answer, including free text typed into "Other"). Both are real user decisions and both count as feedback; `ask` turns carry the question alongside the chosen answer, so quote only the answer when citing one.
 
+## Read the mid-run notes
+
+`.llm/gtd/review/mid-run-notes.md` is where the daily review appends improvements it noticed mid-walk instead of stopping for them (see "An improvement noticed mid-walk never stops the walk" in `${CLAUDE_PLUGIN_ROOT}/commands/review/daily.md`). Each entry is a bullet under a `## YYYY-MM-DD` heading with the phase, the trigger item, the proposed improvement, and the user's exact words if any. It is a **first-class candidate source**: the transcripts hold what the user typed, the notes hold what the assistant saw at the moment it happened, and an observation often appears in only one of them.
+
+If the file exists and has any bullets, read it and carry every bullet through the same classification and reconciliation as the transcript turns. The `User words` line is the verbatim quote for `before`; when it says there were none, cite the note itself (`mid-run note, <date>: <improvement>`). The watermark does not apply to notes — everything still in the file is unstaged by definition.
+
+After the proposals file is written with any `status` other than `"error"`, **archive the notes file** so the next run does not re-stage it:
+
+```bash
+mkdir -p .llm/gtd/review/archive
+mv .llm/gtd/review/mid-run-notes.md ".llm/gtd/review/archive/mid-run-notes-$(date +%Y-%m-%dT%H%M%S).md"
+```
+
+Archive, never delete: the dated copy keeps the notes recoverable if the apply half is aborted. Notes dropped in reconciliation (already implemented, filed, or declined) are archived with the rest — they were handled. On `status: "error"` leave the file in place.
+
 ## Classify the feedback
 
-Read every turn and keep only the ones that imply a **durable change to a skill, command, or script** (not one-off task content). Sort each kept item into one of:
+Read every transcript turn and every mid-run note and keep only the ones that imply a **durable change to a skill, command, or script** (not one-off task content). Sort each kept item into one of:
 
 - **Correction / preference** — "don't do X", "always/never Y", "instead", "you didn't", "next time", redoing the assistant's work. The richest source.
 - **Repeated decision** — a choice the user makes the same way across days (e.g. always "run everything", always "walk one-by-one"). Candidate to make the default or stop asking.
@@ -86,7 +101,7 @@ mkdir -p .llm/gtd/review/proposals
 For each surviving candidate, emit one proposal:
 
 - `header` — short theme label (e.g. `"Stop asking: walk one-by-one"`).
-- `before` — the current behavior, **with the verbatim user quote and its date** so the apply walk shows the user their own words.
+- `before` — the current behavior, **with the verbatim user quote and its date** so the apply walk shows the user their own words; for an assistant-observed mid-run note there is no quote, so cite the note line and its date instead.
 - `after` — the concrete proposed change, naming the target file(s) (e.g. "in `due.md`, drop the scope meta-question and go straight to item 1").
 - `changes[]` — one `{type, icon, detail}`; use `type` = the classification bucket above (`correction` / `repeated` / `time-waster` / `llm-to-script` / `parallelization`) and a fitting icon.
 - `fingerprint` — the stable slug computed above.
@@ -100,9 +115,9 @@ For each surviving candidate, emit one proposal:
       '' >> .llm/todo.md
     ```
 
-Set top-level fields: `task` = `"meta-feedback"` (inferred from the prep command and matches the filename); `generatedAt` = ISO-8601 with offset; `presentation` = `"Daily review meta-feedback"`; `summary` = `{sessionsScanned, turnsConsidered, candidates, proposalsStaged, droppedAlreadyDone, droppedDeclined}`. Set `status`: `"ready"` if any proposals; `"empty"` if nothing survived reconciliation (idempotent re-run); `"error"` if the scan failed.
+Set top-level fields: `task` = `"meta-feedback"` (inferred from the prep command and matches the filename); `generatedAt` = ISO-8601 with offset; `presentation` = `"Daily review meta-feedback"`; `summary` = `{sessionsScanned, turnsConsidered, notesConsidered, candidates, proposalsStaged, droppedAlreadyDone, droppedDeclined}`. Set `status`: `"ready"` if any proposals; `"empty"` if nothing survived reconciliation (idempotent re-run); `"error"` if the scan failed.
 
-Do **not** mutate any node, write `.llm/todo.md`, or advance the watermark. Return a one-line summary (sessions scanned, proposals staged, dropped-as-already-done count) and stop.
+Do **not** mutate any node, write `.llm/todo.md`, or advance the watermark. Archive the mid-run notes file as described above, then return a one-line summary (sessions scanned, notes considered, proposals staged, dropped-as-already-done count) and stop.
 
 ## Wiring into the daily review (one-time setup)
 
@@ -111,4 +126,4 @@ For the daily review to run this automatically, the task must exist as a node in
 - under `Prep`, a dated `Daily review meta-feedback` task with a `/gtd:meta-feedback-prep` child;
 - under `Presentation`, an undated `Daily review meta-feedback` task with a `/gtd:meta-feedback-apply` child, placed last.
 
-It has no shared-subtree writers, so it fans out as an independent parallel prep leaf — it only reads transcripts and stages a file. This is a live Workflowy change, so make it deliberately (not from inside a prep subagent).
+It has no shared-subtree writers, so it fans out as an independent parallel prep leaf — it only reads transcripts and the mid-run notes file and stages a file. This is a live Workflowy change, so make it deliberately (not from inside a prep subagent).
