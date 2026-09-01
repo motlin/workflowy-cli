@@ -158,6 +158,29 @@ The destination depends on the source:
 
 When the destination is a Workflowy asap ladder, load `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`, show the current occupants and capacity of each tier, and ask one follow-up tier question using **soon / medium / eventually / bottom** for `1st` / `2nd` / `3rd` / the current bottom tier. Use `readLadder`, `tierCapacity`, and `planInsertion`; show and apply the demotion cascade before filing the task. Never silently choose a tier or hand-calculate capacity.
 
+## Set a reminder
+
+Every walk offers **Set a reminder** for an item the user will handle later today but will forget without an alarm — "I need a due task for this or I will forget" is this answer, not a skip. It is one answer, not two: create and verify the alarm, then apply the row's ordinary handled outcome — the user never has to say "remind me" and then "done" as separate turns.
+
+Ask for a time with one follow-up question — **In an hour**, **This afternoon (3pm)**, **This evening (7pm)**, or **Other** for a typed time. Convert a relative choice to a clock time in the shell (`date -v+1H '+%-I:%M%p'`) so the sentence Fantastical parses carries an explicit time, never a relative phrase that can land on the wrong day.
+
+Create the alarm through Fantastical, the same snippet `commands/review/daily/overview.md` documents. `reminders_create` drops the due date, so an iMCP-created reminder never fires:
+
+```bash
+osascript -e 'tell application "Fantastical" to parse sentence "reminder <title> today at 3:00pm" with add immediately'
+```
+
+The `reminder` keyword is what makes Fantastical file a reminder instead of a calendar event. Use the item's plain title — strip HTML, the `<time>` element, and trailing `#tags` — and shorten it to a noun phrase when it contains words the parser would read as dates or times ("tomorrow", "Monday", "at 5").
+
+**Verify with `reminders_fetch` before doing anything else.** Fantastical exits 0 on failure, so the exit code proves nothing. Query `completed:false` by the title and confirm the reminder exists with a `scheduledTime` matching the requested time. When it is missing, retry once with the time first (`reminder at 3:00pm today <title>`); when it is still missing, say so, do **not** apply the outcome below, and treat the item as skipped so it resurfaces tomorrow — an advanced item with no alarm is the exact silent loss the user asked to prevent.
+
+Once the alarm is verified, apply the row's normal handled outcome and record it:
+
+- **Recurring item** — the reminder covers today's occurrence, so run the row's staged `applyOp` verbatim, exactly as **Done** would, and record `remind`.
+- **One-shot due item** — the task stays until it is actually done, so reschedule it to today with `resolveTimeframe` + `applyReschedule` from `collect-due-items.mjs` (a no-op rewrite for a row already dated today, and an honest date for an overdue one), and record `remind`. Tomorrow's walk asks about it again if it never got done, which is correct. An Apple Reminders row already is a reminder, so do not create a second one through Fantastical: set the requested time on the existing reminder inside the batched Reminders write the segment's command file describes, and verify it the same way.
+
+`remind` is a handled outcome: it resets the skip streak like any other non-skip record.
+
 ## Say it in plain words
 
 Everything the walk reports is read by a person, not a maintainer. Describe what happened in ordinary language — "Reminders stopped accepting writes", "the app froze", "the sync never finished". Never use insider terms for failure states: **wedged**, _hung_, _pegged_, _thrashing_, _deadlocked_. If a word would not appear in a note to a friend, it does not belong in a status line.
@@ -171,7 +194,7 @@ On skip, write nothing. The item keeps its date and resurfaces on the next run. 
 Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|drop>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|drop>
 ```
 
 The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.

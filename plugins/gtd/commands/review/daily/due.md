@@ -59,7 +59,9 @@ The section → interval table lives in `compute-overdue.mjs` (the executable so
 
 ## Recurring item options
 
-Done / skip / notes / retire, per the walk skill. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+Done / Set a reminder / skip / notes / retire, per the walk skill. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+
+Offer **Set a reminder** on every row — an item the user will do later today but would forget without an alarm is a reminder, not a skip. Follow the shared walk's **Set a reminder** protocol and record `remind`.
 
 Record every outcome to the skip log, keyed by the row's `id`, per the walk skill's record step.
 
@@ -173,6 +175,7 @@ First option is the most likely outcome, per the walk skill. That is **Done** on
     - **Workflowy** — load the matching root's asap ladder from the staged Workflowy data and ask which tier should receive the task. Use `planInsertion` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs`, show and apply its demotion cascade, then run `ops.moveToAsap` verbatim. That op removes the `<time>` and lands on the bottom tier; if the user chose a higher tier, move the task from the bottom tier to `planInsertion.targetId` after the demotions.
     - **Things 3** — clear the due date in place with `delete due date of to do id "<id>"`. Leave the task in Things and do not ask for a Workflowy tier. Do **not** use `set due date … to missing value`: Things raises the same `Can't make missing value into type date (-1700)` error Reminders does, and the assignment silently accomplishes nothing. `delete due date` is the form that works. Verify with `return due date of to do id "<id>"`, which reads back `missing value` once it is cleared — never trust the exit code.
     - **Apple Reminders** — `set due date of r to missing value` fails with `Can't make missing value into type date (-1700)`. Ask for a Workflowy asap tier, create the task there, then queue the reminder deletion in the batched Reminders write. Verify the new Workflowy node and verify through `reminders_fetch` that the reminder is gone before considering it handled.
+- **Set a reminder** — offer this on **every** row. The task is real and needs doing today, but the user will forget it without an alarm. Follow the shared walk's **Set a reminder** protocol and record `remind`. One source mechanic is mandatory: on an **Apple Reminders** row the alarm already exists, so never create a second one through Fantastical — set the requested time on the existing reminder by queuing it into the batched Reminders write below.
 - **Drop** — run `ops.drop`. For Workflowy this deletes the node; for Things and Reminders it cancels or deletes the task. Confirm before dropping anything with `childCount > 0`.
 - **Skip** — write nothing.
 
@@ -212,4 +215,4 @@ Do not silently leave a task undated. An undated task in the due-dates bucket is
 
 ## Finish
 
-Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 3 cadences lengthened, 2 retired · 9 due items completed, 4 rescheduled, 2 pushed out, 3 moved to Workflowy, 1 date cleared, 2 dropped` — or list failures by item name instead of reporting success.
+Drain all outstanding background writes per the walk skill, then print one summary line covering both segments — e.g. `✓ 12 recurring dates advanced, 3 cadences lengthened, 2 retired, 1 reminder set · 9 due items completed, 4 rescheduled, 2 pushed out, 3 moved to Workflowy, 1 date cleared, 2 reminders set, 2 dropped` — or list failures by item name instead of reporting success.
