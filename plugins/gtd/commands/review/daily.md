@@ -154,7 +154,9 @@ Drain the writes and report applied, skipped, failed, and advanced counts. Fold 
 
 ## Relink Orphaned Children
 
-Invoke `/gtd:review:daily:relink` — move any children that have accumulated on the GTD bucket navigation links under `Metadata` onto the real nodes their links point to. Mechanical and automatic (no prompts); runs here so it operates on the freshly-imported cache. Report its summary.
+Invoke `/gtd:review:daily:relink` — find any children that have accumulated on the GTD bucket navigation links under `Metadata`, diagnose what filed them there, then move them onto the real nodes their links point to. Runs here so it operates on the freshly-imported cache, and before the phases that assume tasks sit on the real roots.
+
+Zero orphans is the expected result and prints nothing. **A non-zero count is a bug report, not a chore** — something upstream resolved a destination to a link node instead of its target. The phase reads each orphan's `createdAt` and provenance _before_ moving it, names the suspected writer, and logs the anomaly durably. Report that finding, not just a moved count.
 
 ## Meeting Follow-up Review
 

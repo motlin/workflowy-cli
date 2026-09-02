@@ -18,6 +18,8 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 
 This command assumes loose tasks already sit under the real roots, not on the `Metadata` navigation-link nodes. When invoked standalone, run `/gtd:review:daily:relink` first so any strays on the link nodes land on their targets. The daily review already chains relink ahead of this phase.
 
+If relink reports orphans, do not treat that as routine cleanup and move on — it means something filed into a link node instead of its target, and relink names the suspected cause. Fix that before it refills.
+
 ## Discover the roots
 
 Resolve both roots from the metadata anchor — each child is a navigation link whose `linkTargets[0]` is the real root:
