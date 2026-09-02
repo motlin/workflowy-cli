@@ -26,7 +26,7 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 ```bash
 mkdir -p .llm/gtd/review
 ./bin/run.js node get --path "Personal,🔄 Review" --depth 4 --json \
-  --fields id,shortId,name,note,modifiedAt,priority,children > .llm/gtd/review/tree.json
+  --fields id,shortId,name,note,modifiedAt,priority,completedAt,mirror,children > .llm/gtd/review/tree.json
 ```
 
 **Re-fetch after any data import** (`just daily`, `cache import-api`, etc.) — re-run the fetch above to overwrite `tree.json` and recompute the overdue list. Stale data causes wrong "overdue by N days" math and already-resolved prompts.
@@ -39,7 +39,11 @@ Run the date math in a script — never re-derive it by hand. `compute-overdue.m
 node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs .llm/gtd/review/tree.json > .llm/gtd/review/overdue.json
 ```
 
-`overdue.json` is an ordered array (by section priority, then due date) where each row carries `section`, `shortId`, `id`, `name`, `due`, `overdueByDays`, `isLlmTask`, `nextDate`, `newName`, `applyOp` (the verbatim `node update` to run on "done"), `skipStreak` / `skippedSince` folded from the skip log, and `lengthen` (the staged move to the next longer cadence). It also carries the context each question needs — `url`, `note`, `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the item's name and note) — which is why the fetch above asks for `note,modifiedAt` at depth 4. Show it per **Show the item, do not just name it** in the walk skill. The script already skips `🗃️ Routine Archive`, skips future-dated items, compares dates as ISO strings (avoiding the `new Date()` UTC-vs-local footgun), and clamps month rollovers (Jan 31 + 1 month → Feb 28). Pass `--print` instead of redirecting for a human-readable dump while debugging.
+`overdue.json` is an ordered array (by section priority, then due date) where each row carries `section`, `shortId`, `id`, `name`, `due`, `overdueByDays`, `isLlmTask`, `nextDate`, `newName`, `applyOp` (the verbatim `node update` to run on "done"), `skipStreak` / `skippedSince` folded from the skip log, and `lengthen` (the staged move to the next longer cadence). It also carries the context each question needs — `url`, `note`, `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the item's name and note) — which is why the fetch above asks for `note,modifiedAt` at depth 4. Show it per **Show the item, do not just name it** in the walk skill. The script already skips `🗃️ Routine Archive`, skips **mirror nodes and their whole subtree**, skips future-dated items, compares dates as ISO strings (avoiding the `new Date()` UTC-vs-local footgun), and clamps month rollovers (Jan 31 + 1 month → Feb 28). Pass `--print` instead of redirecting for a human-readable dump while debugging.
+
+The fetch must ask for `mirror`, and the reason is not cosmetic. `Set goals for today` carries **mirrors of the four task buckets** as its children, so a walk that cannot see `mirror.isMirror` descends straight through them and reports one-shot `⏰ Tasks (due dates)` tasks as overdue **recurring** items. Those tasks are correctly filed; they are merely reflected. Acting on that misreading means stripping real due dates off real tasks — it happened on 2026-08-31 to six of them. `compute-overdue.mjs` skips any node whose `mirror.isMirror` is true along with everything beneath it, but only when the field reaches it.
+
+Never file a task by moving it onto a mirror either: `node move --parent-id <mirror-uuid>` parents the node **under the mirror**, not under the node the mirror reflects, which drops a real one-shot task inside the recurring tree. Resolve destination buckets from the Next-Actions roots (`linkTargets[0].id`) and confirm `mirror.isMirror` is false before writing.
 
 The script assumes the canonical shape: section headers carry no date, intermediate groups carry no date, and the `<time>` lives on the **leaf item**. **If the data doesn't match — a `<time>` on an intermediate group, or a "leaf" whose children each carry their own date — stop and ask the user to fix the data in Workflowy** rather than reinterpreting it here.
 

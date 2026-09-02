@@ -28,6 +28,8 @@ mkdir -p .llm/gtd/review/proposals
   --fields name,shortId,id,children,linkTargets > .llm/gtd/review/next-actions-meta.json
 ```
 
+**Resolve every destination from these roots, and never from a mirror.** The `⏰` and `📌` buckets are mirrored under `Personal > 🔄 Review > 🔄 Daily Review > Set goals for today`, and a mirror lists its original's children — so tier ids read off a mirror look right. The bucket id itself does not: `node move --parent-id <mirror-uuid>` parents the task **under the mirror**, dropping a one-shot task inside the recurring tree where the due walk then reports it as overdue. Check `mirror.isMirror` is false on any node you are about to write into.
+
 Read `linkTargets[0].id` for each child to get each root's **full UUID** (`☑️ Next (Work)` → `720f876e-fd89-daa9-e341-797f911b8295`, `☑️ Next (Personal)` → `9f832009-a6ad-458e-d9fa-999aabc40472`). Fetch each root deep enough to reach the tasks filed inside the bucket tiers:
 
 ```bash

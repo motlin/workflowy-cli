@@ -501,3 +501,53 @@ test('computeOverdue carries the item context so the walk can show it before ask
 	]);
 	assert.deepEqual(row.links, []);
 });
+
+test('computeOverdue skips mirror nodes and everything under them', () => {
+	// "Set goals for today" is a real recurring item that carries mirrors of the four task
+	// buckets as children. Those mirrors reflect one-shot tasks that live in Next Actions --
+	// they are not recurring review items, and walking into them reports real dated tasks as
+	// overdue Daily Review rows.
+	const tree = {
+		name: '🔄 Review',
+		children: [
+			{
+				name: '🔄 Daily Review',
+				priority: 1,
+				children: [
+					{
+						id: 'real-1',
+						shortId: 'real1',
+						name: 'Set goals for today <time startYear="2026" startMonth="9" startDay="1">Tue, Sep 1, 2026</time> ',
+						children: [
+							{
+								id: 'mirror-bucket',
+								shortId: 'mirr1',
+								name: '⏰ Tasks (due dates) (work)',
+								mirror: {isMirror: true, originalNodeId: 'bucket-orig'},
+								children: [
+									{
+										id: 'one-shot',
+										shortId: 'shot1',
+										name: 'Review the CVE remediation epic <time startYear="2026" startMonth="8" startDay="31">Mon, Aug 31, 2026</time> ',
+										children: [],
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+
+	const rows = computeOverdue(tree, '2026-09-02');
+	const ids = rows.map((row) => row.id);
+
+	assert.deepEqual(ids, ['real-1'], 'only the real recurring item is reported');
+	assert.equal(
+		ids.includes('one-shot'),
+		false,
+		'a one-shot task reached through a bucket mirror must not be reported as recurring',
+	);
+	assert.equal(ids.includes('mirror-bucket'), false, 'the mirror node itself is never a row');
+});

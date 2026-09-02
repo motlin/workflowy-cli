@@ -272,6 +272,10 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 			for (const child of node.children ?? []) {
 				// The keyed DAG owns the entire LLM Tasks subtree, so recurring review must not surface it.
 				if (String(child.name).includes('LLM Tasks:')) continue;
+				// A mirror reflects a node that lives elsewhere -- typically the ⏰/📌 task buckets
+				// mirrored under "Set goals for today". Those reflections are one-shot Next Actions,
+				// not recurring items, so neither the mirror nor anything beneath it is a row here.
+				if (child.mirror?.isMirror) continue;
 				const due = parseTimeISO(child.name);
 				if (due && due <= todayISO) {
 					const needsInterval = interval === null;
