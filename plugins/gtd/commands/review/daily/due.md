@@ -116,6 +116,29 @@ Task **execution** stays foreground. If a task runs `cache import-api` / `just d
 
 **Open-then-confirm tasks.** Some `#llm-task` items only instruct you to open a page/URL for a manual action the user completes themselves (e.g. Amazon Chase rewards redemption, Patreon benefits review). For these, **open the page first** (`open <url>`) and **then** ask whether the task is actually done — opening the page is not the task. In the `AskUserQuestion` body, state both halves explicitly: what you already did (including the page you opened and any script you ran), and the exact manual step the user must perform, read from the item's child instructions. A status-only message such as "The benefits page is open for review" is not enough. Opening can succeed while the real action cannot (a financial submit the user must perform, a page that won't load, info not yet available), so never infer "done" from a successful `open`. Advance the date only on a real "done".
 
+### Cross-project #llm-task launches
+
+Some `#llm-task` items are not work for this session — their child instructions say to start a **separate** Claude session in another project and run a command there. Each part of that launch has a failure mode that reads as success from this side, so treat all four rules below as mandatory.
+
+**Launch into this session's own workspace, never the focused one.** A bare `herdr tab create` or `herdr pane split` lands in whatever workspace and pane the user happens to be looking at, which is almost never the daily review. Resolve your own ids first and pass them explicitly:
+
+```bash
+herdr pane current   # .result.pane.workspace_id and .result.pane.pane_id
+herdr tab create --workspace <workspace_id> --cwd <project path> --no-focus
+```
+
+For a split, use `herdr pane split --current` (or `--pane <pane_id>`) rather than letting it default. Hijacking the user's visible workspace mid-review is disruptive and awkward to undo.
+
+**Pass an explicit `--model`.** A new session picks its own default alias, not this one's, so a task can silently come up on a model it was never meant to run on. Launch with `claude --model opus` (or whichever alias the item's child instructions name) instead of inheriting whatever the new session defaults to.
+
+**Invoke plugin commands with their full `plugin:command` namespace.** A slash command's name is the plugin name followed by its path under that plugin's `commands/` directory. A plugin named `nextdns` holding `commands/nextdns/report.md` therefore answers to the three-segment name `nextdns:nextdns:report` (typed with a leading slash), not the two-segment `nextdns:report`. That doubled segment is normal and easy to drop — dropping it is what produces `Unknown command`. Confirm the name resolves before sending it:
+
+```bash
+ls ~/.claude/plugins/cache/*/<plugin>/*/commands
+```
+
+**Verify the launch before calling the task done.** After submitting the prompt (`herdr agent prompt <target> <text>`), read the new session's output back with `herdr agent read <target>` or `herdr pane read <pane_id>` and confirm it is actually running the command. `Unknown command:` in that output means the launch failed. A launched-but-failed agent is not a completed task — do not advance the item's `<time>` on a launch alone.
+
 ---
 
 ## Segment 2 — Due items
