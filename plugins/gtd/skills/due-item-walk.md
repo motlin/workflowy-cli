@@ -36,16 +36,16 @@ A title is not an item. "Inventory the drives" with 71 children is a different q
 | Field                     | What it holds                                                         |
 | ------------------------- | --------------------------------------------------------------------- |
 | `url`                     | the item itself — a Workflowy node, a `things:///show?id=…` deep link |
-| `links`                   | every http(s) URL in the item's own name and note                     |
+| `links`                   | the external http(s) URLs in the item's own name and note             |
 | `note`                    | the node's note, when it has one                                      |
 | `modifiedAt`              | when the item last changed                                            |
 | `childCount` / `children` | the direct children: title, note, own child count, url                |
 
 Before asking about an item:
 
-- **Open the external links, not the node.** `open` every URL in `links` — a PR, a doc, an article is the thing the item is about, and nothing in the terminal substitutes for it. Chain them into one backgrounded Bash call so nothing waits on the browser.
-- **Never open a workflowy.com permalink.** That SPA takes seconds to boot and interrupts whatever the user is doing, to show a node whose text the question already carries. For a row with no children and no note there is nothing there to see at all. Print the link inline as markdown instead and let the user click it if they want it.
-- **For a big subtree, open the local mirror.** When a row has enough children that a printed list is unhelpful (roughly 8+, or any child with children of its own), open `https://workflowy.m4.notlin.com/node/<shortId>` — the project's own web app, which serves the same node in ~15ms instead of Workflowy's multi-second load. Fall back to printing the tree if that host does not respond.
+- **Open the external links, not the node.** `open` every URL in `links` — a PR, a doc, an article is the thing the item is about, and nothing in the terminal substitutes for it. Chain them into one backgrounded Bash call so nothing waits on the browser. `links` is already permalink-free: `extractLinks` drops every `workflowy.com` URL, so the whole list is safe to open unread.
+- **Never open a workflowy.com permalink.** That SPA takes seconds to boot and interrupts whatever the user is doing, to show a node whose text the question already carries. This covers the row's own `url` and any permalink sitting in the item's text — every `@mention ↗` is one. For a row with no children and no note there is nothing there to see at all. Print the link inline as markdown instead and let the user click it if they want it.
+- **For a big subtree, open the local mirror.** When a row has enough children that a printed list is unhelpful (roughly 8+, or any child with children of its own), open `https://workflowy.m4.notlin.com/node/<full-uuid>` — the project's own web app, which serves the same node in ~15ms instead of Workflowy's multi-second load. The route resolves a short id too, but the full uuid is what its in-app sibling navigation compares against, so prefer the uuid the row already carries. Fall back to printing the first 20 children inline if that host does not respond.
 - **Fetch the rest of the subtree when one level is not enough.** `children` is depth 1. When any child has children of its own, pull the whole thing before asking:
 
     ```bash

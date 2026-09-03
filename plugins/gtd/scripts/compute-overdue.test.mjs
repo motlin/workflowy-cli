@@ -624,3 +624,16 @@ test('computeOverdue skips mirror nodes and everything under them', () => {
 	);
 	assert.strictEqual(ids.includes('mirror-bucket'), false, 'the mirror node itself is never a row');
 });
+
+test('nodeContext leaves Workflowy permalinks out of the links the walk opens', () => {
+	// @mention links and "see also" pointers are workflowy.com hrefs. The walk opens every link it
+	// is handed, and opening a permalink boots the Workflowy SPA for seconds to show text the
+	// question already carries -- so a permalink must never reach the list in the first place.
+	const node = {
+		name: 'Ask <a href="https://workflowy.com/#/abc123def456">@Alice</a> about the <a href="https://example.com/rfc">RFC</a>',
+		shortId: 'sid-ask',
+		note: 'context: https://workflowy.com/#/789abc012def and https://example.com/thread',
+		children: [],
+	};
+	assert.deepStrictEqual(nodeContext(node).links, ['https://example.com/rfc', 'https://example.com/thread']);
+});

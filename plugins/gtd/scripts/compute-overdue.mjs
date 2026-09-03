@@ -60,7 +60,16 @@ export function workflowyUrl(shortId) {
 const HREF_RE = /href="([^"]+)"/g;
 const BARE_URL_RE = /https?:\/\/[^\s"'<>)]+/g;
 
-/** Every http(s) URL reachable from a node's own text, in the order a reader meets them. */
+const WORKFLOWY_HOST_RE = /^https?:\/\/([^/?#]*\.)?workflowy\.com(?=[/?#]|$)/i;
+
+/**
+ * Every external http(s) URL reachable from a node's own text, in the order a reader meets them.
+ *
+ * Workflowy permalinks are dropped. The walk opens every link this returns, and a
+ * `workflowy.com/#/…` link boots the Workflowy SPA for seconds to show a node whose text the
+ * question already carries. Those links are common -- every `@mention ↗` is one -- so filtering
+ * here is what keeps "open the links" from meaning "interrupt the user with a slow tab".
+ */
 export function extractLinks(...texts) {
 	const urls = [];
 	for (const text of texts) {
@@ -69,7 +78,7 @@ export function extractLinks(...texts) {
 		for (const m of str.matchAll(HREF_RE)) urls.push(m[1]);
 		for (const m of str.matchAll(BARE_URL_RE)) urls.push(m[0].replace(/[.,;:]+$/, ''));
 	}
-	return [...new Set(urls.filter((u) => /^https?:\/\//.test(u)))];
+	return [...new Set(urls.filter((u) => /^https?:\/\//.test(u) && !WORKFLOWY_HOST_RE.test(u)))];
 }
 
 /**
