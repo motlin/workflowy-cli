@@ -78,7 +78,22 @@ describe('API Sync with Cache', () => {
 			await cacheService.storeApiResponse(nodes, null);
 
 			const storedContent = testDatabase.db.select().from(nodeContent).all();
-			expect(storedContent).toHaveLength(2);
+			expect(storedContent.map(({systemFrom: _systemFrom, ...content}) => content)).toStrictEqual([
+				{
+					id: 'api-root-1',
+					name: 'Root Node 1',
+					note: 'Root note 1',
+					parentId: null,
+					systemTo: FAR_FUTURE_DATE,
+				},
+				{
+					id: 'api-root-2',
+					name: 'Root Node 2',
+					note: null,
+					parentId: null,
+					systemTo: FAR_FUTURE_DATE,
+				},
+			]);
 
 			const content1 = storedContent.find((n) => n.id === 'api-root-1');
 			const content2 = storedContent.find((n) => n.id === 'api-root-2');
@@ -185,7 +200,22 @@ describe('API Sync with Cache', () => {
 
 			const children = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.parentId, parentId)).all();
 
-			expect(children).toHaveLength(2);
+			expect(children.map(({systemFrom: _systemFrom, ...content}) => content)).toStrictEqual([
+				{
+					id: 'child-1',
+					name: 'Child Node 1',
+					note: 'Child note',
+					parentId,
+					systemTo: FAR_FUTURE_DATE,
+				},
+				{
+					id: 'child-2',
+					name: 'Child Node 2',
+					note: null,
+					parentId,
+					systemTo: FAR_FUTURE_DATE,
+				},
+			]);
 
 			const child1 = children.find((c) => c.id === 'child-1');
 			const child2 = children.find((c) => c.id === 'child-2');
@@ -392,21 +422,27 @@ describe('API Sync with Cache', () => {
 				.from(mirrors)
 				.where(and(eq(mirrors.mirrorId, mirrorNodeId), eq(mirrors.systemTo, FAR_FUTURE_DATE)))
 				.all();
-			expect(liveMirrors).toHaveLength(1);
+			expect(liveMirrors.map(({mirrorId, originalId}) => ({mirrorId, originalId}))).toStrictEqual([
+				{mirrorId: mirrorNodeId, originalId: 'original-node'},
+			]);
 
 			const liveBacklinks = testDatabase.db
 				.select()
 				.from(backlinks)
 				.where(and(eq(backlinks.nodeId, mirrorNodeId), eq(backlinks.systemTo, FAR_FUTURE_DATE)))
 				.all();
-			expect(liveBacklinks).toHaveLength(1);
+			expect(liveBacklinks.map(({nodeId, sourceId, targetId}) => ({nodeId, sourceId, targetId}))).toStrictEqual([
+				{nodeId: mirrorNodeId, sourceId: 'source-node', targetId: 'target-node'},
+			]);
 
 			const liveVirtualRoots = testDatabase.db
 				.select()
 				.from(virtualRootIds)
 				.where(and(eq(virtualRootIds.nodeId, mirrorNodeId), eq(virtualRootIds.systemTo, FAR_FUTURE_DATE)))
 				.all();
-			expect(liveVirtualRoots).toHaveLength(1);
+			expect(liveVirtualRoots.map(({nodeId, virtualRootId}) => ({nodeId, virtualRootId}))).toStrictEqual([
+				{nodeId: mirrorNodeId, virtualRootId: 'virtual-root'},
+			]);
 		});
 	});
 
@@ -448,7 +484,7 @@ describe('API Sync with Cache', () => {
 			});
 			expect(typeof actualSystemFrom).toBe('string');
 
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
 		it('returns undefined for non-existent nodes', async () => {
@@ -487,7 +523,9 @@ describe('API Sync with Cache', () => {
 			const duration = endTime - startTime;
 
 			const storedContent = testDatabase.db.select().from(nodeContent).all();
-			expect(storedContent).toHaveLength(100);
+			expect(storedContent.map((content) => content.id).sort()).toStrictEqual(
+				Array.from({length: 100}, (_, index) => `node-${index}`).sort(),
+			);
 
 			expect(duration).toBeLessThan(5000);
 
@@ -556,7 +594,7 @@ describe('API Sync with Cache', () => {
 			await expect(apiClient.getRootNodes()).rejects.toThrow('API request failed: 500 Internal Server Error');
 
 			const storedContent = testDatabase.db.select().from(nodeContent).all();
-			expect(storedContent).toHaveLength(0);
+			expect(storedContent).toStrictEqual([]);
 		});
 
 		it('handles malformed API responses', async () => {
@@ -567,7 +605,23 @@ describe('API Sync with Cache', () => {
 				}),
 			} as Response);
 
-			await expect(apiClient.getRootNodes()).rejects.toThrow();
+			const expectedMessage = JSON.stringify(
+				[
+					{
+						code: 'unrecognized_keys',
+						keys: ['invalid'],
+						path: [],
+						message: 'Unrecognized key: "invalid"',
+					},
+				],
+				null,
+				2,
+			);
+			const error = (await apiClient.getRootNodes().catch((caught: unknown) => caught)) as Error;
+			expect({name: error.name, message: error.message}).toStrictEqual({
+				name: 'ZodError',
+				message: expectedMessage,
+			});
 		});
 	});
 
@@ -613,7 +667,19 @@ describe('API Sync with Cache', () => {
 
 			const nodes = await client.getChildNodes('parent-id');
 
-			expect(nodes).toHaveLength(1);
+			expect(nodes).toStrictEqual([
+				{
+					id: 'n1',
+					name: 'N1',
+					note: null,
+					priority: 0,
+					completed: false,
+					createdAt: 1_700_000_000,
+					modifiedAt: 1_700_001_000,
+					completedAt: null,
+					data: {},
+				},
+			]);
 			expect(fetchStub).toHaveBeenCalledTimes(3);
 		});
 
@@ -645,7 +711,19 @@ describe('API Sync with Cache', () => {
 
 			const nodes = await client.getChildNodes('parent-id');
 
-			expect(nodes).toHaveLength(1);
+			expect(nodes).toStrictEqual([
+				{
+					id: 'n1',
+					name: 'N1',
+					note: null,
+					priority: 0,
+					completed: false,
+					createdAt: 1_700_000_000,
+					modifiedAt: 1_700_001_000,
+					completedAt: null,
+					data: {},
+				},
+			]);
 			expect(fetchStub).toHaveBeenCalledTimes(2);
 		});
 
@@ -660,7 +738,19 @@ describe('API Sync with Cache', () => {
 
 			const nodes = await client.getChildNodes('parent-id');
 
-			expect(nodes).toHaveLength(1);
+			expect(nodes).toStrictEqual([
+				{
+					id: 'n1',
+					name: 'N1',
+					note: null,
+					priority: 0,
+					completed: false,
+					createdAt: 1_700_000_000,
+					modifiedAt: 1_700_001_000,
+					completedAt: null,
+					data: {},
+				},
+			]);
 			expect(fetchStub).toHaveBeenCalledTimes(2);
 		});
 	});

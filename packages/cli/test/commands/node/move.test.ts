@@ -84,11 +84,10 @@ describe('node:move command', () => {
 			});
 
 			// Dry run outputs human-readable text
-			expect(stdout).toContain('Would move');
-			expect(stdout).toContain('Source Node');
-			expect(stdout).toContain('Target Folder');
-			expect(stdout).toContain('--parent-id');
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(stdout).toBe(
+				'Would move:\n  From: Source Node\n  To:   Target Folder\n\nExecute with:\n  oclif node:move --node-id source-id --parent-id target-id\n',
+			);
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
 		it('shows position in dry run output', async () => {
@@ -111,7 +110,9 @@ describe('node:move command', () => {
 				]);
 			});
 
-			expect(stdout).toContain('Position: bottom');
+			expect(stdout).toBe(
+				'Would move:\n  From: Source\n  To:   Target\n  Position: bottom\n\nExecute with:\n  oclif node:move --node-id source-id --parent-id target-id --position bottom\n',
+			);
 		});
 	});
 
@@ -161,7 +162,7 @@ describe('node:move command', () => {
 				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id']);
 			});
 
-			expect(stdout).toContain('Successfully moved');
+			expect(stdout).toBe('Moving:\n  From: Source\n  To:   Target\nSuccessfully moved node\n');
 			const body = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({parent_id: 'target-id'});
 		});
@@ -212,7 +213,7 @@ describe('node:move command', () => {
 			});
 
 			const body = JSON.parse(capturedBody!);
-			expect(body.position).toBe('top');
+			expect(body).toStrictEqual({parent_id: 'target-id', position: 'top'});
 		});
 
 		it('includes position in API request for bottom', async () => {
@@ -261,7 +262,7 @@ describe('node:move command', () => {
 			});
 
 			const body = JSON.parse(capturedBody!);
-			expect(body.position).toBe('bottom');
+			expect(body).toStrictEqual({parent_id: 'target-id', position: 'bottom'});
 		});
 	});
 
@@ -315,10 +316,12 @@ describe('node:move command', () => {
 				await Move.run(['--node-path', 'Work,Tasks,My Task', '--parent-path', 'Work,Archive']);
 			});
 
-			expect(stdout).toContain('Successfully moved');
+			expect(stdout).toBe(
+				'Moving:\n  From: Work > Tasks > My Task\n  To:   Work > Archive\nSuccessfully moved node\n',
+			);
 			expect(capturedUrl).toBe('https://workflowy.com/api/v1/nodes/source-id');
 			const body = JSON.parse(capturedBody!);
-			expect(body.parent_id).toBe('archive-id');
+			expect(body).toStrictEqual({parent_id: 'archive-id'});
 		});
 	});
 
@@ -365,11 +368,7 @@ describe('node:move command', () => {
 				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id']);
 			});
 
-			expect(stdout).toContain('From:');
-			expect(stdout).toContain('To:');
-			expect(stdout).toContain('Work');
-			expect(stdout).toContain('Source');
-			expect(stdout).toContain('Target');
+			expect(stdout).toBe('Moving:\n  From: Work > Source\n  To:   Target\n');
 		});
 	});
 
@@ -379,7 +378,25 @@ describe('node:move command', () => {
 		});
 
 		it('has examples', () => {
-			expect(Move.examples!.length).toBeGreaterThan(0);
+			expect(Move.examples).toStrictEqual([
+				'# Move node to inbox (system target)',
+				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox',
+				'',
+				'# Move node by ID to parent ID',
+				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456',
+				'',
+				'# Move node by path to parent path',
+				'<%= config.bin %> <%= command.id %> --node-path "Work,Tasks,My Task" --parent-path "Work,Archive"',
+				'',
+				'# Move node to bottom of parent (default is top)',
+				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456 --position bottom',
+				'',
+				'# Preview the move command without executing',
+				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox --dry-run',
+				'',
+				'# Mixed: move by ID to path',
+				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-path "Work,Archive"',
+			]);
 		});
 	});
 });

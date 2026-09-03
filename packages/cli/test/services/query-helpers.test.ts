@@ -94,17 +94,16 @@ describe('QueryHelpers', () => {
 		it('returns children ordered by priority when available', async () => {
 			const children = await queryHelpers.getChildren('parent');
 
-			expect(children).toHaveLength(3);
-
-			// Verify ordering by checking the IDs in expected order
-			expect(children.map((c) => c.id)).toStrictEqual(['child-2', 'child-3', 'child-1']);
-			expect(children.map((c) => c.priority)).toStrictEqual([100, 200, 300]);
+			expect(children.map(({id, priority}) => ({id, priority}))).toStrictEqual([
+				{id: 'child-2', priority: 100},
+				{id: 'child-3', priority: 200},
+				{id: 'child-1', priority: 300},
+			]);
 		});
 
 		it('returns root nodes when parentId is null', async () => {
 			const roots = await queryHelpers.getChildren(null);
 
-			expect(roots).toHaveLength(1);
 			expect(roots.map((r) => r.id)).toStrictEqual(['parent']);
 		});
 
@@ -122,10 +121,11 @@ describe('QueryHelpers', () => {
 
 			const children = await queryHelpers.getChildren('other-parent');
 
-			expect(children).toHaveLength(2);
-			expect(children.map((c) => c.id)).toStrictEqual(['other-child-1', 'other-child-2']);
 			// The canonical Node defaults a missing DB priority to 0.
-			expect(children.map((c) => c.priority)).toStrictEqual([0, 0]);
+			expect(children.map(({id, priority}) => ({id, priority}))).toStrictEqual([
+				{id: 'other-child-1', priority: 0},
+				{id: 'other-child-2', priority: 0},
+			]);
 		});
 	});
 
@@ -160,7 +160,6 @@ describe('QueryHelpers', () => {
 
 			const completed = await queryHelpers.getCompletedTasks();
 
-			expect(completed).toHaveLength(2);
 			// Verify ordering: task-3 completed earlier (1_700_001_500), task-1 completed later (1_700_002_000)
 			expect(completed.map((c) => c.id)).toStrictEqual(['task-3', 'task-1']);
 		});

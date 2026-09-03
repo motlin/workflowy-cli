@@ -35,9 +35,30 @@ describe('round-trip test infrastructure', () => {
 				.all() as {name: string}[];
 			const tableNames = tableRows.map((row) => row.name);
 
-			expect(tableNames).toContain('node_content');
-			expect(tableNames).toContain('node_metadata');
-			expect(tableNames).toContain('mirrors');
+			expect(tableNames).toStrictEqual([
+				'__drizzle_migrations',
+				'ai_metadata',
+				'backlinks',
+				'backup_imports',
+				'calendar_levels',
+				'calendar_metadata',
+				'changes_metadata',
+				'config',
+				'mirrors',
+				'node_content',
+				'node_embeddings',
+				'node_fts',
+				'node_fts_config',
+				'node_fts_content',
+				'node_fts_data',
+				'node_fts_docsize',
+				'node_fts_idx',
+				'node_metadata',
+				'references_roots',
+				's3_files',
+				'tags',
+				'virtual_root_ids',
+			]);
 
 			sqlite.close();
 		});
@@ -67,14 +88,30 @@ describe('round-trip test infrastructure', () => {
 		it('loads and validates the small backup fixture', () => {
 			const nodes = loadFixtureBackup('small-backup');
 
-			expect(nodes).toHaveLength(2);
-			expect(nodes[0].id).toBe('11111111-1111-1111-1111-111111111111');
-			expect(nodes[0].nm).toBe('Projects');
-			expect(nodes[0].ch).toHaveLength(2);
-			expect(nodes[1].metadata.mirror).toStrictEqual({
-				originalId: '33333333-3333-3333-3333-333333333333',
-				isMirrorRoot: true,
-			});
+			expect(
+				nodes.map(({id, nm, ch, metadata}) => ({
+					id,
+					name: nm,
+					childIds: ch?.map((child) => child.id) ?? [],
+					mirror: metadata.mirror,
+				})),
+			).toStrictEqual([
+				{
+					id: '11111111-1111-1111-1111-111111111111',
+					name: 'Projects',
+					childIds: ['22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333'],
+					mirror: undefined,
+				},
+				{
+					id: '44444444-4444-4444-4444-444444444444',
+					name: 'Mirror of Ship Phase 4',
+					childIds: [],
+					mirror: {
+						originalId: '33333333-3333-3333-3333-333333333333',
+						isMirrorRoot: true,
+					},
+				},
+			]);
 		});
 	});
 
@@ -82,10 +119,11 @@ describe('round-trip test infrastructure', () => {
 		it('loads and validates the small REST API fixture', () => {
 			const nodes = loadFixtureRestApiResponse('small-rest-api-response');
 
-			expect(nodes).toHaveLength(3);
-			expect(nodes[0].id).toBe('11111111-1111-1111-1111-111111111111');
-			expect(nodes[2].completed).toBe(true);
-			expect(nodes[2].completedAt).toBe(1_700_000_600);
+			expect(nodes.map(({id, completed, completedAt}) => ({id, completed, completedAt}))).toStrictEqual([
+				{id: '11111111-1111-1111-1111-111111111111', completed: false, completedAt: null},
+				{id: '22222222-2222-2222-2222-222222222222', completed: false, completedAt: null},
+				{id: '33333333-3333-3333-3333-333333333333', completed: true, completedAt: 1_700_000_600},
+			]);
 		});
 	});
 });
@@ -126,7 +164,12 @@ describe('round-trip equivalence', () => {
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
 				.map((row) => row.id);
-			expect(ids).toHaveLength(4);
+			expect(ids.sort()).toStrictEqual([
+				'11111111-1111-1111-1111-111111111111',
+				'22222222-2222-2222-2222-222222222222',
+				'33333333-3333-3333-3333-333333333333',
+				'44444444-4444-4444-4444-444444444444',
+			]);
 
 			const dtos = ids.map((id) => {
 				const node = reader.getById(id);
@@ -205,8 +248,7 @@ describe('round-trip equivalence', () => {
 				loadFixtureBackup('small-backup'),
 				new Date('2026-05-21T10:00:00Z'),
 			);
-			expect(older.skipped).toBe(true);
-			expect(older.mergeResult).toBeUndefined();
+			expect(older).toStrictEqual({skipped: true});
 
 			sqlite.close();
 		});
@@ -264,12 +306,40 @@ describe('round-trip equivalence', () => {
 			const originalId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 
 			const mirror = reader.getById(mirrorId);
-			expect(mirror?.mirror.isMirror).toBe(true);
-			expect(mirror?.mirror.originalNodeId).toBe(originalId);
-			expect(mirror?.name).toBe('Quarterly planning');
+			expect(mirror).toStrictEqual({
+				id: mirrorId,
+				shortId: 'ffffffffffff',
+				parentId: null,
+				name: 'Quarterly planning',
+				note: null,
+				priority: 1,
+				layoutMode: null,
+				createdAt: new Date('2023-11-14T22:20:00.000Z'),
+				modifiedAt: new Date('2023-11-14T22:21:40.000Z'),
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: true, originalNodeId: originalId},
+				systemFrom: '2026-05-22 10:00:00.000',
+				systemTo: '9999-12-31 23:59:59',
+			});
 
 			const original = reader.getById(originalId);
-			expect(original?.name).toBeNull();
+			expect(original).toStrictEqual({
+				id: originalId,
+				shortId: 'eeeeeeeeeeee',
+				parentId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+				name: null,
+				note: null,
+				priority: 0,
+				layoutMode: null,
+				createdAt: new Date('2023-11-14T22:16:40.000Z'),
+				modifiedAt: new Date('2023-11-14T22:18:20.000Z'),
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: '2026-05-22 10:00:00.000',
+				systemTo: '9999-12-31 23:59:59',
+			});
 
 			const resolvedName = mirror?.name ?? original?.name ?? null;
 			expect(resolvedName).toBe('Quarterly planning');

@@ -76,11 +76,10 @@ describe('node update command', () => {
 			});
 
 			// Dry run outputs human-readable text, not JSON
-			expect(stdout).toContain('Would execute API call');
-			expect(stdout).toContain('Method: POST');
-			expect(stdout).toContain('https://workflowy.com/api/v1/nodes/node-id');
-			expect(stdout).toContain('"name": "New Name"');
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/node-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "name": "New Name"\n    }\n\nNode: Original Name\n',
+			);
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
 		it('shows note in dry run output', async () => {
@@ -92,7 +91,9 @@ describe('node update command', () => {
 				await Update.run(['--id', 'node-id', '--note', 'New note content', '--dry-run']);
 			});
 
-			expect(stdout).toContain('"note": "New note content"');
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/node-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "note": "New note content"\n    }\n\nNode: Test\n',
+			);
 		});
 
 		it('shows layout mode in dry run output', async () => {
@@ -104,7 +105,9 @@ describe('node update command', () => {
 				await Update.run(['--id', 'node-id', '--layout-mode', 'board', '--dry-run']);
 			});
 
-			expect(stdout).toContain('"layoutMode": "board"');
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/node-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "layoutMode": "board"\n    }\n\nNode: Test\n',
+			);
 		});
 
 		it('shows clear-note in dry run output', async () => {
@@ -116,7 +119,9 @@ describe('node update command', () => {
 				await Update.run(['--id', 'node-id', '--clear-note', '--dry-run']);
 			});
 
-			expect(stdout).toContain('"note": ""');
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/node-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "note": ""\n    }\n\nNode: Test\n',
+			);
 		});
 	});
 
@@ -313,7 +318,7 @@ describe('node update command', () => {
 				Update.run(['--id', 'guard-id', '--name', 'Short stub', '--expect-name', 'Stale original text']),
 			).rejects.toThrow(/does not match --expect-name/);
 
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
 		it('proceeds with the update when current name matches --expect-name', async () => {
@@ -347,7 +352,7 @@ describe('node update command', () => {
 				Update.run(['--id', 'missing-id', '--name', 'New Name', '--expect-name', 'Anything']),
 			).rejects.toThrow(/does not match --expect-name/);
 
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 	});
 
@@ -411,7 +416,7 @@ describe('node update command', () => {
 				}
 			});
 
-			expect(stdout).toContain('Updating node: Work > Target');
+			expect(stdout).toBe('Updating node: Work > Target\n');
 		});
 	});
 
@@ -421,7 +426,28 @@ describe('node update command', () => {
 		});
 
 		it('has examples', () => {
-			expect(Update.examples!.length).toBeGreaterThan(0);
+			expect(Update.examples).toStrictEqual([
+				'# Update node name by ID',
+				'<%= config.bin %> <%= command.id %> --id abc123 --name "Updated Task"',
+				'',
+				'# Update node by path',
+				'<%= config.bin %> <%= command.id %> --path "Work,Tasks,Old Name" --name "New Name"',
+				'',
+				'# Update note only',
+				'<%= config.bin %> <%= command.id %> --id abc123 --note "Additional details"',
+				'',
+				'# Update both name and note',
+				'<%= config.bin %> <%= command.id %> --id abc123 --name "Updated" --note "With note"',
+				'',
+				'# Clear the note from a node',
+				'<%= config.bin %> <%= command.id %> --id abc123 --clear-note',
+				'',
+				"# Clear a mirror's own name so it inherits from the original again",
+				'<%= config.bin %> <%= command.id %> --id abc123 --clear-name',
+				'',
+				'# Preview the API call without updating',
+				'<%= config.bin %> <%= command.id %> --id abc123 --name "Updated" --dry-run',
+			]);
 		});
 	});
 });

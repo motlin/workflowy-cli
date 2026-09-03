@@ -25,7 +25,7 @@ const staged = (overrides = {}) => ({
 });
 
 test('accepts a staged file matching the documented schema', () => {
-	assert.deepEqual(validateProposal(staged()), {valid: true, errors: []});
+	assert.deepStrictEqual(validateProposal(staged()), {valid: true, errors: []});
 });
 
 test('rejects a per-proposal moveToNodeId, which names a suggestion child and is not a move target', () => {
@@ -33,10 +33,12 @@ test('rejects a per-proposal moveToNodeId, which names a suggestion child and is
 		staged({proposals: [proposal({moveToNodeId: '99999999-8888-7777-6666-555555555555'})]}),
 	);
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, [
-		'proposals[0]: stages a second node id "moveToNodeId" — the 📍 Move to: suggestion child is not a destination parent; resolve destinations by path at apply time',
-	]);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: stages a second node id "moveToNodeId" — the 📍 Move to: suggestion child is not a destination parent; resolve destinations by path at apply time',
+		],
+	});
 });
 
 test('rejects any other stray id field, whatever it is called', () => {
@@ -44,14 +46,16 @@ test('rejects any other stray id field, whatever it is called', () => {
 		staged({proposals: [proposal({destinationParentId: '99999999-8888-7777-6666-555555555555'})]}),
 	);
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, [
-		'proposals[0]: stages a second node id "destinationParentId" — a proposal carries only nodeId; put every other id inside an applyOps command',
-	]);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: stages a second node id "destinationParentId" — a proposal carries only nodeId; put every other id inside an applyOps command',
+		],
+	});
 });
 
 test('allows inert non-id extension fields such as fingerprint', () => {
-	assert.deepEqual(validateProposal(staged({proposals: [proposal({fingerprint: 'abc123', inbox: 'Work'})]})), {
+	assert.deepStrictEqual(validateProposal(staged({proposals: [proposal({fingerprint: 'abc123', inbox: 'Work'})]})), {
 		valid: true,
 		errors: [],
 	});
@@ -64,17 +68,22 @@ test('reports every offending proposal, not just the first', () => {
 		}),
 	);
 
-	assert.equal(result.valid, false);
-	assert.equal(result.errors.length, 2);
-	assert.match(result.errors[0], /^proposals\[0\]: stages a second node id "moveToNodeId"/);
-	assert.match(result.errors[1], /^proposals\[2\]: stages a second node id "refinementNodeId"/);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: stages a second node id "moveToNodeId" — the 📍 Move to: suggestion child is not a destination parent; resolve destinations by path at apply time',
+			'proposals[2]: stages a second node id "refinementNodeId" — a proposal carries only nodeId; put every other id inside an applyOps command',
+		],
+	});
 });
 
 test('requires a full uuid nodeId, since short ids 404 on writes', () => {
 	const result = validateProposal(staged({proposals: [proposal({nodeId: '1493cca5a53d'})]}));
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, ['proposals[0]: nodeId "1493cca5a53d" is not a full uuid']);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: ['proposals[0]: nodeId "1493cca5a53d" is not a full uuid'],
+	});
 });
 
 test('requires --expect-name on every name update op', () => {
@@ -88,8 +97,10 @@ test('requires --expect-name on every name update op', () => {
 		}),
 	);
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, ['proposals[0]: applyOps[0] updates --name without --expect-name']);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: ['proposals[0]: applyOps[0] updates --name without --expect-name'],
+	});
 });
 
 test('accepts a name update op carrying --expect-name', () => {
@@ -105,30 +116,33 @@ test('accepts a name update op carrying --expect-name', () => {
 		}),
 	);
 
-	assert.deepEqual(result, {valid: true, errors: []});
+	assert.deepStrictEqual(result, {valid: true, errors: []});
 });
 
 test('requires proposals[] to be empty unless status is ready', () => {
 	const result = validateProposal(staged({status: 'empty'}));
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, ['status "empty" must carry an empty proposals[] array']);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: ['status "empty" must carry an empty proposals[] array'],
+	});
 });
 
 test('accepts an empty status with no proposals', () => {
-	assert.deepEqual(validateProposal(staged({status: 'empty', proposals: []})), {valid: true, errors: []});
+	assert.deepStrictEqual(validateProposal(staged({status: 'empty', proposals: []})), {valid: true, errors: []});
 });
 
 test('rejects an unknown status', () => {
 	const result = validateProposal(staged({status: 'done', proposals: []}));
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, ['unknown status "done"']);
+	assert.deepStrictEqual(result, {valid: false, errors: ['unknown status "done"']});
 });
 
 test('reports missing required top-level fields', () => {
 	const result = validateProposal({status: 'empty', proposals: []});
 
-	assert.equal(result.valid, false);
-	assert.deepEqual(result.errors, ['missing required field "task"', 'missing required field "generatedAt"']);
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: ['missing required field "task"', 'missing required field "generatedAt"'],
+	});
 });

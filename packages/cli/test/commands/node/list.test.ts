@@ -53,7 +53,7 @@ describe('node:list command', () => {
 				await List.run(['--parent-id', 'nonexistent-id']);
 			});
 
-			expect(stdout).toContain('No nodes found in cache. Set WORKFLOWY_API_KEY to fetch from API.');
+			expect(stdout).toBe('No nodes found in cache. Set WORKFLOWY_API_KEY to fetch from API.\n');
 		});
 
 		it('works with empty WORKFLOWY_API_KEY string', async () => {
@@ -63,7 +63,7 @@ describe('node:list command', () => {
 				await List.run(['--parent-id', 'nonexistent-id']);
 			});
 
-			expect(stdout).toContain('No nodes found in cache. Set WORKFLOWY_API_KEY to fetch from API.');
+			expect(stdout).toBe('No nodes found in cache. Set WORKFLOWY_API_KEY to fetch from API.\n');
 		});
 	});
 
@@ -212,12 +212,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('Fetched fresh data from API');
-			expect(stdout).toContain('Nodes (2):');
-			expect(stdout).toContain('  First node');
-			expect(stdout).toContain('  Second node with special chars: áéíóú');
-			expect(stdout).toContain('https://workflowy.com/#/node1');
-			expect(stdout).toContain('https://workflowy.com/#/node2');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (2):\n  First node\n     🔗 https://workflowy.com/#/node1\n  Second node with special chars: áéíóú\n     🔗 https://workflowy.com/#/node2\n',
+			);
 		});
 
 		it('displays empty list when API returns empty array', async () => {
@@ -227,8 +224,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('Fetched fresh data from API');
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('Fetched fresh data from API\nNo nodes found\n');
 		});
 
 		it('handles nodes with empty name property', async () => {
@@ -265,10 +261,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('Fetched fresh data from API');
-			expect(stdout).toContain('Nodes (2):');
-			expect(stdout).toContain('  Valid name');
-			expect(stdout).toContain('  ');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (2):\n  Valid name\n     🔗 https://workflowy.com/#/node1\n  \n     🔗 https://workflowy.com/#/node2\n',
+			);
 		});
 
 		it('displays emoji indicators for nodes with notes', async () => {
@@ -307,8 +302,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('📝 Node with note');
-			expect(stdout).toContain('  Node without note');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (2):\n  📝 Node with note\n     🔗 https://workflowy.com/#/node1\n  Node without note\n     🔗 https://workflowy.com/#/node2\n',
+			);
 		});
 
 		it('displays emoji indicators for nodes with non-default layoutMode', async () => {
@@ -355,9 +351,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('☑️ Todo node');
-			expect(stdout).toContain('📋 Headings node');
-			expect(stdout).toContain('  Bullets node');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (3):\n  ☑️ Todo node\n     🔗 https://workflowy.com/#/node1\n  📋 Headings node\n     🔗 https://workflowy.com/#/node2\n  Bullets node\n     🔗 https://workflowy.com/#/node3\n',
+			);
 		});
 
 		it('displays multiple emoji indicators when node has note and non-default layoutMode', async () => {
@@ -385,7 +381,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('📝 ☑️ Todo with note');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (1):\n  📝 ☑️ Todo with note\n     🔗 https://workflowy.com/#/node1\n',
+			);
 		});
 
 		it('displays completion indicator along with note and layoutMode indicators', async () => {
@@ -413,7 +411,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('✓ 📝 ☑️ Completed todo with note');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (1):\n  ✓ 📝 ☑️ Completed todo with note\n     🔗 https://workflowy.com/#/node1\n',
+			);
 		});
 
 		it('displays backlinks indicator when node contains links to other nodes in name', async () => {
@@ -450,8 +450,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('↗️ Node with backlink');
-			expect(stdout).toContain('  Node without backlink');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (2):\n  ↗️ Node with backlink link (https://workflowy.com/#/abc123)\n     🔗 https://workflowy.com/#/node1\n  Node without backlink\n     🔗 https://workflowy.com/#/node2\n',
+			);
 		});
 
 		it('displays backlinks indicator when node contains links to other nodes in note', async () => {
@@ -479,7 +480,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('📝 ↗️ Node with backlink in note');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (1):\n  📝 ↗️ Node with backlink in note\n     🔗 https://workflowy.com/#/node1\n',
+			);
 		});
 
 		it('displays backlinks indicator along with other indicators', async () => {
@@ -507,7 +510,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('✓ 📝 ☑️ ↗️ Completed task with backlink');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (1):\n  ✓ 📝 ☑️ ↗️ Completed task with backlink ref (https://workflowy.com/#/ref123)\n     🔗 https://workflowy.com/#/node1\n',
+			);
 		});
 	});
 
@@ -523,7 +528,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('No nodes found\n');
 		});
 
 		it('falls back to cache when API returns 404 Not Found', async () => {
@@ -533,7 +538,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('No nodes found\n');
 		});
 
 		it('falls back to cache when API returns 500 Internal Server Error', async () => {
@@ -544,7 +549,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('No nodes found\n');
 		});
 	});
 
@@ -562,7 +567,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('No nodes found\n');
 		});
 
 		it('falls back to cache when response JSON is malformed', async () => {
@@ -572,7 +577,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('No nodes found\n');
 		});
 
 		it('falls back to cache when fetch times out', async () => {
@@ -584,7 +589,7 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('No nodes found');
+			expect(stdout).toBe('No nodes found\n');
 		});
 	});
 
@@ -655,19 +660,30 @@ describe('node:list command', () => {
 		});
 
 		it('has correct flag configuration', () => {
-			expect(List.flags).toHaveProperty('parent-id');
-			expect(List.flags['parent-id'].char).toBe('p');
-			expect(List.flags['parent-id'].description).toBe('Parent node ID (omit for root nodes)');
-
-			expect(List.flags).toHaveProperty('force-refresh');
-			expect(List.flags['force-refresh'].char).toBe('f');
-			expect(List.flags['force-refresh'].default).toBe(false);
-			expect(List.flags['force-refresh'].description).toBe('Force refresh from API, ignoring cache');
-
-			expect(List.flags).toHaveProperty('json');
-			expect(List.flags.json.char).toBe('j');
-			expect(List.flags.json.default).toBe(false);
-			expect(List.flags.json.description).toBe('Output all node details in JSON format');
+			expect({
+				parentId: {
+					char: List.flags['parent-id'].char,
+					description: List.flags['parent-id'].description,
+				},
+				forceRefresh: {
+					char: List.flags['force-refresh'].char,
+					default: List.flags['force-refresh'].default,
+					description: List.flags['force-refresh'].description,
+				},
+				json: {
+					char: List.flags.json.char,
+					default: List.flags.json.default,
+					description: List.flags.json.description,
+				},
+			}).toStrictEqual({
+				parentId: {char: 'p', description: 'Parent node ID (omit for root nodes)'},
+				forceRefresh: {
+					char: 'f',
+					default: false,
+					description: 'Force refresh from API, ignoring cache',
+				},
+				json: {char: 'j', default: false, description: 'Output all node details in JSON format'},
+			});
 		});
 	});
 
@@ -710,9 +726,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh', '--incomplete']);
 			});
 
-			expect(stdout).toContain('Nodes (1):');
-			expect(stdout).toContain('Incomplete task');
-			expect(stdout).not.toContain('Completed task');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (1):\n  Incomplete task\n     🔗 https://workflowy.com/#/node1\n',
+			);
 		});
 
 		it('shows all nodes when --incomplete is not set', async () => {
@@ -749,9 +765,9 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh']);
 			});
 
-			expect(stdout).toContain('Nodes (2):');
-			expect(stdout).toContain('Incomplete task');
-			expect(stdout).toContain('Completed task');
+			expect(stdout).toBe(
+				'Fetched fresh data from API\nNodes (2):\n  Incomplete task\n     🔗 https://workflowy.com/#/node1\n  ✓ Completed task\n     🔗 https://workflowy.com/#/node2\n',
+			);
 		});
 	});
 
@@ -802,47 +818,47 @@ describe('node:list command', () => {
 			const jsonOutput = jsonLines.join('\n');
 			const parsed = JSON.parse(jsonOutput);
 
-			expect(parsed).toHaveLength(2);
-
 			// Delete dynamic systemFrom field before deep equality comparison
 			for (const node of parsed) {
 				delete node.systemFrom;
 			}
 
-			expect(parsed[0]).toStrictEqual({
-				id: 'node1',
-				shortId: 'node1',
-				name: 'First node',
-				note: 'Test note',
-				parentId: null,
-				priority: 0,
-				createdAt: '2009-02-13T23:31:30.000Z',
-				modifiedAt: '2009-02-13T23:31:40.000Z',
-				completedAt: null,
-				layoutMode: null,
-				collapsed: false,
-				mirror: {isMirror: false, originalNodeId: null},
-				systemTo: '9999-12-31 23:59:59',
-				inChat: false,
-				hasReferencesRoot: false,
-			});
-			expect(parsed[1]).toStrictEqual({
-				id: 'node2',
-				shortId: 'node2',
-				name: 'Second node',
-				note: null,
-				parentId: null,
-				priority: 1,
-				createdAt: '2009-02-13T23:30:00.000Z',
-				modifiedAt: '2009-02-13T23:30:50.000Z',
-				completedAt: '2009-02-13T23:31:00.000Z',
-				layoutMode: 'todo',
-				collapsed: false,
-				mirror: {isMirror: false, originalNodeId: null},
-				systemTo: '9999-12-31 23:59:59',
-				inChat: false,
-				hasReferencesRoot: false,
-			});
+			expect(parsed).toStrictEqual([
+				{
+					id: 'node1',
+					shortId: 'node1',
+					name: 'First node',
+					note: 'Test note',
+					parentId: null,
+					priority: 0,
+					createdAt: '2009-02-13T23:31:30.000Z',
+					modifiedAt: '2009-02-13T23:31:40.000Z',
+					completedAt: null,
+					layoutMode: null,
+					collapsed: false,
+					mirror: {isMirror: false, originalNodeId: null},
+					systemTo: '9999-12-31 23:59:59',
+					inChat: false,
+					hasReferencesRoot: false,
+				},
+				{
+					id: 'node2',
+					shortId: 'node2',
+					name: 'Second node',
+					note: null,
+					parentId: null,
+					priority: 1,
+					createdAt: '2009-02-13T23:30:00.000Z',
+					modifiedAt: '2009-02-13T23:30:50.000Z',
+					completedAt: '2009-02-13T23:31:00.000Z',
+					layoutMode: 'todo',
+					collapsed: false,
+					mirror: {isMirror: false, originalNodeId: null},
+					systemTo: '9999-12-31 23:59:59',
+					inChat: false,
+					hasReferencesRoot: false,
+				},
+			]);
 		});
 
 		it('accepts short flag -j for JSON output', async () => {
@@ -876,8 +892,30 @@ describe('node:list command', () => {
 			const jsonOutput = jsonLines.join('\n');
 			const parsed = JSON.parse(jsonOutput);
 
-			expect(parsed).toHaveLength(1);
-			expect(parsed[0].id).toBe('node1');
+			// Delete dynamic systemFrom field before deep equality comparison
+			for (const node of parsed) {
+				delete node.systemFrom;
+			}
+
+			expect(parsed).toStrictEqual([
+				{
+					id: 'node1',
+					shortId: 'node1',
+					parentId: null,
+					name: 'Test node',
+					note: null,
+					priority: 0,
+					layoutMode: null,
+					createdAt: '2009-02-13T23:31:30.000Z',
+					modifiedAt: '2009-02-13T23:31:40.000Z',
+					completedAt: null,
+					collapsed: false,
+					mirror: {isMirror: false, originalNodeId: null},
+					systemTo: '9999-12-31 23:59:59',
+					inChat: false,
+					hasReferencesRoot: false,
+				},
+			]);
 		});
 
 		it('does not include emoji indicators in JSON output', async () => {
@@ -905,17 +943,36 @@ describe('node:list command', () => {
 				await List.run(['--force-refresh', '--json']);
 			});
 
-			expect(stdout).not.toContain('✓');
-			expect(stdout).not.toContain('📝');
-			expect(stdout).not.toContain('☑️');
-
 			const lines = stdout.split('\n');
 			const jsonStart = lines.indexOf('[');
 			const jsonLines = lines.slice(jsonStart);
 			const jsonOutput = jsonLines.join('\n');
 			const parsed = JSON.parse(jsonOutput);
 
-			expect(parsed[0].name).toBe('Completed todo with note');
+			// Delete dynamic systemFrom field before deep equality comparison
+			for (const node of parsed) {
+				delete node.systemFrom;
+			}
+
+			expect(parsed).toStrictEqual([
+				{
+					id: 'node1',
+					shortId: 'node1',
+					parentId: null,
+					name: 'Completed todo with note',
+					note: 'Done!',
+					priority: 0,
+					layoutMode: 'todo',
+					createdAt: '2009-02-13T23:31:30.000Z',
+					modifiedAt: '2009-02-13T23:31:40.000Z',
+					completedAt: '2009-02-13T23:31:50.000Z',
+					collapsed: false,
+					mirror: {isMirror: false, originalNodeId: null},
+					systemTo: '9999-12-31 23:59:59',
+					inChat: false,
+					hasReferencesRoot: false,
+				},
+			]);
 		});
 	});
 });

@@ -23,9 +23,13 @@ describe('node create command', () => {
 		process.env.WORKFLOWY_API_KEY = 'test-api-key';
 
 		fetchStub = vi.spyOn(globalThis, 'fetch');
+
+		vi.useFakeTimers({shouldAdvanceTime: true});
+		vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		process.env = originalEnv;
 
 		cleanupTestDatabase(testDatabase);
@@ -71,11 +75,10 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--name', 'Test Node', '--dry-run']);
 			});
 
-			expect(stdout).toContain('Would execute API call');
-			expect(stdout).toContain('POST');
-			expect(stdout).toContain('https://workflowy.com/api/v1/nodes/');
-			expect(stdout).toContain('Test Node');
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(fetchStub.mock.calls).toStrictEqual([]);
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "parent_id": "parent-id",\n      "name": "Test Node"\n    }\n\nParent: Parent\n',
+			);
 		});
 
 		it('includes note in dry run output', async () => {
@@ -95,7 +98,9 @@ describe('node create command', () => {
 				]);
 			});
 
-			expect(stdout).toContain('This is a note');
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "parent_id": "parent-id",\n      "name": "Test Node",\n      "note": "This is a note"\n    }\n\nParent: Parent\n',
+			);
 		});
 
 		it('includes layout mode in dry run output', async () => {
@@ -115,7 +120,9 @@ describe('node create command', () => {
 				]);
 			});
 
-			expect(stdout).toContain('document');
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "parent_id": "parent-id",\n      "name": "Test Node",\n      "layoutMode": "document"\n    }\n\nParent: Parent\n',
+			);
 		});
 	});
 
@@ -134,8 +141,9 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--name', 'Test Node']);
 			});
 
-			expect(stdout).toContain('Successfully created node');
-			expect(stdout).toContain(createdNodeId);
+			expect(stdout).toBe(
+				'Creating node: Test Node\nParent: Parent\n\nSuccessfully created node\n  ID: new-node-id\n  Name: Test Node\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newnodeid\n',
+			);
 			expect(fetchStub).toHaveBeenCalledTimes(1);
 		});
 
@@ -190,7 +198,7 @@ describe('node create command', () => {
 			});
 
 			const body = JSON.parse(capturedBody!);
-			expect(body.parent_id).toBe('specific-parent-id');
+			expect(body).toStrictEqual({parent_id: 'specific-parent-id', name: 'Test'});
 		});
 
 		it('resolves parent by path', async () => {
@@ -212,7 +220,7 @@ describe('node create command', () => {
 			});
 
 			const body = JSON.parse(capturedBody!);
-			expect(body.parent_id).toBe('projects-id');
+			expect(body).toStrictEqual({parent_id: 'projects-id', name: 'Test'});
 		});
 
 		it('resolves system target via --parent-id', async () => {
@@ -256,9 +264,11 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'inbox', '--name', 'Test']);
 			});
 
-			expect(stdout).toContain('Successfully created node');
+			expect(stdout).toBe(
+				'Creating node: Test\nParent: \n\nSuccessfully created node\n  ID: new-id\n  Name: Test\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newid\n',
+			);
 			const body = JSON.parse(capturedBody!);
-			expect(body.parent_id).toBe('inbox');
+			expect(body).toStrictEqual({parent_id: 'inbox', name: 'Test'});
 		});
 	});
 
@@ -274,8 +284,9 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--json', '{"name": "JSON Node"}']);
 			});
 
-			expect(stdout).toContain('Successfully created node tree');
-			expect(stdout).toContain('JSON Node');
+			expect(stdout).toBe(
+				'Creating node tree...\nParent: Parent\n\nSuccessfully created node tree:\n- JSON Node\n  ID: new-id\n  URL: https://workflowy.com/#/newid\n\nCreated node IDs (JSON):\n[\n  {\n    "id": "new-id",\n    "name": "JSON Node",\n    "parentId": null\n  }\n]\n',
+			);
 		});
 
 		it('creates nested tree from JSON', async () => {
@@ -299,7 +310,9 @@ describe('node create command', () => {
 			});
 
 			expect(fetchStub).toHaveBeenCalledTimes(3);
-			expect(stdout).toContain('Successfully created node tree');
+			expect(stdout).toBe(
+				'Creating node tree...\nParent: Parent\n\nSuccessfully created node tree:\n- Project\n  ID: node-1\n  URL: https://workflowy.com/#/node1\n  - Task 1\n    ID: node-2\n    URL: https://workflowy.com/#/node2\n  - Task 2\n    ID: node-3\n    URL: https://workflowy.com/#/node3\n\nCreated node IDs (JSON):\n[\n  {\n    "id": "node-1",\n    "name": "Project",\n    "parentId": null\n  },\n  {\n    "id": "node-2",\n    "name": "Task 1",\n    "parentId": "node-1"\n  },\n  {\n    "id": "node-3",\n    "name": "Task 2",\n    "parentId": "node-1"\n  }\n]\n',
+			);
 		});
 
 		it('dry run shows node tree preview for JSON', async () => {
@@ -316,12 +329,10 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--json', json, '--dry-run']);
 			});
 
-			expect(stdout).toContain('Would create the following node tree');
-			expect(stdout).toContain('Project');
-			expect(stdout).toContain('Task 1');
-			expect(stdout).toContain('Task 2');
-			expect(stdout).toContain('3 POST requests');
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(stdout).toBe(
+				'Would create the following node tree:\n\nParent: Parent\n\n- Project\n  - Task 1\n  - Task 2\n\nAPI calls that would be made:\n  3 POST requests to https://workflowy.com/api/v1/nodes/\n',
+			);
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
 		it('handles invalid JSON in --json flag', async () => {
@@ -360,8 +371,9 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--json-file', jsonPath]);
 			});
 
-			expect(stdout).toContain('Successfully created node tree');
-			expect(stdout).toContain('File Node');
+			expect(stdout).toBe(
+				'Creating node tree...\nParent: Parent\n\nSuccessfully created node tree:\n- File Node\n  ID: new-id\n  URL: https://workflowy.com/#/newid\n\nCreated node IDs (JSON):\n[\n  {\n    "id": "new-id",\n    "name": "File Node",\n    "parentId": null\n  }\n]\n',
+			);
 		});
 
 		it('handles non-existent JSON file', async () => {
@@ -389,8 +401,9 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--name', 'Test Node']);
 			});
 
-			expect(stdout).toContain(`ID: ${newNodeId}`);
-			expect(stdout).toContain('workflowy.com');
+			expect(stdout).toBe(
+				'Creating node: Test Node\nParent: Parent\n\nSuccessfully created node\n  ID: created-node-id\n  Name: Test Node\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/reatednodeid\n',
+			);
 		});
 
 		it('displays parent path in output', async () => {
@@ -407,8 +420,9 @@ describe('node create command', () => {
 				await Create.run(['--parent-path', 'Work,Projects', '--name', 'Test']);
 			});
 
-			expect(stdout).toContain('Work');
-			expect(stdout).toContain('Projects');
+			expect(stdout).toBe(
+				'Creating node: Test\nParent: Work > Projects\n\nSuccessfully created node\n  ID: new-id\n  Name: Test\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newid\n',
+			);
 		});
 	});
 
@@ -418,7 +432,37 @@ describe('node create command', () => {
 		});
 
 		it('has examples', () => {
-			expect(Create.examples!.length).toBeGreaterThan(0);
+			expect(Create.examples).toStrictEqual([
+				'# Create node in inbox (system target)',
+				'<%= config.bin %> <%= command.id %> --parent-id inbox --name "New Task"',
+				'',
+				'# Create node under a parent by ID',
+				'<%= config.bin %> <%= command.id %> --parent-id abc123 --name "Subtask"',
+				'',
+				'# Create node under a parent by path',
+				'<%= config.bin %> <%= command.id %> --parent-path "Work,Projects" --name "Subtask"',
+				'',
+				'# Create node with a specific layout mode',
+				'<%= config.bin %> <%= command.id %> --parent-id abc123 --name "Notes" --layout-mode document',
+				'',
+				'# Create from stdin (use - for name)',
+				String.raw`echo "## Section 1\n\nParagraph text" | <%= config.bin %> <%= command.id %> --parent-id abc123 --name -`,
+				'',
+				'# Import article content via clean-mark',
+				'npx clean-mark https://example.com/article --stdout | <%= config.bin %> <%= command.id %> --parent-id abc123 --name -',
+				'',
+				'# Preview the API call without creating',
+				'<%= config.bin %> <%= command.id %> --parent-id inbox --name "New Task" --dry-run',
+				'',
+				'# Create nested nodes from inline JSON',
+				'<%= config.bin %> <%= command.id %> --parent-id abc123 --json \'{"name": "Project", "children": [{"name": "Task 1"}, {"name": "Task 2"}]}\'',
+				'',
+				'# Create nested nodes from a JSON file',
+				'<%= config.bin %> <%= command.id %> --parent-id abc123 --json-file ./project-template.json',
+				'',
+				'# Create node under a path, creating missing segments (like mkdir -p)',
+				'<%= config.bin %> <%= command.id %> --parent-path "Metadata,Scanner State,my-scanner" --name "state.json" --create-path',
+			]);
 		});
 	});
 });

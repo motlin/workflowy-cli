@@ -19,7 +19,7 @@ test('partitionThings carries the Someday list through for the Workflowy sweep',
 		},
 		'2026-08-27',
 	);
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		sets.someday.map((t) => t.id),
 		['s1'],
 	);
@@ -32,31 +32,31 @@ test('parseThingsRows splits the record-separated AppleScript output', () => {
 	);
 
 	// The notes come along because the walk shows an item's context before asking about it.
-	assert.deepEqual(parseThingsRows(raw), [
+	assert.deepStrictEqual(parseThingsRows(raw), [
 		{id: 'JMwVZ', title: 'Pay temple dues', due: '2026-08-01', list: 'Today', notes: 'bring the receipt'},
 		{id: '9XHRt', title: 'FreshDirect order', due: null, list: 'Today', notes: null},
 	]);
 });
 
 test('parseThingsRows zero-pads single-digit months and days', () => {
-	assert.equal(parseThingsRows(out(row('a', 'T', '2026-3-9', 'Anytime', '')))[0].due, '2026-03-09');
+	assert.strictEqual(parseThingsRows(out(row('a', 'T', '2026-3-9', 'Anytime', '')))[0].due, '2026-03-09');
 });
 
 test('parseThingsRows returns nothing for empty output', () => {
-	assert.deepEqual(parseThingsRows(''), []);
-	assert.deepEqual(parseThingsRows(RECORD_SEP), []);
+	assert.deepStrictEqual(parseThingsRows(''), []);
+	assert.deepStrictEqual(parseThingsRows(RECORD_SEP), []);
 });
 
 test('parseThingsRows preserves titles containing newlines and pipes', () => {
 	// Control-character separators are used precisely so ordinary punctuation in a task title
 	// cannot corrupt the parse.
 	const raw = out(row('x', 'Buy milk | eggs\nand bread', '', 'Today', ''));
-	assert.equal(parseThingsRows(raw)[0].title, 'Buy milk | eggs\nand bread');
+	assert.strictEqual(parseThingsRows(raw)[0].title, 'Buy milk | eggs\nand bread');
 });
 
 test('parseThingsRows skips malformed records rather than emitting partial rows', () => {
 	const raw = out(row('good', 'Fine', '', 'Today', ''), 'truncated-record');
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		parseThingsRows(raw).map((r) => r.id),
 		['good'],
 	);
@@ -70,19 +70,19 @@ test('partitionThings unions Today and Anytime into the due set without duplicat
 
 	const {due, today} = partitionThings({todayList, anytime}, '2026-08-07');
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		due.map((t) => [t.id, t.list]),
 		[
 			['a', 'Today'],
 			['c', 'Anytime'],
 		],
 	);
-	assert.equal(today, todayList);
+	assert.strictEqual(today, todayList);
 });
 
 test('partitionThings leaves tasks due after today out of the due set', () => {
 	const {due} = partitionThings({todayList: [], anytime: [task('later', '2026-09-01', 'Anytime')]}, '2026-08-07');
-	assert.deepEqual(due, []);
+	assert.deepStrictEqual(due, []);
 });
 
 /**
@@ -100,12 +100,12 @@ test('partitionThings reports undated Anytime tasks separately for the asap swee
 
 	const {anytime: sweep} = partitionThings({todayList, anytime}, '2026-08-07');
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		sweep.map((t) => t.id),
 		['undated'],
 	);
 });
 
 test('the osascript budget leaves room for a large Anytime backlog', () => {
-	assert.equal(OSASCRIPT_TIMEOUT_MS, 180_000);
+	assert.strictEqual(OSASCRIPT_TIMEOUT_MS, 180_000);
 });

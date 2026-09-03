@@ -79,7 +79,7 @@ describe('Structural Eval: Agent References', () => {
 			}
 		}
 
-		expect(missing).toHaveLength(0);
+		expect(missing).toStrictEqual([]);
 	});
 
 	it('every agent file should have a name: field in frontmatter', () => {
@@ -93,7 +93,7 @@ describe('Structural Eval: Agent References', () => {
 			}
 		}
 
-		expect(missingName).toHaveLength(0);
+		expect(missingName).toStrictEqual([]);
 	});
 
 	it('agent names should be unique across all agent files', () => {
@@ -117,6 +117,6 @@ describe('Structural Eval: Agent References', () => {
 			}
 		}
 
-		expect(duplicates).toHaveLength(0);
+		expect(duplicates).toStrictEqual([]);
 	});
 });

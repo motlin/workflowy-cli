@@ -98,7 +98,7 @@ describe('CLI Reference Validation', () => {
 			}
 		}
 
-		expect(errors).toHaveLength(0);
+		expect(errors).toStrictEqual([]);
 	});
 
 	it('all flags are valid for their commands', () => {
@@ -130,6 +130,6 @@ describe('CLI Reference Validation', () => {
 			}
 		}
 
-		expect(errors).toHaveLength(0);
+		expect(errors).toStrictEqual([]);
 	});
 });

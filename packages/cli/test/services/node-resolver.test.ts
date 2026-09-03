@@ -47,7 +47,7 @@ describe('node-resolver service', () => {
 			const result = await resolveNodeId({id: 'direct-id'}, cacheService, mockApiClient as never);
 
 			expect(result).toBe('direct-id');
-			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
+			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
 		});
 
 		it('resolves a short ID from the cache', async () => {
@@ -59,7 +59,7 @@ describe('node-resolver service', () => {
 			const result = await resolveNodeId({id: 'eeeeeeeeeeee'}, cacheService, mockApiClient as never);
 
 			expect(result).toBe(fullId);
-			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
+			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
 		});
 
 		it('throws an error when a short ID is not in the cache', async () => {
@@ -79,7 +79,7 @@ describe('node-resolver service', () => {
 			const result = await resolveNodeId({path: 'Root,Child'}, cacheService, mockApiClient as never);
 
 			expect(result).toBe('child-id');
-			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
+			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
 		});
 
 		it('falls back to API when not in cache', async () => {
@@ -152,7 +152,7 @@ describe('node-resolver service', () => {
 			const result = await resolveParent({id: 'eeeeeeeeeeee'}, cacheService, mockApiClient as never);
 
 			expect(result).toBe(fullId);
-			expect(mockApiClient.findNodeByPath).not.toHaveBeenCalled();
+			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
 		});
 
 		it('throws an error when a short ID is not in the cache', async () => {
@@ -241,7 +241,7 @@ describe('node-resolver service', () => {
 			const result = await resolveOrCreateNodePath('Root,Leaf', cacheService, mockApiClient as never);
 
 			expect(result).toBe('leaf-id');
-			expect(mockApiClient.createNode).not.toHaveBeenCalled();
+			expect(mockApiClient.createNode.mock.calls).toStrictEqual([]);
 		});
 
 		it('creates missing path segments', async () => {
@@ -324,8 +324,7 @@ describe('node-resolver service', () => {
 
 			// Verify node was cached
 			const cached = await cacheService.getNode('cached-id');
-			expect(cached).toBeDefined();
-			expect(cached!.name).toBe('Cached');
+			expect(cached?.name).toBe('Cached');
 		});
 	});
 });

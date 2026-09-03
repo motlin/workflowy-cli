@@ -40,6 +40,6 @@ describe('Structural Eval: No Personal Paths', () => {
 			}
 		}
 
-		expect(violations).toEqual([]);
+		expect(violations).toStrictEqual([]);
 	});
 });

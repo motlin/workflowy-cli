@@ -137,13 +137,18 @@ describe('node get command', () => {
 			});
 
 			const output = JSON.parse(stdout);
-			expect(output.id).toBe('parent-id');
-			expect(output.name).toBe('Parent');
-			expect(output.children).toHaveLength(2);
-			expect(output.children[0].id).toBe('child-1');
-			expect(output.children[0].name).toBe('Child 1');
-			expect(output.children[1].id).toBe('child-2');
-			expect(output.children[1].name).toBe('Child 2');
+			expect({
+				id: output.id,
+				name: output.name,
+				children: output.children.map(({id, name}: {id: string; name: string}) => ({id, name})),
+			}).toStrictEqual({
+				id: 'parent-id',
+				name: 'Parent',
+				children: [
+					{id: 'child-1', name: 'Child 1'},
+					{id: 'child-2', name: 'Child 2'},
+				],
+			});
 		});
 
 		it('returns node without children property when node has none', async () => {
@@ -156,9 +161,11 @@ describe('node get command', () => {
 			});
 
 			const output = JSON.parse(stdout);
-			expect(output.id).toBe('leaf-id');
-			expect(output.name).toBe('Leaf Node');
-			expect(output.children).toBeUndefined();
+			expect({id: output.id, name: output.name, children: output.children}).toStrictEqual({
+				id: 'leaf-id',
+				name: 'Leaf Node',
+				children: undefined,
+			});
 		});
 	});
 
@@ -171,6 +178,9 @@ describe('node get command', () => {
 						name: 'JSON Node',
 						note: 'Test note',
 						parentId: null,
+						createdAt: new Date('2000-01-01T00:00:00.000Z'),
+						modifiedAt: new Date('2000-01-02T00:00:00.000Z'),
+						systemFrom: '2000-01-01 00:00:00.000',
 					}),
 				],
 			});
@@ -180,10 +190,24 @@ describe('node get command', () => {
 			});
 
 			const output = JSON.parse(stdout);
-			expect(output).toMatchObject({
+			expect(output).toStrictEqual({
 				id: 'json-node-id',
+				shortId: 'jsonnodeid',
+				parentId: null,
 				name: 'JSON Node',
 				note: 'Test note',
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: '2000-01-01T00:00:00.000Z',
+				modifiedAt: '2000-01-02T00:00:00.000Z',
+				completedAt: null,
+				collapsed: false,
+				inChat: false,
+				hasReferencesRoot: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				path: 'JSON Node',
+				systemFrom: '2000-01-01 00:00:00.000',
+				systemTo: '9999-12-31 23:59:59',
 			});
 		});
 
@@ -333,11 +357,19 @@ describe('node get command', () => {
 			});
 
 			const output = JSON.parse(stdout);
-			expect(output.children).toHaveLength(1);
-			expect(output.children[0].name).toBe('Original Content');
-			expect(output.children[0].note).toBe('Original note');
-			expect(output.children[0].mirror.isMirror).toBe(true);
-			expect(output.children[0].mirror.originalNodeId).toBe('original-node-id');
+			expect(
+				output.children.map(({name, note, mirror}: {name: string; note: string; mirror: unknown}) => ({
+					name,
+					note,
+					mirror,
+				})),
+			).toStrictEqual([
+				{
+					name: 'Original Content',
+					note: 'Original note',
+					mirror: {isMirror: true, originalNodeId: 'original-node-id'},
+				},
+			]);
 		});
 
 		it('resolves mirror children with filtered fields', async () => {
@@ -380,10 +412,14 @@ describe('node get command', () => {
 			});
 
 			const output = JSON.parse(stdout);
-			expect(output.children).toHaveLength(1);
-			expect(output.children[0].name).toBe('Original Content');
-			expect(output.children[0].mirror.isMirror).toBe(true);
-			expect(output.children[0].mirror.originalNodeId).toBe('original-node-id');
+			expect(
+				output.children.map(({name, mirror}: {name: string; mirror: unknown}) => ({name, mirror})),
+			).toStrictEqual([
+				{
+					name: 'Original Content',
+					mirror: {isMirror: true, originalNodeId: 'original-node-id'},
+				},
+			]);
 		});
 
 		it('fetches children of original node for mirror children', async () => {
@@ -440,13 +476,16 @@ describe('node get command', () => {
 			});
 
 			const output = JSON.parse(stdout);
-			expect(output.children).toHaveLength(1);
 			const mirrorChild = output.children[0];
-			expect(mirrorChild.name).toBe('Original Content');
-			expect(mirrorChild.mirror.isMirror).toBe(true);
-			expect(mirrorChild.children).toHaveLength(2);
-			expect(mirrorChild.children[0].name).toBe('Grandchild 1');
-			expect(mirrorChild.children[1].name).toBe('Grandchild 2');
+			expect({
+				name: mirrorChild.name,
+				mirror: mirrorChild.mirror,
+				children: mirrorChild.children.map(({name}: {name: string}) => name),
+			}).toStrictEqual({
+				name: 'Original Content',
+				mirror: {isMirror: true, originalNodeId: 'original-node-id'},
+				children: ['Grandchild 1', 'Grandchild 2'],
+			});
 		});
 
 		it('throws when a mirror child carries its own content (inverted relationship)', async () => {
@@ -549,7 +588,31 @@ describe('node get command', () => {
 
 		it('has examples', () => {
 			expect(Array.isArray(Get.examples)).toBe(true);
-			expect(Get.examples!.length).toBeGreaterThan(0);
+			expect(Get.examples).toStrictEqual([
+				'# Read node by ID',
+				'<%= config.bin %> <%= command.id %> --id abc123',
+				'',
+				'# Read node by short ID from Workflowy URL (12 hex chars)',
+				'<%= config.bin %> <%= command.id %> --id c8708df23f1e',
+				'',
+				'# Read node by path',
+				'<%= config.bin %> <%= command.id %> --path "Work,Projects,My Project"',
+				'',
+				'# Read node with children (depth 3)',
+				'<%= config.bin %> <%= command.id %> --id abc123 --depth 3',
+				'',
+				'# Read node with full tree and follow links',
+				'<%= config.bin %> <%= command.id %> --path "Personal,Inbox" --depth 5 --follow-links',
+				'',
+				'# Follow a mirror to its original node',
+				'<%= config.bin %> <%= command.id %> --id abc123 --follow-mirror',
+				'',
+				'# Output as JSON',
+				'<%= config.bin %> <%= command.id %> --id abc123 --json',
+				'',
+				'# Output JSON with only specific fields (reduces token usage for LLM processing)',
+				'<%= config.bin %> <%= command.id %> --path "Metadata,Inboxes" --depth 3 --json --fields id,name,note,completed,children',
+			]);
 		});
 	});
 });

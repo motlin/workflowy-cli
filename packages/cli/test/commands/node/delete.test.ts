@@ -65,11 +65,10 @@ describe('node delete command', () => {
 				await Delete.run(['--id', 'node-id', '--dry-run']);
 			});
 
-			expect(stdout).toContain('Would execute API call');
-			expect(stdout).toContain('Method: DELETE');
-			expect(stdout).toContain('https://workflowy.com/api/v1/nodes/node-id');
-			expect(stdout).toContain('WARNING: This will permanently delete the node and all its children!');
-			expect(fetchStub).not.toHaveBeenCalled();
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: DELETE\n  URL: https://workflowy.com/api/v1/nodes/node-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n\nNode: Test Node\n\nWARNING: This will permanently delete the node and all its children!\n',
+			);
+			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
 		it('shows full path in dry run output', async () => {
@@ -84,7 +83,9 @@ describe('node delete command', () => {
 				await Delete.run(['--id', 'tasks-id', '--dry-run']);
 			});
 
-			expect(stdout).toContain('Node: Work > Tasks');
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: DELETE\n  URL: https://workflowy.com/api/v1/nodes/tasks-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n\nNode: Work > Tasks\n\nWARNING: This will permanently delete the node and all its children!\n',
+			);
 		});
 	});
 
@@ -171,7 +172,9 @@ describe('node delete command', () => {
 				}
 			});
 
-			expect(stdout).toContain('Deleting node: Work > Target');
+			expect(stdout).toBe(
+				'Deleting node: Work > Target\n\nWARNING: This will permanently delete the node and all its children!\n\nSuccessfully deleted node\n',
+			);
 		});
 	});
 
@@ -181,7 +184,16 @@ describe('node delete command', () => {
 		});
 
 		it('has examples', () => {
-			expect(Delete.examples!.length).toBeGreaterThan(0);
+			expect(Delete.examples).toStrictEqual([
+				'# Delete node by ID',
+				'<%= config.bin %> <%= command.id %> --id abc123',
+				'',
+				'# Delete node by path',
+				'<%= config.bin %> <%= command.id %> --path "Work,Tasks,Completed Task"',
+				'',
+				'# Preview the API call without deleting',
+				'<%= config.bin %> <%= command.id %> --id abc123 --dry-run',
+			]);
 		});
 	});
 });

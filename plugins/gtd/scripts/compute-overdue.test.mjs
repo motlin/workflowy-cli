@@ -22,39 +22,39 @@ import {
 
 test('parseTimeISO pulls the date out of a node name', () => {
 	const name = 'Record status <time startYear="2026" startMonth="6" startDay="24">Wed, Jun 24, 2026</time> ';
-	assert.equal(parseTimeISO(name), '2026-06-24');
+	assert.strictEqual(parseTimeISO(name), '2026-06-24');
 });
 
 test('parseTimeISO returns null when there is no time element', () => {
-	assert.equal(parseTimeISO('A task with no date'), null);
+	assert.strictEqual(parseTimeISO('A task with no date'), null);
 });
 
 test('intervalForSection matches by substring, ignoring emoji prefixes', () => {
-	assert.deepEqual(intervalForSection('🔄 Daily Review'), {amount: 1, unit: 'd'});
-	assert.deepEqual(intervalForSection('⬆️ Frequently Important'), {amount: 1, unit: 'd'});
-	assert.deepEqual(intervalForSection('☀️ Low priority daily tasks'), {amount: 1, unit: 'd'});
-	assert.deepEqual(intervalForSection('🗓️ Weekly Review'), {amount: 7, unit: 'd'});
-	assert.deepEqual(intervalForSection('Monthly Review'), {amount: 1, unit: 'm'});
-	assert.deepEqual(intervalForSection('Every 2 months'), {amount: 2, unit: 'm'});
-	assert.deepEqual(intervalForSection('Every 6 months'), {amount: 6, unit: 'm'});
-	assert.deepEqual(intervalForSection('Annual Review'), {amount: 1, unit: 'y'});
+	assert.deepStrictEqual(intervalForSection('🔄 Daily Review'), {amount: 1, unit: 'd'});
+	assert.deepStrictEqual(intervalForSection('⬆️ Frequently Important'), {amount: 1, unit: 'd'});
+	assert.deepStrictEqual(intervalForSection('☀️ Low priority daily tasks'), {amount: 1, unit: 'd'});
+	assert.deepStrictEqual(intervalForSection('🗓️ Weekly Review'), {amount: 7, unit: 'd'});
+	assert.deepStrictEqual(intervalForSection('Monthly Review'), {amount: 1, unit: 'm'});
+	assert.deepStrictEqual(intervalForSection('Every 2 months'), {amount: 2, unit: 'm'});
+	assert.deepStrictEqual(intervalForSection('Every 6 months'), {amount: 6, unit: 'm'});
+	assert.deepStrictEqual(intervalForSection('Annual Review'), {amount: 1, unit: 'y'});
 });
 
 test('intervalForSection returns null when the section needs a user-chosen interval', () => {
-	assert.equal(intervalForSection('Every few years'), null);
-	assert.equal(intervalForSection('🤷 Unrecognized section'), null);
+	assert.strictEqual(intervalForSection('Every few years'), null);
+	assert.strictEqual(intervalForSection('🤷 Unrecognized section'), null);
 });
 
 test('addInterval advances days, weeks, months, and years', () => {
-	assert.equal(addInterval('2026-06-24', {amount: 1, unit: 'd'}), '2026-06-25');
-	assert.equal(addInterval('2026-06-24', {amount: 7, unit: 'd'}), '2026-07-01');
-	assert.equal(addInterval('2026-06-24', {amount: 1, unit: 'm'}), '2026-07-24');
-	assert.equal(addInterval('2026-06-24', {amount: 1, unit: 'y'}), '2027-06-24');
+	assert.strictEqual(addInterval('2026-06-24', {amount: 1, unit: 'd'}), '2026-06-25');
+	assert.strictEqual(addInterval('2026-06-24', {amount: 7, unit: 'd'}), '2026-07-01');
+	assert.strictEqual(addInterval('2026-06-24', {amount: 1, unit: 'm'}), '2026-07-24');
+	assert.strictEqual(addInterval('2026-06-24', {amount: 1, unit: 'y'}), '2027-06-24');
 });
 
 test('addInterval clamps a month rollover to the last day rather than skipping a month', () => {
 	// Jan 31 + 1 month must not roll into March.
-	assert.equal(addInterval('2026-01-31', {amount: 1, unit: 'm'}), '2026-02-28');
+	assert.strictEqual(addInterval('2026-01-31', {amount: 1, unit: 'm'}), '2026-02-28');
 });
 
 test('buildTimeElement computes the weekday and keeps the trailing space', () => {
@@ -130,7 +130,7 @@ const FIXTURE = {
 test('computeOverdue finds only on-or-before-today dated items, skipping the archive', () => {
 	const rows = computeOverdue(FIXTURE, '2026-06-26');
 	const ids = rows.map((r) => r.id);
-	assert.deepEqual(ids, ['id-reminders', 'id-factorio']);
+	assert.deepStrictEqual(ids, ['id-reminders', 'id-factorio']);
 });
 
 test('computeOverdue skips the Phase 0 LLM Tasks: container and its subtree', () => {
@@ -164,33 +164,33 @@ test('computeOverdue skips the Phase 0 LLM Tasks: container and its subtree', ()
 		],
 	};
 	const ids = computeOverdue(tree, '2026-06-26').map((r) => r.id);
-	assert.deepEqual(ids, ['id-real']);
+	assert.deepStrictEqual(ids, ['id-real']);
 });
 
 test('computeOverdue orders by section priority then due date', () => {
 	const rows = computeOverdue(FIXTURE, '2026-06-26');
-	assert.equal(rows[0].section, '🔄 Daily Review');
-	assert.equal(rows[1].section, '🗓️ Weekly Review');
+	assert.strictEqual(rows[0].section, '🔄 Daily Review');
+	assert.strictEqual(rows[1].section, '🗓️ Weekly Review');
 });
 
 test('computeOverdue annotates overdue days, llm-task, and child count', () => {
 	const rows = computeOverdue(FIXTURE, '2026-06-26');
 	const reminders = rows.find((r) => r.id === 'id-reminders');
-	assert.equal(reminders.due, '2026-06-24');
-	assert.equal(reminders.overdueByDays, 2);
-	assert.equal(reminders.isLlmTask, false);
-	assert.equal(reminders.childCount, 0);
+	assert.strictEqual(reminders.due, '2026-06-24');
+	assert.strictEqual(reminders.overdueByDays, 2);
+	assert.strictEqual(reminders.isLlmTask, false);
+	assert.strictEqual(reminders.childCount, 0);
 
 	const factorio = rows.find((r) => r.id === 'id-factorio');
-	assert.equal(factorio.isLlmTask, true);
-	assert.equal(factorio.childCount, 1);
+	assert.strictEqual(factorio.isLlmTask, true);
+	assert.strictEqual(factorio.childCount, 1);
 });
 
 test('computeOverdue stages the next date and a verbatim node update applyOp', () => {
 	const rows = computeOverdue(FIXTURE, '2026-06-26');
 	const reminders = rows.find((r) => r.id === 'id-reminders');
 	// Daily Review = +1 day from today (the review date advances to today + interval).
-	assert.equal(reminders.nextDate, '2026-06-27');
+	assert.strictEqual(reminders.nextDate, '2026-06-27');
 	assert.match(reminders.newName, /^Reminders /);
 	assert.match(reminders.newName, /startDay="27"/);
 	assert.match(reminders.applyOp, /^\.\/bin\/run\.js node update --id id-reminders --name /);
@@ -216,18 +216,18 @@ test('computeOverdue flags sections that need a user-chosen interval', () => {
 		],
 	};
 	const rows = computeOverdue(tree, '2026-06-26');
-	assert.equal(rows.length, 1);
-	assert.equal(rows[0].needsInterval, true);
-	assert.equal(rows[0].nextDate, null);
-	assert.equal(rows[0].applyOp, null);
+	assert.strictEqual(rows.length, 1);
+	assert.strictEqual(rows[0].needsInterval, true);
+	assert.strictEqual(rows[0].nextDate, null);
+	assert.strictEqual(rows[0].applyOp, null);
 });
 
 test('intervalDays orders every cadence from daily to annual', () => {
-	assert.equal(intervalDays({amount: 1, unit: 'd'}), 1);
-	assert.equal(intervalDays({amount: 7, unit: 'd'}), 7);
+	assert.strictEqual(intervalDays({amount: 1, unit: 'd'}), 1);
+	assert.strictEqual(intervalDays({amount: 7, unit: 'd'}), 7);
 	assert.ok(intervalDays({amount: 1, unit: 'm'}) > intervalDays({amount: 7, unit: 'd'}));
 	assert.ok(intervalDays({amount: 1, unit: 'y'}) > intervalDays({amount: 6, unit: 'm'}));
-	assert.equal(intervalDays(null), Infinity);
+	assert.strictEqual(intervalDays(null), Infinity);
 });
 
 const LADDER_SECTIONS = [
@@ -241,15 +241,15 @@ const LADDER_SECTIONS = [
 ];
 
 test('nextLongerSection climbs one rung of the cadence ladder', () => {
-	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'd'}).id, 'sec-weekly');
-	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 7, unit: 'd'}).id, 'sec-monthly');
-	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'm'}).id, 'sec-6mo');
-	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 6, unit: 'm'}).id, 'sec-annual');
+	assert.strictEqual(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'd'}).id, 'sec-weekly');
+	assert.strictEqual(nextLongerSection(LADDER_SECTIONS, {amount: 7, unit: 'd'}).id, 'sec-monthly');
+	assert.strictEqual(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'm'}).id, 'sec-6mo');
+	assert.strictEqual(nextLongerSection(LADDER_SECTIONS, {amount: 6, unit: 'm'}).id, 'sec-annual');
 });
 
 test('nextLongerSection returns null at the top of the ladder and for unknown cadences', () => {
-	assert.equal(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'y'}), null);
-	assert.equal(nextLongerSection(LADDER_SECTIONS, null), null);
+	assert.strictEqual(nextLongerSection(LADDER_SECTIONS, {amount: 1, unit: 'y'}), null);
+	assert.strictEqual(nextLongerSection(LADDER_SECTIONS, null), null);
 });
 
 test('nextLongerSection never targets the archive', () => {
@@ -257,7 +257,7 @@ test('nextLongerSection never targets the archive', () => {
 		{name: '🔄 Daily Review', id: 'sec-daily'},
 		{name: '🗃️ Routine Archive', id: 'sec-archive'},
 	];
-	assert.equal(nextLongerSection(sections, {amount: 1, unit: 'd'}), null);
+	assert.strictEqual(nextLongerSection(sections, {amount: 1, unit: 'd'}), null);
 });
 
 test('foldSkipLog counts consecutive trailing skips per item', () => {
@@ -267,9 +267,13 @@ test('foldSkipLog counts consecutive trailing skips per item', () => {
 		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
 		{key: 'id-b', outcome: 'skip', date: '2026-08-12'},
 	]);
-	assert.equal(streaks.get('id-a').skipStreak, 2);
-	assert.equal(streaks.get('id-a').skippedSince, '2026-08-11');
-	assert.equal(streaks.get('id-b').skipStreak, 1);
+	assert.deepStrictEqual(
+		streaks,
+		new Map([
+			['id-a', {skipStreak: 2, skippedSince: '2026-08-11'}],
+			['id-b', {skipStreak: 1, skippedSince: '2026-08-12'}],
+		]),
+	);
 });
 
 test('foldSkipLog resets the streak when the item is finally handled', () => {
@@ -278,8 +282,7 @@ test('foldSkipLog resets the streak when the item is finally handled', () => {
 		{key: 'id-a', outcome: 'skip', date: '2026-08-11'},
 		{key: 'id-a', outcome: 'done', date: '2026-08-12'},
 	]);
-	assert.equal(streaks.get('id-a').skipStreak, 0);
-	assert.equal(streaks.get('id-a').skippedSince, null);
+	assert.deepStrictEqual(streaks, new Map([['id-a', {skipStreak: 0, skippedSince: null}]]));
 });
 
 test('foldSkipLog collapses repeats from the same day so a re-run cannot inflate a streak', () => {
@@ -288,7 +291,7 @@ test('foldSkipLog collapses repeats from the same day so a re-run cannot inflate
 		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
 		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
 	]);
-	assert.equal(streaks.get('id-a').skipStreak, 1);
+	assert.deepStrictEqual(streaks, new Map([['id-a', {skipStreak: 1, skippedSince: '2026-08-12'}]]));
 });
 
 test('foldSkipLog lets a same-day correction overwrite an earlier outcome', () => {
@@ -297,7 +300,7 @@ test('foldSkipLog lets a same-day correction overwrite an earlier outcome', () =
 		{key: 'id-a', outcome: 'skip', date: '2026-08-12'},
 		{key: 'id-a', outcome: 'done', date: '2026-08-12'},
 	]);
-	assert.equal(streaks.get('id-a').skipStreak, 0);
+	assert.deepStrictEqual(streaks, new Map([['id-a', {skipStreak: 0, skippedSince: null}]]));
 });
 
 test('recordOutcome appends to the log and loadSkipStreaks reads it back', () => {
@@ -308,20 +311,25 @@ test('recordOutcome appends to the log and loadSkipStreaks reads it back', () =>
 	recordOutcome('id-b', 'done', {date: '2026-08-12', path: logPath});
 
 	const streaks = loadSkipStreaks(logPath);
-	assert.equal(streaks.get('id-a').skipStreak, 2);
-	assert.equal(streaks.get('id-b').skipStreak, 0);
+	assert.deepStrictEqual(
+		streaks,
+		new Map([
+			['id-a', {skipStreak: 2, skippedSince: '2026-08-11'}],
+			['id-b', {skipStreak: 0, skippedSince: null}],
+		]),
+	);
 	rmSync(dir, {recursive: true, force: true});
 });
 
 test('loadSkipStreaks treats a missing log as no history', () => {
 	const streaks = loadSkipStreaks(join(tmpdir(), 'gtd-skip-does-not-exist', 'skip-log.jsonl'));
-	assert.equal(streaks.size, 0);
+	assert.deepStrictEqual(streaks, new Map());
 });
 
 test('computeOverdue reports a zero skip streak when there is no history', () => {
 	const rows = computeOverdue(FIXTURE, '2026-06-26');
-	assert.equal(rows[0].skipStreak, 0);
-	assert.equal(rows[0].skippedSince, null);
+	assert.strictEqual(rows[0].skipStreak, 0);
+	assert.strictEqual(rows[0].skippedSince, null);
 });
 
 test('computeOverdue carries each item skip streak onto its row', () => {
@@ -331,8 +339,8 @@ test('computeOverdue carries each item skip streak onto its row', () => {
 	]);
 	const rows = computeOverdue(FIXTURE, '2026-06-26', {skipStreaks: streaks});
 	const reminders = rows.find((r) => r.id === 'id-reminders');
-	assert.equal(reminders.skipStreak, 2);
-	assert.equal(reminders.skippedSince, '2026-06-24');
+	assert.strictEqual(reminders.skipStreak, 2);
+	assert.strictEqual(reminders.skippedSince, '2026-06-24');
 });
 
 const LADDER_TREE = {
@@ -358,10 +366,10 @@ const LADDER_TREE = {
 test('computeOverdue stages a lengthen op that moves the item up one cadence rung', () => {
 	const rows = computeOverdue(LADDER_TREE, '2026-06-26');
 	const {lengthen} = rows[0];
-	assert.equal(lengthen.section, '🗓️ Weekly Review');
-	assert.equal(lengthen.sectionId, 'sec-weekly');
-	assert.deepEqual(lengthen.interval, {amount: 7, unit: 'd'});
-	assert.equal(lengthen.nextDate, '2026-07-03');
+	assert.strictEqual(lengthen.section, '🗓️ Weekly Review');
+	assert.strictEqual(lengthen.sectionId, 'sec-weekly');
+	assert.deepStrictEqual(lengthen.interval, {amount: 7, unit: 'd'});
+	assert.strictEqual(lengthen.nextDate, '2026-07-03');
 	assert.match(lengthen.newName, /startDay="3"/);
 	assert.match(lengthen.newName, /startMonth="7"/);
 	assert.ok(lengthen.applyOp.includes(`node update --id id-batteries --name `));
@@ -387,7 +395,7 @@ test('computeOverdue leaves lengthen null at the top of the ladder', () => {
 			},
 		],
 	};
-	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
+	assert.strictEqual(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
 });
 
 test('computeOverdue leaves lengthen null when the section interval is unknown', () => {
@@ -409,7 +417,7 @@ test('computeOverdue leaves lengthen null when the section interval is unknown',
 			{name: '🎆 Annual Review', id: 'sec-annual', priority: 8, children: []},
 		],
 	};
-	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
+	assert.strictEqual(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
 });
 
 test('computeOverdue leaves lengthen null when the target section has no id to move into', () => {
@@ -431,7 +439,7 @@ test('computeOverdue leaves lengthen null when the target section has no id to m
 			{name: '🗓️ Weekly Review', priority: 5, children: []},
 		],
 	};
-	assert.equal(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
+	assert.strictEqual(computeOverdue(tree, '2026-06-26')[0].lengthen, null);
 });
 
 test('nodeContext gathers the context the walk shows before asking', () => {
@@ -451,15 +459,17 @@ test('nodeContext gathers the context the walk shows before asking', () => {
 		],
 	};
 	const context = nodeContext(node);
-	assert.equal(context.childCount, 2);
-	assert.equal(context.note, 'see https://example.com/notes');
-	assert.equal(context.modifiedAt, '2026-06-20T11:02:00Z');
-	assert.deepEqual(context.children, [
-		{title: 'Drive A', note: null, childCount: 1, url: 'https://workflowy.com/#/sid-a'},
-		{title: 'Drive B', note: 'spare', childCount: 0, url: null},
-	]);
-	// Links are what the walk opens, so the node's own href and any bare URL in the note both count.
-	assert.deepEqual(context.links, ['https://example.com/spec', 'https://example.com/notes']);
+	assert.deepStrictEqual(context, {
+		note: 'see https://example.com/notes',
+		modifiedAt: '2026-06-20T11:02:00Z',
+		childCount: 2,
+		children: [
+			{title: 'Drive A', note: null, childCount: 1, url: 'https://workflowy.com/#/sid-a'},
+			{title: 'Drive B', note: 'spare', childCount: 0, url: null},
+		],
+		// Links are what the walk opens, so the node's own href and any bare URL in the note both count.
+		links: ['https://example.com/spec', 'https://example.com/notes'],
+	});
 });
 
 test('nodeContext drops completed children so finished work is never read aloud as open', () => {
@@ -480,14 +490,19 @@ test('nodeContext drops completed children so finished work is never read aloud 
 	};
 	const context = nodeContext(node);
 	// childCount is the open count, not the raw child count.
-	assert.equal(context.childCount, 1);
-	assert.deepEqual(context.children, [
-		{title: 'Respond to blog comments', note: null, childCount: 0, url: 'https://workflowy.com/#/sid-3'},
-	]);
+	assert.deepStrictEqual(context, {
+		note: null,
+		modifiedAt: null,
+		childCount: 1,
+		children: [
+			{title: 'Respond to blog comments', note: null, childCount: 0, url: 'https://workflowy.com/#/sid-3'},
+		],
+		links: [],
+	});
 });
 
 test('nodeContext returns an empty context for a childless, noteless node', () => {
-	assert.deepEqual(nodeContext({name: 'Bare', children: []}), {
+	assert.deepStrictEqual(nodeContext({name: 'Bare', children: []}), {
 		note: null,
 		modifiedAt: null,
 		childCount: 0,
@@ -524,7 +539,7 @@ test('computeOverdue skips items that are already completed', () => {
 		],
 	};
 	const rows = computeOverdue(tree, '2026-08-26');
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		rows.map((r) => r.id),
 		['id-open'],
 	);
@@ -550,14 +565,14 @@ test('computeOverdue carries the item context so the walk can show it before ask
 		],
 	};
 	const [row] = computeOverdue(tree, '2026-06-26');
-	assert.equal(row.url, 'https://workflowy.com/#/sid-drives');
-	assert.equal(row.note, 'started last week');
-	assert.equal(row.modifiedAt, '2026-06-20T11:02:00Z');
-	assert.equal(row.childCount, 1);
-	assert.deepEqual(row.children, [
+	assert.strictEqual(row.url, 'https://workflowy.com/#/sid-drives');
+	assert.strictEqual(row.note, 'started last week');
+	assert.strictEqual(row.modifiedAt, '2026-06-20T11:02:00Z');
+	assert.strictEqual(row.childCount, 1);
+	assert.deepStrictEqual(row.children, [
 		{title: 'Drive A', note: null, childCount: 0, url: 'https://workflowy.com/#/sid-a'},
 	]);
-	assert.deepEqual(row.links, []);
+	assert.deepStrictEqual(row.links, []);
 });
 
 test('computeOverdue skips mirror nodes and everything under them', () => {
@@ -601,11 +616,11 @@ test('computeOverdue skips mirror nodes and everything under them', () => {
 	const rows = computeOverdue(tree, '2026-09-02');
 	const ids = rows.map((row) => row.id);
 
-	assert.deepEqual(ids, ['real-1'], 'only the real recurring item is reported');
-	assert.equal(
+	assert.deepStrictEqual(ids, ['real-1'], 'only the real recurring item is reported');
+	assert.strictEqual(
 		ids.includes('one-shot'),
 		false,
 		'a one-shot task reached through a bucket mirror must not be reported as recurring',
 	);
-	assert.equal(ids.includes('mirror-bucket'), false, 'the mirror node itself is never a row');
+	assert.strictEqual(ids.includes('mirror-bucket'), false, 'the mirror node itself is never a row');
 });

@@ -292,9 +292,9 @@ describe('describeStaleAttachmentData', () => {
 	it('warns when a backup on disk is newer than the newest imported attachment row', () => {
 		const warning = describeStaleAttachmentData('2026-07-14 14:37:25.424', new Date('2026-07-26T00:00:00Z'));
 
-		expect(warning).toContain('2026-07-14');
-		expect(warning).toContain('2026-07-26');
-		expect(warning).toContain('cache import-backups');
+		expect(warning).toBe(
+			"attachment data is stale: newest s3_files row is 2026-07-14, but a 2026-07-26 backup is on disk. Run 'cache import-backups' first or recent photos stay invisible.",
+		);
 	});
 
 	it('stays quiet when the newest backup is already imported', () => {

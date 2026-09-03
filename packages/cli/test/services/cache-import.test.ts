@@ -179,7 +179,16 @@ describe('cache-import service', () => {
 			expect(result.nodesAdded).toBe(3);
 
 			const parent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'parent-1')).get()!;
-			expect(parent.parentId).toBeNull();
+			expect(createNodeFromContent(parent)).toStrictEqual(
+				createNodeFromContent({
+					id: 'parent-1',
+					name: 'Parent Node',
+					note: null,
+					parentId: null,
+					systemFrom: parent.systemFrom,
+					systemTo: FAR_FUTURE_DATE,
+				}),
+			);
 
 			const childContentRecords = ['child-1', 'child-2'].map((id) =>
 				testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
@@ -711,7 +720,7 @@ describe('cache-import service', () => {
 				.where(eq(backlinks.nodeId, 'bn'))
 				.all()
 				.filter((b) => b.systemTo === FAR_FUTURE_DATE);
-			expect(open).toHaveLength(0);
+			expect(open).toStrictEqual([]);
 		});
 	});
 
@@ -724,7 +733,23 @@ describe('cache-import service', () => {
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await expect(importBackup(testDatabase.db, filePath, 'backup.json')).rejects.toThrow();
+			const error = (await importBackup(testDatabase.db, filePath, 'backup.json').catch(
+				(caught: unknown) => caught,
+			)) as Error;
+			expect({name: error.name, message: error.message}).toStrictEqual({
+				name: 'ZodError',
+				message: `[
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      1,
+      "id"
+    ],
+    "message": "Invalid input: expected string, received null"
+  }
+]`,
+			});
 		});
 
 		it('imports valid nodes from file with all valid entries', async () => {
@@ -1140,9 +1165,22 @@ describe('cache-import service', () => {
 			]);
 			const result = await importBackup(testDatabase.db, freshPath, 'backup.json', false, DATE_LATER);
 
-			expect(result.skipped).toBeFalsy();
-			expect(result.nodesAdded).toBe(1);
-			expect(result.totalNodes).toBe(2);
+			expect(result).toStrictEqual({
+				totalNodes: 2,
+				nodesAdded: 1,
+				nodesUpdated: 0,
+				nodesUnchanged: 1,
+				nodesDeleted: 0,
+				nodesPhasedOut: 0,
+				contentUpdated: 0,
+				metadataUpdated: 0,
+				priorityUpdated: 0,
+				importTimestamp: DATE_LATER,
+				nodesPreserved: 0,
+				skipped: false,
+				localWatermark: '2026-04-01 00:00:00.000',
+				incomingWatermark: '2026-04-10 00:00:00.000',
+			});
 		});
 
 		it('proceeds when the incoming watermark equals the local watermark', async () => {
@@ -1152,16 +1190,44 @@ describe('cache-import service', () => {
 			const samePath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
 			const result = await importBackup(testDatabase.db, samePath, 'backup.json', false, DATE_LATER);
 
-			expect(result.skipped).toBeFalsy();
-			expect(result.nodesUnchanged).toBe(1);
+			expect(result).toStrictEqual({
+				totalNodes: 1,
+				nodesAdded: 0,
+				nodesUpdated: 0,
+				nodesUnchanged: 1,
+				nodesDeleted: 0,
+				nodesPhasedOut: 0,
+				contentUpdated: 0,
+				metadataUpdated: 0,
+				priorityUpdated: 0,
+				importTimestamp: DATE_LATER,
+				nodesPreserved: 0,
+				skipped: false,
+				localWatermark: '2026-04-10 00:00:00.000',
+				incomingWatermark: '2026-04-10 00:00:00.000',
+			});
 		});
 
 		it('proceeds when the local cache is empty', async () => {
 			const freshPath = writeBackupFile([{id: 'node-1', nm: 'Only', ct: T_EARLIER, lm: T_EARLIER}]);
 			const result = await importBackup(testDatabase.db, freshPath, 'backup.json', false, DATE_EARLIER);
 
-			expect(result.skipped).toBeFalsy();
-			expect(result.nodesAdded).toBe(1);
+			expect(result).toStrictEqual({
+				totalNodes: 1,
+				nodesAdded: 1,
+				nodesUpdated: 0,
+				nodesUnchanged: 0,
+				nodesDeleted: 0,
+				nodesPhasedOut: 0,
+				contentUpdated: 0,
+				metadataUpdated: 0,
+				priorityUpdated: 0,
+				importTimestamp: DATE_EARLIER,
+				nodesPreserved: 0,
+				skipped: false,
+				localWatermark: null,
+				incomingWatermark: '2026-04-01 00:00:00.000',
+			});
 		});
 
 		it('takes the stale snapshot verbatim when force is passed', async () => {
@@ -1171,9 +1237,22 @@ describe('cache-import service', () => {
 			const stalePath = writeBackupFile([{id: 'node-2', nm: 'Stale', ct: T_EARLIER, lm: T_EARLIER}]);
 			const result = await importBackup(testDatabase.db, stalePath, 'backup.json', false, DATE_LATER, true);
 
-			expect(result.skipped).toBeFalsy();
-			expect(result.nodesAdded).toBe(1);
-			expect(result.nodesPreserved).toBe(0);
+			expect(result).toStrictEqual({
+				totalNodes: 1,
+				nodesAdded: 1,
+				nodesUpdated: 0,
+				nodesUnchanged: 0,
+				nodesDeleted: 1,
+				nodesPhasedOut: 1,
+				contentUpdated: 0,
+				metadataUpdated: 0,
+				priorityUpdated: 0,
+				importTimestamp: DATE_LATER,
+				nodesPreserved: 0,
+				skipped: false,
+				localWatermark: '2026-04-10 00:00:00.000',
+				incomingWatermark: '2026-04-01 00:00:00.000',
+			});
 			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-2')).get()!;
 			expectActiveRecord(node2);
 

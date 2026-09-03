@@ -106,7 +106,7 @@ describe('Structural Eval: Cross-References', () => {
 				}
 			}
 
-			expect(missing).toHaveLength(0);
+			expect(missing).toStrictEqual([]);
 		});
 	});
 
@@ -125,7 +125,7 @@ describe('Structural Eval: Cross-References', () => {
 				}
 			}
 
-			expect(missing).toHaveLength(0);
+			expect(missing).toStrictEqual([]);
 		});
 	});
 });

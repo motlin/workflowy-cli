@@ -13,6 +13,9 @@ import path from 'node:path';
 import {createEvalContext, runInEvalContext} from '../helpers/eval-db-setup.js';
 import type {EvalContext} from '../helpers/eval-types.js';
 
+// Phase 3 of sync-metadata.sh emits this aggregate rather than a node dump.
+const TAG_FREQUENCY_FILE = 'tag-frequency.json';
+
 describe('Behavioral Eval: sync-metadata.sh', () => {
 	let ctx: EvalContext;
 	let metadataDir: string;
@@ -57,12 +60,26 @@ describe('Behavioral Eval: sync-metadata.sh', () => {
 		const files = fs.readdirSync(metadataDir).filter((f) => f.endsWith('.json'));
 		expect(files.length, 'Should have at least one section JSON file').toBeGreaterThan(0);
 
-		// Each non-empty JSON file should be valid and have an id field
+		// Phase 1/2 write one node dump per section; Phase 3 writes tag-frequency.json,
+		// an aggregate over the cache that is deliberately not shaped like a node.
 		for (const file of files) {
 			const filePath = path.join(metadataDir, file);
 			const content = fs.readFileSync(filePath, 'utf8').trim();
 			if (content.length === 0) continue;
 			const parsed = JSON.parse(content);
+
+			if (file === TAG_FREQUENCY_FILE) {
+				expect(Object.keys(parsed), `${file} should be a tag-frequency aggregate`).toStrictEqual([
+					'generatedFrom',
+					'distinctTags',
+					'taggedRowsScanned',
+					'tags',
+				]);
+				expect(parsed.generatedFrom).toBe('workflowy.sqlite');
+				expect(parsed.distinctTags).toBe(Object.keys(parsed.tags).length);
+				continue;
+			}
+
 			expect(parsed, `${file} should have an id`).toHaveProperty('id');
 		}
 	});

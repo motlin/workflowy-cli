@@ -114,10 +114,10 @@ describe('calendar:fix-photo-groups command', () => {
 			await FixPhotoGroups.run(['--dry-run']);
 		});
 
-		expect(stdout).toContain('wrapper');
-		expect(stdout).toContain('IMG_0300.jpeg');
-		expect(stdout).toContain('reverse');
-		expect(fetchStub).not.toHaveBeenCalled();
+		expect(stdout).toBe(
+			'Found 1 photo groups: 1 to fix, 0 left alone\n\n--- DRY RUN ---\n  wrapper wrapper under entry entry "Drove to a friend’s house" — reverse (filenames descend)\n    photo-3  IMG_0100.jpeg\n    photo-2  IMG_0200.jpeg\n    photo-1  IMG_0300.jpeg\n\nTotal: 1 groups would be fixed\n',
+		);
+		expect(fetchStub.mock.calls).toStrictEqual([]);
 	});
 
 	it('unwraps and reverses a wrapped group, then deletes the wrapper', async () => {
@@ -179,8 +179,10 @@ describe('calendar:fix-photo-groups command', () => {
 			await FixPhotoGroups.run(['--delay', '0']);
 		});
 
-		expect(stdout).toContain('loose group without filename evidence');
-		expect(fetchStub).not.toHaveBeenCalled();
+		expect(stdout).toBe(
+			'Found 1 photo groups: 0 to fix, 1 left alone\n  1 left alone: loose group without filename evidence\n',
+		);
+		expect(fetchStub.mock.calls).toStrictEqual([]);
 	});
 
 	it('leaves a group alone when its filenames already ascend', async () => {
@@ -198,7 +200,7 @@ describe('calendar:fix-photo-groups command', () => {
 			await FixPhotoGroups.run(['--delay', '0']);
 		});
 
-		expect(fetchStub).not.toHaveBeenCalled();
+		expect(fetchStub.mock.calls).toStrictEqual([]);
 	});
 
 	it('restricts work to one group using its short ID', async () => {
@@ -252,8 +254,10 @@ describe('calendar:fix-photo-groups command', () => {
 			await FixPhotoGroups.run(['--node-id', 'eeeeeeeeeeee', '--dry-run']);
 		});
 
-		expect(stdout).toContain(wrapperId);
-		expect(fetchStub).not.toHaveBeenCalled();
+		expect(stdout).toBe(
+			`Found 1 photo groups: 1 to fix, 0 left alone\n\n--- DRY RUN ---\n  wrapper ${wrapperId} under entry entry "Drove to a friend’s house" — reverse (wrapped group, assuming a single reversed paste)\n    photo-2  image.jpeg\n    photo-1  image.jpeg\n\nTotal: 1 groups would be fixed\n`,
+		);
+		expect(fetchStub.mock.calls).toStrictEqual([]);
 	});
 
 	it('requires WORKFLOWY_API_KEY when not doing a dry run', async () => {

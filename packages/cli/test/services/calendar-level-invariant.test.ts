@@ -75,23 +75,16 @@ describe('calendar level/levels invariant', () => {
 			.from(calendarMetadata)
 			.where(eq(calendarMetadata.systemTo, FAR_FUTURE_DATE))
 			.all();
-		expect(metadataRows).toHaveLength(1);
-		expect(metadataRows[0].root).toBe(1);
-		expect(metadataRows[0].level).toBeNull();
+		expect(metadataRows.map(({root, level}) => ({root, level}))).toStrictEqual([{root: 1, level: null}]);
 
 		const levelsRows = testDatabase.db
 			.select()
 			.from(calendarLevels)
 			.where(eq(calendarLevels.systemTo, FAR_FUTURE_DATE))
 			.all();
-		expect(levelsRows).toHaveLength(1);
-		expect(levelsRows[0].nodeId).toBe('calendar-root');
-		expect({
-			day: levelsRows[0].day,
-			week: levelsRows[0].week,
-			month: levelsRows[0].month,
-			year: levelsRows[0].year,
-		}).toStrictEqual({day: 1, week: 0, month: 1, year: 1});
+		expect(levelsRows.map(({nodeId, day, week, month, year}) => ({nodeId, day, week, month, year}))).toStrictEqual([
+			{nodeId: 'calendar-root', day: 1, week: 0, month: 1, year: 1},
+		]);
 	});
 
 	it('writes level (not a levels row) for a date node', async () => {
@@ -117,16 +110,14 @@ describe('calendar level/levels invariant', () => {
 			.from(calendarMetadata)
 			.where(eq(calendarMetadata.systemTo, FAR_FUTURE_DATE))
 			.all();
-		expect(metadataRows).toHaveLength(1);
-		expect(metadataRows[0].level).toBe('day');
-		expect(metadataRows[0].root).toBeNull();
+		expect(metadataRows.map(({level, root}) => ({level, root}))).toStrictEqual([{level: 'day', root: null}]);
 
 		const levelsRows = testDatabase.db
 			.select()
 			.from(calendarLevels)
 			.where(eq(calendarLevels.systemTo, FAR_FUTURE_DATE))
 			.all();
-		expect(levelsRows).toHaveLength(0);
+		expect(levelsRows).toStrictEqual([]);
 	});
 
 	it('keeps level and levels mutually exclusive across a mixed calendar tree', async () => {

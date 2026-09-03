@@ -12,7 +12,11 @@ import {
 	createTestNode,
 	splitNodeIntoContentAndMetadata,
 } from '../helpers/node-fixtures.js';
-import {expectActiveRecord, expectPhasedOut} from '../helpers/assertion-helpers.js';
+import {expectPhasedOut} from '../helpers/assertion-helpers.js';
+
+const FIXED_DATE = new Date('2026-01-01T12:00:00.000Z');
+const FIXED_SYSTEM_FROM = formatTemporalTimestamp(FIXED_DATE);
+const FIXED_EPOCH_SECONDS = Math.floor(FIXED_DATE.getTime() / 1000);
 
 describe('CacheService (shared)', () => {
 	let tempDir: string;
@@ -41,8 +45,7 @@ describe('CacheService (shared)', () => {
 
 			const node = await cacheService.getNode('node-1');
 
-			expect(node).toBeDefined();
-			expect({id: node!.id, name: node!.name}).toStrictEqual({id: 'node-1', name: 'Test Node'});
+			expect({id: node?.id, name: node?.name}).toStrictEqual({id: 'node-1', name: 'Test Node'});
 		});
 
 		it('returns undefined for non-existent node', async () => {
@@ -62,8 +65,7 @@ describe('CacheService (shared)', () => {
 
 			const node = await cacheService.getNode('node-1');
 
-			expect(node).toBeDefined();
-			expect(node!.name).toBe('Current');
+			expect(node?.name).toBe('Current');
 		});
 	});
 
@@ -135,8 +137,7 @@ describe('CacheService (shared)', () => {
 
 			const children = await cacheService.getChildren('parent');
 
-			expect(children).toHaveLength(1);
-			expect(children[0].name).toBe('Active');
+			expect(children.map((child) => child.name)).toStrictEqual(['Active']);
 		});
 	});
 
@@ -145,14 +146,35 @@ describe('CacheService (shared)', () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: 'parent', name: 'Parent', parentId: null}),
-					createTestNode({id: 'child', name: 'Target', parentId: 'parent'}),
+					createTestNode({
+						id: 'child',
+						name: 'Target',
+						parentId: 'parent',
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
+					}),
 				],
 			});
 
 			const child = await cacheService.getChildByName('parent', 'Target');
 
-			expect(child).not.toBeNull();
-			expect(child!.id).toBe('child');
+			expect(child).toStrictEqual({
+				id: 'child',
+				shortId: 'child',
+				parentId: 'parent',
+				name: 'Target',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 
 		it('returns null when name not found', async () => {
@@ -170,13 +192,36 @@ describe('CacheService (shared)', () => {
 
 		it('finds root node by name when parentId is null', async () => {
 			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: 'root', name: 'Root Node', parentId: null})],
+				nodes: [
+					createTestNode({
+						id: 'root',
+						name: 'Root Node',
+						parentId: null,
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
+					}),
+				],
 			});
 
 			const root = await cacheService.getChildByName(null, 'Root Node');
 
-			expect(root).not.toBeNull();
-			expect(root!.id).toBe('root');
+			expect(root).toStrictEqual({
+				id: 'root',
+				shortId: 'root',
+				parentId: null,
+				name: 'Root Node',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 
 		it('matches a plain segment against an HTML-formatted (colored) name', async () => {
@@ -186,14 +231,31 @@ describe('CacheService (shared)', () => {
 						id: 'personal',
 						name: '<span class="colored c-blue">Personal</span>',
 						parentId: null,
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
 					}),
 				],
 			});
 
 			const child = await cacheService.getChildByName(null, 'Personal');
 
-			expect(child).not.toBeNull();
-			expect(child!.id).toBe('personal');
+			expect(child).toStrictEqual({
+				id: 'personal',
+				shortId: 'personal',
+				parentId: null,
+				name: '<span class="colored c-blue">Personal</span>',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 	});
 
@@ -205,29 +267,53 @@ describe('CacheService (shared)', () => {
 
 			const result = await cacheService.getNodeWithMergedData('node-1');
 
-			expect(result.node).toBeDefined();
-			expect(result.source).toBe('cache');
+			expect({nodeName: result.node?.name, source: result.source}).toStrictEqual({
+				nodeName: 'Test',
+				source: 'cache',
+			});
 			expect(result.fetchedAt).toBeInstanceOf(Date);
 		});
 
 		it('returns none source for missing node', async () => {
 			const result = await cacheService.getNodeWithMergedData('missing');
 
-			expect(result.node).toBeUndefined();
-			expect(result.source).toBe('none');
+			expect(result).toStrictEqual({node: undefined, source: 'none'});
 		});
 	});
 
 	describe('findNodeByPath', () => {
 		it('finds node at simple path', async () => {
 			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: 'root', name: 'Root', parentId: null})],
+				nodes: [
+					createTestNode({
+						id: 'root',
+						name: 'Root',
+						parentId: null,
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
+					}),
+				],
 			});
 
 			const node = await cacheService.findNodeByPath(['Root']);
 
-			expect(node).not.toBeNull();
-			expect(node!.id).toBe('root');
+			expect(node).toStrictEqual({
+				id: 'root',
+				shortId: 'root',
+				parentId: null,
+				name: 'Root',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 
 		it('finds node at nested path', async () => {
@@ -235,14 +321,35 @@ describe('CacheService (shared)', () => {
 				nodes: [
 					createTestNode({id: 'l1', name: 'Level1', parentId: null}),
 					createTestNode({id: 'l2', name: 'Level2', parentId: 'l1'}),
-					createTestNode({id: 'l3', name: 'Level3', parentId: 'l2'}),
+					createTestNode({
+						id: 'l3',
+						name: 'Level3',
+						parentId: 'l2',
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
+					}),
 				],
 			});
 
 			const node = await cacheService.findNodeByPath(['Level1', 'Level2', 'Level3']);
 
-			expect(node).not.toBeNull();
-			expect(node!.id).toBe('l3');
+			expect(node).toStrictEqual({
+				id: 'l3',
+				shortId: 'l3',
+				parentId: 'l2',
+				name: 'Level3',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 
 		it('returns null for non-existent path', async () => {
@@ -262,13 +369,36 @@ describe('CacheService (shared)', () => {
 
 		it('returns root node for empty path with rootId', async () => {
 			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: 'root', name: 'Root', parentId: null})],
+				nodes: [
+					createTestNode({
+						id: 'root',
+						name: 'Root',
+						parentId: null,
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
+					}),
+				],
 			});
 
 			const node = await cacheService.findNodeByPath([], 'root');
 
-			expect(node).not.toBeNull();
-			expect(node!.id).toBe('root');
+			expect(node).toStrictEqual({
+				id: 'root',
+				shortId: 'root',
+				parentId: null,
+				name: 'Root',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 
 		it('resolves a path through an HTML-formatted (colored) ancestor', async () => {
@@ -279,14 +409,35 @@ describe('CacheService (shared)', () => {
 						name: '<span class="colored c-blue">Personal</span>',
 						parentId: null,
 					}),
-					createTestNode({id: 'review', name: '🔄 Review', parentId: 'personal'}),
+					createTestNode({
+						id: 'review',
+						name: '🔄 Review',
+						parentId: 'personal',
+						createdAt: FIXED_DATE,
+						modifiedAt: FIXED_DATE,
+						systemFrom: FIXED_SYSTEM_FROM,
+					}),
 				],
 			});
 
 			const node = await cacheService.findNodeByPath(['Personal', '🔄 Review']);
 
-			expect(node).not.toBeNull();
-			expect(node!.id).toBe('review');
+			expect(node).toStrictEqual({
+				id: 'review',
+				shortId: 'review',
+				parentId: 'personal',
+				name: '🔄 Review',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: FIXED_SYSTEM_FROM,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 
 		it('matches exactly, never on a substring', async () => {
@@ -391,13 +542,14 @@ describe('CacheService (shared)', () => {
 			await cacheService.storeApiResponse(apiNodes, null);
 
 			const allRecords = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).all();
-			expect(allRecords).toHaveLength(2);
-
-			const activeRecord = allRecords.find((r) => r.systemTo === FAR_FUTURE_DATE)!;
-			expect(activeRecord.name).toBe('New Name');
-
-			const historicalRecord = allRecords.find((r) => r.systemTo !== FAR_FUTURE_DATE)!;
-			expect(historicalRecord.name).toBe('Old Name');
+			expect({
+				activeNames: allRecords
+					.filter((record) => record.systemTo === FAR_FUTURE_DATE)
+					.map((record) => record.name),
+				historicalNames: allRecords
+					.filter((record) => record.systemTo !== FAR_FUTURE_DATE)
+					.map((record) => record.name),
+			}).toStrictEqual({activeNames: ['New Name'], historicalNames: ['Old Name']});
 		});
 
 		it('phases out cached children not in API response', async () => {
@@ -428,7 +580,16 @@ describe('CacheService (shared)', () => {
 			await cacheService.storeApiResponse(apiNodes, 'parent');
 
 			const parent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'parent')).get()!;
-			expect(parent.name).toBeNull();
+			expect(createNodeFromContent(parent)).toStrictEqual(
+				createNodeFromContent({
+					id: 'parent',
+					name: null,
+					note: null,
+					parentId: null,
+					systemFrom: parent.systemFrom,
+					systemTo: FAR_FUTURE_DATE,
+				}),
+			);
 		});
 
 		it('does not affect unchanged nodes', async () => {
@@ -469,8 +630,7 @@ describe('CacheService (shared)', () => {
 			await cacheService.storeApiResponse(apiNodes, null);
 
 			const allRecords = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).all();
-			expect(allRecords).toHaveLength(1);
-			expect(allRecords[0].systemFrom).toBe(initialRecord.systemFrom);
+			expect(allRecords.map((record) => record.systemFrom)).toStrictEqual([initialRecord.systemFrom]);
 		});
 	});
 
@@ -481,8 +641,7 @@ describe('CacheService (shared)', () => {
 			await cacheService.insertNode(apiNode, null);
 
 			const stored = await cacheService.getNode('new-node');
-			expect(stored).toBeDefined();
-			expect(stored!.name).toBe('New Node');
+			expect(stored?.name).toBe('New Node');
 		});
 
 		it('does not phase out siblings', async () => {
@@ -498,8 +657,7 @@ describe('CacheService (shared)', () => {
 			await cacheService.insertNode(apiNode, 'parent');
 
 			const sibling = await cacheService.getNode('sibling');
-			expect(sibling).toBeDefined();
-			expectActiveRecord(sibling!);
+			expect(sibling?.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 
 		it('updates existing node with temporal versioning', async () => {
@@ -512,20 +670,40 @@ describe('CacheService (shared)', () => {
 			await cacheService.insertNode(apiNode, null);
 
 			const allRecords = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).all();
-			expect(allRecords).toHaveLength(2);
-
-			const activeRecord = allRecords.find((r) => r.systemTo === FAR_FUTURE_DATE)!;
-			expect(activeRecord.name).toBe('Updated');
+			expect({
+				activeNames: allRecords
+					.filter((record) => record.systemTo === FAR_FUTURE_DATE)
+					.map((record) => record.name),
+				historicalNames: allRecords
+					.filter((record) => record.systemTo !== FAR_FUTURE_DATE)
+					.map((record) => record.name),
+			}).toStrictEqual({activeNames: ['Updated'], historicalNames: ['Old']});
 		});
 
 		it('normalizes layoutMode on a brand-new insert', async () => {
 			// 'bullets' is the default layout and normalizes to null (see normalizeLayoutMode).
-			const apiNode = createApiNode({id: 'new-node', name: 'New Node', parent_id: null});
+			const apiNode = createApiNode({
+				id: 'new-node',
+				name: 'New Node',
+				parent_id: null,
+				createdAt: FIXED_EPOCH_SECONDS,
+				modifiedAt: FIXED_EPOCH_SECONDS,
+			});
 
 			await cacheService.insertNode(apiNode, null);
 
 			const meta = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, 'new-node')).get()!;
-			expect(meta.layoutMode).toBeNull();
+			expect(meta).toStrictEqual({
+				nodeId: 'new-node',
+				shortId: 'newnode',
+				priority: 0,
+				createdAt: FIXED_DATE,
+				modifiedAt: FIXED_DATE,
+				completedAt: null,
+				layoutMode: null,
+				systemFrom: meta.systemFrom,
+				systemTo: FAR_FUTURE_DATE,
+			});
 		});
 	});
 
@@ -559,8 +737,7 @@ describe('CacheService (shared)', () => {
 			await cacheService.deleteNode('node-1');
 
 			const node2 = await cacheService.getNode('node-2');
-			expect(node2).toBeDefined();
-			expectActiveRecord(node2!);
+			expect(node2?.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 
 		it('closes backlinks and virtualRootIds for the deleted subtree', async () => {
@@ -669,18 +846,9 @@ describe('CacheService (shared)', () => {
 
 			const result = await cacheService.getChildrenWithMergedData('parent');
 
-			expect(result).toHaveLength(1);
-			expect({
-				id: result[0].id,
-				name: result[0].name,
-				note: result[0].note,
-				layoutMode: result[0].layoutMode,
-			}).toStrictEqual({
-				id: 'child',
-				name: 'Child',
-				note: 'A note',
-				layoutMode: 'document',
-			});
+			expect(result.map(({id, name, note, layoutMode}) => ({id, name, note, layoutMode}))).toStrictEqual([
+				{id: 'child', name: 'Child', note: 'A note', layoutMode: 'document'},
+			]);
 		});
 
 		it('returns empty array for no children', async () => {

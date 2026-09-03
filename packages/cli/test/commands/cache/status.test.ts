@@ -13,12 +13,16 @@ describe('cache:status command', () => {
 	let fsExistsSyncStub: MockInstance;
 	let fsStatSyncStub: MockInstance;
 	let tempDir: string;
+	let testDbPath: string;
 	let testDatabase: TestDatabase;
 	let originalDbPath: string | undefined;
 
 	beforeEach(async () => {
+		vi.useFakeTimers({shouldAdvanceTime: true});
+		vi.setSystemTime(new Date('2026-01-01T12:00:00.000Z'));
+
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-test-'));
-		const testDbPath = path.join(tempDir, 'test.sqlite');
+		testDbPath = path.join(tempDir, 'test.sqlite');
 		testDatabase = createTestDatabase(testDbPath);
 
 		originalDbPath = process.env.WORKFLOWY_DB_PATH;
@@ -34,6 +38,7 @@ describe('cache:status command', () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		cleanupTestDatabase(testDatabase);
 
 		if (originalDbPath === undefined) {
@@ -63,11 +68,11 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('📊 Cache Status');
-			expect(stdout).toContain('📁 Cached Nodes: 0');
-			expect(stdout).toContain('  No data cached');
-			expect(stdout).toContain('  No backup data imported');
-			expect(stdout).toContain('  Size: 1.00 KB');
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 1.00 KB\n',
+			);
 		});
 	});
 
@@ -146,7 +151,15 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('📁 Cached Nodes: 3');
+			const seededSync = new Date('2024-01-01T00:00:00Z').toLocaleString();
+
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 3\n\n🔄 Last Sync:\n  Time: ' +
+					seededSync +
+					'\n  Age: 2 years ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 2.00 KB\n',
+			);
 		});
 
 		it('displays last sync from most recent node systemFrom', async () => {
@@ -173,9 +186,13 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('🔄 Last Sync:');
-			expect(stdout).toMatch(/ {2}Time: .+/);
-			expect(stdout).toMatch(/ {2}Age: .+/);
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 4\n\n🔄 Last Sync:\n  Time: ' +
+					tenSecondsAgo.toLocaleString() +
+					'\n  Age: 10 seconds ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 3.00 KB\n',
+			);
 		});
 
 		it('displays backup import information when backup imports exist', async () => {
@@ -196,8 +213,15 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('💾 Backup Import:');
-			expect(stdout).toContain('  Last backup date: 2024-01-15');
+			const seededSync = new Date('2024-01-01T00:00:00Z').toLocaleString();
+
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 3\n\n🔄 Last Sync:\n  Time: ' +
+					seededSync +
+					'\n  Age: 2 years ago\n\n💾 Backup Import:\n  Last backup date: 2024-01-15\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 4.00 KB\n',
+			);
 		});
 	});
 
@@ -210,7 +234,11 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('Size: 512 bytes');
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 512 bytes\n',
+			);
 		});
 
 		it('formats kilobytes correctly', async () => {
@@ -221,7 +249,11 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('Size: 10.00 KB');
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 10.00 KB\n',
+			);
 		});
 
 		it('formats megabytes correctly', async () => {
@@ -232,7 +264,11 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toContain('Size: 5.00 MB');
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 5.00 MB\n',
+			);
 		});
 	});
 
@@ -261,7 +297,13 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toMatch(/Age: \d+ seconds ago/);
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 1\n\n🔄 Last Sync:\n  Time: ' +
+					tenSecondsAgo.toLocaleString() +
+					'\n  Age: 10 seconds ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 1.00 KB\n',
+			);
 		});
 
 		it('formats times as minutes ago', async () => {
@@ -288,7 +330,13 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			expect(stdout).toMatch(/Age: \d+ minutes? ago/);
+			expect(stdout).toBe(
+				'📊 Cache Status\n\n📁 Cached Nodes: 1\n\n🔄 Last Sync:\n  Time: ' +
+					fiveMinutesAgo.toLocaleString() +
+					'\n  Age: 5 minutes ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					testDbPath +
+					'\n  Size: 1.00 KB\n',
+			);
 		});
 	});
 });

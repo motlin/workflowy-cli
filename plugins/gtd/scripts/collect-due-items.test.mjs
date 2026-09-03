@@ -65,7 +65,7 @@ test('fromWorkflowy pulls dated tasks out of the ⏰ bucket only', () => {
 		TODAY,
 	);
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		items.map((i) => [i.source, i.title, i.due, i.overdueByDays]),
 		[
 			['workflowy', 'Call the allergist', '2026-07-04', 34],
@@ -76,7 +76,7 @@ test('fromWorkflowy pulls dated tasks out of the ⏰ bucket only', () => {
 
 test('fromWorkflowy never returns items from the 📌 asap bucket', () => {
 	const items = fromWorkflowy([workflowyRoot({tasks: []})], TODAY);
-	assert.deepEqual(items, []);
+	assert.deepStrictEqual(items, []);
 });
 
 test('fromWorkflowy flags undated tasks sitting in the ⏰ bucket as needing a date', () => {
@@ -91,15 +91,15 @@ test('fromWorkflowy flags undated tasks sitting in the ⏰ bucket as needing a d
 		TODAY,
 	);
 
-	assert.equal(items.length, 1);
-	assert.equal(items[0].due, null);
-	assert.equal(items[0].needsDate, true);
+	assert.strictEqual(items.length, 1);
+	assert.strictEqual(items[0].due, null);
+	assert.strictEqual(items[0].needsDate, true);
 });
 
 test('fromWorkflowy skips completed tasks', () => {
 	const task = dated('Already done', '2026-06-01', 'dddddddddddd4444');
 	task.completedAt = '2026-06-02T00:00:00.000Z';
-	assert.deepEqual(fromWorkflowy([workflowyRoot({tasks: [task]})], TODAY), []);
+	assert.deepStrictEqual(fromWorkflowy([workflowyRoot({tasks: [task]})], TODAY), []);
 });
 
 test('fromWorkflowy stages complete and reschedule ops carrying the full uuid', () => {
@@ -108,7 +108,7 @@ test('fromWorkflowy stages complete and reschedule ops carrying the full uuid', 
 		TODAY,
 	);
 
-	assert.equal(item.ops.complete, './bin/run.js node complete --id eeeeeeeeeeee5555');
+	assert.strictEqual(item.ops.complete, './bin/run.js node complete --id eeeeeeeeeeee5555');
 	assert.match(item.ops.reschedule, /^\.\/bin\/run\.js node update --id eeeeeeeeeeee5555 --name /);
 	assert.match(item.ops.reschedule, /\{\{date\}\}/);
 });
@@ -125,7 +125,7 @@ test('fromThings maps due-dated and Today-list tasks, deduping by id', () => {
 		TODAY,
 	);
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		items.map((i) => [i.source, i.id, i.title, i.due]),
 		[
 			['things', 'JMwVZ', 'Pay temple dues', '2026-08-01'],
@@ -145,7 +145,7 @@ test('fromThings distinguishes a real deadline from a Today-list scheduling', ()
 		TODAY,
 	);
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		items.map((i) => [i.id, i.dueSource, i.needsDate]),
 		[
 			['a', 'deadline', false],
@@ -159,7 +159,7 @@ test('fromThings leaves an undated task outside the Today list undated', () => {
 		{due: [], today: [], other: [{id: 'c', title: 'Someday', due: null, list: 'Anytime'}]},
 		TODAY,
 	);
-	assert.equal(item, undefined);
+	assert.strictEqual(item, undefined);
 });
 
 test('fromThings stages an AppleScript completion keyed on the stable id', () => {
@@ -180,7 +180,7 @@ test('fromReminders flattens overdue and dueToday, ignoring dueTomorrow', () => 
 		TODAY,
 	);
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		items.map((i) => [i.source, i.title, i.due]),
 		[
 			['reminders', 'Pay credit card', '2026-08-01'],
@@ -195,7 +195,7 @@ test('fromReminders keys its completion op on the title, since iMCP exposes no i
 		TODAY,
 	);
 
-	assert.equal(item.id, "O'Brien follow-up");
+	assert.strictEqual(item.id, "O'Brien follow-up");
 	assert.match(item.ops.complete, /Reminders/);
 	assert.match(item.ops.complete, /O'"'"'Brien follow-up/);
 });
@@ -217,7 +217,7 @@ test('collectDueItems merges all three sources sorted by due date, undated last'
 		TODAY,
 	);
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		rows.map((r) => [r.source, r.due]),
 		[
 			['reminders', '2026-05-01'],
@@ -237,23 +237,23 @@ test('collectDueItems drops items due after today', () => {
 		},
 		TODAY,
 	);
-	assert.deepEqual(rows, []);
+	assert.deepStrictEqual(rows, []);
 });
 
 test('collectDueItems tolerates missing sources', () => {
-	assert.deepEqual(collectDueItems({}, TODAY), []);
+	assert.deepStrictEqual(collectDueItems({}, TODAY), []);
 });
 
 test('resolveTimeframe converts the file-tasks timeframes into concrete dates', () => {
 	// 2026-08-07 is a Friday, so "this week" lands on that same Friday.
-	assert.equal(resolveTimeframe('Today', TODAY), '2026-08-07');
-	assert.equal(resolveTimeframe('This week', TODAY), '2026-08-07');
-	assert.equal(resolveTimeframe('This month', TODAY), '2026-08-31');
+	assert.strictEqual(resolveTimeframe('Today', TODAY), '2026-08-07');
+	assert.strictEqual(resolveTimeframe('This week', TODAY), '2026-08-07');
+	assert.strictEqual(resolveTimeframe('This month', TODAY), '2026-08-31');
 });
 
 test('resolveTimeframe picks the upcoming Friday mid-week', () => {
-	assert.equal(resolveTimeframe('This week', '2026-08-03'), '2026-08-07'); // Monday -> Friday
-	assert.equal(resolveTimeframe('This week', '2026-08-08'), '2026-08-14'); // Saturday -> next Friday
+	assert.strictEqual(resolveTimeframe('This week', '2026-08-03'), '2026-08-07'); // Monday -> Friday
+	assert.strictEqual(resolveTimeframe('This week', '2026-08-08'), '2026-08-14'); // Saturday -> next Friday
 });
 
 /**
@@ -359,12 +359,12 @@ test('moveToAsap is absent when the root has no asap bucket', () => {
 	const root = workflowyRoot({tasks: [dated('Orphan', '2026-08-07', 'aaaaaaaaaaaa7777')]});
 	root.root.children[1].children = [root.root.children[1].children[0]]; // drop the asap bucket
 	const [item] = fromWorkflowy([root], TODAY);
-	assert.equal(item.ops.moveToAsap, undefined);
+	assert.strictEqual(item.ops.moveToAsap, undefined);
 });
 
 test('resolveTimeframe reaches the longer horizons offered to repeatedly skipped tasks', () => {
-	assert.equal(resolveTimeframe('Next month', TODAY), '2026-09-07');
-	assert.equal(resolveTimeframe('Next quarter', TODAY), '2026-11-07');
+	assert.strictEqual(resolveTimeframe('Next month', TODAY), '2026-09-07');
+	assert.strictEqual(resolveTimeframe('Next quarter', TODAY), '2026-11-07');
 });
 
 test('resolveTimeframe still rejects a timeframe it does not know', () => {
@@ -372,8 +372,8 @@ test('resolveTimeframe still rejects a timeframe it does not know', () => {
 });
 
 test('skipKey namespaces an item id by source so two systems cannot collide', () => {
-	assert.equal(skipKey({source: 'things', id: 'abc'}), 'things:abc');
-	assert.equal(skipKey({source: 'reminders', id: 'abc'}), 'reminders:abc');
+	assert.strictEqual(skipKey({source: 'things', id: 'abc'}), 'things:abc');
+	assert.strictEqual(skipKey({source: 'reminders', id: 'abc'}), 'reminders:abc');
 });
 
 test('collectDueItems reports a zero skip streak when there is no history', () => {
@@ -381,8 +381,8 @@ test('collectDueItems reports a zero skip streak when there is no history', () =
 		{things: {due: [{id: 'things-1', title: 'Renew the passport', due: '2026-07-01'}]}},
 		TODAY,
 	);
-	assert.equal(rows[0].skipStreak, 0);
-	assert.equal(rows[0].skippedSince, null);
+	assert.strictEqual(rows[0].skipStreak, 0);
+	assert.strictEqual(rows[0].skippedSince, null);
 });
 
 test('collectDueItems carries each item skip streak onto its row', () => {
@@ -395,8 +395,8 @@ test('collectDueItems carries each item skip streak onto its row', () => {
 		TODAY,
 		{skipStreaks},
 	);
-	assert.equal(rows[0].skipStreak, 2);
-	assert.equal(rows[0].skippedSince, '2026-08-05');
+	assert.strictEqual(rows[0].skipStreak, 2);
+	assert.strictEqual(rows[0].skippedSince, '2026-08-05');
 });
 
 test('fromWorkflowy carries the subtree context the walk shows before asking', () => {
@@ -412,14 +412,14 @@ test('fromWorkflowy carries the subtree context the walk shows before asking', (
 		{name: 'Drive B', shortId: null, note: 'spare', children: []},
 	];
 	const [item] = fromWorkflowy([workflowyRoot({tasks: [task]})], TODAY);
-	assert.equal(item.note, 'started at https://example.com/notes');
-	assert.equal(item.modifiedAt, '2026-07-30T09:15:00Z');
-	assert.equal(item.childCount, 2);
-	assert.deepEqual(item.children, [
+	assert.strictEqual(item.note, 'started at https://example.com/notes');
+	assert.strictEqual(item.modifiedAt, '2026-07-30T09:15:00Z');
+	assert.strictEqual(item.childCount, 2);
+	assert.deepStrictEqual(item.children, [
 		{title: 'Drive A', note: null, childCount: 1, url: 'https://workflowy.com/#/sid-a'},
 		{title: 'Drive B', note: 'spare', childCount: 0, url: null},
 	]);
-	assert.deepEqual(item.links, ['https://example.com/notes']);
+	assert.deepStrictEqual(item.links, ['https://example.com/notes']);
 });
 
 test('fromThings carries the task note so the walk can show it', () => {
@@ -427,10 +427,10 @@ test('fromThings carries the task note so the walk can show it', () => {
 		{due: [{id: 'T1', title: 'Renew passport', due: '2026-08-01', list: 'Today', notes: 'form DS-82'}]},
 		TODAY,
 	);
-	assert.equal(item.note, 'form DS-82');
-	assert.equal(item.modifiedAt, null);
-	assert.deepEqual(item.children, []);
-	assert.deepEqual(item.links, []);
+	assert.strictEqual(item.note, 'form DS-82');
+	assert.strictEqual(item.modifiedAt, null);
+	assert.deepStrictEqual(item.children, []);
+	assert.deepStrictEqual(item.links, []);
 });
 
 test('fromReminders carries the reminder note so the walk can show it', () => {
@@ -438,9 +438,9 @@ test('fromReminders carries the reminder note so the walk can show it', () => {
 		{overdue: [{title: 'Pay the tolls', dueDate: '2026-08-05T09:00:00', list: 'Reminders', notes: 'account 4821'}]},
 		TODAY,
 	);
-	assert.equal(item.note, 'account 4821');
-	assert.deepEqual(item.children, []);
-	assert.deepEqual(item.links, []);
+	assert.strictEqual(item.note, 'account 4821');
+	assert.deepStrictEqual(item.children, []);
+	assert.deepStrictEqual(item.links, []);
 });
 
 test('a URL in a Things note becomes a link the walk opens', () => {
@@ -458,5 +458,5 @@ test('a URL in a Things note becomes a link the walk opens', () => {
 		},
 		TODAY,
 	);
-	assert.deepEqual(item.links, ['https://youtube.com/watch?v=abc']);
+	assert.deepStrictEqual(item.links, ['https://youtube.com/watch?v=abc']);
 });

@@ -62,16 +62,21 @@ describe('workflowy:utils:path-to-id command', () => {
 		});
 
 		it('has correct flag configuration', () => {
-			expect(PathToId.flags).toHaveProperty('path');
-			expect(PathToId.flags.path.char).toBe('p');
-			expect(PathToId.flags.path.required).toBe(true);
-
-			expect(PathToId.flags).toHaveProperty('root-id');
-			expect(PathToId.flags['root-id'].char).toBe('r');
-
-			expect(PathToId.flags).toHaveProperty('data-source');
-			expect(PathToId.flags['data-source'].char).toBe('d');
-			expect(PathToId.flags['data-source'].default).toBe('auto');
+			expect({
+				path: {
+					char: PathToId.flags.path.char,
+					required: PathToId.flags.path.required,
+				},
+				rootId: {char: PathToId.flags['root-id'].char},
+				dataSource: {
+					char: PathToId.flags['data-source'].char,
+					default: PathToId.flags['data-source'].default,
+				},
+			}).toStrictEqual({
+				path: {char: 'p', required: true},
+				rootId: {char: 'r'},
+				dataSource: {char: 'd', default: 'auto'},
+			});
 		});
 	});
 

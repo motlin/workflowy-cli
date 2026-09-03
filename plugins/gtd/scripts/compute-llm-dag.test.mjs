@@ -74,18 +74,18 @@ const fixture = () => ({
 test('computeLlmDag inherits due state from prep and preserves presentation order', () => {
 	const plan = computeLlmDag(fixture(), '2000-01-01');
 
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		plan.prepBranches.map((branch) => ({mode: branch.mode, slugs: branch.tasks.map((item) => item.slug)})),
 		[
 			{mode: 'parallel', slugs: ['daily']},
 			{mode: 'serial', slugs: ['weekly']},
 		],
 	);
-	assert.deepEqual(
+	assert.deepStrictEqual(
 		plan.presentation.map((item) => item.slug),
 		['weekly', 'daily'],
 	);
-	assert.deepEqual(plan.skipped, [{slug: 'future', reason: 'future', dueDate: '2000-01-02'}]);
+	assert.deepStrictEqual(plan.skipped, [{slug: 'future', reason: 'future', dueDate: '2000-01-02'}]);
 });
 
 test('computeLlmDag defaults to daily and honors explicit weekly intervals', () => {
@@ -94,10 +94,10 @@ test('computeLlmDag defaults to daily and honors explicit weekly intervals', () 
 	const daily = tasks.find((item) => item.slug === 'daily');
 	const weekly = tasks.find((item) => item.slug === 'weekly');
 
-	assert.deepEqual(daily.interval, {amount: 1, unit: 'd'});
-	assert.equal(daily.advance.nextDate, '2000-01-02');
-	assert.deepEqual(weekly.interval, {amount: 7, unit: 'd'});
-	assert.equal(weekly.advance.nextDate, '2000-01-08');
+	assert.deepStrictEqual(daily.interval, {amount: 1, unit: 'd'});
+	assert.strictEqual(daily.advance.nextDate, '2000-01-02');
+	assert.deepStrictEqual(weekly.interval, {amount: 7, unit: 'd'});
+	assert.strictEqual(weekly.advance.nextDate, '2000-01-08');
 	assert.match(weekly.advance.applyOp, /--id weekly/);
 	assert.match(weekly.advance.applyOp, /--expect-name/);
 });
@@ -156,8 +156,8 @@ test('computeLlmDag infers the artifact slug from the prep command', () => {
 	);
 
 	const plan = computeLlmDag(tree, '2000-01-01');
-	assert.equal(plan.prepBranches[0].tasks[0].slug, 'refine-exercise');
-	assert.equal(plan.presentation.at(-1).slug, 'refine-exercise');
+	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, 'refine-exercise');
+	assert.strictEqual(plan.presentation.at(-1).slug, 'refine-exercise');
 });
 
 test('computeLlmDag pairs different commands through the shared task name', () => {
@@ -168,8 +168,8 @@ test('computeLlmDag pairs different commands through the shared task name', () =
 	presentations.push(presentation({name: 'Process inbox', id: 'inbox-presentation', command: 'inbox'}));
 
 	const plan = computeLlmDag(tree, '2000-01-01');
-	assert.equal(plan.prepBranches[0].tasks[0].slug, 'refine-inbox');
-	assert.equal(plan.presentation.at(-1).slug, 'refine-inbox');
+	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, 'refine-inbox');
+	assert.strictEqual(plan.presentation.at(-1).slug, 'refine-inbox');
 });
 
 test('computeLlmDag rejects duplicate inferred slugs', () => {

@@ -60,19 +60,19 @@ test('hasCommandInvocation matches only the requested command stub', () => {
 });
 
 test('isHumanUserMessage accepts typed text (string and text-block array)', () => {
-	assert.equal(isHumanUserMessage(humanTyped), true);
-	assert.equal(isHumanUserMessage(humanTypedBlockArray), true);
+	assert.strictEqual(isHumanUserMessage(humanTyped), true);
+	assert.strictEqual(isHumanUserMessage(humanTypedBlockArray), true);
 });
 
 test('isHumanUserMessage rejects tool-result echoes and slash-command stubs', () => {
-	assert.equal(isHumanUserMessage(toolResultEcho), false);
-	assert.equal(isHumanUserMessage(commandStub), false);
-	assert.equal(isHumanUserMessage(assistantToolUse), false);
+	assert.strictEqual(isHumanUserMessage(toolResultEcho), false);
+	assert.strictEqual(isHumanUserMessage(commandStub), false);
+	assert.strictEqual(isHumanUserMessage(assistantToolUse), false);
 });
 
 test('isHumanUserMessage rejects harness-injected and synthetic user lines', () => {
 	// isMeta marks command-body / skill-injection expansions, not human input.
-	assert.equal(
+	assert.strictEqual(
 		isHumanUserMessage({
 			type: 'user',
 			isMeta: true,
@@ -81,7 +81,7 @@ test('isHumanUserMessage rejects harness-injected and synthetic user lines', () 
 		false,
 	);
 	// Sidechain = subagent transcript, not the user.
-	assert.equal(
+	assert.strictEqual(
 		isHumanUserMessage({
 			type: 'user',
 			isSidechain: true,
@@ -90,12 +90,12 @@ test('isHumanUserMessage rejects harness-injected and synthetic user lines', () 
 		false,
 	);
 	// A user line carrying toolUseResult is a tool echo even if shaped oddly.
-	assert.equal(
+	assert.strictEqual(
 		isHumanUserMessage({type: 'user', toolUseResult: {}, message: {role: 'user', content: 'output'}}),
 		false,
 	);
 	// The interrupt marker is synthetic.
-	assert.equal(
+	assert.strictEqual(
 		isHumanUserMessage({
 			type: 'user',
 			message: {role: 'user', content: [{type: 'text', text: '[Request interrupted by user for tool use]'}]},
@@ -105,8 +105,8 @@ test('isHumanUserMessage rejects harness-injected and synthetic user lines', () 
 });
 
 test('userText pulls a clean string from either content shape', () => {
-	assert.equal(userText(humanTyped), "you didn't complete the reminders");
-	assert.equal(userText(humanTypedBlockArray), 'we ALWAYS work on the skill first');
+	assert.strictEqual(userText(humanTyped), "you didn't complete the reminders");
+	assert.strictEqual(userText(humanTypedBlockArray), 'we ALWAYS work on the skill first');
 });
 
 test('assistantSummary names the tools/commands the assistant just ran', () => {
@@ -118,11 +118,11 @@ test('assistantSummary names the tools/commands the assistant just ran', () => {
 test('extractFeedback returns human turns with the preceding assistant action, in order', () => {
 	const objs = [commandStub, assistantToolUse, humanTyped, toolResultEcho, humanTypedBlockArray];
 	const {turns} = extractFeedback(objs);
-	assert.equal(turns.length, 2);
-	assert.equal(turns[0].text, "you didn't complete the reminders");
+	assert.strictEqual(turns.length, 2);
+	assert.strictEqual(turns[0].text, "you didn't complete the reminders");
 	assert.match(turns[0].prevAssistant, /Bash/);
-	assert.equal(turns[1].text, 'we ALWAYS work on the skill first');
-	assert.equal(turns[0].ts, '2026-06-23T22:15:18.000Z');
+	assert.strictEqual(turns[1].text, 'we ALWAYS work on the skill first');
+	assert.strictEqual(turns[0].ts, '2026-06-23T22:15:18.000Z');
 });
 
 test('extractFeedback keeps only turns at or after the cutoff, not whole sessions', () => {
@@ -146,7 +146,7 @@ test('extractFeedback keeps only turns at or after the cutoff, not whole session
 
 test('extractFeedback without a cutoff keeps every turn', () => {
 	const {turns} = extractFeedback([humanTyped, humanTypedBlockArray]);
-	assert.equal(turns.length, 2);
+	assert.strictEqual(turns.length, 2);
 });
 
 test('extractFeedback keeps turns whose timestamp is missing', () => {
@@ -209,29 +209,29 @@ const bashEcho = {
 };
 
 test('isAskUserQuestionAnswer recognizes both answer prefixes', () => {
-	assert.equal(isAskUserQuestionAnswer(askAnswer), true);
-	assert.equal(isAskUserQuestionAnswer(askAnswerMulti), true);
+	assert.strictEqual(isAskUserQuestionAnswer(askAnswer), true);
+	assert.strictEqual(isAskUserQuestionAnswer(askAnswerMulti), true);
 });
 
 test('isAskUserQuestionAnswer rejects tool output that merely quotes the phrase', () => {
-	assert.equal(isAskUserQuestionAnswer(bashEcho), false);
-	assert.equal(isAskUserQuestionAnswer(toolResultEcho), false);
-	assert.equal(isAskUserQuestionAnswer(humanTyped), false);
+	assert.strictEqual(isAskUserQuestionAnswer(bashEcho), false);
+	assert.strictEqual(isAskUserQuestionAnswer(toolResultEcho), false);
+	assert.strictEqual(isAskUserQuestionAnswer(humanTyped), false);
 });
 
 test('askAnswerText returns the raw answer payload', () => {
 	assert.match(askAnswerText(askAnswer), /figure out why it's broken/);
 	assert.match(askAnswerText(askAnswerMulti), /Run all three/);
-	assert.equal(askAnswerText(bashEcho), null);
+	assert.strictEqual(askAnswerText(bashEcho), null);
 });
 
 test('extractFeedback captures AskUserQuestion answers as turns, marked by source', () => {
 	const {turns} = extractFeedback([assistantToolUse, humanTyped, askAnswer]);
-	assert.equal(turns.length, 2);
-	assert.equal(turns[0].source, 'typed');
-	assert.equal(turns[1].source, 'ask');
+	assert.strictEqual(turns.length, 2);
+	assert.strictEqual(turns[0].source, 'typed');
+	assert.strictEqual(turns[1].source, 'ask');
 	assert.match(turns[1].text, /figure out why it's broken/);
-	assert.equal(turns[1].ts, '2026-07-26T17:15:33.000Z');
+	assert.strictEqual(turns[1].ts, '2026-07-26T17:15:33.000Z');
 });
 
 test('extractFeedback caps very long turn text so the extract stays compact', () => {

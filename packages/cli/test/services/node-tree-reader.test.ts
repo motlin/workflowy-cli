@@ -13,12 +13,16 @@ describe('NodeTreeReader', () => {
 	const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 
 	beforeEach(() => {
+		vi.useFakeTimers({shouldAdvanceTime: true});
+		vi.setSystemTime(new Date('2026-01-01T12:00:00.000Z'));
+
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-tree-test-'));
 		testDatabase = createTestDatabase(path.join(tempDir, 'test.sqlite'));
 		reader = new NodeTreeReader(new CacheService(testDatabase.db));
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		cleanupTestDatabase(testDatabase);
 		if (fs.existsSync(tempDir)) fs.rmSync(tempDir, {recursive: true, force: true});
 	});
@@ -35,9 +39,64 @@ describe('NodeTreeReader', () => {
 
 		const trees = await reader.readChildren('p', {depth: 2});
 
-		expect(trees.map((t) => t.name)).toStrictEqual(['Child 1', 'Child 2']);
-		expect(trees[0].children?.map((c) => c.name)).toStrictEqual(['Grandchild']);
-		expect(trees[1].children).toBeUndefined();
+		expect(trees).toStrictEqual([
+			{
+				id: 'c1',
+				shortId: 'c1',
+				parentId: 'p',
+				name: 'Child 1',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: new Date('2026-01-01T12:00:00.000Z'),
+				modifiedAt: new Date('2026-01-01T12:00:00.000Z'),
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: '2026-01-01 12:00:00.000',
+				systemTo: FAR_FUTURE_DATE,
+				inChat: false,
+				hasReferencesRoot: false,
+				children: [
+					{
+						id: 'gc1',
+						shortId: 'gc1',
+						parentId: 'c1',
+						name: 'Grandchild',
+						note: null,
+						priority: 0,
+						layoutMode: 'bullets',
+						createdAt: new Date('2026-01-01T12:00:00.000Z'),
+						modifiedAt: new Date('2026-01-01T12:00:00.000Z'),
+						completedAt: null,
+						collapsed: false,
+						mirror: {isMirror: false, originalNodeId: null},
+						systemFrom: '2026-01-01 12:00:00.000',
+						systemTo: FAR_FUTURE_DATE,
+						inChat: false,
+						hasReferencesRoot: false,
+					},
+				],
+			},
+			{
+				id: 'c2',
+				shortId: 'c2',
+				parentId: 'p',
+				name: 'Child 2',
+				note: null,
+				priority: 1,
+				layoutMode: 'bullets',
+				createdAt: new Date('2026-01-01T12:00:00.000Z'),
+				modifiedAt: new Date('2026-01-01T12:00:00.000Z'),
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: '2026-01-01 12:00:00.000',
+				systemTo: FAR_FUTURE_DATE,
+				inChat: false,
+				hasReferencesRoot: false,
+			},
+		]);
 	});
 
 	it('does not resolve children at depth 0', async () => {
@@ -50,8 +109,26 @@ describe('NodeTreeReader', () => {
 
 		const trees = await reader.readChildren('p', {depth: 0});
 
-		expect(trees.map((t) => t.name)).toStrictEqual(['Child 1']);
-		expect(trees[0].children).toBeUndefined();
+		expect(trees).toStrictEqual([
+			{
+				id: 'c1',
+				shortId: 'c1',
+				parentId: 'p',
+				name: 'Child 1',
+				note: null,
+				priority: 0,
+				layoutMode: 'bullets',
+				createdAt: new Date('2026-01-01T12:00:00.000Z'),
+				modifiedAt: new Date('2026-01-01T12:00:00.000Z'),
+				completedAt: null,
+				collapsed: false,
+				mirror: {isMirror: false, originalNodeId: null},
+				systemFrom: '2026-01-01 12:00:00.000',
+				systemTo: FAR_FUTURE_DATE,
+				inChat: false,
+				hasReferencesRoot: false,
+			},
+		]);
 	});
 
 	it('surfaces the inChat and hasReferencesRoot flags', async () => {

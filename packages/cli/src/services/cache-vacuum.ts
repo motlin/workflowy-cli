@@ -22,10 +22,16 @@ export class CacheVacuumService {
 	vacuum(): VacuumResult {
 		const dbPath = path.resolve(process.env.WORKFLOWY_DB_PATH || 'workflowy.sqlite');
 
+		// In WAL mode pages live in the -wal file until a checkpoint, so both sizes are
+		// measured against a checkpointed database or the before/after comparison is
+		// meaningless: without this the file looks unchanged, or even larger afterwards.
+		this.checkpoint();
+
 		const sizeBeforeBytes = this.getFileSize(dbPath);
 		const freelistBefore = this.getFreelistCount();
 
 		this.database.run(sql.raw('VACUUM'));
+		this.checkpoint();
 
 		const sizeAfterBytes = this.getFileSize(dbPath);
 		const freelistAfter = this.getFreelistCount();
@@ -37,6 +43,10 @@ export class CacheVacuumService {
 			freelistBefore,
 			freelistAfter,
 		};
+	}
+
+	private checkpoint(): void {
+		this.database.run(sql.raw('PRAGMA wal_checkpoint(TRUNCATE)'));
 	}
 
 	private getFreelistCount(): number {

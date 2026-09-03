@@ -15,14 +15,49 @@ describe('parseSearchQuery', () => {
 	});
 
 	it('parses is:complete and is:incomplete', () => {
-		expect(parseSearchQuery('done is:complete').isComplete).toBe(true);
-		expect(parseSearchQuery('todo is:incomplete').isComplete).toBe(false);
-		expect(parseSearchQuery('plain').isComplete).toBeNull();
+		expect(parseSearchQuery('done is:complete')).toStrictEqual({
+			exactPhrases: [],
+			requiredTerms: ['done'],
+			orTerms: [],
+			excludedTerms: [],
+			isComplete: true,
+			lastChangedDays: null,
+		});
+		expect(parseSearchQuery('todo is:incomplete')).toStrictEqual({
+			exactPhrases: [],
+			requiredTerms: ['todo'],
+			orTerms: [],
+			excludedTerms: [],
+			isComplete: false,
+			lastChangedDays: null,
+		});
+		expect(parseSearchQuery('plain')).toStrictEqual({
+			exactPhrases: [],
+			requiredTerms: ['plain'],
+			orTerms: [],
+			excludedTerms: [],
+			isComplete: null,
+			lastChangedDays: null,
+		});
 	});
 
 	it('parses last-changed:Nd', () => {
-		expect(parseSearchQuery('recent last-changed:7d').lastChangedDays).toBe(7);
-		expect(parseSearchQuery('plain').lastChangedDays).toBeNull();
+		expect(parseSearchQuery('recent last-changed:7d')).toStrictEqual({
+			exactPhrases: [],
+			requiredTerms: ['recent'],
+			orTerms: [],
+			excludedTerms: [],
+			isComplete: null,
+			lastChangedDays: 7,
+		});
+		expect(parseSearchQuery('plain')).toStrictEqual({
+			exactPhrases: [],
+			requiredTerms: ['plain'],
+			orTerms: [],
+			excludedTerms: [],
+			isComplete: null,
+			lastChangedDays: null,
+		});
 	});
 
 	it('collects -negations and removes them from terms', () => {
