@@ -15,8 +15,7 @@ import {
 	type CachedNodeRow,
 	type PhotoGroup,
 } from '../../services/photo-groups.js';
-import {listBackups} from '../../utils/backup-archive.js';
-import path from 'node:path';
+import {listBackups, resolveBackupsDirectory} from '../../utils/backup-archive.js';
 
 /** Position argument for the move API: negative is top, zero or more is bottom. */
 const MOVE_TO_BOTTOM = 0;
@@ -142,7 +141,7 @@ function findStaleAttachmentData(database: ReturnType<typeof createDatabase>): s
 
 	let newestBackup: Date | null = null;
 	try {
-		for (const backup of listBackups(path.join(process.cwd(), 'backups'))) {
+		for (const backup of listBackups(resolveBackupsDirectory())) {
 			if (newestBackup === null || backup.backupDate > newestBackup) newestBackup = backup.backupDate;
 		}
 	} catch {

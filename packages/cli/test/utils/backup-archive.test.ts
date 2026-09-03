@@ -15,6 +15,7 @@ import {
 	readBackupBytes,
 	readBackupContent,
 	readBackupFile,
+	resolveBackupsDirectory,
 } from '../../src/utils/backup-archive.js';
 
 const dataName = (date: string): string => `(alice@example.com).${date}.workflowy.backup`;
@@ -233,6 +234,40 @@ describe('backup-archive', () => {
 
 		it('returns an empty list when no backups directory exists', () => {
 			expect(listBackups(path.join(tmpDir, 'missing'))).toStrictEqual([]);
+		});
+	});
+
+	describe('resolveBackupsDirectory', () => {
+		let originalEnv: string | undefined;
+
+		beforeEach(() => {
+			originalEnv = process.env.WORKFLOWY_BACKUPS_DIR;
+		});
+
+		afterEach(() => {
+			if (originalEnv === undefined) {
+				delete process.env.WORKFLOWY_BACKUPS_DIR;
+			} else {
+				process.env.WORKFLOWY_BACKUPS_DIR = originalEnv;
+			}
+		});
+
+		it('defaults to the backups directory under the working directory', () => {
+			delete process.env.WORKFLOWY_BACKUPS_DIR;
+
+			expect(resolveBackupsDirectory()).toBe(path.join(process.cwd(), 'backups'));
+		});
+
+		it('honors WORKFLOWY_BACKUPS_DIR so tests never touch the real backups', () => {
+			process.env.WORKFLOWY_BACKUPS_DIR = tmpDir;
+
+			expect(resolveBackupsDirectory()).toBe(tmpDir);
+		});
+
+		it('ignores an empty WORKFLOWY_BACKUPS_DIR', () => {
+			process.env.WORKFLOWY_BACKUPS_DIR = '';
+
+			expect(resolveBackupsDirectory()).toBe(path.join(process.cwd(), 'backups'));
 		});
 	});
 });

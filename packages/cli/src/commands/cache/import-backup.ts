@@ -5,6 +5,7 @@ import {and, desc, eq} from 'drizzle-orm';
 import {logger} from '../../services/logger.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import {resolveBackupsDirectory} from '../../utils/backup-archive.js';
 import * as readline from 'node:readline/promises';
 import {createDatabase} from '../../db/index.js';
 import {type BackupImportProgress, BackupImportService} from '../../services/backup-import.js';
@@ -270,7 +271,7 @@ export default class ImportBackup extends Command {
 	}
 
 	private findLatestBackupFile(): string {
-		const backupsDirectory = path.join(process.cwd(), 'backups');
+		const backupsDirectory = resolveBackupsDirectory();
 
 		if (!fs.existsSync(backupsDirectory)) {
 			this.error('No backups directory found. Download a backup first with: workflowy dropbox:download-backup');

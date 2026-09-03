@@ -4,8 +4,7 @@ import {Command, Flags} from '@oclif/core';
 import {desc, eq} from 'drizzle-orm';
 import {createDatabase} from '../../db/index.js';
 import {logger} from '../../services/logger.js';
-import path from 'node:path';
-import {type BackupEntry, listBackups, materializeBackup} from '../../utils/backup-archive.js';
+import {type BackupEntry, listBackups, materializeBackup, resolveBackupsDirectory} from '../../utils/backup-archive.js';
 import {formatDate, getDateDifference} from '../../utils/backup-validation.js';
 
 export default class ImportBackups extends Command {
@@ -34,7 +33,7 @@ export default class ImportBackups extends Command {
 		const {flags} = await this.parse(ImportBackups);
 
 		const db = createDatabase();
-		const backupsDirectory = path.join(process.cwd(), 'backups');
+		const backupsDirectory = resolveBackupsDirectory();
 
 		const mostRecentImport = db
 			.select()

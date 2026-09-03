@@ -11,13 +11,20 @@ describe('PathBuilder', () => {
 	let testDatabase: TestDatabase;
 	let pathBuilder: PathBuilder;
 
-	beforeEach(() => {
+	// An in-memory database still replays every migration, so build one for the
+	// whole file. Seeding clears every table first, which keeps each test starting
+	// from an empty database.
+	beforeAll(() => {
 		testDatabase = createInMemoryTestDatabase();
 		pathBuilder = new PathBuilder(testDatabase.db);
 	});
 
-	afterEach(() => {
+	afterAll(() => {
 		cleanupTestDatabase(testDatabase);
+	});
+
+	beforeEach(() => {
+		seedTestData(testDatabase, {});
 	});
 
 	describe('buildFullPathsBatch', () => {

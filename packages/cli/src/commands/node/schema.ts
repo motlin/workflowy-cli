@@ -77,19 +77,28 @@ export default class Schema extends Command {
 
 		const commands = flags.command ? [flags.command] : Object.keys(COMMAND_TYPE_MAP);
 
+		const tsconfigPath = path.resolve(PKG_ROOT, 'tsconfig.json');
+		// Each generator builds its own TypeScript program, which costs a few
+		// hundred milliseconds. `get` and `list` both render NodeTree out of the
+		// same file, so cache on the pair that determines the program.
+		const generators = new Map<string, ReturnType<typeof createGenerator>>();
+
 		for (const [i, cmd] of commands.entries()) {
 			if (i > 0) this.log('');
 
 			const mapping = COMMAND_TYPE_MAP[cmd];
 
-			const tsconfigPath = path.resolve(PKG_ROOT, 'tsconfig.json');
-
-			const generator = createGenerator({
-				path: mapping.sourceFile,
-				tsconfig: tsconfigPath,
-				type: mapping.typeName,
-				skipTypeCheck: true,
-			});
+			const generatorKey = `${mapping.sourceFile} ${mapping.typeName}`;
+			let generator = generators.get(generatorKey);
+			if (!generator) {
+				generator = createGenerator({
+					path: mapping.sourceFile,
+					tsconfig: tsconfigPath,
+					type: mapping.typeName,
+					skipTypeCheck: true,
+				});
+				generators.set(generatorKey, generator);
+			}
 
 			const jsonSchema = generator.createSchema(mapping.typeName);
 			const interfaceText = schemaToInterface(jsonSchema, mapping.interfaceName);

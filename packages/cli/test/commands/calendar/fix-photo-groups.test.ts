@@ -64,6 +64,10 @@ describe('calendar:fix-photo-groups command', () => {
 		testDatabase = createTestDatabase(testDbPath);
 		process.env.WORKFLOWY_DB_PATH = testDbPath;
 		process.env.WORKFLOWY_API_KEY = 'test-api-key';
+		// Without this the staleness check decompresses every real monthly backup
+		// archive on disk, costing ~1.5s per test and coupling results to the
+		// developer's machine.
+		process.env.WORKFLOWY_BACKUPS_DIR = path.join(tempDir, 'backups');
 
 		requests = [];
 		fetchStub = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {

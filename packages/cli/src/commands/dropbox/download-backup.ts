@@ -3,7 +3,7 @@ import {Dropbox} from 'dropbox';
 import type {files} from 'dropbox';
 import fs from 'node:fs';
 import path from 'node:path';
-import {compressBuffer} from '../../utils/backup-archive.js';
+import {compressBuffer, resolveBackupsDirectory} from '../../utils/backup-archive.js';
 
 function formatTimestamp(): string {
 	return new Date().toISOString();
@@ -176,7 +176,7 @@ export default class DownloadBackup extends Command {
 			result.total = backupFiles.length;
 			conditionalLog(`Found ${backupFiles.length} backup(s) in ${folder}`);
 
-			const localDirectory = path.join(process.cwd(), 'backups', folder);
+			const localDirectory = path.join(resolveBackupsDirectory(), folder);
 			if (!fs.existsSync(localDirectory)) {
 				fs.mkdirSync(localDirectory, {recursive: true});
 			}

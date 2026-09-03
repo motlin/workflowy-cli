@@ -1,7 +1,7 @@
 import {Command, Flags} from '@oclif/core';
 import fs from 'node:fs';
 import path from 'node:path';
-import {buildMonthArchive, compressFileInPlace} from '../../utils/backup-archive.js';
+import {buildMonthArchive, compressFileInPlace, resolveBackupsDirectory} from '../../utils/backup-archive.js';
 
 const BACKUP_SOURCES = ['Data', 'History'] as const;
 type BackupSource = (typeof BACKUP_SOURCES)[number];
@@ -39,7 +39,7 @@ export default class BackupsArchive extends Command {
 	public async run(): Promise<void> {
 		const {flags} = await this.parse(BackupsArchive);
 
-		const backupsDirectory = path.join(process.cwd(), 'backups');
+		const backupsDirectory = resolveBackupsDirectory();
 		if (!fs.existsSync(backupsDirectory)) {
 			this.error(`No backups directory found at ${backupsDirectory}`);
 		}

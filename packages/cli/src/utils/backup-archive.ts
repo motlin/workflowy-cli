@@ -156,6 +156,16 @@ export function materializeBackup(location: BackupLocation): MaterializedBackup 
 }
 
 /**
+ * Where backups live. Defaults to `backups/` under the working directory, but
+ * `WORKFLOWY_BACKUPS_DIR` overrides it so tests can point at a scratch directory
+ * instead of decompressing the developer's real monthly archives.
+ */
+export function resolveBackupsDirectory(): string {
+	const override = process.env.WORKFLOWY_BACKUPS_DIR;
+	return override ? override : path.join(process.cwd(), 'backups');
+}
+
+/**
  * Enumerate every Data backup under `backupsDir`, including those folded into
  * monthly archives. History backups are storage-only and intentionally excluded.
  */
