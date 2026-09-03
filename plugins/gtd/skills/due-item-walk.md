@@ -85,6 +85,18 @@ Skipped 3 runs in a row since 2026-08-11.
 - Say what you opened, so the user knows which tab or app belongs to this question.
 - Repeat the deciding facts — overdue math, child count, skip streak — in the `AskUserQuestion` body. The block is terminal output; only the question text survives into the next session.
 
+## A mirror is a view of a task that lives elsewhere
+
+Workflowy mirrors put one task in two trees at once. A node whose `mirror.isMirror` is true is a **reflection**: the original — `mirror.originalNodeId` — holds the text, the date, and the real filing, and the reflection holds nothing of its own. So a mirror is never a misfiled item, and its appearance in this tree is never evidence that something was filed wrong.
+
+Detect it with the `mirror` field. The recurring segment's tree fetch already asks for it; add it to the `--fields` list of any fetch that does not, because an unrequested field comes back absent and absent reads exactly like "not a mirror". When a row is a mirror:
+
+- **Present it read-only, or skip it.** Name it as a mirror of a task that lives elsewhere and move on. The walk that owns the original is the one that handles it, and handling it in both places writes twice.
+- **Write nothing — not to the mirror, not to the original.** No `<time>` stripped or advanced, no `node move`, no completion. The original is correctly filed where it is; you are only looking at a copy of it.
+- **Never file anything under a mirror.** `node move --parent-id <mirror-uuid>` parents the node **under the mirror**, not under the node the mirror reflects, which buries a real task inside the reflecting tree. Resolve destinations from the real root and confirm `mirror.isMirror` is false on whatever you are about to write into.
+
+"This belongs somewhere else" is never grounds to re-file a mirror. Changing where a mirrored task lives means walking the original in the set that owns it.
+
 ## Freeform: note, continued work, or retire
 
 A freeform answer is a **note**, **continued work**, or **retire**, and they end very differently:

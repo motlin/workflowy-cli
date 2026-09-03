@@ -47,6 +47,20 @@ The fetch must ask for `mirror`, and the reason is not cosmetic. `Set goals for 
 
 Never file a task by moving it onto a mirror either: `node move --parent-id <mirror-uuid>` parents the node **under the mirror**, not under the node the mirror reflects, which drops a real one-shot task inside the recurring tree. Resolve destination buckets from the Next-Actions roots (`linkTargets[0].id`) and confirm `mirror.isMirror` is false before writing.
 
+## A mirror row is never a misfiled recurring item
+
+A `tree.json` fetched without `mirror`, a stale one from an earlier run, or a node pulled by hand mid-walk can still put a reflection in front of you. So check `mirror.isMirror` on the node before acting on any Segment 1 row that looks like a one-shot task, per **A mirror is a view of a task that lives elsewhere** in the walk skill.
+
+A mirror whose original sits under `⏰ Tasks (due dates)` or `📌 Tasks (asap)` is a Next Action being reflected into the recurring tree, not a task that was filed in the wrong place. Present it read-only or skip it — **Segment 2 walks the original**, a few minutes later in this same run. Never strip its `<time>`, never advance a date on it, and never move the original out of its bucket.
+
+**"This looks one-shot" is not grounds to re-file anything from inside Segment 1.** Advancing recurring dates is the whole of this segment's write authority. A row that reads like a one-shot task is one of three things, and none of them is a move to make here:
+
+- a **mirror** of a task already correctly filed in a bucket — leave it alone; Segment 2 walks the original.
+- a genuine one-shot sitting in `Personal > 🔄 Review` — a data defect. Say so and ask the user; filing loose tasks into the `⏰` and `📌` buckets is the `/gtd:review:daily:file-tasks` phase's job, not this walk's.
+- a recurring item whose text merely reads like a one-shot — advance its date and move on.
+
+Moving a node out of the recurring tree mid-walk is how correctly filed work goes missing, so the answer to "this does not look recurring" is a question to the user, never a `node move`.
+
 The script assumes the canonical shape: section headers carry no date, intermediate groups carry no date, and the `<time>` lives on the **leaf item**. **If the data doesn't match — a `<time>` on an intermediate group, or a "leaf" whose children each carry their own date — stop and ask the user to fix the data in Workflowy** rather than reinterpreting it here.
 
 A row with `needsInterval: true` (section `Every few years` or an unrecognized section) has `nextDate`/`applyOp` set to `null` — ask the user for the interval and build the date write per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`.
