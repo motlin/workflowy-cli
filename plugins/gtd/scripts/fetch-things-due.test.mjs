@@ -2,7 +2,14 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {FIELD_SEP, OSASCRIPT_TIMEOUT_MS, parseThingsRows, partitionThings, RECORD_SEP} from './fetch-things-due.mjs';
+import {
+	FIELD_SEP,
+	OSASCRIPT_TIMEOUT_MS,
+	parseThingsRows,
+	partitionThings,
+	RECORD_SEP,
+	script,
+} from './fetch-things-due.mjs';
 
 const row = (...fields) => fields.join(FIELD_SEP);
 const out = (...rows) => rows.join(RECORD_SEP) + RECORD_SEP;
@@ -108,4 +115,30 @@ test('partitionThings reports undated Anytime tasks separately for the asap swee
 
 test('the osascript budget leaves room for a large Anytime backlog', () => {
 	assert.strictEqual(OSASCRIPT_TIMEOUT_MS, 180_000);
+});
+
+test('the AppleScript resolves each to-do by id, never by list index', () => {
+	// `repeat with t in (to dos of list "Today")` binds each `t` to a LAZY reference of the form
+	// `item N of every to do of list "Today"`, resolved only when a property is read. The Things
+	// Today list is dynamic -- a repeating to-do can roll off mid-loop -- so the list shrinks
+	// under the iteration and the next dereference dies with:
+	//   Things3 got an error: Can't get item 17 of every to do of list "Today". Invalid index. (-1719)
+	// That aborted the whole file-tasks phase on 2026-09-04. Snapshotting the ids first and
+	// looking each one up with `to do id` makes every read a stable lookup instead of an index.
+	const src = script('Today');
+	assert.doesNotMatch(
+		src,
+		/repeat\s+with\s+\w+\s+in\s+\(to dos of list/,
+		'must not iterate list references directly -- indices go stale mid-loop',
+	);
+	assert.match(src, /id of every to do of list "Today"/, 'must snapshot the ids up front');
+	assert.match(src, /to do id /, 'must resolve each to-do by its stable id');
+});
+
+test('the AppleScript tolerates a to-do that disappears between the snapshot and the lookup', () => {
+	// Completing or deleting a to-do in the window between the id snapshot and its lookup is a
+	// real race, not a bug to crash on -- but it must not vanish silently either.
+	const src = script('Anytime');
+	assert.match(src, /\btry\b/, 'must guard the per-id lookup');
+	assert.match(src, /\bon error\b/, 'must handle the vanished-to-do case explicitly');
 });

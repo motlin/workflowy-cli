@@ -39,21 +39,35 @@ export function parseThingsRows(raw) {
 		.map(([id, title, due, list, notes]) => ({id, title, due: normalizeDate(due), list, notes: notes || null}));
 }
 
-function script(listName) {
+export function script(listName) {
 	// The separators are built with `ASCII character` so no control byte has to survive the trip
 	// through the shell into an AppleScript string literal.
+	//
+	// Snapshot the ids BEFORE reading any properties. `repeat with t in (to dos of list "X")`
+	// binds each `t` to a lazy reference -- `item N of every to do of list "X"` -- resolved only
+	// when a property is read. Things' lists are dynamic (a repeating to-do rolls off, a filter
+	// re-evaluates), so the list can shrink under the iteration and the next dereference dies with
+	// `Can't get item 17 of every to do of list "Today". Invalid index. (-1719)`. An id is a
+	// stable handle; `to do id X` never depends on position.
 	return `set fs to (ASCII character 31)
 set rs to (ASCII character 30)
 tell application "Things3"
+	set theIDs to id of every to do of list "${listName}"
 	set out to ""
-	repeat with t in (to dos of list "${listName}")
-		set dd to due date of t
-		if dd is missing value then
-			set ds to ""
-		else
-			set ds to ((year of dd) as string) & "-" & ((month of dd) as integer) & "-" & ((day of dd) as string)
-		end if
-		set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & rs
+	repeat with theID in theIDs
+		try
+			set t to to do id (theID as string)
+			set dd to due date of t
+			if dd is missing value then
+				set ds to ""
+			else
+				set ds to ((year of dd) as string) & "-" & ((month of dd) as integer) & "-" & ((day of dd) as string)
+			end if
+			set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & rs
+		on error
+			-- The to-do was completed or deleted between the snapshot and this lookup. It is
+			-- genuinely gone, so there is nothing to report; skipping it is the correct read.
+		end try
 	end repeat
 	return out
 end tell`;
