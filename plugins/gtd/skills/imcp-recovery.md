@@ -17,6 +17,14 @@ When a step requires an `mcp__imcp__*` tool:
     - Relaunch a fresh server: `open -a iMCP` (installed at `/Applications/iMCP.app`), `sleep 5`, retry the call **once**.
 - If the retry still fails, **STOP**. Do not return empty data. Report a fatal iMCP error (see contract below). Note that **Claude cannot run `/mcp`** — killing+relaunching makes the app fresh so the user's subsequent `/mcp` reconnect succeeds quickly, but the in-session MCP connection is only re-established by that user action.
 
+## Proactive restart before a long run
+
+Long-running commands (the daily review) restart a stale helper **before** the first iMCP call, so a mid-run death does not trip the fatal contract halfway through. `${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs` prints the helper's age in seconds (or `none` / `unknown`); a helper older than **86400** seconds (~1 day) is restarted with the kill + `open -a iMCP` + `sleep 5` recipe above.
+
+- The age-based restart is **mandatory even if the helper still answers**. Do not probe a stale helper and skip the restart because the probe succeeded — an old-but-currently-responsive helper is exactly the one that dies partway through a long review. Age alone decides; a passing probe is not an escape hatch.
+- A liveness probe is an **additional** restart trigger, never a substitute for the age rule: a failing probe restarts the helper regardless of age, a fresh or `unknown`-age helper included. The two rules only ever add restarts; neither one cancels the other's.
+- `unknown` (start time unparseable) on its own is not a reason to kill a live helper; only a failed probe restarts it.
+
 ## Fatal error contract
 
 A fetcher or scanner that cannot recover iMCP returns this as its final JSON, instead of its normal output:
