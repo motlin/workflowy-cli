@@ -81,7 +81,7 @@ Build a compact lookup of all @Name tags and their paths:
 jq '[.. | objects | select(.name? and (.name | type == "string") and (.name | startswith("@")) and (.name | test("^@[A-Z]"))) | {name, id, shortId}]' .llm/gtd/metadata/people.json
 ```
 
-Also read `.llm/gtd/people-disambiguation.md` for nickname/typo mappings. Update that file when new disambiguations are resolved.
+Also read `.llm/gtd/people-disambiguation.md` for nickname/typo mappings. Update that file when new disambiguations are resolved. A homonym row earns its place only when it carries context that resolves the ambiguity (companions, setting, activity); never enumerate same-named people, coworkers especially, just to record that several exist -- with no distinguishing context to give, leave the name out.
 
 **When matching a name, always search the full cached tree** — do not rely on partial CLI fetches. Names can be nested 5+ levels deep.
 
