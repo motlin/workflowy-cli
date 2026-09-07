@@ -166,6 +166,21 @@ When scanning the live tree:
 - Use the entry date from the calendar node header, not modified time.
 - De-duplicate by full node UUID if an entry appears in both the archive fetch and live fetch.
 
+## Load the decline ledger
+
+Read `.llm/gtd/review/refine-journal-declined.json` before computing anything (treat a missing file as `[]`). It is an array of `{nodeId, before, after, declinedAt}` objects that `refine-journal-apply` appends on every Reject, modeled on the email-calendar decisions ledger. A rejection is final: the user said "keep as written", and the same refinement must not come back the next morning.
+
+```bash
+jq '.' .llm/gtd/review/refine-journal-declined.json 2>/dev/null || echo '[]'
+```
+
+Apply it **after** computing each entry's proposal (below), since the match is on the computed `after`:
+
+- **Same `(nodeId, after)` pair** — a ledger entry with the same full `nodeId` and a byte-identical `after` means this exact refinement was already rejected. Drop the proposal.
+- **Rejected emoji picker, entry unchanged** — a ledger entry with `after: null` records a rejected emoji-only ⚠️ proposal. Because each run rolls fresh contextual options, its `after` can never match; instead, if the ledger entry's `before` equals the entry's current live text byte-for-byte, the user already declined to emoji this exact text. Drop the emoji proposal.
+
+Anything else is fair game. A different `after` (a new people tag found, a typo the earlier pass missed) or an entry whose text changed since the rejection is a new proposal, not a repeat. Never rewrite or prune the ledger from prep.
+
 ## Compute refinements
 
 For each in-scope archive or recent live entry, scan for all refinement types simultaneously, applying the rules below. **Tag first, emoji second** so tag-based emoji mappings work. Never truncate entry text. Do not present anything — compute the full `before`/`after` and the exact `applyOps`, then stage.
@@ -384,7 +399,7 @@ Above 10 remaining uses, keep the per-entry behavior — a huge multi-entry prop
 
 ### Emoji rules
 
-Every in-scope entry that does not already start with an emoji must produce one proposal. An emoji-less entry that needs no people/hobby/typo/media fix still gets an emoji proposal.
+Every in-scope entry that does not already start with an emoji must produce one proposal, unless the decline ledger drops it (see Load the decline ledger). An emoji-less entry that needs no people/hobby/typo/media fix still gets an emoji proposal.
 
 - Entry already starts with emoji → skip the emoji step (other change types may still apply; no emoji proposal needed).
 - Entry has a hashtag with a preferred emoji in the tag→emoji metadata → use it. With multiple matching hashtags, use the emoji from the **first** hashtag in the text.
@@ -400,7 +415,7 @@ mkdir -p .llm/gtd/review/proposals
 
 **Order recent before archive.** Emit every `scope: "recent"` proposal (current/prior live-month entries) first, then every `scope: "archive"` proposal. The apply walk relies on this ordering: it presents the recent block, then **asks** before touching the archive block. Recent entries are what the user actually expects a daily run to refine; the backwards archive backfill is opt-in per run.
 
-For each entry that needs changes (including any entry that merely **lacks a leading emoji**), emit one proposal with:
+Run every computed proposal through the decline ledger first (see Load the decline ledger) and count what it removes as `droppedDeclined`. Then, for each surviving entry that needs changes (including any entry that merely **lacks a leading emoji**), emit one proposal with:
 
 - `nodeId` — the entry's **full UUID** (never a short id; short ids 404 on writes).
 - `scope` — `"recent"` for a current/prior live-month entry, `"archive"` for an entry from the backwards archive month. Required on every proposal; the apply walk gates the archive block on it.
@@ -414,7 +429,7 @@ For each entry that needs changes (including any entry that merely **lacks a lea
 
 Before writing the file, verify no emoji-less entry was silently dropped:
 
-- Enumerate every in-scope entry (archive and recent live alike) that does **not** already start with an emoji.
+- Enumerate every in-scope entry (archive and recent live alike) that does **not** already start with an emoji, **excluding** entries whose emoji proposal the decline ledger dropped — those are counted in `droppedDeclined`, not here.
 - Assert each such entry appears in `proposals[]` (as a normal emoji change or a ⚠️ emoji proposal). Any entry missing a proposal is a bug — stage it now (⚠️ with exactly 4 options) before writing the file.
 - Record `emojiLessEntries` (entries enumerated) and `emojiProposalsStaged` (those that got an emoji proposal). They **must** be equal across the combined archive plus recent live scope.
 
@@ -422,8 +437,8 @@ Set top-level fields:
 
 - `task`: `"refine-journal"` (inferred from the prep command and matches the filename).
 - `generatedAt`: ISO-8601 timestamp with offset.
-- `status`: `"ready"` if any proposals; `"empty"` if the combined archive plus recent live scope is already fully refined (idempotent re-run); `"error"` if prep failed.
+- `status`: `"ready"` if any proposals; `"empty"` if the combined archive plus recent live scope is already fully refined or every computed proposal was dropped by the decline ledger (idempotent re-run); `"error"` if prep failed.
 - `presentation`: `"Refine calendar journal"`.
-- `summary`: `{ archiveMonth, recentLiveMonths, entriesReviewed, archiveEntriesReviewed, recentLiveEntriesReviewed, proposalsStaged, emojiLessEntries, emojiProposalsStaged }` plus a breakdown by change type (people/hobby/category/media/typo/emoji counts) for the final review summary. `emojiLessEntries` must equal `emojiProposalsStaged` (coverage invariant).
+- `summary`: `{ archiveMonth, recentLiveMonths, entriesReviewed, archiveEntriesReviewed, recentLiveEntriesReviewed, proposalsStaged, droppedDeclined, emojiLessEntries, emojiProposalsStaged }` plus a breakdown by change type (people/hobby/category/media/typo/emoji counts) for the final review summary. `emojiLessEntries` must equal `emojiProposalsStaged` (coverage invariant).
 
-Do **not** mutate any node and do **not** advance Scanner-State. Return a one-line summary of what was staged (archive month, recent live months, entries reviewed with archive/recent split, proposals staged, emoji coverage `emojiProposalsStaged/emojiLessEntries`, status) and stop.
+Do **not** mutate any node and do **not** advance Scanner-State. Return a one-line summary of what was staged (archive month, recent live months, entries reviewed with archive/recent split, proposals staged, dropped by the decline ledger, emoji coverage `emojiProposalsStaged/emojiLessEntries`, status) and stop.
