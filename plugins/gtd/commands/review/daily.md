@@ -21,6 +21,17 @@ This rule covers **actual breakage only**: a script that errors or exits non-zer
 
 It does **not** cover anything the review could finish without. An improvement idea is not breakage, however good it is, and it never stops the walk — it goes to the mid-run notes file, next.
 
+### Commit before resuming
+
+The fix is not done until it is committed. A passing suite with the change still sitting in the working tree is an unfinished fix: the next session inherits an uncommitted diff it did not make, and the review resumes on top of it. After `vp check` / `vp test` pass:
+
+- Run `git status --short` and `git rev-parse --abbrev-ref HEAD`.
+- If HEAD is detached or on a branch you did not expect, surface it and resolve it before committing — do not commit onto a branch you cannot name.
+- Commit the fix (the `git-commit` skill), then confirm `git status --short` prints nothing.
+- Only then resume the review.
+
+The same closing step applies to every plugin-file edit the review makes, whether from a broken skill, a mid-run-notes follow-up, or a meta-feedback apply: edit, verify, commit, clean tree, resume. Leaving plugin edits uncommitted is the failure mode this guards against.
+
 ## An improvement noticed mid-walk never stops the walk
 
 An improvement idea that surfaces mid-walk — a preference the user states, a nicer way to present an item, a maybe-better option, a design question about how a phase works — is **not** a reason to stop, poll the user, or switch to editing skills. The walk continues to the next item. It is also not something to carry in context until the end of the run: by then the item name, the phase, and the user's exact words are gone, and the meta-feedback task receives a vague summary instead of a usable candidate.
