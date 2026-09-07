@@ -63,7 +63,7 @@ export function resolveCommandId(words: string[]): {command: string; remaining: 
  * Join continuation lines (lines ending with `\`) into a single logical line.
  * Returns an array of {text, lineNumber} where lineNumber is the 1-based start line.
  */
-function joinContinuationLines(lines: string[]): Array<{text: string; lineNumber: number}> {
+export function joinContinuationLines(lines: string[]): Array<{text: string; lineNumber: number}> {
 	const result: Array<{text: string; lineNumber: number}> = [];
 	let buffer = '';
 	let startLine = 0;

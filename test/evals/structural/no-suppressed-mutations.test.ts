@@ -1,7 +1,7 @@
-import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {PROJECT_ROOT} from './helpers/scan-roots.js';
+import {joinContinuationLines} from './helpers/markdown-parser.js';
+import {PROJECT_ROOT, trackedFiles} from './helpers/scan-roots.js';
 
 /**
  * `plugins/workflowy/skills/cli-usage.md` bans `2>/dev/null` on CLI commands:
@@ -10,31 +10,26 @@ import {PROJECT_ROOT} from './helpers/scan-roots.js';
  * exists. This eval enforces that rule mechanically for the mutating
  * `node` subcommands, where the cost of a silent failure is highest.
  *
+ * Read-only subcommands (`get`, `list`, `search`, `schema`, `changes`) are
+ * out of scope -- they are noisy and a swallowed error costs nothing.
+ *
  * Only tracked files are scanned, matching no-personal-paths.
  */
 
-const MUTATING_INVOCATION = /\.\/bin\/run\.js node (?:create|update|delete|move)\b/;
+const MUTATING_INVOCATION = /\.\/bin\/run\.js node (?:complete|create|delete|move|uncomplete|update)\b/;
 const DEV_NULL_REDIRECT = /(?:[12&]?>|>&)\s*\/dev\/null/;
-
-function trackedFiles(root: string): string[] {
-	const output = execFileSync('git', ['ls-files', '-z', '--', root], {
-		cwd: PROJECT_ROOT,
-		encoding: 'utf8',
-	});
-	return output.split('\0').filter(Boolean);
-}
 
 describe('Structural Eval: No Suppressed Mutations', () => {
 	it('no tracked file under plugins/ redirects a mutating node command to /dev/null', () => {
 		const violations: string[] = [];
 
-		for (const relPath of trackedFiles('plugins')) {
-			const content = readFileSync(join(PROJECT_ROOT, relPath), 'utf8');
-			content.split('\n').forEach((line, index) => {
-				if (MUTATING_INVOCATION.test(line) && DEV_NULL_REDIRECT.test(line)) {
-					violations.push(`${relPath}:${index + 1}: ${line.trim()}`);
+		for (const relativePath of trackedFiles('plugins')) {
+			const content = readFileSync(join(PROJECT_ROOT, relativePath), 'utf8');
+			for (const {text, lineNumber} of joinContinuationLines(content.split('\n'))) {
+				if (MUTATING_INVOCATION.test(text) && DEV_NULL_REDIRECT.test(text)) {
+					violations.push(`${relativePath}:${lineNumber}: ${text.trim()}`);
 				}
-			});
+			}
 		}
 
 		expect(violations).toStrictEqual([]);

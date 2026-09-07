@@ -7,6 +7,7 @@
  * - Project-local: `.claude/{commands,agents,skills}`
  */
 
+import {execFileSync} from 'node:child_process';
 import {existsSync, readdirSync} from 'node:fs';
 import {join, resolve} from 'node:path';
 
@@ -14,6 +15,20 @@ export const PROJECT_ROOT = resolve(import.meta.dirname, '../../../..');
 export const PLUGINS_DIR = join(PROJECT_ROOT, 'plugins');
 
 export type ComponentKind = 'commands' | 'agents' | 'skills';
+
+/**
+ * Paths of every git-tracked file under a root, relative to PROJECT_ROOT.
+ *
+ * Structural evals scan tracked files only, so gitignored personal config
+ * (`.claude/settings.local.json`, `.llm/`) stays exempt by design.
+ */
+export function trackedFiles(root: string): string[] {
+	const output = execFileSync('git', ['ls-files', '-z', '--', root], {
+		cwd: PROJECT_ROOT,
+		encoding: 'utf8',
+	});
+	return output.split('\0').filter(Boolean);
+}
 
 /**
  * Recursively collect all .md files under a directory.
