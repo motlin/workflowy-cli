@@ -59,6 +59,33 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-things-due.mjs > .llm/gtd/review/due-th
 
 ---
 
+## Resume from prior-run artifacts, never rebuild them
+
+An item that was skipped, or that ended a previous run as **continued work** with no "done" ever given, usually comes back with its inputs already sitting on disk. The previous attempt fetched, exported, or computed something into `.llm/gtd/review/` before it stopped, and re-deriving that from scratch is the slowest possible way to pick the item back up. On 2026-09-05 a resumed item had its inputs rebuilt while the previous run's CSV exports were still in the directory, and the user had to point that out: "don't we still have the csv files from last time? We never finished this task last time".
+
+So before doing any work on a row that a previous run already saw — `skipStreak >= 1`, or `overdueByDays > 0` on an item whose handling produces files (an `#llm-task`, an inventory, an export, an analysis) — look for what that run left behind, in this order:
+
+- **Paths the item names.** An `#llm-task`'s child instructions usually say where output goes; check those paths first, exactly as written.
+- **Files that match the item.** Search the review directory by the item's keywords and by recency, and read the first lines of anything that matches to confirm it belongs to this item and not a same-named sibling:
+
+    ```bash
+    ls -lt .llm/gtd/review/ | head -40
+    ls -lt .llm/gtd/review/ | grep -i '<keyword from the title>'
+    ```
+
+- **The mid-run notes.** `.llm/gtd/review/mid-run-notes.md` may record how far the previous attempt got and what it was about to do next.
+
+Then surface what you found **inside the question**, not only in the terminal: name each artifact with its date and size, say what it contains, and make the first option resume from it — "Continue from `inventory-drives-2026-09-05.csv` (71 rows)" — with the rebuild as a separate, unpromoted option for when the user says the data is stale. The context block already carries the item's children and note; the prior-run artifacts are one more line in that block and one more sentence in the `AskUserQuestion` body, because only the question text survives into the next session.
+
+Two rules follow from this:
+
+- **Do not re-run a fetch or export whose output already exists from a prior run** unless the user asks for a fresh one — a day-old file is still the cheaper starting point.
+- **When you produce an artifact for an item that is not finished this run, name it after the item** (`inventory-drives-2026-09-05.csv`, not `out.csv`) and mention it in the mid-run notes, so the next run's search above finds it without guessing.
+
+Finding nothing is a real answer and ends the search; say so in one line and build the inputs. Never assume the artifacts are gone because the item looks unfamiliar.
+
+---
+
 ## Segment 1 — Recurring items
 
 ## Identify Overdue Items
@@ -103,7 +130,7 @@ The section → interval table lives in `compute-overdue.mjs` (the executable so
 
 ## Recurring item options
 
-Done / Set a reminder / skip / notes / retire, per the walk skill. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+Done / Set a reminder / skip / notes / retire, per the walk skill. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. For a row a previous run already saw, also list what that run left in `.llm/gtd/review/`, per **Resume from prior-run artifacts, never rebuild them** above. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
 
 Offer **Set a reminder** on every row — an item the user will do later today but would forget without an alarm is a reminder, not a skip. Follow the shared walk's **Set a reminder** protocol and record `remind`.
 
@@ -191,7 +218,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs \
   > .llm/gtd/review/due-items.json
 ```
 
-Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. It also carries the context each question needs — `note` (the Workflowy note, the Things note, the Reminders note), `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the title and note) — which is why the Workflowy fetch above asks for `note,modifiedAt` at depth 5. Show it per **Show the item, do not just name it** in the walk skill: `open` the row's external `links` (not its workflowy.com `url`), print the children, and print all of it immediately before the `AskUserQuestion`. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
+Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `needsDate`, `group`, `url`, `skipStreak` / `skippedSince` folded from the skip log, and an `ops` object holding the verbatim `complete`, `reschedule`, and `drop` commands. It also carries the context each question needs — `note` (the Workflowy note, the Things note, the Reminders note), `modifiedAt`, `childCount`, `children` (title, note, own child count, url), and `links` (every http(s) URL in the title and note) — which is why the Workflowy fetch above asks for `note,modifiedAt` at depth 5. Show it per **Show the item, do not just name it** in the walk skill: `open` the row's external `links` (not its workflowy.com `url`), print the children, and print all of it immediately before the `AskUserQuestion`. For a row a previous run already saw, add the prior-run artifacts per **Resume from prior-run artifacts, never rebuild them** above. Rows are sorted by due date with undated items last. Anything not yet due is already excluded. Pass `--print` for a human-readable dump while debugging.
 
 **Source semantics the collector already resolved, so the walk doesn't have to:**
 
