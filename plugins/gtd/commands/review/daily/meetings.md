@@ -187,6 +187,17 @@ Add the provenance — meeting link and brief source context — as **child node
 
 This mirrors the inbox-creation pattern in the `capture-executor` agent.
 
+Alongside the provenance child, add **one child bullet per distinct point the user said out loud** about the item in the transcript — the mission, the scope, constraints, deadlines, who is involved. Quote or closely paraphrase what was actually said; these children exist so the item carries the user's own framing into refinement instead of a bare title:
+
+```bash
+./bin/run.js node create --parent-id <new-inbox-node-id> --name 'Mission: "<what the user said the item is for>"'
+./bin/run.js node create --parent-id <new-inbox-node-id> --name 'Scope: "<what the user said is in or out>"'
+./bin/run.js node create --parent-id <new-inbox-node-id> --name 'Deadline: "<what the user said about timing>"'
+```
+
+- One point per child — don't merge mission and scope into a single bullet, and don't add a child for a point the user didn't make.
+- The no-inventing rule applies here as much as to the title: if the transcript has only a one-line ask, the provenance child is the only child.
+
 #### Branch B — File on the existing task
 
 Add the meeting as a child of the task the candidate matched in Step 7:
@@ -198,6 +209,7 @@ Add the meeting as a child of the task the candidate matched in Step 7:
 - Do **not** also create an inbox node — avoiding the duplicate is the entire point of this branch.
 - Do **not** rename, re-tag, or re-date the existing task; the meeting is context, not a rewrite.
 - Keep the context line to what the transcript actually said (a new deadline, a new asker, a changed scope).
+- When the user said more than one distinct thing about the task — mission, scope, constraints, deadlines — add each as its own child of the existing task next to the provenance child, quoted or closely paraphrased, exactly as in Branch A. Same rule: no child for a point the user didn't make.
 
 ### Step 10: Advance the watermark
 
