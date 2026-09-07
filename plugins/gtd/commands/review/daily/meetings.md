@@ -1,10 +1,10 @@
 ---
-description: Walk Otter-ingested meetings since the last review, flag probable follow-ups (weighting asks from your manager and skip-level), confirm each with you, and drop accepted items into the Inbox. Use when the user wants to review recent meetings, catch up on meeting follow-ups, or extract action items from meeting transcripts.
+description: Walk Otter-ingested meetings since the last review, flag probable follow-ups (weighting asks from your manager and skip-level), confirm each with you, and drop accepted items into the Inbox or, when you already did them, journal them to the work calendar for the meeting date. Use when the user wants to review recent meetings, catch up on meeting follow-ups, or extract action items from meeting transcripts.
 ---
 
 # Meeting Follow-up Review
 
-Walk recent Otter-ingested meetings since the last review and capture probable follow-ups to the Inbox.
+Walk recent Otter-ingested meetings since the last review and capture probable follow-ups to the Inbox. A follow-up the user already did is journaled to `Work > 📅 Calendar` under the meeting date instead.
 
 - Otter transcripts contain misheard text and rough speaker guesses, so a passive scanner is not enough.
 - Uses real project context to ground judgments.
@@ -151,12 +151,13 @@ State the match result explicitly on every question — never omit it:
 - **No existing task matched.**
 - **Existing-task check unavailable** — only when the Step 7 script failed
 
-Offer **three** options:
+Offer **four** options:
 
 - **Add to inbox** — create a new inbox node in Step 9
 - **File on existing task** — add the meeting as context under the matched task in Step 9 instead of creating a duplicate inbox item. Offer this option only when Step 7 found a match, and name the matched task in the option label so it is identifiable.
     - When looking for a match, the target is often another item from the **same meeting**, not only an existing task on the same topic. Two candidates from one meeting are usually one to-do and the same topic; sharing a meeting is a strong hint they belong together. So treat a candidate from the same meeting that the user already accepted earlier in this walk as a match candidate too, and offer it in the option label the same way (e.g. `File on "<earlier item from this meeting>"`) so the walk combines them instead of filing two inbox items.
-- **Skip** — drop it (whether it's noise, not the user's, or a real follow-up that's already done — all three drop the same way; this command records nothing on skip, so there's no behavioral difference and no reason to split "skip" from "already handled")
+- **Already did it — journal it** — the user completed the follow-up between the meeting and now. Step 9 writes it as a journal entry to `Work > 📅 Calendar` under the **meeting date**, never to the Inbox. Name the calendar in the option label (e.g. `Already did it — journal to Work > 📅 Calendar`) so the destination is visible before the user confirms.
+- **Skip** — drop it, whether it's noise or not the user's. This command records nothing on skip. Already-done is split out from Skip because it has a different **destination** (a dated calendar entry), not merely a different label — a skipped item leaves no trace, a done item becomes journal.
 
 - Batch into multiple questions per AskUserQuestion call if needed.
 - Never auto-add — every item needs explicit confirmation, including the "file on existing task" path.
@@ -212,6 +213,45 @@ Add the meeting as a child of the task the candidate matched in Step 7:
 - Keep the context line to what the transcript actually said (a new deadline, a new asker, a changed scope).
 - When the user said more than one distinct thing about the task — mission, scope, constraints, deadlines — add each as its own child of the existing task next to the provenance child, quoted or closely paraphrased, exactly as in Branch A. Same rule: no child for a point the user didn't make.
 
+#### Branch C — Already did it: journal it
+
+A finished follow-up is a journal entry, not a task. Write it to the calendar under the **meeting date** — the date on the meeting's `<time>` element from Step 3 — not today's date.
+
+**Which calendar.** There are three, and they are not interchangeable:
+
+- `📆 Calendar` (root level) — the native Workflowy calendar feature, where Otter journals meetings. Never write follow-ups here.
+- `Personal > 📅 Calendar` — the personal journal. Day nodes sit directly under it.
+- `Work > 📅 Calendar` — the work journal. Day nodes sit under its `📍 Current` child.
+
+Meeting follow-ups are work, so default to `Work > 📅 Calendar`. Use `Personal > 📅 Calendar` only when the meeting itself was clearly personal, and say so in the Step 8 option label.
+
+Find the day node for the meeting date:
+
+```bash
+./bin/run.js node get --path "Work,📅 Calendar,📍 Current" --depth 1 --json --fields name,shortId,children
+```
+
+Match the child whose `<time>` element carries the meeting's `startYear`, `startMonth`, and `startDay`. If no child matches, create the day node — compute the `<time>` element with `date` per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, never hand-type the weekday:
+
+```bash
+ISO=<meeting date as YYYY-MM-DD>
+TIME_EL=$(printf '<time startYear="%s" startMonth="%s" startDay="%s">%s</time>' \
+  "$(date -j -f %Y-%m-%d "$ISO" +%Y)" "$(date -j -f %Y-%m-%d "$ISO" +%-m)" \
+  "$(date -j -f %Y-%m-%d "$ISO" +%-d)" "$(date -j -f %Y-%m-%d "$ISO" '+%a, %b %-d, %Y')")
+./bin/run.js node create --parent-path "Work,📅 Calendar,📍 Current" --name "$TIME_EL"
+```
+
+Then add the entry under the day node, with the meeting as a provenance child:
+
+```bash
+./bin/run.js node create --parent-id <day-node-id> --position bottom --name '✅ <past-tense description of what was done>'
+./bin/run.js node create --parent-id <new-entry-id> --name 'From: <a href="https://otter.ai/u/<otid>">Meeting name</a>'
+```
+
+- Write the entry in past tense so it reads as journal next to its neighbors, and make it standalone — name the deliverable, the @people involved, and any concrete specifics the transcript gave, exactly as the Branch A enrichment rules require.
+- Do **not** also create an inbox node or a child on an existing task — the work is done, so nothing needs tracking.
+- Do **not** write the entry under `📆 Calendar`, even though the meeting itself lives there: that calendar is Otter's, and the follow-up is the user's journal.
+
 ### Step 10: Advance the watermark
 
 Update the scanner-state node `Metadata > ⚙️ Scanner State > meeting-followup-reviewer` to the current ISO timestamp.
@@ -240,7 +280,8 @@ Candidates found: 6
 Matched an existing task: 2
 Confirmed to inbox: 3
 Filed on an existing task: 1
-Skipped / already handled: 2
+Journaled as already done: 1
+Skipped: 1
 ```
 
 If the inbox grew meaningfully, suggest running `/gtd:inbox` to process the new items.
@@ -250,3 +291,4 @@ If the inbox grew meaningfully, suggest running `/gtd:inbox` to process the new 
 - This review only reads Workflowy entries that Otter has already journaled — it never calls the Otter API directly.
 - Confirmed items land in `Inbox` raw; `/gtd:inbox` handles refinement and project assignment.
 - Items filed on an existing task never reach the Inbox, so `/gtd:inbox` never sees them — that is intended.
+- Already-done items go to `Work > 📅 Calendar` under the meeting date, never to the root `📆 Calendar` (Otter's) or the Inbox.
