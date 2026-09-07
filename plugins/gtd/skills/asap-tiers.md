@@ -31,7 +31,7 @@ Each tier holds at most half of the tier below it. That is what makes the top of
 
 **The caps are fixed, never computed from what the tier below currently holds.** A relative cap is unstable from the bottom — completing two items in `2nd` would retroactively force an item out of `1st`, punishing progress. A fixed `2^k` cap only ever pushes down when something is _added at the top_, which is the forcing function the ladder exists for.
 
-**The bottom tier is the landing zone and is not hard-capped.** Undated tasks swept out of the `⏰` bucket and undated Things "Anytime" tasks arrive there in bulk, so it absorbs overflow rather than cascading into a tier that does not exist yet. Only tiers that have a tier below them are capped. When the bottom tier runs well past `2^k`, propose extending the ladder by one tier and splitting it.
+**The bottom tier is the landing zone and is not hard-capped.** Undated tasks swept out of the `⏰` bucket and undated Things "Anytime" tasks arrive there in bulk, so it absorbs overflow rather than cascading into a tier that does not exist yet. Only tiers that have a tier below them are capped. When the bottom tier goes past `2^k`, propose extending the ladder by one tier and splitting it. The threshold is exact, not a judgment call: at `2^k + 1` the ladder needs another tier.
 
 ## The demotion cascade
 
