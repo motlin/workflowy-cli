@@ -170,7 +170,7 @@ test('accepts an email-calendar proposal carrying a ledger key', () => {
 });
 
 test('rejects an email-calendar proposal with no ledger key, since a null key suppresses nothing', () => {
-	const {key, ...withoutKey} = emailCalendarProposal();
+	const {key: _key, ...withoutKey} = emailCalendarProposal();
 	const result = validateProposal(emailCalendarStaged({proposals: [withoutKey]}));
 
 	assert.deepStrictEqual(result, {
@@ -198,7 +198,7 @@ test('rejects an email-calendar proposal whose ledger key is null or blank', () 
 });
 
 test('names the sourceKey mismatch when prep staged the identity under the old field', () => {
-	const {key, ...withoutKey} = emailCalendarProposal();
+	const {key: _key, ...withoutKey} = emailCalendarProposal();
 	const result = validateProposal(
 		emailCalendarStaged({proposals: [{...withoutKey, sourceKey: 'alice-imap-uid-12345-sep25'}]}),
 	);
