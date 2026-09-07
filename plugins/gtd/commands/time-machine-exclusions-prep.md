@@ -20,12 +20,26 @@ find "$HOME/projects" -type d \( -name node_modules -o -name target -o -name bui
 
 Capture the null-delimited result without losing the command's exit status. A failed `find` or `tmutil` call stages `status: "error"`; never reinterpret a failed check as an empty result.
 
+## Group the result
+
+Pipe the null-delimited paths through the grouping script:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/group-build-dirs.mjs
+```
+
+It prints `{durable, worktrees, report}`. Paths under `<repo>/.worktrees/<worktree>/` collapse into one `worktrees` entry per repo (`{repo, worktreeCount, dirCount}`); everything else is `durable`. `report` is the human-readable list: each durable path on its own line, then one `N build dirs across M worktrees under <repo>` line per repo.
+
+Worktree build output is still regenerable and still gets excluded -- the sweep and the verification use the full path list. Only the presentation collapses, so one repo with hundreds of Maven `target/` dirs cannot bury the few durable paths that matter.
+
+**Never exclude the `.worktrees` root itself, and never skip it in the scan.** Worktrees share one Git object database, and a worktree with uncommitted changes is exactly the source that needs backing up. The user removes fully-committed worktrees with `git clean worktrees`; that is the fix for the churn, not an exclusion.
+
 ## Stage the result
 
 Create `.llm/gtd/review/proposals/` and write the proposal for the inferred slug `time-machine-exclusions`.
 
 - No unmatched directories: stage `status: "empty"`, `summary.missingExclusions: 0`, and an empty `proposals` array.
-- Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, and create one confirm-only proposal with empty `applyOps`.
+- Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, copy the script's `durable`, `worktrees`, and `report` fields into `summary`, and create one confirm-only proposal with empty `applyOps`. Set the proposal `detail` from `summary.report`, never from the full directory list.
 - Check failure: stage `status: "error"` with the command error.
 
 Use this sweep command in the ready proposal:
