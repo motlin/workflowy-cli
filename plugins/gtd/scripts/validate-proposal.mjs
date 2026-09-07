@@ -24,7 +24,36 @@ const ID_HINTS = {
 const strayIdError = (index, field) =>
 	`proposals[${index}]: stages a second node id "${field}" — ${ID_HINTS[field] ?? DEFAULT_ID_HINT}`;
 
-const validateProposalEntry = (entry, index, errors) => {
+// email-calendar apply appends each decision to .llm/gtd/review/email-calendar-decisions.json under
+// `key`, and the next prep drops candidates whose key is already there. A proposal staged without
+// that field writes a null-keyed ledger row that suppresses nothing, so the same email is
+// re-proposed every run with no visible error. Prep once staged the identity as `sourceKey`, which
+// is the mismatch this names.
+const LEDGER_KEY_TASKS = new Set(['email-calendar']);
+const LEDGER_KEY_ALIASES = ['sourceKey'];
+
+const validateLedgerKey = (task, entry, index, errors) => {
+	if (!LEDGER_KEY_TASKS.has(task)) {
+		return;
+	}
+	if (typeof entry.key === 'string' && entry.key.trim() !== '') {
+		return;
+	}
+	const alias = LEDGER_KEY_ALIASES.find((field) => entry[field] !== undefined);
+	if (alias) {
+		errors.push(
+			`proposals[${index}]: ${task} proposal stages its ledger key as "${alias}" — the ledger and apply read "key"; rename it`,
+		);
+		return;
+	}
+	errors.push(
+		`proposals[${index}]: ${task} proposal has no ledger "key" — apply writes it to ${task}-decisions.json, and a null key never suppresses a re-proposal`,
+	);
+};
+
+const validateProposalEntry = (task, entry, index, errors) => {
+	validateLedgerKey(task, entry, index, errors);
+
 	for (const field of Object.keys(entry)) {
 		if (field !== 'nodeId' && ID_FIELD.test(field)) {
 			errors.push(strayIdError(index, field));
@@ -67,7 +96,7 @@ export const validateProposal = (staged) => {
 	}
 
 	for (const [index, entry] of proposals.entries()) {
-		validateProposalEntry(entry, index, errors);
+		validateProposalEntry(staged.task, entry, index, errors);
 	}
 
 	return {valid: errors.length === 0, errors};

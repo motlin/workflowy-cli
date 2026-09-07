@@ -32,4 +32,23 @@ Partial deduplication is worse than no run at all: an event already sitting on t
 }
 ```
 
-Write `.llm/gtd/review/proposals/email-calendar.json` using `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. Each proposal includes the source-message key, alternate keys, event title, start and end, location, source context, target calendar recommendation, and exact creation operation or tool request. Stage `empty` when no undecided, unscheduled candidates remain.
+Write `.llm/gtd/review/proposals/email-calendar.json` using `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. Each proposal includes the ledger identity, event title, start and end, location, source context, target calendar recommendation, and exact creation operation or tool request. Stage `empty` when no undecided, unscheduled candidates remain.
+
+## Ledger identity fields
+
+The stable identity is staged as `key` and the alternates as `altKeys` — the exact field names the decisions ledger and `email-calendar-apply` read. Apply copies `.key` and `.altKeys` straight from the proposal into `.llm/gtd/review/email-calendar-decisions.json`, so any other name (an earlier run staged `sourceKey`) produces a `"key": null` ledger row that suppresses nothing, and the same email is re-proposed every review with no visible error.
+
+```json
+{
+	"header": "Sep 25",
+	"key": "<account>-imap-uid-<uid>",
+	"altKeys": ["<event title> | <yyyy-mm-dd>", "<subject> | <sender address>"],
+	"messageUid": 12345
+}
+```
+
+Derive `key` from the source message (`<account>-imap-uid-<uid>`, suffixed with the event date when one email yields several events). `altKeys` carry the title-and-date and subject-and-sender forms so a forwarded or re-sent copy still matches. After writing the file, run the validator; it rejects any `email-calendar` proposal whose `key` is missing, null, blank, or staged under another name:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/email-calendar.json
+```

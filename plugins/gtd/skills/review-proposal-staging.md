@@ -218,7 +218,7 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 
 ## Verification
 
-- **Schema shape-check:** run the validator on each staged file before the walk consumes it. It exits non-zero and names the offending proposals on a stray id, a short-id `nodeId`, a `--name` op missing `--expect-name`, a non-`ready` status carrying proposals, or a missing required field:
+- **Schema shape-check:** run the validator on each staged file before the walk consumes it. It exits non-zero and names the offending proposals on a stray id, a short-id `nodeId`, a `--name` op missing `--expect-name`, a non-`ready` status carrying proposals, a missing required field, or an `email-calendar` proposal without a non-null ledger `key` (see `${CLAUDE_PLUGIN_ROOT}/commands/email-calendar-prep.md`):
 
     ```bash
     node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/<slug>.json
