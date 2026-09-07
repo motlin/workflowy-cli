@@ -7,7 +7,7 @@ description: The ordinal priority ladder inside a 📌 Tasks (asap) bucket — t
 
 Each `📌 Tasks (asap)` bucket holds an **ordinal ladder**: children named `1st`, `2nd`, `3rd`, `4th`, `5th`, … Each tier is a rank, not a topic. A task's rank is the only thing its position encodes.
 
-Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` (`readLadder`, `planInsertion`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
+Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` (`readLadder`, `planInsertion`, `planRebalance`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
 
 ## Tiers replaced categories
 
@@ -40,6 +40,10 @@ Adding a task to a full tier **requires demoting one of that tier's existing ite
 `planInsertion(ladder, targetTier)` returns the whole plan — `createTiers` (missing tiers to create first, so the ladder never has a hole), `demotions` (each bumped node with its source and destination tier), and `targetId`. It defaults to demoting each full tier's **bottom-most item**; offer that default in the walk and let the user name a different item instead.
 
 Show the cascade before running it. "Filing this 1st bumps _X_ to 2nd" is the information that makes the user pick the right tier, and hiding it turns a deliberate trade-off into a surprise.
+
+## Rebalancing a ladder that has drifted
+
+The cascade only fires on insertion. A ladder that is already over cap -- a tier that grew while it was the bottom and then got a tier below it, or one that absorbed demotions nobody reviewed -- stays that way until the `/gtd:review:daily:rebalance` phase reads it. `planRebalance(ladder)` (`asap-tiers.mjs rebalance <bucket.json>` from the shell) reports the day plan (tiers `1st` and `2nd`), every capped tier over `2^k` with all of its occupants, the run of empty tiers starting at `2nd` with the candidates to pull up from below, and the bottom tier once it passes `2^k` with the new tier to create. It picks nothing: which items leave a tier is the user's judgment, so the report carries occupants, never victims, and the phase applies only what the user names.
 
 ## Choosing a tier
 

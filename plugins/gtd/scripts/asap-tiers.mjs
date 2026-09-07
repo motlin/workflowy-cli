@@ -17,6 +17,12 @@
 //   Anytime tasks arrive there in bulk, so it absorbs overflow instead of cascading into a tier
 //   that does not exist yet. Every tier that has a tier below it is hard-capped; the deepest one
 //   runs over until a rebalance extends the ladder.
+//
+// The cascade in planInsertion only fires when something is *inserted* into a full tier, so a
+// ladder that has drifted out of shape stays that way until planRebalance reads it. That report is
+// proposals only: which items leave an over-cap tier is the user's judgment, never a position.
+
+import {readFileSync} from 'node:fs';
 
 const ORDINAL_SUFFIX = {1: 'st', 2: 'nd', 3: 'rd'};
 
@@ -125,3 +131,99 @@ export function planInsertion(ladder, targetTier) {
 
 	return {targetTier, targetId: byTier.get(targetTier)?.id ?? null, demotions, createTiers};
 }
+
+/**
+ * Read a ladder that may already be out of shape and report what a rebalance would propose. Every
+ * entry is a proposal for the user to confirm; nothing here picks an item. Tiers are numbered
+ * 1..deepest, and a tier missing from the bucket counts as empty with `id: null`.
+ *
+ *   dayPlan   -- tiers 1 and 2, the goals for the day.
+ *   pushDowns -- each capped (non-bottom) tier over 2^k, with every occupant and the minimum
+ *                number that has to move to the tier below.
+ *   pullUps   -- the run of empty tiers starting at 2nd, each to be fed from the first non-empty
+ *                tier below the run. 1st is never a pull-up target: it is two things the user
+ *                would drop everything else for, or nothing.
+ *   extend    -- the bottom tier once it passes 2^k (exactly 2^k + 1 triggers it): a new tier to
+ *                create, with every occupant so the user can say which ones move into it.
+ */
+export function planRebalance(ladder) {
+	const byTier = new Map(ladder.tiers.map((t) => [t.tier, t]));
+	const deepest = bottomTier(ladder)?.tier ?? 0;
+	const tierAt = (tier) =>
+		byTier.get(tier) ?? {tier, label: tierLabel(tier), id: null, capacity: tierCapacity(tier), items: []};
+
+	const dayPlan = [];
+	for (let tier = 1; tier <= Math.min(2, deepest); tier++) {
+		const {label, id, items} = tierAt(tier);
+		dayPlan.push({tier, label, id, items});
+	}
+
+	const pushDowns = [];
+	for (let tier = 1; tier < deepest; tier++) {
+		const {label, id, capacity, items} = tierAt(tier);
+		if (items.length <= capacity) continue;
+		pushDowns.push({
+			tier,
+			label,
+			id,
+			count: items.length,
+			capacity,
+			excess: items.length - capacity,
+			toTier: tier + 1,
+			toId: tierAt(tier + 1).id,
+			items,
+		});
+	}
+
+	const pullUps = [];
+	if (deepest >= 2 && tierAt(2).items.length === 0) {
+		let source = 2;
+		while (source <= deepest && tierAt(source).items.length === 0) source += 1;
+		if (source <= deepest) {
+			const from = tierAt(source);
+			for (let tier = 2; tier < source; tier++) {
+				const to = tierAt(tier);
+				pullUps.push({
+					toTier: tier,
+					toLabel: to.label,
+					toId: to.id,
+					fromTier: from.tier,
+					fromLabel: from.label,
+					fromId: from.id,
+					candidates: from.items,
+				});
+			}
+		}
+	}
+
+	let extend = null;
+	const bottom = bottomTier(ladder);
+	if (bottom && bottom.items.length > bottom.capacity) {
+		extend = {
+			tier: bottom.tier,
+			label: bottom.label,
+			id: bottom.id,
+			count: bottom.items.length,
+			capacity: bottom.capacity,
+			newTier: bottom.tier + 1,
+			newLabel: tierLabel(bottom.tier + 1),
+			minimumToMove: bottom.items.length - bottom.capacity,
+			items: bottom.items,
+		};
+	}
+
+	return {dayPlan, pushDowns, pullUps, extend};
+}
+
+function main(arguments_) {
+	const [command, inputPath] = arguments_.slice(2);
+	if (command !== 'rebalance' || !inputPath) {
+		throw new Error(
+			'usage: asap-tiers.mjs rebalance <bucket.json>  (a 📌 bucket from `node get --depth 2 --json`)',
+		);
+	}
+	const bucket = JSON.parse(readFileSync(inputPath, 'utf8'));
+	process.stdout.write(`${JSON.stringify(planRebalance(readLadder(bucket)), null, 2)}\n`);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);

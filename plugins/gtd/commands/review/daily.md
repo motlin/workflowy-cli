@@ -1,19 +1,19 @@
 ---
-description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, process the inbox, file loose tasks, and walk every dated item that needs handling today. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
+description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, rebalance the asap ladders, process the inbox, file loose tasks, and walk every dated item that needs handling today. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
 ---
 
 # Daily Review
 
-Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, empty the inbox, file loose tasks, and finish by walking everything dated that needs handling today.
+Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, and finish by walking everything dated that needs handling today.
 
 The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done:
 
 ```text
-LLM Tasks → Relink → Meetings → Overview → Process Inbox → File Loose Tasks → Recurring Review
-                                    (producers of dated tasks) ──────────────↗
+LLM Tasks → Relink → Meetings → Overview → Rebalance Ladders → Process Inbox → File Loose Tasks → Recurring Review
+                                                (producers of ladder and dated tasks) ──────────────↗
 ```
 
-The Meeting Follow-up Review, Morning Overview, and Recurring Review phases delegate to `/gtd:review:daily:meetings`, `:overview`, and `:due`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
+The Meeting Follow-up Review, Morning Overview, Rebalance Ladders, and Recurring Review phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:rebalance`, and `:due`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
 
 ## When a skill breaks, fix the skill first
 
@@ -176,6 +176,12 @@ Invoke `/gtd:review:daily:meetings` to walk meetings ingested since last review,
 ## Morning Overview
 
 Invoke `/gtd:review:daily:overview` — morning orientation (calendar, reminders, next actions, inbox)
+
+## Rebalance Ladders
+
+Invoke `/gtd:review:daily:rebalance` — print tiers `1st` and `2nd` of both `📌 Tasks (asap)` ladders as today's goals, then propose the moves that bring each ladder back into shape: push-downs out of tiers over their `2^k` cap, pull-ups into an empty `2nd` (and `3rd`) from the tier below, and a new bottom tier once the landing zone passes `2^k`. **Every move is a proposal the user confirms** — nothing is demoted, promoted, or split automatically, and the items that leave a tier are the ones the user names, never the bottom-most ones.
+
+**This phase runs here, and the order matters.** Process Inbox, File Loose Tasks, and the due walk all put new items onto the ladder, and the insertion cascade only keeps a tier at cap when it was at cap to begin with. Rebalancing after them would be stale the moment it finished; rebalancing before them hands them a ladder whose caps mean something. Silent when both ladders are already in shape, apart from printing the day plan.
 
 ## Process Inbox
 

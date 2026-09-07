@@ -246,4 +246,4 @@ Drain all outstanding background moves (wait for jobs, surface any failures), th
 
 Report the Someday sweep on its own line (`✓ 30 swept from Things Someday: 18 personal, 4 work, 8 deleted`), since it lands outside the ladders.
 
-Then re-read each ladder and report any tier over its cap. The bottom tier is allowed to run over between rebalances; any tier above it being over cap means a demotion failed, and that has to be named rather than left to the next run.
+Then re-read each ladder and report any tier over its cap. The bottom tier is allowed to run over until the next `/gtd:review:daily:rebalance` extends the ladder; any tier above it being over cap means a demotion failed, and that has to be named rather than left to the next run.
