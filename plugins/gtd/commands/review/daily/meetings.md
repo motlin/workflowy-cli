@@ -155,6 +155,7 @@ Offer **three** options:
 
 - **Add to inbox** — create a new inbox node in Step 9
 - **File on existing task** — add the meeting as context under the matched task in Step 9 instead of creating a duplicate inbox item. Offer this option only when Step 7 found a match, and name the matched task in the option label so it is identifiable.
+    - When looking for a match, the target is often another item from the **same meeting**, not only an existing task on the same topic. Two candidates from one meeting are usually one to-do and the same topic; sharing a meeting is a strong hint they belong together. So treat a candidate from the same meeting that the user already accepted earlier in this walk as a match candidate too, and offer it in the option label the same way (e.g. `File on "<earlier item from this meeting>"`) so the walk combines them instead of filing two inbox items.
 - **Skip** — drop it (whether it's noise, not the user's, or a real follow-up that's already done — all three drop the same way; this command records nothing on skip, so there's no behavioral difference and no reason to split "skip" from "already handled")
 
 - Batch into multiple questions per AskUserQuestion call if needed.
