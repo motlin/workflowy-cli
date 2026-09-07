@@ -19,9 +19,13 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 
 ---
 
-## Segment 1 — Recurring items
+## Fetch every source before the first question
 
-## Fetch Review Tree
+Both segments' sources are fetched here, in one front-loaded batch, before Segment 1 asks anything. They have no data dependencies on each other or on the walk, and one of them can halt the review: the Apple Reminders fetch goes through iMCP, and an iMCP outage discovered at walk time lands after hours of interactive Segment 1 work instead of before it. On 2026-09-04 the helper answered all morning, then died as Segment 2 started, taking the run down at its last step. Fetching up front moves that halt to the cheapest possible moment. Launch the `reminders-fetcher` Task and the Bash fetches below concurrently in a **single assistant message**, then wait for all of them before computing anything.
+
+**Apple Reminders** — launch the `reminders-fetcher` agent and save its JSON to `.llm/gtd/review/due-reminders.json`. The iMCP halt rule applies: if the fetcher returns `status: "imcp-unavailable"`, **stop the review here** regardless of `fatal` — in plain text, never through `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. Nothing has been walked yet, so reconnecting and re-running costs the user nothing. When this command runs standalone rather than from `/gtd:review:daily`, run the **iMCP self-heal preflight** from `daily/overview.md` first so a stale helper is restarted before the fetch instead of dying partway through it.
+
+**Review tree** (Segment 1):
 
 ```bash
 mkdir -p .llm/gtd/review
@@ -29,7 +33,33 @@ mkdir -p .llm/gtd/review
   --fields id,shortId,name,note,modifiedAt,priority,completedAt,mirror,children > .llm/gtd/review/tree.json
 ```
 
-**Re-fetch after any data import** (`just daily`, `cache import-api`, etc.) — re-run the fetch above to overwrite `tree.json` and recompute the overdue list. Stale data causes wrong "overdue by N days" math and already-resolved prompts.
+**Workflowy Next-Actions roots** (Segment 2) — resolve both roots from the metadata anchor, then dump each deep enough to reach the tasks:
+
+```bash
+./bin/run.js node get --id d81ba063-5604-49a5-bb87-0d0fe59d0a48 --depth 1 --json \
+  --fields name,shortId,id,children,linkTargets > .llm/gtd/review/next-actions-meta.json
+```
+
+Read `linkTargets[0].id` for each child to get each root's full UUID, then for each root:
+
+```bash
+./bin/run.js node get --id <rootUuid> --depth 5 --json \
+  --fields id,shortId,name,note,modifiedAt,completedAt,priority,children > .llm/gtd/review/root-<work|personal>.json
+```
+
+Combine them into the collector's input shape — an array of `{rootKey, root}` — at `.llm/gtd/review/due-workflowy.json`.
+
+**Things 3** (Segment 2):
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-things-due.mjs > .llm/gtd/review/due-things.json
+```
+
+**Re-fetch the Workflowy sources after any data import** (`just daily`, `cache import-api`, a Segment 1 `#llm-task` that imports) — re-run the review-tree and Next-Actions fetches above to overwrite `tree.json` and `due-workflowy.json`, then recompute `overdue.json` and `due-items.json`. Stale data causes wrong "overdue by N days" math and already-resolved prompts. Things and Reminders are untouched by a Workflowy import and are **not** re-fetched: a reminder the user sets during Segment 1 through the **Set a reminder** outcome is an alarm for later today, not a due item for Segment 2 to walk.
+
+---
+
+## Segment 1 — Recurring items
 
 ## Identify Overdue Items
 
@@ -149,36 +179,9 @@ One-shot dated tasks from three sources. Runs immediately after Segment 1, with 
 
 They are the same kind of thing — a task with a deadline that should be done once — stored in three systems that model dates differently. Walking them separately meant Workflowy's buckets were never walked at all, and items reached 90 days overdue while technically being on screen every morning.
 
-## Fetch all three sources
-
-Front-load them; they have no data dependencies.
-
-**Workflowy** — resolve both Next-Actions roots from the metadata anchor, then dump each deep enough to reach the tasks:
-
-```bash
-mkdir -p .llm/gtd/review
-./bin/run.js node get --id d81ba063-5604-49a5-bb87-0d0fe59d0a48 --depth 1 --json \
-  --fields name,shortId,id,children,linkTargets > .llm/gtd/review/next-actions-meta.json
-```
-
-Read `linkTargets[0].id` for each child to get each root's full UUID, then for each root:
-
-```bash
-./bin/run.js node get --id <rootUuid> --depth 5 --json \
-  --fields id,shortId,name,note,modifiedAt,completedAt,priority,children > .llm/gtd/review/root-<work|personal>.json
-```
-
-Combine them into the collector's input shape — an array of `{rootKey, root}` — at `.llm/gtd/review/due-workflowy.json`.
-
-**Things 3:**
-
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-things-due.mjs > .llm/gtd/review/due-things.json
-```
-
-**Apple Reminders** — launch the `reminders-fetcher` agent and save its JSON to `.llm/gtd/review/due-reminders.json`. The iMCP halt rule applies: if the fetcher returns `status: "imcp-unavailable"`, **stop the review** regardless of `fatal` — do not walk a partial set.
-
 ## Compute the working set
+
+All three inputs were staged by **Fetch every source before the first question** at the top of this command — `due-workflowy.json`, `due-things.json`, and `due-reminders.json`. If a Workflowy import ran during Segment 1, re-run the Workflowy fetches there first; never launch `reminders-fetcher` again here.
 
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs \

@@ -139,4 +139,4 @@ Per-item reaping (the ~5-item cadence above) bounds the number of in-flight jobs
 
 ### CRITICAL — drain before any cache reimport
 
-Any step that runs `cache import-api` / `just daily` overwrites local SQLite from the API (write-through model). Drain all pending background date-writes before running such a step — otherwise the import clobbers items whose API write has not yet landed, and already-handled items reappear as overdue. This protects the "re-fetch after import" rule (`due.md:19`).
+Any step that runs `cache import-api` / `just daily` overwrites local SQLite from the API (write-through model). Drain all pending background date-writes before running such a step — otherwise the import clobbers items whose API write has not yet landed, and already-handled items reappear as overdue. This protects the **Re-fetch the Workflowy sources after any data import** rule in `due.md`.

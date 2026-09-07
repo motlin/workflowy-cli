@@ -187,7 +187,7 @@ Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then
 
 ## Recurring Review
 
-Invoke `/gtd:review:daily:due` — two segments walked back to back: overdue recurring review items in `Personal > 🔄 Review`, then one-shot due tasks merged from the Workflowy `⏰` buckets, Things 3, and Apple Reminders.
+Invoke `/gtd:review:daily:due` — two segments walked back to back: overdue recurring review items in `Personal > 🔄 Review`, then one-shot due tasks merged from the Workflowy `⏰` buckets, Things 3, and Apple Reminders. The command fetches every source, Apple Reminders through iMCP included, before its first question, so an iMCP outage halts at the top of the phase rather than after the recurring walk.
 
 **This phase runs last, and the order matters.** File Loose Tasks and Process Inbox are both _producers_ of dated tasks — filing something as due today must be followed by the walk that asks whether it's done, not preceded by it. Running the walk earlier would hide everything the earlier phases just created for a full day.
 
