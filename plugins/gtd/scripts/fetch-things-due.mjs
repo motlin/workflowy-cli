@@ -54,21 +54,31 @@ set rs to (ASCII character 30)
 tell application "Things3"
 	set theIDs to id of every to do of list "${listName}"
 	set out to ""
+	set skipped to 0
 	repeat with theID in theIDs
-		try
-			set t to to do id (theID as string)
-			set dd to due date of t
-			if dd is missing value then
-				set ds to ""
-			else
-				set ds to ((year of dd) as string) & "-" & ((month of dd) as integer) & "-" & ((day of dd) as string)
+		set ok to false
+		repeat with attempt from 1 to 2
+			if not ok then
+				try
+					set t to to do id (theID as string)
+					set dd to due date of t
+					if dd is missing value then
+						set ds to ""
+					else
+						set ds to ((year of dd) as string) & "-" & ((month of dd) as integer) & "-" & ((day of dd) as string)
+					end if
+					set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & rs
+					set ok to true
+				on error
+					-- Retry once: a transient Apple Event failure under load looks identical to a
+					-- to-do that was completed between the snapshot and the lookup, and treating the
+					-- two the same silently changes the answer between runs.
+				end try
 			end if
-			set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & rs
-		on error
-			-- The to-do was completed or deleted between the snapshot and this lookup. It is
-			-- genuinely gone, so there is nothing to report; skipping it is the correct read.
-		end try
+		end repeat
+		if not ok then set skipped to skipped + 1
 	end repeat
+	if skipped > 0 then set out to out & "SKIPPED" & fs & (skipped as string) & rs
 	return out
 end tell`;
 }

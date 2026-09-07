@@ -142,3 +142,30 @@ test('the AppleScript tolerates a to-do that disappears between the snapshot and
 	assert.match(src, /\btry\b/, 'must guard the per-id lookup');
 	assert.match(src, /\bon error\b/, 'must handle the vanished-to-do case explicitly');
 });
+
+test('a failed per-id lookup is retried and then reported, never silently dropped', () => {
+	// The first version of the id-snapshot fix wrapped each `to do id` lookup in a bare
+	// `try ... on error ... end try` that did nothing. That treats EVERY failure as "the to-do is
+	// gone", including transient Apple Event failures under load -- so items disappear from the
+	// result non-deterministically. Two runs minutes apart returned today=17/anytime=0 and then
+	// today=8/anytime=2 off an unchanged database, and the Anytime sweep consequently swept
+	// nothing while the real Anytime list held 18 to-dos.
+	// A lookup that fails must be retried once, and a lookup that still fails must be COUNTED and
+	// surfaced, so a dropped item is visible instead of silently changing the answer.
+	const src = script('Anytime');
+	assert.match(src, /repeat with attempt from 1 to 2/, 'must retry a failed lookup once');
+	assert.match(src, /set skipped to skipped \+ 1/, 'must count a lookup that failed both attempts');
+	assert.match(src, /"SKIPPED"/, 'must emit the skip count so the caller can see dropped items');
+});
+
+test('the parsed row count is reconciled against the id snapshot', () => {
+	// Reporting the skip count only helps if something reads it. parseThingsRows must be able to
+	// see the trailing count line without mistaking it for a to-do.
+	const raw = out(row('A1', 'Real task', '', 'Anytime', ''));
+	const rows = parseThingsRows(raw + 'SKIPPED\x1f2' + RECORD_SEP);
+	assert.deepStrictEqual(
+		rows.map((r) => r.id),
+		['A1'],
+		'the skip-count marker must not be parsed as a to-do',
+	);
+});
