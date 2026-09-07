@@ -1,6 +1,6 @@
 ---
 name: birthdays-apply
-description: Announce today's birthdays and anniversaries prominently, then walk every relationship date from the last year that still needs handling, one at a time.
+description: Announce birthdays and anniversaries for today and the next three days prominently, then walk every relationship date from the last year that still needs handling, one at a time.
 ---
 
 # Birthdays — Apply
@@ -13,18 +13,20 @@ Run `/gtd:birthdays-prep` first; in the daily review it runs automatically as a 
 
 **Check `generatedFor` against today's date before presenting anything.** A long review can cross midnight, and a briefing computed for yesterday will announce yesterday's events and stay silent about today's. If they differ, re-run the prep for the current day and use the fresh result. This is not optional — it is exactly how an anniversary passed unannounced on 2026-08-20 during a review that started on the 19th.
 
-## Announce today first
+## Announce today and the next three days first
 
-Before any walking, print the `today` array **on its own, at the top, in full**:
+Before any walking, print the `today` and `imminent` arrays together as one block **on its own, at the top, in full** — today's entries first, then the imminent ones in date order, each prefixed with its staged `label`:
 
 ```text
 🎂 TODAY — @Alice turns 40
 💍 TODAY — @Bob and @Carol's 3rd anniversary (married Aug 20, 2023)
+🎂 TOMORROW — @Dave turns 12
+💍 WED — @Erin and @Frank's 10th anniversary (married Sep 9, 2016)
 ```
 
-Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not. Never fold a TODAY line into a paragraph, a table row, or the tail of a longer summary. If `today` is empty, say so in one line and move on.
+The next three days share the prominent block because the review is often run in the evening rather than the morning: a birthday tomorrow announced only as a quiet heads-up tonight is one the user finds out about tomorrow, after the window to mail a card or plan a call has closed. Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not. Never fold a TODAY or imminent line into a paragraph, a table row, or the tail of a longer summary. If both arrays are empty, say so in one line and move on.
 
-Then print `upcoming` as clearly-dated heads-up lines, visibly separate from the TODAY block.
+Then print `upcoming` (days 4-14) as clearly-dated heads-up lines, visibly separate from and quieter than the prominent block.
 
 ## Walk the unhandled backlog
 

@@ -13,7 +13,7 @@ This half never prompts. It stages `.llm/gtd/review/proposals/birthdays.json`; `
 
 Match today's events by **month and day only**, ignoring the stored year.
 
-Record any hit for today in a dedicated `today` array, separate from upcoming events. Apply prints those first and prominently — a relationship date read as a buried aside is a date the user missed, which is the failure this whole task exists to prevent. Upcoming events inside the next 14 days go in a separate `upcoming` array with their dates.
+Record any hit for today in a dedicated `today` array. Events 1-3 days out go in a separate `imminent` array; each entry carries its ISO `date`, its `weekday`, and a `label` — `Tomorrow` for one day out, the weekday name (`Wed`) for two or three — while `today` entries are labeled `Today`. Apply prints `today` and `imminent` together, first and prominently. The window reaches three days out because the review is often run in the evening rather than the morning, so a milestone falling tomorrow needs same-day prominence or the user reads it for the first time when it is already too late to act. A relationship date read as a buried aside is a date the user missed, which is the failure this whole task exists to prevent. Events 4-14 days out go in a quieter `upcoming` array with their dates.
 
 Write `generatedFor` (the ISO date this briefing describes) into the staged JSON. A long review can cross midnight, and the briefing is only valid for the day it was computed; the apply half compares `generatedFor` against the current date and re-runs this prep when they differ.
 
@@ -60,4 +60,4 @@ For each person carrying an estimated year, search the journal for their name al
 
 ## Output
 
-Write `.llm/gtd/review/proposals/birthdays.json` per `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`, carrying `generatedFor`, `today`, `upcoming`, `autoApplied`, and `proposals[]`. Stage `empty` only when nothing matches today, nothing needed rolling, and no unhandled dates remain. Return verified success or empty; return failure on unreadable or malformed source data. Never update the task's own schedule date — the DAG executor owns that.
+Write `.llm/gtd/review/proposals/birthdays.json` per `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`, carrying `generatedFor`, `today`, `imminent`, `upcoming`, `autoApplied`, and `proposals[]`. Stage `empty` only when nothing matches today, nothing is imminent, nothing needed rolling, and no unhandled dates remain. Return verified success or empty; return failure on unreadable or malformed source data. Never update the task's own schedule date — the DAG executor owns that.
