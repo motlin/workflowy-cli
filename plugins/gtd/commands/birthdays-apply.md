@@ -15,16 +15,18 @@ Run `/gtd:birthdays-prep` first; in the daily review it runs automatically as a 
 
 ## Announce today and the next three days first
 
-Before any walking, print the `today` and `imminent` arrays together as one block **on its own, at the top, in full** — today's entries first, then the imminent ones in date order, each prefixed with its staged `label`:
+Before any walking, print the `today` and `imminent` arrays together as one block **on its own, at the top, in full** — today's entries first, then the imminent ones in date order, each prefixed with its staged `label` in caps:
 
 ```text
 🎂 TODAY — @Alice turns 40
-💍 TODAY — @Bob and @Carol's 3rd anniversary (married Aug 20, 2023)
+💍 TODAY — @Bob and @Carol's 3rd anniversary (married Sep 7, 2023)
 🎂 TOMORROW — @Dave turns 12
 💍 WED — @Erin and @Frank's 10th anniversary (married Sep 9, 2016)
 ```
 
-The next three days share the prominent block because the review is often run in the evening rather than the morning: a birthday tomorrow announced only as a quiet heads-up tonight is one the user finds out about tomorrow, after the window to mail a card or plan a call has closed. Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not. Never fold a TODAY or imminent line into a paragraph, a table row, or the tail of a longer summary. If both arrays are empty, say so in one line and move on.
+The next three days share the prominent block because the review is often run in the evening rather than the morning: a birthday tomorrow announced only as a quiet heads-up tonight is one the user finds out about tomorrow, after the window to mail a card or plan a call has closed.
+
+Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not. Never fold one of these lines into a paragraph, a table row, or the tail of a longer summary. If both arrays are empty, say so in one line and move on.
 
 Then print `upcoming` (days 4-14) as clearly-dated heads-up lines, visibly separate from and quieter than the prominent block.
 

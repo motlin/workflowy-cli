@@ -13,7 +13,13 @@ This half never prompts. It stages `.llm/gtd/review/proposals/birthdays.json`; `
 
 Match today's events by **month and day only**, ignoring the stored year.
 
-Record any hit for today in a dedicated `today` array. Events 1-3 days out go in a separate `imminent` array; each entry carries its ISO `date`, its `weekday`, and a `label` — `Tomorrow` for one day out, the weekday name (`Wed`) for two or three — while `today` entries are labeled `Today`. Apply prints `today` and `imminent` together, first and prominently. The window reaches three days out because the review is often run in the evening rather than the morning, so a milestone falling tomorrow needs same-day prominence or the user reads it for the first time when it is already too late to act. A relationship date read as a buried aside is a date the user missed, which is the failure this whole task exists to prevent. Events 4-14 days out go in a quieter `upcoming` array with their dates.
+Record every match in one of three arrays:
+
+- `today` — hits for today's month and day, labeled `Today`.
+- `imminent` — events 1-3 days out. Each entry carries its ISO `date`, its `weekday`, and a `label`: `Tomorrow` at one day out, the weekday name (`Wed`) at two or three.
+- `upcoming` — events 4-14 days out, with their dates.
+
+Apply prints `today` and `imminent` together, first and prominently, and leaves `upcoming` as a quieter list. The window reaches three days out because the review is often run in the evening rather than the morning, so a milestone falling tomorrow needs same-day prominence or the user reads it for the first time when it is already too late to act. A relationship date read as a buried aside is a date the user missed, which is the failure this whole task exists to prevent.
 
 Write `generatedFor` (the ISO date this briefing describes) into the staged JSON. A long review can cross midnight, and the briefing is only valid for the day it was computed; the apply half compares `generatedFor` against the current date and re-runs this prep when they differ.
 
