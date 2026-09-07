@@ -78,6 +78,20 @@ Pass each root's `📌 Tasks (asap)` bucket through `readLadder` from `${CLAUDE_
 
 The `⏰ Tasks (due dates)` bucket has **no sub-buckets**. A due-dated task goes directly into the bucket carrying a `<time>` element on the node itself; the timeframe is expressed as a date, not as a container. Capture only the bucket's own full UUID.
 
+## Match each loose task against what is already filed
+
+A loose task is often a second capture of work the user already tracks — "upgrade the Gradle plugins" next to an existing "dependency upgrades" task — and filing it as its own bucket entry produces two tasks for one job. Before proposing a destination, search the already-filed tasks for a related one, so the walk can offer to fold the loose task into it.
+
+The candidate pool is every task already inside the `⏰` and `📌` buckets of **both** roots: each ladder tier's `items` from `readLadder`, plus the `⏰` bucket's direct children. Read them off the `root-<work|personal>.json` you just fetched — that snapshot is fresher than the synced metadata cache that `${CLAUDE_PLUGIN_ROOT}/scripts/load-existing-tasks.sh` reads for the capture and meetings flows, and it covers the same nodes. Record each candidate's tier (or its `⏰` due date) alongside its name and full UUID; the merge outcome needs to say where the related task currently sits.
+
+Apply the same normalize-and-match rules `${CLAUDE_PLUGIN_ROOT}/commands/review/daily/meetings.md` Step 7 uses. Normalize both sides first: lowercase, strip HTML, `#tags`, `@mentions`, and punctuation. Then a candidate is related when any holds:
+
+- A substring match in either direction
+- More than ~70% overlap of significant words, ignoring stopwords and generic verbs (`do`, `check`, `look at`)
+- The same distinctive noun phrase even when the verbs differ — "bump the Jackson version" matches "dependency upgrades"
+
+Match on the distinctive nouns rather than the phrasing, and prefer reporting a weak match over none — the user judges it in the walk. Keep a single best match per loose task as `related` (`{nodeId, name, destLabel, reason}`) or `null`. Never drop a loose task because it matched; the match only adds a Merge outcome next to the destination choices.
+
 ## Recommend a destination per task
 
 For each loose task, pick a recommended destination from signals already on the node — no external calls. The due-vs-asap split is a **judgment call**, so the recommendation is a starting point the user confirms or overrides, not a hard rule.
@@ -113,6 +127,12 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 				"position": "bottom"
 			},
 			"reason": "\"report back\" — someone is waiting",
+			"related": {
+				"nodeId": "<full-uuid-of-the-related-filed-task>",
+				"name": "OpenRewrite contribution plan #openrewrite #work",
+				"destLabel": "📌 asap → 3rd",
+				"reason": "same distinctive noun phrase: \"OpenRewrite contribution\""
+			},
 			"alternatives": [
 				{
 					"destLabel": "📌 asap → 2nd (4/4 full — bumps \"Draft the rollup RFC\" to 3rd)",
@@ -146,6 +166,8 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 }
 ```
 
+`related` is the best match from the filed-task search, or `null` when nothing matched. It is not a destination and carries no `applyOps` — the walk builds the Merge outcome from it.
+
 `applyOps` holds the **recommended** destination's commands, escaped and ready to run verbatim, **in order**. A due-dates destination is two ops — stamp the date, then move — because the date lives on the node rather than in a container. An asap destination carries no `timeframe` / `due`; it is any `demotions` first (each a `node move` into the tier below), then a `node update --name` when `addTags` is non-empty, then the move into `destUuid`. Demotions run first so the tier never briefly holds more than its cap. Every `destUuid` is a full UUID read off the ladder; for due-dates that is always the `⏰` bucket itself.
 
 A tier in `createTiers` has no UUID yet, so it cannot be staged as a shell string. Create those tiers during normalization — before staging — and stage against the resulting UUIDs.
@@ -163,10 +185,14 @@ Present one task at a time via `AskUserQuestion` — **never** open with a meta-
 ```markdown
 **Work** — 12 loose tasks
 
-Task 3/12: Follow up with Legal on OpenRewrite approval, report back #openrewrite Recommended: ⏰ due-dates → This week (reason: "report back" = someone waiting) https://workflowy.com/#/<shortId>
+Task 3/12: Follow up with Legal on OpenRewrite approval, report back #openrewrite Recommended: ⏰ due-dates → This week (reason: "report back" = someone waiting) Related: "OpenRewrite contribution plan" (📌 asap → 3rd) https://workflowy.com/#/<shortId>
 ```
 
-Options per task (first = the recommended destination): the recommended destination, then 2-3 `alternatives`, then **Skip** (leave the task loose). Render embedded `<a href>` links as markdown so they're clickable; strip other HTML for display.
+**Name the related task inside the question on every task** — `Related: "<name>" (<where it sits>)` when `related` is set, `No related task found.` otherwise. The user decides from the question body alone, so a match that only appears in the console is a match they never see.
+
+Options per task (first = the recommended destination): the recommended destination, then 2-3 `alternatives`, then **Merge with** `"<related task name>"` when `related` is set, then **Skip** (leave the task loose). Render embedded `<a href>` links as markdown so they're clickable; strip other HTML for display.
+
+**On Merge**, fold the loose task into the related one rather than filing it beside it: `node move --node-id <looseUuid> --parent-id <relatedUuid> -p bottom`. The loose task becomes a child bullet of the related task and its own children (sub-steps, provenance) travel with it. Do not rename or re-tag either node. Then ask a follow-up `AskUserQuestion` for **which tier the merged task should sit at** — the merge changed its scope, so its rank is worth a second look. Offer **Keep at** `<current tier>` first (the default), then one or two higher tiers built with `planInsertion(ladder, tier)` for the _related_ task, cascade shown in the label exactly as for a fresh filing. If the related task lives in `⏰ due-dates`, the first option keeps its date and the alternatives are asap tiers instead. A tier change runs the demotions first, then `node move --node-id <relatedUuid> --parent-id <tierUuid> -p bottom`; "Keep" runs nothing further. The pool is filed tasks only, so two loose tasks never match each other; if the user names another loose task as the merge target anyway, merge into it and file the pair together under the destination they pick.
 
 **Show the cascade in the option label.** When a tier option carries `demotions`, name what gets bumped and where — `📌 asap → 1st (2/2 full — bumps "Fix the TV page ordering" to 2nd)`. The trade-off is the whole point of the cap; an option that hides it turns a deliberate choice into a surprise. If the user wants a different item demoted, take the name they give and rebuild the demotion against that node.
 
@@ -216,7 +242,7 @@ Someday items are old by construction, so **Delete is a normal outcome here, not
 
 ## Finish
 
-Drain all outstanding background moves (wait for jobs, surface any failures), then print a one-line summary — e.g. `✓ 14 tasks filed (9 asap, 5 due-dates), 6 swept from Things Anytime, 3 skipped` — or list failed moves by task name instead of reporting success. If `status` was `empty` and the Anytime list is also empty, say so and skip the walk entirely.
+Drain all outstanding background moves (wait for jobs, surface any failures), then print a one-line summary — e.g. `✓ 14 tasks filed (9 asap, 5 due-dates), 2 merged into existing tasks, 6 swept from Things Anytime, 3 skipped` — or list failed moves by task name instead of reporting success. If `status` was `empty` and the Anytime list is also empty, say so and skip the walk entirely.
 
 Report the Someday sweep on its own line (`✓ 30 swept from Things Someday: 18 personal, 4 work, 8 deleted`), since it lands outside the ladders.
 
