@@ -178,7 +178,7 @@ For any items declined in chrome-capture (returned in `declined` array), record 
 TODAY=$(date +%Y-%m-%d)
 
 # Create date node if needed
-./bin/run.js node create --parent-path "Metadata,🧠 Session Memory" --name "$TODAY" 2>/dev/null || true
+./bin/run.js node create --parent-path "Metadata,🧠 Session Memory" --name "$TODAY"
 
 # Record each declined URL
 for url in <declined_urls>; do

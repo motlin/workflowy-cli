@@ -82,7 +82,10 @@ for OTTER_ID in $DUPLICATE_IDS; do
       if [[ "$DRY_RUN" == true ]]; then
         echo "  [DRY-RUN] Would delete: $TITLE (Otter: $OTTER_ID)"
       else
-        ./bin/run.js node delete --id "$NODE_ID" 2>/dev/null
+        if ! ./bin/run.js node delete --id "$NODE_ID"; then
+          echo "❌ Error: Failed to delete $NODE_ID ($TITLE, Otter: $OTTER_ID)" >&2
+          exit 1
+        fi
         echo "  ✓ Deleted: $TITLE (Otter: $OTTER_ID)"
       fi
       DELETED_COUNT=$((DELETED_COUNT + 1))
