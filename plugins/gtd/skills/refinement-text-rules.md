@@ -1,6 +1,6 @@
 ---
 name: refinement-text-rules
-description: 'Cross-cutting rules for any pass that rewrites the visible text of a Workflowy node — decoding stray HTML entities in prose, the judgment (full name plus context, never first-name-alone) required before turning a written name into an @mention, and the inverse rule for text that leaves Workflowy (notes the user will share, send, paste, or read aloud), which needs plain full names instead of @mentions. Load in every text-refinement pass (journal, #exercise, inbox refinement, scanner-authored entries) to avoid mis-attributing tags.'
+description: 'Cross-cutting rules for any pass that rewrites the visible text of a Workflowy node — decoding stray HTML entities in prose, the judgment (full name plus context, never first-name-alone) required before turning a written name into an @mention, the ban on writing search-coverage caveats ("not yet seen in", "no price found") into node text instead of the value, and the inverse rule for text that leaves Workflowy (notes the user will share, send, paste, or read aloud), which needs plain full names instead of @mentions. Load in every text-refinement pass (journal, #exercise, inbox refinement, scanner-authored entries) to avoid mis-attributing tags.'
 ---
 
 # Refinement text rules
@@ -63,6 +63,25 @@ So evaluate **every** candidate tag on its own, using the full name and the surr
 ### Resolve names mentioned together as a group, not one at a time
 
 When two or more first names appear together in one entry ("it was also Alice and Bob", "we went with Carol and Dave"), they are usually a couple, a family, or a household — so resolve them **jointly**, not independently. Independent resolution produces mismatched pairs.
+
+## Record the value, never your search coverage
+
+A node records a fact. It never records how hard you looked for the fact. The user reads the node months later, without this conversation, and "Registrar price not yet seen in card exports" tells them nothing about the price -- it only tells them which source one past session happened to check.
+
+When a researched value is missing from the first source you tried:
+
+- Go to the authoritative source before writing anything: the vendor's pricing page, the account dashboard, the registrar's own price list, the receipt. Card exports, email search, and cached notes are convenience sources, not the source of truth for a price or a date.
+- Once you have the value, write the value: `Example Registrar: $12/yr`. The search that produced it stays in the conversation.
+- If the value is still unknown after the authoritative source, either leave the field out or write the value you have with the `(?)` marker from the people-metadata skill (plain text, a space, then `(?)` -- for example `~$12/yr (?)`).
+
+Never write any of these into a node name or note:
+
+- "not yet seen in card exports" / "not in the exports"
+- "no price found" / "price unknown, could not find"
+- "could not confirm" / "unverified as of YYYY-MM-DD"
+- "checked X, Y, Z -- nothing"
+
+A node that would otherwise carry only a caveat should not be written at all. Report the gap to the user in the conversation, where it belongs, and let them decide whether to chase it.
 
 ## Content that leaves Workflowy
 
