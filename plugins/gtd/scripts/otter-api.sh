@@ -6,6 +6,7 @@
 #   OTTER_PASSWORD - Otter.ai account password
 #
 # Usage:
+#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh warm-credentials  # resolve op:// creds into the cache (run in the foreground)
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh available_speeches [page_size] [cursor] [modified_after]
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]  # minimal JSON with action items
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speech <otid>
@@ -21,9 +22,14 @@
 set -euo pipefail
 
 API_BASE="https://otter.ai/forward/api/v1"
-COOKIE_FILE="/tmp/otter-session-cache"
-USERID_FILE="/tmp/otter-userid-cache"
-CREDS_FILE="/tmp/otter-creds-cache"
+# Cache lives outside /tmp: reads there trigger Claude Code permission prompts,
+# and this directory holds resolved credentials.
+OTTER_CACHE_DIR="${OTTER_CACHE_DIR:-${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/.llm/otter}"
+mkdir -p "$OTTER_CACHE_DIR"
+chmod 700 "$OTTER_CACHE_DIR"
+COOKIE_FILE="$OTTER_CACHE_DIR/otter-session-cache"
+USERID_FILE="$OTTER_CACHE_DIR/otter-userid-cache"
+CREDS_FILE="$OTTER_CACHE_DIR/otter-creds-cache"
 
 TIMING="${OTTER_TIMING:-}"
 VERBOSE="${OTTER_VERBOSE:-}"
@@ -136,6 +142,31 @@ cookie_valid() {
     [[ $age -lt 3600 ]]
 }
 
+# Resolve OTTER_USERNAME/OTTER_PASSWORD, expanding op:// refs through the cache.
+# Sets RESOLVED_USERNAME / RESOLVED_PASSWORD. `op` runs only when the cache is cold,
+# which is why the daily-review barrier warms this in the foreground: a background
+# subagent cannot answer the 1Password authorization prompt that `op` raises.
+resolve_credentials() {
+    RESOLVED_USERNAME="${OTTER_USERNAME:-}"
+    RESOLVED_PASSWORD="${OTTER_PASSWORD:-}"
+
+    [[ "$RESOLVED_USERNAME" == op://* ]] || return 0
+
+    if [[ -f "$CREDS_FILE" ]]; then
+        log_timing "credentials: using cache"
+        RESOLVED_USERNAME=$(head -1 "$CREDS_FILE")
+        RESOLVED_PASSWORD=$(tail -1 "$CREDS_FILE")
+        return 0
+    fi
+
+    log_timing "credentials: resolving op:// refs"
+    RESOLVED_USERNAME=$(op read "$RESOLVED_USERNAME")
+    RESOLVED_PASSWORD=$(op read "$RESOLVED_PASSWORD")
+    log_timing "credentials: resolved"
+    (umask 077; printf '%s\n%s\n' "$RESOLVED_USERNAME" "$RESOLVED_PASSWORD" > "$CREDS_FILE")
+    chmod 600 "$CREDS_FILE"
+}
+
 login() {
     log_timing "login: start"
 
@@ -147,24 +178,9 @@ login() {
         return 0
     fi
 
-    local username="${OTTER_USERNAME:-}"
-    local password="${OTTER_PASSWORD:-}"
-
-    if [[ "$username" == op://* ]]; then
-        if [[ -f "$CREDS_FILE" ]]; then
-            log_timing "login: using cached credentials"
-            username=$(head -1 "$CREDS_FILE")
-            password=$(tail -1 "$CREDS_FILE")
-        else
-            log_timing "login: resolving op:// credentials"
-            username=$(op read "$username")
-            log_timing "login: got username"
-            password=$(op read "$password")
-            log_timing "login: got password"
-            printf '%s\n%s\n' "$username" "$password" > "$CREDS_FILE"
-            chmod 600 "$CREDS_FILE"
-        fi
-    fi
+    resolve_credentials
+    local username="$RESOLVED_USERNAME"
+    local password="$RESOLVED_PASSWORD"
 
     if [[ -z "$username" || -z "$password" ]]; then
         echo '{"error": "OTTER_USERNAME and OTTER_PASSWORD must be set"}' >&2
@@ -340,6 +356,14 @@ main() {
     local command="${1:-}"
 
     case "$command" in
+        warm-credentials)
+            resolve_credentials
+            if [[ -z "$RESOLVED_USERNAME" || -z "$RESOLVED_PASSWORD" ]]; then
+                echo '{"error": "OTTER_USERNAME and OTTER_PASSWORD must be set"}' >&2
+                exit 1
+            fi
+            echo "credentials ready: $CREDS_FILE"
+            ;;
         available_speeches)
             login
             available_speeches "${2:-50}" "${3:-}" "${4:-}"
@@ -373,7 +397,7 @@ main() {
             action_items "$2"
             ;;
         *)
-            echo "Usage: $0 {speeches|available_speeches|speech|summary|action_items} <args>" >&2
+            echo "Usage: $0 {warm-credentials|speeches|available_speeches|speech|summary|action_items} <args>" >&2
             exit 1
             ;;
     esac

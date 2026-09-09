@@ -42,7 +42,10 @@ Run the barrier without piping or masking either exit status:
 ```bash
 direnv exec . op run -- just daily
 direnv exec . ./bin/run.js cache sync-node --path "Personal,🔄 Review" --recursive
+direnv exec . "${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh" warm-credentials
 ```
+
+The third line is what keeps prep subagents away from `op` entirely. `otter-api.sh` resolves its `op://` refs lazily on first login; without this, the first process to need them is a background Otter scanner, which then raises both a Claude Code permission prompt and a 1Password authorization prompt that nobody can see. Warming here resolves them once, in the foreground, into a cache the subagent just reads. It is idempotent — a warm cache makes it a no-op that never invokes `op`.
 
 `direnv exec .` is required, not optional. The `op://` references and the literal `WORKFLOWY_API_KEY` live in the gitignored `.envrc`, and direnv loads it through a **prompt hook** that only fires in interactive shells. Every Bash tool call is a fresh non-interactive shell, so the hook never runs and the whole `.envrc` is silently absent — `op run` then has no `op://` refs to resolve and the barrier dies on `Dropbox credentials not set` at `cache import-backups`. Running it bare works from the user's own terminal and fails only under automation, which is exactly the asymmetry that makes it easy to reintroduce.
 

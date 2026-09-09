@@ -65,3 +65,4 @@ tsconfig.tsbuildinfo
 *storybook.log
 storybook-static
 firebase-debug.log
+__pycache__/

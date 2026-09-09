@@ -30,9 +30,20 @@ import httpx
 import trio
 
 API_BASE = "https://otter.ai/forward/api/v1"
-COOKIE_FILE = Path("/tmp/otter-session-cache")
-USERID_FILE = Path("/tmp/otter-userid-cache")
-CREDS_FILE = Path("/tmp/otter-creds-cache")
+# Cache lives outside /tmp: reads there trigger Claude Code permission prompts, and
+# this directory holds resolved credentials. Must match otter-api.sh's OTTER_CACHE_DIR
+# so `otter-api.sh warm-credentials` in the foreground barrier warms this scanner too.
+CACHE_DIR = Path(
+    os.environ.get("OTTER_CACHE_DIR")
+    or Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path(__file__).resolve().parents[3])
+    / ".llm"
+    / "otter"
+)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_DIR.chmod(0o700)
+COOKIE_FILE = CACHE_DIR / "otter-session-cache"
+USERID_FILE = CACHE_DIR / "otter-userid-cache"
+CREDS_FILE = CACHE_DIR / "otter-creds-cache"
 
 VERBOSE = os.environ.get("OTTER_VERBOSE", "")
 CONCURRENCY = int(os.environ.get("OTTER_CONCURRENCY", "10"))
