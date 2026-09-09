@@ -81,7 +81,7 @@ When _any_ step fails — a command errors, a script exits non-zero, an MCP is d
 
 The `Import` barrier exists so the whole fan-out reads today's data. Before any prep fan-out:
 
-- Run the import **without masking its exit code** (do not pipe the barrier command through `tail`/`head`; capture output to a file and read it, or check `${PIPESTATUS[0]}`).
+- Run the import **without masking its exit code**. Do not pipe the barrier command through `tail`/`head` — redirect its output to a file, check `$?` on the unpiped command, then read the file. `${PIPESTATUS[0]}` is bash-only and expands to the empty string under this project's zsh, so it masks the very failure it is meant to catch (zsh's equivalent is the 1-indexed `${pipestatus[1]}`).
 - **Positively verify the live API sync landed:** `cache import-api` printed its `Fetched N nodes … / +A added, ~U updated, =… unchanged, -D deleted` summary, the node count is sane, and today's data is actually present (e.g. today's calendar date node exists). Exit code alone is insufficient.
 - If the import errored, stopped responding, or cannot be verified, **HALT** — do not fan out on a stale cache. Fix the cause (or ask the user to) and re-run the barrier from the top.
 
