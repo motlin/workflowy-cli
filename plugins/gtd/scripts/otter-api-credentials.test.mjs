@@ -90,3 +90,43 @@ test('the shell and python scanners share one cache dir, so warming the shell wa
 	assert.equal(resolved, join(sb.cache, 'otter-creds-cache'));
 	assert.equal(opCalls(sb).length, 2, 'python scanner must reuse the warmed cache, not call op again');
 });
+
+/** Sandbox whose fake `op` hangs forever, to prove the in-script timeout fires. */
+function hangingSandbox() {
+	const sb = sandbox();
+	writeFileSync(
+		join(sb.bin, 'op'),
+		['#!/bin/bash', `echo "$*" >> ${JSON.stringify(sb.calls)}`, 'sleep 600', ''].join('\n'),
+	);
+	chmodSync(join(sb.bin, 'op'), 0o755);
+	return sb;
+}
+
+test('a hanging op read is killed by the in-script timeout instead of blocking forever', () => {
+	const sb = hangingSandbox();
+	const started = Date.now();
+	let failed = false;
+	try {
+		execFileSync('bash', [SCRIPT, 'warm-credentials'], {
+			env: {
+				...process.env,
+				PATH: `${sb.bin}:${process.env.PATH}`,
+				OTTER_CACHE_DIR: sb.cache,
+				OTTER_OP_TIMEOUT: '1',
+				OTTER_USERNAME: 'op://Private/Otter/username',
+				OTTER_PASSWORD: 'op://Private/Otter/password',
+			},
+			encoding: 'utf8',
+			stdio: 'pipe',
+		});
+	} catch {
+		failed = true;
+	}
+	const elapsed = Date.now() - started;
+	assert.ok(failed, 'a hanging op read must fail the script, not succeed');
+	assert.ok(elapsed < 30_000, `expected the timeout to fire quickly, took ${elapsed}ms`);
+	assert.ok(
+		!existsSync(join(sb.cache, 'otter-creds-cache')),
+		'no cache file should be written from a timed-out resolve',
+	);
+});

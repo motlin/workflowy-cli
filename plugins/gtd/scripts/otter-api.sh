@@ -160,8 +160,21 @@ resolve_credentials() {
     fi
 
     log_timing "credentials: resolving op:// refs"
-    RESOLVED_USERNAME=$(op read "$RESOLVED_USERNAME")
-    RESOLVED_PASSWORD=$(op read "$RESOLVED_PASSWORD")
+
+    # Bound every `op` call. Unbounded, it blocks on a 1Password desktop
+    # authorization prompt that a background subagent can never answer -- the
+    # Otter scanner hung 22 minutes on exactly this. A timeout turns an
+    # invisible hang into a reportable failure. The guard lives here rather
+    # than only in the caller so it holds no matter who invokes the script.
+    local op_timeout="${OTTER_OP_TIMEOUT:-90}"
+    if ! RESOLVED_USERNAME=$(timeout "$op_timeout" op read "$RESOLVED_USERNAME"); then
+        echo '{"error": "timed out or failed resolving OTTER_USERNAME from 1Password; approve the op authorization prompt and retry"}' >&2
+        return 1
+    fi
+    if ! RESOLVED_PASSWORD=$(timeout "$op_timeout" op read "$RESOLVED_PASSWORD"); then
+        echo '{"error": "timed out or failed resolving OTTER_PASSWORD from 1Password; approve the op authorization prompt and retry"}' >&2
+        return 1
+    fi
     log_timing "credentials: resolved"
     (umask 077; printf '%s\n%s\n' "$RESOLVED_USERNAME" "$RESOLVED_PASSWORD" > "$CREDS_FILE")
     chmod 600 "$CREDS_FILE"

@@ -84,6 +84,8 @@ Dispatch one background controller per due branch from the plan:
 
 If a worker genuinely cannot avoid `op`, that is a gap in the barrier: fix the barrier to warm the credential rather than calling `op` from the subagent. Any such call that does remain must be wrapped in `timeout` (90s is enough once the barrier has warmed authorization); on timeout the worker returns a failure naming the credential, never retries silently, and the executor surfaces it rather than treating the branch as slow.
 
+The rule covers **every `op` subcommand, not just `op run`** — `op read` raises the same authorization prompt and blocks the same way, and a rule phrased only as "wrap `op run`" does not match what a script like `otter-api.sh` actually executes. Prefer an in-script guard over caller discipline: a timeout inside the script holds no matter who invokes it, whereas a caller-side rule protects only the callers that remember it.
+
 Each prep worker is autonomous, never prompts, and stages `.llm/gtd/review/proposals/<slug>.json`. Auto workers complete their autonomous work and stage `.llm/gtd/review/briefings/<slug>.json`.
 
 ## Presentation walk
