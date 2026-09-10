@@ -67,7 +67,7 @@ From each root's JSON, a **loose task** is any actionable item **not already ins
 
 - The two bucket containers and all their descendants (asap tiers, leftover category sub-nodes, `Today` / `This week` / `This month`, and the tasks already filed under them).
 - The `✅ Tasks` wrapper node itself.
-- The structural containers `📋 Meeting agendas` and `📄 Drafts` and their entire subtrees — these are distinct workflows, never swept.
+- The structural containers `📋 Meeting agendas` and `📄 Drafts` and their entire subtrees — these are distinct workflows, never swept. (`📋 Meeting agendas` still gets the per-item **agenda hygiene** offer described at the end of this command. That pass never sweeps and never moves anything unasked, so it does not weaken this exclusion.)
 - Provenance / preview children that aren't tasks: `From: …` source lines, link-preview rows (`[p] …`, `[divider]`, `[h1]`, `[table]`, etc.). These are sub-nodes of a task, not loose tasks themselves.
 
 Loose tasks may sit **directly under the root** or **directly under `✅ Tasks`** — collect from both levels. A loose task's own children (sub-steps, notes, provenance) travel with it; never split a task from its children.
@@ -239,6 +239,14 @@ osascript -e 'tell application "Things3" to set status of to do id "<thingsId>" 
 Walk them in batches of up to 4. Offer **Personal Someday**, **Work Someday**, **Delete** (the idea is dead), and **Skip** (leave it in Things). Carry the Things note across as a child node when it holds a link or context the title alone loses. Append a topic `#tag` the same way the Anytime sweep does, and nothing more.
 
 Someday items are old by construction, so **Delete is a normal outcome here, not a failure** — a five-year-old idea the user no longer wants is the main thing this sweep is for. Never bulk-delete; every drop is confirmed.
+
+## Agenda hygiene
+
+`📋 Meeting agendas` holds topics to raise with someone. Over time it also collects things the user does alone — "Socialize the build-times report", "Set up 1:1s with @Alice", "Sync with @Bob on the migration" — which sit there indefinitely because no meeting ever discharges them and the loose-task sweep is forbidden to touch the node.
+
+After the sweeps above, read the direct children of each root's `📋 Meeting agendas` and flag the ones whose phrasing is an **action the user performs**, not a topic to raise. Use the criteria already written in `${CLAUDE_PLUGIN_ROOT}/agents/refinement/agenda-detector.md` rather than inventing new ones: "ask X about Y" / "discuss Y with X" is a topic and stays; "email X", "set up X", "socialize X", "sync with X" is a task the user does.
+
+Offer each flagged item to the asap ladder with `AskUserQuestion`, **one at a time**, showing the item text and the destination tier. This is a confirmed-per-item offer, never a sweep: nothing leaves `📋 Meeting agendas` without an answer, and Skip leaves it exactly where it is. Silent when nothing is flagged.
 
 ## Finish
 

@@ -367,6 +367,7 @@ After:  📺 Watched half of Fallout S01E02 with @Bob in our Airbnb. #watched
 - Workflowy formatting (HTML tags, `<time>` elements, bracket dates)
 - Space before possessive `'s` after @tags — `@Name 's` is intentional (see People tagging rules)
 - Ordinary mid-sentence verbs or phrasing (e.g., `@Alice and I drove` keeps `drove` lowercase)
+- Household voice — a non-standard _grammatical_ construction that recurs across entries is how this family talks, not a typo. Before staging any grammar fix, count how often the exact phrase appears across the journal (`./bin/run.js node search --query "<phrase>"`). More than one hit means leave it alone and stage no `✏️` change. Exactly one hit that still reads deliberate goes to a `⚠️` ambiguity, never a silent rewrite. Recurring household terms belong in the gitignored `.llm/gtd/journal-vocabulary.md` so they resolve before this rule has to fire — never copy such a phrase into `plugins/`.
 
 #### When uncertain
 

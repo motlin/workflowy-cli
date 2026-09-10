@@ -35,6 +35,8 @@ Refined journal text should read as proper sentences, even when the original ent
 
 Do not title-case the whole entry, and do not change ordinary mid-sentence verbs or casual phrasing. For example, `@Alice and I drove` keeps `drove` lowercase because it is a mid-sentence verb, not a sentence start or proper noun.
 
+The same restraint covers grammar, not just casing. A non-standard construction that recurs across entries is household voice — leave it exactly as written. Count the exact phrase across the journal before proposing any grammatical correction: more than one occurrence means it is deliberate and gets no change; a single occurrence that still reads deliberate goes to the user as a `⚠️` ambiguity rather than a silent rewrite. Recurring household terms are recorded in the gitignored `.llm/gtd/journal-vocabulary.md`; never copy one into `plugins/`.
+
 ## Emoji selection reflects who did it
 
 A leading emoji names the **actor**, not just the topic. The same activity gets a different emoji depending on who performed it — the user doing a chore, a family member doing it, and a hired service doing it are three different entries, and collapsing them to one topical emoji loses the distinction the journal is recording.
