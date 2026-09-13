@@ -7,6 +7,7 @@ import {ErrorBoundary} from './components/error-boundary.js';
 import {ErrorNotifications} from './components/error-notification.js';
 import {ExportDialog} from './components/export-dialog.js';
 import {JumpMenu} from './components/jump-menu.js';
+import {LadderView} from './components/ladder-view.js';
 import {LeftSidebar} from './components/left-sidebar.js';
 import {LinkInsertModal} from './components/link-insert-modal.js';
 import {LoadingOverlay} from './components/loading-spinner.js';
@@ -151,6 +152,10 @@ export function App() {
 							<Route
 								element={<ChangesView />}
 								path="/changes"
+							/>
+							<Route
+								element={<LadderView />}
+								path="/ladder"
 							/>
 							<Route
 								element={<NodeRoute />}

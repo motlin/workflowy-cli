@@ -1,0 +1,347 @@
+/*
+ * The asap ladder view. The palette and the capacity-state treatment are
+ * carried over from the published ladder artifact: each tier region is painted
+ * by its state, so an over-subscribed tier is visible before you read its
+ * gauge. Everything is scoped under .ladder-page so it never touches the
+ * outliner's own styles.
+ */
+
+.ladder-page {
+	--paper: #f4f6f7;
+	--surface: #ffffff;
+	--ink: #161c1f;
+	--ink-2: #3d4a50;
+	--muted: #6d7c84;
+	--line: #d6dde0;
+	--line-strong: #aebac0;
+	--accent: #0f5f5c;
+	--accent-soft: #d8ebe9;
+
+	--room-bg: #eaf2f8;
+	--room-edge: #7fa8c9;
+	--room-ink: #2b5d84;
+	--exact-bg: #e6f2ea;
+	--exact-edge: #5f9e79;
+	--exact-ink: #2f6144;
+	--over-bg: #fbeadf;
+	--over-edge: #c9743f;
+	--over-ink: #a4471b;
+
+	--shadow: 0 1px 2px rgba(20, 32, 36, 0.07);
+
+	background: var(--paper);
+	color: var(--ink);
+	font-size: 15px;
+	line-height: 1.45;
+	padding: 0 20px 80px;
+	min-height: 100%;
+	overflow-y: auto;
+	flex: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+	.ladder-page {
+		--paper: #12171a;
+		--surface: #191f23;
+		--ink: #e8eef0;
+		--ink-2: #b9c6cb;
+		--muted: #8b9aa1;
+		--line: #2c373c;
+		--line-strong: #48585e;
+		--accent: #5fc9c2;
+		--accent-soft: #123634;
+		--room-bg: #16242f;
+		--room-edge: #4d7fa4;
+		--room-ink: #8fc0e0;
+		--exact-bg: #152a20;
+		--exact-edge: #468a63;
+		--exact-ink: #89cea5;
+		--over-bg: #2f1c12;
+		--over-edge: #b06a3d;
+		--over-ink: #e5946a;
+		--shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+	}
+}
+
+.ladder-wrap {
+	max-width: 940px;
+	margin: 0 auto;
+}
+
+.ladder-head {
+	padding-block: 26px 16px;
+	border-bottom: 2px solid var(--ink);
+	margin-bottom: 20px;
+}
+
+.ladder-head h1 {
+	font-family: Newsreader, Georgia, serif;
+	font-weight: 600;
+	font-size: clamp(26px, 4vw, 38px);
+	line-height: 1.1;
+	margin: 0 0 6px;
+	letter-spacing: -0.015em;
+}
+
+.ladder-dek {
+	color: var(--ink-2);
+	max-width: 66ch;
+	margin: 0;
+}
+
+.ladder-live {
+	font-size: 12px;
+	color: var(--muted);
+	margin-top: 8px;
+}
+
+.ladder-live[data-live='on']::before {
+	content: '';
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--exact-edge);
+	margin-right: 6px;
+	vertical-align: middle;
+}
+
+.ladder-live[data-live='off']::before {
+	content: '';
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--over-edge);
+	margin-right: 6px;
+	vertical-align: middle;
+}
+
+.ladder-rootnav {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 16px;
+}
+
+.ladder-rootnav button {
+	font-size: 13.5px;
+	font-weight: 600;
+	padding: 7px 15px;
+	border-radius: 20px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--ink-2);
+	cursor: pointer;
+}
+
+.ladder-rootnav button[aria-selected='true'] {
+	background: var(--ink);
+	color: var(--paper);
+	border-color: var(--ink);
+}
+
+.ladder-queue {
+	border: 1px solid var(--line-strong);
+	border-radius: 6px;
+	overflow: hidden;
+	box-shadow: var(--shadow);
+}
+
+.ladder-sep {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 9px 14px;
+	border-top: 2px solid var(--sep-edge);
+	border-bottom: 1px solid var(--sep-edge);
+	background: var(--sep-bg);
+	position: sticky;
+	top: 0;
+	z-index: 5;
+}
+
+.ladder-sep:first-child {
+	border-top: none;
+}
+
+.ladder-sep .tname {
+	font-family: Newsreader, Georgia, serif;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1;
+	color: var(--sep-ink);
+}
+
+.ladder-sep .gauge {
+	font-family: 'IBM Plex Mono', ui-monospace, monospace;
+	font-size: 12.5px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--sep-ink);
+}
+
+.ladder-sep .verdict {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 600;
+	color: var(--sep-ink);
+	border: 1px solid var(--sep-edge);
+	border-radius: 20px;
+	padding: 2px 9px;
+	background: var(--surface);
+}
+
+.ladder-sep .goal {
+	font-size: 10.5px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--accent);
+	font-weight: 600;
+	margin-left: auto;
+}
+
+.ladder-sep.room {
+	--sep-bg: var(--room-bg);
+	--sep-edge: var(--room-edge);
+	--sep-ink: var(--room-ink);
+}
+
+.ladder-sep.exact {
+	--sep-bg: var(--exact-bg);
+	--sep-edge: var(--exact-edge);
+	--sep-ink: var(--exact-ink);
+}
+
+.ladder-sep.over {
+	--sep-bg: var(--over-bg);
+	--sep-edge: var(--over-edge);
+	--sep-ink: var(--over-ink);
+}
+
+.ladder-zone {
+	padding: 2px 0;
+	min-height: 34px;
+}
+
+.ladder-zone.room {
+	background: var(--room-bg);
+	--sep-edge: var(--room-edge);
+	--sep-ink: var(--room-ink);
+}
+
+.ladder-zone.exact {
+	background: var(--exact-bg);
+	--sep-edge: var(--exact-edge);
+	--sep-ink: var(--exact-ink);
+}
+
+.ladder-zone.over {
+	background: var(--over-bg);
+	--sep-edge: var(--over-edge);
+	--sep-ink: var(--over-ink);
+}
+
+.ladder-zone.dropping {
+	box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.ladder-row {
+	display: grid;
+	grid-template-columns: auto auto minmax(0, 1fr) auto;
+	gap: 10px;
+	align-items: center;
+	padding: 8px 14px 8px 10px;
+	background: var(--surface);
+	margin: 4px 8px;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	cursor: grab;
+}
+
+.ladder-row:hover {
+	border-color: var(--line-strong);
+	box-shadow: var(--shadow);
+}
+
+.ladder-row:active {
+	cursor: grabbing;
+}
+
+.ladder-row.dragging {
+	opacity: 0.35;
+	border-style: dashed;
+}
+
+.ladder-row.excess {
+	border-left: 3px solid var(--over-edge);
+}
+
+.ladder-row.pending {
+	opacity: 0.6;
+}
+
+.ladder-row .grip {
+	color: var(--muted);
+	font-size: 15px;
+	line-height: 1;
+	letter-spacing: -2px;
+	user-select: none;
+}
+
+.ladder-row .rank {
+	font-family: 'IBM Plex Mono', ui-monospace, monospace;
+	font-size: 11px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+	min-width: 22px;
+}
+
+.ladder-row .txt {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-size: 14px;
+}
+
+.ladder-row .done {
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--muted);
+	border-radius: 4px;
+	padding: 3px 9px;
+	font-size: 11.5px;
+	font-weight: 600;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.ladder-row .done:hover {
+	border-color: var(--exact-edge);
+	color: var(--exact-ink);
+	background: var(--exact-bg);
+}
+
+.ladder-slot {
+	margin: 4px 8px;
+	border: 1.5px dashed var(--sep-edge);
+	border-radius: 4px;
+	height: 30px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: 'IBM Plex Mono', ui-monospace, monospace;
+	font-size: 11px;
+	color: var(--sep-ink);
+	opacity: 0.65;
+}
+
+.ladder-error {
+	margin: 12px 0;
+	padding: 10px 14px;
+	border: 1px solid var(--over-edge);
+	background: var(--over-bg);
+	color: var(--over-ink);
+	border-radius: 4px;
+	font-size: 13px;
+}
