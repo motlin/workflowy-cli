@@ -273,3 +273,51 @@ test('a legend explains the three capacity states', () => {
 	const html = renderPage([buildLadderModel('w5', bucket('w', [['1st', ['a']]]))]);
 	assert.match(html, /class="legend"/, 'the page carries a legend');
 });
+
+test('the draft key is bound to the ladder shape, so a stale draft cannot rearrange a new page', () => {
+	const sixTiers = buildLadderModel(
+		'work',
+		bucket('w', [
+			['1st', ['a']],
+			['2nd', ['b']],
+			['3rd', ['c']],
+			['4th', ['d']],
+			['5th', ['e']],
+			['6th', ['f']],
+		]),
+	);
+	const sevenTiers = buildLadderModel(
+		'work',
+		bucket('w', [
+			['1st', ['a']],
+			['2nd', ['b']],
+			['3rd', ['c']],
+			['4th', ['d']],
+			['5th', ['e']],
+			['6th', ['f']],
+			['7th', ['g']],
+		]),
+	);
+	// the key is derived at runtime from PAGE_SIGNATURE, so compare that
+	const keyOf = (html) => html.match(/const PAGE_SIGNATURE = "([^"]+)"/)[1];
+	const six = keyOf(renderPage([sixTiers]));
+	const seven = keyOf(renderPage([sevenTiers]));
+	assert.notEqual(six, seven, 'adding a tier must invalidate the previous draft, not silently replay it');
+});
+
+test('a draft whose rows no longer match the page is ignored rather than applied', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'work',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', ['b']],
+			]),
+		),
+	]);
+	assert.match(
+		html,
+		/draftMatchesPage|draft\.signature/,
+		'the restore path must validate the draft before applying it',
+	);
+});

@@ -135,6 +135,16 @@ function renderLadder(model) {
   </section>`;
 }
 
+/** Stable fingerprint of the tiers and rows a page renders. */
+export function pageSignature(models) {
+	const shape = models
+		.map((m) => `${m.root}:${m.tiers.map((t) => `${t.label}=${t.items.map((i) => i.id).join(',')}`).join('|')}`)
+		.join(';');
+	let h = 0;
+	for (let i = 0; i < shape.length; i++) h = (Math.imul(31, h) + shape.charCodeAt(i)) | 0;
+	return (h >>> 0).toString(36);
+}
+
 export function renderPage(models) {
 	return `<title>Asap Ladder Rebalance</title>
 <style>
@@ -235,7 +245,20 @@ export function renderPage(models) {
 </div>
 <script>
 const INITIAL = ${JSON.stringify(models)};
-const DRAFT_KEY = 'asap-rebalance-draft-v1';
+// The draft is keyed by the ladder's SHAPE, not a bare version string. A draft
+// written when Work had six tiers was silently replayed onto a seven-tier page
+// and pulled every row out of 7th before the user touched anything, which then
+// looked like nine deliberate moves in the submission.
+const PAGE_SIGNATURE = ${JSON.stringify(pageSignature(models))};
+const DRAFT_KEY = 'asap-rebalance-draft-' + PAGE_SIGNATURE;
+
+/** A draft only applies if it describes the rows this page actually renders. */
+function draftMatchesPage(draft) {
+  if (!draft || draft.signature !== PAGE_SIGNATURE) return false;
+  const here = new Set([...document.querySelectorAll('.row')].map((r) => r.dataset.nodeId));
+  const there = Object.values(draft.roots ?? {}).flatMap((r) => (r.tiers ?? []).flatMap((t) => t.items ?? []));
+  return there.length === here.size && there.every((id) => here.has(id));
+}
 
 function spans(ladder) { return [...ladder.querySelectorAll('.span')]; }
 
@@ -296,7 +319,7 @@ function collect() {
 }
 
 function saveDraft() {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(collect())); } catch {}
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({...collect(), signature: PAGE_SIGNATURE})); } catch {}
 }
 
 function applyArrangement(state) {
@@ -460,7 +483,11 @@ function scheduleAutosave() {
 
 try {
   const draft = localStorage.getItem(DRAFT_KEY);
-  if (draft) applyArrangement(JSON.parse(draft));
+  if (draft) {
+    const parsed = JSON.parse(draft);
+    if (draftMatchesPage(parsed)) applyArrangement(parsed);
+    else localStorage.removeItem(DRAFT_KEY);
+  }
 } catch {}
 refresh();
 </script>`;
