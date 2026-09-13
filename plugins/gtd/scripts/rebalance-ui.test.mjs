@@ -204,3 +204,72 @@ test('every mutation autosaves, so there is no Submit button to forget', () => {
 	assert.match(html, /autosave/i, 'the page must save on each change');
 	assert.ok(!/id="submit"/.test(html), 'an explicit Submit button must not gate saving');
 });
+
+test('each tier region is painted by capacity state, not just labelled with text', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'w1',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', ['b', 'c', 'd', 'e', 'f']],
+			]),
+		),
+	]);
+	assert.match(html, /--over-bg/, 'an over-cap state colour must be defined');
+	assert.match(html, /--room-bg/, 'an under-cap state colour must be defined');
+	assert.match(html, /--exact-bg/, 'an at-cap state colour must be defined');
+	assert.match(
+		html,
+		/class="span [a-z]+"|data-state="(room|exact|over)"/,
+		'the span itself carries its capacity state',
+	);
+});
+
+test('an over-cap tier is marked over and an under-cap tier is marked room', () => {
+	// 1st holds 1 of 2 (room); 2nd holds 5 of 4 (over)
+	const html = renderPage([
+		buildLadderModel(
+			'w2',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', ['b', 'c', 'd', 'e', 'f']],
+			]),
+		),
+	]);
+	// slice from each tier's BOUNDARY, since data-state precedes data-tier-span on the span
+	const first = html.slice(html.indexOf('data-tier-boundary="1"'), html.indexOf('data-tier-boundary="2"'));
+	const second = html.slice(html.indexOf('data-tier-boundary="2"'));
+	assert.match(first, /data-state="room"/, '1st is under cap');
+	assert.match(second, /data-state="over"/, '2nd is over cap');
+});
+
+test('a tier with room shows its free slots so the gap is visible, not inferred', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'w3',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', []],
+			]),
+		),
+	]);
+	assert.match(html, /class="slot"/, 'free capacity renders as empty slots');
+});
+
+test('rows past the cap are marked so you can see which ones must leave', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'w4',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', ['b', 'c', 'd', 'e', 'f']],
+			]),
+		),
+	]);
+	assert.match(html, /row excess|class="row[^"]*excess/, 'the overflowing rows carry an excess marker');
+});
+
+test('a legend explains the three capacity states', () => {
+	const html = renderPage([buildLadderModel('w5', bucket('w', [['1st', ['a']]]))]);
+	assert.match(html, /class="legend"/, 'the page carries a legend');
+});

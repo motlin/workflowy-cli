@@ -93,10 +93,12 @@ function renderLadder(model) {
 	let rowIndex = 0;
 	const rows = model.tiers
 		.map((tier) => {
+			const state =
+				tier.items.length > tier.capacity ? 'over' : tier.items.length === tier.capacity ? 'exact' : 'room';
 			const items = tier.items
 				.map(
-					(item) => `
-        <li class="row" draggable="true" data-node-id="${esc(item.id)}" data-row-index="${rowIndex++}">
+					(item, i) => `
+        <li class="row${i >= tier.capacity ? ' excess' : ''}" draggable="true" data-node-id="${esc(item.id)}" data-row-index="${rowIndex++}">
           <span class="handle" aria-hidden="true">⠿</span>
           <span class="row-text">${esc(item.text)}</span>
           <span class="row-nudge">
@@ -107,13 +109,19 @@ function renderLadder(model) {
 				)
 				.join('');
 			return `
-      <li class="boundary" data-tier-boundary="${tier.tier}">
+      <li class="boundary ${state}" data-tier-boundary="${tier.tier}">
         <span class="boundary-label">${esc(tier.label)}</span>
         <span class="meter" data-meter="${tier.tier}"></span>
         <span class="chip" data-chip="${tier.tier}"></span>
       </li>
-      <li class="span" data-tier-span="${tier.tier}" data-drop-target="true" data-capacity="${tier.capacity}" data-tier-id="${esc(tier.id ?? '')}" data-is-new="false">
+      <li class="span ${state}" data-state="${state}" data-tier-span="${tier.tier}" data-drop-target="true" data-capacity="${tier.capacity}" data-tier-id="${esc(tier.id ?? '')}" data-is-new="false">
         <ul class="span-items">${items}</ul>
+        <div class="slots">${Array.from(
+			{length: Math.max(0, tier.capacity - tier.items.length)},
+			() => '<div class="slot">free</div>',
+		)
+			.slice(0, 8)
+			.join('')}</div>
         <p class="empty-note">empty — drop here</p>
       </li>`;
 		})
@@ -134,16 +142,30 @@ export function renderPage(models) {
     --tier-min-drop-height: 44px;
     --bg: #faf9f7; --fg: #1c1b19; --muted: #6b6862; --line: #ddd9d2;
     --card: #ffffff; --accent: #3b6ea5; --over: #b3402f; --ok: #2f7d4f; --land: #8a6d1f;
+    /* capacity states: each tier region is painted with one of these, so being
+       over cap is visible at a glance rather than only readable as "102/32". */
+    --room-bg: #eaf2f8;  --room-edge: #7fa8c9;  --room-ink: #2b5d84;
+    --exact-bg: #e6f2ea; --exact-edge: #5f9e79; --exact-ink: #2f6144;
+    --over-bg: #fbeadf;  --over-edge: #c9743f;  --over-ink: #a4471b;
+    --land-bg: #fdf5e3;  --land-edge: #c9a63f;  --land-ink: #7a5f14;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #17181a; --fg: #e9e7e3; --muted: #9a968f; --line: #33353a;
       --card: #1f2124; --accent: #7aa7d9; --over: #e08472; --ok: #79c295; --land: #d8bb63;
+      --room-bg: #16242f;  --room-edge: #4d7fa4;  --room-ink: #8fc0e0;
+      --exact-bg: #152a20; --exact-edge: #468a63; --exact-ink: #89cea5;
+      --over-bg: #2f1c12;  --over-edge: #b06a3d; --over-ink: #e5946a;
+      --land-bg: #2b2412;  --land-edge: #9c8330; --land-ink: #d8bb63;
     }
   }
   :root[data-theme="dark"] {
     --bg: #17181a; --fg: #e9e7e3; --muted: #9a968f; --line: #33353a;
     --card: #1f2124; --accent: #7aa7d9; --over: #e08472; --ok: #79c295; --land: #d8bb63;
+    --room-bg: #16242f;  --room-edge: #4d7fa4;  --room-ink: #8fc0e0;
+    --exact-bg: #152a20; --exact-edge: #468a63; --exact-ink: #89cea5;
+    --over-bg: #2f1c12;  --over-edge: #b06a3d; --over-ink: #e5946a;
+    --land-bg: #2b2412;  --land-edge: #9c8330; --land-ink: #d8bb63;
   }
   body { background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 0 0 96px; }
   header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -151,13 +173,28 @@ export function renderPage(models) {
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; padding: 16px; align-items: start; }
   .ladder h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; display: flex; justify-content: space-between; }
   .ladder-list { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .boundary { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: color-mix(in srgb, var(--accent) 9%, transparent); border-top: 2px solid var(--accent); font-size: 12px; font-weight: 600; position: sticky; top: 46px; }
+  .boundary { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--sep-bg); border-top: 2px solid var(--sep-edge); border-bottom: 1px solid var(--sep-edge); color: var(--sep-ink); font-size: 12px; font-weight: 600; position: sticky; top: 46px; }
+  .boundary.room  { --sep-bg: var(--room-bg);  --sep-edge: var(--room-edge);  --sep-ink: var(--room-ink); }
+  .boundary.exact { --sep-bg: var(--exact-bg); --sep-edge: var(--exact-edge); --sep-ink: var(--exact-ink); }
+  .boundary.over  { --sep-bg: var(--over-bg);  --sep-edge: var(--over-edge);  --sep-ink: var(--over-ink); }
+  .boundary.landing { --sep-bg: var(--land-bg); --sep-edge: var(--land-edge); --sep-ink: var(--land-ink); }
+  .span.room  { background: var(--room-bg); }
+  .span.exact { background: var(--exact-bg); }
+  .span.over  { background: var(--over-bg); }
+  .span.landing { background: var(--land-bg); }
+  .slot { margin: 4px 8px; border: 1.5px dashed var(--room-edge); border-radius: 4px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--room-ink); opacity: .6; }
+  .row.excess { border-left: 3px solid var(--over-edge); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0 16px 12px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid; font-style: normal; }
+  .legend i.room  { background: var(--room-bg);  border-color: var(--room-edge);  color: var(--room-ink); }
+  .legend i.exact { background: var(--exact-bg); border-color: var(--exact-edge); color: var(--exact-ink); }
+  .legend i.over  { background: var(--over-bg);  border-color: var(--over-edge);  color: var(--over-ink); }
   .boundary:first-child { border-top: 0; }
   .boundary-label { min-width: 34px; }
   .meter { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
   .meter i { display: block; height: 100%; background: var(--accent); }
   .chip { font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
-  .chip.over { color: var(--over); } .chip.exact { color: var(--ok); } .chip.landing { color: var(--land); }
+  .chip { border: 1px solid currentColor; border-radius: 20px; padding: 1px 8px; background: var(--card); }
   .span { min-height: var(--tier-min-drop-height); padding: 2px 0; }
   .span.drag-over { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 2px var(--accent); }
   .span-items { list-style: none; margin: 0; padding: 0; }
@@ -185,6 +222,12 @@ export function renderPage(models) {
   <button type="button" class="ghost" id="reset">Reset</button>
   <span id="status">autosave on</span>
 </header>
+<div class="legend">
+  <span><i class="room">room</i> has capacity &mdash; free slots shown</span>
+  <span><i class="exact">full</i> exactly at cap</span>
+  <span><i class="over">over</i> drag some out</span>
+  <span>Click a row to select &middot; <b>shift-click</b> for a range &middot; drag any selected row to move the whole block</span>
+</div>
 <div class="grid">${models.map(renderLadder).join('')}</div>
 <div id="fallback" hidden>
   <p><strong>Could not save to the artifact store.</strong> Copy this and paste it back to Claude:</p>
@@ -206,6 +249,17 @@ function refresh() {
       const isBottom = idx === all.length - 1;
       span.dataset.empty = items === 0 ? 'true' : 'false';
       const tier = span.dataset.tierSpan;
+      // repaint the capacity state live, so dragging a row out of an over-cap
+      // tier turns it green the moment it is within cap
+      const state = isBottom && items > cap ? 'landing' : items > cap ? 'over' : items === cap ? 'exact' : 'room';
+      span.dataset.state = state;
+      span.className = 'span ' + state;
+      const bound = ladder.querySelector('[data-tier-boundary="' + tier + '"]');
+      if (bound) bound.className = 'boundary ' + state;
+      // mark the rows past the cap, and redraw the free slots
+      [...span.querySelectorAll('.row')].forEach((r, i) => r.classList.toggle('excess', i >= cap));
+      const slots = span.querySelector('.slots');
+      if (slots) slots.innerHTML = Array.from({length: Math.min(8, Math.max(0, cap - items))}, () => '<div class="slot">free</div>').join('');
       const meter = ladder.querySelector('[data-meter="' + tier + '"]');
       const chip = ladder.querySelector('[data-chip="' + tier + '"]');
       if (meter) meter.innerHTML = '<i style="width:' + Math.min(100, (items / cap) * 100) + '%"></i>';
