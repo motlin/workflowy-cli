@@ -243,11 +243,14 @@
 	--sep-ink: var(--over-ink);
 }
 
-.ladder-zone.dropping {
+.ladder-zone.dropping,
+.ladder-sep.dropping {
 	box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .ladder-row {
+	user-select: none;
+	-webkit-user-select: none;
 	display: grid;
 	grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 	gap: 10px;
@@ -257,7 +260,6 @@
 	margin: 4px 8px;
 	border: 1px solid var(--line);
 	border-radius: 4px;
-	cursor: grab;
 }
 
 .ladder-row:hover {
@@ -274,6 +276,24 @@
 	border-style: dashed;
 }
 
+.ladder-ghost {
+	position: fixed;
+	z-index: 40;
+	transform: translate(-50%, -140%);
+	pointer-events: none;
+	max-width: 74vw;
+	padding: 7px 11px;
+	border: 1px solid var(--accent);
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 13px;
+	box-shadow: 0 6px 18px rgba(20, 32, 36, 0.28);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .ladder-row.excess {
 	border-left: 3px solid var(--over-edge);
 }
@@ -283,11 +303,27 @@
 }
 
 .ladder-row .grip {
+	/*
+	 * The only element that claims the pointer stream. touch-action: none stops
+	 * the browser from treating the press as a scroll or a text selection, which
+	 * is exactly what a finger on this handle used to do.
+	 */
+	touch-action: none;
+	cursor: grab;
 	color: var(--muted);
-	font-size: 15px;
+	font-size: 17px;
 	line-height: 1;
-	letter-spacing: -2px;
-	user-select: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	min-height: 34px;
+	margin: -6px 0 -6px -4px;
+}
+
+.ladder-row .grip:active {
+	cursor: grabbing;
+	color: var(--accent);
 }
 
 .ladder-row .rank {
@@ -391,12 +427,18 @@
 
 	.ladder-row {
 		grid-template-columns: auto minmax(0, 1fr) auto auto;
-		gap: 8px;
-		padding: 8px 10px;
+		gap: 6px;
+		padding: 8px 8px 8px 2px;
+	}
+
+	.ladder-row .rank {
+		display: none;
 	}
 
 	.ladder-row .grip {
-		display: none;
+		width: 34px;
+		min-height: 42px;
+		font-size: 19px;
 	}
 
 	.ladder-row .step button {

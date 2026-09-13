@@ -88,3 +88,12 @@ export function applyLadderEvent(ladders: Ladders, event: LadderEvent): Ladders 
 	}
 	return ladders;
 }
+
+/**
+ * Which tier a row is in right now. The drop handler uses this to drop a
+ * gesture that ended where it started: a finger that wanders and comes back
+ * should not cost a write.
+ */
+export function tierOf(ladders: Ladders, root: string, nodeId: string): string | undefined {
+	return ladders[root]?.tiers.find((tier) => tier.items.some((item) => item.id === nodeId))?.label;
+}

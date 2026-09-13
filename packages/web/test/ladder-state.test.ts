@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Ladder} from '../src/server/ladder-model.js';
-import {applyLadderEvent, moveWithin} from '../src/client/ladder-state.js';
+import {applyLadderEvent, moveWithin, tierOf} from '../src/client/ladder-state.js';
 
 const ladder = (): Record<string, Ladder> => ({
 	work: {
@@ -75,5 +75,16 @@ describe('applyLadderEvent', () => {
 		expect(
 			applyLadderEvent(start, {verb: 'move', nodeId: 'zz', name: 'Z', fromTier: '1st', toTier: '2nd', at: 'T'}),
 		).toBe(start);
+	});
+});
+
+describe('tierOf', () => {
+	it('names the tier a row currently sits in', () => {
+		expect(tierOf(ladder(), 'work', 'b')).toBe('1st');
+	});
+
+	it('returns undefined for a row that is not on that ladder', () => {
+		expect(tierOf(ladder(), 'work', 'nope')).toBeUndefined();
+		expect(tierOf(ladder(), 'missing-root', 'a')).toBeUndefined();
 	});
 });

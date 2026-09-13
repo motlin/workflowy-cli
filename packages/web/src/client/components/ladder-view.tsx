@@ -12,7 +12,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {LadderEvent} from '../../server/ladder-events.js';
 import type {LadderTier} from '../../server/ladder-model.js';
-import {type Ladders, applyLadderEvent, moveWithin, removeRow} from '../ladder-state.js';
+import {type Ladders, applyLadderEvent, moveWithin, removeRow, tierOf} from '../ladder-state.js';
+import {type Point, autoScrollBy, isDragGesture, tierAtPoint} from '../pointer-drag.js';
 import '../ladder.css';
 
 const VERDICT: Record<LadderTier['state'], (tier: LadderTier) => string> = {
@@ -96,19 +97,69 @@ export function LadderView() {
 		[],
 	);
 
-	const drop = useCallback(
-		(toTier: string) => {
-			const nodeId = dragging;
-			setDragging(undefined);
-			setDropTier(undefined);
-			if (!nodeId) {
+	const move = useCallback(
+		(nodeId: string, toTier: string) => {
+			const current = laddersRef.current;
+			if (current && tierOf(current, root, nodeId) === toTier) {
 				return;
 			}
-			void write('/api/v1/ladder/move', {root, node_id: nodeId, to_tier: toTier}, (current) =>
-				moveWithin(current, root, nodeId, toTier),
+			void write('/api/v1/ladder/move', {root, node_id: nodeId, to_tier: toTier}, (ladders) =>
+				moveWithin(ladders, root, nodeId, toTier),
 			);
 		},
-		[dragging, root, write],
+		[root, write],
+	);
+
+	// One pointer gesture, mouse or finger. The row itself stays scrollable; only
+	// the grip claims the pointer stream, so a swipe anywhere else still scrolls
+	// the page on a phone.
+	const gesture = useRef<{nodeId: string; origin: Point; started: boolean}>(undefined);
+	const [ghost, setGhost] = useState<{x: number; y: number; name: string}>();
+
+	const onGripDown = useCallback((event: React.PointerEvent, item: {id: string; name: string}) => {
+		if (event.button !== 0 && event.pointerType === 'mouse') {
+			return;
+		}
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		gesture.current = {nodeId: item.id, origin: {x: event.clientX, y: event.clientY}, started: false};
+	}, []);
+
+	const onGripMove = useCallback((event: React.PointerEvent, name: string) => {
+		const active = gesture.current;
+		if (!active) {
+			return;
+		}
+		const at = {x: event.clientX, y: event.clientY};
+		if (!active.started) {
+			if (!isDragGesture(active.origin, at)) {
+				return;
+			}
+			active.started = true;
+			setDragging(active.nodeId);
+		}
+		// The grip has touch-action: none, so nothing else is going to scroll for
+		// us once a drag is under way.
+		const by = autoScrollBy(at.y, globalThis.innerHeight);
+		if (by !== 0) {
+			globalThis.scrollBy(0, by);
+		}
+		setGhost({x: at.x, y: at.y, name});
+		setDropTier(tierAtPoint(at.x, at.y));
+	}, []);
+
+	const onGripUp = useCallback(
+		(event: React.PointerEvent) => {
+			const active = gesture.current;
+			gesture.current = undefined;
+			setGhost(undefined);
+			setDragging(undefined);
+			const toTier = tierAtPoint(event.clientX, event.clientY);
+			setDropTier(undefined);
+			if (active?.started && toTier) {
+				move(active.nodeId, toTier);
+			}
+		},
+		[move],
 	);
 
 	const complete = useCallback(
@@ -160,22 +211,12 @@ export function LadderView() {
 								dropping={dropTier === tier.label}
 								key={tier.id}
 								nextTier={ladder.tiers[index + 1]?.label}
-								onStep={(nodeId, toTier) =>
-									void write(
-										'/api/v1/ladder/move',
-										{root, node_id: nodeId, to_tier: toTier},
-										(current) => moveWithin(current, root, nodeId, toTier),
-									)
-								}
+								onStep={move}
 								previousTier={ladder.tiers[index - 1]?.label}
 								onComplete={complete}
-								onDragEnd={() => {
-									setDragging(undefined);
-									setDropTier(undefined);
-								}}
-								onDragOver={() => setDropTier(tier.label)}
-								onDragStart={setDragging}
-								onDrop={() => drop(tier.label)}
+								onGripDown={onGripDown}
+								onGripMove={onGripMove}
+								onGripUp={onGripUp}
 								pending={pending}
 								tier={tier}
 								dragging={dragging}
@@ -186,6 +227,14 @@ export function LadderView() {
 					<p className="ladder-dek">{error ? 'Could not load the ladder.' : 'Loading…'}</p>
 				)}
 			</div>
+			{ghost ? (
+				<div
+					className="ladder-ghost"
+					style={{left: ghost.x, top: ghost.y}}
+				>
+					{ghost.name}
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -198,12 +247,11 @@ interface TierProps {
 	/** Neighbouring tier labels, so the step buttons know where up and down are. */
 	previousTier: string | undefined;
 	nextTier: string | undefined;
-	onDragStart: (nodeId: string) => void;
-	onDragEnd: () => void;
-	onDragOver: () => void;
-	onDrop: () => void;
 	onComplete: (nodeId: string) => void;
 	onStep: (nodeId: string, toTier: string) => void;
+	onGripDown: (event: React.PointerEvent, item: {id: string; name: string}) => void;
+	onGripMove: (event: React.PointerEvent, name: string) => void;
+	onGripUp: (event: React.PointerEvent) => void;
 }
 
 function Tier({
@@ -213,17 +261,24 @@ function Tier({
 	pending,
 	previousTier,
 	nextTier,
-	onDragStart,
-	onDragEnd,
-	onDragOver,
-	onDrop,
 	onComplete,
 	onStep,
+	onGripDown,
+	onGripMove,
+	onGripUp,
 }: TierProps) {
 	const free = tier.capacity - tier.items.length;
 	return (
 		<>
-			<div className={`ladder-sep ${tier.state}`}>
+			{/*
+			 * The separator carries data-tier too. It is sticky, so on a phone it
+			 * covers the top of its own zone -- a drop aimed just below a tier name
+			 * would otherwise land on nothing and be silently discarded.
+			 */}
+			<div
+				className={`ladder-sep ${tier.state}${dropping ? ' dropping' : ''}`}
+				data-tier={tier.label}
+			>
 				<span className="tname">{tier.label}</span>
 				<span className="gauge">
 					{tier.items.length}/{tier.capacity}
@@ -233,14 +288,7 @@ function Tier({
 			</div>
 			<div
 				className={`ladder-zone ${tier.state}${dropping ? ' dropping' : ''}`}
-				onDragOver={(event) => {
-					event.preventDefault();
-					onDragOver();
-				}}
-				onDrop={(event) => {
-					event.preventDefault();
-					onDrop();
-				}}
+				data-tier={tier.label}
 			>
 				{tier.items.map((item, index) => (
 					<div
@@ -252,12 +300,18 @@ function Tier({
 						]
 							.filter(Boolean)
 							.join(' ')}
-						draggable
 						key={item.id}
-						onDragEnd={onDragEnd}
-						onDragStart={() => onDragStart(item.id)}
 					>
-						<span className="grip">⠿</span>
+						<span
+							className="grip"
+							onPointerCancel={onGripUp}
+							onPointerDown={(event) => onGripDown(event, item)}
+							onPointerMove={(event) => onGripMove(event, item.name)}
+							onPointerUp={onGripUp}
+							role="presentation"
+						>
+							&#10303;
+						</span>
 						<span className="rank">{index + 1}</span>
 						<span className="txt">{item.name}</span>
 						<span className="step">
