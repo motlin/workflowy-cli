@@ -88,12 +88,15 @@ export function diffSubmission(models, submission) {
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function renderLadder(model) {
+	// One running index across every tier: a shift-click range is a slice of this
+	// sequence, so it has to cross tier boundaries the way Finder's does.
+	let rowIndex = 0;
 	const rows = model.tiers
 		.map((tier) => {
 			const items = tier.items
 				.map(
 					(item) => `
-        <li class="row" draggable="true" data-node-id="${esc(item.id)}">
+        <li class="row" draggable="true" data-node-id="${esc(item.id)}" data-row-index="${rowIndex++}">
           <span class="handle" aria-hidden="true">⠿</span>
           <span class="row-text">${esc(item.text)}</span>
           <span class="row-nudge">
@@ -163,6 +166,7 @@ export function renderPage(models) {
   .row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--card); cursor: grab; }
   .row:first-child { border-top: 0; }
   .row.dragging { opacity: .4; }
+  .row.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); box-shadow: inset 3px 0 0 var(--accent); }
   .handle { color: var(--muted); cursor: grab; user-select: none; padding-top: 1px; }
   .row-text { flex: 1; overflow-wrap: anywhere; }
   .row-nudge { display: flex; gap: 2px; }
@@ -178,9 +182,8 @@ export function renderPage(models) {
 </style>
 <header>
   <h1>Asap Ladder Rebalance</h1>
-  <button type="button" class="primary" id="submit">Submit</button>
   <button type="button" class="ghost" id="reset">Reset</button>
-  <span id="status"></span>
+  <span id="status">autosave on</span>
 </header>
 <div class="grid">${models.map(renderLadder).join('')}</div>
 <div id="fallback" hidden>
@@ -218,6 +221,7 @@ function refresh() {
     if (badge) badge.textContent = over ? over + ' over cap' : 'in shape';
   }
   saveDraft();
+  scheduleAutosave();
 }
 
 function collect() {
@@ -276,6 +280,30 @@ function addTier(ladder, label, tier) {
 }
 
 let dragging = null;
+// Selection model. Click sets the anchor, shift-click takes the contiguous range
+// across tier boundaries, and a drag carries every selected row as one block.
+let anchorIndex = null;
+
+function allRows(ladder) {
+  return [...ladder.querySelectorAll('.row')].sort(
+    (a, b) => Number(a.dataset.rowIndex) - Number(b.dataset.rowIndex),
+  );
+}
+function selectedRows(ladder) {
+  return allRows(ladder).filter((r) => r.classList.contains('sel'));
+}
+function clearSelection(ladder) {
+  for (const r of ladder.querySelectorAll('.row.sel')) r.classList.remove('sel');
+}
+function selectRange(ladder, fromIdx, toIdx) {
+  const lo = Math.min(fromIdx, toIdx);
+  const hi = Math.max(fromIdx, toIdx);
+  clearSelection(ladder);
+  for (const r of allRows(ladder)) {
+    const i = Number(r.dataset.rowIndex);
+    if (i >= lo && i <= hi) r.classList.add('sel');
+  }
+}
 
 function wireSpan(span) {
   span.addEventListener('dragover', (e) => { e.preventDefault(); span.classList.add('drag-over'); });
@@ -285,8 +313,15 @@ function wireSpan(span) {
     span.classList.remove('drag-over');
     if (!dragging) return;
     const list = span.querySelector('.span-items');
+    const ladder = span.closest('.ladder');
     const after = [...list.querySelectorAll('.row:not(.dragging)')].find((r) => e.clientY < r.getBoundingClientRect().top + r.offsetHeight / 2);
-    if (after) list.insertBefore(dragging, after); else list.appendChild(dragging);
+    // carrySelection: a drag moves the whole selection when the grabbed row is
+    // part of it, so a 70-row push-down is one gesture rather than seventy.
+    const carrySelection = dragging.classList.contains('sel') ? selectedRows(ladder) : [dragging];
+    for (const row of carrySelection) {
+      if (after) list.insertBefore(row, after);
+      else list.appendChild(row);
+    }
     refresh();
   });
 }
@@ -294,6 +329,20 @@ function wireSpan(span) {
 function wireRow(row) {
   row.addEventListener('dragstart', () => { dragging = row; row.classList.add('dragging'); });
   row.addEventListener('dragend', () => { row.classList.remove('dragging'); dragging = null; refresh(); });
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.nudge')) return;
+    const ladder = row.closest('.ladder');
+    const idx = Number(row.dataset.rowIndex);
+    if (e.shiftKey && anchorIndex !== null) {
+      selectRange(ladder, anchorIndex, idx);
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
+    const wasOnly = row.classList.contains('sel') && selectedRows(ladder).length === 1;
+    clearSelection(ladder);
+    if (!wasOnly) row.classList.add('sel');
+    anchorIndex = wasOnly ? null : idx;
+  });
 }
 
 // Tier ids are rendered per ladder in the markup -- deriving them here from a flattened
@@ -329,26 +378,31 @@ document.getElementById('reset').addEventListener('click', () => {
   location.reload();
 });
 
-document.getElementById('submit').addEventListener('click', async () => {
+// autosave: every mutation persists, so nothing waits on a Submit button.
+let saveTimer = null;
+async function autosave() {
   const status = document.getElementById('status');
   const payload = collect();
-  status.textContent = 'Saving…';
   const db = await claude.use('db');
   if (!db) {
     document.getElementById('fallback').hidden = false;
     document.getElementById('fallback-json').value = JSON.stringify(payload, null, 2);
-    status.textContent = 'Store unavailable — copy the JSON below.';
+    status.textContent = 'Store unavailable - copy the JSON below.';
     return;
   }
   try {
     await db.doc('rebalance/submission').set(payload);
-    status.textContent = 'Saved ' + new Date().toLocaleTimeString() + ' — tell Claude to apply it.';
+    status.textContent = 'saved ' + new Date().toLocaleTimeString();
   } catch (err) {
     document.getElementById('fallback').hidden = false;
     document.getElementById('fallback-json').value = JSON.stringify(payload, null, 2);
-    status.textContent = 'Save failed (' + (err?.code ?? 'error') + ') — copy the JSON below.';
+    status.textContent = 'save failed (' + (err?.code ?? 'error') + ') - copy the JSON below.';
   }
-});
+}
+function scheduleAutosave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(autosave, 600);
+}
 
 try {
   const draft = localStorage.getItem(DRAFT_KEY);

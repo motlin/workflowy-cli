@@ -149,3 +149,58 @@ test('each ladder carries its own tier ids, so two ladders never share a destina
 	const personalSection = html.slice(html.indexOf('data-root="personal"'));
 	assert.ok(!personalSection.includes('data-tier-id="w-'), 'the personal ladder must not carry work tier ids');
 });
+
+test('rows carry a stable index so a shift-click range can be computed', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'work',
+			bucket('w', [
+				['1st', ['a', 'b']],
+				['2nd', ['c']],
+			]),
+		),
+	]);
+	assert.match(html, /data-row-index="0"/, 'rows must be indexed for range selection');
+	assert.match(html, /data-row-index="2"/, 'indices run across tier boundaries, not per tier');
+});
+
+test('the page selects with click and extends with shift-click, not with checkboxes', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'work',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', ['b']],
+			]),
+		),
+	]);
+	assert.match(html, /shiftKey/, 'shift-click range selection must be wired');
+	assert.ok(!/type="checkbox"|type="radio"/.test(html), 'no per-row checkbox or radio circles');
+});
+
+test('dragging a selected row carries every selected row as one block', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'work',
+			bucket('w', [
+				['1st', ['a', 'b']],
+				['2nd', []],
+			]),
+		),
+	]);
+	assert.match(html, /selectedRows|carrySelection/, 'drag must move the whole selection, not just the grabbed row');
+});
+
+test('every mutation autosaves, so there is no Submit button to forget', () => {
+	const html = renderPage([
+		buildLadderModel(
+			'work',
+			bucket('w', [
+				['1st', ['a']],
+				['2nd', []],
+			]),
+		),
+	]);
+	assert.match(html, /autosave/i, 'the page must save on each change');
+	assert.ok(!/id="submit"/.test(html), 'an explicit Submit button must not gate saving');
+});
