@@ -321,3 +321,49 @@ test('a draft whose rows no longer match the page is ignored rather than applied
 		'the restore path must validate the draft before applying it',
 	);
 });
+
+// --- the Queue template is the page we ship; the generator only injects data ---
+import {renderFromTemplate, toQueueLadders} from './rebalance-ui.mjs';
+
+test('toQueueLadders emits the shape the Queue template expects', () => {
+	const model = buildLadderModel(
+		'work',
+		bucket('w', [
+			['1st', ['a']],
+			['2nd', ['b', 'c']],
+		]),
+	);
+	const out = toQueueLadders([model]);
+	assert.deepStrictEqual(Object.keys(out), ['work']);
+	assert.equal(out.work.bucketId, 'w');
+	assert.deepStrictEqual(
+		out.work.tiers.map((t) => [t.label, t.id, t.items.length]),
+		[
+			['1st', 'w-1st', 1],
+			['2nd', 'w-2nd', 2],
+		],
+	);
+	// the template reads item.name, not item.text
+	assert.ok('name' in out.work.tiers[0].items[0], 'items must carry name');
+});
+
+test('renderFromTemplate injects the data and keeps the Queue UI intact', () => {
+	const html = renderFromTemplate([buildLadderModel('work', bucket('w', [['1st', ['a']]]))]);
+	assert.ok(!html.includes('__LADDERS__'), 'the placeholder must be substituted');
+	assert.match(html, /shiftKey/, 'the Queue shift-click behaviour survives');
+	assert.match(html, /rootnav/, 'the Queue root tabs survive');
+	assert.match(html, /Newsreader/, 'the Queue typography survives');
+	assert.match(html, /var LADDERS = \{/, 'data is injected as the LADDERS object');
+});
+
+test('injected ladder data is valid JSON the page can parse', () => {
+	const html = renderFromTemplate([buildLadderModel('work', bucket('w', [['1st', ['a "quoted" item']]]))]);
+	const json = html.match(/var LADDERS = (\{[\s\S]*?\});\n/)[1];
+	const parsed = JSON.parse(json);
+	assert.equal(parsed.work.tiers[0].items[0].name, 'a "quoted" item');
+});
+
+test('the injected payload cannot break out of the script tag', () => {
+	const html = renderFromTemplate([buildLadderModel('work', bucket('w', [['1st', ['</script><img src=x>']]]))]);
+	assert.ok(!html.includes('</script><img src=x>'), 'a closing script tag in task text must be escaped');
+});

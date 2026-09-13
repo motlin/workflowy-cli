@@ -11,7 +11,11 @@
 // boundaries in a single drag context, an empty tier is a valid drop target by construction.
 
 import {readFileSync} from 'node:fs';
+import {dirname, join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {readLadder} from './asap-tiers.mjs';
+
+const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'ladder-queue.html');
 
 /** Strip Workflowy HTML down to display text, keeping links as their anchor text. */
 export function displayText(name) {
@@ -143,6 +147,44 @@ export function pageSignature(models) {
 	let h = 0;
 	for (let i = 0; i < shape.length; i++) h = (Math.imul(31, h) + shape.charCodeAt(i)) | 0;
 	return (h >>> 0).toString(36);
+}
+
+/**
+ * The shape the checked-in Queue template reads: one entry per root, each with
+ * its bucket id and tiers of {id, shortId, name}. The template renders from this
+ * object, so the generator's only job is to produce it correctly.
+ */
+export function toQueueLadders(models) {
+	const out = {};
+	for (const model of models) {
+		out[model.root] = {
+			root: model.root,
+			bucketId: model.bucketId,
+			tiers: model.tiers.map((t) => ({
+				label: t.label,
+				id: t.id,
+				items: t.items.map((i) => ({id: i.id, shortId: i.shortId, name: i.text})),
+			})),
+		};
+	}
+	return out;
+}
+
+/**
+ * Render the page by injecting today's ladders into the Queue template.
+ *
+ * The UI is a checked-in artifact rather than something this script rebuilds:
+ * an earlier attempt reimplemented it from scratch and produced a thinner,
+ * different page that lost the typography, root tabs, gauges and per-row
+ * controls. Templating keeps the page the user actually uses and leaves the
+ * generator responsible only for data.
+ */
+export function renderFromTemplate(models, templatePath = TEMPLATE) {
+	const template = readFileSync(templatePath, 'utf8');
+	// `</script>` anywhere in a task name would close the tag early; \u003c keeps
+	// the payload inert while staying valid JSON.
+	const payload = JSON.stringify(toQueueLadders(models)).replace(/</g, '\\u003c');
+	return template.replace('__LADDERS__', () => payload);
 }
 
 export function renderPage(models) {
@@ -502,7 +544,7 @@ function main() {
 		const root = /personal/i.test(bucket?.name ?? file) ? 'personal' : 'work';
 		return buildLadderModel(root, bucket);
 	});
-	process.stdout.write(renderPage(models));
+	process.stdout.write(args.includes('--legacy') ? renderPage(models) : renderFromTemplate(models));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

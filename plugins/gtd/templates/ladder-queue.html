@@ -1,0 +1,1289 @@
+<title>Asap Ladder Queue</title>
+<link
+	rel="stylesheet"
+	href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap"
+/>
+<style>
+	:root {
+		--paper: #f4f6f7;
+		--surface: #ffffff;
+		--surface-2: #eceff1;
+		--ink: #161c1f;
+		--ink-2: #3d4a50;
+		--muted: #6d7c84;
+		--line: #d6dde0;
+		--line-strong: #aebac0;
+		--accent: #0f5f5c;
+		--accent-soft: #d8ebe9;
+
+		/* capacity states — each tier region is painted with one of these */
+		--room-bg: #eaf2f8;
+		--room-edge: #7fa8c9;
+		--room-ink: #2b5d84;
+		--exact-bg: #e6f2ea;
+		--exact-edge: #5f9e79;
+		--exact-ink: #2f6144;
+		--over-bg: #fbeadf;
+		--over-edge: #c9743f;
+		--over-ink: #a4471b;
+
+		--shadow: 0 1px 2px rgba(20, 32, 36, 0.07);
+		--drag: 0 6px 18px rgba(20, 32, 36, 0.22);
+	}
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme='light']) {
+			--paper: #12171a;
+			--surface: #191f23;
+			--surface-2: #212a2e;
+			--ink: #e8eef0;
+			--ink-2: #b9c6cb;
+			--muted: #8b9aa1;
+			--line: #2c373c;
+			--line-strong: #48585e;
+			--accent: #5fc9c2;
+			--accent-soft: #123634;
+			--room-bg: #16242f;
+			--room-edge: #4d7fa4;
+			--room-ink: #8fc0e0;
+			--exact-bg: #152a20;
+			--exact-edge: #468a63;
+			--exact-ink: #89cea5;
+			--over-bg: #2f1c12;
+			--over-edge: #b06a3d;
+			--over-ink: #e5946a;
+			--shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+			--drag: 0 6px 18px rgba(0, 0, 0, 0.6);
+		}
+	}
+	:root[data-theme='dark'] {
+		--paper: #12171a;
+		--surface: #191f23;
+		--surface-2: #212a2e;
+		--ink: #e8eef0;
+		--ink-2: #b9c6cb;
+		--muted: #8b9aa1;
+		--line: #2c373c;
+		--line-strong: #48585e;
+		--accent: #5fc9c2;
+		--accent-soft: #123634;
+		--room-bg: #16242f;
+		--room-edge: #4d7fa4;
+		--room-ink: #8fc0e0;
+		--exact-bg: #152a20;
+		--exact-edge: #468a63;
+		--exact-ink: #89cea5;
+		--over-bg: #2f1c12;
+		--over-edge: #b06a3d;
+		--over-ink: #e5946a;
+		--shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+		--drag: 0 6px 18px rgba(0, 0, 0, 0.6);
+	}
+	* {
+		box-sizing: border-box;
+	}
+	body {
+		background: var(--paper);
+		color: var(--ink);
+		font-family:
+			'Public Sans',
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			sans-serif;
+		font-size: 15px;
+		line-height: 1.45;
+		padding: 0 20px 132px;
+		margin: 0;
+	}
+	.wrap {
+		max-width: 940px;
+		margin: 0 auto;
+	}
+	header.top {
+		padding-block: 34px 20px;
+		border-bottom: 2px solid var(--ink);
+		margin-bottom: 24px;
+	}
+	h1 {
+		font-family: 'Newsreader', Georgia, serif;
+		font-weight: 600;
+		font-size: clamp(29px, 4.2vw, 42px);
+		line-height: 1.1;
+		margin: 0 0 8px;
+		letter-spacing: -0.015em;
+		text-wrap: balance;
+	}
+	.dek {
+		color: var(--ink-2);
+		max-width: 66ch;
+		margin: 0;
+	}
+	.dek b {
+		color: var(--ink);
+		font-weight: 600;
+	}
+	.legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 16px;
+		margin-top: 15px;
+		font-size: 12.5px;
+		color: var(--muted);
+	}
+	.legend span {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.chip {
+		display: inline-block;
+		padding: 2px 8px;
+		border-radius: 20px;
+		font-size: 11.5px;
+		font-weight: 600;
+		border: 1px solid;
+	}
+	.chip.room {
+		background: var(--room-bg);
+		border-color: var(--room-edge);
+		color: var(--room-ink);
+	}
+	.chip.exact {
+		background: var(--exact-bg);
+		border-color: var(--exact-edge);
+		color: var(--exact-ink);
+	}
+	.chip.over {
+		background: var(--over-bg);
+		border-color: var(--over-edge);
+		color: var(--over-ink);
+	}
+
+	.rootnav {
+		display: flex;
+		gap: 6px;
+		margin-bottom: 16px;
+	}
+	.rootnav button {
+		font-size: 13.5px;
+		font-weight: 600;
+		padding: 7px 15px;
+		border-radius: 20px;
+		border: 1px solid var(--line-strong);
+		background: var(--surface);
+		color: var(--ink-2);
+		cursor: pointer;
+	}
+	.rootnav button[aria-selected='true'] {
+		background: var(--ink);
+		color: var(--paper);
+		border-color: var(--ink);
+	}
+
+	/* ---- the queue: one continuous list ---- */
+	.queue {
+		border: 1px solid var(--line-strong);
+		border-radius: 6px;
+		overflow: hidden;
+		box-shadow: var(--shadow);
+	}
+
+	.sep {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+		padding: 9px 14px;
+		border-top: 2px solid var(--sep-edge);
+		border-bottom: 1px solid var(--sep-edge);
+		background: var(--sep-bg);
+		position: sticky;
+		top: 0;
+		z-index: 5;
+	}
+	.sep:first-child {
+		border-top: none;
+	}
+	.sep .tname {
+		font-family: 'Newsreader', Georgia, serif;
+		font-size: 20px;
+		font-weight: 600;
+		line-height: 1;
+		color: var(--sep-ink);
+	}
+	.sep .gauge {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 12.5px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		color: var(--sep-ink);
+	}
+	.sep .verdict {
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-weight: 600;
+		color: var(--sep-ink);
+		border: 1px solid var(--sep-edge);
+		border-radius: 20px;
+		padding: 2px 9px;
+		background: var(--surface);
+	}
+	.sep .goal {
+		font-size: 10.5px;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--accent);
+		font-weight: 600;
+		margin-left: auto;
+	}
+	.sep.room {
+		--sep-bg: var(--room-bg);
+		--sep-edge: var(--room-edge);
+		--sep-ink: var(--room-ink);
+	}
+	.sep.exact {
+		--sep-bg: var(--exact-bg);
+		--sep-edge: var(--exact-edge);
+		--sep-ink: var(--exact-ink);
+	}
+	.sep.over {
+		--sep-bg: var(--over-bg);
+		--sep-edge: var(--over-edge);
+		--sep-ink: var(--over-ink);
+	}
+
+	.zone {
+		padding: 0;
+	}
+	.zone.room {
+		background: var(--room-bg);
+	}
+	.zone.exact {
+		background: var(--exact-bg);
+	}
+	.zone.over {
+		background: var(--over-bg);
+	}
+
+	.row {
+		display: grid;
+		grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+		gap: 10px;
+		align-items: center;
+		padding: 8px 14px 8px 10px;
+		background: var(--surface);
+		margin: 4px 8px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		cursor: grab;
+	}
+	.row:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+	}
+	.row:hover {
+		border-color: var(--line-strong);
+		box-shadow: var(--shadow);
+	}
+	.row:hover .grip {
+		color: var(--ink-2);
+	}
+	.row:active {
+		cursor: grabbing;
+	}
+	.row.dragging {
+		opacity: 0.35;
+		border-style: dashed;
+	}
+	body.is-dragging .row {
+		cursor: grabbing;
+	}
+	body.is-dragging .row * {
+		pointer-events: none;
+	}
+	.row.excess {
+		border-left: 3px solid var(--over-edge);
+	}
+	.row .grip {
+		color: var(--muted);
+		font-size: 15px;
+		line-height: 1;
+		letter-spacing: -2px;
+		user-select: none;
+	}
+	.row .rank {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 11px;
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
+		min-width: 22px;
+	}
+	.row .txt {
+		min-width: 0;
+		overflow-wrap: anywhere;
+		font-size: 14px;
+		text-align: left;
+		justify-self: stretch;
+	}
+	.row .txt a {
+		color: var(--accent);
+	}
+	.row .wfl {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 11px;
+		color: var(--muted);
+		text-decoration: none;
+		margin-left: 5px;
+	}
+	.row .moved-tag {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 10.5px;
+		color: var(--accent);
+		margin-left: 5px;
+	}
+	.row.sel {
+		border-color: var(--accent);
+		background: var(--accent-soft);
+		box-shadow: inset 3px 0 0 var(--accent);
+	}
+	.row .step {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.row .step button {
+		width: 22px;
+		height: 16px;
+		padding: 0;
+		line-height: 1;
+		border: 1px solid var(--line-strong);
+		background: var(--surface);
+		color: var(--muted);
+		border-radius: 3px;
+		cursor: pointer;
+		font-size: 9px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.row .step button:hover:not([disabled]) {
+		border-color: var(--accent);
+		color: var(--accent);
+		background: var(--accent-soft);
+	}
+	.row .step button[disabled] {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+	.row .done {
+		border: 1px solid var(--line-strong);
+		background: var(--surface);
+		color: var(--muted);
+		border-radius: 4px;
+		padding: 3px 9px;
+		font-size: 11.5px;
+		font-weight: 600;
+		cursor: pointer;
+		font-family: 'Public Sans', sans-serif;
+		white-space: nowrap;
+	}
+	.row .done:hover {
+		border-color: var(--exact-edge);
+		color: var(--exact-ink);
+		background: var(--exact-bg);
+	}
+	.row.isdone {
+		opacity: 0.55;
+		border-color: var(--exact-edge);
+		background: var(--exact-bg);
+	}
+	.row.isdone .txt {
+		text-decoration: line-through;
+		text-decoration-thickness: 1px;
+	}
+	.row.isdone .done {
+		border-color: var(--exact-edge);
+		color: var(--exact-ink);
+		background: var(--exact-bg);
+	}
+
+	.slot {
+		margin: 4px 8px;
+		border: 1.5px dashed var(--sep-edge);
+		border-radius: 4px;
+		height: 30px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 11px;
+		color: var(--sep-ink);
+		opacity: 0.65;
+	}
+	.zone.room .slot {
+		--sep-edge: var(--room-edge);
+		--sep-ink: var(--room-ink);
+	}
+
+	.dragghost {
+		position: absolute;
+		top: -1000px;
+		left: -1000px;
+		background: var(--accent);
+		color: #fff;
+		border-radius: 4px;
+		padding: 5px 11px;
+		font-family: 'Public Sans', sans-serif;
+		font-size: 13px;
+		font-weight: 600;
+	}
+	.dropline {
+		height: 0;
+		border-top: 3px solid var(--accent);
+		margin: 1px 8px;
+		border-radius: 2px;
+		position: relative;
+	}
+	.dropline::before {
+		content: '';
+		position: absolute;
+		left: -3px;
+		top: -4px;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--accent);
+	}
+	.slot.hot {
+		border-color: var(--accent);
+		border-style: solid;
+		color: var(--accent);
+		opacity: 1;
+	}
+	.row.dragging .done,
+	.row.dragging .step {
+		visibility: hidden;
+	}
+
+	.bar {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 40;
+		background: var(--surface);
+		border-top: 2px solid var(--ink);
+		padding: 11px 20px;
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		flex-wrap: wrap;
+		box-shadow: 0 -2px 12px rgba(20, 32, 36, 0.12);
+	}
+	.savestate {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 12.5px;
+		font-weight: 600;
+		color: var(--exact-ink);
+		white-space: nowrap;
+	}
+	.savestate.pending {
+		color: var(--muted);
+	}
+	.savestate.failed {
+		color: var(--over-ink);
+	}
+	.bar .status {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 12.5px;
+		color: var(--ink-2);
+		flex: 1;
+		min-width: 170px;
+		font-variant-numeric: tabular-nums;
+	}
+	button.act {
+		font-family: 'Public Sans', sans-serif;
+		font-size: 14px;
+		font-weight: 600;
+		padding: 9px 17px;
+		border-radius: 5px;
+		border: 1px solid var(--ink);
+		background: var(--ink);
+		color: var(--paper);
+		cursor: pointer;
+	}
+	button.act.ghost {
+		background: transparent;
+		color: var(--ink);
+	}
+	button.act[disabled] {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	select.bulk {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: 12.5px;
+		padding: 7px 8px;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: var(--surface);
+		color: var(--ink);
+	}
+	button.act:focus-visible,
+	select:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+	@media (max-width: 560px) {
+		.row {
+			grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+			row-gap: 4px;
+		}
+		.sep {
+			position: static;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		* {
+			animation: none !important;
+			transition: none !important;
+		}
+	}
+</style>
+
+<div class="wrap">
+	<header class="top">
+		<h1>Asap Ladder Queue</h1>
+		<p class="dek">
+			One list, tier boundaries fixed in place. <b>Drag a row up or down</b> across a boundary to change its tier
+			&mdash; the band it lands in is its tier. Tier <b>k</b> holds <b>2<sup>k</sup></b> items. For big moves,
+			tick rows and use <b>Move selected</b> at the bottom. Every change saves by itself &mdash; Claude picks it
+			up within a couple of minutes.
+		</p>
+		<div class="legend">
+			<span><i class="chip room">room</i> has capacity &mdash; empty slots shown</span>
+			<span><i class="chip exact">full</i> exactly at cap</span>
+			<span><i class="chip over">over</i> drag some out</span>
+			<span>&nbsp;</span>
+			<span
+				>Click a row to select &middot; <b style="color: var(--ink)">shift-click</b> for a range &middot;
+				<b style="color: var(--ink)">&#9650;&#9660;</b> steps one tier</span
+			>
+		</div>
+	</header>
+	<div
+		class="rootnav"
+		id="rootnav"
+	></div>
+	<div id="app"></div>
+</div>
+
+<div class="bar">
+	<div
+		class="status"
+		id="status"
+	>
+		No changes yet.
+	</div>
+	<button
+		class="act ghost"
+		id="bulkDone"
+		type="button"
+		disabled
+	>
+		Mark done
+	</button>
+	<select
+		class="bulk"
+		id="bulkTier"
+	>
+		<option value="">Move selected to…</option>
+	</select>
+	<span
+		class="savestate"
+		id="savestate"
+		>&nbsp;</span
+	>
+	<button
+		class="act ghost"
+		id="reset"
+		type="button"
+	>
+		Revert all
+	</button>
+</div>
+
+<script>
+	var LADDERS = __LADDERS__;
+</script>
+<script>
+	(function () {
+		var CAP = {'1st': 2, '2nd': 4, '3rd': 8, '4th': 16, '5th': 32, '6th': 64, '7th': 128, '8th': 256};
+		var ORDER = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+		var MAXSLOTS = 6; // never render more than this many ghost slots
+
+		var app = document.getElementById('app');
+		var nav = document.getElementById('rootnav');
+		var statusEl = document.getElementById('status');
+		var saveState = document.getElementById('savestate');
+		var resetBtn = document.getElementById('reset');
+		var bulkSel = document.getElementById('bulkTier');
+		var bulkDone = document.getElementById('bulkDone');
+
+		var ROOTS = ['work', 'personal'];
+		var current = 'work';
+		var seq = {},
+			origin = {},
+			meta = {},
+			selected = {},
+			done = {},
+			anchorId = null;
+
+		function build() {
+			ROOTS.forEach(function (root) {
+				var L = LADDERS[root],
+					s = [];
+				var labels = L.tiers.map(function (t) {
+					return t.label;
+				});
+				var last = labels[labels.length - 1];
+				var nxt = ORDER[ORDER.indexOf(last) + 1];
+				if (nxt) labels = labels.concat([nxt]);
+				labels.forEach(function (lab) {
+					s.push({kind: 'sep', label: lab});
+					var t = L.tiers.filter(function (x) {
+						return x.label === lab;
+					})[0];
+					if (t)
+						t.items.forEach(function (it) {
+							s.push({kind: 'item', id: it.id, shortId: it.shortId, name: it.name});
+							origin[it.id] = lab;
+							meta[it.id] = {root: root, name: it.name};
+						});
+				});
+				seq[root] = s;
+			});
+		}
+
+		function tierAt(root, i) {
+			for (var j = i; j >= 0; j--) if (seq[root][j].kind === 'sep') return seq[root][j].label;
+			return seq[root][0].label;
+		}
+		function counts(root) {
+			var c = {},
+				cur = null;
+			seq[root].forEach(function (e) {
+				if (e.kind === 'sep') {
+					cur = e.label;
+					c[cur] = 0;
+				} else if (!done[e.id]) c[cur]++;
+			});
+			return c;
+		}
+		function stateOf(n, cap) {
+			return n > cap ? 'over' : n === cap ? 'exact' : 'room';
+		}
+
+		function itemIds(root) {
+			return seq[root]
+				.filter(function (e) {
+					return e.kind === 'item';
+				})
+				.map(function (e) {
+					return e.id;
+				});
+		}
+
+		// GitHub / Workflowy style: click sets the anchor, shift+click extends a range,
+		// cmd/ctrl+click toggles one without clearing the rest.
+		function handlePick(id, ev) {
+			var ids = itemIds(current);
+			if (ev.shiftKey && anchorId && anchorId !== id) {
+				var a = ids.indexOf(anchorId),
+					b = ids.indexOf(id);
+				if (a > -1 && b > -1) {
+					var lo = Math.min(a, b),
+						hi = Math.max(a, b);
+					if (!(ev.metaKey || ev.ctrlKey)) selected = {};
+					for (var i = lo; i <= hi; i++) selected[ids[i]] = true;
+					var sel = window.getSelection && window.getSelection();
+					if (sel && sel.removeAllRanges) sel.removeAllRanges();
+					render();
+					return;
+				}
+			}
+			if (ev.metaKey || ev.ctrlKey) {
+				if (selected[id]) delete selected[id];
+				else selected[id] = true;
+			} else {
+				var onlyMe = selected[id] && Object.keys(selected).length === 1;
+				selected = {};
+				if (!onlyMe) selected[id] = true;
+			}
+			anchorId = id;
+			render();
+		}
+
+		function changed() {
+			var out = [];
+			ROOTS.forEach(function (root) {
+				var cur = null;
+				seq[root].forEach(function (e) {
+					if (e.kind === 'sep') {
+						cur = e.label;
+						return;
+					}
+					if (origin[e.id] !== cur)
+						out.push({id: e.id, root: root, from: origin[e.id], to: cur, name: meta[e.id].name});
+				});
+			});
+			return out;
+		}
+
+		function linkify(name) {
+			var s = name.replace(/<a href="([^"]+)"[^>]*>(.*?)<\/a>/g, function (m, h, t) {
+				return (
+					'<a href="' +
+					h.replace(/"/g, '&quot;') +
+					'" target="_blank" rel="noopener">' +
+					t.replace(/<[^>]*>/g, '') +
+					'</a>'
+				);
+			});
+			s = s.replace(/<time[^>]*>(.*?)<\/time>/g, '<b>$1</b>');
+			return s.replace(/<(?!\/?(a|b)\b)[^>]*>/g, '');
+		}
+
+		var dragId = null;
+
+		function render() {
+			nav.innerHTML = '';
+			ROOTS.forEach(function (root) {
+				var c = counts(root),
+					bad = 0;
+				Object.keys(c).forEach(function (k) {
+					if (c[k] > CAP[k]) bad++;
+				});
+				var b = document.createElement('button');
+				b.type = 'button';
+				b.setAttribute('aria-selected', root === current ? 'true' : 'false');
+				b.textContent = (root === 'work' ? 'Work' : 'Personal') + (bad ? '  (' + bad + ' over)' : '  ✓');
+				b.addEventListener('click', function () {
+					current = root;
+					selected = {};
+					anchorId = null;
+					render();
+				});
+				nav.appendChild(b);
+			});
+
+			var root = current,
+				c = counts(root);
+			var q = document.createElement('div');
+			q.className = 'queue';
+			var zone = null,
+				curLabel = null,
+				seen = 0;
+
+			seq[root].forEach(function (e, i) {
+				if (e.kind === 'sep') {
+					if (zone) finishZone(zone, curLabel, c[curLabel]);
+					curLabel = e.label;
+					seen = 0;
+					var n = c[e.label],
+						cap = CAP[e.label],
+						st = stateOf(n, cap);
+					var sep = document.createElement('div');
+					sep.className = 'sep ' + st;
+					var verdict = st === 'over' ? n - cap + ' over' : st === 'exact' ? 'full' : cap - n + ' free';
+					sep.innerHTML =
+						'<span class="tname">' +
+						e.label +
+						'</span>' +
+						'<span class="gauge">' +
+						n +
+						' / ' +
+						cap +
+						'</span>' +
+						'<span class="verdict">' +
+						verdict +
+						'</span>' +
+						(e.label === '1st' || e.label === '2nd' ? '<span class="goal">today’s goal</span>' : '');
+					sep.dataset.idx = i;
+					q.appendChild(sep);
+					zone = document.createElement('div');
+					zone.className = 'zone ' + st;
+					zone.dataset.label = e.label;
+					q.appendChild(zone);
+					return;
+				}
+				if (!done[e.id]) seen++;
+				var cap = CAP[curLabel];
+				var r = document.createElement('div');
+				r.className = 'row' + (seen > cap ? ' excess' : '') + (selected[e.id] ? ' sel' : '');
+				r.draggable = true;
+				r.tabIndex = 0;
+				r.dataset.id = e.id;
+				r.dataset.idx = i;
+				if (done[e.id]) r.classList.add('isdone');
+				var grip = document.createElement('span');
+				grip.className = 'grip';
+				grip.textContent = '⣿';
+				var rank = document.createElement('span');
+				rank.className = 'rank';
+				rank.textContent = done[e.id] ? '—' : seen;
+				var txt = document.createElement('div');
+				txt.className = 'txt';
+				txt.innerHTML =
+					linkify(e.name) +
+					' <a class="wfl" href="https://workflowy.com/#/' +
+					e.shortId +
+					'" target="_blank" rel="noopener">↗</a>' +
+					(origin[e.id] !== curLabel ? '<span class="moved-tag">was ' + origin[e.id] + '</span>' : '');
+				var step = document.createElement('div');
+				step.className = 'step';
+				var upB = document.createElement('button');
+				upB.type = 'button';
+				upB.textContent = '▲';
+				upB.title = 'Promote one tier (to the bottom of the tier above)';
+				upB.setAttribute('aria-label', 'Promote one tier');
+				var dnB = document.createElement('button');
+				dnB.type = 'button';
+				dnB.textContent = '▼';
+				dnB.title = 'Demote one tier (to the top of the tier below)';
+				dnB.setAttribute('aria-label', 'Demote one tier');
+				var li = labelsOf(root).indexOf(curLabel);
+				if (li <= 0) upB.disabled = true;
+				if (li < 0 || li >= labelsOf(root).length - 1) dnB.disabled = true;
+				upB.addEventListener('click', function (ev) {
+					ev.stopPropagation();
+					stepTier(e.id, -1);
+				});
+				dnB.addEventListener('click', function (ev) {
+					ev.stopPropagation();
+					stepTier(e.id, 1);
+				});
+				step.appendChild(upB);
+				step.appendChild(dnB);
+
+				var dn = document.createElement('button');
+				dn.type = 'button';
+				dn.className = 'done';
+				dn.textContent = done[e.id] ? '✓ Done' : 'Done';
+				dn.title = done[e.id] ? 'Undo — will not be completed' : 'Mark complete in Workflowy on save';
+				dn.addEventListener('click', function (ev) {
+					ev.stopPropagation();
+					if (done[e.id]) delete done[e.id];
+					else done[e.id] = true;
+					render();
+					scheduleSave();
+				});
+				r.appendChild(grip);
+				r.appendChild(rank);
+				r.appendChild(txt);
+				r.appendChild(step);
+				r.appendChild(dn);
+
+				r.addEventListener('click', function (ev) {
+					if (ev.target.closest('a,button')) return;
+					handlePick(e.id, ev);
+				});
+				r.addEventListener('mousedown', function (ev) {
+					if (ev.shiftKey) ev.preventDefault(); // stop the browser text-selecting the range
+				});
+				r.addEventListener('dragstart', function (ev) {
+					if (!selected[e.id]) {
+						selected = {};
+						anchorId = e.id;
+					} // dragging outside the selection drops it
+					dragId = e.id;
+					pendingIdx = null;
+					var carried = dragPayload(e.id);
+					document.body.classList.add('is-dragging');
+					setTimeout(function () {
+						carried.forEach(function (cid) {
+							var el = document.querySelector('[data-id="' + cid + '"]');
+							if (el) el.classList.add('dragging');
+						});
+					}, 0);
+					ev.dataTransfer.effectAllowed = 'move';
+					try {
+						ev.dataTransfer.setData('text/plain', carried.join(','));
+						if (carried.length > 1 && ev.dataTransfer.setDragImage) {
+							var ghost = document.createElement('div');
+							ghost.className = 'dragghost';
+							ghost.textContent = carried.length + ' items';
+							document.body.appendChild(ghost);
+							ev.dataTransfer.setDragImage(ghost, 12, 12);
+							setTimeout(function () {
+								if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+							}, 0);
+						}
+					} catch (x) {}
+				});
+				r.addEventListener('dragend', function () {
+					dragId = null;
+					pendingIdx = null;
+					document.body.classList.remove('is-dragging');
+					clearLine();
+					render();
+				});
+				r.addEventListener('keydown', function (ev) {
+					if (!ev.altKey) return;
+					if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+						ev.preventDefault();
+						moveByOne(root, e.id, ev.key === 'ArrowUp' ? -1 : 1);
+						render();
+						scheduleSave();
+						var again = document.querySelector('[data-id="' + e.id + '"]');
+						if (again) again.focus();
+					}
+				});
+				zone.appendChild(r);
+			});
+			if (zone) finishZone(zone, curLabel, c[curLabel]);
+
+			app.innerHTML = '';
+			app.appendChild(q);
+			wireDrop(q);
+
+			bulkSel.innerHTML = '<option value="">Move selected to…</option>';
+			seq[root]
+				.filter(function (x) {
+					return x.kind === 'sep';
+				})
+				.forEach(function (s) {
+					var o = document.createElement('option');
+					o.value = s.label;
+					o.textContent = '→ ' + s.label;
+					bulkSel.appendChild(o);
+				});
+			updateStatus();
+		}
+
+		function finishZone(zone, label, n) {
+			var cap = CAP[label];
+			if (n < cap) {
+				var free = Math.min(cap - n, MAXSLOTS);
+				for (var k = 0; k < free; k++) {
+					var s = document.createElement('div');
+					s.className = 'slot';
+					s.textContent =
+						cap - n > MAXSLOTS && k === free - 1
+							? '+' + (cap - n - MAXSLOTS + 1) + ' more free'
+							: 'drop here';
+					zone.appendChild(s);
+				}
+			}
+			if (n === 0) {
+				var e = document.createElement('div');
+				e.className = 'slot';
+				e.style.borderStyle = 'solid';
+				e.textContent = 'empty tier';
+				zone.insertBefore(e, zone.firstChild);
+			}
+		}
+
+		var line = null,
+			pendingIdx = null;
+
+		function clearLine() {
+			if (line && line.parentNode) line.parentNode.removeChild(line);
+			line = null;
+			var hot = document.querySelector('.slot.hot');
+			if (hot) hot.classList.remove('hot');
+		}
+		function showLine(refEl, before) {
+			if (!line) {
+				line = document.createElement('div');
+				line.className = 'dropline';
+			}
+			var parent = refEl.parentNode;
+			if (before) parent.insertBefore(line, refEl);
+			else parent.insertBefore(line, refEl.nextSibling);
+		}
+
+		// one delegated listener on the whole queue: children never swallow it
+		function wireDrop(q) {
+			q.addEventListener('dragover', function (ev) {
+				if (!dragId) return;
+				var t = ev.target.closest ? ev.target.closest('.row,.sep,.slot,.zone') : null;
+				if (!t) return;
+				ev.preventDefault();
+				ev.dataTransfer.dropEffect = 'move';
+
+				var prevHot = document.querySelector('.slot.hot');
+				if (prevHot) prevHot.classList.remove('hot');
+
+				if (t.classList.contains('row')) {
+					var rect = t.getBoundingClientRect();
+					var after = ev.clientY - rect.top > rect.height / 2;
+					pendingIdx = Number(t.dataset.idx) + (after ? 1 : 0);
+					showLine(t, !after);
+				} else if (t.classList.contains('sep')) {
+					pendingIdx = Number(t.dataset.idx) + 1; // top of this tier
+					var zone = t.nextElementSibling;
+					if (zone) showLine(zone.firstElementChild || zone, true);
+				} else {
+					// a ghost slot or the bare zone padding: append to the end of that tier
+					var z = t.classList.contains('zone') ? t : t.parentNode;
+					pendingIdx = endIndexOfTier(current, z.dataset.label);
+					if (t.classList.contains('slot')) t.classList.add('hot');
+					else showLine(z.lastElementChild || z, false);
+				}
+			});
+			q.addEventListener('drop', function (ev) {
+				if (!dragId || pendingIdx === null) return;
+				ev.preventDefault();
+				moveMany(current, dragPayload(dragId), pendingIdx);
+				dragId = null;
+				pendingIdx = null;
+				document.body.classList.remove('is-dragging');
+				clearLine();
+				render();
+				scheduleSave();
+			});
+			q.addEventListener('dragleave', function (ev) {
+				if (!dragId) return;
+				if (!q.contains(ev.relatedTarget)) clearLine();
+			});
+		}
+
+		function labelsOf(root) {
+			return seq[root]
+				.filter(function (e) {
+					return e.kind === 'sep';
+				})
+				.map(function (e) {
+					return e.label;
+				});
+		}
+		function sepIndexOf(root, label) {
+			return seq[root].findIndex(function (e) {
+				return e.kind === 'sep' && e.label === label;
+			});
+		}
+		function tierOfItem(root, id) {
+			var cur = null,
+				s = seq[root];
+			for (var i = 0; i < s.length; i++) {
+				if (s[i].kind === 'sep') cur = s[i].label;
+				else if (s[i].id === id) return cur;
+			}
+			return null;
+		}
+
+		// ▼ sends it to the TOP of the tier below; ▲ to the BOTTOM of the tier above.
+		// Both land it against the boundary it crossed, and carry the whole selection
+		// when the clicked row is part of one — same rule as dragging.
+		function stepTier(id, dir) {
+			var root = current;
+			var labels = labelsOf(root);
+			var from = tierOfItem(root, id);
+			var i = labels.indexOf(from);
+			if (i < 0) return;
+			var j = i + dir;
+			if (j < 0 || j >= labels.length) return;
+			var target = labels[j];
+			var idx = dir > 0 ? sepIndexOf(root, target) + 1 : endIndexOfTier(root, target);
+			moveMany(root, dragPayload(id), idx);
+			render();
+		}
+
+		function endIndexOfTier(root, label) {
+			var s = seq[root];
+			var i = s.findIndex(function (e) {
+				return e.kind === 'sep' && e.label === label;
+			});
+			if (i < 0) return s.length;
+			var j = i + 1;
+			while (j < s.length && s[j].kind === 'item') j++;
+			return j;
+		}
+
+		// Move a set of items as one block, keeping their relative order.
+		function moveMany(root, ids, idx) {
+			var s = seq[root],
+				picked = [];
+			for (var i = s.length - 1; i >= 0; i--) {
+				if (s[i].kind === 'item' && ids.indexOf(s[i].id) > -1) {
+					picked.unshift(s[i]);
+					s.splice(i, 1);
+					if (i < idx) idx--;
+				}
+			}
+			if (!picked.length) return;
+			if (idx < 1) idx = 1;
+			if (idx > s.length) idx = s.length;
+			Array.prototype.splice.apply(s, [idx, 0].concat(picked));
+		}
+
+		// What a drag on this row should carry: the whole selection if the row is in it.
+		function dragPayload(id) {
+			return selected[id] && Object.keys(selected).length > 1 ? Object.keys(selected) : [id];
+		}
+		function moveByOne(root, id, dir) {
+			var s = seq[root];
+			var i = s.findIndex(function (e) {
+				return e.kind === 'item' && e.id === id;
+			});
+			var j = i + dir;
+			if (j < 1 || j >= s.length) return;
+			var item = s.splice(i, 1)[0];
+			s.splice(j, 0, item);
+		}
+
+		bulkSel.addEventListener('change', function () {
+			var target = bulkSel.value;
+			if (!target) return;
+			var ids = Object.keys(selected);
+			if (!ids.length) {
+				bulkSel.value = '';
+				return;
+			}
+			var s = seq[current];
+			var sepIdx = s.findIndex(function (e) {
+				return e.kind === 'sep' && e.label === target;
+			});
+			// find end of that tier
+			var end = sepIdx + 1;
+			while (end < s.length && s[end].kind === 'item') end++;
+			moveMany(current, Object.keys(selected), end);
+			selected = {};
+			anchorId = null;
+			bulkSel.value = '';
+			render();
+			scheduleSave();
+		});
+
+		resetBtn.addEventListener('click', function () {
+			build();
+			selected = {};
+			done = {};
+			anchorId = null;
+			render();
+			scheduleSave();
+		});
+
+		bulkDone.addEventListener('click', function () {
+			var ids = Object.keys(selected);
+			if (!ids.length) return;
+			var allDone = ids.every(function (id) {
+				return done[id];
+			});
+			ids.forEach(function (id) {
+				if (allDone) delete done[id];
+				else done[id] = true;
+			});
+			selected = {};
+			anchorId = null;
+			render();
+			scheduleSave();
+		});
+
+		function updateStatus() {
+			var ch = changed();
+			var nsel = Object.keys(selected).length;
+			bulkDone.disabled = nsel === 0;
+			bulkDone.textContent = nsel > 1 ? 'Mark ' + nsel + ' done' : 'Mark done';
+			var overAll = 0;
+			ROOTS.forEach(function (root) {
+				var c = counts(root);
+				Object.keys(c).forEach(function (k) {
+					if (c[k] > CAP[k]) overAll++;
+				});
+			});
+			var ndone = Object.keys(done).length;
+			var bits = [];
+			bits.push(ch.length ? ch.length + ' moved' : 'no changes');
+			if (ndone) bits.push(ndone + ' to complete');
+			if (nsel) bits.push(nsel + ' selected');
+			bits.push(overAll ? overAll + ' tier' + (overAll > 1 ? 's' : '') + ' still over' : 'all tiers within cap');
+			statusEl.textContent = bits.join(' · ');
+		}
+
+		// ---- autosave -------------------------------------------------------
+		// Every mutation schedules a write. The payload is the DESIRED END STATE
+		// (order + completed), so re-sending it is harmless: the applier diffs it
+		// against live Workflowy and only moves what actually differs.
+		var saveTimer = null,
+			saving = false,
+			dirtyAgain = false;
+
+		function scheduleSave() {
+			if (saveTimer) clearTimeout(saveTimer);
+			saveState.className = 'savestate pending';
+			saveState.textContent = 'saving…';
+			saveTimer = setTimeout(persist, 700);
+		}
+
+		function persist() {
+			saveTimer = null;
+			if (saving) {
+				dirtyAgain = true;
+				return;
+			}
+			saving = true;
+			var ch = changed();
+			var order = {};
+			ROOTS.forEach(function (root) {
+				order[root] = [];
+				var cur = null;
+				seq[root].forEach(function (e) {
+					if (e.kind === 'sep') {
+						cur = e.label;
+						return;
+					}
+					order[root].push({id: e.id, tier: cur});
+				});
+			});
+			var payload = {
+				savedAt: new Date().toISOString(),
+				completed: Object.keys(done).map(function (id) {
+					return {
+						id: id,
+						root: meta[id].root,
+						tier: origin[id],
+						name: meta[id].name.replace(/<[^>]*>/g, '').slice(0, 140),
+					};
+				}),
+				moves: ch.map(function (m) {
+					return {
+						id: m.id,
+						root: m.root,
+						from: m.from,
+						to: m.to,
+						name: m.name.replace(/<[^>]*>/g, '').slice(0, 140),
+					};
+				}),
+				order: order,
+			};
+			claude
+				.use('db')
+				.then(function (db) {
+					if (!db) throw new Error('storage unavailable');
+					return db.doc('rebalance/2026-09-10').set(payload);
+				})
+				.then(function () {
+					saving = false;
+					var t = new Date();
+					saveState.className = 'savestate';
+					saveState.textContent = '✓ saved ' + t.toLocaleTimeString();
+					if (dirtyAgain) {
+						dirtyAgain = false;
+						scheduleSave();
+					}
+				})
+				.catch(function (e) {
+					saving = false;
+					saveState.className = 'savestate failed';
+					saveState.textContent = 'save failed — retrying';
+					setTimeout(scheduleSave, 4000);
+				});
+		}
+
+		build();
+		render();
+	})();
+</script>
