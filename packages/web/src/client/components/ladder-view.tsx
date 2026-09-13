@@ -155,10 +155,19 @@ export function LadderView() {
 
 				{ladder ? (
 					<div className="ladder-queue">
-						{ladder.tiers.map((tier) => (
+						{ladder.tiers.map((tier, index) => (
 							<Tier
 								dropping={dropTier === tier.label}
 								key={tier.id}
+								nextTier={ladder.tiers[index + 1]?.label}
+								onStep={(nodeId, toTier) =>
+									void write(
+										'/api/v1/ladder/move',
+										{root, node_id: nodeId, to_tier: toTier},
+										(current) => moveWithin(current, root, nodeId, toTier),
+									)
+								}
+								previousTier={ladder.tiers[index - 1]?.label}
 								onComplete={complete}
 								onDragEnd={() => {
 									setDragging(undefined);
@@ -186,14 +195,31 @@ interface TierProps {
 	dragging: string | undefined;
 	dropping: boolean;
 	pending: Set<string>;
+	/** Neighbouring tier labels, so the step buttons know where up and down are. */
+	previousTier: string | undefined;
+	nextTier: string | undefined;
 	onDragStart: (nodeId: string) => void;
 	onDragEnd: () => void;
 	onDragOver: () => void;
 	onDrop: () => void;
 	onComplete: (nodeId: string) => void;
+	onStep: (nodeId: string, toTier: string) => void;
 }
 
-function Tier({tier, dragging, dropping, pending, onDragStart, onDragEnd, onDragOver, onDrop, onComplete}: TierProps) {
+function Tier({
+	tier,
+	dragging,
+	dropping,
+	pending,
+	previousTier,
+	nextTier,
+	onDragStart,
+	onDragEnd,
+	onDragOver,
+	onDrop,
+	onComplete,
+	onStep,
+}: TierProps) {
 	const free = tier.capacity - tier.items.length;
 	return (
 		<>
@@ -234,6 +260,24 @@ function Tier({tier, dragging, dropping, pending, onDragStart, onDragEnd, onDrag
 						<span className="grip">⠿</span>
 						<span className="rank">{index + 1}</span>
 						<span className="txt">{item.name}</span>
+						<span className="step">
+							<button
+								aria-label={`Move to ${previousTier ?? 'the tier above'}`}
+								disabled={!previousTier}
+								onClick={() => previousTier && onStep(item.id, previousTier)}
+								type="button"
+							>
+								&#9650;
+							</button>
+							<button
+								aria-label={`Move to ${nextTier ?? 'the tier below'}`}
+								disabled={!nextTier}
+								onClick={() => nextTier && onStep(item.id, nextTier)}
+								type="button"
+							>
+								&#9660;
+							</button>
+						</span>
 						<button
 							className="done"
 							onClick={() => onComplete(item.id)}

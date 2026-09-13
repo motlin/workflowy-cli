@@ -249,7 +249,7 @@
 
 .ladder-row {
 	display: grid;
-	grid-template-columns: auto auto minmax(0, 1fr) auto;
+	grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 	gap: 10px;
 	align-items: center;
 	padding: 8px 14px 8px 10px;
@@ -304,6 +304,39 @@
 	font-size: 14px;
 }
 
+.ladder-row .step {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.ladder-row .step button {
+	width: 30px;
+	height: 20px;
+	padding: 0;
+	line-height: 1;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--muted);
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ladder-row .step button:hover:not([disabled]) {
+	border-color: var(--accent);
+	color: var(--accent);
+	background: var(--accent-soft);
+}
+
+.ladder-row .step button[disabled] {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
 .ladder-row .done {
 	border: 1px solid var(--line-strong);
 	background: var(--surface);
@@ -344,4 +377,40 @@
 	color: var(--over-ink);
 	border-radius: 4px;
 	font-size: 13px;
+}
+
+/*
+ * Phone. HTML5 drag never fires from a touch screen, so on a narrow viewport
+ * the step buttons are the only way to refile a row -- they get bigger, not
+ * smaller, and the row wraps to two lines rather than squeezing them out.
+ */
+@media (max-width: 560px) {
+	.ladder-page {
+		padding: 0 12px 60px;
+	}
+
+	.ladder-row {
+		grid-template-columns: auto minmax(0, 1fr) auto auto;
+		gap: 8px;
+		padding: 8px 10px;
+	}
+
+	.ladder-row .grip {
+		display: none;
+	}
+
+	.ladder-row .step button {
+		width: 38px;
+		height: 28px;
+		font-size: 12px;
+	}
+
+	.ladder-row .done {
+		padding: 6px 10px;
+	}
+
+	.ladder-sep {
+		gap: 8px;
+		padding: 8px 10px;
+	}
 }
