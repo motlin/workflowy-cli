@@ -10,10 +10,11 @@
 // rebalance phase needs most -- pulling an item UP into an empty high tier. As spans between
 // boundaries in a single drag context, an empty tier is a valid drop target by construction.
 
-import {readFileSync} from 'node:fs';
-import {dirname, join} from 'node:path';
+import {readFileSync, writeFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {readLadder} from './asap-tiers.mjs';
+import {readLadder, tierLabel} from './asap-tiers.mjs';
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'ladder-queue.html');
 
@@ -49,6 +50,7 @@ export function buildLadderModel(root, bucket) {
  * destination to exist), then one move per item whose tier actually changed.
  */
 export function diffSubmission(models, submission) {
+	validateSubmission(models, submission);
 	const ops = [];
 	const moves = [];
 
@@ -86,7 +88,56 @@ export function diffSubmission(models, submission) {
 			}
 		}
 	}
-	return [...ops, ...moves];
+	const completed = (submission.completed ?? []).map((nodeId) => {
+		const model = models.find((candidate) =>
+			candidate.tiers.some((tier) => tier.items.some((item) => item.id === nodeId)),
+		);
+		return {op: 'complete', root: model.root, nodeId};
+	});
+	return [...ops, ...moves, ...completed];
+}
+
+/** Reject stale or incomplete arrangements before producing any write proposals. */
+export function validateSubmission(models, submission) {
+	assert.deepEqual(
+		Object.keys(submission.roots).sort(),
+		models.map((model) => model.root).sort(),
+		'Submission roots must match the current ladders',
+	);
+	const completed = submission.completed ?? [];
+	const allIds = new Set(models.flatMap((model) => model.tiers.flatMap((tier) => tier.items.map((item) => item.id))));
+	assert.ok(
+		Array.isArray(completed) &&
+			new Set(completed).size === completed.length &&
+			completed.every((id) => allIds.has(id)),
+		'Completed items must be unique current ladder items',
+	);
+	for (const model of models) {
+		const submitted = submission.roots[model.root];
+		assert.equal(submitted.bucketId, model.bucketId, 'Submission bucket changed');
+		assert.ok(submitted.tiers.length >= model.tiers.length, 'Submission dropped a tier');
+		const known = new Map(model.tiers.map((tier) => [tier.tier, tier]));
+		let previous = 0;
+		for (const tier of submitted.tiers) {
+			assert.ok(Number.isInteger(tier.tier) && tier.tier > previous, 'Tiers must be ordered and unique');
+			previous = tier.tier;
+			assert.equal(tier.label, tierLabel(tier.tier), 'Invalid tier label');
+			const current = known.get(tier.tier);
+			assert.equal(tier.id, current?.id ?? null, 'Submission tier destination changed');
+			assert.equal(tier.isNew, !current, 'Invalid new tier flag');
+		}
+		for (const tier of model.tiers)
+			assert.ok(
+				submitted.tiers.some((candidate) => candidate.tier === tier.tier),
+				'Submission dropped a current tier',
+			);
+		const expected = model.tiers.flatMap((tier) => tier.items.map((item) => item.id)).sort();
+		assert.deepEqual(
+			submitted.tiers.flatMap((tier) => tier.items).sort(),
+			expected,
+			'Submission items must match current ladder exactly',
+		);
+	}
 }
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -161,6 +212,8 @@ export function toQueueLadders(models) {
 			root: model.root,
 			bucketId: model.bucketId,
 			tiers: model.tiers.map((t) => ({
+				tier: t.tier,
+				capacity: t.capacity,
 				label: t.label,
 				id: t.id,
 				items: t.items.map((i) => ({id: i.id, shortId: i.shortId, name: i.text})),
@@ -536,15 +589,29 @@ refresh();
 }
 
 function main() {
-	const [, , ...args] = process.argv;
-	const files = args.filter((a) => !a.startsWith('--'));
-	const models = files.map((file) => {
+	const args = process.argv.slice(2);
+	const apply = args[0] === '--apply';
+	const submissionPath = apply ? args.splice(0, 2)[1] : null;
+	const outputIndex = args.indexOf('--output');
+	const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
+	assert.equal(
+		args.length,
+		2,
+		'Usage: rebalance-ui.mjs [--apply submission.json] work.json personal.json [--output page.html]',
+	);
+	const models = args.map((file, index) => {
 		const parsed = JSON.parse(readFileSync(file, 'utf8'));
 		const bucket = Array.isArray(parsed) ? parsed[0] : parsed;
-		const root = /personal/i.test(bucket?.name ?? file) ? 'personal' : 'work';
-		return buildLadderModel(root, bucket);
+		assert.ok(bucket?.id && Array.isArray(bucket.children), 'Expected a bucket with id and children');
+		return buildLadderModel(index === 0 ? 'work' : 'personal', bucket);
 	});
-	process.stdout.write(args.includes('--legacy') ? renderPage(models) : renderFromTemplate(models));
+	const result = apply
+		? JSON.stringify(diffSubmission(models, JSON.parse(readFileSync(submissionPath, 'utf8'))), null, 2) + '\n'
+		: renderFromTemplate(models);
+	if (output) {
+		writeFileSync(output, result);
+		process.stdout.write(resolve(output) + '\n');
+	} else process.stdout.write(result);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

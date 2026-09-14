@@ -53,6 +53,30 @@ Tiers `1st` and `2nd` are the goals for the day. Print them for both roots befor
 
 Strip HTML for display and render embedded links as markdown. Do not ask whether to work on these; the review is orientation, not execution.
 
+## Use the complete ladder page for larger choices
+
+When the occupants or pull-up candidates plus “Leave it empty” exceed the question tool's option limit (four for AskUserQuestion), use the static page for both ladders. Never split a ranking choice into partial lists.
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs \
+  .llm/gtd/review/ladder-work.json .llm/gtd/review/ladder-personal.json \
+  --output .llm/gtd/review/rebalance.html
+```
+
+Publish the printed HTML path as an artifact. Preserve the checked-in Queue layout and root tabs. The page supports touch handles, tier step buttons, added bottom tiers, local drafts and Revert all. Each edit autosaves the desired arrangement to artifact db `rebalance/submission`. If artifact storage is unavailable, the page shows copyable JSON; use that same JSON as the submission. No local server is required.
+
+Wait until the user finishes arranging the ladders. Read `rebalance/submission` with `read_db` (or receive the copied JSON) and save it to `.llm/gtd/review/rebalance-submission.json`. Refresh both bucket exports from Workflowy before generating the diff:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs \
+  --apply .llm/gtd/review/rebalance-submission.json \
+  .llm/gtd/review/ladder-work.json .llm/gtd/review/ladder-personal.json
+```
+
+`--apply` only prints proposals; it performs no writes. It rejects changed bucket/tier identities, omitted or duplicated items and unknown items. If the live ladder changed, regenerate the page and have the user reconcile the arrangement instead of guessing. Display the entire resulting diff before any writes. The user's completed arrangement confirms the named moves and tier creates; autosaving alone does not authorize immediate execution. Honor the page's explicit completion choices as well, showing those in the diff.
+
+Create all new tiers first under their reported bucket ids and resolve the returned ids by root and label. Then execute the listed moves to each destination with `-p bottom`, followed by explicit completions. Drain and verify through **Background Dispatch, Verify, and Drain**, then refresh both reports and record the outcome. Within-tier row order is not applied: this walk changes tier membership. Do not silently apply further capacity repairs.
+
 ## Walk the proposals, one ladder at a time
 
 Work first, then Personal. Within a ladder, take the report in this order, re-running the `rebalance` command **after each confirmed batch of moves** because every step changes the counts the next one reads: a push-down out of `2nd` can put `3rd` over cap, and a push-down into the bottom tier can push it past `2^k`.

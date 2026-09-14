@@ -614,13 +614,33 @@
 	</button>
 </div>
 
+<div
+	id="fallback"
+	hidden
+>
+	<p>Copy this arrangement back to Claude:</p>
+	<textarea
+		id="fallback-json"
+		readonly
+		style="width: 100%; min-height: 180px"
+	></textarea>
+</div>
 <script>
 	var LADDERS = __LADDERS__;
 </script>
 <script>
 	(function () {
-		var CAP = {'1st': 2, '2nd': 4, '3rd': 8, '4th': 16, '5th': 32, '6th': 64, '7th': 128, '8th': 256};
-		var ORDER = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+		var CAP = {};
+		Object.values(LADDERS).forEach(function (ladder) {
+			ladder.tiers.forEach(function (tier) {
+				CAP[tier.label] = tier.capacity;
+			});
+		});
+		function ordinal(tier) {
+			return (
+				tier + (tier % 100 >= 11 && tier % 100 <= 13 ? 'th' : {1: 'st', 2: 'nd', 3: 'rd'}[tier % 10] || 'th')
+			);
+		}
 		var MAXSLOTS = 6; // never render more than this many ghost slots
 
 		var app = document.getElementById('app');
@@ -631,8 +651,9 @@
 		var bulkSel = document.getElementById('bulkTier');
 		var bulkDone = document.getElementById('bulkDone');
 
-		var ROOTS = ['work', 'personal'];
-		var current = 'work';
+		var ROOTS = Object.keys(LADDERS);
+		var current = ROOTS[0];
+		var DRAFT_KEY = 'rebalance:' + JSON.stringify(LADDERS);
 		var seq = {},
 			origin = {},
 			meta = {},
@@ -647,9 +668,7 @@
 				var labels = L.tiers.map(function (t) {
 					return t.label;
 				});
-				var last = labels[labels.length - 1];
-				var nxt = ORDER[ORDER.indexOf(last) + 1];
-				if (nxt) labels = labels.concat([nxt]);
+
 				labels.forEach(function (lab) {
 					s.push({kind: 'sep', label: lab});
 					var t = L.tiers.filter(function (x) {
@@ -763,7 +782,7 @@
 				var c = counts(root),
 					bad = 0;
 				Object.keys(c).forEach(function (k) {
-					if (c[k] > CAP[k]) bad++;
+					if (k !== labelsOf(root).at(-1) && c[k] > CAP[k]) bad++;
 				});
 				var b = document.createElement('button');
 				b.type = 'button';
@@ -796,7 +815,14 @@
 						st = stateOf(n, cap);
 					var sep = document.createElement('div');
 					sep.className = 'sep ' + st;
-					var verdict = st === 'over' ? n - cap + ' over' : st === 'exact' ? 'full' : cap - n + ' free';
+					var verdict =
+						e.label === labelsOf(root).at(-1)
+							? 'landing'
+							: st === 'over'
+								? n - cap + ' over'
+								: st === 'exact'
+									? 'exact'
+									: cap - n + ' free';
 					sep.innerHTML =
 						'<span class="tname">' +
 						e.label +
@@ -810,6 +836,11 @@
 						verdict +
 						'</span>' +
 						(e.label === '1st' || e.label === '2nd' ? '<span class="goal">today’s goal</span>' : '');
+					var meter = document.createElement('meter');
+					meter.max = cap;
+					meter.value = n;
+					meter.setAttribute('aria-label', e.label + ' capacity');
+					sep.appendChild(meter);
 					sep.dataset.idx = i;
 					q.appendChild(sep);
 					zone = document.createElement('div');
@@ -822,7 +853,7 @@
 				var cap = CAP[curLabel];
 				var r = document.createElement('div');
 				r.className = 'row' + (seen > cap ? ' excess' : '') + (selected[e.id] ? ' sel' : '');
-				r.draggable = true;
+				r.draggable = false;
 				r.tabIndex = 0;
 				r.dataset.id = e.id;
 				r.dataset.idx = i;
@@ -830,6 +861,36 @@
 				var grip = document.createElement('span');
 				grip.className = 'grip';
 				grip.textContent = '⣿';
+				grip.style.touchAction = 'none';
+				grip.style.userSelect = 'none';
+				grip.addEventListener('pointerdown', function (event) {
+					if (event.button !== 0) return;
+					event.preventDefault();
+					grip.setPointerCapture(event.pointerId);
+					dragId = e.id;
+				});
+				grip.addEventListener('pointermove', function (event) {
+					if (!dragId) return;
+					clearLine();
+					var target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.zone,.sep');
+					if (target) showLine(target, true);
+					if (event.clientY < 80) window.scrollBy(0, -20);
+					if (event.clientY > window.innerHeight - 80) window.scrollBy(0, 20);
+				});
+				grip.addEventListener('pointerup', function (event) {
+					if (!dragId) return;
+					var target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.zone,.sep');
+					var label = target?.dataset.label;
+					if (target?.classList.contains('sep')) label = seq[root][Number(target.dataset.idx)].label;
+					if (label) moveMany(root, dragPayload(dragId), endIndexOfTier(root, label));
+					dragId = null;
+					render();
+					scheduleSave();
+				});
+				grip.addEventListener('pointercancel', function () {
+					dragId = null;
+					clearLine();
+				});
 				var rank = document.createElement('span');
 				rank.className = 'rank';
 				rank.textContent = done[e.id] ? '—' : seen;
@@ -886,48 +947,11 @@
 				r.appendChild(dn);
 
 				r.addEventListener('click', function (ev) {
-					if (ev.target.closest('a,button')) return;
+					if (ev.target.closest('a,button,.grip')) return;
 					handlePick(e.id, ev);
 				});
 				r.addEventListener('mousedown', function (ev) {
 					if (ev.shiftKey) ev.preventDefault(); // stop the browser text-selecting the range
-				});
-				r.addEventListener('dragstart', function (ev) {
-					if (!selected[e.id]) {
-						selected = {};
-						anchorId = e.id;
-					} // dragging outside the selection drops it
-					dragId = e.id;
-					pendingIdx = null;
-					var carried = dragPayload(e.id);
-					document.body.classList.add('is-dragging');
-					setTimeout(function () {
-						carried.forEach(function (cid) {
-							var el = document.querySelector('[data-id="' + cid + '"]');
-							if (el) el.classList.add('dragging');
-						});
-					}, 0);
-					ev.dataTransfer.effectAllowed = 'move';
-					try {
-						ev.dataTransfer.setData('text/plain', carried.join(','));
-						if (carried.length > 1 && ev.dataTransfer.setDragImage) {
-							var ghost = document.createElement('div');
-							ghost.className = 'dragghost';
-							ghost.textContent = carried.length + ' items';
-							document.body.appendChild(ghost);
-							ev.dataTransfer.setDragImage(ghost, 12, 12);
-							setTimeout(function () {
-								if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
-							}, 0);
-						}
-					} catch (x) {}
-				});
-				r.addEventListener('dragend', function () {
-					dragId = null;
-					pendingIdx = null;
-					document.body.classList.remove('is-dragging');
-					clearLine();
-					render();
 				});
 				r.addEventListener('keydown', function (ev) {
 					if (!ev.altKey) return;
@@ -946,7 +970,17 @@
 
 			app.innerHTML = '';
 			app.appendChild(q);
-			wireDrop(q);
+			var add = document.createElement('button');
+			add.type = 'button';
+			var next = Number.parseInt(labelsOf(root).at(-1) || '0', 10) + 1;
+			add.textContent = '+ Add ' + ordinal(next) + ' tier';
+			add.addEventListener('click', function () {
+				CAP[ordinal(next)] = 2 ** next;
+				seq[root].push({kind: 'sep', label: ordinal(next)});
+				render();
+				scheduleSave();
+			});
+			app.appendChild(add);
 
 			bulkSel.innerHTML = '<option value="">Move selected to…</option>';
 			seq[root]
@@ -985,8 +1019,7 @@
 			}
 		}
 
-		var line = null,
-			pendingIdx = null;
+		var line = null;
 
 		function clearLine() {
 			if (line && line.parentNode) line.parentNode.removeChild(line);
@@ -1002,52 +1035,6 @@
 			var parent = refEl.parentNode;
 			if (before) parent.insertBefore(line, refEl);
 			else parent.insertBefore(line, refEl.nextSibling);
-		}
-
-		// one delegated listener on the whole queue: children never swallow it
-		function wireDrop(q) {
-			q.addEventListener('dragover', function (ev) {
-				if (!dragId) return;
-				var t = ev.target.closest ? ev.target.closest('.row,.sep,.slot,.zone') : null;
-				if (!t) return;
-				ev.preventDefault();
-				ev.dataTransfer.dropEffect = 'move';
-
-				var prevHot = document.querySelector('.slot.hot');
-				if (prevHot) prevHot.classList.remove('hot');
-
-				if (t.classList.contains('row')) {
-					var rect = t.getBoundingClientRect();
-					var after = ev.clientY - rect.top > rect.height / 2;
-					pendingIdx = Number(t.dataset.idx) + (after ? 1 : 0);
-					showLine(t, !after);
-				} else if (t.classList.contains('sep')) {
-					pendingIdx = Number(t.dataset.idx) + 1; // top of this tier
-					var zone = t.nextElementSibling;
-					if (zone) showLine(zone.firstElementChild || zone, true);
-				} else {
-					// a ghost slot or the bare zone padding: append to the end of that tier
-					var z = t.classList.contains('zone') ? t : t.parentNode;
-					pendingIdx = endIndexOfTier(current, z.dataset.label);
-					if (t.classList.contains('slot')) t.classList.add('hot');
-					else showLine(z.lastElementChild || z, false);
-				}
-			});
-			q.addEventListener('drop', function (ev) {
-				if (!dragId || pendingIdx === null) return;
-				ev.preventDefault();
-				moveMany(current, dragPayload(dragId), pendingIdx);
-				dragId = null;
-				pendingIdx = null;
-				document.body.classList.remove('is-dragging');
-				clearLine();
-				render();
-				scheduleSave();
-			});
-			q.addEventListener('dragleave', function (ev) {
-				if (!dragId) return;
-				if (!q.contains(ev.relatedTarget)) clearLine();
-			});
 		}
 
 		function labelsOf(root) {
@@ -1089,6 +1076,7 @@
 			var idx = dir > 0 ? sepIndexOf(root, target) + 1 : endIndexOfTier(root, target);
 			moveMany(root, dragPayload(id), idx);
 			render();
+			scheduleSave();
 		}
 
 		function endIndexOfTier(root, label) {
@@ -1191,7 +1179,7 @@
 			ROOTS.forEach(function (root) {
 				var c = counts(root);
 				Object.keys(c).forEach(function (k) {
-					if (c[k] > CAP[k]) overAll++;
+					if (k !== labelsOf(root).at(-1) && c[k] > CAP[k]) overAll++;
 				});
 			});
 			var ndone = Object.keys(done).length;
@@ -1211,79 +1199,95 @@
 			saving = false,
 			dirtyAgain = false;
 
+		function collect() {
+			var roots = {};
+			ROOTS.forEach(function (root) {
+				roots[root] = {
+					bucketId: LADDERS[root].bucketId,
+					tiers: labelsOf(root).map(function (label) {
+						var original = LADDERS[root].tiers.find(function (tier) {
+							return tier.label === label;
+						});
+						return {
+							tier: Number.parseInt(label, 10),
+							label: label,
+							id: original?.id ?? null,
+							isNew: !original,
+							items: itemIds(root).filter(function (id) {
+								return tierOfItem(root, id) === label;
+							}),
+						};
+					}),
+				};
+			});
+			return {submittedAt: new Date().toISOString(), roots: roots, completed: Object.keys(done)};
+		}
+
 		function scheduleSave() {
+			try {
+				localStorage.setItem(DRAFT_KEY, JSON.stringify({seq: seq, done: done}));
+			} catch {}
 			if (saveTimer) clearTimeout(saveTimer);
 			saveState.className = 'savestate pending';
 			saveState.textContent = 'saving…';
 			saveTimer = setTimeout(persist, 700);
 		}
 
-		function persist() {
+		async function persist() {
 			saveTimer = null;
 			if (saving) {
 				dirtyAgain = true;
 				return;
 			}
 			saving = true;
-			var ch = changed();
-			var order = {};
-			ROOTS.forEach(function (root) {
-				order[root] = [];
-				var cur = null;
-				seq[root].forEach(function (e) {
-					if (e.kind === 'sep') {
-						cur = e.label;
-						return;
-					}
-					order[root].push({id: e.id, tier: cur});
+			var payload = collect();
+			try {
+				if (typeof claude === 'undefined') throw new Error('storage unavailable');
+				var db = await claude.use('db');
+				if (!db) throw new Error('storage unavailable');
+				await db.doc('rebalance/submission').set(payload);
+				saveState.className = 'savestate';
+				saveState.textContent = '✓ saved';
+				document.getElementById('fallback').hidden = true;
+			} catch {
+				document.getElementById('fallback').hidden = false;
+				document.getElementById('fallback-json').value = JSON.stringify(payload, null, 2);
+				saveState.textContent = 'Copy the arrangement below to apply it.';
+			} finally {
+				saving = false;
+				if (dirtyAgain) {
+					dirtyAgain = false;
+					scheduleSave();
+				}
+			}
+		}
+
+		function restoreDraft() {
+			try {
+				var draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+				if (!draft) return;
+				for (var root of ROOTS) {
+					var ids = draft.seq[root]
+						.filter(function (entry) {
+							return entry.kind === 'item';
+						})
+						.map(function (entry) {
+							return entry.id;
+						});
+					if (JSON.stringify(ids.slice().sort()) !== JSON.stringify(itemIds(root).sort())) return;
+				}
+				seq = draft.seq;
+				done = draft.done;
+				ROOTS.forEach(function (root) {
+					labelsOf(root).forEach(function (label) {
+						CAP[label] = 2 ** Number.parseInt(label, 10);
+					});
 				});
-			});
-			var payload = {
-				savedAt: new Date().toISOString(),
-				completed: Object.keys(done).map(function (id) {
-					return {
-						id: id,
-						root: meta[id].root,
-						tier: origin[id],
-						name: meta[id].name.replace(/<[^>]*>/g, '').slice(0, 140),
-					};
-				}),
-				moves: ch.map(function (m) {
-					return {
-						id: m.id,
-						root: m.root,
-						from: m.from,
-						to: m.to,
-						name: m.name.replace(/<[^>]*>/g, '').slice(0, 140),
-					};
-				}),
-				order: order,
-			};
-			claude
-				.use('db')
-				.then(function (db) {
-					if (!db) throw new Error('storage unavailable');
-					return db.doc('rebalance/2026-09-10').set(payload);
-				})
-				.then(function () {
-					saving = false;
-					var t = new Date();
-					saveState.className = 'savestate';
-					saveState.textContent = '✓ saved ' + t.toLocaleTimeString();
-					if (dirtyAgain) {
-						dirtyAgain = false;
-						scheduleSave();
-					}
-				})
-				.catch(function (e) {
-					saving = false;
-					saveState.className = 'savestate failed';
-					saveState.textContent = 'save failed — retrying';
-					setTimeout(scheduleSave, 4000);
-				});
+			} catch {}
 		}
 
 		build();
+		restoreDraft();
 		render();
 	})();
 </script>

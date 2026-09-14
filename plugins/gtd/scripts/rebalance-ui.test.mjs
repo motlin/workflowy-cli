@@ -367,3 +367,199 @@ test('the injected payload cannot break out of the script tag', () => {
 	const html = renderFromTemplate([buildLadderModel('work', bucket('w', [['1st', ['</script><img src=x>']]]))]);
 	assert.ok(!html.includes('</script><img src=x>'), 'a closing script tag in task text must be escaped');
 });
+
+import {mkdtempSync, readFileSync, writeFileSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {runInNewContext} from 'node:vm';
+
+function arrangement(model) {
+	return {
+		bucketId: model.bucketId,
+		tiers: model.tiers.map((tier) => ({
+			tier: tier.tier,
+			label: tier.label,
+			id: tier.id,
+			isNew: false,
+			items: tier.items.map((item) => item.id),
+		})),
+	};
+}
+
+test('apply rejects stale destinations, missing rows and duplicate rows before emitting proposals', () => {
+	const model = buildLadderModel('work', bucket('w', [['1st', ['a', 'b']]]));
+	for (const mutate of [
+		(root) => {
+			root.bucketId = 'other-bucket';
+		},
+		(root) => {
+			root.tiers[0].id = 'other-tier';
+		},
+		(root) => {
+			root.tiers[0].items.pop();
+		},
+		(root) => {
+			root.tiers[0].items[1] = 'a-id';
+		},
+		(root) => {
+			root.tiers[0].items[1] = 'unknown-id';
+		},
+	]) {
+		const root = arrangement(model);
+		mutate(root);
+		assert.throws(() => diffSubmission([model], {roots: {work: root}}), {name: 'AssertionError'});
+	}
+});
+
+test('CLI generates a static page and emits creates before moves across both roots', () => {
+	const directory = mkdtempSync(join(tmpdir(), 'rebalance-test-'));
+	try {
+		const work = bucket('w', [['1st', ['a']]]);
+		const personal = bucket('p', [['1st', ['b']]]);
+		const paths = ['work.json', 'personal.json'].map((file) => join(directory, file));
+		writeFileSync(paths[0], JSON.stringify(work));
+		writeFileSync(paths[1], JSON.stringify(personal));
+		const page = join(directory, 'page.html');
+		const script = new URL('./rebalance-ui.mjs', import.meta.url).pathname;
+		assert.equal(
+			execFileSync(process.execPath, [script, ...paths, '--output', page], {encoding: 'utf8'}),
+			page + '\n',
+		);
+		const html = readFileSync(page, 'utf8');
+		const ladders = JSON.parse(html.match(/var LADDERS = (\{[\s\S]*?\});\n/)[1]);
+		const roots = Object.fromEntries(
+			Object.entries(ladders).map(([root, ladder]) => [
+				root,
+				{
+					bucketId: ladder.bucketId,
+					tiers: [
+						{tier: 1, label: '1st', id: ladder.tiers[0].id, isNew: false, items: []},
+						{
+							tier: 2,
+							label: '2nd',
+							id: null,
+							isNew: true,
+							items: ladder.tiers[0].items.map((item) => item.id),
+						},
+					],
+				},
+			]),
+		);
+		const submission = join(directory, 'submission.json');
+		writeFileSync(
+			submission,
+			JSON.stringify({submittedAt: '2000-01-01T00:00:00.000Z', roots, completed: ['b-id']}),
+		);
+		const actual = JSON.parse(
+			execFileSync(process.execPath, [script, '--apply', submission, ...paths], {encoding: 'utf8'}),
+		);
+		assert.deepStrictEqual(actual, [
+			{op: 'create', root: 'work', bucketId: 'w', label: '2nd', tier: 2},
+			{op: 'create', root: 'personal', bucketId: 'p', label: '2nd', tier: 2},
+			{
+				op: 'move',
+				root: 'work',
+				nodeId: 'a-id',
+				text: 'a',
+				fromLabel: '1st',
+				toLabel: '2nd',
+				toId: null,
+				toIsNew: true,
+			},
+			{
+				op: 'move',
+				root: 'personal',
+				nodeId: 'b-id',
+				text: 'b',
+				fromLabel: '1st',
+				toLabel: '2nd',
+				toId: null,
+				toIsNew: true,
+			},
+			{op: 'complete', root: 'personal', nodeId: 'b-id'},
+		]);
+	} finally {
+		rmSync(directory, {recursive: true});
+	}
+});
+
+test('static page persistence offers the same JSON when artifact storage is unavailable', async () => {
+	const model = buildLadderModel('work', bucket('w', [['1st', ['a']]]));
+	const html = renderFromTemplate([model]);
+	const persistence = html.slice(html.indexOf('async function persist()'), html.indexOf('function restoreDraft()'));
+	const payload = {submittedAt: '2000-01-01T00:00:00.000Z', roots: {work: arrangement(model)}, completed: []};
+	for (const claude of [
+		undefined,
+		{
+			use: async () => {
+				throw new Error('offline');
+			},
+		},
+	]) {
+		const elements = {fallback: {hidden: true}, 'fallback-json': {value: ''}};
+		const context = {
+			claude,
+			saveTimer: null,
+			saving: false,
+			dirtyAgain: false,
+			collect: () => payload,
+			saveState: {},
+			document: {getElementById: (id) => elements[id]},
+		};
+		await runInNewContext(persistence + '\npersist()', context);
+		assert.deepStrictEqual(elements, {
+			fallback: {hidden: false},
+			'fallback-json': {value: JSON.stringify(payload, null, 2)},
+		});
+	}
+});
+
+test('Queue collects and restores a draft with a ninth tier and resets to the source ladder', () => {
+	const model = buildLadderModel('work', bucket('w', [['8th', ['a']]]));
+	const html = renderFromTemplate([model]);
+	const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]).join('\n');
+	const draft = {
+		seq: {
+			work: [
+				{kind: 'sep', label: '8th'},
+				{kind: 'sep', label: '9th'},
+				{kind: 'item', id: 'a-id', name: 'a', shortId: null},
+			],
+		},
+		done: {},
+	};
+	const elements = new Map();
+	const context = {
+		localStorage: {getItem: () => JSON.stringify(draft)},
+		document: {
+			getElementById: (id) => {
+				if (!elements.has(id)) elements.set(id, {addEventListener() {}});
+				return elements.get(id);
+			},
+		},
+	};
+	const instrumented = script.replace(
+		/\n\s*render\(\);\n\s*\}\)\(\);/,
+		'\n globalThis.queue = {collect, build};\n})();',
+	);
+	runInNewContext(instrumented, context);
+	const collected = JSON.parse(JSON.stringify(context.queue.collect()));
+	delete collected.submittedAt;
+	assert.deepStrictEqual(collected, {
+		roots: {
+			work: {
+				bucketId: 'w',
+				tiers: [
+					{tier: 8, label: '8th', id: 'w-8th', isNew: false, items: []},
+					{tier: 9, label: '9th', id: null, isNew: true, items: ['a-id']},
+				],
+			},
+		},
+		completed: [],
+	});
+	context.queue.build();
+	const reset = JSON.parse(JSON.stringify(context.queue.collect()));
+	delete reset.submittedAt;
+	assert.deepStrictEqual(reset, {roots: {work: arrangement(model)}, completed: []});
+});
