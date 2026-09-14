@@ -143,7 +143,7 @@ Some one-shot due items are not one-shots at all — they are habits filed in th
 
 Ask which `Personal > 🔄 Review` section receives it (⬆️ Frequently Important, Weekly, Monthly, …), move the node under that section, and write the section's cadence `<time>` per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`. Record the outcome as `reschedule` in the skip log so the streak resets.
 
-Non-Workflowy rows take the same shape **Clear a fictional deadline** already uses for Reminders: create the Workflowy recurring node under the chosen section, then delete the Things task or Apple Reminder, and verify both sides before treating the outcome as handled.
+Non-Workflowy rows take the same shape **Preserve priority in the asap ladder** already uses for Reminders: create the Workflowy recurring node under the chosen section, then delete the Things task or Apple Reminder, and verify both sides before treating the outcome as handled.
 
 ## Move to Workflowy
 
@@ -159,9 +159,9 @@ The shape is the create-then-close pairing the file-tasks Things sweeps use:
 
 The segment's own command file names the exact ops and the bucket lookup.
 
-## Clear a fictional deadline
+## Preserve priority in the asap ladder
 
-Every one-shot due-item walk offers **Clear the date** for a real task whose deadline is fiction. This is a handled outcome, not a skip or reschedule: remove the date entirely and record `clearDate` so the skip streak resets. When the deadline is real and only the store is wrong, that is **Move to Workflowy**, not this.
+On this user's tasks, due dates often mark **HIGH PRIORITY**. A passed date is evidence that the task matters; without external-deadline evidence, it does not establish lateness. For every Workflowy `⏰` row in that situation, offer **Move to asap ladder** immediately after **Done**, above **Reschedule** or a longer horizon, even with a skip streak. Preserve the priority when removing the date. Things and Reminders retain the **Clear the date** label when their date is no longer needed. Record `clearDate` for this handled outcome so the skip streak resets. Keep dates backed by external deadlines unless the user chooses otherwise; **Move to Workflowy** preserves a date while changing the store.
 
 The destination depends on the source:
 
@@ -169,7 +169,7 @@ The destination depends on the source:
 - **Things 3** stays in Things with its due date cleared. Do not ask for a Workflowy tier because the task is not moving to Workflowy.
 - **Apple Reminders** cannot clear a due date. Create the task in a chosen Workflowy asap tier, then delete the reminder and verify both sides before treating the outcome as handled.
 
-When the destination is a Workflowy asap ladder, load `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`, show the current occupants and capacity of each tier, and ask one follow-up tier question using **soon / medium / eventually / bottom** for `1st` / `2nd` / `3rd` / the current bottom tier. Use `readLadder`, `tierCapacity`, and `planInsertion`; show and apply the demotion cascade before filing the task. Never silently choose a tier or hand-calculate capacity.
+When the destination is a Workflowy asap ladder, load `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`, show the current occupants and capacity of each tier, and ask one follow-up tier question offering **1st / 2nd / 3rd / 4th**. Recommend `2nd` as the mid-high default, comparing the task with the current occupants. The prior due date supplies a strong priority signal, so the generic weak-signal bottom default in `asap-tiers.md` does not apply here. Never default to the bottom tier; use it only when the user explicitly deprioritizes the task. If a listed tier is currently the bottom, identify it as such and require that explicit choice before using it. Use `readLadder`, `tierCapacity`, and `planInsertion`; show and apply the demotion cascade before filing the task. Never silently choose a tier or hand-calculate capacity.
 
 ## Set a reminder
 
@@ -219,7 +219,7 @@ Record **every** outcome, not just skips — a streak only resets when a handled
 Every row carries `skipStreak` (consecutive runs that ended in skip) and `skippedSince`. When `skipStreak >= 2`:
 
 - **Say it in the question body**, read from the row: `Skipped 3 runs in a row since 2026-08-11.` The annotation must live in the question — a streak you only remember from earlier in the conversation is gone by the next session.
-- **Promote a cadence change as an explicit outcome**, placed above the ordinary outcomes. Repeatedly skipping an item almost always means it comes back too often, not that it should stop existing. A recurring item lengthens its interval; a one-shot task pushes out to a longer horizon. The segment's own command file names the exact op.
+- **Promote a cadence change as an explicit outcome**, placed above the ordinary outcomes. Repeatedly skipping an item almost always means it comes back too often, not that it should stop existing. A recurring item lengthens its interval; a one-shot task with a movable external deadline pushes out to a longer horizon. For a Workflowy due row without external-deadline evidence, keep **Move to asap ladder** immediately after **Done** and preserve its priority instead. The segment's own command file names the exact op.
 - **Keep retire and drop available, but never as the promoted option.** They are for an item the user says is genuinely dead, not the default reading of a skip streak.
 
 A streak is not a reason to skip the item or to editorialize about the backlog. Present the item, offer the cadence change, and move on.
