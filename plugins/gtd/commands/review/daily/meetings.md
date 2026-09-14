@@ -46,7 +46,9 @@ If found, read its child:
 ./bin/run.js node get --id <node-id> --depth 1 --json --fields name,shortId,children
 ```
 
-The child node name is a JSON line such as `{"last_reviewed_iso":"2026-05-06T00:00:00Z"}`. Parse `last_reviewed_iso` as the watermark.
+The child node name is a JSON line such as `{"last_reviewed_iso":"2026-05-06T00:00:00Z"}`. Parse `last_reviewed_iso` as an instant, retaining its time, seconds, and UTC offset. Reject an invalid timestamp or one without a timezone; do not truncate it to a date.
+
+Capture `review_started_iso` as the current UTC ISO timestamp before reading meetings. This is the inclusive upper bound for this review and the watermark saved in Step 10, so time spent reviewing cannot move the cutoff past meetings not yet scanned.
 
 **If the node is absent**, default the watermark to **7 days ago** (today minus 7 days, at `00:00:00Z`). Create the node lazily later in Step 10 — do not create it here.
 
@@ -67,7 +69,7 @@ jq -c '[.. | objects
 
 ### Step 3: Find recent meetings
 
-Read meeting entries under `📆 Calendar` dated on or after the watermark:
+Read meeting entries under `📆 Calendar` whose start instant is after the watermark and at or before `review_started_iso`:
 
 ```bash
 ./bin/run.js node get --path "📆 Calendar" --depth 2 --json --fields name,shortId,children,modifiedAt
@@ -76,9 +78,14 @@ Read meeting entries under `📆 Calendar` dated on or after the watermark:
 Otter meeting entries are tagged `#meeting` and have an `otter.ai/u/<otid>` child link. Keep only children that:
 
 - Are tagged `#meeting`
-- Have a `<time>` element whose date is on or before today **and** on or after the watermark date
+- Have an Otter link identifying the source meeting
+- Have a `<time>` element whose full start datetime satisfies `watermark < meeting_start <= review_started_iso`
 
-**Date comparison:** parse the `<time>` element's start date and compare as ISO date strings (`"2026-05-06" <= "2026-05-20"`), not as JS `Date` objects.
+**Timestamp comparison:** read `startYear`, `startMonth`, `startDay`, `startHour`, and `startMinute` from the `<time>` element. When the time attributes are absent, parse the explicit time in its displayed text (for example, `at 10:32am`), including correct noon/midnight conversion. Preserve the calendar date separately for Step 9 journaling. Compare numeric instants after timezone conversion, never ISO date strings or timezone-free strings passed to `new Date()`.
+
+The Workflowy date components do not themselves identify a timezone. Resolve the timezone used when that entry was ingested from explicit ingestion configuration or retained source data; use that zone's offset on the meeting date, including daylight saving time. Do not assume the current machine timezone, today's offset, or UTC. A retained source Unix timestamp or timestamp with an explicit offset can establish the instant directly. If the time or timezone is unavailable, invalid, or ambiguous during a daylight-saving transition, stop and report the affected meeting before proposing candidates or advancing the watermark; do not silently treat it as midnight or skip it.
+
+For example, with a watermark of `2026-05-06T15:00:00Z` and a verified `America/New_York` ingestion timezone, a 10:32am meeting that day is `14:32:00Z` and is excluded; an 11:30am meeting is `15:30:00Z` and is included if the review started at or after that instant. A meeting exactly at the watermark is excluded.
 
 If no meetings fall in the window, report "No new meetings since last review" and skip to Step 10 to advance the watermark.
 
@@ -254,19 +261,19 @@ Then add the entry under the day node, with the meeting as a provenance child:
 
 ### Step 10: Advance the watermark
 
-Update the scanner-state node `Metadata > ⚙️ Scanner State > meeting-followup-reviewer` to the current ISO timestamp.
+After all in-window meetings and their candidate decisions have been handled, update the scanner-state node `Metadata > ⚙️ Scanner State > meeting-followup-reviewer` to `review_started_iso` captured in Step 1. Use this same value for an empty window. Do not advance it after an interrupted review, unresolved meeting datetime, or failed recording operation.
 
 **If the node exists**, update its single JSON child:
 
 ```bash
-./bin/run.js node update --id <child-node-id> --name '{"last_reviewed_iso":"<now-iso>"}'
+./bin/run.js node update --id <child-node-id> --name '{"last_reviewed_iso":"<review-started-iso>"}'
 ```
 
 **If the node was absent in Step 1**, create it lazily now:
 
 ```bash
 ./bin/run.js node create --parent-path "Metadata,⚙️ Scanner State" --name "meeting-followup-reviewer"
-./bin/run.js node create --parent-id <new-node-id> --name '{"last_reviewed_iso":"<now-iso>"}'
+./bin/run.js node create --parent-id <new-node-id> --name '{"last_reviewed_iso":"<review-started-iso>"}'
 ```
 
 ## Output
