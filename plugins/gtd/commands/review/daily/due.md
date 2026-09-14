@@ -128,9 +128,15 @@ Walk `overdue.json` in array order — it is already sorted by section priority 
 
 The section → interval table lives in `compute-overdue.mjs` (the executable source of truth) and is mirrored for reference in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, which also documents the `<time>` element format and the CLI update commands.
 
+## Hard external deadlines
+
+For a row with non-null `hardDeadline`, show **Hard deadline: `hardDeadline.date` · Review by: `due` (`hardDeadline.leadDays` days early)** before asking. Also show the next actual deadline (`hardDeadline.nextDate`) and next review date (`nextDate`) when confirming completion. The item's `<time>` stores the actual deadline; the planner subtracts the lead time for inclusion in this walk and advances the external cadence from that deadline. Run `applyOp` verbatim only for the completed occurrence. If the next occurrence is already overdue, keep it visible instead of silently skipping cycles.
+
+Promote **Done** and **Set a reminder**. Omit **Skip**, **Push it out**, and **Less often** from the offered outcomes, regardless of skip streak. Never use the generic `lengthen: null` fallback for a hard deadline. If the user explicitly asks to postpone, skip, retire, or change cadence, warn first: name the actual deadline, review date, requested date, and how much lead time is lost or whether the deadline will be missed. Obtain explicit confirmation of that consequence before applying the request. Postponing a reminder does not change the external deadline. Change that deadline only when the user confirms the external deadline itself changed; keep its marker and lead time intact.
+
 ## Recurring item options
 
-Done / Set a reminder / skip / notes / retire, per the walk skill. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. For a row a previous run already saw, also list what that run left in `.llm/gtd/review/`, per **Resume from prior-run artifacts, never rebuild them** above. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
+For ordinary rows: Done / Set a reminder / skip / notes / retire, per the walk skill. Hard-deadline rows use the restrictions above. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. For a row a previous run already saw, also list what that run left in `.llm/gtd/review/`, per **Resume from prior-run artifacts, never rebuild them** above. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
 
 Offer **Set a reminder** on every row — an item the user will do later today but would forget without an alarm is a reminder, not a skip. Follow the shared walk's **Set a reminder** protocol and record `remind`.
 
@@ -146,7 +152,7 @@ Dispatch the delete as the item's outcome write. Do **not** run `applyOp` or oth
 
 ## Less often: the cadence outcome for a repeatedly skipped item
 
-A recurring item's cadence **is** its section, so making it less frequent means moving it down the ladder — `🔄 Daily Review` → `🗓️ Weekly Review` → `📅 Monthly Review` → `🗓️ Every 2 months` → `🗓️ Every 6 months` → `🎆 Annual Review`. `compute-overdue.mjs` stages that whole move on every row as `lengthen`:
+A recurring item's cadence **is** its section, so making it less frequent means moving it down the ladder — `🔄 Daily Review` → `🗓️ Weekly Review` → `Every 4 weeks` → `📅 Monthly Review` → `🗓️ Every 2 months` → `🗓️ Every 6 months` → `🎆 Annual Review`. `compute-overdue.mjs` stages that whole move on every row as `lengthen`:
 
 ```json
 {
@@ -163,7 +169,7 @@ When a row has `skipStreak >= 2` and a non-null `lengthen`, add an explicit outc
 
 On that outcome, dispatch `lengthen.applyOp` **verbatim** — it advances the `<time>` by the new interval and moves the node into the new section in one chained command — and record the outcome as `lengthen`. Count it in the finish summary as a cadence change, not as a date advance.
 
-`lengthen` is `null` when the item is already at the top of the ladder, when its section has no recognized interval, or when the target section is missing from the fetched tree. In that case ask the user for the new cadence and build the move by hand per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`.
+`lengthen` is `null` when the item is already at the top of the ladder, when its section has no recognized interval, or when the target section is missing from the fetched tree. For an ordinary row, in that case ask the user for the new cadence and build the move by hand per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`.
 
 ## LLM tasks (#llm-task)
 

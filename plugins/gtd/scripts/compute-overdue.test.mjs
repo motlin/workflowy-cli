@@ -34,6 +34,7 @@ test('intervalForSection matches by substring, ignoring emoji prefixes', () => {
 	assert.deepStrictEqual(intervalForSection('⬆️ Frequently Important'), {amount: 1, unit: 'd'});
 	assert.deepStrictEqual(intervalForSection('☀️ Low priority daily tasks'), {amount: 1, unit: 'd'});
 	assert.deepStrictEqual(intervalForSection('🗓️ Weekly Review'), {amount: 7, unit: 'd'});
+	assert.deepStrictEqual(intervalForSection('🔄 Every 4 weeks'), {amount: 28, unit: 'd'});
 	assert.deepStrictEqual(intervalForSection('Monthly Review'), {amount: 1, unit: 'm'});
 	assert.deepStrictEqual(intervalForSection('Every 2 months'), {amount: 2, unit: 'm'});
 	assert.deepStrictEqual(intervalForSection('Every 6 months'), {amount: 6, unit: 'm'});
@@ -636,4 +637,86 @@ test('nodeContext leaves Workflowy permalinks out of the links the walk opens', 
 		children: [],
 	};
 	assert.deepStrictEqual(nodeContext(node).links, ['https://example.com/rfc', 'https://example.com/thread']);
+});
+
+const HARD_DEADLINE_TREE = {
+	children: [
+		{
+			name: 'Every 4 weeks',
+			children: [
+				{
+					id: 'test-deadline',
+					shortId: 'test-short',
+					name: 'Example renewal ' + buildTimeElement('2000-01-01'),
+					children: [{name: 'Hard deadline: 3d'}],
+				},
+			],
+		},
+		{name: 'Monthly Review', id: 'test-monthly'},
+	],
+};
+
+test('hard deadlines become due three days early and retain the external cycle after late completion', () => {
+	assert.deepStrictEqual(computeOverdue(HARD_DEADLINE_TREE, '1999-12-28'), []);
+	const [row] = computeOverdue(HARD_DEADLINE_TREE, '2000-01-02');
+	assert.deepStrictEqual(row, {
+		section: 'Every 4 weeks',
+		sectionIndex: 0,
+		priority: null,
+		id: 'test-deadline',
+		shortId: 'test-short',
+		name: 'Example renewal <time startYear="2000" startMonth="1" startDay="1">Sat, Jan 1, 2000</time> ',
+		due: '1999-12-29',
+		hardDeadline: {date: '2000-01-01', leadDays: 3, nextDate: '2000-01-29'},
+		overdueByDays: 4,
+		isLlmTask: false,
+		url: 'https://workflowy.com/#/test-short',
+		note: null,
+		modifiedAt: null,
+		childCount: 1,
+		children: [{title: 'Hard deadline: 3d', note: null, childCount: 0, url: null}],
+		links: [],
+		interval: {amount: 28, unit: 'd'},
+		needsInterval: false,
+		nextDate: '2000-01-26',
+		nextTimeElement: '<time startYear="2000" startMonth="1" startDay="29">Sat, Jan 29, 2000</time> ',
+		newName: 'Example renewal <time startYear="2000" startMonth="1" startDay="29">Sat, Jan 29, 2000</time> ',
+		applyOp: `./bin/run.js node update --id test-deadline --name 'Example renewal <time startYear="2000" startMonth="1" startDay="29">Sat, Jan 29, 2000</time> '`,
+		skipStreak: 0,
+		skippedSince: null,
+		lengthen: null,
+	});
+	assert.deepStrictEqual(computeOverdue(HARD_DEADLINE_TREE, '1999-12-29'), [{...row, overdueByDays: 0}]);
+});
+
+test('hard deadline completion advances exactly one 28-day occurrence even after missed cycles', () => {
+	const [row] = computeOverdue(HARD_DEADLINE_TREE, '2000-03-01');
+	assert.deepStrictEqual(row.hardDeadline, {date: '2000-01-01', leadDays: 3, nextDate: '2000-01-29'});
+	const nextTree = structuredClone(HARD_DEADLINE_TREE);
+	nextTree.children[0].children[0].name = row.newName;
+	const [next] = computeOverdue(nextTree, '2000-03-01');
+	assert.deepStrictEqual(next.hardDeadline, {date: '2000-01-29', leadDays: 3, nextDate: '2000-02-26'});
+});
+
+test('hard deadline markers reject malformed, duplicate, and undated configurations', () => {
+	for (const marker of ['Hard deadline: -3d', 'Hard deadline: 3m', 'Hard deadline: tomorrow']) {
+		const tree = structuredClone(HARD_DEADLINE_TREE);
+		tree.children[0].children[0].children = [{name: marker}];
+		assert.throws(
+			() => computeOverdue(tree, '2000-01-01'),
+			new Error('Expected Hard deadline: <nonnegative days>d on test-deadline'),
+		);
+	}
+	const duplicate = structuredClone(HARD_DEADLINE_TREE);
+	duplicate.children[0].children[0].children.push({name: 'Hard deadline: 0d'});
+	assert.throws(
+		() => computeOverdue(duplicate, '2000-01-01'),
+		new Error('Multiple hard deadline markers on test-deadline'),
+	);
+	const undated = structuredClone(HARD_DEADLINE_TREE);
+	undated.children[0].children[0].name = 'Example renewal';
+	assert.throws(
+		() => computeOverdue(undated, '2000-01-01'),
+		new Error('Hard deadline requires a dated item: test-deadline'),
+	);
 });

@@ -24,6 +24,7 @@ Each section name determines the interval used when advancing an item's date:
 | Low priority daily   | +1 day                |
 | Do goals for today   | +1 day                |
 | Weekly Review        | +7 days               |
+| Every 4 weeks        | +28 days              |
 | Monthly Review       | +1 calendar month     |
 | Every 2 months       | +2 calendar months    |
 | Every 6 months       | +6 calendar months    |
@@ -33,6 +34,16 @@ Each section name determines the interval used when advancing an item's date:
 Match by substring in the section name. If a section doesn't match any pattern, ask the user for the interval.
 
 This table is also a ladder, ordered shortest interval to longest. Making a repeatedly skipped item less frequent means moving it to the next row down and dating it by that row's interval — `compute-overdue.mjs` stages that move on every row as `lengthen`. `Every few years` is never an automatic target because it has no interval to compute a date from.
+
+## Hard external deadlines
+
+Place a direct child named `Hard deadline: 3d` under a recurring item to review it three days before its external deadline. The marker requires a nonnegative whole number of days and must occur once. Keep the item's own `<time>` at the **actual deadline**, not the early review date. Missing item dates, duplicate markers, and malformed markers are errors.
+
+Use the `Every 4 weeks` section for a fixed 28-day cycle. For example, an invented deadline of January 1, 2000 is reviewed December 29, 1999; completing that occurrence advances the deadline to January 29 and the review date to January 26. Completion timing never shifts the external cycle: advance from the recorded deadline, not today. Each completion advances one occurrence; if another cycle is already overdue, it stays visible for explicit handling.
+
+`compute-overdue.mjs` returns `hardDeadline: {date, leadDays, nextDate}` alongside `due` (the early review date) and `nextDate` (the next early review date). `newName`, `nextTimeElement`, and `applyOp` store the **next actual deadline**. Ordinary rows have `hardDeadline: null` and retain today-plus-interval behavior. Hard rows have `lengthen: null`; do not interpret this as permission to invent a longer cadence. Run the staged operation verbatim on verified completion and confirm both next dates.
+
+Warn before any requested postponement: show the actual deadline, early review date, proposed date, and lost lead time or missed-deadline consequence. Require explicit confirmation of that consequence before changing the schedule; a reminder or decision to defer does not move the external deadline. Do not promote Skip, Push it out, or Less often for these rows. See `due.md` for the walk rules.
 
 ## `<time>` Element Format
 
@@ -45,7 +56,7 @@ This table is also a ladder, ordered shortest interval to longest. Making a repe
 >
 ```
 
-- Use today + interval, not the example date.
+- For ordinary items use today + interval, not the example date. For hard deadlines use the staged next actual deadline.
 - Do not zero-pad `startMonth`/`startDay`.
 - Include a trailing space after `</time>`.
 
@@ -72,7 +83,7 @@ For a calendar-month interval (`+1m`/`+2m`/`+6m`) that would overflow a short mo
 
 ## Updating Dates
 
-On "done": set the item's `<time>` child to today + the section's interval. Create the child if missing. On "skip": no change.
+For ordinary items, on "done": set the item's `<time>` child to today + the section's interval. Create the child if missing. On "skip": no change.
 
 ### Update existing date child
 

@@ -29,6 +29,7 @@ const SECTION_INTERVALS = [
 	['Low priority daily', {amount: 1, unit: 'd'}],
 	['Do goals for today', {amount: 1, unit: 'd'}],
 	['Weekly Review', {amount: 7, unit: 'd'}],
+	['Every 4 weeks', {amount: 28, unit: 'd'}],
 	['Monthly Review', {amount: 1, unit: 'm'}],
 	['Every 2 months', {amount: 2, unit: 'm'}],
 	['Every 6 months', {amount: 6, unit: 'm'}],
@@ -112,6 +113,18 @@ export function intervalForSection(sectionName) {
 		if (name.includes(pattern)) return interval;
 	}
 	return null; // "Every few years" / unrecognized -> ask the user for the interval
+}
+
+function hardDeadlineFor(node, date) {
+	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith('Hard deadline:'));
+	if (!markers.length) return null;
+	if (markers.length !== 1) throw new Error(`Multiple hard deadline markers on ${node.id}`);
+	const match = stripMarkup(markers[0].name).match(/^Hard deadline: (0|[1-9]\d*)d$/);
+	if (!match || !Number.isSafeInteger(Number(match[1]))) {
+		throw new Error(`Expected Hard deadline: <nonnegative days>d on ${node.id}`);
+	}
+	if (!date) throw new Error(`Hard deadline requires a dated item: ${node.id}`);
+	return {date, leadDays: Number(match[1])};
 }
 
 function lastDayOfMonth(year, month1) {
@@ -292,14 +305,20 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 				// A finished item keeps its old <time>. Asking about it is asking about work
 				// that is already done, so completion wins over the date.
 				const isCompleted = child.completedAt != null;
-				const due = parseTimeISO(child.name);
+				const date = parseTimeISO(child.name);
+				const hardDeadline = isCompleted ? null : hardDeadlineFor(child, date);
+				const due = hardDeadline ? addInterval(date, {amount: -hardDeadline.leadDays, unit: 'd'}) : date;
 				if (due && due <= todayISO && !isCompleted) {
 					const needsInterval = interval === null;
-					const nextDate = needsInterval ? null : addInterval(todayISO, interval);
+					const nextStoredDate = needsInterval ? null : addInterval(hardDeadline ? date : todayISO, interval);
+					const nextDate =
+						hardDeadline && nextStoredDate
+							? addInterval(nextStoredDate, {amount: -hardDeadline.leadDays, unit: 'd'})
+							: nextStoredDate;
 					let newName = null;
 					let applyOp = null;
 					if (nextDate) {
-						newName = swapTimeElement(child.name, buildTimeElement(nextDate));
+						newName = swapTimeElement(child.name, buildTimeElement(nextStoredDate));
 						applyOp = `./bin/run.js node update --id ${child.id} --name ${shellSingleQuote(newName)}`;
 					}
 					const streak = skipStreaks.get(child.id) ?? null;
@@ -311,6 +330,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						shortId: child.shortId,
 						name: child.name,
 						due,
+						hardDeadline: hardDeadline ? {...hardDeadline, nextDate: nextStoredDate} : null,
 						overdueByDays: daysBetween(due, todayISO),
 						isLlmTask: /#llm-task/.test(child.name),
 						url: workflowyUrl(child.shortId),
@@ -318,12 +338,12 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						interval,
 						needsInterval,
 						nextDate,
-						nextTimeElement: nextDate ? buildTimeElement(nextDate) : null,
+						nextTimeElement: nextStoredDate ? buildTimeElement(nextStoredDate) : null,
 						newName,
 						applyOp,
 						skipStreak: streak?.skipStreak ?? 0,
 						skippedSince: streak?.skippedSince ?? null,
-						lengthen: buildLengthen(lengthenTarget, child, todayISO),
+						lengthen: hardDeadline ? null : buildLengthen(lengthenTarget, child, todayISO),
 					});
 				}
 				if (child.children?.length) walk(child);
@@ -383,8 +403,11 @@ function main(argv) {
 		for (const it of items) {
 			const tags = [
 				it.isLlmTask ? '[#llm-task]' : '',
+				it.hardDeadline
+					? `⚠️ HARD deadline ${it.hardDeadline.date}; review ${it.hardDeadline.leadDays} days before`
+					: '',
 				it.childCount ? `(${it.childCount} children)` : '',
-				it.skipStreak >= 2
+				!it.hardDeadline && it.skipStreak >= 2
 					? `⏭️ skipped ${it.skipStreak}x → offer ${it.lengthen?.section ?? 'a longer cadence'}`
 					: '',
 				it.needsInterval ? '⚠️ needs interval' : `→ ${it.nextDate}`,
