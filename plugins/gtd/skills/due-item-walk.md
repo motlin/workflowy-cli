@@ -145,6 +145,14 @@ Ask which `Personal > 🔄 Review` section receives it (⬆️ Frequently Import
 
 Non-Workflowy rows take the same shape **Preserve priority in the asap ladder** already uses for Reminders: create the Workflowy recurring node under the chosen section, then delete the Things task or Apple Reminder, and verify both sides before treating the outcome as handled.
 
+## Drop the non-Workflowy copy, leave Workflowy live
+
+For a due row with `duplicateCopies`, show the Workflowy survivor and each external copy in one question naming both stores (or all three), with **Drop the non-Workflowy copy, leave Workflowy live** first. Matching normalized titles identify candidates; the user's choice confirms which copies represent the same task. Keep ordinary tasks' priority and deadline rules unchanged.
+
+This outcome is `dropDuplicate`. Run only the approved external copies' staged `ops.drop`: Things is canceled, and Reminders is deleted through the segment's batched write. Preserve the Workflowy node, its completion state, date, and placement exactly. This outcome neither completes nor reschedules it and never runs its `ops.complete`, `ops.reschedule`, or `ops.drop`.
+
+Verify Things reports `canceled` or `reminders_fetch` no longer lists the approved reminder, and read back the survivor to confirm it remains live and unchanged. Only after verification, record `dropDuplicate` against **both** the surviving `workflowy:<id>` key and each successfully removed external copy's key. This resets the survivor's skip streak while leaving its task live for the next run. Pending or failed deletion is not a handled survivor: surface the failure and do not write a successful record for it. Do not ask about the survivor again in this run after successful removal.
+
 ## Move to Workflowy
 
 A Things task or Apple Reminder that reaches a due walk with a real date is usually a task in the wrong database, not a task with the wrong date. The goal is a single database, so every one-shot due-item walk offers **Move to Workflowy** on Things and Reminders rows, and places it **first** on Reminders rows — a dated reminder has nothing the `⏰ Tasks (due dates)` bucket does not do better, and it is the answer the user gives almost every time. Workflowy rows never carry it; they are already home.
@@ -207,7 +215,7 @@ On skip, write nothing. The item keeps its date and resurfaces on the next run. 
 Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|drop>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|dropDuplicate|drop>
 ```
 
 The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.

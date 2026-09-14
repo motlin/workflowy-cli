@@ -8,12 +8,38 @@ import {
 	fromReminders,
 	fromThings,
 	fromWorkflowy,
+	groupCrossSourceDuplicates,
 	resolveTimeframe,
 	skipKey,
 } from './collect-due-items.mjs';
 import {foldSkipLog} from './compute-overdue.mjs';
 
 const TODAY = '2026-08-07'; // a Friday
+
+test('cross-source matches keep one Workflowy survivor and the exact external operations', () => {
+	const survivor = {
+		source: 'workflowy',
+		id: 'alice',
+		title: '<b>Check the filter</b>',
+		ops: {complete: 'complete alice'},
+	};
+	const things = {source: 'things', id: 'bob', title: '  CHECK   the filter ', ops: {drop: 'cancel bob'}};
+	const reminder = {source: 'reminders', id: 'charlie', title: 'Check the filter', ops: {drop: 'delete charlie'}};
+	assert.deepStrictEqual(groupCrossSourceDuplicates([things, survivor, reminder]), [
+		{...survivor, duplicateCopies: [things, reminder]},
+	]);
+});
+
+test('ambiguous Workflowy matches and external-only matches remain separate', () => {
+	const rows = [
+		{source: 'workflowy', id: 'alice', title: 'Check filter'},
+		{source: 'workflowy', id: 'bob', title: 'Check filter'},
+		{source: 'things', id: 'charlie', title: 'Check filter'},
+		{source: 'things', id: 'dave', title: 'Check valve'},
+		{source: 'reminders', id: 'eve', title: 'Check valve'},
+	];
+	assert.deepStrictEqual(groupCrossSourceDuplicates(rows), rows);
+});
 
 function workflowyRoot({
 	rootKey = 'personal',
@@ -50,6 +76,21 @@ const dated = (name, iso, id) => ({
 	id,
 	shortId: id.slice(-12),
 	children: [],
+});
+
+test('collector groups due copies without losing survivor state and resets its duplicate outcome streak', () => {
+	const today = '2000-01-01';
+	const workflowy = [workflowyRoot({tasks: [dated('Check filter', today, 'alice')]})];
+	const things = {due: [{id: 'bob', title: 'CHECK FILTER', due: today}]};
+	const survivor = collectDueItems({workflowy}, today)[0];
+	const copy = collectDueItems({things}, today)[0];
+	const skipStreaks = foldSkipLog([
+		{key: 'workflowy:alice', outcome: 'skip', date: '1999-12-31'},
+		{key: 'workflowy:alice', outcome: 'dropDuplicate', date: today},
+	]);
+	assert.deepStrictEqual(collectDueItems({workflowy, things}, today, {skipStreaks}), [
+		{...survivor, duplicateCopies: [copy]},
+	]);
 });
 
 test('fromWorkflowy pulls dated tasks out of the ⏰ bucket only', () => {

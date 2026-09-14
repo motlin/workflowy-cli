@@ -282,6 +282,34 @@ export function skipKey(item) {
 	return `${item.source}:${item.id}`;
 }
 
+export function groupCrossSourceDuplicates(rows) {
+	const titleKey = (row) => stripMarkup(row.title).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+	const workflowyByTitle = new Map();
+	for (const row of rows) {
+		if (row.source !== 'workflowy') continue;
+		const key = titleKey(row);
+		workflowyByTitle.set(key, [...(workflowyByTitle.get(key) ?? []), row]);
+	}
+	const copiesBySurvivor = new Map();
+	const groupedCopies = new Set();
+	for (const row of rows) {
+		if (row.source === 'workflowy') continue;
+		const key = titleKey(row);
+		const matches = workflowyByTitle.get(key) ?? [];
+		// A title shared by multiple Workflowy tasks cannot identify a survivor.
+		if (!key || matches.length !== 1) continue;
+		const survivor = matches[0];
+		copiesBySurvivor.set(survivor, [...(copiesBySurvivor.get(survivor) ?? []), row]);
+		groupedCopies.add(row);
+	}
+	return rows
+		.filter((row) => !groupedCopies.has(row))
+		.map((row) => {
+			const duplicateCopies = copiesBySurvivor.get(row);
+			return duplicateCopies ? {...row, duplicateCopies} : row;
+		});
+}
+
 export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {}) {
 	const rows = [
 		...fromWorkflowy(sources.workflowy, todayISO),
@@ -293,14 +321,12 @@ export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {
 	});
 
 	// Undated items sort last: they still need handling, but a real deadline outranks a maybe.
-	return rows
-		.filter((r) => r.due === null || r.due <= todayISO)
-		.sort((a, b) => {
-			if (a.due === null && b.due === null) return 0;
-			if (a.due === null) return 1;
-			if (b.due === null) return -1;
-			return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
-		});
+	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= todayISO)).sort((a, b) => {
+		if (a.due === null && b.due === null) return 0;
+		if (a.due === null) return 1;
+		if (b.due === null) return -1;
+		return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
+	});
 }
 
 function localTodayISO() {

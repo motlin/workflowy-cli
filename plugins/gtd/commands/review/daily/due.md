@@ -234,9 +234,19 @@ Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `
 - Reminders `dueTomorrow` is excluded; this walk is for what is due now, not a preview.
 - A Workflowy task in the `⏰` bucket with no `<time>` gets `needsDate: true` — see below.
 
+## Cross-source duplicates
+
+The collector groups due rows with matching normalized titles under their Workflowy survivor in `duplicateCopies`. Normalization strips markup and date elements, applies Unicode NFKC and lowercase, and collapses whitespace. Each copy retains its source, identity, context, skip history, and staged operations. Same-source rows are never merged. If several Workflowy rows match, leave them separate and resolve the ambiguity with the user before removing anything; a matching title is a candidate, not authorization to delete.
+
+Present the survivor and its copies as **one question**, naming **Workflowy + Things 3**, **Workflowy + Apple Reminders**, or all three stores as applicable. Show each title, date, note, and identity so the user can distinguish similarly named tasks. Do not ask about nested copies again as separate rows.
+
+Place **Drop the non-Workflowy copy, leave Workflowy live** first, ahead of Done and any skip-streak option. Follow the shared walk's `dropDuplicate` outcome: cancel each approved Things copy with its own `ops.drop`, or queue each approved Reminders deletion into the existing batch. Never run the Workflowy row's operations for this answer. Do not create another Workflowy node, complete the survivor, clear its date, move it, or reschedule it. Read back the external state and the unchanged live Workflowy row before logging success. If a Reminders deletion is pending, defer the handled record until batch verification succeeds.
+
+**Skip** leaves all copies unchanged and records `skip` for each source key. If the user says the titles describe different tasks, walk them separately with the ordinary options. Any other requested outcome must name exactly which store's rows it changes; do not apply one row's Done or Drop to the entire group implicitly. Once duplicate removal succeeds, the survivor is handled for this run even if undated; do not immediately ask it for a date or present it again. Count verified removals as duplicate copies dropped, separately from completed tasks.
+
 ## Due item options
 
-First option is the most likely outcome, per the walk skill. That is **Done** on Workflowy and Things rows and **Move to Workflowy** on Reminders rows — a dated reminder has nothing the `⏰` bucket does not do better, so moving it is almost always the answer.
+For rows with `duplicateCopies`, use **Cross-source duplicates** below before the ordinary options. For all other rows, first option is the most likely outcome, per the walk skill. That is **Done** on Workflowy and Things rows and **Move to Workflowy** on Reminders rows — a dated reminder has nothing the `⏰` bucket does not do better, so moving it is almost always the answer.
 
 - **Done** — run `ops.complete` verbatim.
 - **Move to asap ladder** — on every Workflowy `⏰` row whose date has passed without external-deadline evidence, place this immediately after **Done**, above **Reschedule** and any longer-horizon option. The user used the date to signal **high priority**; its passing means the task still matters. Follow the shared walk's **Preserve priority in the asap ladder** protocol and record `clearDate`. Load the matching root's ladder and ask for `1st`, `2nd`, `3rd`, or `4th`, recommending `2nd` as the mid-high default. Reserve the bottom tier for an explicit decision to deprioritize. Use `planInsertion` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs`, show and apply its demotion cascade, then run `ops.moveToAsap` verbatim. That op removes the `<time>` and initially lands on the bottom tier; move the task to `planInsertion.targetId` when the chosen tier differs, and verify its final tier before counting it handled.
