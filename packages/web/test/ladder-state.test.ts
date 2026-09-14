@@ -14,8 +14,8 @@ const ladder = (): Record<string, Ladder> => ({
 				capacity: 2,
 				state: 'exact',
 				items: [
-					{id: 'a', name: 'A'},
-					{id: 'b', name: 'B'},
+					{id: 'a', name: 'A', children: [], descendantCount: 0},
+					{id: 'b', name: 'B', children: [], descendantCount: 0},
 				],
 			},
 			{tier: 2, label: '2nd', id: 'w2', capacity: 4, state: 'room', items: []},
@@ -33,7 +33,11 @@ describe('moveWithin', () => {
 
 	it('flags the destination as over once it passes its cap', () => {
 		const start = ladder();
-		start.work.tiers[1] = {...start.work.tiers[1], capacity: 1, items: [{id: 'c', name: 'C'}]};
+		start.work.tiers[1] = {
+			...start.work.tiers[1],
+			capacity: 1,
+			items: [{id: 'c', name: 'C', children: [], descendantCount: 0}],
+		};
 		const next = moveWithin(start, 'work', 'a', '2nd');
 		expect(next.work.tiers[1].state).toBe('over');
 	});

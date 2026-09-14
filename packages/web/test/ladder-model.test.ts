@@ -74,3 +74,43 @@ describe('planTierMove', () => {
 		expect(() => planTierMove(ladder, 'nope', '2nd')).toThrow(/nope/);
 	});
 });
+
+describe('toLadder subtrees', () => {
+	const bucket: RawNode = {
+		id: 'bucket',
+		name: '📌',
+		children: [
+			node('t1', '1st', [
+				node('a', 'Apply to magnet schools', [
+					node('a1', 'Request transcripts', [node('a1a', 'Email the registrar')]),
+					{id: 'a2', name: 'Old step', completedAt: '2026-09-01', children: []},
+					node('a3', 'Book the tour'),
+				]),
+				node('b', 'Plain row'),
+			]),
+		],
+	};
+
+	it('carries each row subtree, so the page can show it without another request', () => {
+		const [tier] = toLadder('work', bucket).tiers;
+		const [withKids] = tier.items;
+		expect(withKids.children.map((child) => child.name)).toEqual(['Request transcripts', 'Book the tour']);
+		expect(withKids.children[0].children.map((child) => child.name)).toEqual(['Email the registrar']);
+	});
+
+	it('leaves completed children out, the same as completed rows', () => {
+		const [tier] = toLadder('work', bucket).tiers;
+		expect(tier.items[0].children.some((child) => child.name === 'Old step')).toBe(false);
+	});
+
+	it('gives a childless row an empty list rather than undefined', () => {
+		const [tier] = toLadder('work', bucket).tiers;
+		expect(tier.items[1].children).toEqual([]);
+	});
+
+	it('counts the whole subtree, so a row can say how much is hidden under it', () => {
+		const [tier] = toLadder('work', bucket).tiers;
+		expect(tier.items[0].descendantCount).toBe(3);
+		expect(tier.items[1].descendantCount).toBe(0);
+	});
+});

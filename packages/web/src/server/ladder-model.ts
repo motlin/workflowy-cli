@@ -14,6 +14,10 @@ export type TierState = 'room' | 'exact' | 'over';
 export interface LadderItem {
 	id: string;
 	name: string;
+	/** Incomplete children, recursively, as read from the cache. */
+	children: LadderItem[];
+	/** How many incomplete nodes sit under this one, at any depth. */
+	descendantCount: number;
 }
 
 export interface LadderTier {
@@ -76,9 +80,7 @@ export function toLadder(root: string, bucket: RawNode): Ladder {
 		if (tier === null) {
 			continue;
 		}
-		const items = (child.children ?? [])
-			.filter((node) => !node.completedAt)
-			.map((node) => ({id: node.id, name: stripHtml(node.name ?? '')}));
+		const items = (child.children ?? []).filter((node) => !node.completedAt).map(toItem);
 		const capacity = tierCapacity(tier);
 		tiers.push({
 			tier,
@@ -92,6 +94,21 @@ export function toLadder(root: string, bucket: RawNode): Ladder {
 
 	tiers.sort((a, b) => a.tier - b.tier);
 	return {root, bucketId: bucket.id, tiers};
+}
+
+/**
+ * One row and everything still open underneath it. The subtree rides along with
+ * the ladder so the page can reveal a row's children on hover without a second
+ * request per row.
+ */
+function toItem(node: RawNode): LadderItem {
+	const children = (node.children ?? []).filter((child) => !child.completedAt).map(toItem);
+	return {
+		id: node.id,
+		name: stripHtml(node.name ?? ''),
+		children,
+		descendantCount: children.reduce((total, child) => total + 1 + child.descendantCount, 0),
+	};
 }
 
 export interface TierMove {
