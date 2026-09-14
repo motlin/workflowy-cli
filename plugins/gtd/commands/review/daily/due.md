@@ -272,6 +272,32 @@ Two behaviors that look like failures and are not:
 
 Never report a reminder handled on the strength of an exit code. Every one of these paths has returned 0 while doing nothing.
 
+### Materialize AppleScript whose queries before iterating
+
+For **every AppleScript `whose` query these reviews iterate, including Things**, fetch the matches before entering the loop: `set matches to (get every reminder whose ...)`, then `repeat with r in matches`. Never use `repeat with r in (reminders whose ...)`. That form leaves `r` as a deferred `item N of every reminder whose ...` reference: each dereference re-runs the filter, so a changing result set can raise `Can't get object (-1728)` even while the reminder still exists. This is the same class of failure as Things' dynamic-list `Invalid index (-1719)`; keep the Things fetcher's existing ID snapshots and `to do id` lookups.
+
+Use a per-item `try`, count failures, and report each failed item's position and error. This read-only example shows the required loop structure:
+
+```applescript
+tell application "Reminders"
+    set matches to (get every reminder whose completed is false)
+    set failureCount to 0
+    set itemNumber to 0
+    repeat with r in matches
+        set itemNumber to itemNumber + 1
+        try
+            log (get name of r)
+        on error errorMessage number errorNumber
+            set failureCount to failureCount + 1
+            log ("Item " & itemNumber & " failed (" & errorNumber & "): " & errorMessage)
+        end try
+    end repeat
+    return "Matched " & (count matches) & "; failed " & failureCount
+end tell
+```
+
+For writes, use this structure inside the batched handlers above, narrow the query to the user's approved decisions, and put the approved operation inside the `try`. Materializing matches does not authorize changes or guarantee that an item still exists. Retain per-item status lines, surface a nonzero failure count in the review summary, and verify writes through `reminders_fetch`; never turn caught errors into silent skips or claim the batch succeeded because the loop finished.
+
 ## Push it out: the cadence outcome for a repeatedly skipped task
 
 Each row carries `skipStreak` and `skippedSince`. When `skipStreak >= 2`, show the streak in the question body. For work with an external but movable deadline, promote a **longer horizon** above the ordinary reschedule. `resolveTimeframe` accepts `Next month` and `Next quarter` alongside the usual timeframes, so build the write exactly as a reschedule: resolve the label, then `applyReschedule(item, iso)`.
