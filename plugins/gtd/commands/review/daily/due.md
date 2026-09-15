@@ -136,6 +136,8 @@ Promote **Done** and **Set a reminder**. Omit **Skip**, **Push it out**, and **L
 
 ## Recurring item options
 
+When the item's action spans a list such as Things Today, an inbox, or a folder, follow **Walk a recurring item's list entry by entry** in the shared walk skill before offering the parent's Done. Enumerate the entries and ask about each separately with its context and `entry N/M`; never offer one bulk outcome for the list. Keep the parent in progress until every entry has a recorded decision and its writes are verified, then obtain the parent's Done confirmation and run its staged `applyOp` once. Keep unresolved work resumable without advancing the parent's date. The waiting, duplicate, and hard-deadline rules still apply to each entry.
+
 For ordinary rows: Done / Set a reminder / skip / notes / retire, per the walk skill. Hard-deadline rows use the restrictions above. Before each question, `open` any external `links` the row carries (never the workflowy.com permalink — see the walk skill) and print its `note`, `modifiedAt`, and `children` — a recurring item like "Check wageworks balance" is answerable only from the running log in its subtree, and that log is what the last several entries look like. For a row a previous run already saw, also list what that run left in `.llm/gtd/review/`, per **Resume from prior-run artifacts, never rebuild them** above. On "done", run the row's staged `applyOp` **verbatim** — it is the complete `node update` that advances the `<time>`, already computed and shell-escaped.
 
 Offer **Set a reminder** on every row — an item the user will do later today but would forget without an alarm is a reminder, not a skip. Follow the shared walk's **Set a reminder** protocol and record `remind`.

@@ -29,6 +29,14 @@ The only correct first move after computing the working set is to present item 1
 
 Use `AskUserQuestion`, never a batch. The user clears items quickly by tapping the first option. After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
 
+## Walk a recurring item's list entry by entry
+
+When one recurring item's action spans a list — Things Today, an inbox, a folder — enumerate the entries and start with entry 1. The volume rule applies inside the item too: never replace the entry walk with one question offering to move, complete, or otherwise handle the whole list. Instruction children and completed entries are not candidates.
+
+Show the parent title and `entry N/M`, then the current entry's real context immediately before its question. Ask for that entry's outcome, apply only that decision, and continue to the next entry. Preserve the applicable waiting, cross-source duplicate, recurring-counterpart, and hard-deadline rules; a parent review never authorizes a bulk write or bypasses an entry's protections.
+
+Keep the parent in progress while walking its entries. Track decisions and pending writes per entry, and drain and verify those writes before asking for the parent's **Done**. Only after every entry has been handled and the user confirms the parent is done may its staged `applyOp` advance the recurring date once. A failed write, unresolved entry, or continued-work answer keeps the parent unfinished; record where to resume. An entry explicitly skipped for this review is a recorded decision, not completion of that entry. An empty list still needs the parent's Done confirmation; merely fetching or displaying it is not completion.
+
 ## Show the item, do not just name it
 
 A title is not an item. "Inventory the drives" with 71 children is a different question from the same title with none, and nobody can decide about what they cannot see. Showing it is not extra credit — it is the work of asking. The row already carries the context, staged by the same script that staged the ops:
