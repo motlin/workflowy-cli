@@ -12,7 +12,7 @@
 //
 // Usage:
 //   node collect-due-items.mjs --workflowy roots.json --things things.json \
-//     --reminders reminders.json [--today YYYY-MM-DD] [--print] [--skip-log path]
+//     --reminders reminders.json [--recurring tree.json] [--today YYYY-MM-DD] [--print] [--skip-log path]
 //
 // Rows carry `skipStreak` folded from the shared skip log that compute-overdue.mjs --record
 // writes, so the walk can offer a longer horizon to a task it keeps re-asking about.
@@ -282,8 +282,35 @@ export function skipKey(item) {
 	return `${item.source}:${item.id}`;
 }
 
+const titleKey = (row) => stripMarkup(row.title).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+
+export function attachRecurringCounterparts(rows, tree) {
+	const byTitle = new Map();
+	function walk(node, ancestors) {
+		if (node.completedAt || node.mirror?.isMirror || String(node.name).includes('🗃️ Routine Archive')) return;
+		const title = stripMarkup(node.name);
+		const path = [...ancestors, title];
+		const counterpart = {
+			id: node.id,
+			title,
+			path: path.join(' > '),
+			nextDate: parseTimeISO(node.name),
+			url: workflowyUrl(node.shortId ?? node.id),
+		};
+		const key = titleKey(counterpart);
+		if (key) byTitle.set(key, [...(byTitle.get(key) ?? []), counterpart]);
+		for (const child of node.children ?? []) walk(child, path);
+	}
+	for (const section of tree.children ?? []) walk(section, ['Personal', '🔄 Review']);
+	return rows.map((row) => ({
+		...row,
+		recurringCounterparts: (byTitle.get(titleKey(row)) ?? []).filter(
+			(candidate) => row.source !== 'workflowy' || candidate.id !== row.id,
+		),
+	}));
+}
+
 export function groupCrossSourceDuplicates(rows) {
-	const titleKey = (row) => stripMarkup(row.title).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 	const workflowyByTitle = new Map();
 	for (const row of rows) {
 		if (row.source !== 'workflowy') continue;
@@ -311,7 +338,7 @@ export function groupCrossSourceDuplicates(rows) {
 }
 
 export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {}) {
-	const rows = [
+	let rows = [
 		...fromWorkflowy(sources.workflowy, todayISO),
 		...fromThings(sources.things, todayISO),
 		...fromReminders(sources.reminders, todayISO),
@@ -319,6 +346,8 @@ export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {
 		const streak = skipStreaks.get(skipKey(row)) ?? null;
 		return {...row, skipStreak: streak?.skipStreak ?? 0, skippedSince: streak?.skippedSince ?? null};
 	});
+
+	if (sources.recurring) rows = attachRecurringCounterparts(rows, sources.recurring);
 
 	// Undated items sort last: they still need handling, but a real deadline outranks a maybe.
 	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= todayISO)).sort((a, b) => {
@@ -340,7 +369,7 @@ function readJSON(path) {
 
 function main(argv) {
 	const args = argv.slice(2);
-	const paths = {workflowy: null, things: null, reminders: null};
+	const paths = {workflowy: null, things: null, reminders: null, recurring: null};
 	let today = localTodayISO();
 	let print = false;
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
@@ -351,10 +380,16 @@ function main(argv) {
 		else if (args[i] === '--workflowy') paths.workflowy = args[++i];
 		else if (args[i] === '--things') paths.things = args[++i];
 		else if (args[i] === '--reminders') paths.reminders = args[++i];
+		else if (args[i] === '--recurring') paths.recurring = args[++i];
 	}
 
 	const rows = collectDueItems(
-		{workflowy: readJSON(paths.workflowy), things: readJSON(paths.things), reminders: readJSON(paths.reminders)},
+		{
+			workflowy: readJSON(paths.workflowy),
+			things: readJSON(paths.things),
+			reminders: readJSON(paths.reminders),
+			recurring: readJSON(paths.recurring),
+		},
 		today,
 		{skipStreaks: loadSkipStreaks(skipLogPath)},
 	);

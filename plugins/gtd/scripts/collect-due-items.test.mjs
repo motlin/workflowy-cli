@@ -4,6 +4,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
 	applyReschedule,
+	attachRecurringCounterparts,
 	collectDueItems,
 	fromReminders,
 	fromThings,
@@ -15,6 +16,88 @@ import {
 import {foldSkipLog} from './compute-overdue.mjs';
 
 const TODAY = '2026-08-07'; // a Friday
+
+test('recurring lookup includes future nested matches and excludes mirrors, archives, and completed work', () => {
+	const future = {
+		id: 'alice',
+		shortId: 'alice-short',
+		name: '<b>Check filter</b> ' + '<time startYear="2000" startMonth="7" startDay="1">date</time>',
+	};
+	const tree = {
+		children: [
+			{
+				name: '🔄 Every 6 months Review',
+				children: [
+					{name: 'Maintenance', children: [future]},
+					{...future, id: 'bob', completedAt: 1},
+					{name: 'Mirror', mirror: {isMirror: true}, children: [future]},
+				],
+			},
+			{name: '🗃️ Routine Archive', children: [future]},
+		],
+	};
+	const rows = [{source: 'workflowy', id: 'charlie', title: ' CHECK   FILTER ', due: '1999-12-31'}];
+	assert.deepStrictEqual(attachRecurringCounterparts(rows, tree), [
+		{
+			source: 'workflowy',
+			id: 'charlie',
+			title: ' CHECK   FILTER ',
+			due: '1999-12-31',
+			recurringCounterparts: [
+				{
+					id: 'alice',
+					title: 'Check filter',
+					path: 'Personal > 🔄 Review > 🔄 Every 6 months Review > Maintenance > Check filter',
+					nextDate: '2000-07-01',
+					url: 'https://workflowy.com/#/alice-short',
+				},
+			],
+		},
+	]);
+});
+
+test('recurring lookup retains multiple undated candidates and excludes the due node itself', () => {
+	const rows = [
+		{source: 'workflowy', id: 'alice', title: 'Check filter'},
+		{source: 'reminders', id: 'bob', title: 'Different task'},
+	];
+	const tree = {
+		children: [
+			{
+				name: 'Monthly',
+				children: [
+					{id: 'alice', name: 'Check filter'},
+					{id: 'bob', name: 'Check filter'},
+					{id: 'charlie', name: 'Check filter'},
+				],
+			},
+		],
+	};
+	assert.deepStrictEqual(attachRecurringCounterparts(rows, tree), [
+		{
+			source: 'workflowy',
+			id: 'alice',
+			title: 'Check filter',
+			recurringCounterparts: [
+				{
+					id: 'bob',
+					title: 'Check filter',
+					path: 'Personal > 🔄 Review > Monthly > Check filter',
+					nextDate: null,
+					url: 'https://workflowy.com/#/bob',
+				},
+				{
+					id: 'charlie',
+					title: 'Check filter',
+					path: 'Personal > 🔄 Review > Monthly > Check filter',
+					nextDate: null,
+					url: 'https://workflowy.com/#/charlie',
+				},
+			],
+		},
+		{source: 'reminders', id: 'bob', title: 'Different task', recurringCounterparts: []},
+	]);
+});
 
 test('cross-source matches keep one Workflowy survivor and the exact external operations', () => {
 	const survivor = {
@@ -90,6 +173,29 @@ test('collector groups due copies without losing survivor state and resets its d
 	]);
 	assert.deepStrictEqual(collectDueItems({workflowy, things}, today, {skipStreaks}), [
 		{...survivor, duplicateCopies: [copy]},
+	]);
+});
+
+test('collector attaches future recurring context to both sides of a cross-source group', () => {
+	const today = '2000-01-01';
+	const workflowy = [workflowyRoot({tasks: [dated('Check filter', today, 'alice')]})];
+	const things = {due: [{id: 'bob', title: 'CHECK FILTER', due: today}]};
+	const recurring = {
+		children: [{name: 'Every 6 months Review', children: [dated('Check filter', '2000-07-01', 'charlie')]}],
+	};
+	const recurringCounterparts = [
+		{
+			id: 'charlie',
+			title: 'Check filter',
+			path: 'Personal > 🔄 Review > Every 6 months Review > Check filter',
+			nextDate: '2000-07-01',
+			url: 'https://workflowy.com/#/charlie',
+		},
+	];
+	const survivor = collectDueItems({workflowy}, today)[0];
+	const copy = collectDueItems({things}, today)[0];
+	assert.deepStrictEqual(collectDueItems({workflowy, things, recurring}, today), [
+		{...survivor, recurringCounterparts, duplicateCopies: [{...copy, recurringCounterparts}]},
 	]);
 });
 
