@@ -137,6 +137,8 @@ Check **every proper noun** in each candidate, including the assignee, other peo
 
 For each candidate, record: a proposed clean one-line description, the source meeting name, the meeting's Workflowy link, a short reason ("@DirectManager asked for X", "action item assigned to you", etc.), and the name resolutions above.
 
+Also retain whether the source explicitly assigns the action to a named person, with the supporting transcript fragment. This includes assignments to someone other than the user. Attendance, a person mentioned in discussion, and an inferred VIP ask are not explicit assignments. Preserve this flag per source when merging candidates; an explicit assignment with an unresolved name still counts as name-assigned.
+
 ### Step 7: Match candidates against existing tasks
 
 A follow-up the user already tracks is not a new inbox item — it is context for the task that already exists. Load the same open-task snapshot the capture flow uses for duplicate detection:
@@ -168,7 +170,20 @@ Present each merged candidate once, naming and linking **all source meetings** i
 
 Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `filed`, `journaled`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
 
-Before each question, refresh its match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added` and `filed` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
+#### Choose how to review unassigned meetings
+
+Before walking individual candidates, offer one meeting-level question for each meeting with candidates but **no explicitly name-assigned candidate** from Step 6. Determine this from all of that meeting's original candidates, before merging or skipping anything. Meetings with any name-assigned candidate go directly to the per-item walk. Meetings with no candidates need no question.
+
+Put the meeting name and clickable link, every candidate description, reasoning, name-resolution evidence or uncertainty, and current match result inside the question body. For shared candidates, show all source meetings and identify which contributions belong to this meeting. Offer exactly:
+
+- **Skip the whole meeting** — skip this meeting's candidate contributions without creating or filing anything. Shared actions remain pending when another source meeting still contributes them; identify those actions in the question so skipping never implies they were dropped everywhere.
+- **Walk them one at a time** — continue with the individual confirmation questions below. This does not accept any candidate or authorize a write.
+
+Record each meeting choice and each skipped source contribution in the local ledger, retaining the original provenance for audit. Set a merged candidate to `skipped` only when all its source contributions have been skipped; otherwise retain it as `pending` and refresh its description, name resolutions, and match from its remaining sources. Never skip another meeting's assignment or change an already recorded outcome. A skipped source is excluded from later recording, and is not a task destination. Resolve these meeting choices before the per-item walk; interruption or an unanswered choice prevents watermark advancement.
+
+#### Confirm individual candidates
+
+Before each question (including a meeting-level question), refresh each displayed candidate's match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added` and `filed` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
 
 Present candidates one at a time using AskUserQuestion. The user does not read the scrolling console, so everything needed to decide goes **inside** the question body: the description, the source meeting (as a clickable link), the Step 6 reasoning, and the Step 7 match result.
 
@@ -197,7 +212,7 @@ Offer these options, omitting filing when no eligible target exists:
 
 Use the Step 8 confirmed spellings consistently in every newly written title, reason, paraphrased context, and journal entry across all branches. Resolve person mentions only to the confirmed roster identity. Do not introduce new name corrections during enrichment. Keep literal source quotations unchanged and label any correction separately; do not rename the source meeting or an existing task. Read back the written text as part of outcome verification to check that it contains the agreed spellings. An accepted follow-up with pending name decisions remains unresolved and prevents Step 10 from advancing the watermark; a skipped candidate needs no spelling decision.
 
-For a confirmed merged candidate, create or file **one task** with provenance children for every source meeting and each distinct supporting point. Keep each source's date and link attached to its context. If the user chooses journaling and the source meetings have different dates, confirm which source meeting date to use in Step 8 and write one journal entry with all source provenance. Track the merged decision and verified destination for every contributing candidate in the local ledger; none should be proposed or written again separately. Only mark the group recorded after all its required writes and read-back verification succeed.
+For a confirmed merged candidate, create or file **one task** with provenance children for every non-skipped source meeting and each distinct supporting point. Keep each source's date and link attached to its context. If the user chooses journaling and the remaining source meetings have different dates, confirm which source meeting date to use in Step 8 and write one journal entry with all non-skipped source provenance. Track the merged decision and verified destination for every contributing candidate in the local ledger, preserving skipped source outcomes; none should be proposed or written again separately. Only mark the group recorded after all its required writes and read-back verification succeed.
 
 #### Branch A — Add to inbox
 
