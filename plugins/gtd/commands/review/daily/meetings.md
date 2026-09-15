@@ -25,7 +25,9 @@ Use the `read-metadata` skill to discover GTD paths from the Workflowy Metadata 
 ## Inputs
 
 - **Watermark** — last-reviewed timestamp from a Workflowy scanner-state node
-- **VIP list** — direct manager(s) and manager's manager(s) from `.llm/gtd/metadata/people.json`
+- **People roster** — canonical names and explicit aliases from `.llm/gtd/metadata/people.json`; the VIP subset alone is insufficient for spelling checks
+- **VIP list** — direct manager(s) and manager's manager(s) from that roster
+- **Known product names** — a local, evidence-backed list assembled from synced project metadata and user-confirmed spellings as described in Step 6
 - **Recent meetings** — Otter meeting entries under `📆 Calendar` dated since the watermark
 - **Project context** — active project names and recent task titles, used to ground LLM judgment
 - **Existing open tasks** — Next Actions trees and active-project tasks, used to recognize follow-ups you already track
@@ -123,7 +125,17 @@ For each meeting, assemble candidate follow-ups. A candidate is:
 
 When a transcript fragment is ambiguous because of misheard text, prefer to surface it rather than drop it silently — the user confirms in Step 8.
 
-For each candidate, record: a clean one-line description, the source meeting name, the meeting's Workflowy link, and a short reason ("@DirectManager asked for X", "action item assigned to you", etc.).
+#### Resolve names before matching tasks
+
+Check **every proper noun** in each candidate, including the assignee, other people, products, project references, and the short reason. Do this before Step 7 so a misheard name does not hide an existing task.
+
+- Use the full people roster, not just the Step 2 VIPs. Extract only names, node IDs, and relevant explicitly recorded aliases with `jq`; never load the whole `people.json` into context. Follow `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` for full-name-plus-context matching and canonical `@mentions`. A first-name resemblance alone does not establish identity.
+- Build a small known-product-name list locally in `.llm/gtd/review/meetings/known-product-names.json`. Use explicit product spellings in `.llm/gtd/metadata/projects/*.json`, grounded by the Step 5 project context, and spellings the user has confirmed. Retain each canonical spelling, any explicit aliases, and its evidence (metadata file and node ID, or the user's confirmation). A project title is context, not automatically a product name. There is no assumed `products.json` registry: when the evidence does not identify a product, leave it unresolved. Do not edit synced metadata or commit this private working list.
+- Compare case, spacing, punctuation, explicit aliases, and plausible transcription near-misses against those sources. Exact supported matches may use the canonical spelling in the proposed description. Phonetic similarity and edit distance only suggest a correction; they never authorize one. If a roster or product source is missing or stale, report that limitation in Step 8 and keep the affected names unresolved rather than inventing spellings.
+- Record a local per-candidate name resolution for each proper noun: the original text, proposed canonical form (if any), evidence, and status (`exact`, `proposed`, `ambiguous`, or `unresolved`). Preserve the original transcript separately. Never overwrite a quotation to make it look as though Otter transcribed the corrected form.
+- Carry both original and proposed spellings into Step 7 matching. An ambiguous person or product must not create a confident task match or VIP attribution; disclose the uncertainty with any suggested match.
+
+For each candidate, record: a proposed clean one-line description, the source meeting name, the meeting's Workflowy link, a short reason ("@DirectManager asked for X", "action item assigned to you", etc.), and the name resolutions above.
 
 ### Step 7: Match candidates against existing tasks
 
@@ -156,6 +168,10 @@ Before each question, refresh its match against pre-existing tasks and earlier f
 
 Present candidates one at a time using AskUserQuestion. The user does not read the scrolling console, so everything needed to decide goes **inside** the question body: the description, the source meeting (as a clickable link), the Step 6 reasoning, and the Step 7 match result.
 
+Include the name-resolution results **inside the same question body**, next to the proposed description. For each near-miss show the original, suggestion, and evidence inline, for example: `“Git Hub” — did you mean “GitHub” (project metadata)?` Show unresolved names and competing matches explicitly; do not hide them in console output. If all names matched exactly, say so; if a source was unavailable, state which check could not be performed.
+
+Make clear that accepting the displayed description also confirms its explicitly proposed spellings. When a name is ambiguous or unresolved, obtain the user's chosen spelling (or explicit instruction to retain the original) before recording; a destination choice alone does not resolve an unspecified identity. Update the local name resolutions with that decision. If a correction changes the apparent task match, refresh Step 7 and confirm the resulting destination before writing. The user may reject a suggested spelling without having to skip the follow-up.
+
 State the match result explicitly on every question — never omit it:
 
 - **Matched:** the existing task's name and where it lives (`Work > ☑️ Next (Work)`, or the `projectName`)
@@ -174,6 +190,8 @@ Offer these options, omitting filing when no eligible target exists:
 - Never auto-add — every item needs explicit confirmation, including the "file on existing task" path.
 
 ### Step 9: Record confirmed items
+
+Use the Step 8 confirmed spellings consistently in every newly written title, reason, paraphrased context, and journal entry across all branches. Resolve person mentions only to the confirmed roster identity. Do not introduce new name corrections during enrichment. Keep literal source quotations unchanged and label any correction separately; do not rename the source meeting or an existing task. Read back the written text as part of outcome verification to check that it contains the agreed spellings. An accepted follow-up with pending name decisions remains unresolved and prevents Step 10 from advancing the watermark; a skipped candidate needs no spelling decision.
 
 #### Branch A — Add to inbox
 
