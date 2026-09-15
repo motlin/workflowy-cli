@@ -97,3 +97,21 @@ export function applyLadderEvent(ladders: Ladders, event: LadderEvent): Ladders 
 export function tierOf(ladders: Ladders, root: string, nodeId: string): string | undefined {
 	return ladders[root]?.tiers.find((tier) => tier.items.some((item) => item.id === nodeId))?.label;
 }
+
+/** Select a contiguous range in the displayed root, including both endpoints. */
+export function selectLadderRange(ladder: Ladder, anchor: string, target: string): Set<string> {
+	const ids = ladder.tiers.flatMap((tier) => tier.items.map((item) => item.id));
+	const from = ids.indexOf(anchor);
+	const to = ids.indexOf(target);
+	if (from < 0 || to < 0) {
+		return new Set([target]);
+	}
+	return new Set(ids.slice(Math.min(from, to), Math.max(from, to) + 1));
+}
+
+/** Preserve display order for a group move, regardless of checkbox click order. */
+export function ladderMoveSelection(ladder: Ladder, selected: Set<string>, nodeId: string): string[] {
+	return selected.has(nodeId)
+		? ladder.tiers.flatMap((tier) => tier.items.filter((item) => selected.has(item.id)).map((item) => item.id))
+		: [nodeId];
+}

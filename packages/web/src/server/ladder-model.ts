@@ -47,7 +47,7 @@ export function tierCapacity(tier: number): number {
 	return 2 ** tier;
 }
 
-function tierLabel(tier: number): string {
+export function tierLabel(tier: number): string {
 	const teen = tier % 100 >= 11 && tier % 100 <= 13;
 	return `${tier}${teen ? 'th' : (ORDINAL_SUFFIX[tier % 10] ?? 'th')}`;
 }

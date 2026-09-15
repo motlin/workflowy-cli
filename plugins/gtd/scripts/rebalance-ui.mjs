@@ -588,8 +588,29 @@ refresh();
 </script>`;
 }
 
+export function renderWebAppLauncher(url) {
+	const target = new URL('/ladder', url);
+	assert.ok(['http:', 'https:'].includes(target.protocol), 'Web app URL must use HTTP or HTTPS');
+	return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Asap ladder</title><body><a href="${esc(target.href)}">Open the local Asap ladder</a><p>Moves and Done apply immediately in the local web app.</p></body></html>`;
+}
+
 function main() {
 	const args = process.argv.slice(2);
+	const htmlIndex = args.indexOf('--html');
+	const html = htmlIndex >= 0;
+	if (html) args.splice(htmlIndex, 1);
+	if (!html && args[0] !== '--apply') {
+		const outputIndex = args.indexOf('--output');
+		const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
+		assert.ok(args.length === 0, 'Use --html work.json personal.json for an offline or Artifact page');
+		const url = new URL('/ladder', process.env.REBALANCE_WEB_APP_URL ?? 'https://workflowy.m4.notlin.com');
+		const page = renderWebAppLauncher(url);
+		if (output) {
+			writeFileSync(output, page);
+			process.stdout.write(resolve(output) + '\n');
+		} else process.stdout.write(url.href + '\n');
+		return;
+	}
 	const apply = args[0] === '--apply';
 	const submissionPath = apply ? args.splice(0, 2)[1] : null;
 	const outputIndex = args.indexOf('--output');
@@ -597,7 +618,7 @@ function main() {
 	assert.equal(
 		args.length,
 		2,
-		'Usage: rebalance-ui.mjs [--apply submission.json] work.json personal.json [--output page.html]',
+		'Usage: rebalance-ui.mjs [--html | --apply submission.json] work.json personal.json [--output page.html]',
 	);
 	const models = args.map((file, index) => {
 		const parsed = JSON.parse(readFileSync(file, 'utf8'));

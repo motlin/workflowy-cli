@@ -1,6 +1,12 @@
 import {describe, expect, it} from 'vitest';
 import type {Ladder} from '../src/server/ladder-model.js';
-import {applyLadderEvent, moveWithin, tierOf} from '../src/client/ladder-state.js';
+import {
+	applyLadderEvent,
+	ladderMoveSelection,
+	moveWithin,
+	selectLadderRange,
+	tierOf,
+} from '../src/client/ladder-state.js';
 
 const ladder = (): Record<string, Ladder> => ({
 	work: {
@@ -90,5 +96,26 @@ describe('tierOf', () => {
 	it('returns undefined for a row that is not on that ladder', () => {
 		expect(tierOf(ladder(), 'work', 'nope')).toBeUndefined();
 		expect(tierOf(ladder(), 'missing-root', 'a')).toBeUndefined();
+	});
+});
+
+describe('selectLadderRange', () => {
+	it('includes both endpoints in either direction across tiers', () => {
+		const input = ladder().work;
+		input.tiers[1].items = [{id: 'c', name: 'Charlie', children: [], descendantCount: 0}];
+		expect(selectLadderRange(input, 'c', 'a')).toStrictEqual(new Set(['a', 'b', 'c']));
+	});
+
+	it('drops a stale selection anchor after a completion', () => {
+		expect(selectLadderRange(ladder().work, 'completed', 'b')).toStrictEqual(new Set(['b']));
+	});
+});
+
+describe('ladderMoveSelection', () => {
+	it('uses display order and drops completed rows from a selected group', () => {
+		expect(ladderMoveSelection(ladder().work, new Set(['b', 'completed', 'a']), 'b')).toStrictEqual(['a', 'b']);
+	});
+	it('moves only the dragged row when it is outside the selection', () => {
+		expect(ladderMoveSelection(ladder().work, new Set(['b']), 'a')).toStrictEqual(['a']);
 	});
 });

@@ -9,6 +9,14 @@ The daily review's Phase 0 DAG (`${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md`)
 
 The pattern mirrors the existing journal/capture staging pipeline (`${CLAUDE_PLUGIN_ROOT}/commands/journal.md`, `${CLAUDE_PLUGIN_ROOT}/commands/capture.md`): scanners stage JSON, a central step confirms, an executor applies. The difference here is that **the proposal carries the exact CLI ops to run on Accept**, so the walk applies accepted items verbatim without re-deriving them.
 
+## Choose the presentation surface
+
+For interactive reviews, prefer an existing local web app, then an Artifact, then self-contained static HTML. Choose by whether the page can return the user's decisions without copy-paste, not by page complexity. In this repository use `packages/web` (React and Hono); the ladder is at `https://workflowy.m4.notlin.com/ladder`. Local presentation keeps task content off claude.ai and works where that site is blocked. App actions still write to Workflowy through its API.
+
+When no web app is available, use an Artifact only where claude.ai is reachable and both the page's `db` capability and the agent's `read_db` tool work. An Artifact uploads its content to claude.ai; privacy is the tie-breaker, especially for full work and personal task lists. Fall back to self-contained static HTML when neither two-way surface is available. Read-only reports and dashboards should prefer static HTML: local, offline, and nothing shared. Copyable JSON is a fallback transport for choices made in a page, not a reason to prefer it over a working two-way app.
+
+Every UI a review depends on must have checked-in source, a reproducible generator/build, and tests. Never hand-build a replacement in a published Artifact. For the ladder, `rebalance-ui.mjs` generates the local app link or launcher by default; `vp run --filter @workflowy/web build` builds the React route. Explicit `--html` generates the tested Queue template for the fallback.
+
 ## Directory Layout
 
 ```text

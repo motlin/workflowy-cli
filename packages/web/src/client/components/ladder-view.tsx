@@ -11,8 +11,16 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {LadderEvent} from '../../server/ladder-events.js';
-import type {LadderTier} from '../../server/ladder-model.js';
-import {type Ladders, applyLadderEvent, moveWithin, removeRow, tierOf} from '../ladder-state.js';
+import {type LadderTier, tierLabel} from '../../server/ladder-model.js';
+import {
+	type Ladders,
+	applyLadderEvent,
+	ladderMoveSelection,
+	moveWithin,
+	removeRow,
+	selectLadderRange,
+	tierOf,
+} from '../ladder-state.js';
 import {type Point, autoScrollBy, isDragGesture, tierAtPoint} from '../pointer-drag.js';
 import '../ladder.css';
 
@@ -29,6 +37,11 @@ export function LadderView() {
 	const [live, setLive] = useState(false);
 	const [dragging, setDragging] = useState<string>();
 	const [dropTier, setDropTier] = useState<string>();
+	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const anchor = useRef<string>(undefined);
+	const busy = useRef(false);
+	const [saving, setSaving] = useState(false);
+	const [needsReload, setNeedsReload] = useState(false);
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const laddersRef = useRef<Ladders | undefined>(undefined);
 	laddersRef.current = ladders;
@@ -69,7 +82,8 @@ export function LadderView() {
 			}
 			const nodeId = body.node_id;
 			setError(undefined);
-			setLadders(optimistic(before));
+			laddersRef.current = optimistic(before);
+			setLadders(laddersRef.current);
 			setPending((current) => new Set(current).add(nodeId));
 			try {
 				const response = await fetch(path, {
@@ -81,11 +95,14 @@ export function LadderView() {
 					const failure = (await response.json()) as {error?: string};
 					throw new Error(failure.error ?? `write failed: ${response.status}`);
 				}
+				return true;
 			} catch (cause) {
 				// Put the row back where it was; a ladder that lies is worse than one
 				// that refuses.
+				laddersRef.current = before;
 				setLadders(before);
 				setError(cause instanceof Error ? cause.message : String(cause));
+				return false;
 			} finally {
 				setPending((current) => {
 					const next = new Set(current);
@@ -99,15 +116,30 @@ export function LadderView() {
 
 	const move = useCallback(
 		(nodeId: string, toTier: string) => {
-			const current = laddersRef.current;
-			if (current && tierOf(current, root, nodeId) === toTier) {
-				return;
-			}
-			void write('/api/v1/ladder/move', {root, node_id: nodeId, to_tier: toTier}, (ladders) =>
-				moveWithin(ladders, root, nodeId, toTier),
-			);
+			const ladder = laddersRef.current?.[root];
+			if (busy.current || !ladder) return;
+			busy.current = true;
+			setSaving(true);
+			const ids = ladderMoveSelection(ladder, selected, nodeId);
+			void (async () => {
+				try {
+					for (const id of ids) {
+						const current = laddersRef.current;
+						if (!current || tierOf(current, root, id) === toTier) continue;
+						const saved = await write(
+							'/api/v1/ladder/move',
+							{root, node_id: id, to_tier: toTier},
+							(ladders) => moveWithin(ladders, root, id, toTier),
+						);
+						if (!saved) break;
+					}
+				} finally {
+					busy.current = false;
+					setSaving(false);
+				}
+			})();
 		},
-		[root, write],
+		[root, selected, write],
 	);
 
 	// One pointer gesture, mouse or finger. The row itself stays scrollable; only
@@ -164,10 +196,69 @@ export function LadderView() {
 
 	const complete = useCallback(
 		(nodeId: string) => {
-			void write('/api/v1/ladder/complete', {root, node_id: nodeId}, (current) => removeRow(current, nodeId));
+			if (busy.current) return;
+			busy.current = true;
+			setSaving(true);
+			void write('/api/v1/ladder/complete', {root, node_id: nodeId}, (current) =>
+				removeRow(current, nodeId),
+			).finally(() => {
+				busy.current = false;
+				setSaving(false);
+			});
 		},
 		[root, write],
 	);
+
+	const select = (nodeId: string, range: boolean) => {
+		const ladder = laddersRef.current?.[root];
+		if (!ladder) return;
+		if (range && anchor.current) {
+			setSelected(selectLadderRange(ladder, anchor.current, nodeId));
+		} else {
+			anchor.current = nodeId;
+			setSelected((current) => {
+				const next = new Set(current);
+				if (next.has(nodeId)) next.delete(nodeId);
+				else next.add(nodeId);
+				return next;
+			});
+		}
+	};
+
+	const addTier = async () => {
+		const ladder = laddersRef.current?.[root];
+		if (!ladder || busy.current) return;
+		busy.current = true;
+		setSaving(true);
+		setError(undefined);
+		try {
+			const response = await fetch('/api/v1/nodes', {
+				method: 'POST',
+				headers: {'content-type': 'application/json'},
+				body: JSON.stringify({
+					parent_id: ladder.bucketId,
+					name: tierLabel((ladder.tiers.at(-1)?.tier ?? 0) + 1),
+					position: 0,
+				}),
+			});
+			if (!response.ok) throw new Error(`Could not add a tier: ${response.status}`);
+			setNeedsReload(true);
+			const refreshed = await fetch('/api/v1/ladder');
+			if (!refreshed.ok)
+				throw new Error(
+					`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`,
+				);
+			const body = (await refreshed.json()) as {ladders: Ladders};
+			laddersRef.current = body.ladders;
+			setLadders(body.ladders);
+			setNeedsReload(false);
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : String(cause));
+		} finally {
+			busy.current = false;
+			setSaving(false);
+		}
+	};
 
 	const roots = useMemo(() => Object.keys(ladders ?? {}), [ladders]);
 	const ladder = ladders?.[root];
@@ -189,6 +280,9 @@ export function LadderView() {
 					</p>
 				</header>
 
+				<p className="ladder-dek">
+					Select rows to move together; shift-click selects a range. Moves and Done save immediately.
+				</p>
 				{error ? <div className="ladder-error">{error}</div> : null}
 
 				<nav className="ladder-rootnav">
@@ -196,7 +290,12 @@ export function LadderView() {
 						<button
 							aria-selected={name === root}
 							key={name}
-							onClick={() => setRoot(name)}
+							disabled={saving}
+							onClick={() => {
+								setRoot(name);
+								setSelected(new Set());
+								anchor.current = undefined;
+							}}
 							type="button"
 						>
 							{name}
@@ -218,10 +317,20 @@ export function LadderView() {
 								onGripMove={onGripMove}
 								onGripUp={onGripUp}
 								pending={pending}
+								selected={selected}
+								onSelect={select}
+								saving={saving}
 								tier={tier}
 								dragging={dragging}
 							/>
 						))}
+						<button
+							type="button"
+							disabled={saving || needsReload}
+							onClick={() => void addTier()}
+						>
+							Add bottom tier
+						</button>
 					</div>
 				) : (
 					<p className="ladder-dek">{error ? 'Could not load the ladder.' : 'Loading…'}</p>
@@ -244,6 +353,9 @@ interface TierProps {
 	dragging: string | undefined;
 	dropping: boolean;
 	pending: Set<string>;
+	selected: Set<string>;
+	onSelect: (nodeId: string, range: boolean) => void;
+	saving: boolean;
 	/** Neighbouring tier labels, so the step buttons know where up and down are. */
 	previousTier: string | undefined;
 	nextTier: string | undefined;
@@ -259,6 +371,9 @@ function Tier({
 	dragging,
 	dropping,
 	pending,
+	selected,
+	onSelect,
+	saving,
 	previousTier,
 	nextTier,
 	onComplete,
@@ -294,6 +409,7 @@ function Tier({
 					<div
 						className={[
 							'ladder-row',
+							selected.has(item.id) ? 'selected' : '',
 							dragging === item.id ? 'dragging' : '',
 							pending.has(item.id) ? 'pending' : '',
 							index >= tier.capacity ? 'excess' : '',
@@ -312,12 +428,21 @@ function Tier({
 						>
 							&#10303;
 						</span>
+						<button
+							type="button"
+							aria-label={`Select ${item.name}`}
+							aria-pressed={selected.has(item.id)}
+							disabled={saving}
+							onClick={(event) => onSelect(item.id, event.shiftKey)}
+						>
+							{selected.has(item.id) ? '☑' : '☐'}
+						</button>
 						<span className="rank">{index + 1}</span>
 						<span className="txt">{item.name}</span>
 						<span className="step">
 							<button
 								aria-label={`Move to ${previousTier ?? 'the tier above'}`}
-								disabled={!previousTier}
+								disabled={saving || !previousTier}
 								onClick={() => previousTier && onStep(item.id, previousTier)}
 								type="button"
 							>
@@ -325,7 +450,7 @@ function Tier({
 							</button>
 							<button
 								aria-label={`Move to ${nextTier ?? 'the tier below'}`}
-								disabled={!nextTier}
+								disabled={saving || !nextTier}
 								onClick={() => nextTier && onStep(item.id, nextTier)}
 								type="button"
 							>
@@ -334,6 +459,7 @@ function Tier({
 						</span>
 						<button
 							className="done"
+							disabled={saving}
 							onClick={() => onComplete(item.id)}
 							type="button"
 						>

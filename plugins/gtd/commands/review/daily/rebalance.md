@@ -6,7 +6,7 @@ description: Rebalance both 📌 asap ladders — surface tiers 1-2 as today's g
 
 Read each root's `📌 Tasks (asap)` ladder and bring it back into shape. The demotion cascade in `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md` only fires when something is **inserted** into a full tier; a ladder that has already drifted over cap stays over cap until this phase reads it. This is the phase where the user reranks.
 
-**Every action here is a proposal the user confirms.** Push-downs, pull-ups, and the split that extends the ladder are chosen in the HTML ladder page and applied only for the items in the user's submitted arrangement. An explicit instruction to apply saved arrangements authorizes the polling loop below to execute the user's page choices as they arrive. Nothing is demoted, promoted, or moved on its own, and no item is ever chosen because of where it sits in the tier -- ranking inside a tier is the user's judgment, not a position.
+**Every action here is chosen by the user.** Push-downs, pull-ups, completions, and the split that extends the ladder are chosen in the ladder page. The local app applies each gesture immediately; the HTML fallback submits an arrangement for validated application. An explicit instruction to apply saved arrangements authorizes the polling loop below to execute the user's page choices as they arrive. Nothing is demoted, promoted, or moved on its own, and no item is ever chosen because of where it sits in the tier -- ranking inside a tier is the user's judgment, not a position.
 
 Scope is **both** roots linked from `Metadata > ☑️ Next Actions` -- Work and Personal -- discovered by link resolution, never hardcoded.
 
@@ -53,17 +53,31 @@ Tiers `1st` and `2nd` are the goals for the day. Print them for both roots befor
 
 Strip HTML for display and render embedded links as markdown. Do not ask whether to work on these; the review is orientation, not execution.
 
-## Use the HTML page for every rebalance
+## Use the local ladder page for every rebalance
 
-Generate and publish the complete page for both ladders whenever there is work to rebalance, regardless of tier size or candidate count. The page is the sole surface for choosing push-downs, pull-ups, and extensions. Do not present ranking choices through `AskUserQuestion`, chat lists, or a text walkthrough. Reserve `AskUserQuestion` for single-item confirmations of an already chosen action when authorization is still needed; never use it to choose which items move or stay.
+Follow **Choose the presentation surface** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. Use the existing local web app first:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs \
+node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs
+```
+
+Open the printed `/ladder` URL. `REBALANCE_WEB_APP_URL=http://localhost:5175` selects a local dev server; `--output .llm/gtd/review/rebalance.html` generates a small launcher without exporting task names. The route is built from checked-in React source with `vp run --filter @workflowy/web build`. Preserve its root tabs, range selection, touch handles, tier buttons, per-row Done and immediate persistence.
+
+The app applies the user's gestures through local API endpoints immediately. Do not run the Artifact apply loop or replay those writes with the CLI. Observe `/api/v1/ladder/events` and refresh `/api/v1/ladder` plus the live bucket exports to verify outcomes. A disconnected event stream or successful click is not verification. Record only verified changes; report failed requests by item and let the user retry. Adding a tier uses the existing node-create endpoint and refreshes the ladder before it becomes a move target. No task data is uploaded to claude.ai.
+
+If the app is unavailable, report the concrete connection or startup failure and use the fallback below. Artifact requires working `db` and `read_db`; otherwise keep the generated HTML local and accept its JSON through the same validation flow. Do not publish private ladders merely because the local app needs starting.
+
+## Generate a fallback HTML page
+
+Generate the complete fallback page for both ladders whenever there is work to rebalance, regardless of tier size or candidate count. The page is the sole surface for choosing push-downs, pull-ups, and extensions. Do not present ranking choices through `AskUserQuestion`, chat lists, or a text walkthrough. Reserve `AskUserQuestion` for single-item confirmations of an already chosen action when authorization is still needed; never use it to choose which items move or stay.
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs --html \
   .llm/gtd/review/ladder-work.json .llm/gtd/review/ladder-personal.json \
   --output .llm/gtd/review/rebalance.html
 ```
 
-Publish the printed HTML path as an artifact. Preserve the checked-in Queue layout and root tabs. The page supports touch handles, tier step buttons, added bottom tiers, local drafts and Revert all. Each edit autosaves the desired arrangement to artifact db `rebalance/submission`. If artifact storage is unavailable, the page shows copyable JSON; use that same JSON as the submission. No local server is required. If the HTML cannot be generated, published, or opened, report the concrete command or tool failure and pause ranking until the page is available. Do not substitute text ranking questions. Copyable JSON is only transport for choices already made in the page.
+For the Artifact fallback, publish the printed HTML path only after confirming the required database capabilities work. For the static fallback, open that file locally. Preserve the checked-in Queue layout and root tabs. The page supports touch handles, tier step buttons, added bottom tiers, local drafts and Revert all. Each edit autosaves the desired arrangement to artifact db `rebalance/submission`. If artifact storage is unavailable, the page shows copyable JSON; use that same JSON as the submission. No local server is required. If the HTML cannot be generated, published, or opened, report the concrete command or tool failure and pause ranking until the page is available. Do not substitute text ranking questions. Copyable JSON is only transport for choices already made in the page.
 
 ### Poll saved arrangements
 

@@ -423,7 +423,7 @@ test('CLI generates a static page and emits creates before moves across both roo
 		const page = join(directory, 'page.html');
 		const script = new URL('./rebalance-ui.mjs', import.meta.url).pathname;
 		assert.equal(
-			execFileSync(process.execPath, [script, ...paths, '--output', page], {encoding: 'utf8'}),
+			execFileSync(process.execPath, [script, '--html', ...paths, '--output', page], {encoding: 'utf8'}),
 			page + '\n',
 		);
 		const html = readFileSync(page, 'utf8');
@@ -797,4 +797,15 @@ test('generated Queue keeps the range anchor and autosaves ordered group drag, n
 	expected.payload.completed = ['d-id'];
 	assert.deepStrictEqual(saved(), expected);
 	assert.equal(page.writes.length, 3);
+});
+
+test('CLI defaults to the local web app without exporting task data', () => {
+	const script = new URL('./rebalance-ui.mjs', import.meta.url).pathname;
+	assert.equal(
+		execFileSync(process.execPath, [script], {
+			encoding: 'utf8',
+			env: {...process.env, REBALANCE_WEB_APP_URL: 'http://localhost:5175'},
+		}),
+		'http://localhost:5175/ladder\n',
+	);
 });

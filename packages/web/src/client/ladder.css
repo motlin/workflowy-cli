@@ -456,3 +456,8 @@
 		padding: 8px 10px;
 	}
 }
+
+.ladder-row.selected {
+	outline: 2px solid var(--accent, #3b6ea5);
+	outline-offset: -2px;
+}
