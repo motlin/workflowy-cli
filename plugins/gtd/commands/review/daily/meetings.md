@@ -150,6 +150,10 @@ Record on each candidate either `existingMatch: null` or a single best match `{i
 
 ### Step 8: Confirm each candidate
 
+Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `filed`, `journaled`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
+
+Before each question, refresh its match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added` and `filed` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
+
 Present candidates one at a time using AskUserQuestion. The user does not read the scrolling console, so everything needed to decide goes **inside** the question body: the description, the source meeting (as a clickable link), the Step 6 reasoning, and the Step 7 match result.
 
 State the match result explicitly on every question — never omit it:
@@ -158,15 +162,15 @@ State the match result explicitly on every question — never omit it:
 - **No existing task matched.**
 - **Existing-task check unavailable** — only when the Step 7 script failed
 
-Offer **four** options:
+Offer these options, omitting filing when no eligible target exists:
 
 - **Add to inbox** — create a new inbox node in Step 9
-- **File on existing task** — add the meeting as context under the matched task in Step 9 instead of creating a duplicate inbox item. Offer this option only when Step 7 found a match, and name the matched task in the option label so it is identifiable.
-    - When looking for a match, the target is often another item from the **same meeting**, not only an existing task on the same topic. Two candidates from one meeting are usually one to-do and the same topic; sharing a meeting is a strong hint they belong together. So treat a candidate from the same meeting that the user already accepted earlier in this walk as a match candidate too, and offer it in the option label the same way (e.g. `File on "<earlier item from this meeting>"`) so the walk combines them instead of filing two inbox items.
+- **File on existing task** — add the meeting as context under an eligible matched task in Step 9 instead of creating a duplicate inbox item. Name the verified task in the option label so it is identifiable.
+    - An earlier follow-up from the **same meeting** can be a match when its outcome is `added` or `filed` and its task destination is verified. Shared meeting context is a matching hint, never proof that a task exists or that the user accepted it.
 - **Already did it — journal it** — the user completed the follow-up between the meeting and now. Step 9 writes it as a journal entry to `Work > 📅 Calendar` under the **meeting date**, never to the Inbox. Name the calendar in the option label (e.g. `Already did it — journal to Work > 📅 Calendar`) so the destination is visible before the user confirms.
 - **Skip** — drop it, whether it's noise or not the user's. This command records nothing on skip. Already-done is split out from Skip because it has a different **destination** (a dated calendar entry), not merely a different label — a skipped item leaves no trace, a done item becomes journal.
 
-- Batch into multiple questions per AskUserQuestion call if needed.
+- Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `filed`, or `journaled`. On a write or verification failure, set `failed` and stop without advancing the watermark.
 - Never auto-add — every item needs explicit confirmation, including the "file on existing task" path.
 
 ### Step 9: Record confirmed items
@@ -209,7 +213,7 @@ Alongside the provenance child, add **one child bullet per distinct point the us
 
 #### Branch B — File on the existing task
 
-Add the meeting as a child of the task the candidate matched in Step 7:
+Add the meeting as a child of the verified task offered and selected in Step 8, whether it was a pre-existing task or an earlier recorded follow-up. Recheck eligibility and existence before writing; if the selected destination is no longer valid, explain and ask for a new destination rather than substituting another task:
 
 ```bash
 ./bin/run.js node create --parent-id <existing-task-id> --name 'From: <a href="https://otter.ai/u/<otid>">Meeting name</a> <time>...</time> — <one line of what the meeting added>'
