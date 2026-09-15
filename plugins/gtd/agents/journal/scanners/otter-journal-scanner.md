@@ -125,6 +125,16 @@ Parse response for:
 - `last_load_ts` - cursor for next page
 - `end_of_list` - true when no more pages
 
+## Preflight calendar-derived titles
+
+Before any create or state write for a page, deduplicate its candidates using the cursor, in-session guard, and URL checks below, then compare every ready candidate's calendar-derived title with its Overview (`summary`) and available transcript-derived outline. Calendar overlap is not attendance evidence: a skipped event can lend its title to a different recording.
+
+Check both the subject and named attendees against the recording. Names mentioned in passing do not establish attendance, and missing names in a short summary do not establish absence. Use transcript/speaker evidence when available; flag missing or ambiguous evidence as uncertain. Do not accept a title solely because it matches the calendar.
+
+If any candidate mismatches or remains uncertain, stop before creating any entries on that page. Return review flags containing the original title, date, Otter URL/otid, and a concise evidence-based reason. **Never create the flagged entry untitled or automatically retitle it.** Keep full transcript content out of logs and the review summary. Preserve any verified creates and saved state from earlier pages, but make no state update for this held page: do not move its cursor, session start, or last-synced boundary past unresolved recordings. On a rerun, the held page must be reconsidered rather than silently treated as synced.
+
+In Auto, return the flags to `otter-journal-auto` for an error briefing; do not prompt. In manual mode, report that review is required before proceeding. In `stage` mode, emit `status: "error"` with the flags, no create operations for the held page, and no `scannerState` while a flag remains unresolved. Do not log a flagged candidate as created or add it to the created-this-session guard. Existing entries remain untouched.
+
 ## Process Meetings
 
 For each meeting in page (process oldest first to maintain calendar order):
@@ -228,7 +238,7 @@ echo "<otid>" >> .llm/gtd/journal/logs/otter-created-this-session.txt
 
 ## Save State
 
-After processing each page, update state.
+After processing each page that passed title preflight, update state. A page held for title review must not reach this step, even when it is the final page.
 
 **In `stage` mode, skip the live state write entirely.** Make no `node update` / `node create` on the state node. Compute the same state object and emit it as the top-level `scannerState` field of the staged proposal (see **Staging Mode**); the former apply step persisted it only after the entries were created.
 
