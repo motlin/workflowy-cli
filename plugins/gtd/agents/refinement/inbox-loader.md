@@ -28,10 +28,14 @@ Execute the CLI command:
 The command outputs a JSON summary:
 
 ```json
-{"loadedAt": "...", "inboxCount": 3, "itemCount": 135}
+{"loadedAt": "...", "inboxCount": 3, "itemCount": 135, "unregisteredInboxes": []}
 ```
 
 And writes `.llm/gtd-inboxes.json` with the full inbox data including children.
+
+The command also searches the entire local cache, without a depth or result limit, for nodes whose visible name is exactly `Inbox` or `📥 Inbox`. It compares their IDs with the registered inbox targets and link nodes under Metadata > 📥 Inboxes (the registry exported as `.llm/gtd/metadata/inboxes.json`). It resolves the registry directly, so a parallel metadata-sync cannot leave this check reading a stale or partially written file. Coverage reflects the local cache; do not claim a live full-tree audit when the cache is stale or incomplete.
+
+Surface every `unregisteredInboxes` entry from the command summary to the user as a warning, including its full path and ID, and preserve the array in the status wrapper. An empty array means no unregistered inboxes were found in the cache. A nested inbox must be surfaced even when another inbox with the same name is already registered. These warnings do not authorize registration, deletion, moving items, or triaging the unregistered inbox; keep its items out of the refinement snapshot. Do not revive a previously declined duplicate-root-inbox fix.
 
 Return a status wrapper:
 
@@ -39,6 +43,7 @@ Return a status wrapper:
 {
 	"status": "success",
 	"itemCount": 135,
+	"unregisteredInboxes": [],
 	"outputFile": ".llm/gtd-inboxes.json"
 }
 ```

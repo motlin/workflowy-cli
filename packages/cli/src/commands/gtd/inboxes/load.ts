@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createDatabase} from '../../../db/index.js';
 import {CacheService} from '../../../services/cache.js';
+import {findUnregisteredInboxes} from '../../../services/unregistered-inboxes.js';
 
 interface InboxItem {
 	id: string;
@@ -21,6 +22,7 @@ interface Inbox {
 }
 
 interface InboxesOutput {
+	unregisteredInboxes: {id: string; name: string; path: string}[];
 	loadedAt: string;
 	inboxes: Inbox[];
 	itemCount: number;
@@ -138,10 +140,19 @@ export default class Load extends Command {
 			});
 		}
 
+		const registeredIds = new Set(inboxes.flatMap((inbox) => [inbox.id, inbox.linkId]));
+		const unregisteredInboxes = await findUnregisteredInboxes(database, registeredIds);
+		for (const inbox of unregisteredInboxes) {
+			this.warn(
+				`Unregistered inbox: ${inbox.path} (${inbox.id}); absent from Metadata > 📥 Inboxes and excluded from triage.`,
+			);
+		}
+
 		const itemCount = inboxes.reduce((sum, inbox) => sum + inbox.items.length, 0);
 
 		const output: InboxesOutput = {
 			loadedAt: timestamp,
+			unregisteredInboxes,
 			inboxes,
 			itemCount,
 		};
@@ -152,6 +163,7 @@ export default class Load extends Command {
 		// Output summary for the agent
 		const summary = {
 			loadedAt: output.loadedAt,
+			unregisteredInboxes,
 			inboxCount: output.inboxes.length,
 			itemCount: output.itemCount,
 		};
