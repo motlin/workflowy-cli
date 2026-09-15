@@ -115,3 +115,24 @@ export function ladderMoveSelection(ladder: Ladder, selected: Set<string>, nodeI
 		? ladder.tiers.flatMap((tier) => tier.items.filter((item) => selected.has(item.id)).map((item) => item.id))
 		: [nodeId];
 }
+
+/** Restore only the failed row, preserving writes received for other rows. */
+export function restoreRow(current: Ladders, before: Ladders, nodeId: string): Ladders {
+	const root = Object.keys(before).find((name) => tierOf(before, name, nodeId));
+	if (!root || !current[root]) return current;
+	const origin = before[root].tiers.find((tier) => tier.items.some((item) => item.id === nodeId))!;
+	const index = origin.items.findIndex((item) => item.id === nodeId);
+	const without = removeRow(current, nodeId);
+	return {
+		...without,
+		[root]: {
+			...without[root],
+			tiers: without[root].tiers.map((tier) => {
+				if (tier.id !== origin.id) return tier;
+				const items = [...tier.items];
+				items.splice(index, 0, origin.items[index]);
+				return withItems(tier, items);
+			}),
+		},
+	};
+}

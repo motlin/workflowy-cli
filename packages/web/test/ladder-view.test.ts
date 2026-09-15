@@ -1,8 +1,9 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ReactElement, ReactNode} from 'react';
+import type {Ladders} from '../src/client/ladder-state.js';
 import {LadderView} from '../src/client/components/ladder-view.js';
 
-const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0}));
+const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0, effects: [] as (() => unknown)[]}));
 vi.mock('react', () => ({
 	useState(initial: unknown) {
 		const index = hooks.cursor++;
@@ -19,7 +20,9 @@ vi.mock('react', () => ({
 		if (!(index in hooks.values)) hooks.values[index] = {current: initial};
 		return hooks.values[index];
 	},
-	useEffect() {},
+	useEffect(callback: () => unknown) {
+		hooks.effects.push(callback);
+	},
 	useMemo: (callback: () => unknown) => callback(),
 	useCallback: (callback: unknown) => callback,
 }));
@@ -46,6 +49,7 @@ function tierProps() {
 		onSelect: (id: string, range: boolean) => void;
 		onStep: (id: string, label: string) => void;
 		onComplete: (id: string) => void;
+		rowErrors: Record<string, string>;
 	};
 }
 
@@ -65,7 +69,23 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 beforeEach(() => {
 	hooks.values = [ladders()];
-	request.mockReset().mockResolvedValue({ok: true});
+	hooks.effects = [];
+	request.mockReset().mockImplementation(async (path: string, options: {body: string}) => {
+		const body = JSON.parse(options.body);
+		return {
+			ok: true,
+			json: async () => ({
+				event: {
+					nodeId: body.node_id,
+					verb: path.endsWith('complete') ? 'complete' : 'move',
+					name: body.node_id,
+					fromTier: '1st',
+					toTier: body.to_tier ?? null,
+					at: '2000-01-01T00:00:00.000Z',
+				},
+			}),
+		};
+	});
 	vi.stubGlobal('fetch', request);
 });
 
@@ -128,6 +148,123 @@ describe('local ladder actions', () => {
 				},
 			],
 		]);
+	});
+
+	it('reconciles an optimistic move with the returned event', async () => {
+		let respond!: (value: unknown) => void;
+		request.mockReturnValue(
+			new Promise((resolve) => {
+				respond = resolve;
+			}),
+		);
+		tierProps().onStep('alice', '2nd');
+		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
+			[item('bob')],
+			[item('alice')],
+		]);
+		respond({
+			ok: true,
+			json: async () => ({
+				event: {
+					nodeId: 'alice',
+					verb: 'move',
+					name: 'alice',
+					fromTier: '2nd',
+					toTier: '1st',
+					at: '2000-01-01T00:00:00.000Z',
+				},
+			}),
+		});
+		await settle();
+		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
+			[item('bob'), item('alice')],
+			[],
+		]);
+	});
+
+	it('restores a failed Done row without undoing another socket write and clears its error on retry', async () => {
+		let reject!: (reason: Error) => void;
+		request.mockReturnValueOnce(
+			new Promise((_resolve, rejectRequest) => {
+				reject = rejectRequest;
+			}),
+		);
+		const listeners: Record<string, (message: {data: string}) => void> = {};
+		vi.stubGlobal('location', {protocol: 'http:', host: 'example.com'});
+		vi.stubGlobal(
+			'WebSocket',
+			class {
+				addEventListener(name: string, callback: (message: {data: string}) => void) {
+					listeners[name] = callback;
+				}
+			},
+		);
+		const actions = tierProps();
+		hooks.effects[1]();
+		actions.onComplete('alice');
+		listeners.message({
+			data: JSON.stringify({
+				nodeId: 'bob',
+				verb: 'move',
+				name: 'bob',
+				fromTier: '1st',
+				toTier: '2nd',
+				at: '2000-01-01T00:00:00.000Z',
+			}),
+		});
+		reject(new Error('Test connection failed'));
+		await settle();
+		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
+			[item('alice')],
+			[item('bob')],
+		]);
+		expect(tierProps().rowErrors).toStrictEqual({alice: 'Test connection failed'});
+		tierProps().onComplete('alice');
+		await settle();
+		expect(tierProps().rowErrors).toStrictEqual({});
+		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
+			[],
+			[item('bob')],
+		]);
+	});
+
+	it('keeps a socket-confirmed completion when its HTTP response is lost', async () => {
+		let reject!: (reason: Error) => void;
+		request.mockReturnValueOnce(
+			new Promise((_resolve, rejectRequest) => {
+				reject = rejectRequest;
+			}),
+		);
+		const listeners: Record<string, (message: {data: string}) => void> = {};
+		vi.stubGlobal('location', {protocol: 'http:', host: 'example.com'});
+		vi.stubGlobal(
+			'WebSocket',
+			class {
+				addEventListener(name: string, callback: (message: {data: string}) => void) {
+					listeners[name] = callback;
+				}
+			},
+		);
+		const actions = tierProps();
+		hooks.effects[1]();
+		actions.onComplete('alice');
+		listeners.message({
+			data: JSON.stringify({
+				nodeId: 'alice',
+				verb: 'complete',
+				name: 'alice',
+				fromTier: '1st',
+				toTier: null,
+				at: '2000-01-01T00:00:00.000Z',
+			}),
+		});
+		reject(new Error('Test response lost'));
+		await settle();
+		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
+			[item('bob')],
+			[],
+		]);
+		expect(tierProps().rowErrors).toStrictEqual({});
 	});
 
 	it('creates the next ordinal under the displayed bucket and refreshes the page', async () => {

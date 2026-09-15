@@ -461,3 +461,9 @@
 	outline: 2px solid var(--accent, #3b6ea5);
 	outline-offset: -2px;
 }
+
+.ladder-row-error {
+	display: block;
+	color: #b42318;
+	font-size: 0.85rem;
+}

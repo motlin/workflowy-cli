@@ -18,6 +18,7 @@ import {
 	ladderMoveSelection,
 	moveWithin,
 	removeRow,
+	restoreRow,
 	selectLadderRange,
 	tierOf,
 } from '../ladder-state.js';
@@ -34,6 +35,7 @@ export function LadderView() {
 	const [ladders, setLadders] = useState<Ladders>();
 	const [root, setRoot] = useState('personal');
 	const [error, setError] = useState<string>();
+	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [live, setLive] = useState(false);
 	const [dragging, setDragging] = useState<string>();
 	const [dropTier, setDropTier] = useState<string>();
@@ -43,8 +45,14 @@ export function LadderView() {
 	const [saving, setSaving] = useState(false);
 	const [needsReload, setNeedsReload] = useState(false);
 	const [pending, setPending] = useState<Set<string>>(new Set());
+	const receivedWrites = useRef(new Map<string, LadderEvent>());
 	const laddersRef = useRef<Ladders | undefined>(undefined);
 	laddersRef.current = ladders;
+	const updateLadders = useCallback((update: (current: Ladders) => Ladders) => {
+		if (!laddersRef.current) return;
+		laddersRef.current = update(laddersRef.current);
+		setLadders(laddersRef.current);
+	}, []);
 
 	useEffect(() => {
 		void (async () => {
@@ -69,10 +77,11 @@ export function LadderView() {
 		socket.addEventListener('close', () => setLive(false));
 		socket.addEventListener('message', (message: MessageEvent<string>) => {
 			const event = JSON.parse(message.data) as LadderEvent;
-			setLadders((current) => (current ? applyLadderEvent(current, event) : current));
+			receivedWrites.current.set(event.nodeId, event);
+			updateLadders((current) => applyLadderEvent(current, event));
 		});
 		return () => socket.close();
-	}, []);
+	}, [updateLadders]);
 
 	const write = useCallback(
 		async (path: string, body: Record<string, string>, optimistic: (current: Ladders) => Ladders) => {
@@ -81,9 +90,13 @@ export function LadderView() {
 				return;
 			}
 			const nodeId = body.node_id;
-			setError(undefined);
-			laddersRef.current = optimistic(before);
-			setLadders(laddersRef.current);
+			const lastReceived = receivedWrites.current.get(nodeId);
+			setRowErrors((current) => {
+				const next = {...current};
+				delete next[nodeId];
+				return next;
+			});
+			updateLadders(optimistic);
 			setPending((current) => new Set(current).add(nodeId));
 			try {
 				const response = await fetch(path, {
@@ -95,13 +108,19 @@ export function LadderView() {
 					const failure = (await response.json()) as {error?: string};
 					throw new Error(failure.error ?? `write failed: ${response.status}`);
 				}
+				const {event} = (await response.json()) as {event: LadderEvent};
+				if (receivedWrites.current.get(nodeId) === lastReceived) {
+					updateLadders((current) => applyLadderEvent(current, event));
+				}
 				return true;
 			} catch (cause) {
-				// Put the row back where it was; a ladder that lies is worse than one
-				// that refuses.
-				laddersRef.current = before;
-				setLadders(before);
-				setError(cause instanceof Error ? cause.message : String(cause));
+				// A received write is authoritative even if its HTTP response was lost.
+				if (receivedWrites.current.get(nodeId) !== lastReceived) return true;
+				updateLadders((current) => restoreRow(current, before, nodeId));
+				setRowErrors((current) => ({
+					...current,
+					[nodeId]: cause instanceof Error ? cause.message : String(cause),
+				}));
 				return false;
 			} finally {
 				setPending((current) => {
@@ -111,7 +130,7 @@ export function LadderView() {
 				});
 			}
 		},
-		[],
+		[updateLadders],
 	);
 
 	const move = useCallback(
@@ -276,7 +295,9 @@ export function LadderView() {
 						className="ladder-live"
 						data-live={live ? 'on' : 'off'}
 					>
-						{live ? 'Live — every write is broadcast as it lands' : 'Reconnecting to the write stream'}
+						{live
+							? 'Live — every write is broadcast as it lands'
+							: 'Write stream disconnected — reload to reconnect'}
 					</p>
 				</header>
 
@@ -317,6 +338,7 @@ export function LadderView() {
 								onGripMove={onGripMove}
 								onGripUp={onGripUp}
 								pending={pending}
+								rowErrors={rowErrors}
 								selected={selected}
 								onSelect={select}
 								saving={saving}
@@ -353,6 +375,7 @@ interface TierProps {
 	dragging: string | undefined;
 	dropping: boolean;
 	pending: Set<string>;
+	rowErrors: Record<string, string>;
 	selected: Set<string>;
 	onSelect: (nodeId: string, range: boolean) => void;
 	saving: boolean;
@@ -371,6 +394,7 @@ function Tier({
 	dragging,
 	dropping,
 	pending,
+	rowErrors,
 	selected,
 	onSelect,
 	saving,
@@ -438,7 +462,17 @@ function Tier({
 							{selected.has(item.id) ? '☑' : '☐'}
 						</button>
 						<span className="rank">{index + 1}</span>
-						<span className="txt">{item.name}</span>
+						<span className="txt">
+							{item.name}
+							{rowErrors[item.id] ? (
+								<span
+									className="ladder-row-error"
+									role="alert"
+								>
+									{rowErrors[item.id]} — retry this row.
+								</span>
+							) : null}
+						</span>
 						<span className="step">
 							<button
 								aria-label={`Move to ${previousTier ?? 'the tier above'}`}
