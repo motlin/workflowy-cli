@@ -102,11 +102,13 @@ Detect it with the `mirror` field. The recurring segment's tree fetch already as
 
 A freeform answer is a **note**, **continued work**, or **retire**, and they end very differently:
 
-- **Note** — a remark to record and move past ("went well", "waiting on the vendor"). File it as a child node, **dispatched in the background** as a separate job from the outcome write, treat the item as handled, and continue.
+- **Note** — a remark to record and move past ("went well", "the vendor replied"). File it as a child node, **dispatched in the background** as a separate job from the outcome write, treat the item as handled, and continue.
 - **Continued work** — an instruction, a correction, new information, or a request to keep going on this item ("I plugged in another drive, go inventory it", "that is wrong, redo it"). Stay on the item and do the work. Do **not** write the outcome and do **not** present the next item.
 - **Retire** — an explicit statement that a recurring item should no longer exist. Follow the recurring walk's retire operation, do **not** advance its date, count it as retired, and continue. This class does not apply to one-shot due items; use their **Drop** outcome instead.
 
-When continued work is in progress, only an explicit "done" or "skip" ends the item. Silence, a completed sub-task, or your own sense that the work looks finished never earns the write. When the answer is genuinely ambiguous, treat it as continued work — resuming a finished item is cheap; recording completion on unfinished work hides it for a whole interval.
+An explicit external handoff ("I submitted the claim; now we wait for their response") selects **Waiting on someone else** below, not Note or Done.
+
+When continued work is in progress, only an explicit outcome from the user ends the item. Silence, a completed sub-task, or your own sense that the work looks finished never earns the write. When the answer is genuinely ambiguous, treat it as continued work — resuming a finished item is cheap; recording completion on unfinished work hides it for a whole interval.
 
 ## Read the subtree before writing
 
@@ -160,6 +162,19 @@ For a due row with `duplicateCopies`, show the Workflowy survivor and each exter
 This outcome is `dropDuplicate`. Run only the approved external copies' staged `ops.drop`: Things is canceled, and Reminders is deleted through the segment's batched write. Preserve the Workflowy node, its completion state, date, and placement exactly. This outcome neither completes nor reschedules it and never runs its `ops.complete`, `ops.reschedule`, or `ops.drop`.
 
 Verify Things reports `canceled` or `reminders_fetch` no longer lists the approved reminder, and read back the survivor to confirm it remains live and unchanged. Only after verification, record `dropDuplicate` against **both** the surviving `workflowy:<id>` key and each successfully removed external copy's key. This resets the survivor's skip streak while leaving its task live for the next run. Pending or failed deletion is not a handled survivor: surface the failure and do not write a successful record for it. Do not ask about the survivor again in this run after successful removal.
+
+## Waiting on someone else
+
+Offer **Waiting on someone else** on every one-shot due row, including Workflowy, Things, and Reminders. Use it when the user has finished their part but the outcome depends on an external party: a submitted claim, a filed request, or a sent question. Say plainly that handing work to an external party is **Waiting on someone else**, not **Done**; the follow-up stays incomplete.
+
+Ask when to check back. If the item or its fetched subtree records a typical turnaround, show that evidence and recommend that horizon; otherwise ask for the horizon without inventing a default. Resolve the chosen date with the date helpers in `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs`, and build its `<time>` with `buildTimeElement(iso)` from that module. Replace the previous due `<time>` with the check-back stamp appended to the title, preserving the rest of the title, notes, and children. Preserve any genuine external deadline in the item's context so the check-back date cannot erase that obligation.
+
+Resolve the matching root's direct **📤 Delegate** child from the staged `root-<work|personal>.json`; it is a sibling of `✅ Tasks`, not a bucket inside it. Confirm the destination is a real node, not a mirror. Workflowy rows keep their `rootKey`; external rows default to Personal, offering Work when the item concerns work. If the destination is absent or ambiguous, resolve it before writing rather than guessing an ID or creating a second Delegate node.
+
+- **Workflowy** — move the existing incomplete node under that Delegate UUID and update its title with the check-back stamp. Keep its subtree intact; do not run `ops.complete` or create a second task.
+- **Things and Reminders** — create the incomplete follow-up under that Delegate UUID, preserving the source's notes and other task context and appending the check-back stamp. Verify the new node and its context before removing the external copy with its staged `ops.drop`. Things is canceled; Reminders deletion joins the existing batch. Never complete the source as though the external outcome had arrived, and never remove it if creation or verification fails.
+
+Read back the Workflowy node to verify its parent, check-back date, incomplete state, and preserved context. For an external source, also verify its removal (Things `canceled`, or absence from `reminders_fetch`); pending batch deletion is not a successful migration. Only then record the distinct outcome `waiting` under the original row's skip-log key, resetting its skip streak, and count it separately from Done. On failure, report the item and leave it unhandled. `overview.md` already surfaces **📤 Delegate** every morning; do not create a second reminder or alarm for this outcome.
 
 ## Move to Workflowy
 
@@ -223,7 +238,7 @@ On skip, write nothing. The item keeps its date and resurfaces on the next run. 
 Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|dropDuplicate|drop>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|waiting|dropDuplicate|drop>
 ```
 
 The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.
