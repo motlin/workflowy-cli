@@ -564,17 +564,7 @@ test('Queue collects and restores a draft with a ninth tier and resets to the so
 	assert.deepStrictEqual(reset, {roots: {work: arrangement(model)}, completed: []});
 });
 
-test('generated Queue highlights empty tier 6 and accepts a pointer drag from tier 5', () => {
-	const model = buildLadderModel(
-		'work',
-		bucket('w', [
-			['5th', ['a']],
-			['6th', []],
-		]),
-	);
-	const html = renderFromTemplate([model]);
-	assert.match(html, /\.zone\s*\{\s*min-height: 44px;/);
-	assert.match(html, /\.zone\.drag-over\s*\{\s*background: var\(--accent-soft\);/);
+function runQueuePage(html) {
 	const nodes = [];
 	function element() {
 		const node = {
@@ -610,8 +600,8 @@ test('generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 				this.children = [];
 				this.html = value;
 			},
-			closest() {
-				return this;
+			closest(selector) {
+				return selector === 'a,button,.grip' ? null : this;
 			},
 		};
 		node.classList = {
@@ -631,11 +621,29 @@ test('generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 	}
 	const elements = new Map();
 	let target;
+	let pendingSave;
+	const writes = [];
 	const context = {
 		localStorage: {getItem: () => null, setItem() {}},
-		setTimeout() {},
+		setTimeout(callback) {
+			pendingSave = callback;
+			return 1;
+		},
 		clearTimeout() {},
 		window: {innerHeight: 1000},
+		claude: {
+			async use() {
+				return {
+					doc(path) {
+						return {
+							async set(payload) {
+								writes.push({path, payload: JSON.parse(JSON.stringify(payload))});
+							},
+						};
+					},
+				};
+			},
+		},
 		document: {
 			createElement: element,
 			getElementById(id) {
@@ -657,6 +665,31 @@ test('generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 		script.replace(/\n\s*render\(\);\n\s*\}\)\(\);/, '\nrender(); globalThis.queue = {collect};\n})();'),
 		context,
 	);
+	return {
+		elements,
+		context,
+		writes,
+		setTarget: (value) => {
+			target = value;
+		},
+		async flushSave() {
+			await pendingSave();
+		},
+	};
+}
+
+test('generated Queue highlights empty tier 6 and accepts a pointer drag from tier 5', () => {
+	const model = buildLadderModel(
+		'work',
+		bucket('w', [
+			['5th', ['a']],
+			['6th', []],
+		]),
+	);
+	const html = renderFromTemplate([model]);
+	assert.match(html, /\.zone\s*\{\s*min-height: 44px;/);
+	assert.match(html, /\.zone\.drag-over\s*\{\s*background: var\(--accent-soft\);/);
+	const {elements, context, setTarget} = runQueuePage(html);
 	const queue = elements.get('app').children[0];
 	assert.deepStrictEqual(
 		queue.children.map((node) => [node.className, node.dataset.label ?? null]),
@@ -673,10 +706,10 @@ test('generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 	const grip = fifth.firstChild.firstChild;
 	const event = {button: 0, pointerId: 1, clientX: 100, clientY: 200, preventDefault() {}};
 	grip.handlers.pointerdown(event);
-	target = fifth;
+	setTarget(fifth);
 	grip.handlers.pointermove(event);
 	assert.equal(fifth.className, 'zone room drag-over');
-	target = sixth;
+	setTarget(sixth);
 	grip.handlers.pointermove(event);
 	assert.deepStrictEqual([fifth.className, sixth.className], ['zone room', 'zone room drag-over']);
 	grip.handlers.pointerup(event);
@@ -695,4 +728,73 @@ test('generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 		completed: [],
 	});
 	assert.equal(elements.get('app').children[0].children[1].firstChild.textContent, 'empty -- drop here');
+});
+
+test('generated Queue keeps the range anchor and autosaves ordered group drag, nudge, and Done', async () => {
+	const model = buildLadderModel(
+		'work',
+		bucket('w', [
+			['1st', ['a', 'b']],
+			['2nd', ['c', 'd']],
+			['3rd', ['e']],
+		]),
+	);
+	const page = runQueuePage(renderFromTemplate([model]));
+	const rows = () =>
+		page.elements
+			.get('app')
+			.children[0].children.flatMap((zone) => zone.children)
+			.filter((row) => row.dataset.id);
+	const row = (id) => rows().find((row) => row.dataset.id === id + '-id');
+	const click = (id, modifiers = {}) => row(id).handlers.click({target: row(id), ...modifiers});
+	const selection = () =>
+		rows()
+			.filter((row) => row.classList.contains('sel'))
+			.map((row) => row.dataset.id);
+	click('c');
+	click('c');
+	assert.deepStrictEqual(selection(), ['c-id']);
+	click('a', {shiftKey: true});
+	assert.deepStrictEqual(selection(), ['a-id', 'b-id', 'c-id']);
+	click('c', {shiftKey: true});
+	assert.deepStrictEqual(selection(), ['c-id']);
+	click('a', {shiftKey: true});
+	const grip = row('b').firstChild;
+	const event = {button: 0, pointerId: 1, clientX: 100, clientY: 200, preventDefault() {}, stopPropagation() {}};
+	grip.handlers.pointerdown(event);
+	page.setTarget(page.elements.get('app').children[0].children.find((zone) => zone.dataset.label === '3rd'));
+	grip.handlers.pointerup(event);
+	await page.flushSave();
+	const saved = () => {
+		const write = page.writes.at(-1);
+		delete write.payload.submittedAt;
+		return write;
+	};
+	const expected = {
+		path: 'rebalance/submission',
+		payload: {
+			roots: {
+				work: {
+					bucketId: 'w',
+					tiers: [
+						{tier: 1, label: '1st', id: 'w-1st', isNew: false, items: []},
+						{tier: 2, label: '2nd', id: 'w-2nd', isNew: false, items: ['d-id']},
+						{tier: 3, label: '3rd', id: 'w-3rd', isNew: false, items: ['e-id', 'a-id', 'b-id', 'c-id']},
+					],
+				},
+			},
+			completed: [],
+		},
+	};
+	assert.deepStrictEqual(saved(), expected);
+	row('d').children[3].children[1].handlers.click(event);
+	await page.flushSave();
+	expected.payload.roots.work.tiers[1].items = [];
+	expected.payload.roots.work.tiers[2].items = ['d-id', 'e-id', 'a-id', 'b-id', 'c-id'];
+	assert.deepStrictEqual(saved(), expected);
+	row('d').children[4].handlers.click(event);
+	await page.flushSave();
+	expected.payload.completed = ['d-id'];
+	assert.deepStrictEqual(saved(), expected);
+	assert.equal(page.writes.length, 3);
 });

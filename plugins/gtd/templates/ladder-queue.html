@@ -564,8 +564,8 @@
 		<p class="dek">
 			One list, tier boundaries fixed in place. <b>Drag a row up or down</b> across a boundary to change its tier
 			&mdash; the band it lands in is its tier. Tier <b>k</b> holds <b>2<sup>k</sup></b> items. For big moves,
-			tick rows and use <b>Move selected</b> at the bottom. Every change saves by itself &mdash; Claude picks it
-			up within a couple of minutes.
+			select a range and use <b>Move selected</b> at the bottom. Every change saves by itself &mdash; Claude picks
+			it up within a couple of minutes.
 		</p>
 		<div class="legend">
 			<span><i class="chip room">room</i> has capacity &mdash; empty slots shown</span>
@@ -724,7 +724,7 @@
 		// cmd/ctrl+click toggles one without clearing the rest.
 		function handlePick(id, ev) {
 			var ids = itemIds(current);
-			if (ev.shiftKey && anchorId && anchorId !== id) {
+			if (ev.shiftKey && anchorId) {
 				var a = ids.indexOf(anchorId),
 					b = ids.indexOf(id);
 				if (a > -1 && b > -1) {
@@ -742,9 +742,8 @@
 				if (selected[id]) delete selected[id];
 				else selected[id] = true;
 			} else {
-				var onlyMe = selected[id] && Object.keys(selected).length === 1;
 				selected = {};
-				if (!onlyMe) selected[id] = true;
+				selected[id] = true;
 			}
 			anchorId = id;
 			render();
