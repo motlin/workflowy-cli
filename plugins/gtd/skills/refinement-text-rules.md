@@ -37,6 +37,17 @@ Do not title-case the whole entry, and do not change ordinary mid-sentence verbs
 
 The same restraint covers grammar, not just casing. A non-standard construction that recurs across entries is household voice — leave it exactly as written. Count the exact phrase across the journal before proposing any grammatical correction: more than one occurrence means it is deliberate and gets no change; a single occurrence that still reads deliberate goes to the user as a `⚠️` ambiguity rather than a silent rewrite. Recurring household terms are recorded in the gitignored `.llm/gtd/journal-vocabulary.md`; never copy one into `plugins/`.
 
+## Remember explanations in the matching reference file
+
+When the user explains an intentional phrase during refinement, classify what the explanation resolves before saving it:
+
+- **People:** `.llm/gtd/people-disambiguation.md` is only for people's names, nicknames, homonyms, and name spellings. A homonym needs distinguishing context, not merely a list of people with that name.
+- **Non-people terms:** household shorthand, intentional phrasing, and non-person voice-to-text mishearings belong in `.llm/gtd/journal-vocabulary.md`. Never put them in the people file, even if the phrase resembles a person's name.
+
+An explanation alone is not permission to save a vocabulary entry. In the interactive apply walk, offer an explicit **Keep as written and add to journal-vocabulary.md** option alongside **Keep as written without saving vocabulary**. Show the exact term, proposed meaning or mishearing mapping, and `.llm/gtd/journal-vocabulary.md` destination in the question. If the explanation arrives through free text or "Other", ask this follow-up before persisting it. Use the active review's presentation policy. Only the save choice authorizes adding or updating that entry; reuse an existing matching entry instead of duplicating it. Prep may read these references but must leave new explanations for apply-time confirmation.
+
+Both keep-as-written choices reject the proposed rewrite. Where a decline ledger is used, store only its rejection fields; never append the explanation, a rationale, or vocabulary metadata. Declining vocabulary persistence must not silently save the explanation in another file. These reference files are private runtime data: never copy their contents into tracked plugin prompts or examples.
+
 ## Emoji selection reflects who did it
 
 A leading emoji names the **actor**, not just the topic. The same activity gets a different emoji depending on who performed it — the user doing a chore, a family member doing it, and a hired service doing it are three different entries, and collapsing them to one topical emoji loses the distinction the journal is recording.

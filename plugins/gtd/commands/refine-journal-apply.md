@@ -34,13 +34,17 @@ Each proposal carries a `scope` (`"recent"` or `"archive"`). In recent mode — 
 
 If the staged proposals carry no `scope` (older prep output), treat them all as `recent` for backward compatibility.
 
+### Offer vocabulary persistence for intentional terms
+
+Follow **Remember explanations in the matching reference file** in `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` when a user explains a flagged phrase. For a non-people term, explicitly offer **Keep as written and add to journal-vocabulary.md** or **Keep as written without saving vocabulary**, showing the exact proposed entry and destination in the question. An explanation in "Other" needs this follow-up too. Save only the approved vocabulary entry; reserve `people-disambiguation.md` for people's names, homonyms, and name spellings. Both keep choices reject the rewrite and enter the rejection ledger below, without the explanation. If an approved vocabulary write fails, report the failure rather than claiming it was saved.
+
 ### Record every Reject in the decline ledger
 
 A rejected refinement must never come back — the user should not have to say "keep as written" twice for the same entry. Model this on the email-calendar decisions ledger: every explicit rejection is persisted, and prep drops anything already recorded.
 
 - **Where.** `.llm/gtd/review/refine-journal-declined.json` — a JSON array; create it as `[]` if it does not exist.
 - **What counts as a Reject.** The **Reject** option on a normal proposal; the **Skip** option on a people-style ambiguity; and, on an emoji picker, an "Other" answer that is not an emoji but a keep-it-as-is instruction ("keep as written", "no emoji", "skip"). Accept, Accept with note, and a chosen emoji are not rejections and are never recorded.
-- **What to append.** One `{nodeId, before, after, declinedAt}` object per rejected proposal: the proposal's full `nodeId` (full UUID), its full `before` text byte-for-byte (U+00A0 included — prep matches it against live text), its staged `after` (or `null` for an emoji picker, which stages no single `after`), and an ISO-8601 timestamp with offset. Never truncate `before` or `after`.
+- **What to append.** One `{nodeId, before, after, declinedAt}` object per rejected proposal: the proposal's full `nodeId` (full UUID), its full `before` text byte-for-byte (U+00A0 included — prep matches it against live text), its staged `after` (or `null` for an emoji picker, which stages no single `after`), and an ISO-8601 timestamp with offset. Never truncate `before` or `after`. Keep this schema unchanged: do not add the user's explanation, rationale, term definition, or vocabulary metadata.
 - **When.** Append right after each batch's answers, alongside running that batch's accepted `applyOps` — not at the end — so an aborted walk still keeps the rejections it collected.
 - **Ledger-write failure** is a run failure: surface it and return failure rather than finishing with a rejection unrecorded.
 

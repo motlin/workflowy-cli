@@ -201,6 +201,8 @@ If a proposal carries an `ambiguity` block, use its `prompt` as the question and
 
 ### Apply accepted ops
 
+If a user explains that a flagged phrase is intentional, follow **Remember explanations in the matching reference file** in `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`. Do not treat explanatory free text as replacement node text or an emoji. For a non-people term, ask the explicit vocabulary-save question with the exact proposed entry and destination; keeping the original text and saving vocabulary are separate decisions. Preserve the active presentation policy and record only the rejection in any decline ledger.
+
 After each batch's answers, immediately run the `applyOps` for every Accepted proposal **verbatim** (or the user's edited command for "Accept with note"). Then present the next batch. Applying per-batch (not at the end) keeps the work incremental and crash-safe.
 
 If an op exits non-zero with a `does not match --expect-name` message, the node changed since prep read it (see the Stale-write guard above): count it as a **stale skip**, report it inline (`⏭️ skipped <header> — changed since prep`), and do **not** re-run the op without `--expect-name`. It resurfaces next run against fresh text.
