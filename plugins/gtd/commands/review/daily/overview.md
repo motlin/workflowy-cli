@@ -41,7 +41,7 @@ The script prints one token; branch on it:
 
 A liveness probe is an **additional** restart trigger, never a substitute for the age rule: if any `mcp__imcp__*` call errors or reports the server disconnected, restart regardless of age — a fresh (≤ 86400) or `unknown`-age helper included. The two rules only ever add restarts; neither one cancels the other's.
 
-Because **Claude cannot run `/mcp`**, if the in-session iMCP tools are still unavailable after the restart, halt as above and tell the user to run `/mcp` — the app will already be fresh, so their reconnect succeeds immediately.
+**Restart without asking:** The mandatory restart drops this session's MCP connection. That disconnect is expected and is never grounds for `AskUserQuestion` or another confirmation prompt. Restart first, then end the turn with the plain-text instruction: "iMCP has restarted. Run /mcp to reconnect, then re-run the daily review." Do not launch fetchers or continue the review before reconnection. **Claude cannot run `/mcp`**; return control immediately so the user can run it.
 
 **Performance — front-load every fetch in one batch.** The two fetcher agents and the six `node get` reads have no data dependencies, so launch them all concurrently in a **single assistant message**: the `calendar-fetcher` Task, the `reminders-fetcher` Task, and the six `node get --path` Bash blocks below (Next Actions × 2, Delegate × 2, Inbox × 2). Wait for all results, then format the sections. Do not run the fetchers one after another.
 
