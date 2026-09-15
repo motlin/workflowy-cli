@@ -120,7 +120,7 @@ Inert per-task fields (counts, labels, `fingerprint`, `inbox`) are fine; only id
 
 ### `applyOps` are authoritative
 
-Prep stages the **exact** commands so the walk never re-computes a refinement (re-deriving in a different context risks divergence). Each op is a complete `node …` invocation with the full UUID and final text already escaped for the shell (entries with apostrophes use `'"'"'` escaping inside the single-quoted `--name`). Writes go through the CLI only — never edit SQLite directly. If a proposal has no `applyOps`, Accept is a no-op (used for confirm-only gates that the apply command handles specially) — **except** an emoji `ambiguity` proposal, where prep omits `applyOps` on purpose and the walk builds the `node update` from the chosen emoji (see Batch-present below).
+Prep stages the **exact** commands so the walk never re-computes a refinement (re-deriving in a different context risks divergence). Each op is a complete `node …` invocation with the full UUID and final text already escaped for the shell (entries with apostrophes use `'"'"'` escaping inside the single-quoted `--name`). Writes go through the CLI only — never edit SQLite directly. If a proposal has no `applyOps`, Accept is a no-op (used for confirm-only gates that the apply command handles specially) — **except** any proposal carrying an `ambiguity` block. Present its question and choices even without proposal-level `applyOps`; the chosen option supplies its own ops or determines the command the walk builds (see Batch-present below).
 
 #### Stale-write guard (`--expect-name`) — mandatory on every name update
 
@@ -169,7 +169,9 @@ Read `.llm/gtd/review/proposals/<slug>.json` for the command's inferred task slu
 
 Present `proposals[]` in **batches of up to 4** using `AskUserQuestion` — one question per proposal. Never truncate `before`/`after`.
 
-For each proposal, the question text includes the full `before`, the full `after`, and the `changes[]` rendered as `<icon> <detail>` lines. Use `header` for the question header.
+Check for an `ambiguity` block before comparing `before` and `after` or checking for `applyOps`. Present an ambiguity proposal using `ambiguity.prompt` and `ambiguity.options` rather than a before/after diff. Never skip it as a zero-diff no-op: `before == after` can mean prep is waiting for the user's answer, such as a dictation clarification.
+
+For a proposal without an `ambiguity` block, the question text includes the full `before`, the full `after`, and the `changes[]` rendered as `<icon> <detail>` lines. Use `header` for every question header.
 
 ### Everything the user approves goes inside the question
 
