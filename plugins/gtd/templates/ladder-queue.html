@@ -254,6 +254,7 @@
 	}
 
 	.zone {
+		min-height: 44px;
 		padding: 0;
 	}
 	.zone.room {
@@ -264,6 +265,11 @@
 	}
 	.zone.over {
 		background: var(--over-bg);
+	}
+
+	.zone.drag-over {
+		background: var(--accent-soft);
+		box-shadow: inset 3px 0 0 var(--accent);
 	}
 
 	.row {
@@ -873,7 +879,11 @@
 					if (!dragId) return;
 					clearLine();
 					var target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.zone,.sep');
-					if (target) showLine(target, true);
+					if (target) {
+						var targetZone = target.classList.contains('zone') ? target : target.nextSibling;
+						targetZone.classList.add('drag-over');
+						showLine(targetZone, true);
+					}
 					if (event.clientY < 80) window.scrollBy(0, -20);
 					if (event.clientY > window.innerHeight - 80) window.scrollBy(0, 20);
 				});
@@ -1014,7 +1024,7 @@
 				var e = document.createElement('div');
 				e.className = 'slot';
 				e.style.borderStyle = 'solid';
-				e.textContent = 'empty tier';
+				e.textContent = 'empty -- drop here';
 				zone.insertBefore(e, zone.firstChild);
 			}
 		}
@@ -1024,6 +1034,8 @@
 		function clearLine() {
 			if (line && line.parentNode) line.parentNode.removeChild(line);
 			line = null;
+			var highlighted = document.querySelector('.zone.drag-over');
+			if (highlighted) highlighted.classList.remove('drag-over');
 			var hot = document.querySelector('.slot.hot');
 			if (hot) hot.classList.remove('hot');
 		}

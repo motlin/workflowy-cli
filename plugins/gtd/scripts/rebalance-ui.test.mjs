@@ -563,3 +563,136 @@ test('Queue collects and restores a draft with a ninth tier and resets to the so
 	delete reset.submittedAt;
 	assert.deepStrictEqual(reset, {roots: {work: arrangement(model)}, completed: []});
 });
+
+test('generated Queue highlights empty tier 6 and accepts a pointer drag from tier 5', () => {
+	const model = buildLadderModel(
+		'work',
+		bucket('w', [
+			['5th', ['a']],
+			['6th', []],
+		]),
+	);
+	const html = renderFromTemplate([model]);
+	assert.match(html, /\.zone\s*\{\s*min-height: 44px;/);
+	assert.match(html, /\.zone\.drag-over\s*\{\s*background: var\(--accent-soft\);/);
+	const nodes = [];
+	function element() {
+		const node = {
+			children: [],
+			dataset: {},
+			style: {},
+			handlers: {},
+			className: '',
+			setAttribute() {},
+			setPointerCapture() {},
+			addEventListener(type, handler) {
+				this.handlers[type] = handler;
+			},
+			appendChild(child) {
+				this.insertBefore(child, null);
+			},
+			insertBefore(child, before) {
+				if (child.parentNode) child.parentNode.removeChild(child);
+				this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, child);
+				child.parentNode = this;
+			},
+			removeChild(child) {
+				this.children.splice(this.children.indexOf(child), 1);
+				child.parentNode = null;
+			},
+			get firstChild() {
+				return this.children[0];
+			},
+			get nextSibling() {
+				return this.parentNode.children[this.parentNode.children.indexOf(this) + 1];
+			},
+			set innerHTML(value) {
+				this.children = [];
+				this.html = value;
+			},
+			closest() {
+				return this;
+			},
+		};
+		node.classList = {
+			contains: (name) => node.className.split(' ').includes(name),
+			add: (name) => {
+				node.className += ' ' + name;
+			},
+			remove: (name) => {
+				node.className = node.className
+					.split(' ')
+					.filter((part) => part !== name)
+					.join(' ');
+			},
+		};
+		nodes.push(node);
+		return node;
+	}
+	const elements = new Map();
+	let target;
+	const context = {
+		localStorage: {getItem: () => null, setItem() {}},
+		setTimeout() {},
+		clearTimeout() {},
+		window: {innerHeight: 1000},
+		document: {
+			createElement: element,
+			getElementById(id) {
+				if (!elements.has(id)) elements.set(id, element());
+				return elements.get(id);
+			},
+			elementFromPoint: () => target,
+			querySelector: (selector) =>
+				nodes.find((node) =>
+					selector
+						.slice(1)
+						.split('.')
+						.every((name) => node.classList.contains(name)),
+				),
+		},
+	};
+	const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]).join('\n');
+	runInNewContext(
+		script.replace(/\n\s*render\(\);\n\s*\}\)\(\);/, '\nrender(); globalThis.queue = {collect};\n})();'),
+		context,
+	);
+	const queue = elements.get('app').children[0];
+	assert.deepStrictEqual(
+		queue.children.map((node) => [node.className, node.dataset.label ?? null]),
+		[
+			['sep room', null],
+			['zone room', '5th'],
+			['sep room', null],
+			['zone room', '6th'],
+		],
+	);
+	const fifth = queue.children[1];
+	const sixth = queue.children[3];
+	assert.equal(sixth.firstChild.textContent, 'empty -- drop here');
+	const grip = fifth.firstChild.firstChild;
+	const event = {button: 0, pointerId: 1, clientX: 100, clientY: 200, preventDefault() {}};
+	grip.handlers.pointerdown(event);
+	target = fifth;
+	grip.handlers.pointermove(event);
+	assert.equal(fifth.className, 'zone room drag-over');
+	target = sixth;
+	grip.handlers.pointermove(event);
+	assert.deepStrictEqual([fifth.className, sixth.className], ['zone room', 'zone room drag-over']);
+	grip.handlers.pointerup(event);
+	const submission = JSON.parse(JSON.stringify(context.queue.collect()));
+	delete submission.submittedAt;
+	assert.deepStrictEqual(submission, {
+		roots: {
+			work: {
+				bucketId: 'w',
+				tiers: [
+					{tier: 5, label: '5th', id: 'w-5th', isNew: false, items: []},
+					{tier: 6, label: '6th', id: 'w-6th', isNew: false, items: ['a-id']},
+				],
+			},
+		},
+		completed: [],
+	});
+	assert.equal(elements.get('app').children[0].children[1].firstChild.textContent, 'empty -- drop here');
+});
