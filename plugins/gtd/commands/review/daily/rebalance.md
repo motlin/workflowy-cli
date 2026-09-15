@@ -6,7 +6,7 @@ description: Rebalance both 📌 asap ladders — surface tiers 1-2 as today's g
 
 Read each root's `📌 Tasks (asap)` ladder and bring it back into shape. The demotion cascade in `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md` only fires when something is **inserted** into a full tier; a ladder that has already drifted over cap stays over cap until this phase reads it. This is the phase where the user reranks.
 
-**Every action here is a proposal the user confirms.** Push-downs, pull-ups, and the split that extends the ladder are all presented with the candidates and applied only for the items the user names. An explicit instruction to apply saved arrangements authorizes the polling loop below to execute the user's page choices as they arrive. Nothing is demoted, promoted, or moved on its own, and no item is ever chosen because of where it sits in the tier -- ranking inside a tier is the user's judgment, not a position.
+**Every action here is a proposal the user confirms.** Push-downs, pull-ups, and the split that extends the ladder are chosen in the HTML ladder page and applied only for the items in the user's submitted arrangement. An explicit instruction to apply saved arrangements authorizes the polling loop below to execute the user's page choices as they arrive. Nothing is demoted, promoted, or moved on its own, and no item is ever chosen because of where it sits in the tier -- ranking inside a tier is the user's judgment, not a position.
 
 Scope is **both** roots linked from `Metadata > ☑️ Next Actions` -- Work and Personal -- discovered by link resolution, never hardcoded.
 
@@ -37,7 +37,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs rebalance .llm/gtd/review/ladd
 - `pullUps` -- the run of empty tiers starting at `2nd`, each fed from the first non-empty tier below the run, with that tier's items as `candidates`. `1st` is never a pull-up target.
 - `extend` -- the bottom tier once it holds more than `2^k`: the new tier to create, `minimumToMove`, and all of its occupants.
 
-A tier that is missing from the bucket counts as empty with `id: null`; create it with `node create --parent-id <bucket-uuid> --name '<label>' --position bottom` before moving anything into it, so the ladder never has a hole. Never compute a cap or an excess by hand.
+A tier that is missing from the bucket counts as empty with `id: null`. Create it with `node create --parent-id <bucket-uuid> --name '<label>' --position bottom` only when the validated, authorized page submission requests it, before moving anything into it. Never compute a cap or an excess by hand.
 
 If both reports have empty `pushDowns`, empty `pullUps`, and `extend: null`, print the day plan (below) and return -- there is nothing to rebalance.
 
@@ -53,9 +53,9 @@ Tiers `1st` and `2nd` are the goals for the day. Print them for both roots befor
 
 Strip HTML for display and render embedded links as markdown. Do not ask whether to work on these; the review is orientation, not execution.
 
-## Use the complete ladder page for larger choices
+## Use the HTML page for every rebalance
 
-When the occupants or pull-up candidates plus “Leave it empty” exceed the question tool's option limit (four for AskUserQuestion), use the static page for both ladders. Never split a ranking choice into partial lists.
+Generate and publish the complete page for both ladders whenever there is work to rebalance, regardless of tier size or candidate count. The page is the sole surface for choosing push-downs, pull-ups, and extensions. Do not present ranking choices through `AskUserQuestion`, chat lists, or a text walkthrough. Reserve `AskUserQuestion` for single-item confirmations of an already chosen action when authorization is still needed; never use it to choose which items move or stay.
 
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs \
@@ -63,7 +63,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs \
   --output .llm/gtd/review/rebalance.html
 ```
 
-Publish the printed HTML path as an artifact. Preserve the checked-in Queue layout and root tabs. The page supports touch handles, tier step buttons, added bottom tiers, local drafts and Revert all. Each edit autosaves the desired arrangement to artifact db `rebalance/submission`. If artifact storage is unavailable, the page shows copyable JSON; use that same JSON as the submission. No local server is required.
+Publish the printed HTML path as an artifact. Preserve the checked-in Queue layout and root tabs. The page supports touch handles, tier step buttons, added bottom tiers, local drafts and Revert all. Each edit autosaves the desired arrangement to artifact db `rebalance/submission`. If artifact storage is unavailable, the page shows copyable JSON; use that same JSON as the submission. No local server is required. If the HTML cannot be generated, published, or opened, report the concrete command or tool failure and pause ranking until the page is available. Do not substitute text ranking questions. Copyable JSON is only transport for choices already made in the page.
 
 ### Poll saved arrangements
 
@@ -83,61 +83,21 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs \
 
 `--apply` only prints proposals; it performs no writes. It rejects changed bucket/tier identities, omitted or duplicated items and unknown items. If the live ladder changed, regenerate the page and have the user reconcile the arrangement instead of guessing. Display the entire resulting diff before any writes, including explicit completions. Use the polling authorization rules above; never invent a choice to repair a remaining capacity violation.
 
-Create all new tiers first under their reported bucket ids and resolve the returned ids by root and label. Then execute the listed moves to each destination with `-p bottom`, followed by explicit completions. Drain and verify through **Background Dispatch, Verify, and Drain**, then refresh both reports and record the outcome. Read each affected live node to verify its destination or completed state, and verify created tier ids under the expected buckets. Record successful operations in the receipt and print the applied items and destinations, created tiers, and completions by name. Report failed or unverified operations separately; do not mark the payload verified until every requested operation has landed. Retry only operations still outstanding after live reconciliation, never a whole partially successful batch. If a completion already landed, do not complete that node again.
+Create all new tiers first under their reported bucket ids and resolve the returned ids by root and label. Then execute the listed moves to each destination with `-p bottom`, followed by explicit completions. Drain and verify through **Background Dispatch, Verify, and Drain** in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, then refresh both reports and record the outcome. Read each affected live node to verify its destination or completed state, and verify created tier ids under the expected buckets. Record successful operations in the receipt and print the applied items and destinations, created tiers, and completions by name. Report failed or unverified operations separately; do not mark the payload verified until every requested operation has landed. Retry only operations still outstanding after live reconciliation, never a whole partially successful batch. If a completion already landed, do not complete that node again.
 
 After a tier create or completion, regenerate and republish from fresh exports before accepting more edits: the current page still carries null ids for new tiers and completed items that `readLadder` now excludes. Keep polling the active artifact's document, but reject payloads from the old page through the existing identity/item validation; never remove those checks to make a stale submission pass. Surface reconciliation failures and preserve the submitted JSON. Moves alone can continue against refreshed exports because the diff emits only changed memberships.
 
 Re-read the database after draining the batch, so edits saved during application are picked up next. The document is latest desired state, not an event queue: intermediate autosaves may be superseded between polls. Do not claim to have applied an overwritten submission. Continue polling until the user ends or pauses this review; silence or an unchanged document is not a stop signal. On exit, drain pending writes, retain the receipt, and report whether newer saved work remains unapplied. Within-tier row order is not applied: this walk changes tier membership. Do not silently apply further capacity repairs.
 
-## Walk the proposals, one ladder at a time
+## Interpret the page choices
 
-Work first, then Personal. Within a ladder, take the report in this order, re-running the `rebalance` command **after each confirmed batch of moves** because every step changes the counts the next one reads: a push-down out of `2nd` can put `3rd` over cap, and a push-down into the bottom tier can push it past `2^k`.
+Use the fresh `rebalance` reports to explain capacity and empty tiers in the page workflow. The reports are guidance, not authority to select items or execute repairs. The user may arrange both roots in one submission; apply that submitted state through the validation and polling flow above.
 
-- Push-downs, top tier first.
-- Pull-ups.
-- Extend.
+- **Push-downs:** the page exposes every occupant and tier count. The user chooses which items move down; never pre-select the last `excess` items, infer the remaining moves from row order, or ask which items stay through a question tool.
+- **Pull-ups:** the user moves items into empty tiers in the page, or leaves them empty. Do not separately walk candidates or ask a “Leave it empty” question. `1st` is never an automatic pull-up target; only an explicit page choice may move an item there.
+- **Extensions:** the user adds a bottom tier and chooses its occupants in the page. Create only tiers in the validated, authorized submission, then move only the submitted items. Never split the bottom tier on position or move unnamed items as an inferred complement.
 
-Present each proposal with `AskUserQuestion`. Never open with a question about how to scope or batch the walk, and never editorialize about how far over cap a tier is -- state the numbers and ask.
-
-### Push down an over-cap tier
-
-Show every occupant of the tier with its short link, then ask which ones move down. The question names the count and the destination; the options are the occupants themselves, multi-select, with no default and no recommendation:
-
-```markdown
-**Work 2nd is 6/4 -- at least 2 move down to 3rd.** Which are the lowest priority?
-
-- Draft the Q3 platform plan https://workflowy.com/#/<shortId>
-- Review Alice's design doc https://workflowy.com/#/<shortId>
-- ...
-```
-
-The user may pick more than the minimum, and may answer with items that are not the bottom-most ones. Do not pre-select the last `excess` items and ask for a yes/no -- that is choosing for them. Do not proceed with fewer than `excess` chosen; ask again, naming what is still needed.
-
-**When more must leave than can stay** (`excess > capacity`, the shape of a tier that used to be the bottom and kept growing), invert the question: ask which **up to `capacity`** items **stay**, and everything not named moves down. The user is still naming every item that keeps its rank, and nothing moves until they answer.
-
-Apply confirmed moves with one `node move --node-id <uuid> --parent-id <toId> -p bottom` per item, following **Background Dispatch, Verify, and Drain** in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`. Drain, re-run `rebalance`, and continue with the next tier in the fresh report.
-
-### Pull up into an empty tier
-
-When `pullUps` is non-empty, `2nd` is empty, so there are no goals for the day beyond `1st`. Ask which items from the source tier come up, one target tier at a time:
-
-```markdown
-**Personal 2nd is empty.** Pull up from 3rd (5 items) -- which ones become today's goals?
-```
-
-Offer the candidates multi-select, plus **Leave it empty**. Cap the selection at the target tier's capacity. When the run covers `2nd` and `3rd` (both empty, feeding from `4th`), fill `2nd` first, then re-run `rebalance` and ask again for `3rd` -- the second question's candidates must not include items that just moved. Create a missing target tier before its first move.
-
-`1st` is never proposed here. Two things the user would drop everything else for, or nothing, is the user's call to make unprompted.
-
-### Extend the ladder
-
-When `extend` is set, the bottom tier is past its bound -- it does not cascade, it grows. The threshold is exact: at `2^k + 1` the ladder needs a `newLabel` tier. Say so, then ask which items move into it:
-
-```markdown
-**Work 6th is 97/64 -- the ladder needs a 7th.** At least 33 move into it. Which stay in 6th?
-```
-
-The bottom tier is the landing zone, so its occupants are mostly unranked sweeps. Use the inverted question by default: ask which **up to `capacity`** items **stay** in the current bottom tier; everything else goes to the new one. Create the tier first (`node create --parent-id <bucket-uuid> --name '<newLabel>' --position bottom`), then move the unnamed items with `-p bottom` in their current order. Never split on position alone, and never create the tier before the user has confirmed the split.
+Refresh both reports after each verified batch. A move can change another tier's capacity status; surface any remaining over-cap or empty tiers and let the user make further page edits. Never force a repair or return to question-based ranking because a submitted arrangement leaves a violation.
 
 ## Record the outcome
 
