@@ -160,6 +160,10 @@ Otter text is misheard, so match on the distinctive nouns rather than the phrasi
 
 Record on each candidate either `existingMatch: null` or a single best match `{id, name, source: "nextActions" | "projectTasks", projectName}` plus a one-line reason for the match. Never drop a candidate just because it matched.
 
+Before starting Step 8, compare candidates against each other across **all meetings in this run**, using the same normalization and distinctive noun-phrase rules above. Group candidates describing the same action into one merged candidate, even when their source meetings differ. Retain every source meeting's name, link, date, transcript context, reason, and name resolutions; combine distinct details without inventing agreement where the sources conflict. Match the merged candidate against existing tasks as well. A shared person, product, or broad topic alone is not enough to combine different actions. Surface weak matches and conflicting scope or unresolved identities for the user's decision instead of silently collapsing them.
+
+Present each merged candidate once, naming and linking **all source meetings** in its Step 8 question. Explain the shared action and any differences that need confirmation, so the user can accept one task or separate distinct actions. Candidate-to-candidate matching still works when the existing-task snapshot is unavailable; disclose that separate limitation. Grouping is a proposal, not acceptance or a verified filing destination.
+
 ### Step 8: Confirm each candidate
 
 Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `filed`, `journaled`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
@@ -182,7 +186,7 @@ Offer these options, omitting filing when no eligible target exists:
 
 - **Add to inbox** — create a new inbox node in Step 9
 - **File on existing task** — add the meeting as context under an eligible matched task in Step 9 instead of creating a duplicate inbox item. Name the verified task in the option label so it is identifiable.
-    - An earlier follow-up from the **same meeting** can be a match when its outcome is `added` or `filed` and its task destination is verified. Shared meeting context is a matching hint, never proof that a task exists or that the user accepted it.
+    - An earlier follow-up from **any meeting in this walk** can be a match when its outcome is `added` or `filed` and its task destination is verified. Use the Step 7 normalized noun-phrase rules across meeting boundaries. Shared meeting context is a matching hint, never proof that a task exists or that the user accepted it.
 - **Already did it — journal it** — the user completed the follow-up between the meeting and now. Step 9 writes it as a journal entry to `Work > 📅 Calendar` under the **meeting date**, never to the Inbox. Name the calendar in the option label (e.g. `Already did it — journal to Work > 📅 Calendar`) so the destination is visible before the user confirms.
 - **Skip** — drop it, whether it's noise or not the user's. This command records nothing on skip. Already-done is split out from Skip because it has a different **destination** (a dated calendar entry), not merely a different label — a skipped item leaves no trace, a done item becomes journal.
 
@@ -192,6 +196,8 @@ Offer these options, omitting filing when no eligible target exists:
 ### Step 9: Record confirmed items
 
 Use the Step 8 confirmed spellings consistently in every newly written title, reason, paraphrased context, and journal entry across all branches. Resolve person mentions only to the confirmed roster identity. Do not introduce new name corrections during enrichment. Keep literal source quotations unchanged and label any correction separately; do not rename the source meeting or an existing task. Read back the written text as part of outcome verification to check that it contains the agreed spellings. An accepted follow-up with pending name decisions remains unresolved and prevents Step 10 from advancing the watermark; a skipped candidate needs no spelling decision.
+
+For a confirmed merged candidate, create or file **one task** with provenance children for every source meeting and each distinct supporting point. Keep each source's date and link attached to its context. If the user chooses journaling and the source meetings have different dates, confirm which source meeting date to use in Step 8 and write one journal entry with all source provenance. Track the merged decision and verified destination for every contributing candidate in the local ledger; none should be proposed or written again separately. Only mark the group recorded after all its required writes and read-back verification succeed.
 
 #### Branch A — Add to inbox
 
