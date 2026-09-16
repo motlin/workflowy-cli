@@ -189,10 +189,12 @@ Some `#llm-task` items are not work for this session — their child instruction
 
 ```bash
 herdr pane current   # .result.pane.workspace_id and .result.pane.pane_id
-herdr tab create --workspace <workspace_id> --cwd <target directory> --no-focus
+herdr tab create --workspace <workspace_id> --cwd <target directory> --label <short-name> --no-focus
 ```
 
 The result's `.result.root_pane.pane_id` is the new pane — capture it; the next step needs it.
+
+**`--label` is required, not optional.** A tab created without one is labelled with its position number (`10`, `11`), which says nothing about what is running in it — and the review spawns several at once, so the user is left with a row of numbered tabs and no way to tell the Downloads cleanup from the Desktop one. Pass a short, lowercase name describing the work (`downloads`, `desktop`, `nextdns`). If you find yourself holding an unlabelled tab, fix it with `herdr tab rename <tab_id> <label>` rather than leaving it numbered.
 
 For a split, use `herdr pane split --current` (or `--pane <pane_id>`) rather than letting it default. Hijacking the user's visible workspace mid-review is disruptive and awkward to undo.
 
