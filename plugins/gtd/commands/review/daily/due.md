@@ -183,18 +183,30 @@ Task **execution** stays foreground. If a task runs `cache import-api` / `just d
 
 ### Cross-project #llm-task launches
 
-Some `#llm-task` items are not work for this session — their child instructions say to start a **separate** Claude session in another project and run a command there. Each part of that launch has a failure mode that reads as success from this side, so treat all four rules below as mandatory.
+Some `#llm-task` items are not work for this session — their child instructions say to start a **separate** Claude session in another directory and run a command there. Each part of that launch has a failure mode that reads as success from this side, so treat all five rules below as mandatory.
 
 **Launch into this session's own workspace, never the focused one.** A bare `herdr tab create` or `herdr pane split` lands in whatever workspace and pane the user happens to be looking at, which is almost never the daily review. Resolve your own ids first and pass them explicitly:
 
 ```bash
 herdr pane current   # .result.pane.workspace_id and .result.pane.pane_id
-herdr tab create --workspace <workspace_id> --cwd <project path> --no-focus
+herdr tab create --workspace <workspace_id> --cwd <target directory> --no-focus
 ```
+
+The result's `.result.root_pane.pane_id` is the new pane — capture it; the next step needs it.
 
 For a split, use `herdr pane split --current` (or `--pane <pane_id>`) rather than letting it default. Hijacking the user's visible workspace mid-review is disruptive and awkward to undo.
 
-**Pass an explicit `--model`.** A new session picks its own default alias, not this one's, so a task can silently come up on a model it was never meant to run on. Launch with `claude --model opus` (or whichever alias the item's child instructions name) instead of inheriting whatever the new session defaults to.
+**Start the agent with `herdr agent start`, never by typing into the shell.** A fresh tab is only a shell prompt — creating it does not start Claude. Use the dedicated command, which names the agent so every later call can address it by name:
+
+```bash
+herdr agent start <agent-name> --kind claude --pane <pane_id> -- --model opus
+```
+
+Everything after `--` is passed to the agent binary, which is where `--model` goes.
+
+Do **not** drive the shell by hand instead. `herdr pane send-text <pane> 'claude --model opus' --enter` does not work: `send-text` takes no `--enter` flag, so the flag is typed into the prompt as literal text and the command never runs — leaving a pane that looks like it is about to start Claude and never does. If you do need to clear a botched prompt line, the key name is `ctrl+u` with a **plus**: `herdr pane send-keys <pane> ctrl+u`. Hyphenated spellings (`ctrl-u`, `C-u`) are rejected with `unsupported key`.
+
+**Pass an explicit `--model`.** A new session picks its own default alias, not this one's, so a task can silently come up on a model it was never meant to run on. Launch with `--model opus` (or whichever alias the item's child instructions name) instead of inheriting whatever the new session defaults to.
 
 **Invoke plugin commands with their full `plugin:command` namespace.** A slash command's name is the plugin name followed by its path under that plugin's `commands/` directory. A plugin named `nextdns` holding `commands/nextdns/report.md` therefore answers to the three-segment name `nextdns:nextdns:report` (typed with a leading slash), not the two-segment `nextdns:report`. That doubled segment is normal and easy to drop — dropping it is what produces `Unknown command`. Confirm the name resolves before sending it:
 
@@ -202,7 +214,7 @@ For a split, use `herdr pane split --current` (or `--pane <pane_id>`) rather tha
 ls ~/.claude/plugins/cache/*/<plugin>/*/commands
 ```
 
-**Verify the launch before calling the task done.** After submitting the prompt (`herdr agent prompt <target> <text>`), read the new session's output back with `herdr agent read <target>` or `herdr pane read <pane_id>` and confirm it is actually running the command. `Unknown command:` in that output means the launch failed. A launched-but-failed agent is not a completed task — do not advance the item's `<time>` on a launch alone.
+**Verify the launch before calling the task done.** After submitting the prompt (`herdr agent prompt <agent-name> <text>`), read the new session's output back with `herdr agent read <agent-name>` or `herdr pane read <pane_id>` and confirm it is actually running. Two distinct failures show up here: `Unknown command:` means the slash-command name was wrong, and a bare shell prompt (`❯`) with your command sitting on it un-executed means the agent never started at all. A launched-but-failed agent is not a completed task — do not advance the item's `<time>` on a launch alone.
 
 ---
 
