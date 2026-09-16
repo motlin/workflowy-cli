@@ -310,9 +310,35 @@ sync_meetings() {
 
     log_timing "sync: starting page_size=$page_size cursor=$cursor modified_after=$modified_after"
 
-    # Fetch meetings
+    # Fetch meetings.
+    #
+    # Assign and check the status on separate lines. `local raw_response=$(...)`
+    # would make `local` the command whose status $? reports, masking a failed
+    # fetch; and even with a separate assignment the status must be tested here,
+    # because the jq pipeline below happily turns an empty response into valid
+    # JSON. Without this guard a hard network failure (otter.ai refused by a
+    # local firewall rule, curl exit 7) made `sync` print one newline and exit 0,
+    # which a caller reads as "no new meetings" before advancing the scanner
+    # cursor past meetings that were never scanned.
     local raw_response
+    local fetch_status
     raw_response=$(available_speeches "$page_size" "$cursor" "$modified_after")
+    fetch_status=$?
+
+    if [[ $fetch_status -ne 0 ]]; then
+        echo "otter-api: sync failed: available_speeches exited $fetch_status (network or auth failure)" >&2
+        return "$fetch_status"
+    fi
+
+    if [[ -z "${raw_response//[[:space:]]/}" ]]; then
+        echo "otter-api: sync failed: available_speeches returned an empty response" >&2
+        return 1
+    fi
+
+    if ! echo "$raw_response" | jq -e . >/dev/null 2>&1; then
+        echo "otter-api: sync failed: available_speeches returned invalid JSON" >&2
+        return 1
+    fi
 
     # Extract pagination info and minimal meeting data
     local result
