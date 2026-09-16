@@ -106,6 +106,10 @@ const IntegrationsSchema = z
 const TableSchema = z
 	.object({
 		headers: z.boolean().optional(),
+		// Accepted-but-ignored, like `headers`: Workflowy emits this on table
+		// nodes whose header row is hidden. Keep declared so TableSchema.strict()
+		// doesn't reject backups that contain it.
+		skipHeaders: z.boolean().optional(),
 	})
 	.strict();
 

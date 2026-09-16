@@ -22,6 +22,16 @@ describe('MetadataSchema table field', () => {
 		});
 		expect(node.metadata.table).toStrictEqual({headers: true});
 	});
+
+	it('accepts the skipHeaders key on a table', () => {
+		const result = MetadataSchema.parse({table: {skipHeaders: true}});
+		expect(result.table).toStrictEqual({skipHeaders: true});
+	});
+
+	it('accepts a table carrying both headers and skipHeaders', () => {
+		const result = MetadataSchema.parse({table: {headers: true, skipHeaders: false}});
+		expect(result.table).toStrictEqual({headers: true, skipHeaders: false});
+	});
 });
 
 describe('CalendarSchema day_prefix field', () => {
