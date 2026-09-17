@@ -13,22 +13,34 @@ Run `/gtd:birthdays-prep` first; in the daily review it runs automatically as a 
 
 **Check `generatedFor` against today's date before presenting anything.** A long review can cross midnight, and a briefing computed for yesterday will announce yesterday's events and stay silent about today's. If they differ, re-run the prep for the current day and use the fresh result. This is not optional — it is exactly how an anniversary passed unannounced on 2026-08-20 during a review that started on the 19th.
 
-## Announce today and the next three days first
+## Announce today and the next three days through AskUserQuestion
 
-Before any walking, print the `today` and `imminent` arrays together as one block **on its own, at the top, in full** — today's entries first, then the imminent ones in date order, each prefixed with its staged `label` in caps:
+Before any walking, put the `today` and `imminent` arrays in front of the user with `AskUserQuestion` — never as a printed block, and never as text surrounding the tool call. Console text scrolls past during a review; a birthday announced only there is one the user never saw, and it then returns a day later as backlog for an occasion they were never really told about.
+
+The next three days get the same treatment as today because the review is often run in the evening rather than the morning: a birthday tomorrow announced only as a quiet heads-up tonight is one the user finds out about tomorrow, after the window to mail a card or plan a call has closed.
+
+First drop every entry already recorded in `.llm/gtd/review/relationship-dates-handled.json` — those were acknowledged on an earlier run — and print them as quiet one-liners instead. If nothing is left to ask about, say so in one line and move on without a question.
+
+Then ask **one question per entry**, today's entries first, then the imminent ones in date order, batching up to four questions per call. Each question's text is that entry's whole announcement, prefixed with its staged `label` in caps, so it reads on its own:
 
 ```text
-🎂 TODAY — @Alice turns 40
+🎂 TODAY — @Alice (your sister) turns 40
 💍 TODAY — @Bob and @Carol's 3rd anniversary (married Sep 7, 2023)
 🎂 TOMORROW — @Dave turns 12
 💍 WED — @Erin and @Frank's 10th anniversary (married Sep 9, 2016)
 ```
 
-The next three days share the prominent block because the review is often run in the evening rather than the morning: a birthday tomorrow announced only as a quiet heads-up tonight is one the user finds out about tomorrow, after the window to mail a card or plan a call has closed.
+Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not.
 
-Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not. Never fold one of these lines into a paragraph, a table row, or the tail of a longer summary. If both arrays are empty, say so in one line and move on.
+Options per entry:
 
-Then print `upcoming` (days 4-14) as clearly-dated heads-up lines, visibly separate from and quieter than the prominent block.
+- **Handled** — the user has it covered (called, card sent, gift bought) or owes nothing. Record it.
+- **Still owed** — create an inbox node naming the person and the occasion (`Call @Alice for her birthday — Sep 7`), then record it.
+- **Remind me next run** — write nothing. An imminent entry is announced again tomorrow; a today entry returns as backlog once prep rolls it.
+
+Record with the same append the backlog walk uses below, keyed on the announced occurrence date. That record is what keeps an acknowledged date from resurfacing as backlog after prep rolls it forward.
+
+Finally, print `upcoming` (days 4-14) as clearly-dated heads-up lines. These stay printed and quiet — they need no answer yet, and each one gets its own question once it comes within three days.
 
 ## Walk the unhandled backlog
 
