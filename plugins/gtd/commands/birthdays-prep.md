@@ -19,7 +19,7 @@ Record every match in one of three arrays:
 - `imminent` — events 1-3 days out. Each entry carries its ISO `date`, its `weekday`, and a `label`: `Tomorrow` at one day out, the weekday name (`Wed`) at two or three.
 - `upcoming` — events 4-14 days out, with their dates.
 
-Apply prints `today` and `imminent` together, first and prominently, and leaves `upcoming` as a quieter list. The window reaches three days out because the review is often run in the evening rather than the morning, so a milestone falling tomorrow needs same-day prominence or the user reads it for the first time when it is already too late to act. A relationship date read as a buried aside is a date the user missed, which is the failure this whole task exists to prevent.
+Apply announces `today` and `imminent` together, first, through `AskUserQuestion`, and leaves `upcoming` as a quieter printed list. The window reaches three days out because the review is often run in the evening rather than the morning, so a milestone falling tomorrow needs same-day prominence or the user reads it for the first time when it is already too late to act. A relationship date read as a buried aside is a date the user missed, which is the failure this whole task exists to prevent.
 
 Write `generatedFor` (the ISO date this briefing describes) into the staged JSON. A long review can cross midnight, and the briefing is only valid for the day it was computed; the apply half compares `generatedFor` against the current date and re-runs this prep when they differ.
 
