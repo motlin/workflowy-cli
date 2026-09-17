@@ -27,7 +27,7 @@
 		"markdownlint-cli2": "^0.23.2",
 		"oclif": "^4",
 		"shx": "^0.4.0",
-		"tsx": "^4.23.9",
+		"tsx": "^4.23.13",
 		"typescript": "^7.0.2",
 		"vite": "catalog:",
 		"vite-plus": "catalog:"
