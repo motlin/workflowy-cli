@@ -218,6 +218,17 @@ ls ~/.claude/plugins/cache/*/<plugin>/*/commands
 
 **Verify the launch before calling the task done.** After submitting the prompt (`herdr agent prompt <agent-name> <text>`), read the new session's output back with `herdr agent read <agent-name>` or `herdr pane read <pane_id>` and confirm it is actually running. Two distinct failures show up here: `Unknown command:` means the slash-command name was wrong, and a bare shell prompt (`❯`) with your command sitting on it un-executed means the agent never started at all. A launched-but-failed agent is not a completed task — do not advance the item's `<time>` on a launch alone.
 
+## Directory-cleanup items are launches, not inventories
+
+A recurring item whose work lives in **another directory that has its own `CLAUDE.md`** — "Clean up files in Downloads", "Clean up files on Desktop" — is a launch too, even though it carries no `#llm-task` tag. That directory's `CLAUDE.md` holds the cleanup rules, and only a session started there loads them. Recognize the shape from either signal:
+
+- The item's name or children name a directory outside this repository (`~/Downloads`, `~/Desktop`).
+- A child reads like `cd <directory> && claude`, or says to organize files "according to @CLAUDE.md".
+
+Confirm with `ls <directory>/CLAUDE.md` before launching. If there is no `CLAUDE.md`, the item is ordinary: walk it per **Recurring item options** above.
+
+When it matches, do **not** list, inventory, or triage the directory's files from the review session, and do not ask the user what to do with individual files. Launch a labelled herdr tab in that directory under every rule in **Cross-project #llm-task launches** above — `--cwd <directory>`, a `--label` naming the work (`downloads`, `desktop`), `herdr agent start`, an explicit `--model`, and the same launch verification — then prompt the new agent to clean up the directory according to the `CLAUDE.md` in its working directory. Launch every matching item before asking the user about any of them, so the sessions run in parallel.
+
 ---
 
 ## Segment 2 — Due items
