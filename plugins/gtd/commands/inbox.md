@@ -136,6 +136,8 @@ Present each item with its suggested destination and confidence. Always include 
 - **Delete** — remove from inbox entirely
 - The "Other" option (auto-added by AskUserQuestion) lets the user specify a different destination or action
 
+Never offer Someday as an option, and never suggest it when the user picks "Other". An undated future task ("read this in the future", "maybe look into X") is still a task — its destination is the bottom tier of the matching `📌 Tasks (asap)` ladder. When a `📍 Move to:` suggestion names a Someday node, replace it with that bottom tier before presenting the item.
+
 ```text
 Question: "'Buy groceries' -> ☑️ Next Actions (medium confidence)"
 

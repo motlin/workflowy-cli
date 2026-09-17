@@ -115,7 +115,6 @@ DEST_ID=$(jq -r '.children[] | select(.name | contains("Work")) | .linkTargets[0
 
 - `waitingFor` → `.llm/gtd/metadata/waiting-for/<context>.json`
 - `calendar` → `.llm/gtd/metadata/calendar/<context>.json`
-- `someday` → `.llm/gtd/metadata/someday/<context>.json`
 - `projects` → Keep in place or move to project parent
 
 Query the section file first to find the target, then read the target file for the ID.

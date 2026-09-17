@@ -88,7 +88,6 @@ AskUserQuestion:
       Options:
       - "☑️ Next Actions"
       - "📅 Calendar / Tickler"
-      - "🌱 Someday/Maybe"
       - "📚 Reference"
     ```
 
@@ -248,7 +247,6 @@ AskUserQuestion:
   Options:
   - "☑️ Next Actions"
   - "📅 Calendar / Tickler"
-  - "🌱 Someday/Maybe"
   - "📚 Reference"
 ```
 
