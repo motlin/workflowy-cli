@@ -12,13 +12,17 @@ Check build directories under `~/projects` without prompting or changing Time Ma
 Find build directories and print only paths that are not excluded:
 
 ```bash
-find "$HOME/projects" -type d \( -name node_modules -o -name target -o -name build -o -name dist \) -prune -print0 |
-	while IFS= read -r -d '' directory; do
-		tmutil isexcluded "$directory" | grep -q Excluded || printf '%s\0' "$directory"
-	done
+node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-build-dirs.mjs
 ```
 
-Capture the null-delimited result without losing the command's exit status. A failed `find` or `tmutil` call stages `status: "error"`; never reinterpret a failed check as an empty result.
+It walks `~/projects` for `node_modules`, `target`, `build`, and `dist` directories, pruning below each match, asks `tmutil isexcluded` about them in batches, and prints the unexcluded paths null-delimited on stdout.
+
+Capture the null-delimited result without losing the command's exit status. The script separates two kinds of trouble:
+
+- **A directory that vanishes mid-walk is not a failure.** `~/projects` is live while the scan runs -- a `.git/rebase-merge` dir disappears the moment a rebase finishes. The script prunes that one subtree, keeps walking, and notes it on stderr as `vanished mid-scan, skipped: <path>`. A directory that no longer exists has no build output to exclude, so exit status stays 0 and the result is complete. Never re-run the sweep because of these lines, and never stage them as an error.
+- **A non-zero exit is a real failure** -- permission denied, a missing scan root, a `tmutil` crash, or `tmutil` unable to classify a path that still exists. Stage `status: "error"` with the stderr text; never reinterpret a failed check as an empty result.
+
+Run the script once. Do not substitute a hand-rolled `find` pipeline: `find` exits non-zero on a vanished directory, which makes a transient entry indistinguishable from a real failure and once forced a full second sweep that doubled the prep's runtime.
 
 ## Group the result
 
