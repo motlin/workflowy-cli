@@ -31,7 +31,7 @@ On `status: "empty"`, report "no new feedback to fold in", advance the watermark
 
 After the last batch, advance tracking — only here, never in prep:
 
-- **Watermark** under `Metadata > ⚙️ Scanner State > daily-review-meta-feedback`: set the single JSON child to `{"last_reviewed_iso":"<now-iso>"}` so the next run only scans transcripts after this review. Create the node and child if absent (mirror the `meeting-followup-reviewer` create steps in `meetings.md`).
+- **Watermark** under `Metadata > ⚙️ Scanner State > daily-review-meta-feedback`: set the single JSON child to `{"last_reviewed_iso":"<generatedAt>"}`, copying the staged file's top-level `generatedAt` verbatim, never the current time. Prep scanned transcripts only up to `generatedAt`, so a watermark jumped forward to now silently drops every correction made after the scan. Create the node and child if absent (mirror the `meeting-followup-reviewer` create steps in `meetings.md`).
 
 Return success or empty after the watermark persists. The DAG executor owns the prep date.
 

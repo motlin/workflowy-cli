@@ -146,6 +146,7 @@ Follow `${CLAUDE_PLUGIN_ROOT}/skills/dag-llm-tasks.md` and `${CLAUDE_PLUGIN_ROOT
 - After a paired apply succeeds, run that task's `advance.applyOp` from `phase0-plan.json` verbatim in the background.
 - After an auto task succeeds, run its `advance.applyOp` the same way.
 - On skip, failure, or unverified work, leave the date unchanged.
+- Next dates come from the plan's `planDate` (the import day), not the time the apply runs. If `planDate` no longer matches the local date, re-run the import barrier and recompute the plan before advancing anything.
 
 The executor owns date advancement. Prep, apply, and auto commands never update their own schedule. This keeps one date on the prep node and makes arbitrary intervals deterministic.
 

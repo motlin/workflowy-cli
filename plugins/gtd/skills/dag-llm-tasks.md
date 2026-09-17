@@ -50,9 +50,13 @@ Run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs` before execution. Its ou
 
 ## Scheduling
 
-Only prep nodes own schedules. The planner compares each prep date to today, includes the linked presentation entry when prep is due, and precomputes the next date from today plus the task interval.
+Only prep nodes own schedules. The planner runs right after the import barrier, so its `planDate` is the import day. It compares each prep date to `planDate`, includes the linked presentation entry when prep is due, and precomputes the next date from `planDate` plus the task interval.
 
 After verified success, the main executor runs the task's `advance.applyOp` from the plan verbatim. Task commands never advance their own date. Empty prep is successful; skipped, failed, and unverified work leaves the date unchanged.
+
+Next dates come from `planDate`, never from the wall clock at apply time. A review session can stay open for hours or resume the next day, and a date taken from the clock would then skip past work whose data was fetched earlier. Never recompute a next date by hand.
+
+Before running any `advance.applyOp`, compare the plan's `planDate` to the local date. When they differ, the session resumed on a later day and the fetched data is stale: re-run the import barrier, refetch the LLM Tasks tree, and recompute `phase0-plan.json` before advancing anything. Tasks already advanced drop out of the new plan as `future`; the remaining tasks get fresh prep against the new import.
 
 This central ownership prevents prep and presentation dates from drifting and supports daily, weekly, monthly, and yearly prep/apply tasks with the same mechanism.
 

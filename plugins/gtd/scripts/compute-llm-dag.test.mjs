@@ -102,6 +102,19 @@ test('computeLlmDag defaults to daily and honors explicit weekly intervals', () 
 	assert.match(weekly.advance.applyOp, /--expect-name/);
 });
 
+test('computeLlmDag records the plan date that every next date is computed from', () => {
+	const plan = computeLlmDag(fixture(), '2000-01-01');
+
+	assert.strictEqual(plan.planDate, '2000-01-01');
+	assert.strictEqual(plan.prepBranches[0].tasks[0].advance.nextDate, '2000-01-02');
+});
+
+test('computeLlmDag rejects a plan date that is not a padded ISO date', () => {
+	// The executor compares planDate to the local date, so an unpadded or empty date never
+	// matches and would restart the import barrier forever instead of failing loudly here.
+	assert.throws(() => computeLlmDag(fixture(), '2000-1-1'), /plan date must be YYYY-MM-DD, got "2000-1-1"/);
+});
+
 test('computeLlmDag rejects unexpected root children', () => {
 	const tree = fixture();
 	tree.children.push(task({name: 'Orphan', id: 'orphan', date: '2000-01-01', command: 'orphan-prep'}));

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import {readFileSync} from 'node:fs';
-import {addInterval, buildTimeElement, parseTimeISO, swapTimeElement} from './compute-overdue.mjs';
+import {addInterval, buildTimeElement, localTodayISO, parseTimeISO, swapTimeElement} from './compute-overdue.mjs';
 
 const ROOT_NAMES = ['Import', 'Prep', 'Presentation'];
+const PLAN_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const INTERVAL_PREFIX = 'Interval: ';
 const INTERVAL_PATTERN = /^(\d+)([dmy])$/;
 const TASK_COMMAND_PATTERN = /^\/[a-z0-9-]+:([a-z0-9-]+)(?:\s|$)/;
@@ -130,6 +131,9 @@ function rootGroups(tree) {
 }
 
 export function computeLlmDag(tree, today) {
+	// planDate ships in the plan and the executor compares it to the local date before advancing
+	// any task. An unpadded date never matches, so it would restage the import barrier forever.
+	if (!PLAN_DATE_PATTERN.test(today)) throw new Error(`plan date must be YYYY-MM-DD, got "${today}"`);
 	const groups = rootGroups(tree);
 	const importNode = groups.get('Import');
 	const prepNode = groups.get('Prep');
@@ -181,6 +185,7 @@ export function computeLlmDag(tree, today) {
 		}));
 
 	return {
+		planDate: today,
 		import: {
 			id: importNode.id,
 			instructions: instructions(importNode, 'Import'),
@@ -191,16 +196,10 @@ export function computeLlmDag(tree, today) {
 	};
 }
 
-function localToday() {
-	const now = new Date();
-	const pad = (value) => String(value).padStart(2, '0');
-	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
 function main(arguments_) {
 	const argumentsList = arguments_.slice(2);
 	let inputPath = '.llm/gtd/review/phase0-llm-tasks.json';
-	let today = localToday();
+	let today = localTodayISO();
 	for (let index = 0; index < argumentsList.length; index++) {
 		if (argumentsList[index] === '--today') today = argumentsList[++index];
 		else if (!argumentsList[index].startsWith('--')) inputPath = argumentsList[index];

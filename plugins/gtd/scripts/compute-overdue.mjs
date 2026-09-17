@@ -356,7 +356,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 	return rows;
 }
 
-function localTodayISO() {
+export function localTodayISO() {
 	const now = new Date();
 	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }

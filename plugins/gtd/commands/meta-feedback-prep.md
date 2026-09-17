@@ -115,7 +115,7 @@ For each surviving candidate, emit one proposal:
       '' >> .llm/todo.md
     ```
 
-Set top-level fields: `task` = `"meta-feedback"` (inferred from the prep command and matches the filename); `generatedAt` = ISO-8601 with offset; `presentation` = `"Daily review meta-feedback"`; `summary` = `{sessionsScanned, turnsConsidered, notesConsidered, candidates, proposalsStaged, droppedAlreadyDone, droppedDeclined}`. Set `status`: `"ready"` if any proposals; `"empty"` if nothing survived reconciliation (idempotent re-run); `"error"` if the scan failed.
+Set top-level fields: `task` = `"meta-feedback"` (inferred from the prep command and matches the filename); `generatedAt` = ISO-8601 with offset, captured immediately before the transcript scan starts, since apply writes it back as the next watermark; `presentation` = `"Daily review meta-feedback"`; `summary` = `{sessionsScanned, turnsConsidered, notesConsidered, candidates, proposalsStaged, droppedAlreadyDone, droppedDeclined}`. Set `status`: `"ready"` if any proposals; `"empty"` if nothing survived reconciliation (idempotent re-run); `"error"` if the scan failed.
 
 Do **not** mutate any node, write `.llm/todo.md`, or advance the watermark. Archive the mid-run notes file as described above, then return a one-line summary (sessions scanned, notes considered, proposals staged, dropped-as-already-done count) and stop.
 
