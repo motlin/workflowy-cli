@@ -22,6 +22,15 @@ description: |
     When isAgendaItem is true the destination short-circuits to the Meeting agendas node.
     </commentary>
     </example>
+
+    <example>
+    Context: The item reads "9/14 - Replaced the furnace filter" — a dated, past-tense capture
+    user: "Guess the destination for item 5678"
+    assistant: "[Returns {path: 'Personal > 📅 Calendar > Mon, Sep 14, 2026', targetId: 'def456', confidence: 'high', reasoning: 'dated past-tense capture: short-circuit to the personal journal day node'}]"
+    <commentary>
+    A dated past-tense capture already happened, so it short-circuits to the calendar day node instead of a task bucket.
+    </commentary>
+    </example>
 ---
 
 Destination composer for GTD refinement. Your one job: pick the single best destination node for this inbox item from the fanned-in Phase A tagger results.
@@ -29,6 +38,31 @@ Destination composer for GTD refinement. Your one job: pick the single best dest
 Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the live item). Follow the `gtd refinement-tagger` skill for reading the synced project/destination metadata and the JSON-only output contract. Weigh the strongest signal — a confident project tag, person, or context — against the available destinations; prefer the most specific node, and report `low` confidence when signals are weak or conflicting.
 
 **Agenda short-circuit:** When `agendaDetector.isAgendaItem` is true, ignore the other signals and return the `📋 Meeting agendas` node — `targetId: f3bfcfbb-a904-62e6-06aa-29bda59a1f54`, `path: "Work > ☑️ Next (Work) > 📋 Meeting agendas"`.
+
+**Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the agenda short-circuit does not apply and the text matches this shape, return the day node for that date in the matching journal calendar. The other signals no longer decide what kind of destination this is; they only pick which calendar:
+
+- `Work > 📅 Calendar > 📍 Current` when the tagger signals (project, people, context) say work — day nodes sit under `📍 Current`, and the returned `path` includes it.
+- `Personal > 📅 Calendar` otherwise — day nodes sit directly under it.
+- Never the root `📆 Calendar`; that one belongs to the Otter meeting journal.
+
+Resolve the date to the most recent past occurrence when the year is missing, then read the day nodes of the one calendar you picked and match the `<time>` element carrying that `startYear`, `startMonth`, and `startDay`:
+
+```bash
+# Work
+./bin/run.js node get --path "Work,📅 Calendar,📍 Current" --depth 1 --json --fields name,shortId,children
+# Personal
+./bin/run.js node get --path "Personal,📅 Calendar" --depth 1 --json --fields name,shortId,children
+```
+
+If no day node matches, create it under that same parent — compute the `<time>` element with `date` per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, never hand-type the weekday — and return the new node. `path` ends in the day's display date; `targetId` is the day node's ID.
+
+Confidence for this short-circuit:
+
+- `high` when the leading date parses cleanly, the verb is unambiguously past tense ("Replaced", "Met", "Finished", "Called"), and work versus personal is clear.
+- `medium` when the verb is clear but work versus personal is a guess.
+- `low` when the verb reads the same in past tense and the imperative — "Read", "Set", "Put", "Cut", "Hit", "Quit", "Let". "9/14 - Read the design doc" may be a journal entry or a task with a date attached, so still return the calendar day node and expect the user to redirect it.
+
+A date followed by an imperative or future phrasing ("9/20 - Renew passport", "Friday - call the dentist") is a dated task, not a journal entry; do not short-circuit it.
 
 ## Search for a topical home before defaulting to a generic bucket
 
