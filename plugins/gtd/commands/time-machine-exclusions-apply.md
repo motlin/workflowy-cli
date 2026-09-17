@@ -11,7 +11,7 @@ Read `.llm/gtd/review/proposals/time-machine-exclusions.json` and act on its sta
 
 - `empty`: report nothing and return success. The DAG executor advances the date without prompting.
 - `error`: surface the error and return failure. Do not advance the date.
-- `ready`: show `summary.report` (each durable path, plus one aggregate line per repo for build dirs inside `.worktrees/`) and the staged sweep command, then ask whether the user completed it. Never expand the aggregate into individual worktree paths, and never suggest excluding or skipping a `.worktrees` root -- a worktree with uncommitted changes needs backing up.
+- `ready`: show `summary.report` (each durable path, plus one aggregate line per repo for build dirs inside `.worktrees/` and one for build dirs inside `.llm/conflicts-*/` checkouts) and the staged sweep command, then ask whether the user completed it. Never expand an aggregate into individual paths, and never suggest excluding or skipping a `.worktrees` root -- a worktree with uncommitted changes needs backing up.
 
 On "not now" or skip, return skipped and leave the date unchanged. On confirmation, rerun the no-sudo check from `/gtd:time-machine-exclusions-prep` before returning success.
 
