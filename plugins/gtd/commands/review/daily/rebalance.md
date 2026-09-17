@@ -78,10 +78,18 @@ Keep `rebalance-ui.mjs` and `ladder-queue.html` until the local route has had se
 Use the fresh `rebalance` reports to explain capacity and empty tiers in the page workflow. The reports are guidance, not authority to select items or execute repairs. The user can switch roots and edit either ladder; each gesture is written immediately.
 
 - **Push-downs:** the page exposes every occupant and tier count. The user chooses which items move down; never pre-select the last `excess` items, infer the remaining moves from row order, or ask which items stay through a question tool.
-- **Pull-ups:** the user moves items into empty tiers in the page, or leaves them empty. Do not separately walk candidates or ask a “Leave it empty” question. `1st` is never an automatic pull-up target; only an explicit page choice may move an item there.
+- **Pull-ups:** the user moves items into empty tiers in the page, or leaves them empty. Do not separately walk candidates or ask a "Leave it empty" question. `1st` is never an automatic pull-up target; only an explicit page choice may move an item there.
 - **Extensions:** the user adds a bottom tier and chooses its occupants in the page. The app creates only the requested tier and moves only the selected items. Never split the bottom tier on position or move unnamed items as an inferred complement.
 
 Refresh both reports after verified edits. A move can change another tier's capacity status; surface any remaining over-cap or empty tiers and let the user make further page edits. Never force a repair or return to question-based ranking because the chosen arrangement leaves a violation.
+
+### Size never changes the surface
+
+The ban on question-based ranking covers the initial presentation, not only the repair after a page edit. A large excess is the case the page exists for, not a reason to fall back to questions.
+
+- **Any excess goes to the page.** A capped tier over its `2^k` always reaches the ladder page as its `pushDowns` proposal, whether `excess` is 1 or most of the tier. Do not judge the count unworkable, and do not open with a question about how to choose. Open the page with the report's numbers and let the user pick.
+- **Unranked sweeps get a bulk criterion, on the page.** A landing-zone tier filled by sweeps holds items nobody ranked, so naming them one by one is the wrong unit of work. Offer bulk criteria alongside the proposal -- a shared tag, age since creation, last-touched date -- each with the count it would move, so the user selects a whole group in the page with one range selection. The criterion is a way to group rows, not a selection: never move the matching items yourself, and never ask which criterion to use through a question tool.
+- **Skipping is the user's call.** Do not offer "skip the rebalance" as the escape from a large tier; a tier left over cap is recorded as `skipped` and proposed again next run.
 
 ## Record the outcome
 
