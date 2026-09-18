@@ -34,11 +34,13 @@ fi
 
 echo "Scanning $ROOT for node_modules / target / build / dist ..."
 
-# -prune stops the walk at each match, so nested build output inside an excluded
-# directory is covered by its parent exclusion rather than listed separately.
-mapfile -d '' DIRS < <(find "$ROOT" -type d \
-	\( -name node_modules -o -name target -o -name build -o -name dist \) \
-	-prune -print0)
+# The scanner prunes below each match, skips directories that are already excluded or that
+# hold git-tracked source, and is the one definition the daily-review prep also uses.
+# Writing to a file (not process substitution) lets a scanner failure stop the script.
+SCAN_OUT="$(mktemp)"
+trap 'rm -f "$SCAN_OUT"' EXIT
+node "$(dirname -- "$SCRIPT_PATH")/scan-build-dirs.mjs" "$ROOT" >"$SCAN_OUT"
+mapfile -d '' DIRS <"$SCAN_OUT"
 
 if [ "${#DIRS[@]}" -eq 0 ]; then
 	echo "Nothing to exclude."

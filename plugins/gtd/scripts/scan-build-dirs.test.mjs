@@ -2,10 +2,11 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdirSync, mkdtempSync, readdirSync, rmSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {classifyExclusions, walkBuildDirs} from './scan-build-dirs.mjs';
+import {classifyExclusions, dropTrackedSource, walkBuildDirs} from './scan-build-dirs.mjs';
 
 function makeTree(relativeDirs) {
 	const root = mkdtempSync(join(tmpdir(), 'scan-build-dirs-'));
@@ -130,4 +131,18 @@ test('no paths means no tmutil call', () => {
 		throw new Error('should not run');
 	};
 	assert.deepStrictEqual(classifyExclusions([], {runTmutil, exists: () => true}), {unexcluded: [], vanished: []});
+});
+
+test('a build-named directory holding git-tracked files is source, not build output', () => {
+	const root = makeTree(['repo/plugins/build/skills', 'repo/app/build', 'loose/dist']);
+	try {
+		execFileSync('git', ['init', '-q', join(root, 'repo')]);
+		writeFileSync(join(root, 'repo/plugins/build/skills/README.md'), 'source\n');
+		writeFileSync(join(root, 'repo/app/build/out.js'), 'generated\n');
+		execFileSync('git', ['-C', join(root, 'repo'), 'add', 'plugins/build/skills/README.md']);
+		const paths = [join(root, 'loose/dist'), join(root, 'repo/app/build'), join(root, 'repo/plugins/build')];
+		assert.deepStrictEqual(dropTrackedSource(paths), [join(root, 'loose/dist'), join(root, 'repo/app/build')]);
+	} finally {
+		rmSync(root, {recursive: true});
+	}
 });

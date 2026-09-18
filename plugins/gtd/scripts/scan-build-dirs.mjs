@@ -8,7 +8,7 @@
 // (permission denied, a missing root, a tmutil crash) is a real failure and exits non-zero.
 //
 // Usage: scan-build-dirs.mjs [root]    (default: ~/projects)
-// Prints NUL-delimited unexcluded paths on stdout, ready for group-build-dirs.mjs.
+// Prints NUL-delimited unexcluded, untracked paths on stdout, ready for group-build-dirs.mjs.
 // Vanished directories are listed on stderr for the record.
 
 import {execFileSync} from 'node:child_process';
@@ -83,6 +83,24 @@ export function classifyExclusions(
 	return {unexcluded, vanished};
 }
 
+function gitTrackedFiles(path) {
+	try {
+		return execFileSync('git', ['-C', path, 'ls-files', '--', '.'], {
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore'],
+		});
+	} catch {
+		// Not inside a git work tree, so nothing here is tracked.
+		return '';
+	}
+}
+
+// A directory named like build output can be checked-in source (a plugin named `build`).
+// Excluding it would drop real source from backups, so any directory with tracked files stays.
+export function dropTrackedSource(paths, {trackedFiles = gitTrackedFiles} = {}) {
+	return paths.filter((path) => trackedFiles(path) === '');
+}
+
 function main() {
 	const root = process.argv[2] ?? join(homedir(), 'projects');
 	const walked = walkBuildDirs(root);
@@ -90,7 +108,11 @@ function main() {
 	for (const path of [...walked.vanished, ...classified.vanished]) {
 		process.stderr.write(`vanished mid-scan, skipped: ${path}\n`);
 	}
-	process.stdout.write(classified.unexcluded.map((path) => `${path}\0`).join(''));
+	process.stdout.write(
+		dropTrackedSource(classified.unexcluded)
+			.map((path) => `${path}\0`)
+			.join(''),
+	);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();
