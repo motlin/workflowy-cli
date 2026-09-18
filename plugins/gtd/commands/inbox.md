@@ -22,7 +22,7 @@ Launch the inbox-loader agent to get current inbox items:
 
 ```text
 Task tool:
-- subagent_type: "gtd:inbox-loader"
+- subagent_type: "gtd:refinement:inbox-loader"
   prompt: "Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
 ```
 
@@ -178,7 +178,7 @@ For moves, item-mover handles:
 
 ```text
 Task tool:
-- subagent_type: "gtd:item-mover"
+- subagent_type: "gtd:refinement:item-mover"
   prompt: |
     Execute confirmed moves:
     <JSON array of confirmed moves for this batch>

@@ -150,7 +150,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/load-existing-tasks.sh > .llm/gtd/review/meetings/
 
 The script reads the synced metadata cache and emits `nextActions` (both Next Actions trees) and `projectTasks` (active projects, each entry carrying `projectName`). Every entry has `id` and `name`.
 
-**If the script fails** (usually `metadata directory not found`), run the `gtd:metadata-sync` subagent once and retry. If it still fails, continue the review with no matches — and say so in every Step 8 question rather than implying nothing matched.
+**If the script fails** (usually `metadata directory not found`), run the `gtd:shared:metadata-sync` subagent once and retry. If it still fails, continue the review with no matches — and say so in every Step 8 question rather than implying nothing matched.
 
 Match each Step 6 candidate against both arrays. Normalize both sides first: lowercase, strip HTML, `#tags`, `@mentions`, and punctuation. Then look for:
 

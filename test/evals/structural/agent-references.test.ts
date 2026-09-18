@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import {join} from 'node:path';
+import {dirname, join, relative, sep} from 'node:path';
 import {parseMarkdownFile} from './helpers/markdown-parser.js';
 import {
 	PLUGINS_DIR,
@@ -28,15 +28,19 @@ describe('Structural Eval: Agent References', () => {
 	let allSubagentRefs: Array<{name: string; file: string; line: number}>;
 
 	beforeAll(() => {
-		// Build agent registry: name -> file path. Plugin agents register both
-		// their bare name and their plugin-qualified name (e.g. "gtd:item-refiner").
+		// Build agent registry: name -> file path. Claude Code registers a plugin agent under its
+		// plugin plus every subdirectory below agents/ (agents/refinement/item-refiner.md is
+		// "gtd:refinement:item-refiner"); neither the bare name nor "gtd:item-refiner" resolves.
 		agentRegistry = new Map();
 		for (const plugin of listPlugins()) {
-			for (const filePath of collectMarkdownFiles(join(PLUGINS_DIR, plugin, 'agents'))) {
+			const agentsDir = join(PLUGINS_DIR, plugin, 'agents');
+			for (const filePath of collectMarkdownFiles(agentsDir)) {
 				const name = extractAgentName(filePath);
 				if (name) {
-					agentRegistry.set(name, filePath);
-					agentRegistry.set(`${plugin}:${name}`, filePath);
+					const subdirs = dirname(relative(agentsDir, filePath))
+						.split(sep)
+						.filter((part) => part !== '.');
+					agentRegistry.set([plugin, ...subdirs, name].join(':'), filePath);
 				}
 			}
 		}

@@ -41,13 +41,13 @@ Use a SINGLE message with MULTIPLE Task tool calls in parallel. Pass the prompt:
 
 **Fan in only after every tagger has reported.** The Agent tool has no synchronous flag, so a tagger call can return a launch acknowledgement while the tagger keeps running. Treat an acknowledgement as "pending", not as a result: end your turn and resume on each tagger's completion notification until all seven JSON outputs are in hand. Never write the fan-in file, start Phase B, or report success while any tagger is pending — a refiner that finishes early writes no `🔍 Refinement` node and still looks successful to its caller. A tagger that fails or returns no JSON is a refiner failure: report it by tagger name.
 
-- `gtd:project-tagger` - Detect/suggest project tags
-- `gtd:people-tagger` - Detect/suggest @Name mentions (see `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`)
-- `gtd:due-date-detector` - Parse dates and urgency
-- `gtd:url-linker` - Extract URLs and provenance
-- `gtd:context-tagger` - Suggest location/mode tags
-- `gtd:tag-cleaner` - Classify existing tags: fix typos, propose registering new tags, drop one-off junk
-- `gtd:agenda-detector` - Detect meeting-discussion topics to route to 📋 Meeting agendas
+- `gtd:refinement:project-tagger` - Detect/suggest project tags
+- `gtd:refinement:people-tagger` - Detect/suggest @Name mentions (see `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`)
+- `gtd:refinement:due-date-detector` - Parse dates and urgency
+- `gtd:refinement:url-linker` - Extract URLs and provenance
+- `gtd:refinement:context-tagger` - Suggest location/mode tags
+- `gtd:refinement:tag-cleaner` - Classify existing tags: fix typos, propose registering new tags, drop one-off junk
+- `gtd:refinement:agenda-detector` - Detect meeting-discussion topics to route to 📋 Meeting agendas
 
 Wait for all to complete and collect their JSON outputs.
 
@@ -74,12 +74,12 @@ EOF
 
 Phase B composers depend on each other - run them in order using the Task tool. Apply the same rule: an acknowledgement is not a result, so wait for each composer's completion notification and do not start the next composer until the previous one has returned its JSON.
 
-### Launch gtd:destination-guesser
+### Launch gtd:refinement:destination-guesser
 
 Launch the destination-guesser and capture its JSON output:
 
 ```text
-Task tool -> gtd:destination-guesser -> returns JSON with {path, targetId, confidence, reasoning}
+Task tool -> gtd:refinement:destination-guesser -> returns JSON with {path, targetId, confidence, reasoning}
 ```
 
 This determines where the item should go based on Phase A tagger results.
@@ -96,12 +96,12 @@ jq --argjson dest '<DESTINATION_OUTPUT_JSON>' '. + {destination: $dest}' \
   ".llm/gtd/refinement/$ITEM_ID.json" > ".llm/gtd/refinement/$ITEM_ID-with-dest.json"
 ```
 
-### Launch gtd:text-composer
+### Launch gtd:refinement:text-composer
 
 Now launch text-composer, which will read both Phase A results AND the destination from the updated file:
 
 ```text
-Task tool -> gtd:text-composer -> returns JSON with {composedText, changes, confidence}
+Task tool -> gtd:refinement:text-composer -> returns JSON with {composedText, changes, confidence}
 ```
 
 **Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda`, `#work`, and the target `@person` mention so the routed item matches the existing 📋 Meeting agendas topic shape exactly.

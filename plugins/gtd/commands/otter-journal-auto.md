@@ -55,7 +55,7 @@ Run the `otter-journal-scanner` agent in its default **`create`** mode — it sc
 
 ```text
 Task tool:
-- subagent_type: "gtd:otter-journal-scanner"
+- subagent_type: "gtd:journal:scanners:otter-journal-scanner"
   prompt: "Create mode for otter-journal-auto: scan Otter for meetings newer than last_synced_otid, calendar-dedup against 📆 Calendar. Before any page writes, validate every new meeting title and named attendees against its Overview and available transcript evidence. On mismatch or uncertainty, flag for review, never create untitled or retitle, hold the whole page and its scanner state, and stop. Otherwise CREATE each verified new meeting under 📆 Calendar and advance the live scanner state. Return created meetings (date + title + otid), review flags (original title + date + otid/URL + concise reason), and the newest otid actually recorded."
 ```
 

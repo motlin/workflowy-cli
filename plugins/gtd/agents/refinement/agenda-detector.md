@@ -58,7 +58,7 @@ Classify the item text (`ITEM_NAME`, plus any note/children context).
 ## Target Person
 
 - If the item names a person, set `targetPerson` to that reference (e.g. `"@Bob"`).
-- The canonical `@mention` is owned by `gtd:people-tagger`, which runs in parallel; `item-refiner` reconciles this detector's `targetPerson` with the people-tagger `@mention` (people-tagger wins for canonical spelling). Provide a best-effort reference here.
+- The canonical `@mention` is owned by `gtd:refinement:people-tagger`, which runs in parallel; `item-refiner` reconciles this detector's `targetPerson` with the people-tagger `@mention` (people-tagger wins for canonical spelling). Provide a best-effort reference here.
 - A general discussion topic with no person (e.g. _"Can we prevent forklifting repositories?"_) is still `isAgendaItem: true` with `targetPerson: null`.
 - Resolve a name to `targetPerson` per `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` — when unsure, leave `targetPerson: null` rather than guessing.
 

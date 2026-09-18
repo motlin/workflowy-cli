@@ -33,13 +33,13 @@ Launch sync agents in parallel. These handle dedup and creation directly:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:otter-journal-scanner"
+- subagent_type: "gtd:journal:scanners:otter-journal-scanner"
   prompt: "Sync Otter meetings to Workflowy calendar"
 
-- subagent_type: "gtd:github-journal-scanner"
+- subagent_type: "gtd:journal:scanners:github-journal-scanner"
   prompt: "Sync GitHub activity (merged PRs, closed issues) to Workflowy calendar"
 
-- subagent_type: "gtd:gmail-journal-scanner"
+- subagent_type: "gtd:journal:scanners:gmail-journal-scanner"
   prompt: "Sync Gmail events (purchases, travel) to Workflowy calendar"
 ```
 
@@ -49,25 +49,25 @@ Launch scan agents in parallel. These write to JSON for central dedup:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:calendar-journal-scanner"
+- subagent_type: "gtd:journal:scanners:calendar-journal-scanner"
   prompt: "Scan calendar for past events that actually occurred"
 
-- subagent_type: "gtd:imessage-journal-scanner"
+- subagent_type: "gtd:journal:scanners:imessage-journal-scanner"
   prompt: "Scan iMessages for mentions of completed activities and meetups"
 
-- subagent_type: "gtd:reminders-journal-scanner"
+- subagent_type: "gtd:journal:scanners:reminders-journal-scanner"
   prompt: "Scan Reminders for recently completed items"
 
-- subagent_type: "gtd:things3-journal-scanner"
+- subagent_type: "gtd:journal:scanners:things3-journal-scanner"
   prompt: "Scan Things 3 for recently completed tasks"
 
-- subagent_type: "gtd:tvtime-journal-scanner"
+- subagent_type: "gtd:journal:scanners:tvtime-journal-scanner"
   prompt: "Scan TV Time for recently watched episodes"
 
-- subagent_type: "gtd:photos-journal-scanner"
+- subagent_type: "gtd:journal:scanners:photos-journal-scanner"
   prompt: "Scan Photos for recent activities and events"
 
-- subagent_type: "gtd:chrome-journal-scanner"
+- subagent_type: "gtd:journal:scanners:chrome-journal-scanner"
   prompt: "Scan Chrome history for high-engagement pages visited"
 ```
 
@@ -100,7 +100,7 @@ Launch the journal-executor agent:
 
 ```text
 Task tool:
-- subagent_type: "gtd:journal-executor"
+- subagent_type: "gtd:journal:journal-executor"
   prompt: "Execute confirmed journal entries from .llm/gtd/journal/confirmed.json"
 ```
 

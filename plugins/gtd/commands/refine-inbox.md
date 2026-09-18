@@ -32,7 +32,7 @@ Launch metadata-sync to get projects, people, and contexts for tag matching:
 
 ```text
 Task tool:
-- subagent_type: "gtd:metadata-sync"
+- subagent_type: "gtd:shared:metadata-sync"
   prompt: "Sync GTD metadata to .llm/gtd/metadata/"
 ```
 
@@ -42,7 +42,7 @@ Launch the item-refiner for the single item by ID:
 
 ```text
 Task tool:
-- subagent_type: "gtd:item-refiner"
+- subagent_type: "gtd:refinement:item-refiner"
   prompt: "Refine item $ITEM_ID"
 ```
 
@@ -128,10 +128,10 @@ Launch both loader agents in parallel using the Task tool:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:inbox-loader"
+- subagent_type: "gtd:refinement:inbox-loader"
   prompt: "Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
 
-- subagent_type: "gtd:metadata-sync"
+- subagent_type: "gtd:shared:metadata-sync"
   prompt: "Sync GTD metadata to .llm/gtd/metadata/"
 ```
 
@@ -166,7 +166,7 @@ A refiner's hand-back is not proof it wrote anything. After the refiners finish,
 
 ```text
 For each item ID, launch Task tool:
-- subagent_type: "gtd:item-refiner"
+- subagent_type: "gtd:refinement:item-refiner"
   prompt: "Refine item <ITEM_ID>"
 ```
 
@@ -194,7 +194,7 @@ After all refiners complete, reload inbox data to see written suggestions:
 
 ```text
 Task tool:
-- subagent_type: "gtd:inbox-loader"
+- subagent_type: "gtd:refinement:inbox-loader"
   prompt: "Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
 ```
 

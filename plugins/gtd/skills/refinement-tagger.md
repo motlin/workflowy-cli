@@ -26,7 +26,7 @@ Classify against `ITEM_NAME` plus any note/children context — captured items o
 
 ## Where synced metadata lives
 
-`gtd:metadata-sync` (see `${CLAUDE_PLUGIN_ROOT}/agents/shared/metadata-sync.md`) writes the cache before refinement runs. Read, never write, these files:
+`gtd:shared:metadata-sync` (see `${CLAUDE_PLUGIN_ROOT}/agents/shared/metadata-sync.md`) writes the cache before refinement runs. Read, never write, these files:
 
 - `.llm/gtd/metadata/projects/*.json` — one file per project; match item text against project names/slugs.
 - `.llm/gtd/metadata/people.json` — canonical people roster. It is large: extract with `jq`, never read the whole file into context.

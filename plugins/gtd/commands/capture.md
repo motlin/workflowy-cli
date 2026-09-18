@@ -45,7 +45,7 @@ After creating the node, optionally launch background refinement:
 
 ```text
 Task tool (background):
-- subagent_type: "gtd:item-refiner"
+- subagent_type: "gtd:refinement:item-refiner"
   prompt: "Refine inbox item: <item text>"
   run_in_background: true
 ```
@@ -64,13 +64,13 @@ Launch all three loader agents in parallel using the Task tool:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:metadata-sync"
+- subagent_type: "gtd:shared:metadata-sync"
   prompt: "Sync GTD metadata to .llm/gtd/metadata/"
 
-- subagent_type: "gtd:declined-loader"
+- subagent_type: "gtd:capture:declined-loader"
   prompt: "Load recently declined items to .llm/gtd/capture/declined.json"
 
-- subagent_type: "gtd:existing-tasks-loader"
+- subagent_type: "gtd:capture:existing-tasks-loader"
   prompt: "Load existing tasks for duplicate detection to .llm/gtd/capture/existing-tasks.json"
 ```
 
@@ -82,7 +82,7 @@ Launch scanner agents in parallel using the Task tool. Currently only `otter-sca
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:otter-scanner"
+- subagent_type: "gtd:capture:scanners:legacy:otter-scanner"
   prompt: "Scan Otter.ai for meeting transcripts needing action items"
 ```
 
@@ -110,7 +110,7 @@ Launch one `project-deep-diver` per unique project:
 
 ```text
 For each projectId, launch Task tool:
-- subagent_type: "gtd:project-deep-diver"
+- subagent_type: "gtd:capture:project-deep-diver"
   prompt: "Deep dive into project with ID <projectId>"
 ```
 
@@ -122,7 +122,7 @@ Launch one `item-analyzer` per scanned item:
 
 ```text
 For each item, launch Task tool:
-- subagent_type: "gtd:item-analyzer"
+- subagent_type: "gtd:capture:item-analyzer"
   prompt: |
     Analyze this scanned item for capture:
     ID: <itemId>
@@ -182,7 +182,7 @@ Use the capture-executor agent for this step:
 
 ```text
 Task tool:
-- subagent_type: "gtd:capture-executor"
+- subagent_type: "gtd:capture:capture-executor"
   prompt: "Execute confirmed captures from .llm/gtd/capture/confirmed.json"
 ```
 
