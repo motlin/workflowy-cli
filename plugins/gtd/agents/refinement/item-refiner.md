@@ -39,7 +39,7 @@ Launch ALL Phase A tagger subagents in parallel using the Task tool.
 
 Use a SINGLE message with MULTIPLE Task tool calls in parallel. Pass the prompt: "Refine item $ITEM_ID"
 
-**Every tagger call MUST be synchronous — pass `run_in_background: false` on each one.** Subagents default to running in the background, and a backgrounded tagger hands control straight back: the refiner then "finishes" with nothing to fan in, writes no `🔍 Refinement` node, and reports success anyway. The caller sees a refined item count that does not match reality. Parallel here means several synchronous calls in one message, not detached ones.
+**Fan in only after every tagger has reported.** The Agent tool has no synchronous flag, so a tagger call can return a launch acknowledgement while the tagger keeps running. Treat an acknowledgement as "pending", not as a result: end your turn and resume on each tagger's completion notification until all seven JSON outputs are in hand. Never write the fan-in file, start Phase B, or report success while any tagger is pending — a refiner that finishes early writes no `🔍 Refinement` node and still looks successful to its caller. A tagger that fails or returns no JSON is a refiner failure: report it by tagger name.
 
 - `gtd:project-tagger` - Detect/suggest project tags
 - `gtd:people-tagger` - Detect/suggest @Name mentions (see `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`)
@@ -72,7 +72,7 @@ EOF
 
 ## Phase B: Composers (Sequential)
 
-Phase B composers depend on each other - run them in order using the Task tool. These calls are also synchronous: pass `run_in_background: false`, and do not start the next composer until the previous one has returned its JSON.
+Phase B composers depend on each other - run them in order using the Task tool. Apply the same rule: an acknowledgement is not a result, so wait for each composer's completion notification and do not start the next composer until the previous one has returned its JSON.
 
 ### Launch gtd:destination-guesser
 

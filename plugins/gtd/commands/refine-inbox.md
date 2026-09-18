@@ -162,6 +162,8 @@ jq -r '.inboxes[].items[] | select(.children == null or (.children | map(select(
 
 Maintain BATCH_SIZE concurrent `item-refiner` Task calls; launch the next item as each finishes until the list is exhausted. One agent refines one item.
 
+A refiner's hand-back is not proof it wrote anything. After the refiners finish, fetch each item and confirm it has exactly one `🔍 Refinement` child. Re-launch the refiner once for any item that has none; if it still has none, report that item by name as a failure rather than counting it refined.
+
 ```text
 For each item ID, launch Task tool:
 - subagent_type: "gtd:item-refiner"
