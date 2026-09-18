@@ -130,3 +130,25 @@ test('a hanging op read is killed by the in-script timeout instead of blocking f
 		'no cache file should be written from a timed-out resolve',
 	);
 });
+
+test('the empty-response check stays fast on a large multibyte response', () => {
+	const big = '{"title": "réunion — café ☕ ", "x": 1}, '.repeat(8000);
+	const run = (value) =>
+		execFileSync(
+			'/bin/bash',
+			[
+				'-c',
+				`source ${JSON.stringify(SCRIPT)}; response_is_blank "$1" && echo blank || echo content`,
+				'bash',
+				value,
+			],
+			{
+				encoding: 'utf8',
+				timeout: 10_000,
+				env: {...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8'},
+			},
+		).trim();
+	assert.equal(run(big), 'content');
+	assert.equal(run(' \n\t '), 'blank');
+	assert.equal(run(''), 'blank');
+});

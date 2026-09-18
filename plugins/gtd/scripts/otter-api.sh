@@ -330,7 +330,7 @@ sync_meetings() {
         return "$fetch_status"
     fi
 
-    if [[ -z "${raw_response//[[:space:]]/}" ]]; then
+    if response_is_blank "$raw_response"; then
         echo "otter-api: sync failed: available_speeches returned an empty response" >&2
         return 1
     fi
@@ -442,4 +442,13 @@ main() {
     esac
 }
 
-main "$@"
+# A regex match, not `${var//[[:space:]]/}`: bash 3.2 runs that substitution in quadratic time on
+# multibyte text, so a large Otter response hung `sync` for minutes at full CPU.
+response_is_blank() {
+    [[ ! "$1" =~ [^[:space:]] ]]
+}
+
+# Sourcing the script (tests) defines the functions without running a command.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
