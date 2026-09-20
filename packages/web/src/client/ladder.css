@@ -252,10 +252,15 @@
 	user-select: none;
 	-webkit-user-select: none;
 	display: grid;
-	grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+	/*
+	 * One track per child -- grip, select, rank, text, step, done. A short count
+	 * wrapped Done onto a second grid row (92px rows for one line of text) and
+	 * slid the flexible track onto the rank, which right-aligned the text.
+	 */
+	grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
 	gap: 10px;
 	align-items: center;
-	padding: 8px 14px 8px 10px;
+	padding: 4px 14px 4px 10px;
 	background: var(--surface);
 	margin: 4px 8px;
 	border: 1px solid var(--line);
