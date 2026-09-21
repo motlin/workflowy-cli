@@ -336,10 +336,13 @@
 	min-width: 22px;
 }
 
-.ladder-row .txt {
+.ladder-row .ladder-text {
 	user-select: text;
 	-webkit-user-select: text;
 	cursor: text;
+}
+
+.ladder-row .txt {
 	min-width: 0;
 	overflow-wrap: anywhere;
 	font-size: 14px;

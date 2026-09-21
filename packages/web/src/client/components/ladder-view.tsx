@@ -222,7 +222,7 @@ export function LadderView() {
 			const target = event.target as HTMLElement;
 			if (target.closest('button, a, input, select')) return;
 			suppressClick.current = false;
-			if (target.closest('.txt')) {
+			if (target.closest('.ladder-text')) {
 				if (event.shiftKey) event.preventDefault();
 				return;
 			}
@@ -274,7 +274,7 @@ export function LadderView() {
 		}
 		if (
 			!event.shiftKey &&
-			(event.target as HTMLElement).closest('.txt') &&
+			(event.target as HTMLElement).closest('.ladder-text') &&
 			globalThis.getSelection()?.isCollapsed === false
 		)
 			return;
@@ -550,7 +550,7 @@ function Tier({
 						</span>
 						<span className="rank">{index + 1}</span>
 						<span className="txt">
-							{item.name}
+							<span className="ladder-text">{item.name}</span>
 							{rowErrors[item.id] ? (
 								<span
 									className="ladder-row-error"
