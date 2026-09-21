@@ -517,6 +517,14 @@ function Tier({
 							.join(' ')}
 						key={item.id}
 						data-node-id={item.id}
+						role="group"
+						aria-label={`${item.name}${selected.has(item.id) ? ', selected' : ''}`}
+						tabIndex={saving ? -1 : 0}
+						onKeyDown={(event) => {
+							if (event.target !== event.currentTarget || event.key !== ' ' || saving) return;
+							event.preventDefault();
+							onSelect(item.id, event.shiftKey, event.metaKey || event.ctrlKey);
+						}}
 						onClick={(event) => onRowClick(event, item.id)}
 						onPointerCancel={onGripCancel}
 						onLostPointerCapture={onGripCancel}
@@ -530,15 +538,6 @@ function Tier({
 						>
 							&#10303;
 						</span>
-						<button
-							type="button"
-							aria-label={`Select ${item.name}`}
-							aria-pressed={selected.has(item.id)}
-							disabled={saving}
-							onClick={(event) => onSelect(item.id, event.shiftKey, true)}
-						>
-							{selected.has(item.id) ? '☑' : '☐'}
-						</button>
 						<span className="rank">{index + 1}</span>
 						<span className="txt">
 							{item.name}

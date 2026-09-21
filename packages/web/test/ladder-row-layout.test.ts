@@ -18,14 +18,14 @@ describe('ladder row layout', () => {
 	// Fewer tracks than children wraps the last child (Done) onto a second grid row, doubling
 	// every row's height, and slides the 1fr track off the text onto the rank number.
 	it('gives every row child its own column so nothing wraps to a second line', () => {
-		const children = ['grip', 'select', 'rank', 'txt', 'step', 'done'];
+		const children = ['grip', 'rank', 'txt', 'step', 'done'];
 		expect(rowTracks()).toHaveLength(children.length);
 	});
 
 	it('spends the flexible column on the task text, not the rank', () => {
 		const tracks = rowTracks();
 		const flexible = tracks.findIndex((track) => track.includes('1fr'));
-		expect(flexible).toBe(3);
+		expect(flexible).toBe(2);
 	});
 
 	it('renders the row children in the order the columns assume', () => {

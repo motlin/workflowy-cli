@@ -254,12 +254,7 @@
 	user-select: none;
 	-webkit-user-select: none;
 	display: grid;
-	/*
-	 * One track per child -- grip, select, rank, text, step, done. A short count
-	 * wrapped Done onto a second grid row (92px rows for one line of text) and
-	 * slid the flexible track onto the rank, which right-aligned the text.
-	 */
-	grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+	grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 	gap: 10px;
 	align-items: center;
 	padding: 4px 14px 4px 10px;
@@ -465,6 +460,7 @@
 }
 
 .ladder-row.selected {
+	background: var(--accent-soft);
 	outline: 2px solid var(--accent, #3b6ea5);
 	outline-offset: -2px;
 }
