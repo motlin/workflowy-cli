@@ -114,3 +114,17 @@ describe('toLadder subtrees', () => {
 		expect(tier.items[1].descendantCount).toBe(0);
 	});
 });
+
+it('keeps the tree affordance when a task has only completed descendants', () => {
+	const ladder = toLadder(
+		'personal',
+		node('bucket', 'Tasks', [
+			node('tier', '1st', [
+				node('alice', 'Alice', [{id: 'bob', name: 'Bob', completedAt: '2000-01-01', children: []}]),
+			]),
+		]),
+	);
+	expect(ladder.tiers[0].items).toStrictEqual([
+		{id: 'alice', name: 'Alice', children: [], hasChildren: true, descendantCount: 0},
+	]);
+});

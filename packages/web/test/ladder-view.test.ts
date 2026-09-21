@@ -3,6 +3,8 @@ import type {ReactElement, ReactNode} from 'react';
 import type {Ladders} from '../src/client/ladder-state.js';
 import {LadderView} from '../src/client/components/ladder-view.js';
 
+vi.mock('../src/client/components/ladder-tree.js', () => ({LadderTree: () => null}));
+
 const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0, effects: [] as (() => unknown)[]}));
 vi.mock('react', () => ({
 	useState(initial: unknown) {

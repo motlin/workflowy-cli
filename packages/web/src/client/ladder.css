@@ -497,3 +497,92 @@
 .ladder-zone.drop-end::after {
 	bottom: 0;
 }
+
+.ladder-tree-button {
+	margin-left: 10px;
+	padding: 2px 7px;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--accent);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.ladder-tree-panel {
+	width: min(760px, calc(100vw - 32px));
+	max-height: 85dvh;
+	padding: 0;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: 0 16px 64px #0005;
+}
+
+.ladder-tree-panel::backdrop {
+	background: #0006;
+}
+.ladder-tree-panel > header {
+	display: flex;
+	justify-content: space-between;
+	align-items: start;
+	gap: 20px;
+	padding: 20px;
+	border-bottom: 1px solid var(--line);
+	position: sticky;
+	top: 0;
+	background: var(--surface);
+	z-index: 1;
+}
+.ladder-tree-panel h2 {
+	margin: 0 0 6px;
+	font-size: 22px;
+}
+.ladder-tree-panel a {
+	color: var(--accent);
+}
+.ladder-tree-panel button {
+	cursor: pointer;
+}
+.ladder-tree-body {
+	padding: 4px 20px 20px;
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+.ladder-tree-body ul {
+	padding-left: 22px;
+}
+.ladder-tree-body li {
+	margin: 9px 0;
+}
+.ladder-tree-body summary {
+	cursor: pointer;
+}
+.ladder-tree-note {
+	white-space: pre-wrap;
+	color: var(--ink-2);
+	margin: 4px 0 8px;
+	font-size: 13px;
+}
+.ladder-tree-completed {
+	text-decoration: line-through;
+	color: var(--muted);
+}
+.ladder-tree-empty {
+	color: var(--muted);
+}
+
+.ladder-tree-panel > header button {
+	border: 1px solid var(--line-strong);
+	border-radius: 5px;
+	padding: 5px 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+}
+
+.ladder-tree-body li:has(> details) {
+	list-style: none;
+}

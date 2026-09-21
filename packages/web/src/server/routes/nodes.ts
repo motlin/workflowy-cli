@@ -145,12 +145,13 @@ nodesRouter.get('/', async (c) => {
 
 	// Determine which nodes have children (single query for efficiency)
 	const nodeIds = nodes.map((n) => n.id);
+	const childParentIds = nodes.map((node) => node.mirror.originalNodeId ?? node.id);
 	const parentIdsWithChildren = new Set<string>();
 	if (nodeIds.length > 0) {
 		const childRows = db
 			.selectDistinct({parentId: nodeContent.parentId})
 			.from(nodeContent)
-			.where(and(inArray(nodeContent.parentId, nodeIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+			.where(and(inArray(nodeContent.parentId, childParentIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 			.all();
 		for (const row of childRows) {
 			if (row.parentId) parentIdsWithChildren.add(row.parentId);
@@ -162,7 +163,7 @@ nodesRouter.get('/', async (c) => {
 
 	const nodeResponses: NodeResponse[] = nodes.map((node) =>
 		nodeToRestDto(node, {
-			hasChildren: parentIdsWithChildren.has(node.id),
+			hasChildren: parentIdsWithChildren.has(node.mirror.originalNodeId ?? node.id),
 			name: node.name,
 			note: node.note,
 			attachment: attachments.get(node.id) ?? null,

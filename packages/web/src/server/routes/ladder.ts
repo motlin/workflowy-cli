@@ -96,7 +96,7 @@ function defaultService(ctx: ServerContext): LadderService {
 				if (!bucket) {
 					throw new Error(`no ${root} asap bucket at ${path.join(' > ')}`);
 				}
-				const [tree] = await reader.readNodes([bucket.id], {depth: 2});
+				const [tree] = await reader.readNodes([bucket.id], {depth: 3});
 				if (!tree) {
 					throw new Error(`could not read the ${root} asap bucket`);
 				}

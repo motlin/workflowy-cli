@@ -23,6 +23,7 @@ import {
 	tierOf,
 } from '../ladder-state.js';
 import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from '../pointer-drag.js';
+import {LadderTree} from './ladder-tree.js';
 import '../ladder.css';
 
 const VERDICT: Record<LadderTier['state'], (tier: LadderTier) => string> = {
@@ -351,6 +352,7 @@ export function LadderView() {
 
 	const roots = useMemo(() => Object.keys(ladders ?? {}), [ladders]);
 	const ladder = ladders?.[root];
+	const [treeItem, setTreeItem] = useState<{id: string; name: string}>();
 
 	return (
 		<div
@@ -409,6 +411,7 @@ export function LadderView() {
 								nextTier={ladder.tiers[index + 1]?.label}
 								onStep={move}
 								previousTier={ladder.tiers[index - 1]?.label}
+								onOpenTree={setTreeItem}
 								onComplete={complete}
 								onGripDown={onGripDown}
 								onGripMove={onGripMove}
@@ -434,6 +437,13 @@ export function LadderView() {
 					<p className="ladder-dek">{error ? 'Could not load the ladder.' : 'Loading…'}</p>
 				)}
 			</div>
+			{treeItem ? (
+				<LadderTree
+					key={treeItem.id}
+					item={treeItem}
+					onClose={() => setTreeItem(undefined)}
+				/>
+			) : null}
 			{ghost ? (
 				<div
 					className="ladder-ghost"
@@ -461,6 +471,7 @@ interface TierProps {
 	/** Neighbouring tier labels, so the step buttons know where up and down are. */
 	previousTier: string | undefined;
 	nextTier: string | undefined;
+	onOpenTree: (item: {id: string; name: string}) => void;
 	onComplete: (nodeId: string) => void;
 	onStep: (nodeId: string, toTier: string) => void;
 	onGripDown: (event: React.PointerEvent, item: {id: string; name: string}) => void;
@@ -483,6 +494,7 @@ function Tier({
 	previousTier,
 	nextTier,
 	onComplete,
+	onOpenTree,
 	onStep,
 	onGripDown,
 	onGripMove,
@@ -551,6 +563,17 @@ function Tier({
 						<span className="rank">{index + 1}</span>
 						<span className="txt">
 							<span className="ladder-text">{item.name}</span>
+							{item.hasChildren ? (
+								<button
+									className="ladder-tree-button"
+									type="button"
+									aria-label={`View tree for ${item.name}`}
+									aria-haspopup="dialog"
+									onClick={() => onOpenTree(item)}
+								>
+									Tree ▸
+								</button>
+							) : null}
 							{rowErrors[item.id] ? (
 								<span
 									className="ladder-row-error"
