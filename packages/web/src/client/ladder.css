@@ -337,6 +337,9 @@
 }
 
 .ladder-row .txt {
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 	min-width: 0;
 	overflow-wrap: anywhere;
 	font-size: 14px;

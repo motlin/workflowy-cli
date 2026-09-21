@@ -221,9 +221,13 @@ export function LadderView() {
 			if (busy.current || event.button !== 0 || !event.isPrimary) return;
 			const target = event.target as HTMLElement;
 			if (target.closest('button, a, input, select')) return;
+			suppressClick.current = false;
+			if (target.closest('.txt')) {
+				if (event.shiftKey) event.preventDefault();
+				return;
+			}
 			// Touch scrolling remains available outside the grip.
 			if (event.pointerType === 'touch' && !target.closest('.grip')) return;
-			suppressClick.current = false;
 			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 			const ladder = laddersRef.current?.[root];
 			if (!ladder) return;
@@ -268,6 +272,12 @@ export function LadderView() {
 			suppressClick.current = false;
 			return;
 		}
+		if (
+			!event.shiftKey &&
+			(event.target as HTMLElement).closest('.txt') &&
+			globalThis.getSelection()?.isCollapsed === false
+		)
+			return;
 		select(nodeId, event.shiftKey, event.metaKey || event.ctrlKey);
 	};
 
