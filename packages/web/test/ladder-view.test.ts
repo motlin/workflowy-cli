@@ -46,8 +46,13 @@ function render() {
 
 function tierProps() {
 	return render().find((element) => element.props.tier)?.props as {
-		onSelect: (id: string, range: boolean) => void;
-		onStep: (id: string, label: string) => void;
+		onSelect: (id: string, range: boolean, additive?: boolean) => void;
+		selected: Set<string>;
+		onGripCancel: () => void;
+		onGripDown: (event: unknown, item: {id: string; name: string}) => void;
+		onGripMove: (event: unknown, name: string) => void;
+		onGripUp: (event: unknown) => void;
+		onStep: (id: string, label: string, beforeNodeId?: string) => void;
 		onComplete: (id: string) => void;
 		rowErrors: Record<string, string>;
 	};
@@ -287,4 +292,68 @@ describe('local ladder actions', () => {
 			['/api/v1/ladder'],
 		]);
 	});
+});
+
+describe('row selection and pointer cancellation', () => {
+	it('replaces selection on click and toggles with a modifier', () => {
+		tierProps().onSelect('alice', false);
+		tierProps().onSelect('bob', false);
+		expect(tierProps().selected).toStrictEqual(new Set(['bob']));
+		tierProps().onSelect('alice', false, true);
+		expect(tierProps().selected).toStrictEqual(new Set(['bob', 'alice']));
+		tierProps().onSelect('bob', false, true);
+		expect(tierProps().selected).toStrictEqual(new Set(['alice']));
+	});
+
+	it('keeps the anchor when extending and shrinking a range', () => {
+		tierProps().onSelect('alice', false);
+		tierProps().onSelect('bob', true);
+		expect(tierProps().selected).toStrictEqual(new Set(['alice', 'bob']));
+		tierProps().onSelect('alice', true);
+		expect(tierProps().selected).toStrictEqual(new Set(['alice']));
+	});
+
+	it('never saves a cancelled drag', () => {
+		const row = {dataset: {nodeId: 'bob'}, getBoundingClientRect: () => ({top: 100, height: 40})};
+		const zone = {dataset: {tier: '1st'}, classList: {contains: () => true}, querySelectorAll: () => [row]};
+		vi.stubGlobal('document', {elementFromPoint: () => ({closest: () => zone})});
+		const event = {
+			button: 0,
+			isPrimary: true,
+			pointerType: 'mouse',
+			pointerId: 1,
+			clientX: 100,
+			clientY: 100,
+			target: {closest: () => null},
+			currentTarget: {setPointerCapture: vi.fn()},
+		};
+		tierProps().onGripDown(event, {id: 'alice', name: 'Alice'});
+		tierProps().onGripMove({...event, clientY: 140}, 'Alice');
+		tierProps().onGripCancel();
+		tierProps().onGripUp(event);
+		expect(request.mock.calls).toStrictEqual([]);
+	});
+
+	it('reloads authoritative order after a partially applied move fails', async () => {
+		request
+			.mockResolvedValueOnce({ok: false, json: async () => ({error: 'Test suffix failed', reconcile: true})})
+			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: ladders()})});
+		tierProps().onStep('alice', '2nd');
+		await settle();
+		expect({ladders: hooks.values[0], errors: tierProps().rowErrors}).toStrictEqual({
+			ladders: ladders(),
+			errors: {alice: 'Test suffix failed'},
+		});
+	});
+});
+
+it('saves selected rows before the same anchor in display order', async () => {
+	tierProps().onSelect('alice', false);
+	tierProps().onSelect('bob', true);
+	tierProps().onStep('bob', '2nd', 'charlie');
+	await settle();
+	expect(request.mock.calls.map(([, options]) => JSON.parse(options.body))).toStrictEqual([
+		{root: 'personal', node_id: 'alice', to_tier: '2nd', before_id: 'charlie'},
+		{root: 'personal', node_id: 'bob', to_tier: '2nd', before_id: 'charlie'},
+	]);
 });

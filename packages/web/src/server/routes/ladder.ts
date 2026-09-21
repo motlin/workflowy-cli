@@ -34,15 +34,22 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 	});
 
 	router.post('/move', async (c) => {
-		const {root, node_id: nodeId, to_tier: toTier} = await readBody(c.req.raw);
+		const {root, node_id: nodeId, to_tier: toTier, before_id: beforeNodeId} = await readBody(c.req.raw);
 		if (!root || !nodeId || !toTier) {
 			return c.json({error: 'root, node_id and to_tier are required'}, 400);
 		}
+		if (beforeNodeId !== undefined && typeof beforeNodeId !== 'string')
+			return c.json({error: 'before_id must be a string'}, 400);
 		try {
-			const event = await createService(c.get('ctx')).move({root, nodeId, toTier});
+			const event = await createService(c.get('ctx')).move({
+				root,
+				nodeId,
+				toTier,
+				...(beforeNodeId === undefined ? {} : {beforeNodeId}),
+			});
 			return c.json({event});
 		} catch (error) {
-			return c.json({error: messageOf(error)}, 400);
+			return c.json({error: messageOf(error), reconcile: true}, 400);
 		}
 	});
 
@@ -97,16 +104,24 @@ function defaultService(ctx: ServerContext): LadderService {
 			}
 			return buckets as never;
 		},
-		moveNode: async (nodeId, parentId) => writeClient(ctx).moveNode(nodeId, parentId),
+		moveNode: async (nodeId, parentId, position) => {
+			await writeClient(ctx).moveNode(nodeId, parentId, position);
+			// Reordering can renumber siblings, so refresh their cached priorities too.
+			const children = await apiClient(ctx).getChildNodes(parentId);
+			for (const child of children) await ctx.cacheService.insertNode(child, parentId);
+		},
 		completeNode: async (nodeId) => writeClient(ctx).completeNode(nodeId),
 		events: ladderEvents,
 	});
 }
 
-function writeClient(ctx: ServerContext): WorkflowyWriteThroughClient {
+function apiClient(ctx: ServerContext): WorkflowyApiClient {
 	if (!ctx.apiKey) {
 		throw new Error('WORKFLOWY_API_KEY environment variable is required');
 	}
-	const apiClient = new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
-	return new WorkflowyWriteThroughClient(apiClient, ctx.cacheService);
+	return new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
+}
+
+function writeClient(ctx: ServerContext): WorkflowyWriteThroughClient {
+	return new WorkflowyWriteThroughClient(apiClient(ctx), ctx.cacheService);
 }

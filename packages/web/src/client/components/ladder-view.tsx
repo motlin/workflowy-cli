@@ -22,7 +22,7 @@ import {
 	selectLadderRange,
 	tierOf,
 } from '../ladder-state.js';
-import {type Point, autoScrollBy, isDragGesture, tierAtPoint} from '../pointer-drag.js';
+import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from '../pointer-drag.js';
 import '../ladder.css';
 
 const VERDICT: Record<LadderTier['state'], (tier: LadderTier) => string> = {
@@ -38,7 +38,7 @@ export function LadderView() {
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [live, setLive] = useState(false);
 	const [dragging, setDragging] = useState<string>();
-	const [dropTier, setDropTier] = useState<string>();
+	const [dropTarget, setDropTarget] = useState<DropTarget>();
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const anchor = useRef<string>(undefined);
 	const busy = useRef(false);
@@ -98,6 +98,7 @@ export function LadderView() {
 			});
 			updateLadders(optimistic);
 			setPending((current) => new Set(current).add(nodeId));
+			let reconciling = false;
 			try {
 				const response = await fetch(path, {
 					method: 'POST',
@@ -105,7 +106,20 @@ export function LadderView() {
 					body: JSON.stringify(body),
 				});
 				if (!response.ok) {
-					const failure = (await response.json()) as {error?: string};
+					const failure = (await response.json()) as {error?: string; reconcile?: boolean};
+					if (failure.reconcile) {
+						reconciling = true;
+						setRowErrors((current) => ({...current, [nodeId]: failure.error ?? 'Move failed'}));
+						const refreshed = await fetch('/api/v1/ladder');
+						if (!refreshed.ok) {
+							setNeedsReload(true);
+							setError('Could not refresh after the failed move. Reload before moving more rows.');
+							return false;
+						}
+						const body = (await refreshed.json()) as {ladders: Ladders};
+						updateLadders(() => body.ladders);
+						return false;
+					}
 					throw new Error(failure.error ?? `write failed: ${response.status}`);
 				}
 				const {event} = (await response.json()) as {event: LadderEvent};
@@ -114,6 +128,11 @@ export function LadderView() {
 				}
 				return true;
 			} catch (cause) {
+				if (reconciling) {
+					setNeedsReload(true);
+					setError('Could not refresh after the failed move. Reload before moving more rows.');
+					return false;
+				}
 				// A received write is authoritative even if its HTTP response was lost.
 				if (receivedWrites.current.get(nodeId) !== lastReceived) return true;
 				updateLadders((current) => restoreRow(current, before, nodeId));
@@ -134,9 +153,9 @@ export function LadderView() {
 	);
 
 	const move = useCallback(
-		(nodeId: string, toTier: string) => {
+		(nodeId: string, toTier: string, beforeNodeId?: string) => {
 			const ladder = laddersRef.current?.[root];
-			if (busy.current || !ladder) return;
+			if (busy.current || needsReload || !ladder) return;
 			busy.current = true;
 			setSaving(true);
 			const ids = ladderMoveSelection(ladder, selected, nodeId);
@@ -144,11 +163,16 @@ export function LadderView() {
 				try {
 					for (const id of ids) {
 						const current = laddersRef.current;
-						if (!current || tierOf(current, root, id) === toTier) continue;
+						if (!current || (beforeNodeId === undefined && tierOf(current, root, id) === toTier)) continue;
 						const saved = await write(
 							'/api/v1/ladder/move',
-							{root, node_id: id, to_tier: toTier},
-							(ladders) => moveWithin(ladders, root, id, toTier),
+							{
+								root,
+								node_id: id,
+								to_tier: toTier,
+								...(beforeNodeId === undefined ? {} : {before_id: beforeNodeId}),
+							},
+							(ladders) => moveWithin(ladders, root, id, toTier, beforeNodeId),
 						);
 						if (!saved) break;
 					}
@@ -158,60 +182,94 @@ export function LadderView() {
 				}
 			})();
 		},
-		[root, selected, write],
+		[root, selected, write, needsReload],
 	);
 
-	// One pointer gesture, mouse or finger. The row itself stays scrollable; only
-	// the grip claims the pointer stream, so a swipe anywhere else still scrolls
-	// the page on a phone.
-	const gesture = useRef<{nodeId: string; origin: Point; started: boolean}>(undefined);
+	const gesture = useRef<{nodeId: string; origin: Point; started: boolean; moving: Set<string>}>(undefined);
+	const suppressClick = useRef(false);
 	const [ghost, setGhost] = useState<{x: number; y: number; name: string}>();
+	const page = useRef<HTMLDivElement>(null);
+	const dragPoint = useRef<Point>(undefined);
 
-	const onGripDown = useCallback((event: React.PointerEvent, item: {id: string; name: string}) => {
-		if (event.button !== 0 && event.pointerType === 'mouse') {
-			return;
-		}
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-		gesture.current = {nodeId: item.id, origin: {x: event.clientX, y: event.clientY}, started: false};
+	const cancelDrag = useCallback(() => {
+		gesture.current = undefined;
+		dragPoint.current = undefined;
+		setGhost(undefined);
+		setDragging(undefined);
+		setDropTarget(undefined);
 	}, []);
+
+	useEffect(() => {
+		if (!dragging) return;
+		let frame: number;
+		const scroll = () => {
+			const at = dragPoint.current;
+			const container = page.current;
+			if (at && container && gesture.current) {
+				const bounds = container.getBoundingClientRect();
+				container.scrollBy(0, autoScrollBy(at.y - bounds.top, bounds.height));
+				setDropTarget(dropAtPoint(at.x, at.y, gesture.current.moving));
+			}
+			frame = requestAnimationFrame(scroll);
+		};
+		frame = requestAnimationFrame(scroll);
+		return () => cancelAnimationFrame(frame);
+	}, [dragging]);
+
+	const onGripDown = useCallback(
+		(event: React.PointerEvent, item: {id: string; name: string}) => {
+			if (busy.current || event.button !== 0 || !event.isPrimary) return;
+			const target = event.target as HTMLElement;
+			if (target.closest('button, a, input, select')) return;
+			// Touch scrolling remains available outside the grip.
+			if (event.pointerType === 'touch' && !target.closest('.grip')) return;
+			suppressClick.current = false;
+			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+			const ladder = laddersRef.current?.[root];
+			if (!ladder) return;
+			gesture.current = {
+				nodeId: item.id,
+				origin: {x: event.clientX, y: event.clientY},
+				started: false,
+				moving: new Set(ladderMoveSelection(ladder, selected, item.id)),
+			};
+		},
+		[root, selected],
+	);
 
 	const onGripMove = useCallback((event: React.PointerEvent, name: string) => {
 		const active = gesture.current;
-		if (!active) {
-			return;
-		}
+		if (!active) return;
 		const at = {x: event.clientX, y: event.clientY};
 		if (!active.started) {
-			if (!isDragGesture(active.origin, at)) {
-				return;
-			}
+			if (!isDragGesture(active.origin, at)) return;
 			active.started = true;
+			suppressClick.current = true;
 			setDragging(active.nodeId);
 		}
-		// The grip has touch-action: none, so nothing else is going to scroll for
-		// us once a drag is under way.
-		const by = autoScrollBy(at.y, globalThis.innerHeight);
-		if (by !== 0) {
-			globalThis.scrollBy(0, by);
-		}
-		setGhost({x: at.x, y: at.y, name});
-		setDropTier(tierAtPoint(at.x, at.y));
+		dragPoint.current = at;
+		setGhost({x: at.x, y: at.y, name: active.moving.size > 1 ? `${active.moving.size} selected rows` : name});
+		setDropTarget(dropAtPoint(at.x, at.y, active.moving));
 	}, []);
 
 	const onGripUp = useCallback(
 		(event: React.PointerEvent) => {
 			const active = gesture.current;
-			gesture.current = undefined;
-			setGhost(undefined);
-			setDragging(undefined);
-			const toTier = tierAtPoint(event.clientX, event.clientY);
-			setDropTier(undefined);
-			if (active?.started && toTier) {
-				move(active.nodeId, toTier);
-			}
+			const target = active?.started ? dropAtPoint(event.clientX, event.clientY, active.moving) : undefined;
+			cancelDrag();
+			if (active?.started && target) move(active.nodeId, target.tier, target.beforeNodeId);
 		},
-		[move],
+		[move, cancelDrag],
 	);
+
+	const onRowClick = (event: React.MouseEvent, nodeId: string) => {
+		if ((event.target as HTMLElement).closest('button, a, input, select')) return;
+		if (suppressClick.current) {
+			suppressClick.current = false;
+			return;
+		}
+		select(nodeId, event.shiftKey, event.metaKey || event.ctrlKey);
+	};
 
 	const complete = useCallback(
 		(nodeId: string) => {
@@ -228,15 +286,17 @@ export function LadderView() {
 		[root, write],
 	);
 
-	const select = (nodeId: string, range: boolean) => {
+	const select = (nodeId: string, range: boolean, additive = false) => {
+		if (busy.current) return;
 		const ladder = laddersRef.current?.[root];
 		if (!ladder) return;
 		if (range && anchor.current) {
-			setSelected(selectLadderRange(ladder, anchor.current, nodeId));
+			const rangeIds = selectLadderRange(ladder, anchor.current, nodeId);
+			setSelected((current) => (additive ? new Set([...current, ...rangeIds]) : rangeIds));
 		} else {
 			anchor.current = nodeId;
 			setSelected((current) => {
-				const next = new Set(current);
+				const next = additive ? new Set(current) : new Set<string>();
 				if (next.has(nodeId)) next.delete(nodeId);
 				else next.add(nodeId);
 				return next;
@@ -283,12 +343,15 @@ export function LadderView() {
 	const ladder = ladders?.[root];
 
 	return (
-		<div className="ladder-page">
+		<div
+			className="ladder-page"
+			ref={page}
+		>
 			<div className="ladder-wrap">
 				<header className="ladder-head">
 					<h1>Asap ladder</h1>
 					<p className="ladder-dek">
-						Drag a row into another tier to refile it. Each tier holds 2<sup>k</sup>, fixed, so finishing
+						Drag a row to place it anywhere in a tier. Each tier holds 2<sup>k</sup>, fixed, so finishing
 						work never pushes anything out of a tier above.
 					</p>
 					<p
@@ -328,7 +391,10 @@ export function LadderView() {
 					<div className="ladder-queue">
 						{ladder.tiers.map((tier, index) => (
 							<Tier
-								dropping={dropTier === tier.label}
+								dropping={dropTarget?.tier === tier.label}
+								beforeNodeId={dropTarget?.tier === tier.label ? dropTarget.beforeNodeId : undefined}
+								onRowClick={onRowClick}
+								onGripCancel={cancelDrag}
 								key={tier.id}
 								nextTier={ladder.tiers[index + 1]?.label}
 								onStep={move}
@@ -341,7 +407,7 @@ export function LadderView() {
 								rowErrors={rowErrors}
 								selected={selected}
 								onSelect={select}
-								saving={saving}
+								saving={saving || needsReload}
 								tier={tier}
 								dragging={dragging}
 							/>
@@ -374,10 +440,13 @@ interface TierProps {
 	tier: LadderTier;
 	dragging: string | undefined;
 	dropping: boolean;
+	beforeNodeId: string | undefined;
+	onRowClick: (event: React.MouseEvent, nodeId: string) => void;
+	onGripCancel: () => void;
 	pending: Set<string>;
 	rowErrors: Record<string, string>;
 	selected: Set<string>;
-	onSelect: (nodeId: string, range: boolean) => void;
+	onSelect: (nodeId: string, range: boolean, additive?: boolean) => void;
 	saving: boolean;
 	/** Neighbouring tier labels, so the step buttons know where up and down are. */
 	previousTier: string | undefined;
@@ -393,6 +462,9 @@ function Tier({
 	tier,
 	dragging,
 	dropping,
+	beforeNodeId,
+	onRowClick,
+	onGripCancel,
 	pending,
 	rowErrors,
 	selected,
@@ -426,7 +498,7 @@ function Tier({
 				{tier.tier <= 2 ? <span className="goal">today&rsquo;s goals</span> : null}
 			</div>
 			<div
-				className={`ladder-zone ${tier.state}${dropping ? ' dropping' : ''}`}
+				className={`ladder-zone ${tier.state}${dropping ? ' dropping' : ''}${beforeNodeId === '' ? ' drop-end' : ''}`}
 				data-tier={tier.label}
 			>
 				{tier.items.map((item, index) => (
@@ -434,20 +506,26 @@ function Tier({
 						className={[
 							'ladder-row',
 							selected.has(item.id) ? 'selected' : '',
-							dragging === item.id ? 'dragging' : '',
+							dragging === item.id || (dragging && selected.has(dragging) && selected.has(item.id))
+								? 'dragging'
+								: '',
 							pending.has(item.id) ? 'pending' : '',
 							index >= tier.capacity ? 'excess' : '',
+							beforeNodeId === item.id ? 'drop-before' : '',
 						]
 							.filter(Boolean)
 							.join(' ')}
 						key={item.id}
+						data-node-id={item.id}
+						onClick={(event) => onRowClick(event, item.id)}
+						onPointerCancel={onGripCancel}
+						onLostPointerCapture={onGripCancel}
+						onPointerDown={(event) => onGripDown(event, item)}
+						onPointerMove={(event) => onGripMove(event, item.name)}
+						onPointerUp={onGripUp}
 					>
 						<span
 							className="grip"
-							onPointerCancel={onGripUp}
-							onPointerDown={(event) => onGripDown(event, item)}
-							onPointerMove={(event) => onGripMove(event, item.name)}
-							onPointerUp={onGripUp}
 							role="presentation"
 						>
 							&#10303;
@@ -457,7 +535,7 @@ function Tier({
 							aria-label={`Select ${item.name}`}
 							aria-pressed={selected.has(item.id)}
 							disabled={saving}
-							onClick={(event) => onSelect(item.id, event.shiftKey)}
+							onClick={(event) => onSelect(item.id, event.shiftKey, true)}
 						>
 							{selected.has(item.id) ? '☑' : '☐'}
 						</button>

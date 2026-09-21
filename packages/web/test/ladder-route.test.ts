@@ -81,7 +81,7 @@ describe('POST /api/v1/ladder/move', () => {
 			}),
 		);
 		expect(res.status).toBe(400);
-		await expect(res.json()).resolves.toEqual({error: 'no tier 9th on the work ladder'});
+		await expect(res.json()).resolves.toEqual({error: 'no tier 9th on the work ladder', reconcile: true});
 	});
 });
 

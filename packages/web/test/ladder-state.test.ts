@@ -119,3 +119,25 @@ describe('ladderMoveSelection', () => {
 		expect(ladderMoveSelection(ladder().work, new Set(['b']), 'a')).toStrictEqual(['a']);
 	});
 });
+
+describe('precise row placement', () => {
+	it('reorders within a tier and applies the confirming event idempotently', () => {
+		const moved = moveWithin(ladder(), 'work', 'b', '1st', 'a');
+		const event = {
+			verb: 'move' as const,
+			nodeId: 'b',
+			name: 'B',
+			fromTier: '1st',
+			toTier: '1st',
+			beforeNodeId: 'a',
+			at: '2000-01-01T00:00:00.000Z',
+		};
+		expect(moved.work.tiers.map((tier) => tier.items.map((item) => item.id))).toStrictEqual([['b', 'a'], []]);
+		expect(applyLadderEvent(moved, event)).toStrictEqual(moved);
+	});
+
+	it('appends within the same tier when dropped after its last row', () => {
+		const moved = moveWithin(ladder(), 'work', 'a', '1st', '');
+		expect(moved.work.tiers.map((tier) => tier.items.map((item) => item.id))).toStrictEqual([['b', 'a'], []]);
+	});
+});

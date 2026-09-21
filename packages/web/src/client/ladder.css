@@ -249,6 +249,8 @@
 }
 
 .ladder-row {
+	position: relative;
+	cursor: grab;
 	user-select: none;
 	-webkit-user-select: none;
 	display: grid;
@@ -471,4 +473,25 @@
 	display: block;
 	color: #b42318;
 	font-size: 0.85rem;
+}
+
+.ladder-zone {
+	position: relative;
+}
+.ladder-row.drop-before::before,
+.ladder-zone.drop-end::after {
+	content: '';
+	position: absolute;
+	left: 8px;
+	right: 8px;
+	height: 3px;
+	background: var(--accent);
+	pointer-events: none;
+	z-index: 2;
+}
+.ladder-row.drop-before::before {
+	top: -5px;
+}
+.ladder-zone.drop-end::after {
+	bottom: 0;
 }

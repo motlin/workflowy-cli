@@ -18,6 +18,8 @@ export interface LadderEvent {
 	name: string | null;
 	fromTier: string | null;
 	toTier: string | null;
+	/** Empty string appends; otherwise insert before this row. */
+	beforeNodeId?: string;
 	at: string;
 }
 

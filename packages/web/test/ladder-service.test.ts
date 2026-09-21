@@ -41,7 +41,7 @@ describe('LadderService.move', () => {
 	it('writes the move to Workflowy with the destination tier as parent', async () => {
 		const {service, moveNode} = makeService();
 		await service.move({root: 'work', nodeId: 'a', toTier: '2nd'});
-		expect(moveNode).toHaveBeenCalledWith('a', 'w2');
+		expect(moveNode).toHaveBeenCalledWith('a', 'w2', -1);
 	});
 
 	it('publishes one event per write, so a watcher is woken per edit', async () => {
@@ -86,5 +86,70 @@ describe('LadderService.complete', () => {
 		await service.complete({root: 'work', nodeId: 'a'});
 		expect(completeNode).toHaveBeenCalledWith('a');
 		expect(seen[0]).toMatchObject({verb: 'complete', nodeId: 'a', fromTier: '1st', name: 'A'});
+	});
+});
+
+describe('exact placement using top/bottom writes', () => {
+	it('persists a middle insertion in order and broadcasts each successful write', async () => {
+		const buckets = {
+			work: {
+				id: 'bucket',
+				children: [
+					tier('first', '1st', [
+						{id: 'alice', name: 'Alice'},
+						{id: 'bob', name: 'Bob'},
+						{id: 'charlie', name: 'Charlie'},
+					]),
+				],
+			},
+		};
+		const {service, moveNode, events} = makeService({
+			readBuckets: async () => buckets,
+			now: () => new Date('2000-01-01T00:00:00.000Z'),
+		});
+		const seen: unknown[] = [];
+		events.subscribe((event) => seen.push(event));
+		await service.move({root: 'work', nodeId: 'alice', toTier: '1st', beforeNodeId: 'charlie'});
+		expect(moveNode.mock.calls).toStrictEqual([
+			['alice', 'first', 0],
+			['charlie', 'first', 0],
+		]);
+		expect(seen).toStrictEqual([
+			{
+				verb: 'move',
+				nodeId: 'alice',
+				name: 'Alice',
+				fromTier: '1st',
+				toTier: '1st',
+				beforeNodeId: '',
+				at: '2000-01-01T00:00:00.000Z',
+			},
+			{
+				verb: 'move',
+				nodeId: 'charlie',
+				name: 'Charlie',
+				fromTier: '1st',
+				toTier: '1st',
+				beforeNodeId: '',
+				at: '2000-01-01T00:00:00.000Z',
+			},
+			{
+				verb: 'move',
+				nodeId: 'alice',
+				name: 'Alice',
+				fromTier: '1st',
+				toTier: '1st',
+				beforeNodeId: 'charlie',
+				at: '2000-01-01T00:00:00.000Z',
+			},
+		]);
+	});
+
+	it('rejects a stale insertion target without moving anything', async () => {
+		const {service, moveNode} = makeService();
+		await expect(service.move({root: 'work', nodeId: 'a', toTier: '2nd', beforeNodeId: 'missing'})).rejects.toThrow(
+			new Error('node missing is not a destination row'),
+		);
+		expect(moveNode.mock.calls).toStrictEqual([]);
 	});
 });

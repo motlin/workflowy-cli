@@ -24,30 +24,39 @@ function withItems(tier: LadderTier, items: LadderTier['items']): LadderTier {
 }
 
 /** Move one row to another tier of the same ladder, or return the input unchanged. */
-export function moveWithin(ladders: Ladders, root: string, nodeId: string, toTier: string): Ladders {
+export function moveWithin(
+	ladders: Ladders,
+	root: string,
+	nodeId: string,
+	toTier: string,
+	beforeNodeId?: string,
+): Ladders {
 	const ladder = ladders[root];
 	if (!ladder) {
 		return ladders;
 	}
 	const origin = ladder.tiers.find((tier) => tier.items.some((item) => item.id === nodeId));
 	const destination = ladder.tiers.find((tier) => tier.label === toTier);
-	if (!origin || !destination || origin.label === destination.label) {
+	if (!origin || !destination || (origin.label === destination.label && beforeNodeId === undefined)) {
 		return ladders;
 	}
 	const item = origin.items.find((candidate) => candidate.id === nodeId);
 	if (!item) {
 		return ladders;
 	}
+	const destinationItems = destination.items.filter((candidate) => candidate.id !== nodeId);
+	const position = beforeNodeId
+		? destinationItems.findIndex((candidate) => candidate.id === beforeNodeId)
+		: destinationItems.length;
+	if (position < 0) return ladders;
+	destinationItems.splice(position, 0, item);
 	const tiers = ladder.tiers.map((tier) => {
-		if (tier.label === origin.label) {
+		if (tier.label === destination.label) return withItems(tier, destinationItems);
+		if (tier.label === origin.label)
 			return withItems(
 				tier,
 				tier.items.filter((candidate) => candidate.id !== nodeId),
 			);
-		}
-		if (tier.label === destination.label) {
-			return withItems(tier, [...tier.items, item]);
-		}
 		return tier;
 	});
 	return {...ladders, [root]: {...ladder, tiers}};
@@ -81,7 +90,7 @@ export function applyLadderEvent(ladders: Ladders, event: LadderEvent): Ladders 
 		return ladders;
 	}
 	if (event.verb === 'move' && event.toTier) {
-		return moveWithin(ladders, root, event.nodeId, event.toTier);
+		return moveWithin(ladders, root, event.nodeId, event.toTier, event.beforeNodeId);
 	}
 	if (event.verb === 'complete') {
 		return removeRow(ladders, event.nodeId);

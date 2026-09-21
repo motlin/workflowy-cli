@@ -14,8 +14,8 @@ export type LadderBuckets = Record<string, RawNode>;
 
 export interface LadderServiceOptions {
 	readBuckets: () => Promise<LadderBuckets>;
-	/** Reparent a node. `position` is left to the caller's default (append). */
-	moveNode: (nodeId: string, parentId: string) => Promise<unknown>;
+	/** Negative position prepends; zero appends. */
+	moveNode: (nodeId: string, parentId: string, position: number) => Promise<unknown>;
 	completeNode: (nodeId: string) => Promise<unknown>;
 	events: LadderEventBus;
 	now?: () => Date;
@@ -43,18 +43,40 @@ export class LadderService {
 	 * The event is published only after the write resolves. A watcher woken by a
 	 * move it can't see in Workflowy is worse than no notification at all.
 	 */
-	async move({root, nodeId, toTier}: {root: string; nodeId: string; toTier: string}): Promise<LadderEvent> {
+	async move({
+		root,
+		nodeId,
+		toTier,
+		beforeNodeId,
+	}: {
+		root: string;
+		nodeId: string;
+		toTier: string;
+		beforeNodeId?: string;
+	}): Promise<LadderEvent> {
 		const ladder = await this.#ladder(root);
 		const plan = planTierMove(ladder, nodeId, toTier);
-		const name = findItem(ladder, nodeId)?.name ?? null;
-		await this.#options.moveNode(plan.nodeId, plan.parentId);
-		return this.#publish({
-			verb: 'move',
+		const destination = ladder.tiers.find((tier) => tier.id === plan.parentId)!;
+		const remaining = destination.items.filter((item) => item.id !== nodeId);
+		const index = beforeNodeId ? remaining.findIndex((item) => item.id === beforeNodeId) : remaining.length;
+		if (index < 0) throw new Error(`node ${beforeNodeId} is not a destination row`);
+		const event = {
+			verb: 'move' as const,
 			nodeId,
-			name,
+			name: findItem(ladder, nodeId)?.name ?? null,
 			fromTier: plan.fromTier,
-			toTier: plan.toTier,
-		});
+			toTier,
+		};
+		await this.#options.moveNode(nodeId, plan.parentId, index === 0 ? -1 : 0);
+		if (index === 0) return this.#publish({...event, beforeNodeId: remaining[0]?.id ?? ''});
+		if (index === remaining.length) return this.#publish({...event, beforeNodeId: ''});
+		this.#publish({...event, beforeNodeId: ''});
+		// Workflowy's API supports only top/bottom. Rotate the suffix to preserve exact placement.
+		for (const item of remaining.slice(index)) {
+			await this.#options.moveNode(item.id, plan.parentId, 0);
+			this.#publish({verb: 'move', nodeId: item.id, name: item.name, fromTier: toTier, toTier, beforeNodeId: ''});
+		}
+		return this.#publish({...event, beforeNodeId: beforeNodeId ?? ''});
 	}
 
 	async complete({root, nodeId}: {root: string; nodeId: string}): Promise<LadderEvent> {

@@ -40,9 +40,21 @@ export function autoScrollBy(pointerY: number, viewportHeight: number): number {
 	return 0;
 }
 
-/** The tier label of the drop zone under a point, or undefined if there is none. */
-export function tierAtPoint(x: number, y: number): string | undefined {
+export interface DropTarget {
+	tier: string;
+	beforeNodeId: string;
+}
+
+export function dropAtPoint(x: number, y: number, moving: Set<string>): DropTarget | undefined {
 	const element = document.elementFromPoint(x, y);
-	const zone = element?.closest<HTMLElement>('[data-tier]');
-	return zone?.dataset.tier;
+	const target = element?.closest<HTMLElement>('[data-tier]');
+	if (!target?.dataset.tier) return;
+	const zone = target.classList.contains('ladder-zone') ? target : target.nextElementSibling;
+	const rows = Array.from(zone?.querySelectorAll<HTMLElement>('[data-node-id]') ?? []);
+	const before = rows.find((row) => {
+		if (moving.has(row.dataset.nodeId!)) return false;
+		const bounds = row.getBoundingClientRect();
+		return y < bounds.top + bounds.height / 2;
+	});
+	return {tier: target.dataset.tier, beforeNodeId: before?.dataset.nodeId ?? ''};
 }
