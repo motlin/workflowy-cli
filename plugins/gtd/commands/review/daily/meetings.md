@@ -191,6 +191,8 @@ Include the name-resolution results **inside the same question body**, next to t
 
 Make clear that accepting the displayed description also confirms its explicitly proposed spellings. When a name is ambiguous or unresolved, obtain the user's chosen spelling (or explicit instruction to retain the original) before recording; a destination choice alone does not resolve an unspecified identity. Update the local name resolutions with that decision. If a correction changes the apparent task match, refresh Step 7 and confirm the resulting destination before writing. The user may reject a suggested spelling without having to skip the follow-up.
 
+When the user resolves an unresolved person to someone not in the roster ("yes Carol Smith, Acme"), ask one follow-up `AskUserQuestion` offering to add them to `Metadata > 👥 People`, per "Adding a newly named person" in `${CLAUDE_PLUGIN_ROOT}/skills/people-metadata.md`. Create the entry before Step 9 writes the follow-up, record the new `@mention` as the confirmed roster identity in the local name resolutions, and use it in the written text. Declining the roster entry still leaves the user's spelling confirmed.
+
 State the match result explicitly on every question — never omit it:
 
 - **Matched:** the existing task's name and where it lives (`Work > ☑️ Next (Work)`, or the `projectName`)

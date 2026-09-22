@@ -19,6 +19,7 @@ Each fact is a child node named `<emoji> Label: value`. The table lists them in 
 | `🏷️` | Alias / Nickname |  |
 | `💼` | Role |  |
 | `👔` | Team |  |
+| `🏢` | Organization | employer or affiliation (`🏢 Organization: Acme`); distinct from the `🏢 Work` office address |
 | `👶` | Date of birth / Estimated birth year | actual birth year |
 | `🎂` | Birthday | next upcoming occurrence year |
 | `💒` | Married on | wedding date, actual year; on both spouses |
@@ -55,6 +56,16 @@ Write date values (`👶 🎂 💒 💍 🪦 🕯️`) as raw `<time>` HTML. The
 ```
 
 For an approximate or unconfirmed value, use plain text with no `<time>` and append a space followed by `(?)`.
+
+## Adding a newly named person
+
+When a walk (inbox filing, meeting follow-ups) warns that someone is not in the roster and the user answers with a real identity ("yes Carol Smith, Acme"), don't stop at fixing the text. Ask one `AskUserQuestion` offering to create the roster entry, with the proposed node and its fields in the question body:
+
+- **Create @CarolSmith** — under the category the context implies (`👔 Work` for a colleague or vendor contact, otherwise the one the user names), with only the fields the user stated, in canonical order: `👥 Relationship` when a link to a known person was given, `💼 Role`, `👔 Team`, `🏢 Organization`.
+- **Mention only** — apply the `@mention` to the item without a roster entry.
+- **Keep the original text** — no mention, no entry.
+
+Name the node `@FirstLast` (the canonical mention form), create it with `node create --parent-id <full category UUID> --json` so the fields land as children, and verify with `node get`. Never invent fields the user didn't give. Then apply that same `@mention` to the item the warning came from, and fold any non-identity part of the answer ("3rd tier") into the item's filing decision rather than the person.
 
 ## Editing
 

@@ -195,6 +195,8 @@ Options:
 
 When the user picks Do it now, perform the edits immediately through the CLI, never by writing SQLite. Verify each edited node with `./bin/run.js node get --id <nodeId>`. Then delete the inbox item with `./bin/run.js node delete --id <itemId>`. If any edit fails, leave the inbox item in place and report the failure. Count these as "done" in the running total.
 
+**Unknown people.** Show each `⚠️ Invalid @mention:` row, and any name the people-tagger could not resolve, inside the item's question. When the user answers with a real identity ("yes Carol Smith, Acme"), ask one follow-up `AskUserQuestion` offering to add that person to `Metadata > 👥 People`, per "Adding a newly named person" in `${CLAUDE_PLUGIN_ROOT}/skills/people-metadata.md`. Create the entry before the batch executes, then file the item with the canonical `@mention` in place of the invalid one; any filing detail in the same answer ("3rd tier") still overrides the suggested destination.
+
 **After each batch of 4 reviews, execute immediately:**
 
 - **Do it now**: Already performed when chosen (see above); nothing left to execute
@@ -244,7 +246,7 @@ Batch 3 complete: 1 done, 1 moved, 1 deleted, 1 skipped (12/73 processed)
 
 After `item-mover` completes, print:
 
-- Processed counts grouped by destination, plus people/projects created.
+- Processed counts grouped by destination, plus people added to the roster and projects created.
 - Unrefined items by name with a `Run /gtd:refine-inbox` hint, or `Inbox Zero achieved!` if none.
 
 **Log to Session Memory:**
