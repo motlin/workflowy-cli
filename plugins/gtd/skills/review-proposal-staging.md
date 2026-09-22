@@ -98,6 +98,7 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<slug>.
 | `changes` | Array of `{ type, icon, detail }` describing each change (see icon table). |
 | `ambiguity` | Optional `{ prompt, options[] }` when prep could not decide. Replaces the standard Accept/Reject options for that item. |
 | `applyOps` | Array of exact CLI command strings the walk runs **verbatim** on Accept, never re-deriving them. Any `node update --name` op **must** carry `--expect-name '<before>'` (see below). |
+| `chained` | Optional `{ task, before, after, applyOps }` staged when an earlier-presented task also proposes a rewrite of the same node. Its ops are keyed on that task's `after`; apply picks it over the fallback when the node's current name equals `chained.before`. Only `refine-exercise` uses it today (see `${CLAUDE_PLUGIN_ROOT}/commands/refine-exercise-apply.md` → Resolve chained ops). |
 
 #### One id per proposal
 

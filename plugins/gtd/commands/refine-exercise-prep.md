@@ -99,6 +99,22 @@ For each entry that needs formatting changes, emit one proposal with:
 - `ambiguity` — present only on ⚠️ proposals: `{ prompt, options[] }`.
 - `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>' --expect-name '<full before text>'` command(s) the apply walk runs verbatim on Accept. The `--expect-name` guard is **mandatory** (see `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` → Stale-write guard): pass the proposal's full `before` so the CLI refuses the write if the entry changed since prep. Entries with apostrophes use `'"'"'` escaping inside **both** single-quoted values. Derive `before` from a fresh read of the live cache the barrier just imported, not a stale snapshot.
 
+### Chain on staged refine-journal proposals
+
+`refine-journal-prep` has already staged `.llm/gtd/review/proposals/refine-journal.json` from the same live text, and its walk runs before this one. When the user accepts a journal proposal, the entry's name becomes that proposal's `after`, so an op guarded by `--expect-name '<live text>'` would stale-skip and the entry would need a manual rebuild. For every `#exercise` entry whose `nodeId` also appears in `refine-journal.json` `proposals[]`, stage both outcomes:
+
+- Top-level `before` / `after` / `applyOps` stay the **fallback**, keyed on the live text: `before` is the live name, `after` is the exercise fix of it, and the op carries `--expect-name '<live text>'`. Apply runs this when the journal proposal was rejected.
+- A `chained` block holds the **chained** op, keyed on the journal text: `{ "task": "refine-journal", "before": <journal proposal's after>, "after": <exercise fix of that text>, "applyOps": ["./bin/run.js node update --id <full-uuid> --name '<chained after>' --expect-name '<journal after>'"] }`. Apply runs this when the journal proposal was accepted.
+
+Compute the exercise fix independently on each text, so tags and @mentions the journal proposal adds survive into the chained `after`. Stage the proposal when either variant changes the text; if the chained text is already canonical, keep `chained` with `after` equal to `before` and empty `applyOps`, and apply drops it. If `refine-journal.json` is missing or not `ready`, no entry overlaps and no proposal gets a `chained` block.
+
+After writing the file, check the chain against the journal staging. It exits non-zero when an overlapping entry lacks `chained`, when `chained.before` differs from the journal `after`, or when a chained name update lacks `--expect-name`:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/chain-exercise-ops.mjs validate \
+  .llm/gtd/review/proposals/refine-exercise.json .llm/gtd/review/proposals/refine-journal.json
+```
+
 Set top-level fields:
 
 - `task`: `"refine-exercise"` (inferred from the prep command and matches the filename).

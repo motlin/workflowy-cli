@@ -19,9 +19,20 @@ Under `Presentation`, this task is below `Refine calendar journal`, so the walk 
 
 Track progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror per-entry work. Launching subagents via the `Task` tool is unrelated and fine.
 
+## Resolve chained ops
+
+Prep stages two ops for any entry `refine-journal` also staged (see `${CLAUDE_PLUGIN_ROOT}/commands/refine-exercise-prep.md` → Chain on staged refine-journal proposals): the proposal's own `applyOps` keyed on the pre-journal text, and `chained.applyOps` keyed on the journal proposal's `after`. After the journal walk finishes and before presenting anything, resolve them against each entry's current name:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/chain-exercise-ops.mjs resolve .llm/gtd/review/proposals/refine-exercise.json \
+  > .llm/gtd/review/proposals/refine-exercise.resolved.json
+```
+
+An entry whose name now equals `chained.before` (the journal proposal was accepted) takes the chained `before` / `after` / `applyOps`. Any other entry keeps the fallback, so a rejected journal proposal runs the live-text op and an entry that drifted from both texts stale-skips through its `--expect-name` guard. The script drops entries the accepted journal text already left canonical and sets `status: "empty"` when nothing remains. Present and apply from `refine-exercise.resolved.json`, never the unresolved file, so the displayed `before` is the text the op guards on.
+
 ## Run the shared apply routine
 
-Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for slug `refine-exercise` — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. The skill is authoritative for the presentation format, the Accept / Reject / Accept-with-note options, ambiguity handling, and shell escaping.
+Follow the **Shared Apply Routine** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` for slug `refine-exercise`, reading the resolved file from the step above — read the staged file, branch on `status`, batch-present `proposals[]` in batches of up to 4 via `AskUserQuestion`, and apply each batch's accepted `applyOps` verbatim before presenting the next. The skill is authoritative for the presentation format, the Accept / Reject / Accept-with-note options, ambiguity handling, and shell escaping.
 
 - On `status: "empty"`, return empty without prompting.
 - On `status: "needs-interactive"`, run the full formatting pass inline and return success after verification.
