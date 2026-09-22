@@ -83,6 +83,14 @@ Use the fresh `rebalance` reports to explain capacity and empty tiers in the pag
 
 Refresh both reports after verified edits. A move can change another tier's capacity status; surface any remaining over-cap or empty tiers and let the user make further page edits. Never force a repair or return to question-based ranking because the chosen arrangement leaves a violation.
 
+### Every status line comes from a fresh read
+
+Every interim status line (such as `2 moved · 6 to complete · 1 tier still over`) must meet the same bar as the final summary under **Finish**. Any claim about tier occupancy, counts, or "still over cap" comes from a fresh `GET /api/v1/ladder` or the current WebSocket-applied state. Count the moves the user has made or proposed in the page. Never compute one from the `rebalance` reports the phase opened with, and never subtract Monitor notifications from those opening counts by hand.
+
+- **Re-read before you speak.** Before printing any count or cap claim, fetch `/api/v1/ladder` (or re-export both buckets and re-run `rebalance`) and derive the line from that result.
+- **Include pending page moves.** If the user describes moves they have selected but not yet applied, recompute occupancy with those moves applied before saying a tier is over cap. Label it as projected, for example `1st 2/2 · 2nd 4/4 once the 3 pending moves land`.
+- **Say nothing rather than something stale.** When a fresh read fails, report the failure and omit the count. Do not fall back to the opening snapshot.
+
 ### Size never changes the surface
 
 The ban on question-based ranking covers the initial presentation, not only the repair after a page edit. A large excess is the case the page exists for, not a reason to fall back to questions.
@@ -97,4 +105,4 @@ Append one line per ladder to `.llm/gtd/review/rebalance-log.jsonl` -- `{"date",
 
 ## Finish
 
-Drain every background move and surface failures by item name. Then re-run `rebalance` on both ladders one last time and print one line per root: `✓ Work: 3 pushed down, 0 pulled up, 7th created (33 moved) -- all capped tiers within cap`, or name any capped tier still over cap and any empty `2nd`, because the user declined -- that is a legitimate outcome, not a failure, and the next run proposes it again.
+Drain every background move and surface failures by item name. Then re-run `rebalance` on both ladders one last time, from fresh bucket exports as **Every status line comes from a fresh read** requires, and print one line per root: `✓ Work: 3 pushed down, 0 pulled up, 7th created (33 moved) -- all capped tiers within cap`, or name any capped tier still over cap and any empty `2nd`, because the user declined -- that is a legitimate outcome, not a failure, and the next run proposes it again.
