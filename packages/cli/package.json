@@ -60,7 +60,7 @@
 		"topicSeparator": " "
 	},
 	"scripts": {
-		"build": "shx rm -rf dist && tsc -b",
+		"build": "shx rm -rf dist tsconfig.tsbuildinfo && tsc -b",
 		"typecheck": "tsc --noEmit",
 		"postpack": "shx rm -f oclif.manifest.json",
 		"prepack": "oclif manifest"
