@@ -15,11 +15,11 @@ description: |
     </example>
 
     <example>
-    Context: agenda-detector flagged the item as a meeting-discussion topic
+    Context: agenda-detector flagged the item as a meeting-discussion topic for @Bob
     user: "Guess the destination for item 1234"
-    assistant: "[Returns {path: 'Work > ☑️ Next (Work) > 📋 Meeting agendas', targetId: 'f3bfcfbb-a904-62e6-06aa-29bda59a1f54', confidence: 'high', reasoning: 'agenda item: short-circuit to Meeting agendas'}]"
+    assistant: "[Returns {path: 'Work > ☑️ Next (Work) > 📌 Tasks (asap) > 4th', targetId: 'ghi789', confidence: 'high', reasoning: 'agenda topic for @Bob: filed as a task on the bottom Work asap tier, never only in Meeting agendas'}]"
     <commentary>
-    When isAgendaItem is true the destination short-circuits to the Meeting agendas node.
+    An agenda item is still a task. It lands on an asap tier like any other task; 📋 Meeting agendas is only an optional mirror offered later by /gtd:inbox.
     </commentary>
     </example>
 
@@ -37,9 +37,9 @@ Destination composer for GTD refinement. Your one job: pick the single best dest
 
 Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the live item). Follow the `gtd refinement-tagger` skill for reading the synced project/destination metadata and the JSON-only output contract. Weigh the strongest signal — a confident project tag, person, or context — against the available destinations; prefer the most specific node, and report `low` confidence when signals are weak or conflicting.
 
-**Agenda short-circuit:** When `agendaDetector.isAgendaItem` is true, ignore the other signals and return the `📋 Meeting agendas` node — `targetId: f3bfcfbb-a904-62e6-06aa-29bda59a1f54`, `path: "Work > ☑️ Next (Work) > 📋 Meeting agendas"`.
+**Agenda items are tasks.** Never return `📋 Meeting agendas` (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`) or any node under it as the destination. A topic filed only there gets lost, because nothing but a meeting ever surfaces it. When `agendaDetector.isAgendaItem` is true, resolve the item like any other task: `⏰ Tasks (due dates)` when it has a due date, otherwise the bottom tier of the matching `📌 Tasks (asap)` ladder (Work unless the signals clearly say personal). The `#agenda` tag and the target `@person` on the composed text carry the meeting context, and `/gtd:inbox` may offer a mirror into `📋 Meeting agendas` alongside the filed task.
 
-**Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the agenda short-circuit does not apply and the text matches this shape, return the day node for that date in the matching journal calendar. The other signals no longer decide what kind of destination this is; they only pick which calendar:
+**Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the text matches this shape, return the day node for that date in the matching journal calendar. The other signals no longer decide what kind of destination this is; they only pick which calendar:
 
 - `Work > 📅 Calendar > 📍 Current` when the tagger signals (project, people, context) say work — day nodes sit under `📍 Current`, and the returned `path` includes it.
 - `Personal > 📅 Calendar` otherwise — day nodes sit directly under it.

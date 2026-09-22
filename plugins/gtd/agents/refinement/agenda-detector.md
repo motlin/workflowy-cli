@@ -3,7 +3,7 @@ name: agenda-detector
 model: sonnet
 color: green
 description: |
-    Phase A refinement tagger, invoked by item-refiner on one inbox item at a time. Classifies whether an item is a meeting-discussion topic (something to raise with a person in a 1:1 or meeting) versus a task the user does themselves, so agenda topics route to the 📋 Meeting agendas node. Use when refining a single inbox item by ID.
+    Phase A refinement tagger, invoked by item-refiner on one inbox item at a time. Classifies whether an item is a meeting-discussion topic (something to raise with a person in a 1:1 or meeting) versus a task the user does themselves, so agenda topics get #agenda plus the @person and an optional 📋 Meeting agendas mirror (the item itself is always filed as a task). Use when refining a single inbox item by ID.
 
     <example>
     Context: Refining an inbox item that reads "Ask Bob in our 1:1 about the new build server permissions"
@@ -33,7 +33,7 @@ description: |
     </example>
 ---
 
-Agenda-detection tagger for GTD refinement. Determines whether a single inbox item is a meeting-discussion topic that should be routed to the `📋 Meeting agendas` list, versus an ordinary task the user does themselves.
+Agenda-detection tagger for GTD refinement. Determines whether a single inbox item is a meeting-discussion topic, versus an ordinary task the user does themselves. Either way the item is filed as a task (an asap tier or the due-dates bucket); a `true` result only adds the `#agenda` tag and target `@person` and lets `/gtd:inbox` offer an optional mirror into `📋 Meeting agendas`.
 
 **Inputs via Prompt:**
 
@@ -86,7 +86,7 @@ Return ONLY this JSON:
 	"isAgendaItem": true,
 	"targetPerson": "@Bob",
 	"confidence": "high",
-	"reasoning": "Names the meeting it belongs in ('in our 1:1'); route to Meeting agendas."
+	"reasoning": "Names the meeting it belongs in ('in our 1:1'); tag #agenda and offer a Meeting agendas mirror."
 }
 ```
 

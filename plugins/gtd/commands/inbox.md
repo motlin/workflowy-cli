@@ -94,12 +94,13 @@ Call John about project
     ├── 👤 Person: @JohnSmith (found "John")
     ├── 💡 Project: #home-renovation (high confidence)
     ├── 📅 Due: Fri, Jan 3, 2025
+    ├── 🗣️ Agenda: raise with @JohnSmith #agenda #work   <- only on agenda topics
     ├── 📍 Move to: Personal > ☑️ Next > Work
     │   └── 📊 Confidence: high
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
-For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), and `provenance` (from `📜 Provenance:`). Write the array to `.llm/gtd-parsed-items.json`.
+For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), and `isAgenda` (true when a `🗣️ Agenda:` row exists). Write the array to `.llm/gtd-parsed-items.json`.
 
 **Handling missing data:**
 
@@ -107,6 +108,7 @@ For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to
 - No `📊 Confidence:` -> Treat as `low` confidence
 - No `✏️ Text:` -> Keep original item text
 - No `📜 Provenance:` -> Set to null
+- `📍 Move to:` names `📋 Meeting agendas` (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`) or a node under it -> an older refinement; replace it with the bottom tier of the Work `📌 Tasks (asap)` ladder (per `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`) and mark the item `isAgenda`
 
 ### Never ask how to file the inbox
 
@@ -147,6 +149,22 @@ Options:
 - "Delete"
 ```
 
+**Never file an item only into 📋 Meeting agendas.** A topic that lives only there gets lost, because nothing but a meeting ever surfaces it. Every agenda item is filed as a task, on its asap tier or in the due-dates bucket, carrying `#agenda` and the `@person`; that tag is often enough on its own. Never offer `📋 Meeting agendas` as a destination. When the item is `isAgenda`, add one extra option after Accept:
+
+- **Accept + agenda mirror** — file the task to the suggested tier as Accept does, then add a companion node under `📋 Meeting agendas` that points back to it.
+
+When the user picks "Other" and names 📋 Meeting agendas, treat it as Accept + agenda mirror.
+
+The Workflowy API cannot create a live mirror, so the companion is a link. After item-mover has moved the task, create it under the Work `📋 Meeting agendas` node with the task's short ID (last 12 hex chars of its UUID), per `plugins/workflowy/skills/workflowy-html.md`:
+
+```bash
+./bin/run.js node create --parent-id f3bfcfbb-a904-62e6-06aa-29bda59a1f54 \
+  --name '<a href="https://workflowy.com/#/<SHORT_ID>">Ask @Bob about build server permissions</a> #agenda' \
+  --position bottom
+```
+
+The user can swap the link for a real Workflowy mirror by hand if they prefer.
+
 **Do it now.** When an item is something Claude can finish entirely as Workflowy edits through the CLI (rename, move, tag, or complete an existing node; create or restructure nodes; delete a stale node), add a **Do it now** option and list it first, ahead of Accept. Describe the concrete edits in the option description so the user knows what will happen. Do not offer it when the item needs anything outside Workflowy (email, calendar, web, purchases, a phone call) or a decision only the user can make.
 
 ```text
@@ -166,6 +184,7 @@ When the user picks Do it now, perform the edits immediately through the CLI, ne
 - **Do it now**: Already performed when chosen (see above); nothing left to execute
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
+- **Accept + agenda mirror**: Include the item in the batch's moves, then create its `📋 Meeting agendas` link node once item-mover returns
 - **Skips**: Do nothing (item stays in inbox)
 - **User-specified overrides**: Use the user's custom destination path instead of the suggestion
 

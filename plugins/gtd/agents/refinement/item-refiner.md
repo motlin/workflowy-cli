@@ -47,7 +47,7 @@ Use a SINGLE message with MULTIPLE Task tool calls in parallel. Pass the prompt:
 - `gtd:refinement:url-linker` - Extract URLs and provenance
 - `gtd:refinement:context-tagger` - Suggest location/mode tags
 - `gtd:refinement:tag-cleaner` - Classify existing tags: fix typos, propose registering new tags, drop one-off junk
-- `gtd:refinement:agenda-detector` - Detect meeting-discussion topics to route to 📋 Meeting agendas
+- `gtd:refinement:agenda-detector` - Detect meeting-discussion topics (still filed as tasks; 📋 Meeting agendas is only an optional mirror)
 
 Wait for all to complete and collect their JSON outputs.
 
@@ -84,7 +84,7 @@ Task tool -> gtd:refinement:destination-guesser -> returns JSON with {path, targ
 
 This determines where the item should go based on Phase A tagger results.
 
-**Agenda routing:** If `agendaDetector.isAgendaItem` is true, destination is the 📋 Meeting agendas node -- `targetId: f3bfcfbb-a904-62e6-06aa-29bda59a1f54`, path `Work > ☑️ Next (Work) > 📋 Meeting agendas`. Pass the agenda-detector result to destination-guesser so it short-circuits to this node instead of the usual guess.
+**Agenda routing:** An agenda item is still a task; destination-guesser resolves it like any other and never returns 📋 Meeting agendas. Never write a `📍 Move to:` that names 📋 Meeting agendas or a node under it. The `🗣️ Agenda:` row is what lets `/gtd:inbox` offer an optional mirror there.
 
 ### Update tagger results with destination
 
@@ -104,7 +104,7 @@ Now launch text-composer, which will read both Phase A results AND the destinati
 Task tool -> gtd:refinement:text-composer -> returns JSON with {composedText, changes, confidence}
 ```
 
-**Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda`, `#work`, and the target `@person` mention so the routed item matches the existing 📋 Meeting agendas topic shape exactly.
+**Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda`, `#work`, and the target `@person` mention so the filed task stays findable by person and tag, and any mirror in 📋 Meeting agendas matches the existing topic shape.
 
 The text-composer reads `.llm/gtd/refinement/$ITEM_ID-with-dest.json` to get both Phase A tagger results and the destination.
 
@@ -168,7 +168,7 @@ Only include children that have actual values from Phase A/B results.
 | 7.1   | 🏷️ New tag:          | tag-cleaner (per newTag)         |
 | 7.2   | 🗑️ Drop tag:         | tag-cleaner (per junk)           |
 | 7.3   | ⚠️ Invalid @mention: | tag-cleaner (per invalidMention) |
-| 7.5   | 🗣️ Agenda:           | agenda-detector (if discussion)  |
+| 7.5   | 🗣️ Agenda:           | agenda-detector (mirror offer)   |
 | 8     | 📍 Move to:          | destination-guesser              |
 | 8.1   | └── 📊 Confidence:   | destination-guesser (sub-bullet) |
 | 9     | ✏️ Text:             | text-composer                    |

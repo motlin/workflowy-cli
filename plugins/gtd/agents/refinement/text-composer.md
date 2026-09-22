@@ -19,7 +19,7 @@ description: |
     user: "Compose text for item 1234"
     assistant: "[Returns {composedText: 'Ask @Bob about build server permissions #agenda #work', changes: ['+@Bob', '+#agenda', '+#work'], confidence: 'high'}]"
     <commentary>
-    Agenda items carry #agenda #work plus the target @person so they match the Meeting agendas shape.
+    Agenda items carry #agenda #work plus the target @person; they are still filed as tasks, and the tags keep them findable.
     </commentary>
     </example>
 ---
@@ -34,7 +34,7 @@ Read the destination-augmented tagger JSON at `.llm/gtd/refinement/$ITEM_ID-with
 
 Preserve the author's wording otherwise. Note the tag edits in `changes` (`#Jira→#jira`, `-#s`).
 
-**Agenda text:** When `agendaDetector.isAgendaItem` is true, append `#agenda`, `#work`, and the target `@person` mention so the routed item matches the existing 📋 Meeting agendas topic shape.
+**Agenda text:** When `agendaDetector.isAgendaItem` is true, append `#agenda`, `#work`, and the target `@person` mention so the task, filed on an asap tier, stays findable by person and tag, and any optional mirror in 📋 Meeting agendas matches the existing topic shape.
 
 Return ONLY this JSON:
 
