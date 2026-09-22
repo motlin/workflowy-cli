@@ -79,12 +79,14 @@ Phase B composers depend on each other - run them in order using the Task tool. 
 Launch the destination-guesser and capture its JSON output:
 
 ```text
-Task tool -> gtd:refinement:destination-guesser -> returns JSON with {path, targetId, confidence, reasoning}
+Task tool -> gtd:refinement:destination-guesser -> returns JSON with {path, targetId, confidence, reasoning, alternative?}
 ```
 
 This determines where the item should go based on Phase A tagger results.
 
 **Agenda routing:** An agenda item is still a task; destination-guesser resolves it like any other and never returns 📋 Meeting agendas. Never write a `📍 Move to:` that names 📋 Meeting agendas or a node under it. The `🗣️ Agenda:` row is what lets `/gtd:inbox` offer an optional mirror there.
+
+**Alternative destination:** When destination-guesser returns `alternative`, write its path as a `🔀 Alternative:` row right after `📍 Move to:`. It is what lets `/gtd:inbox` offer **File in both**. Omit the row when there is no `alternative`.
 
 ### Update tagger results with destination
 
@@ -139,6 +141,7 @@ done
     {"name": "📍 Move to: <full path>", "children": [
       {"name": "📊 Confidence: <high|medium|low>"}
     ]},
+    {"name": "🔀 Alternative: <full path of alternative.path>"},
     {"name": "✏️ Text: <composed text with all tags>"}
   ]
 }' --position bottom
@@ -171,6 +174,7 @@ Only include children that have actual values from Phase A/B results.
 | 7.5   | 🗣️ Agenda:           | agenda-detector (mirror offer)   |
 | 8     | 📍 Move to:          | destination-guesser              |
 | 8.1   | └── 📊 Confidence:   | destination-guesser (sub-bullet) |
+| 8.5   | 🔀 Alternative:      | destination-guesser (optional)   |
 | 9     | ✏️ Text:             | text-composer                    |
 
 Emit one row per entry in each tag-cleaner array; omit the row entirely when the array is empty. `🏷️ New tag:` and `✏️ Typo:` are **proposals the user approves** — never pre-apply the registry write; item-mover handles accepted typos/drops in the text, and an accepted `🏷️ New tag:` is written to its registry during the `/gtd:inbox` execute phase.

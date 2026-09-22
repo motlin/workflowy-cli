@@ -91,7 +91,12 @@ Return ONLY this JSON:
 	"path": "Personal > 🏗️ Home Renovation",
 	"targetId": "abc123",
 	"confidence": "high",
-	"reasoning": "project-tagger matched #homereno."
+	"reasoning": "project-tagger matched #homereno.",
+	"alternative": {
+		"path": "Personal > 📖 Reading list",
+		"targetId": "def456",
+		"reasoning": "the item is also a book to read."
+	}
 }
 ```
 
@@ -99,3 +104,4 @@ Return ONLY this JSON:
 - `targetId`: the destination node's ID.
 - `confidence`: `high`, `medium`, or `low` — never a number or a percentage. A model cannot calibrate 0.72 against 0.78, and rendering those digits to the user implies a precision that does not exist. `high` means the signal names the destination outright; `medium` means it is the best of several plausible homes; `low` means it is a fallback and the user should expect to redirect it.
 - `reasoning`: one short sentence.
+- `alternative` (optional): a second home the item plausibly also belongs in, as `{"path": "...", "targetId": "...", "reasoning": "..."}`. Include it only when the item genuinely fits two places at once — a task that is also a topic for a person's feedback node, a reading item that also belongs to a project. Never use it to hedge between two guesses (that is what `low` confidence is for), and never name a Someday node, a Next-Actions container root, or `📋 Meeting agendas` (the `🗣️ Agenda:` row already drives that mirror). `/gtd:inbox` offers **File in both** from it: the item is filed at `path` and a link to it is created under `alternative.path`.

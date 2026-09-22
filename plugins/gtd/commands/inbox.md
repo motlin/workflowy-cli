@@ -97,10 +97,11 @@ Call John about project
     ├── 🗣️ Agenda: raise with @JohnSmith #agenda #work   <- only on agenda topics
     ├── 📍 Move to: Personal > ☑️ Next > Work
     │   └── 📊 Confidence: high
+    ├── 🔀 Alternative: Personal > 🏗️ Home Renovation   <- optional second home
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
-For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), and `isAgenda` (true when a `🗣️ Agenda:` row exists). Write the array to `.llm/gtd-parsed-items.json`.
+For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), and `isAgenda` (true when a `🗣️ Agenda:` row exists). Write the array to `.llm/gtd-parsed-items.json`.
 
 **Handling missing data:**
 
@@ -149,21 +150,36 @@ Options:
 - "Delete"
 ```
 
-**Never file an item only into 📋 Meeting agendas.** A topic that lives only there gets lost, because nothing but a meeting ever surfaces it. Every agenda item is filed as a task, on its asap tier or in the due-dates bucket, carrying `#agenda` and the `@person`; that tag is often enough on its own. Never offer `📋 Meeting agendas` as a destination. When the item is `isAgenda`, add one extra option after Accept:
+**Never file an item only into 📋 Meeting agendas.** A topic that lives only there gets lost, because nothing but a meeting ever surfaces it. Every agenda item is filed as a task, on its asap tier or in the due-dates bucket, carrying `#agenda` and the `@person`; that tag is often enough on its own. Never offer `📋 Meeting agendas` as a primary destination.
 
-- **Accept + agenda mirror** — file the task to the suggested tier as Accept does, then add a companion node under `📋 Meeting agendas` that points back to it.
+**File in both.** When the item has an `alternativePath` or is `isAgenda`, add a **File in both** option right after Accept. It files the item at the primary destination exactly as Accept does and then creates a mirror of it at the second destination:
 
-When the user picks "Other" and names 📋 Meeting agendas, treat it as Accept + agenda mirror.
+- The second destination is `alternativePath` when one was staged, otherwise (for an agenda item) the Work `📋 Meeting agendas` node (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`).
+- Name both places in the option description, e.g. `File in both` (`📌 Tasks (asap) > 4th` + mirror in `📋 Meeting agendas`).
 
-The Workflowy API cannot create a live mirror, so the companion is a link. After item-mover has moved the task, create it under the Work `📋 Meeting agendas` node with the task's short ID (last 12 hex chars of its UUID), per `plugins/workflowy/skills/workflowy-html.md`:
+```text
+Question: "'Ask @Bob about build server permissions #agenda' -> 📌 Tasks (asap) > 4th (high confidence)"
+
+Options:
+- "Accept" (📌 Tasks (asap) > 4th)
+- "File in both" (📌 Tasks (asap) > 4th + mirror in 📋 Meeting agendas)
+- "Skip (leave in inbox)"
+- "Delete"
+```
+
+Treat these "Other" answers as File in both: naming two destinations ("both 1 and 2", "3rd + mirror to agendas"), or naming `📋 Meeting agendas` for an agenda item. The first-named ladder or due-dates destination is the primary; the other is the mirror. A named tier ("3rd") overrides the suggested tier for the primary.
+
+**Which copy is the original.** The original is always the item itself, moved by item-mover to the primary destination — the asap-ladder or due-dates copy, which the daily review surfaces and ranks. Its children, provenance, and completion state live there. The mirror is a new node at the second destination that points back to the original; completing the task means completing the original.
+
+**Mirror command.** The Workflowy API cannot create a live mirror, so the mirror is a link node. After item-mover has moved the item, take its short ID (last 12 hex chars of its UUID), resolve the second destination's ID (the Meeting agendas UUID above, or `./bin/run.js node get --path "<alternativePath segments, comma-separated>" --depth 0 --json --fields id` for an alternative), and create the link per `plugins/workflowy/skills/workflowy-html.md`:
 
 ```bash
-./bin/run.js node create --parent-id f3bfcfbb-a904-62e6-06aa-29bda59a1f54 \
+./bin/run.js node create --parent-id <SECOND_DESTINATION_ID> \
   --name '<a href="https://workflowy.com/#/<SHORT_ID>">Ask @Bob about build server permissions</a> #agenda' \
   --position bottom
 ```
 
-The user can swap the link for a real Workflowy mirror by hand if they prefer.
+Use the item's final text (after `✏️ Text:` is applied) as the link text, and keep `#agenda` on it only for an agenda mirror. Verify with `./bin/run.js node get --id <newLinkId>` that the link landed under the second destination. The user can swap the link for a real Workflowy mirror by hand if they prefer.
 
 **Do it now.** When an item is something Claude can finish entirely as Workflowy edits through the CLI (rename, move, tag, or complete an existing node; create or restructure nodes; delete a stale node), add a **Do it now** option and list it first, ahead of Accept. Describe the concrete edits in the option description so the user knows what will happen. Do not offer it when the item needs anything outside Workflowy (email, calendar, web, purchases, a phone call) or a decision only the user can make.
 
@@ -184,7 +200,7 @@ When the user picks Do it now, perform the edits immediately through the CLI, ne
 - **Do it now**: Already performed when chosen (see above); nothing left to execute
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
-- **Accept + agenda mirror**: Include the item in the batch's moves, then create its `📋 Meeting agendas` link node once item-mover returns
+- **File in both**: Include the item in the batch's moves to its primary destination, then create its mirror link node at the second destination once item-mover returns
 - **Skips**: Do nothing (item stays in inbox)
 - **User-specified overrides**: Use the user's custom destination path instead of the suggestion
 
