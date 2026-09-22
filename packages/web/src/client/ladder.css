@@ -586,3 +586,40 @@
 .ladder-tree-body li:has(> details) {
 	list-style: none;
 }
+
+.ladder-child-count {
+	margin-left: 8px;
+	padding: 0 6px;
+	border-radius: 9px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-family: 'IBM Plex Mono', ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Child lines only join the row while it is hovered or focused, so resting rows stay one line tall. */
+.ladder-children {
+	display: none;
+	margin: 3px 0 1px;
+	padding-left: 16px;
+	color: var(--muted);
+	font-size: 12.5px;
+	line-height: 1.35;
+}
+
+.ladder-row:hover .ladder-children,
+.ladder-row:focus-within .ladder-children {
+	display: block;
+}
+
+.ladder-page[data-dragging] .ladder-children {
+	display: none;
+}
+
+.ladder-child-more {
+	margin-left: 6px;
+	font-family: 'IBM Plex Mono', ui-monospace, monospace;
+	font-size: 10.5px;
+}

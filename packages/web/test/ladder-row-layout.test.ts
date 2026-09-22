@@ -34,4 +34,13 @@ describe('ladder row layout', () => {
 		const order = [...row![0].matchAll(/className="(grip|rank|txt|step|done)"/g)].map((match) => match[1]);
 		expect(order).toStrictEqual(['grip', 'rank', 'txt', 'step', 'done']);
 	});
+
+	// Child lines stay out of the row's box until asked for, so every row keeps its one-line height.
+	it('hides child lines until the row is hovered or focused', () => {
+		expect(/\.ladder-children \{[^}]*display:\s*none;/.exec(css)).not.toBeNull();
+		const reveal = /([^{}]*)\{\s*display:\s*block;[^}]*\}/g;
+		const selectors = [...css.matchAll(reveal)].map((match) => match[1]).join(',');
+		expect(selectors).toContain('.ladder-row:hover .ladder-children');
+		expect(selectors).toContain('.ladder-row:focus-within .ladder-children');
+	});
 });

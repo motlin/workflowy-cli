@@ -357,6 +357,7 @@ export function LadderView() {
 	return (
 		<div
 			className="ladder-page"
+			data-dragging={dragging ? '' : undefined}
 			ref={page}
 		>
 			<div className="ladder-wrap">
@@ -563,6 +564,14 @@ function Tier({
 						<span className="rank">{index + 1}</span>
 						<span className="txt">
 							<span className="ladder-text">{item.name}</span>
+							{item.descendantCount > 0 ? (
+								<span
+									className="ladder-child-count"
+									aria-label={`${item.descendantCount} open ${item.descendantCount === 1 ? 'item' : 'items'} below`}
+								>
+									{item.descendantCount}
+								</span>
+							) : null}
 							{item.hasChildren ? (
 								<button
 									className="ladder-tree-button"
@@ -573,6 +582,18 @@ function Tier({
 								>
 									Tree ▸
 								</button>
+							) : null}
+							{item.children.length > 0 ? (
+								<ul className="ladder-children">
+									{item.children.map((child) => (
+										<li key={child.id}>
+											<span className="ladder-child-name">{child.name}</span>
+											{child.descendantCount > 0 ? (
+												<span className="ladder-child-more">+{child.descendantCount}</span>
+											) : null}
+										</li>
+									))}
+								</ul>
 							) : null}
 							{rowErrors[item.id] ? (
 								<span

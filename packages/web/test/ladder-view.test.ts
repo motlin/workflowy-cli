@@ -359,3 +359,47 @@ it('saves selected rows before the same anchor in display order', async () => {
 		{root: 'personal', node_id: 'bob', to_tier: '2nd', before_id: 'charlie'},
 	]);
 });
+
+describe('row children', () => {
+	function renderTier(items: Ladders[string]['tiers'][number]['items']) {
+		const tier = render().find((element) => element.props.tier);
+		if (!tier) throw new Error('no tier element');
+		const props = {...tier.props, tier: {...(tier.props.tier as object), items}};
+		return elements((tier.type as (props: ElementProps) => ReactNode)(props));
+	}
+
+	function text(node: ReactNode): string {
+		if (typeof node === 'string' || typeof node === 'number') return String(node);
+		if (Array.isArray(node)) return node.map(text).join('');
+		if (node && typeof node === 'object' && 'props' in node) {
+			return text((node as ReactElement<ElementProps>).props.children);
+		}
+		return '';
+	}
+
+	it('shows a descendant-count badge and dimmed child lines for a row with children', () => {
+		const parent = {
+			id: 'alice',
+			name: 'alice',
+			hasChildren: true,
+			descendantCount: 3,
+			children: [
+				{id: 'c1', name: 'first child', children: [], descendantCount: 0},
+				{
+					id: 'c2',
+					name: 'second child',
+					hasChildren: true,
+					descendantCount: 1,
+					children: [{id: 'g1', name: 'grandchild', children: [], descendantCount: 0}],
+				},
+			],
+		};
+		const rendered = renderTier([parent, item('bob')]);
+		const badges = rendered.filter((element) => element.props.className === 'ladder-child-count');
+		expect(badges.map((badge) => badge.props['aria-label'])).toStrictEqual(['3 open items below']);
+		const lists = rendered.filter((element) => element.props.className === 'ladder-children');
+		expect(lists).toHaveLength(1);
+		const lines = elements(lists[0].props.children).filter((element) => element.type === 'li');
+		expect(lines.map(text)).toStrictEqual(['first child', 'second child+1']);
+	});
+});
