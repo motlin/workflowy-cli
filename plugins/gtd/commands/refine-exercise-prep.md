@@ -35,9 +35,21 @@ Use `current_month_in_progress` if set, otherwise the month immediately before `
 
 > Run `./bin/run.js node get --help` to verify available flags before constructing commands.
 
+## Load the personal format spec
+
+Program names, hashtag casing, and canonical line shapes are personal, so they live in the gitignored `.llm/gtd/exercise-formats.md`, never in this plugin. Read it first:
+
+```bash
+cat .llm/gtd/exercise-formats.md
+```
+
+The spec lists each program the user logs, with its canonical hashtag casing, its canonical line shape, and any program-specific rules (such as whether Roman-numeral phases are allowed), plus defaults that apply to every listed program (prefix emoji, field separator, number style, name casing).
+
+If the file is missing or lists no programs, there is nothing to normalize: stage `status: "empty"` with `summary.entriesReviewed: 0` and stop. Never invent a format.
+
 ## Load metadata (read cache)
 
-The single `metadata-sync` has already run in the DAG, so this is a read-only step. Use the cached hobbies registry to get the canonical hashtag casing for each exercise program:
+The single `metadata-sync` has already run in the DAG, so this is a read-only step. The cached hobbies registry backs up the spec's casing when an entry spells a listed program loosely:
 
 ```bash
 jq '[.children[] | .children[] | select(.name | length > 0) | {
@@ -47,7 +59,7 @@ jq '[.children[] | .children[] | select(.name | length > 0) | {
 }]' .llm/gtd/metadata/hobbies-registry.json
 ```
 
-The `tag` field gives the canonical casing (e.g. `#DigIn`, `#Insanity`) the entry's program hashtag must match.
+The `tag` field gives the registry's casing for each program. When it disagrees with the spec, the spec wins.
 
 ## Fetch month entries
 
@@ -55,32 +67,28 @@ The `tag` field gives the canonical casing (e.g. `#DigIn`, `#Insanity`) the entr
 ./bin/run.js node get --path "Personal,📅 Calendar,🗃️ Archive,2020 - 2029 decade,<year>,<month>" --depth 3
 ```
 
-Consider only entries that are `#exercise` workouts — those tagged `#exercise` or carrying a recognized exercise-program hashtag from the registry. Skip everything else.
+Consider only entries that are `#exercise` workouts for a program the spec lists — those tagged `#exercise` or carrying one of the spec's program hashtags (any casing). Skip everything else, including `#exercise` entries for programs the spec does not list.
 
 ## Formatting-consistency rules
 
-The canonical form of an `#exercise` entry is:
+For each matching entry, normalize it to its program's canonical line shape from the spec. Never alter the meaning, only the formatting. Apply the spec's defaults and the program's own rules, which typically cover:
 
-```text
-💪 #ProgramName phase X, week Y, day Z, Workout Name N #exercise
-```
-
-For each `#exercise` entry, normalize it to that shape. Apply every rule below; never alter the meaning, only the formatting:
-
-- **💪 prefix.** Every entry starts with `💪`. If it is missing, add it. If the entry already starts with a different emoji, replace it with `💪`.
-- **Program hashtag casing.** The `#ProgramName` hashtag must match the canonical casing in the hobbies registry (e.g. `#digin` → `#DigIn`). Match the program by name and fix the casing.
-- **Commas between fields.** Put a comma between the `week` and `day` fields (and the surrounding `phase` / workout fields), e.g. `week 3 day 2` → `week 3, day 2`. Use commas, not other separators, between these fields.
-- **Numeric, not spelled-out.** Phase / week / day numbers are digits, never words (e.g. `week three` → `week 3`, `phase two` → `phase 2`). Roman numerals for phase are acceptable only if that is the program's own convention in the registry; otherwise normalize to digits.
-- **Capitalize workout / body-part names.** Capitalize the workout name and any body-part names (e.g. `back and biceps` → `Back and Biceps`, `cardio` → `Cardio`).
-- **No punctuation before `#exercise`.** Remove any trailing period, comma, or other punctuation immediately before the `#exercise` tag (e.g. `... day 2. #exercise` → `... day 2 #exercise`).
+- **Prefix emoji.** The leading emoji the spec names; add it if missing, replace a different leading emoji with it.
+- **Program hashtag casing.** Match the program by name and fix the hashtag to the spec's casing.
+- **Field separators.** Use the spec's separator between the program's structured fields (phase, week, day, workout, and so on).
+- **Number style.** Digits or words, Roman numerals or not, exactly as the spec says for that program.
+- **Name casing.** Workout and body-part names cased as the spec says.
+- **No punctuation before the trailing tag.** Remove any period, comma, or other punctuation immediately before `#exercise` (or whichever trailing tag the spec names).
 - **No trailing or double spaces.** Collapse any run of multiple spaces to one, and strip trailing whitespace.
 - **Shared text rules.** Also apply `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`.
+
+Follow the spec over this list when they differ; the list only names the kinds of rule a spec carries.
 
 If an entry is already in canonical form, it produces **no** proposal (so a re-run is idempotent and stages `status: "empty"` when the month is clean).
 
 ### Ambiguity
 
-If you cannot confidently map an entry to a known program (so the hashtag casing or program name is uncertain), or the field structure is too irregular to normalize safely, stage a ⚠️ proposal with an `ambiguity` block (`prompt` + candidate `options`) rather than guessing. Let the user decide at apply time.
+If you cannot confidently map an entry to a program the spec lists (so the hashtag casing or program name is uncertain), or the field structure is too irregular to normalize safely, stage a ⚠️ proposal with an `ambiguity` block (`prompt` + candidate `options`) rather than guessing. Let the user decide at apply time.
 
 ## Stage the proposals
 
@@ -95,7 +103,7 @@ For each entry that needs formatting changes, emit one proposal with:
 - `nodeId` — the entry's **full UUID** (never a short id; short ids 404 on writes).
 - `header` — the entry date (e.g. `"Feb 9"`).
 - `before` / `after` — the **full** original and normalized text, never truncated.
-- `changes[]` — one `{ type, icon, detail }` per fix. Use `{"type": "format", "icon": "🏷️", "detail": "..."}` for formatting fixes (e.g. `"add 💪 prefix"`, `"#digin → #DigIn"`, `"week 3 day 2 → week 3, day 2"`, `"Back and Biceps capitalized"`, `"removed period before #exercise"`).
+- `changes[]` — one `{ type, icon, detail }` per fix. Use `{"type": "format", "icon": "🏷️", "detail": "..."}` for formatting fixes (e.g. `"add 💪 prefix"`, `"#program → #Program"`, `"week 3 day 2 → week 3, day 2"`, `"Upper Body capitalized"`, `"removed period before #exercise"`).
 - `ambiguity` — present only on ⚠️ proposals: `{ prompt, options[] }`.
 - `applyOps[]` — the **exact** `./bin/run.js node update --id <full-uuid> --name '<final after text>' --expect-name '<full before text>'` command(s) the apply walk runs verbatim on Accept. The `--expect-name` guard is **mandatory** (see `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md` → Stale-write guard): pass the proposal's full `before` so the CLI refuses the write if the entry changed since prep. Entries with apostrophes use `'"'"'` escaping inside **both** single-quoted values. Derive `before` from a fresh read of the live cache the barrier just imported, not a stale snapshot.
 

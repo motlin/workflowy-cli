@@ -8,11 +8,11 @@
 		{
 			"nodeId": "aaaaaaaa-1111-2222-3333-444444444444",
 			"header": "Sep 3",
-			"before": "#digin phase 2 week 3 day 2 back and biceps with Alice. #exercise",
-			"after": "#digin phase 2 week 3 day 2 back and biceps with @Alice. #exercise",
+			"before": "#program phase 2 week 3 day 2 back and biceps with Alice. #exercise",
+			"after": "#program phase 2 week 3 day 2 back and biceps with @Alice. #exercise",
 			"changes": [{"type": "people", "icon": "👤", "detail": "Alice → @Alice"}],
 			"applyOps": [
-				"./bin/run.js node update --id aaaaaaaa-1111-2222-3333-444444444444 --name '#digin phase 2 week 3 day 2 back and biceps with @Alice. #exercise' --expect-name '#digin phase 2 week 3 day 2 back and biceps with Alice. #exercise'"
+				"./bin/run.js node update --id aaaaaaaa-1111-2222-3333-444444444444 --name '#program phase 2 week 3 day 2 back and biceps with @Alice. #exercise' --expect-name '#program phase 2 week 3 day 2 back and biceps with Alice. #exercise'"
 			]
 		}
 	]

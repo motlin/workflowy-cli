@@ -10,15 +10,15 @@ const fixture = (name) =>
 
 const OVERLAP_ID = 'aaaaaaaa-1111-2222-3333-444444444444';
 const SOLO_ID = 'bbbbbbbb-1111-2222-3333-444444444444';
-const JOURNAL_AFTER = '#digin phase 2 week 3 day 2 back and biceps with @Alice. #exercise';
-const LIVE_BEFORE = '#digin phase 2 week 3 day 2 back and biceps with Alice. #exercise';
-const SOLO_BEFORE = '💪 #DigIn phase 2 week 3 day 4 cardio #exercise';
+const JOURNAL_AFTER = '#program phase 2 week 3 day 2 back and biceps with @Alice. #exercise';
+const LIVE_BEFORE = '#program phase 2 week 3 day 2 back and biceps with Alice. #exercise';
+const SOLO_BEFORE = '💪 #Program phase 2 week 3 day 4 cardio #exercise';
 
 const soloResolved = () => ({
 	nodeId: SOLO_ID,
 	header: 'Sep 5',
 	before: SOLO_BEFORE,
-	after: '💪 #DigIn phase 2, week 3, day 4, Cardio #exercise',
+	after: '💪 #Program phase 2, week 3, day 4, Cardio #exercise',
 	changes: fixture('refine-exercise').proposals[1].changes,
 	applyOps: fixture('refine-exercise').proposals[1].applyOps,
 });
@@ -73,7 +73,7 @@ test('runs the chained op when the journal proposal was accepted', () => {
 				nodeId: OVERLAP_ID,
 				header: 'Sep 3',
 				before: JOURNAL_AFTER,
-				after: '💪 #DigIn phase 2, week 3, day 2, Back and Biceps with @Alice #exercise',
+				after: '💪 #Program phase 2, week 3, day 2, Back and Biceps with @Alice #exercise',
 				changes: exercise.proposals[0].changes,
 				applyOps: exercise.proposals[0].chained.applyOps,
 			},
@@ -93,7 +93,7 @@ test('runs the fallback op when the journal proposal was rejected', () => {
 				nodeId: OVERLAP_ID,
 				header: 'Sep 3',
 				before: LIVE_BEFORE,
-				after: '💪 #DigIn phase 2, week 3, day 2, Back and Biceps with Alice #exercise',
+				after: '💪 #Program phase 2, week 3, day 2, Back and Biceps with Alice #exercise',
 				changes: exercise.proposals[0].changes,
 				applyOps: exercise.proposals[0].applyOps,
 			},

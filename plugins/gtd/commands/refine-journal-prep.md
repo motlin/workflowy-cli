@@ -280,11 +280,11 @@ If an activity appears frequently but isn't in the registry, stage a ⚠️ noti
 
 ### Category tag rules
 
-When a hobby match is found (e.g., "DigIn" → `#DigIn`), check the hobby's full registry name for additional `#tags`. If the registry entry name contains a category tag (e.g., `#DigIn - Shaun T's 30-min low-impact... #exercise`), append that category tag to the entry.
+When a hobby match is found (e.g., "Program" → `#Program`), check the hobby's full registry name for additional `#tags`. If the registry entry name contains a category tag (e.g., `#Program - a 30-min low-impact workout series... #exercise`), append that category tag to the entry.
 
 ```text
-Before: #DigIn Phase II, week 3, day 3, back 2.
-After:  #DigIn Phase II, week 3, day 3, back 2. #exercise
+Before: #Program Phase II, week 3, day 3, back 2.
+After:  #Program Phase II, week 3, day 3, back 2. #exercise
 ```
 
 Only append category tags that aren't already present in the entry text.
