@@ -151,6 +151,9 @@ const emailCalendarProposal = (overrides = {}) => ({
 	header: 'Sep 25',
 	key: 'alice-imap-uid-12345-sep25',
 	altKeys: ['Book club dinner | 2026-09-25'],
+	account: 'alice',
+	mailbox: 'INBOX',
+	messageUid: 12345,
 	before: 'Unread email offering registration for a dinner on Sep 25',
 	after: '🍽️ Book club dinner — Fri Sep 25 2026',
 	changes: [{type: 'category', icon: '🏷️', detail: 'New calendar event from unread email'}],
@@ -207,6 +210,37 @@ test('names the sourceKey mismatch when prep staged the identity under the old f
 		valid: false,
 		errors: [
 			'proposals[0]: email-calendar proposal stages its ledger key as "sourceKey" — the ledger and apply read "key"; rename it',
+		],
+	});
+});
+
+test('rejects an email-calendar proposal missing the source message, since Reject and delete trashes it without searching', () => {
+	const {account: _account, mailbox: _mailbox, messageUid: _uid, ...withoutSource} = emailCalendarProposal();
+	const result = validateProposal(emailCalendarStaged({proposals: [withoutSource]}));
+
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: email-calendar proposal is missing source message field(s) account, mailbox, messageUid — apply needs them to trash the email on "Reject and delete"',
+		],
+	});
+});
+
+test('rejects an email-calendar proposal whose messageUid is not a positive integer', () => {
+	const result = validateProposal(
+		emailCalendarStaged({
+			proposals: [
+				emailCalendarProposal({messageUid: '12345'}),
+				emailCalendarProposal({messageUid: 0, account: ' '}),
+			],
+		}),
+	);
+
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: email-calendar proposal is missing source message field(s) messageUid — apply needs them to trash the email on "Reject and delete"',
+			'proposals[1]: email-calendar proposal is missing source message field(s) account, messageUid — apply needs them to trash the email on "Reject and delete"',
 		],
 	});
 });

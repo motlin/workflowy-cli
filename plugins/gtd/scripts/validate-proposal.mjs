@@ -32,11 +32,13 @@ const strayIdError = (index, field) =>
 const LEDGER_KEY_TASKS = new Set(['email-calendar']);
 const LEDGER_KEY_ALIASES = ['sourceKey'];
 
+const isNonBlank = (value) => typeof value === 'string' && value.trim() !== '';
+
 const validateLedgerKey = (task, entry, index, errors) => {
 	if (!LEDGER_KEY_TASKS.has(task)) {
 		return;
 	}
-	if (typeof entry.key === 'string' && entry.key.trim() !== '') {
+	if (isNonBlank(entry.key)) {
 		return;
 	}
 	const alias = LEDGER_KEY_ALIASES.find((field) => entry[field] !== undefined);
@@ -51,8 +53,31 @@ const validateLedgerKey = (task, entry, index, errors) => {
 	);
 };
 
+// "Reject and delete" trashes the source email through the Gmail IMAP MCP, so apply needs the
+// exact message coordinates from prep rather than re-searching the inbox for it.
+const SOURCE_MESSAGE_FIELDS = {
+	account: isNonBlank,
+	mailbox: isNonBlank,
+	messageUid: (value) => Number.isInteger(value) && value > 0,
+};
+
+const validateSourceMessage = (task, entry, index, errors) => {
+	if (!LEDGER_KEY_TASKS.has(task)) {
+		return;
+	}
+	const missing = Object.entries(SOURCE_MESSAGE_FIELDS)
+		.filter(([field, isValid]) => !isValid(entry[field]))
+		.map(([field]) => field);
+	if (missing.length > 0) {
+		errors.push(
+			`proposals[${index}]: ${task} proposal is missing source message field(s) ${missing.join(', ')} — apply needs them to trash the email on "Reject and delete"`,
+		);
+	}
+};
+
 const validateProposalEntry = (task, entry, index, errors) => {
 	validateLedgerKey(task, entry, index, errors);
+	validateSourceMessage(task, entry, index, errors);
 
 	for (const field of Object.keys(entry)) {
 		if (field !== 'nodeId' && ID_FIELD.test(field)) {

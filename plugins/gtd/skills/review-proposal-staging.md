@@ -188,6 +188,8 @@ Options per proposal:
 - **Reject** — skip; make no changes.
 - **Accept with note** — accept but the user types a modification; apply the user's edited text instead of the staged `after`.
 
+A task may add its own options on top of these; `email-calendar-apply` adds **Reject and delete**, which rejects and then trashes the source email.
+
 If a proposal carries an `ambiguity` block, use its `prompt` as the question and its `options` as the choices **instead of** Accept/Reject. The chosen option determines the final text. Two cases:
 
 - **People (or similar) ambiguity** — the `options` are the candidate resolutions (e.g. `@FrankWilson` / `@EvanMiller` / `Skip`). Each option carries its own `applyOps`, so the chosen option's ops run verbatim (and `Skip` makes no change).
@@ -230,7 +232,7 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 
 ## Verification
 
-- **Schema shape-check:** run the validator on each staged file before the walk consumes it. It exits non-zero and names the offending proposals on a stray id, a short-id `nodeId`, a `--name` op missing `--expect-name`, a non-`ready` status carrying proposals, a missing required field, or an `email-calendar` proposal without a non-null ledger `key` (see `${CLAUDE_PLUGIN_ROOT}/commands/email-calendar-prep.md`):
+- **Schema shape-check:** run the validator on each staged file before the walk consumes it. It exits non-zero and names the offending proposals on a stray id, a short-id `nodeId`, a `--name` op missing `--expect-name`, a non-`ready` status carrying proposals, a missing required field, or an `email-calendar` proposal without a non-null ledger `key` or its source message fields (`account`, `mailbox`, `messageUid`) (see `${CLAUDE_PLUGIN_ROOT}/commands/email-calendar-prep.md`):
 
     ```bash
     node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/<slug>.json
