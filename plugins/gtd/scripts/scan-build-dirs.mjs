@@ -46,7 +46,8 @@ export function walkBuildDirs(root, {readdir = readdirSync} = {}) {
 			}
 		}
 	}
-	return {dirs: dirs.sort(), vanished: vanished.sort()};
+	const byPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+	return {dirs: dirs.sort(byPath), vanished: vanished.sort(byPath)};
 }
 
 function runTmutilIsExcluded(paths) {
