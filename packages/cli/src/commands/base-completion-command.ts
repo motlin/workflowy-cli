@@ -4,6 +4,7 @@ import {Command, Flags} from '@oclif/core';
 import {createDatabase} from '../db/index.js';
 import {CacheService} from '../services/cache.js';
 import {logger} from '../services/logger.js';
+import {resolveNodeId} from '@workflowy/shared/utils';
 
 export abstract class BaseCompletionCommand extends Command {
 	static override hidden = true;
@@ -50,22 +51,7 @@ export abstract class BaseCompletionCommand extends Command {
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
 		const pathBuilder = new PathBuilder(database);
 
-		let nodeId: string;
-		if (flags.id) {
-			nodeId = flags.id;
-		} else {
-			const nodePath = flags.path!.split(',').map((s) => s.trim());
-			const node = await cacheService.findNodeByPath(nodePath);
-			if (node) {
-				nodeId = node.id;
-			} else {
-				const apiNode = await apiClient.findNodeByPath(nodePath);
-				if (!apiNode) {
-					this.error(`Node not found at path: ${nodePath.join(' > ')}`);
-				}
-				nodeId = apiNode.id;
-			}
-		}
+		const nodeId = await resolveNodeId(flags, cacheService, apiClient);
 
 		const fullPath = await pathBuilder.buildFullPath(nodeId);
 
