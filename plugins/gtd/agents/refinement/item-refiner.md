@@ -88,6 +88,8 @@ This determines where the item should go based on Phase A tagger results.
 
 **Alternative destination:** When destination-guesser returns `alternative`, write its path as a `🔀 Alternative:` row right after `📍 Move to:`. It is what lets `/gtd:inbox` offer **File in both**. Omit the row when there is no `alternative`.
 
+**Delegation flag:** When destination-guesser returns `delegation`, write a `📤 Delegate:` row after `🗣️ Agenda:`. Its value is `<@Name or unknown> -> <delegation.path>`. The row lets `/gtd:inbox` offer **Delegate to @person**. Omit it when there is no `delegation`. Only meeting-derived items carry the flag.
+
 ### Update tagger results with destination
 
 After destination-guesser completes, append its output to the tagger results file:
@@ -138,6 +140,7 @@ done
     {"name": "🗑️ Drop tag: #s (one-off, resolves nowhere)"},
     {"name": "⚠️ Invalid @mention: @Bobb"},
     {"name": "🗣️ Agenda: raise with <@Name> #agenda #work"},
+    {"name": "📤 Delegate: <@Name or unknown> -> Work > 📤 Delegate"},
     {"name": "📍 Move to: <full path>", "children": [
       {"name": "📊 Confidence: <high|medium|low>"}
     ]},
@@ -172,6 +175,7 @@ Only include children that have actual values from Phase A/B results.
 | 7.2   | 🗑️ Drop tag:         | tag-cleaner (per junk)           |
 | 7.3   | ⚠️ Invalid @mention: | tag-cleaner (per invalidMention) |
 | 7.5   | 🗣️ Agenda:           | agenda-detector (mirror offer)   |
+| 7.6   | 📤 Delegate:         | destination-guesser (optional)   |
 | 8     | 📍 Move to:          | destination-guesser              |
 | 8.1   | └── 📊 Confidence:   | destination-guesser (sub-bullet) |
 | 8.5   | 🔀 Alternative:      | destination-guesser (optional)   |

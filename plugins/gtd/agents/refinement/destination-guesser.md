@@ -64,6 +64,22 @@ Confidence for this short-circuit:
 
 A date followed by an imperative or future phrasing ("9/20 - Renew passport", "Friday - call the dentist") is a dated task, not a journal entry; do not short-circuit it.
 
+**Delegation flag (meeting-derived items only):** When a meeting transcript produced the item, it is often unclear whether the work was already handed off in the meeting, and to whom. Flag the item as delegation-shaped only when both of these hold:
+
+- **Otter provenance.** `urlLinker.urls` or `urlLinker.provenance` points at an Otter meeting (`otter.ai/u/…`, or a `From:` child linking one).
+- **Handoff phrasing.** The text hands work to someone else: "Assign X", "Ask X to", "X will", "Have X", "delegated to X".
+
+A written capture from any other source never gets the flag, even with the same phrasing. There, "Ask @Bob to review the doc" is a task the user performs.
+
+The flag does not change `path`. Resolve `path` the usual way, because the item may still be the user's to hand off. Add a `delegation` object alongside it, pointing at the direct `📤 Delegate` child of the matching root. Use Work for meeting follow-ups unless the signals clearly say personal. Read the ID from the synced cache:
+
+```bash
+jq -r '.id' .llm/gtd/metadata/waiting-for/work-delegate.json      # Work > 📤 Delegate
+jq -r '.id' .llm/gtd/metadata/waiting-for/personal-delegate.json  # Personal > 📤 Delegate
+```
+
+`delegation.person` is the canonical `@mention` from `peopleTagger`, or `null` when the assignee is missing or unresolved. Never guess a name. `/gtd:inbox` uses the flag to ask whether the handoff happened in the meeting and to whom. It then offers **Delegate to @person** as a ready-made option.
+
 ## Search for a topical home before defaulting to a generic bucket
 
 Never return either Next-Actions container root — `Work > ☑️ Next (Work)` or `Personal > ☑️ Next (Personal)` — as the destination. These are containers, not leaf destinations. When no more specific topical home applies, resolve the item to the appropriate leaf: `⏰ Tasks (due dates)` when it has a due date, or the **bottom tier of the `📌 Tasks (asap)` ladder** otherwise. Do not rely on the File Loose Tasks phase to sweep an item out of a container root later.
@@ -106,6 +122,12 @@ Return ONLY this JSON:
 		"path": "Personal > 📖 Reading list",
 		"targetId": "def456",
 		"reasoning": "the item is also a book to read."
+	},
+	"delegation": {
+		"path": "Work > 📤 Delegate",
+		"targetId": "ghi789",
+		"person": "@Bob",
+		"reasoning": "Otter follow-up phrased \"Ask Bob to\"; unclear whether he was asked in the meeting."
 	}
 }
 ```
@@ -115,3 +137,4 @@ Return ONLY this JSON:
 - `confidence`: `high`, `medium`, or `low` — never a number or a percentage. A model cannot calibrate 0.72 against 0.78, and rendering those digits to the user implies a precision that does not exist. `high` means the signal names the destination outright; `medium` means it is the best of several plausible homes; `low` means it is a fallback and the user should expect to redirect it.
 - `reasoning`: one short sentence.
 - `alternative` (optional): a second home the item plausibly also belongs in, as `{"path": "...", "targetId": "...", "reasoning": "..."}`. Include it only when the item genuinely fits two places at once — a task that is also a topic for a person's feedback node, a reading item that also belongs to a project. Never use it to hedge between two guesses (that is what `low` confidence is for), and never name a Someday node, a Next-Actions container root, a `📌 Tasks (asap)` bucket root, or `📋 Meeting agendas` (the `🗣️ Agenda:` row already drives that mirror). `/gtd:inbox` offers **File in both** from it: the item is filed at `path` and a link to it is created under `alternative.path`.
+- `delegation` (optional): present only when the delegation flag above applies. Never include it for items without Otter provenance.

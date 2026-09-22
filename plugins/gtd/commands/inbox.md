@@ -95,13 +95,14 @@ Call John about project
     ├── 💡 Project: #home-renovation (high confidence)
     ├── 📅 Due: Fri, Jan 3, 2025
     ├── 🗣️ Agenda: raise with @JohnSmith #agenda #work   <- only on agenda topics
+    ├── 📤 Delegate: @JohnSmith -> Work > 📤 Delegate    <- only on meeting-derived handoffs
     ├── 📍 Move to: Personal > ☑️ Next > Work
     │   └── 📊 Confidence: high
     ├── 🔀 Alternative: Personal > 🏗️ Home Renovation   <- optional second home
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
-For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), and `isAgenda` (true when a `🗣️ Agenda:` row exists). Write the array to `.llm/gtd-parsed-items.json`.
+For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), `isAgenda` (true when a `🗣️ Agenda:` row exists), and `delegation` (from `📤 Delegate:`, as `{person, path}` with `person` null for `unknown`, or null when the row is absent). Write the array to `.llm/gtd-parsed-items.json`.
 
 **Handling missing data:**
 
@@ -162,7 +163,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs choices .llm/gtd/inbox-ladder-
 
 - Put `summary` in the question text of every asap-bound item, so a typed tier ("2nd") is an informed pick.
 - Add a **Promote** option labelled with the tier (`3rd tier`) right after Accept (and after File in both when present) whenever `promote` is non-null. Show the cascade in its description exactly as File Loose Tasks does — `3rd (8/8 full — bumps "Fix the TV page ordering" to 4th)`.
-- `AskUserQuestion` allows 4 options. When Do it now or File in both already fills the fourth slot, drop Promote and keep Skip and Delete; the ladder summary in the question still makes "3rd" a two-character answer.
+- `AskUserQuestion` allows 4 options. When Do it now, File in both, or Delegate already fills the fourth slot, drop Promote and keep Skip and Delete; the ladder summary in the question still makes "3rd" a two-character answer.
 - Any tier the user names (Promote, or "Other" answers like "3rd tier", "2nd", "3rd + mirror to agendas") replaces the suggested tier. Run `planInsertion(ladder, tier)` for a tier other than `promote`, and run its `demotions` (`node move --node-id <nodeId> --parent-id <toId> --position bottom`) before item-mover files the item, so the tier never briefly holds more than its cap.
 
 ```text
@@ -206,6 +207,22 @@ Treat these "Other" answers as File in both: naming two destinations ("both 1 an
 
 Use the item's final text (after `✏️ Text:` is applied) as the link text, and keep `#agenda` on it only for an agenda mirror. Verify with `./bin/run.js node get --id <newLinkId>` that the link landed under the second destination. The user can swap the link for a real Workflowy mirror by hand if they prefer.
 
+**Delegate to @person.** Offer this option only when the item carries a `delegation` from the refiner. The refiner sets it only on meeting-derived handoffs ("Assign X", "Ask X to", "X will"). From a transcript it is unclear whether the handoff already happened in the meeting, and to whom. So the question asks that outright and names the source meeting. Put the option right after Accept:
+
+- Label it with the person (`Delegate to @Bob`), and name the Delegate node in its description. When `person` is null, label it `Delegated in the meeting` and ask for the name via "Other". Resolve any typed name to a canonical `@mention`, following **Unknown people** below.
+- Accept keeps its usual meaning: the handoff has not happened yet, so the item is a task for the user.
+- On pick, file the item at `delegation.path`, the direct `📤 Delegate` child of that root. item-mover accepts it as a `waitingFor` destination. Keep the `@mention` in the item text so the handoff stays findable by person.
+
+```text
+Question: "'Ask @Bob to draft the rollout plan' (from meeting: Weekly sync) -> 📌 Tasks (asap) > 4th (medium confidence). Was this delegated to @Bob in the meeting?"
+
+Options:
+- "Accept" (not delegated yet: 📌 Tasks (asap) > 4th)
+- "Delegate to @Bob" (delegated in the meeting: Work > 📤 Delegate)
+- "Skip (leave in inbox)"
+- "Delete"
+```
+
 **Do it now.** When an item is something Claude can finish entirely as Workflowy edits through the CLI (rename, move, tag, or complete an existing node; create or restructure nodes; delete a stale node), add a **Do it now** option and list it first, ahead of Accept. Describe the concrete edits in the option description so the user knows what will happen. Do not offer it when the item needs anything outside Workflowy (email, calendar, web, purchases, a phone call) or a decision only the user can make.
 
 ```text
@@ -228,6 +245,7 @@ When the user picks Do it now, perform the edits immediately through the CLI, ne
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
 - **Promotions** (Promote or a named tier): run the tier's `demotions` first, then include the item in the batch's moves with the promoted tier as its destination
+- **Delegate**: Include the item in the batch's moves with `delegation.path` as its destination and the confirmed `@mention` in its text
 - **File in both**: Include the item in the batch's moves to its primary destination, then create its mirror link node at the second destination once item-mover returns
 - **Skips**: Do nothing (item stays in inbox)
 - **User-specified overrides**: Use the user's custom destination path instead of the suggestion
