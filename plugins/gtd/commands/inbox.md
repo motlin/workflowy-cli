@@ -147,8 +147,23 @@ Options:
 - "Delete"
 ```
 
+**Do it now.** When an item is something Claude can finish entirely as Workflowy edits through the CLI (rename, move, tag, or complete an existing node; create or restructure nodes; delete a stale node), add a **Do it now** option and list it first, ahead of Accept. Describe the concrete edits in the option description so the user knows what will happen. Do not offer it when the item needs anything outside Workflowy (email, calendar, web, purchases, a phone call) or a decision only the user can make.
+
+```text
+Question: "'Rename the 🏗️ Home project to 🏡 House' -> ☑️ Next Actions (high confidence)"
+
+Options:
+- "Do it now" (rename node 🏗️ Home -> 🏡 House, then remove this inbox item)
+- "Accept" (☑️ Next Actions)
+- "Skip (leave in inbox)"
+- "Delete"
+```
+
+When the user picks Do it now, perform the edits immediately through the CLI, never by writing SQLite. Verify each edited node with `./bin/run.js node get --id <nodeId>`. Then delete the inbox item with `./bin/run.js node delete --id <itemId>`. If any edit fails, leave the inbox item in place and report the failure. Count these as "done" in the running total.
+
 **After each batch of 4 reviews, execute immediately:**
 
+- **Do it now**: Already performed when chosen (see above); nothing left to execute
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
 - **Skips**: Do nothing (item stays in inbox)
@@ -187,7 +202,7 @@ Task tool:
 **Running total**: After each batch, show a running summary:
 
 ```text
-Batch 3 complete: 2 moved, 1 deleted, 1 skipped (12/73 processed)
+Batch 3 complete: 1 done, 1 moved, 1 deleted, 1 skipped (12/73 processed)
 ```
 
 ### Summary & Report
