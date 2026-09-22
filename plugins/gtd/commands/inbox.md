@@ -150,6 +150,31 @@ Options:
 - "Delete"
 ```
 
+**Promote a tier.** A refined item bound for a `📌 Tasks (asap)` ladder always lands on its **bottom** tier, and that default stays — but the user regularly moves an item up one rank, so make that a click. Before presenting a batch, read each ladder a batch item is bound for, once per ladder, from the real bucket (never a mirror; resolve it as `${CLAUDE_PLUGIN_ROOT}/commands/review/daily/rebalance.md` does under **Read both ladders**):
+
+```bash
+./bin/run.js node get --id <asap-bucket-uuid> --depth 2 --json \
+  --fields name,id,shortId,children,completedAt > .llm/gtd/inbox-ladder-<work|personal>.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs choices .llm/gtd/inbox-ladder-<work|personal>.json
+```
+
+`choices` prints `filingChoices(readLadder(bucket))`: `bottom` (the Accept tier), `promote` (the tier directly above the bottom, with the `demotions` filing there would cause, or null on a one-tier ladder), and `summary`, a one-line occupancy readout such as `1st 2/2 · 2nd 3/4 · 3rd 8/8 · 4th 12 (bottom)`. Re-read after each batch executes, since the batch changed the occupancy.
+
+- Put `summary` in the question text of every asap-bound item, so a typed tier ("2nd") is an informed pick.
+- Add a **Promote** option labelled with the tier (`3rd tier`) right after Accept (and after File in both when present) whenever `promote` is non-null. Show the cascade in its description exactly as File Loose Tasks does — `3rd (8/8 full — bumps "Fix the TV page ordering" to 4th)`.
+- `AskUserQuestion` allows 4 options. When Do it now or File in both already fills the fourth slot, drop Promote and keep Skip and Delete; the ladder summary in the question still makes "3rd" a two-character answer.
+- Any tier the user names (Promote, or "Other" answers like "3rd tier", "2nd", "3rd + mirror to agendas") replaces the suggested tier. Run `planInsertion(ladder, tier)` for a tier other than `promote`, and run its `demotions` (`node move --node-id <nodeId> --parent-id <toId> --position bottom`) before item-mover files the item, so the tier never briefly holds more than its cap.
+
+```text
+Question: "'Renew the car registration #errands' -> 📌 Tasks (asap) > 4th (high confidence) | 1st 2/2 · 2nd 3/4 · 3rd 5/8 · 4th 12 (bottom)"
+
+Options:
+- "Accept" (📌 Tasks (asap) > 4th)
+- "3rd tier" (📌 Tasks (asap) > 3rd, 5/8 — no demotion)
+- "Skip (leave in inbox)"
+- "Delete"
+```
+
 **Never file an item only into 📋 Meeting agendas.** A topic that lives only there gets lost, because nothing but a meeting ever surfaces it. Every agenda item is filed as a task, on its asap tier or in the due-dates bucket, carrying `#agenda` and the `@person`; that tag is often enough on its own. Never offer `📋 Meeting agendas` as a primary destination.
 
 **File in both.** When the item has an `alternativePath` or is `isAgenda`, add a **File in both** option right after Accept. It files the item at the primary destination exactly as Accept does and then creates a mirror of it at the second destination:
@@ -202,6 +227,7 @@ When the user picks Do it now, perform the edits immediately through the CLI, ne
 - **Do it now**: Already performed when chosen (see above); nothing left to execute
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
+- **Promotions** (Promote or a named tier): run the tier's `demotions` first, then include the item in the batch's moves with the promoted tier as its destination
 - **File in both**: Include the item in the batch's moves to its primary destination, then create its mirror link node at the second destination once item-mover returns
 - **Skips**: Do nothing (item stays in inbox)
 - **User-specified overrides**: Use the user's custom destination path instead of the suggestion

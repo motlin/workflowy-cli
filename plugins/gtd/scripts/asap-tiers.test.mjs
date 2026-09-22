@@ -4,6 +4,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
 	bottomTier,
+	filingChoices,
 	ladderCapacity,
 	parseTierLabel,
 	planInsertion,
@@ -307,5 +308,37 @@ test('planRebalance on a bucket with no ladder proposes nothing', () => {
 		pushDowns: [],
 		pullUps: [],
 		extend: null,
+	});
+});
+
+/**
+ * The inbox walk files every refined item on the bottom tier, but the user often promotes one a
+ * tier. filingChoices gives the walk the bottom tier (Accept), the tier directly above it as a
+ * one-click Promote option with its cascade, and a one-line ladder summary for the question text.
+ */
+test('filingChoices offers the tier directly above the bottom as the promotion, with its cascade', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 3), fill(3, 8), fill(4, 12)]});
+	assert.deepStrictEqual(filingChoices(ladder), {
+		summary: '1st 2/2 · 2nd 3/4 · 3rd 8/8 · 4th 12 (bottom)',
+		bottom: {tier: 4, label: '4th', id: 'tier-4'},
+		promote: {
+			tier: 3,
+			label: '3rd',
+			id: 'tier-3',
+			demotions: [{nodeId: 't3-7', name: 'task t3-7', fromTier: 3, toTier: 4, toId: 'tier-4'}],
+		},
+	});
+});
+
+test('filingChoices has no promotion on a one-tier ladder and nothing on a bucket with no ladder', () => {
+	assert.deepStrictEqual(filingChoices(readLadder({id: 'a', children: [fill(1, 1)]})), {
+		summary: '1st 1 (bottom)',
+		bottom: {tier: 1, label: '1st', id: 'tier-1'},
+		promote: null,
+	});
+	assert.deepStrictEqual(filingChoices(readLadder({id: 'a', children: []})), {
+		summary: '',
+		bottom: null,
+		promote: null,
 	});
 });

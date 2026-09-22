@@ -53,7 +53,7 @@ Rank against what is already on the ladder, not in the abstract — the question
 - `2nd` / `3rd` — real intent to do it soon.
 - Bottom tier — everything else, including anything arriving from an automated sweep. A task that showed up on its own has not earned a rank yet.
 
-Default to the bottom tier when the signal is weak. Promotion is cheap; a wrongly promoted task silently demotes something the user chose.
+Default to the bottom tier when the signal is weak. Promotion is cheap; a wrongly promoted task silently demotes something the user chose. Keep promotion cheap in every walk that files onto the ladder: `filingChoices(ladder)` (`asap-tiers.mjs choices <bucket.json>`) returns the bottom tier, the tier directly above it with its cascade as a one-click promotion, and a one-line occupancy summary for the question text.
 
 ## Migrating a bucket that still has categories
 

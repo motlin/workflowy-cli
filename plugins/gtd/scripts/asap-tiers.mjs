@@ -133,6 +133,30 @@ export function planInsertion(ladder, targetTier) {
 }
 
 /**
+ * What the /gtd:inbox walk offers for an item bound for this ladder. A refined item always lands on
+ * the bottom tier (Accept); `promote` is the tier directly above it with the cascade filing there
+ * would cause, so moving an item up one rank is a click rather than typed text. `summary` is a
+ * one-line occupancy readout for the question, so any other tier the user types is an informed pick.
+ */
+export function filingChoices(ladder) {
+	const bottom = bottomTier(ladder);
+	if (!bottom) return {summary: '', bottom: null, promote: null};
+
+	const summary = ladder.tiers
+		.map((t) =>
+			t === bottom ? `${t.label} ${t.items.length} (bottom)` : `${t.label} ${t.items.length}/${t.capacity}`,
+		)
+		.join(' · ');
+
+	const above = ladder.tiers.at(-2);
+	const promote = above
+		? {tier: above.tier, label: above.label, id: above.id, demotions: planInsertion(ladder, above.tier).demotions}
+		: null;
+
+	return {summary, bottom: {tier: bottom.tier, label: bottom.label, id: bottom.id}, promote};
+}
+
+/**
  * Read a ladder that may already be out of shape and report what a rebalance would propose. Every
  * entry is a proposal for the user to confirm; nothing here picks an item. Tiers are numbered
  * 1..deepest, and a tier missing from the bucket counts as empty with `id: null`.
@@ -217,13 +241,14 @@ export function planRebalance(ladder) {
 
 function main(arguments_) {
 	const [command, inputPath] = arguments_.slice(2);
-	if (command !== 'rebalance' || !inputPath) {
+	const commands = {rebalance: planRebalance, choices: filingChoices};
+	if (!Object.hasOwn(commands, command) || !inputPath) {
 		throw new Error(
-			'usage: asap-tiers.mjs rebalance <bucket.json>  (a 📌 bucket from `node get --depth 2 --json`)',
+			'usage: asap-tiers.mjs <rebalance|choices> <bucket.json>  (a 📌 bucket from `node get --depth 2 --json`)',
 		);
 	}
 	const bucket = JSON.parse(readFileSync(inputPath, 'utf8'));
-	process.stdout.write(`${JSON.stringify(planRebalance(readLadder(bucket)), null, 2)}\n`);
+	process.stdout.write(`${JSON.stringify(commands[command](readLadder(bucket)), null, 2)}\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);
