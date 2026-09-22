@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
 import {defineConfig} from 'vite-plus';
+import {resolvePort} from './src/server/port.js';
 
 export default defineConfig({
 	root: 'src/client',
@@ -13,8 +14,8 @@ export default defineConfig({
 		],
 		proxy: {
 			// ws so the ladder's write stream survives the dev proxy. The port
-			// follows the API server's own PORT, so both can move off a busy 3000.
-			'/api': {target: `http://127.0.0.1:${process.env.PORT ?? 3000}`, ws: true},
+			// follows the API server's own PORT, so both can move together.
+			'/api': {target: `http://127.0.0.1:${resolvePort(process.env)}`, ws: true},
 		},
 	},
 	build: {

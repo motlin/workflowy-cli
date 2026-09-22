@@ -8,6 +8,7 @@ import {ladderEvents} from './ladder-events.js';
 import {ladderSocketHandlers} from './ladder-socket.js';
 import {createLadderRouter} from './routes/ladder.js';
 import {nodesRouter} from './routes/nodes.js';
+import {resolvePort} from './port.js';
 import {relatedRouter} from './routes/related.js';
 import {searchRouter} from './routes/search.js';
 import {tagsRouter} from './routes/tags.js';
@@ -53,9 +54,11 @@ app.get(
 // Health check
 app.get('/health', (c) => c.json({status: 'ok'}));
 
-// Overridable so a second instance can run beside a dev server already on 3000.
-const port = Number(process.env.PORT ?? 3000);
-console.log(`Server running at http://127.0.0.1:${port}`);
+const port = resolvePort(process.env);
 
-const server = serve({fetch: app.fetch, hostname: '127.0.0.1', port});
+// Logged from the listening callback, so a port clash reports EADDRINUSE
+// instead of a "Server running" line that was never true.
+const server = serve({fetch: app.fetch, hostname: '127.0.0.1', port}, (info) => {
+	console.log(`Server running at http://127.0.0.1:${info.port}`);
+});
 nodeWebSocket.injectWebSocket(server);
