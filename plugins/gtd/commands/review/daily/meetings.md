@@ -28,7 +28,7 @@ Use the `read-metadata` skill to discover GTD paths from the Workflowy Metadata 
 - **People roster** — canonical names and explicit aliases from `.llm/gtd/metadata/people.json`; the VIP subset alone is insufficient for spelling checks
 - **VIP list** — direct manager(s) and manager's manager(s) from that roster
 - **Known product names** — a local, evidence-backed list assembled from synced project metadata and user-confirmed spellings as described in Step 6
-- **Recent meetings** — Otter meeting entries under `📆 Calendar` dated since the watermark
+- **Recent meetings** — Otter meeting entries under `📆 Calendar` that started or were ingested (node `createdAt`) since the watermark
 - **Project context** — active project names and recent task titles, used to ground LLM judgment
 - **Existing open tasks** — Next Actions trees and active-project tasks, used to recognize follow-ups you already track
 
@@ -71,21 +71,39 @@ jq -c '[.. | objects
 
 ### Step 3: Find recent meetings
 
-Read meeting entries under `📆 Calendar` whose start instant is after the watermark and at or before `review_started_iso`:
+Read meeting entries under `📆 Calendar` that either started or were ingested after the watermark. Otter often transcribes a meeting days later (a Friday 1:1 ingested the following Monday), so filtering by start time alone would skip a late-ingested meeting permanently once the watermark passes its start.
+
+Meetings live at `📆 Calendar > year > month > day > meeting`. The full tree is over 1 MB, so save it and pre-filter with `jq` instead of reading it into context:
 
 ```bash
-./bin/run.js node get --path "📆 Calendar" --depth 2 --json --fields name,shortId,children,modifiedAt
+mkdir -p .llm/gtd/review/meetings
+./bin/run.js node get --path "📆 Calendar" --depth 4 --json --fields name,shortId,createdAt,children > .llm/gtd/review/meetings/calendar.json
+jq -c --arg wm "<watermark-iso>" --arg end "<review-started-iso>" '
+  def instant: sub("\\.[0-9]+"; "") | fromdateiso8601;
+  def pad: tonumber | if . < 10 then "0\(.)" else "\(.)" end;
+  ($wm | instant) as $w | ($end | instant) as $e
+  | [.. | objects
+    | select(.name? | type == "string" and test("#meeting") and test("otter\\.ai/u/"))
+    | ((.name | capture("startYear=\"(?<y>[0-9]+)\" startMonth=\"(?<m>[0-9]+)\" startDay=\"(?<d>[0-9]+)\"")) // null) as $s
+    | (if $s then ("\($s.y)-\($s.m | pad)-\($s.d | pad)T00:00:00Z" | instant) else null end) as $day
+    | (.createdAt | instant) as $c
+    | select($day == null or ($c > $w and $c <= $e) or ($day >= $w - 172800 and $day <= $e + 86400))
+    | {id, shortId, name, createdAt}]' .llm/gtd/review/meetings/calendar.json
 ```
 
-Otter meeting entries are tagged `#meeting` and have an `otter.ai/u/<otid>` child link. Keep only children that:
+The `jq` date test is a deliberately wide net (two days of slack for timezones); apply the exact rules below to its output. Keep only entries that:
 
 - Are tagged `#meeting`
 - Have an Otter link identifying the source meeting
-- Have a `<time>` element whose full start datetime satisfies `watermark < meeting_start <= review_started_iso`
+- Satisfy **either** window test:
+    - **Started in window** — the `<time>` element's full start datetime satisfies `watermark < meeting_start <= review_started_iso`
+    - **Ingested in window** — the meeting node's `createdAt` (a UTC instant set when otter-journal-auto created it) satisfies `watermark < createdAt <= review_started_iso`
+
+Deduplicate the selected meetings by node `id`, so a meeting passing both tests is walked once. A meeting whose start precedes the watermark but whose node was created after it was never seen by an earlier review — walk it like any other. Record which test admitted each meeting in the Step 8 ledger, and say "ingested late" next to such meetings in the Step 8 questions so the user knows why an older meeting appeared.
 
 **Timestamp comparison:** read `startYear`, `startMonth`, `startDay`, `startHour`, and `startMinute` from the `<time>` element. When the time attributes are absent, parse the explicit time in its displayed text (for example, `at 10:32am`), including correct noon/midnight conversion. Preserve the calendar date separately for Step 9 journaling. Compare numeric instants after timezone conversion, never ISO date strings or timezone-free strings passed to `new Date()`.
 
-The Workflowy date components do not themselves identify a timezone. Resolve the timezone used when that entry was ingested from explicit ingestion configuration or retained source data; use that zone's offset on the meeting date, including daylight saving time. Do not assume the current machine timezone, today's offset, or UTC. A retained source Unix timestamp or timestamp with an explicit offset can establish the instant directly. If the time or timezone is unavailable, invalid, or ambiguous during a daylight-saving transition, stop and report the affected meeting before proposing candidates or advancing the watermark; do not silently treat it as midnight or skip it.
+The Workflowy date components do not themselves identify a timezone. Resolve the timezone used when that entry was ingested from explicit ingestion configuration or retained source data; use that zone's offset on the meeting date, including daylight saving time. Do not assume the current machine timezone, today's offset, or UTC. A retained source Unix timestamp or timestamp with an explicit offset can establish the instant directly. If the time or timezone is unavailable, invalid, or ambiguous during a daylight-saving transition, stop and report the affected meeting before proposing candidates or advancing the watermark; do not silently treat it as midnight or skip it. This applies only when the start instant decides inclusion: a meeting already admitted by the ingested-in-window test needs just its calendar date (for Step 9), not a resolved start instant.
 
 For example, with a watermark of `2026-05-06T15:00:00Z` and a verified `America/New_York` ingestion timezone, a 10:32am meeting that day is `14:32:00Z` and is excluded; an 11:30am meeting is `15:30:00Z` and is included if the review started at or after that instant. A meeting exactly at the watermark is excluded.
 
