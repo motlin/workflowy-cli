@@ -187,7 +187,7 @@ For each in-scope archive or recent live entry, scan for all refinement types si
 
 Also apply the shared `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`, including its actor-first emoji rule.
 
-Read `.llm/gtd/journal-vocabulary.md` when it exists (gitignored; holds the household shorthand and the voice-to-text mishearing table). It resolves terms that look like typos but are not, and mishearings that look correct but are not — neither is inferable from the entry text alone. Never copy its contents into `plugins/`.
+Read `.llm/gtd/journal-vocabulary.md` when it exists (gitignored; holds the household shorthand, the voice-to-text mishearing table, and the holiday/observance emoji table). It resolves terms that look like typos but are not, and mishearings that look correct but are not — neither is inferable from the entry text alone. Never copy its contents into `plugins/`.
 
 ### Change type indicators
 
@@ -331,6 +331,8 @@ Add `#watched` once, at the end of the line, if not already present. `#watched` 
 
 This overrides the generic tag→emoji default for `#watched` (which is `📺`). If the entry already starts with an emoji, leave it. For a mixed entry (e.g. exercise + some TV watching), do **not** force a 📺/🎬 prefix — keep the existing leading emoji.
 
+A mixed exercise + `#watched` entry with **no** leading emoji leads with the activity, not the screen: stage the activity emoji first (🚶 walk, 🎒 weighted pack, 💪 workout — whichever the entry describes) and offer 📺/🎬 only as a later option. The TV was the backdrop; the activity is what the entry records.
+
 #### Do not alter
 
 Titles, dates, `<time>` elements, bracket dates, or `@people` tags.
@@ -404,6 +406,7 @@ Every in-scope entry that does not already start with an emoji must produce one 
 
 - Entry already starts with emoji → skip the emoji step (other change types may still apply; no emoji proposal needed).
 - Entry has a hashtag with a preferred emoji in the tag→emoji metadata → use it. With multiple matching hashtags, use the emoji from the **first** hashtag in the text.
+- Entry names a holiday or observance → look it up in the holiday/observance emoji table of `.llm/gtd/journal-vocabulary.md` and use that emoji. Holiday emoji are personal vocabulary: never hardcode a holiday name or its emoji in `plugins/`. A holiday missing from the table gets a ⚠️ proposal (below); record the user's pick in the table afterward.
 - No tag-based emoji → stage a **⚠️ emoji proposal** whose `ambiguity` block carries **exactly 4 contextual emoji options**, each option a single emoji with a 1-3 word rationale (e.g. `🤦 mistake`, `⏰ alarm`, `🚗 commute`, `😴 overslept`). The apply walk adds an "Other" option automatically so the user can type a custom emoji.
 
 ## Stage the proposals
