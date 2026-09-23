@@ -32,7 +32,7 @@ ensure-sqlite-native:
 
 # Run dev server
 dev *args: build-shared
-    WORKFLOWY_DB_PATH={{justfile_directory()}}/workflowy.sqlite vp run --filter @workflowy/web dev {{args}}
+    WORKFLOWY_DB_PATH={{ justfile_directory() }}/workflowy.sqlite vp run --filter @workflowy/web dev {{ args }}
 
 # Run linter
 [group('lint')]
@@ -42,6 +42,7 @@ lint: install
 # Run formatter
 [group('lint')]
 format: install
+    pre-commit run just-fmt --all-files
     vp fmt {{ if ci != "" { "--check" } else { "" } }}
 
 # Run checks (format + lint + typecheck)
@@ -52,7 +53,7 @@ check: install
 # Run tests
 [group('test')]
 test *args: build-shared
-    CHAI_TRUNCATE_THRESHOLD=0 vp test run {{args}}
+    CHAI_TRUNCATE_THRESHOLD=0 vp test run {{ args }}
 
 # Run the plugin script tests, which vitest does not glob
 [group('test')]
@@ -196,7 +197,7 @@ db-web:
 # Start web app with API server and Vite dev server
 [group('web')]
 web: build-shared
-    WORKFLOWY_DB_PATH={{justfile_directory()}}/workflowy.sqlite vp run --filter @workflowy/web dev
+    WORKFLOWY_DB_PATH={{ justfile_directory() }}/workflowy.sqlite vp run --filter @workflowy/web dev
 
 # Download all available Dropbox backups that aren't already downloaded
 [group('backup')]
