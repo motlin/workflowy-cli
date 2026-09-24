@@ -1,19 +1,19 @@
 ---
-description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, rebalance the asap ladders, process the inbox, file loose tasks, and walk every dated item that needs handling today. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
+description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, rebalance the asap ladders, process the inbox, file loose tasks, group related tasks, and walk every dated item that needs handling today. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
 ---
 
 # Daily Review
 
-Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, and finish by walking everything dated that needs handling today.
+Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, group related ones into projects, and finish by walking everything dated that needs handling today.
 
 The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done:
 
 ```text
-LLM Tasks → Relink → Meetings → Overview → Rebalance Ladders → Process Inbox → File Loose Tasks → Recurring Review
-                                                (producers of ladder and dated tasks) ──────────────↗
+LLM Tasks → Relink → Meetings → Overview → Rebalance Ladders → Process Inbox → File Loose Tasks → Group Tasks → Recurring Review
+                                                (producers of ladder and dated tasks) ────────────────────────────↗
 ```
 
-The Meeting Follow-up Review, Morning Overview, Rebalance Ladders, and Recurring Review phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:rebalance`, and `:due`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
+The Meeting Follow-up Review, Morning Overview, Rebalance Ladders, File Loose Tasks, Group Related Tasks, and Recurring Review phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:rebalance`, `:file-tasks`, `:group-tasks`, and `:due`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
 
 ## When a skill breaks, fix the skill first
 
@@ -191,6 +191,12 @@ Invoke `/gtd:refine-inbox`, then `/gtd:inbox` — refine each inbox item with a 
 ## File Loose Tasks
 
 Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then sweep loose tasks under both roots (Work and Personal) into the `⏰ Tasks (due dates)` bucket or a priority tier of the `📌 Tasks (asap)` ladder, and sweep undated Things "Anytime" tasks into the personal ladder. Proposes a destination per task and walks them one at a time for confirmation. Relink already ran, so strays are on the real roots; silent-skip when no loose tasks and no Anytime backlog remain.
+
+## Group Related Tasks
+
+Invoke `/gtd:review:daily:group-tasks` — cluster the open tasks on each root's ladder by theme, match each cluster against existing project nodes, and walk every proposed grouping as its own question. A new group lands in the `1st` tier with its children ordered by the tier they came from; a cluster that matches a project in flight moves under that project instead. Topics sitting both in `📋 Meeting agendas` and on the ladder are flagged as duplicates. The private grouping vocabulary lives in the gitignored `.llm/gtd/task-groups.md`.
+
+Runs right after File Loose Tasks so nothing loose is left out of the clusters. Dated tasks in the `⏰` buckets are shown as related but never moved, because the due walk reads only the buckets' direct children. Silent when nothing clusters and nothing duplicates.
 
 ## Recurring Review
 

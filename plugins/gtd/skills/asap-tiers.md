@@ -7,7 +7,7 @@ description: The ordinal priority ladder inside a 📌 Tasks (asap) bucket — t
 
 Each `📌 Tasks (asap)` bucket holds an **ordinal ladder**: children named `1st`, `2nd`, `3rd`, `4th`, `5th`, … Each tier is a rank, not a topic. A task's rank is the only thing its position encodes.
 
-Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` (`readLadder`, `planInsertion`, `planRebalance`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
+Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` (`readLadder`, `planInsertion`, `planRebalance`, `planGroup`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
 
 ## Tiers replaced categories
 

@@ -7,6 +7,7 @@ import {
 	filingChoices,
 	ladderCapacity,
 	parseTierLabel,
+	planGroup,
 	planInsertion,
 	planRebalance,
 	readLadder,
@@ -341,4 +342,44 @@ test('filingChoices has no promotion on a one-tier ladder and nothing on a bucke
 		bottom: null,
 		promote: null,
 	});
+});
+
+/**
+ * Grouping pulls related tasks under one parent. A new group lands in 1st, and its children keep
+ * the rank they had: ordered by former tier, ladder order within a tier, off-ladder members last.
+ */
+test('planGroup orders members by former tier and keeps ladder order within a tier', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 1), fill(2, 3), fill(3, 2)]});
+	assert.deepStrictEqual(planGroup(ladder, ['t3-1', 'off-ladder', 't2-2', 't1-0', 't2-0']), {
+		members: [
+			{nodeId: 't1-0', name: 'task t1-0', fromTier: 1},
+			{nodeId: 't2-0', name: 'task t2-0', fromTier: 2},
+			{nodeId: 't2-2', name: 'task t2-2', fromTier: 2},
+			{nodeId: 't3-1', name: 'task t3-1', fromTier: 3},
+			{nodeId: 'off-ladder', name: null, fromTier: null},
+		],
+		insertion: {targetTier: 1, targetId: 'tier-1', demotions: [], createTiers: []},
+	});
+});
+
+/**
+ * Members leave their tiers before the group lands, so a member sitting in a full 1st frees the
+ * slot the group takes and nothing gets bumped.
+ */
+test('planGroup plans the 1st-tier insertion after the members have left their tiers', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 1)]});
+	assert.deepStrictEqual(planGroup(ladder, ['t1-0', 't3-0']).insertion, {
+		targetTier: 1,
+		targetId: 'tier-1',
+		demotions: [],
+		createTiers: [],
+	});
+});
+
+test('planGroup never demotes a member, and cascades like any 1st-tier insertion', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 5)]});
+	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4']).insertion.demotions, [
+		{nodeId: 't1-1', name: 'task t1-1', fromTier: 1, toTier: 2, toId: 'tier-2'},
+		{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'},
+	]);
 });
