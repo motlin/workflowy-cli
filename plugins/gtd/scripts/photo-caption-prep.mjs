@@ -57,6 +57,13 @@ export function groupFaces(rows) {
 	return byUuid;
 }
 
+export function facesSummary({named, unnamed}) {
+	if (named.length === 0 && unnamed === 0) return 'No faces detected.';
+	const tagged = `Tagged: ${named.length > 0 ? named.join(', ') : 'nobody'}.`;
+	if (unnamed === 0) return tagged;
+	return `${tagged} ${unnamed} untagged face${unnamed === 1 ? '' : 's'}, ready to tag in Photos.`;
+}
+
 export function planSources(favorites, libraryPath, exists) {
 	const local = [];
 	const icloud = [];
@@ -103,14 +110,18 @@ export function buildExportAppleScript(uuids) {
 }
 
 export function buildManifest({local, icloud, views, faces}) {
-	const toEntry = (favorite, source) => ({
-		uuid: favorite.uuid,
-		created: favorite.created,
-		originalFilename: favorite.originalFilename,
-		source,
-		viewPath: views[favorite.uuid] ?? null,
-		faces: faces[favorite.uuid] ?? {named: [], unnamed: 0},
-	});
+	const toEntry = (favorite, source) => {
+		const photoFaces = faces[favorite.uuid] ?? {named: [], unnamed: 0};
+		return {
+			uuid: favorite.uuid,
+			created: favorite.created,
+			originalFilename: favorite.originalFilename,
+			source,
+			viewPath: views[favorite.uuid] ?? null,
+			faces: photoFaces,
+			facesSummary: facesSummary(photoFaces),
+		};
+	};
 	const photos = [...local.map((f) => toEntry(f, 'local')), ...icloud.map((f) => toEntry(f, 'icloud'))];
 	const viewable = photos.filter((p) => p.viewPath).length;
 	return {total: photos.length, viewable, unviewable: photos.length - viewable, photos};

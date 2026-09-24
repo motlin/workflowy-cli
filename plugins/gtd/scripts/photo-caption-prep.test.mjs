@@ -6,6 +6,7 @@ import {
 	buildExportAppleScript,
 	buildManifest,
 	facesQuery,
+	facesSummary,
 	favoritesQuery,
 	groupFaces,
 	planSources,
@@ -47,6 +48,25 @@ test('groupFaces splits named people from the unnamed face count per uuid', () =
 			AAA: {named: ['Alice', 'Bob'], unnamed: 1},
 			BBB: {named: [], unnamed: 1},
 		},
+	);
+});
+
+test('facesSummary names tagged people and flags untagged faces as ready to tag', () => {
+	assert.deepStrictEqual(
+		[
+			facesSummary({named: ['Alice', 'Bob'], unnamed: 2}),
+			facesSummary({named: ['Alice'], unnamed: 1}),
+			facesSummary({named: [], unnamed: 3}),
+			facesSummary({named: ['Alice'], unnamed: 0}),
+			facesSummary({named: [], unnamed: 0}),
+		],
+		[
+			'Tagged: Alice, Bob. 2 untagged faces, ready to tag in Photos.',
+			'Tagged: Alice. 1 untagged face, ready to tag in Photos.',
+			'Tagged: nobody. 3 untagged faces, ready to tag in Photos.',
+			'Tagged: Alice.',
+			'No faces detected.',
+		],
 	);
 });
 
@@ -131,6 +151,7 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 				source: 'local',
 				viewPath: '/out/view/AAA.jpg',
 				faces: {named: ['Alice'], unnamed: 2},
+				facesSummary: 'Tagged: Alice. 2 untagged faces, ready to tag in Photos.',
 			},
 			{
 				uuid: 'BBB',
@@ -139,6 +160,7 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 				source: 'icloud',
 				viewPath: '/out/view/BBB.jpg',
 				faces: {named: [], unnamed: 0},
+				facesSummary: 'No faces detected.',
 			},
 			{
 				uuid: 'CCC',
@@ -147,6 +169,7 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 				source: 'icloud',
 				viewPath: null,
 				faces: {named: [], unnamed: 0},
+				facesSummary: 'No faces detected.',
 			},
 		],
 	});
