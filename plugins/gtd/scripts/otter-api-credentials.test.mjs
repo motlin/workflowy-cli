@@ -65,30 +65,11 @@ test('warm-credentials is a no-op once the cache exists, so subagents never invo
 	assert.equal(opCalls(sb).length, 2, 'second warm must not invoke op again');
 });
 
-const SYNC_PY = fileURLToPath(new URL('./otter_sync.py', import.meta.url));
-
 test('credential cache lives outside /tmp so reads do not trigger permission prompts', () => {
-	for (const file of [SCRIPT, SYNC_PY]) {
-		const body = readFileSync(file, 'utf8');
-		for (const stale of ['/tmp/otter-creds-cache', '/tmp/otter-session-cache', '/tmp/otter-userid-cache']) {
-			assert.ok(!body.includes(stale), `${file} must not hardcode ${stale}`);
-		}
+	const body = readFileSync(SCRIPT, 'utf8');
+	for (const stale of ['/tmp/otter-creds-cache', '/tmp/otter-session-cache', '/tmp/otter-userid-cache']) {
+		assert.ok(!body.includes(stale), `${SCRIPT} must not hardcode ${stale}`);
 	}
-});
-
-test('the shell and python scanners share one cache dir, so warming the shell warms both', () => {
-	const sb = sandbox();
-	warm(sb);
-	const resolved = execFileSync(
-		'python3',
-		[
-			'-c',
-			`import os,sys; sys.path.insert(0,${JSON.stringify(join(SYNC_PY, '..'))}); import otter_sync; print(otter_sync.CREDS_FILE)`,
-		],
-		{env: {...process.env, OTTER_CACHE_DIR: sb.cache}, encoding: 'utf8'},
-	).trim();
-	assert.equal(resolved, join(sb.cache, 'otter-creds-cache'));
-	assert.equal(opCalls(sb).length, 2, 'python scanner must reuse the warmed cache, not call op again');
 });
 
 /** Sandbox whose fake `op` hangs forever, to prove the in-script timeout fires. */

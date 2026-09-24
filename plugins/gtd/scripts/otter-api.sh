@@ -8,7 +8,8 @@
 # Usage:
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh warm-credentials  # resolve op:// creds into the cache (run in the foreground)
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh available_speeches [page_size] [cursor] [modified_after]
-#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]  # minimal JSON with action items
+#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync-since <last_synced_otid> [page_size]  # new meetings only, with action items
+#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]  # one page, with action items
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speech <otid>
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh summary <otid>
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
@@ -16,6 +17,7 @@
 # Environment:
 #   OTTER_VERBOSE=1  - Log full request/response details to stderr
 #   OTTER_TIMING=1   - Log timing info to stderr
+#   OTTER_MAX_PAGES  - sync-since page cap before failing (default 20)
 #
 # Output: JSON to stdout
 
@@ -297,32 +299,20 @@ action_items() {
     log_timing "action_items: done"
 }
 
-# Fetch meetings with minimal fields and inline action items
-sync_meetings() {
-    local page_size="${1:-50}"
-    local cursor="${2:-}"
-    local modified_after="${3:-}"
-
-    # When paginating with cursor, modified_after is required by API
-    if [[ -n "$cursor" && -z "$modified_after" ]]; then
-        modified_after="1"
-    fi
-
-    log_timing "sync: starting page_size=$page_size cursor=$cursor modified_after=$modified_after"
-
-    # Fetch meetings.
-    #
-    # Assign and check the status on separate lines. `local raw_response=$(...)`
-    # would make `local` the command whose status $? reports, masking a failed
-    # fetch; and even with a separate assignment the status must be tested here,
-    # because the jq pipeline below happily turns an empty response into valid
-    # JSON. Without this guard a hard network failure (otter.ai refused by a
-    # local firewall rule, curl exit 7) made `sync` print one newline and exit 0,
-    # which a caller reads as "no new meetings" before advancing the scanner
-    # cursor past meetings that were never scanned.
+# Fetch one available_speeches page, failing loudly on a network error or a non-JSON body.
+#
+# Assign and check the status on separate lines. `local raw=$(...)` would make
+# `local` the command whose status $? reports, masking a failed fetch; and the
+# status must be tested here, because the jq pipelines downstream happily turn an
+# empty response into valid JSON. Without this guard a hard network failure
+# (otter.ai refused by a local firewall rule, curl exit 7) made `sync` print one
+# newline and exit 0, which a caller reads as "no new meetings" before advancing
+# the scanner cursor past meetings that were never scanned. A page that is too
+# large returns an HTML 504 page, which the JSON check catches.
+fetch_speeches_page() {
     local raw_response
     local fetch_status
-    raw_response=$(available_speeches "$page_size" "$cursor" "$modified_after")
+    raw_response=$(available_speeches "$@")
     fetch_status=$?
 
     if [[ $fetch_status -ne 0 ]]; then
@@ -340,55 +330,140 @@ sync_meetings() {
         return 1
     fi
 
-    # Extract pagination info and minimal meeting data
-    local result
-    result=$(echo "$raw_response" | jq '{
-        last_load_ts,
-        end_of_list,
-        speeches: [(.speeches // [])[] | {
-            otid,
-            title,
-            start_time,
-            summary: .short_abstract_summary,
-            action_item_count,
-            outline: [.speech_outline[]? | {
-                title: .text,
-                segments: [.segments[]?.text]
-            }]
-        }]
-    }')
+    echo "$raw_response"
+}
 
-    # Fetch action items for processed meetings (have summary)
-    # Note: action_item_count is unreliable (often null), so we check for summary instead
-    local meetings_with_actions
-    meetings_with_actions=$(echo "$result" | jq -r '.speeches[] | select(.summary != null) | .otid')
+# Minimal per-meeting fields from a raw available_speeches page, newest first.
+SPEECH_FIELDS='{
+    otid,
+    title,
+    start_time,
+    summary: .short_abstract_summary,
+    outline: [.speech_outline[]? | {
+        title: .text,
+        segments: [.segments[]?.text]
+    }]
+}'
 
-    if [[ -n "$meetings_with_actions" ]]; then
-        log_timing "sync: fetching action items for $(echo "$meetings_with_actions" | wc -l | tr -d ' ') meetings"
+# Inline action items into a {speeches: [...]} document. Only processed meetings
+# (summary present) have action items; action_item_count is unreliable (often null).
+attach_action_items() {
+    local result="$1"
+    local otids
+    otids=$(echo "$result" | jq -r '.speeches[] | select(.summary != null) | .otid')
 
-        # Build action items map
-        local action_map="{}"
+    local action_lines=""
+    if [[ -n "$otids" ]]; then
+        log_timing "sync: fetching action items for $(echo "$otids" | wc -l | tr -d ' ') meetings"
+        local otid items
         while IFS= read -r otid; do
             [[ -z "$otid" ]] && continue
-            local items
             items=$(curl -s "$API_BASE/speech_action_items?otid=$otid" \
                 -H 'accept: application/json' \
-                -b "$COOKIE_FILE" | jq '[.speech_action_items[]? | {
+                -b "$COOKIE_FILE" | jq -c --arg otid "$otid" '{($otid): [.speech_action_items[]? | {
                     text,
                     assignee: (.assignee | if type == "object" then .name else . end),
                     completed
-                }]')
-            action_map=$(echo "$action_map" | jq --arg otid "$otid" --argjson items "$items" '. + {($otid): $items}')
-        done <<< "$meetings_with_actions"
-
-        # Merge action items into result
-        result=$(echo "$result" | jq --argjson actions "$action_map" '
-            .speeches = [.speeches[] | . + {action_items: ($actions[.otid] // [])}]
-        ')
+                }]}')
+            action_lines+="$items"$'\n'
+        done <<< "$otids"
     fi
 
-    echo "$result"
+    printf '%s' "$action_lines" | jq -s --argjson result "$result" '
+        (add // {}) as $actions
+        | $result
+        | .speeches = [.speeches[] | . + {action_items: ($actions[.otid] // [])}]
+    '
+}
+
+# Fetch one page of meetings with minimal fields and inline action items.
+# Prefer sync-since: a large page_size here is slow (1000 took over 60s and then 504'd).
+sync_meetings() {
+    local page_size="${1:-50}"
+    local cursor="${2:-}"
+    local modified_after="${3:-}"
+
+    # When paginating with cursor, modified_after is required by API
+    if [[ -n "$cursor" && -z "$modified_after" ]]; then
+        modified_after="1"
+    fi
+
+    log_timing "sync: starting page_size=$page_size cursor=$cursor modified_after=$modified_after"
+
+    local raw_response
+    raw_response=$(fetch_speeches_page "$page_size" "$cursor" "$modified_after") || return
+
+    local result
+    result=$(echo "$raw_response" | jq "{last_load_ts, end_of_list, speeches: [(.speeches // [])[] | $SPEECH_FIELDS]}")
+
+    attach_action_items "$result"
     log_timing "sync: done"
+}
+
+# Fetch every meeting newer than stop_otid (the scanner's last_synced_otid), newest first.
+# Pages through small pages until the boundary appears, so the list cost and the
+# action-item round trips scale with the number of new meetings, not the page size.
+# Fails rather than scanning unbounded when the boundary is not found within
+# OTTER_MAX_PAGES pages; ending the list first returns everything with boundary_found false.
+sync_since() {
+    local stop_otid="$1"
+    local page_size="${2:-10}"
+    local max_pages="${OTTER_MAX_PAGES:-20}"
+    local cursor=""
+    local modified_after=""
+    local collected="[]"
+    local boundary_found=false
+    local end_of_list=false
+    local page=0
+
+    while ((page < max_pages)); do
+        page=$((page + 1))
+        log_timing "sync-since: page $page cursor=$cursor"
+
+        local raw_response
+        raw_response=$(fetch_speeches_page "$page_size" "$cursor" "$modified_after") || return
+
+        local page_result
+        page_result=$(echo "$raw_response" | jq -c --arg stop "$stop_otid" "
+            [(.speeches // [])[] | $SPEECH_FIELDS] as \$all
+            | ([\$all[].otid] | index(\$stop)) as \$idx
+            | {
+                speeches: (if \$idx == null then \$all else \$all[:\$idx] end),
+                boundary_found: (\$idx != null),
+                end_of_list: (.end_of_list == true),
+                last_load_ts
+            }")
+
+        # A cursor page can repeat meetings from earlier pages, so keep the first copy of each otid.
+        collected=$(jq -c --argjson page "$page_result" '
+            ([.[].otid]) as $seen
+            | . + [$page.speeches[] | select(.otid as $o | $seen | index($o) | not)]' <<< "$collected")
+        boundary_found=$(jq -r '.boundary_found' <<< "$page_result")
+        end_of_list=$(jq -r '.end_of_list' <<< "$page_result")
+
+        if [[ "$boundary_found" == true || "$end_of_list" == true ]]; then
+            break
+        fi
+
+        cursor=$(jq -r '.last_load_ts // empty' <<< "$page_result")
+        modified_after="1"
+        if [[ -z "$cursor" ]]; then
+            echo "otter-api: sync-since failed: page $page has no last_load_ts cursor" >&2
+            return 1
+        fi
+    done
+
+    if [[ "$boundary_found" != true && "$end_of_list" != true ]]; then
+        echo "otter-api: sync-since failed: boundary otid $stop_otid not found within $max_pages pages of $page_size" >&2
+        return 1
+    fi
+
+    local result
+    result=$(jq -n --argjson speeches "$collected" --argjson boundary "$boundary_found" --argjson eol "$end_of_list" \
+        '{boundary_found: $boundary, end_of_list: $eol, speeches: $speeches}')
+
+    attach_action_items "$result"
+    log_timing "sync-since: done"
 }
 
 main() {
@@ -410,6 +485,14 @@ main() {
         sync)
             login
             sync_meetings "${2:-50}" "${3:-}" "${4:-}"
+            ;;
+        sync-since)
+            if [[ -z "${2:-}" ]]; then
+                echo '{"error": "sync-since requires the last_synced_otid boundary argument"}' >&2
+                exit 1
+            fi
+            login
+            sync_since "$2" "${3:-10}"
             ;;
         speech)
             if [[ -z "${2:-}" ]]; then
@@ -436,7 +519,7 @@ main() {
             action_items "$2"
             ;;
         *)
-            echo "Usage: $0 {warm-credentials|speeches|available_speeches|speech|summary|action_items} <args>" >&2
+            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|summary|action_items} <args>" >&2
             exit 1
             ;;
     esac

@@ -59,7 +59,7 @@ Task tool:
   prompt: "Create mode for otter-journal-auto: scan Otter for meetings newer than last_synced_otid, calendar-dedup against 📆 Calendar. Before any page writes, validate every new meeting title and named attendees against its Overview and available transcript evidence. On mismatch or uncertainty, flag for review, never create untitled or retitle, hold the whole page and its scanner state, and stop. Otherwise CREATE each verified new meeting under 📆 Calendar and advance the live scanner state. Return created meetings (date + title + otid), review flags (original title + date + otid/URL + concise reason), and the newest otid actually recorded."
 ```
 
-(The scanner reuses `${CLAUDE_PLUGIN_ROOT}/scripts/otter_sync.py` / `otter-api.sh` for pagination; `OTTER_USERNAME` / `OTTER_PASSWORD` must be set. If the scan fails — auth, network, API — create nothing, stage a briefing with `status: "error"` carrying the error, and stop; the review surfaces it and the cursor is untouched, so the meetings resurface next run.)
+(The scanner fetches with `${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync-since <last_synced_otid>`, which lists small pages only until the boundary and fetches action items only for new meetings; `OTTER_USERNAME` / `OTTER_PASSWORD` must be set. If the scan fails — auth, network, API — create nothing, stage a briefing with `status: "error"` carrying the error, and stop; the review surfaces it and the cursor is untouched, so the meetings resurface next run.)
 
 ## Stage the briefing
 

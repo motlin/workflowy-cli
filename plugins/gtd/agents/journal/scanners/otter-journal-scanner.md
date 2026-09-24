@@ -11,7 +11,7 @@ This journal agent ingests Otter.ai meetings into the Workflowy journal at the r
 
 **Important:** Entries are intentionally created as direct children of `📆 Calendar`, not under date sub-nodes. Workflowy has built-in functionality to auto-sort calendar entries into the correct date positions — the user runs this manually. So don't find or create date nodes; just create entries at the Calendar root.
 
-Uses the Otter API directly via `${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh` with cursor-based pagination for efficient resumable syncs.
+Uses the Otter API directly via `${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh`. Incremental runs fetch only meetings newer than `last_synced_otid`, so cost scales with new meetings, not history.
 
 ## Modes
 
@@ -27,18 +27,23 @@ This agent runs in one of two modes; the invoking command sets it, and the defau
 The script `${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh` handles authentication and provides:
 
 ```bash
-# Recommended: Minimal JSON with action items inlined (for sync)
-${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]
+# Incremental sync (use this): every meeting newer than the boundary, newest first
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync-since "$LAST_SYNCED_OTID"
 
-# Raw endpoints (if needed):
+# First run only (no state), or raw endpoints if needed:
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]
 ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh available_speeches [page_size] [cursor] [modified_after]
 ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
 ```
 
-The `sync` command returns minimal JSON with:
+`sync-since` pages through small pages (10 by default) until it reaches `last_synced_otid`, drops the boundary and anything older, and fetches action items only for the new meetings. It returns `{"boundary_found": bool, "end_of_list": bool, "speeches": [...]}`, where each speech has:
 
 - `otid`, `title`, `start_time`, `summary`, `outline`
-- `action_items` array inlined (fetched automatically for processed meetings)
+- `action_items` array inlined (fetched only for processed meetings, those with a `summary`)
+
+It exits non-zero rather than scanning unbounded when the boundary is not found within `OTTER_MAX_PAGES` pages (default 20). Treat that as a scan failure: create nothing and do not move state.
+
+**Never use a large `page_size`.** On 2026-09-24 `available_speeches 1000` alone ran 63s and then returned an HTML 504, and `sync 1000` also fetched action items for every meeting on the page; the 2026-09-22 Auto run timed out at 180s on it. `sync-since` for 3 new meetings measured 3.7s end to end (2.0s for the list, 1.5s for the action items).
 
 **Required environment variables:** `OTTER_USERNAME`, `OTTER_PASSWORD`
 
@@ -59,10 +64,10 @@ Sync state is stored under `Metadata > ⚙️ Scanner State > otter-journal-scan
 
 - Load state from Workflowy
 - Determine scope (first run: ask user how far back; subsequent: incremental from cursor)
-- Fetch page of meetings via `available_speeches` with cursor
-- Process meetings (oldest first) until hitting `last_synced_otid` or scope boundary
-- Save state after each page
-- Continue until caught up or `end_of_list: true`
+- Fetch new meetings via `sync-since "$LAST_SYNCED_OTID"` (first run: `sync` pages within the chosen scope)
+- Process meetings oldest first
+- Save state after each page (an incremental run is one page)
+- First run only: continue until `end_of_list: true`
 
 ## Load State
 
@@ -107,23 +112,28 @@ mkdir -p .llm/gtd/journal/logs
 : > .llm/gtd/journal/logs/otter-created-this-session.txt
 ```
 
-## Fetch Page
+## Fetch Meetings
 
-Use page_size=1000 (max tested; 1200 works but 1250+ times out with 504).
+**Incremental run (state has `last_synced_otid`):** one call returns every new meeting, already cut at the boundary, with action items inlined. Treat the whole result as a single page for preflight and **Save State**.
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync-since "$LAST_SYNCED_OTID"
+```
+
+- `boundary_found: true` → every returned meeting is new. An empty `speeches` array means all caught up.
+- `boundary_found: false` with `end_of_list: true` → the boundary meeting no longer exists in Otter (deleted). Every returned meeting still goes through the URL dedup below, which skips anything already logged.
+
+**First run (no state):** page by the user's chosen scope with a modest page size, never 1000:
 
 ```bash
 # Page 1 (no cursor)
-${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh available_speeches 1000
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync 50 "" "$MODIFIED_AFTER"
 
 # Page 2+ (with cursor and modified_after)
-${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh available_speeches 1000 "$CURSOR" "$SESSION_START"
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync 50 "$CURSOR" "$MODIFIED_AFTER"
 ```
 
-Parse response for:
-
-- `speeches[]` - array of meetings
-- `last_load_ts` - cursor for next page
-- `end_of_list` - true when no more pages
+Parse `speeches[]`, `last_load_ts` (cursor for the next page), and `end_of_list` (true when no more pages). A cursor page can repeat meetings from the previous page; the in-session guard and URL dedup skip them.
 
 ## Preflight calendar-derived titles
 
@@ -164,7 +174,7 @@ echo "[$(date -Iseconds)] otid=<otid> search_result=<found|not_found> action=<cr
 
 **Check if ready:** Skip if `summary` is null (still processing).
 
-**Use sync command output directly:** The `sync` command returns all needed data in minimal JSON:
+**Use the fetched output directly:** `sync-since` and `sync` return all needed data in minimal JSON, so never call `action_items` per meeting yourself:
 
 - `summary` - the narrative overview
 - `outline[]` - sections with titles and segments
@@ -240,6 +250,8 @@ echo "<otid>" >> .llm/gtd/journal/logs/otter-created-this-session.txt
 
 After processing each page that passed title preflight, update state. A page held for title review must not reach this step, even when it is the final page.
 
+After an incremental `sync-since` run, set `last_synced_otid` to the newest returned otid (`speeches[0].otid`) and keep the existing `cursor` and `session_start`. When it returned no meetings, leave state untouched.
+
 **In `stage` mode, skip the live state write entirely.** Make no `node update` / `node create` on the state node. Compute the same state object and emit it as the top-level `scannerState` field of the staged proposal (see **Staging Mode**); the former apply step persisted it only after the entries were created.
 
 **Important: the state JSON must be single-line**, because Workflowy interprets newlines as separate child nodes. If building it with `jq`, use the `-c` (compact) flag:
@@ -296,9 +308,8 @@ If no new meetings are found, still write the file with `status: "empty"`, an em
 
 ## Check End Conditions
 
-- If `end_of_list: true` → set `reached_beginning: true`, done
-- If hit `last_synced_otid` → done (caught up)
-- Otherwise → continue to next page with new cursor
+- Incremental run → done after the single `sync-since` result
+- First run: if `end_of_list: true` → set `reached_beginning: true`, done; otherwise continue to the next page with the new cursor
 
 ## Return Format
 
@@ -325,8 +336,8 @@ Otter Sync: All meetings already synced (newest: Jan 6, 2026)
 
 **Subsequent runs:**
 
-- Loads state, uses `last_synced_otid` as the stop boundary
-- Syncs only new meetings until hitting `last_synced_otid`
+- Loads state, passes `last_synced_otid` to `sync-since` as the stop boundary
+- Syncs only the new meetings it returns
 - If already caught up (newest meeting matches cursor), reports "all synced"
 
 **Interrupted sync:**
