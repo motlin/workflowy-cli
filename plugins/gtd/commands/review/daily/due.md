@@ -229,6 +229,25 @@ Confirm with `ls <directory>/CLAUDE.md` before launching. If there is no `CLAUDE
 
 When it matches, do **not** list, inventory, or triage the directory's files from the review session, and do not ask the user what to do with individual files. Launch a labelled herdr tab in that directory under every rule in **Cross-project #llm-task launches** above — `--cwd <directory>`, a `--label` naming the work (`downloads`, `desktop`), `herdr agent start`, an explicit `--model`, and the same launch verification — then prompt the new agent to clean up the directory according to the `CLAUDE.md` in its working directory. Launch every matching item before asking the user about any of them, so the sessions run in parallel.
 
+## Command-shaped items: offer #llm-task + a herdr tab first
+
+Some untagged recurring items are nothing but a shell command to run in a directory — a child reads `cd ~/projects/<repo> && just <recipe>`, or the name is a runnable command plus a path. Walking one by hand means the user copies the command into a terminal every cycle. Recognize the shape when the item's whole action is one command (or a short `&&` chain) with a working directory, and the item needs no judgment beyond running it. An item that also asks the user to read, decide, or perform a manual step is not command-shaped; walk it per **Recurring item options** above.
+
+For a command-shaped item, make **Make it #llm-task + run in a herdr tab** the **first** option in the `AskUserQuestion`, above Done and Set a reminder, and quote the command and directory in the question body. The user has chosen it for every command-shaped item so far, so it is the promoted answer. The other outcomes stay available below it.
+
+On that choice, do both halves:
+
+- **Convert the item.** Append `#llm-task` (with a leading space) to the item's name with `node update --name`, keeping its `<time>` element and the rest of the name intact. Make sure the command and its directory live in a child node, since `#llm-task` instructions are read from children; if they were only in the name, create a child holding `cd <directory> && <command>`. Future runs then batch it through **LLM tasks (#llm-task)** above instead of asking.
+- **Run it now in a labelled herdr tab** in this session's workspace, under every rule in **Cross-project #llm-task launches** above. For a plain shell command, the launch script satisfies the workspace, label, and placement rules in one call:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/launch-herdr-tab.mjs --label <short-name> --cwd <directory> --no-focus -- <command...>
+```
+
+It prints `{paneId, ...}`. If the command itself starts a Claude session, use `herdr agent start` with an explicit `--model` instead, per the cross-project rules.
+
+Verify the launch with `herdr pane read <paneId>` and confirm the command is running or produced output, not a bare shell prompt with the command un-executed. Advance the item's `<time>` with its staged `applyOp` only after that verification, and record the outcome as `done`. A failed launch leaves the date alone; say what failed and fall back to the ordinary options.
+
 ---
 
 ## Segment 2 — Due items
