@@ -27,7 +27,9 @@ The only correct first move after computing the working set is to present item 1
 
 ## Present one item at a time
 
-Use `AskUserQuestion`, never a batch. The user clears items quickly by tapping the first option. After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
+Use `AskUserQuestion`, never a plain-text batch. The user clears items quickly by tapping the first option. After recording an outcome and **dispatching its write in the background**, present the next item immediately — the write never blocks the next `AskUserQuestion`.
+
+**One task per question.** Never put two unrelated tasks in one question, however similar they look — shared due date, shared source, or a shared theme does not make them one decision. One `AskUserQuestion` call may carry up to 4 questions, one per task, each with its own context and options. Only copies of the same task (the `duplicateCopies` survivor and its external copies) may share a question.
 
 ## Walk a recurring item's list entry by entry
 

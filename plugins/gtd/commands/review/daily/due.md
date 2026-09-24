@@ -9,7 +9,7 @@ Two segments, walked back to back as one continuous question sequence:
 - **Segment 1 — recurring items.** Items in `Personal > 🔄 Review` that come back on an interval. Handling one advances its date by its section's cadence.
 - **Segment 2 — due items.** One-shot tasks that should be done once and go away, merged from the Workflowy `⏰ Tasks (due dates)` buckets, Things 3, and Apple Reminders. Handling one completes, reschedules, moves it to Workflowy, or drops it.
 
-Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, showing each item's real context immediately before its question, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. The segments stay separate because their write-backs differ: a recurring item normally returns, while a one-shot task should not.
+Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — presentation, showing each item's real context immediately before its question, the banned scoping questions, freeform handling, read-before-write, and the background dispatch protocol all live there. Read it before starting. Ask about one task per question, never two unrelated tasks together; one `AskUserQuestion` call may carry up to 4 questions, and only copies of the same task may share a question. The segments stay separate because their write-backs differ: a recurring item normally returns, while a one-shot task should not.
 
 ## Do not use the built-in task list
 
