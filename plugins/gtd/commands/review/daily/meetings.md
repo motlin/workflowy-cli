@@ -170,7 +170,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/load-existing-tasks.sh > .llm/gtd/review/meetings/
 
 The script reads the synced metadata cache and emits `nextActions` (both Next Actions trees) and `projectTasks` (active projects, each entry carrying `projectName`). Every entry has `id` and `name`.
 
-**If the script fails** (usually `metadata directory not found`), run the `gtd:shared:metadata-sync` subagent once and retry. If it still fails, continue the review with no matches — and say so in every Step 8 question rather than implying nothing matched.
+**If the script fails** (usually `metadata directory not found`), run `metadata-sync` once as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it.` Then retry. If it still fails, continue the review with no matches — and say so in every Step 8 question rather than implying nothing matched.
 
 Match each Step 6 candidate against both arrays. Normalize both sides first: lowercase, strip HTML, `#tags`, `@mentions`, and punctuation. Then look for:
 
@@ -327,7 +327,7 @@ Then add the entry under the day node, with the meeting as a provenance child:
 
 #### Branch D — Delegated in the meeting
 
-The handoff already happened, so the item is something the user is waiting on, not a task. File it under the root's direct `📤 Delegate` child: Work for meeting follow-ups, or Personal only when the meeting itself was clearly personal. Read the ID from the synced cache. If the file is missing, run the `gtd:shared:metadata-sync` subagent once and retry:
+The handoff already happened, so the item is something the user is waiting on, not a task. File it under the root's direct `📤 Delegate` child: Work for meeting follow-ups, or Personal only when the meeting itself was clearly personal. Read the ID from the synced cache. If the file is missing, run `metadata-sync` once as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it.` Then retry:
 
 ```bash
 DELEGATE_ID=$(jq -r '.id' .llm/gtd/metadata/waiting-for/work-delegate.json)   # or personal-delegate.json

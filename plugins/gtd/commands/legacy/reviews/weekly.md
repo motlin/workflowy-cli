@@ -121,7 +121,7 @@ Update progress:
 
 #### Fantastical / Apple Calendar (via iMCP)
 
-Invoke the `calendar-fetcher` agent to fetch past week and upcoming week events:
+Invoke `calendar-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it.` Fetch past week and upcoming week events:
 
 ```text
 Invoke calendar-fetcher agent with:
@@ -155,7 +155,7 @@ Open Fantastical for full calendar view: `fantastical://`
 
 #### Apple Reminders (via iMCP)
 
-Invoke the `reminders-fetcher` agent to get categorized reminders:
+Invoke `reminders-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/reminders-fetcher.md and follow it.` Get categorized reminders:
 
 ```text
 Invoke reminders-fetcher agent

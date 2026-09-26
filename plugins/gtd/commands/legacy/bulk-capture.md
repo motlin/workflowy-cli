@@ -29,7 +29,7 @@ This command is an **orchestrator** that invokes modular capture subagents. Each
 - Creates Workflowy nodes with proper provenance
 - Returns structured JSON with capture results
 
-**Capture Subagents** (in `${CLAUDE_PLUGIN_ROOT}/agents/capture/`):
+**Capture Subagents** (in `${CLAUDE_PLUGIN_ROOT}/prompts/capture/`):
 
 | Subagent         | Scanner Used        | Purpose                                       |
 | ---------------- | ------------------- | --------------------------------------------- |

@@ -33,14 +33,16 @@ Launch sync agents in parallel. These handle dedup and creation directly:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:journal:scanners:otter-journal-scanner"
-  prompt: "Sync Otter meetings to Workflowy calendar"
+- subagent_type: "general-purpose"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/otter-journal-scanner.md and follow it. Sync Otter meetings to Workflowy calendar"
 
-- subagent_type: "gtd:journal:scanners:github-journal-scanner"
-  prompt: "Sync GitHub activity (merged PRs, closed issues) to Workflowy calendar"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/github-journal-scanner.md and follow it. Sync GitHub activity (merged PRs, closed issues) to Workflowy calendar"
 
-- subagent_type: "gtd:journal:scanners:gmail-journal-scanner"
-  prompt: "Sync Gmail events (purchases, travel) to Workflowy calendar"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/gmail-journal-scanner.md and follow it. Sync Gmail events (purchases, travel) to Workflowy calendar"
 ```
 
 ### Run Scan Agents (non-URL - parallel)
@@ -49,26 +51,33 @@ Launch scan agents in parallel. These write to JSON for central dedup:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:journal:scanners:calendar-journal-scanner"
-  prompt: "Scan calendar for past events that actually occurred"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/calendar-journal-scanner.md and follow it. Scan calendar for past events that actually occurred"
 
-- subagent_type: "gtd:journal:scanners:imessage-journal-scanner"
-  prompt: "Scan iMessages for mentions of completed activities and meetups"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/imessage-journal-scanner.md and follow it. Scan iMessages for mentions of completed activities and meetups"
 
-- subagent_type: "gtd:journal:scanners:reminders-journal-scanner"
-  prompt: "Scan Reminders for recently completed items"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/reminders-journal-scanner.md and follow it. Scan Reminders for recently completed items"
 
-- subagent_type: "gtd:journal:scanners:things3-journal-scanner"
-  prompt: "Scan Things 3 for recently completed tasks"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/things3-journal-scanner.md and follow it. Scan Things 3 for recently completed tasks"
 
-- subagent_type: "gtd:journal:scanners:tvtime-journal-scanner"
-  prompt: "Scan TV Time for recently watched episodes"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/tvtime-journal-scanner.md and follow it. Scan TV Time for recently watched episodes"
 
-- subagent_type: "gtd:journal:scanners:photos-journal-scanner"
-  prompt: "Scan Photos for recent activities and events"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/photos-journal-scanner.md and follow it. Scan Photos for recent activities and events"
 
-- subagent_type: "gtd:journal:scanners:chrome-journal-scanner"
-  prompt: "Scan Chrome history for high-engagement pages visited"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/chrome-journal-scanner.md and follow it. Scan Chrome history for high-engagement pages visited"
 ```
 
 Wait for all to complete. Collect results from `.llm/gtd/journal/scans/*.json`.
@@ -100,8 +109,9 @@ Launch the journal-executor agent:
 
 ```text
 Task tool:
-- subagent_type: "gtd:journal:journal-executor"
-  prompt: "Execute confirmed journal entries from .llm/gtd/journal/confirmed.json"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/journal-executor.md and follow it. Execute confirmed journal entries from .llm/gtd/journal/confirmed.json"
 ```
 
 ### Summary & Log

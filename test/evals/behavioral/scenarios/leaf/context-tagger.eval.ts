@@ -14,7 +14,7 @@ import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
 describe('Leaf Eval: context-tagger', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/agents/refinement/context-tagger.md';
+	const agentFile = 'plugins/gtd/prompts/refinement/context-tagger.md';
 
 	beforeAll(() => {
 		if (!process.env.ANTHROPIC_API_KEY) {

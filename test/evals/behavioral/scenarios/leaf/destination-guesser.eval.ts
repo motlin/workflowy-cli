@@ -16,7 +16,7 @@ describe('Leaf Eval: destination-guesser', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let itemId: string;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/agents/refinement/destination-guesser.md';
+	const agentFile = 'plugins/gtd/prompts/refinement/destination-guesser.md';
 
 	beforeAll(async () => {
 		if (!process.env.ANTHROPIC_API_KEY) {

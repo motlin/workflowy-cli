@@ -14,7 +14,7 @@ import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
 describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/agents/refinement/text-composer.md';
+	const agentFile = 'plugins/gtd/prompts/refinement/text-composer.md';
 
 	beforeAll(() => {
 		if (!process.env.ANTHROPIC_API_KEY) {

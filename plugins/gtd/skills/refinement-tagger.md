@@ -1,7 +1,7 @@
 ---
 name: refinement-tagger
 description: 'Shared mechanics for the GTD inbox refinement taggers — the Phase A dimension taggers (project, people, due-date, url, context, tag-cleaner, agenda) and Phase B composers (destination, text) that item-refiner fans out per inbox item. Carries the common input/fetch pattern, where synced metadata lives, the JSON-only output contract, and how item-refiner reconciles the parallel results. Load it in every refinement tagger/composer agent so each agent body stays tiny.'
-globs: ${CLAUDE_PLUGIN_ROOT}/agents/refinement/**
+globs: ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/**
 ---
 
 # Refinement tagger mechanics
@@ -15,7 +15,7 @@ globs: ${CLAUDE_PLUGIN_ROOT}/agents/refinement/**
 
 ## Fetch the item
 
-Run `./bin/run.js node get --help` first to confirm available flags, then fetch text, note, and children in one call (mirror the snippet in `${CLAUDE_PLUGIN_ROOT}/agents/refinement/agenda-detector.md`):
+Run `./bin/run.js node get --help` first to confirm available flags, then fetch text, note, and children in one call (mirror the snippet in `${CLAUDE_PLUGIN_ROOT}/prompts/refinement/agenda-detector.md`):
 
 ```bash
 ITEM=$(./bin/run.js node get --id "$ITEM_ID" --depth 2 --json --fields id --fields name --fields note --fields children 2>/dev/null)
@@ -26,7 +26,7 @@ Classify against `ITEM_NAME` plus any note/children context — captured items o
 
 ## Where synced metadata lives
 
-`gtd:shared:metadata-sync` (see `${CLAUDE_PLUGIN_ROOT}/agents/shared/metadata-sync.md`) writes the cache before refinement runs. Read, never write, these files:
+`metadata-sync` (`${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md`) writes the cache before refinement runs. Read, never write, these files:
 
 - `.llm/gtd/metadata/projects/*.json` — one file per project; match item text against project names/slugs.
 - `.llm/gtd/metadata/people.json` — canonical people roster. It is large: extract with `jq`, never read the whole file into context.

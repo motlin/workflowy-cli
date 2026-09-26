@@ -219,7 +219,9 @@ async function executeToolCall(
 				});
 			}
 
-			const agentEntry = resolveAgent(subagentType, ctx.agentIndex);
+			// gtd subagents run as general-purpose, pointed at a prompt file: resolve by that path
+			const promptFile = /prompts\/([\w/-]+)\.md/.exec(prompt)?.[1];
+			const agentEntry = resolveAgent(promptFile ?? subagentType, ctx.agentIndex);
 			if (!agentEntry) {
 				return JSON.stringify({
 					status: 'completed',

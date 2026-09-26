@@ -6,7 +6,7 @@ description: Propose today's per-meeting agendas by matching queued discussion t
 
 Read the discussion topics queued under `📋 Meeting agendas`, fetch today's meetings, match each topic to the meeting where you'll raise it, and serve an interactive review page on <http://127.0.0.1:7842/> proposing the agenda for each meeting.
 
-This is the prep-and-serve half of the Proposed Meeting Agendas feature. The refinement half (`gtd:refinement:agenda-detector`) routes captured items into the `📋 Meeting agendas` node; this command turns that queue into a daily agenda.
+This is the prep-and-serve half of the Proposed Meeting Agendas feature. The refinement half (`agenda-detector`, `${CLAUDE_PLUGIN_ROOT}/prompts/refinement/agenda-detector.md`) routes captured items into the `📋 Meeting agendas` node; this command turns that queue into a daily agenda.
 
 ## Do not use the built-in task list
 
@@ -24,8 +24,9 @@ Launch the metadata-sync agent so `.llm/gtd/metadata/people.json` holds current 
 
 ```text
 Task tool:
-- subagent_type: "gtd:shared:metadata-sync"
-  prompt: "Sync GTD metadata to .llm/gtd/metadata/ for the agenda command."
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it. Sync GTD metadata to .llm/gtd/metadata/ for the agenda command."
 ```
 
 Wait for it to complete. `people.json` is large (40k+ lines) — never read it whole; extract `@`-handles and aliases with `jq` when matching below.
@@ -36,8 +37,9 @@ Invoke `calendar-fetcher` with `startDate` = today `00:00:00` ISO, `endDate` = t
 
 ```text
 Task tool:
-- subagent_type: "gtd:legacy:fetchers:calendar-fetcher"
-  prompt: "Fetch calendar events from <startDate> to <endDate>, includeWorkflowy=false."
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it. Fetch calendar events from <startDate> to <endDate>, includeWorkflowy=false."
 ```
 
 The agent returns `{fantastical, workflowy, summary, errors}`. Use the `fantastical` array. For each meeting capture `title`, `start`, `end`, and any `attendees`/`location` present.

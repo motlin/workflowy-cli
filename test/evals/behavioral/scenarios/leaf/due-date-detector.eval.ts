@@ -14,7 +14,7 @@ import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
 describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/agents/refinement/due-date-detector.md';
+	const agentFile = 'plugins/gtd/prompts/refinement/due-date-detector.md';
 
 	beforeAll(() => {
 		if (!process.env.ANTHROPIC_API_KEY) {

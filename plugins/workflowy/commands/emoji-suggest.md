@@ -20,7 +20,7 @@ Add contextually appropriate emojis to the beginning of journal entries in a Wor
 
 > Run `./bin/run.js node list --help` to verify available flags before constructing commands.
 
-First, sync the GTD metadata cache (it contains the preferred emoji mappings for hashtags): if the `gtd` plugin is installed, launch its `gtd:shared:metadata-sync` agent ("Sync GTD metadata to .llm/gtd/metadata/"); otherwise reuse an existing `.llm/gtd/metadata/` cache if present.
+First, sync the GTD metadata cache (it contains the preferred emoji mappings for hashtags): if the `gtd` plugin is installed, launch a `general-purpose` subagent (`model: "sonnet"`) that reads and follows the gtd plugin's `prompts/shared/metadata-sync.md` ("Sync GTD metadata to .llm/gtd/metadata/"), telling it the gtd plugin root; otherwise reuse an existing `.llm/gtd/metadata/` cache if present.
 
 ```bash
 # Extract emoji mappings from hobbies (metadata/hobbies-registry.json)

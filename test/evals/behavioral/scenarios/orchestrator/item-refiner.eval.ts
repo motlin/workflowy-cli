@@ -33,7 +33,7 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	let itemId: string;
 	let mockServer: MockWorkflowyServer;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/agents/refinement/item-refiner.md';
+	const agentFile = 'plugins/gtd/prompts/refinement/item-refiner.md';
 
 	beforeAll(async () => {
 		if (!process.env.ANTHROPIC_API_KEY) {

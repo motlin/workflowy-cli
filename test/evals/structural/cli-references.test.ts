@@ -53,6 +53,7 @@ describe('CLI Reference Validation', () => {
 			...collectComponentFiles('skills'),
 			...collectComponentFiles('commands'),
 			...collectComponentFiles('agents'),
+			...collectComponentFiles('prompts'),
 		];
 
 		allAnalyses = markdownFiles.map((f) => parseMarkdownFile(f));

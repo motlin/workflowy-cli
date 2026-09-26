@@ -22,8 +22,9 @@ Launch the inbox-loader agent to get current inbox items:
 
 ```text
 Task tool:
-- subagent_type: "gtd:refinement:inbox-loader"
-  prompt: "Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/inbox-loader.md and follow it. Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
 ```
 
 Wait for it to complete.
@@ -274,8 +275,10 @@ For moves, item-mover handles:
 
 ```text
 Task tool:
-- subagent_type: "gtd:refinement:item-mover"
+- subagent_type: "general-purpose"
+  model: "sonnet"
   prompt: |
+    CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/item-mover.md and follow it.
     Execute confirmed moves:
     <JSON array of confirmed moves for this batch>
 ```

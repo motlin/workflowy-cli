@@ -244,7 +244,7 @@ Someday items are old by construction, so **Delete is a normal outcome here, not
 
 `📋 Meeting agendas` holds topics to raise with someone. Over time it also collects things the user does alone — "Socialize the build-times report", "Set up 1:1s with @Alice", "Sync with @Bob on the migration" — which sit there indefinitely because no meeting ever discharges them and the loose-task sweep is forbidden to touch the node.
 
-After the sweeps above, read the direct children of each root's `📋 Meeting agendas` and flag the ones whose phrasing is an **action the user performs**, not a topic to raise. Use the criteria already written in `${CLAUDE_PLUGIN_ROOT}/agents/refinement/agenda-detector.md` rather than inventing new ones: "ask X about Y" / "discuss Y with X" is a topic and stays; "email X", "set up X", "socialize X", "sync with X" is a task the user does.
+After the sweeps above, read the direct children of each root's `📋 Meeting agendas` and flag the ones whose phrasing is an **action the user performs**, not a topic to raise. Use the criteria already written in `${CLAUDE_PLUGIN_ROOT}/prompts/refinement/agenda-detector.md` rather than inventing new ones: "ask X about Y" / "discuss Y with X" is a topic and stays; "email X", "set up X", "socialize X", "sync with X" is a task the user does.
 
 Offer each flagged item to the asap ladder with `AskUserQuestion`, **one at a time**, showing the item text and the destination tier. This is a confirmed-per-item offer, never a sweep: nothing leaves `📋 Meeting agendas` without an answer, and Skip leaves it exactly where it is. Silent when nothing is flagged.
 

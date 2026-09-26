@@ -1,8 +1,8 @@
 /**
  * Shared scan roots for structural evals.
  *
- * Commands, agents, and skills live in two kinds of places:
- * - Plugins: `plugins/<plugin>/{commands,agents,skills}` (declared by
+ * Commands, agents, prompts, and skills live in two kinds of places:
+ * - Plugins: `plugins/<plugin>/{commands,agents,prompts,skills}` (declared by
  *   `.claude-plugin/marketplace.json`)
  * - Project-local: `.claude/{commands,agents,skills}`
  */
@@ -14,7 +14,7 @@ import {join, resolve} from 'node:path';
 export const PROJECT_ROOT = resolve(import.meta.dirname, '../../../..');
 export const PLUGINS_DIR = join(PROJECT_ROOT, 'plugins');
 
-export type ComponentKind = 'commands' | 'agents' | 'skills';
+export type ComponentKind = 'commands' | 'agents' | 'prompts' | 'skills';
 
 /**
  * Paths of every git-tracked file under a root, relative to PROJECT_ROOT.

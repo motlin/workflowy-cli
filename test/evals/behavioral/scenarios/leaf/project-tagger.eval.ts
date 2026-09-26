@@ -16,7 +16,7 @@ describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 	let itemId: string;
 	let itemName: string;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/agents/refinement/project-tagger.md';
+	const agentFile = 'plugins/gtd/prompts/refinement/project-tagger.md';
 
 	beforeAll(async () => {
 		if (!process.env.ANTHROPIC_API_KEY) {

@@ -45,8 +45,9 @@ After creating the node, optionally launch background refinement:
 
 ```text
 Task tool (background):
-- subagent_type: "gtd:refinement:item-refiner"
-  prompt: "Refine inbox item: <item text>"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/item-refiner.md and follow it. Refine inbox item: <item text>"
   run_in_background: true
 ```
 
@@ -64,14 +65,17 @@ Launch all three loader agents in parallel using the Task tool:
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:shared:metadata-sync"
-  prompt: "Sync GTD metadata to .llm/gtd/metadata/"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it. Sync GTD metadata to .llm/gtd/metadata/"
 
-- subagent_type: "gtd:capture:declined-loader"
-  prompt: "Load recently declined items to .llm/gtd/capture/declined.json"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/declined-loader.md and follow it. Load recently declined items to .llm/gtd/capture/declined.json"
 
-- subagent_type: "gtd:capture:existing-tasks-loader"
-  prompt: "Load existing tasks for duplicate detection to .llm/gtd/capture/existing-tasks.json"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/existing-tasks-loader.md and follow it. Load existing tasks for duplicate detection to .llm/gtd/capture/existing-tasks.json"
 ```
 
 Wait for all to complete.
@@ -82,8 +86,9 @@ Launch scanner agents in parallel using the Task tool. Currently only `otter-sca
 
 ```text
 Task tool calls (parallel):
-- subagent_type: "gtd:capture:scanners:legacy:otter-scanner"
-  prompt: "Scan Otter.ai for meeting transcripts needing action items"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/scanners/legacy/otter-scanner.md and follow it. Scan Otter.ai for meeting transcripts needing action items"
 ```
 
 Wait for all to complete. Collect results from `.llm/gtd/capture/scans/*.json`.
@@ -110,8 +115,9 @@ Launch one `project-deep-diver` per unique project:
 
 ```text
 For each projectId, launch Task tool:
-- subagent_type: "gtd:capture:project-deep-diver"
-  prompt: "Deep dive into project with ID <projectId>"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/project-deep-diver.md and follow it. Deep dive into project with ID <projectId>"
 ```
 
 Wait for all to complete. Results will be in `.llm/gtd/capture/projects/<projectId>.json`.
@@ -122,8 +128,10 @@ Launch one `item-analyzer` per scanned item:
 
 ```text
 For each item, launch Task tool:
-- subagent_type: "gtd:capture:item-analyzer"
+- subagent_type: "general-purpose"
+  model: "sonnet"
   prompt: |
+    CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/item-analyzer.md and follow it.
     Analyze this scanned item for capture:
     ID: <itemId>
     Title: <title>
@@ -182,8 +190,9 @@ Use the capture-executor agent for this step:
 
 ```text
 Task tool:
-- subagent_type: "gtd:capture:capture-executor"
-  prompt: "Execute confirmed captures from .llm/gtd/capture/confirmed.json"
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/capture-executor.md and follow it. Execute confirmed captures from .llm/gtd/capture/confirmed.json"
 ```
 
 The capture-executor will:
@@ -208,22 +217,22 @@ TODAY=$(date +%Y-%m-%d)
 
 ## Scanner Agents
 
-The following scanner agents are available:
+The following scanner agents are available. Launch each like `otter-scanner` above, pointing at its prompt file under `${CLAUDE_PLUGIN_ROOT}/`.
 
-| Scanner                     | Source                | Status     | Typical Items                       |
-| --------------------------- | --------------------- | ---------- | ----------------------------------- |
-| `otter-scanner`             | Otter.ai              | **Active** | Transcripts needing review          |
-| `chrome-scanner`            | Chrome tabs & history | Disabled   | Open tabs, high-engagement pages    |
-| `git-scanner`               | Local Git repos       | Disabled   | Uncommitted changes, stale branches |
-| `github-scanner`            | GitHub API            | Disabled   | PRs authored, review requests       |
-| `gmail-scanner`             | Gmail                 | Disabled   | Starred, action-required, drafts    |
-| `imessage-scanner`          | iMessage              | Disabled   | Conversations with pending actions  |
-| `things3-scanner`           | Things 3 app          | Disabled   | Inbox items, today tasks            |
-| `reminders-scanner`         | Apple Reminders       | Disabled   | Incomplete reminders                |
-| `calendar-scanner`          | Apple Calendar        | Disabled   | Past events, upcoming prep          |
-| `tvtime-scanner`            | TV Time app           | Disabled   | Shows with new episodes             |
-| `photos-scanner`            | Apple Photos          | Disabled   | Actionable screenshots              |
-| `workflowy-overdue-scanner` | Workflowy calendar    | Disabled   | Overdue items                       |
+| Scanner prompt | Source | Status | Typical Items |
+| --- | --- | --- | --- |
+| `prompts/capture/scanners/legacy/otter-scanner.md` | Otter.ai | **Active** | Transcripts needing review |
+| `prompts/capture/scanners/chrome-scanner.md` | Chrome tabs & history | Disabled | Open tabs, high-engagement pages |
+| `prompts/capture/scanners/git-scanner.md` | Local Git repos | Disabled | Uncommitted changes, stale branches |
+| `prompts/capture/scanners/github-scanner.md` | GitHub API | Disabled | PRs authored, review requests |
+| `prompts/capture/scanners/gmail-scanner.md` | Gmail | Disabled | Starred, action-required, drafts |
+| `prompts/capture/scanners/imessage-scanner.md` | iMessage | Disabled | Conversations with pending actions |
+| `prompts/capture/scanners/things3-scanner.md` | Things 3 app | Disabled | Inbox items, today tasks |
+| `prompts/capture/scanners/reminders-scanner.md` | Apple Reminders | Disabled | Incomplete reminders |
+| `prompts/capture/scanners/calendar-scanner.md` | Apple Calendar | Disabled | Past events, upcoming prep |
+| `prompts/capture/scanners/tvtime-scanner.md` | TV Time app | Disabled | Shows with new episodes |
+| `prompts/capture/scanners/photos-scanner.md` | Apple Photos | Disabled | Actionable screenshots |
+| `prompts/capture/scanners/workflowy-overdue-scanner.md` | Workflowy calendar | Disabled | Overdue items |
 
 ## Error Handling
 

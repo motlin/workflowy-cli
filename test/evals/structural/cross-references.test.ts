@@ -69,6 +69,7 @@ describe('Structural Eval: Cross-References', () => {
 		const sourceFiles = [
 			...collectComponentFiles('commands'),
 			...collectComponentFiles('agents'),
+			...collectComponentFiles('prompts'),
 			...collectComponentFiles('skills'),
 		];
 

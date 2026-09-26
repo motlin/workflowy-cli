@@ -235,6 +235,7 @@ describe('Structural Eval: File Path Contracts', () => {
 	beforeAll(() => {
 		const mdFiles = [
 			...collectComponentFiles('agents'),
+			...collectComponentFiles('prompts'),
 			...collectComponentFiles('commands'),
 			...collectComponentFiles('skills'),
 		];

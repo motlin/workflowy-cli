@@ -6,7 +6,11 @@ import {PROJECT_ROOT, collectComponentFiles} from './helpers/scan-roots.js';
 describe('Structural Eval: No synchronous subagent flag', () => {
 	it('no agent or command relies on run_in_background: false', () => {
 		const offenders: string[] = [];
-		for (const filePath of [...collectComponentFiles('commands'), ...collectComponentFiles('agents')]) {
+		for (const filePath of [
+			...collectComponentFiles('commands'),
+			...collectComponentFiles('agents'),
+			...collectComponentFiles('prompts'),
+		]) {
 			const lines = readFileSync(filePath, 'utf8').split('\n');
 			for (const [index, line] of lines.entries()) {
 				if (/run_in_background:\s*false/.test(line)) {

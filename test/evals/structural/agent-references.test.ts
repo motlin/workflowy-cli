@@ -23,6 +23,9 @@ function extractAgentName(filePath: string): string | null {
 	return nameMatch[1].trim().replaceAll(/^["']|["']$/g, '');
 }
 
+// Agent types Claude Code provides without an agent file.
+const BUILT_IN_AGENTS = new Set(['general-purpose']);
+
 describe('Structural Eval: Agent References', () => {
 	let agentRegistry: Map<string, string>;
 	let allSubagentRefs: Array<{name: string; file: string; line: number}>;
@@ -66,10 +69,6 @@ describe('Structural Eval: Agent References', () => {
 		}
 	});
 
-	it('should find agent files with name: frontmatter', () => {
-		expect(agentRegistry.size).toBeGreaterThan(0);
-	});
-
 	it('should find subagent_type references in commands or agents', () => {
 		expect(allSubagentRefs.length).toBeGreaterThan(0);
 	});
@@ -78,7 +77,7 @@ describe('Structural Eval: Agent References', () => {
 		const missing: string[] = [];
 
 		for (const ref of allSubagentRefs) {
-			if (!agentRegistry.has(ref.name)) {
+			if (!agentRegistry.has(ref.name) && !BUILT_IN_AGENTS.has(ref.name)) {
 				missing.push(`  "${ref.name}" referenced at ${ref.file}:${ref.line}`);
 			}
 		}

@@ -58,7 +58,7 @@ TOMORROW_LABEL=$(date -v+1d '+%a, %b %-d')
 
 ### Calendar Review
 
-`calendar-fetcher` is launched in the front-loaded batch above (not sequentially): pass `startDate`=today 00:00:00 ISO, `endDate`=day-after-tomorrow 00:00:00 ISO, `includeWorkflowy: true`. Returns `{fantastical, workflowy, summary, errors}`.
+`calendar-fetcher` is launched in the front-loaded batch above (not sequentially) as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it.` pass `startDate`=today 00:00:00 ISO, `endDate`=day-after-tomorrow 00:00:00 ISO, `includeWorkflowy: true`. Returns `{fantastical, workflowy, summary, errors}`.
 
 #### Format
 
@@ -82,7 +82,7 @@ Include the Fantastical deep link (`fantastical://`) to allow quick access to th
 
 ### Apple Reminders
 
-`reminders-fetcher` is launched in the same front-loaded batch above. Returns `{overdue, dueToday, dueTomorrow, noDueDateCount, summary, errors}`.
+`reminders-fetcher` is launched in the same front-loaded batch above as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/reminders-fetcher.md and follow it.` Returns `{overdue, dueToday, dueTomorrow, noDueDateCount, summary, errors}`.
 
 Format the agent's output as:
 

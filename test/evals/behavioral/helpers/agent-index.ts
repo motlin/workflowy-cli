@@ -61,8 +61,8 @@ function findMarkdownFiles(dir: string): string[] {
 }
 
 /**
- * Build an agent index by scanning plugin agent directories
- * (`plugins/<plugin>/agents/**\/*.md`) plus any project-local
+ * Build an agent index by scanning plugin agent and prompt directories
+ * (`plugins/<plugin>/{agents,prompts}/**\/*.md`) plus any project-local
  * `.claude/agents/**\/*.md` files.
  *
  * Each agent is indexed by multiple keys:
@@ -83,10 +83,12 @@ export function buildAgentIndex(projectRoot: string): AgentIndex {
 	if (fs.existsSync(pluginsDir)) {
 		for (const entry of fs.readdirSync(pluginsDir, {withFileTypes: true})) {
 			if (entry.isDirectory()) {
-				scanRoots.push({
-					agentsDir: path.join(pluginsDir, entry.name, 'agents'),
-					pluginName: entry.name,
-				});
+				for (const kind of ['agents', 'prompts']) {
+					scanRoots.push({
+						agentsDir: path.join(pluginsDir, entry.name, kind),
+						pluginName: entry.name,
+					});
+				}
 			}
 		}
 	}
