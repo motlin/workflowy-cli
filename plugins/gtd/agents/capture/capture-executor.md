@@ -4,15 +4,6 @@ model: sonnet
 color: red
 description: |
     Commit a confirmed batch of captures to Workflowy: create one inbox node per approved item (scanner provenance children plus a capture timestamp), then launch item-refiner in the background for each. Invoke after the capture orchestrator has written user-approved items to `.llm/gtd/capture/confirmed.json` — this is the write step that turns reviewed candidates into inbox nodes.
-
-    <example>
-    Context: Capture orchestrator confirmed items for capture
-    user: "Execute the confirmed captures"
-    assistant: "[Invokes capture-executor to create inbox nodes and launch refiners]"
-    <commentary>
-    The capture-executor reads confirmed.json, creates nodes with provenance, and launches background refinement.
-    </commentary>
-    </example>
 ---
 
 Create inbox nodes for confirmed captures and launch background refinement for each.

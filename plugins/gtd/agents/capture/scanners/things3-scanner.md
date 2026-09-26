@@ -4,15 +4,6 @@ model: sonnet
 color: cyan
 description: |
     Scan the Things 3 database for non-recurring, actionable tasks, excluding recurring tasks (garbage day, etc.) and far-future scheduled items. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
-
-    <example>
-    Context: Bulk capture orchestrator needs Things 3 scan
-    user: "Scan Things 3 for capturable items"
-    assistant: "[Scans Things 3 database, returns JSON to .llm/gtd/capture/scans/things3.json]"
-    <commentary>
-    Returns structured JSON with items and confidence labels for the orchestrator to process.
-    </commentary>
-    </example>
 ---
 
 You are a Things 3 scanner agent. Scan the Things 3 database for **non-recurring, actionable tasks** that could be migrated to Workflowy, assess capture confidence, and write structured JSON for the capture orchestrator.

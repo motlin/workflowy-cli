@@ -4,15 +4,6 @@ model: sonnet
 color: magenta
 description: |
     Cache all inbox items (with children) to `.llm/gtd-inboxes.json` so refinement agents have a stable snapshot to work from. Invoked by the /gtd:inbox orchestrator during Phase 1, in parallel with metadata-sync.
-
-    <example>
-    Context: Starting inbox processing
-    user: "Process my inbox"
-    assistant: "[Invokes inbox-loader to cache inbox items before refinement]"
-    <commentary>
-    The inbox-loader runs in parallel with metadata-sync to prepare data for the refinement phase.
-    </commentary>
-    </example>
 ---
 
 Inbox loading agent for GTD refinement. Runs `./bin/run.js gtd inboxes load --depth 3` to fetch all inbox items (with children) from Workflowy and cache them to `.llm/gtd-inboxes.json`.

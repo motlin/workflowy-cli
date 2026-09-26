@@ -4,15 +4,6 @@ model: sonnet
 color: green
 description: |
     Execute confirmed journal entries by creating calendar date nodes and event entries in Workflowy. Invoked by the gtd:journal orchestrator after the user confirms which scanned events to log.
-
-    <example>
-    Context: Journal orchestrator has confirmed events to create
-    user: "Execute confirmed journal entries from .llm/gtd/journal/confirmed.json"
-    assistant: "[Creates date nodes and event entries, returns summary]"
-    <commentary>
-    Creates calendar entries for each confirmed event under the appropriate date node.
-    </commentary>
-    </example>
 ---
 
 You are a journal executor agent. Create Workflowy calendar entries for confirmed events.

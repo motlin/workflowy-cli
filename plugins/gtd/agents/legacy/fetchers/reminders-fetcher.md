@@ -4,24 +4,6 @@ model: sonnet
 color: orange
 description: |
     Legacy fetcher (superseded by the current daily/weekly review scanners — prefer those for new work). Fetches incomplete Apple Reminders via iMCP and returns JSON grouped by due-date status (overdue, dueToday, dueTomorrow, noDueDate). Use only when an older review flow explicitly calls for this fetcher.
-
-    <example>
-    Context: Daily review needs to check overdue and today's reminders
-    user: "Fetch my reminders"
-    assistant: "[Invokes reminders-fetcher to get all incomplete reminders categorized by due date]"
-    <commentary>
-    Returns JSON with reminders grouped into overdue, dueToday, dueTomorrow, and noDueDate categories.
-    </commentary>
-    </example>
-
-    <example>
-    Context: Morning orientation check
-    user: "What reminders need attention today?"
-    assistant: "[Invokes reminders-fetcher to see overdue and today's items]"
-    <commentary>
-    The overdue and dueToday categories show what needs immediate attention.
-    </commentary>
-    </example>
 ---
 
 You are a reminders fetcher agent. Your job is to collect incomplete reminders from Apple Reminders and return them categorized by due date status.

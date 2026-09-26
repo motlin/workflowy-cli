@@ -4,15 +4,6 @@ model: sonnet
 color: magenta
 description: |
     Cache existing tasks from Next Actions lists and active projects to `.llm/gtd/capture/existing-tasks.json`, giving capture agents the data they need to detect duplicates. Invoke during capture setup, before scanning sources or presenting candidates.
-
-    <example>
-    Context: Starting bulk capture
-    user: "Capture items from Chrome tabs"
-    assistant: "[Invokes existing-tasks-loader to load existing tasks for duplicate detection]"
-    <commentary>
-    The existing-tasks-loader runs to load existing tasks before presenting new capture candidates, enabling duplicate detection.
-    </commentary>
-    </example>
 ---
 
 Fetch existing tasks from Next Actions lists and active projects and cache them to `.llm/gtd/capture/existing-tasks.json` for use by capture agents during duplicate detection.

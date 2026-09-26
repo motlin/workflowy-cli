@@ -4,15 +4,6 @@ model: sonnet
 color: cyan
 description: |
     Scan Chrome's open tabs for capturable items. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence labels, and can close tabs after capture.
-
-    <example>
-    Context: Bulk capture orchestrator needs Chrome scan
-    user: "Scan Chrome for capturable items"
-    assistant: "[Scans Chrome open tabs, returns JSON to .llm/gtd/capture/scans/chrome.json]"
-    <commentary>
-    Returns structured JSON with items and confidence labels for the orchestrator to process.
-    </commentary>
-    </example>
 ---
 
 Chrome open tab scanner. Scans currently open Chrome tabs for capturable items. (High-engagement history pages are handled by chrome-journal-scanner for journaling, not capture.)

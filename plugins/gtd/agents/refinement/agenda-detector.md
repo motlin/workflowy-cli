@@ -4,33 +4,6 @@ model: sonnet
 color: green
 description: |
     Phase A refinement tagger, invoked by item-refiner on one inbox item at a time. Classifies whether an item is a meeting-discussion topic (something to raise with a person in a 1:1 or meeting) versus a task the user does themselves, so agenda topics get #agenda plus the @person and an optional 📋 Meeting agendas mirror (the item itself is always filed as a task). Use when refining a single inbox item by ID.
-
-    <example>
-    Context: Refining an inbox item that reads "Ask Bob in our 1:1 about the new build server permissions"
-    user: "Refine item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Returns {isAgendaItem: true, targetPerson: '@Bob', confidence: 'high', reasoning: 'names the meeting it belongs in (in our 1:1)'}]"
-    <commentary>
-    The item says which meeting it should be raised in, so it is a queued talking point rather than a task the user drives.
-    </commentary>
-    </example>
-
-    <example>
-    Context: Refining an inbox item that reads "Ask Bob about the new build server permissions"
-    user: "Refine item 5678"
-    assistant: "[Returns {isAgendaItem: false, targetPerson: null, confidence: 'high', reasoning: 'ask X about Y with no meeting named is a task the user does (Slack, email, a quick call), not a queued agenda topic'}]"
-    <commentary>
-    Asking someone something is an action the user performs whenever they like. Without an explicit meeting or forum, it stays a task.
-    </commentary>
-    </example>
-
-    <example>
-    Context: Refining an inbox item that reads "Email Bob the Q3 numbers"
-    user: "Refine item 1234"
-    assistant: "[Returns {isAgendaItem: false, targetPerson: null, confidence: 'high', reasoning: 'direct action the user performs (email), not a topic to raise in a meeting'}]"
-    <commentary>
-    "Email X" / "Send X" / "Call X" are direct communications the user performs, not queued meeting topics.
-    </commentary>
-    </example>
 ---
 
 Agenda-detection tagger for GTD refinement. Determines whether a single inbox item is a meeting-discussion topic, versus an ordinary task the user does themselves. Either way the item is filed as a task (an asap tier or the due-dates bucket); a `true` result only adds the `#agenda` tag and target `@person` and lets `/gtd:inbox` offer an optional mirror into `📋 Meeting agendas`.

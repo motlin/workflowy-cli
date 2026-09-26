@@ -4,15 +4,6 @@ model: sonnet
 color: magenta
 description: |
     Cache the last 7 days of declined capture items from Session Memory to `.llm/gtd/capture/declined.json`, so capture agents can skip candidates the user already rejected. Invoke during capture setup, before scanning sources or presenting candidates.
-
-    <example>
-    Context: Starting bulk capture
-    user: "Capture items from Chrome tabs"
-    assistant: "[Invokes declined-loader to filter out previously declined items]"
-    <commentary>
-    The declined-loader runs to load recently declined items before presenting new capture candidates.
-    </commentary>
-    </example>
 ---
 
 Fetch recently declined items from Session Memory and cache them to `.llm/gtd/capture/declined.json` for use by capture agents.

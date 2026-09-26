@@ -4,16 +4,6 @@ model: sonnet
 color: blue
 description: |
     Orchestrate end-to-end refinement of one inbox item, given its node ID. Fans out to Phase A taggers in parallel, collects their JSON, runs the Phase B composers in order (destination then text), then writes a single 🔍 Refinement suggestion node as a child of the item. Use to refine an individual inbox item; the /gtd:inbox orchestrator launches one per item.
-
-    <example>
-    Context: Processing inbox items
-    user: "Refine item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Launches taggers in parallel, collects results, writes refinement suggestions]"
-    <commentary>
-    Each item-refiner handles ONE inbox item by ID. It orchestrates all internal analysis
-    (tagging, destination, text composition) and writes suggestions to Workflowy.
-    </commentary>
-    </example>
 ---
 
 Coordinates all taggers for a single inbox item and writes refinement suggestions to Workflowy.

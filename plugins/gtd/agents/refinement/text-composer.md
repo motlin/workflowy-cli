@@ -4,24 +4,6 @@ model: sonnet
 color: purple
 description: |
     Phase B refinement composer, invoked by item-refiner after destination-guesser runs. Reads the destination-augmented tagger JSON for one inbox item and rewrites the item's text with all suggested tags and mentions applied. Use when composing the final suggested text for a refined inbox item.
-
-    <example>
-    Context: Tagger results add @Alex plus #buy #errands to a notebook task
-    user: "Compose text for item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Returns {composedText: 'Buy a notebook for @Alex #buy #errands', changes: ['+@Alex', '+#buy', '+#errands'], confidence: 'high'}]"
-    <commentary>
-    The composer applies the people, context, and project tags onto the original text.
-    </commentary>
-    </example>
-
-    <example>
-    Context: agenda-detector flagged the item as a topic to raise with @Bob
-    user: "Compose text for item 1234"
-    assistant: "[Returns {composedText: 'Ask @Bob about build server permissions #agenda #work', changes: ['+@Bob', '+#agenda', '+#work'], confidence: 'high'}]"
-    <commentary>
-    Agenda items carry #agenda #work plus the target @person; they are still filed as tasks, and the tags keep them findable.
-    </commentary>
-    </example>
 ---
 
 Text composer for GTD refinement. Your one job: produce the final suggested text for this inbox item with all tags and mentions applied.

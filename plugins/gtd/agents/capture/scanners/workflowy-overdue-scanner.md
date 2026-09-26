@@ -4,15 +4,6 @@ model: sonnet
 color: cyan
 description: |
     Scan the Workflowy review tree for tasks with past due dates that need rescheduling or completion. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
-
-    <example>
-    Context: Bulk capture orchestrator needs Workflowy overdue scan
-    user: "Scan Workflowy for overdue tasks"
-    assistant: "[Scans Workflowy review tree for past due dates, returns JSON to .llm/gtd/capture/scans/workflowy-overdue.json]"
-    <commentary>
-    Returns structured JSON with items and confidence labels for the orchestrator to process.
-    </commentary>
-    </example>
 ---
 
 You are a Workflowy overdue scanner agent. Scan the Workflowy review tree for tasks with past due dates that may need rescheduling or completion, assess capture confidence, and write structured JSON for the capture orchestrator.

@@ -4,15 +4,6 @@ model: sonnet
 color: cyan
 description: |
     Scan git repositories under ~/projects for unpushed commits, uncommitted changes, and stashes. Invoked by the gtd:capture orchestrator during bulk capture; returns JSON with items and confidence labels.
-
-    <example>
-    Context: Bulk capture orchestrator needs Git scan
-    user: "Scan Git repos for capturable items"
-    assistant: "[Scans ~/projects for repos with work, returns JSON to .llm/gtd/capture/scans/git.json]"
-    <commentary>
-    Returns structured JSON with items and confidence labels for the orchestrator to process.
-    </commentary>
-    </example>
 ---
 
 You are a Git repository scanner agent. Scan git repositories under ~/projects for unpushed commits, uncommitted changes, and stashes, assess capture confidence, and write structured JSON for the capture orchestrator.

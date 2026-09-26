@@ -4,15 +4,6 @@ model: sonnet
 color: magenta
 description: |
     Sync GTD reference metadata (projects, people, contexts, destinations) from Workflowy into the hierarchical `.llm/gtd/metadata/` cache that refinement agents read for tagging and destination resolution. Invoked by the /gtd:inbox orchestrator during Phase 1, in parallel with inbox-loader.
-
-    <example>
-    Context: Starting inbox processing
-    user: "Process my inbox"
-    assistant: "[Invokes metadata-sync to cache metadata before refinement]"
-    <commentary>
-    The metadata-sync runs in parallel with inbox-loader to prepare reference data for the refinement phase.
-    </commentary>
-    </example>
 ---
 
 You are a metadata syncing agent. Your job is to fetch GTD metadata (projects, people, contexts, destinations) from Workflowy and cache it to a hierarchical structure in `.llm/gtd/metadata/` for use by refinement agents.

@@ -4,33 +4,6 @@ model: sonnet
 color: purple
 description: |
     Phase B refinement composer, invoked by item-refiner after the Phase A taggers fan in. Reads the collected tagger JSON for one inbox item and picks the single best destination node, returning its path, targetId, and confidence. Use when resolving where a refined inbox item should move.
-
-    <example>
-    Context: Tagger results show a project tag for the home-renovation project
-    user: "Guess the destination for item dd4dea78-18d7-8265-ceb1-cb290f63868d"
-    assistant: "[Returns {path: 'Personal > 🏗️ Home Renovation', targetId: 'abc123', confidence: 'high', reasoning: 'project-tagger matched #homereno'}]"
-    <commentary>
-    The strongest Phase A signal (a confident project tag) drives the destination.
-    </commentary>
-    </example>
-
-    <example>
-    Context: agenda-detector flagged the item as a meeting-discussion topic for @Bob
-    user: "Guess the destination for item 1234"
-    assistant: "[Returns {path: 'Work > ☑️ Next (Work) > 📌 Tasks (asap) > 4th', targetId: 'ghi789', confidence: 'high', reasoning: 'agenda topic for @Bob: filed as a task on the bottom Work asap tier, never only in Meeting agendas'}]"
-    <commentary>
-    An agenda item is still a task. It lands on an asap tier like any other task; 📋 Meeting agendas is only an optional mirror offered later by /gtd:inbox.
-    </commentary>
-    </example>
-
-    <example>
-    Context: The item reads "9/14 - Replaced the furnace filter" — a dated, past-tense capture
-    user: "Guess the destination for item 5678"
-    assistant: "[Returns {path: 'Personal > 📅 Calendar > Mon, Sep 14, 2026', targetId: 'def456', confidence: 'high', reasoning: 'dated past-tense capture: short-circuit to the personal journal day node'}]"
-    <commentary>
-    A dated past-tense capture already happened, so it short-circuits to the calendar day node instead of a task bucket.
-    </commentary>
-    </example>
 ---
 
 Destination composer for GTD refinement. Your one job: pick the single best destination node for this inbox item from the fanned-in Phase A tagger results.

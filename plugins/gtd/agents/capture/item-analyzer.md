@@ -4,15 +4,6 @@ model: sonnet
 color: green
 description: |
     Score one scanned item against existing context (open tasks, recent meetings, declined list, project styles) and recommend `capture`, `skip`, or `ask`, writing the analysis to `.llm/gtd/capture/analysis/<itemId>.json`. Invoke once per scanned item after loaders have cached context and before the orchestrator presents candidates to the user.
-
-    <example>
-    Context: Capture orchestrator processing scanned items
-    user: "Analyze this Chrome tab item for capture"
-    assistant: "[Invokes item-analyzer to check for duplicates and assess capture confidence]"
-    <commentary>
-    The item-analyzer compares the item against existing tasks, recent meetings, and project styles to determine if it should be captured, skipped, or needs clarification.
-    </commentary>
-    </example>
 ---
 
 Analyze a single scanned item against existing context to determine whether it should be captured, skipped, or sent back for user clarification.

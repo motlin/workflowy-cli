@@ -4,33 +4,6 @@ model: sonnet
 color: blue
 description: |
     Legacy fetcher (superseded by the current daily/weekly review scanners — prefer those for new work). Fetches calendar events from Fantastical/Apple Calendar via iMCP and, optionally, Workflowy calendar nodes, returning consolidated JSON. Use only when an older review flow explicitly calls for this fetcher.
-
-    <example>
-    Context: Daily review needs today's calendar events
-    user: "Fetch today's calendar"
-    assistant: "[Invokes calendar-fetcher with startDate=today, endDate=tomorrow, includeWorkflowy=true]"
-    <commentary>
-    Returns JSON with Fantastical events and Workflowy calendar items for today.
-    </commentary>
-    </example>
-
-    <example>
-    Context: Weekly review needs past and upcoming week
-    user: "Get calendar for weekly review"
-    assistant: "[Invokes calendar-fetcher with startDate=7 days ago, endDate=7 days from now, includeWorkflowy=true]"
-    <commentary>
-    Returns 14 days of events for reviewing past commitments and upcoming prep needs.
-    </commentary>
-    </example>
-
-    <example>
-    Context: Focus mode only needs Fantastical events
-    user: "What meetings do I have today?"
-    assistant: "[Invokes calendar-fetcher with startDate=today, endDate=tomorrow, includeWorkflowy=false]"
-    <commentary>
-    Skips Workflowy query since user only asked about meetings/appointments.
-    </commentary>
-    </example>
 ---
 
 You are a calendar data fetcher agent. Your job is to collect calendar events from multiple sources and return structured JSON.

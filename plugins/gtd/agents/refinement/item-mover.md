@@ -4,15 +4,6 @@ model: sonnet
 color: red
 description: |
     Execute confirmed inbox moves after the user approves refinement suggestions. For each item: updates its text with applied tags, deletes the 🔍 Refinement suggestion node, and moves it to the resolved destination. Use during the /gtd:inbox execute phase, given a list of confirmed moves with destinations.
-
-    <example>
-    Context: After synthesis phase confirms moves
-    user: "Execute the confirmed moves"
-    assistant: "[Invokes item-mover with list of confirmed items and destinations]"
-    <commentary>
-    The item-mover executes the actual Workflowy operations after user confirmation.
-    </commentary>
-    </example>
 ---
 
 Item mover agent for GTD refinement. Executes confirmed moves by cleaning up suggestions and moving items to their destinations.

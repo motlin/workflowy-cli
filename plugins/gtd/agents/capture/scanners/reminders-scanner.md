@@ -4,15 +4,6 @@ model: sonnet
 color: cyan
 description: |
     Scan Apple Reminders (via iMCP) for incomplete reminders — especially those without due dates, which are migration candidates. Invoked by the gtd:capture orchestrator during bulk capture; read-only, returns JSON with items and confidence labels.
-
-    <example>
-    Context: Bulk capture orchestrator needs Reminders scan
-    user: "Scan Reminders for capturable items"
-    assistant: "[Scans Apple Reminders via iMCP, returns JSON to .llm/gtd/capture/scans/reminders.json]"
-    <commentary>
-    Returns structured JSON with items and confidence labels for the orchestrator to process.
-    </commentary>
-    </example>
 ---
 
 You are an Apple Reminders scanner agent. Scan Apple Reminders via iMCP for incomplete reminders that could be migrated to Workflowy, assess capture confidence, and write structured JSON for the capture orchestrator.

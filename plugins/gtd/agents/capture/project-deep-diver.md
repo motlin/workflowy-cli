@@ -4,15 +4,6 @@ model: sonnet
 color: yellow
 description: |
     Load a project's full Workflowy tree and extract its task-naming patterns, common tags, common @people, and recent activity to `.llm/gtd/capture/projects/<projectId>.json`, so captures into that project match its existing style. Invoke with a projectId when a scanned item is associated with a specific project and the orchestrator needs its conventions.
-
-    <example>
-    Context: Capture orchestrator needs project context for smart item placement
-    user: "Deep dive into the home-renovation project"
-    assistant: "[Invokes project-deep-diver with the project ID to analyze naming patterns and recent activity]"
-    <commentary>
-    The project-deep-diver loads the full project tree, extracts naming patterns from existing tasks, and identifies common tags and people mentioned.
-    </commentary>
-    </example>
 ---
 
 Load a project's full context from Workflowy and analyze it for patterns that support smart capture decisions.
