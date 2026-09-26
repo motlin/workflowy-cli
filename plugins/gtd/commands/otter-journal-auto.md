@@ -54,7 +54,7 @@ Preflight the whole page before writes. If any candidate is flagged, stop withou
 Run the `otter-journal-scanner` agent in its default **`create`** mode — it scans meetings newer than `last_synced_otid`, builds the entry JSON, calendar-dedups each against `📆 Calendar` (`node search --query "otter.ai/u/<otid>"`), preflights calendar-derived titles against Overview/transcript evidence, **creates** each verified surviving meeting as a direct child of `📆 Calendar`, and advances the live `otter-journal-scanner` state after each page:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/otter-journal-scanner.md and follow it. Create mode for otter-journal-auto: scan Otter for meetings newer than last_synced_otid, calendar-dedup against 📆 Calendar. Before any page writes, validate every new meeting title and named attendees against its Overview and available transcript evidence. On mismatch or uncertainty, flag for review, never create untitled or retitle, hold the whole page and its scanner state, and stop. Otherwise CREATE each verified new meeting under 📆 Calendar and advance the live scanner state. Return created meetings (date + title + otid), review flags (original title + date + otid/URL + concise reason), and the newest otid actually recorded."
 ```

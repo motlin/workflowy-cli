@@ -16,11 +16,11 @@ Walk recent Otter-ingested meetings since the last review and capture probable f
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the meetings or per-candidate work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Configuration
 
-Use the `read-metadata` skill to discover GTD paths from the Workflowy Metadata node.
+Read GTD metadata from the synced cache in `.llm/gtd/metadata/` (written by `metadata-sync` using `${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md`; run it once if a file is missing). Read `Metadata > ⚙️ Scanner State` nodes directly from Workflowy, as Step 1 shows.
 
 ## Inputs
 

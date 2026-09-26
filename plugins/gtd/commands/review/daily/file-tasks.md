@@ -12,7 +12,7 @@ Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (`d81ba063-
 
 ## Do not use the built-in task list
 
-Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the per-item work here — they clutter the display and are never cleaned up. (Launching **subagents** via the `Task` tool is unrelated and fine.)
+Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the per-item work here — they clutter the display and are never cleaned up. (Launching **subagents** via the `Agent` tool is unrelated and fine.)
 
 ## Run relink first
 

@@ -41,7 +41,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
 
 It exits non-zero rather than scanning unbounded when the boundary is not found within `OTTER_MAX_PAGES` pages (default 20). Treat that as a scan failure: create nothing and do not move state.
 
-**Never use a large `page_size`.** On 2026-09-24 `available_speeches 1000` alone ran 63s and then returned an HTML 504, and `sync 1000` also fetched action items for every meeting on the page; the 2026-09-22 Auto run timed out at 180s on it. `sync-since` for 3 new meetings measured 3.7s end to end (2.0s for the list, 1.5s for the action items).
+**Keep `page_size` small:** large pages (1000) take over a minute and return 504s.
 
 **Required environment variables:** `OTTER_USERNAME`, `OTTER_PASSWORD`
 
@@ -236,7 +236,7 @@ So after any create that errored, compare the entry against the Otter source and
 
 Check the action-item count, the number of `Outline` sections, and the segment count under each section against the source. If any are short, create only the missing children — never delete and re-create the entry, which would lose the otid link and risk a duplicate. Re-audit after repairing.
 
-This is worth doing for every created entry when a run hit any 429, not just the entry that reported one: observed in the 2026-08-14 run, where `Biweekly Review` was created with 0 of 5 outline sections and its own 429 had been dismissed as "already landed."
+When a run hits any 429, audit every entry it created, not just the one that reported the error. An entry that reported a 429 as "already landed" can still be missing outline sections.
 
 After the node exists (created cleanly, or confirmed created after an error), record the otid in the session guard file so later pages in this same run do not re-create it:
 

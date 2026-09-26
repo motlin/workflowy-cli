@@ -17,7 +17,7 @@ Under `Presentation`, this task is below `Refine calendar journal`, so the walk 
 
 ## Do not use the built-in task list
 
-Track progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror per-entry work. Launching subagents via the `Task` tool is unrelated and fine.
+Track progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror per-entry work. Launching subagents via the `Agent` tool is unrelated and fine.
 
 ## Resolve chained ops
 

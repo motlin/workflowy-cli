@@ -12,7 +12,7 @@ Process **refined** items from your inbox following GTD principles. This command
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the phases or per-item work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Workflow
 
@@ -21,7 +21,7 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 Launch the inbox-loader agent to get current inbox items:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/inbox-loader.md and follow it. Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
@@ -274,7 +274,7 @@ For moves, item-mover handles:
 **Launch item-mover agent per batch:**
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: |

@@ -10,7 +10,7 @@ Several nodes under `Metadata` are **navigation links** — their name is a sing
 
 **Finding an orphan means something upstream filed into the wrong node.** Moving it is the easy half; the half that matters is finding out what put it there, because a move without a diagnosis guarantees the same misfile tomorrow.
 
-This phase used to be a shell script that moved orphans and printed a count. That was wrong twice over: it kept no durable record, and it discarded `createdAt` and the orphan's provenance children before anyone could look at them — so it destroyed the evidence needed to find the bug, silently, before any later phase could notice. Do not reintroduce that shape. In particular:
+Keep the evidence intact and every failure visible:
 
 - **Never suppress the output of a move.** No `>/dev/null`, no `2>&1` on a `node move`. A failed move must be visible.
 - **Never report a non-zero orphan count as routine.** `📊 3 orphans moved` is a bug going unreported. Say what created them.

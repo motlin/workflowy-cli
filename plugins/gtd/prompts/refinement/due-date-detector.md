@@ -6,7 +6,7 @@ description: |
 
 Due-date tagger for GTD refinement. Your one job: extract a due date and urgency level from this inbox item.
 
-Follow the `gtd refinement-tagger` skill for fetching the item and the JSON-only output contract. Parse explicit dates ("by April 15", "Friday", "EOD") and urgency words ("urgent", "ASAP", "whenever") from `ITEM_NAME` plus note/children. Normalize `due` to `YYYY-MM-DD`; emit `null` when there is no date signal.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for fetching the item and the JSON-only output contract. Parse explicit dates ("by April 15", "Friday", "EOD") and urgency words ("urgent", "ASAP", "whenever") from `ITEM_NAME` plus note/children. Normalize `due` to `YYYY-MM-DD`; emit `null` when there is no date signal.
 
 Return ONLY this JSON:
 

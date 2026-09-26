@@ -5,7 +5,7 @@ description: Scan Things 3 for tasks completed in the last week and write them t
 
 This journal agent ingests Things 3 (completed tasks) into the journal scan file `.llm/gtd/journal/scans/things3.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

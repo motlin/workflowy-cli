@@ -20,7 +20,7 @@ Two phases: **Load** (`inbox-loader` + `metadata-sync` in parallel) → **Refine
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the phases or per-item work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Mode 1: Single Item Refinement (with argument)
 
@@ -31,7 +31,7 @@ When an item ID, shortid, or URL is provided, refine only that specific item.
 Launch metadata-sync to get projects, people, and contexts for tag matching:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it. Sync GTD metadata to .llm/gtd/metadata/"
@@ -42,7 +42,7 @@ Task tool:
 Launch the item-refiner for the single item by ID:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/item-refiner.md and follow it. Refine item $ITEM_ID"
@@ -126,10 +126,10 @@ When no argument is provided, refine all items in all inboxes.
 
 ### Load Data (Phase 1 - Parallel)
 
-Launch both loader agents in parallel using the Task tool:
+Launch both loader agents in parallel using the Agent tool:
 
 ```text
-Task tool calls (parallel):
+Agent tool calls (parallel):
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/inbox-loader.md and follow it. Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"
@@ -164,12 +164,12 @@ jq -r '.inboxes[].items[] | select(.children == null or (.children | map(select(
 
 **Launch refiners with concurrency control:**
 
-Maintain BATCH_SIZE concurrent `item-refiner` Task calls; launch the next item as each finishes until the list is exhausted. One agent refines one item.
+Maintain BATCH_SIZE concurrent `item-refiner` Agent calls; launch the next item as each finishes until the list is exhausted. One agent refines one item.
 
 A refiner's hand-back is not proof it wrote anything. After the refiners finish, fetch each item and confirm it has exactly one `🔍 Refinement` child. Re-launch the refiner once for any item that has none; if it still has none, report that item by name as a failure rather than counting it refined.
 
 ```text
-For each item ID, launch Task tool:
+For each item ID, launch Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/item-refiner.md and follow it. Refine item <ITEM_ID>"
@@ -198,7 +198,7 @@ Call John about project
 After all refiners complete, reload inbox data to see written suggestions:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/inbox-loader.md and follow it. Load all inbox items from Workflowy and cache to .llm/gtd-inboxes.json"

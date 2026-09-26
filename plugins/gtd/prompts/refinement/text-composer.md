@@ -6,7 +6,7 @@ description: |
 
 Text composer for GTD refinement. Your one job: produce the final suggested text for this inbox item with all tags and mentions applied.
 
-Read the destination-augmented tagger JSON at `.llm/gtd/refinement/$ITEM_ID-with-dest.json` (it holds both the Phase A results and the chosen destination). Follow the `gtd refinement-tagger` skill for the JSON-only output contract and the `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` rules (including whitespace trimming). Start from the original item text, apply the people-tagger `@mentions` and project/context `#tags`, then apply tag-cleaner's classification:
+Read the destination-augmented tagger JSON at `.llm/gtd/refinement/$ITEM_ID-with-dest.json` (it holds both the Phase A results and the chosen destination). Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for the JSON-only output contract and the `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` rules (including whitespace trimming). Start from the original item text, apply the people-tagger `@mentions` and project/context `#tags`, then apply tag-cleaner's classification:
 
 - **typos** — replace the written tag with its `suggest` spelling (`#Jira` → `#jira`).
 - **junk** — remove the tag from the text.

@@ -5,7 +5,7 @@ description: Scan iCloud Photos for places visited and activities from the last 
 
 This journal agent ingests iCloud Photos (activities, places) into the journal scan file `.llm/gtd/journal/scans/photos.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

@@ -10,11 +10,11 @@ Quick morning orientation to see what's on your plate and plan your day.
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the phases or per-item work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Configuration
 
-Use the `read-metadata` skill to discover GTD paths from the Workflowy Metadata node.
+The GTD lists this overview reads are fixed paths, given in each section's `node get --path` command below.
 
 **iMCP halt rule (non-negotiable):** If any fetcher agent returns `status: "imcp-unavailable"` — **regardless of the value of `fatal`** — **STOP the daily review immediately**, display the agent's `message` to the user, and do not continue. This is not a graceful-degradation step:
 
@@ -43,9 +43,9 @@ A liveness probe is an **additional** restart trigger, never a substitute for th
 
 **Restart without asking:** The mandatory restart drops this session's MCP connection. That disconnect is expected and is never grounds for `AskUserQuestion` or another confirmation prompt. Restart first, then end the turn with the plain-text instruction: "iMCP has restarted. Run /mcp to reconnect, then re-run the daily review." Do not launch fetchers or continue the review before reconnection. **Claude cannot run `/mcp`**; return control immediately so the user can run it.
 
-**Performance — front-load every fetch in one batch.** The two fetcher agents and the six `node get` reads have no data dependencies, so launch them all concurrently in a **single assistant message**: the `calendar-fetcher` Task, the `reminders-fetcher` Task, and the six `node get --path` Bash blocks below (Next Actions × 2, Delegate × 2, Inbox × 2). Wait for all results, then format the sections. Do not run the fetchers one after another.
+**Performance — front-load every fetch in one batch.** The two fetcher agents and the six `node get` reads have no data dependencies, so launch them all concurrently in a **single assistant message**: the `calendar-fetcher` Agent call, the `reminders-fetcher` Agent call, and the six `node get --path` Bash blocks below (Next Actions × 2, Delegate × 2, Inbox × 2). Wait for all results, then format the sections. Do not run the fetchers one after another.
 
-**Date labels — compute with `date`, never by hand.** Derive the TODAY / TOMORROW weekday labels from the system clock; do not infer the day-of-week yourself (that produced "Thu, Jun 12" for a Friday). Capture them once up front and reuse them in the section headers:
+**Date labels — compute with `date`, never by hand.** Derive the TODAY / TOMORROW weekday labels from the system clock; do not infer the day-of-week yourself. Capture them once up front and reuse them in the section headers:
 
 ```bash
 TODAY_LABEL=$(date '+%a, %b %-d')        # e.g. Fri, Jun 26
@@ -159,7 +159,7 @@ Every actionable outcome belongs to a later phase, and each has a walk built for
 | Move a loose task into a bucket     | File Loose Tasks                     |
 | Handle a recurring item             | Recurring Review — recurring segment |
 
-This used to be a served HTML page with checkbox rows. It was removed: a checkbox can only express _complete_, but the real outcomes are move, edit, reschedule, and discuss — so items got checked off in the browser and then re-litigated in conversation anyway. One interaction model (`AskUserQuestion`, one item at a time) now covers the whole review.
+Do not render the overview as a checklist or HTML page. The real outcomes are move, edit, reschedule, and discuss, not just complete, and later phases handle each item one at a time with `AskUserQuestion`.
 
 If the user does ask for an immediate change while reading the overview, just do it — that's a normal request, not a phase. Don't build a prompt loop around it.
 

@@ -6,7 +6,7 @@ description: |
 
 URL/provenance tagger for GTD refinement. Your one job: pull any URLs and the capture source from this inbox item and its children.
 
-Follow the `gtd refinement-tagger` skill for fetching the item (with `--depth 2` so children come along) and the JSON-only output contract. Scan `ITEM_NAME`, note, and children — captured items usually carry the link and "Source: …" provenance in a child rather than the title.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for fetching the item (with `--depth 2` so children come along) and the JSON-only output contract. Scan `ITEM_NAME`, note, and children — captured items usually carry the link and "Source: …" provenance in a child rather than the title.
 
 Return ONLY this JSON:
 

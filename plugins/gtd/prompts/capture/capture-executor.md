@@ -107,7 +107,7 @@ NEW_NODE_ID=$(echo "$CLI_OUTPUT" | jq -r '.id')
 
 ### Launch Background Refiner
 
-Launch item-refiner for the new node using the Task tool with `run_in_background: true`:
+Launch item-refiner for the new node using the Agent tool with `run_in_background: true`:
 
 ```text
 Task: "Refine inbox item with ID $NEW_NODE_ID"
@@ -115,7 +115,7 @@ Agent: item-refiner
 Parameters: nodeId=$NEW_NODE_ID
 ```
 
-Note: Use the Task tool to invoke the item-refiner agent, passing the node ID. The refiner will read the node directly from the API.
+Note: Use the Agent tool to invoke the item-refiner agent, passing the node ID. The refiner will read the node directly from the API.
 
 ## Record Declined Items
 

@@ -24,7 +24,7 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 
 This command is an **orchestrator** that invokes modular capture subagents. Each subagent:
 
-- Invokes its corresponding scanner/checker haiku agent
+- Invokes its corresponding scanner agent
 - Processes items interactively with the user
 - Creates Workflowy nodes with proper provenance
 - Returns structured JSON with capture results

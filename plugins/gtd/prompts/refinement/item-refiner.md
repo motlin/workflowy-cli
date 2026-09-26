@@ -23,9 +23,9 @@ ITEM_NAME=$(echo "$ITEM" | jq -r '.name')
 
 ## Phase A: Fan-Out to Taggers (Parallel)
 
-Launch ALL Phase A tagger subagents in parallel using the Task tool.
+Launch ALL Phase A tagger subagents in parallel using the Agent tool.
 
-Use a SINGLE message with MULTIPLE Task tool calls in parallel. Launch each tagger as a `general-purpose` subagent with `model: "sonnet"` and the prompt `CLAUDE_PLUGIN_ROOT=<plugin root>. Read <plugin root>/prompts/refinement/<tagger>.md and follow it. Refine item $ITEM_ID`, where `<plugin root>` is the `CLAUDE_PLUGIN_ROOT` you were given. Launch the Phase B composers the same way.
+Use a SINGLE message with MULTIPLE Agent tool calls in parallel. Launch each tagger as a `general-purpose` subagent with `model: "sonnet"` and the prompt `CLAUDE_PLUGIN_ROOT=<plugin root>. Read <plugin root>/prompts/refinement/<tagger>.md and follow it. Refine item $ITEM_ID`, where `<plugin root>` is the `CLAUDE_PLUGIN_ROOT` you were given. Use the same prompt format for the Phase B composers, running them in order.
 
 **Fan in only after every tagger has reported.** The Agent tool has no synchronous flag, so a tagger call can return a launch acknowledgement while the tagger keeps running. Treat an acknowledgement as "pending", not as a result: end your turn and resume on each tagger's completion notification until all seven JSON outputs are in hand. Never write the fan-in file, start Phase B, or report success while any tagger is pending — a refiner that finishes early writes no `🔍 Refinement` node and still looks successful to its caller. A tagger that fails or returns no JSON is a refiner failure: report it by tagger name.
 
@@ -60,14 +60,14 @@ EOF
 
 ## Phase B: Composers (Sequential)
 
-Phase B composers depend on each other - run them in order using the Task tool. Apply the same rule: an acknowledgement is not a result, so wait for each composer's completion notification and do not start the next composer until the previous one has returned its JSON.
+Phase B composers depend on each other - run them in order using the Agent tool. Apply the same rule: an acknowledgement is not a result, so wait for each composer's completion notification and do not start the next composer until the previous one has returned its JSON.
 
 ### Launch destination-guesser
 
 Launch the destination-guesser and capture its JSON output:
 
 ```text
-Task tool -> ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/destination-guesser.md -> returns JSON with {path, targetId, confidence, reasoning, alternative?}
+Agent tool -> ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/destination-guesser.md -> returns JSON with {path, targetId, confidence, reasoning, alternative?}
 ```
 
 This determines where the item should go based on Phase A tagger results.
@@ -93,7 +93,7 @@ jq --argjson dest '<DESTINATION_OUTPUT_JSON>' '. + {destination: $dest}' \
 Now launch text-composer, which will read both Phase A results AND the destination from the updated file:
 
 ```text
-Task tool -> ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/text-composer.md -> returns JSON with {composedText, changes, confidence}
+Agent tool -> ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/text-composer.md -> returns JSON with {composedText, changes, confidence}
 ```
 
 **Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda`, `#work`, and the target `@person` mention so the filed task stays findable by person and tag, and any mirror in 📋 Meeting agendas matches the existing topic shape.

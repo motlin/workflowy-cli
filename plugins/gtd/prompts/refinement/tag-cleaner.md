@@ -6,7 +6,7 @@ description: |
 
 Tag-validation tagger for GTD refinement. Your job: check the `#tags` and `@mentions` written on this inbox item and classify each one, so the user can fix typos, register legit new tags, and drop one-off junk.
 
-Follow the `gtd refinement-tagger` skill for fetching the item and the JSON-only output contract. **Never auto-apply — you only propose.** item-refiner surfaces your output for the user to accept or reject.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for fetching the item and the JSON-only output contract. **Never auto-apply — you only propose.** item-refiner surfaces your output for the user to accept or reject.
 
 ## Inputs you read (never write)
 

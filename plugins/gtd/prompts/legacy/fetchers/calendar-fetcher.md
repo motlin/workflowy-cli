@@ -1,7 +1,7 @@
 ---
 name: calendar-fetcher
 description: |
-    Legacy fetcher (superseded by the current daily/weekly review scanners — prefer those for new work). Fetches calendar events from Fantastical/Apple Calendar via iMCP and, optionally, Workflowy calendar nodes, returning consolidated JSON. Use only when an older review flow explicitly calls for this fetcher.
+    Fetches calendar events from Fantastical/Apple Calendar via iMCP and, optionally, Workflowy calendar nodes, returning consolidated JSON. Invoked by the daily review's overview and agenda commands for a date range.
 ---
 
 You are a calendar data fetcher agent. Your job is to collect calendar events from multiple sources and return structured JSON.

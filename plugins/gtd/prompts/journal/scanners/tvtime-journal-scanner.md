@@ -5,7 +5,7 @@ description: Scan TV Time for episodes watched in the last week and write them t
 
 This journal agent ingests TV Time (watched episodes) into the journal scan file `.llm/gtd/journal/scans/tvtime.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

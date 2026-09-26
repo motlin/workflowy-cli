@@ -5,7 +5,7 @@ description: Scan Apple Calendar for past meetings and appointments from the las
 
 This journal agent ingests Apple Calendar events into the journal scan file `.llm/gtd/journal/scans/calendar.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

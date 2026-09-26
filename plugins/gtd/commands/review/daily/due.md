@@ -15,13 +15,13 @@ Both segments follow `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` — present
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the per-item work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ---
 
 ## Fetch every source before the first question
 
-Both segments' sources are fetched here, in one front-loaded batch, before Segment 1 asks anything. They have no data dependencies on each other or on the walk, and one of them can halt the review: the Apple Reminders fetch goes through iMCP, and an iMCP outage discovered at walk time lands after hours of interactive Segment 1 work instead of before it. On 2026-09-04 the helper answered all morning, then died as Segment 2 started, taking the run down at its last step. Fetching up front moves that halt to the cheapest possible moment. Launch the `reminders-fetcher` Task and the Bash fetches below concurrently in a **single assistant message**, then wait for all of them before computing anything.
+Both segments' sources are fetched here, in one front-loaded batch, before Segment 1 asks anything. They have no data dependencies on each other or on the walk, and one of them can halt the review: the Apple Reminders fetch goes through iMCP, and an iMCP outage discovered at walk time lands after hours of interactive Segment 1 work instead of before it. On 2026-09-04 the helper answered all morning, then died as Segment 2 started, taking the run down at its last step. Fetching up front moves that halt to the cheapest possible moment. Launch the `reminders-fetcher` Agent call and the Bash fetches below concurrently in a **single assistant message**, then wait for all of them before computing anything.
 
 **Apple Reminders** — launch `reminders-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/reminders-fetcher.md and follow it.` Save its JSON to `.llm/gtd/review/due-reminders.json`. The iMCP halt rule applies: if the fetcher returns `status: "imcp-unavailable"`, **stop the review here** regardless of `fatal` — in plain text, never through `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. Nothing has been walked yet, so reconnecting and re-running costs the user nothing. When this command runs standalone rather than from `/gtd:review:daily`, run the **iMCP self-heal preflight** from `daily/overview.md` first so a stale helper is restarted before the fetch instead of dying partway through it.
 

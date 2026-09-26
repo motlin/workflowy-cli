@@ -5,7 +5,7 @@ description: Scan Apple Reminders for items completed in the last week and write
 
 This journal agent ingests Apple Reminders (completed items) into the journal scan file `.llm/gtd/journal/scans/reminders.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

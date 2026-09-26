@@ -6,7 +6,7 @@ description: |
 
 Project-matching tagger for GTD refinement. Your one job: pick the single best-fit project for this inbox item, or `null` when none matches.
 
-Follow the `gtd refinement-tagger` skill for fetching the item, reading `.llm/gtd/metadata/projects/*.json`, and the JSON-only output contract. Match `ITEM_NAME` (plus note/children) against each project's name and slug; return the strongest match only. Prefer `null` over a weak guess.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for fetching the item, reading `.llm/gtd/metadata/projects/*.json`, and the JSON-only output contract. Match `ITEM_NAME` (plus note/children) against each project's name and slug; return the strongest match only. Prefer `null` over a weak guess.
 
 Return ONLY this JSON:
 

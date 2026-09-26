@@ -5,7 +5,7 @@ description: Scan Chrome history for high-engagement pages (articles, docs, vide
 
 This journal agent ingests Chrome history (high-engagement pages) into the journal scan file `.llm/gtd/journal/scans/chrome.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

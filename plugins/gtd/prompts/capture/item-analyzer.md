@@ -158,5 +158,5 @@ Or on error:
 - Return valid JSON for the parent orchestrator.
 - Do not recommend `capture` when a duplicate is found — capturing it would create a redundant inbox node.
 - If context files are missing, proceed with reduced confidence rather than failing.
-- Keep `reasoning` concise but informative (max 100 characters).
+- Keep `reasoning` to one short sentence.
 - Preserve the original item ID exactly as received so the orchestrator can match the analysis back to its item.

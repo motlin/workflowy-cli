@@ -15,7 +15,7 @@ This command has two modes:
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the phases or per-item work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Mode 1: Quick Capture (with arguments)
 
@@ -44,7 +44,7 @@ DAY=$(date +"%-d")
 After creating the node, optionally launch background refinement:
 
 ```text
-Task tool (background):
+Agent tool (background):
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/item-refiner.md and follow it. Refine inbox item: <item text>"
@@ -61,10 +61,10 @@ Scan multiple external sources and process them into the GTD inbox via a five-ph
 
 ### Load Data (Phase 1 - Parallel)
 
-Launch all three loader agents in parallel using the Task tool:
+Launch all three loader agents in parallel using the Agent tool:
 
 ```text
-Task tool calls (parallel):
+Agent tool calls (parallel):
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it. Sync GTD metadata to .llm/gtd/metadata/"
@@ -82,10 +82,10 @@ Wait for all to complete.
 
 ### Scan All Sources (Phase 2 - Parallel)
 
-Launch scanner agents in parallel using the Task tool. Currently only `otter-scanner` is active — see the Scanner Agents table below for the full disabled list.
+Launch scanner agents in parallel using the Agent tool. Currently only `otter-scanner` is active — see the Scanner Agents table below for the full disabled list.
 
 ```text
-Task tool calls (parallel):
+Agent tool calls (parallel):
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/scanners/legacy/otter-scanner.md and follow it. Scan Otter.ai for meeting transcripts needing action items"
@@ -114,7 +114,7 @@ jq -r '[.[].items // [] | .[] | .metadata.projectId // empty] | unique | .[]' .l
 Launch one `project-deep-diver` per unique project:
 
 ```text
-For each projectId, launch Task tool:
+For each projectId, launch Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/project-deep-diver.md and follow it. Deep dive into project with ID <projectId>"
@@ -127,7 +127,7 @@ Wait for all to complete. Results will be in `.llm/gtd/capture/projects/<project
 Launch one `item-analyzer` per scanned item:
 
 ```text
-For each item, launch Task tool:
+For each item, launch Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: |
@@ -189,7 +189,7 @@ Only proceed after user confirmation from the Synthesis Phase.
 Use the capture-executor agent for this step:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/capture-executor.md and follow it. Execute confirmed captures from .llm/gtd/capture/confirmed.json"

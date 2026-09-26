@@ -16,7 +16,7 @@ Two agent types (see Journal Scanner Agents below for the full list):
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the phases or per-item work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Workflow
 
@@ -32,7 +32,7 @@ mkdir -p .llm/gtd/journal/analysis
 Launch sync agents in parallel. These handle dedup and creation directly:
 
 ```text
-Task tool calls (parallel):
+Agent tool calls (parallel):
 - subagent_type: "general-purpose"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/otter-journal-scanner.md and follow it. Sync Otter meetings to Workflowy calendar"
 
@@ -50,7 +50,7 @@ Task tool calls (parallel):
 Launch scan agents in parallel. These write to JSON for central dedup:
 
 ```text
-Task tool calls (parallel):
+Agent tool calls (parallel):
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/calendar-journal-scanner.md and follow it. Scan calendar for past events that actually occurred"
@@ -108,7 +108,7 @@ Only proceed after user confirmation from the Deduplicate & Analyze section.
 Launch the journal-executor agent:
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/journal-executor.md and follow it. Execute confirmed journal entries from .llm/gtd/journal/confirmed.json"

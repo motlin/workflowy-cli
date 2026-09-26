@@ -5,7 +5,7 @@ description: Scan iMessages for mentions of completed activities from the last w
 
 This journal agent ingests iMessage activity (mentioned activities, meetups) into the journal scan file `.llm/gtd/journal/scans/imessage.json`.
 
-See skill `gtd/journal-scanner-output` for output format.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/journal-scanner-output.md` for the output format.
 
 ## What to Search
 

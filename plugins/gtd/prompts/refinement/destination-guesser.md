@@ -6,7 +6,7 @@ description: |
 
 Destination composer for GTD refinement. Your one job: pick the single best destination node for this inbox item from the fanned-in Phase A tagger results.
 
-Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the live item). Follow the `gtd refinement-tagger` skill for reading the synced project/destination metadata and the JSON-only output contract. Weigh the strongest signal — a confident project tag, person, or context — against the available destinations; prefer the most specific node, and report `low` confidence when signals are weak or conflicting.
+Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the live item). Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for reading the synced project/destination metadata and the JSON-only output contract. Weigh the strongest signal — a confident project tag, person, or context — against the available destinations; prefer the most specific node, and report `low` confidence when signals are weak or conflicting.
 
 **Agenda items are tasks.** Never return `📋 Meeting agendas` (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`) or any node under it as the destination. A topic filed only there gets lost, because nothing but a meeting ever surfaces it. When `agendaDetector.isAgendaItem` is true, resolve the item like any other task: `⏰ Tasks (due dates)` when it has a due date, otherwise the bottom tier of the matching `📌 Tasks (asap)` ladder (Work unless the signals clearly say personal). The `#agenda` tag and the target `@person` on the composed text carry the meeting context, and `/gtd:inbox` may offer a mirror into `📋 Meeting agendas` alongside the filed task.
 

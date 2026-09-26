@@ -12,7 +12,7 @@ This is the prep-and-serve half of the Proposed Meeting Agendas feature. The ref
 
 Track all progress through `.llm/` files, Workflowy nodes, and inline status updates. Do **not** create Claude Code built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) to mirror the phases or per-topic work in this command — they clutter the display and are never cleaned up.
 
-(Note: launching **subagents** via the `Task` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
+(Note: launching **subagents** via the `Agent` tool / `subagent_type` is unrelated to the built-in task list and is expected.)
 
 ## Inputs
 
@@ -23,7 +23,7 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 Launch the metadata-sync agent so `.llm/gtd/metadata/people.json` holds current name → alias mappings for fuzzy matching topics to attendees.
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/shared/metadata-sync.md and follow it. Sync GTD metadata to .llm/gtd/metadata/ for the agenda command."
@@ -36,7 +36,7 @@ Wait for it to complete. `people.json` is large (40k+ lines) — never read it w
 Invoke `calendar-fetcher` with `startDate` = today `00:00:00` ISO, `endDate` = today + (`--days` − 1) days at `23:59:59` ISO (so `--days 1` ends today, `--days 2` ends tomorrow), and `includeWorkflowy: false` — only real calendar meetings matter here, not Workflowy calendar items.
 
 ```text
-Task tool:
+Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it. Fetch calendar events from <startDate> to <endDate>, includeWorkflowy=false."
