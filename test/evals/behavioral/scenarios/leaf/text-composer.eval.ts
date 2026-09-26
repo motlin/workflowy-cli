@@ -2,14 +2,14 @@
  * Tier 1 leaf eval: text-composer agent.
  *
  * Tests the text-composer agent integrates tags into item text.
- * Requires ANTHROPIC_API_KEY and the agent markdown file to exist.
+ * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {createEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
-import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
+import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
 
 describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -17,7 +17,7 @@ describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/text-composer.md';
 
 	beforeAll(() => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -35,8 +35,6 @@ describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 	it('should compose text with integrated tags', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
 		const taggerResults = {
 			itemId: 'test-item-1',
 			originalText: 'Fix the login page',
@@ -48,10 +46,10 @@ describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 		};
 
 		const result = await runLlmEval(
-			systemPrompt,
+			agentFile,
 			`Compose final text for this item:\n${JSON.stringify(taggerResults, null, 2)}`,
 			ctx,
-			{maxTurns: 5},
+			{maxTurns: 15},
 		);
 
 		const response = result.finalResponse;

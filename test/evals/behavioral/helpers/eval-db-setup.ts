@@ -9,7 +9,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type {EvalContext} from './eval-types.js';
-import type {AgentIndex} from './eval-types.js';
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
@@ -17,17 +16,16 @@ const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
  * Creates an isolated eval context with a copy of the production database.
  *
  * - Copies workflowy.sqlite to a temp directory
- * - Creates a temp .llm/ directory for intermediate files
+ * - Creates a temp .llm/ directory for intermediate files, seeded with the synced metadata cache
  * - Sets WORKFLOWY_DB_PATH so CLI commands use the copy
  * - Unsets WORKFLOWY_API_KEY to prevent accidental API calls
  *
  * Source DB is configurable via WORKFLOWY_EVAL_SOURCE_DB env var.
  *
  * @param options - Optional configuration
- * @param options.agentIndex - Pre-built agent index for subagent resolution
  * @param options.mockServerPort - Port for the mock Workflowy HTTP server
  */
-export function createEvalContext(options?: {agentIndex?: AgentIndex; mockServerPort?: number}): EvalContext {
+export function createEvalContext(options?: {mockServerPort?: number}): EvalContext {
 	const sourceDb = process.env.WORKFLOWY_EVAL_SOURCE_DB || path.join(PROJECT_ROOT, 'workflowy.sqlite');
 
 	if (!fs.existsSync(sourceDb)) {
@@ -46,6 +44,15 @@ export function createEvalContext(options?: {agentIndex?: AgentIndex; mockServer
 
 	// Create .llm/ directory structure
 	fs.mkdirSync(path.join(llmDir, 'gtd'), {recursive: true});
+
+	// Prompts read the synced metadata cache; without a snapshot here, agents go looking in the repo's .llm/
+	const metadataDir = path.join(PROJECT_ROOT, '.llm', 'gtd', 'metadata');
+	if (fs.existsSync(metadataDir)) {
+		fs.cpSync(metadataDir, path.join(llmDir, 'gtd', 'metadata'), {recursive: true});
+	}
+
+	// `claude -p` runs here so prompts' relative `.llm/` writes land in the temp dir; `./bin/run.js` still resolves
+	fs.symlinkSync(path.join(PROJECT_ROOT, 'bin'), path.join(tempDir, 'bin'));
 
 	const env: Record<string, string> = {
 		WORKFLOWY_DB_PATH: dbPath,
@@ -68,8 +75,7 @@ export function createEvalContext(options?: {agentIndex?: AgentIndex; mockServer
 		env,
 		llmDir,
 		projectRoot: PROJECT_ROOT,
-		agentIndex: options?.agentIndex,
-		apiCallCount: 0,
+		workDir: tempDir,
 		mockServerPort: options?.mockServerPort,
 	};
 }

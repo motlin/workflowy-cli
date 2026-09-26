@@ -9,20 +9,18 @@
  * Pre-filters to 2-3 inbox items to keep cost manageable.
  * Uses mock Workflowy server for write operations.
  *
- * Requires ANTHROPIC_API_KEY environment variable.
- * Expected cost: ~200-400 API calls.
+ * Requires the claude CLI (runs on the subscription login).
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {buildAgentIndex} from '../../helpers/agent-index.js';
 import {createEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
 import {
 	extractSubagentLaunches,
 	flattenSubagentExecutions,
-	parseAgentPrompt,
 	runLlmEval,
+	claudeCliAvailable,
 } from '../../helpers/llm-eval-harness.js';
 import {createMockWorkflowyServer, type MockWorkflowyServer} from '../../helpers/mock-workflowy-server.js';
 
@@ -30,16 +28,16 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 	let ctx: EvalContext;
 	let mockServer: MockWorkflowyServer;
 	let skipSuite = false;
-	const commandFile = 'plugins/gtd/commands/refine-inbox.md';
+	const agentFile = 'plugins/gtd/commands/refine-inbox.md';
 
 	beforeAll(async () => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
 
 		const projectRoot = path.resolve(import.meta.dirname, '../../../..');
-		const commandPath = path.join(projectRoot, commandFile);
+		const commandPath = path.join(projectRoot, agentFile);
 
 		if (!fs.existsSync(commandPath)) {
 			skipSuite = true;
@@ -49,9 +47,7 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 		mockServer = createMockWorkflowyServer();
 		await mockServer.start();
 
-		const agentIndex = buildAgentIndex(projectRoot);
-
-		ctx = createEvalContext({agentIndex, mockServerPort: mockServer.port});
+		ctx = createEvalContext({mockServerPort: mockServer.port});
 	});
 
 	afterAll(async () => {
@@ -62,16 +58,12 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 	it('should launch Phase 1 loaders (inbox-loader and metadata-sync)', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, commandFile));
-
-		const result = await runLlmEval(systemPrompt, 'Refine all inbox items', ctx, {
+		const result = await runLlmEval(agentFile, '', ctx, {
 			maxTurns: 5,
-			maxDepth: 1,
-			maxTotalApiCalls: 50,
 		});
 
 		const subagents = extractSubagentLaunches(result.toolCalls);
-		const launchedTypes = subagents.map((s) => s.subagentType);
+		const launchedTypes = subagents.map((s) => s.promptFile ?? s.subagentType);
 
 		const hasInboxLoader = launchedTypes.some((t) => t.includes('inbox-loader') || t.includes('inbox_loader'));
 		const hasMetadataSync = launchedTypes.some((t) => t.includes('metadata-sync') || t.includes('metadata_sync'));
@@ -83,13 +75,8 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 	it('should follow two-phase architecture (Phase 1 before Phase 2)', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, commandFile));
-
-		const result = await runLlmEval(systemPrompt, 'Refine all inbox items', ctx, {
+		const result = await runLlmEval(agentFile, '', ctx, {
 			maxTurns: 10,
-			maxDepth: 2,
-			maxSubagentTurns: 10,
-			maxTotalApiCalls: 200,
 		});
 
 		const subagents = extractSubagentLaunches(result.toolCalls);
@@ -98,7 +85,7 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 		let firstPhase2Index = Number.MAX_SAFE_INTEGER;
 
 		for (const [i, subagent] of subagents.entries()) {
-			const type = subagent.subagentType;
+			const type = subagent.promptFile ?? subagent.subagentType;
 			if (type.includes('inbox-loader') || type.includes('metadata-sync')) {
 				lastPhase1Index = i;
 			}
@@ -115,13 +102,8 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 	it('should produce recursive subagent execution tree', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, commandFile));
-
-		const result = await runLlmEval(systemPrompt, 'Refine all inbox items', ctx, {
+		const result = await runLlmEval(agentFile, '', ctx, {
 			maxTurns: 10,
-			maxDepth: 3,
-			maxSubagentTurns: 10,
-			maxTotalApiCalls: 400,
 		});
 
 		expect(Array.isArray(result.subagentExecutions)).toBe(true);
@@ -136,23 +118,12 @@ describe('E2E Eval: refine-inbox', {timeout: 900_000}, () => {
 		expect(uniqueAgents.length, `Executed agents: ${uniqueAgents.join(', ')}`).toBeGreaterThan(0);
 	});
 
-	it('should respect global API call limits', async (context) => {
+	it('should stop at the --max-turns limit with partial results', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, commandFile));
+		const result = await runLlmEval(agentFile, '', ctx, {maxTurns: 3});
 
-		const maxCalls = 50;
-		const result = await runLlmEval(systemPrompt, 'Refine all inbox items', ctx, {
-			maxTurns: 20,
-			maxDepth: 3,
-			maxSubagentTurns: 15,
-			maxTotalApiCalls: maxCalls,
-		});
-
-		// Total API calls (tracked on context) should not exceed limit
-		expect(ctx.apiCallCount, 'API call count should be within limit').toBeLessThanOrEqual(maxCalls);
-
-		// The result should still be meaningful
+		expect(['success', 'error_max_turns']).toContain(result.stopReason);
 		expect(result.toolCalls.length).toBeGreaterThan(0);
 	});
 });

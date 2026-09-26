@@ -3,14 +3,14 @@
  *
  * Tests the destination-guesser agent reads tagger results and produces
  * a destination recommendation with valid JSON structure.
- * Requires ANTHROPIC_API_KEY and the agent markdown file to exist.
+ * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {createEvalContext, runInEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
-import {extractBashCommands, parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
+import {extractBashCommands, runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
 
 describe('Leaf Eval: destination-guesser', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -19,7 +19,7 @@ describe('Leaf Eval: destination-guesser', {timeout: 300_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/destination-guesser.md';
 
 	beforeAll(async () => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -81,7 +81,7 @@ describe('Leaf Eval: destination-guesser', {timeout: 300_000}, () => {
 				tagCleaner: {invalidTags: [], validTags: []},
 			};
 
-			const llmDir = path.join(ctx.projectRoot, '.llm', 'gtd', 'refinement');
+			const llmDir = path.join(ctx.llmDir, 'gtd', 'refinement');
 			fs.mkdirSync(llmDir, {recursive: true});
 			fs.writeFileSync(path.join(llmDir, `${itemId}.json`), JSON.stringify(taggerResults, null, 2));
 		} catch {
@@ -91,30 +91,23 @@ describe('Leaf Eval: destination-guesser', {timeout: 300_000}, () => {
 
 	afterAll(() => ctx?.cleanup());
 
-	it('should produce destination recommendation with confidence score', async (context) => {
+	it('should produce destination recommendation with a confidence level', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Determine destination for item ${itemId}`, ctx, {maxTurns: 8});
+		const result = await runLlmEval(agentFile, `Determine destination for item ${itemId}`, ctx, {maxTurns: 25});
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*"(?:path|targetId|confidence)"[\s\S]*\}/);
 		expect(jsonMatch, 'Response should contain JSON with destination fields').not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
-		expect(parsed).toHaveProperty('confidence');
-		expect(typeof parsed.confidence).toBe('number');
-		expect(parsed.confidence).toBeGreaterThanOrEqual(0);
-		expect(parsed.confidence).toBeLessThanOrEqual(1);
+		expect(['high', 'medium', 'low']).toContain(parsed.confidence);
 	});
 
 	it('should use CLI to query node data', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Determine destination for item ${itemId}`, ctx, {maxTurns: 8});
+		const result = await runLlmEval(agentFile, `Determine destination for item ${itemId}`, ctx, {maxTurns: 25});
 
 		const bashCommands = extractBashCommands(result.toolCalls);
 		const cliCommands = bashCommands.filter((cmd) => cmd.includes('bin/run.js'));

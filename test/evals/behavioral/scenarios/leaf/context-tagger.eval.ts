@@ -2,14 +2,14 @@
  * Tier 1 leaf eval: context-tagger agent.
  *
  * Tests the context-tagger agent suggests location/mode context tags.
- * Requires ANTHROPIC_API_KEY and the agent markdown file to exist.
+ * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {createEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
-import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
+import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
 
 describe('Leaf Eval: context-tagger', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -17,7 +17,7 @@ describe('Leaf Eval: context-tagger', {timeout: 300_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/context-tagger.md';
 
 	beforeAll(() => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -35,13 +35,11 @@ describe('Leaf Eval: context-tagger', {timeout: 300_000}, () => {
 	it('should suggest context tags from known set', (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
 		const result = runLlmEval(
-			systemPrompt,
+			agentFile,
 			`Analyze this item for context tags:\nID: test-item-1\nName: Call dentist to schedule appointment`,
 			ctx,
-			{maxTurns: 5},
+			{maxTurns: 15},
 		);
 
 		return result.then((result) => {

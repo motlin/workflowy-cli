@@ -12,25 +12,24 @@
 		"@oclif/core": "^4.13.3",
 		"@oclif/plugin-help": "^6",
 		"@workflowy/shared": "workspace:*",
-		"drizzle-orm": "^0.45.2",
-		"better-sqlite3": "13.0.3"
+		"better-sqlite3": "13.0.3",
+		"drizzle-orm": "^0.45.2"
 	},
 	"devDependencies": {
-		"@anthropic-ai/sdk": "^0.115.0",
 		"@oclif/test": "^4",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.1.2",
 		"drizzle-kit": "^0.31.10",
 		"eslint": "^10.8.0",
 		"fallow": "^3.14.0",
-		"vitest": "catalog:",
 		"markdownlint-cli2": "^0.23.2",
 		"oclif": "^4",
 		"shx": "^0.4.0",
 		"tsx": "^4.23.9",
 		"typescript": "^7.0.2",
 		"vite": "catalog:",
-		"vite-plus": "catalog:"
+		"vite-plus": "catalog:",
+		"vitest": "catalog:"
 	},
 	"engines": {
 		"node": ">=18.0.0"

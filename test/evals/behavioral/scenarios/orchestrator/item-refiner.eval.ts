@@ -8,23 +8,19 @@
  * - Each subagent returns valid output
  * - File coordination via .llm/ directory works
  *
- * Uses the agent index to resolve subagent types to real agent markdown files.
- * Falls back to simulated responses for agents that don't have markdown files.
+ * Subagents are real Claude Code general-purpose agents pointed at gtd prompt files.
  *
- * Requires ANTHROPIC_API_KEY environment variable.
- * Expected cost: ~80-120 API calls.
+ * Requires the claude CLI (runs on the subscription login).
  */
 
-import path from 'node:path';
-import {buildAgentIndex} from '../../helpers/agent-index.js';
 import {createEvalContext, runInEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
 import {
 	extractBashCommands,
 	extractSubagentLaunches,
 	flattenSubagentExecutions,
-	parseAgentPrompt,
 	runLlmEval,
+	claudeCliAvailable,
 } from '../../helpers/llm-eval-harness.js';
 import {createMockWorkflowyServer, type MockWorkflowyServer} from '../../helpers/mock-workflowy-server.js';
 
@@ -36,7 +32,7 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/item-refiner.md';
 
 	beforeAll(async () => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -45,11 +41,7 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 		mockServer = createMockWorkflowyServer();
 		await mockServer.start();
 
-		// Build agent index for recursive subagent resolution
-		const projectRoot = path.resolve(import.meta.dirname, '../../../..');
-		const agentIndex = buildAgentIndex(projectRoot);
-
-		ctx = createEvalContext({agentIndex, mockServerPort: mockServer.port});
+		ctx = createEvalContext({mockServerPort: mockServer.port});
 
 		// Find an inbox item from the eval database
 		const result = await runInEvalContext(
@@ -98,12 +90,9 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	it('should fetch item data as first action', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Refine item ${itemId}`, ctx, {
-			maxTurns: 3,
-			maxDepth: 2,
-			maxTotalApiCalls: 150,
+		// Reading the prompt and skill files takes the first turns
+		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
+			maxTurns: 6,
 		});
 
 		const bashCommands = extractBashCommands(result.toolCalls);
@@ -117,17 +106,12 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	it('should launch tagger subagents', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Refine item ${itemId}`, ctx, {
+		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
 			maxTurns: 10,
-			maxDepth: 2,
-			maxSubagentTurns: 8,
-			maxTotalApiCalls: 150,
 		});
 
 		const subagents = extractSubagentLaunches(result.toolCalls);
-		const launchedAgentTypes = subagents.map((s) => s.subagentType);
+		const launchedAgentTypes = subagents.map((s) => s.promptFile ?? s.subagentType);
 
 		const expectedTaggers = ['project-tagger', 'people-tagger', 'due-date-detector', 'context-tagger'];
 		const matchedTaggers = expectedTaggers.filter((tagger) =>
@@ -143,13 +127,8 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	it('should pass item ID to all subagent prompts', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Refine item ${itemId}`, ctx, {
+		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
 			maxTurns: 10,
-			maxDepth: 2,
-			maxSubagentTurns: 8,
-			maxTotalApiCalls: 150,
 		});
 
 		const subagents = extractSubagentLaunches(result.toolCalls);
@@ -161,13 +140,8 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	it('should produce subagent execution tree', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Refine item ${itemId}`, ctx, {
+		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
 			maxTurns: 10,
-			maxDepth: 2,
-			maxSubagentTurns: 8,
-			maxTotalApiCalls: 150,
 		});
 
 		// The result should have subagent executions
@@ -189,13 +163,8 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 	it('should track total token usage across all subagents', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
-		const result = await runLlmEval(systemPrompt, `Refine item ${itemId}`, ctx, {
+		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
 			maxTurns: 10,
-			maxDepth: 2,
-			maxSubagentTurns: 8,
-			maxTotalApiCalls: 150,
 		});
 
 		expect(result.inputTokens).toBeGreaterThan(0);

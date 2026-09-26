@@ -5,22 +5,6 @@
  * SQLite copy of the Workflowy data and evaluate outcomes.
  */
 
-export interface AgentIndexEntry {
-	/** Agent name from frontmatter */
-	name: string;
-	/** Absolute path to the agent markdown file */
-	filePath: string;
-	/** Parsed system prompt (body after frontmatter) */
-	systemPrompt: string;
-	/** Raw frontmatter key-value pairs */
-	frontmatter: Record<string, unknown>;
-}
-
-export interface AgentIndex {
-	/** Map from agent name/alias to index entry */
-	entries: Map<string, AgentIndexEntry>;
-}
-
 /** Captured tool call from an LLM eval conversation. */
 export interface CapturedToolCall {
 	name: string;
@@ -39,7 +23,7 @@ export interface LlmEvalResult {
 }
 
 export interface SubagentExecution {
-	/** The subagent_type string from the task tool call */
+	/** The subagent_type string from the Agent tool call */
 	agentName: string;
 	/** The prompt sent to the subagent */
 	prompt: string;
@@ -54,14 +38,12 @@ export interface EvalContext {
 	llmDir: string;
 	/** Project root directory (for resolving relative paths) */
 	projectRoot: string;
+	/** Temp working directory for `claude -p` runs: holds `.llm/` and a `bin` symlink to the repo CLI */
+	workDir: string;
 	/** Environment variables to set when running commands */
 	env: Record<string, string>;
 	/** Clean up temp files and restore environment */
 	cleanup: () => void;
-	/** Pre-built agent index for subagent resolution */
-	agentIndex?: AgentIndex;
-	/** Global API call counter shared across recursive subagent calls */
-	apiCallCount?: number;
 	/** Port the mock Workflowy server is listening on */
 	mockServerPort?: number;
 }

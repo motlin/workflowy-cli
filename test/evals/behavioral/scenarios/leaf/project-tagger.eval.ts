@@ -2,14 +2,14 @@
  * Tier 1 leaf eval: project-tagger agent.
  *
  * Tests the project-tagger agent produces valid JSON with project tag suggestions.
- * Requires ANTHROPIC_API_KEY and the agent markdown file to exist.
+ * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {createEvalContext, runInEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
-import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
+import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
 
 describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -19,7 +19,7 @@ describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/project-tagger.md';
 
 	beforeAll(async () => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -78,13 +78,11 @@ describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 	it('should return valid JSON with project tag suggestions', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
 		const result = await runLlmEval(
-			systemPrompt,
+			agentFile,
 			`Analyze this item for project tags:\nID: ${itemId}\nName: ${itemName}`,
 			ctx,
-			{maxTurns: 8},
+			{maxTurns: 15},
 		);
 
 		const response = result.finalResponse;

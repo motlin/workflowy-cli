@@ -2,14 +2,14 @@
  * Tier 1 leaf eval: due-date-detector agent.
  *
  * Tests the due-date-detector agent parses dates and urgency.
- * Requires ANTHROPIC_API_KEY and the agent markdown file to exist.
+ * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {createEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
-import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
+import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
 
 describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -17,7 +17,7 @@ describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/due-date-detector.md';
 
 	beforeAll(() => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -35,13 +35,11 @@ describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 	it('should detect date from item text with explicit deadline', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
 		const result = await runLlmEval(
-			systemPrompt,
+			agentFile,
 			`Analyze this item for due dates:\nID: test-item-1\nName: Submit tax return by April 15th`,
 			ctx,
-			{maxTurns: 5},
+			{maxTurns: 15},
 		);
 
 		const response = result.finalResponse;
@@ -49,21 +47,17 @@ describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 		expect(jsonMatch, 'Response should contain JSON').not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
-		expect(parsed).toHaveProperty('date');
-		expect(typeof parsed.date).toBe('string');
-		expect(parsed.date).toMatch(/april|04-15|4\/15/i);
+		expect(parsed.due).toMatch(/^\d{4}-04-15$/);
 	});
 
 	it('should detect urgency keywords', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
 		const result = await runLlmEval(
-			systemPrompt,
+			agentFile,
 			`Analyze this item for due dates:\nID: test-item-2\nName: URGENT: Fix production server crash ASAP`,
 			ctx,
-			{maxTurns: 5},
+			{maxTurns: 15},
 		);
 
 		const response = result.finalResponse;

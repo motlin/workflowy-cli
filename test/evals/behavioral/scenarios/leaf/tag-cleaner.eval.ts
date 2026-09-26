@@ -2,14 +2,14 @@
  * Tier 1 leaf eval: tag-cleaner agent.
  *
  * Tests the tag-cleaner agent validates tags against known metadata.
- * Requires ANTHROPIC_API_KEY and the agent markdown file to exist.
+ * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {createEvalContext} from '../../helpers/eval-db-setup.js';
 import type {EvalContext} from '../../helpers/eval-types.js';
-import {parseAgentPrompt, runLlmEval} from '../../helpers/llm-eval-harness.js';
+import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
 
 describe('Leaf Eval: tag-cleaner', {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -17,7 +17,7 @@ describe('Leaf Eval: tag-cleaner', {timeout: 300_000}, () => {
 	const agentFile = 'plugins/gtd/prompts/refinement/tag-cleaner.md';
 
 	beforeAll(() => {
-		if (!process.env.ANTHROPIC_API_KEY) {
+		if (!claudeCliAvailable()) {
 			skipSuite = true;
 			return;
 		}
@@ -35,13 +35,11 @@ describe('Leaf Eval: tag-cleaner', {timeout: 300_000}, () => {
 	it('should validate tags and identify invalid ones', async (context) => {
 		if (skipSuite) context.skip();
 
-		const {systemPrompt} = parseAgentPrompt(path.join(ctx.projectRoot, agentFile));
-
 		const result = await runLlmEval(
-			systemPrompt,
+			agentFile,
 			`Validate tags on this item:\nID: test-item-1\nName: Fix #bug-tracker integration #typo-project @UnknownPerson`,
 			ctx,
-			{maxTurns: 5},
+			{maxTurns: 15},
 		);
 
 		const response = result.finalResponse;
