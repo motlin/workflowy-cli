@@ -56,7 +56,7 @@ Fetch date nodes and their entry children:
 LOG_LEVEL=fatal ./bin/run.js node list \
   --parent-id <parent-id> \
   --depth 2 \
-  --json 2>/dev/null
+  --json
 ```
 
 ### Filter to Dated Nodes with Entries
@@ -134,12 +134,11 @@ After collecting answers for the batch, update all nodes:
 ```bash
 LOG_LEVEL=fatal ./bin/run.js node update \
   --id <node-id> \
-  --name "<emoji> <original-text>"
+  --name "<emoji> <original-text>" \
+  --expect-name '<original-text>'
 ```
 
-### Track Progress
-
-Use TodoWrite to track progress through the calendar dates. Mark dates as completed as you process them.
+`--expect-name` holds the exact name you read, so the CLI refuses the write if the node changed since.
 
 ## Emoji Suggestions by Theme
 
@@ -199,5 +198,4 @@ Processed 55 entries across 12 days
 - Emojis go at the START of the entry, before any existing text
 - If an entry already has an emoji anywhere in the text but not at the start, the emoji should still be added to the front
 - Preserve HTML entities like `&quot;` in the node names
-- The "None" option should skip the entry without modification
-- User can provide custom emoji via the "Other" option in AskUserQuestion
+- User can provide a custom emoji via the auto-added "Other" option in AskUserQuestion; if they answer "Other" with "none" or "skip", leave the entry unchanged

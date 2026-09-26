@@ -59,20 +59,22 @@ formatWorkflowyDateTime(new Date());
 
 ## Calendar Structure
 
-Workflowy has a built-in `📅 Calendar` node at root level. Dates are stored directly under it:
+Workflowy has a built-in `📆 Calendar` node at root level with a year > month > day hierarchy. See the `system-calendar` skill for the full structure:
 
 ```text
-📅 Calendar
-├── Mon, Dec 23, 2025
-├── Tue, Dec 24, 2025
+📆 Calendar
+├── 2025
+│   └── 12
+│       ├── <time>Tue, Dec 23, 2025</time>
+│       └── <time>Wed, Dec 24, 2025</time>
 └── ...
 ```
 
-Date nodes are created with bracket syntax and Workflowy renders them as native date elements.
+Day nodes hold a `<time>` element. Write that element directly when creating one via the CLI (see [Creating Date Nodes](#creating-date-nodes)).
 
 ## Finding Existing Date Nodes
 
-**CRITICAL: Always search for existing dates before creating new ones.**
+Search for an existing date node first; duplicates split the day's entries.
 
 ### Get Calendar Node IDs from Metadata
 
@@ -96,8 +98,10 @@ Use the search command with the date in display format:
 Or search within a specific calendar subtree:
 
 ```bash
-# Get the calendar ID first, then search its descendants
-./bin/run.js node get --id <CALENDAR_NODE_ID> --depth 10 | grep "Dec 23, 2025"
+# Get the calendar ID first, then filter its descendants with jq
+./bin/run.js node get --id <CALENDAR_NODE_ID> --depth 10 --json | jq -r '
+  .. | objects | select(.name? and (.name | test("Dec 23, 2025"))) | "\(.id) | \(.name)"
+'
 ```
 
 ### Verify Match is a Date Node
@@ -105,14 +109,12 @@ Or search within a specific calendar subtree:
 A date node contains a native Workflowy date (originally created with bracket syntax). The search result should show:
 
 ```text
-Mon, Dec 23, 2025
+Tue, Dec 23, 2025
 ```
 
 The date is rendered as a clickable element. If the match is just plain text mentioning the date, it's NOT a date node.
 
 ## Creating Date Nodes
-
-Only create a date node if the Search for the Date section finds no existing match.
 
 **Bracket text vs. immediate date element:** A bracket date (`[YYYY-MM-DD]`) written via the CLI stays literal text until the web UI "Update" migration runs — it does **not** become a clickable date element on write. Use bracket text only for the deferred journal-ingestion flow below (where you later run "Update"). For a date node that must render and be parseable immediately, write an explicit `<time>` element and **compute its weekday with `date` — never type the weekday by hand:**
 
@@ -131,11 +133,10 @@ TIME_EL=$(printf '<time startYear="%s" startMonth="%s" startDay="%s">%s</time>' 
 
 ### Create the Node
 
-```bash
-# Use bracket syntax - Workflowy converts it to native date
-./bin/run.js node create --parent-id <CALENDAR_OR_CURRENT_NODE_ID> \
-  --name '[2025-12-23]' \
+Pass the `$TIME_EL` computed above as the name, under the target parent from the previous step:
 
+```bash
+./bin/run.js node create --parent-id <CALENDAR_OR_CURRENT_NODE_ID> --name "$TIME_EL"
 ```
 
 ## Complete Workflow Example
@@ -152,10 +153,11 @@ TARGET_DATE="2025-12-23"  # YYYY-MM-DD format
 # 3a. If found, get the node ID from search results
 DATE_NODE_ID="<found-node-id>"
 
-# 3b. If NOT found, create it using bracket syntax
-./bin/run.js node create --parent-id <CALENDAR_NODE_ID> \
-  --name '[2025-12-23]' \
-
+# 3b. If NOT found, create it with a <time> element (weekday computed by date)
+TIME_EL=$(printf '<time startYear="%s" startMonth="%s" startDay="%s">%s</time>' \
+  "$(date -j -f %Y-%m-%d "$TARGET_DATE" +%Y)" "$(date -j -f %Y-%m-%d "$TARGET_DATE" +%-m)" \
+  "$(date -j -f %Y-%m-%d "$TARGET_DATE" +%-d)" "$(date -j -f %Y-%m-%d "$TARGET_DATE" '+%a, %b %-d, %Y')")
+./bin/run.js node create --parent-id <CALENDAR_NODE_ID> --name "$TIME_EL"
 # Capture the returned ID
 
 # 4. Move the item to the date node
@@ -164,14 +166,12 @@ DATE_NODE_ID="<found-node-id>"
 
 ## Date Format Reference
 
-The bracket syntax requires ISO 8601 format with zero-padded values:
+The bracket syntax requires ISO 8601 format with zero-padded values. The web UI renders these after its "Update" migration; CLI writes stay literal text until then:
 
-| Format    | Example              | Result                       |
+| Format    | Example              | Result after "Update"        |
 | --------- | -------------------- | ---------------------------- |
-| Date only | `[2025-12-23]`       | Mon, Dec 23, 2025            |
-| With time | `[2025-12-23 14:30]` | Mon, Dec 23, 2025 at 2:30 PM |
-
-Workflowy handles all display formatting automatically.
+| Date only | `[2025-12-23]`       | Tue, Dec 23, 2025            |
+| With time | `[2025-12-23 14:30]` | Tue, Dec 23, 2025 at 2:30 PM |
 
 ## Journal Entry Workflow (Recommended for Agents)
 
@@ -237,8 +237,7 @@ Workflowy will reorganize **all** entries with dates into the proper Year > Mont
 
 ## Common Mistakes to Avoid
 
-- **Creating duplicate dates**: Always search first
-- **Using plain text dates**: Use bracket syntax `[YYYY-MM-DD]` for Workflowy date features
+- **Using plain text dates**: Write a `<time>` element for dates that must render now; use bracket syntax `[YYYY-MM-DD]` only for the deferred "Update" flow
 - **Not zero-padding**: Use `[2025-01-05]` not `[2025-1-5]` in bracket format
 - **Only checking Current**: Dates may exist in Archive sections
 - **Bypassing CLI**: Never use sqlite3 directly for writes; use the CLI

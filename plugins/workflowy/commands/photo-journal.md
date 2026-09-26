@@ -32,7 +32,7 @@ Creates a single node with inline datetime:
 
 **Key points:**
 
-- Date uses bracket syntax `[YYYY-MM-DD HH:MM]` which Workflowy converts to native `<time>` element
+- Date uses bracket syntax `[YYYY-MM-DD HH:MM]`. The CLI stores it as literal text; the web UI "Update" migration later converts it to a native date and files the entry by date (see the `calendar-dates` skill)
 - Single level - description and date in one node
 - Photo is a direct child (empty node with image)
 - 📷 emoji indicates photo entry
@@ -90,21 +90,21 @@ Use the CLI with bracket date syntax:
 
 ```
 
-The bracket date `[2026-01-18 17:03]` will be converted by Workflowy to a native clickable date: `Sun, Jan 18, 2026 at 5:03 PM`
+The bracket date `[2026-01-18 17:03]` stays literal text until the user runs the web UI "Update" migration, which renders it as `Sun, Jan 18, 2026 at 5:03 PM`.
 
 **Capture the node ID** from the CLI output for the next step.
 
 ### Navigate to the Node
 
 ```text
-mcp__chrome-devtools__navigate_page with:
+Chrome DevTools MCP navigate_page tool with:
   url: "https://workflowy.com/#/<node-short-id>"
 ```
 
 Wait for load, then take a snapshot:
 
 ```text
-mcp__chrome-devtools__take_snapshot
+Chrome DevTools MCP take_snapshot tool
 ```
 
 ### Trigger File Upload
@@ -117,7 +117,7 @@ The file input is created dynamically via the slash menu. Steps:
 - Use `upload_file` tool with the file path
 
 ```text
-mcp__chrome-devtools__upload_file with:
+Chrome DevTools MCP upload_file tool with:
   uid: <file-chooser-uid-from-snapshot>
   filePath: "<file-path>"
 ```
@@ -127,7 +127,7 @@ mcp__chrome-devtools__upload_file with:
 Check network requests for successful upload:
 
 ```text
-mcp__chrome-devtools__list_network_requests with:
+Chrome DevTools MCP list_network_requests tool with:
   resourceTypes: ["xhr", "fetch"]
   pageSize: 10
 ```
@@ -143,7 +143,7 @@ Look for:
 Reload and verify the image has a permanent URL:
 
 ```text
-mcp__chrome-devtools__navigate_page with:
+Chrome DevTools MCP navigate_page tool with:
   type: "reload"
 ```
 
@@ -154,11 +154,11 @@ Take snapshot to verify:
 
 ## DateTime Formatting
 
-| Input            | Bracket Format     | Workflowy Display            |
+| Input            | Bracket Format     | Display after "Update"       |
 | ---------------- | ------------------ | ---------------------------- |
 | 2026-01-18 17:03 | [2026-01-18 17:03] | Sun, Jan 18, 2026 at 5:03 PM |
 | 2026-01-18       | [2026-01-18]       | Sun, Jan 18, 2026            |
-| 2026-01-05 09:30 | [2026-01-05 09:30] | Sun, Jan 5, 2026 at 9:30 AM  |
+| 2026-01-05 09:30 | [2026-01-05 09:30] | Mon, Jan 5, 2026 at 9:30 AM  |
 
 **Important:** Always zero-pad months and days: `[2026-01-05]` not `[2026-1-5]`
 

@@ -9,7 +9,7 @@ This project uses Drizzle ORM for database schema management and migrations.
 ## Migration Folder Structure
 
 ```text
-src/db/migrations/
+packages/shared/src/db/migrations/
 ├── meta/
 │   ├── _journal.json
 │   └── 0000_snapshot.json
@@ -18,7 +18,7 @@ src/db/migrations/
 
 ## Why meta/ Files Are Version Controlled
 
-**The `src/db/migrations/meta/` folder MUST be version controlled.**
+**The `packages/shared/src/db/migrations/meta/` folder MUST be version controlled.**
 
 Drizzle official documentation states: "Don't put anything from the drizzle folder into gitignore"
 

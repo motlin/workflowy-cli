@@ -39,14 +39,14 @@ file --mime-type "<file-path>"
 Use Chrome DevTools to navigate to the node:
 
 ```text
-mcp__chrome-devtools__navigate_page with:
+Chrome DevTools MCP navigate_page tool with:
   url: "https://workflowy.com/#/<node-id>"
 ```
 
 Wait for the page to load, then take a snapshot to verify:
 
 ```text
-mcp__chrome-devtools__take_snapshot
+Chrome DevTools MCP take_snapshot tool
 ```
 
 ### Read File as Base64
@@ -105,14 +105,14 @@ async () => {
 };
 ```
 
-Use `mcp__chrome-devtools__evaluate_script` with the function above.
+Use the Chrome DevTools MCP `evaluate_script` tool with the function above.
 
 ### Verify Upload
 
 Check network requests to confirm the upload completed:
 
 ```text
-mcp__chrome-devtools__list_network_requests with:
+Chrome DevTools MCP list_network_requests tool with:
   resourceTypes: ["xhr", "fetch"]
   pageSize: 10
 ```
@@ -128,7 +128,7 @@ Look for these requests in order:
 Take a final snapshot to verify the image appears with a permanent URL:
 
 ```text
-mcp__chrome-devtools__take_snapshot
+Chrome DevTools MCP take_snapshot tool
 ```
 
 The image should have a URL like:

@@ -40,7 +40,6 @@ Walk through oclif CLI commands interactively, gathering user feedback and addin
 - At the end:
     - Review the complete list of tasks added to `.llm/todo.md`
     - Summarize what was discovered
-    - Mark the feedback collection session as complete in TodoWrite
 
 ## Key Principles
 

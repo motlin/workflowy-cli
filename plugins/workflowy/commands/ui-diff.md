@@ -4,7 +4,7 @@ description: UI Diff Deep-Dive: Production vs Local
 
 # UI Diff Deep-Dive: Production vs Local
 
-Compare UI components between production workflowy.com and localhost:5173 using Chrome DevTools MCP.
+Compare UI components between production workflowy.com and 127.0.0.1:5175 using Chrome DevTools MCP.
 
 ## Goal: Exact Replication
 
@@ -23,7 +23,7 @@ This is not "inspired by" - this is an exact clone for personal use.
 
 Ensure both sites are open in Chrome:
 
-- Tab 1: `http://localhost:5173` (local replica)
+- Tab 1: `http://127.0.0.1:5175` (local replica)
 - Tab 2: `https://workflowy.com` (production)
 
 ## Workflow
@@ -42,19 +42,19 @@ Use AskUserQuestion to let user pick which widget category to analyze:
 
 Before analyzing specific widgets, capture the original CSS assets from production Workflowy. This preserves the original authoring structure rather than just computed values.
 
-- **Extract all stylesheet URLs** using `mcp__chrome-devtools__evaluate_script`:
+- **Extract all stylesheet URLs** using the Chrome DevTools MCP `evaluate_script` tool:
 
     ```javascript
     () => [...document.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.href);
     ```
 
-- **Extract inline style blocks** using `mcp__chrome-devtools__evaluate_script`:
+- **Extract inline style blocks** using the Chrome DevTools MCP `evaluate_script` tool:
 
     ```javascript
     () => [...document.querySelectorAll('style')].map((s) => s.textContent);
     ```
 
-- **Extract CSS custom properties from :root** using `mcp__chrome-devtools__evaluate_script`:
+- **Extract CSS custom properties from :root** using the Chrome DevTools MCP `evaluate_script` tool:
 
     ```javascript
     () => {
@@ -78,13 +78,13 @@ Before analyzing specific widgets, capture the original CSS assets from producti
 
 For each widget in the selected category:
 
-- **Take accessibility snapshot** using `mcp__chrome-devtools__take_snapshot`
+- **Take accessibility snapshot** using the Chrome DevTools MCP `take_snapshot` tool
     - Shows DOM structure and element UIDs
 
-- **Take screenshot** using `mcp__chrome-devtools__take_screenshot`
+- **Take screenshot** using the Chrome DevTools MCP `take_screenshot` tool
     - Visual reference for comparison
 
-- **Extract raw HTML** using `mcp__chrome-devtools__evaluate_script`:
+- **Extract raw HTML** using the Chrome DevTools MCP `evaluate_script` tool:
 
     ```javascript
     (el) => el.outerHTML;
@@ -94,7 +94,7 @@ For each widget in the selected category:
     - Compare DOM structure (nesting, siblings)
     - Compare data attributes
 
-- **Extract applied CSS rules** using `mcp__chrome-devtools__evaluate_script`:
+- **Extract applied CSS rules** using the Chrome DevTools MCP `evaluate_script` tool:
 
     ```javascript
     (el) => {
@@ -113,7 +113,7 @@ For each widget in the selected category:
     };
     ```
 
-- **Extract computed styles** using `mcp__chrome-devtools__evaluate_script`:
+- **Extract computed styles** using the Chrome DevTools MCP `evaluate_script` tool:
 
     ```javascript
     (el) => {
