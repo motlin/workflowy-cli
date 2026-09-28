@@ -38,12 +38,22 @@ Worktree and conflicts-checkout build output is still regenerable and still gets
 
 **Never exclude the `.worktrees` root itself, and never skip it in the scan.** Worktrees share one Git object database, and a worktree with uncommitted changes is exactly the source that needs backing up. The user removes fully-committed worktrees with `git clean worktrees`; that is the fix for the churn, not an exclusion.
 
+## Find removable worktrees
+
+Pipe the same null-delimited paths through the worktree finder:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mjs
+```
+
+It prints `[{path, repo, branch, dirCount, clean}]`: every linked git worktree that holds at least one of the unexcluded build dirs, whether it lives under `<repo>/.worktrees/` or in a peer directory such as `~/projects/<repo>-<branch>`. It identifies a linked worktree by its `.git` file pointing into `<repo>/.git/worktrees/`, so the main checkout and submodules never appear. `clean` is true when `git status --porcelain` is empty. Prep only detects; it never removes anything.
+
 ## Stage the result
 
 Create `.llm/gtd/review/proposals/` and write the proposal for the inferred slug `time-machine-exclusions`.
 
 - No unmatched directories: stage `status: "empty"`, `summary.missingExclusions: 0`, and an empty `proposals` array.
-- Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, copy the script's `durable`, `worktrees`, `conflicts`, and `report` fields into `summary`, and create one confirm-only proposal with empty `applyOps`. Set the proposal `detail` from `summary.report`, never from the full directory list.
+- Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, copy the grouping script's `durable`, `worktrees`, `conflicts`, and `report` fields into `summary`, store the worktree finder's output as `summary.worktreeCandidates`, and create one confirm-only proposal with empty `applyOps`. Set the proposal `detail` from `summary.report`, never from the full directory list.
 - Check failure: stage `status: "error"` with the command error.
 
 Use this sweep command in the ready proposal:

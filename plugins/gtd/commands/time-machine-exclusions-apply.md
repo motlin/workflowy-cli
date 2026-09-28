@@ -11,7 +11,23 @@ Read `.llm/gtd/review/proposals/time-machine-exclusions.json` and act on its sta
 
 - `empty`: report nothing and return success. The DAG executor advances the date without prompting.
 - `error`: surface the error and return failure. Do not advance the date.
-- `ready`: show `summary.report` (each durable path, plus one aggregate line per repo for build dirs inside `.worktrees/` and one for build dirs inside `.llm/conflicts-*/` checkouts), launch the staged sweep command in a herdr tab (below), then ask whether it finished. Never expand an aggregate into individual paths, and never suggest excluding or skipping a `.worktrees` root -- a worktree with uncommitted changes needs backing up.
+- `ready`: offer to remove clean worktrees first (below), then show `summary.report` (each durable path, plus one aggregate line per repo for build dirs inside `.worktrees/` and one for build dirs inside `.llm/conflicts-*/` checkouts), launch the staged sweep command in a herdr tab (below), then ask whether it finished. Never expand an aggregate into individual paths, and never suggest excluding or skipping a `.worktrees` root -- a worktree with uncommitted changes needs backing up.
+
+## Remove clean worktrees before the sweep
+
+Removing a fully-committed worktree deletes its build output outright, which beats excluding it. When `summary.worktreeCandidates` has entries with `clean: true`, ask with AskUserQuestion before launching the sweep. Put the list inside the question: each worktree's path, branch, and build-dir count. Options: remove all clean worktrees, pick which ones, keep them all.
+
+- Offer only `clean: true` entries. List the unclean ones as a count in the question so the user knows they exist, and never offer to remove them.
+- Remove the accepted worktrees with the script, which runs `git worktree remove` **without `--force`**:
+
+    ```bash
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mjs --remove <worktree>...
+    ```
+
+    It prints `[{path, removed, error?}]`. Report each refusal (git's own message, such as modified or untracked files or a locked worktree) and leave that worktree in place. Never retry with `--force`, never `rm -rf` a worktree, and never delete its branch.
+
+- After any removal, rerun the scan and grouping from `/gtd:time-machine-exclusions-prep` and replace the staged `summary.directories` and `summary.report` with the rescan's result, so the sweep and verification cover only the remainder. The sweep script rescans on its own, so it already skips the removed paths.
+- When the rescan finds nothing, return success without launching the sweep.
 
 ## Launch the sweep in a herdr tab
 
@@ -38,7 +54,7 @@ If the launch script fails (herdr unavailable, or the socket request errors), fa
 
 On "not now" or skip, return skipped and leave the date unchanged. When the user says it finished, read the pane once more to check the script's exit, then rerun the no-sudo check from `/gtd:time-machine-exclusions-prep` before returning success.
 
-Verify against the **staged** `summary.directories` list, not the raw scan total. Build directories appear constantly on this machine (every new worktree adds `node_modules`), so a fresh scan almost always finds paths that did not exist when prep ran. Failing on those makes the task permanently unsatisfiable.
+Verify against the **staged** `summary.directories` list (the post-removal rescan's list when worktrees were removed), not the raw scan total. Build directories appear constantly on this machine (every new worktree adds `node_modules`), so a fresh scan almost always finds paths that did not exist when prep ran. Failing on those makes the task permanently unsatisfiable.
 
 - Every staged path now excluded → success, even when the rescan lists new paths. Report the new ones as a count so the next run picks them up; a rescan that only finds worktree churn is still success.
 - Any staged path still unexcluded, or the check itself errors → show the result and return failure; never advance based on confirmation alone.
