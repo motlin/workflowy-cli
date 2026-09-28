@@ -5,10 +5,13 @@ import assert from 'node:assert/strict';
 import {
 	buildExportAppleScript,
 	buildManifest,
+	captionSeed,
 	facesQuery,
 	facesSummary,
 	favoritesQuery,
 	groupFaces,
+	groupJournal,
+	journalQuery,
 	planSources,
 } from './photo-caption-prep.mjs';
 
@@ -70,6 +73,64 @@ test('facesSummary names tagged people and flags untagged faces as ready to tag'
 	);
 });
 
+test('captionSeed keeps the journal wording but drops emoji, @ signs, markup, and trailing tags', () => {
+	assert.deepStrictEqual(
+		[
+			captionSeed("🎤 Meeting with the MC for @Alice 's party, with @Bob and @Carol."),
+			captionSeed('🛹 When I got home, I went for a #onewheel ride up and down Main Street.'),
+			captionSeed('📺 Watched S03E01 of Some Show. #watched #tv'),
+			captionSeed("✡️ Holiday. Didn't go to temple."),
+			captionSeed('👨‍👩‍👧 Dinner at <a href="https://example.com">Tom &amp; Jerry\'s</a> with @Alice'),
+			captionSeed('💪 #exercise'),
+			captionSeed('Rain all weekend. \u2018It\u2019s wet\u2019 said the \u201cnews\u201d.'),
+		],
+		[
+			"Meeting with the MC for Alice's party, with Bob and Carol.",
+			'When I got home, I went for a onewheel ride up and down Main Street.',
+			'Watched S03E01 of Some Show.',
+			"Holiday. Didn't go to temple.",
+			"Dinner at Tom & Jerry's with Alice",
+			'',
+			"Rain all weekend. 'It's wet' said the \"news\".",
+		],
+	);
+});
+
+test('journalQuery selects the entries under each date-only day node for the given dates', () => {
+	assert.strictEqual(
+		journalQuery(['2026-09-21', '2026-09-05']),
+		'SELECT D.name AS day, E.name AS entry FROM node_content D JOIN node_content E ON E.parent_id=D.id AND E.system_to=\'9999-12-31 23:59:59\' WHERE D.system_to=\'9999-12-31 23:59:59\' AND (D.name LIKE \'<time startYear="2026" startMonth="9" startDay="21">%\' OR D.name LIKE \'<time startYear="2026" startMonth="9" startDay="5">%\');',
+	);
+});
+
+test('journalQuery rejects dates that are not YYYY-MM-DD', () => {
+	assert.throws(() => journalQuery(["2026-09-21' OR 1=1 --"]), /Invalid date/);
+});
+
+test('groupJournal maps each day node back to its date and keeps non-empty, distinct caption seeds', () => {
+	assert.deepStrictEqual(
+		groupJournal([
+			{
+				day: '<time startYear="2026" startMonth="9" startDay="21">Mon, Sep 21, 2026</time> ',
+				entry: '🛝 Went to the park with @Alice.',
+			},
+			{
+				day: '<time startYear="2026" startMonth="9" startDay="21">Mon, Sep 21, 2026</time>',
+				entry: '💪 #exercise',
+			},
+			{
+				day: '<time startYear="2026" startMonth="9" startDay="21">Mon, Sep 21, 2026</time>',
+				entry: '🛝 Went to the park with @Alice.',
+			},
+			{day: '<time startYear="2026" startMonth="9" startDay="5">Sat, Sep 5, 2026</time>', entry: 'Pizza night.'},
+		]),
+		{
+			'2026-09-21': ['Went to the park with Alice.'],
+			'2026-09-05': ['Pizza night.'],
+		},
+	);
+});
+
 test('planSources splits favorites into local originals and iCloud-only ones', () => {
 	const favorites = [
 		{
@@ -124,7 +185,7 @@ test('buildExportAppleScript exports each uuid into its own subfolder so files m
 	]);
 });
 
-test('buildManifest records source, view path, and faces, and counts what is still unviewable', () => {
+test("buildManifest records source, view path, faces, and that day's journal seeds, and counts what is still unviewable", () => {
 	const local = [
 		{
 			uuid: 'AAA',
@@ -139,7 +200,8 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 	];
 	const views = {AAA: '/out/view/AAA.jpg', BBB: '/out/view/BBB.jpg'};
 	const faces = {AAA: {named: ['Alice'], unnamed: 2}};
-	assert.deepStrictEqual(buildManifest({local, icloud, views, faces}), {
+	const journal = {'2026-09-21': ['Went to the park with Alice.']};
+	assert.deepStrictEqual(buildManifest({local, icloud, views, faces, journal}), {
 		total: 3,
 		viewable: 2,
 		unviewable: 1,
@@ -147,6 +209,8 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 			{
 				uuid: 'AAA',
 				created: '2026-09-21 16:18:00',
+				date: '2026-09-21',
+				journalSeeds: ['Went to the park with Alice.'],
 				originalFilename: 'IMG_1.HEIC',
 				source: 'local',
 				viewPath: '/out/view/AAA.jpg',
@@ -156,6 +220,8 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 			{
 				uuid: 'BBB',
 				created: '2026-09-12 20:05:00',
+				date: '2026-09-12',
+				journalSeeds: [],
 				originalFilename: 'IMG_2.HEIC',
 				source: 'icloud',
 				viewPath: '/out/view/BBB.jpg',
@@ -165,6 +231,8 @@ test('buildManifest records source, view path, and faces, and counts what is sti
 			{
 				uuid: 'CCC',
 				created: '2026-09-11 17:49:00',
+				date: '2026-09-11',
+				journalSeeds: [],
 				originalFilename: 'IMG_3.HEIC',
 				source: 'icloud',
 				viewPath: null,

@@ -8,8 +8,12 @@
 // rather than skipping them.
 //
 // Usage:
-//   node plugins/gtd/scripts/photo-caption-prep.mjs [--days 14] [--out .llm/gtd/photo-captions]
+//   node plugins/gtd/scripts/photo-caption-prep.mjs [--days 14] [--out .llm/gtd/photo-captions] [--workflowy-db workflowy.sqlite]
 //   node plugins/gtd/scripts/photo-caption-prep.mjs --count-only [--days 14]
+//
+// Each manifest photo carries journalSeeds: that day's journal entries from the
+// Workflowy cache with emoji, @ signs, and trailing tags stripped, so proposed
+// captions start from the user's own wording.
 //
 // Full run writes <out>/manifest.json and prints
 //   total=<n> viewable=<n> unviewable=<n> manifest=<path>
@@ -22,6 +26,10 @@ import {homedir} from 'node:os';
 import {join, resolve} from 'node:path';
 
 const UUID_RE = /^[0-9A-Fa-f-]+$/;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const CURRENT = "system_to='9999-12-31 23:59:59'";
+const EMOJI_RE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{1F3FB}-\u{1F3FF}\uFE0F\u200D]/gu;
+const ENTITIES = {'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"};
 
 export function favoritesQuery(days) {
 	if (!Number.isInteger(days) || days < 1) throw new Error(`days must be a positive integer, got ${days}`);
@@ -62,6 +70,51 @@ export function facesSummary({named, unnamed}) {
 	const tagged = `Tagged: ${named.length > 0 ? named.join(', ') : 'nobody'}.`;
 	if (unnamed === 0) return tagged;
 	return `${tagged} ${unnamed} untagged face${unnamed === 1 ? '' : 's'}, ready to tag in Photos.`;
+}
+
+// Captions should read like the user's own journal, so seed them from that
+// day's entry text rather than describing the image.
+export function captionSeed(name) {
+	return name
+		.replace(/<[^>]*>/g, '')
+		.replace(/&(amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity])
+		.replace(EMOJI_RE, '')
+		.replace(/[\u2018\u2019]/g, "'")
+		.replace(/[\u201C\u201D]/g, '"')
+		.replace(/(\s*#[\w-]+)+\s*$/u, '')
+		.replace(/[@#](?=\w)/g, '')
+		.replace(/\s+'s\b/g, "'s")
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function dayPrefix(date) {
+	const match = DATE_RE.exec(date);
+	if (!match) throw new Error(`Invalid date: ${date}`);
+	const [, year, month, day] = match;
+	return `<time startYear="${year}" startMonth="${Number(month)}" startDay="${Number(day)}">`;
+}
+
+export function journalQuery(dates) {
+	const days = dates.map((date) => `D.name LIKE '${dayPrefix(date)}%'`).join(' OR ');
+	return (
+		'SELECT D.name AS day, E.name AS entry FROM node_content D' +
+		` JOIN node_content E ON E.parent_id=D.id AND E.${CURRENT}` +
+		` WHERE D.${CURRENT} AND (${days});`
+	);
+}
+
+export function groupJournal(rows) {
+	const byDate = {};
+	for (const {day, entry} of rows) {
+		const match = /startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)"/.exec(day);
+		if (!match) continue;
+		const date = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+		const seed = captionSeed(entry ?? '');
+		const seeds = (byDate[date] ??= []);
+		if (seed && !seeds.includes(seed)) seeds.push(seed);
+	}
+	return byDate;
 }
 
 export function planSources(favorites, libraryPath, exists) {
@@ -109,12 +162,15 @@ export function buildExportAppleScript(uuids) {
 	];
 }
 
-export function buildManifest({local, icloud, views, faces}) {
+export function buildManifest({local, icloud, views, faces, journal}) {
 	const toEntry = (favorite, source) => {
 		const photoFaces = faces[favorite.uuid] ?? {named: [], unnamed: 0};
+		const date = favorite.created.slice(0, 10);
 		return {
 			uuid: favorite.uuid,
 			created: favorite.created,
+			date,
+			journalSeeds: journal[date] ?? [],
 			originalFilename: favorite.originalFilename,
 			source,
 			viewPath: views[favorite.uuid] ?? null,
@@ -128,9 +184,10 @@ export function buildManifest({local, icloud, views, faces}) {
 }
 
 function parseArgs(argv) {
-	const args = {days: 14, out: '.llm/gtd/photo-captions', countOnly: false};
+	const args = {days: 14, out: '.llm/gtd/photo-captions', countOnly: false, workflowyDb: 'workflowy.sqlite'};
 	for (let i = 0; i < argv.length; i++) {
 		if (argv[i] === '--days') args.days = Number(argv[++i]);
+		else if (argv[i] === '--workflowy-db') args.workflowyDb = argv[++i];
 		else if (argv[i] === '--out') args.out = argv[++i];
 		else if (argv[i] === '--count-only') args.countOnly = true;
 		else throw new Error(`Unknown argument: ${argv[i]}`);
@@ -205,7 +262,11 @@ function main() {
 	}
 
 	const faces = favorites.length > 0 ? groupFaces(sqliteJson(dbPath, facesQuery(favorites.map((f) => f.uuid)))) : {};
-	const manifest = buildManifest({local, icloud, views, faces});
+	const workflowyDb = resolve(args.workflowyDb);
+	const dates = [...new Set(favorites.map((f) => f.created.slice(0, 10)))];
+	const journal =
+		dates.length > 0 && existsSync(workflowyDb) ? groupJournal(sqliteJson(workflowyDb, journalQuery(dates))) : {};
+	const manifest = buildManifest({local, icloud, views, faces, journal});
 	const manifestPath = join(outDir, 'manifest.json');
 	writeFileSync(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
 	process.stdout.write(
