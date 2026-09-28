@@ -94,63 +94,9 @@ The bracket date `[2026-01-18 17:03]` stays literal text until the user runs the
 
 **Capture the node ID** from the CLI output for the next step.
 
-### Navigate to the Node
+### Attach the Photo
 
-```text
-Chrome DevTools MCP navigate_page tool with:
-  url: "https://workflowy.com/#/<node-short-id>"
-```
-
-Wait for load, then take a snapshot:
-
-```text
-Chrome DevTools MCP take_snapshot tool
-```
-
-### Trigger File Upload
-
-The file input is created dynamically via the slash menu. Steps:
-
-- Click on the node to focus it
-- Type "/" to open slash menu
-- Click "Upload file" option
-- Use `upload_file` tool with the file path
-
-```text
-Chrome DevTools MCP upload_file tool with:
-  uid: <file-chooser-uid-from-snapshot>
-  filePath: "<file-path>"
-```
-
-### Verify Upload
-
-Check network requests for successful upload:
-
-```text
-Chrome DevTools MCP list_network_requests tool with:
-  resourceTypes: ["xhr", "fetch"]
-  pageSize: 10
-```
-
-Look for:
-
-- `POST /files/get-presigned-post-url/` - presigned URL request
-- `POST s3.amazonaws.com/user-uploads.workflowy` - S3 upload (status 204)
-- `POST /push_and_poll` - metadata sync
-
-### Confirm Persistence
-
-Reload and verify the image has a permanent URL:
-
-```text
-Chrome DevTools MCP navigate_page tool with:
-  type: "reload"
-```
-
-Take snapshot to verify:
-
-- Image URL starts with `https://workflowy.com/file-proxy/file/`
-- NOT a blob URL (`blob:https://workflowy.com/...`)
+Follow `/workflowy:upload-attachment` with the new entry's ID: it creates an empty child under the entry and uploads the photo into that child, then verifies the child shows a `https://workflowy.com/file-proxy/file/` image. Never upload onto the entry itself.
 
 ## DateTime Formatting
 
@@ -184,7 +130,7 @@ Take snapshot to verify:
 For multiple photos from the same day/event:
 
 - Create one parent node for the event
-- Upload each photo as a child
+- Attach all its photos with `/workflowy:upload-attachment`, which gives each photo its own empty child
 - Or create separate entries if photos are from different times
 
 ```bash
@@ -194,7 +140,7 @@ For multiple photos from the same day/event:
   --name '📷 [2026-01-18 17:03] Evening at the park' \
 
 
-# Then upload multiple photos to that node
+# Then attach the photos with /workflowy:upload-attachment, one empty child per photo
 ```
 
 ## Notes

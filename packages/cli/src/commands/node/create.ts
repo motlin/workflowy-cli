@@ -118,7 +118,7 @@ export default class Create extends Command {
 		}
 
 		// Validate that either --name or --json/--json-file is provided
-		if (!flags.name && !flags.json && !flags['json-file']) {
+		if (flags.name === undefined && !flags.json && !flags['json-file']) {
 			this.error('Either --name, --json, or --json-file is required');
 		}
 

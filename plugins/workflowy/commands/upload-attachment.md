@@ -1,115 +1,81 @@
 ---
 name: upload-attachment
-description: Upload a file attachment to a Workflowy node
+description: Attach images to a Workflowy entry as one empty child node per image
 arguments:
     - name: node-id
-      description: UUID of the target node (e.g., 4edcfb354f85)
+      description: ID of the entry that receives the images (e.g., 4edcfb354f85)
       required: true
-    - name: file-path
-      description: Local file path to upload (e.g., ~/Downloads/photo.jpg)
+    - name: file-paths
+      description: One or more local image paths, in the order they should appear (e.g., ~/Downloads/a.jpg ~/Downloads/b.jpg)
       required: true
 ---
 
-# Upload Attachment to Workflowy Node
+# Attach Images to a Workflowy Entry
 
-Upload a file (image, PDF, etc.) to a specific Workflowy node using browser automation.
+Each image lives on its own empty child node under the entry:
+
+```text
+📷 Sun, Jan 18, 2026 at 5:03 PM Evening at the park
+├── [image 1]
+├── [image 2]
+└── [image 3]
+```
+
+Never upload onto the entry itself. That path no longer works; the entry keeps its text and each image gets a fresh empty child.
 
 ## Prerequisites
 
 - Chrome DevTools MCP must be connected
-- User must be logged into Workflowy in Chrome
-- File must exist at the specified path
+- The user must be logged into Workflowy in Chrome
+- Every file must exist
 
 ## Workflow
 
-### Validate File Exists
+### Validate the Files
 
 ```bash
 ls -la "<file-path>"
-```
-
-Get the file size and MIME type:
-
-```bash
 file --mime-type "<file-path>"
 ```
 
-### Navigate to the Node
+Convert HEIC and shrink anything over about 5MB before uploading:
 
-Use Chrome DevTools to navigate to the node:
+```bash
+sips -s format jpeg -Z 2400 "<file-path>" --out "<output-path>.jpg"
+```
+
+### Create One Empty Child per Image
+
+Create the children in image order, all at the bottom of the entry. Capture each new node's ID from the output.
+
+```bash
+./bin/run.js node create --parent-id <node-id> --name '' --position bottom
+```
+
+Run the command once per image, one after another, so the children stay in order.
+
+### Upload One Image into Each Child
+
+Zoom into the entry so the empty children show as bullets:
 
 ```text
 Chrome DevTools MCP navigate_page tool with:
   url: "https://workflowy.com/#/<node-id>"
 ```
 
-Wait for the page to load, then take a snapshot to verify:
+For each child, in order:
+
+- Take a snapshot and click the child's empty bullet text to focus it (the Nth empty child for the Nth image)
+- Type `/` to open the slash menu and click "Upload file"
+- Pass the file to the file chooser the menu opened
 
 ```text
-Chrome DevTools MCP take_snapshot tool
+Chrome DevTools MCP upload_file tool with:
+  uid: <file-chooser-uid-from-snapshot>
+  filePath: "<file-path>"
 ```
 
-### Read File as Base64
-
-Read the file and convert to base64:
-
-```bash
-base64 -i "<file-path>" | tr -d '\n'
-```
-
-Store the base64 string for the next step.
-
-### Upload via Browser
-
-Execute JavaScript to create a File object and trigger Workflowy's upload:
-
-```javascript
-async () => {
-	// Base64 data passed from previous step
-	const base64Data = '<BASE64_STRING>';
-	const fileName = '<FILENAME>';
-	const mimeType = '<MIME_TYPE>';
-
-	// Decode base64 to binary
-	const binaryString = atob(base64Data);
-	const bytes = new Uint8Array(binaryString.length);
-	for (let i = 0; i < binaryString.length; i++) {
-		bytes[i] = binaryString.charCodeAt(i);
-	}
-	const blob = new Blob([bytes], {type: mimeType});
-
-	// Create File object
-	const file = new File([blob], fileName, {type: mimeType});
-
-	// Find Workflowy's hidden file input
-	const fileInput = document.querySelector('input[type="file"][accept="*"]');
-	if (!fileInput) {
-		return {error: 'File input not found. Is Workflowy loaded?'};
-	}
-
-	// Set the file using DataTransfer API
-	const dataTransfer = new DataTransfer();
-	dataTransfer.items.add(file);
-	fileInput.files = dataTransfer.files;
-
-	// Dispatch change event to trigger upload
-	const changeEvent = new Event('change', {bubbles: true});
-	fileInput.dispatchEvent(changeEvent);
-
-	return {
-		success: true,
-		fileName: file.name,
-		fileSize: file.size,
-		message: 'Upload triggered. Workflowy will upload to S3.',
-	};
-};
-```
-
-Use the Chrome DevTools MCP `evaluate_script` tool with the function above.
-
-### Verify Upload
-
-Check network requests to confirm the upload completed:
+- Check the network log before moving to the next child
 
 ```text
 Chrome DevTools MCP list_network_requests tool with:
@@ -117,30 +83,35 @@ Chrome DevTools MCP list_network_requests tool with:
   pageSize: 10
 ```
 
-Look for these requests in order:
+Expect, in order:
 
-- `POST /files/get-presigned-post-url/` - Workflowy gets S3 presigned URL
-- `POST s3.amazonaws.com/user-uploads.workflowy` - File uploaded to S3 (status 204)
-- `POST /push_and_poll` - Metadata synced
+- `POST /files/get-presigned-post-url/` - Workflowy gets an S3 presigned URL
+- `POST s3.amazonaws.com/user-uploads.workflowy` - file uploaded to S3 (status 204)
+- `POST /push_and_poll` - metadata synced
 
-### Confirm Persistence
+If the image lands anywhere other than the focused empty child (on the entry, or on a new sibling), stop and fix it before uploading the next one.
 
-Take a final snapshot to verify the image appears with a permanent URL:
+### Verify Every Child
+
+Reload the entry and take a snapshot:
 
 ```text
-Chrome DevTools MCP take_snapshot tool
+Chrome DevTools MCP navigate_page tool with:
+  type: "reload"
 ```
 
-The image should have a URL like:
+The upload is done only when every child created above holds exactly one image whose URL starts with:
 
 ```text
-https://workflowy.com/file-proxy/file/gAAAAAB...
+https://workflowy.com/file-proxy/file/
 ```
 
-NOT a blob URL like:
+A `blob:https://workflowy.com/...` URL means that S3 upload did not finish; retry that child. An empty child left with no image gets deleted with `./bin/run.js node delete --id <child-id>`.
+
+## Example Usage
 
 ```text
-blob:https://workflowy.com/...
+/workflowy:upload-attachment --node-id 4edcfb354f85 --file-paths ~/Downloads/photos/snow-day.jpg ~/Downloads/photos/sled.jpg
 ```
 
 ## MIME Type Reference
@@ -154,38 +125,9 @@ blob:https://workflowy.com/...
 | .pdf        | application/pdf |
 | .heic       | image/heic      |
 
-## Example Usage
-
-Upload a photo to a journal entry:
-
-```text
-/workflowy:upload-attachment --node-id 4edcfb354f85 --file-path ~/Downloads/photos/snow-day.jpg
-```
-
 ## Error Handling
 
-- **File not found**: Check the file path exists
-- **File input not found**: Ensure Workflowy is loaded and user is logged in
-- **Upload fails**: Check network requests for errors, verify file size limits
-- **Blob URL persists**: The S3 upload may have failed; check for errors in network requests
-
-## File Size Limits
-
-Workflowy has file size limits for uploads. For images:
-
-- Recommended: Under 5MB
-- Maximum: Check Workflowy's current limits
-
-For large files, consider resizing images before upload:
-
-```bash
-# Resize to max 1200px width while preserving aspect ratio
-sips -Z 1200 "<file-path>" --out "<output-path>"
-```
-
-## Notes
-
-- The upload is asynchronous - the blob URL appears immediately, then changes to a permanent URL after S3 upload completes
-- Workflowy uses AWS S3 for file storage via presigned URLs
-- Files are served through Workflowy's file-proxy for access control
-- This method works because it uses Workflowy's native file input mechanism
+- **File not found**: check the path
+- **No "Upload file" in the slash menu**: the child is not focused; click it again
+- **Upload fails**: check the network requests for errors and the file size
+- **Blob URL persists after reload**: the S3 upload failed; retry that child

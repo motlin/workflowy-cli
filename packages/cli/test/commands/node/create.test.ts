@@ -81,6 +81,21 @@ describe('node create command', () => {
 			);
 		});
 
+		it('accepts an empty --name for a blank node', async () => {
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Create.run(['--parent-id', 'parent-id', '--name', '', '--dry-run']);
+			});
+
+			expect(fetchStub.mock.calls).toStrictEqual([]);
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "parent_id": "parent-id",\n      "name": ""\n    }\n\nParent: Parent\n',
+			);
+		});
+
 		it('includes note in dry run output', async () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
