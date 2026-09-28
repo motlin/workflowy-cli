@@ -1,12 +1,12 @@
 ---
 name: refinement-tagger
-description: 'Shared mechanics for the GTD inbox refinement taggers — the Phase A dimension taggers (project, people, due-date, url, context, tag-cleaner, agenda) and Phase B composers (destination, text) that item-refiner fans out per inbox item. Carries the common input/fetch pattern, where synced metadata lives, the JSON-only output contract, and how item-refiner reconciles the parallel results. Load it in every refinement tagger/composer agent so each agent body stays tiny.'
+description: 'Shared mechanics for the GTD inbox refinement taggers — the Phase A dimension taggers (project, people, due-date, url, context, tag-cleaner, agenda) and Phase B composers (destination, text) that item-refiner applies inline per inbox item. Carries the common input/fetch pattern, where synced metadata lives, the JSON-only output contract, and how item-refiner reconciles the per-tagger results. Load it once per item-refiner run so each tagger body stays tiny.'
 globs: ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/**
 ---
 
 # Refinement tagger mechanics
 
-`item-refiner` refines one inbox item by fanning out to several single-dimension **Phase A taggers** in parallel, then running the **Phase B composers** in order. Every tagger and composer follows the same shape — fetch the item, read synced metadata, return one JSON object. This skill holds that shared shape so each agent body only states its own focus and output JSON.
+`item-refiner` refines one inbox item by applying several single-dimension **Phase A taggers** inline, one after another, then the **Phase B composers** in order. None of them run as subagents. Every tagger and composer follows the same shape — fetch the item, read synced metadata, return one JSON object. This skill holds that shared shape so each tagger body only states its own focus and output JSON.
 
 ## Input
 
@@ -36,14 +36,14 @@ If a needed file is missing or stale, emit a null/empty result with `low` confid
 
 ## Output contract
 
-- Return **ONLY** the JSON object for this agent's one dimension — no prose, no markdown fence in the actual reply, nothing else. `item-refiner` parses the raw object.
+- Produce **ONLY** the JSON object for this tagger's one dimension — no prose around it. `item-refiner` collects the raw objects into the fan-in file.
 - Always include a `confidence` field, and make it one of the three labels `"high"`, `"medium"`, or `"low"` — never a number or a percentage. A model cannot calibrate 0.72 against 0.78, and rendering those digits to the user implies a precision that does not exist.
 - When there is no signal, emit the empty form (`null`, `[]`, or `false`) rather than inventing a value. Silence beats a wrong tag.
 - Keep `reasoning` to one short sentence; it is for the human reviewing the `🔍 Refinement` node, not for downstream logic.
 
 ## Reconciliation
 
-- Taggers run in parallel and cannot see each other. `item-refiner` fans in and reconciles overlaps, so each agent reports only its own dimension and never tries to compose the final result.
+- Each tagger reports only its own dimension, as if it could not see the others, and never tries to compose the final result. `item-refiner` fans in and reconciles overlaps.
 - `people-tagger`'s `@mention` is the canonical person source. Other agents (e.g. `agenda-detector`'s `targetPerson`) provide best-effort references that `item-refiner` overrides with the people-tagger spelling.
 - Phase B composers read the fanned-in Phase A JSON from `.llm/gtd/refinement/$ITEM_ID.json` (and the destination-augmented `.llm/gtd/refinement/$ITEM_ID-with-dest.json`), not the live item alone.
 

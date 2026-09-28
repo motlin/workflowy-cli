@@ -1,14 +1,9 @@
 /**
  * Tier 2 orchestrator eval: item-refiner agent.
  *
- * Tests the item-refiner agent with real recursive subagent execution.
- * Validates:
- * - All Phase A taggers are launched
- * - Phase B composers execute after taggers
- * - Each subagent returns valid output
- * - File coordination via .llm/ directory works
- *
- * Subagents are real Claude Code general-purpose agents pointed at gtd prompt files.
+ * Tests the item-refiner agent end to end. Validates:
+ * - The item is fetched first
+ * - Phase A tagger prompts are applied inline, with no nested subagents
  *
  * Requires the claude CLI (runs on the subscription login).
  */
@@ -103,64 +98,27 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 		expect(firstCommand).toContain(itemId);
 	});
 
-	it('should launch tagger subagents', async (context) => {
+	it('should apply tagger prompts inline without launching subagents', async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
-			maxTurns: 10,
+			maxTurns: 12,
 		});
 
-		const subagents = extractSubagentLaunches(result.toolCalls);
-		const launchedAgentTypes = subagents.map((s) => s.promptFile ?? s.subagentType);
-
+		const readPaths = result.toolCalls
+			.filter((call) => call.name === 'Read')
+			.map((call) => call.input.file_path as string);
 		const expectedTaggers = ['project-tagger', 'people-tagger', 'due-date-detector', 'context-tagger'];
-		const matchedTaggers = expectedTaggers.filter((tagger) =>
-			launchedAgentTypes.some((launched) => launched.includes(tagger)),
-		);
+		const readTaggers = expectedTaggers.filter((tagger) => readPaths.some((path) => path.includes(tagger)));
 
 		expect(
-			matchedTaggers.length,
-			`Expected to launch tagger subagents. Launched: ${launchedAgentTypes.join(', ')}`,
+			readTaggers.length,
+			`Expected to read tagger prompts inline. Read: ${readPaths.join(', ')}`,
 		).toBeGreaterThanOrEqual(2);
+		expect(extractSubagentLaunches(result.toolCalls)).toStrictEqual([]);
 	});
 
-	it('should pass item ID to all subagent prompts', async (context) => {
-		if (skipSuite) context.skip();
-
-		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
-			maxTurns: 10,
-		});
-
-		const subagents = extractSubagentLaunches(result.toolCalls);
-		for (const subagent of subagents) {
-			expect(subagent.prompt, `Subagent ${subagent.subagentType} should reference item ID`).toContain(itemId);
-		}
-	});
-
-	it('should produce subagent execution tree', async (context) => {
-		if (skipSuite) context.skip();
-
-		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
-			maxTurns: 10,
-		});
-
-		// The result should have subagent executions
-		expect(Array.isArray(result.subagentExecutions)).toBe(true);
-
-		// Flatten the tree to see all executions at any depth
-		const allExecutions = flattenSubagentExecutions(result.subagentExecutions);
-
-		// Each execution should have the required fields
-		for (const exec of allExecutions) {
-			expect(typeof exec.agentName).toBe('string');
-			expect(typeof exec.prompt).toBe('string');
-			expect(exec.result).toHaveProperty('toolCalls');
-			expect(exec.result).toHaveProperty('finalResponse');
-			expect(exec.result.inputTokens).toBeGreaterThan(0);
-		}
-	});
-
-	it('should track total token usage across all subagents', async (context) => {
+	it('should track token usage in a single conversation', async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
@@ -169,12 +127,6 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 
 		expect(result.inputTokens).toBeGreaterThan(0);
 		expect(result.outputTokens).toBeGreaterThan(0);
-
-		// Total cost should reflect multiple conversations
-		const allExecutions = flattenSubagentExecutions(result.subagentExecutions);
-		if (allExecutions.length > 0) {
-			const subagentTokens = allExecutions.reduce((sum, exec) => sum + exec.result.inputTokens, 0);
-			expect(subagentTokens, 'Subagent conversations should consume tokens').toBeGreaterThan(0);
-		}
+		expect(flattenSubagentExecutions(result.subagentExecutions)).toStrictEqual([]);
 	});
 });

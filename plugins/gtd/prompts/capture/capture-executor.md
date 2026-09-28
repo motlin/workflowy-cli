@@ -110,12 +110,14 @@ NEW_NODE_ID=$(echo "$CLI_OUTPUT" | jq -r '.id')
 Launch item-refiner for the new node using the Agent tool with `run_in_background: true`:
 
 ```text
-Task: "Refine inbox item with ID $NEW_NODE_ID"
-Agent: item-refiner
-Parameters: nodeId=$NEW_NODE_ID
+Agent tool (background):
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/item-refiner.md and follow it. Refine item $NEW_NODE_ID"
+  run_in_background: true
 ```
 
-Note: Use the Agent tool to invoke the item-refiner agent, passing the node ID. The refiner will read the node directly from the API.
+The refiner reads the node directly from the API and applies its taggers inline, so it launches no subagents of its own.
 
 ## Record Declined Items
 

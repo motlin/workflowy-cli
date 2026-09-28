@@ -44,7 +44,7 @@ When the signals conflict, the explicit meeting or forum wins; otherwise `false`
 ## Target Person
 
 - If the item names a person, set `targetPerson` to that reference (e.g. `"@Bob"`).
-- The canonical `@mention` is owned by `people-tagger`, which runs in parallel; `item-refiner` reconciles this detector's `targetPerson` with the people-tagger `@mention` (people-tagger wins for canonical spelling). Provide a best-effort reference here.
+- The canonical `@mention` is owned by `people-tagger`; `item-refiner` reconciles this detector's `targetPerson` with the people-tagger `@mention` (people-tagger wins for canonical spelling). Provide a best-effort reference here.
 - A bare question with no action verb and no person (e.g. _"Can we prevent forklifting repositories?"_) is still `isAgendaItem: true` with `targetPerson: null`.
 - Resolve a name to `targetPerson` per `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` — when unsure, leave `targetPerson: null` rather than guessing.
 

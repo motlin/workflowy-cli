@@ -1,7 +1,7 @@
 ---
 name: item-refiner
 description: |
-    Orchestrate end-to-end refinement of one inbox item, given its node ID. Fans out to Phase A taggers in parallel, collects their JSON, runs the Phase B composers in order (destination then text), then writes a single 🔍 Refinement suggestion node as a child of the item. Use to refine an individual inbox item; the /gtd:inbox orchestrator launches one per item.
+    Orchestrate end-to-end refinement of one inbox item, given its node ID. Applies the Phase A tagger prompts inline one after another, collects their JSON, applies the Phase B composers in order (destination then text), then writes a single 🔍 Refinement suggestion node as a child of the item. Use to refine an individual inbox item; the /gtd:refine-inbox orchestrator launches one per item.
 ---
 
 Coordinates all taggers for a single inbox item and writes refinement suggestions to Workflowy.
@@ -21,13 +21,17 @@ ITEM=$(./bin/run.js node get --id "$ITEM_ID" --depth 3 --json --fields id --fiel
 ITEM_NAME=$(echo "$ITEM" | jq -r '.name')
 ```
 
-## Phase A: Fan-Out to Taggers (Parallel)
+## Run Inline, Serialize the CLI
 
-Launch ALL Phase A tagger subagents in parallel using the Agent tool.
+Apply every tagger and composer prompt yourself, in this conversation. Do not launch subagents for them: nested subagents hand back launch acknowledgements that look like results, so refiners wrote nothing or hung for most of an hour waiting on notifications.
 
-Use a SINGLE message with MULTIPLE Agent tool calls in parallel. Launch each tagger as a `general-purpose` subagent with `model: "sonnet"` and the prompt `CLAUDE_PLUGIN_ROOT=<plugin root>. Read <plugin root>/prompts/refinement/<tagger>.md and follow it. Refine item $ITEM_ID`, where `<plugin root>` is the `CLAUDE_PLUGIN_ROOT` you were given. Use the same prompt format for the Phase B composers, running them in order.
+- For each prompt: read it, follow its focus and output contract against the `ITEM` you already fetched, and record its JSON. Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` once up front; its fetch step is already done, so reuse `ITEM` instead of re-fetching per tagger.
+- Serialize the CLI: run one CLI call at a time. It holds the SQLite cache lock while it runs, so never issue CLI calls as parallel Bash tool calls, never background them with `&`, and never pipe one CLI call into another. Other refiners may be running beside you; if a call fails on a busy/locked database, wait briefly and retry it once.
+- Read-only `jq` over `.llm/gtd/metadata/` files needs no lock and can be batched freely.
 
-**Fan in only after every tagger has reported.** The Agent tool has no synchronous flag, so a tagger call can return a launch acknowledgement while the tagger keeps running. Treat an acknowledgement as "pending", not as a result: end your turn and resume on each tagger's completion notification until all seven JSON outputs are in hand. Never write the fan-in file, start Phase B, or report success while any tagger is pending — a refiner that finishes early writes no `🔍 Refinement` node and still looks successful to its caller. A tagger that fails or returns no JSON is a refiner failure: report it by tagger name.
+## Phase A: Taggers (Inline, In Order)
+
+Apply these seven prompts one after another, each producing one JSON object:
 
 - `project-tagger` (${CLAUDE_PLUGIN_ROOT}/prompts/refinement/project-tagger.md) - Detect/suggest project tags
 - `people-tagger` (${CLAUDE_PLUGIN_ROOT}/prompts/refinement/people-tagger.md) - Detect/suggest @Name mentions (see `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md`)
@@ -37,7 +41,7 @@ Use a SINGLE message with MULTIPLE Agent tool calls in parallel. Launch each tag
 - `tag-cleaner` (${CLAUDE_PLUGIN_ROOT}/prompts/refinement/tag-cleaner.md) - Classify existing tags: fix typos, propose registering new tags, drop one-off junk
 - `agenda-detector` (${CLAUDE_PLUGIN_ROOT}/prompts/refinement/agenda-detector.md) - Detect meeting-discussion topics (still filed as tasks; 📋 Meeting agendas is only an optional mirror)
 
-Wait for all to complete and collect their JSON outputs.
+Keep each tagger's output to its own dimension, as if it could not see the others; reconciliation happens at fan-in (people-tagger's `@mention` wins over agenda-detector's `targetPerson`). A tagger you cannot complete is a refiner failure: report it by tagger name rather than writing a partial refinement.
 
 ## Fan-In: Collect Results
 
@@ -60,14 +64,14 @@ EOF
 
 ## Phase B: Composers (Sequential)
 
-Phase B composers depend on each other - run them in order using the Agent tool. Apply the same rule: an acknowledgement is not a result, so wait for each composer's completion notification and do not start the next composer until the previous one has returned its JSON.
+Phase B composers depend on each other - apply them inline in order, finishing destination-guesser's JSON before starting text-composer. The same serialized-CLI rule applies.
 
-### Launch destination-guesser
+### Apply destination-guesser
 
-Launch the destination-guesser and capture its JSON output:
+Apply destination-guesser and capture its JSON output:
 
 ```text
-Agent tool -> ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/destination-guesser.md -> returns JSON with {path, targetId, confidence, reasoning, alternative?}
+${CLAUDE_PLUGIN_ROOT}/prompts/refinement/destination-guesser.md -> returns JSON with {path, targetId, confidence, reasoning, alternative?}
 ```
 
 This determines where the item should go based on Phase A tagger results.
@@ -88,12 +92,12 @@ jq --argjson dest '<DESTINATION_OUTPUT_JSON>' '. + {destination: $dest}' \
   ".llm/gtd/refinement/$ITEM_ID.json" > ".llm/gtd/refinement/$ITEM_ID-with-dest.json"
 ```
 
-### Launch text-composer
+### Apply text-composer
 
-Now launch text-composer, which will read both Phase A results AND the destination from the updated file:
+Now apply text-composer, which reads both Phase A results AND the destination from the updated file:
 
 ```text
-Agent tool -> ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/text-composer.md -> returns JSON with {composedText, changes, confidence}
+${CLAUDE_PLUGIN_ROOT}/prompts/refinement/text-composer.md -> returns JSON with {composedText, changes, confidence}
 ```
 
 **Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda`, `#work`, and the target `@person` mention so the filed task stays findable by person and tag, and any mirror in 📋 Meeting agendas matches the existing topic shape.
