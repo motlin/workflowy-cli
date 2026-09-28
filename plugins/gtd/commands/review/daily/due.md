@@ -181,6 +181,16 @@ Task **execution** stays foreground. If a task runs `cache import-api` / `just d
 
 **Open-then-confirm tasks.** Some `#llm-task` items only instruct you to open a page/URL for a manual action the user completes themselves (e.g. Amazon Chase rewards redemption, Patreon benefits review). For these, **open the page first** (`open <url>`) and **then** ask whether the task is actually done — opening the page is not the task. In the `AskUserQuestion` body, state both halves explicitly: what you already did (including the page you opened and any script you ran), and the exact manual step the user must perform, read from the item's child instructions. A status-only message such as "The benefits page is open for review" is not enough. Opening can succeed while the real action cannot (a financial submit the user must perform, a page that won't load, info not yet available), so never infer "done" from a successful `open`. Advance the date only on a real "done".
 
+### Drafting instruction children
+
+Whenever you write a new instruction child for an `#llm-task` item (converting an item, or adding a rule the user asked for), draft it to these rules:
+
+- **Scope to the item's root.** Read which top-level tree the item lives under (Personal or Work) and word the instruction for that tree only. An item under Personal gets no Work nodes, Work paths, or Work people, and vice versa.
+- **Backtick tags you mention but don't apply.** A tag the instruction refers to (a tag to search for, filter on, or leave alone) goes in backticks, like `` `#some-tag` ``, so it doesn't render as a live tag beside the item's own `#llm-task`. Only the tags the item actually carries stay bare.
+- **No parenthetical examples.** State the rule; drop "(e.g. ...)" and "(like ...)" asides.
+- **No rules that restate defaults.** Skip lines that repeat behavior every `#llm-task` already has, such as confirming before writes or not bulk-writing.
+- **No all caps.** Use normal sentence case; never shout words like MUST or NEVER.
+
 ### Cross-project #llm-task launches
 
 Some `#llm-task` items are not work for this session — their child instructions say to start a **separate** Claude session in another directory and run a command there. Each part of that launch has a failure mode that reads as success from this side, so treat all five rules below as mandatory.
@@ -237,7 +247,7 @@ For a command-shaped item, make **Make it #llm-task + run in a herdr tab** the *
 
 On that choice, do both halves:
 
-- **Convert the item.** Append `#llm-task` (with a leading space) to the item's name with `node update --name`, keeping its `<time>` element and the rest of the name intact. Make sure the command and its directory live in a child node, since `#llm-task` instructions are read from children; if they were only in the name, create a child holding `cd <directory> && <command>`. Future runs then batch it through **LLM tasks (#llm-task)** above instead of asking.
+- **Convert the item.** Append `#llm-task` (with a leading space) to the item's name with `node update --name`, keeping its `<time>` element and the rest of the name intact. Make sure the command and its directory live in a child node, since `#llm-task` instructions are read from children; if they were only in the name, create a child holding `cd <directory> && <command>`, drafted per **Drafting instruction children** above. Future runs then batch it through **LLM tasks (#llm-task)** above instead of asking.
 - **Run it now in a labelled herdr tab** in this session's workspace, under every rule in **Cross-project #llm-task launches** above. For a plain shell command, the launch script satisfies the workspace, label, and placement rules in one call:
 
 ```bash
