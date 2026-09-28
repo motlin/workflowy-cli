@@ -133,13 +133,14 @@ export function planInsertion(ladder, targetTier) {
 }
 
 /**
- * Plan pulling `memberIds` under one new group node filed in 1st. Members are ordered by the tier
- * they held (ladder order within a tier, members not on this ladder last), so moving them under the
- * group in this order keeps their relative rank. The insertion is planned on the ladder with the
- * members already removed: a member leaving a full 1st frees the slot the group takes, and a
- * member can never be the item a full tier demotes.
+ * Plan pulling `memberIds` under one new group node. The group lands in `tier` when given, and
+ * otherwise in the highest tier any member held (a 3rd + 5th cluster lands in 3rd). Members are
+ * ordered by the tier they held (ladder order within a tier, members not on this ladder last), so
+ * moving them under the group in this order keeps their relative rank. The insertion is planned on
+ * the ladder with the members already removed: a member leaving a full tier frees the slot the
+ * group takes, and a member can never be the item a full tier demotes.
  */
-export function planGroup(ladder, memberIds) {
+export function planGroup(ladder, memberIds, tier) {
 	const wanted = new Set(memberIds);
 	const found = new Map();
 	for (const t of ladder.tiers) {
@@ -159,7 +160,8 @@ export function planGroup(ladder, memberIds) {
 		tiers: ladder.tiers.map((t) => ({...t, items: t.items.filter((node) => !wanted.has(node.id))})),
 	};
 
-	return {members: [...onLadder, ...offLadder], insertion: planInsertion(remaining, 1)};
+	const targetTier = tier ?? onLadder[0]?.fromTier ?? 1;
+	return {members: [...onLadder, ...offLadder], insertion: planInsertion(remaining, targetTier)};
 }
 
 /**
@@ -270,15 +272,20 @@ export function planRebalance(ladder) {
 }
 
 function main(arguments_) {
-	const [command, inputPath, memberList] = arguments_.slice(2);
+	const [command, inputPath, memberList, tierArgument] = arguments_.slice(2);
 	const commands = {
 		rebalance: planRebalance,
 		choices: filingChoices,
-		group: (ladder) => planGroup(ladder, (memberList ?? '').split(',').filter(Boolean)),
+		group: (ladder) =>
+			planGroup(
+				ladder,
+				(memberList ?? '').split(',').filter(Boolean),
+				tierArgument === undefined ? undefined : Number(tierArgument),
+			),
 	};
 	if (!Object.hasOwn(commands, command) || !inputPath || (command === 'group' && !memberList)) {
 		throw new Error(
-			'usage: asap-tiers.mjs <rebalance|choices> <bucket.json> | group <bucket.json> <id,id,...>  (a 📌 bucket from `node get --depth 2 --json`)',
+			'usage: asap-tiers.mjs <rebalance|choices> <bucket.json> | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)',
 		);
 	}
 	const bucket = JSON.parse(readFileSync(inputPath, 'utf8'));

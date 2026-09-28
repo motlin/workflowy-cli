@@ -345,8 +345,9 @@ test('filingChoices has no promotion on a one-tier ladder and nothing on a bucke
 });
 
 /**
- * Grouping pulls related tasks under one parent. A new group lands in 1st, and its children keep
- * the rank they had: ordered by former tier, ladder order within a tier, off-ladder members last.
+ * Grouping pulls related tasks under one parent. A new group lands in the highest tier any member
+ * came from, and its children keep the rank they had: ordered by former tier, ladder order within a
+ * tier, off-ladder members last.
  */
 test('planGroup orders members by former tier and keeps ladder order within a tier', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 1), fill(2, 3), fill(3, 2)]});
@@ -362,11 +363,35 @@ test('planGroup orders members by former tier and keeps ladder order within a ti
 	});
 });
 
+test('planGroup files a new group in the highest tier its members came from', () => {
+	const ladder = readLadder({
+		id: 'a',
+		children: [fill(1, 2), fill(2, 4), fill(3, 8), fill(4, 3), fill(5, 20)],
+	});
+	assert.deepStrictEqual(planGroup(ladder, ['t5-7', 't3-2']), {
+		members: [
+			{nodeId: 't3-2', name: 'task t3-2', fromTier: 3},
+			{nodeId: 't5-7', name: 'task t5-7', fromTier: 5},
+		],
+		insertion: {targetTier: 3, targetId: 'tier-3', demotions: [], createTiers: []},
+	});
+});
+
+test('planGroup files in an explicitly chosen tier instead of the default', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 1), fill(2, 3), fill(3, 5)]});
+	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4'], 2).insertion, {
+		targetTier: 2,
+		targetId: 'tier-2',
+		demotions: [],
+		createTiers: [],
+	});
+});
+
 /**
- * Members leave their tiers before the group lands, so a member sitting in a full 1st frees the
+ * Members leave their tiers before the group lands, so a member sitting in a full tier frees the
  * slot the group takes and nothing gets bumped.
  */
-test('planGroup plans the 1st-tier insertion after the members have left their tiers', () => {
+test('planGroup plans the insertion after the members have left their tiers', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 1)]});
 	assert.deepStrictEqual(planGroup(ladder, ['t1-0', 't3-0']).insertion, {
 		targetTier: 1,
@@ -376,10 +401,20 @@ test('planGroup plans the 1st-tier insertion after the members have left their t
 	});
 });
 
-test('planGroup never demotes a member, and cascades like any 1st-tier insertion', () => {
+test('planGroup never demotes a member, and cascades like any insertion', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 5)]});
-	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4']).insertion.demotions, [
+	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4'], 1).insertion.demotions, [
 		{nodeId: 't1-1', name: 'task t1-1', fromTier: 1, toTier: 2, toId: 'tier-2'},
 		{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'},
 	]);
+});
+
+test("planGroup cascades from the members' highest tier when it is full", () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 5), fill(3, 7), fill(4, 1)]});
+	assert.deepStrictEqual(planGroup(ladder, ['t2-4', 't4-0']).insertion, {
+		targetTier: 2,
+		targetId: 'tier-2',
+		demotions: [{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'}],
+		createTiers: [],
+	});
 });

@@ -194,7 +194,7 @@ Invoke `/gtd:review:daily:file-tasks` — normalize the Next-Actions trees, then
 
 ## Group Related Tasks
 
-Invoke `/gtd:review:daily:group-tasks` — cluster the open tasks on each root's ladder by theme, match each cluster against existing project nodes, and walk every proposed grouping as its own question. A new group lands in the `1st` tier with its children ordered by the tier they came from; a cluster that matches a project in flight moves under that project instead. Topics sitting both in `📋 Meeting agendas` and on the ladder are flagged as duplicates. The private grouping vocabulary lives in the gitignored `.llm/gtd/task-groups.md`.
+Invoke `/gtd:review:daily:group-tasks` — cluster the open tasks on each root's ladder by theme, match each cluster against existing project nodes, and walk every proposed grouping as its own question. A new group lands in the highest tier any member came from, with its children ordered by the tier they came from; a cluster that matches a project in flight moves under that project instead. Topics sitting both in `📋 Meeting agendas` and on the ladder are flagged as duplicates. The private grouping vocabulary lives in the gitignored `.llm/gtd/task-groups.md`.
 
 Runs right after File Loose Tasks so nothing loose is left out of the clusters. Dated tasks in the `⏰` buckets are shown as related but never moved, because the due walk reads only the buckets' direct children. Silent when nothing clusters and nothing duplicates.
 
