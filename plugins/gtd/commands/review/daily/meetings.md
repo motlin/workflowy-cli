@@ -1,5 +1,5 @@
 ---
-description: Walk Otter-ingested meetings since the last review, flag probable follow-ups (weighting asks from your manager and skip-level), confirm each with you, and drop accepted items into the Inbox or, when you already did them, journal them to the work calendar for the meeting date. Use when the user wants to review recent meetings, catch up on meeting follow-ups, or extract action items from meeting transcripts.
+description: Walk Otter-ingested meetings since the last review, flag probable follow-ups (weighting asks from your manager and skip-level), confirm each with you, and drop accepted items into the Inbox or, when you already did them, journal them to the work calendar for the meeting date, or log requests made of your team to your request tracker. Use when the user wants to review recent meetings, catch up on meeting follow-ups, or extract action items from meeting transcripts.
 ---
 
 # Meeting Follow-up Review
@@ -140,6 +140,7 @@ For each meeting, assemble candidate follow-ups. A candidate is:
 - An **action item** whose assignee resolves — fuzzily, since names are misheard — to the user
 - An **action item** in a meeting where a VIP attended, even if assigned to someone else (the user may still need to track it)
 - A **summary or outline sentence** that names the user, OR sounds like a VIP ask, judged plausible against the project context from Step 5
+- A **request made of the user's team** — someone asks the team to take on work ("could your team move X to Y", "we need you all to support Z"), even when nobody is assigned, no VIP attended, and the team may never do it. The user tracks these for future prioritization conversations, so an unowned ask is still a candidate.
 
 When a transcript fragment is ambiguous because of misheard text, prefer to surface it rather than drop it silently — the user confirms in Step 8.
 
@@ -158,6 +159,8 @@ For each candidate, record: a proposed clean one-line description, the source me
 Also retain whether the source explicitly assigns the action to a named person, with the supporting transcript fragment. This includes assignments to someone other than the user. Attendance, a person mentioned in discussion, and an inferred VIP ask are not explicit assignments. Preserve this flag per source when merging candidates; an explicit assignment with an unresolved name still counts as name-assigned.
 
 Also flag each candidate that is **delegation-shaped**: its source phrasing hands the work to someone other than the user ("Assign X", "Ask X to", "X will", "Have X", "delegated to X"). Keep the supporting fragment and the proposed assignee's name resolution. From a transcript it is often unclear whether the handoff already happened in the meeting, and to whom, so Step 8 asks. Preserve the flag per source when merging.
+
+Also flag each candidate that is a **team request**: the ask is directed at the user's team as a whole rather than at the user or another named person. Keep the supporting fragment and the requester's name resolution (the person asking, not an assignee). When the requester cannot be resolved, record it as unresolved; Step 8 asks. Preserve the flag per source when merging.
 
 ### Step 7: Match candidates against existing tasks
 
@@ -188,7 +191,7 @@ Present each merged candidate once, naming and linking **all source meetings** i
 
 ### Step 8: Confirm each candidate
 
-Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `filed`, `delegated`, `journaled`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
+Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `filed`, `delegated`, `journaled`, `logged`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
 
 #### Choose how to review unassigned meetings
 
@@ -196,14 +199,14 @@ Before walking individual candidates, offer one meeting-level question for each 
 
 Put the meeting name and clickable link, every candidate description, reasoning, name-resolution evidence or uncertainty, and current match result inside the question body. For shared candidates, show all source meetings and identify which contributions belong to this meeting. Offer exactly:
 
-- **Skip the whole meeting** — skip this meeting's candidate contributions without creating or filing anything. Shared actions remain pending when another source meeting still contributes them; identify those actions in the question so skipping never implies they were dropped everywhere.
+- **Skip the whole meeting** — skip this meeting's candidate contributions without creating or filing anything. Team requests are usually unassigned, so this question often carries them; mark each one as a team request in the body so a skip does not drop it by accident. Shared actions remain pending when another source meeting still contributes them; identify those actions in the question so skipping never implies they were dropped everywhere.
 - **Walk them one at a time** — continue with the individual confirmation questions below. This does not accept any candidate or authorize a write.
 
 Record each meeting choice and each skipped source contribution in the local ledger, retaining the original provenance for audit. Set a merged candidate to `skipped` only when all its source contributions have been skipped; otherwise retain it as `pending` and refresh its description, name resolutions, and match from its remaining sources. Never skip another meeting's assignment or change an already recorded outcome. A skipped source is excluded from later recording, and is not a task destination. Resolve these meeting choices before the per-item walk; interruption or an unanswered choice prevents watermark advancement.
 
 #### Confirm individual candidates
 
-Before each question (including a meeting-level question), refresh each displayed candidate's match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added`, `filed`, and `delegated` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a delegated follow-up contributes its node under `📤 Delegate`; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
+Before each question (including a meeting-level question), refresh each displayed candidate's match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added`, `filed`, and `delegated` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a delegated follow-up contributes its node under `📤 Delegate`; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, `logged`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
 
 Present candidates one at a time using AskUserQuestion. The user does not read the scrolling console, so everything needed to decide goes **inside** the question body: the description, the source meeting (as a clickable link), the Step 6 reasoning, and the Step 7 match result.
 
@@ -226,9 +229,10 @@ Offer these options, omitting filing when no eligible target exists:
     - An earlier follow-up from **any meeting in this walk** can be a match when its outcome is `added` or `filed` and its task destination is verified. Use the Step 7 normalized noun-phrase rules across meeting boundaries. Shared meeting context is a matching hint, never proof that a task exists or that the user accepted it.
 - **Already did it — journal it** — the user completed the follow-up between the meeting and now. Step 9 writes it as a journal entry to `Work > 📅 Calendar` under the **meeting date**, never to the Inbox. Name the calendar in the option label (e.g. `Already did it — journal to Work > 📅 Calendar`) so the destination is visible before the user confirms.
 - **Delegated in the meeting** — only for a delegation-shaped candidate. Ask outright in the question body whether the work was handed off in the meeting, and to whom, quoting the supporting fragment. Label the option with the person and the destination (`Delegated to @Bob — Work > 📤 Delegate`). When the assignee is ambiguous or unresolved, label it `Delegated in the meeting — name via Other`, and get the person before recording, per the name-resolution rules above. This option takes the fourth slot from **Already did it — journal it**, which the user can still ask for through "Other". **Add to inbox** stays the answer for "not delegated yet, I still need to hand it off".
+- **Log to request tracker** — only for a team-request candidate. The team is not committing to the work; the ask is recorded under the user's request-tracking task as evidence for future prioritization conversations. Name the requester and the verified tracker task in the label (`Log @Alice's request — <tracker task name>`), and put the requester, meeting date, and supporting fragment in the question body. When the requester is unresolved, label it `Log to request tracker — name the requester via Other`. This option takes the fourth slot from **Already did it — journal it** (and from **Delegated in the meeting** if a candidate somehow carries both flags); the user can still ask for those through "Other". When the tracker config from Step 9 Branch E is missing, still offer the option and resolve the task on selection.
 - **Skip** — drop it, whether it's noise or not the user's. This command records nothing on skip. Already-done is split out from Skip because it has a different **destination** (a dated calendar entry), not merely a different label — a skipped item leaves no trace, a done item becomes journal.
 
-- Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `filed`, `delegated`, or `journaled`. On a write or verification failure, set `failed` and stop without advancing the watermark.
+- Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `filed`, `delegated`, `journaled`, or `logged`. On a write or verification failure, set `failed` and stop without advancing the watermark.
 - Never auto-add — every item needs explicit confirmation, including the "file on existing task" path.
 
 ### Step 9: Record confirmed items
@@ -339,6 +343,28 @@ DELEGATE_ID=$(jq -r '.id' .llm/gtd/metadata/waiting-for/work-delegate.json)   # 
 - Add the user's spoken points as children, as in Branch A. The no-inventing rule applies.
 - Do **not** also create an inbox node.
 
+#### Branch E — Log to request tracker
+
+The ask is logged, not accepted as work. Which task tracks requests is personal, so it lives only in the gitignored `.llm/gtd/request-tracker.json` as `{"taskId": "<full node id>"}`. Read the ID and verify the task still exists:
+
+```bash
+TRACKER_ID=$(jq -r '.taskId' .llm/gtd/request-tracker.json)
+./bin/run.js node get --id "$TRACKER_ID" --depth 1 --json --fields name,shortId,children
+```
+
+When the file is missing or the node no longer exists, ask one `AskUserQuestion` for the request-tracking task (the user pastes its Workflowy link via "Other"), confirm the resolved node's name and location with the user, and write its full ID to the config before logging. Never guess the tracker from a search hit.
+
+Add one child per request, requester and date first so the list scans as a log:
+
+```bash
+./bin/run.js node create --parent-id "$TRACKER_ID" --position bottom --name '<confirmed requester @mention> <time>meeting date</time>: <what they asked the team to do>'
+./bin/run.js node create --parent-id <new-node-id> --name 'From: <a href="https://otter.ai/u/<otid>">Meeting name</a> <time>...</time>'
+```
+
+- Build the `<time>` element for the meeting date with `date`, as in Branch C.
+- Add the requester's stated reasons, urgency, or scope as children, quoted or closely paraphrased, as in Branch A. The no-inventing rule applies.
+- Do **not** also create an inbox node, file on another task, or rename the tracker task.
+
 ### Step 10: Advance the watermark
 
 After all in-window meetings and their candidate decisions have been handled, update the scanner-state node `Metadata > ⚙️ Scanner State > meeting-followup-reviewer` to `review_started_iso` captured in Step 1. Use this same value for an empty window. Do not advance it after an interrupted review, unresolved meeting datetime, or failed recording operation.
@@ -369,6 +395,7 @@ Confirmed to inbox: 3
 Filed on an existing task: 1
 Delegated in the meeting: 1
 Journaled as already done: 1
+Logged to request tracker: 1
 Skipped: 1
 ```
 
@@ -380,4 +407,5 @@ If the inbox grew meaningfully, suggest running `/gtd:inbox` to process the new 
 - Confirmed items land in `Inbox` raw; `/gtd:inbox` handles refinement and project assignment.
 - Items filed on an existing task never reach the Inbox, so `/gtd:inbox` never sees them — that is intended.
 - Items delegated in the meeting go to the root's `📤 Delegate` node, never the Inbox.
+- Team requests logged to the request tracker are records for prioritization, not commitments, and never reach the Inbox.
 - Already-done items go to `Work > 📅 Calendar` under the meeting date, never to the root `📆 Calendar` (Otter's) or the Inbox.
