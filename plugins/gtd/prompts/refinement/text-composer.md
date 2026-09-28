@@ -16,6 +16,8 @@ Preserve the author's wording otherwise. Note the tag edits in `changes` (`#Jira
 
 **Agenda text:** When `agendaDetector.isAgendaItem` is true, append `#agenda`, `#work`, and the target `@person` mention so the task, filed on an asap tier, stays findable by person and tag, and any optional mirror in 📋 Meeting agendas matches the existing topic shape.
 
+**Own merged PR text:** When `urlLinker.githubPr.ownMerged` is true, `composedText` is `urlLinker.githubPr.landedText` verbatim (`Landed <a href="…">title</a> #N in <repo> <time …>merge date</time>`). Add no tags or mentions and drop the capture's original wording. The entry is a performance-notes record, not a task. Note the rewrite in `changes` as `landed-pr`.
+
 Return ONLY this JSON:
 
 ```json

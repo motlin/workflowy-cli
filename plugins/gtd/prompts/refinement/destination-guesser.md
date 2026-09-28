@@ -10,6 +10,17 @@ Read the collected tagger JSON at `.llm/gtd/refinement/$ITEM_ID.json` (not the l
 
 **Agenda items are tasks.** Never return `📋 Meeting agendas` (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`) or any node under it as the destination. A topic filed only there gets lost, because nothing but a meeting ever surfaces it. When `agendaDetector.isAgendaItem` is true, resolve the item like any other task: `⏰ Tasks (due dates)` when it has a due date, otherwise the bottom tier of the matching `📌 Tasks (asap)` ladder (Work unless the signals clearly say personal). The `#agenda` tag and the target `@person` on the composed text carry the meeting context, and `/gtd:inbox` may offer a mirror into `📋 Meeting agendas` alongside the filed task.
 
+**Own merged PR short-circuit:** A capture of the user's own merged pull request (usually a GitHub notification link) is a work accomplishment for the performance review, not something to read. It never goes to an asap tier, a project, or a reading list, and never gets `#read`. When `urlLinker.githubPr.ownMerged` is true, return the performance-notes node for `urlLinker.githubPr.year`. The other signals do not override this.
+
+Where the performance notes live is personal, so it is kept only in the gitignored `.llm/gtd/performance-notes.json`: `parentPath` (a comma-separated `--path`) and `yearNodeName` (with a `{year}` placeholder). Read the parent's children and match the year node by exact name:
+
+```bash
+CONFIG=.llm/gtd/performance-notes.json
+./bin/run.js node get --path "$(jq -r .parentPath $CONFIG)" --depth 1 --json --fields name,id,children
+```
+
+If no child matches, create it under that parent with the substituted name and return the new node. `path` is the parent path joined with `>` plus the year node's name; `targetId` is the year node's ID; confidence is `high`. When the config file is missing, or `githubPr` is `null` or not `ownMerged`, skip this short-circuit and route the item normally. Someone else's PR, or an unmerged PR of the user's, is a regular task or reading item.
+
 **Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the text matches this shape, return the day node for that date in the matching journal calendar. The other signals no longer decide what kind of destination this is; they only pick which calendar:
 
 - `Work > 📅 Calendar > 📍 Current` when the tagger signals (project, people, context) say work — day nodes sit under `📍 Current`, and the returned `path` includes it.
