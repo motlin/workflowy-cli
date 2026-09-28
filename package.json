@@ -9,7 +9,7 @@
 		"workflowy": "./bin/run.js"
 	},
 	"dependencies": {
-		"@oclif/core": "^4.13.3",
+		"@oclif/core": "^5.1.2",
 		"@oclif/plugin-help": "^7",
 		"@workflowy/shared": "workspace:*",
 		"better-sqlite3": "13.0.3",
