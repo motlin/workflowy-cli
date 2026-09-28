@@ -88,6 +88,7 @@ For each refined item, parse the suggestions from child nodes.
 Call John about project
 ├── <original child 1>           <- preserved
 ├── <original child 2>           <- preserved
+├── 📝 Goal: <point the user made> (12m)   <- transcript notes from a meeting
 └── 🔍 Refinement                <- aggregate node
     ├── 📜 Provenance: user://input
     ├── ➕ Added: <time ...>Mon, Jan 5, 2026</time>
@@ -103,7 +104,7 @@ Call John about project
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
-For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), `isAgenda` (true when a `🗣️ Agenda:` row exists), and `delegation` (from `📤 Delegate:`, as `{person, path}` with `person` null for `unknown`, or null when the row is absent). Write the array to `.llm/gtd-parsed-items.json`.
+For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), `isAgenda` (true when a `🗣️ Agenda:` row exists), `delegation` (from `📤 Delegate:`, as `{person, path}` with `person` null for `unknown`, or null when the row is absent), and `notes` (the names of the item's own direct children starting with `📝`, in order, or an empty array). Write the array to `.llm/gtd-parsed-items.json`.
 
 **Handling missing data:**
 
@@ -220,6 +221,17 @@ Question: "'Ask @Bob to draft the rollout plan' (from meeting: Weekly sync) -> �
 Options:
 - "Accept" (not delegated yet: 📌 Tasks (asap) > 4th)
 - "Delegate to @Bob" (delegated in the meeting: Work > 📤 Delegate)
+- "Skip (leave in inbox)"
+- "Delete"
+```
+
+**Transcript notes.** The daily review's meeting walk can file an item with `📝` children holding everything the user said about it in the meeting. When `notes` is non-empty, put a digest of them in the question, after the destination line: one short fragment per note, in order, joined with `·`, tags and `<time>` markup stripped. Keep the labels (`Goal`, `Metric`) so the digest reads as structure. When the notes are too many to fit, show the first several and end with `+N more`. The digest informs the filing decision; the notes themselves move with the item unchanged.
+
+```text
+Question: "'Propose monorepo health metrics to @Alice' -> 📌 Tasks (asap) > 4th (high confidence) | Notes: Goal: track build time per team · Metric: flaky-test rate weekly · Open question: who owns the dashboard · +3 more"
+
+Options:
+- "Accept" (📌 Tasks (asap) > 4th)
 - "Skip (leave in inbox)"
 - "Delete"
 ```

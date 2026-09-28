@@ -160,6 +160,8 @@ Also retain whether the source explicitly assigns the action to a named person, 
 
 Also flag each candidate that is **delegation-shaped**: its source phrasing hands the work to someone other than the user ("Assign X", "Ask X to", "X will", "Have X", "delegated to X"). Keep the supporting fragment and the proposed assignee's name resolution. From a transcript it is often unclear whether the handoff already happened in the meeting, and to whom, so Step 8 asks. Preserve the flag per source when merging.
 
+Also flag each candidate that is **user-led**: the Step 4 summary or outline shows the user drove the discussion of that topic — presented it, proposed the idea, or talked it through at length — rather than receiving a one-line ask. Keep the supporting summary or outline fragment. The Workflowy summary is a compressed view of a long conversation, so a user-led topic usually has far more of the user's own framing in the transcript than the summary shows; Step 8 offers to extract it. Preserve the flag per source when merging.
+
 Also flag each candidate that is a **team request**: the ask is directed at the user's team as a whole rather than at the user or another named person. Keep the supporting fragment and the requester's name resolution (the person asking, not an assignee). When the requester cannot be resolved, record it as unresolved; Step 8 asks. Preserve the flag per source when merging.
 
 ### Step 7: Match candidates against existing tasks
@@ -230,6 +232,7 @@ Offer these options, omitting filing when no eligible target exists:
 - **Already did it — journal it** — the user completed the follow-up between the meeting and now. Step 9 writes it as a journal entry to `Work > 📅 Calendar` under the **meeting date**, never to the Inbox. Name the calendar in the option label (e.g. `Already did it — journal to Work > 📅 Calendar`) so the destination is visible before the user confirms.
 - **Delegated in the meeting** — only for a delegation-shaped candidate. Ask outright in the question body whether the work was handed off in the meeting, and to whom, quoting the supporting fragment. Label the option with the person and the destination (`Delegated to @Bob — Work > 📤 Delegate`). When the assignee is ambiguous or unresolved, label it `Delegated in the meeting — name via Other`, and get the person before recording, per the name-resolution rules above. This option takes the fourth slot from **Already did it — journal it**, which the user can still ask for through "Other". **Add to inbox** stays the answer for "not delegated yet, I still need to hand it off".
 - **Log to request tracker** — only for a team-request candidate. The team is not committing to the work; the ask is recorded under the user's request-tracking task as evidence for future prioritization conversations. Name the requester and the verified tracker task in the label (`Log @Alice's request — <tracker task name>`), and put the requester, meeting date, and supporting fragment in the question body. When the requester is unresolved, label it `Log to request tracker — name the requester via Other`. This option takes the fourth slot from **Already did it — journal it** (and from **Delegated in the meeting** if a candidate somehow carries both flags); the user can still ask for those through "Other". When the tracker config from Step 9 Branch E is missing, still offer the option and resolve the task on selection.
+- **Extract my notes from the full transcript** — only for a user-led candidate. Like **Add to inbox**, but Step 9 Branch F first reads the meeting's full Otter transcript and files the inbox item with a child for everything the user said on the topic, not just the points the summary captured. Say in the question body why the candidate looks user-led, quoting the Step 6 fragment. This option takes the fourth slot ahead of **Delegated in the meeting**, **Log to request tracker**, and **Already did it — journal it**; the user can still ask for those through "Other". When no eligible filing target exists, it takes the freed second slot instead, and the fourth slot goes to whichever other option would have held it.
 - **Skip** — drop it, whether it's noise or not the user's. This command records nothing on skip. Already-done is split out from Skip because it has a different **destination** (a dated calendar entry), not merely a different label — a skipped item leaves no trace, a done item becomes journal.
 
 - Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `filed`, `delegated`, `journaled`, or `logged`. On a write or verification failure, set `failed` and stop without advancing the watermark.
@@ -365,6 +368,42 @@ Add one child per request, requester and date first so the list scans as a log:
 - Add the requester's stated reasons, urgency, or scope as children, quoted or closely paraphrased, as in Branch A. The no-inventing rule applies.
 - Do **not** also create an inbox node, file on another task, or rename the tracker task.
 
+#### Branch F — Extract my notes from the full transcript
+
+The Workflowy meeting entry holds only Otter's summary and outline. When the user led the discussion, the transcript holds much more of their framing — reasoning, examples, numbers, open questions — and that is what this branch captures.
+
+Take the otid from the meeting's `otter.ai/u/<otid>` link and fetch the transcript into the gitignored review directory. Never print the whole file into context or logs; filter it with `jq`:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speech <otid> > .llm/gtd/review/meetings/speech-<otid>.json
+jq -r '
+  (.speech.speakers | map({key: (.id | tostring), value: .}) | from_entries) as $who
+  | .speech.transcripts
+  | sort_by(.start_offset)[]
+  | ($who[(.speaker_id // "") | tostring]) as $s
+  | "\((.start_offset / 960000) | floor)m [\(if $s == null then "unattributed" elif $s.self_speaker then "ME" else $s.speaker_name end)] \(.transcript)"
+' .llm/gtd/review/meetings/speech-<otid>.json > .llm/gtd/review/meetings/speech-<otid>.txt
+```
+
+- `start_offset` counts 16 kHz audio samples, so dividing by 960000 gives minutes.
+- `speech.speakers[].self_speaker` marks the user's own speaker, labelled `ME`. Otter leaves some segments undiarized (`speaker_id: null`, labelled `unattributed`); attribute one to the user only when the surrounding turns make it clear, and otherwise leave it out.
+- Read the text file in chunks, keeping the `ME` segments and the other speakers' turns immediately around them for context. A long meeting can cover many topics; keep only what bears on the confirmed candidate.
+- If `otter-api.sh` fails (credentials, network, a non-JSON body) or the transcript is empty, report it in an `AskUserQuestion` offering **Add to inbox** with summary-only children, **Retry**, or **Skip** — never silently fall back to Branch A.
+
+Create the inbox node exactly as in Branch A (enriched title, correct Work/Personal inbox, provenance child). Then add one child per distinct point the user made on the topic, each prefixed `📝` so `/gtd:inbox` can show a digest of them:
+
+```bash
+./bin/run.js node create --parent-id <new-inbox-node-id> --position bottom --name '📝 <label>: <quoted or closely paraphrased point> (<N>m)'
+```
+
+- Cover everything the user said on the topic: goals, proposals, metrics or numbers, examples, reasons, constraints, concerns, open questions, and who they said should be involved. Thoroughness is the point of this branch; one child per point, not a single summary bullet.
+- Keep each point in the user's own framing. Quote or closely paraphrase; never add conclusions the user did not state, and never attribute another speaker's point to the user. When another speaker's reply changed the user's point (a correction, an agreed number), add it as a child of that note, naming the speaker.
+- `<N>m` is the minute offset of the source segment, so the user can find it in the recording.
+- Apply the Step 8 confirmed spellings. Otter mishears names and jargon; correct only with the Step 6 evidence, and keep uncertain words as transcribed with `[sic?]`.
+- Group the notes under short labels the transcript supports (`📝 Goal:`, `📝 Proposal:`, `📝 Metric:`, `📝 Open question:`). Order them as the discussion unfolded.
+
+Read back the inbox node with `--depth 2` and verify the provenance child and every note landed before recording `added`. After the write succeeds, `trash` the `speech-<otid>.json` and `.txt` files: they hold the full transcript and are no longer needed.
+
 ### Step 10: Advance the watermark
 
 After all in-window meetings and their candidate decisions have been handled, update the scanner-state node `Metadata > ⚙️ Scanner State > meeting-followup-reviewer` to `review_started_iso` captured in Step 1. Use this same value for an empty window. Do not advance it after an interrupted review, unresolved meeting datetime, or failed recording operation.
@@ -392,6 +431,7 @@ Meetings reviewed: 4 (since 2026-05-06)
 Candidates found: 6
 Matched an existing task: 2
 Confirmed to inbox: 3
+With transcript notes: 1
 Filed on an existing task: 1
 Delegated in the meeting: 1
 Journaled as already done: 1
@@ -403,7 +443,7 @@ If the inbox grew meaningfully, suggest running `/gtd:inbox` to process the new 
 
 ## Notes
 
-- This review only reads Workflowy entries that Otter has already journaled — it never calls the Otter API directly.
+- This review reads Workflowy entries that Otter has already journaled. It calls the Otter API only in Step 9 Branch F, for a transcript the user asked to mine.
 - Confirmed items land in `Inbox` raw; `/gtd:inbox` handles refinement and project assignment.
 - Items filed on an existing task never reach the Inbox, so `/gtd:inbox` never sees them — that is intended.
 - Items delegated in the meeting go to the root's `📤 Delegate` node, never the Inbox.
