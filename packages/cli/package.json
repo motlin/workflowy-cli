@@ -18,7 +18,7 @@
 		"dropbox": "^10.47.0",
 		"node-html-parser": "^9.0.4",
 		"pino": "^10.3.1",
-		"sql-formatter": "^15.8.2",
+		"sql-formatter": "^15.9.0",
 		"sql-highlight": "^6.1.0",
 		"@tobilu/qmd": "^2.5.3",
 		"sqlite-vec": "^0.1.9",
