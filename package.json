@@ -23,7 +23,7 @@
 		"eslint": "^10.11.0",
 		"fallow": "^3.14.0",
 		"markdownlint-cli2": "^0.23.3",
-		"oclif": "^4",
+		"oclif": "^6",
 		"shx": "^0.4.0",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
