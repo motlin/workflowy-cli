@@ -165,6 +165,15 @@ export function planGroup(ladder, memberIds, tier) {
 }
 
 /**
+ * Plan rescuing an off-ladder project: moving the whole project node, with its open tasks, onto the
+ * ladder so the tasks get ranked instead of sitting out of sight. It lands in `tier` when given and
+ * otherwise on the bottom tier -- nothing says a forgotten project outranks what is already filed.
+ */
+export function planRescue(ladder, tier) {
+	return planInsertion(ladder, tier ?? bottomTier(ladder)?.tier ?? 1);
+}
+
+/**
  * What the /gtd:inbox walk offers for an item bound for this ladder. A refined item always lands on
  * the bottom tier (Accept); `promote` is the tier directly above it with the cascade filing there
  * would cause, so moving an item up one rank is a click rather than typed text. `summary` is a
@@ -276,6 +285,7 @@ function main(arguments_) {
 	const commands = {
 		rebalance: planRebalance,
 		choices: filingChoices,
+		rescue: (ladder) => planRescue(ladder, memberList === undefined ? undefined : Number(memberList)),
 		group: (ladder) =>
 			planGroup(
 				ladder,
@@ -285,7 +295,7 @@ function main(arguments_) {
 	};
 	if (!Object.hasOwn(commands, command) || !inputPath || (command === 'group' && !memberList)) {
 		throw new Error(
-			'usage: asap-tiers.mjs <rebalance|choices> <bucket.json> | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)',
+			'usage: asap-tiers.mjs <rebalance|choices> <bucket.json> | rescue <bucket.json> [tier] | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)',
 		);
 	}
 	const bucket = JSON.parse(readFileSync(inputPath, 'utf8'));

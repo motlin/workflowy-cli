@@ -1,5 +1,5 @@
 ---
-description: Group related tasks — cluster open tasks on both asap ladders by theme, match each cluster against existing project nodes, and walk every proposed move one question at a time. New groups land in the highest tier any member came from, with their children ordered by former tier; agenda/ladder duplicates are flagged. Use when the user wants to group, cluster, or consolidate related tasks, or run the group-tasks phase of the daily review.
+description: Group related tasks — cluster open tasks on both asap ladders by theme, match each cluster against on-ladder project nodes, rescue off-ladder projects that hold open tasks onto a low tier, and walk every proposed move one question at a time. New groups land in the highest tier any member came from, with their children ordered by former tier; agenda/ladder duplicates are flagged. Use when the user wants to group, cluster, or consolidate related tasks, or run the group-tasks phase of the daily review.
 ---
 
 # Group Related Tasks
@@ -26,8 +26,8 @@ cat .llm/gtd/task-groups.md 2>/dev/null || true
 
 A missing file is a normal first run: propose from the task text alone and create the file when the walk records its first decision. It holds two sections:
 
-- **Themes** — one bullet per theme the user has accepted, with the words that identify it and the node its tasks belong under, e.g. `- onboarding @Alice: "onboarding", "@Alice", "access request" → Work > 📁 Projects (in flight) > Onboarding (<shortId>)`.
-- **Declined** — one bullet per cluster the user said no to, with the member names, so the same cluster is never proposed twice, e.g. `- 2026-09-22: "Renew passport" + "Book passport photo" — keep separate`.
+- **Themes** — one bullet per theme the user has accepted, with the words that identify it and the node its tasks belong under, e.g. `- onboarding @Alice: "onboarding", "@Alice", "access request" → Onboarding (<shortId>), 📌 asap → 4th`. The anchor is always a node **on the ladder** (inside a tier). A theme whose anchor is an off-ladder project is not an anchor at all: propose a rescue for that project (see **Rescue off-ladder projects**) and leave the members where they are until it is on the ladder.
+- **Declined** — one bullet per cluster or rescue the user said no to, with the member or project names, so the same proposal is never made twice, e.g. `- 2026-09-22: "Renew passport" + "Book passport photo" — keep separate` or `- 2026-09-22: rescue 🌐 Example project — leave off the ladder`.
 
 ## Load the tasks
 
@@ -55,7 +55,8 @@ A shared generic `#tag` (`#code`, `#home`, `#read`) is **not** a theme — it is
 
 For each cluster, pick the anchor:
 
-- **Existing project node** — when a project in flight (from the projects metadata) matches the theme, or the vocabulary file maps the theme to a node, the members move under that node. No new node is created, and the project stays where it sits.
+- **Existing project node** — when a project that is already **on the ladder** matches the theme, or the vocabulary file maps the theme to an on-ladder node, the members move under that node. No new node is created, and the project stays where it sits.
+- **Never an off-ladder project.** A project outside the ladder (a direct child of `📁 Projects (in flight)`, or anywhere else off the `📌` bucket) is out of sight of every ladder walk, so anchoring ladder tasks under it hides them. When the best match is an off-ladder project, do not propose a group under it: propose a **rescue** of the project instead, and anchor the cluster by the other rules or leave it for the next run, once the project is on the ladder.
 - **Existing task** — when one member is already the natural parent (it names the whole piece of work and the others are steps of it), the others move under it.
 - **New group** — otherwise, a new parent node named for the theme, filed in the **highest tier any member came from** on that root's ladder (a `3rd` + `5th` cluster lands in `3rd`). The group carries the rank of its most important member: filing it lower buries that member, and filing it higher promotes the rest without the user asking. Topic `#tags` shared by every member go on the group's name.
 
@@ -71,6 +72,22 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs group .llm/gtd/review/ladder-<
 
 **Dated tasks never move.** The due walk (`/gtd:review:daily:due`) reads only the direct children of each `⏰` bucket, so a dated task moved under a group on the ladder silently drops out of it. A `⏰` task that matches a cluster is listed in the question as `Related (stays in ⏰): …` so the user sees the whole theme, but it is never a member. Every member is therefore on the ladder, and a `fromTier: null` in `planGroup` output means an id was mistyped — stop and fix the member list.
 
+## Rescue off-ladder projects
+
+Projects in flight live off the ladder, so their open tasks never get ranked against the rest and quietly stall. For each root, list every project from the projects metadata (and every off-ladder node a **Themes** anchor names) that is not inside a tier of that root's `📌` ladder and still holds at least one open task:
+
+```bash
+./bin/run.js node get --id <project-uuid> --depth 2 --json --fields name,id,shortId,children,completedAt
+```
+
+Skip any project listed under **Declined** as a rescue. Each survivor is a **rescue**: move the whole project node, with every task under it, onto a low tier of the ladder. Plan the landing — the bottom tier by default, or `[tier]` when the user names one — with `planRescue`:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs rescue .llm/gtd/review/ladder-<work|personal>.json [tier]
+```
+
+The output has the same shape as a group's `insertion` (`targetTier`, `targetId`, `demotions`, `createTiers`). The bottom tier is the default because nothing says a forgotten project outranks what is already filed; the project climbs the ladder through the rebalance walk like any other item.
+
 ## Flag agenda and ladder duplicates
 
 While clustering, compare each root's `📋 Meeting agendas` children against its ladder and `⏰` bucket with the same matching rules. A topic that sits in both is a duplicate — the user will either raise it or do it, and keeping both means one of them never gets closed. Flag each pair as its own question with these options: **Keep both** (the agenda item is a real discussion topic and the task is separate work), **Drop the agenda item**, **Drop the task**, **Skip**. Never delete either side unasked.
@@ -85,7 +102,7 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 	"generatedAt": "<ISO-8601 with offset>",
 	"status": "ready",
 	"presentation": "Group related tasks",
-	"summary": {"clusters": 2, "duplicates": 1},
+	"summary": {"clusters": 2, "rescues": 1, "duplicates": 1},
 	"proposals": [
 		{
 			"kind": "group",
@@ -112,6 +129,13 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 			"reason": "all three name @Alice and onboarding"
 		},
 		{
+			"kind": "rescue",
+			"rootKey": "personal",
+			"project": {"nodeId": "<uuid>", "name": "🌐 Example project", "openTasks": 3},
+			"insertion": {"targetTier": 5, "targetId": "<tier-5-uuid>", "demotions": [], "createTiers": []},
+			"reason": "off the ladder with 3 open tasks"
+		},
+		{
 			"kind": "duplicate",
 			"rootKey": "work",
 			"agenda": {"nodeId": "<uuid>", "name": "Build times with @Bob"},
@@ -122,11 +146,11 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 }
 ```
 
-`anchor.type` is `new`, `project`, or `task`; `project` and `task` anchors carry `nodeId` instead of `tier` / `tierId`. `status` is `empty` when nothing clusters and nothing duplicates, and `error` if prep failed.
+`anchor.type` is `new`, `project`, or `task`; `project` and `task` anchors carry `nodeId` instead of `tier` / `tierId`. `status` is `empty` when nothing clusters, nothing needs rescuing, and nothing duplicates, and `error` if prep failed.
 
 ## Walk and apply
 
-Every move is **its own question** — never bundle two clusters, or a cluster and a duplicate, into one `AskUserQuestion` question. Up to 4 questions per call is fine. Go straight into the first proposal: no meta-question about how to scope the walk, and no comment on the count.
+Every move is **its own question** — never bundle two clusters, or a cluster and a rescue or duplicate, into one `AskUserQuestion` question. Up to 4 questions per call is fine. Go straight into the first proposal: no meta-question about how to scope the walk, and no comment on the count.
 
 For a **group** proposal, show the theme, the anchor and where it lands, each member with its current tier, and the cascade when a new group bumps something out of its tier:
 
@@ -149,8 +173,16 @@ On **Group**, dispatch the ops as one background Bash job per the **Background D
 
 On **Keep separate**, append the cluster to the **Declined** section of `.llm/gtd/task-groups.md` so it is not proposed again. On **Group**, append or update the theme under **Themes** with its identifying words and the anchor's shortId, so the next run recognizes it. Append — never rewrite the file wholesale.
 
+For a **rescue** proposal, show the project, its open-task count, and where it lands with any cascade:
+
+```markdown
+Rescue (Personal): 🌐 Example project (3 open tasks) → 📌 asap → 5th (bottom)
+```
+
+Options: **Rescue** (as proposed), **Rescue in a different tier** (the user names it; re-plan with `planRescue` and that `[tier]`), **Leave off the ladder**. On **Rescue**, dispatch like a new group — `insertion.demotions` first, then any `createTiers`, then `node move --node-id <projectUuid> --parent-id <insertion.targetId> -p bottom`. The project's tasks travel with it; do not rename or re-tag it. On **Leave off the ladder**, append the rescue to **Declined**. A **Themes** bullet that named the project as its anchor stays valid once the project is on the ladder; update its location note.
+
 For a **duplicate** proposal, apply the chosen side's delete with `node delete --id <uuid>`, or nothing on **Keep both** / **Skip**.
 
 ## Finish
 
-Drain every background job and surface failures by group name. Print one line — e.g. `✓ 2 groups (1 new in 2nd, 1 under an existing project), 5 tasks moved, 1 agenda duplicate dropped, 1 kept separate` — or say nothing when `status` was `empty`. Then re-read each ladder and report any capped tier over its `2^k`; a new group whose tier was left over cap means a demotion failed.
+Drain every background job and surface failures by group name. Print one line — e.g. `✓ 2 groups (1 new in 2nd, 1 under an existing project), 5 tasks moved, 1 project rescued to 5th, 1 agenda duplicate dropped, 1 kept separate` — or say nothing when `status` was `empty`. Then re-read each ladder and report any capped tier over its `2^k`; a new group whose tier was left over cap means a demotion failed.

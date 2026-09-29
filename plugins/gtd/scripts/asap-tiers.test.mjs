@@ -10,6 +10,7 @@ import {
 	planGroup,
 	planInsertion,
 	planRebalance,
+	planRescue,
 	readLadder,
 	tierCapacity,
 	tierLabel,
@@ -416,5 +417,39 @@ test("planGroup cascades from the members' highest tier when it is full", () => 
 		targetId: 'tier-2',
 		demotions: [{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'}],
 		createTiers: [],
+	});
+});
+
+/**
+ * Rescuing an off-ladder project moves the whole project node, open tasks and all, onto the ladder.
+ * It lands on the bottom tier by default: the project was out of sight, so nothing says it outranks
+ * anything already filed.
+ */
+test('planRescue files a project on the bottom tier by default', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 11)]});
+	assert.deepStrictEqual(planRescue(ladder), {
+		targetTier: 3,
+		targetId: 'tier-3',
+		demotions: [],
+		createTiers: [],
+	});
+});
+
+test('planRescue files in an explicitly chosen tier and cascades like any insertion', () => {
+	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 3)]});
+	assert.deepStrictEqual(planRescue(ladder, 2), {
+		targetTier: 2,
+		targetId: 'tier-2',
+		demotions: [{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'}],
+		createTiers: [],
+	});
+});
+
+test('planRescue creates 1st on a bucket with no ladder yet', () => {
+	assert.deepStrictEqual(planRescue(readLadder({id: 'a', children: []})), {
+		targetTier: 1,
+		targetId: null,
+		demotions: [],
+		createTiers: [{tier: 1, label: '1st'}],
 	});
 });
