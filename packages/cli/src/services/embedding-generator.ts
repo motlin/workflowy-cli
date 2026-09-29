@@ -1,10 +1,40 @@
-import {nodeContent, nodeEmbeddings} from '@workflowy/shared/db';
+import {mirrors, nodeContent, type NodeContentType, nodeEmbeddings} from '@workflowy/shared/db';
 import * as schema from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import {and, eq, sql} from 'drizzle-orm';
+import {and, eq, inArray, sql} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {DEFAULT_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
-import {PathBuilder} from '@workflowy/shared/cache';
+import {notAMirror, PathBuilder} from '@workflowy/shared/cache';
+
+/**
+ * The current nodes worth indexing: those with children, excluding mirrors,
+ * which have no text of their own (their original is indexed instead).
+ */
+export async function loadEmbeddableNodes(
+	database: BetterSQLite3Database<typeof schema>,
+	pathBuilder = new PathBuilder(database),
+): Promise<NodeContentType[]> {
+	const currentNodes = database
+		.select()
+		.from(nodeContent)
+		.where(and(eq(nodeContent.systemTo, FAR_FUTURE_DATE), notAMirror(nodeContent.id)))
+		.all();
+	const nonLeafIds = await pathBuilder.getNonLeafNodeIds(currentNodes.map((n) => n.id));
+	return currentNodes.filter((node) => nonLeafIds.has(node.id));
+}
+
+/** Delete every embedding, of any model or version, keyed to a current mirror. Returns the count. */
+function pruneMirrorEmbeddings(database: BetterSQLite3Database<typeof schema>): number {
+	return database
+		.delete(nodeEmbeddings)
+		.where(
+			inArray(
+				nodeEmbeddings.nodeId,
+				database.select({id: mirrors.mirrorId}).from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)),
+			),
+		)
+		.run().changes;
+}
 
 export type EmbeddingGeneratorOptions = {
 	batchSize: number;
@@ -43,11 +73,17 @@ export class EmbeddingGeneratorService {
 	): Promise<EmbeddingGeneratorResult> {
 		const modelsToProcess: EmbeddingModelKey[] = options.model ? [options.model] : DEFAULT_MODELS;
 
-		const currentNodes = this.database
-			.select()
-			.from(nodeContent)
-			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-			.all();
+		const pruned = pruneMirrorEmbeddings(this.database);
+		if (pruned > 0) {
+			onProgress?.({
+				processed: 0,
+				total: 0,
+				elapsed: 0,
+				estimatedRemaining: 0,
+				currentModel: modelsToProcess[0],
+				message: `🧹 Pruned ${pruned} embeddings of mirror nodes`,
+			});
+		}
 
 		if (options.force) {
 			for (const model of modelsToProcess) {
@@ -58,10 +94,7 @@ export class EmbeddingGeneratorService {
 			}
 		}
 
-		// Filter out leaf nodes - we only embed nodes that have children
-		const allNodeIds = currentNodes.map((n) => n.id);
-		const nonLeafIds = await this.pathBuilder.getNonLeafNodeIds(allNodeIds);
-		const nonLeafNodes = currentNodes.filter((node) => nonLeafIds.has(node.id));
+		const nonLeafNodes = await loadEmbeddableNodes(this.database, this.pathBuilder);
 
 		// Populate FTS5 index with all non-leaf nodes (independent of model selection)
 		await this.populateFts(nonLeafNodes, onProgress);
@@ -75,14 +108,13 @@ export class EmbeddingGeneratorService {
 			modelStats.set(model, {needed: nodes.length, processed: 0});
 		}
 
-		const leafNodeCount = currentNodes.length - nonLeafNodes.length;
 		onProgress?.({
 			processed: 0,
 			total: totalToProcess,
 			elapsed: 0,
 			estimatedRemaining: 0,
 			currentModel: modelsToProcess[0],
-			message: `📊 ${currentNodes.length} nodes (${leafNodeCount} leaf nodes skipped), ${modelsToProcess.length} models. Need embeddings: ${[...modelStats.entries()].map(([m, s]) => `${m}=${s.needed}`).join(', ')}`,
+			message: `📊 ${nonLeafNodes.length} nodes (leaf nodes and mirrors skipped), ${modelsToProcess.length} models. Need embeddings: ${[...modelStats.entries()].map(([m, s]) => `${m}=${s.needed}`).join(', ')}`,
 		});
 
 		if (totalToProcess === 0) {

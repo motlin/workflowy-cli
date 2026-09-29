@@ -1,4 +1,3 @@
-import {nodeContent} from '@workflowy/shared/db';
 import * as schema from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import {and, eq} from 'drizzle-orm';
@@ -15,6 +14,7 @@ import {
 	type QMDStore,
 } from '@tobilu/qmd';
 import {PathBuilder} from '@workflowy/shared/cache';
+import {loadEmbeddableNodes} from './embedding-generator.js';
 import {logger} from './logger.js';
 
 function hashContent(content: string): string {
@@ -110,19 +110,11 @@ export class QmdSearchService {
 		const store = await this.getStore();
 		const {internal} = store;
 
-		const currentNodes = this.database
-			.select()
-			.from(nodeContent)
-			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-			.all();
+		// Mirror documents left by earlier syncs are no longer processed, so they
+		// are deactivated below.
+		const nonLeafNodes = await loadEmbeddableNodes(this.database, this.pathBuilder);
 
-		const allNodeIds = currentNodes.map((n) => n.id);
-		const nonLeafIds = await this.pathBuilder.getNonLeafNodeIds(allNodeIds);
-		const nonLeafNodes = currentNodes.filter((node) => nonLeafIds.has(node.id));
-
-		onProgress?.(
-			`Found ${nonLeafNodes.length} non-leaf nodes (${currentNodes.length - nonLeafNodes.length} leaf nodes skipped)`,
-		);
+		onProgress?.(`Found ${nonLeafNodes.length} non-leaf nodes (leaf nodes and mirrors skipped)`);
 
 		const nodeIds = nonLeafNodes.map((n) => n.id);
 		const [pathMap, contentMap, childrenMap] = await Promise.all([
