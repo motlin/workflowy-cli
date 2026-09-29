@@ -8,6 +8,16 @@ import {isSystemTarget} from '../types/targets.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
 import type {CacheService} from './cache-service.js';
 
+/** The API calls {@link WorkflowyWriteThroughClient.deleteNode} makes for one delete. */
+export interface DeletePlan {
+	/** Mirrors removed first, each through DELETE /nodes/:id/mirror. */
+	mirrorIds: string[];
+	/** The node then removed through the generic DELETE /nodes/:id, or null when the target is itself a mirror. */
+	nodeId: string | null;
+	/** Mirrors outside the deleted subtree whose original is inside it; left in place. */
+	outsideMirrorIds: string[];
+}
+
 /**
  * Unified write-through client that wraps both WorkflowyApiClient and CacheService.
  * All write operations are performed against the Workflowy API first, then the cache is updated.
@@ -102,12 +112,47 @@ export class WorkflowyWriteThroughClient {
 	}
 
 	/**
-	 * Delete a node and remove it from the cache.
-	 * @param nodeId The node ID to delete
+	 * Work out the API calls {@link deleteNode} makes for `nodeId`, from the cache,
+	 * without calling the API.
+	 *
+	 * Workflowy's generic DELETE /nodes/:id removes a mirror, or an ancestor of
+	 * one, but leaves the mirror's id in its original's mirror list: a dead
+	 * reference. DELETE /nodes/:id/mirror cleans the list, so a mirror target is
+	 * removed through it alone, and every mirror inside a subtree is removed
+	 * through it before the generic delete of the subtree.
+	 *
+	 * Mirrors outside the subtree whose original is inside it are left alone:
+	 * they are the user's content elsewhere, and removing them would delete more
+	 * than was asked. The generic delete of the original is what the API has
+	 * always received for such a node, so this is no worse than before; they are
+	 * reported in `outsideMirrorIds` so callers can warn.
 	 */
-	async deleteNode(nodeId: string): Promise<void> {
-		await this.apiClient.deleteNode(nodeId);
-		await this.cacheService.deleteNode(nodeId);
+	async planDelete(nodeId: string): Promise<DeletePlan> {
+		if ((await this.cacheService.getMirrorOriginal(nodeId)) !== null) {
+			return {mirrorIds: [nodeId], nodeId: null, outsideMirrorIds: []};
+		}
+		const {inside, outside} = await this.cacheService.getSubtreeMirrors(nodeId);
+		return {mirrorIds: inside, nodeId, outsideMirrorIds: outside};
+	}
+
+	/**
+	 * Delete a node and remove it from the cache, removing mirrors through the
+	 * mirror endpoint so no original is left listing a deleted mirror (see
+	 * {@link planDelete}). Each mirror leaves the cache as soon as the API
+	 * removes it; if any mirror removal fails, the generic delete is not sent.
+	 * @param nodeId The node ID to delete
+	 * @returns The plan that was carried out
+	 */
+	async deleteNode(nodeId: string): Promise<DeletePlan> {
+		const plan = await this.planDelete(nodeId);
+		for (const mirrorId of plan.mirrorIds) {
+			await this.deleteMirror(mirrorId);
+		}
+		if (plan.nodeId !== null) {
+			await this.apiClient.deleteNode(plan.nodeId);
+			await this.cacheService.deleteNode(plan.nodeId);
+		}
+		return plan;
 	}
 
 	/**

@@ -40,4 +40,4 @@ export {
 	temporalMerge,
 	type TemporalTransaction,
 } from './temporal-merge.js';
-export {WorkflowyWriteThroughClient} from './workflowy-write-through-client.js';
+export {type DeletePlan, WorkflowyWriteThroughClient} from './workflowy-write-through-client.js';

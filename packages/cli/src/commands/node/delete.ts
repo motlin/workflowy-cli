@@ -16,7 +16,7 @@ export default class Delete extends Command {
 		'# Delete node by path',
 		'<%= config.bin %> <%= command.id %> --path "Work,Tasks,Completed Task"',
 		'',
-		'# Preview the API call without deleting',
+		'# Preview the API calls without deleting',
 		'<%= config.bin %> <%= command.id %> --id abc123 --dry-run',
 	];
 
@@ -33,7 +33,7 @@ export default class Delete extends Command {
 		}),
 		'dry-run': Flags.boolean({
 			char: 'd',
-			description: 'Show the API call that would be made without executing',
+			description: 'Show the API calls that would be made without executing',
 			default: false,
 		}),
 	};
@@ -59,29 +59,54 @@ export default class Delete extends Command {
 		const nodeId = await resolveNodeId(flags, cacheService, apiClient);
 
 		const fullPath = await pathBuilder.buildFullPath(nodeId);
+		const plan = await client.planDelete(nodeId);
+		const removingMirror = plan.nodeId === null;
+		const innerMirrorPaths = removingMirror
+			? []
+			: await Promise.all(plan.mirrorIds.map((id) => pathBuilder.buildFullPath(id)));
+		const outsidePaths = await Promise.all(plan.outsideMirrorIds.map((id) => pathBuilder.buildFullPath(id)));
+		const warning = removingMirror
+			? "WARNING: This removes only this mirror; its original and the original's children are kept."
+			: 'WARNING: This will permanently delete the node and all its children!';
 
 		if (flags['dry-run']) {
-			this.log('Would execute API call:');
-			this.log(`  Method: DELETE`);
-			this.log(`  URL: https://workflowy.com/api/v1/nodes/${nodeId}`);
+			this.log('Would execute API calls:');
+			for (const id of plan.mirrorIds) {
+				this.log(`  DELETE https://workflowy.com/api/v1/nodes/${id}/mirror`);
+			}
+			if (plan.nodeId !== null) {
+				this.log(`  DELETE https://workflowy.com/api/v1/nodes/${plan.nodeId}`);
+			}
 			this.log('  Headers:');
 			this.log('    Authorization: Bearer <WORKFLOWY_API_KEY>');
 			this.log('');
 			this.log(`Node: ${fullPath}`);
+			this.logMirrorSections(innerMirrorPaths, outsidePaths);
 			this.log('');
-			this.log('WARNING: This will permanently delete the node and all its children!');
+			this.log(warning);
 		} else {
-			this.log(`Deleting node: ${fullPath}`);
+			this.log(`${removingMirror ? 'Removing mirror' : 'Deleting node'}: ${fullPath}`);
+			this.logMirrorSections(innerMirrorPaths, outsidePaths);
 			this.log('');
-			this.log('WARNING: This will permanently delete the node and all its children!');
+			this.log(warning);
 
 			await client.deleteNode(nodeId);
 
-			// Update cache - close out the deleted node's temporal record
-			await cacheService.deleteNode(nodeId);
-
 			this.log('');
-			this.log(`Successfully deleted node`);
+			this.log(removingMirror ? 'Successfully removed mirror' : 'Successfully deleted node');
+		}
+	}
+
+	private logMirrorSections(innerMirrorPaths: string[], outsideMirrorPaths: string[]): void {
+		if (innerMirrorPaths.length > 0) {
+			this.log('');
+			this.log('Mirrors removed first through the mirror endpoint, so their originals drop the reference:');
+			for (const mirrorPath of innerMirrorPaths) this.log(`  ${mirrorPath}`);
+		}
+		if (outsideMirrorPaths.length > 0) {
+			this.log('');
+			this.log('Mirrors elsewhere of nodes being deleted, left in place:');
+			for (const mirrorPath of outsideMirrorPaths) this.log(`  ${mirrorPath}`);
 		}
 	}
 }

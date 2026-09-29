@@ -24,7 +24,7 @@ import {
 	normalizeLayoutMode,
 	systemFromToDate,
 } from './cache-temporal.js';
-import {notAMirror} from './mirror-text.js';
+import {loadMirrorOriginals, notAMirror} from './mirror-text.js';
 import {NodeReader} from './node-reader.js';
 
 /**
@@ -925,6 +925,49 @@ export class CacheService {
 				systemTo: FAR_FUTURE_DATE,
 			})
 			.run();
+	}
+
+	/**
+	 * The mirrors a delete of `nodeId`'s cached subtree affects: `inside` are the
+	 * mirror nodes within the subtree, in breadth-first order (a mirror's own
+	 * children live under its original, so the walk stops at each mirror);
+	 * `outside` are mirrors elsewhere whose original is within the subtree,
+	 * sorted by id. `nodeId` itself is not checked.
+	 */
+	async getSubtreeMirrors(nodeId: string): Promise<{inside: string[]; outside: string[]}> {
+		const chunkSize = 10_000;
+		const inside: string[] = [];
+		const nonMirrorIds: string[] = [nodeId];
+		let level = [nodeId];
+		while (level.length > 0) {
+			const childIds: string[] = [];
+			for (let i = 0; i < level.length; i += chunkSize) {
+				const rows = this.database
+					.select({id: nodeContent.id})
+					.from(nodeContent)
+					.where(
+						and(inArray(nodeContent.parentId, level.slice(i, i + chunkSize)), currentVersion(nodeContent)),
+					)
+					.all();
+				for (const row of rows) childIds.push(row.id);
+			}
+			const childMirrors = loadMirrorOriginals(this.database, childIds);
+			level = childIds.filter((id) => !childMirrors.has(id));
+			inside.push(...childIds.filter((id) => childMirrors.has(id)));
+			nonMirrorIds.push(...level);
+		}
+
+		const insideIds = new Set(inside);
+		const outside = new Set<string>();
+		for (let i = 0; i < nonMirrorIds.length; i += chunkSize) {
+			const rows = this.database
+				.select({mirrorId: mirrors.mirrorId})
+				.from(mirrors)
+				.where(and(inArray(mirrors.originalId, nonMirrorIds.slice(i, i + chunkSize)), currentVersion(mirrors)))
+				.all();
+			for (const row of rows) if (!insideIds.has(row.mirrorId)) outside.add(row.mirrorId);
+		}
+		return {inside, outside: [...outside].sort()};
 	}
 
 	/**
