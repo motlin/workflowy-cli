@@ -32,11 +32,24 @@ Then ask **one question per entry**, today's entries first, then the imminent on
 
 Say who they are from the `👥 Relationship:` field when it is close family — "your sister" carries weight that a bare `@mention` does not.
 
+An entry staged with `deceased: true` is a remembrance, not a celebration. Keep the date and its prominence, but never say "turns" or "anniversary" as if the person were alive — use the staged `remembrance` phrasing and the `🕯️` prefix:
+
+```text
+🕯️ TODAY — @Grace's birthday (your grandfather) — would have turned 74
+🕯️ TOMORROW — @Grace and @Heidi's anniversary — would have been their 50th
+```
+
 Options per entry:
 
 - **Handled** — the user has it covered (called, card sent, gift bought) or owes nothing. Record it.
 - **Still owed** — create an inbox node naming the person and the occasion (`Call @Alice for her birthday — Sep 7`), then record it.
 - **Remind me next run** — write nothing. An imminent entry is announced again tomorrow; a today entry returns as backlog once prep rolls it.
+
+For a `deceased` entry, replace the living-person options with remembrance ones:
+
+- **Call @Name** — one option per `nextOfKin` entry, up to three (`Call @Heidi`). Create an inbox node (`Call @Heidi — @Grace's birthday, Sep 7`), then record it.
+- **Remembered** — the user marks the day privately or owes nothing. Record it.
+- **Remind me next run** — write nothing.
 
 Record with the same append the backlog walk uses below, keyed on the announced occurrence date. That record is what keeps an acknowledged date from resurfacing as backlog after prep rolls it forward.
 
@@ -51,6 +64,8 @@ Options per item:
 - **Handled** — nothing owed. Record it and move on.
 - **Still owed** — the user wants to do something about it. Create an inbox node naming the person and the occasion (`Send @Lindsay an anniversary note — Aug 20`), then record the date as handled so it does not resurface.
 - **Skip** — write nothing; it returns next run.
+
+A `deceased` backlog item uses the remembrance wording and the **Call @Name** / **Remembered** / **Skip** options from the announcement above.
 
 Record handled dates by appending `{person, field, occurrence, decision, decidedAt}` to `.llm/gtd/review/relationship-dates-handled.json` (create as `[]` if missing), keyed `<personMention>:<field>:<ISO occurrence>`. Recording is what makes the backlog shrink to nothing once cleared; without it every past birthday returns forever.
 

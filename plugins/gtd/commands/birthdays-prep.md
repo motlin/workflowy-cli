@@ -23,6 +23,13 @@ Apply announces `today` and `imminent` together, first, through `AskUserQuestion
 
 Write `generatedFor` (the ISO date this briefing describes) into the staged JSON. A long review can cross midnight, and the briefing is only valid for the day it was computed; the apply half compares `generatedFor` against the current date and re-runs this prep when they differ.
 
+## Mark deceased people as remembrances
+
+A person with a `🪦 Date of death` field keeps their birthday and anniversary: it is still an important day, usually for someone close to the user. Keep matching, rolling, and staging those dates exactly as for anyone else, but tag every entry for that person with `"deceased": true` so apply frames it as a remembrance rather than a celebration.
+
+- Phrase the count in the conditional: `"remembrance": "would have turned 74"` for a birthday, `"would have been their 50th anniversary"` for an anniversary. Compute it from `👶 Date of birth` / `💒 Married on` as usual; omit it when the companion field is absent.
+- Stage `nextOfKin`: the living people this date matters to, read from the deceased person's `👥 Relationship:` mentions and from people whose `👥 Relationship:` names the deceased (a surviving spouse, a parent, the user's own parent). Skip anyone who also has a `🪦` field. An empty list is fine; never guess.
+
 ## Roll passed occurrences forward
 
 A next-occurrence date whose day has passed is stale: it will never match again, and the person silently drops out of the briefing forever. This task **owns** rolling those forward — nothing else does, which is how twelve fields (including the user's own children's birthdays) sat a month or more in the past until 2026-08-21.
@@ -50,7 +57,7 @@ So an occurrence is unhandled backlog only when **both** hold:
 
 When `autoApplied` is empty, `proposals[]` is empty. There is no other path to a non-empty backlog.
 
-Each staged proposal carries the person, the field, the occurrence date, how many days ago it was, and the relationship from the `👥 Relationship:` field — a sibling's anniversary is not a coworker's birthday, and the walk needs that to frame the question.
+Each staged proposal carries the person, the field, the occurrence date, how many days ago it was, the relationship from the `👥 Relationship:` field, and the `deceased` / `remembrance` / `nextOfKin` fields when the person has died — a sibling's anniversary is not a coworker's birthday, and the walk needs that to frame the question.
 
 Order them most recent first.
 

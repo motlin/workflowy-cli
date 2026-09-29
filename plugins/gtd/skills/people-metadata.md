@@ -24,7 +24,7 @@ Each fact is a child node named `<emoji> Label: value`. The table lists them in 
 | `🎂` | Birthday | next upcoming occurrence year |
 | `💒` | Married on | wedding date, actual year; on both spouses |
 | `💍` | Anniversary | next occurrence year; on both spouses |
-| `🪦` | Date of death |  |
+| `🪦` | Date of death | keeps `🎂` / `💍` live; the birthdays briefing phrases them as remembrances ("would have turned 74") and offers to call next of kin |
 | `🕯️` | Yahrzeit | next occurrence |
 | `📍` | Address | current home; keep the word "Address"; a second or seasonal home is just another `📍 Address:` |
 | `🏢` | Work | office address; only for family/self, or a friend whose office you've been to |
