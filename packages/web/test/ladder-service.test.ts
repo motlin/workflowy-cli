@@ -65,6 +65,34 @@ describe('LadderService.move', () => {
 		expect(seen).toEqual([]);
 	});
 
+	it('answers once the move lands, without waiting for the tier refresh', async () => {
+		const refreshTier = vi.fn(() => new Promise<void>(() => {}));
+		const {service} = makeService({refreshTier});
+		const answered = await Promise.race([
+			service.move({root: 'work', nodeId: 'a', toTier: '2nd'}).then(() => 'answered'),
+			new Promise((resolve) => setImmediate(() => resolve('blocked'))),
+		]);
+		expect({answered, refreshed: refreshTier.mock.calls}).toStrictEqual({
+			answered: 'answered',
+			refreshed: [['w2']],
+		});
+	});
+
+	it('keeps a landed move when the tier refresh fails', async () => {
+		const failure = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const {service} = makeService({
+			refreshTier: vi.fn(async () => {
+				throw new Error('Test refresh throttled');
+			}),
+		});
+		await expect(service.move({root: 'work', nodeId: 'a', toTier: '2nd'})).resolves.toMatchObject({nodeId: 'a'});
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(failure.mock.calls.map(([message]) => message)).toStrictEqual([
+			'ladder: could not refresh tier w2 after a move: Test refresh throttled',
+		]);
+		failure.mockRestore();
+	});
+
 	it('rejects an unknown root instead of writing somewhere plausible', async () => {
 		const {service, moveNode} = makeService();
 		await expect(service.move({root: 'nope', nodeId: 'a', toTier: '2nd'})).rejects.toThrow(/nope/);

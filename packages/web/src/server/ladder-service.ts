@@ -17,6 +17,11 @@ export interface LadderServiceOptions {
 	/** Negative position prepends; zero appends. */
 	moveNode: (nodeId: string, parentId: string, position: number) => Promise<unknown>;
 	completeNode: (nodeId: string) => Promise<unknown>;
+	/**
+	 * Re-read a tier's sibling order after a move. It runs after the response,
+	 * because Workflowy throttling can stretch it past the page's connection.
+	 */
+	refreshTier?: (parentId: string) => Promise<unknown>;
 	events: LadderEventBus;
 	now?: () => Date;
 }
@@ -68,15 +73,25 @@ export class LadderService {
 			toTier,
 		};
 		await this.#options.moveNode(nodeId, plan.parentId, index === 0 ? -1 : 0);
-		if (index === 0) return this.#publish({...event, beforeNodeId: remaining[0]?.id ?? ''});
-		if (index === remaining.length) return this.#publish({...event, beforeNodeId: ''});
+		if (index === 0) return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ''});
+		if (index === remaining.length) return this.#landed(plan.parentId, {...event, beforeNodeId: ''});
 		this.#publish({...event, beforeNodeId: ''});
 		// Workflowy's API supports only top/bottom. Rotate the suffix to preserve exact placement.
 		for (const item of remaining.slice(index)) {
 			await this.#options.moveNode(item.id, plan.parentId, 0);
 			this.#publish({verb: 'move', nodeId: item.id, name: item.name, fromTier: toTier, toTier, beforeNodeId: ''});
 		}
-		return this.#publish({...event, beforeNodeId: beforeNodeId ?? ''});
+		return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ''});
+	}
+
+	/** Announce a landed move, then refresh its tier without holding the response. */
+	#landed(parentId: string, event: Omit<LadderEvent, 'at'>): LadderEvent {
+		const published = this.#publish(event);
+		this.#options.refreshTier?.(parentId).catch((error: unknown) => {
+			const message = error instanceof Error ? error.message : String(error);
+			console.error(`ladder: could not refresh tier ${parentId} after a move: ${message}`);
+		});
+		return published;
 	}
 
 	async complete({root, nodeId}: {root: string; nodeId: string}): Promise<LadderEvent> {

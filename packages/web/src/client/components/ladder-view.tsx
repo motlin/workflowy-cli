@@ -32,6 +32,9 @@ const VERDICT: Record<LadderTier['state'], (tier: LadderTier) => string> = {
 	over: (tier) => `over by ${tier.items.length - tier.capacity}`,
 };
 
+/** The server answered and refused the write, so the page knows it did not land. */
+class WriteRejected extends Error {}
+
 export function LadderView() {
 	const [ladders, setLadders] = useState<Ladders>();
 	const [root, setRoot] = useState('personal');
@@ -94,6 +97,23 @@ export function LadderView() {
 		return () => socket.close();
 	}, [updateLadders]);
 
+	/** Replace the page with the server's ladder; false when even that fails. */
+	const reread = useCallback(async () => {
+		try {
+			const refreshed = await fetch('/api/v1/ladder');
+			if (refreshed.ok) {
+				const body = (await refreshed.json()) as {ladders: Ladders};
+				updateLadders(() => body.ladders);
+				return true;
+			}
+		} catch {
+			// Fall through to the reload banner.
+		}
+		setNeedsReload(true);
+		setError('Could not refresh after the failed move. Reload before moving more rows.');
+		return false;
+	}, [updateLadders]);
+
 	const write = useCallback(
 		async (path: string, body: Record<string, string>, optimistic: (current: Ladders) => Ladders) => {
 			const before = laddersRef.current;
@@ -108,7 +128,6 @@ export function LadderView() {
 				return next;
 			});
 			updateLadders(optimistic);
-			let reconciling = false;
 			try {
 				const response = await fetch(path, {
 					method: 'POST',
@@ -118,19 +137,11 @@ export function LadderView() {
 				if (!response.ok) {
 					const failure = (await response.json()) as {error?: string; reconcile?: boolean};
 					if (failure.reconcile) {
-						reconciling = true;
 						setRowErrors((current) => ({...current, [nodeId]: failure.error ?? 'Move failed'}));
-						const refreshed = await fetch('/api/v1/ladder');
-						if (!refreshed.ok) {
-							setNeedsReload(true);
-							setError('Could not refresh after the failed move. Reload before moving more rows.');
-							return false;
-						}
-						const body = (await refreshed.json()) as {ladders: Ladders};
-						updateLadders(() => body.ladders);
+						await reread();
 						return false;
 					}
-					throw new Error(failure.error ?? `write failed: ${response.status}`);
+					throw new WriteRejected(failure.error ?? `write failed: ${response.status}`);
 				}
 				const {event} = (await response.json()) as {event: LadderEvent};
 				if (receivedWrites.current.get(nodeId) === lastReceived) {
@@ -138,13 +149,13 @@ export function LadderView() {
 				}
 				return true;
 			} catch (cause) {
-				if (reconciling) {
-					setNeedsReload(true);
-					setError('Could not refresh after the failed move. Reload before moving more rows.');
-					return false;
-				}
 				// A received write is authoritative even if its HTTP response was lost.
 				if (receivedWrites.current.get(nodeId) !== lastReceived) return true;
+				// A dropped connection may have outlived a write that landed, so ask rather than guess.
+				if (!(cause instanceof WriteRejected)) {
+					await reread();
+					return false;
+				}
 				updateLadders((current) => restoreRow(current, before, nodeId));
 				setRowErrors((current) => ({
 					...current,
@@ -153,7 +164,7 @@ export function LadderView() {
 				return false;
 			}
 		},
-		[updateLadders],
+		[updateLadders, reread],
 	);
 
 	const move = useCallback(

@@ -57,6 +57,7 @@ function tierProps() {
 		onStep: (id: string, label: string, beforeNodeId?: string) => void;
 		onComplete: (id: string) => void;
 		rowErrors: Record<string, string>;
+		pending: Set<string>;
 	};
 }
 
@@ -190,10 +191,10 @@ describe('local ladder actions', () => {
 	});
 
 	it('restores a failed Done row without undoing another socket write and clears its error on retry', async () => {
-		let reject!: (reason: Error) => void;
+		let respond!: (value: unknown) => void;
 		request.mockReturnValueOnce(
-			new Promise((_resolve, rejectRequest) => {
-				reject = rejectRequest;
+			new Promise((resolve) => {
+				respond = resolve;
 			}),
 		);
 		const listeners: Record<string, (message: {data: string}) => void> = {};
@@ -219,13 +220,13 @@ describe('local ladder actions', () => {
 				at: '2000-01-01T00:00:00.000Z',
 			}),
 		});
-		reject(new Error('Test connection failed'));
+		respond({ok: false, json: async () => ({error: 'Test write rejected'})});
 		await settle();
 		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
 			[item('alice')],
 			[item('bob')],
 		]);
-		expect(tierProps().rowErrors).toStrictEqual({alice: 'Test connection failed'});
+		expect(tierProps().rowErrors).toStrictEqual({alice: 'Test write rejected'});
 		tierProps().onComplete('alice');
 		await settle();
 		expect(tierProps().rowErrors).toStrictEqual({});
@@ -272,6 +273,30 @@ describe('local ladder actions', () => {
 			[],
 		]);
 		expect(tierProps().rowErrors).toStrictEqual({});
+	});
+
+	it('re-reads the ladder when the connection drops mid-move instead of guessing', async () => {
+		const landed = ladders();
+		landed.personal.tiers = [
+			{...landed.personal.tiers[0], state: 'room', items: [item('bob')]},
+			{...landed.personal.tiers[1], items: [item('alice')]},
+		];
+		request
+			.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: landed})});
+		tierProps().onStep('alice', '2nd');
+		await settle();
+		expect({
+			calls: request.mock.calls.map(([path]) => path),
+			ladders: hooks.values[0],
+			errors: tierProps().rowErrors,
+			pending: tierProps().pending,
+		}).toStrictEqual({
+			calls: ['/api/v1/ladder/move', '/api/v1/ladder'],
+			ladders: landed,
+			errors: {},
+			pending: new Set(),
+		});
 	});
 
 	it('creates the next ordinal under the displayed bucket and refreshes the page', async () => {

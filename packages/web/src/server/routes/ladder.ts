@@ -104,9 +104,9 @@ function defaultService(ctx: ServerContext): LadderService {
 			}
 			return buckets as never;
 		},
-		moveNode: async (nodeId, parentId, position) => {
-			await writeClient(ctx).moveNode(nodeId, parentId, position);
-			// Reordering can renumber siblings, so refresh their cached priorities too.
+		moveNode: async (nodeId, parentId, position) => writeClient(ctx).moveNode(nodeId, parentId, position),
+		// Reordering can renumber siblings, so refresh their cached priorities too.
+		refreshTier: async (parentId) => {
 			const children = await apiClient(ctx).getChildNodes(parentId);
 			for (const child of children) await ctx.cacheService.insertNode(child, parentId);
 		},
