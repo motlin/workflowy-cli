@@ -40,7 +40,12 @@
 	"rules": {
 		"unused-dependencies": "warn",
 	},
-	"ignoreDependencies": ["@oclif/plugin-help", "@workflowy/shared", "@voidzero-dev/vite-plus-test", "better-sqlite3"],
+	// Resolve @workflowy/shared imports to src/ (via the "source" export condition) instead of dist/,
+	// so cross-package usages of shared class members are seen.
+	"resolve": {
+		"conditions": ["source"],
+	},
+	"ignoreDependencies": ["@oclif/plugin-help", "@voidzero-dev/vite-plus-test", "better-sqlite3"],
 	"ignoreExports": [
 		{
 			"file": "packages/cli/src/commands/base-list-command.ts",

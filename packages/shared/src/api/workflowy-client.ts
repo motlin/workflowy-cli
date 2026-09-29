@@ -1,5 +1,3 @@
-import {TargetsResponseSchema} from '../types/targets.js';
-import type {WorkflowyTarget} from '../types/targets.js';
 import {
 	ApiResponseSchema,
 	CompletionStatusResponseSchema,
@@ -574,41 +572,6 @@ export class WorkflowyApiClient {
 
 			const validatedResponse = ApiResponseSchema.parse(data);
 			return validatedResponse.nodes ?? [];
-		} catch (error) {
-			const duration = performance.now() - startTime;
-			this.logger?.logError(url, 'GET', error as Error, duration);
-			throw error;
-		}
-	}
-
-	/**
-	 * Get system targets (like inbox) with their UUIDs.
-	 *
-	 * Note: Most operations can use target keys directly (e.g., parent_id: "inbox").
-	 * This method is primarily useful for discovery or when you need the actual UUID.
-	 *
-	 * @returns Array of targets with name and id
-	 */
-	async getTargets(): Promise<WorkflowyTarget[]> {
-		const url = `${this.baseUrl}/api/v1/targets`;
-		const startTime = performance.now();
-		this.logger?.logRequest(url, 'GET');
-
-		try {
-			const response = await fetch(url, {
-				headers: this.getHeaders(),
-			});
-
-			if (!response.ok) {
-				throw await this.describeFailure('API request failed', response);
-			}
-
-			const data = await response.json();
-			const duration = performance.now() - startTime;
-			this.logger?.logResponse(url, 'GET', response.status, response.statusText, data, duration);
-
-			const validatedResponse = TargetsResponseSchema.parse(data);
-			return validatedResponse.targets;
 		} catch (error) {
 			const duration = performance.now() - startTime;
 			this.logger?.logError(url, 'GET', error as Error, duration);

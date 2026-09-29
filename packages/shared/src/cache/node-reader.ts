@@ -1,5 +1,5 @@
 import * as schema from '../db/schema.js';
-import {mirrors, nodeContent, nodeMetadata} from '../db/schema.js';
+import {mirrors, nodeContent} from '../db/schema.js';
 import type {Node} from '../types/node.js';
 import {and, eq, inArray, isNull} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
@@ -78,23 +78,6 @@ export class NodeReader {
 				const bTime = b.createdAt?.getTime() ?? 0;
 				return aTime - bTime;
 			});
-	}
-
-	/**
-	 * Load a single current node by its 12-character short ID. Returns null
-	 * when no node maps to the short ID.
-	 */
-	getByShortId(shortId: string): Node | null {
-		const metadataRow = this.database.query.nodeMetadata
-			.findFirst({
-				where: and(eq(nodeMetadata.shortId, shortId), currentVersion(nodeMetadata)),
-				columns: {nodeId: true},
-			})
-			.sync();
-		if (!metadataRow) {
-			return null;
-		}
-		return this.getById(metadataRow.nodeId);
 	}
 
 	/**

@@ -7,50 +7,62 @@
 	"types": "dist/index.d.ts",
 	"exports": {
 		".": {
+			"source": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
 		"./api": {
+			"source": "./src/api/index.ts",
 			"types": "./dist/api/index.d.ts",
 			"import": "./dist/api/index.js"
 		},
 		"./db": {
+			"source": "./src/db/index.ts",
 			"types": "./dist/db/index.d.ts",
 			"import": "./dist/db/index.js"
 		},
 		"./schemas": {
+			"source": "./src/schemas/index.ts",
 			"types": "./dist/schemas/index.d.ts",
 			"import": "./dist/schemas/index.js"
 		},
 		"./types": {
+			"source": "./src/types/index.ts",
 			"types": "./dist/types/index.d.ts",
 			"import": "./dist/types/index.js"
 		},
 		"./temporal": {
+			"source": "./src/temporal/index.ts",
 			"types": "./dist/temporal/index.d.ts",
 			"import": "./dist/temporal/index.js"
 		},
 		"./html": {
+			"source": "./src/html/index.ts",
 			"types": "./dist/html/index.d.ts",
 			"import": "./dist/html/index.js"
 		},
 		"./workflowy": {
+			"source": "./src/workflowy/index.ts",
 			"types": "./dist/workflowy/index.d.ts",
 			"import": "./dist/workflowy/index.js"
 		},
 		"./cache": {
+			"source": "./src/cache/index.ts",
 			"types": "./dist/cache/index.d.ts",
 			"import": "./dist/cache/index.js"
 		},
 		"./changes": {
+			"source": "./src/changes/index.ts",
 			"types": "./dist/changes/index.d.ts",
 			"import": "./dist/changes/index.js"
 		},
 		"./utils": {
+			"source": "./src/utils/index.ts",
 			"types": "./dist/utils/index.d.ts",
 			"import": "./dist/utils/index.js"
 		},
 		"./search": {
+			"source": "./src/search/index.ts",
 			"types": "./dist/search/index.d.ts",
 			"import": "./dist/search/index.js"
 		}
