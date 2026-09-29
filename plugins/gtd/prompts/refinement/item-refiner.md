@@ -29,6 +29,15 @@ Apply every tagger and composer prompt yourself, in this conversation. Do not la
 - Serialize the CLI: run one CLI call at a time. It holds the SQLite cache lock while it runs, so never issue CLI calls as parallel Bash tool calls, never background them with `&`, and never pipe one CLI call into another. Other refiners may be running beside you; if a call fails on a busy/locked database, wait briefly and retry it once.
 - Read-only `jq` over `.llm/gtd/metadata/` files needs no lock and can be batched freely.
 
+## Already-Done Check
+
+Before Phase A, decide whether the item describes a concrete change to a checkable local artifact: a config file (`~/.claude/settings.json`, a dotfile, `~/.config/...`), or a repo (a file, a script, a dependency, a git branch). If it does, inspect the artifact's current state read-only (`cat`, `jq`, `grep`, `git -C <repo> log`) and decide whether the change is already present.
+
+- **Present**: record `alreadyDone: {evidence: "<path>: <what is already there>"}`. Phase B still runs, but the refinement's `📍 Move to:` becomes `Already done, complete it` with `📊 Confidence: high`, a `✅ Evidence:` row carries the evidence, and destination-guesser's path becomes the `🔀 Alternative:` so the user can still file it.
+- **Absent, partial, or unreadable**: record nothing and refine normally. Never guess "already done" from memory or from the item's wording; only a read of the artifact counts.
+
+Skip the check for items with nothing local to inspect (errands, calls, emails, web research, Workflowy edits).
+
 ## Phase A: Taggers (Inline, In Order)
 
 Apply these seven prompts one after another, each producing one JSON object:
@@ -133,7 +142,8 @@ done
     {"name": "⚠️ Invalid @mention: @Bobb"},
     {"name": "🗣️ Agenda: raise with <@Name> #agenda #work"},
     {"name": "📤 Delegate: <@Name or unknown> -> Work > 📤 Delegate"},
-    {"name": "📍 Move to: <full path>", "children": [
+    {"name": "✅ Evidence: <path>: <what is already there>"},
+    {"name": "📍 Move to: <full path, or Already done, complete it>", "children": [
       {"name": "📊 Confidence: <high|medium|low>"}
     ]},
     {"name": "🔀 Alternative: <full path of alternative.path>"},
@@ -168,6 +178,7 @@ Only include children that have actual values from Phase A/B results.
 | 7.3   | ⚠️ Invalid @mention: | tag-cleaner (per invalidMention) |
 | 7.5   | 🗣️ Agenda:           | agenda-detector (mirror offer)   |
 | 7.6   | 📤 Delegate:         | destination-guesser (optional)   |
+| 7.7   | ✅ Evidence:         | already-done check (optional)    |
 | 8     | 📍 Move to:          | destination-guesser              |
 | 8.1   | └── 📊 Confidence:   | destination-guesser (sub-bullet) |
 | 8.5   | 🔀 Alternative:      | destination-guesser (optional)   |

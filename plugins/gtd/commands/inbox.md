@@ -104,7 +104,7 @@ Call John about project
     └── ✏️ Text: Call @JohnSmith about #home-renovation #call
 ```
 
-For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), `isAgenda` (true when a `🗣️ Agenda:` row exists), `delegation` (from `📤 Delegate:`, as `{person, path}` with `person` null for `unknown`, or null when the row is absent), and `notes` (the names of the item's own direct children starting with `📝`, in order, or an empty array). Write the array to `.llm/gtd-parsed-items.json`.
+For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to:`), `confidence` (from `📊 Confidence:` sub-child), `suggestedText` (from `✏️ Text:`), `provenance` (from `📜 Provenance:`), `alternativePath` (from `🔀 Alternative:`, or null), `evidence` (from `✅ Evidence:`, or null), `isAgenda` (true when a `🗣️ Agenda:` row exists), `delegation` (from `📤 Delegate:`, as `{person, path}` with `person` null for `unknown`, or null when the row is absent), and `notes` (the names of the item's own direct children starting with `📝`, in order, or an empty array). Write the array to `.llm/gtd-parsed-items.json`.
 
 **Handling missing data:**
 
@@ -248,11 +248,24 @@ Options:
 
 When the user picks Do it now, perform the edits immediately through the CLI, never by writing SQLite. Verify each edited node with `./bin/run.js node get --id <nodeId>`. Then delete the inbox item with `./bin/run.js node delete --id <itemId>`. If any edit fails, leave the inbox item in place and report the failure. Count these as "done" in the running total.
 
+**Already done.** When `destinationPath` is `Already done, complete it`, the refiner read a local config file or repo and found the change already present. Put the `✅ Evidence:` row in the question and list **Complete it** first, ahead of Accept; Accept files it at `alternativePath` when one exists, otherwise drop Accept. When chosen, delete the `🔍 Refinement` node, run `./bin/run.js node complete --id <itemId>`, and verify with `node get`. Count these as "done" in the running total.
+
+```text
+Question: "'Allow the gh command in Claude settings' -> Already done (high confidence) | ~/.claude/settings.json: permissions.allow has Bash(gh:*)"
+
+Options:
+- "Complete it" (already present; mark this inbox item complete)
+- "Accept" (📌 Tasks (asap) > 4th)
+- "Skip (leave in inbox)"
+- "Delete"
+```
+
 **Unknown people.** Show each `⚠️ Invalid @mention:` row, and any name the people-tagger could not resolve, inside the item's question. When the user answers with a real identity ("yes Carol Smith, Acme"), ask one follow-up `AskUserQuestion` offering to add that person to `Metadata > 👥 People`, per "Adding a newly named person" in `${CLAUDE_PLUGIN_ROOT}/skills/people-metadata.md`. Create the entry before the batch executes, then file the item with the canonical `@mention` in place of the invalid one; any filing detail in the same answer ("3rd tier") still overrides the suggested destination.
 
 **After each batch of 4 reviews, execute immediately:**
 
 - **Do it now**: Already performed when chosen (see above); nothing left to execute
+- **Complete it**: Already performed when chosen (see above); nothing left to execute
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
 - **Promotions** (Promote or a named tier): run the tier's `demotions` first, then include the item in the batch's moves with the promoted tier as its destination
