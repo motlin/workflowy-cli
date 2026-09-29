@@ -1,19 +1,19 @@
 ---
-description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, rebalance the asap ladders, process the inbox, file loose tasks, group related tasks, and walk every dated item that needs handling today. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
+description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, rebalance the asap ladders, process the inbox, file loose tasks, group related tasks, walk every dated item that needs handling today, and close by offering to work through the most pressing items together. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
 ---
 
 # Daily Review
 
-Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, group related ones into projects, and finish by walking everything dated that needs handling today.
+Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, group related ones into projects, walk everything dated that needs handling today, and close by offering to do the most pressing work together.
 
-The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done:
+The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done and then the offer to do the work that remains:
 
 ```text
-LLM Tasks → Relink → Meetings → Overview → Rebalance Ladders → Process Inbox → File Loose Tasks → Group Tasks → Recurring Review
+LLM Tasks → Relink → Meetings → Overview → Rebalance Ladders → Process Inbox → File Loose Tasks → Group Tasks → Recurring Review → Work Together
                                                 (producers of ladder and dated tasks) ────────────────────────────↗
 ```
 
-The Meeting Follow-up Review, Morning Overview, Rebalance Ladders, File Loose Tasks, Group Related Tasks, and Recurring Review phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:rebalance`, `:file-tasks`, `:group-tasks`, and `:due`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
+The Meeting Follow-up Review, Morning Overview, Rebalance Ladders, File Loose Tasks, Group Related Tasks, Recurring Review, and Work Together phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:rebalance`, `:file-tasks`, `:group-tasks`, `:due`, and `:work-together`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
 
 ## When a skill breaks, fix the skill first
 
@@ -202,6 +202,12 @@ Runs right after File Loose Tasks so nothing loose is left out of the clusters. 
 
 Invoke `/gtd:review:daily:due` — two segments walked back to back: overdue recurring review items in `Personal > 🔄 Review`, then one-shot due tasks merged from the Workflowy `⏰` buckets, Things 3, and Apple Reminders. The command fetches every source, Apple Reminders through iMCP included, before its first question, so an iMCP outage halts at the top of the phase rather than after the recurring walk.
 
-**This phase runs last, and the order matters.** File Loose Tasks and Process Inbox are both _producers_ of dated tasks — filing something as due today must be followed by the walk that asks whether it's done, not preceded by it. Running the walk earlier would hide everything the earlier phases just created for a full day.
+**This phase runs after every producer, and the order matters.** File Loose Tasks and Process Inbox are both _producers_ of dated tasks — filing something as due today must be followed by the walk that asks whether it's done, not preceded by it. Running the walk earlier would hide everything the earlier phases just created for a full day.
 
 **Note:** LLM tasks already processed in the LLM Tasks phase will have updated dates and won't appear as overdue here.
+
+## Work Together
+
+Invoke `/gtd:review:daily:work-together` — with the ladders ranked and the dated items walked, offer to do real work on what is left, in three categories: items overdue, due now, or due within the week; the `1st` tier of both asap ladders; and items this run filed while their context is still fresh. Each candidate comes with the concrete help on offer (draft the email, write the code in its project directory, research the question) and is its own question. Accepted items are worked on the spot, one at a time.
+
+**This phase runs last, and the order matters.** It needs the Recurring Review's handled outcomes so it never offers help on something the user just said is done, and the rebalanced `1st` tier so the ranking it reads is today's. Silent when no candidate has help Claude can actually give.

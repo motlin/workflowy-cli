@@ -387,6 +387,29 @@ test('collectDueItems drops items due after today', () => {
 	assert.deepStrictEqual(rows, []);
 });
 
+test('collectDueItems widens to items due within the horizon when asked', () => {
+	const rows = collectDueItems(
+		{
+			workflowy: [
+				workflowyRoot({
+					tasks: [
+						dated('In three days', '2026-08-10', 'hhhhhhhhhhhh8888'),
+						dated('In eight days', '2026-08-15', 'iiiiiiiiiiii9999'),
+					],
+				}),
+			],
+			things: null,
+			reminders: null,
+		},
+		TODAY,
+		{horizonDays: 7},
+	);
+	assert.deepStrictEqual(
+		rows.map((r) => [r.title, r.due, r.overdueByDays]),
+		[['In three days', '2026-08-10', -3]],
+	);
+});
+
 test('collectDueItems tolerates missing sources', () => {
 	assert.deepStrictEqual(collectDueItems({}, TODAY), []);
 });

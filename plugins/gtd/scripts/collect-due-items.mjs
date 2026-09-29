@@ -58,6 +58,12 @@ function daysBetween(fromISO, toISO) {
 	return Math.round((b - a) / 86_400_000);
 }
 
+function addDaysISO(iso, days) {
+	const d = new Date(iso + 'T00:00:00Z');
+	d.setUTCDate(d.getUTCDate() + days);
+	return d.toISOString().slice(0, 10);
+}
+
 function lastDayOfMonth(year, month1) {
 	return new Date(Date.UTC(year, month1, 0)).getUTCDate();
 }
@@ -337,7 +343,7 @@ export function groupCrossSourceDuplicates(rows) {
 		});
 }
 
-export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {}) {
+export function collectDueItems(sources, todayISO, {skipStreaks = new Map(), horizonDays = 0} = {}) {
 	let rows = [
 		...fromWorkflowy(sources.workflowy, todayISO),
 		...fromThings(sources.things, todayISO),
@@ -349,8 +355,10 @@ export function collectDueItems(sources, todayISO, {skipStreaks = new Map()} = {
 
 	if (sources.recurring) rows = attachRecurringCounterparts(rows, sources.recurring);
 
+	// A positive horizon also admits items due soon; their overdueByDays comes out negative.
+	const lastDueISO = addDaysISO(todayISO, horizonDays);
 	// Undated items sort last: they still need handling, but a real deadline outranks a maybe.
-	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= todayISO)).sort((a, b) => {
+	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= lastDueISO)).sort((a, b) => {
 		if (a.due === null && b.due === null) return 0;
 		if (a.due === null) return 1;
 		if (b.due === null) return -1;
@@ -373,10 +381,12 @@ function main(argv) {
 	let today = localTodayISO();
 	let print = false;
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
+	let horizonDays = 0;
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === '--today') today = args[++i];
 		else if (args[i] === '--print') print = true;
 		else if (args[i] === '--skip-log') skipLogPath = args[++i];
+		else if (args[i] === '--horizon-days') horizonDays = Number(args[++i]);
 		else if (args[i] === '--workflowy') paths.workflowy = args[++i];
 		else if (args[i] === '--things') paths.things = args[++i];
 		else if (args[i] === '--reminders') paths.reminders = args[++i];
@@ -391,7 +401,7 @@ function main(argv) {
 			recurring: readJSON(paths.recurring),
 		},
 		today,
-		{skipStreaks: loadSkipStreaks(skipLogPath)},
+		{skipStreaks: loadSkipStreaks(skipLogPath), horizonDays},
 	);
 
 	if (!print) {
@@ -400,7 +410,8 @@ function main(argv) {
 	}
 
 	for (const r of rows) {
-		const when = r.due ? `due ${r.due} (overdue ${r.overdueByDays}d)` : '⚠️ no date';
+		const lateness = r.overdueByDays < 0 ? `in ${-r.overdueByDays}d` : `overdue ${r.overdueByDays}d`;
+		const when = r.due ? `due ${r.due} (${lateness})` : '⚠️ no date';
 		const streak = r.skipStreak >= 2 ? ` ⏭️ skipped ${r.skipStreak}x` : '';
 		process.stdout.write(`  [${r.source}] ${when}${streak} — ${r.title.slice(0, 90)}\n`);
 	}
