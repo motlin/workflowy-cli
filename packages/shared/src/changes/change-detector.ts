@@ -1,6 +1,6 @@
 import {and, eq, gte, inArray, lte, ne} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {nodeContent, nodeMetadata} from '../db/schema.js';
+import {mirrors, nodeContent, nodeMetadata} from '../db/schema.js';
 import type * as schema from '../db/schema.js';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '../temporal/constants.js';
 
@@ -49,6 +49,15 @@ export interface ChangeDetectionResult {
 	cutoffDate: Date;
 }
 
+type Text = {name: string | null; note: string | null};
+
+const NO_TEXT: Text = {name: null, note: null};
+
+/** `row` with its name and note replaced by `text`, when given. */
+function withText<T extends Text>(row: T | undefined, text: Text | undefined): T | undefined {
+	return row === undefined || text === undefined ? row : {...row, name: text.name, note: text.note};
+}
+
 export function getChangeLabels(change: NodeChange): string[] {
 	const labels: string[] = [];
 
@@ -92,7 +101,7 @@ export class ChangeDetector {
 		const oldMeta = this.queryOldMetadata(cutoffStr);
 		const newMeta = this.queryNewMetadata(cutoffStr);
 
-		const changes = this.classifyChanges(oldContent, newContent, oldMeta, newMeta);
+		const changes = this.classifyChanges(oldContent, newContent, oldMeta, newMeta, cutoffStr);
 		const tree = this.buildChangeTree(changes);
 		const summary = this.summarize(changes);
 
@@ -164,6 +173,7 @@ export class ChangeDetector {
 		newContent: {id: string; name: string | null; note: string | null; parentId: string | null}[],
 		oldMeta: {nodeId: string; completedAt: Date | null}[],
 		newMeta: {nodeId: string; completedAt: Date | null}[],
+		cutoffStr: string,
 	): NodeChange[] {
 		const oldContentMap = new Map(oldContent.map((r) => [r.id, r]));
 		const newContentMap = new Map(newContent.map((r) => [r.id, r]));
@@ -176,12 +186,21 @@ export class ChangeDetector {
 			...oldContentMap.keys(),
 			...oldMetaMap.keys(),
 		]);
+		const mirrorOriginals = this.loadMirrorOriginals([...allIds], cutoffStr);
 
 		const changes: NodeChange[] = [];
 
 		for (const id of allIds) {
-			const oldC = oldContentMap.get(id);
-			const newC = newContentMap.get(id);
+			// A mirror has no text of its own: stale text stored on it never
+			// counts as a change, and it is labelled with its original's text.
+			const originalId = mirrorOriginals.get(id);
+			const isMirror = originalId !== undefined;
+			const currentOriginal = isMirror
+				? (newContentMap.get(originalId) ?? this.fetchCurrentContent(originalId) ?? NO_TEXT)
+				: undefined;
+			const oldOriginal = isMirror ? (oldContentMap.get(originalId) ?? currentOriginal) : undefined;
+			const oldC = withText(oldContentMap.get(id), oldOriginal);
+			const newC = withText(newContentMap.get(id), currentOriginal);
 			const oldM = oldMetaMap.get(id);
 			const newM = newMetaMap.get(id);
 
@@ -202,7 +221,7 @@ export class ChangeDetector {
 				currentNote = newC.note;
 				currentParentId = newC.parentId;
 			} else if (!isDeleted) {
-				const current = this.fetchCurrentContent(id);
+				const current = withText(this.fetchCurrentContent(id), currentOriginal);
 				if (current) {
 					currentName = current.name;
 					currentNote = current.note;
@@ -216,8 +235,8 @@ export class ChangeDetector {
 			const oldCompletedAt = oldM?.completedAt ?? null;
 			const currentCompletedAt = newM?.completedAt ?? null;
 
-			const nameChanged = oldC && newC ? oldC.name !== newC.name : false;
-			const noteChanged = oldC && newC ? oldC.note !== newC.note : false;
+			const nameChanged = oldC && newC && !isMirror ? oldC.name !== newC.name : false;
+			const noteChanged = oldC && newC && !isMirror ? oldC.note !== newC.note : false;
 			const parentChanged = oldC && newC ? oldC.parentId !== newC.parentId : false;
 
 			const completionChanged =
@@ -251,6 +270,29 @@ export class ChangeDetector {
 		}
 
 		return changes;
+	}
+
+	/**
+	 * Map each of `nodeIds` that was a mirror at any point since the cutoff to
+	 * its original's id, preferring the current relationship.
+	 */
+	private loadMirrorOriginals(nodeIds: string[], cutoffStr: string): Map<string, string> {
+		const originals = new Map<string, string>();
+		for (let i = 0; i < nodeIds.length; i += SQL_CHUNK_SIZE) {
+			const rows = this.db
+				.select({mirrorId: mirrors.mirrorId, originalId: mirrors.originalId})
+				.from(mirrors)
+				.where(
+					and(
+						inArray(mirrors.mirrorId, nodeIds.slice(i, i + SQL_CHUNK_SIZE)),
+						gte(mirrors.systemTo, cutoffStr),
+					),
+				)
+				.orderBy(mirrors.systemTo)
+				.all();
+			for (const row of rows) originals.set(row.mirrorId, row.originalId);
+		}
+		return originals;
 	}
 
 	private fetchCurrentContent(id: string) {
