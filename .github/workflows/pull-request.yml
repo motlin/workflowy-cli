@@ -3,19 +3,19 @@
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-permissions:
-  contents: read
 
 jobs:
   # Check if the new commits in a Pull Request contain a merge commit. If so, fail and print them out.
   forbid-merge-commits:
     runs-on: ubuntu-latest
     steps:
-      - uses: motlin/forbid-merge-commits-action@49483ed78d3c59ae66e338ad12edd34c6dac7fdf # main
+      - uses: motlin/forbid-merge-commits-action@49483ed78d3c59ae66e338ad12edd34c6dac7fdf # v1.0.8
 
   automerge-bots:
     if: contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.event.pull_request.user.login)
@@ -25,6 +25,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Enable auto-merge for bot PR
         run: gh pr merge --rebase --auto "${{ github.event.pull_request.number }}"
@@ -41,12 +43,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: true
-          version: 2026.6.9
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -59,10 +60,14 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions@github.com"
 
-      - name: Run vp check --fix
+      - name: Run vp run check --fix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           vp install
-          vp check --fix
+          CHECK_STATUS=0
+          vp run check --fix || CHECK_STATUS=$?
 
           if [[ -n $(git status --porcelain) ]]; then
             FIX_BRANCH="fix-${{ github.event.pull_request.number }}-check"
@@ -70,13 +75,14 @@ jobs:
 
             git add --all
             git commit --message "Apply vp check fixes."
-            git push --force origin $FIX_BRANCH
+            git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${HEAD_REPO}" "$FIX_BRANCH"
 
             echo "vp check fixes have been pushed to the $FIX_BRANCH branch."
             exit 1
           else
-            echo "No changes needed by vp check"
+            echo "vp check exited with status $CHECK_STATUS without changing files."
           fi
+          exit "$CHECK_STATUS"
 
   pre-commit-fix:
     runs-on: ubuntu-latest
@@ -88,11 +94,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
-        with:
-          version: 2026.6.9
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -104,8 +108,12 @@ jobs:
           git config --global user.email "github-actions@github.com"
 
       - name: Run pre-commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
-          pre-commit run --all-files || true
+          CHECK_STATUS=0
+          pre-commit run --all-files || CHECK_STATUS=$?
 
           if [[ -n $(git status --porcelain) ]]; then
             FIX_BRANCH="fix-${{ github.event.pull_request.number }}-pre-commit"
@@ -113,13 +121,14 @@ jobs:
 
             git add --all
             git commit --message "Apply pre-commit fixes."
-            git push --force origin $FIX_BRANCH
+            git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${HEAD_REPO}" "$FIX_BRANCH"
 
             echo "pre-commit fixes have been pushed to the $FIX_BRANCH branch."
             exit 1
           else
-            echo "No changes needed by pre-commit"
+            echo "pre-commit exited with status $CHECK_STATUS without changing files."
           fi
+          exit "$CHECK_STATUS"
 
   all-pr-checks:
     name: All PR checks
@@ -127,6 +136,6 @@ jobs:
     needs: [forbid-merge-commits, check-fix, pre-commit-fix]
     runs-on: ubuntu-latest
     steps:
-      - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}

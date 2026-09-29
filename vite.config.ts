@@ -25,6 +25,13 @@ export default defineConfig({
 			},
 		],
 	},
+	run: {
+		tasks: {
+			check: {
+				command: 'vp check',
+			},
+		},
+	},
 	lint: {
 		ignorePatterns: ['packages/web/src/client/app.tsx', 'packages/web/.storybook/preview.ts'],
 		options: {typeAware: true, typeCheck: true},
