@@ -4,6 +4,8 @@ import {execute} from '@oclif/core';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 
+process.title = 'workflowy-cli';
+
 // Disable Happy Eyeballs (RFC 8305) auto-selection between IPv4/IPv6.
 // Node.js's implementation has a race condition that produces transient
 // EBADF errors when the algorithm closes a socket mid-connect.
