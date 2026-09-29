@@ -18,6 +18,12 @@ export default defineConfig({
 		htmlWhitespaceSensitivity: 'css',
 		endOfLine: 'lf',
 		sortPackageJson: false,
+		overrides: [
+			{
+				files: ['**/*.yaml', '**/*.yml'],
+				options: {useTabs: false, tabWidth: 2, singleQuote: false},
+			},
+		],
 	},
 	lint: {
 		ignorePatterns: ['packages/web/src/client/app.tsx', 'packages/web/.storybook/preview.ts'],
