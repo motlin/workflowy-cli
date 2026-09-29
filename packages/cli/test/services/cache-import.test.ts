@@ -585,6 +585,7 @@ describe('cache-import service', () => {
 	describe('mirror records', () => {
 		it('imports mirror originalId', async () => {
 			const backupContent = [
+				{id: 'original-node', nm: 'Original'},
 				{
 					id: 'mirror-node',
 					nm: 'Mirror',
@@ -609,6 +610,8 @@ describe('cache-import service', () => {
 
 		it('updates mirror when originalId changes', async () => {
 			const initialBackup = [
+				{id: 'original-1', nm: 'Original 1'},
+				{id: 'original-2', nm: 'Original 2'},
 				{
 					id: 'mirror-node',
 					nm: 'Mirror',
@@ -616,6 +619,8 @@ describe('cache-import service', () => {
 				},
 			];
 			const modifiedBackup = [
+				{id: 'original-1', nm: 'Original 1'},
+				{id: 'original-2', nm: 'Original 2'},
 				{
 					id: 'mirror-node',
 					nm: 'Mirror',
@@ -652,6 +657,7 @@ describe('cache-import service', () => {
 						},
 					},
 				},
+				{id: 'mirror-a', nm: ''},
 			];
 			const filePath = writeBackupFile(backupContent);
 
@@ -665,6 +671,74 @@ describe('cache-import service', () => {
 			// The owning node must never be recorded as a mirror of its own copies.
 			const inverted = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'original-node')).all();
 			expect(inverted).toStrictEqual([]);
+		});
+	});
+
+	describe('dangling mirror records', () => {
+		// Workflowy keeps a mirror's `originalId` after its original is deleted,
+		// and an original's `mirrorRootIds` after one of its mirrors is deleted.
+		// A relationship is only recorded while both of its nodes exist.
+		function activeMirrorRows() {
+			return testDatabase.db
+				.select({originalId: mirrors.originalId, mirrorId: mirrors.mirrorId, systemTo: mirrors.systemTo})
+				.from(mirrors)
+				.all()
+				.map((m) => ({originalId: m.originalId, mirrorId: m.mirrorId, active: m.systemTo === FAR_FUTURE_DATE}));
+		}
+
+		it('skips a mirror whose original is absent from the backup', async () => {
+			const filePath = writeBackupFile([
+				{id: 'mirror-node', nm: '', metadata: {mirror: {originalId: 'deleted-original', isMirrorRoot: true}}},
+			]);
+
+			await importBackup(testDatabase.db, filePath, 'backup.json');
+
+			expect(activeMirrorRows()).toStrictEqual([]);
+		});
+
+		it('skips mirrorRootIds and backlinkMirrorRootIds naming mirrors absent from the backup', async () => {
+			const filePath = writeBackupFile([
+				{
+					id: 'original-node',
+					nm: 'Original',
+					metadata: {
+						mirror: {
+							mirrorRootIds: {'deleted-mirror': true, 'live-mirror': true},
+							backlinkMirrorRootIds: {'deleted-backlink-mirror': true},
+						},
+					},
+				},
+				{id: 'live-mirror', nm: ''},
+			]);
+
+			await importBackup(testDatabase.db, filePath, 'backup.json');
+
+			expect(activeMirrorRows()).toStrictEqual([
+				{originalId: 'original-node', mirrorId: 'live-mirror', active: true},
+			]);
+		});
+
+		it('closes a mirror row once its original disappears from a later backup', async () => {
+			const mirrorNode = {
+				id: 'mirror-node',
+				nm: '',
+				metadata: {mirror: {originalId: 'original-node', isMirrorRoot: true}},
+			};
+			await importBackup(
+				testDatabase.db,
+				writeBackupFile([{id: 'original-node', nm: 'Original'}, mirrorNode]),
+				'backup.json',
+				false,
+				T0,
+			);
+
+			const laterPath = path.join(tempDir, 'backup2.json');
+			fs.writeFileSync(laterPath, JSON.stringify([mirrorNode]));
+			await importBackup(testDatabase.db, laterPath, 'backup2.json', false, T1);
+
+			expect(activeMirrorRows()).toStrictEqual([
+				{originalId: 'original-node', mirrorId: 'mirror-node', active: false},
+			]);
 		});
 	});
 

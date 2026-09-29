@@ -1,4 +1,4 @@
-import {nodeContent, type NodeContentType, nodeMetadata, type NodeMetadataType} from '@workflowy/shared/db';
+import {mirrors, nodeContent, type NodeContentType, nodeMetadata, type NodeMetadataType} from '@workflowy/shared/db';
 import * as schema from '@workflowy/shared/db';
 import {
 	applyRows,
@@ -9,8 +9,9 @@ import {
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
 import {type WorkflowyNode, WorkflowyNodeSchema} from '@workflowy/shared/types';
 import {uuidToShortId} from '@workflowy/shared/workflowy';
-import {eq} from 'drizzle-orm';
+import {and, eq, notExists, or} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
+import type {AnySQLiteColumn} from 'drizzle-orm/sqlite-core';
 import {ZodError} from 'zod';
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from './cache-temporal.js';
 import {logger} from './logger.js';
@@ -47,6 +48,31 @@ interface ProcessedNode {
 	modifiedAt: number | null;
 	completedAt: number | null;
 	layoutMode: string | null;
+}
+
+/**
+ * Close every current mirror row whose original or mirror node is no longer
+ * current. The REST API carries no mirror metadata, so this adapter cannot
+ * write mirror rows, but a node it phases out takes its relationships with it.
+ */
+function closeMirrorsOfDeletedNodes(database: BetterSQLite3Database<typeof schema>, importedAt: string): void {
+	const noCurrentNode = (column: AnySQLiteColumn) =>
+		notExists(
+			database
+				.select({id: nodeContent.id})
+				.from(nodeContent)
+				.where(and(eq(nodeContent.id, column), eq(nodeContent.systemTo, FAR_FUTURE_DATE))),
+		);
+	database
+		.update(mirrors)
+		.set({systemTo: importedAt})
+		.where(
+			and(
+				eq(mirrors.systemTo, FAR_FUTURE_DATE),
+				or(noCurrentNode(mirrors.originalId), noCurrentNode(mirrors.mirrorId)),
+			),
+		)
+		.run();
 }
 
 /**
@@ -210,6 +236,7 @@ export async function importFromApi(
 	}));
 	const rowsByTable: NormalizedRowsByTable = {nodeContent: contentRows, nodeMetadata: metadataRows};
 	const mergeResult = applyRows(database, rowsByTable, importTimestampStr);
+	closeMirrorsOfDeletedNodes(database, importTimestampStr);
 
 	logTiming(
 		`Merged ${mergeResult.nodeContent?.inserted ?? 0} content rows, ` +

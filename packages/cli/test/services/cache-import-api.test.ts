@@ -1,4 +1,4 @@
-import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
+import {mirrors, nodeContent, nodeMetadata} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import type {WorkflowyNode} from '@workflowy/shared/types';
 import {eq} from 'drizzle-orm';
@@ -434,6 +434,109 @@ describe('cache-import-api service', () => {
 				.all()
 				.filter((n) => n.systemTo === FAR_FUTURE_DATE);
 			expect(node2Active).toStrictEqual([]);
+		});
+	});
+
+	describe('mirror rows of deleted nodes', () => {
+		// The REST API carries no mirror metadata, so this adapter never writes
+		// mirror rows, but a node it phases out takes its mirror relationships
+		// with it.
+		const T0 = new Date('2024-01-01T00:00:00Z');
+		const T1 = new Date('2024-01-01T00:01:00Z');
+
+		function mirrorRows() {
+			return testDatabase.db
+				.select()
+				.from(mirrors)
+				.all()
+				.map((m) => ({
+					originalId: m.originalId,
+					mirrorId: m.mirrorId,
+					systemFrom: m.systemFrom,
+					systemTo: m.systemTo,
+				}));
+		}
+
+		async function seed(): Promise<void> {
+			await importFromApi(
+				testDatabase.db,
+				[
+					createApiNode({id: 'original', name: 'Original'}),
+					createApiNode({id: 'mirror-a', name: ''}),
+					createApiNode({id: 'mirror-b', name: ''}),
+				],
+				false,
+				T0,
+			);
+			testDatabase.db
+				.insert(mirrors)
+				.values([
+					{
+						originalId: 'original',
+						mirrorId: 'mirror-a',
+						systemFrom: '2024-01-01 00:00:00.000',
+						systemTo: FAR_FUTURE_DATE,
+					},
+					{
+						originalId: 'original',
+						mirrorId: 'mirror-b',
+						systemFrom: '2024-01-01 00:00:00.000',
+						systemTo: FAR_FUTURE_DATE,
+					},
+				])
+				.run();
+		}
+
+		it('closes the mirror rows of a deleted original', async () => {
+			await seed();
+
+			await importFromApi(
+				testDatabase.db,
+				[createApiNode({id: 'mirror-a', name: ''}), createApiNode({id: 'mirror-b', name: ''})],
+				false,
+				T1,
+			);
+
+			expect(mirrorRows()).toStrictEqual([
+				{
+					originalId: 'original',
+					mirrorId: 'mirror-a',
+					systemFrom: '2024-01-01 00:00:00.000',
+					systemTo: '2024-01-01 00:01:00.000',
+				},
+				{
+					originalId: 'original',
+					mirrorId: 'mirror-b',
+					systemFrom: '2024-01-01 00:00:00.000',
+					systemTo: '2024-01-01 00:01:00.000',
+				},
+			]);
+		});
+
+		it('closes only the mirror row of a deleted mirror', async () => {
+			await seed();
+
+			await importFromApi(
+				testDatabase.db,
+				[createApiNode({id: 'original', name: 'Original'}), createApiNode({id: 'mirror-b', name: ''})],
+				false,
+				T1,
+			);
+
+			expect(mirrorRows()).toStrictEqual([
+				{
+					originalId: 'original',
+					mirrorId: 'mirror-a',
+					systemFrom: '2024-01-01 00:00:00.000',
+					systemTo: '2024-01-01 00:01:00.000',
+				},
+				{
+					originalId: 'original',
+					mirrorId: 'mirror-b',
+					systemFrom: '2024-01-01 00:00:00.000',
+					systemTo: FAR_FUTURE_DATE,
+				},
+			]);
 		});
 	});
 

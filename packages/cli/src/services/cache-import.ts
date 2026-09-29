@@ -852,8 +852,17 @@ export async function importBackup(
 		// Merge mirror relationships through the shared engine (composite key:
 		// originalId + mirrorId). Dedupe incoming first, since temporalMerge treats
 		// each incoming row as a desired-state row and would otherwise double-insert
-		// a repeated pair.
-		const dedupedMirrors = [...new Map(mirrorRecords.map((m) => [joinKey(m.originalId, m.mirrorId), m])).values()];
+		// a repeated pair. Workflowy keeps a mirror's `originalId` after deleting its
+		// original (and an original's `mirrorRootIds` after deleting a mirror), so
+		// only pairs whose two nodes both survive this import are live.
+		const liveNodeIds = new Set([...nodesToProcess.map((n) => n.id), ...protectedIds]);
+		const dedupedMirrors = [
+			...new Map(
+				mirrorRecords
+					.filter((m) => liveNodeIds.has(m.originalId) && liveNodeIds.has(m.mirrorId))
+					.map((m) => [joinKey(m.originalId, m.mirrorId), m]),
+			).values(),
+		];
 		const currentMirrorRows = tx.select().from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)).all();
 		const mirrorResult = temporalMerge(
 			tx,
