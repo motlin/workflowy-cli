@@ -18,6 +18,7 @@ packages/*/dist
 .env.development.local
 .env.test.local
 .env.production.local
+JUSTFILE_BRANCH
 
 npm-debug.log*
 yarn-debug.log*
@@ -41,7 +42,16 @@ eslint_report.json
 /.claude/settings.json
 /.claude/*.local.json
 /.claude/*.local.md
-/.claude/worktrees/
+**/.claude/worktrees/
+**/.claude/scheduled_tasks.lock
+**/.claude/scheduled_tasks.json
+**/.claude/routines/.state/
+**/.claude/checkpoints/
+**/.claude/mailbox/
+**/.claude/agent-registry.json
+**/.claude/agent-memory-local
+**/.claude/first-run
+**/.claude/assistant-daemon-state.json
 
 # oclif
 oclif.manifest.json
