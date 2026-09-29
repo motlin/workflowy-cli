@@ -13,6 +13,8 @@ import {relatedRouter} from './routes/related.js';
 import {searchRouter} from './routes/search.js';
 import {tagsRouter} from './routes/tags.js';
 
+process.title = 'workflowy-web-server';
+
 const app = new Hono<AppEnv>();
 
 // CORS for Vite dev server
