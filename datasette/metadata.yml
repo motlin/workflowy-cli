@@ -7,6 +7,10 @@ databases:
       Read-only, write-through cache of Workflowy. Bitemporal: most tables keep historical versions. A row is CURRENT when system_to = '9999-12-31 23:59:59'; always filter on that to see the live tree unless you want history. Never write to this database.
 
     tables:
+      # Internal/shadow tables — ignore when querying:
+      #   node_fts_data, node_fts_idx, node_fts_content, node_fts_docsize,
+      #   node_fts_config  (FTS5 shadow tables for node_fts)
+      #   __drizzle_migrations  (ORM migration bookkeeping)
       node_content:
         description: >-
           Node text, versioned. Columns: id, name, note, parent_id, system_from, system_to. Current rows have system_to = '9999-12-31 23:59:59'. Build the tree by joining parent_id -> id (both current).
@@ -41,7 +45,3 @@ databases:
 
       config:
         description: Local key-value app config (key, value). Non-bitemporal.
-      # Internal/shadow tables — ignore when querying:
-      #   node_fts_data, node_fts_idx, node_fts_content, node_fts_docsize,
-      #   node_fts_config  (FTS5 shadow tables for node_fts)
-      #   __drizzle_migrations  (ORM migration bookkeeping)
