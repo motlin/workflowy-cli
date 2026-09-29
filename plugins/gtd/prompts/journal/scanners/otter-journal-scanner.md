@@ -209,11 +209,20 @@ Build action items children from `speech_action_items`:
 
 **Create node:**
 
+Write the entry JSON to `.llm/gtd/journal/entries/<otid>.json` with the Write tool, then create it with one standalone Bash call:
+
 ```bash
-./bin/run.js node create --parent-path "📆 Calendar" --json '<ENTRY_JSON>' --position bottom
+./bin/run.js node create --parent-path "📆 Calendar" --json-file .llm/gtd/journal/entries/<otid>.json --position bottom
 ```
 
-**In `stage` mode, do not create the node.** Instead append a proposal object to the staged `proposals[]` array (see **Staging Mode**) whose single `applyOps` entry is exactly the `node create` command above with the entry JSON inlined. The in-session guard file and the create-error handling below apply only to `create` mode.
+**Keep every Workflowy write a bare command.** The permission allowlist matches the `node create` and `node update` CLI commands by prefix. Without a match, the auto-mode classifier judges the write and denies it as an external system write, which strands the run. So each create or update must be its own Bash call that starts with the literal CLI path and takes literal arguments:
+
+- No `cd`, variable assignments (`S=...;`), or env prefixes in front of it
+- No `$(...)` command substitution (use `--json-file`, never `--json "$(cat file)"`)
+- No loops, `&&`/`;` chains, pipes, or output redirects around it
+- Read the command's stdout directly; don't capture it into a file
+
+**In `stage` mode, do not create the node.** Instead append a proposal object to the staged `proposals[]` array (see **Staging Mode**) whose single `applyOps` entry is the `node create` command above with `--json '<ENTRY_JSON>'` (the entry JSON inlined) in place of `--json-file`. The in-session guard file and the create-error handling below apply only to `create` mode.
 
 **Handle create errors — never blindly retry.** Workflowy can rate-limit (HTTP 429) and return an error _after the node was already created server-side_. A naive retry then produces a duplicate (exactly the failure mode this scanner exists to prevent). So on any create error: refresh the cache, re-check whether the meeting now exists, and only retry if it genuinely does not.
 
@@ -252,25 +261,18 @@ After an incremental `sync-since` run, set `last_synced_otid` to the newest retu
 
 **In `stage` mode, skip the live state write entirely.** Make no `node update` / `node create` on the state node. Compute the same state object and emit it as the top-level `scannerState` field of the staged proposal (see **Staging Mode**); the former apply step persisted it only after the entries were created.
 
-**Important: the state JSON must be single-line**, because Workflowy interprets newlines as separate child nodes. If building it with `jq`, use the `-c` (compact) flag:
+**Important: the state JSON must be single-line**, because Workflowy interprets newlines as separate child nodes.
+
+Take the state node id from the first child returned by **Load State**, then write the single-line state JSON as a literal argument in one standalone Bash call (same bare-command rule as the create step: no variables, `$(...)`, or `if` block around it):
 
 ```bash
-# Build state JSON - MUST be single-line (use jq -c if building dynamically)
-STATE_JSON=$(jq -cn --arg cursor "$CURSOR" --argjson start "$SESSION_START" --arg otid "$OTID" \
-  '{cursor: $cursor, session_start: $start, last_synced_otid: $otid, reached_beginning: false}')
-# Result: {"cursor":"123","session_start":1768518232,"last_synced_otid":"abc","reached_beginning":false}
+./bin/run.js node update --id <state-node-id> --name '{"cursor":"123","session_start":1768518232,"last_synced_otid":"abc","reached_beginning":false}'
+```
 
-# Get existing state node ID
-STATE_NODE=$(./bin/run.js node get --path "Metadata,⚙️ Scanner State,otter-journal-scanner" --depth 1 --json --fields children 2>/dev/null \
-  | jq -r '.children[0].id // empty')
+First run only (no state child yet), create it instead (`--create-path` creates the parent structure):
 
-if [[ -n "$STATE_NODE" ]]; then
-  # Update existing state node
-  ./bin/run.js node update --id "$STATE_NODE" --name "$STATE_JSON"
-else
-  # First run - create state node (--create-path creates parent structure)
-  ./bin/run.js node create --parent-path "Metadata,⚙️ Scanner State,otter-journal-scanner" --name "$STATE_JSON" --create-path
-fi
+```bash
+./bin/run.js node create --parent-path "Metadata,⚙️ Scanner State,otter-journal-scanner" --name '{"cursor":"123","session_start":1768518232,"last_synced_otid":"abc","reached_beginning":false}' --create-path
 ```
 
 ## Staging Mode
