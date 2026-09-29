@@ -4,6 +4,7 @@ import {stripHtmlTags} from '../html/strip-tags.js';
 import {and, inArray} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {currentVersion} from './cache-temporal.js';
+import {withMirrorText} from './mirror-text.js';
 
 // SQLite 3.32.0+ has SQLITE_MAX_VARIABLE_NUMBER = 32766
 // Use 10000 to stay safely under while minimizing query count
@@ -16,7 +17,8 @@ interface NodeInfo {
 
 /**
  * Builds ancestor paths, plain-text content, and leaf/non-leaf classification for
- * nodes, using level-by-level batched queries. Shared by the CLI (path headers,
+ * nodes, using level-by-level batched queries. A mirror's text comes from its
+ * original. Shared by the CLI (path headers,
  * search enrichment, embeddings) and the web server (path enrichment) so ancestor
  * walking lives in one place.
  */
@@ -57,15 +59,19 @@ export class PathBuilder {
 			// Query in chunks to avoid SQLite variable limit
 			for (let i = 0; i < currentIds.length; i += SQL_CHUNK_SIZE) {
 				const chunk = currentIds.slice(i, i + SQL_CHUNK_SIZE);
-				const results = this.database
-					.select({
-						id: nodeContent.id,
-						name: nodeContent.name,
-						parentId: nodeContent.parentId,
-					})
-					.from(nodeContent)
-					.where(and(inArray(nodeContent.id, chunk), currentVersion(nodeContent)))
-					.all();
+				const results = withMirrorText(
+					this.database,
+					this.database
+						.select({
+							id: nodeContent.id,
+							name: nodeContent.name,
+							note: nodeContent.note,
+							parentId: nodeContent.parentId,
+						})
+						.from(nodeContent)
+						.where(and(inArray(nodeContent.id, chunk), currentVersion(nodeContent)))
+						.all(),
+				);
 
 				for (const row of results) {
 					if (!nodeMap.has(row.id)) {
@@ -138,15 +144,18 @@ export class PathBuilder {
 		// Query in chunks to avoid SQLite variable limit
 		for (let i = 0; i < nodeIds.length; i += SQL_CHUNK_SIZE) {
 			const chunk = nodeIds.slice(i, i + SQL_CHUNK_SIZE);
-			const results = this.database
-				.select({
-					id: nodeContent.id,
-					name: nodeContent.name,
-					note: nodeContent.note,
-				})
-				.from(nodeContent)
-				.where(and(inArray(nodeContent.id, chunk), currentVersion(nodeContent)))
-				.all();
+			const results = withMirrorText(
+				this.database,
+				this.database
+					.select({
+						id: nodeContent.id,
+						name: nodeContent.name,
+						note: nodeContent.note,
+					})
+					.from(nodeContent)
+					.where(and(inArray(nodeContent.id, chunk), currentVersion(nodeContent)))
+					.all(),
+			);
 
 			for (const node of results) {
 				const name = stripHtmlTags(node.name || '');
@@ -206,15 +215,19 @@ export class PathBuilder {
 		// Query in chunks to avoid SQLite variable limit
 		for (let i = 0; i < parentIds.length; i += SQL_CHUNK_SIZE) {
 			const chunk = parentIds.slice(i, i + SQL_CHUNK_SIZE);
-			const results = this.database
-				.select({
-					parentId: nodeContent.parentId,
-					name: nodeContent.name,
-					note: nodeContent.note,
-				})
-				.from(nodeContent)
-				.where(and(inArray(nodeContent.parentId, chunk), currentVersion(nodeContent)))
-				.all();
+			const results = withMirrorText(
+				this.database,
+				this.database
+					.select({
+						id: nodeContent.id,
+						parentId: nodeContent.parentId,
+						name: nodeContent.name,
+						note: nodeContent.note,
+					})
+					.from(nodeContent)
+					.where(and(inArray(nodeContent.parentId, chunk), currentVersion(nodeContent)))
+					.all(),
+			);
 
 			for (const row of results) {
 				if (!row.parentId) continue;

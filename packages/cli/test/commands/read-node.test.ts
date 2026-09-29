@@ -275,6 +275,35 @@ describe('node get command', () => {
 			});
 		});
 
+		it('shows the original text for a mirror that stores stale text of its own', async () => {
+			const systemFrom = formatTemporalTimestamp(new Date());
+
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({
+						id: 'original-id',
+						name: 'Original Node',
+						note: 'Original note',
+						parentId: null,
+						systemFrom,
+					}),
+					createTestNode({id: 'mirror-id', name: '💼 Stale mirror text', parentId: null, systemFrom}),
+				],
+				mirrors: [{mirrorId: 'mirror-id', originalId: 'original-id', systemFrom, systemTo: FAR_FUTURE_DATE}],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Get.run(['--id', 'mirror-id', '--json', '--fields', 'id,name,note']);
+			});
+
+			expect(JSON.parse(stdout)).toStrictEqual({
+				id: 'mirror-id',
+				name: 'Original Node',
+				note: 'Original note',
+				mirror: {isMirror: true, originalNodeId: 'original-id'},
+			});
+		});
+
 		it('follows mirror to original with --follow-mirror', async () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
@@ -488,30 +517,23 @@ describe('node get command', () => {
 			});
 		});
 
-		it('throws when a mirror child carries its own content (inverted relationship)', async () => {
+		it('ignores stale text stored on a mirror child and shows the original text', async () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
-			// Invalid mirror data: the mirror row carries the display name while the
-			// original is empty. A mirror must never hold its own content — this means
-			// the relationship is recorded backwards, so the read must fail loudly.
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({
-						id: 'parent-id',
-						name: 'Parent',
-						parentId: null,
-						systemFrom,
-					}),
+					createTestNode({id: 'parent-id', name: 'Parent', parentId: null, systemFrom}),
 					createTestNode({
 						id: 'mirror-child-id',
-						name: '⏰ Tasks (due dates) (work)',
+						name: '💼 Stale mirror text',
+						note: 'Stale mirror note',
 						parentId: 'parent-id',
 						priority: 0,
 						systemFrom,
 					}),
 					createTestNode({
 						id: 'original-node-id',
-						name: '',
+						name: 'Original text',
 						note: null,
 						parentId: 'some-other-parent',
 						systemFrom,
@@ -527,7 +549,18 @@ describe('node get command', () => {
 				],
 			});
 
-			await expect(Get.run(['--id', 'parent-id', '--depth', '1', '--json'])).rejects.toThrow(/has its own name/);
+			const {stdout} = await captureOutput(async () => {
+				await Get.run(['--id', 'parent-id', '--depth', '1', '--json', '--fields', 'id,name,note,children']);
+			});
+
+			expect(JSON.parse(stdout).children).toStrictEqual([
+				{
+					id: 'mirror-child-id',
+					name: 'Original text',
+					note: null,
+					mirror: {isMirror: true, originalNodeId: 'original-node-id'},
+				},
+			]);
 		});
 	});
 

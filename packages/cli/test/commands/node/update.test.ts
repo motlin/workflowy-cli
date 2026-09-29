@@ -232,11 +232,9 @@ describe('node update command', () => {
 		});
 
 		it('sends empty name to clear with --clear-name', async () => {
-			// A mirror node must inherit its text from the original. When a write accidentally
-			// gives it a name of its own, the cache refuses to read the whole subtree, and
-			// --name cannot undo it because oclif rejects an empty string.
+			// --name cannot clear a name because oclif rejects an empty string.
 			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: 'mirror-id', name: ' #write', parentId: null})],
+				nodes: [createTestNode({id: 'clear-id', name: ' #write', parentId: null})],
 			});
 
 			let capturedBody: string | undefined;
@@ -244,12 +242,12 @@ describe('node update command', () => {
 				if (init?.body) {
 					capturedBody = init.body as string;
 				}
-				return new Response(JSON.stringify({node: {id: 'mirror-id', name: ''}}), {status: 200});
+				return new Response(JSON.stringify({node: {id: 'clear-id', name: ''}}), {status: 200});
 			});
 
 			await captureOutput(async () => {
 				try {
-					await Update.run(['--id', 'mirror-id', '--clear-name']);
+					await Update.run(['--id', 'clear-id', '--clear-name']);
 				} catch {
 					// Ignore errors from cache update
 				}
@@ -470,7 +468,7 @@ describe('node update command', () => {
 				'# Clear the note from a node',
 				'<%= config.bin %> <%= command.id %> --id abc123 --clear-note',
 				'',
-				"# Clear a mirror's own name so it inherits from the original again",
+				"# Clear a node's name",
 				'<%= config.bin %> <%= command.id %> --id abc123 --clear-name',
 				'',
 				'# Preview the API call without updating',

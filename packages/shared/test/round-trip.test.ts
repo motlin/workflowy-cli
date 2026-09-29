@@ -292,7 +292,7 @@ describe('round-trip equivalence', () => {
 	});
 
 	describe('mirror name resolution', () => {
-		it('resolves the original node when the mirror carries the name and the original is blank', () => {
+		it('ignores text stored on a mirror and uses its original text, even when the original is blank', () => {
 			const {database, sqlite} = buildTestDb();
 			const importedAt = new Date('2026-05-22T10:00:00Z');
 
@@ -310,7 +310,7 @@ describe('round-trip equivalence', () => {
 				id: mirrorId,
 				shortId: 'ffffffffffff',
 				parentId: null,
-				name: 'Quarterly planning',
+				name: null,
 				note: null,
 				priority: 1,
 				layoutMode: null,
@@ -340,9 +340,6 @@ describe('round-trip equivalence', () => {
 				systemFrom: '2026-05-22 10:00:00.000',
 				systemTo: '9999-12-31 23:59:59',
 			});
-
-			const resolvedName = mirror?.name ?? original?.name ?? null;
-			expect(resolvedName).toBe('Quarterly planning');
 
 			sqlite.close();
 		});

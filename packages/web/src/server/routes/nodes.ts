@@ -139,8 +139,7 @@ nodesRouter.get('/', async (c) => {
 
 	const {db} = ctx;
 
-	// NodeTreeReader resolves the mirror name/note fallback (a blank mirror copy
-	// borrows its original's content) and fails loudly on inverted relationships.
+	// NodeTreeReader gives each mirror its original's name and note.
 	const nodes = await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0});
 
 	// Determine which nodes have children (single query for efficiency)
@@ -184,7 +183,7 @@ nodesRouter.get('/:id', async (c) => {
 
 	const {db} = ctx;
 
-	// NodeTreeReader resolves the mirror name/note fallback and mirror flags.
+	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
 	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
 	if (!node) {
 		return c.json({error: 'Node not found'}, 404);
@@ -467,16 +466,8 @@ nodesRouter.get('/:id/mirrors', async (c) => {
 	// Collect all node IDs: the original + all mirrors
 	const allIds = [originalId, ...mirrorRows.map((r) => r.mirrorId)];
 
-	// Get the node name — in Workflowy's data model, either the original or mirror
-	// may carry the name (the other has an empty name). Check all nodes in the group.
-	let nodeName = 'Untitled';
-	for (const nodeId of allIds) {
-		const groupNode = reader.getById(nodeId);
-		if (groupNode?.name) {
-			nodeName = groupNode.name;
-			break;
-		}
-	}
+	// A mirror's text always comes from its original.
+	const nodeName = reader.getById(originalId)?.name || 'Untitled';
 
 	// Helper to build ancestor breadcrumb path for a node
 	function getAncestorPath(nodeId: string): {id: string; name: string}[] {

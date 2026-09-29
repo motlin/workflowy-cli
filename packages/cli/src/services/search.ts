@@ -6,7 +6,7 @@ import {and, eq, sql} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {EMBEDDING_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
 import {logger} from './logger.js';
-import {PathBuilder} from '@workflowy/shared/cache';
+import {notAMirror, PathBuilder} from '@workflowy/shared/cache';
 
 export type SearchMode = 'vector' | 'keyword' | 'hybrid';
 
@@ -77,6 +77,7 @@ export class SearchService {
 				and(
 					eq(nodeEmbeddings.model, model),
 					eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
+					notAMirror(schema.nodeContent.id),
 					sql`vec_distance_cosine(${nodeEmbeddings.embedding}, vec_f32(${queryBuffer})) < ${threshold}`,
 				),
 			)

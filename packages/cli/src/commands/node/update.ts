@@ -25,7 +25,7 @@ export default class Update extends Command {
 		'# Clear the note from a node',
 		'<%= config.bin %> <%= command.id %> --id abc123 --clear-note',
 		'',
-		"# Clear a mirror's own name so it inherits from the original again",
+		"# Clear a node's name",
 		'<%= config.bin %> <%= command.id %> --id abc123 --clear-name',
 		'',
 		'# Preview the API call without updating',
@@ -49,8 +49,7 @@ export default class Update extends Command {
 			exclusive: ['clear-name'],
 		}),
 		'clear-name': Flags.boolean({
-			description:
-				"Clear the node's own name. Use on a mirror that was accidentally given text of its own; a mirror must inherit its content from the original.",
+			description: "Clear the node's name (on a mirror, its original's name).",
 			default: false,
 			exclusive: ['name'],
 		}),
@@ -106,7 +105,7 @@ export default class Update extends Command {
 			layoutMode: flags['layout-mode'],
 		};
 		// Text on a mirror lives on its original, so guard and report against that node.
-		const nodeId = await client.resolveUpdateTarget(requestedId, update);
+		const nodeId = await client.resolveUpdateTarget(requestedId);
 
 		if (flags['expect-name'] !== undefined && !flags['dry-run']) {
 			const current = await cacheService.getNode(nodeId);

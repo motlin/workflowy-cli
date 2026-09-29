@@ -169,19 +169,6 @@ describe('NodeTreeReader', () => {
 		expect(mirror.children?.map((c) => c.name)).toStrictEqual(['Original Child']);
 	});
 
-	it('throws when a mirror carries its own name (inverted relationship)', async () => {
-		seedTestData(testDatabase, {
-			nodes: [
-				createTestNode({id: 'p', name: 'Parent', parentId: null}),
-				createTestNode({id: 'orig', name: 'Original', parentId: 'elsewhere'}),
-				createTestNode({id: 'mir', name: 'I have my own name', parentId: 'p'}),
-			],
-			mirrors: [{originalId: 'orig', mirrorId: 'mir', systemFrom: from, systemTo: FAR_FUTURE_DATE}],
-		});
-
-		await expect(reader.readChildren('p', {depth: 0})).rejects.toThrow(/inherit content from its original/);
-	});
-
 	it('populates linkTargets when following Workflowy links', async () => {
 		const linkName = 'See <a href="https://workflowy.com/#/abcdef012345">target</a>';
 		seedTestData(testDatabase, {

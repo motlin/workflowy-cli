@@ -1,5 +1,5 @@
 import {Hono} from 'hono';
-import {PathBuilder} from '@workflowy/shared/cache';
+import {notAMirror, PathBuilder} from '@workflowy/shared/cache';
 import {and, count, eq, ne, sql} from 'drizzle-orm';
 import {nodeContent, nodeEmbeddings} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
@@ -62,6 +62,7 @@ async function findSimilarNodes(
 			and(
 				eq(nodeEmbeddings.model, model),
 				eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
+				notAMirror(nodeContent.id),
 				ne(nodeEmbeddings.nodeId, sourceNodeId),
 				sql`vec_distance_cosine(${nodeEmbeddings.embedding}, vec_f32(${sourceEmbedding})) < ${threshold}`,
 			),
@@ -124,6 +125,7 @@ async function findParentCandidates(
 			and(
 				eq(nodeEmbeddings.model, model),
 				eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
+				notAMirror(nodeContent.id),
 				ne(nodeEmbeddings.nodeId, sourceNodeId),
 				sql`vec_distance_cosine(${nodeEmbeddings.embedding}, vec_f32(${sourceEmbedding})) < ${threshold}`,
 			),
@@ -191,6 +193,7 @@ async function findLinkTargets(
 			and(
 				eq(nodeEmbeddings.model, model),
 				eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
+				notAMirror(nodeContent.id),
 				ne(nodeEmbeddings.nodeId, sourceNodeId),
 				sql`vec_distance_cosine(${nodeEmbeddings.embedding}, vec_f32(${sourceEmbedding})) < ${threshold}`,
 			),

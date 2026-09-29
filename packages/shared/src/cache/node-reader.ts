@@ -1,9 +1,10 @@
 import * as schema from '../db/schema.js';
-import {mirrors, nodeContent} from '../db/schema.js';
+import {nodeContent} from '../db/schema.js';
 import type {Node} from '../types/node.js';
 import {and, eq, inArray, isNull} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {currentVersion} from './cache-temporal.js';
+import {applyMirrorText, loadMirrorOriginals} from './mirror-text.js';
 
 /**
  * Raw joined row shape returned by the nodeContent + nodeMetadata queries.
@@ -18,11 +19,12 @@ type ContentWithMetadata = schema.NodeContentType & {
  * `NodeReader` owns every "load current node(s) with relationships" query.
  * It is the only construction site for the canonical `Node` DTO. All
  * `FAR_FUTURE_DATE` temporal filtering and mirror relationship resolution
- * happens inside this class, so callers receive a fully-formed `Node`.
+ * happens inside this class, so callers receive a fully-formed `Node`. A
+ * mirror's name and note always come from its original; any text stored on
+ * the mirror row itself is ignored.
  *
- * Derived per-query fields (`hasChildren`, the resolved-from-mirror name
- * fallback) deliberately stay off the `Node` DTO — REST handlers compute
- * those from a `Node` plus extra batched queries.
+ * Derived per-query fields (`hasChildren`) deliberately stay off the `Node`
+ * DTO — REST handlers compute those from a `Node` plus extra batched queries.
  */
 export class NodeReader {
 	private readonly database: BetterSQLite3Database<typeof schema>;
@@ -45,7 +47,7 @@ export class NodeReader {
 		if (!result) {
 			return null;
 		}
-		return this.toNode(result, this.resolveMirror(id));
+		return this.toNodes([result])[0];
 	}
 
 	/**
@@ -65,19 +67,15 @@ export class NodeReader {
 			})
 			.sync();
 
-		const mirrorMap = this.resolveMirrors(results.map((result) => result.id));
-
-		return results
-			.map((result) => this.toNode(result, mirrorMap.get(result.id) ?? null))
-			.sort((a, b) => {
-				const priorityDifference = a.priority - b.priority;
-				if (priorityDifference !== 0) {
-					return priorityDifference;
-				}
-				const aTime = a.createdAt?.getTime() ?? 0;
-				const bTime = b.createdAt?.getTime() ?? 0;
-				return aTime - bTime;
-			});
+		return this.toNodes(results).sort((a, b) => {
+			const priorityDifference = a.priority - b.priority;
+			if (priorityDifference !== 0) {
+				return priorityDifference;
+			}
+			const aTime = a.createdAt?.getTime() ?? 0;
+			const bTime = b.createdAt?.getTime() ?? 0;
+			return aTime - bTime;
+		});
 	}
 
 	/**
@@ -96,45 +94,21 @@ export class NodeReader {
 			})
 			.sync();
 
-		const mirrorMap = this.resolveMirrors(results.map((result) => result.id));
-
-		const map = new Map<string, Node>();
-		for (const result of results) {
-			map.set(result.id, this.toNode(result, mirrorMap.get(result.id) ?? null));
-		}
-		return map;
+		return new Map(this.toNodes(results).map((node) => [node.id, node]));
 	}
 
 	/**
-	 * Resolve the original node ID for a single node if it is a mirror copy.
+	 * Construct `Node` DTOs for a batch of rows, giving each mirror its
+	 * original's id and text.
 	 */
-	private resolveMirror(nodeId: string): string | null {
-		const mirrorRow = this.database
-			.select({originalId: mirrors.originalId})
-			.from(mirrors)
-			.where(and(eq(mirrors.mirrorId, nodeId), currentVersion(mirrors)))
-			.get();
-		return mirrorRow?.originalId ?? null;
-	}
-
-	/**
-	 * Resolve original node IDs for a batch of nodes that may be mirror copies.
-	 * Returns a map from mirror node ID to original node ID.
-	 */
-	private resolveMirrors(nodeIds: string[]): Map<string, string> {
-		const map = new Map<string, string>();
-		if (nodeIds.length === 0) {
-			return map;
-		}
-		const mirrorRows = this.database
-			.select({mirrorId: mirrors.mirrorId, originalId: mirrors.originalId})
-			.from(mirrors)
-			.where(and(inArray(mirrors.mirrorId, nodeIds), currentVersion(mirrors)))
-			.all();
-		for (const row of mirrorRows) {
-			map.set(row.mirrorId, row.originalId);
-		}
-		return map;
+	private toNodes(rows: ContentWithMetadata[]): Node[] {
+		const mirrorOriginals = loadMirrorOriginals(
+			this.database,
+			rows.map((row) => row.id),
+		);
+		return applyMirrorText(this.database, rows, mirrorOriginals).map((row) =>
+			this.toNode(row, mirrorOriginals.get(row.id) ?? null),
+		);
 	}
 
 	/**

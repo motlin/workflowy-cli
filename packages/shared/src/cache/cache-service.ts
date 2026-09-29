@@ -24,6 +24,7 @@ import {
 	normalizeLayoutMode,
 	systemFromToDate,
 } from './cache-temporal.js';
+import {notAMirror} from './mirror-text.js';
 import {NodeReader} from './node-reader.js';
 
 /**
@@ -258,6 +259,7 @@ export class CacheService {
 
 		const conditions = [
 			currentVersion(nodeContent),
+			notAMirror(nodeContent.id),
 			or(like(nodeContent.name, pattern), like(nodeContent.note, pattern)),
 		];
 		if (incomplete) {
@@ -762,7 +764,8 @@ export class CacheService {
 				return matchingChild;
 			}
 
-			currentParentId = matchingChild.id;
+			// A mirror's children live under its original.
+			currentParentId = matchingChild.mirror.originalNodeId ?? matchingChild.id;
 		}
 
 		return null;

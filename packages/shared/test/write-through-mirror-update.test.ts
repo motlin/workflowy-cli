@@ -39,12 +39,12 @@ describe('WorkflowyWriteThroughClient.updateNode on mirrors', () => {
 		expect(updates).toStrictEqual([[ORIGINAL_ID, {name: '🪞 Game night'}]]);
 	});
 
-	it('keeps a clear on the mirror itself, so --clear-name can repair a diverged mirror', async () => {
+	it('writes a clear on a mirror to its original too, since the mirror has no text of its own', async () => {
 		const {client, updates} = fakes();
 
 		await client.updateNode(MIRROR_ID, {name: ''});
 
-		expect(updates).toStrictEqual([[MIRROR_ID, {name: ''}]]);
+		expect(updates).toStrictEqual([[ORIGINAL_ID, {name: ''}]]);
 	});
 
 	it('updates a non-mirror node in place', async () => {
@@ -59,11 +59,7 @@ describe('WorkflowyWriteThroughClient.updateNode on mirrors', () => {
 		const {client} = fakes();
 
 		expect(
-			await Promise.all([
-				client.resolveUpdateTarget(MIRROR_ID, {name: 'x'}),
-				client.resolveUpdateTarget(MIRROR_ID, {note: ''}),
-				client.resolveUpdateTarget(PLAIN_ID, {name: 'x'}),
-			]),
-		).toStrictEqual([ORIGINAL_ID, MIRROR_ID, PLAIN_ID]);
+			await Promise.all([client.resolveUpdateTarget(MIRROR_ID), client.resolveUpdateTarget(PLAIN_ID)]),
+		).toStrictEqual([ORIGINAL_ID, PLAIN_ID]);
 	});
 });

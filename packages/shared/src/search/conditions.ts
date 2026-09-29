@@ -1,4 +1,5 @@
 import {nodeContent, nodeMetadata} from '../db/schema.js';
+import {notAMirror} from '../cache/mirror-text.js';
 import {FAR_FUTURE_DATE} from '../temporal/constants.js';
 import type {SQL} from 'drizzle-orm';
 import {and, eq, gte, isNotNull, isNull, like, not, or} from 'drizzle-orm';
@@ -20,8 +21,9 @@ export function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 	const contentConditions: SQL[] = [];
 	const metadataConditions: SQL[] = [];
 
-	// Always filter for current records
-	contentConditions.push(eq(nodeContent.systemTo, FAR_FUTURE_DATE));
+	// Always filter for current records, skipping mirrors: their stored text is
+	// never meaningful, and the original matches instead.
+	contentConditions.push(eq(nodeContent.systemTo, FAR_FUTURE_DATE), notAMirror(nodeContent.id));
 
 	// Exact phrases - must appear in name or note
 	for (const phrase of parsed.exactPhrases) {

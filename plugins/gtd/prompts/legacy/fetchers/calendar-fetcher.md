@@ -52,7 +52,7 @@ Read `linkTargets[0].id` for each child (e.g. `Personal ðŸ“… Calendar`, `Work ðŸ
   --fields id,name,note,completed,children 2>/dev/null
 ```
 
-Do not use `--follow-links` here. A deep link walk traverses every link it meets inside the calendars, so one bad mirror row anywhere in that subtree (e.g. an inverted-mirror error) fails the whole fetch. Resolving each calendar root by id touches only the calendars themselves. If one calendar root fails, record the error in `errors` and keep the results from the others. Filter the results to items matching the date range.
+Do not use `--follow-links` here. A deep link walk traverses every link it meets inside the calendars, so one bad row anywhere in that subtree fails the whole fetch. Resolving each calendar root by id touches only the calendars themselves. If one calendar root fails, record the error in `errors` and keep the results from the others. Filter the results to items matching the date range.
 
 Workflowy calendar items are typically organized by date (YYYY-MM-DD) under each linked calendar location.
 
