@@ -2,6 +2,8 @@ import react from '@vitejs/plugin-react';
 import {defineConfig} from 'vite-plus';
 import {resolvePort} from './src/server/port.js';
 
+process.title = 'workflowy-web-dev';
+
 export default defineConfig({
 	root: 'src/client',
 	server: {
