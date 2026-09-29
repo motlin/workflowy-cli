@@ -50,6 +50,12 @@ const COMMAND_TYPE_MAP: Record<string, CommandTypeMapping> = {
 		typeName: 'ChangeDetectionResult',
 		interfaceName: 'NodeChangesOutput',
 	},
+	mirror: {
+		description: 'node mirror --json',
+		sourceFile: path.resolve(PKG_ROOT, '../shared/src/types/mirror.ts'),
+		typeName: 'NodeMirrorResult',
+		interfaceName: 'NodeMirrorOutput',
+	},
 };
 
 export default class Schema extends Command {

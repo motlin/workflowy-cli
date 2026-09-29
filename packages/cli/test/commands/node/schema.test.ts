@@ -142,6 +142,17 @@ interface ChangeSummary {
   completed: number;
   uncompleted: number;
 }
+
+`;
+
+const EXPECTED_MIRROR_STDOUT = `// Output type for: node mirror --json
+// Source: NodeMirrorResult
+interface NodeMirrorOutput {
+  action: string;
+  mirrorId: string;
+  originId: string | null;
+  parentId: string | null;
+}
 `;
 
 describe('node schema command', () => {
@@ -150,7 +161,15 @@ describe('node schema command', () => {
 			await Schema.run([]);
 		});
 
-		expect(stdout).toBe(EXPECTED_STDOUT);
+		expect(stdout).toBe(EXPECTED_STDOUT + EXPECTED_MIRROR_STDOUT);
+	});
+
+	it('generates schema for node mirror', async () => {
+		const {stdout} = await captureOutput(async () => {
+			await Schema.run(['--command', 'mirror']);
+		});
+
+		expect(stdout).toBe(EXPECTED_MIRROR_STDOUT);
 	});
 
 	it('has correct description', () => {

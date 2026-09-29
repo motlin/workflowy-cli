@@ -199,15 +199,13 @@ Treat these "Other" answers as File in both: naming two destinations ("both 1 an
 
 **Which copy is the original.** The original is always the item itself, moved by item-mover to the primary destination — the asap-ladder or due-dates copy, which the daily review surfaces and ranks. Its children, provenance, and completion state live there. The mirror is a new node at the second destination that points back to the original; completing the task means completing the original.
 
-**Mirror command.** The Workflowy API cannot create a live mirror, so the mirror is a link node. After item-mover has moved the item, take its short ID (last 12 hex chars of its UUID), resolve the second destination's ID (the Meeting agendas UUID above, or `./bin/run.js node get --path "<alternativePath segments, comma-separated>" --depth 0 --json --fields id` for an alternative), and create the link per `plugins/workflowy/skills/workflowy-html.md`:
+**Mirror command.** The mirror is a live Workflowy mirror, created with `node mirror`. After item-mover has moved the item, resolve the second destination's ID (the Meeting agendas UUID above, or `./bin/run.js node get --path "<alternativePath segments, comma-separated>" --depth 0 --json --fields id` for an alternative), and mirror the item there:
 
 ```bash
-./bin/run.js node create --parent-id <SECOND_DESTINATION_ID> \
-  --name '<a href="https://workflowy.com/#/<SHORT_ID>">Ask @Bob about build server permissions</a> #agenda' \
-  --position bottom
+./bin/run.js node mirror --node-id <ITEM_ID> --parent-id <SECOND_DESTINATION_ID> --position bottom --json
 ```
 
-Use the item's final text (after `✏️ Text:` is applied) as the link text, and keep `#agenda` on it only for an agenda mirror. Verify with `./bin/run.js node get --id <newLinkId>` that the link landed under the second destination. The user can swap the link for a real Workflowy mirror by hand if they prefer.
+A mirror shows the original's text, tags, and children, so apply `✏️ Text:` to the item before mirroring it and do not edit the mirror. Verify with `./bin/run.js node get --id <mirrorId>` that `mirror.isMirror` is true and the mirror landed under the second destination. To undo a mirror, run `./bin/run.js node mirror --node-id <mirrorId> --delete`, which leaves the original untouched.
 
 **Delegate to @person.** Offer this option only when the item carries a `delegation` from the refiner. The refiner sets it only on meeting-derived handoffs ("Assign X", "Ask X to", "X will"). From a transcript it is unclear whether the handoff already happened in the meeting, and to whom. So the question asks that outright and names the source meeting. Put the option right after Accept:
 
@@ -259,7 +257,7 @@ When the user picks Do it now, perform the edits immediately through the CLI, ne
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
 - **Promotions** (Promote or a named tier): run the tier's `demotions` first, then include the item in the batch's moves with the promoted tier as its destination
 - **Delegate**: Include the item in the batch's moves with `delegation.path` as its destination and the confirmed `@mention` in its text
-- **File in both**: Include the item in the batch's moves to its primary destination, then create its mirror link node at the second destination once item-mover returns
+- **File in both**: Include the item in the batch's moves to its primary destination, then mirror it into the second destination with `node mirror` once item-mover returns
 - **Skips**: Do nothing (item stays in inbox)
 - **User-specified overrides**: Use the user's custom destination path instead of the suggestion
 

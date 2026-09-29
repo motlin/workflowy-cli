@@ -1,4 +1,9 @@
-import type {CreateNodeRequest, UpdateNodeRequest, WorkflowyApiClient} from '../api/workflowy-client.js';
+import type {
+	CreateMirrorResult,
+	CreateNodeRequest,
+	UpdateNodeRequest,
+	WorkflowyApiClient,
+} from '../api/workflowy-client.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
 import type {CacheService} from './cache-service.js';
 
@@ -100,6 +105,32 @@ export class WorkflowyWriteThroughClient {
 		await this.ensureParentInCache(newParentId);
 		await this.cacheService.insertNode(movedNode, newParentId);
 		return movedNode;
+	}
+
+	/**
+	 * Create a live mirror of a node and record it in the cache. The mirror row
+	 * is stored blank, matching backup imports: its content lives on the origin.
+	 * @param originId The node to mirror
+	 * @param parentId The parent to place the mirror under
+	 * @param position Where among the parent's children to place the mirror
+	 */
+	async createMirror(originId: string, parentId: string, position: 'top' | 'bottom'): Promise<CreateMirrorResult> {
+		const result = await this.apiClient.createMirror(originId, parentId, position);
+		const mirrorNode = await this.apiClient.getNode(result.mirrorId);
+		const mirrorParentId = mirrorNode.parent_id ?? parentId;
+		await this.ensureParentInCache(mirrorParentId);
+		await this.cacheService.insertNode({...mirrorNode, name: '', note: null}, mirrorParentId);
+		await this.cacheService.insertMirror(result.originId, result.mirrorId);
+		return result;
+	}
+
+	/**
+	 * Remove a mirror and drop it, with its mirror relationship, from the cache.
+	 * @param mirrorId The mirror node to remove
+	 */
+	async deleteMirror(mirrorId: string): Promise<void> {
+		await this.apiClient.deleteMirror(mirrorId);
+		await this.cacheService.deleteNode(mirrorId);
 	}
 
 	/**

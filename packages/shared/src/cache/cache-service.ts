@@ -908,6 +908,23 @@ export class CacheService {
 	}
 
 	/**
+	 * Record that mirrorId is a live mirror of originalId. Mirrors are otherwise
+	 * sourced only from backup imports; this is the write-through path for a
+	 * mirror the CLI just created.
+	 */
+	async insertMirror(originalId: string, mirrorId: string): Promise<void> {
+		this.database
+			.insert(mirrors)
+			.values({
+				originalId,
+				mirrorId,
+				systemFrom: formatTemporalTimestamp(new Date()),
+				systemTo: FAR_FUTURE_DATE,
+			})
+			.run();
+	}
+
+	/**
 	 * Get the original node ID for a mirror node.
 	 * Returns null if the node is not a mirror or not found.
 	 */

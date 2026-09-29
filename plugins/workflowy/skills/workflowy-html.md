@@ -187,7 +187,7 @@ const colorRegex = /<span class="colored (c-\w+)">([^<]+)<\/span>/g;
 ## Link vs Mirror
 
 - **Link**: HTML anchor that navigates to another node. Content NOT synced.
-- **Mirror**: Live reference that syncs content. Stored in `mirrors` table, not as HTML.
+- **Mirror**: Live reference that syncs content. Stored in `mirrors` table, not as HTML. Create one with `./bin/run.js node mirror --node-id <origin> --parent-id <parent>` and remove one with `./bin/run.js node mirror --node-id <mirror> --delete`.
 
 ## Best Practices
 

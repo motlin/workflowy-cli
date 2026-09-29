@@ -3,6 +3,7 @@ import type {WorkflowyTarget} from '../types/targets.js';
 import {
 	ApiResponseSchema,
 	CompletionStatusResponseSchema,
+	CreateMirrorResponseSchema,
 	CreateNodeResponseSchema,
 	GetNodeResponseSchema,
 } from '../types/workflowy.js';
@@ -70,6 +71,15 @@ export interface UpdateNodeRequest {
 	name?: string;
 	note?: string;
 	layoutMode?: string;
+}
+
+/**
+ * Result of creating a mirror. `originId` is the true origin, which differs
+ * from the requested node when that node was itself a mirror.
+ */
+export interface CreateMirrorResult {
+	mirrorId: string;
+	originId: string;
 }
 
 /**
@@ -465,6 +475,73 @@ export class WorkflowyApiClient {
 		} catch (error) {
 			const duration = performance.now() - startTime;
 			this.logger?.logError(url, 'POST', error as Error, duration);
+			throw error;
+		}
+	}
+
+	/**
+	 * Create a live mirror of a node under a new parent.
+	 *
+	 * @param originId - The node to mirror (a mirror resolves to its true origin)
+	 * @param parentId - The parent to place the mirror under
+	 * @param position - Where among the parent's children to place the mirror
+	 */
+	async createMirror(originId: string, parentId: string, position: 'top' | 'bottom'): Promise<CreateMirrorResult> {
+		const url = `${this.baseUrl}/api/v1/nodes/${originId}/mirror`;
+		const body = {parent_id: parentId, position};
+		const startTime = performance.now();
+		this.logger?.logRequest(url, 'POST', body);
+
+		try {
+			const response = await this.fetchWithRetry(url, {
+				method: 'POST',
+				headers: this.getHeaders(),
+				body: JSON.stringify(body),
+			});
+
+			if (!response.ok) {
+				throw await this.describeFailure('Failed to create mirror', response);
+			}
+
+			const data = await response.json();
+			const duration = performance.now() - startTime;
+			this.logger?.logResponse(url, 'POST', response.status, response.statusText, data, duration);
+
+			const parsed = CreateMirrorResponseSchema.parse(data);
+			return {mirrorId: parsed.item_id, originId: parsed.origin_id};
+		} catch (error) {
+			const duration = performance.now() - startTime;
+			this.logger?.logError(url, 'POST', error as Error, duration);
+			throw error;
+		}
+	}
+
+	/**
+	 * Remove a mirror root. The origin and its other mirrors are untouched.
+	 *
+	 * @param mirrorId - The mirror node to remove
+	 */
+	async deleteMirror(mirrorId: string): Promise<void> {
+		const url = `${this.baseUrl}/api/v1/nodes/${mirrorId}/mirror`;
+		const startTime = performance.now();
+		this.logger?.logRequest(url, 'DELETE');
+
+		try {
+			const response = await this.fetchWithRetry(url, {
+				method: 'DELETE',
+				headers: this.getHeaders(),
+			});
+
+			if (!response.ok) {
+				throw await this.describeFailure('Failed to delete mirror', response);
+			}
+
+			const data = await response.text();
+			const duration = performance.now() - startTime;
+			this.logger?.logResponse(url, 'DELETE', response.status, response.statusText, data, duration);
+		} catch (error) {
+			const duration = performance.now() - startTime;
+			this.logger?.logError(url, 'DELETE', error as Error, duration);
 			throw error;
 		}
 	}
