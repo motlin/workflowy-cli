@@ -72,17 +72,18 @@ function rawToTree(raw: NodeWithRelations): NodeTree {
  * stores name/note on the original and leaves the mirror copy blank, so the
  * mirror inherits the original's content unconditionally.
  *
- * Throws if the mirror already carries its own name: that means the cache
- * recorded the mirror relationship backwards (an original mistaken for a
- * mirror). Failing loudly surfaces that upstream bug instead of silently
- * rendering the wrong text.
+ * Throws if the mirror already carries its own name: either a write targeted
+ * the mirror id (Workflowy then stores diverged text on the mirror), or the
+ * cache recorded the relationship backwards. Failing loudly surfaces that
+ * upstream bug instead of silently rendering the wrong text.
  */
 function assignMirrorContent(target: NodeTree, original: Node | undefined): void {
 	if (target.name) {
 		throw new Error(
 			`Mirror node ${target.id} has its own name ${JSON.stringify(target.name)}; ` +
-				`a mirror must inherit content from its original. The mirror relationship is likely ` +
-				`inverted in the cache (an original recorded as a mirror).`,
+				`a mirror must inherit content from its original. Either a write targeted the mirror id ` +
+				`(Workflowy then stores the text on the mirror; repair with \`node update --id ${target.id} --clear-name\`), ` +
+				`or the cache recorded the relationship backwards (an original recorded as a mirror).`,
 		);
 	}
 	if (!original) return;

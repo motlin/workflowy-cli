@@ -73,12 +73,28 @@ export class WorkflowyWriteThroughClient {
 	}
 
 	/**
-	 * Update an existing node and update the cache.
-	 * @param nodeId The node ID to update
-	 * @param options Update options (name, note, layoutMode)
-	 * @returns The updated node
+	 * The node an update should actually be written to. Workflowy stores a
+	 * mirror's text on its original; writing text to the mirror id gives the
+	 * mirror its own diverged name, which the tree reader then rejects. So
+	 * updates on a mirror go to the original, except clears (an empty name or
+	 * note), which stay on the mirror to repair one that already diverged.
 	 */
-	async updateNode(nodeId: string, options: UpdateNodeRequest): Promise<WorkflowyNode> {
+	async resolveUpdateTarget(nodeId: string, options: UpdateNodeRequest): Promise<string> {
+		if (options.name === '' || options.note === '') {
+			return nodeId;
+		}
+		return (await this.cacheService.getMirrorOriginal(nodeId)) ?? nodeId;
+	}
+
+	/**
+	 * Update an existing node and update the cache. Updates on a mirror are
+	 * redirected to its original (see {@link resolveUpdateTarget}).
+	 * @param requestedId The node ID to update
+	 * @param options Update options (name, note, layoutMode)
+	 * @returns The node that was updated (the original, for a mirror)
+	 */
+	async updateNode(requestedId: string, options: UpdateNodeRequest): Promise<WorkflowyNode> {
+		const nodeId = await this.resolveUpdateTarget(requestedId, options);
 		await this.apiClient.updateNode(nodeId, options);
 		// Fetch fresh node data from API to update cache correctly
 		const updatedNode = await this.apiClient.getNode(nodeId);

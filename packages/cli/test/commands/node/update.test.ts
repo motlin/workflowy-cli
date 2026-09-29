@@ -1,4 +1,5 @@
 import {captureOutput} from '@oclif/test';
+import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -61,6 +62,33 @@ describe('node update command', () => {
 
 			await expect(Update.run(['--id', 'node-id'])).rejects.toThrow(
 				'At least one of --name, --clear-name, --note, --clear-note, or --layout-mode must be provided',
+			);
+		});
+	});
+
+	describe('mirror targets', () => {
+		it('sends new text for a mirror to its original so the mirror never diverges', async () => {
+			seedTestData(testDatabase, {
+				nodes: [
+					createTestNode({id: 'orig-id', name: 'Game night', parentId: null}),
+					createTestNode({id: 'mirror-id', name: null, parentId: null}),
+				],
+				mirrors: [
+					{
+						originalId: 'orig-id',
+						mirrorId: 'mirror-id',
+						systemFrom: '2026-01-01 00:00:00',
+						systemTo: FAR_FUTURE_DATE,
+					},
+				],
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Update.run(['--id', 'mirror-id', '--name', 'Game night #games', '--dry-run']);
+			});
+
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/orig-id\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "name": "Game night #games"\n    }\n\nNode: Game night\n',
 			);
 		});
 	});

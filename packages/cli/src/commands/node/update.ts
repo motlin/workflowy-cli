@@ -99,7 +99,14 @@ export default class Update extends Command {
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
 		const pathBuilder = new PathBuilder(database);
 
-		const nodeId = await resolveNodeId(flags, cacheService, apiClient);
+		const requestedId = await resolveNodeId(flags, cacheService, apiClient);
+		const update = {
+			name: flags['clear-name'] ? '' : flags.name,
+			note: flags['clear-note'] ? '' : flags.note,
+			layoutMode: flags['layout-mode'],
+		};
+		// Text on a mirror lives on its original, so guard and report against that node.
+		const nodeId = await client.resolveUpdateTarget(requestedId, update);
 
 		if (flags['expect-name'] !== undefined && !flags['dry-run']) {
 			const current = await cacheService.getNode(nodeId);
@@ -116,21 +123,6 @@ export default class Update extends Command {
 		const fullPath = await pathBuilder.buildFullPath(nodeId);
 
 		if (flags['dry-run']) {
-			const requestBody: {name?: string; note?: string; layoutMode?: string} = {};
-			if (flags.name) {
-				requestBody.name = flags.name;
-			} else if (flags['clear-name']) {
-				requestBody.name = '';
-			}
-			if (flags.note) {
-				requestBody.note = flags.note;
-			} else if (flags['clear-note']) {
-				requestBody.note = '';
-			}
-			if (flags['layout-mode']) {
-				requestBody.layoutMode = flags['layout-mode'];
-			}
-
 			this.log('Would execute API call:');
 			this.log(`  Method: POST`);
 			this.log(`  URL: https://workflowy.com/api/v1/nodes/${nodeId}`);
@@ -138,17 +130,16 @@ export default class Update extends Command {
 			this.log('    Authorization: Bearer <WORKFLOWY_API_KEY>');
 			this.log('    Content-Type: application/json');
 			this.log('  Body:');
-			this.log(`    ${JSON.stringify(requestBody, null, 2).split('\n').join('\n    ')}`);
+			this.log(`    ${JSON.stringify(update, null, 2).split('\n').join('\n    ')}`);
 			this.log('');
 			this.log(`Node: ${fullPath}`);
 		} else {
+			if (nodeId !== requestedId) {
+				this.log(`${requestedId} is a mirror; updating its original ${nodeId}`);
+			}
 			this.log(`Updating node: ${fullPath}`);
 
-			await client.updateNode(nodeId, {
-				name: flags['clear-name'] ? '' : flags.name,
-				note: flags['clear-note'] ? '' : flags.note,
-				layoutMode: flags['layout-mode'],
-			});
+			await client.updateNode(nodeId, update);
 
 			this.log('');
 			this.log(`Successfully updated node`);
