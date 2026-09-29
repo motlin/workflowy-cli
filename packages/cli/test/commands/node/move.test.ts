@@ -1,4 +1,7 @@
 import {captureOutput} from '@oclif/test';
+import {nodeContent} from '@workflowy/shared/db';
+import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
+import {and, eq} from 'drizzle-orm';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -327,28 +330,69 @@ describe('node:move command', () => {
 
 	describe('system targets', () => {
 		it('moves to inbox system target via --parent-id', async () => {
+			// The API accepts 'inbox' as parent_id on move but 404s on GET /nodes/inbox,
+			// so the real parent is learned from the moved node.
 			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: 'source-id', name: 'Source', parentId: null})],
+				nodes: [
+					createTestNode({id: 'inbox-uuid', name: 'Inbox', parentId: null}),
+					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
+				],
 			});
 
+			const now = Math.floor(Date.now() / 1000);
+			const requests: string[] = [];
 			let capturedBody: string | undefined;
+
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
-					capturedBody = init.body as string;
+				const urlStr = url instanceof Request ? url.url : String(url);
+				const method = init?.method ?? 'GET';
+				requests.push(`${method} ${urlStr}`);
+
+				if (method === 'POST' && urlStr.endsWith('/nodes/source-id/move')) {
+					capturedBody = init?.body as string;
+					return new Response(JSON.stringify({}), {status: 200});
 				}
-				return new Response(JSON.stringify({}), {status: 200});
+
+				if (method === 'GET' && urlStr.endsWith('/nodes/source-id')) {
+					return new Response(
+						JSON.stringify({
+							node: {
+								id: 'source-id',
+								name: 'Source',
+								note: null,
+								parent_id: 'inbox-uuid',
+								priority: 0,
+								completed: false,
+								createdAt: now,
+								modifiedAt: now,
+								completedAt: null,
+								data: {layoutMode: 'bullets'},
+							},
+						}),
+						{status: 200},
+					);
+				}
+
+				return new Response(JSON.stringify({error: 'Not found'}), {status: 404});
 			});
 
-			await captureOutput(async () => {
-				try {
-					await Move.run(['--node-id', 'source-id', '--parent-id', 'inbox']);
-				} catch {
-					// Ignore errors from cache update
-				}
+			const {error} = await captureOutput(async () => {
+				await Move.run(['--node-id', 'source-id', '--parent-id', 'inbox']);
 			});
 
-			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'inbox'});
+			expect(error).toBeUndefined();
+			expect(JSON.parse(capturedBody!)).toStrictEqual({parent_id: 'inbox'});
+			expect(requests).toStrictEqual([
+				'POST https://workflowy.com/api/v1/nodes/source-id/move',
+				'GET https://workflowy.com/api/v1/nodes/source-id',
+			]);
+			expect(
+				testDatabase.db
+					.select({id: nodeContent.id, parentId: nodeContent.parentId})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.id, 'source-id'), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.all(),
+			).toStrictEqual([{id: 'source-id', parentId: 'inbox-uuid'}]);
 		});
 	});
 

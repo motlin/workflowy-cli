@@ -1,4 +1,7 @@
 import {captureOutput} from '@oclif/test';
+import {nodeContent} from '@workflowy/shared/db';
+import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
+import {and, eq} from 'drizzle-orm';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -239,27 +242,34 @@ describe('node create command', () => {
 		});
 
 		it('resolves system target via --parent-id', async () => {
-			// System targets like 'inbox' are passed directly to the API via --parent-id
-			// No targets API call is made - the API accepts 'inbox' as parent_id
-			let capturedBody: string | undefined;
+			// The API accepts 'inbox' as parent_id on create but 404s on GET /nodes/inbox,
+			// so the real parent is learned by fetching the created node.
+			seedTestData(testDatabase, {
+				nodes: [createTestNode({id: 'inbox-uuid', name: 'Inbox', parentId: null})],
+			});
+
 			const now = Math.floor(Date.now() / 1000);
+			const requests: string[] = [];
+			let capturedBody: string | undefined;
 
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
 				const method = init?.method ?? 'GET';
+				requests.push(`${method} ${urlStr}`);
 
 				if (method === 'POST' && urlStr.endsWith('/nodes/')) {
 					capturedBody = init?.body as string;
 					return new Response(JSON.stringify({item_id: 'new-id'}), {status: 200});
 				}
 
-				// GET request for parent node
-				if (method === 'GET' && urlStr.includes('/nodes/inbox')) {
+				if (method === 'GET' && urlStr.endsWith('/nodes/new-id')) {
 					return new Response(
 						JSON.stringify({
 							node: {
-								id: 'inbox-uuid',
-								name: 'Inbox',
+								id: 'new-id',
+								name: 'Test',
+								note: null,
+								parent_id: 'inbox-uuid',
 								priority: 0,
 								completed: false,
 								createdAt: now,
@@ -272,7 +282,7 @@ describe('node create command', () => {
 					);
 				}
 
-				return new Response(JSON.stringify({}), {status: 404});
+				return new Response(JSON.stringify({error: 'Not found'}), {status: 404});
 			});
 
 			const {stdout} = await captureOutput(async () => {
@@ -282,8 +292,18 @@ describe('node create command', () => {
 			expect(stdout).toBe(
 				'Creating node: Test\nParent: \n\nSuccessfully created node\n  ID: new-id\n  Name: Test\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newid\n',
 			);
-			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'inbox', name: 'Test'});
+			expect(JSON.parse(capturedBody!)).toStrictEqual({parent_id: 'inbox', name: 'Test'});
+			expect(requests).toStrictEqual([
+				'POST https://workflowy.com/api/v1/nodes/',
+				'GET https://workflowy.com/api/v1/nodes/new-id',
+			]);
+			expect(
+				testDatabase.db
+					.select({id: nodeContent.id, name: nodeContent.name, parentId: nodeContent.parentId})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.id, 'new-id'), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.all(),
+			).toStrictEqual([{id: 'new-id', name: 'Test', parentId: 'inbox-uuid'}]);
 		});
 	});
 

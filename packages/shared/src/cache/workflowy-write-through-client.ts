@@ -4,6 +4,7 @@ import type {
 	UpdateNodeRequest,
 	WorkflowyApiClient,
 } from '../api/workflowy-client.js';
+import {isSystemTarget} from '../types/targets.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
 import type {CacheService} from './cache-service.js';
 
@@ -59,9 +60,15 @@ export class WorkflowyWriteThroughClient {
 	 * @returns The created node
 	 */
 	async createNode(options: CreateNodeRequest): Promise<WorkflowyNode> {
-		const node = await this.apiClient.createNode(options);
-		await this.ensureParentInCache(options.parent_id ?? null);
-		await this.cacheService.insertNode(node, options.parent_id ?? null);
+		const created = await this.apiClient.createNode(options);
+		// A system target like "inbox" is accepted on create but 404s on GET, so learn the real parent from the new node.
+		const node =
+			options.parent_id && isSystemTarget(options.parent_id)
+				? {...created, parent_id: (await this.apiClient.getNode(created.id)).parent_id}
+				: created;
+		const parentId = node.parent_id ?? null;
+		await this.ensureParentInCache(parentId);
+		await this.cacheService.insertNode(node, parentId);
 		return node;
 	}
 
@@ -102,8 +109,10 @@ export class WorkflowyWriteThroughClient {
 		await this.apiClient.moveNode(nodeId, newParentId, position);
 		// Fetch fresh node data from API to update cache correctly
 		const movedNode = await this.apiClient.getNode(nodeId);
-		await this.ensureParentInCache(newParentId);
-		await this.cacheService.insertNode(movedNode, newParentId);
+		const parentId =
+			newParentId !== null && isSystemTarget(newParentId) ? (movedNode.parent_id ?? null) : newParentId;
+		await this.ensureParentInCache(parentId);
+		await this.cacheService.insertNode(movedNode, parentId);
 		return movedNode;
 	}
 
