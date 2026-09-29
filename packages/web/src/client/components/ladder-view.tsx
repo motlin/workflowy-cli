@@ -46,6 +46,16 @@ export function LadderView() {
 	const [saving, setSaving] = useState(false);
 	const [needsReload, setNeedsReload] = useState(false);
 	const [pending, setPending] = useState<Set<string>>(new Set());
+	// Rows with a write in flight. Only these rows lock; a slow write must not freeze the page.
+	const inFlight = useRef(new Set<string>());
+	const claim = useCallback((ids: string[]) => {
+		for (const id of ids) inFlight.current.add(id);
+		setPending(new Set(inFlight.current));
+	}, []);
+	const release = useCallback((ids: string[]) => {
+		for (const id of ids) inFlight.current.delete(id);
+		setPending(new Set(inFlight.current));
+	}, []);
 	const receivedWrites = useRef(new Map<string, LadderEvent>());
 	const laddersRef = useRef<Ladders | undefined>(undefined);
 	laddersRef.current = ladders;
@@ -98,7 +108,6 @@ export function LadderView() {
 				return next;
 			});
 			updateLadders(optimistic);
-			setPending((current) => new Set(current).add(nodeId));
 			let reconciling = false;
 			try {
 				const response = await fetch(path, {
@@ -142,12 +151,6 @@ export function LadderView() {
 					[nodeId]: cause instanceof Error ? cause.message : String(cause),
 				}));
 				return false;
-			} finally {
-				setPending((current) => {
-					const next = new Set(current);
-					next.delete(nodeId);
-					return next;
-				});
 			}
 		},
 		[updateLadders],
@@ -157,9 +160,9 @@ export function LadderView() {
 		(nodeId: string, toTier: string, beforeNodeId?: string) => {
 			const ladder = laddersRef.current?.[root];
 			if (busy.current || needsReload || !ladder) return;
-			busy.current = true;
-			setSaving(true);
-			const ids = ladderMoveSelection(ladder, selected, nodeId);
+			const ids = ladderMoveSelection(ladder, selected, nodeId).filter((id) => !inFlight.current.has(id));
+			if (ids.length === 0) return;
+			claim(ids);
 			void (async () => {
 				try {
 					for (const id of ids) {
@@ -178,12 +181,11 @@ export function LadderView() {
 						if (!saved) break;
 					}
 				} finally {
-					busy.current = false;
-					setSaving(false);
+					release(ids);
 				}
 			})();
 		},
-		[root, selected, write, needsReload],
+		[root, selected, write, needsReload, claim, release],
 	);
 
 	const gesture = useRef<{nodeId: string; origin: Point; started: boolean; moving: Set<string>}>(undefined);
@@ -284,17 +286,13 @@ export function LadderView() {
 
 	const complete = useCallback(
 		(nodeId: string) => {
-			if (busy.current) return;
-			busy.current = true;
-			setSaving(true);
+			if (busy.current || inFlight.current.has(nodeId)) return;
+			claim([nodeId]);
 			void write('/api/v1/ladder/complete', {root, node_id: nodeId}, (current) =>
 				removeRow(current, nodeId),
-			).finally(() => {
-				busy.current = false;
-				setSaving(false);
-			});
+			).finally(() => release([nodeId]));
 		},
-		[root, write],
+		[root, write, claim, release],
 	);
 
 	const select = (nodeId: string, range: boolean, additive = false) => {
@@ -607,7 +605,7 @@ function Tier({
 						<span className="step">
 							<button
 								aria-label={`Move to ${previousTier ?? 'the tier above'}`}
-								disabled={saving || !previousTier}
+								disabled={saving || pending.has(item.id) || !previousTier}
 								onClick={() => previousTier && onStep(item.id, previousTier)}
 								type="button"
 							>
@@ -615,7 +613,7 @@ function Tier({
 							</button>
 							<button
 								aria-label={`Move to ${nextTier ?? 'the tier below'}`}
-								disabled={saving || !nextTier}
+								disabled={saving || pending.has(item.id) || !nextTier}
 								onClick={() => nextTier && onStep(item.id, nextTier)}
 								type="button"
 							>
@@ -624,7 +622,7 @@ function Tier({
 						</span>
 						<button
 							className="done"
-							disabled={saving}
+							disabled={saving || pending.has(item.id)}
 							onClick={() => onComplete(item.id)}
 							type="button"
 						>

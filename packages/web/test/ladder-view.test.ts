@@ -296,6 +296,77 @@ describe('local ladder actions', () => {
 	});
 });
 
+describe('a row whose write is in flight', () => {
+	function rowButtons(nodeId: string) {
+		const rows = render()
+			.filter((element) => element.props.tier)
+			.flatMap((tier) => elements((tier.type as (props: ElementProps) => ReactNode)(tier.props)));
+		const row = rows.find((element) => element.props['data-node-id'] === nodeId);
+		if (!row) throw new Error(`no row ${nodeId}`);
+		return elements(row.props.children)
+			.filter((element) => element.type === 'button' && element.props.className !== 'ladder-tree-button')
+			.map((button) => ({
+				label: button.props['aria-label'] ?? button.props.children,
+				disabled: button.props.disabled,
+			}));
+	}
+
+	beforeEach(() => {
+		hooks.values = [
+			{
+				personal: {
+					...ladders().personal,
+					tiers: [
+						{
+							tier: 1,
+							id: 'first',
+							label: '1st',
+							capacity: 2,
+							state: 'exact',
+							items: [item('alice'), item('bob')],
+						},
+						{tier: 2, id: 'second', label: '2nd', capacity: 4, state: 'room', items: [item('carol')]},
+					],
+				},
+			},
+		];
+		request.mockReturnValue(new Promise(() => {}));
+	});
+
+	it('disables only its own buttons while the other rows stay usable', () => {
+		tierProps().onStep('alice', '2nd');
+		expect({bob: rowButtons('bob'), carol: rowButtons('carol')}).toStrictEqual({
+			bob: [
+				{label: 'Move to the tier above', disabled: true},
+				{label: 'Move to 2nd', disabled: false},
+				{label: 'Done', disabled: false},
+			],
+			carol: [
+				{label: 'Move to 1st', disabled: false},
+				{label: 'Move to the tier below', disabled: true},
+				{label: 'Done', disabled: false},
+			],
+		});
+	});
+
+	it('still dispatches a move for another row', () => {
+		tierProps().onStep('alice', '2nd');
+		tierProps().onStep('bob', '2nd');
+		expect(request.mock.calls.map(([, options]) => JSON.parse(options.body))).toStrictEqual([
+			{root: 'personal', node_id: 'alice', to_tier: '2nd'},
+			{root: 'personal', node_id: 'bob', to_tier: '2nd'},
+		]);
+	});
+
+	it('ignores a second move of the same row until the first lands', () => {
+		tierProps().onStep('alice', '2nd');
+		tierProps().onStep('alice', '1st');
+		expect(request.mock.calls.map(([, options]) => JSON.parse(options.body))).toStrictEqual([
+			{root: 'personal', node_id: 'alice', to_tier: '2nd'},
+		]);
+	});
+});
+
 describe('row selection and pointer cancellation', () => {
 	it('replaces selection on click and toggles with a modifier', () => {
 		tierProps().onSelect('alice', false);
