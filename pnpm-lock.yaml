@@ -36,8 +36,8 @@ importers:
         version: 0.45.3(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)
     devDependencies:
       '@oclif/test':
-        specifier: ^4
-        version: 4.1.21(@oclif/core@5.1.2)(supports-color@8.1.1)
+        specifier: ^5
+        version: 5.0.1(@oclif/core@5.1.2)(supports-color@8.1.1)
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
@@ -127,8 +127,8 @@ importers:
         version: 4.6.5
     devDependencies:
       '@oclif/test':
-        specifier: ^4
-        version: 4.1.21(@oclif/core@5.1.2)(supports-color@10.2.2)
+        specifier: ^5
+        version: 5.0.1(@oclif/core@5.1.2)(supports-color@10.2.2)
       oclif:
         specifier: ^6
         version: 6.0.2(@types/node@26.6.3)(supports-color@10.2.2)
@@ -1390,11 +1390,11 @@ packages:
     resolution: {integrity: sha512-zX0iNZT5JiHXdzQ7ORQCRAqwydG119LZDf6Pet+5HEeONHJu/byWAA99n2HLTOZmWMwJ65bLSp3ZajOHtJaSkw==}
     engines: {node: '>=22.0.0'}
 
-  '@oclif/test@4.1.21':
-    resolution: {integrity: sha512-3Hsqv1mo7P/n8qXKJ4nLTYISA3oPzXGZDc4R9ioi5hpK1lQ7UI1ZcLkt0aKJ1qMKrYStzk20IWhcPRT0Vpteyw==}
-    engines: {node: '>=18.0.0'}
+  '@oclif/test@5.0.1':
+    resolution: {integrity: sha512-BjHZZvkEo8udP1rLSeP8QpdMwqzwbiF4bW248CJgvaPE0lHewzXjmtwh+OvMFwRlwE4t5sAhCfQ1JBFQP4Mnpw==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
-      '@oclif/core': '>= 3.0.0'
+      '@oclif/core': ^5.0.0
 
   '@oxc-parser/binding-android-arm-eabi@0.127.0':
     resolution: {integrity: sha512-0LC7ye4hvqbIKxAzThzvswgHLFu2AURKzYLeSVvLdu2TBOYWQDmHnTqPLeA597BcUCxiLqLsS4CJ5uoI5WYWCQ==}
@@ -6598,7 +6598,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@oclif/test@4.1.21(@oclif/core@5.1.2)(supports-color@10.2.2)':
+  '@oclif/test@5.0.1(@oclif/core@5.1.2)(supports-color@10.2.2)':
     dependencies:
       '@oclif/core': 5.1.2
       ansis: 3.17.0
@@ -6606,7 +6606,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@oclif/test@4.1.21(@oclif/core@5.1.2)(supports-color@8.1.1)':
+  '@oclif/test@5.0.1(@oclif/core@5.1.2)(supports-color@8.1.1)':
     dependencies:
       '@oclif/core': 5.1.2
       ansis: 3.17.0
