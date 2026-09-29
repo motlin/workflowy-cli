@@ -37,14 +37,22 @@ This returns events from all calendars synced to the system (iCloud, Google, Out
 
 ## Fetch Workflowy Calendar Items (if includeWorkflowy=true)
 
-Extract unique dates from the date range, then query Workflowy for each date:
+Extract unique dates from the date range, then discover the calendar locations configured in Metadata. Each child of `Metadata > 📅 Calendar` is a navigation link whose `linkTargets[0]` is a real calendar root:
 
 ```bash
-# For each date YYYY-MM-DD in range:
-./bin/run.js node get --path "Metadata,📅 Calendar" --depth 3 --follow-links --json --fields id,name,note,completed,children,linkedFrom 2>/dev/null
+./bin/run.js node get --path "Metadata,📅 Calendar" --depth 1 --json \
+  --fields name,id,children,linkTargets 2>/dev/null
 ```
 
-Using `--follow-links` automatically discovers all calendar locations configured in Metadata. Filter the results to items matching the date range.
+Read `linkTargets[0].id` for each child (e.g. `Personal 📅 Calendar`, `Work 📅 Calendar`), then fetch each calendar root directly by id:
+
+```bash
+# For each linkTargets[0].id:
+./bin/run.js node get --id <calendarRootUuid> --depth 2 --json \
+  --fields id,name,note,completed,children 2>/dev/null
+```
+
+Do not use `--follow-links` here. A deep link walk traverses every link it meets inside the calendars, so one bad mirror row anywhere in that subtree (e.g. an inverted-mirror error) fails the whole fetch. Resolving each calendar root by id touches only the calendars themselves. If one calendar root fails, record the error in `errors` and keep the results from the others. Filter the results to items matching the date range.
 
 Workflowy calendar items are typically organized by date (YYYY-MM-DD) under each linked calendar location.
 
@@ -144,7 +152,7 @@ Return a single JSON object at the very end of your response:
 **Conventions:**
 
 - Return valid JSON at the end — the caller parses it programmatically.
-- Use `--follow-links` so Workflowy calendar locations are discovered dynamically rather than hardcoded.
+- Discover Workflowy calendar locations dynamically from the `Metadata > 📅 Calendar` link targets rather than hardcoding them, and fetch each by id rather than with `--follow-links`.
 - Include `--fields` to keep token usage down.
 - Set `includeAllDay: true` for Fantastical so all-day events aren't dropped.
 - Filter Workflowy results to items within the date range.
