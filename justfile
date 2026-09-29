@@ -47,8 +47,8 @@ format: install
 
 # Run checks (format + lint + typecheck)
 [group('lint')]
-check: install
-    vp check {{ if ci != "" { "" } else { "--fix" } }}
+check *args: install
+    vp run --cache check {{ if ci != "" { "" } else { "--fix" } }} {{ args }}
 
 # Run tests
 [group('test')]
@@ -63,7 +63,7 @@ test-plugins:
 # Type-check the project
 [group('build')]
 typecheck: install
-    vp run typecheck
+    vp run --cache typecheck
 
 # Remove all dist dirs and tsbuildinfo to prevent stale artifacts (used by git-test)
 [group('build')]
@@ -85,12 +85,13 @@ clean:
 # Build the project
 [group('build')]
 build: build-shared
-    vp run build
+    vp run --cache build
 
-# Run fallow codebase intelligence (dead code, duplication, drift)
+# Apply safe Fallow fixes locally, then reject remaining dead code
 [group('build')]
 fallow: install
-    vp run {{ if ci != "" { "fallow:ci" } else { "fallow" } }}
+    {{ if ci == "" { "vp run fallow" } else { "true" } }}
+    vp run fallow:ci
 
 # vp run fallow:ci
 [group('build')]
@@ -142,10 +143,22 @@ eval-behavioral: build
 pre-commit: build-shared
     pre-commit run --all-files
 
+# Audit public singular recipe parameters for documented options
+[group('lint')]
+audit-just-options:
+    python3 scripts/audit-just-options.py
+
 # Run all pre-commit checks
+[arg("quick", long, value="true", help="Skip tests")]
 [group('workflow')]
-precommit: check typecheck build fallow test test-plugins manifest eval-structural pre-commit
+verify quick="": check typecheck build fallow test-plugins manifest eval-structural pre-commit
+    {{ if quick != "true" { "just test" } else { "true" } }}
     @echo "All pre-commit checks passed!"
+
+# Deprecated alias for `verify`
+[arg("quick", long, value="true", help="Skip tests")]
+[group('workflow')]
+precommit quick="": (verify quick)
 
 # Backup database before operations that modify it
 [group('database')]
