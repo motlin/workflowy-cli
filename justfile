@@ -92,6 +92,11 @@ build: build-shared
 fallow: install
     vp run {{ if ci != "" { "fallow:ci" } else { "fallow" } }}
 
+# vp run fallow:ci
+[group('build')]
+fallow-check: install
+    vp run fallow:ci
+
 # Build the shared package
 [group('build')]
 build-shared: install
