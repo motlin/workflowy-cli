@@ -20,7 +20,7 @@ export default defineConfig({
 		sortPackageJson: false,
 		overrides: [
 			{
-				files: ['**/*.yaml', '**/*.yml'],
+				files: ['.yamllint.yaml', '**/*.yaml', '**/*.yml'],
 				options: {useTabs: false, tabWidth: 2, singleQuote: false},
 			},
 		],
