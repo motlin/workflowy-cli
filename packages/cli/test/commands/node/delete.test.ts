@@ -289,7 +289,7 @@ describe('node delete command', () => {
 			});
 		});
 
-		it('dry run on an original with mirrors elsewhere shows it moving into the first mirror in outline order, with nothing deleted', async () => {
+		it('dry run on an original with mirrors elsewhere shows it moving into the mirror with the lowest id, with nothing deleted', async () => {
 			const calls = recordCalls();
 
 			const {stdout} = await captureOutput(async () => {

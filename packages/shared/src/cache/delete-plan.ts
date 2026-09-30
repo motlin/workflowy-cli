@@ -13,12 +13,14 @@ export interface MirrorPromotion {
 	mirrorId: string;
 	/** The mirror's parent, which the original is moved to. */
 	parentId: string | null;
-	/** The end of the parent the original is moved to; the REST move takes only 'top' or 'bottom'. */
+	/** The end of the parent the original is moved to; the REST move takes only 'top' or 'bottom' (verified live). */
 	position: 'top' | 'bottom';
 	/**
 	 * Siblings then moved to the same end, in order, so the original lands in
 	 * the mirror's exact slot. `position` is the end nearer the slot, so this is
-	 * the shorter of the two sibling runs.
+	 * the shorter of the two sibling runs. The REST API cannot place a node at
+	 * an index: move rejects a numeric position and move and update ignore
+	 * `priority` (verified live on 2026-09-30).
 	 */
 	siblingIds: string[];
 }
@@ -62,9 +64,12 @@ export function deletePlanCalls(plan: DeletePlan): DeletePlanCall[] {
  * subtree), so originals are rechecked until none changes. Originals are
  * checked breadth-first, and promotions run in the order they were found.
  *
- * With several candidate mirrors, the one first in outline order (by each
- * ancestor's priority from the root, then id) is used. The web app's choice
- * with several mirrors is untested; this is an assumption.
+ * With several candidate mirrors, the one with the lowest id (plain string
+ * comparison) is used. The web app uses the first key of its in-memory
+ * `mirrorRootIds`, which a fresh page load sorts by mirror id; verified live
+ * against the web UI on 2026-09-30, where it disagreed with both outline and
+ * creation order. A long-open tab can pick differently, since live-synced
+ * mirrors are added to the front, so the fresh-load rule is the one followed.
  */
 export async function planSubtreeDelete(cacheService: CacheService, nodeId: string): Promise<DeletePlan> {
 	const subtree = await cacheService.getSubtreeMirrors(nodeId);
@@ -73,7 +78,10 @@ export async function planSubtreeDelete(cacheService: CacheService, nodeId: stri
 
 	const chosen = new Map<string, string>();
 	for (const [originalId, candidates] of kept) {
-		chosen.set(originalId, await firstInOutline(cacheService, candidates));
+		chosen.set(
+			originalId,
+			candidates.reduce((lowest, id) => (id < lowest ? id : lowest)),
+		);
 	}
 
 	const outline = new OutlineSimulation(cacheService);
@@ -137,34 +145,6 @@ function isDeleted(id: string, nodeId: string, parents: Map<string, string>, kep
 		if (kept.has(current)) return false;
 	}
 	return true;
-}
-
-/** The candidate first in outline order, comparing each ancestor from the root by priority, then id. */
-async function firstInOutline(cacheService: CacheService, candidates: string[]): Promise<string> {
-	if (candidates.length === 1) return candidates[0];
-	const keyed = await Promise.all(
-		candidates.map(async (id) => {
-			const key: Array<[number, string]> = [];
-			for (
-				let node = await cacheService.getNode(id);
-				node;
-				node = node.parentId ? await cacheService.getNode(node.parentId) : undefined
-			) {
-				key.unshift([node.priority, node.id]);
-			}
-			return {id, key};
-		}),
-	);
-	keyed.sort((a, b) => compareOutlineKeys(a.key, b.key));
-	return keyed[0].id;
-}
-
-function compareOutlineKeys(a: Array<[number, string]>, b: Array<[number, string]>): number {
-	for (let i = 0; i < Math.min(a.length, b.length); i++) {
-		const difference = a[i][0] - b[i][0] || a[i][1].localeCompare(b[i][1]);
-		if (difference !== 0) return difference;
-	}
-	return a.length - b.length;
 }
 
 /**

@@ -16,16 +16,17 @@ const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), '../src/d
 const SEEDED_AT = '2026-01-01 00:00:00.000';
 
 /*
- * Siblings are listed in priority order.
+ * Siblings are listed in priority order, and mirrors in the order they were created.
  *
  * projects
  *   task-y          (original of mirror-y, whose only mirror sits inside task-a)
  *   mirror-in       (mirror of other-original, which lives outside)
- *   task-a          (original of mirror-nested and mirror-out)
+ *   task-a          (original of mirror-nested, mirror-b and mirror-out)
  *     task-a1       (original of mirror-a1)
  *     mirror-y      (mirror of task-y)
  *   task-b
  *     mirror-nested (mirror of task-a, inside projects too)
+ *     mirror-b      (mirror of task-a, its lowest mirror id)
  * agendas
  *   agenda-1
  *   mirror-out      (mirror of task-a)
@@ -44,6 +45,7 @@ const TREE: Array<[id: string, parentId: string | null]> = [
 	['mirror-y', 'task-a'],
 	['task-b', 'projects'],
 	['mirror-nested', 'task-b'],
+	['mirror-b', 'task-b'],
 	['agendas', null],
 	['agenda-1', 'agendas'],
 	['mirror-out', 'agendas'],
@@ -56,6 +58,7 @@ const TREE: Array<[id: string, parentId: string | null]> = [
 const MIRRORS: Array<[originalId: string, mirrorId: string]> = [
 	['other-original', 'mirror-in'],
 	['task-a', 'mirror-nested'],
+	['task-a', 'mirror-b'],
 	['task-a', 'mirror-out'],
 	['task-a1', 'mirror-a1'],
 	['task-y', 'mirror-y'],
@@ -72,7 +75,7 @@ const INITIAL_OUTLINE = {
 	root: ['projects', 'agendas', 'other'],
 	projects: ['task-y', 'mirror-in', 'task-a', 'task-b'],
 	'task-a': ['task-a1', 'mirror-y'],
-	'task-b': ['mirror-nested'],
+	'task-b': ['mirror-nested', 'mirror-b'],
 	agendas: ['agenda-1', 'mirror-out', 'agenda-2', 'agenda-3'],
 	other: ['other-original', 'mirror-a1'],
 };
@@ -204,7 +207,7 @@ function setup(failCall?: string) {
 }
 
 const PROJECTS_PLAN = {
-	mirrorIds: ['mirror-in', 'mirror-nested'],
+	mirrorIds: ['mirror-in', 'mirror-nested', 'mirror-b'],
 	promotions: [
 		{originalId: 'task-a', mirrorId: 'mirror-out', parentId: 'agendas', position: 'top', siblingIds: ['agenda-1']},
 		{originalId: 'task-y', mirrorId: 'mirror-y', parentId: 'task-a', position: 'bottom', siblingIds: []},
@@ -229,6 +232,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 				outline: {...INITIAL_OUTLINE, agendas: ['agenda-1', 'agenda-2', 'agenda-3']},
 				mirrors: [
 					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
+					{originalId: 'task-a', mirrorId: 'mirror-b'},
 					{originalId: 'other-original', mirrorId: 'mirror-in'},
 					{originalId: 'task-a', mirrorId: 'mirror-nested'},
 					{originalId: 'task-y', mirrorId: 'mirror-y'},
@@ -247,6 +251,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 			calls: [
 				'DELETE /nodes/mirror-in/mirror',
 				'DELETE /nodes/mirror-nested/mirror',
+				'DELETE /nodes/mirror-b/mirror',
 				'DELETE /nodes/mirror-out/mirror',
 				'POST /nodes/task-a/move {"parent_id":"agendas","position":"top"}',
 				'GET /nodes/task-a',
@@ -270,7 +275,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 		});
 	});
 
-	it('moves a target with several mirrors elsewhere into the first one in outline order, leaves the others mirroring it, and deletes nothing', async () => {
+	it('moves a target with several mirrors elsewhere into the one with the lowest id, as the web app does on a fresh load, leaves the others mirroring it, and deletes nothing', async () => {
 		const {client, calls, cacheState} = setup();
 
 		const plan = await client.deleteNode('task-a');
@@ -281,28 +286,29 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 				promotions: [
 					{
 						originalId: 'task-a',
-						mirrorId: 'mirror-nested',
+						mirrorId: 'mirror-b',
 						parentId: 'task-b',
-						position: 'top',
+						position: 'bottom',
 						siblingIds: [],
 					},
 				],
 				nodeId: null,
 			},
 			calls: [
-				'DELETE /nodes/mirror-nested/mirror',
-				'POST /nodes/task-a/move {"parent_id":"task-b","position":"top"}',
+				'DELETE /nodes/mirror-b/mirror',
+				'POST /nodes/task-a/move {"parent_id":"task-b","position":"bottom"}',
 				'GET /nodes/task-a',
 			],
 			cache: {
 				outline: {
 					...INITIAL_OUTLINE,
 					projects: ['task-y', 'mirror-in', 'task-b'],
-					'task-b': ['task-a'],
+					'task-b': ['mirror-nested', 'task-a'],
 				},
 				mirrors: [
 					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
 					{originalId: 'other-original', mirrorId: 'mirror-in'},
+					{originalId: 'task-a', mirrorId: 'mirror-nested'},
 					{originalId: 'task-a', mirrorId: 'mirror-out'},
 					{originalId: 'task-y', mirrorId: 'mirror-y'},
 				],
@@ -334,6 +340,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 		expect(deletePlanCalls(PROJECTS_PLAN as Parameters<typeof deletePlanCalls>[0])).toStrictEqual([
 			{method: 'DELETE', path: '/nodes/mirror-in/mirror'},
 			{method: 'DELETE', path: '/nodes/mirror-nested/mirror'},
+			{method: 'DELETE', path: '/nodes/mirror-b/mirror'},
 			{method: 'DELETE', path: '/nodes/mirror-out/mirror'},
 			{method: 'POST', path: '/nodes/task-a/move', body: {parent_id: 'agendas', position: 'top'}},
 			{method: 'POST', path: '/nodes/agenda-1/move', body: {parent_id: 'agendas', position: 'top'}},
@@ -356,6 +363,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 				outline: {...INITIAL_OUTLINE, projects: ['task-y', 'task-a', 'task-b']},
 				mirrors: [
 					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
+					{originalId: 'task-a', mirrorId: 'mirror-b'},
 					{originalId: 'task-a', mirrorId: 'mirror-nested'},
 					{originalId: 'task-a', mirrorId: 'mirror-out'},
 					{originalId: 'task-y', mirrorId: 'mirror-y'},
@@ -375,6 +383,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 			calls: [
 				'DELETE /nodes/mirror-in/mirror',
 				'DELETE /nodes/mirror-nested/mirror',
+				'DELETE /nodes/mirror-b/mirror',
 				'DELETE /nodes/mirror-out/mirror',
 				'POST /nodes/task-a/move {"parent_id":"agendas","position":"top"}',
 			],
