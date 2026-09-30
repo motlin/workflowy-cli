@@ -60,10 +60,11 @@ test *args: build-shared
 test-plugins:
     node --test plugins/gtd/scripts/*.test.mjs
 
+# No --cache on tsc: vp's cache tracking cannot see the native tsc 7 binary's reads or writes, so every run was a hit that never rebuilt
 # Type-check the project
 [group('build')]
 typecheck: install
-    vp run --cache typecheck
+    vp run typecheck
 
 # Remove all dist dirs and tsbuildinfo to prevent stale artifacts (used by git-test)
 [group('build')]
@@ -82,10 +83,11 @@ clean:
         dist-test \
         dist-test/tsconfig.tsbuildinfo
 
+# No --cache on tsc: see typecheck
 # Build the project
 [group('build')]
 build: build-shared
-    vp run --cache build
+    vp run build
 
 # Apply safe Fallow fixes locally, then reject remaining dead code
 [group('build')]
@@ -172,9 +174,9 @@ backup-db:
         echo "No database to backup (workflowy.sqlite not found)"
     fi
 
-# Run daily workflow: import backup files, then update from API, generate embeddings, then reclaim dead pages
+# Run daily workflow: build the CLI, import backup files, then update from API, generate embeddings, then reclaim dead pages
 [group('workflow')]
-daily: install backup-db
+daily: build backup-db
     ./bin/run.js cache import-backups --no-embeddings
     ./bin/run.js cache import-api
     ./bin/run.js ai embed
