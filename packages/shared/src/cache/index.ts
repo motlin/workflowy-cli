@@ -1,4 +1,4 @@
-export {CacheService, type TextSearchOptions, type TextSearchRow} from './cache-service.js';
+export {CacheService, type SubtreeMirrors, type TextSearchOptions, type TextSearchRow} from './cache-service.js';
 export {
 	type CreatedNodeTree,
 	createNodeTree,
@@ -40,4 +40,11 @@ export {
 	temporalMerge,
 	type TemporalTransaction,
 } from './temporal-merge.js';
-export {type DeletePlan, WorkflowyWriteThroughClient} from './workflowy-write-through-client.js';
+export {
+	type DeletePlan,
+	type DeletePlanCall,
+	deletePlanCalls,
+	type MirrorPromotion,
+	planSubtreeDelete,
+} from './delete-plan.js';
+export {WorkflowyWriteThroughClient} from './workflowy-write-through-client.js';

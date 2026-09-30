@@ -7,16 +7,7 @@ import type {
 import {isSystemTarget} from '../types/targets.js';
 import type {WorkflowyNode} from '../types/workflowy.js';
 import type {CacheService} from './cache-service.js';
-
-/** The API calls {@link WorkflowyWriteThroughClient.deleteNode} makes for one delete. */
-export interface DeletePlan {
-	/** Mirrors removed first, each through DELETE /nodes/:id/mirror. */
-	mirrorIds: string[];
-	/** The node then removed through the generic DELETE /nodes/:id, or null when the target is itself a mirror. */
-	nodeId: string | null;
-	/** Mirrors outside the deleted subtree whose original is inside it; left in place. */
-	outsideMirrorIds: string[];
-}
+import {type DeletePlan, planSubtreeDelete} from './delete-plan.js';
 
 /**
  * Unified write-through client that wraps both WorkflowyApiClient and CacheService.
@@ -118,28 +109,28 @@ export class WorkflowyWriteThroughClient {
 	 * Workflowy's generic DELETE /nodes/:id removes a mirror, or an ancestor of
 	 * one, but leaves the mirror's id in its original's mirror list: a dead
 	 * reference. DELETE /nodes/:id/mirror cleans the list, so a mirror target is
-	 * removed through it alone, and every mirror inside a subtree is removed
-	 * through it before the generic delete of the subtree.
+	 * removed through it alone, and every mirror in the deleted part of a
+	 * subtree is removed through it before the generic delete.
 	 *
-	 * Mirrors outside the subtree whose original is inside it are left alone:
-	 * they are the user's content elsewhere, and removing them would delete more
-	 * than was asked. The generic delete of the original is what the API has
-	 * always received for such a node, so this is no worse than before; they are
-	 * reported in `outsideMirrorIds` so callers can warn.
+	 * The generic delete of an original also leaves its mirrors elsewhere as
+	 * empty orphans. The web app instead keeps the original by moving it into a
+	 * mirror's place, so an original in the subtree with a mirror outside the
+	 * deleted part is kept that way (see {@link planSubtreeDelete}).
 	 */
 	async planDelete(nodeId: string): Promise<DeletePlan> {
 		if ((await this.cacheService.getMirrorOriginal(nodeId)) !== null) {
-			return {mirrorIds: [nodeId], nodeId: null, outsideMirrorIds: []};
+			return {mirrorIds: [nodeId], promotions: [], nodeId: null};
 		}
-		const {inside, outside} = await this.cacheService.getSubtreeMirrors(nodeId);
-		return {mirrorIds: inside, nodeId, outsideMirrorIds: outside};
+		return planSubtreeDelete(this.cacheService, nodeId);
 	}
 
 	/**
-	 * Delete a node and remove it from the cache, removing mirrors through the
-	 * mirror endpoint so no original is left listing a deleted mirror (see
-	 * {@link planDelete}). Each mirror leaves the cache as soon as the API
-	 * removes it; if any mirror removal fails, the generic delete is not sent.
+	 * Delete a node and remove it from the cache, carrying out {@link planDelete}
+	 * in order: inner mirrors, then each promotion (remove the mirror, move the
+	 * original into its slot, move siblings to fix the slot), then the generic
+	 * delete. The cache follows each call. If any call fails, the rest are not
+	 * sent, so the generic delete never runs before every kept original has
+	 * moved out of the subtree.
 	 * @param nodeId The node ID to delete
 	 * @returns The plan that was carried out
 	 */
@@ -147,6 +138,18 @@ export class WorkflowyWriteThroughClient {
 		const plan = await this.planDelete(nodeId);
 		for (const mirrorId of plan.mirrorIds) {
 			await this.deleteMirror(mirrorId);
+		}
+		for (const {mirrorId, originalId, parentId, position, siblingIds} of plan.promotions) {
+			const end = position === 'top' ? -1 : 0;
+			await this.deleteMirror(mirrorId);
+			await this.moveNode(originalId, parentId, end);
+			for (const siblingId of siblingIds) {
+				await this.moveNode(siblingId, parentId, end);
+			}
+			if (siblingIds.length > 0) {
+				// The sibling moves shifted the original, so refresh its cached priority.
+				await this.cacheService.insertNode(await this.apiClient.getNode(originalId), parentId);
+			}
 		}
 		if (plan.nodeId !== null) {
 			await this.apiClient.deleteNode(plan.nodeId);

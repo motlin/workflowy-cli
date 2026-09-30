@@ -1,5 +1,5 @@
 import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {PathBuilder, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
+import {deletePlanCalls, PathBuilder, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
 import {Command, Flags} from '@oclif/core';
 import {createDatabase} from '../../db/index.js';
 import {CacheService} from '../../services/cache.js';
@@ -60,53 +60,58 @@ export default class Delete extends Command {
 
 		const fullPath = await pathBuilder.buildFullPath(nodeId);
 		const plan = await client.planDelete(nodeId);
-		const removingMirror = plan.nodeId === null;
+		const removingMirror = plan.nodeId === null && plan.promotions.length === 0;
 		const innerMirrorPaths = removingMirror
 			? []
 			: await Promise.all(plan.mirrorIds.map((id) => pathBuilder.buildFullPath(id)));
-		const outsidePaths = await Promise.all(plan.outsideMirrorIds.map((id) => pathBuilder.buildFullPath(id)));
+		const keptPaths = await Promise.all(
+			plan.promotions.map(async ({originalId, mirrorId}) => ({
+				originalId,
+				from: await pathBuilder.buildFullPath(originalId),
+				to: await pathBuilder.buildFullPath(mirrorId),
+			})),
+		);
 		const warning = removingMirror
 			? "WARNING: This removes only this mirror; its original and the original's children are kept."
-			: 'WARNING: This will permanently delete the node and all its children!';
+			: plan.nodeId === null
+				? "NOTE: Nothing is deleted: the node has a mirror elsewhere, so it moves into that mirror's place."
+				: plan.promotions.length > 0
+					? 'WARNING: This will permanently delete the node and all its children, except the nodes kept above!'
+					: 'WARNING: This will permanently delete the node and all its children!';
 
 		if (flags['dry-run']) {
 			this.log('Would execute API calls:');
-			for (const id of plan.mirrorIds) {
-				this.log(`  DELETE https://workflowy.com/api/v1/nodes/${id}/mirror`);
-			}
-			if (plan.nodeId !== null) {
-				this.log(`  DELETE https://workflowy.com/api/v1/nodes/${plan.nodeId}`);
+			for (const call of deletePlanCalls(plan)) {
+				const body = call.body === undefined ? '' : ` ${JSON.stringify(call.body)}`;
+				this.log(`  ${call.method} https://workflowy.com/api/v1${call.path}${body}`);
 			}
 			this.log('  Headers:');
 			this.log('    Authorization: Bearer <WORKFLOWY_API_KEY>');
 			this.log('');
 			this.log(`Node: ${fullPath}`);
-			this.logMirrorSections(innerMirrorPaths, outsidePaths);
-			this.log('');
-			this.log(warning);
 		} else {
 			this.log(`${removingMirror ? 'Removing mirror' : 'Deleting node'}: ${fullPath}`);
-			this.logMirrorSections(innerMirrorPaths, outsidePaths);
-			this.log('');
-			this.log(warning);
-
-			await client.deleteNode(nodeId);
-
-			this.log('');
-			this.log(removingMirror ? 'Successfully removed mirror' : 'Successfully deleted node');
 		}
-	}
-
-	private logMirrorSections(innerMirrorPaths: string[], outsideMirrorPaths: string[]): void {
 		if (innerMirrorPaths.length > 0) {
 			this.log('');
 			this.log('Mirrors removed first through the mirror endpoint, so their originals drop the reference:');
 			for (const mirrorPath of innerMirrorPaths) this.log(`  ${mirrorPath}`);
 		}
-		if (outsideMirrorPaths.length > 0) {
+		if (keptPaths.length > 0) {
 			this.log('');
-			this.log('Mirrors elsewhere of nodes being deleted, left in place:');
-			for (const mirrorPath of outsideMirrorPaths) this.log(`  ${mirrorPath}`);
+			for (const {from, to} of keptPaths) this.log(`Keeping ${from} by moving it to ${to} (as the web app does)`);
+		}
+		this.log('');
+		this.log(warning);
+		if (flags['dry-run']) return;
+
+		await client.deleteNode(nodeId);
+
+		this.log('');
+		if (removingMirror) this.log('Successfully removed mirror');
+		else if (plan.nodeId !== null) this.log('Successfully deleted node');
+		for (const {originalId, from} of keptPaths) {
+			this.log(`Kept ${from}, now at ${await pathBuilder.buildFullPath(originalId)}`);
 		}
 	}
 }

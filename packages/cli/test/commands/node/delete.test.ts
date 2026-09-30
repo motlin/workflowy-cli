@@ -8,7 +8,7 @@ import path from 'node:path';
 import type {MockInstance} from 'vite-plus/test';
 import Delete from '../../../src/commands/node/delete.js';
 import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from '../../db/migration-helper.js';
-import {createTestNode} from '../../helpers/node-fixtures.js';
+import {createApiNode, createTestNode} from '../../helpers/node-fixtures.js';
 
 describe('node delete command', () => {
 	let originalEnv: typeof process.env;
@@ -185,15 +185,20 @@ describe('node delete command', () => {
 		beforeEach(() => {
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'projects-id', name: 'Projects', parentId: null}),
-					createTestNode({id: 'mirror-in-id', name: '', parentId: 'projects-id'}),
-					createTestNode({id: 'task-a-id', name: 'Task A', parentId: 'projects-id'}),
-					createTestNode({id: 'task-b-id', name: 'Task B', parentId: 'projects-id'}),
-					createTestNode({id: 'mirror-nested-id', name: '', parentId: 'task-b-id'}),
-					createTestNode({id: 'agendas-id', name: 'Agendas', parentId: null}),
-					createTestNode({id: 'mirror-out-id', name: '', parentId: 'agendas-id'}),
-					createTestNode({id: 'other-id', name: 'Other', parentId: null}),
-					createTestNode({id: 'other-original-id', name: 'Other Original', parentId: 'other-id'}),
+					createTestNode({id: 'projects-id', name: 'Projects', parentId: null, priority: 0}),
+					createTestNode({id: 'mirror-in-id', name: '', parentId: 'projects-id', priority: 0}),
+					createTestNode({id: 'task-a-id', name: 'Task A', parentId: 'projects-id', priority: 1}),
+					createTestNode({id: 'task-b-id', name: 'Task B', parentId: 'projects-id', priority: 2}),
+					createTestNode({id: 'mirror-nested-id', name: '', parentId: 'task-b-id', priority: 0}),
+					createTestNode({id: 'agendas-id', name: 'Agendas', parentId: null, priority: 1}),
+					createTestNode({id: 'mirror-out-id', name: '', parentId: 'agendas-id', priority: 0}),
+					createTestNode({id: 'other-id', name: 'Other', parentId: null, priority: 2}),
+					createTestNode({
+						id: 'other-original-id',
+						name: 'Other Original',
+						parentId: 'other-id',
+						priority: 0,
+					}),
 				],
 				mirrors: [
 					{
@@ -218,10 +223,17 @@ describe('node delete command', () => {
 			});
 		});
 
+		/** Record each call; a GET answers with Task A as moved under Agendas. */
 		function recordCalls(): string[] {
 			const calls: string[] = [];
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				calls.push(`${init?.method ?? 'GET'} ${url instanceof Request ? url.url : url.toString()}`);
+				const method = init?.method ?? 'GET';
+				const call = `${method} ${url instanceof Request ? url.url : url.toString()}`;
+				calls.push(init?.body === undefined ? call : `${call} ${init.body as string}`);
+				if (method === 'GET') {
+					const node = createApiNode({id: 'task-a-id', name: 'Task A', parent_id: 'agendas-id', priority: 0});
+					return new Response(JSON.stringify({node}), {status: 200});
+				}
 				return new Response(JSON.stringify({status: 'ok'}), {status: 200});
 			});
 			return calls;
@@ -229,13 +241,12 @@ describe('node delete command', () => {
 
 		function cacheState() {
 			return {
-				nodeIds: testDatabase.db
-					.select({id: nodeContent.id})
+				nodes: testDatabase.db
+					.select({id: nodeContent.id, parentId: nodeContent.parentId})
 					.from(nodeContent)
 					.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 					.orderBy(nodeContent.id)
-					.all()
-					.map((row) => row.id),
+					.all(),
 				mirrors: testDatabase.db
 					.select({originalId: mirrors.originalId, mirrorId: mirrors.mirrorId})
 					.from(mirrors)
@@ -245,7 +256,7 @@ describe('node delete command', () => {
 			};
 		}
 
-		it('dry run shows inner mirrors removed through the mirror endpoint first, and mirrors left elsewhere', async () => {
+		it('dry run lists every call in order and says which originals are kept by moving them into a mirror slot', async () => {
 			const calls = recordCalls();
 
 			const {stdout} = await captureOutput(async () => {
@@ -257,6 +268,8 @@ describe('node delete command', () => {
 					'Would execute API calls:',
 					'  DELETE https://workflowy.com/api/v1/nodes/mirror-in-id/mirror',
 					'  DELETE https://workflowy.com/api/v1/nodes/mirror-nested-id/mirror',
+					'  DELETE https://workflowy.com/api/v1/nodes/mirror-out-id/mirror',
+					'  POST https://workflowy.com/api/v1/nodes/task-a-id/move {"parent_id":"agendas-id","position":"top"}',
 					'  DELETE https://workflowy.com/api/v1/nodes/projects-id',
 					'  Headers:',
 					'    Authorization: Bearer <WORKFLOWY_API_KEY>',
@@ -267,10 +280,35 @@ describe('node delete command', () => {
 					'  Projects > Other Original',
 					'  Projects > Task B > Task A',
 					'',
-					'Mirrors elsewhere of nodes being deleted, left in place:',
-					'  Agendas > Task A',
+					'Keeping Projects > Task A by moving it to Agendas > Task A (as the web app does)',
 					'',
-					'WARNING: This will permanently delete the node and all its children!',
+					'WARNING: This will permanently delete the node and all its children, except the nodes kept above!',
+					'',
+				].join('\n'),
+				calls: [],
+			});
+		});
+
+		it('dry run on an original with mirrors elsewhere shows it moving into the first mirror in outline order, with nothing deleted', async () => {
+			const calls = recordCalls();
+
+			const {stdout} = await captureOutput(async () => {
+				await Delete.run(['--id', 'task-a-id', '--dry-run']);
+			});
+
+			expect({stdout, calls}).toStrictEqual({
+				stdout: [
+					'Would execute API calls:',
+					'  DELETE https://workflowy.com/api/v1/nodes/mirror-nested-id/mirror',
+					'  POST https://workflowy.com/api/v1/nodes/task-a-id/move {"parent_id":"task-b-id","position":"top"}',
+					'  Headers:',
+					'    Authorization: Bearer <WORKFLOWY_API_KEY>',
+					'',
+					'Node: Projects > Task A',
+					'',
+					'Keeping Projects > Task A by moving it to Projects > Task B > Task A (as the web app does)',
+					'',
+					"NOTE: Nothing is deleted: the node has a mirror elsewhere, so it moves into that mirror's place.",
 					'',
 				].join('\n'),
 				calls: [],
@@ -300,7 +338,7 @@ describe('node delete command', () => {
 			});
 		});
 
-		it('removes inner mirrors through the mirror endpoint before deleting the node, and updates the cache', async () => {
+		it('moves an original with a mirror elsewhere into the mirror slot before deleting the node, reports it, and updates the cache', async () => {
 			const calls = recordCalls();
 
 			const {stdout} = await captureOutput(async () => {
@@ -315,20 +353,31 @@ describe('node delete command', () => {
 					'  Projects > Other Original',
 					'  Projects > Task B > Task A',
 					'',
-					'Mirrors elsewhere of nodes being deleted, left in place:',
-					'  Agendas > Task A',
+					'Keeping Projects > Task A by moving it to Agendas > Task A (as the web app does)',
 					'',
-					'WARNING: This will permanently delete the node and all its children!',
+					'WARNING: This will permanently delete the node and all its children, except the nodes kept above!',
 					'',
 					'Successfully deleted node',
+					'Kept Projects > Task A, now at Agendas > Task A',
 					'',
 				].join('\n'),
 				calls: [
 					'DELETE https://workflowy.com/api/v1/nodes/mirror-in-id/mirror',
 					'DELETE https://workflowy.com/api/v1/nodes/mirror-nested-id/mirror',
+					'DELETE https://workflowy.com/api/v1/nodes/mirror-out-id/mirror',
+					'POST https://workflowy.com/api/v1/nodes/task-a-id/move {"parent_id":"agendas-id","position":"top"}',
+					'GET https://workflowy.com/api/v1/nodes/task-a-id',
 					'DELETE https://workflowy.com/api/v1/nodes/projects-id',
 				],
-				cache: {nodeIds: ['agendas-id', 'mirror-out-id', 'other-id', 'other-original-id'], mirrors: []},
+				cache: {
+					nodes: [
+						{id: 'agendas-id', parentId: null},
+						{id: 'other-id', parentId: null},
+						{id: 'other-original-id', parentId: 'other-id'},
+						{id: 'task-a-id', parentId: 'agendas-id'},
+					],
+					mirrors: [],
+				},
 			});
 		});
 
@@ -350,15 +399,15 @@ describe('node delete command', () => {
 				].join('\n'),
 				calls: ['DELETE https://workflowy.com/api/v1/nodes/mirror-out-id/mirror'],
 				cache: {
-					nodeIds: [
-						'agendas-id',
-						'mirror-in-id',
-						'mirror-nested-id',
-						'other-id',
-						'other-original-id',
-						'projects-id',
-						'task-a-id',
-						'task-b-id',
+					nodes: [
+						{id: 'agendas-id', parentId: null},
+						{id: 'mirror-in-id', parentId: 'projects-id'},
+						{id: 'mirror-nested-id', parentId: 'task-b-id'},
+						{id: 'other-id', parentId: null},
+						{id: 'other-original-id', parentId: 'other-id'},
+						{id: 'projects-id', parentId: null},
+						{id: 'task-a-id', parentId: 'projects-id'},
+						{id: 'task-b-id', parentId: 'projects-id'},
 					],
 					mirrors: [
 						{originalId: 'other-original-id', mirrorId: 'mirror-in-id'},

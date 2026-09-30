@@ -107,6 +107,20 @@ function timestampToDate(timestamp: number | null | undefined): Date | null {
 	return timestamp === null || timestamp === undefined ? null : new Date(timestamp * 1000);
 }
 
+/** The cached subtree under a node, as {@link CacheService.getSubtreeMirrors} returns it. */
+export interface SubtreeMirrors {
+	/** Each node below the root mapped to its parent, in breadth-first order. */
+	parents: Map<string, string>;
+	/** The mirror nodes in the subtree, in breadth-first order. */
+	inside: string[];
+	/**
+	 * The current mirrors, sorted by id, of each non-mirror node in the subtree
+	 * (the root included) that has any, keyed in breadth-first order. Mirrors
+	 * may lie inside or outside the subtree; only cached mirror nodes count.
+	 */
+	mirrorsOf: Map<string, string[]>;
+}
+
 export class CacheService {
 	protected database: BetterSQLite3Database<typeof schema>;
 	protected nodeReader: NodeReader;
@@ -928,46 +942,62 @@ export class CacheService {
 	}
 
 	/**
-	 * The mirrors a delete of `nodeId`'s cached subtree affects: `inside` are the
-	 * mirror nodes within the subtree, in breadth-first order (a mirror's own
-	 * children live under its original, so the walk stops at each mirror);
-	 * `outside` are mirrors elsewhere whose original is within the subtree,
-	 * sorted by id. `nodeId` itself is not checked.
+	 * The cached subtree under `nodeId` as a delete plans it (see
+	 * {@link SubtreeMirrors}). Children are walked breadth-first, siblings in
+	 * priority order then by id, and the walk stops at each mirror: a mirror's
+	 * own children live under its original.
 	 */
-	async getSubtreeMirrors(nodeId: string): Promise<{inside: string[]; outside: string[]}> {
+	async getSubtreeMirrors(nodeId: string): Promise<SubtreeMirrors> {
 		const chunkSize = 10_000;
+		const parents = new Map<string, string>();
 		const inside: string[] = [];
 		const nonMirrorIds: string[] = [nodeId];
 		let level = [nodeId];
 		while (level.length > 0) {
-			const childIds: string[] = [];
+			const levelIndex = new Map(level.map((id, index) => [id, index]));
+			const rows: Array<{id: string; parentId: string; priority: number}> = [];
 			for (let i = 0; i < level.length; i += chunkSize) {
-				const rows = this.database
-					.select({id: nodeContent.id})
+				const chunk = this.database
+					.select({id: nodeContent.id, parentId: nodeContent.parentId, priority: nodeMetadata.priority})
 					.from(nodeContent)
+					.leftJoin(nodeMetadata, and(eq(nodeMetadata.nodeId, nodeContent.id), currentVersion(nodeMetadata)))
 					.where(
 						and(inArray(nodeContent.parentId, level.slice(i, i + chunkSize)), currentVersion(nodeContent)),
 					)
 					.all();
-				for (const row of rows) childIds.push(row.id);
+				for (const row of chunk) rows.push({id: row.id, parentId: row.parentId!, priority: row.priority ?? 0});
 			}
+			rows.sort(
+				(a, b) =>
+					levelIndex.get(a.parentId)! - levelIndex.get(b.parentId)! ||
+					a.priority - b.priority ||
+					a.id.localeCompare(b.id),
+			);
+			for (const row of rows) parents.set(row.id, row.parentId);
+			const childIds = rows.map((row) => row.id);
 			const childMirrors = loadMirrorOriginals(this.database, childIds);
 			level = childIds.filter((id) => !childMirrors.has(id));
 			inside.push(...childIds.filter((id) => childMirrors.has(id)));
 			nonMirrorIds.push(...level);
 		}
 
-		const insideIds = new Set(inside);
-		const outside = new Set<string>();
+		const mirrorIds = new Map<string, string[]>();
 		for (let i = 0; i < nonMirrorIds.length; i += chunkSize) {
 			const rows = this.database
-				.select({mirrorId: mirrors.mirrorId})
+				.select({originalId: mirrors.originalId, mirrorId: mirrors.mirrorId})
 				.from(mirrors)
+				.innerJoin(nodeContent, and(eq(nodeContent.id, mirrors.mirrorId), currentVersion(nodeContent)))
 				.where(and(inArray(mirrors.originalId, nonMirrorIds.slice(i, i + chunkSize)), currentVersion(mirrors)))
 				.all();
-			for (const row of rows) if (!insideIds.has(row.mirrorId)) outside.add(row.mirrorId);
+			for (const row of rows)
+				mirrorIds.set(row.originalId, [...(mirrorIds.get(row.originalId) ?? []), row.mirrorId]);
 		}
-		return {inside, outside: [...outside].sort()};
+		const mirrorsOf = new Map<string, string[]>();
+		for (const id of nonMirrorIds) {
+			const ids = mirrorIds.get(id);
+			if (ids !== undefined) mirrorsOf.set(id, ids.sort());
+		}
+		return {parents, inside, mirrorsOf};
 	}
 
 	/**

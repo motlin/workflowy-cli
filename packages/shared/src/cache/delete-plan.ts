@@ -1,0 +1,206 @@
+import type {CacheService, SubtreeMirrors} from './cache-service.js';
+
+/**
+ * An original inside a deleted subtree kept the way the Workflowy web app keeps
+ * it: one of its mirrors outside the subtree is removed, and the original, with
+ * its children, is moved into that mirror's place. Its other mirrors keep
+ * mirroring it where it now lives.
+ */
+export interface MirrorPromotion {
+	/** The original that is kept. */
+	originalId: string;
+	/** The mirror removed through DELETE /nodes/:id/mirror to make room for it. */
+	mirrorId: string;
+	/** The mirror's parent, which the original is moved to. */
+	parentId: string | null;
+	/** The end of the parent the original is moved to; the REST move takes only 'top' or 'bottom'. */
+	position: 'top' | 'bottom';
+	/**
+	 * Siblings then moved to the same end, in order, so the original lands in
+	 * the mirror's exact slot. `position` is the end nearer the slot, so this is
+	 * the shorter of the two sibling runs.
+	 */
+	siblingIds: string[];
+}
+
+/** The API calls {@link WorkflowyWriteThroughClient.deleteNode} makes for one delete, in order. */
+export interface DeletePlan {
+	/** Mirrors inside the deleted part of the subtree, removed first through DELETE /nodes/:id/mirror. */
+	mirrorIds: string[];
+	/** Originals kept by moving them into a mirror's place, carried out next. */
+	promotions: MirrorPromotion[];
+	/** The node then removed through the generic DELETE /nodes/:id, or null when the target is a mirror or is itself kept. */
+	nodeId: string | null;
+}
+
+/** One API call of a {@link DeletePlan}; `path` is relative to /api/v1. */
+export interface DeletePlanCall {
+	method: 'DELETE' | 'POST';
+	path: string;
+	body?: {parent_id: string | null; position: 'top' | 'bottom'};
+}
+
+/** Every mutating API call a plan makes, in order (the GETs that refresh the cache after a move are left out). */
+export function deletePlanCalls(plan: DeletePlan): DeletePlanCall[] {
+	const calls: DeletePlanCall[] = plan.mirrorIds.map((id) => ({method: 'DELETE', path: `/nodes/${id}/mirror`}));
+	for (const {mirrorId, originalId, parentId, position, siblingIds} of plan.promotions) {
+		calls.push({method: 'DELETE', path: `/nodes/${mirrorId}/mirror`});
+		for (const id of [originalId, ...siblingIds]) {
+			calls.push({method: 'POST', path: `/nodes/${id}/move`, body: {parent_id: parentId, position}});
+		}
+	}
+	if (plan.nodeId !== null) calls.push({method: 'DELETE', path: `/nodes/${plan.nodeId}`});
+	return calls;
+}
+
+/**
+ * Plan the delete of non-mirror `nodeId` from its cached subtree.
+ *
+ * An original in the subtree with a mirror outside the part being deleted is
+ * kept, as the web app does, and so is everything under it. Keeping one can
+ * leave another original's mirror outside the deleted part (inside the kept
+ * subtree), so originals are rechecked until none changes. Originals are
+ * checked breadth-first, and promotions run in the order they were found.
+ *
+ * With several candidate mirrors, the one first in outline order (by each
+ * ancestor's priority from the root, then id) is used. The web app's choice
+ * with several mirrors is untested; this is an assumption.
+ */
+export async function planSubtreeDelete(cacheService: CacheService, nodeId: string): Promise<DeletePlan> {
+	const subtree = await cacheService.getSubtreeMirrors(nodeId);
+	const kept = findKeptOriginals(nodeId, subtree);
+	const deleted = (id: string) => isDeleted(id, nodeId, subtree.parents, kept);
+
+	const chosen = new Map<string, string>();
+	for (const [originalId, candidates] of kept) {
+		chosen.set(originalId, await firstInOutline(cacheService, candidates));
+	}
+
+	const outline = new OutlineSimulation(cacheService);
+	const pendingMirrors = new Set(chosen.values());
+	const promotions: MirrorPromotion[] = [];
+	for (const [originalId, mirrorId] of chosen) {
+		const parentId = (await cacheService.getNode(mirrorId))?.parentId ?? null;
+		const siblings = (await outline.children(parentId)).filter(
+			(id) => id === mirrorId || (id !== originalId && !deleted(id) && !pendingMirrors.has(id)),
+		);
+		const slot = siblings.indexOf(mirrorId);
+		const before = siblings.slice(0, Math.max(slot, 0));
+		const after = slot === -1 ? [] : siblings.slice(slot + 1);
+		const position = slot !== -1 && before.length <= after.length ? 'top' : 'bottom';
+		const siblingIds = position === 'top' ? before.reverse() : after;
+
+		pendingMirrors.delete(mirrorId);
+		outline.remove(mirrorId);
+		for (const id of [originalId, ...siblingIds]) await outline.move(id, parentId, position);
+		promotions.push({originalId, mirrorId, parentId, position, siblingIds});
+	}
+
+	return {
+		mirrorIds: subtree.inside.filter(deleted),
+		promotions,
+		nodeId: kept.has(nodeId) ? null : nodeId,
+	};
+}
+
+/**
+ * The originals kept, in the order found, each with its candidate mirrors:
+ * those outside the part still deleted once every kept original is known.
+ */
+function findKeptOriginals(nodeId: string, subtree: SubtreeMirrors): Map<string, string[]> {
+	const kept = new Map<string, string[]>();
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const [originalId, mirrorIds] of subtree.mirrorsOf) {
+			if (!isDeleted(originalId, nodeId, subtree.parents, kept)) continue;
+			if (mirrorIds.some((id) => !isDeleted(id, nodeId, subtree.parents, kept))) {
+				kept.set(originalId, []);
+				changed = true;
+			}
+		}
+	}
+	for (const originalId of kept.keys()) {
+		const mirrorIds = subtree.mirrorsOf.get(originalId)!;
+		kept.set(
+			originalId,
+			mirrorIds.filter((id) => !isDeleted(id, nodeId, subtree.parents, kept)),
+		);
+	}
+	return kept;
+}
+
+/** Whether `id` is in the subtree of `nodeId` and not under (or itself) a kept original. */
+function isDeleted(id: string, nodeId: string, parents: Map<string, string>, kept: Map<string, unknown>): boolean {
+	if (id !== nodeId && !parents.has(id)) return false;
+	for (let current: string | undefined = id; current !== undefined; current = parents.get(current)) {
+		if (kept.has(current)) return false;
+	}
+	return true;
+}
+
+/** The candidate first in outline order, comparing each ancestor from the root by priority, then id. */
+async function firstInOutline(cacheService: CacheService, candidates: string[]): Promise<string> {
+	if (candidates.length === 1) return candidates[0];
+	const keyed = await Promise.all(
+		candidates.map(async (id) => {
+			const key: Array<[number, string]> = [];
+			for (
+				let node = await cacheService.getNode(id);
+				node;
+				node = node.parentId ? await cacheService.getNode(node.parentId) : undefined
+			) {
+				key.unshift([node.priority, node.id]);
+			}
+			return {id, key};
+		}),
+	);
+	keyed.sort((a, b) => compareOutlineKeys(a.key, b.key));
+	return keyed[0].id;
+}
+
+function compareOutlineKeys(a: Array<[number, string]>, b: Array<[number, string]>): number {
+	for (let i = 0; i < Math.min(a.length, b.length); i++) {
+		const difference = a[i][0] - b[i][0] || a[i][1].localeCompare(b[i][1]);
+		if (difference !== 0) return difference;
+	}
+	return a.length - b.length;
+}
+
+/**
+ * The cached children of the parents a plan touches, updated as each planned
+ * removal and move is applied, so a later promotion into the same parent sees
+ * the siblings as they will be by then.
+ */
+class OutlineSimulation {
+	private lists = new Map<string | null, string[]>();
+	private touched = new Set<string>();
+
+	constructor(private cacheService: CacheService) {}
+
+	async children(parentId: string | null): Promise<string[]> {
+		let list = this.lists.get(parentId);
+		if (list === undefined) {
+			list = (await this.cacheService.getChildren(parentId))
+				.map((node) => node.id)
+				.filter((id) => !this.touched.has(id));
+			this.lists.set(parentId, list);
+		}
+		return list;
+	}
+
+	remove(id: string): void {
+		this.touched.add(id);
+		for (const list of this.lists.values()) {
+			const index = list.indexOf(id);
+			if (index !== -1) list.splice(index, 1);
+		}
+	}
+
+	async move(id: string, parentId: string | null, position: 'top' | 'bottom'): Promise<void> {
+		const list = await this.children(parentId);
+		this.remove(id);
+		if (position === 'top') list.unshift(id);
+		else list.push(id);
+	}
+}
