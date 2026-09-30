@@ -108,7 +108,9 @@ export class WorkflowyWriteThroughClient {
 
 	/**
 	 * Work out the API calls {@link deleteNode} makes for `nodeId`, from the cache,
-	 * without calling the API.
+	 * without changing anything. Where an original is kept, its mirror's siblings
+	 * are read from the API (GET only), since a stale cached order would put the
+	 * original in the wrong slot.
 	 *
 	 * Workflowy's generic DELETE /nodes/:id removes a mirror, or an ancestor of
 	 * one, but leaves the mirror's id in its original's mirror list: a dead
@@ -125,7 +127,14 @@ export class WorkflowyWriteThroughClient {
 		if ((await this.cacheService.getMirrorOriginal(nodeId)) !== null) {
 			return {mirrorIds: [nodeId], promotions: [], nodeId: null};
 		}
-		return planSubtreeDelete(this.cacheService, nodeId);
+		return planSubtreeDelete(this.cacheService, nodeId, (parentId) => this.liveChildOrder(parentId));
+	}
+
+	/** A parent's children ids in Workflowy's current order, read from the API. */
+	private async liveChildOrder(parentId: string | null): Promise<string[]> {
+		const children =
+			parentId === null ? await this.apiClient.getRootNodes() : await this.apiClient.getChildNodes(parentId);
+		return children.sort((a, b) => a.priority - b.priority).map((node) => node.id);
 	}
 
 	/**
@@ -136,10 +145,12 @@ export class WorkflowyWriteThroughClient {
 	 * sent, so the generic delete never runs before every kept original has
 	 * moved out of the subtree.
 	 * @param nodeId The node ID to delete
+	 * @param plan The plan from {@link planDelete} to carry out, when the caller
+	 *   already made (and showed) one; otherwise one is made now
 	 * @returns The plan that was carried out
 	 */
-	async deleteNode(nodeId: string): Promise<DeletePlan> {
-		const plan = await this.planDelete(nodeId);
+	async deleteNode(nodeId: string, plan?: DeletePlan): Promise<DeletePlan> {
+		plan ??= await this.planDelete(nodeId);
 		for (const mirrorId of plan.mirrorIds) {
 			await this.deleteMirror(mirrorId);
 		}

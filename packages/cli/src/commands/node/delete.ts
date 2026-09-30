@@ -105,7 +105,7 @@ export default class Delete extends Command {
 		this.log(warning);
 		if (flags['dry-run']) return;
 
-		await client.deleteNode(nodeId);
+		await client.deleteNode(nodeId, plan);
 
 		this.log('');
 		if (removingMirror) this.log('Successfully removed mirror');

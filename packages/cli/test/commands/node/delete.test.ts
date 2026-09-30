@@ -223,13 +223,28 @@ describe('node delete command', () => {
 			});
 		});
 
-		/** Record each call; a GET answers with Task A as moved under Agendas. */
+		/**
+		 * Record each call. A children list answers with the seeded children; any
+		 * other GET answers with Task A as moved under Agendas.
+		 */
 		function recordCalls(): string[] {
 			const calls: string[] = [];
+			const children: Record<string, string[]> = {
+				'agendas-id': ['mirror-out-id'],
+				'task-b-id': ['mirror-nested-id'],
+			};
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const method = init?.method ?? 'GET';
-				const call = `${method} ${url instanceof Request ? url.url : url.toString()}`;
+				const href = url instanceof Request ? url.url : url.toString();
+				const call = `${method} ${href}`;
 				calls.push(init?.body === undefined ? call : `${call} ${init.body as string}`);
+				const parentId = new URL(href).searchParams.get('parent_id');
+				if (parentId !== null) {
+					const nodes = children[parentId].map((id, priority) =>
+						createApiNode({id, parent_id: parentId, priority}),
+					);
+					return new Response(JSON.stringify({nodes}), {status: 200});
+				}
 				if (method === 'GET') {
 					const node = createApiNode({id: 'task-a-id', name: 'Task A', parent_id: 'agendas-id', priority: 0});
 					return new Response(JSON.stringify({node}), {status: 200});
@@ -285,7 +300,7 @@ describe('node delete command', () => {
 					'WARNING: This will permanently delete the node and all its children, except the nodes kept above!',
 					'',
 				].join('\n'),
-				calls: [],
+				calls: ['GET https://workflowy.com/api/v1/nodes?parent_id=agendas-id'],
 			});
 		});
 
@@ -311,7 +326,7 @@ describe('node delete command', () => {
 					"NOTE: Nothing is deleted: the node has a mirror elsewhere, so it moves into that mirror's place.",
 					'',
 				].join('\n'),
-				calls: [],
+				calls: ['GET https://workflowy.com/api/v1/nodes?parent_id=task-b-id'],
 			});
 		});
 
@@ -362,6 +377,7 @@ describe('node delete command', () => {
 					'',
 				].join('\n'),
 				calls: [
+					'GET https://workflowy.com/api/v1/nodes?parent_id=agendas-id',
 					'DELETE https://workflowy.com/api/v1/nodes/mirror-in-id/mirror',
 					'DELETE https://workflowy.com/api/v1/nodes/mirror-nested-id/mirror',
 					'DELETE https://workflowy.com/api/v1/nodes/mirror-out-id/mirror',

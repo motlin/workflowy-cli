@@ -1,5 +1,8 @@
 import type {CacheService, SubtreeMirrors} from './cache-service.js';
 
+/** A parent's children ids in their current Workflowy order (roots for null). */
+export type ChildOrder = (parentId: string | null) => Promise<string[]>;
+
 /**
  * An original inside a deleted subtree kept the way the Workflowy web app keeps
  * it: one of its mirrors outside the subtree is removed, and the original, with
@@ -56,7 +59,9 @@ export function deletePlanCalls(plan: DeletePlan): DeletePlanCall[] {
 }
 
 /**
- * Plan the delete of non-mirror `nodeId` from its cached subtree.
+ * Plan the delete of non-mirror `nodeId` from its cached subtree, placing each
+ * kept original by the sibling order `childOrder` gives for its mirror's parent.
+ * The cached order can be stale, so callers pass the live one.
  *
  * An original in the subtree with a mirror outside the part being deleted is
  * kept, as the web app does, and so is everything under it. Keeping one can
@@ -71,7 +76,11 @@ export function deletePlanCalls(plan: DeletePlan): DeletePlanCall[] {
  * creation order. A long-open tab can pick differently, since live-synced
  * mirrors are added to the front, so the fresh-load rule is the one followed.
  */
-export async function planSubtreeDelete(cacheService: CacheService, nodeId: string): Promise<DeletePlan> {
+export async function planSubtreeDelete(
+	cacheService: CacheService,
+	nodeId: string,
+	childOrder: ChildOrder,
+): Promise<DeletePlan> {
 	const subtree = await cacheService.getSubtreeMirrors(nodeId);
 	const kept = findKeptOriginals(nodeId, subtree);
 	const deleted = (id: string) => isDeleted(id, nodeId, subtree.parents, kept);
@@ -84,7 +93,7 @@ export async function planSubtreeDelete(cacheService: CacheService, nodeId: stri
 		);
 	}
 
-	const outline = new OutlineSimulation(cacheService);
+	const outline = new OutlineSimulation(childOrder);
 	const pendingMirrors = new Set(chosen.values());
 	const promotions: MirrorPromotion[] = [];
 	for (const [originalId, mirrorId] of chosen) {
@@ -148,7 +157,7 @@ function isDeleted(id: string, nodeId: string, parents: Map<string, string>, kep
 }
 
 /**
- * The cached children of the parents a plan touches, updated as each planned
+ * The children of the parents a plan touches, updated as each planned
  * removal and move is applied, so a later promotion into the same parent sees
  * the siblings as they will be by then.
  */
@@ -156,14 +165,12 @@ class OutlineSimulation {
 	private lists = new Map<string | null, string[]>();
 	private touched = new Set<string>();
 
-	constructor(private cacheService: CacheService) {}
+	constructor(private childOrder: ChildOrder) {}
 
 	async children(parentId: string | null): Promise<string[]> {
 		let list = this.lists.get(parentId);
 		if (list === undefined) {
-			list = (await this.cacheService.getChildren(parentId))
-				.map((node) => node.id)
-				.filter((id) => !this.touched.has(id));
+			list = (await this.childOrder(parentId)).filter((id) => !this.touched.has(id));
 			this.lists.set(parentId, list);
 		}
 		return list;

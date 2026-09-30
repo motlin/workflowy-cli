@@ -82,8 +82,9 @@ const INITIAL_OUTLINE = {
 
 /**
  * @param failCall A `METHOD /path` call the fake server answers with a 500.
+ * @param serverOutline Children lists the fake server holds in place of the cached ones, as when the cache is stale.
  */
-function setup(failCall?: string) {
+function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline?: Record<string, string[]>} = {}) {
 	const sqlite = new DatabaseConstructor(':memory:');
 	const database = drizzle(sqlite, {schema});
 	migrate(database, {migrationsFolder});
@@ -126,6 +127,7 @@ function setup(failCall?: string) {
 
 	// A fake Workflowy that tracks each parent's ordered children, so moves and GETs agree.
 	const server = childLists();
+	for (const [parentId, ids] of Object.entries(serverOutline)) server.set(parentId, [...ids]);
 	const parentOf = (id: string) => [...server].find(([, ids]) => ids.includes(id))?.[0] ?? null;
 	const detach = (id: string) => {
 		for (const ids of server.values()) {
@@ -145,6 +147,23 @@ function setup(failCall?: string) {
 			if (call === failCall) {
 				return new Response('{"code":"server_error"}', {status: 500, statusText: 'Internal Server Error'});
 			}
+			const toApi = (id: string, parentId: string | null) => ({
+				id,
+				name: id,
+				note: null,
+				parent_id: parentId,
+				priority: server.get(parentId)!.indexOf(id),
+				completed: false,
+				createdAt: 0,
+				modifiedAt: 0,
+				completedAt: null,
+			});
+			if (method === 'GET' && path.startsWith('/nodes?parent_id=')) {
+				const parentId = path.slice('/nodes?parent_id='.length);
+				// Workflowy lists children in no particular order, so list them reversed.
+				const nodes = (server.get(parentId) ?? []).map((id) => toApi(id, parentId)).reverse();
+				return new Response(JSON.stringify({nodes}), {status: 200});
+			}
 			const id = path.split('/')[2];
 			if (method === 'DELETE') {
 				detach(id);
@@ -154,19 +173,7 @@ function setup(failCall?: string) {
 				const siblings = server.get(body.parent_id) ?? [];
 				server.set(body.parent_id, body.position === 'top' ? [id, ...siblings] : [...siblings, id]);
 			} else if (method === 'GET') {
-				const parentId = parentOf(id);
-				const node = {
-					id,
-					name: id,
-					note: null,
-					parent_id: parentId,
-					priority: server.get(parentId)!.indexOf(id),
-					completed: false,
-					createdAt: 0,
-					modifiedAt: 0,
-					completedAt: null,
-				};
-				return new Response(JSON.stringify({node}), {status: 200});
+				return new Response(JSON.stringify({node: toApi(id, parentOf(id))}), {status: 200});
 			}
 			return new Response('{"status":"ok"}', {status: 200});
 		}),
@@ -249,6 +256,8 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 		expect({plan, calls, cache: cacheState()}).toStrictEqual({
 			plan: PROJECTS_PLAN,
 			calls: [
+				'GET /nodes?parent_id=agendas',
+				'GET /nodes?parent_id=task-a',
 				'DELETE /nodes/mirror-in/mirror',
 				'DELETE /nodes/mirror-nested/mirror',
 				'DELETE /nodes/mirror-b/mirror',
@@ -267,6 +276,56 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 				outline: {
 					root: ['agendas', 'other'],
 					agendas: ['agenda-1', 'task-a', 'agenda-2', 'agenda-3'],
+					'task-a': ['task-a1', 'task-y'],
+					other: ['other-original', 'mirror-a1'],
+				},
+				mirrors: [{originalId: 'task-a1', mirrorId: 'mirror-a1'}],
+			},
+		});
+	});
+
+	it("places a kept original in its mirror's live slot, read from Workflowy, when the cached sibling order is stale", async () => {
+		const {client, calls, cacheState} = setup({
+			serverOutline: {agendas: ['agenda-1', 'agenda-2', 'mirror-out', 'agenda-3']},
+		});
+
+		const plan = await client.deleteNode('projects');
+
+		expect({plan, calls, cache: cacheState()}).toStrictEqual({
+			plan: {
+				...PROJECTS_PLAN,
+				promotions: [
+					{
+						originalId: 'task-a',
+						mirrorId: 'mirror-out',
+						parentId: 'agendas',
+						position: 'bottom',
+						siblingIds: ['agenda-3'],
+					},
+					PROJECTS_PLAN.promotions[1],
+				],
+			},
+			calls: [
+				'GET /nodes?parent_id=agendas',
+				'GET /nodes?parent_id=task-a',
+				'DELETE /nodes/mirror-in/mirror',
+				'DELETE /nodes/mirror-nested/mirror',
+				'DELETE /nodes/mirror-b/mirror',
+				'DELETE /nodes/mirror-out/mirror',
+				'POST /nodes/task-a/move {"parent_id":"agendas","position":"bottom"}',
+				'GET /nodes/task-a',
+				'POST /nodes/agenda-3/move {"parent_id":"agendas","position":"bottom"}',
+				'GET /nodes/agenda-3',
+				'GET /nodes/task-a',
+				'DELETE /nodes/mirror-y/mirror',
+				'POST /nodes/task-y/move {"parent_id":"task-a","position":"bottom"}',
+				'GET /nodes/task-y',
+				'DELETE /nodes/projects',
+			],
+			cache: {
+				outline: {
+					root: ['agendas', 'other'],
+					agendas: ['agenda-1', 'agenda-2', 'task-a', 'agenda-3'],
 					'task-a': ['task-a1', 'task-y'],
 					other: ['other-original', 'mirror-a1'],
 				},
@@ -295,6 +354,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 				nodeId: null,
 			},
 			calls: [
+				'GET /nodes?parent_id=task-b',
 				'DELETE /nodes/mirror-b/mirror',
 				'POST /nodes/task-a/move {"parent_id":"task-b","position":"bottom"}',
 				'GET /nodes/task-a',
@@ -327,13 +387,17 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 		});
 	});
 
-	it('plans a delete without calling the API or touching the cache', async () => {
+	it('plans a delete from the live sibling order without changing Workflowy or the cache', async () => {
 		const {client, calls, cacheState} = setup();
 		const before = cacheState();
 
 		const plan = await client.planDelete('projects');
 
-		expect({plan, calls, cache: cacheState()}).toStrictEqual({plan: PROJECTS_PLAN, calls: [], cache: before});
+		expect({plan, calls, cache: cacheState()}).toStrictEqual({
+			plan: PROJECTS_PLAN,
+			calls: ['GET /nodes?parent_id=agendas', 'GET /nodes?parent_id=task-a'],
+			cache: before,
+		});
 	});
 
 	it('lists the API calls of a plan in the order they are made', () => {
@@ -351,14 +415,19 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 	});
 
 	it('does not send the generic delete when removing an inner mirror fails, so no dead reference is left', async () => {
-		const {client, calls, cacheState} = setup('DELETE /nodes/mirror-nested/mirror');
+		const {client, calls, cacheState} = setup({failCall: 'DELETE /nodes/mirror-nested/mirror'});
 
 		await expect(client.deleteNode('projects')).rejects.toThrow(
 			'Failed to delete mirror: 500 Internal Server Error\n{"code":"server_error"}',
 		);
 
 		expect({calls, cache: cacheState()}).toStrictEqual({
-			calls: ['DELETE /nodes/mirror-in/mirror', 'DELETE /nodes/mirror-nested/mirror'],
+			calls: [
+				'GET /nodes?parent_id=agendas',
+				'GET /nodes?parent_id=task-a',
+				'DELETE /nodes/mirror-in/mirror',
+				'DELETE /nodes/mirror-nested/mirror',
+			],
 			cache: {
 				outline: {...INITIAL_OUTLINE, projects: ['task-y', 'task-a', 'task-b']},
 				mirrors: [
@@ -373,7 +442,7 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 	});
 
 	it('does not send the generic delete when moving a kept original fails, so its content survives', async () => {
-		const {client, calls, cacheState} = setup('POST /nodes/task-a/move');
+		const {client, calls, cacheState} = setup({failCall: 'POST /nodes/task-a/move'});
 
 		await expect(client.deleteNode('projects')).rejects.toThrow(
 			'Failed to move node: 500 Internal Server Error\n{"code":"server_error"}',
@@ -381,6 +450,8 @@ describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
 
 		expect({calls, cache: cacheState()}).toStrictEqual({
 			calls: [
+				'GET /nodes?parent_id=agendas',
+				'GET /nodes?parent_id=task-a',
 				'DELETE /nodes/mirror-in/mirror',
 				'DELETE /nodes/mirror-nested/mirror',
 				'DELETE /nodes/mirror-b/mirror',
