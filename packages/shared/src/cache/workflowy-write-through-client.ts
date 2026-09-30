@@ -62,11 +62,15 @@ export class WorkflowyWriteThroughClient {
 	 */
 	async createNode(options: CreateNodeRequest): Promise<WorkflowyNode> {
 		const created = await this.apiClient.createNode(options);
-		// A system target like "inbox" is accepted on create but 404s on GET, so learn the real parent from the new node.
-		const node =
-			options.parent_id && isSystemTarget(options.parent_id)
-				? {...created, parent_id: (await this.apiClient.getNode(created.id)).parent_id}
-				: created;
+		// The create response holds only the new id, so read back the priority Workflowy
+		// assigned; the placeholder would put the node out of order among its cached siblings.
+		// A system target like "inbox" is accepted on create but 404s on GET, so the real parent comes from here too.
+		const fetched = await this.apiClient.getNode(created.id);
+		const node = {
+			...created,
+			priority: fetched.priority,
+			parent_id: options.parent_id && isSystemTarget(options.parent_id) ? fetched.parent_id : created.parent_id,
+		};
 		const parentId = node.parent_id ?? null;
 		await this.ensureParentInCache(parentId);
 		await this.cacheService.insertNode(node, parentId);

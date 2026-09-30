@@ -1,5 +1,5 @@
 import type {WorkflowyApiClient} from '../api/index.js';
-import type {CacheService} from '../cache/index.js';
+import {type CacheService, WorkflowyWriteThroughClient} from '../cache/index.js';
 import {isSystemTarget} from '../types/index.js';
 import {isShortId} from '../workflowy/index.js';
 
@@ -123,12 +123,10 @@ export async function resolveOrCreateNodePath(
 				);
 			}
 
-			const newNode = await apiClient.createNode({
+			const newNode = await new WorkflowyWriteThroughClient(apiClient, cacheService).createNode({
 				parent_id: currentParentId,
 				name: pathParts[i],
 			});
-
-			await cacheService.insertNode(newNode, currentParentId);
 
 			currentParentId = newNode.id;
 			createdNodes.set(subKey, newNode.id);

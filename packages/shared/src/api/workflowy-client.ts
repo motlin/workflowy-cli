@@ -262,7 +262,8 @@ export class WorkflowyApiClient {
 	 * @param request - The node creation request. The parent_id can be a UUID or
 	 *   a system target key like "inbox". Use isSystemTarget() to check if a
 	 *   string is a valid target key.
-	 * @returns The created node (constructed from request data, no additional GET required)
+	 * @returns The created node, constructed from request data without a GET, so its
+	 *   `priority` is a placeholder; read the node back for the one Workflowy assigned
 	 */
 	async createNode(request: CreateNodeRequest): Promise<WorkflowyNode> {
 		const url = `${this.baseUrl}/api/v1/nodes/`;

@@ -21,6 +21,7 @@ describe('node-resolver service', () => {
 	let mockApiClient: {
 		findNodeByPath: MockInstance<WorkflowyApiClient['findNodeByPath']>;
 		createNode: MockInstance<WorkflowyApiClient['createNode']>;
+		getNode: MockInstance<WorkflowyApiClient['getNode']>;
 	};
 
 	beforeEach(() => {
@@ -32,6 +33,8 @@ describe('node-resolver service', () => {
 		mockApiClient = {
 			findNodeByPath: vi.fn<WorkflowyApiClient['findNodeByPath']>(),
 			createNode: vi.fn<WorkflowyApiClient['createNode']>(),
+			// A created node is read back for the priority Workflowy gave it
+			getNode: vi.fn<WorkflowyApiClient['getNode']>(async (id) => createApiNode({id, priority: 100})),
 		};
 	});
 

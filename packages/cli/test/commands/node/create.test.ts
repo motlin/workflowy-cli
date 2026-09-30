@@ -42,6 +42,46 @@ describe('node create command', () => {
 		}
 	});
 
+	/** Each fetch made, as `METHOD url`. */
+	const requests = () =>
+		fetchStub.mock.calls.map(
+			([url, init]) => `${(init as RequestInit | undefined)?.method ?? 'GET'} ${String(url)}`,
+		);
+
+	/**
+	 * Answer each create with the next of `ids`, and a GET of a created node with
+	 * what was sent for it. Returns the create request bodies, in order.
+	 */
+	function fakeCreates(...ids: string[]): unknown[] {
+		const bodies: unknown[] = [];
+		const created = new Map<string, {name: string; note?: string; parent_id: string}>();
+		fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+			if (init?.method === 'POST') {
+				const body = JSON.parse(init.body as string) as {name: string; note?: string; parent_id: string};
+				const id = ids[bodies.length];
+				bodies.push(body);
+				created.set(id, body);
+				return new Response(JSON.stringify({item_id: id}), {status: 200});
+			}
+			const id = (url instanceof Request ? url.url : url.toString()).split('/').pop()!;
+			const body = created.get(id)!;
+			const now = Math.floor(Date.now() / 1000);
+			const node = {
+				id,
+				name: body.name,
+				note: body.note ?? null,
+				parent_id: body.parent_id,
+				priority: 100 * bodies.indexOf(body),
+				completed: false,
+				createdAt: now,
+				modifiedAt: now,
+				completedAt: null,
+			};
+			return new Response(JSON.stringify({node}), {status: 200});
+		});
+		return bodies;
+	}
+
 	describe('environment variable validation', () => {
 		it('requires WORKFLOWY_API_KEY', async () => {
 			delete process.env.WORKFLOWY_API_KEY;
@@ -152,8 +192,8 @@ describe('node create command', () => {
 				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
 			});
 
-			// API returns just {item_id: "..."}, client constructs full node
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({item_id: createdNodeId}), {status: 200}));
+			// The API returns just {item_id: "..."}, so the created node is read back for its priority
+			fakeCreates(createdNodeId);
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(['--parent-id', 'parent-id', '--name', 'Test Node']);
@@ -162,7 +202,10 @@ describe('node create command', () => {
 			expect(stdout).toBe(
 				'Creating node: Test Node\nParent: Parent\n\nSuccessfully created node\n  ID: new-node-id\n  Name: Test Node\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newnodeid\n',
 			);
-			expect(fetchStub).toHaveBeenCalledTimes(1);
+			expect(requests()).toStrictEqual([
+				'POST https://workflowy.com/api/v1/nodes/',
+				'GET https://workflowy.com/api/v1/nodes/new-node-id',
+			]);
 		});
 
 		it('sends correct request body', async () => {
@@ -170,11 +213,7 @@ describe('node create command', () => {
 				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
 			});
 
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				capturedBody = init?.body as string;
-				return new Response(JSON.stringify({item_id: 'new-id'}), {status: 200});
-			});
+			const bodies = fakeCreates('new-id');
 
 			await captureOutput(async () => {
 				await Create.run([
@@ -189,13 +228,14 @@ describe('node create command', () => {
 				]);
 			});
 
-			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({
-				parent_id: 'parent-id',
-				name: 'Test Node',
-				note: 'A note',
-				layoutMode: 'document',
-			});
+			expect(bodies).toStrictEqual([
+				{
+					parent_id: 'parent-id',
+					name: 'Test Node',
+					note: 'A note',
+					layoutMode: 'document',
+				},
+			]);
 		});
 	});
 
@@ -205,18 +245,13 @@ describe('node create command', () => {
 				nodes: [createTestNode({id: 'specific-parent-id', name: 'Parent', parentId: null})],
 			});
 
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				capturedBody = init?.body as string;
-				return new Response(JSON.stringify({item_id: 'new-id'}), {status: 200});
-			});
+			const bodies = fakeCreates('new-id');
 
 			await captureOutput(async () => {
 				await Create.run(['--parent-id', 'specific-parent-id', '--name', 'Test']);
 			});
 
-			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'specific-parent-id', name: 'Test'});
+			expect(bodies).toStrictEqual([{parent_id: 'specific-parent-id', name: 'Test'}]);
 		});
 
 		it('resolves parent by path', async () => {
@@ -227,18 +262,13 @@ describe('node create command', () => {
 				],
 			});
 
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				capturedBody = init?.body as string;
-				return new Response(JSON.stringify({item_id: 'new-id'}), {status: 200});
-			});
+			const bodies = fakeCreates('new-id');
 
 			await captureOutput(async () => {
 				await Create.run(['--parent-path', 'Work,Projects', '--name', 'Test']);
 			});
 
-			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'projects-id', name: 'Test'});
+			expect(bodies).toStrictEqual([{parent_id: 'projects-id', name: 'Test'}]);
 		});
 
 		it('resolves system target via --parent-id', async () => {
@@ -313,7 +343,7 @@ describe('node create command', () => {
 				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
 			});
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({item_id: 'new-id'}), {status: 200}));
+			fakeCreates('new-id');
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(['--parent-id', 'parent-id', '--json', '{"name": "JSON Node"}']);
@@ -329,11 +359,7 @@ describe('node create command', () => {
 				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
 			});
 
-			let callCount = 0;
-			fetchStub.mockImplementation(async () => {
-				callCount++;
-				return new Response(JSON.stringify({item_id: `node-${callCount}`}), {status: 200});
-			});
+			fakeCreates('node-1', 'node-2', 'node-3');
 
 			const json = JSON.stringify({
 				name: 'Project',
@@ -344,7 +370,14 @@ describe('node create command', () => {
 				await Create.run(['--parent-id', 'parent-id', '--json', json]);
 			});
 
-			expect(fetchStub).toHaveBeenCalledTimes(3);
+			expect(requests()).toStrictEqual([
+				'POST https://workflowy.com/api/v1/nodes/',
+				'GET https://workflowy.com/api/v1/nodes/node-1',
+				'POST https://workflowy.com/api/v1/nodes/',
+				'GET https://workflowy.com/api/v1/nodes/node-2',
+				'POST https://workflowy.com/api/v1/nodes/',
+				'GET https://workflowy.com/api/v1/nodes/node-3',
+			]);
 			expect(stdout).toBe(
 				'Creating node tree...\nParent: Parent\n\nSuccessfully created node tree:\n- Project\n  ID: node-1\n  URL: https://workflowy.com/#/node1\n  - Task 1\n    ID: node-2\n    URL: https://workflowy.com/#/node2\n  - Task 2\n    ID: node-3\n    URL: https://workflowy.com/#/node3\n\nCreated node IDs (JSON):\n[\n  {\n    "id": "node-1",\n    "name": "Project",\n    "parentId": null\n  },\n  {\n    "id": "node-2",\n    "name": "Task 1",\n    "parentId": "node-1"\n  },\n  {\n    "id": "node-3",\n    "name": "Task 2",\n    "parentId": "node-1"\n  }\n]\n',
 			);
@@ -400,7 +433,7 @@ describe('node create command', () => {
 			const jsonPath = path.join(tempDir, 'nodes.json');
 			fs.writeFileSync(jsonPath, JSON.stringify({name: 'File Node'}));
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({item_id: 'new-id'}), {status: 200}));
+			fakeCreates('new-id');
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(['--parent-id', 'parent-id', '--json-file', jsonPath]);
@@ -430,7 +463,7 @@ describe('node create command', () => {
 				nodes: [createTestNode({id: 'parent-id', name: 'Parent', parentId: null})],
 			});
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({item_id: newNodeId}), {status: 200}));
+			fakeCreates(newNodeId);
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(['--parent-id', 'parent-id', '--name', 'Test Node']);
@@ -449,7 +482,7 @@ describe('node create command', () => {
 				],
 			});
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({item_id: 'new-id'}), {status: 200}));
+			fakeCreates('new-id');
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(['--parent-path', 'Work,Projects', '--name', 'Test']);
