@@ -599,23 +599,32 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Child lines only join the row while it is hovered or focused, so resting rows stay one line tall. */
-.ladder-children {
-	display: none;
-	margin: 3px 0 1px;
-	padding-left: 16px;
-	color: var(--muted);
+/* The subtree preview floats above the list, so opening it never moves a row or its buttons. */
+.ladder-preview {
+	position: fixed;
+	z-index: 50;
+	max-width: min(440px, calc(100vw - 32px));
+	max-height: 60dvh;
+	overflow: auto;
+	padding: 8px 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--ink-2);
+	box-shadow: 0 8px 28px #0004;
 	font-size: 12.5px;
-	line-height: 1.35;
+	line-height: 1.4;
+	pointer-events: none;
 }
-
-.ladder-row:hover .ladder-children,
-.ladder-row:focus-within .ladder-children {
-	display: block;
+.ladder-preview ul {
+	margin: 0;
+	padding-left: 16px;
 }
-
-.ladder-page[data-dragging] .ladder-children {
-	display: none;
+.ladder-preview > ul {
+	padding-left: 14px;
+}
+.ladder-preview li {
+	margin: 2px 0;
 }
 
 .ladder-child-more {

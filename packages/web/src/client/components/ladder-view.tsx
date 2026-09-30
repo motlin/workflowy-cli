@@ -11,7 +11,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {LadderEvent} from '../../server/ladder-events.js';
-import {type LadderTier, tierLabel} from '../../server/ladder-model.js';
+import {type LadderItem, type LadderTier, tierLabel} from '../../server/ladder-model.js';
 import {
 	type Ladders,
 	applyLadderEvent,
@@ -31,6 +31,29 @@ const VERDICT: Record<LadderTier['state'], (tier: LadderTier) => string> = {
 	exact: () => 'at cap',
 	over: (tier) => `over by ${tier.items.length - tier.capacity}`,
 };
+
+interface Preview {
+	item: LadderItem;
+	left: number;
+	top: number;
+}
+
+/** Nested lists, one per level, so the preview keeps the outline's shape. */
+function previewList(items: LadderItem[]): React.ReactNode {
+	return (
+		<ul>
+			{items.map((child) => (
+				<li key={child.id}>
+					<span className="ladder-preview-name">{child.name}</span>
+					{child.children.length > 0 ? previewList(child.children) : null}
+					{child.children.length === 0 && child.hasChildren ? (
+						<span className="ladder-child-more">…</span>
+					) : null}
+				</li>
+			))}
+		</ul>
+	);
+}
 
 /** The server answered and refused the write, so the page knows it did not land. */
 class WriteRejected extends Error {}
@@ -362,12 +385,18 @@ export function LadderView() {
 	const roots = useMemo(() => Object.keys(ladders ?? {}), [ladders]);
 	const ladder = ladders?.[root];
 	const [treeItem, setTreeItem] = useState<{id: string; name: string}>();
+	const [preview, setPreview] = useState<Preview>();
+	const showPreview = useCallback((item: LadderItem, anchor: {left: number; bottom: number}) => {
+		setPreview({item, left: anchor.left, top: anchor.bottom + 4});
+	}, []);
+	const hidePreview = useCallback(() => setPreview(undefined), []);
 
 	return (
 		<div
 			className="ladder-page"
 			data-dragging={dragging ? '' : undefined}
 			ref={page}
+			onScroll={preview ? hidePreview : undefined}
 		>
 			<div className="ladder-wrap">
 				<header className="ladder-head">
@@ -421,7 +450,12 @@ export function LadderView() {
 								nextTier={ladder.tiers[index + 1]?.label}
 								onStep={move}
 								previousTier={ladder.tiers[index - 1]?.label}
-								onOpenTree={setTreeItem}
+								onOpenTree={(item) => {
+									hidePreview();
+									setTreeItem(item);
+								}}
+								onPreview={showPreview}
+								onPreviewEnd={hidePreview}
 								onComplete={complete}
 								onGripDown={onGripDown}
 								onGripMove={onGripMove}
@@ -454,6 +488,16 @@ export function LadderView() {
 					onClose={() => setTreeItem(undefined)}
 				/>
 			) : null}
+			{preview && !dragging ? (
+				<div
+					className="ladder-preview"
+					id="ladder-preview"
+					role="tooltip"
+					style={{left: preview.left, top: preview.top}}
+				>
+					{previewList(preview.item.children)}
+				</div>
+			) : null}
 			{ghost ? (
 				<div
 					className="ladder-ghost"
@@ -482,6 +526,9 @@ interface TierProps {
 	previousTier: string | undefined;
 	nextTier: string | undefined;
 	onOpenTree: (item: {id: string; name: string}) => void;
+	/** Only the Tree button opens the subtree preview, and it floats above the list. */
+	onPreview: (item: LadderItem, anchor: {left: number; bottom: number}) => void;
+	onPreviewEnd: () => void;
 	onComplete: (nodeId: string) => void;
 	onStep: (nodeId: string, toTier: string) => void;
 	onGripDown: (event: React.PointerEvent, item: {id: string; name: string}) => void;
@@ -505,6 +552,8 @@ function Tier({
 	nextTier,
 	onComplete,
 	onOpenTree,
+	onPreview,
+	onPreviewEnd,
 	onStep,
 	onGripDown,
 	onGripMove,
@@ -588,21 +637,18 @@ function Tier({
 									aria-label={`View tree for ${item.name}`}
 									aria-haspopup="dialog"
 									onClick={() => onOpenTree(item)}
+									onMouseEnter={(event) =>
+										onPreview(item, event.currentTarget.getBoundingClientRect())
+									}
+									onFocus={(event) => onPreview(item, event.currentTarget.getBoundingClientRect())}
+									onMouseLeave={onPreviewEnd}
+									onBlur={onPreviewEnd}
+									onKeyDown={(event) => {
+										if (event.key === 'Escape') onPreviewEnd();
+									}}
 								>
 									Tree ▸
 								</button>
-							) : null}
-							{item.children.length > 0 ? (
-								<ul className="ladder-children">
-									{item.children.map((child) => (
-										<li key={child.id}>
-											<span className="ladder-child-name">{child.name}</span>
-											{child.descendantCount > 0 ? (
-												<span className="ladder-child-more">+{child.descendantCount}</span>
-											) : null}
-										</li>
-									))}
-								</ul>
 							) : null}
 							{rowErrors[item.id] ? (
 								<span

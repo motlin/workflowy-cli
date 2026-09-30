@@ -456,46 +456,112 @@ it('saves selected rows before the same anchor in display order', async () => {
 	]);
 });
 
-describe('row children', () => {
-	function renderTier(items: Ladders[string]['tiers'][number]['items']) {
-		const tier = render().find((element) => element.props.tier);
-		if (!tier) throw new Error('no tier element');
-		const props = {...tier.props, tier: {...(tier.props.tier as object), items}};
-		return elements((tier.type as (props: ElementProps) => ReactNode)(props));
+describe('subtree preview', () => {
+	const parent = {
+		id: 'alice',
+		name: 'alice',
+		hasChildren: true,
+		descendantCount: 3,
+		children: [
+			{id: 'c1', name: 'first child', children: [], descendantCount: 0},
+			{
+				id: 'c2',
+				name: 'second child',
+				hasChildren: true,
+				descendantCount: 1,
+				children: [{id: 'g1', name: 'grandchild', children: [], descendantCount: 0}],
+			},
+		],
+	};
+	const button = {getBoundingClientRect: () => ({left: 40, right: 90, top: 100, bottom: 120})};
+
+	beforeEach(() => {
+		const withParent = ladders();
+		withParent.personal.tiers[0].items = [parent, item('bob')] as never;
+		hooks.values = [withParent];
+	});
+
+	function rows() {
+		return render()
+			.filter((element) => element.props.tier)
+			.flatMap((tier) => elements((tier.type as (props: ElementProps) => ReactNode)(tier.props)))
+			.filter((element) => typeof element.props['data-node-id'] === 'string');
 	}
 
-	function text(node: ReactNode): string {
-		if (typeof node === 'string' || typeof node === 'number') return String(node);
-		if (Array.isArray(node)) return node.map(text).join('');
-		if (node && typeof node === 'object' && 'props' in node) {
-			return text((node as ReactElement<ElementProps>).props.children);
-		}
-		return '';
+	function treeButton() {
+		const found = rows()
+			.flatMap((row) => elements(row.props.children))
+			.find((element) => element.props.className === 'ladder-tree-button');
+		if (!found) throw new Error('no Tree button');
+		return found.props as Record<string, (event: unknown) => void>;
 	}
 
-	it('shows a descendant-count badge and dimmed child lines for a row with children', () => {
-		const parent = {
-			id: 'alice',
-			name: 'alice',
-			hasChildren: true,
-			descendantCount: 3,
-			children: [
-				{id: 'c1', name: 'first child', children: [], descendantCount: 0},
-				{
-					id: 'c2',
-					name: 'second child',
-					hasChildren: true,
-					descendantCount: 1,
-					children: [{id: 'g1', name: 'grandchild', children: [], descendantCount: 0}],
-				},
+	const preview = () => render().filter((element) => element.props.className === 'ladder-preview');
+
+	/** The preview's items as nested [name, children] pairs, so the test sees the tree's shape. */
+	function shape(list: ReactElement<ElementProps>): unknown[] {
+		return elements(list.props.children)
+			.filter((element) => element.type === 'li')
+			.filter(
+				(li, index, all) => !all.some((other) => other !== li && elements(other.props.children).includes(li)),
+			)
+			.map((li) => {
+				const children = elements(li.props.children);
+				const name = children.find((element) => element.props.className === 'ladder-preview-name');
+				const nested = children.find((element) => element.type === 'ul');
+				return [name?.props.children, nested ? shape(nested) : []];
+			});
+	}
+
+	it('keeps the child lines out of the row, so hovering a row never reflows it', () => {
+		const rowParts = rows().flatMap((row) => elements(row.props.children));
+		expect({
+			rowHoverHandlers: rows().map((row) => [row.props.onMouseEnter, row.props.onPointerEnter]),
+			inlineLists: rowParts.filter((element) => element.type === 'ul' || element.type === 'li').length,
+			badge: rowParts.find((element) => element.props.className === 'ladder-child-count')?.props['aria-label'],
+			preview: preview().length,
+		}).toStrictEqual({
+			rowHoverHandlers: [
+				[undefined, undefined],
+				[undefined, undefined],
 			],
+			inlineLists: 0,
+			badge: '3 open items below',
+			preview: 0,
+		});
+	});
+
+	it('opens a layered preview outside the row when the Tree button is hovered', () => {
+		treeButton().onMouseEnter({currentTarget: button});
+		const [layer] = preview();
+		const rowParts = rows().flatMap((row) => elements(row.props.children));
+		expect({
+			inRow: rowParts.some((element) => element.props.className === 'ladder-preview'),
+			style: layer.props.style,
+			role: layer.props.role,
+		}).toStrictEqual({inRow: false, style: {left: 40, top: 124}, role: 'tooltip'});
+	});
+
+	it('shows the subtree with its real nesting', () => {
+		treeButton().onFocus({currentTarget: button});
+		const list = elements(preview()[0].props.children).find((element) => element.type === 'ul');
+		if (!list) throw new Error('no preview list');
+		expect(shape(list)).toStrictEqual([
+			['first child', []],
+			['second child', [['grandchild', []]]],
+		]);
+	});
+
+	it('closes on leave, blur, and Escape', () => {
+		const closed = (close: () => void) => {
+			treeButton().onMouseEnter({currentTarget: button});
+			close();
+			return preview().length;
 		};
-		const rendered = renderTier([parent, item('bob')]);
-		const badges = rendered.filter((element) => element.props.className === 'ladder-child-count');
-		expect(badges.map((badge) => badge.props['aria-label'])).toStrictEqual(['3 open items below']);
-		const lists = rendered.filter((element) => element.props.className === 'ladder-children');
-		expect(lists).toHaveLength(1);
-		const lines = elements(lists[0].props.children).filter((element) => element.type === 'li');
-		expect(lines.map(text)).toStrictEqual(['first child', 'second child+1']);
+		expect([
+			closed(() => treeButton().onMouseLeave({})),
+			closed(() => treeButton().onBlur({})),
+			closed(() => treeButton().onKeyDown({key: 'Escape'})),
+		]).toStrictEqual([0, 0, 0]);
 	});
 });

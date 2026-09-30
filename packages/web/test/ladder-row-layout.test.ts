@@ -35,12 +35,13 @@ describe('ladder row layout', () => {
 		expect(order).toStrictEqual(['grip', 'rank', 'txt', 'step', 'done']);
 	});
 
-	// Child lines stay out of the row's box until asked for, so every row keeps its one-line height.
-	it('hides child lines until the row is hovered or focused', () => {
-		expect(/\.ladder-children \{[^}]*display:\s*none;/.exec(css)).not.toBeNull();
-		const reveal = /([^{}]*)\{\s*display:\s*block;[^}]*\}/g;
-		const selectors = [...css.matchAll(reveal)].map((match) => match[1]).join(',');
-		expect(selectors).toContain('.ladder-row:hover .ladder-children');
-		expect(selectors).toContain('.ladder-row:focus-within .ladder-children');
+	// The subtree preview floats in its own layer, so it never changes a row's height or moves its buttons.
+	it('layers the subtree preview above the list instead of expanding rows', () => {
+		const rule = /\.ladder-preview \{([^}]*)\}/.exec(css);
+		expect({
+			position: /position:\s*([^;]+);/.exec(rule?.[1] ?? '')?.[1],
+			layered: /z-index:\s*\d+;/.test(rule?.[1] ?? ''),
+			inlineChildren: css.includes('.ladder-children'),
+		}).toStrictEqual({position: 'fixed', layered: true, inlineChildren: false});
 	});
 });
