@@ -12,27 +12,29 @@ arguments:
       description: Date and time in ISO format (e.g., 2026-01-18 17:03). Defaults to file modification time.
       required: false
     - name: calendar-path
-      description: Path to calendar node (default "📆 Calendar")
+      description: Comma-separated path to the personal calendar (default "Personal,📅 Calendar"). Never the root "📆 Calendar", which holds Otter meetings
       required: false
 ---
 
 # Photo Journal Entry
 
-Create a calendar journal entry with a photo attachment. Uses proper Workflowy date formatting and flat node structure.
+Create a personal calendar journal entry with a photo attachment, filed under the photo's day node.
 
 ## Structure
 
-Creates a single node with inline datetime:
+Creates a single node with an inline `<time>` datetime, under the day node in `Personal > 📅 Calendar`:
 
 ```text
-📆 Calendar
-└── 📷 Sun, Jan 18, 2026 at 5:03 PM Sunset over the lake at the park
-    └── [photo attachment]
+Personal > 📅 Calendar
+└── Sun, Jan 18, 2026
+    └── 📷 Sun, Jan 18, 2026 at 5:03 PM Sunset over the lake at the park
+        └── [photo attachment]
 ```
 
 **Key points:**
 
-- Date uses bracket syntax `[YYYY-MM-DD HH:MM]`. The CLI stores it as literal text; the web UI "Update" migration later converts it to a native date and files the entry by date (see the `calendar-dates` skill)
+- Photos are personal: file under `Personal > 📅 Calendar`, never the root `📆 Calendar` (that one holds Otter work meetings)
+- Write the datetime as an explicit `<time>` element, never bracket text — the CLI stores `[YYYY-MM-DD HH:MM]` as literal text, and nothing reliably converts it later
 - Single level - description and date in one node
 - Photo is a direct child (empty node with image)
 - 📷 emoji indicates photo entry
@@ -66,31 +68,35 @@ For photos with EXIF data:
 exiftool -DateTimeOriginal -s3 "<file-path>" 2>/dev/null || stat -f "%Sm" -t "%Y-%m-%d %H:%M" "<file-path>"
 ```
 
+### Find the Day Node
+
+Recent days sit directly under `Personal > 📅 Calendar`; older days are archived under `🗃️ Archive > <decade> > <year> > <Month name>`. Search by display date and keep only a match whose path starts with `Personal > 📅 Calendar` (the same date also exists under `Work > 📅 Calendar` and the root `📆 Calendar`):
+
+```bash
+./bin/run.js node search --query "Sun, Jan 18, 2026" --limit 20
+```
+
+If no personal day node exists, create one with a `<time>` element as described in the `calendar-dates` skill.
+
 ### Create the Journal Entry Node
 
-Use the CLI with bracket date syntax:
+Build the `<time>` element with `date` (never type the weekday by hand), then create the entry under the day node:
 
 > Run `./bin/run.js node create --help` to verify available flags before constructing commands.
 
 ```bash
+DT="2026-01-18 17:03"
+TIME_EL=$(printf '<time startYear="%s" startMonth="%s" startDay="%s" startHour="%s" startMinute="%s">%s</time>' \
+  "$(date -j -f '%Y-%m-%d %H:%M' "$DT" +%Y)" "$(date -j -f '%Y-%m-%d %H:%M' "$DT" +%-m)" \
+  "$(date -j -f '%Y-%m-%d %H:%M' "$DT" +%-d)" "$(date -j -f '%Y-%m-%d %H:%M' "$DT" +%-H)" \
+  "$(date -j -f '%Y-%m-%d %H:%M' "$DT" +%-M)" "$(date -j -f '%Y-%m-%d %H:%M' "$DT" '+%a, %b %-d, %Y at %-I:%M %p')")
 ./bin/run.js node create \
-  --parent-path "📆 Calendar" \
-  --name '📷 [<DATETIME>] <DESCRIPTION>' \
-  --position bottom \
-
+  --parent-id <DAY_NODE_ID> \
+  --name "📷 $TIME_EL Sunset over the lake at the park" \
+  --position bottom
 ```
 
-**Example:**
-
-```bash
-./bin/run.js node create \
-  --parent-path "📆 Calendar" \
-  --name '📷 [2026-01-18 17:03] Sunset over the lake at the park' \
-  --position bottom \
-
-```
-
-The bracket date `[2026-01-18 17:03]` stays literal text until the user runs the web UI "Update" migration, which renders it as `Sun, Jan 18, 2026 at 5:03 PM`.
+For a date-only photo, drop `startHour`/`startMinute` and the trailing " at 5:03 PM" part of the display text.
 
 **Capture the node ID** from the CLI output for the next step.
 
@@ -100,13 +106,12 @@ Follow `/workflowy:upload-attachment` with the new entry's ID: it creates an emp
 
 ## DateTime Formatting
 
-| Input            | Bracket Format     | Display after "Update"       |
-| ---------------- | ------------------ | ---------------------------- |
-| 2026-01-18 17:03 | [2026-01-18 17:03] | Sun, Jan 18, 2026 at 5:03 PM |
-| 2026-01-18       | [2026-01-18]       | Sun, Jan 18, 2026            |
-| 2026-01-05 09:30 | [2026-01-05 09:30] | Mon, Jan 5, 2026 at 9:30 AM  |
+| Input | `<time>` attributes | Display |
+| --- | --- | --- |
+| 2026-01-18 17:03 | `startYear="2026" startMonth="1" startDay="18" startHour="17" startMinute="3"` | Sun, Jan 18, 2026 at 5:03 PM |
+| 2026-01-18 | `startYear="2026" startMonth="1" startDay="18"` | Sun, Jan 18, 2026 |
 
-**Important:** Always zero-pad months and days: `[2026-01-05]` not `[2026-1-5]`
+Attributes are not zero-padded.
 
 ## Example Session
 
@@ -120,9 +125,10 @@ Follow `/workflowy:upload-attachment` with the new entry's ID: it creates an emp
 **Result:**
 
 ```text
-📆 Calendar
-└── 📷 Sun, Jan 18, 2026 at 5:03 PM Sunset over the lake at the park
-    └── [IMG_0127.jpg - photo of kids in snow]
+Personal > 📅 Calendar
+└── Sun, Jan 18, 2026
+    └── 📷 Sun, Jan 18, 2026 at 5:03 PM Sunset over the lake at the park
+        └── [IMG_0127.jpg - photo of kids in snow]
 ```
 
 ## Batch Processing Multiple Photos
@@ -134,11 +140,10 @@ For multiple photos from the same day/event:
 - Or create separate entries if photos are from different times
 
 ```bash
-# Multiple photos, same event - use a parent node
+# Multiple photos, same event - use a parent node under the day node ($TIME_EL built as above)
 ./bin/run.js node create \
-  --parent-path "📆 Calendar" \
-  --name '📷 [2026-01-18 17:03] Evening at the park' \
-
+  --parent-id <DAY_NODE_ID> \
+  --name "📷 $TIME_EL Evening at the park"
 
 # Then attach the photos with /workflowy:upload-attachment, one empty child per photo
 ```
@@ -146,6 +151,5 @@ For multiple photos from the same day/event:
 ## Notes
 
 - The 📷 emoji at the start indicates a photo entry
-- Workflowy's "Update" calendar feature will organize entries by date
 - For large images, resize first: `sips -Z 1200 "<file-path>" --out "<output-path>"`
 - Maximum recommended file size: 5MB
