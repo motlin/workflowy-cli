@@ -11,6 +11,7 @@
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync-since <last_synced_otid> [page_size]  # new meetings only, with action items
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]  # one page, with action items
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speech <otid>
+#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh transcript <otid>  # full transcript as plain text
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh summary <otid>
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
 #
@@ -273,6 +274,27 @@ speech() {
     log_timing "speech: done"
 }
 
+# Plain-text transcript: a header, then "[mm:ss] Speaker: text" per segment.
+# Otter offsets count 16 kHz audio samples.
+transcript() {
+    local body
+    body=$(speech "$1")
+    if ! jq -e '.speech | type == "object"' <<< "$body" >/dev/null 2>&1; then
+        echo "{\"error\": \"no speech found for otid $1\"}" >&2
+        return 1
+    fi
+    jq -r '
+        .speech as $s
+        | ($s.speakers // [] | map({key: (.id | tostring), value: .speaker_name}) | from_entries) as $names
+        | "# \($s.title)",
+          "Date: \($s.start_time | todate)",
+          "URL: https://otter.ai/u/\($s.otid)",
+          "",
+          ($s.transcripts // [] | sort_by(.start_offset)[]
+            | (.start_offset / 16000 | floor) as $sec
+            | "[\($sec / 60 | floor | tostring | if length < 2 then "0" + . else . end):\($sec % 60 | tostring | if length < 2 then "0" + . else . end)] \($names[.speaker_id | tostring] // "Speaker \(.speaker_id)"): \(.transcript)")' <<< "$body"
+}
+
 summary() {
     local otid="$1"
     local url="$API_BASE/abstract_summary?otid=$otid"
@@ -502,6 +524,14 @@ main() {
             login
             speech "$2"
             ;;
+        transcript)
+            if [[ -z "${2:-}" ]]; then
+                echo '{"error": "transcript command requires otid argument"}' >&2
+                exit 1
+            fi
+            login
+            transcript "$2"
+            ;;
         summary)
             if [[ -z "${2:-}" ]]; then
                 echo '{"error": "summary command requires otid argument"}' >&2
@@ -519,7 +549,7 @@ main() {
             action_items "$2"
             ;;
         *)
-            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|summary|action_items} <args>" >&2
+            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|transcript|summary|action_items} <args>" >&2
             exit 1
             ;;
     esac
