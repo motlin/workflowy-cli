@@ -53,6 +53,17 @@ fi
 
 echo "Phase 1: Downloaded metadata.json (root index)"
 
+# Depth for each link target of a link-based section. Next Actions ladders nest
+# tasks four levels down (Next > ✅ Tasks > 📌 Tasks (asap) > tier > task), so
+# depth 3 would stop at the tier nodes and hide every ladder task.
+link_target_depth() {
+    if [[ "$1" == "next-actions" ]]; then
+        echo 5
+    else
+        echo 3
+    fi
+}
+
 # Phase 2: Process each child section
 jq -r '.children[] | select(.name != null) | "\(.id)\t\(.name)"' "$OUTPUT_DIR/metadata.json" | while IFS=$'\t' read -r section_id section_name; do
     section_file=$(sanitize "$section_name")
@@ -91,7 +102,7 @@ jq -r '.children[] | select(.name != null) | "\(.id)\t\(.name)"' "$OUTPUT_DIR/me
             # No --fields: preserve all data for deferred processing
             "$CLI" node get \
                 --id "$target_id" \
-                --depth 3 \
+                --depth "$(link_target_depth "$section_file")" \
                 --json > "$OUTPUT_DIR/metadata/$section_file/$target_file.json"
 
             echo "Phase 2b: Downloaded metadata/$section_file/$target_file.json"

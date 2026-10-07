@@ -21,7 +21,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-METADATA_DIR="$PROJECT_ROOT/.llm/gtd/metadata"
+METADATA_DIR="${GTD_METADATA_DIR:-$PROJECT_ROOT/.llm/gtd/metadata}"
 CLI="$PROJECT_ROOT/bin/run.js"
 
 # Check that metadata directory exists
@@ -71,9 +71,11 @@ fetch_next_actions_tasks() {
             [
                 .. | objects | select(.id != null and .name != null) |
                 # Exclude completed tasks
-                select(.completed != true and .completed != "true") |
+                select(.completed != true and .completed != "true" and .completedAt == null) |
                 # Exclude container nodes (Tasks lists with emoji prefixes or known patterns)
                 select(.name | test("^(📌|⏰|☑️|✅|📄|📋) ") | not) |
+                # Exclude asap ladder tier nodes (1st, 2nd, ..., Done)
+                select(.name | test("^\\s*(Done|[0-9]+(st|nd|rd|th))\\s*$") | not) |
                 # Exclude the root node (has children array at top level)
                 select(.children == null or (.children | length) == 0 or (.name | test("^(📥|☑️|📁|👥|📤|📅|🌱|🔄|🎮|📚|🎯|📝|🏷️|🧠|⚙️)") | not)) |
                 # Exclude empty names
