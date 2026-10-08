@@ -1,83 +1,83 @@
 {
-  "name": "workflowy-cli",
-  "description": "CLI for managing Workflowy nodes via API",
-  "version": "0.1.0",
-  "packageManager": "pnpm@12.7.0",
-  "author": "Craig P. Motlin",
-  "type": "module",
-  "bin": {
-    "workflowy": "./bin/run.js"
-  },
-  "dependencies": {
-    "@oclif/core": "^5.1.2",
-    "@oclif/plugin-help": "^7",
-    "@workflowy/shared": "workspace:*",
-    "better-sqlite3": "13.0.3",
-    "drizzle-orm": "^0.45.3"
-  },
-  "devDependencies": {
-    "vitest": "catalog:",
-    "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^26.6.3",
-    "drizzle-kit": "^0.31.11",
-    "vite-plus": "catalog:",
-    "fallow": "^3.32.0",
-    "markdownlint-cli2": "^0.23.3",
-    "oclif": "^6",
-    "shx": "^0.4.0",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
-    "vite": "catalog:"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "files": [
-    "./bin",
-    "./dist",
-    "./oclif.manifest.json"
-  ],
-  "keywords": [
-    "oclif",
-    "cli",
-    "workflowy",
-    "api"
-  ],
-  "license": "Apache 2.0",
-  "main": "dist/index.js",
-  "oclif": {
-    "bin": "workflowy",
-    "dirname": "workflowy",
-    "commands": "./packages/cli/dist/commands",
-    "plugins": [
-      "@oclif/plugin-help"
-    ],
-    "topicSeparator": " "
-  },
-  "scripts": {
-    "preinstall": "npx only-allow pnpm",
-    "build": "shx rm -rf dist && tsc -b",
-    "oxlint": "vp lint . --fix",
-    "oxlint:ci": "vp lint . --format github",
-    "fmt": "vp fmt",
-    "fmt:ci": "vp fmt --check",
-    "fallow": "fallow fix --yes",
-    "fallow:ci": "fallow dead-code",
-    "typecheck": "tsc --noEmit",
-    "postpack": "shx rm -f oclif.manifest.json",
-    "prepack": "oclif manifest",
-    "test": "node node_modules/vitest/dist/cli.js",
-    "test:ui": "node node_modules/vitest/dist/cli.js --ui",
-    "test:watch": "vp test",
-    "eval:structural": "vp test run --config vitest.config.evals.ts test/evals/structural",
-    "eval:deterministic": "vp test run --config vitest.config.evals.ts --test-timeout 120000 test/evals/behavioral/scenarios",
-    "eval:leaf": "vp test run --config vitest.config.evals.ts --test-timeout 300000 test/evals/behavioral/scenarios/leaf",
-    "eval:orchestrator": "vp test run --config vitest.config.evals.ts --test-timeout 600000 test/evals/behavioral/scenarios/orchestrator",
-    "eval:e2e": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral/scenarios/e2e",
-    "eval:behavioral": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral",
-    "version": "oclif readme && git add README.md",
-    "prepublishOnly": "npm run build && npm test && npm run oxlint",
-    "prepare": "VITE_GIT_HOOKS=0 vp config"
-  },
-  "types": "dist/index.d.ts"
+	"name": "workflowy-cli",
+	"description": "CLI for managing Workflowy nodes via API",
+	"version": "0.1.0",
+	"packageManager": "pnpm@12.7.0",
+	"author": "Craig P. Motlin",
+	"type": "module",
+	"bin": {
+		"workflowy": "./bin/run.js"
+	},
+	"dependencies": {
+		"@oclif/core": "^5.1.2",
+		"@oclif/plugin-help": "^7",
+		"@workflowy/shared": "workspace:*",
+		"better-sqlite3": "13.0.3",
+		"drizzle-orm": "^0.45.3"
+	},
+	"devDependencies": {
+		"vitest": "catalog:",
+		"@types/better-sqlite3": "^9.6.0",
+		"@types/node": "^26.6.3",
+		"drizzle-kit": "^0.31.11",
+		"vite-plus": "catalog:",
+		"fallow": "^3.32.0",
+		"markdownlint-cli2": "^0.23.3",
+		"oclif": "^6",
+		"shx": "^0.4.0",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vite": "catalog:"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"files": [
+		"./bin",
+		"./dist",
+		"./oclif.manifest.json"
+	],
+	"keywords": [
+		"oclif",
+		"cli",
+		"workflowy",
+		"api"
+	],
+	"license": "Apache 2.0",
+	"main": "dist/index.js",
+	"oclif": {
+		"bin": "workflowy",
+		"dirname": "workflowy",
+		"commands": "./packages/cli/dist/commands",
+		"plugins": [
+			"@oclif/plugin-help"
+		],
+		"topicSeparator": " "
+	},
+	"scripts": {
+		"preinstall": "npx only-allow pnpm",
+		"build": "shx rm -rf dist && tsc -b",
+		"oxlint": "vp lint . --fix",
+		"oxlint:ci": "vp lint . --format github",
+		"fmt": "vp fmt",
+		"fmt:ci": "vp fmt --check",
+		"fallow": "fallow fix --yes",
+		"fallow:ci": "fallow dead-code",
+		"typecheck": "tsc --noEmit",
+		"postpack": "shx rm -f oclif.manifest.json",
+		"prepack": "oclif manifest",
+		"test": "node node_modules/vitest/dist/cli.js",
+		"test:ui": "node node_modules/vitest/dist/cli.js --ui",
+		"test:watch": "vp test",
+		"eval:structural": "vp test run --config vitest.config.evals.ts test/evals/structural",
+		"eval:deterministic": "vp test run --config vitest.config.evals.ts --test-timeout 120000 test/evals/behavioral/scenarios",
+		"eval:leaf": "vp test run --config vitest.config.evals.ts --test-timeout 300000 test/evals/behavioral/scenarios/leaf",
+		"eval:orchestrator": "vp test run --config vitest.config.evals.ts --test-timeout 600000 test/evals/behavioral/scenarios/orchestrator",
+		"eval:e2e": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral/scenarios/e2e",
+		"eval:behavioral": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral",
+		"version": "oclif readme && git add README.md",
+		"prepublishOnly": "npm run build && npm test && npm run oxlint",
+		"prepare": "VITE_GIT_HOOKS=0 vp config"
+	},
+	"types": "dist/index.d.ts"
 }
