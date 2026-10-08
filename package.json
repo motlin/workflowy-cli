@@ -21,7 +21,7 @@
 		"@types/node": "^26.6.3",
 		"drizzle-kit": "^0.31.11",
 		"eslint": "^10.11.0",
-		"fallow": "^3.30.0",
+		"fallow": "^3.32.0",
 		"markdownlint-cli2": "^0.23.3",
 		"oclif": "^6",
 		"shx": "^0.4.0",
