@@ -182,7 +182,7 @@ Invoke `/gtd:review:daily:overview` — morning orientation (calendar, reminders
 
 Invoke `/gtd:review:daily:rebalance` — print tiers `1st` and `2nd` of both `📌 Tasks (asap)` ladders as today's goals, then propose the moves that bring each ladder back into shape: push-downs out of tiers over their `2^k` cap, pull-ups into an empty `2nd` (and `3rd`) from the tier below, and a new bottom tier once the landing zone passes `2^k`. **Every move is a proposal the user confirms** — nothing is demoted, promoted, or split automatically, and the items that leave a tier are the ones the user names, never the bottom-most ones.
 
-**This phase runs here, and the order matters.** Process Inbox, File Loose Tasks, and the due walk all put new items onto the ladder, and the insertion cascade only keeps a tier at cap when it was at cap to begin with. Rebalancing after them would be stale the moment it finished; rebalancing before them hands them a ladder whose caps mean something. Silent when both ladders are already in shape, apart from printing the day plan.
+**This phase runs here, and the order matters.** Process Inbox, File Loose Tasks, and the due walk all put new items onto the ladder, and filing never moves any other item, so a tier the user files into while full simply runs over cap. Rebalancing before them hands them a ladder whose occupancy readouts mean something; anything they push over cap waits for the user at the next rebalance. Silent when both ladders are already in shape, apart from printing the day plan.
 
 ## Process Inbox
 

@@ -4,7 +4,7 @@ description: Rebalance both 📌 asap ladders — surface tiers 1-2 as today's g
 
 # Rebalance the Asap Ladders
 
-Read each root's `📌 Tasks (asap)` ladder and bring it back into shape. The demotion cascade in `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md` only fires when something is **inserted** into a full tier; a ladder that has already drifted over cap stays over cap until this phase reads it. This is the phase where the user reranks.
+Read each root's `📌 Tasks (asap)` ladder and bring it back into shape. Filing an item into a tier never moves any other item (see `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`), so a tier the user filed into while full stays over cap until this phase reads it. This is the only phase where items leave an over-cap tier, and the user is the one who moves them.
 
 **Every action here is chosen by the user.** Push-downs, pull-ups, completions, and the split that extends the ladder are chosen in the ladder page. The local app applies each gesture immediately. Nothing is demoted, promoted, or moved on its own, and no item is ever chosen because of where it sits in the tier -- ranking inside a tier is the user's judgment, not a position.
 

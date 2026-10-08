@@ -1,6 +1,6 @@
 ---
 name: asap-tiers
-description: The ordinal priority ladder inside a 📌 Tasks (asap) bucket — tier naming, the fixed 2^k capacity cap, the demotion cascade that fires when a full tier gets a new item, and the category-to-#tag migration. Load when filing, sweeping, or proposing a destination for an undated task in either asap bucket.
+description: The ordinal priority ladder inside a 📌 Tasks (asap) bucket — tier naming, the fixed 2^k capacity cap, the rule that filing into a full tier never moves another item, and the category-to-#tag migration. Load when filing, sweeping, or proposing a destination for an undated task in either asap bucket.
 ---
 
 # Asap Priority Tiers
@@ -29,21 +29,21 @@ Tier `k` holds **at most `2^k`** items:
 
 Each tier holds at most half of the tier below it. That is what makes the top of the ladder mean something: `1st` is two tasks, not a wish list.
 
-**The caps are fixed, never computed from what the tier below currently holds.** A relative cap is unstable from the bottom — completing two items in `2nd` would retroactively force an item out of `1st`, punishing progress. A fixed `2^k` cap only ever pushes down when something is _added at the top_, which is the forcing function the ladder exists for.
+**The caps are fixed, never computed from what the tier below currently holds.** A relative cap is unstable from the bottom — completing two items in `2nd` would retroactively force an item out of `1st`, punishing progress.
 
-**The bottom tier is the landing zone and is not hard-capped.** Undated tasks swept out of the `⏰` bucket and undated Things "Anytime" tasks arrive there in bulk, so it absorbs overflow rather than cascading into a tier that does not exist yet. Only tiers that have a tier below them are capped. When the bottom tier goes past `2^k`, propose extending the ladder by one tier and splitting it. The threshold is exact, not a judgment call: at `2^k + 1` the ladder needs another tier.
+**The bottom tier is the landing zone and is not hard-capped.** Undated tasks swept out of the `⏰` bucket and undated Things "Anytime" tasks arrive there in bulk, so it absorbs overflow. Only tiers that have a tier below them are capped. When the bottom tier goes past `2^k`, propose extending the ladder by one tier and splitting it. The threshold is exact, not a judgment call: at `2^k + 1` the ladder needs another tier.
 
-## The demotion cascade
+## Filing into a full tier
 
-Adding a task to a full tier **requires demoting one of that tier's existing items** to the next tier down. If that tier is also full, its bottom item moves down too, and so on until a tier has room or the bottom tier absorbs the overflow.
+Filing a task into a tier **only inserts that task**. It never demotes, bumps, or moves any other item, even when the tier is already at or over its cap. The tier simply runs over cap, and the user fixes it later on the ladder page during `/gtd:review:daily:rebalance`.
 
-`planInsertion(ladder, targetTier)` returns the whole plan — `createTiers` (missing tiers to create first, so the ladder never has a hole), `demotions` (each bumped node with its source and destination tier), and `targetId`. It defaults to demoting each full tier's **bottom-most item**; offer that default in the walk and let the user name a different item instead.
+`planInsertion(ladder, targetTier)` returns `createTiers` (missing tiers to create first, so the ladder never has a hole) and `targetId`. Nothing else.
 
-Show the cascade before running it. "Filing this 1st bumps _X_ to 2nd" is the information that makes the user pick the right tier, and hiding it turns a deliberate trade-off into a surprise.
+Occupancy such as `3rd 8/8` may be shown as a plain fact. Never describe a filing as bumping or demoting something, never propose a cascade, and never treat a full tier as a reason to ask a confirming question. When the user names a tier, file there.
 
 ## Rebalancing a ladder that has drifted
 
-The cascade only fires on insertion. A ladder that is already over cap -- a tier that grew while it was the bottom and then got a tier below it, or one that absorbed demotions nobody reviewed -- stays that way until the `/gtd:review:daily:rebalance` phase reads it. `planRebalance(ladder)` (`asap-tiers.mjs rebalance <bucket.json>` from the shell) reports the day plan (tiers `1st` and `2nd`), every capped tier over `2^k` with all of its occupants, the run of empty tiers starting at `2nd` with the candidates to pull up from below, and the bottom tier once it passes `2^k` with the new tier to create. It picks nothing: which items leave a tier is the user's judgment, so the report carries occupants, never victims, and the phase applies only what the user names.
+A ladder that is already over cap -- a tier that grew while it was the bottom and then got a tier below it, or one the user filed into while it was full -- stays that way until the `/gtd:review:daily:rebalance` phase reads it. `planRebalance(ladder)` (`asap-tiers.mjs rebalance <bucket.json>` from the shell) reports the day plan (tiers `1st` and `2nd`), every capped tier over `2^k` with all of its occupants, the run of empty tiers starting at `2nd` with the candidates to pull up from below, and the bottom tier once it passes `2^k` with the new tier to create. It picks nothing: which items leave a tier is the user's judgment, so the report carries occupants, never victims, and the phase applies only what the user names.
 
 ## Choosing a tier
 
@@ -53,7 +53,7 @@ Rank against what is already on the ladder, not in the abstract — the question
 - `2nd` / `3rd` — real intent to do it soon.
 - Bottom tier — everything else, including anything arriving from an automated sweep. A task that showed up on its own has not earned a rank yet.
 
-Default to the bottom tier when the signal is weak. Promotion is cheap; a wrongly promoted task silently demotes something the user chose. Keep promotion cheap in every walk that files onto the ladder: `filingChoices(ladder)` (`asap-tiers.mjs choices <bucket.json>`) returns the bottom tier, the tier directly above it with its cascade as a one-click promotion, and a one-line occupancy summary for the question text.
+Default to the bottom tier when the signal is weak. Promotion is cheap, and the user reranks during rebalance. Keep promotion cheap in every walk that files onto the ladder: `filingChoices(ladder)` (`asap-tiers.mjs choices <bucket.json>`) returns the bottom tier, the tier directly above it as a one-click promotion, and a one-line occupancy summary for the question text.
 
 ## Migrating a bucket that still has categories
 

@@ -6,7 +6,7 @@ description: Normalize both Next-Actions trees, then sweep loose tasks into the 
 
 Sweep every Next-Actions root for **loose tasks** — actionable items that aren't yet inside one of the two task buckets — and propose a destination for each: the `⏰ Tasks (due dates)` bucket (with a `Today` / `This week` / `This month` timeframe) or a **priority tier** in the `📌 Tasks (asap)` bucket. Stage the proposals, then walk them one at a time for confirmation, applying only what the user accepts.
 
-The asap bucket is an ordinal ladder (`1st`, `2nd`, `3rd`, …) with a halving capacity cap, not a set of category folders. Read `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md` before proposing any asap destination — it owns the capacity rule, the demotion cascade, and the category-to-`#tag` migration.
+The asap bucket is an ordinal ladder (`1st`, `2nd`, `3rd`, …) with a halving capacity cap, not a set of category folders. Read `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md` before proposing any asap destination — it owns the capacity rule, the rule that filing never moves another item, and the category-to-`#tag` migration.
 
 Scope is **both** roots linked from `Metadata > ☑️ Next Actions` (`d81ba063-5604-49a5-bb87-0d0fe59d0a48`) — Work and Personal — discovered by link resolution, never hardcoded.
 
@@ -74,7 +74,7 @@ Loose tasks may sit **directly under the root** or **directly under `✅ Tasks`*
 
 ## Read the per-root tier ladder
 
-Pass each root's `📌 Tasks (asap)` bucket through `readLadder` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` to get its tiers (rank, label, full UUID, capacity, current occupants) and its `unfiled` children. Never eyeball the occupancy or the cap — how full a tier is decides whether filing into it demotes something, and a miscount silently drops a task the user promoted.
+Pass each root's `📌 Tasks (asap)` bucket through `readLadder` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` to get its tiers (rank, label, full UUID, capacity, current occupants) and its `unfiled` children. Never eyeball the occupancy or the cap — the option labels show it as a plain fact.
 
 The `⏰ Tasks (due dates)` bucket has **no sub-buckets**. A due-dated task goes directly into the bucket carrying a `<time>` element on the node itself; the timeframe is expressed as a date, not as a container. Capture only the bucket's own full UUID.
 
@@ -97,7 +97,7 @@ Match on the distinctive nouns rather than the phrasing, and prefer reporting a 
 For each loose task, pick a recommended destination from signals already on the node — no external calls. The due-vs-asap split is a **judgment call**, so the recommendation is a starting point the user confirms or overrides, not a hard rule.
 
 - **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`. **Resolve the timeframe to a concrete date** with `resolveTimeframe` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs` (`Today` → today, `This week` → the upcoming Friday, `This month` → the last day of the month) and build its `<time>` element with `buildTimeElement`. Never compute the date or its weekday by hand.
-- **Lean `📌 asap` + a tier** otherwise. The tier is a **rank against what is already on the ladder**, not a topic: recommend `1st` or `2nd` only for a task the user would trade against the items already sitting there, and the **bottom tier** for everything else. Default to the bottom tier when the signal is weak — promotion is cheap, but a wrongly promoted task silently demotes something the user chose. Run `planInsertion(ladder, tier)` for the recommended tier and carry its `demotions` and `createTiers` into the proposal so the walk can show the cascade.
+- **Lean `📌 asap` + a tier** otherwise. The tier is a **rank against what is already on the ladder**, not a topic: recommend `1st` or `2nd` only for a task the user would trade against the items already sitting there, and the **bottom tier** for everything else. Default to the bottom tier when the signal is weak — promotion is cheap, and the user reranks during rebalance. Run `planInsertion(ladder, tier)` for the recommended tier and carry its `createTiers` into the proposal. Filing into a tier only inserts the task; it never moves any other item, even when the tier is full.
 - **Topic goes on the text, not in a container.** An asap proposal also carries any missing category `#tag` implied by the task — `#code` for build / PR work, `#write` or `#document` for drafting, `#document` for a doc review, `#meeting` for 1:1 setup, `#jira` for admin, `#home`, `#personal`, `#read`, `#llm-task`. Append only tags the task does not already carry, and only ones already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry.
 
 Keep the driving signal as a short `reason` string for the walk to show.
@@ -135,11 +135,10 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 			},
 			"alternatives": [
 				{
-					"destLabel": "📌 asap → 2nd (4/4 full — bumps \"Draft the rollup RFC\" to 3rd)",
+					"destLabel": "📌 asap → 2nd (4/4)",
 					"destUuid": "<tier-2-uuid>",
 					"tier": 2,
 					"addTags": ["#code"],
-					"demotions": [{"nodeId": "<bumped-uuid>", "fromTier": 2, "toTier": 3, "toId": "<tier-3-uuid>"}],
 					"position": "bottom"
 				},
 				{
@@ -168,7 +167,7 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 
 `related` is the best match from the filed-task search, or `null` when nothing matched. It is not a destination and carries no `applyOps` — the walk builds the Merge outcome from it.
 
-`applyOps` holds the **recommended** destination's commands, escaped and ready to run verbatim, **in order**. A due-dates destination is two ops — stamp the date, then move — because the date lives on the node rather than in a container. An asap destination carries no `timeframe` / `due`; it is any `demotions` first (each a `node move` into the tier below), then a `node update --name` when `addTags` is non-empty, then the move into `destUuid`. Demotions run first so the tier never briefly holds more than its cap. Every `destUuid` is a full UUID read off the ladder; for due-dates that is always the `⏰` bucket itself.
+`applyOps` holds the **recommended** destination's commands, escaped and ready to run verbatim, **in order**. A due-dates destination is two ops — stamp the date, then move — because the date lives on the node rather than in a container. An asap destination carries no `timeframe` / `due`; it is a `node update --name` when `addTags` is non-empty, then the move into `destUuid`. It never moves any other item. Every `destUuid` is a full UUID read off the ladder; for due-dates that is always the `⏰` bucket itself.
 
 A tier in `createTiers` has no UUID yet, so it cannot be staged as a shell string. Create those tiers during normalization — before staging — and stage against the resulting UUIDs.
 
@@ -192,11 +191,11 @@ Task 3/12: Follow up with Legal on OpenRewrite approval, report back #openrewrit
 
 Options per task (first = the recommended destination): the recommended destination, then 2-3 `alternatives`, then **Merge with** `"<related task name>"` when `related` is set, then **Skip** (leave the task loose). Render embedded `<a href>` links as markdown so they're clickable; strip other HTML for display.
 
-**On Merge**, fold the loose task into the related one rather than filing it beside it: `node move --node-id <looseUuid> --parent-id <relatedUuid> -p bottom`. The loose task becomes a child bullet of the related task and its own children (sub-steps, provenance) travel with it. Do not rename or re-tag either node. Then ask a follow-up `AskUserQuestion` for **which tier the merged task should sit at** — the merge changed its scope, so its rank is worth a second look. Offer **Keep at** `<current tier>` first (the default), then one or two higher tiers built with `planInsertion(ladder, tier)` for the _related_ task, cascade shown in the label exactly as for a fresh filing. If the related task lives in `⏰ due-dates`, the first option keeps its date and the alternatives are asap tiers instead. A tier change runs the demotions first, then `node move --node-id <relatedUuid> --parent-id <tierUuid> -p bottom`; "Keep" runs nothing further. The pool is filed tasks only, so two loose tasks never match each other; if the user names another loose task as the merge target anyway, merge into it and file the pair together under the destination they pick.
+**On Merge**, fold the loose task into the related one rather than filing it beside it: `node move --node-id <looseUuid> --parent-id <relatedUuid> -p bottom`. The loose task becomes a child bullet of the related task and its own children (sub-steps, provenance) travel with it. Do not rename or re-tag either node. Then ask a follow-up `AskUserQuestion` for **which tier the merged task should sit at** — the merge changed its scope, so its rank is worth a second look. Offer **Keep at** `<current tier>` first (the default), then one or two higher tiers built with `planInsertion(ladder, tier)` for the _related_ task, occupancy shown in the label exactly as for a fresh filing. If the related task lives in `⏰ due-dates`, the first option keeps its date and the alternatives are asap tiers instead. A tier change runs only `node move --node-id <relatedUuid> --parent-id <tierUuid> -p bottom`; "Keep" runs nothing further. The pool is filed tasks only, so two loose tasks never match each other; if the user names another loose task as the merge target anyway, merge into it and file the pair together under the destination they pick.
 
-**Show the cascade in the option label.** When a tier option carries `demotions`, name what gets bumped and where — `📌 asap → 1st (2/2 full — bumps "Fix the TV page ordering" to 2nd)`. The trade-off is the whole point of the cap; an option that hides it turns a deliberate choice into a surprise. If the user wants a different item demoted, take the name they give and rebuild the demotion against that node.
+**Show occupancy in the option label as a plain fact** — `📌 asap → 1st (2/2)`. A full tier is still a valid destination: filing there never moves any other item, so never say something will be bumped and never ask a follow-up to confirm a full tier. Over-cap tiers are fixed by the user in `/gtd:review:daily:rebalance`.
 
-On a destination choice, run that destination's commands — the recommended choice runs `applyOps` verbatim and in order; an alternative runs the same shape rebuilt for the chosen destination (a due-dates alternative stamps its `<time>` first, then moves; an asap alternative runs its `demotions`, then any tag update, then `node move --node-id <taskUuid> --parent-id <chosenDestUuid> -p <position>`). **Dispatch each task's ops as one background Bash job** (`run_in_background: true`) per the **Background Dispatch, Verify, and Drain** protocol in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` — chain the stamp and the move with `&&` inside a single job so a failed stamp never leaves a task filed under a deadline it doesn't carry. Track each job, reap finished jobs every ~5 tasks, surface failures inline by task name, and present the next task immediately without waiting. On **Skip**, change nothing and move on.
+On a destination choice, run that destination's commands — the recommended choice runs `applyOps` verbatim and in order; an alternative runs the same shape rebuilt for the chosen destination (a due-dates alternative stamps its `<time>` first, then moves; an asap alternative runs any tag update, then `node move --node-id <taskUuid> --parent-id <chosenDestUuid> -p <position>`). **Dispatch each task's ops as one background Bash job** (`run_in_background: true`) per the **Background Dispatch, Verify, and Drain** protocol in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` — chain the stamp and the move with `&&` inside a single job so a failed stamp never leaves a task filed under a deadline it doesn't carry. Track each job, reap finished jobs every ~5 tasks, surface failures inline by task name, and present the next task immediately without waiting. On **Skip**, change nothing and move on.
 
 Anything filed into `⏰ due-dates` with a date of today reaches the Recurring Review's due walk later in this same run — that phase ordering is deliberate, so do not try to pre-empt it by asking whether the task is already done.
 
@@ -221,7 +220,7 @@ osascript -e 'tell application "Things3" to set status of to do id "<thingsId>" 
 
 Append the same kind of topic `#tag` a Workflowy proposal would carry, and nothing more — a Things title arrives untagged, but blanket-tagging every swept task `#personal` says nothing that the personal ladder does not already say.
 
-Default every one of these to the **bottom tier** — a task that has sat undated in Anytime has not earned a rank. Offer a higher tier as an alternative, subject to the same cascade rules. Offer **Skip** (leave it in Things) as well; this list is long and the user is entitled to leave items behind. Never complete the Things task before the Workflowy create succeeds — chain the two with `&&` in one background job so a failed create can't silently destroy the task.
+Default every one of these to the **bottom tier** — a task that has sat undated in Anytime has not earned a rank. Offer a higher tier as an alternative. Offer **Skip** (leave it in Things) as well; this list is long and the user is entitled to leave items behind. Never complete the Things task before the Workflowy create succeeds — chain the two with `&&` in one background job so a failed create can't silently destroy the task.
 
 ## Sweep Things "Someday" into the Workflowy Someday lists
 
@@ -254,4 +253,4 @@ Drain all outstanding background moves (wait for jobs, surface any failures), th
 
 Report the Someday sweep on its own line (`✓ 30 swept from Things Someday: 18 personal, 4 work, 8 deleted`), since it lands outside the ladders.
 
-Then re-read each ladder and report any tier over its cap. The bottom tier is allowed to run over until the next `/gtd:review:daily:rebalance` extends the ladder; any tier above it being over cap means a demotion failed, and that has to be named rather than left to the next run.
+Leave over-cap tiers alone. A tier the user filed into while full runs over its cap until the user fixes it in `/gtd:review:daily:rebalance`; never move items out of it here.

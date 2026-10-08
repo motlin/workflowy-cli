@@ -10,17 +10,14 @@
 //
 //   Fixed caps, not relative ones. A cap computed from what the tier below currently holds is
 //   unstable from the bottom -- completing two items in 2nd would retroactively force an item out
-//   of 1st, punishing progress. 2^k only ever pushes down when something is added at the top,
-//   which is the forcing function the ladder exists for.
+//   of 1st, punishing progress.
 //
 //   The bottom tier is the landing zone. Undated sweeps out of the ⏰ bucket and undated Things
-//   Anytime tasks arrive there in bulk, so it absorbs overflow instead of cascading into a tier
-//   that does not exist yet. Every tier that has a tier below it is hard-capped; the deepest one
-//   runs over until a rebalance extends the ladder.
+//   Anytime tasks arrive there in bulk, so it runs over until a rebalance extends the ladder.
 //
-// The cascade in planInsertion only fires when something is *inserted* into a full tier, so a
-// ladder that has drifted out of shape stays that way until planRebalance reads it. That report is
-// proposals only: which items leave an over-cap tier is the user's judgment, never a position.
+// Filing into a tier never moves any other item, even when the tier is full: the tier runs over its
+// cap and stays that way until planRebalance reads it. That report is proposals only: which items
+// leave an over-cap tier is the user's judgment, made on the ladder page, never a position.
 
 import {readFileSync} from 'node:fs';
 
@@ -98,30 +95,13 @@ export function bottomTier(ladder) {
 
 /**
  * Plan what has to happen for one task to land in `targetTier`: which tiers to create first, and
- * which already-filed tasks get bumped down to make room. Returns a plan rather than commands so
- * the walk can show the cascade and let the user pick a different item to demote.
+ * the target tier's id. Filing never moves any other item; a full tier just runs over its cap until
+ * the user rebalances it.
  */
 export function planInsertion(ladder, targetTier) {
 	assertTierRank(targetTier);
 
 	const byTier = new Map(ladder.tiers.map((t) => [t.tier, t]));
-	const deepest = bottomTier(ladder)?.tier ?? 0;
-	const demotions = [];
-
-	// The deepest tier absorbs overflow rather than cascading, so it bounds the walk.
-	for (let tier = targetTier; tier < deepest; tier++) {
-		const existing = byTier.get(tier);
-		// A tier that does not exist yet is empty, so nothing in it has to give up a slot.
-		if (!existing || existing.items.length < existing.capacity) break;
-		const victim = existing.items.at(-1);
-		demotions.push({
-			nodeId: victim.id,
-			name: victim.name,
-			fromTier: tier,
-			toTier: tier + 1,
-			toId: byTier.get(tier + 1)?.id ?? null,
-		});
-	}
 
 	// Never leave a hole in the ladder: a `3rd` with no `1st` above it reads as a broken migration.
 	const createTiers = [];
@@ -129,7 +109,7 @@ export function planInsertion(ladder, targetTier) {
 		if (!byTier.has(tier)) createTiers.push({tier, label: tierLabel(tier)});
 	}
 
-	return {targetTier, targetId: byTier.get(targetTier)?.id ?? null, demotions, createTiers};
+	return {targetTier, targetId: byTier.get(targetTier)?.id ?? null, createTiers};
 }
 
 /**
@@ -138,7 +118,7 @@ export function planInsertion(ladder, targetTier) {
  * ordered by the tier they held (ladder order within a tier, members not on this ladder last), so
  * moving them under the group in this order keeps their relative rank. The insertion is planned on
  * the ladder with the members already removed: a member leaving a full tier frees the slot the
- * group takes, and a member can never be the item a full tier demotes.
+ * group takes.
  */
 export function planGroup(ladder, memberIds, tier) {
 	const wanted = new Set(memberIds);
@@ -175,8 +155,7 @@ export function planRescue(ladder, tier) {
 
 /**
  * What the /gtd:inbox walk offers for an item bound for this ladder. A refined item always lands on
- * the bottom tier (Accept); `promote` is the tier directly above it with the cascade filing there
- * would cause, so moving an item up one rank is a click rather than typed text. `summary` is a
+ * the bottom tier (Accept); `promote` is the tier directly above it, so moving an item up one rank is a click rather than typed text. `summary` is a
  * one-line occupancy readout for the question, so any other tier the user types is an informed pick.
  */
 export function filingChoices(ladder) {
@@ -190,9 +169,7 @@ export function filingChoices(ladder) {
 		.join(' · ');
 
 	const above = ladder.tiers.at(-2);
-	const promote = above
-		? {tier: above.tier, label: above.label, id: above.id, demotions: planInsertion(ladder, above.tier).demotions}
-		: null;
+	const promote = above ? {tier: above.tier, label: above.label, id: above.id} : null;
 
 	return {summary, bottom: {tier: bottom.tier, label: bottom.label, id: bottom.id}, promote};
 }

@@ -105,49 +105,42 @@ test('bottomTier is the deepest tier, or null on a bucket with no ladder', () =>
 	assert.strictEqual(bottomTier(readLadder({id: 'a', children: []})), null);
 });
 
-test('planInsertion into a tier with room demotes nothing', () => {
+test('planInsertion into a tier with room plans only the target', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 1), fill(2, 0)]});
 	assert.deepStrictEqual(planInsertion(ladder, 1), {
 		targetTier: 1,
 		targetId: 'tier-1',
-		demotions: [],
 		createTiers: [],
 	});
 });
 
 /**
- * Adding to a full tier is the forcing function: something already there has to give up its slot.
- * The default victim is the tier's bottom-most item, which the walk can override.
+ * Filing into a full tier never moves anything else. The tier simply runs over its cap, and the
+ * user rebalances it later on the ladder page.
  */
-test('planInsertion into a full tier demotes its bottom item one tier down', () => {
+test('planInsertion into a full tier moves nothing else', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 1)]});
 	assert.deepStrictEqual(planInsertion(ladder, 1), {
 		targetTier: 1,
 		targetId: 'tier-1',
-		demotions: [{nodeId: 't1-1', name: 'task t1-1', fromTier: 1, toTier: 2, toId: 'tier-2'}],
 		createTiers: [],
 	});
 });
 
-test('planInsertion cascades through consecutive full tiers', () => {
+test('planInsertion into consecutive full tiers moves nothing else', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 3)]});
-	assert.deepStrictEqual(planInsertion(ladder, 1).demotions, [
-		{nodeId: 't1-1', name: 'task t1-1', fromTier: 1, toTier: 2, toId: 'tier-2'},
-		{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'},
-	]);
+	assert.deepStrictEqual(planInsertion(ladder, 1), {
+		targetTier: 1,
+		targetId: 'tier-1',
+		createTiers: [],
+	});
 });
 
-/**
- * The bottom tier is the landing zone -- undated sweeps and Things Anytime dump into it -- so it
- * absorbs overflow instead of cascading into a tier that does not exist yet. Only tiers with a
- * tier below them are hard-capped.
- */
-test('planInsertion lets the bottom tier run over its cap rather than cascading', () => {
+test('planInsertion lets the bottom tier run over its cap', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 9)]});
 	assert.deepStrictEqual(planInsertion(ladder, 2), {
 		targetTier: 2,
 		targetId: 'tier-2',
-		demotions: [],
 		createTiers: [],
 	});
 });
@@ -157,7 +150,6 @@ test('planInsertion creates every missing tier down to the target', () => {
 	assert.deepStrictEqual(planInsertion(ladder, 3), {
 		targetTier: 3,
 		targetId: null,
-		demotions: [],
 		createTiers: [
 			{tier: 1, label: '1st'},
 			{tier: 2, label: '2nd'},
@@ -173,7 +165,7 @@ test('planInsertion rejects a target that is not a positive tier rank', () => {
 });
 
 /**
- * planRebalance reads a ladder that is already out of shape. The cascade only fires on insertion,
+ * planRebalance reads a ladder that is already out of shape. Insertion never moves other items,
  * so a ladder that drifted over cap needs a separate pass that proposes -- never applies -- the
  * push-downs, pull-ups, and the extension of the bottom tier.
  */
@@ -225,7 +217,7 @@ test('planRebalance lists every occupant of an over-cap tier and the minimum to 
 });
 
 /**
- * The bottom tier has no tier below it, so it does not cascade -- it grows. The threshold is exact:
+ * The bottom tier has no tier below it to push down into, so it grows. The threshold is exact:
  * 2^k is fine, 2^k + 1 needs a new tier. The user picks which items move into it.
  */
 test('planRebalance extends the ladder only when the bottom tier passes 2^k exactly', () => {
@@ -316,9 +308,9 @@ test('planRebalance on a bucket with no ladder proposes nothing', () => {
 /**
  * The inbox walk files every refined item on the bottom tier, but the user often promotes one a
  * tier. filingChoices gives the walk the bottom tier (Accept), the tier directly above it as a
- * one-click Promote option with its cascade, and a one-line ladder summary for the question text.
+ * one-click Promote option, and a one-line ladder summary for the question text.
  */
-test('filingChoices offers the tier directly above the bottom as the promotion, with its cascade', () => {
+test('filingChoices offers the tier directly above the bottom as the promotion, even when it is full', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 3), fill(3, 8), fill(4, 12)]});
 	assert.deepStrictEqual(filingChoices(ladder), {
 		summary: '1st 2/2 · 2nd 3/4 · 3rd 8/8 · 4th 12 (bottom)',
@@ -327,7 +319,6 @@ test('filingChoices offers the tier directly above the bottom as the promotion, 
 			tier: 3,
 			label: '3rd',
 			id: 'tier-3',
-			demotions: [{nodeId: 't3-7', name: 'task t3-7', fromTier: 3, toTier: 4, toId: 'tier-4'}],
 		},
 	});
 });
@@ -360,7 +351,7 @@ test('planGroup orders members by former tier and keeps ladder order within a ti
 			{nodeId: 't3-1', name: 'task t3-1', fromTier: 3},
 			{nodeId: 'off-ladder', name: null, fromTier: null},
 		],
-		insertion: {targetTier: 1, targetId: 'tier-1', demotions: [], createTiers: []},
+		insertion: {targetTier: 1, targetId: 'tier-1', createTiers: []},
 	});
 });
 
@@ -374,7 +365,7 @@ test('planGroup files a new group in the highest tier its members came from', ()
 			{nodeId: 't3-2', name: 'task t3-2', fromTier: 3},
 			{nodeId: 't5-7', name: 'task t5-7', fromTier: 5},
 		],
-		insertion: {targetTier: 3, targetId: 'tier-3', demotions: [], createTiers: []},
+		insertion: {targetTier: 3, targetId: 'tier-3', createTiers: []},
 	});
 });
 
@@ -383,39 +374,37 @@ test('planGroup files in an explicitly chosen tier instead of the default', () =
 	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4'], 2).insertion, {
 		targetTier: 2,
 		targetId: 'tier-2',
-		demotions: [],
 		createTiers: [],
 	});
 });
 
 /**
  * Members leave their tiers before the group lands, so a member sitting in a full tier frees the
- * slot the group takes and nothing gets bumped.
+ * slot the group takes.
  */
 test('planGroup plans the insertion after the members have left their tiers', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 1)]});
 	assert.deepStrictEqual(planGroup(ladder, ['t1-0', 't3-0']).insertion, {
 		targetTier: 1,
 		targetId: 'tier-1',
-		demotions: [],
 		createTiers: [],
 	});
 });
 
-test('planGroup never demotes a member, and cascades like any insertion', () => {
+test('planGroup into a full tier moves nothing else', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 5)]});
-	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4'], 1).insertion.demotions, [
-		{nodeId: 't1-1', name: 'task t1-1', fromTier: 1, toTier: 2, toId: 'tier-2'},
-		{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'},
-	]);
+	assert.deepStrictEqual(planGroup(ladder, ['t3-0', 't3-4'], 1).insertion, {
+		targetTier: 1,
+		targetId: 'tier-1',
+		createTiers: [],
+	});
 });
 
-test("planGroup cascades from the members' highest tier when it is full", () => {
+test("planGroup files in the members' highest tier when it is full without moving anything else", () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 5), fill(3, 7), fill(4, 1)]});
 	assert.deepStrictEqual(planGroup(ladder, ['t2-4', 't4-0']).insertion, {
 		targetTier: 2,
 		targetId: 'tier-2',
-		demotions: [{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'}],
 		createTiers: [],
 	});
 });
@@ -430,17 +419,15 @@ test('planRescue files a project on the bottom tier by default', () => {
 	assert.deepStrictEqual(planRescue(ladder), {
 		targetTier: 3,
 		targetId: 'tier-3',
-		demotions: [],
 		createTiers: [],
 	});
 });
 
-test('planRescue files in an explicitly chosen tier and cascades like any insertion', () => {
+test('planRescue files in an explicitly chosen full tier without moving anything else', () => {
 	const ladder = readLadder({id: 'a', children: [fill(1, 2), fill(2, 4), fill(3, 3)]});
 	assert.deepStrictEqual(planRescue(ladder, 2), {
 		targetTier: 2,
 		targetId: 'tier-2',
-		demotions: [{nodeId: 't2-3', name: 'task t2-3', fromTier: 2, toTier: 3, toId: 'tier-3'}],
 		createTiers: [],
 	});
 });
@@ -449,7 +436,6 @@ test('planRescue creates 1st on a bucket with no ladder yet', () => {
 	assert.deepStrictEqual(planRescue(readLadder({id: 'a', children: []})), {
 		targetTier: 1,
 		targetId: null,
-		demotions: [],
 		createTiers: [{tier: 1, label: '1st'}],
 	});
 });

@@ -68,7 +68,7 @@ Children of the anchor keep the rank they had: order them by the tier they were 
 node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs group .llm/gtd/review/ladder-<work|personal>.json <memberUuid>,<memberUuid>,... [tier]
 ```
 
-`members` is the move order, each with `fromTier` (`null` when it is not on this ladder). `insertion` is the plan for filing a new group in the highest tier its members came from — or in `[tier]` when given — computed **after** the members have left their tiers: a member leaving a full tier frees the slot the group takes, and a member is never the item a full tier demotes. Ignore `insertion` when the anchor already exists.
+`members` is the move order, each with `fromTier` (`null` when it is not on this ladder). `insertion` is the plan for filing a new group in the highest tier its members came from — or in `[tier]` when given — computed **after** the members have left their tiers: a member leaving a tier frees the slot the group takes. Filing the group never moves any other item, even into a full tier. Ignore `insertion` when the anchor already exists.
 
 **Dated tasks never move.** The due walk (`/gtd:review:daily:due`) reads only the direct children of each `⏰` bucket, so a dated task moved under a group on the ladder silently drops out of it. A `⏰` task that matches a cluster is listed in the question as `Related (stays in ⏰): …` so the user sees the whole theme, but it is never a member. Every member is therefore on the ladder, and a `fromTier: null` in `planGroup` output means an id was mistyped — stop and fix the member list.
 
@@ -86,7 +86,7 @@ Skip any project listed under **Declined** as a rescue. Each survivor is a **res
 node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs rescue .llm/gtd/review/ladder-<work|personal>.json [tier]
 ```
 
-The output has the same shape as a group's `insertion` (`targetTier`, `targetId`, `demotions`, `createTiers`). The bottom tier is the default because nothing says a forgotten project outranks what is already filed; the project climbs the ladder through the rebalance walk like any other item.
+The output has the same shape as a group's `insertion` (`targetTier`, `targetId`, `createTiers`). The bottom tier is the default because nothing says a forgotten project outranks what is already filed; the project climbs the ladder through the rebalance walk like any other item.
 
 ## Flag agenda and ladder duplicates
 
@@ -109,18 +109,7 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 			"rootKey": "work",
 			"theme": "Onboarding @Alice",
 			"anchor": {"type": "new", "name": "Onboarding @Alice #work", "tier": 2, "tierId": "<tier-2-uuid>"},
-			"insertion": {
-				"demotions": [
-					{
-						"nodeId": "<bumped-uuid>",
-						"name": "Draft the rollup RFC",
-						"fromTier": 2,
-						"toTier": 3,
-						"toId": "<tier-3-uuid>"
-					}
-				],
-				"createTiers": []
-			},
+			"insertion": {"targetTier": 2, "targetId": "<tier-2-uuid>", "createTiers": []},
 			"members": [
 				{"nodeId": "<uuid>", "name": "Set up 1:1 with @Alice", "fromTier": 2},
 				{"nodeId": "<uuid>", "name": "Request repo access for @Alice", "fromTier": 3}
@@ -132,7 +121,7 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 			"kind": "rescue",
 			"rootKey": "personal",
 			"project": {"nodeId": "<uuid>", "name": "🌐 Example project", "openTasks": 3},
-			"insertion": {"targetTier": 5, "targetId": "<tier-5-uuid>", "demotions": [], "createTiers": []},
+			"insertion": {"targetTier": 5, "targetId": "<tier-5-uuid>", "createTiers": []},
 			"reason": "off the ladder with 3 open tasks"
 		},
 		{
@@ -152,10 +141,10 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 
 Every move is **its own question** — never bundle two clusters, or a cluster and a rescue or duplicate, into one `AskUserQuestion` question. Up to 4 questions per call is fine. Go straight into the first proposal: no meta-question about how to scope the walk, and no comment on the count.
 
-For a **group** proposal, show the theme, the anchor and where it lands, each member with its current tier, and the cascade when a new group bumps something out of its tier:
+For a **group** proposal, show the theme, the anchor and where it lands, and each member with its current tier. Tier occupancy may appear as a plain fact; a full tier is still a valid destination, so never say something will be bumped and never ask a follow-up to confirm it:
 
 ```markdown
-Group 1/2 (Work): Onboarding @Alice → new node in 📌 asap → 2nd (4/4 full — bumps "Draft the rollup RFC" to 3rd)
+Group 1/2 (Work): Onboarding @Alice → new node in 📌 asap → 2nd (4/4)
 
 - Set up 1:1 with @Alice (2nd)
 - Request repo access for @Alice (3rd)
@@ -167,22 +156,22 @@ Options: **Group** (as proposed), **Group under a different anchor** (the user n
 
 On **Group**, dispatch the ops as one background Bash job per the **Background Dispatch, Verify, and Drain** protocol in `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, chained with `&&` so a failed step stops the chain:
 
-- For a new group: run the `insertion.demotions` first (each a `node move` into the tier below), create any `createTiers`, then `node create --parent-id <insertion.targetId> --name '<group name>' --position bottom` and read the new node's full UUID from its output.
+- For a new group: create any `createTiers`, then `node create --parent-id <insertion.targetId> --name '<group name>' --position bottom` and read the new node's full UUID from its output.
 - Move each member in `members` order: `node move --node-id <memberUuid> --parent-id <anchorUuid> -p bottom`. Moving in that order is what leaves the children sorted by former tier. A member's own children travel with it.
 - Do not rename or re-tag any member.
 
 On **Keep separate**, append the cluster to the **Declined** section of `.llm/gtd/task-groups.md` so it is not proposed again. On **Group**, append or update the theme under **Themes** with its identifying words and the anchor's shortId, so the next run recognizes it. Append — never rewrite the file wholesale.
 
-For a **rescue** proposal, show the project, its open-task count, and where it lands with any cascade:
+For a **rescue** proposal, show the project, its open-task count, and where it lands:
 
 ```markdown
 Rescue (Personal): 🌐 Example project (3 open tasks) → 📌 asap → 5th (bottom)
 ```
 
-Options: **Rescue** (as proposed), **Rescue in a different tier** (the user names it; re-plan with `planRescue` and that `[tier]`), **Leave off the ladder**. On **Rescue**, dispatch like a new group — `insertion.demotions` first, then any `createTiers`, then `node move --node-id <projectUuid> --parent-id <insertion.targetId> -p bottom`. The project's tasks travel with it; do not rename or re-tag it. On **Leave off the ladder**, append the rescue to **Declined**. A **Themes** bullet that named the project as its anchor stays valid once the project is on the ladder; update its location note.
+Options: **Rescue** (as proposed), **Rescue in a different tier** (the user names it; re-plan with `planRescue` and that `[tier]`), **Leave off the ladder**. On **Rescue**, dispatch like a new group — any `createTiers`, then `node move --node-id <projectUuid> --parent-id <insertion.targetId> -p bottom`. The project's tasks travel with it; do not rename or re-tag it. On **Leave off the ladder**, append the rescue to **Declined**. A **Themes** bullet that named the project as its anchor stays valid once the project is on the ladder; update its location note.
 
 For a **duplicate** proposal, apply the chosen side's delete with `node delete --id <uuid>`, or nothing on **Keep both** / **Skip**.
 
 ## Finish
 
-Drain every background job and surface failures by group name. Print one line — e.g. `✓ 2 groups (1 new in 2nd, 1 under an existing project), 5 tasks moved, 1 project rescued to 5th, 1 agenda duplicate dropped, 1 kept separate` — or say nothing when `status` was `empty`. Then re-read each ladder and report any capped tier over its `2^k`; a new group whose tier was left over cap means a demotion failed.
+Drain every background job and surface failures by group name. Print one line — e.g. `✓ 2 groups (1 new in 2nd, 1 under an existing project), 5 tasks moved, 1 project rescued to 5th, 1 agenda duplicate dropped, 1 kept separate` — or say nothing when `status` was `empty`. Leave over-cap tiers alone; the user fixes them in `/gtd:review:daily:rebalance`.

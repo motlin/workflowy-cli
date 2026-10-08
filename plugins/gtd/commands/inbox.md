@@ -161,19 +161,19 @@ Options:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs choices .llm/gtd/inbox-ladder-<work|personal>.json
 ```
 
-`choices` prints `filingChoices(readLadder(bucket))`: `bottom` (the Accept tier), `promote` (the tier directly above the bottom, with the `demotions` filing there would cause, or null on a one-tier ladder), and `summary`, a one-line occupancy readout such as `1st 2/2 · 2nd 3/4 · 3rd 8/8 · 4th 12 (bottom)`. Re-read after each batch executes, since the batch changed the occupancy.
+`choices` prints `filingChoices(readLadder(bucket))`: `bottom` (the Accept tier), `promote` (the tier directly above the bottom, or null on a one-tier ladder), and `summary`, a one-line occupancy readout such as `1st 2/2 · 2nd 3/4 · 3rd 8/8 · 4th 12 (bottom)`. Re-read after each batch executes, since the batch changed the occupancy.
 
 - Put `summary` in the question text of every asap-bound item, so a typed tier ("2nd") is an informed pick.
-- Add a **Promote** option labelled with the tier (`3rd tier`) right after Accept (and after File in both when present) whenever `promote` is non-null. Show the cascade in its description exactly as File Loose Tasks does — `3rd (8/8 full — bumps "Fix the TV page ordering" to 4th)`.
+- Add a **Promote** option labelled with the tier (`3rd tier`) right after Accept (and after File in both when present) whenever `promote` is non-null, with the tier's occupancy in its description — `3rd (8/8)`. A full tier is still a valid choice: filing there never moves any other item, so never warn that something will be bumped and never ask a follow-up to confirm it.
 - `AskUserQuestion` allows 4 options. When Do it now, File in both, or Delegate already fills the fourth slot, drop Promote and keep Skip and Delete; the ladder summary in the question still makes "3rd" a two-character answer.
-- Any tier the user names (Promote, or "Other" answers like "3rd tier", "2nd", "3rd + mirror to agendas") replaces the suggested tier. Run `planInsertion(ladder, tier)` for a tier other than `promote`, and run its `demotions` (`node move --node-id <nodeId> --parent-id <toId> --position bottom`) before item-mover files the item, so the tier never briefly holds more than its cap.
+- Any tier the user names (Promote, or "Other" answers like "3rd tier", "2nd", "3rd + mirror to agendas") replaces the suggested tier. Run `planInsertion(ladder, tier)` for a tier other than `promote` to get its `targetId` and any `createTiers`. Filing only inserts the item; it never moves another item out of a full tier. Over-cap tiers are left for the user to fix in `/gtd:review:daily:rebalance`.
 
 ```text
 Question: "'Renew the car registration #errands' -> 📌 Tasks (asap) > 4th (high confidence) | 1st 2/2 · 2nd 3/4 · 3rd 5/8 · 4th 12 (bottom)"
 
 Options:
 - "Accept" (📌 Tasks (asap) > 4th)
-- "3rd tier" (📌 Tasks (asap) > 3rd, 5/8 — no demotion)
+- "3rd tier" (📌 Tasks (asap) > 3rd, 5/8)
 - "Skip (leave in inbox)"
 - "Delete"
 ```
@@ -268,7 +268,7 @@ Options:
 - **Complete it**: Already performed when chosen (see above); nothing left to execute
 - **Deletes**: Run `./bin/run.js node delete --id <itemId>` directly
 - **Moves**: Launch item-mover agent with the batch's confirmed moves
-- **Promotions** (Promote or a named tier): run the tier's `demotions` first, then include the item in the batch's moves with the promoted tier as its destination
+- **Promotions** (Promote or a named tier): include the item in the batch's moves with the promoted tier as its destination
 - **Delegate**: Include the item in the batch's moves with `delegation.path` as its destination and the confirmed `@mention` in its text
 - **File in both**: Include the item in the batch's moves to its primary destination, then mirror it into the second destination with `node mirror` once item-mover returns
 - **Skips**: Do nothing (item stays in inbox)
