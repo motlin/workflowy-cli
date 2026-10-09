@@ -564,6 +564,33 @@ describe('cache-import-api service', () => {
 		});
 	});
 
+	describe('system time', () => {
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('gives a node changed by two imports within one millisecond a distinct version for each', async () => {
+			vi.useFakeTimers({toFake: ['Date'], now: new Date('2026-02-01T00:00:00.000Z')});
+
+			await importFromApi(testDatabase.db, [createApiNode({id: 'node-1', name: 'Original Name', priority: 0})]);
+			await importFromApi(testDatabase.db, [createApiNode({id: 'node-1', name: 'Updated Name', priority: 0})]);
+
+			expect(
+				testDatabase.db
+					.select({
+						name: nodeContent.name,
+						systemFrom: nodeContent.systemFrom,
+						systemTo: nodeContent.systemTo,
+					})
+					.from(nodeContent)
+					.all(),
+			).toStrictEqual([
+				{name: 'Original Name', systemFrom: '2026-02-01 00:00:00.000', systemTo: '2026-02-01 00:00:00.001'},
+				{name: 'Updated Name', systemFrom: '2026-02-01 00:00:00.001', systemTo: FAR_FUTURE_DATE},
+			]);
+		});
+	});
+
 	describe('per-node REST adapter writes unconditionally', () => {
 		const DATE_EARLIER = new Date('2026-04-01T00:00:00Z');
 		const DATE_LATER = new Date('2026-04-10T00:00:00Z');

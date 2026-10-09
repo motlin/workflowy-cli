@@ -341,6 +341,17 @@ export const tags = sqliteTable('tags', {
 
 export type Tag = typeof tags.$inferSelect;
 
+/**
+ * system_clock: The single row holding the last system time, in Unix ms, issued to
+ * any temporal write (see `cache/system-clock.ts`). Keeping it in the database
+ * orders writes across connections and processes sharing one cache file. It is
+ * bookkeeping, not data, so it is non-bitemporal and excluded from temporal rollback.
+ */
+export const systemClock = sqliteTable('system_clock', {
+	id: integer('id').primaryKey(),
+	lastMs: integer('last_ms').notNull(),
+});
+
 export const nodeContentRelations = relations(nodeContent, ({one, many}) => ({
 	metadata: one(nodeMetadata, {
 		fields: [nodeContent.id, nodeContent.systemTo],

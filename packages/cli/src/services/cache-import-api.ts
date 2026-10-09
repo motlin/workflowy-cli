@@ -5,6 +5,7 @@ import {
 	type NormalizedNodeContentRow,
 	type NormalizedNodeMetadataRow,
 	type NormalizedRowsByTable,
+	nextSystemTime,
 } from '@workflowy/shared/cache';
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
 import {type WorkflowyNode, WorkflowyNodeSchema} from '@workflowy/shared/types';
@@ -103,9 +104,6 @@ export async function importFromApi(
 		logger.debug(`  [${phase}]: ${elapsed}ms (total: ${total}ms)`);
 		lastTime = now;
 	};
-
-	const importTimestamp = timestamp ?? new Date();
-	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
 
 	// Process API nodes into our internal format
 	const nodesToProcess: ProcessedNode[] = [];
@@ -235,6 +233,8 @@ export async function importFromApi(
 		layoutMode: node.layoutMode,
 	}));
 	const rowsByTable: NormalizedRowsByTable = {nodeContent: contentRows, nodeMetadata: metadataRows};
+	const importTimestamp = timestamp ?? nextSystemTime(database);
+	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
 	const mergeResult = applyRows(database, rowsByTable, importTimestampStr);
 	closeMirrorsOfDeletedNodes(database, importTimestampStr);
 

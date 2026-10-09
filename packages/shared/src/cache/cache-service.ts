@@ -26,6 +26,7 @@ import {
 } from './cache-temporal.js';
 import {loadMirrorOriginals, notAMirror} from './mirror-text.js';
 import {NodeReader} from './node-reader.js';
+import {nextSystemTime, nextSystemTimestamp} from './system-clock.js';
 
 /**
  * Type for a node with all related data from a Drizzle query with relations.
@@ -124,21 +125,10 @@ export interface SubtreeMirrors {
 export class CacheService {
 	protected database: BetterSQLite3Database<typeof schema>;
 	protected nodeReader: NodeReader;
-	private lastSystemTime = 0;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
 		this.database = database;
 		this.nodeReader = new NodeReader(database);
-	}
-
-	/**
-	 * The system time for a new version, strictly after the last one this cache
-	 * issued. Versions are keyed by (id, systemFrom) at millisecond precision, so
-	 * two writes to one node within a millisecond would otherwise collide.
-	 */
-	private nextSystemTime(): Date {
-		this.lastSystemTime = Math.max(Date.now(), this.lastSystemTime + 1);
-		return new Date(this.lastSystemTime);
 	}
 
 	async getNode(nodeId: string): Promise<Node | undefined> {
@@ -373,7 +363,7 @@ export class CacheService {
 	 * @param parentId The parent ID these nodes belong to (null for root)
 	 */
 	async storeApiResponse(apiNodes: WorkflowyNode[], parentId: string | null): Promise<void> {
-		const fetchTimestamp = this.nextSystemTime();
+		const fetchTimestamp = nextSystemTime(this.database);
 
 		if (parentId) {
 			const parentExists = this.database
@@ -590,7 +580,7 @@ export class CacheService {
 	 * @param parentId The parent ID this node belongs to (null for root)
 	 */
 	async insertNode(node: WorkflowyNode, parentId: string | null): Promise<void> {
-		const fetchTimestamp = this.nextSystemTime();
+		const fetchTimestamp = nextSystemTime(this.database);
 		const systemFromStr = formatTemporalTimestamp(fetchTimestamp);
 
 		// Check if node already exists
@@ -709,7 +699,7 @@ export class CacheService {
 	 * @param nodeId The node ID to delete
 	 */
 	async deleteNode(nodeId: string): Promise<void> {
-		const now = formatTemporalTimestamp(this.nextSystemTime());
+		const now = nextSystemTimestamp(this.database);
 
 		// Collect all descendant IDs iteratively (BFS)
 		const descendantIds: string[] = [nodeId];
@@ -946,7 +936,7 @@ export class CacheService {
 			.values({
 				originalId,
 				mirrorId,
-				systemFrom: formatTemporalTimestamp(this.nextSystemTime()),
+				systemFrom: nextSystemTimestamp(this.database),
 				systemTo: FAR_FUTURE_DATE,
 			})
 			.run();

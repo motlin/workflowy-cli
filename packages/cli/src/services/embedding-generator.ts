@@ -1,10 +1,10 @@
 import {mirrors, nodeContent, type NodeContentType, nodeEmbeddings} from '@workflowy/shared/db';
 import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
+import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import {and, eq, inArray, sql} from 'drizzle-orm';
 import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
 import {DEFAULT_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
-import {notAMirror, PathBuilder} from '@workflowy/shared/cache';
+import {nextSystemTimestamp, notAMirror, PathBuilder} from '@workflowy/shared/cache';
 
 /**
  * The current nodes worth indexing: those with children, excluding mirrors,
@@ -165,14 +165,10 @@ export class EmbeddingGeneratorService {
 
 			for (let index = 0; index < nodesToProcess.length; index += options.batchSize) {
 				const batch = nodesToProcess.slice(index, index + options.batchSize);
-				const nowStr = formatTemporalTimestamp(new Date());
-
 				const embeddingRows: Array<{
 					nodeId: string;
 					model: EmbeddingModelKey;
 					embedding: Buffer;
-					systemFrom: string;
-					systemTo: string;
 				}> = [];
 
 				for (const node of batch) {
@@ -189,8 +185,6 @@ export class EmbeddingGeneratorService {
 						nodeId: node.id,
 						model,
 						embedding: Buffer.from(embedding.buffer),
-						systemFrom: nowStr,
-						systemTo: FAR_FUTURE_DATE,
 					});
 
 					totalProcessed++;
@@ -212,7 +206,11 @@ export class EmbeddingGeneratorService {
 				}
 
 				if (embeddingRows.length > 0) {
-					this.database.insert(nodeEmbeddings).values(embeddingRows).run();
+					const systemFrom = nextSystemTimestamp(this.database);
+					this.database
+						.insert(nodeEmbeddings)
+						.values(embeddingRows.map((row) => ({...row, systemFrom, systemTo: FAR_FUTURE_DATE})))
+						.run();
 				}
 			}
 

@@ -1,3 +1,4 @@
+import {nextSystemTimestamp} from '@workflowy/shared/cache';
 import {backupImports} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
 import {Command, Flags} from '@oclif/core';
@@ -259,12 +260,11 @@ export default class ImportBackup extends Command {
 		db: ReturnType<typeof createDatabase>,
 		backupInfo: {filename: string; backupDate: Date},
 	): Promise<void> {
-		const now = new Date().toISOString();
 		db.insert(backupImports)
 			.values({
 				filename: backupInfo.filename,
 				backupDate: formatDate(backupInfo.backupDate),
-				systemFrom: now,
+				systemFrom: nextSystemTimestamp(db),
 				systemTo: FAR_FUTURE_DATE,
 			})
 			.run();

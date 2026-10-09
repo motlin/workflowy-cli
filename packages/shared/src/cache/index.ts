@@ -47,4 +47,5 @@ export {
 	type MirrorPromotion,
 	planSubtreeDelete,
 } from './delete-plan.js';
+export {nextSystemTime, nextSystemTimestamp} from './system-clock.js';
 export {WorkflowyWriteThroughClient} from './workflowy-write-through-client.js';

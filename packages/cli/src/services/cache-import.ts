@@ -22,6 +22,7 @@ import {
 	type NormalizedNodeMetadataRow,
 	type NormalizedReferencesRootsRow,
 	type NormalizedS3FileRow,
+	nextSystemTime,
 	temporalMerge,
 } from '@workflowy/shared/cache';
 import {BackupFileSchema, type BackupNode, BackupNodeSchema} from '@workflowy/shared/schemas';
@@ -354,9 +355,6 @@ export async function importBackup(
 	const parsedJson = JSON.parse(fileContent);
 	const rootNodes = BackupFileSchema.parse(parsedJson);
 	logTiming(`Parse and validate JSON (${rootNodes.length} root nodes)`);
-
-	const importTimestamp = timestamp ?? new Date();
-	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
 
 	const allNodes: Array<{node: BackupNode; parentId: string | null; priority: number}> = [];
 	const collectNodes = (node: BackupNode, parentId: string | null, priority: number) => {
@@ -827,6 +825,8 @@ export async function importBackup(
 	const changesMetadataRows: NormalizedChangesMetadataRow[] = changesMetadataRecords.map((record) => ({...record}));
 	const referencesRootsRows: NormalizedReferencesRootsRow[] = referencesRootsRecords.map((record) => ({...record}));
 
+	const importTimestamp = timestamp ?? nextSystemTime(database);
+	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
 	const mergeResult = applyRows(
 		database,
 		{
