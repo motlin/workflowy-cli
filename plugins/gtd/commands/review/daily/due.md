@@ -134,6 +134,10 @@ For a row with non-null `hardDeadline`, show **Hard deadline: `hardDeadline.date
 
 Promote **Done** and **Set a reminder**. Omit **Skip**, **Push it out**, and **Less often** from the offered outcomes, regardless of skip streak. Never use the generic `lengthen: null` fallback for a hard deadline. If the user explicitly asks to postpone, skip, retire, or change cadence, warn first: name the actual deadline, review date, requested date, and how much lead time is lost or whether the deadline will be missed. Obtain explicit confirmation of that consequence before applying the request. Postponing a reminder does not change the external deadline. Change that deadline only when the user confirms the external deadline itself changed; keep its marker and lead time intact.
 
+## Weekday-anchored cadence
+
+A recurring item with a `Next: <Weekday>` child (e.g. `Next: Saturday`) always comes back on that weekday. The planner reports it as `weekday` and lands `nextDate`, `applyOp`, and `lengthen.nextDate` on the first matching weekday within the week ending at the section's plain interval date, never on or before today: a weekly item done Wednesday returns that Saturday, a daily item rolls forward to the next Saturday. When the user says "advance to the next weekend, now and every time", add the marker as a child with `node create` instead of hand-editing one date. The marker cannot combine with `Hard deadline:`; the planner rejects malformed or duplicate markers.
+
 ## Recurring item options
 
 When the item's action spans a list such as Things Today, an inbox, or a folder, follow **Walk a recurring item's list entry by entry** in the shared walk skill before offering the parent's Done. Enumerate the entries and ask about each separately with its context and `entry N/M`; never offer one bulk outcome for the list. Keep the parent in progress until every entry has a recorded decision and its writes are verified, then obtain the parent's Done confirmation and run its staged `applyOp` once. Keep unresolved work resumable without advancing the parent's date. The waiting, duplicate, and hard-deadline rules still apply to each entry.

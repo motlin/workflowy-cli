@@ -127,6 +127,34 @@ function hardDeadlineFor(node, date) {
 	return {date, leadDays: Number(match[1])};
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** A `Next: <Weekday>` child pins every advanced date to that weekday, e.g. chores saved for the weekend. */
+function weekdayAnchorFor(node) {
+	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith('Next:'));
+	if (!markers.length) return null;
+	if (markers.length !== 1) throw new Error(`Multiple Next: <weekday> markers on ${node.id}`);
+	const match = stripMarkup(markers[0].name).match(/^Next: (\w+)$/);
+	const weekday = WEEKDAYS.find((day) => day.toLowerCase() === match?.[1].toLowerCase());
+	if (!weekday) throw new Error(`Expected Next: <weekday> on ${node.id}`);
+	return weekday;
+}
+
+/**
+ * Land an advance on the anchored weekday: the first match within the week ending at the plain
+ * interval's date, and never on or before today. A weekly item done Wednesday comes back Saturday,
+ * not ten days later; a daily item rolls forward to the next Saturday.
+ */
+export function anchorToWeekday(todayISO, interval, weekday) {
+	const target = addInterval(todayISO, interval);
+	const windowStart = addInterval(target, {amount: -7, unit: 'd'});
+	let date = windowStart > todayISO ? windowStart : todayISO;
+	const wanted = WEEKDAYS.indexOf(weekday);
+	do date = addInterval(date, {amount: 1, unit: 'd'});
+	while (new Date(date + 'T00:00:00Z').getUTCDay() !== wanted);
+	return date;
+}
+
 function lastDayOfMonth(year, month1) {
 	// month1 is 1-based; day 0 of the next month is the last day of this one.
 	return new Date(Date.UTC(year, month1, 0)).getUTCDate();
@@ -270,9 +298,11 @@ function daysBetween(fromISO, toISO) {
  * move the item into that section. Repeated skipping usually means the cadence is wrong rather
  * than that the item is dead, so this is the alternative to deleting it.
  */
-function buildLengthen(target, child, todayISO) {
+function buildLengthen(target, child, todayISO, weekday) {
 	if (!target?.id) return null; // Top of the ladder, or a section we cannot address by id.
-	const nextDate = addInterval(todayISO, target.interval);
+	const nextDate = weekday
+		? anchorToWeekday(todayISO, target.interval, weekday)
+		: addInterval(todayISO, target.interval);
 	const newName = swapTimeElement(child.name, buildTimeElement(nextDate));
 	return {
 		section: target.name,
@@ -307,10 +337,18 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 				const isCompleted = child.completedAt != null;
 				const date = parseTimeISO(child.name);
 				const hardDeadline = isCompleted ? null : hardDeadlineFor(child, date);
+				const weekday = isCompleted ? null : weekdayAnchorFor(child);
+				if (weekday && hardDeadline) {
+					throw new Error(`Next: <weekday> cannot combine with Hard deadline on ${child.id}`);
+				}
 				const due = hardDeadline ? addInterval(date, {amount: -hardDeadline.leadDays, unit: 'd'}) : date;
 				if (due && due <= todayISO && !isCompleted) {
 					const needsInterval = interval === null;
-					const nextStoredDate = needsInterval ? null : addInterval(hardDeadline ? date : todayISO, interval);
+					const nextStoredDate = needsInterval
+						? null
+						: weekday
+							? anchorToWeekday(todayISO, interval, weekday)
+							: addInterval(hardDeadline ? date : todayISO, interval);
 					const nextDate =
 						hardDeadline && nextStoredDate
 							? addInterval(nextStoredDate, {amount: -hardDeadline.leadDays, unit: 'd'})
@@ -331,6 +369,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						name: child.name,
 						due,
 						hardDeadline: hardDeadline ? {...hardDeadline, nextDate: nextStoredDate} : null,
+						weekday,
 						overdueByDays: daysBetween(due, todayISO),
 						isLlmTask: /#llm-task/.test(child.name),
 						url: workflowyUrl(child.shortId),
@@ -343,7 +382,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						applyOp,
 						skipStreak: streak?.skipStreak ?? 0,
 						skippedSince: streak?.skippedSince ?? null,
-						lengthen: hardDeadline ? null : buildLengthen(lengthenTarget, child, todayISO),
+						lengthen: hardDeadline ? null : buildLengthen(lengthenTarget, child, todayISO, weekday),
 					});
 				}
 				if (child.children?.length) walk(child);

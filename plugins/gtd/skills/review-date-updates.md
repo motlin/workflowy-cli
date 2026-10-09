@@ -45,6 +45,10 @@ Use the `Every 4 weeks` section for a fixed 28-day cycle. For example, an invent
 
 Warn before any requested postponement: show the actual deadline, early review date, proposed date, and lost lead time or missed-deadline consequence. Require explicit confirmation of that consequence before changing the schedule; a reminder or decision to defer does not move the external deadline. Do not promote Skip, Push it out, or Less often for these rows. See `due.md` for the walk rules.
 
+## Weekday-anchored cadence
+
+Place a direct child named `Next: Saturday` (any full weekday name) under a recurring item to pin every advance to that weekday: the next date is the first matching weekday within the week ending at the section's plain interval date, never on or before today. It cannot combine with `Hard deadline:`.
+
 ## `<time>` Element Format
 
 ```html

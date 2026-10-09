@@ -668,6 +668,7 @@ test('hard deadlines become due three days early and retain the external cycle a
 		name: 'Example renewal <time startYear="2000" startMonth="1" startDay="1">Sat, Jan 1, 2000</time> ',
 		due: '1999-12-29',
 		hardDeadline: {date: '2000-01-01', leadDays: 3, nextDate: '2000-01-29'},
+		weekday: null,
 		overdueByDays: 4,
 		isLlmTask: false,
 		url: 'https://workflowy.com/#/test-short',
@@ -719,4 +720,113 @@ test('hard deadline markers reject malformed, duplicate, and undated configurati
 		() => computeOverdue(undated, '2000-01-01'),
 		new Error('Hard deadline requires a dated item: test-deadline'),
 	);
+});
+
+const WEEKDAY_TREE = {
+	children: [
+		{
+			name: 'Weekly Review',
+			children: [
+				{
+					id: 'test-weekday',
+					shortId: 'weekday-short',
+					name: 'Example chore ' + buildTimeElement('2000-01-01'),
+					children: [{name: 'Next: Saturday'}],
+				},
+			],
+		},
+		{
+			name: 'Daily Review',
+			children: [
+				{
+					id: 'test-daily-weekday',
+					name: 'Daily chore ' + buildTimeElement('2000-01-01'),
+					children: [{name: 'Next: Saturday'}],
+				},
+			],
+		},
+		{
+			name: 'Monthly Review',
+			id: 'test-monthly',
+			children: [
+				{
+					id: 'test-monthly-weekday',
+					name: 'Monthly chore ' + buildTimeElement('2000-01-01'),
+					children: [{name: 'Next: sunday'}],
+				},
+			],
+		},
+	],
+};
+
+test('a Next: <weekday> marker lands the advanced date on the next matching weekday', () => {
+	// 2000-01-05 is a Wednesday. Weekly: the next Saturday, not Wednesday + 7.
+	// Daily: today + 1 is Thursday, so it rolls forward to Saturday.
+	// Monthly: the last Sunday on or before Wed Feb 5 (Feb 5 + 0..6 back), i.e. Feb 6 is a Sunday -> Jan 30.
+	const rows = computeOverdue(WEEKDAY_TREE, '2000-01-05');
+	assert.deepStrictEqual(
+		rows.map((row) => ({id: row.id, nextDate: row.nextDate, weekday: row.weekday, applyOp: row.applyOp})),
+		[
+			{
+				id: 'test-weekday',
+				nextDate: '2000-01-08',
+				weekday: 'Saturday',
+				applyOp: `./bin/run.js node update --id test-weekday --name 'Example chore <time startYear="2000" startMonth="1" startDay="8">Sat, Jan 8, 2000</time> '`,
+			},
+			{
+				id: 'test-daily-weekday',
+				nextDate: '2000-01-08',
+				weekday: 'Saturday',
+				applyOp: `./bin/run.js node update --id test-daily-weekday --name 'Daily chore <time startYear="2000" startMonth="1" startDay="8">Sat, Jan 8, 2000</time> '`,
+			},
+			{
+				id: 'test-monthly-weekday',
+				nextDate: '2000-01-30',
+				weekday: 'Sunday',
+				applyOp: `./bin/run.js node update --id test-monthly-weekday --name 'Monthly chore <time startYear="2000" startMonth="1" startDay="30">Sun, Jan 30, 2000</time> '`,
+			},
+		],
+	);
+});
+
+test('a weekday-anchored item completed on its weekday advances a full week, not zero days', () => {
+	// 2000-01-08 is a Saturday.
+	const [row] = computeOverdue(WEEKDAY_TREE, '2000-01-08');
+	assert.deepStrictEqual(
+		{nextDate: row.nextDate, weekday: row.weekday},
+		{nextDate: '2000-01-15', weekday: 'Saturday'},
+	);
+});
+
+test('an unanchored row reports weekday null', () => {
+	const [row] = computeOverdue(HARD_DEADLINE_TREE, '2000-01-02');
+	assert.strictEqual(row.weekday, null);
+});
+
+test('weekday markers reject malformed, duplicate, and hard-deadline combinations', () => {
+	for (const marker of ['Next: Sat', 'Next: someday', 'Next: Saturday please']) {
+		const tree = structuredClone(WEEKDAY_TREE);
+		tree.children[0].children[0].children = [{name: marker}];
+		assert.throws(() => computeOverdue(tree, '2000-01-05'), new Error('Expected Next: <weekday> on test-weekday'));
+	}
+	const duplicate = structuredClone(WEEKDAY_TREE);
+	duplicate.children[0].children[0].children.push({name: 'Next: Sunday'});
+	assert.throws(
+		() => computeOverdue(duplicate, '2000-01-05'),
+		new Error('Multiple Next: <weekday> markers on test-weekday'),
+	);
+	const both = structuredClone(WEEKDAY_TREE);
+	both.children[0].children[0].children.push({name: 'Hard deadline: 3d'});
+	assert.throws(
+		() => computeOverdue(both, '2000-01-05'),
+		new Error('Next: <weekday> cannot combine with Hard deadline on test-weekday'),
+	);
+});
+
+test('lengthening a weekday-anchored item keeps the weekday', () => {
+	const tree = structuredClone(WEEKDAY_TREE);
+	tree.children[0].id = 'test-weekly';
+	const [row] = computeOverdue(tree, '2000-01-05');
+	// Next rung above Weekly is Monthly: last Saturday on or before Feb 5 is Feb 5 itself.
+	assert.strictEqual(row.lengthen.nextDate, '2000-02-05');
 });
