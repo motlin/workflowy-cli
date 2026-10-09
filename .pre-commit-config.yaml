@@ -37,6 +37,13 @@ repos:
         language: system
         files: '(?i)(^|/)\.?justfile$|\.just$'
         types: [file]
+      # Runs before oxfmt: fallow fix rewrites package.json with 2-space indentation, which vp fmt must re-tab.
+      - id: fallow
+        name: fallow
+        entry: vp exec fallow fix --base HEAD --yes --no-create-config
+        language: system
+        pass_filenames: false
+        types: [file]
       - id: oxfmt
         name: vp fmt
         entry: vp fmt --no-error-on-unmatched-pattern
@@ -55,9 +62,3 @@ repos:
         # Keep in sync with ignores in .markdownlint-cli2.jsonc.
         # CLAUDE.md contains the vp-generated Vite+ block, which markdownlint rules would flag.
         exclude: "^(node_modules/|\\.llm/|\\.claude/|dist/|packages/[^/]+/dist/|backups/|AGENTS\\.md$|CLAUDE\\.md$|CLAUDE\\.local\\.md$)"
-      - id: fallow
-        name: fallow
-        entry: vp exec fallow fix --base HEAD --yes --no-create-config
-        language: system
-        pass_filenames: false
-        types: [file]
