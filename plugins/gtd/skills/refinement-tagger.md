@@ -30,7 +30,7 @@ Classify against `ITEM_NAME` plus any note/children context — captured items o
 
 - `.llm/gtd/metadata/projects/*.json` — one file per project; match item text against project names/slugs.
 - `.llm/gtd/metadata/people.json` — canonical people roster. It is large: extract with `jq`, never read the whole file into context.
-- `.llm/gtd/metadata/contexts.json` — location/mode `#tags` (`#home`, `#call`, `#errands`, …).
+- `.llm/gtd/metadata/context-tags.json` — location/mode `#tags` (`#home`, `#call`, `#errands`, …).
 
 If a needed file is missing or stale, emit a null/empty result with `low` confidence rather than guessing — a missing tag is cheap to add later.
 
