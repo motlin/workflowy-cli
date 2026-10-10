@@ -261,7 +261,7 @@ Create a node under `Inbox`:
 
 Keep it a single actionable line; put longer context in provenance children below. Don't invent facts the meeting didn't contain — enrich only from what was actually said.
 
-Add the provenance — meeting link and brief source context — as **child nodes**, never as a Workflowy note (see CLAUDE.local.md):
+Add the provenance — meeting link and brief source context — as **child nodes**, never as a Workflowy note, since `--note` is reserved for verbatim source quotes (see `${CLAUDE_PLUGIN_ROOT}/skills/capture-provenance.md`, Notes Field):
 
 ```bash
 ./bin/run.js node create --parent-id <new-inbox-node-id> --name 'From: <a href="https://otter.ai/u/<otid>">Meeting name</a> <time>...</time>'
