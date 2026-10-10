@@ -22,7 +22,7 @@
 		"@workflowy/shared": "workspace:*",
 		"better-sqlite3": "^13.0.3",
 		"diff": "^9.0.0",
-		"drizzle-orm": "^0.45.3",
+		"drizzle-orm": "^0.45.4",
 		"hono": "^4.13.12",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
