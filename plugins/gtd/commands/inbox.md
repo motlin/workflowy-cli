@@ -37,6 +37,10 @@ ITEM_COUNT=$(jq '[.inboxes[].items | length] | add' .llm/gtd-inboxes.json)
 
 If `ITEM_COUNT` is 0, celebrate "Inbox Zero!" and exit.
 
+If the loader returns `status: "error"` with a `Broken inbox registration` message, stop and show the message: a link under Metadata > 📥 Inboxes points at a missing node, so an inbox would be skipped. Do not process a partial inbox; ask the user to repoint the link and reload.
+
+**Same-title siblings.** Read each inbox's `probableDuplicates` from `.llm/gtd-inboxes.json`. Every group is a probable duplicate: two or more open items in the same inbox with the same visible title. When presenting any item in a group, prefix the question with `Probable duplicate of '<title>' (N copies)` and offer **Delete** as the duplicate's suggested action for every copy after the first. Never delete or merge a copy without the user's answer.
+
 ### Partition Items by Refinement Status
 
 Partition inbox items into two groups:

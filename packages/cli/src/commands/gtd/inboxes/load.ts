@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createDatabase} from '../../../db/index.js';
 import {CacheService} from '../../../services/cache.js';
+import {findSameTitleSiblings, resolveInboxLinks} from '../../../services/inbox-registry.js';
 import {findUnregisteredInboxes} from '../../../services/unregistered-inboxes.js';
 
 interface InboxItem {
@@ -19,6 +20,7 @@ interface Inbox {
 	name: string;
 	linkId: string;
 	items: InboxItem[];
+	probableDuplicates: {title: string; ids: string[]}[];
 }
 
 interface InboxesOutput {
@@ -84,27 +86,14 @@ export default class Load extends Command {
 		// Get children of Inboxes node (these are links to actual inboxes)
 		const inboxLinks = await cacheService.getChildren(inboxesNode.id);
 
-		// Batch-resolve all link targets from anchor tags in inbox link names
-		const shortIdToChildId = new Map<string, string>();
-		for (const child of inboxLinks) {
-			const shortId = this.extractWorkflowyLinkShortId(child.name ?? '');
-			if (shortId) {
-				shortIdToChildId.set(shortId, child.id);
-			}
-		}
-
-		const shortIdToUuid =
-			shortIdToChildId.size > 0
-				? await cacheService.resolveMultipleShortIds([...shortIdToChildId.keys()])
-				: new Map<string, string>();
-
-		// Build a child.id -> target UUID map
-		const childIdToTargetUuid = new Map<string, string>();
-		for (const [shortId, childId] of shortIdToChildId) {
-			const uuid = shortIdToUuid.get(shortId);
-			if (uuid) {
-				childIdToTargetUuid.set(childId, uuid);
-			}
+		const {targets: childIdToTargetUuid, broken} = await resolveInboxLinks(database, inboxLinks);
+		if (broken.length > 0) {
+			const details = broken
+				.map((link) => `${link.name} (link ${link.linkId} -> missing ${link.shortId})`)
+				.join('; ');
+			this.error(
+				`Broken inbox registration under Metadata > 📥 Inboxes: ${details}. The linked inbox no longer exists, so the real inbox would be skipped. Repoint the link before loading.`,
+			);
 		}
 
 		for (const child of inboxLinks) {
@@ -137,6 +126,7 @@ export default class Load extends Command {
 				name: inboxName,
 				linkId: child.id,
 				items,
+				probableDuplicates: findSameTitleSiblings(items),
 			});
 		}
 
@@ -164,6 +154,9 @@ export default class Load extends Command {
 		const summary = {
 			loadedAt: output.loadedAt,
 			unregisteredInboxes,
+			probableDuplicates: inboxes.flatMap((inbox) =>
+				inbox.probableDuplicates.map((group) => ({inbox: inbox.name, ...group})),
+			),
 			inboxCount: output.inboxes.length,
 			itemCount: output.itemCount,
 		};
@@ -220,11 +213,6 @@ export default class Load extends Command {
 
 			currentLevelIds = nextLevelIds;
 		}
-	}
-
-	private extractWorkflowyLinkShortId(name: string): string | null {
-		const match = name.match(/<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{12})">/i);
-		return match ? match[1] : null;
 	}
 
 	private extractAnchorText(html: string): string {
