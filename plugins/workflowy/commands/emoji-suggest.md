@@ -92,9 +92,9 @@ For each journal entry bullet:
 
 **For entries needing emojis:**
 
-1. **Check for hashtag with preferred emoji** - Extract any `#tag` from the entry text and look it up in the metadata emoji map from the Load Metadata section. If found, use that emoji directly without asking (auto-apply) or offer it as the only option.
+- **First, check for hashtag with preferred emoji** - Extract any `#tag` from the entry text and look it up in the metadata emoji map from the Load Metadata section. If found, use that emoji directly without asking (auto-apply) or offer it as the only option.
 
-2. **Otherwise, suggest contextual options** - Analyze the content to suggest exactly 4 appropriate emoji options based on themes like: exercise, food, TV, family, work, travel, games, medical, shopping, weather, etc.
+- **Otherwise, suggest contextual options** - Analyze the content to suggest exactly 4 appropriate emoji options based on themes like: exercise, food, TV, family, work, travel, games, medical, shopping, weather, etc.
 
 ### Batch Processing
 

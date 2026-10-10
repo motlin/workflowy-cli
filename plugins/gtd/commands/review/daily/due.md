@@ -343,10 +343,10 @@ Reminders accepts a small number of AppleScript writes and then stops responding
 
 So do **not** write a reminder per walk item. Instead:
 
-1. Walk every reminder row and collect the user's decisions in memory. Workflowy and Things writes still happen immediately; only Reminders is deferred. A **Move to Workflowy** answer therefore splits: its Workflowy create runs now, and its reminder deletion joins this batch.
-2. After the last item, quit and relaunch Reminders.app (`osascript -e 'tell application "Reminders" to quit'`, `pkill -9 -x Reminders` if it survives, `open -a Reminders`, sleep ~10).
-3. Apply every reminder change in **one** `osascript` file with a generous `timeout` (180s), using handlers that look each reminder up by name and return a per-item status line.
-4. **Verify with `reminders_fetch`, never with the script's exit code.** A batch that times out part-way still applies everything it reached, so diff the incomplete list against the decisions and retry only the stragglers individually.
+- First, walk every reminder row and collect the user's decisions in memory. Workflowy and Things writes still happen immediately; only Reminders is deferred. A **Move to Workflowy** answer therefore splits: its Workflowy create runs now, and its reminder deletion joins this batch.
+- After the last item, quit and relaunch Reminders.app (`osascript -e 'tell application "Reminders" to quit'`, `pkill -9 -x Reminders` if it survives, `open -a Reminders`, sleep ~10).
+- Then apply every reminder change in **one** `osascript` file with a generous `timeout` (180s), using handlers that look each reminder up by name and return a per-item status line.
+- Finally, **verify with `reminders_fetch`, never with the script's exit code.** A batch that times out part-way still applies everything it reached, so diff the incomplete list against the decisions and retry only the stragglers individually.
 
 Two behaviors that look like failures and are not:
 

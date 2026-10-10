@@ -191,7 +191,7 @@ const colorRegex = /<span class="colored (c-\w+)">([^<]+)<\/span>/g;
 
 ## Best Practices
 
-1. **Always use proper HTML format** - Don't append raw URLs; use `<a href="...">text</a>`
-2. **Display text should be meaningful** - Don't repeat the URL as display text
-3. **Dates should match display** - The text inside `<time>` should match the attributes
-4. **Colors for visual hierarchy** - Use colors consistently (e.g., green=done, red=urgent)
+- **Always use proper HTML format** - Don't append raw URLs; use `<a href="...">text</a>`
+- **Display text should be meaningful** - Don't repeat the URL as display text
+- **Dates should match display** - The text inside `<time>` should match the attributes
+- **Colors for visual hierarchy** - Use colors consistently (e.g., green=done, red=urgent)

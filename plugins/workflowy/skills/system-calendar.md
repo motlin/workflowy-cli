@@ -63,9 +63,9 @@ The day node name contains the date in display format: `<time ...>Sat, Jan 3, 20
 
 When a user clicks the "Today" button in Workflowy:
 
-1. Workflowy creates any missing hierarchy nodes (year, month, day)
-2. Creates an **empty child node** under the day
-3. Navigates the user to that empty child node
+- Workflowy creates any missing hierarchy nodes (year, month, day)
+- Then creates an **empty child node** under the day
+- Then navigates the user to that empty child node
 
 This means the URL after clicking "Today" points to the empty child, not the day node itself.
 
@@ -93,8 +93,8 @@ If the first child is empty (`name: ""`), that's the "today" capture point.
 
 To add an item under today's date:
 
-1. First, find or create the day node (see calendar-dates skill)
-2. Create the item as a child of the day node:
+- First, find or create the day node (see calendar-dates skill)
+- Then create the item as a child of the day node:
 
 ```bash
 ./bin/run.js node create \
