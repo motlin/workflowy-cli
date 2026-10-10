@@ -75,12 +75,36 @@ const validateSourceMessage = (task, entry, index, errors) => {
 	}
 };
 
+// Apply links each question to the source email (a Gmail rfc822msgid search URL) and to the
+// sign-up/RSVP links in its body, so the user can act without hunting for the message.
+// messageId is an RFC 822 Message-ID, not a Workflowy node id, so it is exempt from the stray-id check.
+const NON_NODE_ID_FIELDS = {'email-calendar': new Set(['messageId'])};
+const isHttpUrl = (value) => typeof value === 'string' && /^https?:\/\/\S+$/.test(value);
+
+const validateSourceLinks = (task, entry, index, errors) => {
+	if (!LEDGER_KEY_TASKS.has(task)) {
+		return;
+	}
+	if (!isNonBlank(entry.messageId)) {
+		errors.push(
+			`proposals[${index}]: ${task} proposal is missing "messageId" (RFC 822 Message-ID) — apply builds the Gmail link to the source email from it`,
+		);
+	}
+	if (!Array.isArray(entry.actionLinks) || !entry.actionLinks.every(isHttpUrl)) {
+		errors.push(
+			`proposals[${index}]: ${task} proposal needs "actionLinks" as an array of http(s) URLs (empty when the email has none)`,
+		);
+	}
+};
+
 const validateProposalEntry = (task, entry, index, errors) => {
 	validateLedgerKey(task, entry, index, errors);
 	validateSourceMessage(task, entry, index, errors);
+	validateSourceLinks(task, entry, index, errors);
 
+	const exemptIdFields = NON_NODE_ID_FIELDS[task] ?? new Set();
 	for (const field of Object.keys(entry)) {
-		if (field !== 'nodeId' && ID_FIELD.test(field)) {
+		if (field !== 'nodeId' && !exemptIdFields.has(field) && ID_FIELD.test(field)) {
 			errors.push(strayIdError(index, field));
 			return;
 		}

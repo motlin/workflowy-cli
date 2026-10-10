@@ -154,6 +154,8 @@ const emailCalendarProposal = (overrides = {}) => ({
 	account: 'alice',
 	mailbox: 'INBOX',
 	messageUid: 12345,
+	messageId: '<CAB12345@mail.example.com>',
+	actionLinks: ['https://example.com/rsvp/12345'],
 	before: 'Unread email offering registration for a dinner on Sep 25',
 	after: '🍽️ Book club dinner — Fri Sep 25 2026',
 	changes: [{type: 'category', icon: '🏷️', detail: 'New calendar event from unread email'}],
@@ -241,6 +243,61 @@ test('rejects an email-calendar proposal whose messageUid is not a positive inte
 		errors: [
 			'proposals[0]: email-calendar proposal is missing source message field(s) messageUid — apply needs them to trash the email on "Reject and delete"',
 			'proposals[1]: email-calendar proposal is missing source message field(s) account, messageUid — apply needs them to trash the email on "Reject and delete"',
+		],
+	});
+});
+
+test('rejects an email-calendar proposal missing messageId, since apply links the user to the source email', () => {
+	const {messageId: _messageId, ...withoutMessageId} = emailCalendarProposal();
+	const result = validateProposal(
+		emailCalendarStaged({proposals: [withoutMessageId, emailCalendarProposal({messageId: ' '})]}),
+	);
+
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: email-calendar proposal is missing "messageId" (RFC 822 Message-ID) — apply builds the Gmail link to the source email from it',
+			'proposals[1]: email-calendar proposal is missing "messageId" (RFC 822 Message-ID) — apply builds the Gmail link to the source email from it',
+		],
+	});
+});
+
+test('rejects an email-calendar proposal whose actionLinks is not an array of http(s) URLs', () => {
+	const {actionLinks: _actionLinks, ...withoutActionLinks} = emailCalendarProposal();
+	const result = validateProposal(
+		emailCalendarStaged({
+			proposals: [
+				withoutActionLinks,
+				emailCalendarProposal({actionLinks: 'https://example.com/rsvp'}),
+				emailCalendarProposal({actionLinks: ['mailto:rsvp@example.com']}),
+			],
+		}),
+	);
+
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: email-calendar proposal needs "actionLinks" as an array of http(s) URLs (empty when the email has none)',
+			'proposals[1]: email-calendar proposal needs "actionLinks" as an array of http(s) URLs (empty when the email has none)',
+			'proposals[2]: email-calendar proposal needs "actionLinks" as an array of http(s) URLs (empty when the email has none)',
+		],
+	});
+});
+
+test('accepts an email-calendar proposal with no action links', () => {
+	assert.deepStrictEqual(
+		validateProposal(emailCalendarStaged({proposals: [emailCalendarProposal({actionLinks: []})]})),
+		{valid: true, errors: []},
+	);
+});
+
+test('still rejects messageId as a stray node id on other tasks', () => {
+	const result = validateProposal(staged({proposals: [proposal({messageId: '<CAB12345@mail.example.com>'})]}));
+
+	assert.deepStrictEqual(result, {
+		valid: false,
+		errors: [
+			'proposals[0]: stages a second node id "messageId" — a proposal carries only nodeId; put every other id inside an applyOps command',
 		],
 	});
 });

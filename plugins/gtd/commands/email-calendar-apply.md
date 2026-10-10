@@ -7,7 +7,12 @@ description: Confirm staged email-derived calendar candidates, create accepted e
 
 Read `.llm/gtd/review/proposals/email-calendar.json` and follow the shared apply routine.
 
-Present each ready candidate with its source, proposed event details, and target calendar. Offer four options per candidate:
+Present each ready candidate with its source, proposed event details, and target calendar. Every question includes, inside the question text itself, a clickable link to the source email and every staged action link:
+
+- **Email** — `https://mail.google.com/mail/?authuser=<account email>#search/rfc822msgid%3A<messageId>`, where `<account email>` is the address of the staged `account` (`<account>@gmail.com`) and `<messageId>` is the staged `messageId` URL-encoded with `encodeURIComponent` (angle brackets included). `authuser` takes the address rather than a `/u/N` index because those indices shift between Chrome profiles.
+- **Links** — each URL in `actionLinks`, verbatim, one per line. Omit the line when `actionLinks` is empty.
+
+Offer four options per candidate:
 
 - **Accept** — create the event and verify it exists.
 - **Accept with note** — create the event with the user's edits applied, then verify it exists.

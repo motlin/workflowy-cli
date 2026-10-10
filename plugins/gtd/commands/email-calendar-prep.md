@@ -46,7 +46,9 @@ The stable identity is staged as `key` and the alternates as `altKeys` — the e
 	"account": "<account>",
 	"mailbox": "INBOX",
 	"messageUid": 12345,
-	"uidValidity": 67890
+	"uidValidity": 67890,
+	"messageId": "<CAB12345@mail.example.com>",
+	"actionLinks": ["https://example.com/rsvp/12345"]
 }
 ```
 
@@ -54,7 +56,14 @@ The stable identity is staged as `key` and the alternates as `altKeys` — the e
 
 Stage the source email's coordinates on every proposal so `email-calendar-apply` can trash it on **Reject and delete** without searching for it. `account` is the `<account>` segment of the IMAP MCP server that returned the message (`mcp__gmail-<account>-imap__*`), `mailbox` is the mailbox it was read from, and `messageUid` is its IMAP UID as an integer. Include `uidValidity` whenever the search result reports it, so a UID from a stale mailbox generation fails safely instead of hitting another message. Read the message without marking it seen.
 
-Derive `key` from the source message (`<account>-imap-uid-<uid>`, suffixed with the event date when one email yields several events). `altKeys` carry the title-and-date and subject-and-sender forms so a forwarded or re-sent copy still matches. After writing the file, run the validator; it rejects any `email-calendar` proposal whose `key` is missing, null, blank, or staged under another name, or that lacks `account`, `mailbox`, or an integer `messageUid`:
+## Source link fields
+
+Stage the links apply shows in each question, so the user can open the email or sign up without an extra IMAP fetch:
+
+- `messageId` — the source email's RFC 822 `Message-ID` header, verbatim including the angle brackets. Apply turns it into a Gmail `rfc822msgid:` search link.
+- `actionLinks` — every sign-up, RSVP, registration, ticket, or form URL in the body, as absolute `http(s)` URLs in the order they appear. Unwrap tracking redirects when the real target is visible in the URL; drop unsubscribe, preference, social, and logo links. Stage `[]` when the email has none.
+
+Derive `key` from the source message (`<account>-imap-uid-<uid>`, suffixed with the event date when one email yields several events). `altKeys` carry the title-and-date and subject-and-sender forms so a forwarded or re-sent copy still matches. After writing the file, run the validator; it rejects any `email-calendar` proposal whose `key` is missing, null, blank, or staged under another name, that lacks `account`, `mailbox`, an integer `messageUid`, or `messageId`, or whose `actionLinks` is not an array of `http(s)` URLs:
 
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/email-calendar.json
