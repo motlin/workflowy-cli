@@ -11,7 +11,7 @@ The interactive half of the birthdays split. Reads what `/gtd:birthdays-prep` st
 
 Run `/gtd:birthdays-prep` first; in the daily review it runs automatically as a Phase 0 prep subagent.
 
-**Check `generatedFor` against today's date before presenting anything.** A long review can cross midnight, and a briefing computed for yesterday will announce yesterday's events and stay silent about today's. If they differ, re-run the prep for the current day and use the fresh result. This is not optional — it is exactly how an anniversary passed unannounced on 2026-08-20 during a review that started on the 19th.
+**Check `generatedFor` against today's date before presenting anything.** A long review can cross midnight, and a briefing computed for yesterday will announce yesterday's events and stay silent about today's. If they differ, re-run the prep for the current day and use the fresh result. This is not optional — otherwise an event that falls just after midnight passes unannounced.
 
 ## Announce today and the next three days through AskUserQuestion
 

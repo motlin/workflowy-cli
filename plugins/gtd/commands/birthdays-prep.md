@@ -32,7 +32,7 @@ A person with a `🪦 Date of death` field keeps their birthday and anniversary:
 
 ## Roll passed occurrences forward
 
-A next-occurrence date whose day has passed is stale: it will never match again, and the person silently drops out of the briefing forever. This task **owns** rolling those forward — nothing else does, which is how twelve fields (including the user's own children's birthdays) sat a month or more in the past until 2026-08-21.
+A next-occurrence date whose day has passed is stale: it will never match again, and the person silently drops out of the briefing forever. This task **owns** rolling those forward — nothing else does, so a skipped roll-forward leaves fields stale indefinitely.
 
 For every `🎂 Birthday:` and `💍 Anniversary:` field whose stored date is before today, advance it one year and rewrite the `<time>` element with the correct weekday label for the new date. Feb 29 in a non-leap year falls back to Feb 28. Guard each write with `--expect-name` so a hand-edited field is a loud skip, never a silent overwrite:
 

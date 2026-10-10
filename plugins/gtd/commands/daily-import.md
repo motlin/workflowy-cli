@@ -16,7 +16,7 @@ timeout 90 op run -- true   # 1Password: this is the call the review actually ma
 Use **`op run`**, not `op vault list` and not `op whoami`.
 
 - `op whoami` reports `account is not signed in` and exits 1 under desktop-app (system auth) integration — how this machine is set up — even while secret resolution works perfectly. It reads a session-token field system auth never populates.
-- `op vault list` is not sufficient either, and this is the trap: it can exit 0 while `op run` still fails. `op run` initializes a **separate** client that raises its own desktop authorization prompt, and if nobody approves that prompt it dies with `error initializing client: authorization timeout`. On 2026-08-27 `op vault list` passed the preflight cleanly and `op run` then timed out twice on the barrier and again inside the Otter scanner.
+- `op vault list` is not sufficient either, and this is the trap: it can exit 0 while `op run` still fails. `op run` initializes a **separate** client that raises its own desktop authorization prompt, and if nobody approves that prompt it dies with `error initializing client: authorization timeout`.
 
 Only `op run` proves `op run` works. Warming it here means the authorization prompt is approved **once, in the foreground, while the user is present** — instead of firing inside a background subagent that cannot surface it.
 
