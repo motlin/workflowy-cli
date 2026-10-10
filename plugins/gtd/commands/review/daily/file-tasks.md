@@ -46,16 +46,16 @@ Every root should match Work's canonical shape before filing:
 ```text
 ☑️ Next (…)
 ├── 📋 Meeting agendas        (container)
-├── ✅ Tasks                  (wrapper)
-│   ├── ⏰ Tasks (due dates) (…)
-│   └── 📌 Tasks (asap) (…)
-└── 📄 Drafts                 (container)
+└── ✅ Tasks                  (wrapper)
+    ├── ⏰ Tasks (due dates) (…)
+    └── 📌 Tasks (asap) (…)
 ```
 
-Detect each piece by **emoji prefix** (`📋` / `✅` / `📄` / `⏰` / `📌`), not exact text — the bucket names carry a `(work)` / `(personal)` suffix. Create only what's missing; resolve full UUIDs via `node get` before any write (writes need the full UUID). This check is idempotent — once both roots match, it's a no-op.
+Detect each piece by **emoji prefix** (`📋` / `✅` / `⏰` / `📌`), not exact text — the bucket names carry a `(work)` / `(personal)` suffix. Create only what's missing; resolve full UUIDs via `node get` before any write (writes need the full UUID). This check is idempotent — once both roots match, it's a no-op.
 
 - **`✅ Tasks` wrapper** — if the root already has a `✅ Tasks` child holding the two buckets, leave it. If the buckets are direct children of the root (Personal today), `node create` a `✅ Tasks` child, then `node move` the `⏰` bucket and the `📌` bucket into it, due-dates first.
-- **Sibling containers** — ensure `📋 Meeting agendas` and `📄 Drafts` exist as peers of `✅ Tasks`; create any missing one **empty**. Order the three to match Work (`📋 Meeting agendas`, `✅ Tasks`, `📄 Drafts`); since `node move` positions only `top` / `bottom`, sequence the moves to land that order (move `📋` to `top`, then `📄` to `bottom`). Container order relative to loose tasks is cosmetic — loose tasks get filed away below.
+- **Sibling container** — ensure `📋 Meeting agendas` exists as a peer of `✅ Tasks`; create it **empty** when missing, and `node move` it to `top`. Container order relative to loose tasks is cosmetic — loose tasks get filed away below.
+- **No `📄 Drafts` container** — drafts live on the asap ladder tagged `#drafts`, because work filed into a separate drafts container is never ranked or reviewed and goes there to die. If a root still has a `📄 Drafts` child, that is pre-migration data: its children are swept as loose tasks (see **Collect loose tasks**), and once the walk has filed every one of them, `node delete` the empty container. Never create one. Report this as a migration, not a routine normalization.
 - **No timeframe sub-buckets** — the `⏰` bucket holds dated tasks directly. If a `Today` / `This week` / `This month` container is found inside it, that is pre-migration data: move its children up into the bucket, give any child missing a `<time>` the date its container implied (`resolveTimeframe`), then delete the empty container. Report this as a migration, not a routine normalization.
 - **Tiers, not categories, in the `📌` bucket** — its children are ordinal tiers `1st`, `2nd`, `3rd`, … If `readLadder` reports category containers (`💻 Coding`, `Administrative`, `👤 Personal`, …) in `unfiled`, that is pre-migration data: run the category-to-`#tag` migration in `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`, which confirms the tag mapping with the user, tags and un-nests each task, builds the ladder, and deletes the emptied containers. Report this as a migration, not a routine normalization.
 
@@ -67,10 +67,10 @@ From each root's JSON, a **loose task** is any actionable item **not already ins
 
 - The two bucket containers and all their descendants (asap tiers, leftover category sub-nodes, `Today` / `This week` / `This month`, and the tasks already filed under them).
 - The `✅ Tasks` wrapper node itself.
-- The structural containers `📋 Meeting agendas` and `📄 Drafts` and their entire subtrees — these are distinct workflows, never swept. (`📋 Meeting agendas` still gets the per-item **agenda hygiene** offer described at the end of this command. That pass never sweeps and never moves anything unasked, so it does not weaken this exclusion.)
+- The structural container `📋 Meeting agendas` and its entire subtree — a distinct workflow, never swept. (`📋 Meeting agendas` still gets the per-item **agenda hygiene** offer described at the end of this command. That pass never sweeps and never moves anything unasked, so it does not weaken this exclusion.)
 - Provenance / preview children that aren't tasks: `From: …` source lines, link-preview rows (`[p] …`, `[divider]`, `[h1]`, `[table]`, etc.). These are sub-nodes of a task, not loose tasks themselves.
 
-Loose tasks may sit **directly under the root** or **directly under `✅ Tasks`** — collect from both levels. A loose task's own children (sub-steps, notes, provenance) travel with it; never split a task from its children.
+Loose tasks may sit **directly under the root**, **directly under `✅ Tasks`**, or **directly under a leftover `📄 Drafts` container** — collect from all three. The `📄 Drafts` container node itself is not a task. Mark each task collected from `📄 Drafts` as a draft so its proposal adds `#drafts`. A loose task's own children (sub-steps, notes, provenance) travel with it; never split a task from its children.
 
 ## Read the per-root tier ladder
 
@@ -98,7 +98,7 @@ For each loose task, pick a recommended destination from signals already on the 
 
 - **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`. **Resolve the timeframe to a concrete date** with `resolveTimeframe` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs` (`Today` → today, `This week` → the upcoming Friday, `This month` → the last day of the month) and build its `<time>` element with `buildTimeElement`. Never compute the date or its weekday by hand.
 - **Lean `📌 asap` + a tier** otherwise. The tier is a **rank against what is already on the ladder**, not a topic: recommend `1st` or `2nd` only for a task the user would trade against the items already sitting there, and the **bottom tier** for everything else. Default to the bottom tier when the signal is weak — promotion is cheap, and the user reranks during rebalance. Run `planInsertion(ladder, tier)` for the recommended tier and carry its `createTiers` into the proposal. Filing into a tier only inserts the task; it never moves any other item, even when the tier is full.
-- **Topic goes on the text, not in a container.** An asap proposal also carries any missing category `#tag` implied by the task — `#code` for build / PR work, `#write` or `#document` for drafting, `#document` for a doc review, `#meeting` for 1:1 setup, `#jira` for admin, `#home`, `#personal`, `#read`, `#llm-task`. Append only tags the task does not already carry, and only ones already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry.
+- **Topic goes on the text, not in a container.** An asap proposal also carries any missing category `#tag` implied by the task — `#code` for build / PR work, `#drafts` for a draft to write, `#document` for a doc review, `#meeting` for 1:1 setup, `#jira` for admin, `#home`, `#personal`, `#read`, `#llm-task`. Append only tags the task does not already carry, and only ones already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry — except `#drafts`, which every draft gets, and always every task collected from `📄 Drafts`.
 
 Keep the driving signal as a short `reason` string for the walk to show.
 

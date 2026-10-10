@@ -117,6 +117,8 @@ For each item, extract `refinementNodeId`, `destinationPath` (from `📍 Move to
 - No `✏️ Text:` -> Keep original item text
 - No `📜 Provenance:` -> Set to null
 - `📍 Move to:` names `📋 Meeting agendas` (`f3bfcfbb-a904-62e6-06aa-29bda59a1f54`) or a node under it -> an older refinement; replace it with the bottom tier of the Work `📌 Tasks (asap)` ladder (per `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`) and mark the item `isAgenda`
+- `📍 Move to:` names `📄 Drafts` or a node under it -> an older refinement; replace it with the bottom tier of the matching `📌 Tasks (asap)` ladder (Work for a Work `📄 Drafts`, Personal for a Personal one, per `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`) and append `#drafts` to `suggestedText` when it does not already carry it.
+- `🔀 Alternative:` names `📄 Drafts` or a node under it -> an older refinement; set `alternativePath` to null
 
 ### Never ask how to file the inbox
 
