@@ -67,7 +67,7 @@ If a next-occurrence field is unparseable, contradicts its companion `👶 Date 
 
 ### Resolve estimated years from journal anchors
 
-A `👶 Date of birth` or `💒 Married on` field marked `(birth year est.)` / `(est.)` is usually resolvable, not permanently unknown. The calendar journal records ordinal occasions — "Viva's first birthday", "@VivaEsterlis 's 6th birthday at Monster Golf" — and each one back-solves the year from the date node it sits under. Two independent anchors agreeing is a confirmation; one is a proposal.
+A `👶 Date of birth` or `💒 Married on` field marked `(birth year est.)` / `(est.)` is usually resolvable, not permanently unknown. The calendar journal records ordinal occasions — "Alice's first birthday", "@Alice 's 6th birthday at the bowling alley" — and each one back-solves the year from the date node it sits under. Two independent anchors agreeing is a confirmation; one is a proposal.
 
 For each person carrying an estimated year, search the journal for their name alongside an ordinal ("first", "1st", "6th", "10th") and read the enclosing date node. When the anchors confirm the stored year, stage a proposal to drop the `(est.)` qualifier. When they contradict it, stage a data defect with both anchors named. Never rewrite the year on a single ambiguous hit.
 

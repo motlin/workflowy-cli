@@ -181,7 +181,7 @@ Match each Step 6 candidate against both arrays. Normalize both sides first: low
 
 - A substring match in either direction
 - More than ~70% overlap of significant words, ignoring stopwords and generic verbs (`do`, `check`, `look at`)
-- The same distinctive noun phrase even when the verbs differ — "reduce usages of deprecated java code" matches "deprecated Java cleanup in the monorepo"
+- The same distinctive noun phrase even when the verbs differ — "move the reports page off the legacy charting library" matches "legacy charting migration for reports"
 
 Otter text is misheard, so match on the distinctive nouns rather than the phrasing, and prefer reporting a weak match over reporting none — the user judges it in Step 8.
 
