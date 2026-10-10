@@ -27,7 +27,7 @@ The fix is not done until it is committed. A passing suite with the change still
 
 - Run `git status --short` and `git rev-parse --abbrev-ref HEAD`.
 - If HEAD is detached or on a branch you did not expect, surface it and resolve it before committing — do not commit onto a branch you cannot name.
-- Commit the fix (the `git-commit` skill), then confirm `git status --short` prints nothing.
+- Commit the fix (the `git:commit` skill), then confirm `git status --short` prints nothing.
 - Only then resume the review.
 
 The same closing step applies to every plugin-file edit the review makes, whether from a broken skill, a mid-run-notes follow-up, or a meta-feedback apply: edit, verify, commit, clean tree, resume. Leaving plugin edits uncommitted is the failure mode this guards against.

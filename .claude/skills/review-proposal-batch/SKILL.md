@@ -5,7 +5,7 @@ description: Render a batch of proposed before/after edits as a self-contained p
 
 # Review Proposal Batch
 
-Render a JSON spec of proposed edits into a polished, self-contained page with per-card Accept / Reject / Later controls, using the bundled `render_report.py`. Do not hand-write HTML or CSS — generate the JSON spec, then run the script.
+Render a JSON spec of proposed edits into a polished, self-contained page with per-card Accept / Reject / Later controls, using `plugins/gtd/scripts/render_report.py`. Do not hand-write HTML or CSS — generate the JSON spec, then run the script.
 
 The point of this skill is the **decide-then-apply** loop: the user reviews each proposed change and you act on their decisions. If there is nothing to accept or reject — i.e. you are just summarizing what happened — do not use this skill; summarize in the chat instead, so the buttons are never shown without being wired to anything.
 
@@ -39,7 +39,7 @@ All card fields except `heading` are optional. Cards with both `before` and `aft
 ## Render and open
 
 ```bash
-python3 .claude/skills/review-proposal-batch/render_report.py <input.json> <output.html> --open
+python3 plugins/gtd/scripts/render_report.py <input.json> <output.html> --open
 ```
 
 Omit `--open` to render without opening the browser. The page is fully self-contained (inline CSS, stdlib-only script) and follows the system dark/light mode.
@@ -47,7 +47,7 @@ Omit `--open` to render without opening the browser. The page is fully self-cont
 ## Interactive review with --serve
 
 ```bash
-python3 .claude/skills/review-proposal-batch/render_report.py <input.json> <output.html> --open --serve [port]
+python3 plugins/gtd/scripts/render_report.py <input.json> <output.html> --open --serve [port]
 ```
 
 Run this in the background (it blocks). Default port 8765. Every card gets Accept / Reject / Later / Undo buttons plus a rejection-note field; clicks append to `<output>.decisions.jsonl` (one JSON object per line — latest line per card id wins; ids come from `linkText`). Decisions survive page reloads via GET `/decisions`. Without `--serve` the same buttons persist to browser localStorage only.

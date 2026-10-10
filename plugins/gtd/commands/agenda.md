@@ -90,7 +90,7 @@ Write `.llm/gtd/agenda/proposals.json` matching the `review-proposal-batch` sche
 Render and serve the page in the background on port 7842 (the script blocks):
 
 ```bash
-python3 .claude/skills/review-proposal-batch/render_report.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render_report.py" \
   .llm/gtd/agenda/proposals.json .llm/gtd/agenda/proposals.html --open --serve 7842
 ```
 
