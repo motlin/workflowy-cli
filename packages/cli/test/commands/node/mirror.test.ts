@@ -52,7 +52,7 @@ describe('node:mirror command', () => {
 	function stubCreateMirrorApi(): Array<{method: string; url: string; body: unknown}> {
 		const calls: Array<{method: string; url: string; body: unknown}> = [];
 		fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-			const urlStr = String(url);
+			const urlStr = url instanceof Request ? url.url : String(url);
 			const method = init?.method ?? 'GET';
 			calls.push({method, url: urlStr, body: init?.body ? JSON.parse(init.body as string) : undefined});
 
@@ -204,7 +204,7 @@ describe('node:mirror command', () => {
 		it('sends DELETE to the mirror endpoint and removes the mirror from the cache', async () => {
 			const calls: Array<{method: string; url: string}> = [];
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				calls.push({method: init?.method ?? 'GET', url: String(url)});
+				calls.push({method: init?.method ?? 'GET', url: url instanceof Request ? url.url : String(url)});
 				return new Response(JSON.stringify({status: 'ok'}), {status: 200});
 			});
 

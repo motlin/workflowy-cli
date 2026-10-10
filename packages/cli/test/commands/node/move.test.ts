@@ -88,7 +88,7 @@ describe('node:move command', () => {
 
 			// Dry run outputs human-readable text
 			expect(stdout).toBe(
-				'Would move:\n  From: Source Node\n  To:   Target Folder\n\nExecute with:\n  oclif node:move --node-id source-id --parent-id target-id\n',
+				'Would move:\n  From: Source Node\n  To:   Target Folder\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id target-id\n',
 			);
 			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
@@ -114,7 +114,7 @@ describe('node:move command', () => {
 			});
 
 			expect(stdout).toBe(
-				'Would move:\n  From: Source\n  To:   Target\n  Position: bottom\n\nExecute with:\n  oclif node:move --node-id source-id --parent-id target-id --position bottom\n',
+				'Would move:\n  From: Source\n  To:   Target\n  Position: bottom\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id target-id --position bottom\n',
 			);
 		});
 	});

@@ -28,7 +28,7 @@ import {join, resolve} from 'node:path';
 const UUID_RE = /^[0-9A-Fa-f-]+$/;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const CURRENT = "system_to='9999-12-31 23:59:59'";
-const EMOJI_RE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{1F3FB}-\u{1F3FF}\uFE0F\u200D]/gu;
+const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D/gu;
 const ENTITIES = {'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"};
 
 export function favoritesQuery(days) {

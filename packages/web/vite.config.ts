@@ -22,6 +22,19 @@ export default defineConfig({
 	},
 	build: {
 		outDir: '../../dist/client',
+		// outDir sits outside root (src/client), so Vite will not clear it unless told to.
+		emptyOutDir: true,
+		rolldownOptions: {
+			output: {
+				// Keep third-party code out of the app chunk so neither crosses the 500 kB warning limit.
+				codeSplitting: {
+					groups: [
+						{name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/},
+						{name: 'vendor', test: /node_modules/},
+					],
+				},
+			},
+		},
 	},
 	plugins: [react()],
 });
