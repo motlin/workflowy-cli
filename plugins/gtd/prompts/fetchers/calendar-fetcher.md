@@ -31,9 +31,9 @@ mcp__imcp__events_fetch with:
 
 This returns events from all calendars synced to the system (iCloud, Google, Outlook, etc.). These are the same events displayed in Fantastical, which reads from Apple's EventKit framework.
 
-**Dedup coverage:** Because EventKit spans every synced calendar, this `fantastical` array is the authoritative source for deduping candidate events (e.g. the daily-review email→calendar scan). Callers must dedup against these EventKit events — which include **iCloud/Apple Calendar**, not just Google — and drop any candidate already present on ANY calendar. Do not dedup against Google-only. If iMCP/EventKit is unavailable this fetcher returns the fatal error contract (below) rather than a partial result, so a caller can note the dedup gap instead of silently re-proposing an already-scheduled event.
+**Dedup coverage:** Because EventKit spans every synced calendar, this `fantastical` array is the authoritative source for deduping candidate events (e.g. the daily-review email→calendar scan). Callers must dedup against these EventKit events — which include **iCloud/Apple Calendar**, not just Google — and drop any candidate already present on ANY calendar. Do not dedup against Google-only. If iMCP/EventKit is unavailable this fetcher returns the `imcp-unavailable` result (below) rather than a partial result, so a caller can note the dedup gap instead of silently re-proposing an already-scheduled event.
 
-**iMCP dependency:** This step requires iMCP. If `mcp__imcp__events_fetch` fails, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, **STOP IMMEDIATELY**: do not return an empty `fantastical` array, do not continue to the Workflowy fetch below, **do not return partial Workflowy data**. Your entire response MUST be the fatal error contract JSON with `fatal: true` — never `fatal: false`. Partial data (e.g. Workflowy-only) is NOT a valid fallback and must not be returned; the orchestrator is required to halt on any iMCP unavailability and a non-fatal partial result lets the orchestrator silently proceed.
+**iMCP dependency:** This step requires iMCP. If `mcp__imcp__events_fetch` fails, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, skip the Workflowy fetch below and return only the `imcp-unavailable` result from that file, not an empty `fantastical` array or Workflowy-only data.
 
 ## Fetch Workflowy Calendar Items (if includeWorkflowy=true)
 
@@ -135,7 +135,7 @@ Return a single JSON object at the very end of your response:
 
 **Error Handling:**
 
-- If iMCP is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. If unrecoverable, STOP and return the fatal `imcp-unavailable` JSON — never return an empty `fantastical` array as a substitute for missing iMCP data
+- If iMCP is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. If unrecoverable, return the `imcp-unavailable` result
 - If Workflowy calendar path doesn't exist: Return empty `workflowy` array (this is normal if not configured)
 - If a specific date has no items: Simply omit from results (don't include empty entries)
 
@@ -158,4 +158,4 @@ Return a single JSON object at the very end of your response:
 - Filter Workflowy results to items within the date range.
 - Return empty arrays (not null) when a source has no data, so the caller can iterate without null checks.
 
-Note: the iMCP unavailability contract above is the one exception — on unrecoverable iMCP failure, return the fatal error JSON, not an empty `fantastical` array.
+Note: the iMCP unavailability contract above is the one exception — on unrecoverable iMCP failure, return the `imcp-unavailable` result, not an empty `fantastical` array.

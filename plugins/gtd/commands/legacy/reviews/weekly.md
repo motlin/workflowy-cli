@@ -121,7 +121,7 @@ Update progress:
 
 #### Fantastical / Apple Calendar (via iMCP)
 
-Invoke `calendar-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it.` Fetch past week and upcoming week events:
+Invoke `calendar-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/fetchers/calendar-fetcher.md and follow it.` Fetch past week and upcoming week events:
 
 ```text
 Invoke calendar-fetcher agent with:
@@ -132,7 +132,7 @@ Invoke calendar-fetcher agent with:
 
 The agent returns consolidated JSON with events from all calendars synced to the system (iCloud, Google, etc.) - the same data shown in Fantastical.
 
-**iMCP halt:** If the agent returns `status: "imcp-unavailable"` (or `fatal: true`), **STOP the weekly review immediately**. Display the agent's `message` to the user and do not continue — a weekly review missing calendar data is not useful. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. The user must get iMCP running, then re-run the review.
+**iMCP halt:** If the agent returns `status: "imcp-unavailable"`, **STOP the weekly review immediately**. Display the agent's `message` to the user and do not continue — a weekly review missing calendar data is not useful. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. The user must get iMCP running, then re-run the review.
 
 Review the returned events:
 
@@ -155,13 +155,13 @@ Open Fantastical for full calendar view: `fantastical://`
 
 #### Apple Reminders (via iMCP)
 
-Invoke `reminders-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/reminders-fetcher.md and follow it.` Get categorized reminders:
+Invoke `reminders-fetcher` as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/fetchers/reminders-fetcher.md and follow it.` Get categorized reminders:
 
 ```text
 Invoke reminders-fetcher agent
 ```
 
-**iMCP halt:** If the agent returns `status: "imcp-unavailable"` (or `fatal: true`), **STOP the weekly review immediately**. Display the agent's `message` and do not continue. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
+**iMCP halt:** If the agent returns `status: "imcp-unavailable"`, **STOP the weekly review immediately**. Display the agent's `message` and do not continue. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
 
 The agent returns reminders grouped by due date status:
 

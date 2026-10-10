@@ -65,17 +65,15 @@ The review runs every phase to completion. Only a verified failure halts it, and
 
 These questions read as trying to skip steps. The user has already asked for the whole review by invoking it; volume is not new information they need to rule on. Keep working and let them interrupt if they want to stop. This applies to every phase, not just the recurring walk — `daily/due.md` bans the same openers inside its item loop.
 
-## Never work around a failure — HALT
+## Never work around a failure
 
-**This is the highest-priority rule in the review. Read it as absolute.**
-
-When _any_ step fails — a command errors, a script exits non-zero, an MCP is down, a network call hangs, or the data cannot be positively verified as fresh — **STOP the review immediately and surface the failure to the user.** Do **not**:
+When a step fails (a command errors, a script exits non-zero, an MCP is down, a network call hangs, or the data cannot be verified as fresh), retry once or twice when that is reasonable. If it still fails, stop and surface the failure, then ask the user whether to fix it or explicitly skip it. An iMCP outage is the one case with a fixed answer: follow the halt rule in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`, since only the user's `/mcp` can reconnect it. Do not:
 
 - work around it by running sub-steps yourself (e.g. the recipe failed, so you run `import-api` by hand),
 - proceed on a stale, partial, or degraded cache/dataset,
-- treat "the process exited" or "exit code 0" as success. A piped `… | tail` reports **tail's** exit code, not the command's; and a process can exit 0 having synced nothing. **Verify the actual result**, never a proxy for it.
+- treat "the process exited" or "exit code 0" as success. A piped `… | tail` reports tail's exit code, not the command's, and a process can exit 0 having synced nothing. Verify the actual result, never a proxy for it.
 
-"Continuing" is a decision that must be **earned by positive verification**, never assumed. If you cannot verify success, you have not succeeded — halt. Silently recovering or pressing on with degraded data corrupts every downstream step (a stale cache makes refinement skip the newest entries, dedup re-propose handled items, and dates advance on work that never happened). A halted review the user can re-run beats a completed review built on sand.
+Continuing requires positive verification. Pressing on with degraded data corrupts every downstream step: a stale cache makes refinement skip the newest entries, dedup re-propose handled items, and dates advance on work that never happened. A stopped review the user can re-run is better than a completed one built on bad data.
 
 ### The import barrier must be verified
 
@@ -83,7 +81,7 @@ The `Import` barrier exists so the whole fan-out reads today's data. Before any 
 
 - Run the import **without masking its exit code**. Do not pipe the barrier command through `tail`/`head` — redirect its output to a file, check `$?` on the unpiped command, then read the file. `${PIPESTATUS[0]}` is bash-only and expands to the empty string under this project's zsh, so it masks the very failure it is meant to catch (zsh's equivalent is the 1-indexed `${pipestatus[1]}`).
 - **Positively verify the live API sync landed:** `cache import-api` printed its `Fetched N nodes … / +A added, ~U updated, =… unchanged, -D deleted` summary, the node count is sane, and today's data is actually present (e.g. today's calendar date node exists). Exit code alone is insufficient.
-- If the import errored, stopped responding, or cannot be verified, **HALT** — do not fan out on a stale cache. Fix the cause (or ask the user to) and re-run the barrier from the top.
+- If the import errored, stopped responding, or cannot be verified, stop — do not fan out on a stale cache. Fix the cause (or ask the user to) and re-run the barrier from the top.
 
 ## Automated Tasks
 

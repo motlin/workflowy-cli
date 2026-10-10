@@ -23,7 +23,7 @@ mcp__imcp__reminders_fetch with:
 
 This returns all incomplete reminders from all reminder lists.
 
-**iMCP dependency:** This step requires iMCP. If `mcp__imcp__reminders_fetch` fails, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, **STOP IMMEDIATELY**: do not return empty categories. Your entire response MUST be the fatal error contract JSON with `fatal: true` — never `fatal: false`. Empty categories are NOT a valid fallback.
+**iMCP dependency:** This step requires iMCP. If `mcp__imcp__reminders_fetch` fails, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, return only the `imcp-unavailable` result from that file, not empty categories.
 
 ## Categorize by Due Date
 
@@ -96,7 +96,7 @@ Reminders without due dates are typically reference items or low-priority tasks.
 
 **Error Handling:**
 
-- If iMCP is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. If unrecoverable, STOP and return the fatal `imcp-unavailable` JSON — never return empty categories as a substitute for missing iMCP data
+- If iMCP is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`. If unrecoverable, return the `imcp-unavailable` result
 - If no reminders exist: Return empty arrays (this is normal)
 
 **Field Descriptions:**
@@ -116,4 +116,4 @@ Reminders without due dates are typically reference items or low-priority tasks.
 - Return empty arrays (not null) when a category has no data, so the caller can iterate without null checks.
 - Keep output compact by only counting noDueDate items rather than listing them.
 
-Note: the iMCP unavailability contract above is the one exception — on unrecoverable iMCP failure, return the fatal error JSON, not empty categories.
+Note: the iMCP unavailability contract above is the one exception — on unrecoverable iMCP failure, return the `imcp-unavailable` result, not empty categories.

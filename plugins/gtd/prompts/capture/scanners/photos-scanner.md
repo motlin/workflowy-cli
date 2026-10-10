@@ -42,7 +42,7 @@ mcp__imcp__photos_search with:
   limit: 50
 ```
 
-If iMCP is not available or returns an error, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If the retry succeeds, continue here. If iMCP still cannot be reached, fall back to the AppleScript fetch below (the photos scanner has a legitimate non-iMCP path). Only if **both** iMCP and AppleScript fail does this scanner hard-stop with a fatal error.
+If iMCP is not available or returns an error, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If the retry succeeds, continue here. If iMCP still cannot be reached, fall back to the AppleScript fetch below (the photos scanner has a legitimate non-iMCP path). Only if **both** iMCP and AppleScript fail does this scanner return the `imcp-unavailable` result.
 
 ## Fetch Recent Photos (AppleScript Fallback)
 
@@ -264,12 +264,11 @@ Or on error:
 }
 ```
 
-Or if neither iMCP nor AppleScript could reach Photos, return the fatal error contract from `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`:
+Or if neither iMCP nor AppleScript could reach Photos, return the `imcp-unavailable` result from `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`:
 
 ```json
 {
 	"status": "imcp-unavailable",
-	"fatal": true,
 	"message": "Photos data is unavailable: iMCP could not be reached (launched /Applications/iMCP.app, MCP connection not established) and the AppleScript fallback also failed. Reconnect iMCP (run /mcp, or restart Claude Code) or fix Photos access, then re-run the command."
 }
 ```
@@ -279,7 +278,7 @@ Or if neither iMCP nor AppleScript could reach Photos, return the fatal error co
 - If iMCP tool is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`, then fall back to AppleScript
 - If Photos access denied: Return error with `accessDenied: true` suggesting to check System Settings > Privacy & Security > Photos
 - If no recent photos found: Return empty items array (not an error)
-- If both iMCP and AppleScript fail: STOP and return the fatal `imcp-unavailable` JSON — do not return a `skipped` status or proceed without the data
+- If both iMCP and AppleScript fail: return the `imcp-unavailable` result — do not return a `skipped` status or proceed without the data
 
 **Notes:**
 

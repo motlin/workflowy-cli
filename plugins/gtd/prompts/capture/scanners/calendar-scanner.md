@@ -55,7 +55,7 @@ mcp__imcp__events_fetch with:
   includeAllDay: true
 ```
 
-If the iMCP tool is not available or returns an error, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, **STOP** and return the fatal `imcp-unavailable` JSON (see below). Do not write an empty scan file and do not continue.
+If the iMCP tool is not available or returns an error, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, return the `imcp-unavailable` result (see below). Do not write an empty scan file and do not continue.
 
 ## Fetch Calendar Events
 
@@ -194,19 +194,18 @@ After writing the file, return a brief JSON summary:
 }
 ```
 
-Or, if iMCP could not be recovered, return the fatal error contract from `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`:
+Or, if iMCP could not be recovered, return the `imcp-unavailable` result from `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`:
 
 ```json
 {
 	"status": "imcp-unavailable",
-	"fatal": true,
 	"message": "iMCP is unavailable. Launched /Applications/iMCP.app but the MCP connection could not be established. Reconnect iMCP (run /mcp, or restart Claude Code), then re-run the command."
 }
 ```
 
 **Error Handling:**
 
-- If iMCP tool is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`; if unrecoverable, STOP and return the fatal `imcp-unavailable` JSON
+- If iMCP tool is not available: follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`; if unrecoverable, return the `imcp-unavailable` result
 - If Calendar access denied: Return error with `accessDenied: true` suggesting to check System Settings > Privacy & Security > Calendars
 - If no events found: Return empty items array (not an error)
 - If fetch fails: Return error status with details

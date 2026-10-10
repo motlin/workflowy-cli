@@ -16,15 +16,7 @@ Track all progress through `.llm/` files, Workflowy nodes, and inline status upd
 
 The GTD lists this overview reads are fixed paths, given in each section's `node get --path` command below.
 
-**iMCP halt rule (non-negotiable):** If any fetcher agent returns `status: "imcp-unavailable"` — **regardless of the value of `fatal`** — **STOP the daily review immediately**, display the agent's `message` to the user, and do not continue. This is not a graceful-degradation step:
-
-- Do NOT proceed because `fatal: false`. The `status: "imcp-unavailable"` alone triggers the halt.
-- Do NOT proceed because the agent returned partial Workflowy data alongside the unavailability. Partial data is not a fallback for missing iMCP data.
-- Do NOT present a partial review and ask the user whether to continue. Just halt and tell them how to reconnect (`/mcp` or restart Claude Code).
-
-The reconnect instruction must be a plain-text response that ends the turn. Do **not** use `AskUserQuestion`: an open prompt blocks the user from typing `/mcp` until they press Esc. Display the reconnect instruction and return control immediately.
-
-A review missing calendar/reminders data is not useful. The user must reconnect iMCP and re-run, even if it means the review is delayed. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
+**iMCP halt rule:** If any fetcher returns `status: "imcp-unavailable"`, stop the review and tell the user to reconnect, per the halt rule in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
 
 **iMCP self-heal preflight:** Before invoking `calendar-fetcher` / `reminders-fetcher`, proactively restart a stale iMCP so the fetchers don't trip the halt rule. iMCP stops responding after days of uptime (the app is still running but answers nothing). Check the helper's age:
 
@@ -35,7 +27,7 @@ IMCP_AGE=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs)
 The script prints one token; branch on it:
 
 - `none` — no helper running → launch a fresh one: `open -a iMCP`, `sleep 5`.
-- a number **> 86400** — stale (older than ~1 day) → restart per the `imcp-recovery.md` recipe: `kill` this session's helper PID from `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs --pid` (`kill -9` if it survives; never a `pgrep` match, which includes other sessions' helpers), `open -a iMCP`, `sleep 5`. **This restart is mandatory even if the helper still answers.** Do not probe a stale helper (`reminders_lists`, `calendars_list`, ...) and skip the restart because the probe succeeded — an old-but-currently-responsive helper is exactly the one that dies partway through a long review. Age alone decides; a passing probe is not an escape hatch.
+- a number **> 86400** — stale (older than ~1 day) → restart per the `imcp-recovery.md` recipe: `kill` this session's helper PID from `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs --pid` (`kill -9` if it survives; never a `pgrep` match, which includes other sessions' helpers), `open -a iMCP`, `sleep 5`. Restart even if the helper still answers a probe; age alone decides (see `imcp-recovery.md`).
 - a number **≤ 86400** — fresh → proceed without restarting.
 - `unknown` — helper running but start time unparseable → proceed; never kill a live helper on a parse glitch (a failed probe still restarts it — see below).
 
@@ -58,7 +50,7 @@ TOMORROW_LABEL=$(date -v+1d '+%a, %b %-d')
 
 ### Calendar Review
 
-`calendar-fetcher` is launched in the front-loaded batch above (not sequentially) as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it.` pass `startDate`=today 00:00:00 ISO, `endDate`=day-after-tomorrow 00:00:00 ISO, `includeWorkflowy: true`. Returns `{fantastical, workflowy, summary, errors}`.
+`calendar-fetcher` is launched in the front-loaded batch above (not sequentially) as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/fetchers/calendar-fetcher.md and follow it.` pass `startDate`=today 00:00:00 ISO, `endDate`=day-after-tomorrow 00:00:00 ISO, `includeWorkflowy: true`. Returns `{fantastical, workflowy, summary, errors}`.
 
 #### Format
 
@@ -82,7 +74,7 @@ Include the Fantastical deep link (`fantastical://`) to allow quick access to th
 
 ### Apple Reminders
 
-`reminders-fetcher` is launched in the same front-loaded batch above as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/reminders-fetcher.md and follow it.` Returns `{overdue, dueToday, dueTomorrow, noDueDateCount, summary, errors}`.
+`reminders-fetcher` is launched in the same front-loaded batch above as a `general-purpose` subagent (`model: "sonnet"`) whose prompt starts `CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/fetchers/reminders-fetcher.md and follow it.` Returns `{overdue, dueToday, dueTomorrow, noDueDateCount, summary, errors}`.
 
 Format the agent's output as:
 

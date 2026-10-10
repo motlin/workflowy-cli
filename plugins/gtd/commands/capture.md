@@ -260,7 +260,7 @@ The following scanner agents are available. Launch each like `otter-scanner` abo
 
 ## Error Handling
 
-- **iMCP halt:** If any scanner returns `status: "imcp-unavailable"` (or `fatal: true`), **STOP the entire capture run immediately**. Display that scanner's `message` to the user and do not proceed to Phase 3 or beyond. iMCP-backed scanners (calendar, reminders, imessage, photos) must not be silently skipped — the user has to get iMCP running, then re-run `/gtd:capture`. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
+- **iMCP halt:** If any scanner returns `status: "imcp-unavailable"`, **STOP the entire capture run immediately**. Display that scanner's `message` to the user and do not proceed to Phase 3 or beyond. iMCP-backed scanners (calendar, reminders, imessage, photos) must not be silently skipped — the user has to get iMCP running, then re-run `/gtd:capture`. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
 - If a non-iMCP scanner fails, continue with remaining scanners
 - Report failed scanners in the summary
 - If all scanners fail, exit with error

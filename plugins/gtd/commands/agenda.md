@@ -39,12 +39,12 @@ Invoke `calendar-fetcher` with `startDate` = today `00:00:00` ISO, `endDate` = t
 Agent tool:
 - subagent_type: "general-purpose"
   model: "sonnet"
-  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/legacy/fetchers/calendar-fetcher.md and follow it. Fetch calendar events from <startDate> to <endDate>, includeWorkflowy=false."
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/fetchers/calendar-fetcher.md and follow it. Fetch calendar events from <startDate> to <endDate>, includeWorkflowy=false."
 ```
 
 The agent returns `{fantastical, workflowy, summary, errors}`. Use the `fantastical` array. For each meeting capture `title`, `start`, `end`, and any `attendees`/`location` present.
 
-**iMCP halt rule (non-negotiable):** If `calendar-fetcher` returns `status: "imcp-unavailable"` — regardless of the `fatal` value — **STOP immediately**, show the agent's `message`, and do not continue. A proposed agenda without the day's real meetings is not useful. Tell the user to reconnect iMCP (`/mcp` or restart Claude Code); see `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
+If `calendar-fetcher` returns `status: "imcp-unavailable"`, stop and tell the user to reconnect, per the halt rule in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`; an agenda without the day's real meetings is not useful.
 
 Skip all-day events and obvious non-meetings (holidays, focus blocks) when matching — they are listed in the unmatched section but rarely host topics.
 

@@ -185,7 +185,7 @@ Each scanner returns events in this format:
 
 ## Error Handling
 
-- **iMCP halt:** If any scanner returns `status: "imcp-unavailable"` (or `fatal: true`), **STOP the entire journal run immediately**. Display that scanner's `message` to the user and do not proceed to ingestion. iMCP-backed scanners (calendar, reminders, imessage) must not be silently skipped — the user has to get iMCP running, then re-run `/gtd:journal`. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
+- **iMCP halt:** If any scanner returns `status: "imcp-unavailable"`, **STOP the entire journal run immediately**. Display that scanner's `message` to the user and do not proceed to ingestion. iMCP-backed scanners (calendar, reminders, imessage) must not be silently skipped — the user has to get iMCP running, then re-run `/gtd:journal`. See `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md`.
 - If a non-iMCP scanner fails, continue with remaining scanners
 - Report failed scanners in the summary
 - If all scanners fail, exit with error

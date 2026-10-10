@@ -46,4 +46,4 @@ mkdir -p .llm/gtd/journal/scans
 
 ## iMCP dependency
 
-This scanner requires iMCP. If `mcp__imcp__events_fetch` fails, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, **STOP**: do not write an empty scan file. Return the fatal `imcp-unavailable` JSON from that protocol as your entire response.
+This scanner requires iMCP. If `mcp__imcp__events_fetch` fails, follow the recovery protocol in `${CLAUDE_PLUGIN_ROOT}/skills/imcp-recovery.md` — attempt to launch iMCP and retry once. If iMCP still cannot be reached, do not write an empty scan file; return the `imcp-unavailable` result from that file as your entire response.
