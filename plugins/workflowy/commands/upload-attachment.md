@@ -21,7 +21,7 @@ Each image lives on its own empty child node under the entry:
 └── [image 3]
 ```
 
-Never upload onto the entry itself. That path no longer works; the entry keeps its text and each image gets a fresh empty child.
+Never upload onto the entry itself. The entry keeps its text and each image gets a fresh empty child.
 
 ## Prerequisites
 

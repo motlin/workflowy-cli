@@ -28,7 +28,7 @@ Every link under Metadata > 📥 Inboxes must resolve to a node in the cache. Wh
 
 Each inbox in `.llm/gtd-inboxes.json` carries `probableDuplicates`: groups of open sibling items whose visible titles match (ignoring markup, case, and whitespace), as `{title, ids}`. The summary flattens them across inboxes with an `inbox` name. Preserve the array in the status wrapper; do not delete or merge anything.
 
-Surface every `unregisteredInboxes` entry from the command summary to the user as a warning, including its full path and ID, and preserve the array in the status wrapper. An empty array means no unregistered inboxes were found in the cache. A nested inbox must be surfaced even when another inbox with the same name is already registered. These warnings do not authorize registration, deletion, moving items, or triaging the unregistered inbox; keep its items out of the refinement snapshot. Do not revive a previously declined duplicate-root-inbox fix.
+Surface every `unregisteredInboxes` entry from the command summary to the user as a warning, including its full path and ID, and preserve the array in the status wrapper. An empty array means no unregistered inboxes were found in the cache. A nested inbox must be surfaced even when another inbox with the same name is already registered. These warnings do not authorize registration, deletion, moving items, or triaging the unregistered inbox; keep its items out of the refinement snapshot.
 
 Return a status wrapper:
 

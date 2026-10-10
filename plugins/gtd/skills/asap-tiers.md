@@ -9,11 +9,9 @@ Each `📌 Tasks (asap)` bucket holds an **ordinal ladder**: children named `1st
 
 Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` (`readLadder`, `planInsertion`, `planRebalance`, `planGroup`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
 
-## Tiers replaced categories
+## Rank by position, describe by tag
 
-The buckets used to be split by category — `💻 Coding`, `Administrative`, `✍️ Docs and drafts for me to write`, `🧐 Design docs for my review`, `Platform Upgrades`, `Set up meetings`, `🤖 LLM tasks`, `👤 Personal`, `🏠 Home`, `Reading`. A category tells you what a task _is_; it never tells you whether to do it before the other thirty things in the bucket, so the buckets grew without bound and nothing in them was ever ranked.
-
-Under the ladder, **what a task is moves onto the task text as a `#tag`** and **where it sits is what it ranks**. Tags are searchable and combinable; a container is neither. A tier is readable at a glance without expanding anything.
+**What a task is goes on the task text as a `#tag`**; **where it sits is what it ranks**. Tags are searchable and combinable; a container is neither. A tier is readable at a glance without expanding anything.
 
 ## The halving cap
 
@@ -57,9 +55,9 @@ Default to the bottom tier when the signal is weak. Promotion is cheap, and the 
 
 ## Migrating a bucket that still has categories
 
-A bucket whose children include category containers is pre-migration data. Migrate it in this order:
+A bucket whose children include category containers needs migrating into the ladder. Migrate it in this order:
 
-- **Identify categories by name, never by "has children."** A category container is one of the known category names listed above. Having children does not make a node a category — most ordinary tasks in these buckets carry children holding research notes, links, and findings, and one work task carries 82 of them. Un-nesting those would dump a task's context into the bucket root and orphan it from the task it explains. Match the name; when a node's name is not on the list, it is a task, however many children it has.
+- **Identify categories by name, never by "has children."** A category container is one of these names: `💻 Coding`, `Administrative`, `✍️ Docs and drafts for me to write`, `🧐 Design docs for my review`, `Platform Upgrades`, `Set up meetings`, `🤖 LLM tasks`, `👤 Personal`, `🏠 Home`, `Reading`. Having children does not make a node a category — most ordinary tasks in these buckets carry children holding research notes, links, and findings, and one work task carries 82 of them. Un-nesting those would dump a task's context into the bucket root and orphan it from the task it explains. Match the name; when a node's name is not on the list, it is a task, however many children it has.
 - **Size the ladder.** Count every task in the bucket, including the ones loose at the top level. `tiersNeededFor(count)` gives the depth to build.
 - **Confirm the tag mapping.** Propose one `category → #tag` row per category and confirm the whole table with the user in a single question. Prefer a tag already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry over a newly coined one — `🤖 LLM tasks` → `#llm-task` and `Reading` → `#read` already exist; a category with no established tag needs the user to name it.
 - **Tagging a mirror tags its original.** A mirror has no text of its own; it always shows its original's name, and `node update` on a mirror id writes to the original. So a tag appended through a mirror appears on the original and every other mirror of it. Tag a mirror only if the tag belongs on the original task everywhere it appears. Moving a mirror moves only that mirror.

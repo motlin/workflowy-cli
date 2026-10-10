@@ -21,7 +21,7 @@ CONFIG=.llm/gtd/performance-notes.json
 
 If no child matches, create it under that parent with the substituted name and return the new node. `path` is the parent path joined with `>` plus the year node's name; `targetId` is the year node's ID; confidence is `high`. When the config file is missing, or `githubPr` is `null` or not `ownMerged`, skip this short-circuit and route the item normally. Someone else's PR, or an unmerged PR of the user's, is a regular task or reading item.
 
-**Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the text matches this shape, return the day node for that date in the matching journal calendar. The other signals no longer decide what kind of destination this is; they only pick which calendar:
+**Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the text matches this shape, return the day node for that date in the matching journal calendar. The shape alone decides that the destination is a journal day node; the other signals only pick which calendar:
 
 - `Work > 📅 Calendar > 📍 Current` when the tagger signals (project, people, context) say work — day nodes sit under `📍 Current`, and the returned `path` includes it.
 - `Personal > 📅 Calendar` otherwise — day nodes sit directly under it.
