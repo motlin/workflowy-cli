@@ -59,7 +59,22 @@ Each question names the item, its category and why it qualifies (`Due in 2 days`
 
 ## Work accepted items one at a time
 
-When the user accepts, do the work before offering the next item. Work that needs its own project runs there: code goes in the item's project directory with that project's red/green TDD and precommit rules, not in this repository. Show the result (the draft, the diff, the research summary) and ask whether the item is now done. Only a confirmed done completes the item; a partial result stays open with a child node recording where the work stopped, so the next run resumes from it rather than rebuilding it.
+When the user accepts, do the work before offering the next item. Work that needs its own project runs there: code goes in the item's project directory with that project's red/green TDD and precommit rules, not in this repository.
+
+### Scope long drafts before writing them
+
+Before drafting anything longer than a short reply (a doc, a proposal, an agenda, a multi-paragraph email), ask **one** scoping question through `AskUserQuestion` first. Offer 3 concrete framings drawn from the item's subtree, each naming the audience, the angle, and the rough length, e.g. `One-page summary for @Alice, decision-first` or `Bullet outline only, I'll write the prose`. Ask once, then draft against the chosen framing; do not stack further clarifying questions. Short replies and code skip this step.
+
+### Keep partial drafts
+
+Show the result (the draft, the diff, the research summary) and ask whether the item is now done. For a draft, never make the choice all-or-nothing. Options:
+
+- **Done** — the draft is ready to use; complete the item.
+- **Save as child** — keep the draft, or the parts worth keeping, as a child node under the item so the user can edit it later; the item stays open.
+- **Revise** — the user says what to change; revise and ask again.
+- **Discard** — drop the draft; the item stays open.
+
+Only a confirmed done completes the item; a partial result stays open with a child node recording where the work stopped, so the next run resumes from it rather than rebuilding it.
 
 The review's rules still hold here: never offer to pause or wrap up because the list is long, and an improvement idea goes to `.llm/gtd/review/mid-run-notes.md` rather than stopping the walk.
 
