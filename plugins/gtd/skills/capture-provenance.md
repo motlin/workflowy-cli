@@ -50,6 +50,7 @@ Each source system defines its own identifier scheme:
 | `things3://`   | Things 3        | `things3://DJHa8FkpUnPSwBSKVZMWqw` | Yes              |
 | `chrome://`    | Chrome tab      | `chrome://tab-id`                  | Close tab        |
 | `github://`    | GitHub PR       | `github://owner/repo/123`          | No               |
+| `discord://`   | Discord message | `discord://guild/channel/message`  | No               |
 | `gmail://`     | Gmail           | `gmail://message-id`               | Archive          |
 | `imessage://`  | iMessage        | `imessage://guid`                  | No               |
 | `git://`       | Git repo        | `git://repo-path`                  | No               |

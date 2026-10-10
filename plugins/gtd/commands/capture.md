@@ -1,6 +1,6 @@
 ---
 name: capture
-description: GTD bulk capture — scan external sources (Otter transcripts, plus other scanners when enabled) for actionable items and capture them to the inbox after confirmation; pass text to capture a single item directly. Use when the user wants to sweep their sources for new to-dos, run a capture pass, or quickly drop a thought into the GTD inbox.
+description: GTD bulk capture — scan external sources (Otter transcripts, Discord bug reports, plus other scanners when enabled) for actionable items and capture them to the inbox after confirmation; pass text to capture a single item directly. Use when the user wants to sweep their sources for new to-dos, run a capture pass, or quickly drop a thought into the GTD inbox.
 arguments:
     - name: item
       description: Optional item text to capture directly (skips scanning)
@@ -82,13 +82,17 @@ Wait for all to complete.
 
 ### Scan All Sources (Phase 2 - Parallel)
 
-Launch scanner agents in parallel using the Agent tool. Currently only `otter-scanner` is active — see the Scanner Agents table below for the full disabled list.
+Launch scanner agents in parallel using the Agent tool. Currently `otter-scanner` and `discord-scanner` are active — see the Scanner Agents table below for the full disabled list.
 
 ```text
 Agent tool calls (parallel):
 - subagent_type: "general-purpose"
   model: "sonnet"
   prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/scanners/legacy/otter-scanner.md and follow it. Scan Otter.ai for meeting transcripts needing action items"
+
+- subagent_type: "general-purpose"
+  model: "sonnet"
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/capture/scanners/discord-scanner.md and follow it. Scan the configured Discord channel for new bug reports"
 ```
 
 Wait for all to complete. Collect results from `.llm/gtd/capture/scans/*.json`.
@@ -100,7 +104,9 @@ Wait for all to complete. Collect results from `.llm/gtd/capture/scans/*.json`.
 jq -s '[.[].items // [] | .[] ]' .llm/gtd/capture/scans/*.json 2>/dev/null || echo '[]'
 ```
 
-If no items found across all scanners, report "No new items to capture" and exit.
+If no items found across all scanners, run **Advance Scanner Cursors** (below), report "No new items to capture", and exit. A scanner that read messages but found nothing capturable still moves its cursor past them.
+
+A scanner result with `status: "not-configured"` is not a failure: show its `message` once in the summary and continue.
 
 ### Project Deep Dive (Parallel per Project)
 
@@ -203,6 +209,23 @@ The capture-executor will:
 - Clean up the confirmed.json file
 - Return summary of captures executed
 
+### Advance Scanner Cursors
+
+After `capture-executor` succeeds (or on the no-items exit above), persist each scan file's top-level `scannerState` to `Metadata > ⚙️ Scanner State > <scanner>`, where `<scanner>` is the scan file's basename plus `-scanner` (`discord.json` → `discord-scanner`). Skip this step when the user cancels at the final confirmation, so the same messages resurface next run. Declined items are already recorded by the executor, so advancing past them is safe.
+
+Write the state as **compact single-line JSON** onto the child's full UUID (writes 404 on short ids; a newline in `--name` splits the node):
+
+```bash
+for SCAN in .llm/gtd/capture/scans/*.json; do
+  STATE=$(jq -c '.scannerState // empty' "$SCAN")
+  [ -z "$STATE" ] && continue
+  SCANNER="$(basename "$SCAN" .json)-scanner"
+  CHILD_ID=$(./bin/run.js node get --path "Metadata,⚙️ Scanner State,$SCANNER" --depth 1 --json --fields children \
+    | jq -r '.children[0].id')
+  ./bin/run.js node update --id "$CHILD_ID" --name "$STATE"
+done
+```
+
 ### Summary & Log
 
 After `capture-executor` completes, print captured-count, declined-count, and `Run /gtd:inbox to process captured items.` Log to Session Memory:
@@ -222,6 +245,7 @@ The following scanner agents are available. Launch each like `otter-scanner` abo
 | Scanner prompt | Source | Status | Typical Items |
 | --- | --- | --- | --- |
 | `prompts/capture/scanners/legacy/otter-scanner.md` | Otter.ai | **Active** | Transcripts needing review |
+| `prompts/capture/scanners/discord-scanner.md` | Discord channel (read-only bot) | **Active** | Bug reports posted in the channel |
 | `prompts/capture/scanners/chrome-scanner.md` | Chrome tabs & history | Disabled | Open tabs, high-engagement pages |
 | `prompts/capture/scanners/git-scanner.md` | Local Git repos | Disabled | Uncommitted changes, stale branches |
 | `prompts/capture/scanners/github-scanner.md` | GitHub API | Disabled | PRs authored, review requests |
