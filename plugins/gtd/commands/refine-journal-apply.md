@@ -38,6 +38,10 @@ If the staged proposals carry no `scope` (older prep output), treat them all as 
 
 Follow **Remember explanations in the matching reference file** in `${CLAUDE_PLUGIN_ROOT}/skills/refinement-text-rules.md` when a user explains a flagged phrase. For a non-people term, explicitly offer **Keep as written and add to journal-vocabulary.md** or **Keep as written without saving vocabulary**, showing the exact proposed entry and destination in the question. An explanation in "Other" needs this follow-up too. Save only the approved vocabulary entry; reserve `people-disambiguation.md` for people's names, homonyms, and name spellings. Both keep choices reject the rewrite and enter the rejection ledger below, without the explanation. If an approved vocabulary write fails, report the failure rather than claiming it was saved.
 
+### Offer to record vocabulary emoji picks
+
+After the user answers a ⚠️ emoji picker for an entry that names a holiday, observance, religious or community event, class, ceremony, or place, offer once via `AskUserQuestion` to record the emoji pick in the emoji table of `.llm/gtd/journal-vocabulary.md` so the next matching entry gets it without a picker. Show the exact proposed row (term, emoji, today's date) in the question, with options to save it or skip saving. Skip the offer when the term already has a row. Keep every term and emoji in that gitignored file, never in `plugins/`. If the write fails, report the failure rather than claiming it was saved.
+
 ### Record every Reject in the decline ledger
 
 A rejected refinement must never come back — the user should not have to say "keep as written" twice for the same entry. Model this on the email-calendar decisions ledger: every explicit rejection is persisted, and prep drops anything already recorded.
