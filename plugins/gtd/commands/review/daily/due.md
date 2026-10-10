@@ -291,7 +291,7 @@ Each row carries `source`, `id`, `title`, `due`, `dueSource`, `overdueByDays`, `
 
 - Only the `⏰` bucket is collected. The `📌 Tasks (asap)` bucket has no dates and is out of scope.
 - A task's children are sub-steps, notes, and provenance — never tasks in their own right.
-- A Things task in the Today list without a deadline is dated to **today**, with `dueSource: "scheduled"`. Things putting it in Today is the due signal.
+- A Things task in the Today list without a deadline is dated to its Things **activation date** when that is earlier than today, otherwise to **today**, with `dueSource: "scheduled"`. Things putting it in Today is the due signal, and the activation date keeps a leftover repeating chore on the day it belongs to.
 - Reminders `dueTomorrow` is excluded; this walk is for what is due now, not a preview.
 - A Workflowy task in the `⏰` bucket with no `<time>` gets `needsDate: true` — see below.
 

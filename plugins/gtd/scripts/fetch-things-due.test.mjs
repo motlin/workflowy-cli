@@ -34,19 +34,26 @@ test('partitionThings carries the Someday list through for the Workflowy sweep',
 
 test('parseThingsRows splits the record-separated AppleScript output', () => {
 	const raw = out(
-		row('JMwVZ', 'Pay temple dues', '2026-8-1', 'Today', 'bring the receipt'),
-		row('9XHRt', 'FreshDirect order', '', 'Today', ''),
+		row('JMwVZ', 'Pay temple dues', '2026-8-1', 'Today', 'bring the receipt', '2026-7-30'),
+		row('9XHRt', 'FreshDirect order', '', 'Today', '', ''),
 	);
 
 	// The notes come along because the walk shows an item's context before asking about it.
 	assert.deepStrictEqual(parseThingsRows(raw), [
-		{id: 'JMwVZ', title: 'Pay temple dues', due: '2026-08-01', list: 'Today', notes: 'bring the receipt'},
-		{id: '9XHRt', title: 'FreshDirect order', due: null, list: 'Today', notes: null},
+		{
+			id: 'JMwVZ',
+			title: 'Pay temple dues',
+			due: '2026-08-01',
+			list: 'Today',
+			notes: 'bring the receipt',
+			activationDate: '2026-07-30',
+		},
+		{id: '9XHRt', title: 'FreshDirect order', due: null, list: 'Today', notes: null, activationDate: null},
 	]);
 });
 
 test('parseThingsRows zero-pads single-digit months and days', () => {
-	assert.strictEqual(parseThingsRows(out(row('a', 'T', '2026-3-9', 'Anytime', '')))[0].due, '2026-03-09');
+	assert.strictEqual(parseThingsRows(out(row('a', 'T', '2026-3-9', 'Anytime', '', '')))[0].due, '2026-03-09');
 });
 
 test('parseThingsRows returns nothing for empty output', () => {
@@ -57,12 +64,12 @@ test('parseThingsRows returns nothing for empty output', () => {
 test('parseThingsRows preserves titles containing newlines and pipes', () => {
 	// Control-character separators are used precisely so ordinary punctuation in a task title
 	// cannot corrupt the parse.
-	const raw = out(row('x', 'Buy milk | eggs\nand bread', '', 'Today', ''));
+	const raw = out(row('x', 'Buy milk | eggs\nand bread', '', 'Today', '', ''));
 	assert.strictEqual(parseThingsRows(raw)[0].title, 'Buy milk | eggs\nand bread');
 });
 
 test('parseThingsRows skips malformed records rather than emitting partial rows', () => {
-	const raw = out(row('good', 'Fine', '', 'Today', ''), 'truncated-record');
+	const raw = out(row('good', 'Fine', '', 'Today', '', ''), 'truncated-record');
 	assert.deepStrictEqual(
 		parseThingsRows(raw).map((r) => r.id),
 		['good'],
@@ -161,11 +168,18 @@ test('a failed per-id lookup is retried and then reported, never silently droppe
 test('the parsed row count is reconciled against the id snapshot', () => {
 	// Reporting the skip count only helps if something reads it. parseThingsRows must be able to
 	// see the trailing count line without mistaking it for a to-do.
-	const raw = out(row('A1', 'Real task', '', 'Anytime', ''));
+	const raw = out(row('A1', 'Real task', '', 'Anytime', '', ''));
 	const rows = parseThingsRows(raw + 'SKIPPED\x1f2' + RECORD_SEP);
 	assert.deepStrictEqual(
 		rows.map((r) => r.id),
 		['A1'],
 		'the skip-count marker must not be parsed as a to-do',
 	);
+});
+
+test("the AppleScript emits each to-do's activation date", () => {
+	// A repeating Today task with no deadline (take out the garbage) is only meaningful on the day
+	// Things activated it. Without the activation date the review can only guess "today", and a
+	// task left over from Tuesday shows up as Wednesday's chore.
+	assert.match(script('Today'), /activation date of t/);
 });

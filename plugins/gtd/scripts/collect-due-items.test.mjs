@@ -301,6 +301,33 @@ test('fromThings distinguishes a real deadline from a Today-list scheduling', ()
 	);
 });
 
+test('fromThings dates a deadline-less Today task by its activation date when earlier than today', () => {
+	// A repeating chore Things activated on Tuesday and nobody ticked off is Tuesday's chore, not
+	// today's. Dating it to today put "take out the garbage" on the wrong night in the walk.
+	const items = fromThings(
+		{
+			due: [],
+			today: [
+				{id: 'past', title: 'Take out the garbage', due: null, list: 'Today', activationDate: '2026-08-04'},
+				{id: 'now', title: 'Water the plants', due: null, list: 'Today', activationDate: TODAY},
+				{id: 'none', title: 'Call the plumber', due: null, list: 'Today', activationDate: null},
+				{id: 'dl', title: 'Pay the bill', due: '2026-08-06', list: 'Today', activationDate: '2026-08-01'},
+			],
+		},
+		TODAY,
+	);
+
+	assert.deepStrictEqual(
+		items.map((i) => [i.id, i.due, i.dueSource, i.overdueByDays]),
+		[
+			['past', '2026-08-04', 'scheduled', 3],
+			['now', TODAY, 'scheduled', 0],
+			['none', TODAY, 'scheduled', 0],
+			['dl', '2026-08-06', 'deadline', 1],
+		],
+	);
+});
+
 test('fromThings leaves an undated task outside the Today list undated', () => {
 	const [item] = fromThings(
 		{due: [], today: [], other: [{id: 'c', title: 'Someday', due: null, list: 'Anytime'}]},

@@ -35,8 +35,17 @@ export function parseThingsRows(raw) {
 		.split(RECORD_SEP)
 		.filter((record) => record.length > 0)
 		.map((record) => record.split(FIELD_SEP))
-		.filter((fields) => fields.length === 5)
-		.map(([id, title, due, list, notes]) => ({id, title, due: normalizeDate(due), list, notes: notes || null}));
+		.filter((fields) => fields.length === 6)
+		.map(([id, title, due, list, notes, activation]) => ({
+			id,
+			title,
+			due: normalizeDate(due),
+			list,
+			notes: notes || null,
+			// When Things put the task in Today. A deadline-less repeating chore left unticked keeps
+			// its original activation date, which is the day it actually belongs to.
+			activationDate: normalizeDate(activation),
+		}));
 }
 
 export function script(listName) {
@@ -67,7 +76,13 @@ tell application "Things3"
 					else
 						set ds to ((year of dd) as string) & "-" & ((month of dd) as integer) & "-" & ((day of dd) as string)
 					end if
-					set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & rs
+					set ad to activation date of t
+					if ad is missing value then
+						set ads to ""
+					else
+						set ads to ((year of ad) as string) & "-" & ((month of ad) as integer) & "-" & ((day of ad) as string)
+					end if
+					set out to out & (id of t) & fs & (name of t) & fs & ds & fs & "${listName}" & fs & (notes of t) & fs & ads & rs
 					set ok to true
 				on error
 					-- Retry once: a transient Apple Event failure under load looks identical to a

@@ -225,8 +225,10 @@ export function fromThings(things, todayISO) {
 		if (seen.has(task.id)) continue;
 		seen.add(task.id);
 		// A Today-list task without a deadline is not undated work. Things putting it in Today is
-		// itself the due signal, so it dates to today rather than sinking below real deadlines.
-		const due = task.due ?? todayISO;
+		// itself the due signal, so it dates to when Things activated it -- a repeating chore left
+		// over from Tuesday is Tuesday's chore -- or to today when that is unknown or later.
+		const activated = task.activationDate && task.activationDate < todayISO ? task.activationDate : todayISO;
+		const due = task.due ?? activated;
 		items.push({
 			source: 'things',
 			rootKey: null,
