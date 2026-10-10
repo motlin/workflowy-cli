@@ -183,6 +183,10 @@ If the date node doesn't exist, create it first:
 ./bin/run.js node create --parent-path "Metadata,🧠 Session Memory" --name "$TODAY"
 ```
 
+## Looking Up Appointment Details
+
+When the user asks about an appointment during the overview (when a service visit arrives, how long its window is), follow **Look up an appointment in email** in `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md`: search every configured `mcp__gmail-<account>-imap__` account by subject word, sender, and body keyword, and open the source email behind any Gmail-created calendar event for the day to read the full window.
+
 ## Creating Events via Fantastical
 
 To create a calendar event from a task or inbox item:

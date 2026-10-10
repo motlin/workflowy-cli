@@ -245,6 +245,22 @@ Once the alarm is verified, apply the row's normal handled outcome and record it
 
 `remind` is a handled outcome: it resets the skip streak like any other non-skip record.
 
+## Look up an appointment in email
+
+When an item or the overview needs an appointment's details (a home-service visit, a delivery, a repair window), find the confirmation email before asking the user. Searching message bodies for the trade word ("plumber", "HVAC") misses most of these: vendors send them from scheduling platforms whose subjects and bodies never name the trade.
+
+**Search every configured mail account, never a fixed pair.** Discover the accounts from the available tools: each `mcp__gmail-<account>-imap__search_messages` server is one account. Run the searches below against every one of them, in parallel, and merge the results. An account whose server is absent or fails is reported in one line, not silently skipped.
+
+For each account, search the last few weeks (`since`) in the inbox and All Mail (`mailboxes: ["INBOX", "[Gmail]/All Mail"]`), so an archived confirmation still turns up:
+
+- **By subject word** — one `subject` search per word: `Confirmed`, `Appointment`, `Service Details`, `Service Window`, `Scheduled`, `Reminder`.
+- **By sender** — `from` with the vendor's name or domain when the item, its children, or an earlier email names one.
+- **By body keyword** — `body` with the trade word and the vendor name, as a last net rather than the first.
+
+**Check the calendar's email-created events for that day.** Gmail adds events it detects in confirmation emails to Google Calendar, often as a one-hour block that hides a longer service window. List that day's events with `mcp__claude_ai_Google_Calendar__list_events` including `eventType: ["FROM_GMAIL"]`. Such an event comes from a source email: find and open that email and read the real arrival window from it, never from the event's start and end.
+
+Open each candidate with `get_message` (`markSeen: false`) and report the window, the vendor, and the account it came from. Only when every account and the calendar come up empty, say what you searched and ask the user to paste the email.
+
 ## Say it in plain words
 
 Everything the walk reports is read by a person, not a maintainer. Describe what happened in ordinary language — "Reminders stopped accepting writes", "the app froze", "the sync never finished". Never use insider terms for failure states: **wedged**, _hung_, _pegged_, _thrashing_, _deadlocked_. If a word would not appear in a note to a friend, it does not belong in a status line.
