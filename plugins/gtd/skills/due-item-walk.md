@@ -165,6 +165,16 @@ Check existing counterparts first. If one already covers the work, offer deletio
 
 Non-Workflowy rows take the same shape **Preserve priority in the asap ladder** already uses for Reminders: create the Workflowy recurring node under the chosen section, then delete the Things task or Apple Reminder, and verify both sides before treating the outcome as handled.
 
+## Edit a Things repeat rule
+
+Things' AppleScript dictionary does not expose repeat rules, so a cadence change on a repeating Things to-do goes through the UI:
+
+- Select the to-do with `open "things:///show?id=<id>"`, then wait for Things to come forward. The **Repeat** submenu only appears under **Items** while a to-do is selected.
+- Open the rule sheet with `tell application "System Events" to tell process "Things3" to click menu item "Edit Rule…" of menu 1 of menu item "Repeat" of menu "Items" of menu bar 1`. The menu item name ends in a real ellipsis (`…`), not three periods.
+- The sheet holds pop-up buttons for the frequency (weekly, monthly, ...), the weekday, and the next date. Set each with `click` on the pop-up, then `click` the menu item inside it. Read back each pop-up's `value` before confirming.
+- Click **OK** to save, or **Cancel** to back out of a sheet this walk opened.
+- Verify by reopening **Edit Rule…** and reading the pop-up values, or by checking that the to-do's activation date moved to the new next date.
+
 ## Drop the non-Workflowy copy, leave Workflowy live
 
 For a due row with `duplicateCopies`, show the Workflowy survivor and each external copy in one question naming both stores (or all three), with **Drop the non-Workflowy copy, leave Workflowy live** first. Matching normalized titles identify candidates; the user's choice confirms which copies represent the same task. Keep ordinary tasks' priority and deadline rules unchanged.
