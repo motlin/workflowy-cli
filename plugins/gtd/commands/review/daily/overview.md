@@ -35,7 +35,7 @@ IMCP_AGE=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs)
 The script prints one token; branch on it:
 
 - `none` — no helper running → launch a fresh one: `open -a iMCP`, `sleep 5`.
-- a number **> 86400** — stale (older than ~1 day) → restart per the `imcp-recovery.md` recipe: `kill` the helper PID (`kill -9` if it survives), `open -a iMCP`, `sleep 5`. **This restart is mandatory even if the helper still answers.** Do not probe a stale helper (`reminders_lists`, `calendars_list`, ...) and skip the restart because the probe succeeded — an old-but-currently-responsive helper is exactly the one that dies partway through a long review. Age alone decides; a passing probe is not an escape hatch.
+- a number **> 86400** — stale (older than ~1 day) → restart per the `imcp-recovery.md` recipe: `kill` this session's helper PID from `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs --pid` (`kill -9` if it survives; never a `pgrep` match, which includes other sessions' helpers), `open -a iMCP`, `sleep 5`. **This restart is mandatory even if the helper still answers.** Do not probe a stale helper (`reminders_lists`, `calendars_list`, ...) and skip the restart because the probe succeeded — an old-but-currently-responsive helper is exactly the one that dies partway through a long review. Age alone decides; a passing probe is not an escape hatch.
 - a number **≤ 86400** — fresh → proceed without restarting.
 - `unknown` — helper running but start time unparseable → proceed; never kill a live helper on a parse glitch (a failed probe still restarts it — see below).
 

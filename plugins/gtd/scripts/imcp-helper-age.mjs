@@ -3,8 +3,12 @@
 // preflight" (plugins/gtd/commands/review/daily/overview.md), which restarts
 // iMCP only when it is genuinely stale.
 //
+// Only this session's helper counts: every Claude session spawns its own
+// imcp-server, so `pgrep -f` matches dozens. The session's helper is the one
+// whose parent is an ancestor of this process (the claude that ran the Bash).
+//
 // Prints one token to stdout:
-//   none       no iMCP helper is running (launch a fresh one)
+//   none       this session has no iMCP helper (launch a fresh one)
 //   unknown    a helper is running but its start time couldn't be parsed
 //              (proceed; don't kill a live helper on a parse glitch)
 //   <integer>  the helper's age in whole seconds
@@ -12,6 +16,9 @@
 // Age comes from `ps -o lstart=`, not `ps -o etimes=`: etimes is GNU/procps-only,
 // so on BSD/macOS it errors and the empty result reads as "not running" — which
 // would needlessly kill a healthy helper.
+//
+// With --pid, prints this session's helper pid (or `none`) instead, so the
+// restart recipe kills only that helper.
 
 import {execSync} from 'node:child_process';
 
@@ -51,15 +58,40 @@ export function ageSeconds(lstart, nowEpochSeconds) {
 	return start === null ? null : nowEpochSeconds - start;
 }
 
-function main() {
-	let pid = '';
-	try {
-		pid = execSync("pgrep -f 'iMCP.app/Contents/MacOS/imcp-server'", {encoding: 'utf8'}).split('\n')[0].trim();
-	} catch {
-		// pgrep exits non-zero when there is no match.
-		pid = '';
+const HELPER_COMMAND = 'iMCP.app/Contents/MacOS/imcp-server';
+
+// Parse `ps -A -o pid=,ppid=,command=` output.
+export function parsePsTable(output) {
+	const processes = [];
+	for (const line of String(output).split('\n')) {
+		const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+		if (m) processes.push({pid: +m[1], ppid: +m[2], command: m[3].trim()});
 	}
-	if (!pid) {
+	return processes;
+}
+
+// Return the pid of the iMCP helper whose parent is startPid or one of its
+// ancestors, preferring the nearest ancestor; null when there is none.
+export function findSessionHelperPid(processes, startPid) {
+	const parentOf = new Map(processes.map((p) => [p.pid, p.ppid]));
+	const helpers = processes.filter((p) => p.command.split(/\s+/)[0].endsWith(HELPER_COMMAND));
+	const seen = new Set();
+	for (let pid = startPid; pid > 0 && !seen.has(pid); pid = parentOf.get(pid) ?? 0) {
+		seen.add(pid);
+		const helper = helpers.find((p) => p.ppid === pid);
+		if (helper) return helper.pid;
+	}
+	return null;
+}
+
+function main() {
+	const processes = parsePsTable(execSync('ps -A -o pid=,ppid=,command=', {encoding: 'utf8'}));
+	const pid = findSessionHelperPid(processes, process.pid);
+	if (process.argv.includes('--pid')) {
+		process.stdout.write(`${pid ?? 'none'}\n`);
+		return;
+	}
+	if (pid === null) {
 		process.stdout.write('none\n');
 		return;
 	}
