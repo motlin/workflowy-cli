@@ -32,9 +32,9 @@ Pipe the null-delimited paths through the grouping script:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/group-build-dirs.mjs
 ```
 
-It prints `{durable, worktrees, conflicts, report}`. Paths under `<repo>/.worktrees/<worktree>/` collapse into one `worktrees` entry per repo (`{repo, worktreeCount, dirCount}`). Paths under a `<repo>/.llm/conflicts-*/` scratch checkout collapse the same way into one `conflicts` entry per repo (`{repo, checkoutCount, dirCount}`). Everything else is `durable`. `report` is the human-readable list: each durable path on its own line, then one `N build dirs across M worktrees under <repo>` line per repo, then one `N build dirs across M conflicts checkouts under <repo>/.llm` line per repo.
+It prints `{durable, worktrees, conflicts, repairs, unplugged, report}`. Paths under `<repo>/.worktrees/<worktree>/` collapse into one `worktrees` entry per repo (`{repo, worktreeCount, dirCount}`). Paths under a `<repo>/.llm/conflicts-*/` scratch checkout collapse the same way into one `conflicts` entry per repo (`{repo, checkoutCount, dirCount}`), and paths under a `<repo>/.llm/pr-*-repair/` scratch checkout into one `repairs` entry per repo (`{repo, checkoutCount, dirCount}`). Yarn PnP `node_modules` under `<repo>/.yarn/unplugged/<package>/` collapse into one `unplugged` entry per repo (`{repo, packageCount, dirCount}`). The outermost match wins, so unplugged packages inside a worktree or scratch checkout count toward that checkout. Everything else is `durable`. `report` is the human-readable list: each durable path on its own line, then one aggregate line per repo per kind -- `N build dirs across M worktrees under <repo>`, `... M conflicts checkouts under <repo>/.llm`, `... M PR repair checkouts under <repo>/.llm`, `... M unplugged packages under <repo>/.yarn/unplugged`.
 
-Worktree and conflicts-checkout build output is still regenerable and still gets excluded -- the sweep and the verification use the full path list. Only the presentation collapses, so one repo with hundreds of Maven `target/` dirs cannot bury the few durable paths that matter.
+Worktree, scratch-checkout, and unplugged-package build output is still regenerable and still gets excluded -- the sweep and the verification use the full path list. Only the presentation collapses, so one repo with hundreds of Maven `target/` dirs cannot bury the few durable paths that matter.
 
 **Never exclude the `.worktrees` root itself, and never skip it in the scan.** Worktrees share one Git object database, and a worktree with uncommitted changes is exactly the source that needs backing up. The user removes fully-committed worktrees with `git clean worktrees`; that is the fix for the churn, not an exclusion.
 
@@ -53,7 +53,7 @@ It prints `[{path, repo, branch, dirCount, clean}]`: every linked git worktree t
 Create `.llm/gtd/review/proposals/` and write the proposal for the inferred slug `time-machine-exclusions`.
 
 - No unmatched directories: stage `status: "empty"`, `summary.missingExclusions: 0`, and an empty `proposals` array.
-- Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, copy the grouping script's `durable`, `worktrees`, `conflicts`, and `report` fields into `summary`, store the worktree finder's output as `summary.worktreeCandidates`, and create one confirm-only proposal with empty `applyOps`. Set the proposal `detail` from `summary.report`, never from the full directory list.
+- Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, copy the grouping script's `durable`, `worktrees`, `conflicts`, `repairs`, `unplugged`, and `report` fields into `summary`, store the worktree finder's output as `summary.worktreeCandidates`, and create one confirm-only proposal with empty `applyOps`. Set the proposal `detail` from `summary.report`, never from the full directory list.
 - Check failure: stage `status: "error"` with the command error.
 
 Use this sweep command in the ready proposal:

@@ -8,7 +8,13 @@ const LIFTWIZARD = '/projects/liftwizard';
 
 test('paths outside a .worktrees directory stay individually listed', () => {
 	const paths = ['/projects/app/node_modules', '/projects/app/packages/web/dist'];
-	assert.deepStrictEqual(groupBuildDirs(paths), {durable: paths, worktrees: [], conflicts: []});
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: paths,
+		worktrees: [],
+		conflicts: [],
+		repairs: [],
+		unplugged: [],
+	});
 });
 
 test('build dirs inside worktrees collapse to one aggregate per repo', () => {
@@ -26,12 +32,20 @@ test('build dirs inside worktrees collapse to one aggregate per repo', () => {
 			{repo: '/projects/other', worktreeCount: 1, dirCount: 1},
 		],
 		conflicts: [],
+		repairs: [],
+		unplugged: [],
 	});
 });
 
 test('a build dir sitting directly under .worktrees has no worktree and stays durable', () => {
 	const path = `${LIFTWIZARD}/.worktrees/node_modules`;
-	assert.deepStrictEqual(groupBuildDirs([path]), {durable: [path], worktrees: [], conflicts: []});
+	assert.deepStrictEqual(groupBuildDirs([path]), {
+		durable: [path],
+		worktrees: [],
+		conflicts: [],
+		repairs: [],
+		unplugged: [],
+	});
 });
 
 test('the outermost .worktrees segment decides the repo', () => {
@@ -40,6 +54,8 @@ test('the outermost .worktrees segment decides the repo', () => {
 		durable: [],
 		worktrees: [{repo: LIFTWIZARD, worktreeCount: 1, dirCount: 1}],
 		conflicts: [],
+		repairs: [],
+		unplugged: [],
 	});
 });
 
@@ -57,6 +73,8 @@ test('durable paths keep input order and aggregates sort by repo', () => {
 			{repo: '/projects/zeta', worktreeCount: 1, dirCount: 1},
 		],
 		conflicts: [],
+		repairs: [],
+		unplugged: [],
 	});
 });
 
@@ -90,6 +108,8 @@ test('build dirs inside .llm/conflicts-* checkouts collapse to one aggregate per
 			{repo: '/projects/alpha', checkoutCount: 1, dirCount: 1},
 			{repo: '/projects/site', checkoutCount: 2, dirCount: 3},
 		],
+		repairs: [],
+		unplugged: [],
 	});
 });
 
@@ -99,7 +119,13 @@ test('other .llm paths and a build dir named conflicts-* stay durable', () => {
 		'/projects/site/.llm/conflicts-target',
 		'/projects/site/conflicts-x/target',
 	];
-	assert.deepStrictEqual(groupBuildDirs(paths), {durable: paths, worktrees: [], conflicts: []});
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: paths,
+		worktrees: [],
+		conflicts: [],
+		repairs: [],
+		unplugged: [],
+	});
 });
 
 test('the outermost marker decides between a worktree and a conflicts checkout', () => {
@@ -111,6 +137,8 @@ test('the outermost marker decides between a worktree and a conflicts checkout',
 		durable: [],
 		worktrees: [{repo: LIFTWIZARD, worktreeCount: 1, dirCount: 1}],
 		conflicts: [{repo: LIFTWIZARD, checkoutCount: 1, dirCount: 1}],
+		repairs: [],
+		unplugged: [],
 	});
 });
 
@@ -125,6 +153,93 @@ test('formatBuildDirReport prints conflicts aggregates after worktree aggregates
 		'/projects/app/node_modules',
 		`1 build dir across 1 worktree under ${LIFTWIZARD}`,
 		'2 build dirs across 2 conflicts checkouts under /projects/site/.llm',
+	]);
+});
+
+test('build dirs inside .llm/pr-*-repair checkouts collapse to one aggregate per repo', () => {
+	const paths = [
+		'/projects/klass/.llm/pr-778-repair/target',
+		'/projects/klass/.llm/pr-778-repair/klass-model/target',
+		'/projects/klass/.llm/pr-803-repair/target',
+		'/projects/avalon/.llm/pr-5-repair/node_modules',
+	];
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: [],
+		worktrees: [],
+		conflicts: [],
+		repairs: [
+			{repo: '/projects/avalon', checkoutCount: 1, dirCount: 1},
+			{repo: '/projects/klass', checkoutCount: 2, dirCount: 3},
+		],
+		unplugged: [],
+	});
+});
+
+test('.llm dirs that only partly match pr-*-repair stay durable', () => {
+	const paths = [
+		'/projects/klass/.llm/pr-778/target',
+		'/projects/klass/.llm/pr-repair/target',
+		'/projects/klass/.llm/issue-5-repair/target',
+		'/projects/klass/pr-778-repair/target',
+	];
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: paths,
+		worktrees: [],
+		conflicts: [],
+		repairs: [],
+		unplugged: [],
+	});
+});
+
+test('node_modules inside .yarn/unplugged packages collapse to one aggregate per repo', () => {
+	const paths = [
+		'/projects/avalon/node_modules',
+		'/projects/avalon/.yarn/unplugged/esbuild-npm-0.25.6-72058497d9/node_modules',
+		'/projects/avalon/.yarn/unplugged/fsevents-patch-6b67494872/node_modules',
+		'/projects/other/.yarn/unplugged/nodemon-npm-3.1.7-ef86478222/node_modules',
+		'/projects/avalon/.yarn/cache/node_modules',
+	];
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: ['/projects/avalon/node_modules', '/projects/avalon/.yarn/cache/node_modules'],
+		worktrees: [],
+		conflicts: [],
+		repairs: [],
+		unplugged: [
+			{repo: '/projects/avalon', packageCount: 2, dirCount: 2},
+			{repo: '/projects/other', packageCount: 1, dirCount: 1},
+		],
+	});
+});
+
+test('unplugged packages inside a scratch checkout count toward the outer checkout', () => {
+	const paths = [
+		'/projects/avalon/.llm/pr-5-repair/.yarn/unplugged/esbuild-npm-0.25.6-72058497d9/node_modules',
+		'/projects/avalon/.worktrees/wt/.yarn/unplugged/esbuild-npm-0.25.6-72058497d9/node_modules',
+	];
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: [],
+		worktrees: [{repo: '/projects/avalon', worktreeCount: 1, dirCount: 1}],
+		conflicts: [],
+		repairs: [{repo: '/projects/avalon', checkoutCount: 1, dirCount: 1}],
+		unplugged: [],
+	});
+});
+
+test('formatBuildDirReport prints repair and unplugged aggregates last', () => {
+	const grouped = groupBuildDirs([
+		'/projects/avalon/.yarn/unplugged/a-npm-1/node_modules',
+		'/projects/avalon/.yarn/unplugged/b-npm-2/node_modules',
+		'/projects/klass/.llm/pr-778-repair/target',
+		'/projects/site/.llm/conflicts-a/target',
+		`${LIFTWIZARD}/.worktrees/wt/target`,
+		'/projects/app/node_modules',
+	]);
+	assert.deepStrictEqual(formatBuildDirReport(grouped), [
+		'/projects/app/node_modules',
+		`1 build dir across 1 worktree under ${LIFTWIZARD}`,
+		'1 build dir across 1 conflicts checkout under /projects/site/.llm',
+		'1 build dir across 1 PR repair checkout under /projects/klass/.llm',
+		'2 build dirs across 2 unplugged packages under /projects/avalon/.yarn/unplugged',
 	]);
 });
 

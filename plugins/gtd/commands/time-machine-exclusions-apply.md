@@ -11,7 +11,7 @@ Read `.llm/gtd/review/proposals/time-machine-exclusions.json` and act on its sta
 
 - `empty`: report nothing and return success. The DAG executor advances the date without prompting.
 - `error`: surface the error and return failure. Do not advance the date.
-- `ready`: offer to remove clean worktrees first (below), then show `summary.report` (each durable path, plus one aggregate line per repo for build dirs inside `.worktrees/` and one for build dirs inside `.llm/conflicts-*/` checkouts), launch the staged sweep command in a herdr tab (below), then ask whether it finished. Never expand an aggregate into individual paths, and never suggest excluding or skipping a `.worktrees` root -- a worktree with uncommitted changes needs backing up.
+- `ready`: offer to remove clean worktrees first (below), then show `summary.report` (each durable path, plus one aggregate line per repo for build dirs inside `.worktrees/` and one each for build dirs inside `.llm/conflicts-*/` checkouts, `.llm/pr-*-repair/` checkouts, and `.yarn/unplugged/` packages), launch the staged sweep command in a herdr tab (below), then ask whether it finished. Never expand an aggregate into individual paths, and never suggest excluding or skipping a `.worktrees` root -- a worktree with uncommitted changes needs backing up.
 
 ## Remove clean worktrees before the sweep
 
