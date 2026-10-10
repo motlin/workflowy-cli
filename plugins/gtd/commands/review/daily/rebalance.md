@@ -16,7 +16,7 @@ Track progress through `.llm/` files and inline status updates. Do **not** creat
 
 ## Run before anything files onto the ladder
 
-In the daily review this phase runs after the Morning Overview and **before** Process Inbox, File Loose Tasks, and the Recurring Review's due walk. Those phases all put new items onto the ladder; a rebalance that runs after them is stale the moment it finishes, and one that runs before them hands them a ladder whose caps mean something. When invoked standalone, run `/gtd:review:daily:relink` first so nothing is sitting on a `Metadata` link node.
+In the daily review this phase runs after the Morning Overview and Distribute Project Tasks, and **before** Process Inbox, File Loose Tasks, and the Recurring Review's due walk. Those phases all put new items onto the ladder; a rebalance that runs after them is stale the moment it finishes, and one that runs before them hands them a ladder whose caps mean something. When invoked standalone, run `/gtd:review:daily:relink` first so nothing is sitting on a `Metadata` link node.
 
 ## Read both ladders
 

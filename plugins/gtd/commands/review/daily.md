@@ -1,19 +1,19 @@
 ---
-description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, rebalance the asap ladders, process the inbox, file loose tasks, group related tasks, walk every dated item that needs handling today, and close by offering to work through the most pressing items together. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
+description: Daily review orchestrator — run the full morning routine in order: execute due automated LLM tasks, relink orphaned items, review meeting follow-ups, give the morning overview, distribute project tasks into each project's .llm/todo.md, rebalance the asap ladders, process the inbox, file loose tasks, group related tasks, walk every dated item that needs handling today, and close by offering to work through the most pressing items together. Use whenever the user asks to do, start, or run their daily review or morning GTD routine.
 ---
 
 # Daily Review
 
-Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, group related ones into projects, walk everything dated that needs handling today, and close by offering to do the most pressing work together.
+Run the full daily review: execute overdue LLM tasks, tidy misfiled items off the navigation links, get oriented with the morning overview, push project-shaped tasks out to their projects' task lists on disk, set the day's goals by rebalancing the asap ladders, empty the inbox, file loose tasks, group related ones into projects, walk everything dated that needs handling today, and close by offering to do the most pressing work together.
 
 The phases run in dependency order — each one's output feeds the next, ending with the walk that asks what's actually done and then the offer to do the work that remains:
 
 ```text
-LLM Tasks → Relink → Meetings → Overview → Rebalance Ladders → Process Inbox → File Loose Tasks → Group Tasks → Recurring Review → Work Together
-                                                (producers of ladder and dated tasks) ────────────────────────────↗
+LLM Tasks → Relink → Meetings → Overview → Distribute → Rebalance Ladders → Process Inbox → File Loose Tasks → Group Tasks → Recurring Review → Work Together
+                                                               (producers of ladder and dated tasks) ────────────────────────────↗
 ```
 
-The Meeting Follow-up Review, Morning Overview, Rebalance Ladders, File Loose Tasks, Group Related Tasks, Recurring Review, and Work Together phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:rebalance`, `:file-tasks`, `:group-tasks`, `:due`, and `:work-together`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
+The Meeting Follow-up Review, Morning Overview, Distribute Project Tasks, Rebalance Ladders, File Loose Tasks, Group Related Tasks, Recurring Review, and Work Together phases delegate to `/gtd:review:daily:meetings`, `:overview`, `:distribute`, `:rebalance`, `:file-tasks`, `:group-tasks`, `:due`, and `:work-together`, each of which already carries the "do not use the built-in task list" rule — don't create built-in tasks (`TaskCreate` / `TaskUpdate` / `TodoWrite`) for the LLM Tasks phase either.
 
 ## When a skill breaks, fix the skill first
 
@@ -177,6 +177,12 @@ Invoke `/gtd:review:daily:meetings` to walk meetings ingested since last review,
 ## Morning Overview
 
 Invoke `/gtd:review:daily:overview` — morning orientation (calendar, reminders, next actions, inbox)
+
+## Distribute Project Tasks
+
+Invoke `/gtd:review:daily:distribute` — match Inbox and `📌 Tasks (asap)` tasks to the projects under `Metadata > 📂 Project Directories`, confirm each one as its own question, append the accepted ones as self-contained tasks to `<project>/.llm/todo.md`, and open a labelled herdr tab in each receiving project that has no pane open.
+
+**This phase runs before Rebalance Ladders and Process Inbox, and the order matters.** A distributed task leaves the ladder or the Inbox, so rebalance computes caps on the tasks that stay and refinement never spends effort on an item headed to disk. Silent when no task matches a project.
 
 ## Rebalance Ladders
 
