@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import {z} from "zod";
+import {parseStrictNumber} from "../../../utils/parse-strict-number.js";
 
 interface ScannedItem {
 	title: string;
@@ -79,7 +80,10 @@ export default class Dedup extends Command {
 	public async run(): Promise<DedupOutput> {
 		const {flags} = await this.parse(Dedup);
 
-		const threshold = Number.parseFloat(flags.threshold);
+		const threshold = parseStrictNumber(flags.threshold);
+		if (threshold === undefined) {
+			this.error(`Invalid --threshold value: "${flags.threshold}". Must be a number.`);
+		}
 		const projectRoot = this.findProjectRoot();
 		const scansDir = path.join(projectRoot, ".llm", "gtd", "journal", "scans");
 		const dbPath = path.join(projectRoot, "workflowy.sqlite");

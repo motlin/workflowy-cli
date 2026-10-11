@@ -4,6 +4,7 @@ import {formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {Command, Flags} from "@oclif/core";
 import {eq} from "drizzle-orm";
 import {createDatabase} from "../../db/index.js";
+import {parseStrictInteger} from "../../utils/parse-strict-number.js";
 
 const WORKFLOWY_EPOCH_CONFIG_KEY = "workflowy_epoch";
 
@@ -128,9 +129,9 @@ export default class CacheConfig extends Command {
 		}
 
 		if (key === "epoch") {
-			const epoch = Number.parseInt(value, 10);
-			if (Number.isNaN(epoch)) {
-				this.error("Invalid epoch value. Must be a number (Unix timestamp in seconds).");
+			const epoch = parseStrictInteger(value);
+			if (epoch === undefined) {
+				this.error("Invalid epoch value. Must be an integer (Unix timestamp in seconds).");
 			}
 
 			const now = formatTemporalTimestamp(new Date());

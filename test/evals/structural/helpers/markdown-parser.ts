@@ -384,7 +384,7 @@ function extractThresholds(lines: string[]): ThresholdRef[] {
 		pattern.lastIndex = 0;
 		let match;
 		while ((match = pattern.exec(line)) !== null) {
-			const value = Number.parseFloat(match[1]);
+			const value = Number(match[1]);
 			if (value > 0 && value <= 1) {
 				const context = line.trim().slice(0, 100);
 				results.push({value, context, line: i + 1});

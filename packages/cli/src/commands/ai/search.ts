@@ -1,6 +1,7 @@
 import {Command, Flags} from "@oclif/core";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
+import {parseStrictNumber} from "../../utils/parse-strict-number.js";
 import {SearchService} from "../../services/search.js";
 import type {SearchMode, SearchResult} from "../../services/search.js";
 import {DEFAULT_MODELS, EMBEDDING_MODELS} from "../../services/embeddings.js";
@@ -79,7 +80,10 @@ export default class Search extends Command {
 		const {flags} = await this.parse(Search);
 		const {query} = flags;
 
-		const threshold = flags.threshold === undefined ? undefined : Number.parseFloat(flags.threshold);
+		const threshold = flags.threshold === undefined ? undefined : parseStrictNumber(flags.threshold);
+		if (flags.threshold !== undefined && threshold === undefined) {
+			this.error(`Invalid --threshold value: "${flags.threshold}". Must be a number.`);
+		}
 		const database = createDatabase();
 		const searchService = new SearchService(database);
 

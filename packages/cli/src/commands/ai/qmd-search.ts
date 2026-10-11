@@ -1,6 +1,7 @@
 import {Command, Flags} from "@oclif/core";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
+import {parseStrictNumber} from "../../utils/parse-strict-number.js";
 import {QmdSearchService} from "../../services/qmd-search.js";
 import type {QmdSearchResultItem} from "../../services/qmd-search.js";
 
@@ -68,7 +69,10 @@ export default class QmdSearch extends Command {
 	> {
 		const {flags} = await this.parse(QmdSearch);
 		const {query} = flags;
-		const minScore = flags.threshold === undefined ? undefined : Number.parseFloat(flags.threshold);
+		const minScore = flags.threshold === undefined ? undefined : parseStrictNumber(flags.threshold);
+		if (flags.threshold !== undefined && minScore === undefined) {
+			this.error(`Invalid --threshold value: "${flags.threshold}". Must be a number.`);
+		}
 
 		const database = createDatabase();
 		const service = new QmdSearchService(database);

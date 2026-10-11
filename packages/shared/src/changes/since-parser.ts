@@ -11,7 +11,7 @@ const UNIT_MS: Record<string, number> = {
 export function parseSince(since: string): Date {
 	const match = DURATION_REGEX.exec(since);
 	if (match) {
-		const value = Number.parseInt(match[1], 10);
+		const value = Number(match[1]);
 		const unit = match[2];
 		const ms = value * UNIT_MS[unit];
 		return new Date(Date.now() - ms);

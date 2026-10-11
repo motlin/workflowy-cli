@@ -58,9 +58,9 @@ function parseTextDate(name: string): ParsedDate | null {
 	let match = bracketFormat.exec(trimmed);
 	if (match) {
 		return {
-			year: Number.parseInt(match[1], 10),
-			month: Number.parseInt(match[2], 10),
-			day: Number.parseInt(match[3], 10),
+			year: Number(match[1]),
+			month: Number(match[2]),
+			day: Number(match[3]),
 		};
 	}
 
@@ -68,9 +68,9 @@ function parseTextDate(name: string): ParsedDate | null {
 	const weekdaySlash = /^\w+ (\d{1,2})\/(\d{1,2})\/(\d{2,4})$/u;
 	match = weekdaySlash.exec(trimmed);
 	if (match) {
-		const month = Number.parseInt(match[1], 10);
-		const day = Number.parseInt(match[2], 10);
-		let year = Number.parseInt(match[3], 10);
+		const month = Number(match[1]);
+		const day = Number(match[2]);
+		let year = Number(match[3]);
 		if (year < 100) {
 			year += 2000;
 		}
@@ -85,8 +85,8 @@ function parseTextDate(name: string): ParsedDate | null {
 		if (!monthNum) {
 			return null;
 		}
-		const day = Number.parseInt(match[2], 10);
-		const year = Number.parseInt(match[3], 10);
+		const day = Number(match[2]);
+		const year = Number(match[3]);
 		return {year, month: monthNum, day};
 	}
 
@@ -94,9 +94,9 @@ function parseTextDate(name: string): ParsedDate | null {
 	const bareSlash = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/u;
 	match = bareSlash.exec(trimmed);
 	if (match) {
-		const month = Number.parseInt(match[1], 10);
-		const day = Number.parseInt(match[2], 10);
-		let year = Number.parseInt(match[3], 10);
+		const month = Number(match[1]);
+		const day = Number(match[2]);
+		let year = Number(match[3]);
 		if (year < 100) {
 			year += 2000;
 		}
@@ -232,7 +232,7 @@ export default class MigrateDates extends Command {
 			}
 
 			// Cross-validate against parent hierarchy
-			const expectedYear = Number.parseInt(node.yearName, 10);
+			const expectedYear = Number(node.yearName);
 			const expectedMonth = MONTH_NAMES[node.monthName];
 
 			if (expectedYear && date.year !== expectedYear) {

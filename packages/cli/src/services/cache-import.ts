@@ -30,6 +30,7 @@ import {and, eq, inArray, lt} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {formatError, ZodError} from "zod";
 import {readBackupFile} from "../utils/backup-archive.js";
+import {parseStrictInteger} from "../utils/parse-strict-number.js";
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
 import {logger} from "./logger.js";
 
@@ -54,21 +55,17 @@ function backupTimeOrNull(backupTime: number | undefined, workflowyEpoch: number
 function getWorkflowyEpoch(tx: TemporalTransaction): number | null {
 	// Check environment variable first
 	const envEpoch = process.env.WORKFLOWY_EPOCH;
-	if (envEpoch) {
-		const parsed = Number.parseInt(envEpoch, 10);
-		if (!Number.isNaN(parsed)) {
-			return parsed;
-		}
+	const envParsed = envEpoch ? parseStrictInteger(envEpoch) : undefined;
+	if (envParsed !== undefined) {
+		return envParsed;
 	}
 
 	// Check config table
 	try {
 		const configRow = tx.select().from(config).where(eq(config.key, WORKFLOWY_EPOCH_CONFIG_KEY)).get();
-		if (configRow) {
-			const parsed = Number.parseInt(configRow.value, 10);
-			if (!Number.isNaN(parsed)) {
-				return parsed;
-			}
+		const parsed = configRow ? parseStrictInteger(configRow.value) : undefined;
+		if (parsed !== undefined) {
+			return parsed;
 		}
 	} catch {
 		// Config table might not exist yet

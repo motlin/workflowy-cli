@@ -73,7 +73,7 @@ export function parseImageSequence(fileName: string | null): number | null {
 		return null;
 	}
 	const match = IMAGE_SEQUENCE_PATTERN.exec(fileName);
-	return match ? Number.parseInt(match[1], 10) : null;
+	return match ? Number(match[1]) : null;
 }
 
 function isBlank(value: string | null): boolean {

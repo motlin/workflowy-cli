@@ -58,7 +58,7 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 	// Extract date filter: last-changed:7d
 	const dateMatch = /\blast-changed:(\d+)d\b/iu.exec(remaining);
 	if (dateMatch) {
-		result.lastChangedDays = Number.parseInt(dateMatch[1], 10);
+		result.lastChangedDays = Number(dateMatch[1]);
 		remaining = remaining.replace(dateMatch[0], " ");
 	}
 
