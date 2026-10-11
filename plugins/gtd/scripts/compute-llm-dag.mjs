@@ -227,10 +227,10 @@ function main(arguments_) {
 	for (let index = 0; index < argumentsList.length; index++) {
 		if (argumentsList[index] === "--today") {
 			today = argumentsList[++index];
-		} else if (!argumentsList[index].startsWith("--")) {
-			inputPath = argumentsList[index];
-		} else {
+		} else if (argumentsList[index].startsWith("--")) {
 			throw new Error(`unknown option: ${argumentsList[index]}`);
+		} else {
+			inputPath = argumentsList[index];
 		}
 	}
 	const tree = JSON.parse(readFileSync(inputPath, "utf8"));

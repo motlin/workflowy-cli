@@ -759,10 +759,7 @@ export async function importBackup(
 			const priorityChanged =
 				newPriority !== undefined && existingMetadata && newPriority !== existingMetadata.priority;
 
-			if (!existingMetadata) {
-				resolvedPriorities.set(nodeData.id, newPriority ?? nodeData.priority);
-				metadataChanged = true;
-			} else {
+			if (existingMetadata) {
 				resolvedPriorities.set(nodeData.id, newPriority ?? existingMetadata.priority ?? nodeData.priority);
 				if (
 					priorityChanged ||
@@ -780,6 +777,9 @@ export async function importBackup(
 					}
 					metadataChanged = true;
 				}
+			} else {
+				resolvedPriorities.set(nodeData.id, newPriority ?? nodeData.priority);
+				metadataChanged = true;
 			}
 
 			if (isNew) {

@@ -79,10 +79,10 @@ export function classifyExclusions(
 			}
 			if (line.startsWith("[Included]")) {
 				unexcluded.push(path);
-			} else if (!exists(path)) {
-				vanished.push(path);
-			} else {
+			} else if (exists(path)) {
 				throw new Error(`tmutil could not classify ${path}: ${line}`);
+			} else {
+				vanished.push(path);
 			}
 		}
 	}
