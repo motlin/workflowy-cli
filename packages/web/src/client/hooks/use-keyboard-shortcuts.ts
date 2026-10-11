@@ -77,7 +77,7 @@ import {readJson} from "../read-json.js";
  * - Option+Cmd+4 (⌥⌘4): Set layout mode to paragraph (no bullets, prose text)
  *
  * Search:
- * - Escape (Esc): Open search panel (when not editing)
+ * - Escape (Esc): Open search panel (while editing, EditableText opens it and dismissal resumes editing)
  *
  * Jump Menu:
  * - Cmd+K (⌘K): Open jump menu (command palette style navigation)
@@ -938,7 +938,7 @@ export function useKeyboardShortcuts() {
 	useHotkeys(
 		"escape",
 		() => {
-			// Don't open search if editing (Escape should cancel editing)
+			// While editing, EditableText handles Escape so dismissing search can resume the edit
 			if (editingId !== null || editingNoteId !== null) {
 				return;
 			}

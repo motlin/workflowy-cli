@@ -86,7 +86,7 @@ function highlightMatches(text: string, query: string): string {
  * Full-screen search panel component.
  * Opens with Escape key, displays search input and results.
  * Click a result to navigate to that node.
- * Close with Escape when open.
+ * Close with Escape when open; if Escape opened it mid-edit, editing resumes on that node.
  * Supports opening with a pre-filled query (e.g., from tag exploding).
  */
 const SEARCH_SCOPE_STORAGE_KEY = "workflowy-search-scope";
@@ -123,6 +123,7 @@ export function SearchPanel() {
 function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 	const {
 		toggleSearchPanel,
+		dismissSearchPanel,
 		savedSearches,
 		saveSearch,
 		removeSavedSearch,
@@ -260,7 +261,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 			switch (event.key) {
 				case "Escape": {
 					event.preventDefault();
-					toggleSearchPanel();
+					dismissSearchPanel();
 					break;
 				}
 				case "ArrowDown": {
@@ -282,7 +283,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 				}
 			}
 		},
-		[handleNavigateToResult, results, selectedIndex, toggleSearchPanel],
+		[dismissSearchPanel, handleNavigateToResult, results, selectedIndex],
 	);
 
 	const handleBackdropClick = useCallback(

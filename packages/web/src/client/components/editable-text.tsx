@@ -110,6 +110,46 @@ function verticalEntryPoint(
 	return {x, y: line.top + line.height / 2};
 }
 
+/** Number of text characters between the start of `element` and the caret. */
+function caretTextOffset(element: HTMLElement): number {
+	const selection = globalThis.getSelection();
+	if (!selection || selection.rangeCount === 0) {
+		return element.textContent.length;
+	}
+	const caret = selection.getRangeAt(0);
+	if (!element.contains(caret.endContainer)) {
+		return element.textContent.length;
+	}
+	const before = document.createRange();
+	before.selectNodeContents(element);
+	before.setEnd(caret.endContainer, caret.endOffset);
+	return before.toString().length;
+}
+
+/** Collapse the selection to `offset` text characters into `element`, clamped to its end. */
+function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
+	const range = document.createRange();
+	const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+	let remaining = offset;
+	let placed = false;
+	for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+		const length = text.textContent?.length ?? 0;
+		if (remaining <= length) {
+			range.setStart(text, remaining);
+			placed = true;
+			break;
+		}
+		remaining -= length;
+	}
+	if (!placed) {
+		range.selectNodeContents(element);
+	}
+	range.collapse(placed);
+	const selection = globalThis.getSelection();
+	selection?.removeAllRanges();
+	selection?.addRange(range);
+}
+
 function execFormatCommand(command: "bold" | "italic" | "underline"): void {
 	// oxlint-disable-next-line typescript/no-deprecated -- no standard replacement applies inline formatting to a contenteditable with native undo
 	document.execCommand(command);
@@ -129,7 +169,7 @@ interface EditableTextProps {
  * - Supports HTML formatting (bold, italic preserved from node content)
  * - Saves on blur
  * - Enter creates a new sibling node below and focuses it
- * - Escape cancels editing
+ * - Escape commits the text and opens search; dismissing search resumes editing here
  */
 export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
@@ -138,6 +178,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const select = useOutlineStore((state) => state.select);
 	const startEditing = useOutlineStore((state) => state.startEditing);
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
+	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
 	const tagColors = useTagColors();
@@ -165,6 +206,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			// Store the initial value when starting to edit
 			initialValueRef.current = initialValue;
 
+			const {editingId, editingCaretOffset} = useOutlineStore.getState();
+			if (editingId === nodeId && editingCaretOffset !== null) {
+				placeCaretAtTextOffset(contentRef.current, editingCaretOffset);
+				return;
+			}
+
 			// If we have a click position, place the cursor there
 			if (clickPosition) {
 				// Use caretPositionFromPoint to find the correct cursor position
@@ -189,7 +236,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
-	}, [isEditing, initialValue, clickPosition]);
+	}, [isEditing, initialValue, clickPosition, nodeId]);
 
 	const saveChanges = useCallback(() => {
 		if (!contentRef.current) {
@@ -421,11 +468,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				createSiblingBelow();
 			} else if (event.key === "Escape") {
 				event.preventDefault();
-				// Restore original value on escape
-				if (contentRef.current) {
-					contentRef.current.innerHTML = initialValueRef.current;
-				}
-				stopEditing();
+				const caretOffset = contentRef.current ? caretTextOffset(contentRef.current) : 0;
+				saveChanges();
+				openSearchFromEditing(nodeId, caretOffset);
 			} else if (event.key === "b" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
 				execFormatCommand("bold");
@@ -452,7 +497,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[
 			createSiblingBelow,
 			moveToAdjacentNode,
-			stopEditing,
+			nodeId,
+			openSearchFromEditing,
+			saveChanges,
 			toggleStrikethrough,
 			toggleCode,
 			toggleCodeBlock,

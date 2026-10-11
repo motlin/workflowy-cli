@@ -98,11 +98,18 @@ interface ClickPosition {
 	y: number;
 }
 
+interface SearchReturn {
+	nodeId: string;
+	caretOffset: number;
+}
+
 interface OutlineState {
 	zoomedNodeId: string | null;
 	expandedIds: Set<string>;
 	editingId: string | null;
 	editingClickPosition: ClickPosition | null;
+	/** Text offset to place the caret at when editing resumes after dismissing search. */
+	editingCaretOffset: number | null;
 	editingNoteId: string | null;
 	selectedId: string | null;
 	showCompleted: boolean;
@@ -112,6 +119,8 @@ interface OutlineState {
 	searchInitialQuery: string | null;
 	/** Bumped on every open request; the panel remounts per session so each request starts fresh. */
 	searchPanelSession: number;
+	/** The node being edited when Escape opened search; dismissing search resumes editing it. */
+	searchReturn: SearchReturn | null;
 	jumpMenuOpen: boolean;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
@@ -156,6 +165,8 @@ interface OutlineActions {
 	addRecentSearch: (query: string) => void;
 	clearRecentSearches: () => void;
 	toggleSearchPanel: () => void;
+	openSearchFromEditing: (nodeId: string, caretOffset: number) => void;
+	dismissSearchPanel: () => void;
 	openSearchWithQuery: (query: string) => void;
 	toggleJumpMenu: () => void;
 	openLinkInsert: (context: LinkInsertContext) => void;
@@ -187,6 +198,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	expandedIds: new Set<string>(),
 	editingId: null,
 	editingClickPosition: null,
+	editingCaretOffset: null,
 	editingNoteId: null,
 	selectedId: null,
 	showCompleted: getInitialShowCompleted(),
@@ -195,6 +207,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchPanelOpen: false,
 	searchInitialQuery: null,
 	searchPanelSession: 0,
+	searchReturn: null,
 	jumpMenuOpen: false,
 	linkInsertOpen: false,
 	linkInsertContext: null,
@@ -262,9 +275,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}),
 
 	startEditing: (id, clickPosition) =>
-		set({editingId: id, editingClickPosition: clickPosition ?? null, selectedId: id}),
+		set({editingId: id, editingClickPosition: clickPosition ?? null, editingCaretOffset: null, selectedId: id}),
 
-	stopEditing: () => set({editingId: null, editingClickPosition: null}),
+	stopEditing: () => set({editingId: null, editingClickPosition: null, editingCaretOffset: null}),
 
 	startEditingNote: (id) => set({editingNoteId: id, selectedId: id}),
 
@@ -340,13 +353,43 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			searchPanelOpen: !state.searchPanelOpen,
 			searchInitialQuery: null,
 			searchPanelSession: state.searchPanelSession + 1,
+			searchReturn: null,
 		})),
+
+	openSearchFromEditing: (nodeId, caretOffset) =>
+		set((state) => ({
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+			selectedId: nodeId,
+			searchPanelOpen: true,
+			searchInitialQuery: null,
+			searchPanelSession: state.searchPanelSession + 1,
+			searchReturn: {nodeId, caretOffset},
+		})),
+
+	dismissSearchPanel: () =>
+		set((state) => {
+			const closed = {searchPanelOpen: false, searchInitialQuery: null, searchReturn: null};
+			if (state.searchReturn === null) {
+				return closed;
+			}
+			const {nodeId, caretOffset} = state.searchReturn;
+			return {
+				...closed,
+				editingId: nodeId,
+				editingClickPosition: null,
+				editingCaretOffset: caretOffset,
+				selectedId: nodeId,
+			};
+		}),
 
 	openSearchWithQuery: (query) =>
 		set((state) => ({
 			searchPanelOpen: true,
 			searchInitialQuery: query,
 			searchPanelSession: state.searchPanelSession + 1,
+			searchReturn: null,
 		})),
 
 	toggleJumpMenu: () => set((state) => ({jumpMenuOpen: !state.jumpMenuOpen})),
