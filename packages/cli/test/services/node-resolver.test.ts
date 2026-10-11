@@ -12,7 +12,7 @@ import {
 	resolveOrCreateNodePath,
 	resolveParent,
 } from "@workflowy/shared/utils";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createApiNode, createTestNode} from "../helpers/node-fixtures.js";
 
@@ -63,9 +63,12 @@ describe("node-resolver service", () => {
 
 		it("resolves a short ID from the cache", async () => {
 			const fullId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: fullId, shortId: "eeeeeeeeeeee", name: "Test node", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
+					createTestNode({id: fullId, shortId: "eeeeeeeeeeee", name: "Test node", parentId: null}),
+				]),
+			);
 
 			const result = await resolveNodeId({id: "eeeeeeeeeeee"}, cacheService, apiClient);
 
@@ -80,12 +83,13 @@ describe("node-resolver service", () => {
 		});
 
 		it("resolves path from cache", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "child-id", name: "Child", parentId: "root-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = await resolveNodeId({path: "Root,Child"}, cacheService, apiClient);
 
@@ -112,9 +116,7 @@ describe("node-resolver service", () => {
 		});
 
 		it("trims whitespace from path segments", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "target", name: "Target", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "target", name: "Target", parentId: null})]));
 
 			const result = await resolveNodeId({path: "  Target  "}, cacheService, apiClient);
 
@@ -134,9 +136,10 @@ describe("node-resolver service", () => {
 		});
 
 		it("resolves path when provided", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "resolved-id", name: "Target", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "resolved-id", name: "Target", parentId: null})]),
+			);
 
 			const result = await resolveOptionalNodeId({path: "Target"}, cacheService, apiClient);
 			expect(result).toBe("resolved-id");
@@ -156,9 +159,10 @@ describe("node-resolver service", () => {
 
 		it("resolves a short ID from the cache", async () => {
 			const fullId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: fullId, shortId: "eeeeeeeeeeee", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: fullId, shortId: "eeeeeeeeeeee", name: "Parent", parentId: null})]),
+			);
 
 			const result = await resolveParent({id: "eeeeeeeeeeee"}, cacheService, apiClient);
 
@@ -173,12 +177,13 @@ describe("node-resolver service", () => {
 		});
 
 		it("resolves path from cache", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "parent-id", name: "Parent", parentId: "root-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = await resolveParent({path: "Root,Parent"}, cacheService, apiClient);
 			expect(result).toBe("parent-id");
@@ -231,9 +236,10 @@ describe("node-resolver service", () => {
 		});
 
 		it("resolves path when provided", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "target-id", name: "Target", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "target-id", name: "Target", parentId: null})]),
+			);
 
 			const result = await resolveOptionalParent({path: "Target"}, cacheService, apiClient);
 			expect(result).toBe("target-id");
@@ -242,12 +248,13 @@ describe("node-resolver service", () => {
 
 	describe("resolveOrCreateNodePath", () => {
 		it("resolves existing path without creating", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "leaf-id", name: "Leaf", parentId: "root-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = await resolveOrCreateNodePath("Root,Leaf", cacheService, apiClient);
 
@@ -256,9 +263,7 @@ describe("node-resolver service", () => {
 		});
 
 		it("creates missing path segments", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "root-id", name: "Root", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "root-id", name: "Root", parentId: null})]));
 
 			const now = Date.now();
 			mockApiClient.createNode.mockResolvedValue(
@@ -276,9 +281,7 @@ describe("node-resolver service", () => {
 		});
 
 		it("creates multiple missing segments", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "root-id", name: "Root", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "root-id", name: "Root", parentId: null})]));
 
 			const now = Date.now();
 			mockApiClient.createNode.mockResolvedValueOnce(
@@ -303,9 +306,7 @@ describe("node-resolver service", () => {
 		});
 
 		it("deduplicates created nodes within same call", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "root-id", name: "Root", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "root-id", name: "Root", parentId: null})]));
 
 			const now = Date.now();
 			mockApiClient.createNode.mockResolvedValue(
@@ -320,9 +321,7 @@ describe("node-resolver service", () => {
 		});
 
 		it("caches created nodes in database", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "root-id", name: "Root", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "root-id", name: "Root", parentId: null})]));
 
 			const now = Date.now();
 			mockApiClient.createNode.mockResolvedValue(

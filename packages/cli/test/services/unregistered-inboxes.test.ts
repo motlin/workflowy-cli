@@ -1,6 +1,6 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {findUnregisteredInboxes} from "../../src/services/unregistered-inboxes.js";
-import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -14,8 +14,9 @@ describe("unregistered inbox diagnostics", () => {
 	});
 
 	it("finds nested inboxes beyond the search default and excludes registered IDs and non-inbox names", () => {
-		seedTestData(database, {
-			nodes: [
+		seedTestData(
+			database,
+			nodeFixtures([
 				...Array.from({length: 30}, (_, index) => createTestNode({id: `registered-${index}`, name: "Inbox"})),
 				createTestNode({id: "work", name: "Work"}),
 				createTestNode({id: "reference", name: "Reference", parentId: "work"}),
@@ -25,8 +26,8 @@ describe("unregistered inbox diagnostics", () => {
 				createTestNode({id: "note", name: "Task", note: "Inbox"}),
 				createTestNode({id: "prefix", name: "Inbox reminders"}),
 				createTestNode({id: "link", name: '<a href="https://example.com">Inbox</a>'}),
-			],
-		});
+			]),
+		);
 		const before = database.sqlite.serialize();
 		const registeredIds = new Set([...Array.from({length: 30}, (_, index) => `registered-${index}`), "link"]);
 		expect(findUnregisteredInboxes(database.db, registeredIds)).toStrictEqual([
@@ -37,7 +38,7 @@ describe("unregistered inbox diagnostics", () => {
 	});
 
 	it("returns no warnings when all inbox nodes are registered", () => {
-		seedTestData(database, {nodes: [createTestNode({id: "registered", name: "📥 Inbox"})]});
+		seedTestData(database, nodeFixtures([createTestNode({id: "registered", name: "📥 Inbox"})]));
 		expect(findUnregisteredInboxes(database.db, new Set(["registered"]))).toStrictEqual([]);
 	});
 });

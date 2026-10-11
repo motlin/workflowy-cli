@@ -47,10 +47,9 @@ function getTagAtPosition(text: string, position: number): string | null {
 
 /**
  * Get the character offset in the text content from a mouse event.
- * Uses caretPositionFromPoint (or caretRangeFromPoint for older browsers).
+ * Uses caretPositionFromPoint.
  */
 function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): number | null {
-	// Use caretPositionFromPoint if available (modern browsers)
 	if (document.caretPositionFromPoint) {
 		const position = document.caretPositionFromPoint(event.clientX, event.clientY);
 		if (position?.offsetNode.nodeType === Node.TEXT_NODE) {
@@ -67,23 +66,15 @@ function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): n
 		}
 	}
 
-	// Fallback to caretRangeFromPoint (WebKit)
-	if (document.caretRangeFromPoint) {
-		const range = document.caretRangeFromPoint(event.clientX, event.clientY);
-		if (range?.startContainer.nodeType === Node.TEXT_NODE) {
-			let offset = 0;
-			const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-			let node: Node | null;
-			while ((node = walker.nextNode()) !== null) {
-				if (node === range.startContainer) {
-					return offset + range.startOffset;
-				}
-				offset += node.textContent?.length ?? 0;
-			}
-		}
-	}
-
 	return null;
+}
+
+/**
+ * Toggle inline formatting on the current selection.
+ */
+function execFormatCommand(command: "bold" | "italic" | "underline"): void {
+	// oxlint-disable-next-line typescript/no-deprecated -- no standard replacement applies inline formatting to a contenteditable with native undo
+	document.execCommand(command);
 }
 
 interface EditableTextProps {
@@ -145,16 +136,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 						const range = document.createRange();
 						range.setStart(position.offsetNode, position.offset);
 						range.collapse(true);
-						const selection = globalThis.getSelection();
-						selection?.removeAllRanges();
-						selection?.addRange(range);
-						return;
-					}
-				}
-				// Fallback to caretRangeFromPoint (WebKit)
-				if (document.caretRangeFromPoint) {
-					const range = document.caretRangeFromPoint(clickPosition.x, clickPosition.y);
-					if (range) {
 						const selection = globalThis.getSelection();
 						selection?.removeAllRanges();
 						selection?.addRange(range);
@@ -371,13 +352,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				stopEditing();
 			} else if (event.key === "b" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
-				document.execCommand("bold");
+				execFormatCommand("bold");
 			} else if (event.key === "i" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
-				document.execCommand("italic");
+				execFormatCommand("italic");
 			} else if (event.key === "u" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
-				document.execCommand("underline");
+				execFormatCommand("underline");
 			} else if (event.key === "x" && event.metaKey && event.shiftKey) {
 				event.preventDefault();
 				toggleStrikethrough();

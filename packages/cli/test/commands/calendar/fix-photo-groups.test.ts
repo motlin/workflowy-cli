@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import FixPhotoGroups from "../../../src/commands/calendar/fix-photo-groups.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestJson} from "../../helpers/request-body.js";
@@ -36,14 +36,14 @@ function s3File(nodeId: string, fileName: string, systemFrom = "2026-01-01 00:00
 /** Wrapper `wrapper` under entry `entry`, holding photos in reverse order. */
 function seedWrappedGroup(testDatabase: TestDatabase) {
 	seedTestData(testDatabase, {
-		nodes: [
+		...nodeFixtures([
 			createTestNode({id: "day", name: "Sat, May 23, 2026", parentId: null}),
 			createTestNode({id: "entry", name: "Drove to a friend’s house", parentId: "day"}),
 			createTestNode({id: "wrapper", name: "", note: null, parentId: "entry"}),
 			createTestNode({id: "photo-1", name: "", parentId: "wrapper", priority: 100}),
 			createTestNode({id: "photo-2", name: "", parentId: "wrapper", priority: 200}),
 			createTestNode({id: "photo-3", name: "", parentId: "wrapper", priority: 300}),
-		],
+		]),
 		s3Files: [
 			s3File("photo-1", "IMG_0300.jpeg"),
 			s3File("photo-2", "IMG_0200.jpeg"),
@@ -150,12 +150,12 @@ describe("calendar:fix-photo-groups command", () => {
 
 	it("reverses a loose group in place without deleting anything", async () => {
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "day", name: "Wed, Jul 1, 2026", parentId: null}),
 				createTestNode({id: "entry", name: "Flat Rock Brook", parentId: "day"}),
 				createTestNode({id: "photo-1", name: "", parentId: "entry", priority: 100}),
 				createTestNode({id: "photo-2", name: "", parentId: "entry", priority: 200}),
-			],
+			]),
 			s3Files: [s3File("photo-1", "IMG_3695.jpeg"), s3File("photo-2", "IMG_3667.jpeg")],
 		});
 
@@ -175,12 +175,12 @@ describe("calendar:fix-photo-groups command", () => {
 
 	it("leaves a loose group alone when its filenames give no ordering evidence", async () => {
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "day", name: "Wed, Jul 1, 2026", parentId: null}),
 				createTestNode({id: "entry", name: "Flat Rock Brook", parentId: "day"}),
 				createTestNode({id: "photo-1", name: "", parentId: "entry", priority: 100}),
 				createTestNode({id: "photo-2", name: "", parentId: "entry", priority: 200}),
-			],
+			]),
 			s3Files: [s3File("photo-1", "image.jpeg"), s3File("photo-2", "image.jpeg")],
 		});
 
@@ -196,12 +196,12 @@ describe("calendar:fix-photo-groups command", () => {
 
 	it("leaves a group alone when its filenames already ascend", async () => {
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "day", name: "Wed, Jul 1, 2026", parentId: null}),
 				createTestNode({id: "entry", name: "Flat Rock Brook", parentId: "day"}),
 				createTestNode({id: "photo-1", name: "", parentId: "entry", priority: 100}),
 				createTestNode({id: "photo-2", name: "", parentId: "entry", priority: 200}),
-			],
+			]),
 			s3Files: [s3File("photo-1", "IMG_3667.jpeg"), s3File("photo-2", "IMG_3695.jpeg")],
 		});
 
@@ -215,7 +215,7 @@ describe("calendar:fix-photo-groups command", () => {
 	it("restricts work to one group using its short ID", async () => {
 		const wrapperId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "day", name: "Sat, May 23, 2026", parentId: null}),
 				createTestNode({id: "entry", name: "Drove to a friend’s house", parentId: "day"}),
 				createTestNode({id: wrapperId, shortId: "eeeeeeeeeeee", name: "", parentId: "entry"}),
@@ -225,7 +225,7 @@ describe("calendar:fix-photo-groups command", () => {
 				createTestNode({id: "other-wrapper", name: "", parentId: "other-entry"}),
 				createTestNode({id: "photo-3", name: "", parentId: "other-wrapper", priority: 100}),
 				createTestNode({id: "photo-4", name: "", parentId: "other-wrapper", priority: 200}),
-			],
+			]),
 			s3Files: [
 				s3File("photo-1", "image.jpeg"),
 				s3File("photo-2", "image.jpeg"),
@@ -249,13 +249,13 @@ describe("calendar:fix-photo-groups command", () => {
 		delete process.env.WORKFLOWY_API_KEY;
 		const wrapperId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "day", name: "Sat, May 23, 2026", parentId: null}),
 				createTestNode({id: "entry", name: "Drove to a friend’s house", parentId: "day"}),
 				createTestNode({id: wrapperId, shortId: "eeeeeeeeeeee", name: "", parentId: "entry"}),
 				createTestNode({id: "photo-1", name: "", parentId: wrapperId, priority: 100}),
 				createTestNode({id: "photo-2", name: "", parentId: wrapperId, priority: 200}),
-			],
+			]),
 			s3Files: [s3File("photo-1", "image.jpeg"), s3File("photo-2", "image.jpeg")],
 		});
 

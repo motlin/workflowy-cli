@@ -17,16 +17,11 @@ export const nodeContent = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.id, table.systemFrom]}),
-		systemToIdx: uniqueIndex("node_content_system_to_idx").on(table.id, table.systemTo),
-		parentIdx: uniqueIndex("node_content_parent_idx").on(
-			table.parentId,
-			table.systemFrom,
-			table.systemTo,
-			table.id,
-		),
-	}),
+	(table) => [
+		primaryKey({columns: [table.id, table.systemFrom]}),
+		uniqueIndex("node_content_system_to_idx").on(table.id, table.systemTo),
+		uniqueIndex("node_content_parent_idx").on(table.parentId, table.systemFrom, table.systemTo, table.id),
+	],
 );
 
 /**
@@ -51,11 +46,11 @@ export const nodeMetadata = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("node_metadata_system_to_idx").on(table.nodeId, table.systemTo),
-		shortIdIdx: index("node_metadata_short_id_idx").on(table.shortId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("node_metadata_system_to_idx").on(table.nodeId, table.systemTo),
+		index("node_metadata_short_id_idx").on(table.shortId, table.systemTo),
+	],
 );
 
 /**
@@ -90,10 +85,10 @@ export const calendarMetadata = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("calendar_metadata_system_to_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("calendar_metadata_system_to_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 /**
@@ -115,10 +110,10 @@ export const calendarLevels = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("calendar_levels_system_to_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("calendar_levels_system_to_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 export const nodeEmbeddings = sqliteTable(
@@ -131,10 +126,10 @@ export const nodeEmbeddings = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.model, table.systemFrom]}),
-		systemToIdx: index("node_embeddings_system_to_idx").on(table.nodeId, table.model, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.model, table.systemFrom]}),
+		index("node_embeddings_system_to_idx").on(table.nodeId, table.model, table.systemTo),
+	],
 );
 
 /**
@@ -152,11 +147,11 @@ export const mirrors = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.originalId, table.mirrorId, table.systemFrom]}),
-		mirrorIdx: index("mirrors_mirror_idx").on(table.mirrorId, table.systemTo),
-		originalIdx: index("mirrors_original_idx").on(table.originalId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.originalId, table.mirrorId, table.systemFrom]}),
+		index("mirrors_mirror_idx").on(table.mirrorId, table.systemTo),
+		index("mirrors_original_idx").on(table.originalId, table.systemTo),
+	],
 );
 
 export const backlinks = sqliteTable(
@@ -169,12 +164,12 @@ export const backlinks = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.sourceId, table.targetId, table.systemFrom]}),
-		nodeIdx: index("backlinks_node_idx").on(table.nodeId, table.systemTo),
-		sourceIdx: index("backlinks_source_idx").on(table.sourceId, table.systemTo),
-		targetIdx: index("backlinks_target_idx").on(table.targetId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.sourceId, table.targetId, table.systemFrom]}),
+		index("backlinks_node_idx").on(table.nodeId, table.systemTo),
+		index("backlinks_source_idx").on(table.sourceId, table.systemTo),
+		index("backlinks_target_idx").on(table.targetId, table.systemTo),
+	],
 );
 
 export const virtualRootIds = sqliteTable(
@@ -186,10 +181,10 @@ export const virtualRootIds = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.virtualRootId, table.systemFrom]}),
-		nodeIdx: index("virtual_root_ids_node_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.virtualRootId, table.systemFrom]}),
+		index("virtual_root_ids_node_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 export const aiMetadata = sqliteTable(
@@ -202,10 +197,10 @@ export const aiMetadata = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("ai_metadata_system_to_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("ai_metadata_system_to_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 export const s3Files = sqliteTable(
@@ -225,10 +220,10 @@ export const s3Files = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("s3_files_system_to_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("s3_files_system_to_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 export const changesMetadata = sqliteTable(
@@ -241,10 +236,10 @@ export const changesMetadata = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("changes_metadata_system_to_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("changes_metadata_system_to_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 export const referencesRoots = sqliteTable(
@@ -255,10 +250,10 @@ export const referencesRoots = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index("references_roots_system_to_idx").on(table.nodeId, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.nodeId, table.systemFrom]}),
+		index("references_roots_system_to_idx").on(table.nodeId, table.systemTo),
+	],
 );
 
 export const backupImports = sqliteTable(
@@ -270,10 +265,10 @@ export const backupImports = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.filename, table.systemFrom]}),
-		systemToIdx: index("backup_imports_system_to_idx").on(table.filename, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.filename, table.systemFrom]}),
+		index("backup_imports_system_to_idx").on(table.filename, table.systemTo),
+	],
 );
 
 /**
@@ -290,10 +285,10 @@ export const apiImportTimestamp = sqliteTable(
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
-	(table) => ({
-		pk: primaryKey({columns: [table.name, table.systemFrom]}),
-		systemToIdx: index("api_import_timestamp_system_to_idx").on(table.name, table.systemTo),
-	}),
+	(table) => [
+		primaryKey({columns: [table.name, table.systemFrom]}),
+		index("api_import_timestamp_system_to_idx").on(table.name, table.systemTo),
+	],
 );
 
 /**

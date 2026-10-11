@@ -10,7 +10,7 @@ import {uuidToShortId} from "@workflowy/shared/workflowy";
 import {and, eq, notExists, or} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
-import {ZodError} from "zod";
+import {formatError, ZodError} from "zod";
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
 import {logger} from "./logger.js";
 
@@ -128,7 +128,7 @@ export function importFromApi(
 			if (error instanceof ZodError) {
 				validationErrors++;
 				console.error(`Validation error for node ${node.id}:`);
-				console.error(error.format());
+				console.error(formatError(error));
 				console.error("Node JSON:", JSON.stringify(node, null, 2));
 			} else {
 				throw error;

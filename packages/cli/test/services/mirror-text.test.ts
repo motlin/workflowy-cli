@@ -4,7 +4,7 @@ import {nodeContent} from "@workflowy/shared/db";
 import {buildSearchConditions, parseSearchQuery} from "@workflowy/shared/search";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and} from "drizzle-orm";
-import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -30,7 +30,7 @@ describe("mirror text comes from the original", () => {
 		vi.useFakeTimers({shouldAdvanceTime: true});
 		vi.setSystemTime(NOW);
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "p", name: "Parent", parentId: null, priority: 0}),
 				createTestNode({id: "elsewhere", name: "Elsewhere", parentId: null, priority: 1}),
 				createTestNode({id: "orig", name: "Original Name", note: "Original Note", parentId: "elsewhere"}),
@@ -44,7 +44,7 @@ describe("mirror text comes from the original", () => {
 					priority: 0,
 				}),
 				createTestNode({id: "orphan", name: "Stale orphan name", parentId: "p", priority: 1}),
-			],
+			]),
 			mirrors: [
 				{originalId: "orig", mirrorId: "mir", systemFrom: SYSTEM_FROM, systemTo: FAR_FUTURE_DATE},
 				// The original of this mirror is not in the cache.

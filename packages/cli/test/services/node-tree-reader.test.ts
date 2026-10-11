@@ -4,7 +4,7 @@ import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/tempor
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -32,14 +32,15 @@ describe("NodeTreeReader", () => {
 	});
 
 	it("reads children as subtrees to the requested depth", async () => {
-		seedTestData(testDatabase, {
-			nodes: [
+		seedTestData(
+			testDatabase,
+			nodeFixtures([
 				createTestNode({id: "p", name: "Parent", parentId: null}),
 				createTestNode({id: "c1", name: "Child 1", parentId: "p", priority: 0}),
 				createTestNode({id: "c2", name: "Child 2", parentId: "p", priority: 1}),
 				createTestNode({id: "gc1", name: "Grandchild", parentId: "c1"}),
-			],
-		});
+			]),
+		);
 
 		const trees = await reader.readChildren("p", {depth: 2});
 
@@ -104,12 +105,13 @@ describe("NodeTreeReader", () => {
 	});
 
 	it("does not resolve children at depth 0", async () => {
-		seedTestData(testDatabase, {
-			nodes: [
+		seedTestData(
+			testDatabase,
+			nodeFixtures([
 				createTestNode({id: "p", name: "Parent", parentId: null}),
 				createTestNode({id: "c1", name: "Child 1", parentId: "p"}),
-			],
-		});
+			]),
+		);
 
 		const trees = await reader.readChildren("p", {depth: 0});
 
@@ -137,12 +139,12 @@ describe("NodeTreeReader", () => {
 
 	it("surfaces the inChat and hasReferencesRoot flags", async () => {
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "p", name: "Parent", parentId: null}),
 				createTestNode({id: "chat", name: "In chat", parentId: "p", priority: 0}),
 				createTestNode({id: "ref", name: "Ref root", parentId: "p", priority: 1}),
 				createTestNode({id: "plain", name: "Plain", parentId: "p", priority: 2}),
-			],
+			]),
 			aiMetadata: [{nodeId: "chat", inChat: 1, systemFrom: from, systemTo: FAR_FUTURE_DATE}],
 			referencesRoots: [{nodeId: "ref", systemFrom: from, systemTo: FAR_FUTURE_DATE}],
 		});
@@ -156,13 +158,13 @@ describe("NodeTreeReader", () => {
 
 	it("inherits a mirror original content and children", async () => {
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "p", name: "Parent", parentId: null}),
 				createTestNode({id: "orig", name: "Original Name", note: "Original Note", parentId: "elsewhere"}),
 				createTestNode({id: "orig-child", name: "Original Child", parentId: "orig"}),
 				// A mirror carries no content of its own.
 				createTestNode({id: "mir", name: null, parentId: "p"}),
-			],
+			]),
 			mirrors: [{originalId: "orig", mirrorId: "mir", systemFrom: from, systemTo: FAR_FUTURE_DATE}],
 		});
 
@@ -175,13 +177,14 @@ describe("NodeTreeReader", () => {
 
 	it("populates linkTargets when following Workflowy links", async () => {
 		const linkName = 'See <a href="https://workflowy.com/#/abcdef012345">target</a>';
-		seedTestData(testDatabase, {
-			nodes: [
+		seedTestData(
+			testDatabase,
+			nodeFixtures([
 				createTestNode({id: "p", name: "Parent", parentId: null}),
 				createTestNode({id: "src", name: linkName, parentId: "p"}),
 				createTestNode({id: "tgt", name: "Target Node", shortId: "abcdef012345", parentId: "elsewhere"}),
-			],
-		});
+			]),
+		);
 
 		const [source] = await reader.readChildren("p", {depth: 1, followLinks: true});
 

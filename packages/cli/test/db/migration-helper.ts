@@ -26,19 +26,7 @@ export interface TestDatabase {
 	path: string;
 }
 
-/**
- * Test fixtures for seeding test data.
- *
- * @deprecated Use `nodeContent` and `nodeMetadata` directly instead of `nodes`.
- * The `nodes` property is kept for backward compatibility and will be converted
- * to nodeContent/nodeMetadata automatically.
- */
 export interface TestFixtures {
-	/**
-	 * @deprecated Use `nodeContent` and `nodeMetadata` instead.
-	 * This property is converted to nodeContent/nodeMetadata automatically.
-	 */
-	nodes?: TestNode[];
 	nodeContent?: NewNodeContent[];
 	nodeMetadata?: NewNodeMetadata[];
 	mirrors?: NewMirror[];
@@ -49,6 +37,14 @@ export interface TestFixtures {
 	changesMetadata?: NewChangesMetadata[];
 	referencesRoots?: NewReferencesRoot[];
 	backupImports?: NewBackupImport[];
+}
+
+/**
+ * Split combined test nodes into the `nodeContent` and `nodeMetadata` rows they are stored as.
+ */
+export function nodeFixtures(nodes: TestNode[]): Required<Pick<TestFixtures, "nodeContent" | "nodeMetadata">> {
+	const split = nodes.map((node) => splitNodeIntoContentAndMetadata(node));
+	return {nodeContent: split.map(({content}) => content), nodeMetadata: split.map(({metadata}) => metadata)};
 }
 
 /**
@@ -126,27 +122,9 @@ function clearAllTables(testDb: TestDatabase): void {
 /**
  * Seed test data into the database.
  * Clears existing data first, then inserts fixtures.
- *
- * Supports backward compatibility: if `nodes` is provided, it will be
- * automatically converted to nodeContent/nodeMetadata entries.
  */
 export function seedTestData(testDb: TestDatabase, fixtures: TestFixtures): void {
 	clearAllTables(testDb);
-
-	// Convert deprecated nodes to nodeContent/nodeMetadata
-	if (fixtures.nodes && fixtures.nodes.length > 0) {
-		const contents: NewNodeContent[] = [];
-		const metadatas: NewNodeMetadata[] = [];
-
-		for (const node of fixtures.nodes) {
-			const {content, metadata} = splitNodeIntoContentAndMetadata(node);
-			contents.push(content);
-			metadatas.push(metadata);
-		}
-
-		testDb.db.insert(schema.nodeContent).values(contents).run();
-		testDb.db.insert(schema.nodeMetadata).values(metadatas).run();
-	}
 
 	if (fixtures.nodeContent && fixtures.nodeContent.length > 0) {
 		testDb.db.insert(schema.nodeContent).values(fixtures.nodeContent).run();

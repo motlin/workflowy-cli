@@ -5,12 +5,14 @@ import {getApiClient, getCacheService, getWriteThroughClient} from "../services.
 import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerNodeTools(server: McpServer): void {
-	server.tool(
+	server.registerTool(
 		"workflowy_node_get",
-		"Get a node by ID or path",
 		{
-			id: z.string().optional().describe("Node ID"),
-			path: z.string().optional().describe("Comma-separated path to node"),
+			description: "Get a node by ID or path",
+			inputSchema: {
+				id: z.string().optional().describe("Node ID"),
+				path: z.string().optional().describe("Comma-separated path to node"),
+			},
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
@@ -31,13 +33,15 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_list",
-		"List children of a node",
 		{
-			parentId: z.string().optional().describe("Parent node ID (null for root)"),
-			parentPath: z.string().optional().describe("Comma-separated path to parent"),
-			depth: z.number().optional().default(1).describe("Depth to recurse (1 = immediate children only)"),
+			description: "List children of a node",
+			inputSchema: {
+				parentId: z.string().optional().describe("Parent node ID (null for root)"),
+				parentPath: z.string().optional().describe("Comma-separated path to parent"),
+				depth: z.number().optional().default(1).describe("Depth to recurse (1 = immediate children only)"),
+			},
 		},
 		async ({parentId, parentPath, depth}) => {
 			const cacheService = getCacheService();
@@ -57,20 +61,22 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_create",
-		"Create a new node",
 		{
-			parentId: z.string().optional().describe('Parent node ID or system target (e.g., "inbox")'),
-			parentPath: z.string().optional().describe("Comma-separated path to parent"),
-			name: z.string().describe("Name of the new node"),
-			note: z.string().optional().describe("Note/description for the node"),
-			position: z.enum(["top", "bottom"]).optional().describe("Position among siblings"),
-			createPath: z
-				.boolean()
-				.optional()
-				.default(false)
-				.describe("Create missing parent path segments (like mkdir -p)"),
+			description: "Create a new node",
+			inputSchema: {
+				parentId: z.string().optional().describe('Parent node ID or system target (e.g., "inbox")'),
+				parentPath: z.string().optional().describe("Comma-separated path to parent"),
+				name: z.string().describe("Name of the new node"),
+				note: z.string().optional().describe("Note/description for the node"),
+				position: z.enum(["top", "bottom"]).optional().describe("Position among siblings"),
+				createPath: z
+					.boolean()
+					.optional()
+					.default(false)
+					.describe("Create missing parent path segments (like mkdir -p)"),
+			},
 		},
 		async ({parentId, parentPath, name, note, position, createPath}) => {
 			if (!parentId && !parentPath) {
@@ -112,14 +118,16 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_update",
-		"Update an existing node",
 		{
-			id: z.string().optional().describe("Node ID"),
-			path: z.string().optional().describe("Comma-separated path to node"),
-			name: z.string().optional().describe("New name for the node"),
-			note: z.string().optional().describe("New note for the node"),
+			description: "Update an existing node",
+			inputSchema: {
+				id: z.string().optional().describe("Node ID"),
+				path: z.string().optional().describe("Comma-separated path to node"),
+				name: z.string().optional().describe("New name for the node"),
+				note: z.string().optional().describe("New note for the node"),
+			},
 		},
 		async ({id, path, name, note}) => {
 			if (!id && !path) {
@@ -158,12 +166,14 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_delete",
-		"Delete a node",
 		{
-			id: z.string().optional().describe("Node ID"),
-			path: z.string().optional().describe("Comma-separated path to node"),
+			description: "Delete a node",
+			inputSchema: {
+				id: z.string().optional().describe("Node ID"),
+				path: z.string().optional().describe("Comma-separated path to node"),
+			},
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
@@ -181,12 +191,14 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_complete",
-		"Mark a node as completed",
 		{
-			id: z.string().optional().describe("Node ID"),
-			path: z.string().optional().describe("Comma-separated path to node"),
+			description: "Mark a node as completed",
+			inputSchema: {
+				id: z.string().optional().describe("Node ID"),
+				path: z.string().optional().describe("Comma-separated path to node"),
+			},
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
@@ -208,12 +220,14 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_uncomplete",
-		"Mark a node as not completed",
 		{
-			id: z.string().optional().describe("Node ID"),
-			path: z.string().optional().describe("Comma-separated path to node"),
+			description: "Mark a node as not completed",
+			inputSchema: {
+				id: z.string().optional().describe("Node ID"),
+				path: z.string().optional().describe("Comma-separated path to node"),
+			},
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
@@ -238,15 +252,17 @@ export function registerNodeTools(server: McpServer): void {
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"workflowy_node_move",
-		"Move a node to a new parent",
 		{
-			nodeId: z.string().optional().describe("ID of node to move"),
-			nodePath: z.string().optional().describe("Comma-separated path to node to move"),
-			parentId: z.string().optional().describe("Destination parent ID or system target"),
-			parentPath: z.string().optional().describe("Comma-separated path to destination parent"),
-			position: z.enum(["top", "bottom"]).optional().describe("Position within destination"),
+			description: "Move a node to a new parent",
+			inputSchema: {
+				nodeId: z.string().optional().describe("ID of node to move"),
+				nodePath: z.string().optional().describe("Comma-separated path to node to move"),
+				parentId: z.string().optional().describe("Destination parent ID or system target"),
+				parentPath: z.string().optional().describe("Comma-separated path to destination parent"),
+				position: z.enum(["top", "bottom"]).optional().describe("Position within destination"),
+			},
 		},
 		async ({nodeId, nodePath, parentId, parentPath, position}) => {
 			if (!nodeId && !nodePath) {

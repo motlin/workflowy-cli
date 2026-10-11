@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {
 	createApiNode,
@@ -41,9 +41,7 @@ describe("CacheService (shared)", () => {
 
 	describe("getNode", () => {
 		it("returns node by ID", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-1", name: "Test Node"})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-1", name: "Test Node"})]));
 
 			const node = cacheService.getNode("node-1");
 
@@ -58,12 +56,13 @@ describe("CacheService (shared)", () => {
 		it("only returns active records (systemTo = FAR_FUTURE_DATE)", () => {
 			const now = formatTemporalTimestamp(new Date());
 			const earlier = formatTemporalTimestamp(new Date(Date.now() - 1000));
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "node-1", name: "Historical", systemFrom: earlier, systemTo: now}),
 					createTestNode({id: "node-1", name: "Current", systemFrom: now, systemTo: FAR_FUTURE_DATE}),
-				],
-			});
+				]),
+			);
 
 			const node = cacheService.getNode("node-1");
 
@@ -73,13 +72,14 @@ describe("CacheService (shared)", () => {
 
 	describe("getChildren", () => {
 		it("returns children of a parent node", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child-1", name: "Child 1", parentId: "parent", priority: 0}),
 					createTestNode({id: "child-2", name: "Child 2", parentId: "parent", priority: 1}),
-				],
-			});
+				]),
+			);
 
 			const children = cacheService.getChildren("parent");
 
@@ -87,13 +87,14 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("returns root nodes when parentId is null", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-1", name: "Root 1", parentId: null, priority: 0}),
 					createTestNode({id: "root-2", name: "Root 2", parentId: null, priority: 1}),
 					createTestNode({id: "child", name: "Child", parentId: "root-1"}),
-				],
-			});
+				]),
+			);
 
 			const roots = cacheService.getChildren(null);
 
@@ -103,14 +104,15 @@ describe("CacheService (shared)", () => {
 		it("orders children by priority then createdAt", () => {
 			const now = new Date();
 			const nowPlusOne = new Date(now.getTime() + 1000);
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "c", name: "C", parentId: "parent", priority: 1, createdAt: now}),
 					createTestNode({id: "a", name: "A", parentId: "parent", priority: 0, createdAt: nowPlusOne}),
 					createTestNode({id: "b", name: "B", parentId: "parent", priority: 0, createdAt: now}),
-				],
-			});
+				]),
+			);
 
 			const children = cacheService.getChildren("parent");
 
@@ -118,9 +120,7 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("returns empty array for node with no children", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent", name: "Parent", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "parent", name: "Parent", parentId: null})]));
 
 			const children = cacheService.getChildren("parent");
 
@@ -129,13 +129,14 @@ describe("CacheService (shared)", () => {
 
 		it("excludes historical records", () => {
 			const now = formatTemporalTimestamp(new Date());
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child-1", name: "Active", parentId: "parent", systemTo: FAR_FUTURE_DATE}),
 					createTestNode({id: "child-2", name: "Historical", parentId: "parent", systemTo: now}),
-				],
-			});
+				]),
+			);
 
 			const children = cacheService.getChildren("parent");
 
@@ -145,8 +146,9 @@ describe("CacheService (shared)", () => {
 
 	describe("getChildByName", () => {
 		it("finds child by exact name", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({
 						id: "child",
@@ -156,8 +158,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const child = cacheService.getChildByName("parent", "Target");
 
@@ -180,12 +182,13 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("returns null when name not found", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child", name: "Other", parentId: "parent"}),
-				],
-			});
+				]),
+			);
 
 			const child = cacheService.getChildByName("parent", "Target");
 
@@ -193,8 +196,9 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("finds root node by name when parentId is null", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "root",
 						name: "Root Node",
@@ -203,8 +207,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const root = cacheService.getChildByName(null, "Root Node");
 
@@ -227,8 +231,9 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("matches a plain segment against an HTML-formatted (colored) name", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "personal",
 						name: '<span class="colored c-blue">Personal</span>',
@@ -237,8 +242,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const child = cacheService.getChildByName(null, "Personal");
 
@@ -263,9 +268,7 @@ describe("CacheService (shared)", () => {
 
 	describe("getNodeWithMergedData", () => {
 		it("returns node with cache source", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-1", name: "Test"})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-1", name: "Test"})]));
 
 			const result = cacheService.getNodeWithMergedData("node-1");
 
@@ -285,8 +288,9 @@ describe("CacheService (shared)", () => {
 
 	describe("findNodeByPath", () => {
 		it("finds node at simple path", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "root",
 						name: "Root",
@@ -295,8 +299,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const node = cacheService.findNodeByPath(["Root"]);
 
@@ -319,8 +323,9 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("finds node at nested path", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "l1", name: "Level1", parentId: null}),
 					createTestNode({id: "l2", name: "Level2", parentId: "l1"}),
 					createTestNode({
@@ -331,8 +336,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const node = cacheService.findNodeByPath(["Level1", "Level2", "Level3"]);
 
@@ -355,9 +360,7 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("returns null for non-existent path", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "root", name: "Root", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "root", name: "Root", parentId: null})]));
 
 			const node = cacheService.findNodeByPath(["Root", "Missing"]);
 
@@ -370,8 +373,9 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("returns root node for empty path with rootId", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "root",
 						name: "Root",
@@ -380,8 +384,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const node = cacheService.findNodeByPath([], "root");
 
@@ -404,8 +408,9 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("resolves a path through an HTML-formatted (colored) ancestor", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "personal",
 						name: '<span class="colored c-blue">Personal</span>',
@@ -419,8 +424,8 @@ describe("CacheService (shared)", () => {
 						modifiedAt: FIXED_DATE,
 						systemFrom: FIXED_SYSTEM_FROM,
 					}),
-				],
-			});
+				]),
+			);
 
 			const node = cacheService.findNodeByPath(["Personal", "🔄 Review"]);
 
@@ -443,9 +448,10 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("matches exactly, never on a substring", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "archive", name: "Review Archive", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "archive", name: "Review Archive", parentId: null})]),
+			);
 
 			// 'Review' is a substring of 'Review Archive' but must not match: this API is exact-only.
 			const node = cacheService.findNodeByPath(["Review"]);
@@ -458,11 +464,11 @@ describe("CacheService (shared)", () => {
 		it("preserves mirror, backlink, and virtualRootId rows on sync (#1712)", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child", name: "Child", parentId: "parent"}),
 					createTestNode({id: "orig", name: "Original", parentId: "elsewhere"}),
-				],
+				]),
 				mirrors: [{originalId: "orig", mirrorId: "child", systemFrom: from, systemTo: FAR_FUTURE_DATE}],
 				backlinks: [
 					{
@@ -492,14 +498,15 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("scopes the sibling metadata phase-out to the synced parent", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parentA", name: "A", parentId: null}),
 					createTestNode({id: "childA", name: "Child A", parentId: "parentA"}),
 					createTestNode({id: "parentB", name: "B", parentId: null}),
 					createTestNode({id: "childB", name: "Child B", parentId: "parentB"}),
-				],
-			});
+				]),
+			);
 
 			// Sync parentA's children (only childA). Nodes under parentB must be untouched.
 			cacheService.storeApiResponse(
@@ -532,9 +539,10 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("updates changed nodes with temporal versioning", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-1", name: "Old Name", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "node-1", name: "Old Name", parentId: null})]),
+			);
 
 			const apiNodes = [createApiNode({id: "node-1", name: "New Name", parent_id: null})];
 
@@ -552,13 +560,14 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("phases out cached children not in API response", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child-1", name: "Keep", parentId: "parent"}),
 					createTestNode({id: "child-2", name: "Delete", parentId: "parent"}),
-				],
-			});
+				]),
+			);
 
 			const apiNodes = [createApiNode({id: "child-1", name: "Keep", parent_id: "parent"})];
 
@@ -594,8 +603,9 @@ describe("CacheService (shared)", () => {
 		it("does not affect unchanged nodes", () => {
 			const now = new Date();
 			const nowSeconds = Math.floor(now.getTime() / 1000);
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "node-1",
 						name: "Same",
@@ -607,8 +617,8 @@ describe("CacheService (shared)", () => {
 						completedAt: null,
 						layoutMode: null,
 					}),
-				],
-			});
+				]),
+			);
 
 			const initialRecord = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 
@@ -644,12 +654,13 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("does not phase out siblings", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "sibling", name: "Sibling", parentId: "parent"}),
-				],
-			});
+				]),
+			);
 
 			const apiNode = createApiNode({id: "new-node", name: "New Node", parent_id: "parent"});
 
@@ -660,9 +671,7 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("updates existing node with temporal versioning", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-1", name: "Old", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-1", name: "Old", parentId: null})]));
 
 			const apiNode = createApiNode({id: "node-1", name: "Updated", parent_id: null});
 
@@ -708,13 +717,14 @@ describe("CacheService (shared)", () => {
 
 	describe("deleteNode", () => {
 		it("phases out node and descendants", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child", name: "Child", parentId: "parent"}),
 					createTestNode({id: "grandchild", name: "Grandchild", parentId: "child"}),
-				],
-			});
+				]),
+			);
 
 			cacheService.deleteNode("parent");
 
@@ -725,13 +735,14 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("does not affect siblings", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root", name: "Root", parentId: null}),
 					createTestNode({id: "node-1", name: "Node 1", parentId: "root"}),
 					createTestNode({id: "node-2", name: "Node 2", parentId: "root"}),
-				],
-			});
+				]),
+			);
 
 			cacheService.deleteNode("node-1");
 
@@ -742,10 +753,10 @@ describe("CacheService (shared)", () => {
 		it("closes backlinks and virtualRootIds for the deleted subtree", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
 					createTestNode({id: "child", name: "Child", parentId: "parent"}),
-				],
+				]),
 				backlinks: [
 					{
 						nodeId: "child",
@@ -771,12 +782,12 @@ describe("CacheService (shared)", () => {
 		it("closes mirror rows on both sides of a genuine deletion", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "copy", name: "", parentId: null}),
 					createTestNode({id: "orig", name: "Original", parentId: "elsewhere"}),
 					createTestNode({id: "copy2", name: "", parentId: null}),
 					createTestNode({id: "orig2", name: "Original 2", parentId: "elsewhere"}),
-				],
+				]),
 				mirrors: [
 					// Deleting the copy must close the row via mirrorId.
 					{originalId: "orig", mirrorId: "copy", systemFrom: from, systemTo: FAR_FUTURE_DATE},
@@ -797,10 +808,10 @@ describe("CacheService (shared)", () => {
 		it("leaves a surviving node backlink that merely targets the deleted node", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "survivor", name: "Survivor", parentId: null}),
 					createTestNode({id: "target", name: "Target", parentId: null}),
-				],
+				]),
 				// Owned by the survivor (nodeId=survivor), pointing at the deleted node.
 				backlinks: [
 					{
@@ -867,15 +878,16 @@ describe("CacheService (shared)", () => {
 
 	describe("getChildrenForMultipleParents", () => {
 		it("returns children grouped by parent", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-1", name: "Parent 1", parentId: null}),
 					createTestNode({id: "parent-2", name: "Parent 2", parentId: null}),
 					createTestNode({id: "child-1a", name: "Child 1A", parentId: "parent-1"}),
 					createTestNode({id: "child-1b", name: "Child 1B", parentId: "parent-1"}),
 					createTestNode({id: "child-2a", name: "Child 2A", parentId: "parent-2"}),
-				],
-			});
+				]),
+			);
 
 			const result = cacheService.getChildrenForMultipleParents(["parent-1", "parent-2"]);
 
@@ -884,9 +896,7 @@ describe("CacheService (shared)", () => {
 		});
 
 		it("returns empty arrays for parents with no children", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent", name: "Parent", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "parent", name: "Parent", parentId: null})]));
 
 			const result = cacheService.getChildrenForMultipleParents(["parent", "missing"]);
 
@@ -904,9 +914,10 @@ describe("CacheService (shared)", () => {
 		it("resolves short ID to full UUID", () => {
 			const fullId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 			const shortId = "eeeeeeeeeeee";
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: fullId, shortId, name: "Test", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: fullId, shortId, name: "Test", parentId: null})]),
+			);
 
 			const result = cacheService.resolveShortIdToUuid(shortId);
 
@@ -923,12 +934,13 @@ describe("CacheService (shared)", () => {
 		it("resolves multiple short IDs", () => {
 			const id1 = "aaaaaaaa-1111-2222-3333-444444444444";
 			const id2 = "bbbbbbbb-1111-2222-3333-555555555555";
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: id1, shortId: "444444444444", name: "Node 1", parentId: null}),
 					createTestNode({id: id2, shortId: "555555555555", name: "Node 2", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			const result = cacheService.resolveMultipleShortIds(["444444444444", "555555555555"]);
 

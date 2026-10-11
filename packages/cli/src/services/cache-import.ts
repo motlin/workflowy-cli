@@ -27,7 +27,7 @@ import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/tempor
 import {backupToUnixTime, uuidToShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, lt} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import {ZodError} from "zod";
+import {formatError, ZodError} from "zod";
 import {readBackupFile} from "../utils/backup-archive.js";
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
 import {logger} from "./logger.js";
@@ -559,7 +559,7 @@ export async function importBackup(
 			if (error instanceof ZodError) {
 				validationErrors++;
 				console.error(`Validation error for node ${node.id}:`);
-				console.error(error.format());
+				console.error(formatError(error));
 				console.error("Node JSON:", JSON.stringify(node, null, 2));
 			} else {
 				throw error;

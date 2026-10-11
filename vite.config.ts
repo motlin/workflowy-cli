@@ -105,6 +105,7 @@ export default defineConfig({
 			"typescript/strict-void-return": "error",
 			"typescript/no-confusing-void-expression": ["error", {ignoreArrowShorthand: true}],
 			"typescript/promise-function-async": "error",
+			"typescript/no-deprecated": "error",
 		},
 		overrides: [
 			{

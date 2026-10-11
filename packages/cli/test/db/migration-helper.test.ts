@@ -4,7 +4,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {createTestNode} from "../helpers/node-fixtures.js";
-import {cleanupTestDatabase, createInMemoryTestDatabase, createTestDatabase, seedTestData} from "./migration-helper.js";
+import {
+	cleanupTestDatabase,
+	createInMemoryTestDatabase,
+	createTestDatabase,
+	nodeFixtures,
+	seedTestData,
+} from "./migration-helper.js";
 
 /**
  * Guards the contract every database-backed test leans on. The helper reuses a
@@ -63,7 +69,7 @@ describe("migration-helper", () => {
 		const second = createTestDatabase(path.join(tempDir, "second.sqlite"));
 
 		try {
-			seedTestData(first, {nodes: [createTestNode({id: "only-in-first", name: "First", parentId: null})]});
+			seedTestData(first, nodeFixtures([createTestNode({id: "only-in-first", name: "First", parentId: null})]));
 
 			expect(
 				first.db
@@ -79,9 +85,45 @@ describe("migration-helper", () => {
 		}
 	});
 
+	it("splits test nodes into nodeContent and nodeMetadata fixtures", () => {
+		const node = createTestNode({
+			id: "split-id",
+			shortId: "split",
+			name: "Split",
+			note: "Note",
+			parentId: "parent",
+		});
+
+		expect(nodeFixtures([node])).toStrictEqual({
+			nodeContent: [
+				{
+					id: "split-id",
+					name: "Split",
+					note: "Note",
+					parentId: "parent",
+					systemFrom: node.systemFrom,
+					systemTo: node.systemTo,
+				},
+			],
+			nodeMetadata: [
+				{
+					nodeId: "split-id",
+					shortId: "split",
+					priority: node.priority,
+					createdAt: node.createdAt,
+					modifiedAt: node.modifiedAt,
+					completedAt: node.completedAt,
+					layoutMode: node.layoutMode,
+					systemFrom: node.systemFrom,
+					systemTo: node.systemTo,
+				},
+			],
+		});
+	});
+
 	it("leaves no journal sidecar files behind after cleanup", () => {
 		const database = createTestDatabase(path.join(tempDir, "sidecars.sqlite"));
-		seedTestData(database, {nodes: [createTestNode({id: "node", name: "Node", parentId: null})]});
+		seedTestData(database, nodeFixtures([createTestNode({id: "node", name: "Node", parentId: null})]));
 		cleanupTestDatabase(database);
 
 		expect(fs.readdirSync(tempDir)).toStrictEqual([]);

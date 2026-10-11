@@ -1,6 +1,6 @@
 import {beforeEach, beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {PathBuilder} from "@workflowy/shared/cache";
-import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -31,9 +31,7 @@ describe("PathBuilder", () => {
 		});
 
 		it("builds path for single root node", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "root-id", name: "Root", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "root-id", name: "Root", parentId: null})]));
 
 			const result = pathBuilder.buildFullPathsBatch(["root-id"]);
 
@@ -41,13 +39,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("builds path for nested node", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "child-id", name: "Child", parentId: "root-id"}),
 					createTestNode({id: "grandchild-id", name: "Grandchild", parentId: "child-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildFullPathsBatch(["grandchild-id"]);
 
@@ -55,13 +54,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("builds paths for multiple nodes at different depths", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "child-id", name: "Child", parentId: "root-id"}),
 					createTestNode({id: "grandchild-id", name: "Grandchild", parentId: "child-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildFullPathsBatch(["root-id", "child-id", "grandchild-id"]);
 
@@ -71,14 +71,15 @@ describe("PathBuilder", () => {
 		});
 
 		it("handles nodes that share ancestors", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "parent-id", name: "Parent", parentId: "root-id"}),
 					createTestNode({id: "sibling-1", name: "Sibling One", parentId: "parent-id"}),
 					createTestNode({id: "sibling-2", name: "Sibling Two", parentId: "parent-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildFullPathsBatch(["sibling-1", "sibling-2"]);
 
@@ -87,13 +88,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("skips nodes with empty names in path", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "unnamed-id", name: "", parentId: "root-id"}),
 					createTestNode({id: "child-id", name: "Child", parentId: "unnamed-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildFullPathsBatch(["child-id"]);
 
@@ -107,12 +109,13 @@ describe("PathBuilder", () => {
 		});
 
 		it("strips HTML tags from node names", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "<b>Bold Root</b>", parentId: null}),
 					createTestNode({id: "child-id", name: "<time>Jan 1</time> Event", parentId: "root-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildFullPathsBatch(["child-id"]);
 
@@ -127,9 +130,7 @@ describe("PathBuilder", () => {
 		});
 
 		it("returns name only when no note", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test Node", note: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Test Node", note: null})]));
 
 			const result = pathBuilder.buildTextContentBatch(["node-id"]);
 
@@ -137,9 +138,10 @@ describe("PathBuilder", () => {
 		});
 
 		it("returns name and note when both present", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test Node", note: "This is a note"})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "node-id", name: "Test Node", note: "This is a note"})]),
+			);
 
 			const result = pathBuilder.buildTextContentBatch(["node-id"]);
 
@@ -147,9 +149,10 @@ describe("PathBuilder", () => {
 		});
 
 		it("strips HTML from name and note", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "<b>Bold</b> Name", note: "<i>Italic</i> note"})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "node-id", name: "<b>Bold</b> Name", note: "<i>Italic</i> note"})]),
+			);
 
 			const result = pathBuilder.buildTextContentBatch(["node-id"]);
 
@@ -157,12 +160,13 @@ describe("PathBuilder", () => {
 		});
 
 		it("handles multiple nodes", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "node-1", name: "First", note: "Note 1"}),
 					createTestNode({id: "node-2", name: "Second", note: null}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildTextContentBatch(["node-1", "node-2"]);
 
@@ -173,12 +177,13 @@ describe("PathBuilder", () => {
 
 	describe("buildFullPath (single node)", () => {
 		it("delegates to batch method", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "child-id", name: "Child", parentId: "root-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildFullPath("child-id");
 
@@ -188,9 +193,7 @@ describe("PathBuilder", () => {
 
 	describe("buildTextContent (single node)", () => {
 		it("delegates to batch method", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Name", note: "Note"})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Name", note: "Note"})]));
 
 			const result = pathBuilder.buildTextContent("node-id");
 
@@ -205,12 +208,13 @@ describe("PathBuilder", () => {
 		});
 
 		it("returns empty set when all nodes are leaf nodes", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "leaf-1", name: "Leaf 1", parentId: null}),
 					createTestNode({id: "leaf-2", name: "Leaf 2", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.getNonLeafNodeIds(["leaf-1", "leaf-2"]);
 
@@ -218,12 +222,13 @@ describe("PathBuilder", () => {
 		});
 
 		it("identifies parent nodes with children", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null}),
 					createTestNode({id: "child-id", name: "Child", parentId: "parent-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.getNonLeafNodeIds(["parent-id", "child-id"]);
 
@@ -231,13 +236,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("handles deep hierarchy", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "root-id", name: "Root", parentId: null}),
 					createTestNode({id: "middle-id", name: "Middle", parentId: "root-id"}),
 					createTestNode({id: "leaf-id", name: "Leaf", parentId: "middle-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.getNonLeafNodeIds(["root-id", "middle-id", "leaf-id"]);
 
@@ -245,13 +251,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("handles multiple children under same parent", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null}),
 					createTestNode({id: "child-1", name: "Child 1", parentId: "parent-id"}),
 					createTestNode({id: "child-2", name: "Child 2", parentId: "parent-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.getNonLeafNodeIds(["parent-id", "child-1", "child-2"]);
 
@@ -266,9 +273,7 @@ describe("PathBuilder", () => {
 		});
 
 		it("returns empty map for nodes without children", () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "leaf-id", name: "Leaf", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "leaf-id", name: "Leaf", parentId: null})]));
 
 			const result = pathBuilder.buildChildrenTextBatch(["leaf-id"]);
 
@@ -276,13 +281,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("returns children text for parent node", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null}),
 					createTestNode({id: "child-1", name: "First Child", parentId: "parent-id"}),
 					createTestNode({id: "child-2", name: "Second Child", parentId: "parent-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildChildrenTextBatch(["parent-id"]);
 
@@ -290,12 +296,13 @@ describe("PathBuilder", () => {
 		});
 
 		it("includes child notes in text", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null}),
 					createTestNode({id: "child-id", name: "Child Name", note: "Child Note", parentId: "parent-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildChildrenTextBatch(["parent-id"]);
 
@@ -303,8 +310,9 @@ describe("PathBuilder", () => {
 		});
 
 		it("strips HTML from children text", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null}),
 					createTestNode({
 						id: "child-id",
@@ -312,8 +320,8 @@ describe("PathBuilder", () => {
 						note: "<i>Italic note</i>",
 						parentId: "parent-id",
 					}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildChildrenTextBatch(["parent-id"]);
 
@@ -321,13 +329,14 @@ describe("PathBuilder", () => {
 		});
 
 		it("only includes direct children, not grandchildren", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "grandparent-id", name: "Grandparent", parentId: null}),
 					createTestNode({id: "parent-id", name: "Parent", parentId: "grandparent-id"}),
 					createTestNode({id: "child-id", name: "Child", parentId: "parent-id"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildChildrenTextBatch(["grandparent-id"]);
 
@@ -335,14 +344,15 @@ describe("PathBuilder", () => {
 		});
 
 		it("handles multiple parents in one batch", () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-1", name: "Parent 1", parentId: null}),
 					createTestNode({id: "parent-2", name: "Parent 2", parentId: null}),
 					createTestNode({id: "child-1a", name: "Child 1A", parentId: "parent-1"}),
 					createTestNode({id: "child-2a", name: "Child 2A", parentId: "parent-2"}),
-				],
-			});
+				]),
+			);
 
 			const result = pathBuilder.buildChildrenTextBatch(["parent-1", "parent-2"]);
 

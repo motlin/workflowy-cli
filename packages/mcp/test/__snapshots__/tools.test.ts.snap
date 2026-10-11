@@ -1,0 +1,294 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MCP tools > advertises every tool with its name, description and input schema 1`] = `
+[
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Get a node by ID or path",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "id": {
+          "description": "Node ID",
+          "type": "string",
+        },
+        "path": {
+          "description": "Comma-separated path to node",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_get",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "List children of a node",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "depth": {
+          "default": 1,
+          "description": "Depth to recurse (1 = immediate children only)",
+          "type": "number",
+        },
+        "parentId": {
+          "description": "Parent node ID (null for root)",
+          "type": "string",
+        },
+        "parentPath": {
+          "description": "Comma-separated path to parent",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_list",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Create a new node",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "createPath": {
+          "default": false,
+          "description": "Create missing parent path segments (like mkdir -p)",
+          "type": "boolean",
+        },
+        "name": {
+          "description": "Name of the new node",
+          "type": "string",
+        },
+        "note": {
+          "description": "Note/description for the node",
+          "type": "string",
+        },
+        "parentId": {
+          "description": "Parent node ID or system target (e.g., "inbox")",
+          "type": "string",
+        },
+        "parentPath": {
+          "description": "Comma-separated path to parent",
+          "type": "string",
+        },
+        "position": {
+          "description": "Position among siblings",
+          "enum": [
+            "top",
+            "bottom",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "name",
+      ],
+      "type": "object",
+    },
+    "name": "workflowy_node_create",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Update an existing node",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "id": {
+          "description": "Node ID",
+          "type": "string",
+        },
+        "name": {
+          "description": "New name for the node",
+          "type": "string",
+        },
+        "note": {
+          "description": "New note for the node",
+          "type": "string",
+        },
+        "path": {
+          "description": "Comma-separated path to node",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_update",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Delete a node",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "id": {
+          "description": "Node ID",
+          "type": "string",
+        },
+        "path": {
+          "description": "Comma-separated path to node",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_delete",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Mark a node as completed",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "id": {
+          "description": "Node ID",
+          "type": "string",
+        },
+        "path": {
+          "description": "Comma-separated path to node",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_complete",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Mark a node as not completed",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "id": {
+          "description": "Node ID",
+          "type": "string",
+        },
+        "path": {
+          "description": "Comma-separated path to node",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_uncomplete",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Move a node to a new parent",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "nodeId": {
+          "description": "ID of node to move",
+          "type": "string",
+        },
+        "nodePath": {
+          "description": "Comma-separated path to node to move",
+          "type": "string",
+        },
+        "parentId": {
+          "description": "Destination parent ID or system target",
+          "type": "string",
+        },
+        "parentPath": {
+          "description": "Comma-separated path to destination parent",
+          "type": "string",
+        },
+        "position": {
+          "description": "Position within destination",
+          "enum": [
+            "top",
+            "bottom",
+          ],
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "workflowy_node_move",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Get cache database status and statistics",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "workflowy_cache_status",
+    "title": undefined,
+  },
+  {
+    "_meta": undefined,
+    "annotations": undefined,
+    "description": "Search for nodes by text query",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "limit": {
+          "default": 20,
+          "description": "Maximum number of results to return",
+          "type": "number",
+        },
+        "query": {
+          "description": "Text to search for in node names and notes",
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+    "name": "workflowy_search",
+    "title": undefined,
+  },
+]
+`;

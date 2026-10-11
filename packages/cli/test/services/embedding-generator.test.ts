@@ -3,7 +3,7 @@ import {nodeEmbeddings} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {EmbeddingGeneratorService, loadEmbeddableNodes} from "../../src/services/embedding-generator.js";
 import {embeddingService} from "../../src/services/embeddings.js";
-import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -25,12 +25,12 @@ describe("EmbeddingGeneratorService on mirrors", () => {
 	beforeEach(() => {
 		testDatabase = createInMemoryTestDatabase();
 		seedTestData(testDatabase, {
-			nodes: [
+			...nodeFixtures([
 				createTestNode({id: "orig", name: "Original", parentId: null, priority: 0}),
 				createTestNode({id: "orig-child", name: "Original child", parentId: "orig", priority: 0}),
 				createTestNode({id: "mir", name: "Stale mirror name", parentId: null, priority: 1}),
 				createTestNode({id: "mir-child", name: "Mirror child", parentId: "mir", priority: 0}),
-			],
+			]),
 			mirrors: [{originalId: "orig", mirrorId: "mir", systemFrom: SYSTEM_FROM, systemTo: FAR_FUTURE_DATE}],
 		});
 		testDatabase.db

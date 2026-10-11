@@ -1,6 +1,6 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {findSameTitleSiblings, resolveInboxLinks} from "../../src/services/inbox-registry.js";
-import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -21,7 +21,7 @@ describe("inbox registry", () => {
 	});
 
 	it("resolves live links and reports links whose target is missing from the cache", () => {
-		seedTestData(database, {nodes: [createTestNode({id: LIVE_INBOX_ID, name: "Inbox"})]});
+		seedTestData(database, nodeFixtures([createTestNode({id: LIVE_INBOX_ID, name: "Inbox"})]));
 		const result = resolveInboxLinks(database.db, [
 			{id: "link-live", name: linkName("41bd95477fbc", "Personal 📥 Inbox")},
 			{id: "link-broken", name: linkName(DELETED_INBOX_SHORT_ID)},

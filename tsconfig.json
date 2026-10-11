@@ -5,6 +5,7 @@
 		{"path": "./packages/shared/test"},
 		{"path": "./packages/cli"},
 		{"path": "./packages/cli/test"},
+		{"path": "./packages/mcp/test"},
 		{"path": "./test"}
 	],
 	"ts-node": {

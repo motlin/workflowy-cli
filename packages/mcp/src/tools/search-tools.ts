@@ -3,12 +3,14 @@ import {getCacheService} from "../services.js";
 import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerSearchTools(server: McpServer): void {
-	server.tool(
+	server.registerTool(
 		"workflowy_search",
-		"Search for nodes by text query",
 		{
-			query: z.string().describe("Text to search for in node names and notes"),
-			limit: z.number().optional().default(20).describe("Maximum number of results to return"),
+			description: "Search for nodes by text query",
+			inputSchema: {
+				query: z.string().describe("Text to search for in node names and notes"),
+				limit: z.number().optional().default(20).describe("Maximum number of results to return"),
+			},
 		},
 		({query, limit}) => {
 			if (!query.trim()) {

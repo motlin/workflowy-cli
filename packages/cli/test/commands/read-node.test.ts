@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 import Get from "../../src/commands/node/get.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
@@ -49,8 +49,9 @@ describe("node get command", () => {
 			const now = new Date();
 			const oneHourAgo = new Date(now.getTime() - 3600 * 1000);
 
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: nodeId,
 						name: "Test Node",
@@ -59,8 +60,8 @@ describe("node get command", () => {
 						createdAt: oneHourAgo,
 						modifiedAt: now,
 					}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--id", nodeId, "--json"]);
@@ -82,8 +83,9 @@ describe("node get command", () => {
 
 	describe("reading by path", () => {
 		it("reads a node by path from cache", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({
 						id: "projects-id",
@@ -96,8 +98,8 @@ describe("node get command", () => {
 						note: "Project notes",
 						parentId: "projects-id",
 					}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--path", "Work,Projects,My Project", "--json"]);
@@ -116,8 +118,9 @@ describe("node get command", () => {
 
 	describe("children and depth", () => {
 		it("fetches children with depth", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null}),
 					createTestNode({
 						id: "child-1",
@@ -131,8 +134,8 @@ describe("node get command", () => {
 						parentId: "parent-id",
 						priority: 1,
 					}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--id", "parent-id", "--depth", "1", "--json"]);
@@ -154,9 +157,10 @@ describe("node get command", () => {
 		});
 
 		it("returns node without children property when node has none", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "leaf-id", name: "Leaf Node", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "leaf-id", name: "Leaf Node", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--id", "leaf-id", "--depth", "1", "--json"]);
@@ -173,8 +177,9 @@ describe("node get command", () => {
 
 	describe("JSON output", () => {
 		it("outputs correct JSON structure", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "json-node-id",
 						name: "JSON Node",
@@ -184,8 +189,8 @@ describe("node get command", () => {
 						modifiedAt: new Date("2000-01-02T00:00:00.000Z"),
 						systemFrom: "2000-01-01 00:00:00.000",
 					}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--id", "json-node-id", "--json"]);
@@ -214,16 +219,17 @@ describe("node get command", () => {
 		});
 
 		it("filters to only requested fields", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "filter-node-id",
 						name: "Filter Node",
 						note: "Note to filter",
 						parentId: null,
 					}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--id", "filter-node-id", "--json", "--fields", "id,name"]);
@@ -239,7 +245,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({
 						id: "original-id",
 						name: "Original Node",
@@ -253,7 +259,7 @@ describe("node get command", () => {
 						parentId: null,
 						systemFrom,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						mirrorId: "mirror-id",
@@ -281,7 +287,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({
 						id: "original-id",
 						name: "Original Node",
@@ -290,7 +296,7 @@ describe("node get command", () => {
 						systemFrom,
 					}),
 					createTestNode({id: "mirror-id", name: "💼 Stale mirror text", parentId: null, systemFrom}),
-				],
+				]),
 				mirrors: [{mirrorId: "mirror-id", originalId: "original-id", systemFrom, systemTo: FAR_FUTURE_DATE}],
 			});
 
@@ -310,7 +316,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({
 						id: "original-id",
 						name: "Original Node",
@@ -324,7 +330,7 @@ describe("node get command", () => {
 						parentId: null,
 						systemFrom,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						mirrorId: "mirror-id",
@@ -351,7 +357,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({
 						id: "parent-id",
 						name: "Parent",
@@ -372,7 +378,7 @@ describe("node get command", () => {
 						parentId: "some-other-parent",
 						systemFrom,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						mirrorId: "mirror-child-id",
@@ -407,7 +413,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({
 						id: "parent-id",
 						name: "Parent",
@@ -427,7 +433,7 @@ describe("node get command", () => {
 						parentId: "some-other-parent",
 						systemFrom,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						mirrorId: "mirror-child-id",
@@ -457,7 +463,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({
 						id: "parent-id",
 						name: "Parent",
@@ -491,7 +497,7 @@ describe("node get command", () => {
 						priority: 1,
 						systemFrom,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						mirrorId: "mirror-child-id",
@@ -523,7 +529,7 @@ describe("node get command", () => {
 			const systemFrom = formatTemporalTimestamp(new Date());
 
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "parent-id", name: "Parent", parentId: null, systemFrom}),
 					createTestNode({
 						id: "mirror-child-id",
@@ -540,7 +546,7 @@ describe("node get command", () => {
 						parentId: "some-other-parent",
 						systemFrom,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						mirrorId: "mirror-child-id",
@@ -573,8 +579,9 @@ describe("node get command", () => {
 			const createdAt = new Date("2024-06-15T08:00:00.000Z");
 			const modifiedAt = new Date("2024-06-15T10:30:00.000Z");
 
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "completed-node",
 						name: "Completed Task",
@@ -583,8 +590,8 @@ describe("node get command", () => {
 						createdAt,
 						modifiedAt,
 					}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Get.run(["--id", "completed-node", "--json"]);

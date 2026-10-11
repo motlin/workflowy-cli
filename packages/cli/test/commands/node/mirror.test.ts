@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Mirror from "../../../src/commands/node/mirror.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestJson} from "../../helpers/request-body.js";
@@ -35,12 +35,13 @@ describe("node:mirror command", () => {
 
 		fetchStub = vi.spyOn(globalThis, "fetch");
 
-		seedTestData(testDatabase, {
-			nodes: [
+		seedTestData(
+			testDatabase,
+			nodeFixtures([
 				createTestNode({id: ORIGIN_ID, name: "Origin Task", parentId: null}),
 				createTestNode({id: PARENT_ID, name: "Agendas", parentId: null}),
-			],
-		});
+			]),
+		);
 	});
 
 	afterEach(() => {
@@ -197,11 +198,11 @@ describe("node:mirror command", () => {
 	describe("deleting a mirror", () => {
 		beforeEach(() => {
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: ORIGIN_ID, name: "Origin Task", parentId: null}),
 					createTestNode({id: PARENT_ID, name: "Agendas", parentId: null}),
 					createTestNode({id: MIRROR_ID, name: "", parentId: PARENT_ID}),
-				],
+				]),
 				mirrors: [
 					{originalId: ORIGIN_ID, mirrorId: MIRROR_ID, systemFrom: "2026-01-01", systemTo: FAR_FUTURE_DATE},
 				],

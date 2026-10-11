@@ -6,7 +6,7 @@ import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Complete from "../../../src/commands/node/complete.js";
 import Uncomplete from "../../../src/commands/node/uncomplete.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 
@@ -42,9 +42,7 @@ describe("node complete and uncomplete commands", () => {
 	});
 
 	it("expands a short id to the full UUID before completing", async () => {
-		seedTestData(testDatabase, {
-			nodes: [createTestNode({id: FULL_ID, name: "Test Node", parentId: null})],
-		});
+		seedTestData(testDatabase, nodeFixtures([createTestNode({id: FULL_ID, name: "Test Node", parentId: null})]));
 
 		const {stdout} = await captureOutput(async () => {
 			await Complete.run(["--id", SHORT_ID, "--dry-run"]);
@@ -57,9 +55,7 @@ describe("node complete and uncomplete commands", () => {
 	});
 
 	it("expands a short id to the full UUID before uncompleting", async () => {
-		seedTestData(testDatabase, {
-			nodes: [createTestNode({id: FULL_ID, name: "Test Node", parentId: null})],
-		});
+		seedTestData(testDatabase, nodeFixtures([createTestNode({id: FULL_ID, name: "Test Node", parentId: null})]));
 
 		const {stdout} = await captureOutput(async () => {
 			await Uncomplete.run(["--id", SHORT_ID, "--dry-run"]);

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Move from "../../../src/commands/node/move.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody} from "../../helpers/request-body.js";
@@ -45,12 +45,13 @@ describe("node:move command", () => {
 		it("requires WORKFLOWY_API_KEY", async () => {
 			delete process.env.WORKFLOWY_API_KEY;
 
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			await expect(Move.run(["--node-id", "source-id", "--parent-id", "target-id"])).rejects.toThrow(
 				"WORKFLOWY_API_KEY environment variable is required",
@@ -66,9 +67,10 @@ describe("node:move command", () => {
 		});
 
 		it("requires a parent flag", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "source-id", name: "Source", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "source-id", name: "Source", parentId: null})]),
+			);
 
 			await expect(Move.run(["--node-id", "source-id"])).rejects.toThrow(
 				"Either --parent-id or --parent-path is required",
@@ -78,12 +80,13 @@ describe("node:move command", () => {
 
 	describe("dry run mode", () => {
 		it("shows move preview without executing", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "source-id", name: "Source Node", parentId: null}),
 					createTestNode({id: "target-id", name: "Target Folder", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--dry-run"]);
@@ -97,12 +100,13 @@ describe("node:move command", () => {
 		});
 
 		it("shows position in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Move.run([
@@ -125,12 +129,13 @@ describe("node:move command", () => {
 	describe("moving by ID", () => {
 		it("moves node via API", async () => {
 			const now = Math.floor(Date.now() / 1000);
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -177,12 +182,13 @@ describe("node:move command", () => {
 
 		it("includes position in API request for top", async () => {
 			const now = Math.floor(Date.now() / 1000);
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -228,12 +234,13 @@ describe("node:move command", () => {
 
 		it("includes position in API request for bottom", async () => {
 			const now = Math.floor(Date.now() / 1000);
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -281,14 +288,15 @@ describe("node:move command", () => {
 	describe("moving by path", () => {
 		it("resolves source and target paths", async () => {
 			const now = Math.floor(Date.now() / 1000);
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "tasks-id", name: "Tasks", parentId: "work-id"}),
 					createTestNode({id: "source-id", name: "My Task", parentId: "tasks-id"}),
 					createTestNode({id: "archive-id", name: "Archive", parentId: "work-id"}),
-				],
-			});
+				]),
+			);
 
 			let capturedUrl: string | undefined;
 			let capturedBody: string | undefined;
@@ -343,12 +351,13 @@ describe("node:move command", () => {
 		it("moves to inbox system target via --parent-id", async () => {
 			// The API accepts 'inbox' as parent_id on move but 404s on GET /nodes/inbox,
 			// so the real parent is learned from the moved node.
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "inbox-uuid", name: "Inbox", parentId: null}),
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			const now = Math.floor(Date.now() / 1000);
 			const requests: string[] = [];
@@ -411,13 +420,14 @@ describe("node:move command", () => {
 
 	describe("output", () => {
 		it("displays from and to paths", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "source-id", name: "Source", parentId: "work-id"}),
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
-				],
-			});
+				]),
+			);
 
 			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
 

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Update from "../../../src/commands/node/update.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody} from "../../helpers/request-body.js";
@@ -43,9 +43,7 @@ describe("node update command", () => {
 		it("requires WORKFLOWY_API_KEY", async () => {
 			delete process.env.WORKFLOWY_API_KEY;
 
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Test", parentId: null})]));
 
 			await expect(Update.run(["--id", "node-id", "--name", "New Name"])).rejects.toThrow(
 				"WORKFLOWY_API_KEY environment variable is required",
@@ -59,9 +57,7 @@ describe("node update command", () => {
 		});
 
 		it("requires at least one update field", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Test", parentId: null})]));
 
 			await expect(Update.run(["--id", "node-id"])).rejects.toThrow(
 				"At least one of --name, --clear-name, --note, --clear-note, or --layout-mode must be provided",
@@ -72,10 +68,10 @@ describe("node update command", () => {
 	describe("mirror targets", () => {
 		it("sends new text for a mirror to its original so the mirror never diverges", async () => {
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "orig-id", name: "Game night", parentId: null}),
 					createTestNode({id: "mirror-id", name: null, parentId: null}),
-				],
+				]),
 				mirrors: [
 					{
 						originalId: "orig-id",
@@ -98,9 +94,10 @@ describe("node update command", () => {
 
 	describe("dry run mode", () => {
 		it("shows API call without executing for name update", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Original Name", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "node-id", name: "Original Name", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Update.run(["--id", "node-id", "--name", "New Name", "--dry-run"]);
@@ -114,9 +111,7 @@ describe("node update command", () => {
 		});
 
 		it("shows note in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Test", parentId: null})]));
 
 			const {stdout} = await captureOutput(async () => {
 				await Update.run(["--id", "node-id", "--note", "New note content", "--dry-run"]);
@@ -128,9 +123,7 @@ describe("node update command", () => {
 		});
 
 		it("shows layout mode in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Test", parentId: null})]));
 
 			const {stdout} = await captureOutput(async () => {
 				await Update.run(["--id", "node-id", "--layout-mode", "board", "--dry-run"]);
@@ -142,9 +135,10 @@ describe("node update command", () => {
 		});
 
 		it("shows clear-note in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test", note: "Old note", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "node-id", name: "Test", note: "Old note", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Update.run(["--id", "node-id", "--clear-note", "--dry-run"]);
@@ -158,9 +152,10 @@ describe("node update command", () => {
 
 	describe("updating by ID", () => {
 		it("sends correct request body for name update", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "update-id", name: "Old Name", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "update-id", name: "Old Name", parentId: null})]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -185,9 +180,7 @@ describe("node update command", () => {
 		});
 
 		it("sends correct request body for note update", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "update-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "update-id", name: "Test", parentId: null})]));
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -214,9 +207,10 @@ describe("node update command", () => {
 		});
 
 		it("sends empty note to clear with --clear-note", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "update-id", name: "Test", note: "Old note", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "update-id", name: "Test", note: "Old note", parentId: null})]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -242,9 +236,10 @@ describe("node update command", () => {
 
 		it("sends empty name to clear with --clear-name", async () => {
 			// --name cannot clear a name because oclif rejects an empty string.
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "clear-id", name: " #write", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "clear-id", name: " #write", parentId: null})]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -267,9 +262,7 @@ describe("node update command", () => {
 		});
 
 		it("sends correct request body for layout mode update", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "update-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "update-id", name: "Test", parentId: null})]));
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -299,9 +292,10 @@ describe("node update command", () => {
 		});
 
 		it("sends all fields when updating multiple", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "update-id", name: "Old Name", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "update-id", name: "Old Name", parentId: null})]),
+			);
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -343,15 +337,16 @@ describe("node update command", () => {
 
 	describe("--expect-name precondition", () => {
 		it("refuses to update when current name does not match --expect-name", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({
 						id: "guard-id",
 						name: "Long current text the user expanded later",
 						parentId: null,
 					}),
-				],
-			});
+				]),
+			);
 
 			await expect(
 				Update.run(["--id", "guard-id", "--name", "Short stub", "--expect-name", "Stale original text"]),
@@ -361,9 +356,10 @@ describe("node update command", () => {
 		});
 
 		it("proceeds with the update when current name matches --expect-name", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "guard-id", name: "Exact current name", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "guard-id", name: "Exact current name", parentId: null})]),
+			);
 
 			let called = false;
 			fetchStub.mockImplementation(async (_url: RequestInfo | URL, _init?: RequestInit) => {
@@ -385,9 +381,7 @@ describe("node update command", () => {
 		});
 
 		it("refuses when the node no longer exists in the cache", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "other-id", name: "Other", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "other-id", name: "Other", parentId: null})]));
 
 			await expect(
 				Update.run(["--id", "missing-id", "--name", "New Name", "--expect-name", "Anything"]),
@@ -399,13 +393,14 @@ describe("node update command", () => {
 
 	describe("updating by path", () => {
 		it("resolves path to correct node ID", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "tasks-id", name: "Tasks", parentId: "work-id"}),
 					createTestNode({id: "target-id", name: "My Task", parentId: "tasks-id"}),
-				],
-			});
+				]),
+			);
 
 			let capturedUrl: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
@@ -442,12 +437,13 @@ describe("node update command", () => {
 		// display are tested here; success message tested via integration tests.
 
 		it("displays full path when updating", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: "work-id"}),
-				],
-			});
+				]),
+			);
 
 			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
 

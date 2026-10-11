@@ -9,7 +9,7 @@ import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import {z} from "zod";
 import Create from "../../../src/commands/node/create.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody, requestJson} from "../../helpers/request-body.js";
@@ -100,9 +100,10 @@ describe("node create command", () => {
 
 	describe("flag validation", () => {
 		it("requires either --name, --json, or --json-file", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			await expect(Create.run(["--parent-id", "parent-id"])).rejects.toThrow(
 				"Either --name, --json, or --json-file is required",
@@ -116,9 +117,10 @@ describe("node create command", () => {
 
 	describe("dry run mode", () => {
 		it("shows API call without executing for single node", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(["--parent-id", "parent-id", "--name", "Test Node", "--dry-run"]);
@@ -131,9 +133,10 @@ describe("node create command", () => {
 		});
 
 		it("accepts an empty --name for a blank node", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run(["--parent-id", "parent-id", "--name", "", "--dry-run"]);
@@ -146,9 +149,10 @@ describe("node create command", () => {
 		});
 
 		it("includes note in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run([
@@ -168,9 +172,10 @@ describe("node create command", () => {
 		});
 
 		it("includes layout mode in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Create.run([
@@ -194,9 +199,10 @@ describe("node create command", () => {
 		it("creates node via API and updates cache", async () => {
 			const createdNodeId = "new-node-id";
 
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			// The API returns just {item_id: "..."}, so the created node is read back for its priority
 			fakeCreates(createdNodeId);
@@ -215,9 +221,10 @@ describe("node create command", () => {
 		});
 
 		it("sends correct request body", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const bodies = fakeCreates("new-id");
 
@@ -247,9 +254,10 @@ describe("node create command", () => {
 
 	describe("parent resolution", () => {
 		it("resolves parent by ID", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "specific-parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "specific-parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const bodies = fakeCreates("new-id");
 
@@ -261,12 +269,13 @@ describe("node create command", () => {
 		});
 
 		it("resolves parent by path", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "projects-id", name: "Projects", parentId: "work-id"}),
-				],
-			});
+				]),
+			);
 
 			const bodies = fakeCreates("new-id");
 
@@ -280,9 +289,10 @@ describe("node create command", () => {
 		it("resolves system target via --parent-id", async () => {
 			// The API accepts 'inbox' as parent_id on create but 404s on GET /nodes/inbox,
 			// so the real parent is learned by fetching the created node.
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "inbox-uuid", name: "Inbox", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "inbox-uuid", name: "Inbox", parentId: null})]),
+			);
 
 			const now = Math.floor(Date.now() / 1000);
 			const capturedRequests: string[] = [];
@@ -347,9 +357,10 @@ describe("node create command", () => {
 
 	describe("JSON mode", () => {
 		it("creates single node from JSON", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			fakeCreates("new-id");
 
@@ -363,9 +374,10 @@ describe("node create command", () => {
 		});
 
 		it("creates nested tree from JSON", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			fakeCreates("node-1", "node-2", "node-3");
 
@@ -392,9 +404,10 @@ describe("node create command", () => {
 		});
 
 		it("dry run shows node tree preview for JSON", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const json = JSON.stringify({
 				name: "Project",
@@ -412,9 +425,10 @@ describe("node create command", () => {
 		});
 
 		it("handles invalid JSON in --json flag", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			await expect(Create.run(["--parent-id", "parent-id", "--json", "not valid json"])).rejects.toThrow(
 				"Invalid JSON",
@@ -422,9 +436,10 @@ describe("node create command", () => {
 		});
 
 		it("validates JSON structure", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			await expect(
 				Create.run(["--parent-id", "parent-id", "--json", '{"invalid": "structure"}']),
@@ -434,9 +449,10 @@ describe("node create command", () => {
 
 	describe("JSON file mode", () => {
 		it("creates nodes from JSON file", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			const jsonPath = path.join(tempDir, "nodes.json");
 			fs.writeFileSync(jsonPath, JSON.stringify({name: "File Node"}));
@@ -453,9 +469,10 @@ describe("node create command", () => {
 		});
 
 		it("handles non-existent JSON file", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			await expect(
 				Create.run(["--parent-id", "parent-id", "--json-file", "/nonexistent/file.json"]),
@@ -467,9 +484,10 @@ describe("node create command", () => {
 		it("displays node ID and URL after creation", async () => {
 			const newNodeId = "created-node-id";
 
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "parent-id", name: "Parent", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
 
 			fakeCreates(newNodeId);
 
@@ -483,12 +501,13 @@ describe("node create command", () => {
 		});
 
 		it("displays parent path in output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "projects-id", name: "Projects", parentId: "work-id"}),
-				],
-			});
+				]),
+			);
 
 			fakeCreates("new-id");
 

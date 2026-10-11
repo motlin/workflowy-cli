@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Delete from "../../../src/commands/node/delete.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createApiNode, createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody} from "../../helpers/request-body.js";
@@ -45,9 +45,7 @@ describe("node delete command", () => {
 		it("requires WORKFLOWY_API_KEY", async () => {
 			delete process.env.WORKFLOWY_API_KEY;
 
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test", parentId: null})],
-			});
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "node-id", name: "Test", parentId: null})]));
 
 			await expect(Delete.run(["--id", "node-id"])).rejects.toThrow(
 				"WORKFLOWY_API_KEY environment variable is required",
@@ -63,9 +61,10 @@ describe("node delete command", () => {
 
 	describe("dry run mode", () => {
 		it("shows API call without executing", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "node-id", name: "Test Node", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "node-id", name: "Test Node", parentId: null})]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Delete.run(["--id", "node-id", "--dry-run"]);
@@ -78,12 +77,13 @@ describe("node delete command", () => {
 		});
 
 		it("shows full path in dry run output", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "tasks-id", name: "Tasks", parentId: "work-id"}),
-				],
-			});
+				]),
+			);
 
 			const {stdout} = await captureOutput(async () => {
 				await Delete.run(["--id", "tasks-id", "--dry-run"]);
@@ -97,9 +97,10 @@ describe("node delete command", () => {
 
 	describe("deleting by ID", () => {
 		it("sends DELETE request to correct URL", async () => {
-			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: "delete-id", name: "To Delete", parentId: null})],
-			});
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "delete-id", name: "To Delete", parentId: null})]),
+			);
 
 			let capturedUrl: string | undefined;
 			let capturedMethod: string | undefined;
@@ -124,13 +125,14 @@ describe("node delete command", () => {
 
 	describe("deleting by path", () => {
 		it("resolves path to correct node ID", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "tasks-id", name: "Tasks", parentId: "work-id"}),
 					createTestNode({id: "target-id", name: "Old Task", parentId: "tasks-id"}),
-				],
-			});
+				]),
+			);
 
 			let capturedUrl: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
@@ -161,12 +163,13 @@ describe("node delete command", () => {
 
 	describe("output", () => {
 		it("displays full path when deleting", async () => {
-			seedTestData(testDatabase, {
-				nodes: [
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
 					createTestNode({id: "work-id", name: "Work", parentId: null}),
 					createTestNode({id: "target-id", name: "Target", parentId: "work-id"}),
-				],
-			});
+				]),
+			);
 
 			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
 
@@ -187,7 +190,7 @@ describe("node delete command", () => {
 	describe("mirrors", () => {
 		beforeEach(() => {
 			seedTestData(testDatabase, {
-				nodes: [
+				...nodeFixtures([
 					createTestNode({id: "projects-id", name: "Projects", parentId: null, priority: 0}),
 					createTestNode({id: "mirror-in-id", name: "", parentId: "projects-id", priority: 0}),
 					createTestNode({id: "task-a-id", name: "Task A", parentId: "projects-id", priority: 1}),
@@ -202,7 +205,7 @@ describe("node delete command", () => {
 						parentId: "other-id",
 						priority: 0,
 					}),
-				],
+				]),
 				mirrors: [
 					{
 						originalId: "other-original-id",
