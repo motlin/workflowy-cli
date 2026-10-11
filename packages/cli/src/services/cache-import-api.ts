@@ -1,21 +1,21 @@
-import {mirrors, nodeContent, type NodeContentType, nodeMetadata, type NodeMetadataType} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
+import {mirrors, nodeContent, type NodeContentType, nodeMetadata, type NodeMetadataType} from "@workflowy/shared/db";
+import * as schema from "@workflowy/shared/db";
 import {
 	applyRows,
 	type NormalizedNodeContentRow,
 	type NormalizedNodeMetadataRow,
 	type NormalizedRowsByTable,
 	nextSystemTime,
-} from '@workflowy/shared/cache';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import {type WorkflowyNode, WorkflowyNodeSchema} from '@workflowy/shared/types';
-import {uuidToShortId} from '@workflowy/shared/workflowy';
-import {and, eq, notExists, or} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import type {AnySQLiteColumn} from 'drizzle-orm/sqlite-core';
-import {ZodError} from 'zod';
-import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from './cache-temporal.js';
-import {logger} from './logger.js';
+} from "@workflowy/shared/cache";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import {type WorkflowyNode, WorkflowyNodeSchema} from "@workflowy/shared/types";
+import {uuidToShortId} from "@workflowy/shared/workflowy";
+import {and, eq, notExists, or} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
+import {ZodError} from "zod";
+import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
+import {logger} from "./logger.js";
 
 /**
  * Convert a Unix timestamp (seconds) to a Date object.
@@ -130,7 +130,7 @@ export async function importFromApi(
 				validationErrors++;
 				console.error(`Validation error for node ${node.id}:`);
 				console.error(error.format());
-				console.error('Node JSON:', JSON.stringify(node, null, 2));
+				console.error("Node JSON:", JSON.stringify(node, null, 2));
 			} else {
 				throw error;
 			}
@@ -243,7 +243,7 @@ export async function importFromApi(
 			`${mergeResult.nodeMetadata?.inserted ?? 0} metadata rows`,
 	);
 
-	logTiming('Transaction complete');
+	logTiming("Transaction complete");
 
 	return {
 		totalNodes: nodesToProcess.length,

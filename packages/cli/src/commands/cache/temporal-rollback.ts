@@ -1,24 +1,24 @@
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {Command, Flags} from '@oclif/core';
-import {sql} from 'drizzle-orm';
-import * as readline from 'node:readline/promises';
-import {createDatabase} from '../../db/index.js';
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {Command, Flags} from "@oclif/core";
+import {sql} from "drizzle-orm";
+import * as readline from "node:readline/promises";
+import {createDatabase} from "../../db/index.js";
 
 const TEMPORAL_TABLES = [
-	'node_content',
-	'node_metadata',
-	'calendar_metadata',
-	'calendar_levels',
-	'node_embeddings',
-	'mirrors',
-	'backlinks',
-	'virtual_root_ids',
-	'ai_metadata',
-	's3_files',
-	'changes_metadata',
-	'references_roots',
-	'backup_imports',
-	'api_import_timestamp',
+	"node_content",
+	"node_metadata",
+	"calendar_metadata",
+	"calendar_levels",
+	"node_embeddings",
+	"mirrors",
+	"backlinks",
+	"virtual_root_ids",
+	"ai_metadata",
+	"s3_files",
+	"changes_metadata",
+	"references_roots",
+	"backup_imports",
+	"api_import_timestamp",
 ] as const;
 
 type TemporalTable = (typeof TEMPORAL_TABLES)[number];
@@ -31,7 +31,7 @@ interface RollbackCounts {
 
 export default class TemporalRollback extends Command {
 	static override description =
-		'Roll back all temporal tables to a previous point in time. This is a destructive operation for disaster recovery.';
+		"Roll back all temporal tables to a previous point in time. This is a destructive operation for disaster recovery.";
 
 	static override examples = [
 		'<%= config.bin %> cache:temporal-rollback --to "2026-01-23 00:00:00" --dry-run',
@@ -45,17 +45,17 @@ export default class TemporalRollback extends Command {
 			required: true,
 		}),
 		exclude: Flags.string({
-			description: 'Table to exclude from rollback (repeatable)',
+			description: "Table to exclude from rollback (repeatable)",
 			multiple: true,
 			default: [],
 		}),
-		'dry-run': Flags.boolean({
-			description: 'Show row counts without executing',
+		"dry-run": Flags.boolean({
+			description: "Show row counts without executing",
 			default: false,
 		}),
 		yes: Flags.boolean({
-			char: 'y',
-			description: 'Skip confirmation prompt',
+			char: "y",
+			description: "Skip confirmation prompt",
 			default: false,
 		}),
 	};
@@ -72,7 +72,7 @@ export default class TemporalRollback extends Command {
 		// Validate excluded tables
 		for (const table of flags.exclude) {
 			if (!TEMPORAL_TABLES.includes(table as TemporalTable)) {
-				this.error(`Unknown table: ${table}\nValid tables: ${TEMPORAL_TABLES.join(', ')}`);
+				this.error(`Unknown table: ${table}\nValid tables: ${TEMPORAL_TABLES.join(", ")}`);
 			}
 		}
 
@@ -115,14 +115,14 @@ export default class TemporalRollback extends Command {
 		// Display summary
 		this.log(`\nTemporal rollback to: ${target}`);
 		if (flags.exclude.length > 0) {
-			this.log(`Excluding: ${flags.exclude.join(', ')}`);
+			this.log(`Excluding: ${flags.exclude.join(", ")}`);
 		}
 
 		if (skippedTables.length > 0) {
-			this.log(`Skipped (not in database): ${skippedTables.join(', ')}`);
+			this.log(`Skipped (not in database): ${skippedTables.join(", ")}`);
 		}
 
-		this.log('');
+		this.log("");
 		this.log(this.formatTable(counts));
 
 		const totalPurged = counts.reduce((sum, c) => sum + c.purged, 0);
@@ -131,15 +131,15 @@ export default class TemporalRollback extends Command {
 			`\nTotal: ${totalPurged.toLocaleString()} rows to purge, ${totalRestored.toLocaleString()} rows to restore`,
 		);
 
-		if (flags['dry-run']) {
-			this.log('\n(dry run - no changes made)');
+		if (flags["dry-run"]) {
+			this.log("\n(dry run - no changes made)");
 			return;
 		}
 
 		// Confirm
 		if (!flags.yes) {
 			if (totalPurged === 0 && totalRestored === 0) {
-				this.log('\nNothing to do.');
+				this.log("\nNothing to do.");
 				return;
 			}
 
@@ -148,11 +148,11 @@ export default class TemporalRollback extends Command {
 				output: process.stdout,
 			});
 
-			const answer = await rl.question('\nThis is a destructive operation. Continue? (y/n) ');
+			const answer = await rl.question("\nThis is a destructive operation. Continue? (y/n) ");
 			rl.close();
 
-			if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
-				this.log('Rollback cancelled.');
+			if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+				this.log("Rollback cancelled.");
 				return;
 			}
 		}
@@ -176,16 +176,16 @@ export default class TemporalRollback extends Command {
 	}
 
 	private formatTable(counts: RollbackCounts[]): string {
-		const header = ['Table', 'Purge', 'Restore'];
+		const header = ["Table", "Purge", "Restore"];
 		const rows = counts.map((c) => [c.table, c.purged.toLocaleString(), c.restored.toLocaleString()]);
 
 		// Calculate column widths
 		const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
 
-		const separator = widths.map((w) => '-'.repeat(w)).join('  ');
+		const separator = widths.map((w) => "-".repeat(w)).join("  ");
 		const formatRow = (row: string[]) =>
-			row.map((cell, i) => (i === 0 ? cell.padEnd(widths[i]) : cell.padStart(widths[i]))).join('  ');
+			row.map((cell, i) => (i === 0 ? cell.padEnd(widths[i]) : cell.padStart(widths[i]))).join("  ");
 
-		return [formatRow(header), separator, ...rows.map((row) => formatRow(row))].join('\n');
+		return [formatRow(header), separator, ...rows.map((row) => formatRow(row))].join("\n");
 	}
 }

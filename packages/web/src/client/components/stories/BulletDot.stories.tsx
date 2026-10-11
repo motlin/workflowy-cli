@@ -1,22 +1,22 @@
-import type {Meta, StoryObj} from '@storybook/react-vite';
+import type {Meta, StoryObj} from "@storybook/react-vite";
 
-import {BulletDot} from './primitives.js';
+import {BulletDot} from "./primitives.js";
 
 const meta: Meta<typeof BulletDot> = {
-	title: 'Primitives/BulletDot',
+	title: "Primitives/BulletDot",
 	component: BulletDot,
 	parameters: {
-		layout: 'centered',
+		layout: "centered",
 	},
-	tags: ['autodocs'],
+	tags: ["autodocs"],
 	argTypes: {
 		isCompleted: {
-			control: 'boolean',
-			description: 'Whether the node is completed',
+			control: "boolean",
+			description: "Whether the node is completed",
 		},
 		isDragging: {
-			control: 'boolean',
-			description: 'Whether the bullet is being dragged',
+			control: "boolean",
+			description: "Whether the bullet is being dragged",
 		},
 	},
 };

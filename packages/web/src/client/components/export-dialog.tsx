@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useState} from 'react';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {useHotkeys} from 'react-hotkeys-hook';
-import {useOutlineStore} from '../stores/outline.js';
+import {useCallback, useEffect, useState} from "react";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useHotkeys} from "react-hotkeys-hook";
+import {useOutlineStore} from "../stores/outline.js";
 
-type ExportFormat = 'plain-text' | 'markdown' | 'opml';
+type ExportFormat = "plain-text" | "markdown" | "opml";
 
 interface NodeData {
 	id: string;
@@ -14,10 +14,10 @@ interface NodeData {
 
 function formatPlainText(nodes: NodeData[], depth: number = 0): string {
 	const lines: string[] = [];
-	const indent = '  '.repeat(depth);
+	const indent = "  ".repeat(depth);
 
 	for (const node of nodes) {
-		const name = node.name ? stripHtml(node.name) : '';
+		const name = node.name ? stripHtml(node.name) : "";
 		if (name) {
 			lines.push(`${indent}- ${name}`);
 		}
@@ -30,15 +30,15 @@ function formatPlainText(nodes: NodeData[], depth: number = 0): string {
 		}
 	}
 
-	return lines.join('\n');
+	return lines.join("\n");
 }
 
 function formatMarkdown(nodes: NodeData[], depth: number = 0): string {
 	const lines: string[] = [];
-	const indent = '  '.repeat(depth);
+	const indent = "  ".repeat(depth);
 
 	for (const node of nodes) {
-		const name = node.name ? stripHtml(node.name) : '';
+		const name = node.name ? stripHtml(node.name) : "";
 		if (name) {
 			lines.push(`${indent}- ${name}`);
 		}
@@ -52,25 +52,25 @@ function formatMarkdown(nodes: NodeData[], depth: number = 0): string {
 		}
 	}
 
-	return lines.join('\n');
+	return lines.join("\n");
 }
 
 function escapeXml(text: string): string {
 	return text
-		.replaceAll('&', '&amp;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;')
-		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&apos;');
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&apos;");
 }
 
 function formatOpmlOutline(nodes: NodeData[], depth: number = 0): string {
 	const lines: string[] = [];
-	const indent = '\t'.repeat(depth + 2);
+	const indent = "\t".repeat(depth + 2);
 
 	for (const node of nodes) {
-		const name = node.name ? escapeXml(stripHtml(node.name)) : '';
-		const note = node.note ? escapeXml(stripHtml(node.note)) : '';
+		const name = node.name ? escapeXml(stripHtml(node.name)) : "";
+		const note = node.note ? escapeXml(stripHtml(node.note)) : "";
 
 		if (node.children && node.children.length > 0) {
 			if (note) {
@@ -86,10 +86,10 @@ function formatOpmlOutline(nodes: NodeData[], depth: number = 0): string {
 		}
 	}
 
-	return lines.join('\n');
+	return lines.join("\n");
 }
 
-function formatOpml(nodes: NodeData[], title: string = 'Workflowy Export'): string {
+function formatOpml(nodes: NodeData[], title: string = "Workflowy Export"): string {
 	const now = new Date().toISOString();
 	const outlines = formatOpmlOutline(nodes);
 
@@ -137,15 +137,15 @@ export function ExportDialog() {
 	const exportContext = useOutlineStore((state) => state.exportContext);
 	const closeExportDialog = useOutlineStore((state) => state.closeExportDialog);
 
-	const [format, setFormat] = useState<ExportFormat>('plain-text');
-	const [exportContent, setExportContent] = useState('');
+	const [format, setFormat] = useState<ExportFormat>("plain-text");
+	const [exportContent, setExportContent] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [copied, setCopied] = useState(false);
 
 	// Fetch and format export content when dialog opens or format changes
 	useEffect(() => {
 		if (!exportDialogOpen || !exportContext || exportContext.nodeIds.length === 0) {
-			setExportContent('');
+			setExportContent("");
 			return;
 		}
 
@@ -163,15 +163,15 @@ export function ExportDialog() {
 
 				let content: string;
 				switch (format) {
-					case 'plain-text': {
+					case "plain-text": {
 						content = formatPlainText(validTrees);
 						break;
 					}
-					case 'markdown': {
+					case "markdown": {
 						content = formatMarkdown(validTrees);
 						break;
 					}
-					case 'opml': {
+					case "opml": {
 						content = formatOpml(validTrees);
 						break;
 					}
@@ -180,7 +180,7 @@ export function ExportDialog() {
 				setExportContent(content);
 			} catch {
 				if (!cancelled) {
-					setExportContent('Error loading export content');
+					setExportContent("Error loading export content");
 				}
 			} finally {
 				if (!cancelled) {
@@ -207,26 +207,26 @@ export function ExportDialog() {
 		let mimeType: string;
 
 		switch (format) {
-			case 'plain-text': {
-				extension = 'txt';
-				mimeType = 'text/plain';
+			case "plain-text": {
+				extension = "txt";
+				mimeType = "text/plain";
 				break;
 			}
-			case 'markdown': {
-				extension = 'md';
-				mimeType = 'text/markdown';
+			case "markdown": {
+				extension = "md";
+				mimeType = "text/markdown";
 				break;
 			}
-			case 'opml': {
-				extension = 'opml';
-				mimeType = 'application/xml';
+			case "opml": {
+				extension = "opml";
+				mimeType = "application/xml";
 				break;
 			}
 		}
 
 		const blob = new Blob([exportContent], {type: mimeType});
 		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
+		const a = document.createElement("a");
 		a.href = url;
 		a.download = `workflowy-export.${extension}`;
 		document.body.append(a);
@@ -237,7 +237,7 @@ export function ExportDialog() {
 
 	// Close on Escape
 	useHotkeys(
-		'escape',
+		"escape",
 		() => {
 			closeExportDialog();
 		},
@@ -253,21 +253,11 @@ export function ExportDialog() {
 	}
 
 	return (
-		<div
-			className="export-dialog-overlay"
-			onClick={closeExportDialog}
-		>
-			<div
-				className="export-dialog"
-				onClick={(e) => e.stopPropagation()}
-			>
+		<div className="export-dialog-overlay" onClick={closeExportDialog}>
+			<div className="export-dialog" onClick={(e) => e.stopPropagation()}>
 				<div className="export-dialog-header">
 					<h2 className="export-dialog-title">Export</h2>
-					<button
-						className="export-dialog-close"
-						onClick={closeExportDialog}
-						type="button"
-					>
+					<button className="export-dialog-close" onClick={closeExportDialog} type="button">
 						x
 					</button>
 				</div>
@@ -276,22 +266,22 @@ export function ExportDialog() {
 					<span className="export-dialog-format-label">Format:</span>
 					<div className="export-dialog-format-buttons">
 						<button
-							className={`export-dialog-format-button ${format === 'plain-text' ? 'selected' : ''}`}
-							onClick={() => setFormat('plain-text')}
+							className={`export-dialog-format-button ${format === "plain-text" ? "selected" : ""}`}
+							onClick={() => setFormat("plain-text")}
 							type="button"
 						>
 							Plain Text
 						</button>
 						<button
-							className={`export-dialog-format-button ${format === 'markdown' ? 'selected' : ''}`}
-							onClick={() => setFormat('markdown')}
+							className={`export-dialog-format-button ${format === "markdown" ? "selected" : ""}`}
+							onClick={() => setFormat("markdown")}
 							type="button"
 						>
 							Markdown
 						</button>
 						<button
-							className={`export-dialog-format-button ${format === 'opml' ? 'selected' : ''}`}
-							onClick={() => setFormat('opml')}
+							className={`export-dialog-format-button ${format === "opml" ? "selected" : ""}`}
+							onClick={() => setFormat("opml")}
 							type="button"
 						>
 							OPML
@@ -303,11 +293,7 @@ export function ExportDialog() {
 					{isLoading ? (
 						<p className="export-dialog-status">Loading...</p>
 					) : (
-						<textarea
-							className="export-dialog-textarea"
-							readOnly
-							value={exportContent}
-						/>
+						<textarea className="export-dialog-textarea" readOnly value={exportContent} />
 					)}
 				</div>
 
@@ -318,7 +304,7 @@ export function ExportDialog() {
 						onClick={handleCopy}
 						type="button"
 					>
-						{copied ? 'Copied!' : 'Copy to Clipboard'}
+						{copied ? "Copied!" : "Copy to Clipboard"}
 					</button>
 					<button
 						className="export-dialog-button export-dialog-download"

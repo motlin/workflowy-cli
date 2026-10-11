@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs';
+import {readFileSync} from "node:fs";
 
 export interface CliInvocation {
 	command: string;
@@ -50,9 +50,9 @@ export interface MarkdownFileAnalysis {
 export function resolveCommandId(words: string[]): {command: string; remaining: string[]} {
 	const maxLen = Math.min(words.length, 4);
 	for (let len = maxLen; len >= 1; len--) {
-		const command = words.slice(0, len).join(':');
+		const command = words.slice(0, len).join(":");
 		const remaining = words.slice(len);
-		if (len > 1 || remaining.length === 0 || remaining[0]?.startsWith('-')) {
+		if (len > 1 || remaining.length === 0 || remaining[0]?.startsWith("-")) {
 			return {command, remaining};
 		}
 	}
@@ -65,24 +65,24 @@ export function resolveCommandId(words: string[]): {command: string; remaining: 
  */
 export function joinContinuationLines(lines: string[]): Array<{text: string; lineNumber: number}> {
 	const result: Array<{text: string; lineNumber: number}> = [];
-	let buffer = '';
+	let buffer = "";
 	let startLine = 0;
 
 	for (const [i, line] of lines.entries()) {
-		if (buffer === '') {
+		if (buffer === "") {
 			startLine = i + 1; // 1-based
 		}
 
-		if (line.endsWith('\\')) {
-			buffer += line.slice(0, -1) + ' ';
+		if (line.endsWith("\\")) {
+			buffer += line.slice(0, -1) + " ";
 		} else {
 			buffer += line;
 			result.push({text: buffer, lineNumber: startLine});
-			buffer = '';
+			buffer = "";
 		}
 	}
 
-	if (buffer !== '') {
+	if (buffer !== "") {
 		result.push({text: buffer, lineNumber: startLine});
 	}
 
@@ -93,13 +93,13 @@ export function joinContinuationLines(lines: string[]): Array<{text: string; lin
  * Check if a token is a stop token for flag parsing (pipes, redirects, etc.).
  */
 function isStopToken(token: string): boolean {
-	const stopTokens = new Set(['2>', '2>>', '&&', ';', '<', '>', '>>', '|', '||']);
+	const stopTokens = new Set(["2>", "2>>", "&&", ";", "<", ">", ">>", "|", "||"]);
 	return (
 		stopTokens.has(token) ||
-		token.startsWith('#') ||
-		token.startsWith('|') ||
-		token.startsWith('>') ||
-		token.startsWith('<')
+		token.startsWith("#") ||
+		token.startsWith("|") ||
+		token.startsWith(">") ||
+		token.startsWith("<")
 	);
 }
 
@@ -119,25 +119,25 @@ function extractFlags(tokens: string[]): string[] {
 			break;
 		}
 
-		if (token.startsWith('--')) {
-			const rawFlagName = token.includes('=') ? token.slice(2, token.indexOf('=')) : token.slice(2);
+		if (token.startsWith("--")) {
+			const rawFlagName = token.includes("=") ? token.slice(2, token.indexOf("=")) : token.slice(2);
 			// Strip trailing markdown artifacts (backticks, quotes, brackets)
-			const flagName = rawFlagName.replace(/[`"')\]]+$/, '');
+			const flagName = rawFlagName.replace(/[`"')\]]+$/, "");
 
-			const normalizedFlag = flagName.startsWith('no-') ? flagName.slice(3) : flagName;
+			const normalizedFlag = flagName.startsWith("no-") ? flagName.slice(3) : flagName;
 
 			if (normalizedFlag) {
 				flags.push(normalizedFlag);
 			}
 
 			// If the next token is a value (not another flag, not a stop token), skip it
-			if (!token.includes('=') && i + 1 < tokens.length) {
+			if (!token.includes("=") && i + 1 < tokens.length) {
 				const next = tokens[i + 1];
-				if (next && !next.startsWith('-') && !isStopToken(next)) {
+				if (next && !next.startsWith("-") && !isStopToken(next)) {
 					i++; // skip the value
 				}
 			}
-		} else if (token.startsWith('-') && token.length === 2) {
+		} else if (token.startsWith("-") && token.length === 2) {
 			flags.push(token.slice(1));
 		}
 	}
@@ -150,7 +150,7 @@ function extractFlags(tokens: string[]): string[] {
  */
 function tokenize(str: string): string[] {
 	const tokens: string[] = [];
-	let current = '';
+	let current = "";
 	let inSingle = false;
 	let inDouble = false;
 
@@ -161,10 +161,10 @@ function tokenize(str: string): string[] {
 		} else if (ch === '"' && !inSingle) {
 			inDouble = !inDouble;
 			current += ch;
-		} else if (ch === ' ' && !inSingle && !inDouble) {
+		} else if (ch === " " && !inSingle && !inDouble) {
 			if (current) {
 				tokens.push(current);
-				current = '';
+				current = "";
 			}
 		} else {
 			current += ch;
@@ -182,17 +182,17 @@ function tokenize(str: string): string[] {
  * Parse a single CLI invocation line into a CliInvocation.
  */
 function parseCliInvocation(text: string, lineNumber: number): CliInvocation | null {
-	const runJsIndex = text.indexOf('./bin/run.js');
+	const runJsIndex = text.indexOf("./bin/run.js");
 	if (runJsIndex === -1) return null;
 
-	const afterRunJs = text.slice(runJsIndex + './bin/run.js'.length).trim();
+	const afterRunJs = text.slice(runJsIndex + "./bin/run.js".length).trim();
 	if (!afterRunJs) {
-		return {command: '', flags: [], line: lineNumber, raw: text.trim()};
+		return {command: "", flags: [], line: lineNumber, raw: text.trim()};
 	}
 
 	const tokens = tokenize(afterRunJs);
 	if (tokens.length === 0) {
-		return {command: '', flags: [], line: lineNumber, raw: text.trim()};
+		return {command: "", flags: [], line: lineNumber, raw: text.trim()};
 	}
 
 	// Separate command words from flags/values
@@ -200,18 +200,18 @@ function parseCliInvocation(text: string, lineNumber: number): CliInvocation | n
 	let flagStartIndex = 0;
 
 	for (const [i, token] of tokens.entries()) {
-		if (token.startsWith('-') || isStopToken(token)) {
+		if (token.startsWith("-") || isStopToken(token)) {
 			flagStartIndex = i;
 			break;
 		}
-		if (token.startsWith('$') || token.startsWith('"') || token.startsWith("'") || token.startsWith('{')) {
+		if (token.startsWith("$") || token.startsWith('"') || token.startsWith("'") || token.startsWith("{")) {
 			flagStartIndex = i;
 			break;
 		}
 
 		// Strip trailing markdown artifacts (closing code-span backtick, prose
 		// punctuation) so `via `./bin/run.js node create`:` resolves to `node:create`.
-		const cleanToken = token.replace(/[`"':,.)\]]+$/, '');
+		const cleanToken = token.replace(/[`"':,.)\]]+$/, "");
 		if (cleanToken) {
 			commandTokens.push(cleanToken);
 		}
@@ -221,7 +221,7 @@ function parseCliInvocation(text: string, lineNumber: number): CliInvocation | n
 	let command: string;
 	let remaining: string[];
 	if (commandTokens.length === 0) {
-		command = '';
+		command = "";
 		remaining = [];
 	} else {
 		({command, remaining} = resolveCommandId(commandTokens));
@@ -248,17 +248,17 @@ function extractCliInvocations(joinedLines: Array<{text: string; lineNumber: num
 	for (const {text, lineNumber} of joinedLines) {
 		let searchStart = 0;
 		while (true) {
-			const idx = text.indexOf('./bin/run.js', searchStart);
+			const idx = text.indexOf("./bin/run.js", searchStart);
 			if (idx === -1) break;
 
-			const afterRunJs = text.slice(idx + './bin/run.js'.length);
+			const afterRunJs = text.slice(idx + "./bin/run.js".length);
 
-			const nextRunJs = afterRunJs.indexOf('./bin/run.js');
+			const nextRunJs = afterRunJs.indexOf("./bin/run.js");
 			const segment = nextRunJs === -1 ? afterRunJs : afterRunJs.slice(0, nextRunJs);
 
 			const cleanSegment = segment
-				.replace(/\|\s*xargs\s.*$/, '')
-				.replace(/\|\s*$/, '')
+				.replace(/\|\s*xargs\s.*$/, "")
+				.replace(/\|\s*$/, "")
 				.trim();
 
 			const invocation = parseCliInvocation(`./bin/run.js ${cleanSegment}`, lineNumber);
@@ -267,7 +267,7 @@ function extractCliInvocations(joinedLines: Array<{text: string; lineNumber: num
 				results.push(invocation);
 			}
 
-			searchStart = idx + './bin/run.js'.length;
+			searchStart = idx + "./bin/run.js".length;
 		}
 	}
 
@@ -307,11 +307,11 @@ function extractLlmPaths(lines: string[]): LlmPath[] {
 		let match;
 		while ((match = pattern.exec(line)) !== null) {
 			let path = match[1];
-			if (path.startsWith('./')) {
+			if (path.startsWith("./")) {
 				path = path.slice(2);
 			}
 
-			path = path.replace(/[.)]+$/, '');
+			path = path.replace(/[.)]+$/, "");
 			if (path) {
 				results.push({path, line: i + 1});
 			}
@@ -329,7 +329,7 @@ function extractCommandRefs(lines: string[]): CommandRef[] {
 	const pattern = /(?:^|[\s`"'(])(\/([\w-]+:[\w-]+(?::[\w-]+)*))/;
 
 	for (const [i, line] of lines.entries()) {
-		if (line.includes('http://') || line.includes('https://')) {
+		if (line.includes("http://") || line.includes("https://")) {
 			const match = pattern.exec(line);
 			if (match && !/https?:$/.test(line.slice(0, line.indexOf(match[0])))) {
 				results.push({ref: match[1], line: i + 1});
@@ -358,11 +358,11 @@ function extractScriptRefs(lines: string[]): ScriptRef[] {
 		let match;
 		while ((match = pattern.exec(line)) !== null) {
 			let path = match[1];
-			if (path.startsWith('./')) {
+			if (path.startsWith("./")) {
 				path = path.slice(2);
 			}
 
-			path = path.replace(/[.)]+$/, '');
+			path = path.replace(/[.)]+$/, "");
 			if (path) {
 				results.push({path, line: i + 1});
 			}
@@ -398,7 +398,7 @@ function extractThresholds(lines: string[]): ThresholdRef[] {
  * Parse a markdown file and return structured analysis of all cross-references.
  */
 export function parseMarkdownFile(filePath: string): MarkdownFileAnalysis {
-	const content = readFileSync(filePath, 'utf8');
+	const content = readFileSync(filePath, "utf8");
 	return parseMarkdownContent(filePath, content);
 }
 
@@ -406,7 +406,7 @@ export function parseMarkdownFile(filePath: string): MarkdownFileAnalysis {
  * Parse markdown content (for testing without filesystem access).
  */
 export function parseMarkdownContent(filePath: string, content: string): MarkdownFileAnalysis {
-	const lines = content.split('\n');
+	const lines = content.split("\n");
 	const joinedLines = joinContinuationLines(lines);
 
 	return {

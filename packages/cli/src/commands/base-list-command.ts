@@ -1,18 +1,18 @@
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {type NodeTree, NodeTreeReader, PathBuilder, systemFromToDate} from '@workflowy/shared/cache';
-import type {WorkflowyNode} from '@workflowy/shared/types';
-import {Command, Flags} from '@oclif/core';
-import {createDatabase} from '../db/index.js';
-import {CacheService} from '../services/cache.js';
-import {logger} from '../services/logger.js';
-import {formatDuration} from '../utils/format-duration.js';
-import {htmlToAnsi} from '../utils/html-to-ansi.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {type NodeTree, NodeTreeReader, PathBuilder, systemFromToDate} from "@workflowy/shared/cache";
+import type {WorkflowyNode} from "@workflowy/shared/types";
+import {Command, Flags} from "@oclif/core";
+import {createDatabase} from "../db/index.js";
+import {CacheService} from "../services/cache.js";
+import {logger} from "../services/logger.js";
+import {formatDuration} from "../utils/format-duration.js";
+import {htmlToAnsi} from "../utils/html-to-ansi.js";
 
 export interface ListCommandFlags {
-	'force-refresh': boolean;
+	"force-refresh": boolean;
 	json: boolean;
 	depth: number;
-	'follow-links': boolean;
+	"follow-links": boolean;
 	fields?: string[];
 }
 
@@ -38,25 +38,25 @@ export abstract class BaseListCommand extends Command {
 	}
 
 	static baseFlags = {
-		'force-refresh': Flags.boolean({
-			char: 'f',
-			description: 'Force refresh from API, ignoring cache',
+		"force-refresh": Flags.boolean({
+			char: "f",
+			description: "Force refresh from API, ignoring cache",
 			default: false,
 		}),
 		json: Flags.boolean({
-			char: 'j',
-			description: 'Output all node details in JSON format',
+			char: "j",
+			description: "Output all node details in JSON format",
 			default: false,
 		}),
 		depth: Flags.integer({
-			description: 'Depth of children to fetch (0 = no children, 1 = direct children only, etc.)',
+			description: "Depth of children to fetch (0 = no children, 1 = direct children only, etc.)",
 			default: 0,
 			min: 0,
 			max: 10,
 		}),
-		'follow-links': Flags.boolean({
-			char: 'l',
-			description: 'Follow Workflowy links in node names to include linked node children (requires --depth > 0)',
+		"follow-links": Flags.boolean({
+			char: "l",
+			description: "Follow Workflowy links in node names to include linked node children (requires --depth > 0)",
 			default: false,
 		}),
 		fields: Flags.string({
@@ -71,7 +71,7 @@ export abstract class BaseListCommand extends Command {
 	 * E.g., ["id,name,note"] becomes ["id", "name", "note"]
 	 */
 	protected parseFields(fieldsInput: string[]): string[] {
-		return fieldsInput.flatMap((f) => f.split(',').map((s) => s.trim()));
+		return fieldsInput.flatMap((f) => f.split(",").map((s) => s.trim()));
 	}
 
 	/**
@@ -82,13 +82,13 @@ export abstract class BaseListCommand extends Command {
 	protected filterNodeFields(node: NodeTree, fields: string[]): Record<string, unknown> {
 		const fieldsSet = new Set(fields);
 		// Always include 'id' for identification
-		fieldsSet.add('id');
+		fieldsSet.add("id");
 
 		const result: Record<string, unknown> = {};
 		for (const field of fieldsSet) {
-			if (field === 'children' && node.children) {
+			if (field === "children" && node.children) {
 				result.children = node.children.map((child) => this.filterNodeFields(child, fields));
-			} else if (field === 'linkTargets' && node.linkTargets) {
+			} else if (field === "linkTargets" && node.linkTargets) {
 				result.linkTargets = node.linkTargets.map((target) => ({
 					id: target.id,
 					name: target.name,
@@ -122,7 +122,7 @@ export abstract class BaseListCommand extends Command {
 		// Try API first if force-refresh or no cached data
 		const cachedNodes = await this.cacheService.getChildrenWithMergedData(parentId);
 		const hasCachedData = cachedNodes.length > 0;
-		const shouldRefresh = flags['force-refresh'] || !hasCachedData;
+		const shouldRefresh = flags["force-refresh"] || !hasCachedData;
 
 		if (shouldRefresh && this.apiClient) {
 			try {
@@ -141,7 +141,7 @@ export abstract class BaseListCommand extends Command {
 
 		const nodes = await new NodeTreeReader(this.cacheService).readChildren(parentId, {
 			depth: flags.depth,
-			followLinks: flags['follow-links'],
+			followLinks: flags["follow-links"],
 		});
 		if (nodes.length > 0 && !flags.json && !fetchedFromApi) {
 			const cacheAge = this.calculateCacheAge(nodes);
@@ -170,7 +170,7 @@ export abstract class BaseListCommand extends Command {
 				: nodes;
 			this.log(JSON.stringify(output, null, 2));
 		} else if (nodes.length === 0) {
-			this.log('No nodes found');
+			this.log("No nodes found");
 		} else {
 			this.log(`Nodes (${nodes.length}):`);
 			await this.displayNodesRecursive(nodes, 0, flags.depth > 0);
@@ -182,30 +182,30 @@ export abstract class BaseListCommand extends Command {
 			const node = nodes[i];
 			const isLast = i === nodes.length - 1;
 
-			const completedIndicator = node.completedAt ? '✓ ' : '';
-			const noteIndicator = node.note ? '📝 ' : '';
-			const mirrorIndicator = node.mirror.isMirror ? '🪞 ' : '';
+			const completedIndicator = node.completedAt ? "✓ " : "";
+			const noteIndicator = node.note ? "📝 " : "";
+			const mirrorIndicator = node.mirror.isMirror ? "🪞 " : "";
 			const layoutIndicator =
-				node.layoutMode && node.layoutMode !== 'bullets' ? this.getLayoutModeEmoji(node.layoutMode) : '';
-			const backlinksIndicator = this.hasBacklinks(node) ? '↗️ ' : '';
-			const aiChatIndicator = node.inChat ? '💬 ' : '';
-			const referencesRootIndicator = node.hasReferencesRoot ? '🔗 ' : '';
-			const linkTargetsIndicator = node.linkTargets && node.linkTargets.length > 0 ? '🔗→ ' : '';
+				node.layoutMode && node.layoutMode !== "bullets" ? this.getLayoutModeEmoji(node.layoutMode) : "";
+			const backlinksIndicator = this.hasBacklinks(node) ? "↗️ " : "";
+			const aiChatIndicator = node.inChat ? "💬 " : "";
+			const referencesRootIndicator = node.hasReferencesRoot ? "🔗 " : "";
+			const linkTargetsIndicator = node.linkTargets && node.linkTargets.length > 0 ? "🔗→ " : "";
 
 			let prefix: string;
 			let urlPrefix: string;
 			if (showTreeStructure) {
-				const indent = '│   '.repeat(depth);
-				const branch = isLast ? '└── ' : '├── ';
+				const indent = "│   ".repeat(depth);
+				const branch = isLast ? "└── " : "├── ";
 				prefix = indent + branch;
-				const urlIndent = depth > 0 ? '│   '.repeat(depth) : '';
-				urlPrefix = urlIndent + (isLast ? '    ' : '│   ') + '    ';
+				const urlIndent = depth > 0 ? "│   ".repeat(depth) : "";
+				urlPrefix = urlIndent + (isLast ? "    " : "│   ") + "    ";
 			} else {
-				prefix = '  ';
-				urlPrefix = '     ';
+				prefix = "  ";
+				urlPrefix = "     ";
 			}
 
-			const nodeName = htmlToAnsi(node.name ?? '');
+			const nodeName = htmlToAnsi(node.name ?? "");
 			const greyUrl = `\u001B[90mhttps://workflowy.com/#/${node.id}\u001B[0m`;
 
 			this.log(
@@ -220,8 +220,8 @@ export abstract class BaseListCommand extends Command {
 			// Display linkTargets if present
 			if (node.linkTargets && node.linkTargets.length > 0) {
 				for (const target of node.linkTargets) {
-					const targetIndent = showTreeStructure ? '│   '.repeat(depth + 1) : '    ';
-					this.log(`${targetIndent}↳ Link target: ${htmlToAnsi(target.name ?? '')}`);
+					const targetIndent = showTreeStructure ? "│   ".repeat(depth + 1) : "    ";
+					this.log(`${targetIndent}↳ Link target: ${htmlToAnsi(target.name ?? "")}`);
 					this.log(`${targetIndent}  🔗 \u001B[90mhttps://workflowy.com/#/${target.shortId}\u001B[0m`);
 					if (target.children && target.children.length > 0) {
 						await this.displayNodesRecursive(target.children, depth + 2, showTreeStructure);
@@ -233,11 +233,11 @@ export abstract class BaseListCommand extends Command {
 
 	private getLayoutModeEmoji(layoutMode: string): string {
 		switch (layoutMode) {
-			case 'todo': {
-				return '☑️ ';
+			case "todo": {
+				return "☑️ ";
 			}
-			case 'headings': {
-				return '📋 ';
+			case "headings": {
+				return "📋 ";
 			}
 			default: {
 				return `[${layoutMode}] `;

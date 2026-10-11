@@ -1,12 +1,12 @@
-import {Command, Flags} from '@oclif/core';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {createDatabase} from '../../db/index.js';
-import {type QmdSearchMode, type QmdSearchResultItem, QmdSearchService} from '../../services/qmd-search.js';
+import {Command, Flags} from "@oclif/core";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {createDatabase} from "../../db/index.js";
+import {type QmdSearchMode, type QmdSearchResultItem, QmdSearchService} from "../../services/qmd-search.js";
 
 export default class QmdSearch extends Command {
 	static override enableJsonFlag = true;
 
-	static override description = 'Search Workflowy nodes using qmd hybrid search (BM25 + vector + LLM reranking)';
+	static override description = "Search Workflowy nodes using qmd hybrid search (BM25 + vector + LLM reranking)";
 
 	static override examples = [
 		'<%= config.bin %> <%= command.id %> --query "project ideas"',
@@ -17,34 +17,34 @@ export default class QmdSearch extends Command {
 
 	static override flags = {
 		query: Flags.string({
-			char: 'q',
-			description: 'Search query',
+			char: "q",
+			description: "Search query",
 			required: true,
 		}),
 		limit: Flags.integer({
-			char: 'l',
-			description: 'Maximum number of results to return',
+			char: "l",
+			description: "Maximum number of results to return",
 			default: 5,
 		}),
 		threshold: Flags.string({
-			char: 't',
-			description: 'Minimum score threshold (0-1, higher = more relevant)',
+			char: "t",
+			description: "Minimum score threshold (0-1, higher = more relevant)",
 		}),
-		'show-distance': Flags.boolean({
-			char: 'd',
-			description: 'Show relevance scores',
+		"show-distance": Flags.boolean({
+			char: "d",
+			description: "Show relevance scores",
 			default: false,
 		}),
 		json: Flags.boolean({
-			char: 'j',
-			description: 'Output results in JSON format',
+			char: "j",
+			description: "Output results in JSON format",
 			default: false,
 		}),
 		mode: Flags.string({
-			char: 'm',
-			description: 'Search mode',
-			options: ['hybrid', 'vector', 'keyword'],
-			default: 'hybrid',
+			char: "m",
+			description: "Search mode",
+			options: ["hybrid", "vector", "keyword"],
+			default: "hybrid",
 		}),
 	};
 
@@ -97,7 +97,7 @@ export default class QmdSearch extends Command {
 				nodeId: result.nodeId,
 				fullPath: result.fullPath,
 				textContent: result.textContent,
-				...(flags['show-distance'] ? {score: result.score} : {}),
+				...(flags["show-distance"] ? {score: result.score} : {}),
 			}));
 
 			if (flags.json) {
@@ -107,9 +107,9 @@ export default class QmdSearch extends Command {
 
 			if (results.length === 0) {
 				if (!this.jsonEnabled()) {
-					this.log('No results found. Try:');
-					this.log('  - Using different search terms');
-					this.log('  - Lowering the threshold with --threshold');
+					this.log("No results found. Try:");
+					this.log("  - Using different search terms");
+					this.log("  - Lowering the threshold with --threshold");
 					this.log("  - Running embeddings if you haven't: workflowy ai:qmd-embed");
 				}
 				return transformedResults;
@@ -117,7 +117,7 @@ export default class QmdSearch extends Command {
 
 			if (!this.jsonEnabled()) {
 				for (const result of results) {
-					this.displayResult(result, flags['show-distance']);
+					this.displayResult(result, flags["show-distance"]);
 				}
 			}
 
@@ -135,12 +135,12 @@ export default class QmdSearch extends Command {
 		}
 
 		const preview = stripHtmlTags(result.textContent).slice(0, 150);
-		this.log(`   ${preview}${result.textContent.length > 150 ? '...' : ''}`);
+		this.log(`   ${preview}${result.textContent.length > 150 ? "..." : ""}`);
 		const greyUrl = `\u001B[90mhttps://workflowy.com/#/${result.nodeId}\u001B[0m`;
 		this.log(`   \u{1F517} ${greyUrl}\n`);
 	}
 
 	private formatPathWithGreySeparators(path: string): string {
-		return path.replaceAll(' > ', '\u001B[90m > \u001B[0m');
+		return path.replaceAll(" > ", "\u001B[90m > \u001B[0m");
 	}
 }

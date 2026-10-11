@@ -1,5 +1,5 @@
-import {useEffect, useRef, useState} from 'react';
-import {useLocation} from 'react-router-dom';
+import {useEffect, useRef, useState} from "react";
+import {useLocation} from "react-router-dom";
 
 /**
  * Track whether forward navigation is possible.
@@ -24,8 +24,8 @@ export function useNavigationHistory() {
 			isPopStateRef.current = true;
 		}
 
-		globalThis.addEventListener('popstate', handlePopState);
-		return () => globalThis.removeEventListener('popstate', handlePopState);
+		globalThis.addEventListener("popstate", handlePopState);
+		return () => globalThis.removeEventListener("popstate", handlePopState);
 	}, []);
 
 	useEffect(() => {

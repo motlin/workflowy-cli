@@ -1,11 +1,11 @@
-import {Hono} from 'hono';
-import {ChangeDetector, parseSince} from '@workflowy/shared/changes';
-import {getDatabase} from '../db.js';
+import {Hono} from "hono";
+import {ChangeDetector, parseSince} from "@workflowy/shared/changes";
+import {getDatabase} from "../db.js";
 
 export const changesRouter = new Hono();
 
-changesRouter.get('/', (c) => {
-	const since = c.req.query('since') ?? '1d';
+changesRouter.get("/", (c) => {
+	const since = c.req.query("since") ?? "1d";
 
 	let cutoffDate: Date;
 	try {

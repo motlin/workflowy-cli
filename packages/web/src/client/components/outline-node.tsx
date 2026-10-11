@@ -1,18 +1,18 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineNode and RecursiveOutlineTree is intentional.
-import {useQueryClient} from '@tanstack/react-query';
-import {nodeKeys} from '../node-cache.js';
-import type {NodeAttachment, NodeResponse} from '../../node-types.js';
-import {useState} from 'react';
-import {nodeRoute, useNodeNavigation} from '../navigation.js';
-import {useNodeDragDrop} from '../hooks/use-node-drag-drop.js';
-import {useDeleteNode, useToggleComplete} from '../hooks/use-nodes.js';
-import {useOutlineStore} from '../stores/outline.js';
-import {EditableNote} from './editable-note.js';
-import {EditableText} from './editable-text.js';
-import {resolveLayoutMode} from './layout-mode.js';
-import {NodeContextMenuButton} from './node-context-menu.js';
-import {RecursiveOutlineTree} from './outline-tree.js';
+import {useQueryClient} from "@tanstack/react-query";
+import {nodeKeys} from "../node-cache.js";
+import type {NodeAttachment, NodeResponse} from "../../node-types.js";
+import {useState} from "react";
+import {nodeRoute, useNodeNavigation} from "../navigation.js";
+import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
+import {useDeleteNode, useToggleComplete} from "../hooks/use-nodes.js";
+import {useOutlineStore} from "../stores/outline.js";
+import {EditableNote} from "./editable-note.js";
+import {EditableText} from "./editable-text.js";
+import {resolveLayoutMode} from "./layout-mode.js";
+import {NodeContextMenuButton} from "./node-context-menu.js";
+import {RecursiveOutlineTree} from "./outline-tree.js";
 
 /**
  * Renders a file-attachment indicator beneath a node's text. Live attachments
@@ -20,13 +20,13 @@ import {RecursiveOutlineTree} from './outline-tree.js';
  * the underlying file) are dimmed and struck through with a trash marker.
  */
 function NodeAttachmentIndicator({attachment}: {attachment: NodeAttachment}) {
-	const className = ['node-attachment', attachment.isDeleted && 'deleted'].filter(Boolean).join(' ');
+	const className = ["node-attachment", attachment.isDeleted && "deleted"].filter(Boolean).join(" ");
 	return (
 		<div
 			className={className}
 			title={attachment.isDeleted ? `Deleted attachment: ${attachment.fileName}` : attachment.fileName}
 		>
-			<span className="node-attachment-icon">{attachment.isDeleted ? '🗑️' : '📎'}</span>
+			<span className="node-attachment-icon">{attachment.isDeleted ? "🗑️" : "📎"}</span>
 			<span className="node-attachment-name">{attachment.fileName}</span>
 		</div>
 	);
@@ -71,13 +71,7 @@ function IndentGuideLines({depth}: {depth: number}) {
 
 	const lines = [];
 	for (let i = 0; i < depth; i++) {
-		lines.push(
-			<div
-				className="indent-guide-line"
-				key={i}
-				style={{left: `${i * INDENT_PER_LEVEL + 9}px`}}
-			/>,
-		);
+		lines.push(<div className="indent-guide-line" key={i} style={{left: `${i * INDENT_PER_LEVEL + 9}px`}} />);
 	}
 	return <>{lines}</>;
 }
@@ -157,33 +151,33 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 	};
 
 	const nameClasses = [
-		'name',
-		isSelected && 'selected',
-		isCompleted && 'completed',
-		isDragging && 'dragging',
-		isDragOver && 'drag-over',
+		"name",
+		isSelected && "selected",
+		isCompleted && "completed",
+		isDragging && "dragging",
+		isDragOver && "drag-over",
 		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
 	]
 		.filter(Boolean)
-		.join(' ');
+		.join(" ");
 
 	const isMirror = node.isMirror === true;
 	const isCollapsedWithChildren = hasChildren && !isExpanded;
 	const bulletClasses = [
-		'bullet',
-		isDragging && 'dragging',
-		isCollapsedWithChildren && 'collapsed',
-		isMirror && 'mirror',
+		"bullet",
+		isDragging && "dragging",
+		isCollapsedWithChildren && "collapsed",
+		isMirror && "mirror",
 	]
 		.filter(Boolean)
-		.join(' ');
+		.join(" ");
 
 	// Calculate indentation based on depth
 	const indentStyle = {
 		paddingLeft: `${depth * INDENT_PER_LEVEL}px`,
 	};
 
-	const projectClasses = ['project', !hasChildren && 'leaf', layout.projectClass].filter(Boolean).join(' ');
+	const projectClasses = ["project", !hasChildren && "leaf", layout.projectClass].filter(Boolean).join(" ");
 
 	return (
 		<div
@@ -209,19 +203,14 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 					onExpandAll={handleExpandAll}
 				/>
 				<a
-					className={`expand${isExpanded ? ' expanded' : ''}`}
+					className={`expand${isExpanded ? " expanded" : ""}`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
 						handleToggleExpand();
 					}}
 				>
-					<svg
-						className="expand-svg"
-						height="20"
-						viewBox="0 0 20 20"
-						width="20"
-					>
+					<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
 						<path
 							d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z"
 							fill="currentColor"
@@ -231,7 +220,7 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 				</a>
 				<a
 					aria-label={
-						isMirror ? 'Mirror, click to zoom' : isCompleted ? 'Completed, click to zoom' : 'Click to zoom'
+						isMirror ? "Mirror, click to zoom" : isCompleted ? "Completed, click to zoom" : "Click to zoom"
 					}
 					className={bulletClasses}
 					data-handbook="bullet.handle"
@@ -241,12 +230,12 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 					onDragEnd={handleDragEnd}
 					onDragStart={handleDragStart}
 					onKeyDown={(event) => {
-						if (event.key === 'Enter' || event.key === ' ') {
+						if (event.key === "Enter" || event.key === " ") {
 							event.preventDefault();
 							navigateToNode(node.id);
 						}
 					}}
-					title={isMirror ? 'Mirror node' : 'Drag to move'}
+					title={isMirror ? "Mirror node" : "Drag to move"}
 				>
 					{isMirror ? (
 						<svg
@@ -259,18 +248,8 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
 						</svg>
 					) : (
-						<svg
-							className="bullet-svg"
-							fill="currentColor"
-							height="100%"
-							viewBox="0 0 18 18"
-							width="100%"
-						>
-							<circle
-								cx="9"
-								cy="9"
-								r="3.5"
-							/>
+						<svg className="bullet-svg" fill="currentColor" height="100%" viewBox="0 0 18 18" width="100%">
+							<circle cx="9" cy="9" r="3.5" />
 						</svg>
 					)}
 				</a>
@@ -278,9 +257,9 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 					<button
 						aria-checked={isCompleted}
 						aria-label={
-							isCompleted ? 'Completed, click to un-complete' : 'Not completed, click to complete'
+							isCompleted ? "Completed, click to un-complete" : "Not completed, click to complete"
 						}
-						className={`todo-checkbox${isCompleted ? ' checked' : ''}`}
+						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
 						onClick={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
@@ -289,12 +268,7 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 						role="checkbox"
 						type="button"
 					>
-						<svg
-							fill="none"
-							height="16"
-							viewBox="0 0 16 16"
-							width="16"
-						>
+						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
 							<rect
 								fill="none"
 								height="13"
@@ -321,17 +295,13 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 				<div className="content">
 					<EditableText
 						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
-						initialValue={node.name ?? ''}
+						initialValue={node.name ?? ""}
 						isEditing={isEditing}
 						nodeId={node.id}
 						parentId={node.parent_id}
 						priority={node.priority}
 					/>
-					<EditableNote
-						initialValue={node.note ?? ''}
-						isEditing={isEditingNote}
-						nodeId={node.id}
-					/>
+					<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 					{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 				</div>
 			</div>
@@ -412,28 +382,24 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 	};
 
 	const nameClasses = [
-		'name',
-		isSelected && 'selected',
-		isCompleted && 'completed',
-		isDragging && 'dragging',
-		isDragOver && 'drag-over',
+		"name",
+		isSelected && "selected",
+		isCompleted && "completed",
+		isDragging && "dragging",
+		isDragOver && "drag-over",
 		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
 	]
 		.filter(Boolean)
-		.join(' ');
+		.join(" ");
 
 	const isMirrorLegacy = node.isMirror === true;
 	const nodeHasChildren = node.hasChildren !== false;
-	const bulletClasses = ['bullet', isDragging && 'dragging', isMirrorLegacy && 'mirror'].filter(Boolean).join(' ');
+	const bulletClasses = ["bullet", isDragging && "dragging", isMirrorLegacy && "mirror"].filter(Boolean).join(" ");
 
-	const liClasses = ['outline-node', !nodeHasChildren && 'leaf', layout.projectClass].filter(Boolean).join(' ');
+	const liClasses = ["outline-node", !nodeHasChildren && "leaf", layout.projectClass].filter(Boolean).join(" ");
 
 	return (
-		<li
-			className={liClasses}
-			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}
-		>
+		<li className={liClasses} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
 			<div
 				className={nameClasses}
 				onClick={handleSelect}
@@ -450,19 +416,14 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 					onExpandAll={handleExpandAll}
 				/>
 				<a
-					className={`expand${isExpanded ? ' expanded' : ''}`}
+					className={`expand${isExpanded ? " expanded" : ""}`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
 						handleToggleExpand();
 					}}
 				>
-					<svg
-						className="expand-svg"
-						height="20"
-						viewBox="0 0 20 20"
-						width="20"
-					>
+					<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
 						<path
 							d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z"
 							fill="currentColor"
@@ -473,10 +434,10 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 				<a
 					aria-label={
 						isMirrorLegacy
-							? 'Mirror, click to zoom'
+							? "Mirror, click to zoom"
 							: isCompleted
-								? 'Completed, click to zoom'
-								: 'Click to zoom'
+								? "Completed, click to zoom"
+								: "Click to zoom"
 					}
 					className={bulletClasses}
 					data-handbook="bullet.handle"
@@ -486,35 +447,18 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 					onDragEnd={handleDragEnd}
 					onDragStart={handleDragStart}
 					onKeyDown={(event) => {
-						if (event.key === 'Enter' || event.key === ' ') {
+						if (event.key === "Enter" || event.key === " ") {
 							event.preventDefault();
 							navigateToNode(node.id);
 						}
 					}}
-					title={isMirrorLegacy ? 'Mirror node' : 'Drag to move'}
+					title={isMirrorLegacy ? "Mirror node" : "Drag to move"}
 				>
-					<svg
-						className="bullet-svg"
-						fill="currentColor"
-						height="100%"
-						viewBox="0 0 18 18"
-						width="100%"
-					>
+					<svg className="bullet-svg" fill="currentColor" height="100%" viewBox="0 0 18 18" width="100%">
 						{isMirrorLegacy ? (
-							<rect
-								height="5"
-								rx="0.5"
-								transform="rotate(45 9 9)"
-								width="5"
-								x="6.5"
-								y="6.5"
-							/>
+							<rect height="5" rx="0.5" transform="rotate(45 9 9)" width="5" x="6.5" y="6.5" />
 						) : (
-							<circle
-								cx="9"
-								cy="9"
-								r="3.5"
-							/>
+							<circle cx="9" cy="9" r="3.5" />
 						)}
 					</svg>
 				</a>
@@ -522,9 +466,9 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 					<button
 						aria-checked={isCompleted}
 						aria-label={
-							isCompleted ? 'Completed, click to un-complete' : 'Not completed, click to complete'
+							isCompleted ? "Completed, click to un-complete" : "Not completed, click to complete"
 						}
-						className={`todo-checkbox${isCompleted ? ' checked' : ''}`}
+						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
 						onClick={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
@@ -533,12 +477,7 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 						role="checkbox"
 						type="button"
 					>
-						<svg
-							fill="none"
-							height="16"
-							viewBox="0 0 16 16"
-							width="16"
-						>
+						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
 							<rect
 								fill="none"
 								height="13"
@@ -565,29 +504,20 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 				<div className="content">
 					<EditableText
 						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
-						initialValue={node.name ?? ''}
+						initialValue={node.name ?? ""}
 						isEditing={isEditing}
 						nodeId={node.id}
 						parentId={node.parent_id}
 						priority={node.priority}
 					/>
-					<EditableNote
-						initialValue={node.note ?? ''}
-						isEditing={isEditingNote}
-						nodeId={node.id}
-					/>
+					<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 					{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 				</div>
 			</div>
 			<div className="drop-line">
 				<div className="line" />
 			</div>
-			{isExpanded && (
-				<RecursiveOutlineTree
-					depth={depth + 1}
-					parentId={node.id}
-				/>
-			)}
+			{isExpanded && <RecursiveOutlineTree depth={depth + 1} parentId={node.id} />}
 		</li>
 	);
 }

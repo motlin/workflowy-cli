@@ -1,59 +1,26 @@
 {
 	"name": "workflowy-cli",
-	"description": "CLI for managing Workflowy nodes via API",
 	"version": "0.1.0",
-	"packageManager": "pnpm@12.11.2",
+	"description": "CLI for managing Workflowy nodes via API",
+	"keywords": [
+		"api",
+		"cli",
+		"oclif",
+		"workflowy"
+	],
+	"license": "Apache 2.0",
 	"author": "Craig P. Motlin",
-	"type": "module",
 	"bin": {
 		"workflowy": "./bin/run.js"
-	},
-	"dependencies": {
-		"@oclif/core": "^5.1.2",
-		"@oclif/plugin-help": "^7",
-		"@workflowy/shared": "workspace:*",
-		"better-sqlite3": "13.0.3",
-		"drizzle-orm": "^0.45.3"
-	},
-	"devDependencies": {
-		"vitest": "catalog:",
-		"@types/better-sqlite3": "^9.6.0",
-		"@types/node": "^26.6.5",
-		"drizzle-kit": "^0.31.11",
-		"vite-plus": "catalog:",
-		"fallow": "^3.33.0",
-		"markdownlint-cli2": "^0.23.3",
-		"oclif": "^6",
-		"shx": "^0.4.0",
-		"tsx": "^4.23.15",
-		"typescript": "^7.0.2",
-		"vite": "catalog:"
-	},
-	"engines": {
-		"node": ">=18.0.0"
 	},
 	"files": [
 		"./bin",
 		"./dist",
 		"./oclif.manifest.json"
 	],
-	"keywords": [
-		"oclif",
-		"cli",
-		"workflowy",
-		"api"
-	],
-	"license": "Apache 2.0",
+	"type": "module",
 	"main": "dist/index.js",
-	"oclif": {
-		"bin": "workflowy",
-		"dirname": "workflowy",
-		"commands": "./packages/cli/dist/commands",
-		"plugins": [
-			"@oclif/plugin-help"
-		],
-		"topicSeparator": " "
-	},
+	"types": "dist/index.d.ts",
 	"scripts": {
 		"preinstall": "npx only-allow pnpm",
 		"build": "shx rm -rf dist && tsc -b",
@@ -79,5 +46,38 @@
 		"prepublishOnly": "pnpm run build && pnpm test && pnpm run oxlint",
 		"prepare": "VITE_GIT_HOOKS=0 vp config"
 	},
-	"types": "dist/index.d.ts"
+	"dependencies": {
+		"@oclif/core": "^5.1.2",
+		"@oclif/plugin-help": "^7",
+		"@workflowy/shared": "workspace:*",
+		"better-sqlite3": "13.0.3",
+		"drizzle-orm": "^0.45.3"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "^9.6.0",
+		"@types/node": "^26.6.5",
+		"drizzle-kit": "^0.31.11",
+		"fallow": "^3.33.0",
+		"markdownlint-cli2": "^0.23.3",
+		"oclif": "^6",
+		"shx": "^0.4.0",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vite": "catalog:",
+		"vite-plus": "catalog:",
+		"vitest": "catalog:"
+	},
+	"oclif": {
+		"bin": "workflowy",
+		"commands": "./packages/cli/dist/commands",
+		"dirname": "workflowy",
+		"plugins": [
+			"@oclif/plugin-help"
+		],
+		"topicSeparator": " "
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"packageManager": "pnpm@12.11.2"
 }

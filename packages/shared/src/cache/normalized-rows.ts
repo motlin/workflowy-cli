@@ -34,14 +34,14 @@ import type {
 	NewReferencesRoot,
 	NewS3File,
 	NewVirtualRootId,
-} from '../db/schema.js';
+} from "../db/schema.js";
 
 /**
  * Strips the temporal envelope columns (`systemFrom` / `systemTo`) from a
  * Drizzle insert type. The merge engine appends those columns itself, so an
  * adapter's `buildInsertRow` output must not include them.
  */
-export type WithoutTemporal<T> = Omit<T, 'systemFrom' | 'systemTo'>;
+export type WithoutTemporal<T> = Omit<T, "systemFrom" | "systemTo">;
 
 /**
  * One `node_content` row as produced by an import adapter: id, name, note,

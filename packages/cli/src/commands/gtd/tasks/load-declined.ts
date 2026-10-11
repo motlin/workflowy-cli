@@ -1,6 +1,6 @@
-import {Command, Flags} from '@oclif/core';
-import {createDatabase} from '../../../db/index.js';
-import {CacheService} from '../../../services/cache.js';
+import {Command, Flags} from "@oclif/core";
+import {createDatabase} from "../../../db/index.js";
+import {CacheService} from "../../../services/cache.js";
 
 interface DeclinedItem {
 	source: string;
@@ -20,22 +20,22 @@ interface DeclinedOutput {
  * preventing re-asking about the same items during bulk capture.
  */
 export default class LoadDeclined extends Command {
-	static override description = 'Load declined items from Session Memory';
+	static override description = "Load declined items from Session Memory";
 
 	static override examples = [
-		'# Load declined items from the last 7 days (default)',
-		'<%= config.bin %> <%= command.id %>',
-		'',
-		'# Load declined items from the last 14 days',
-		'<%= config.bin %> <%= command.id %> --lookback-days 14',
+		"# Load declined items from the last 7 days (default)",
+		"<%= config.bin %> <%= command.id %>",
+		"",
+		"# Load declined items from the last 14 days",
+		"<%= config.bin %> <%= command.id %> --lookback-days 14",
 	];
 
 	static override enableJsonFlag = true;
 
 	static override flags = {
-		'lookback-days': Flags.integer({
-			char: 'l',
-			description: 'Number of days to look back',
+		"lookback-days": Flags.integer({
+			char: "l",
+			description: "Number of days to look back",
 			default: 7,
 		}),
 	};
@@ -43,7 +43,7 @@ export default class LoadDeclined extends Command {
 	public async run(): Promise<DeclinedOutput> {
 		const {flags} = await this.parse(LoadDeclined);
 
-		const lookbackDays = flags['lookback-days'];
+		const lookbackDays = flags["lookback-days"];
 
 		// Calculate the cutoff date
 		const now = new Date();
@@ -55,7 +55,7 @@ export default class LoadDeclined extends Command {
 		const cacheService = new CacheService(database);
 
 		// Find Session Memory node
-		const sessionMemoryPath = ['Metadata', '\u{1F9E0} Session Memory'];
+		const sessionMemoryPath = ["Metadata", "\u{1F9E0} Session Memory"];
 		const sessionMemoryNode = await cacheService.findNodeByPath(sessionMemoryPath);
 
 		if (!sessionMemoryNode) {
@@ -85,7 +85,7 @@ export default class LoadDeclined extends Command {
 			const entries = await cacheService.getChildren(dateNode.id);
 
 			for (const entry of entries) {
-				const entryName = entry.name ?? '';
+				const entryName = entry.name ?? "";
 				const parsed = this.parseDeclined(entryName);
 
 				if (parsed) {
@@ -118,10 +118,10 @@ export default class LoadDeclined extends Command {
 	 * - "bulk-capture-declined: <url>" (legacy format)
 	 */
 	private parseDeclined(entry: string): {source: string; identifier: string} | null {
-		if (entry.startsWith('capture-declined: ')) {
+		if (entry.startsWith("capture-declined: ")) {
 			// New format: "capture-declined: chrome: https://..."
-			const rest = entry.slice('capture-declined: '.length);
-			const colonIndex = rest.indexOf(': ');
+			const rest = entry.slice("capture-declined: ".length);
+			const colonIndex = rest.indexOf(": ");
 			if (colonIndex !== -1) {
 				return {
 					source: rest.slice(0, colonIndex),
@@ -131,11 +131,11 @@ export default class LoadDeclined extends Command {
 			return null;
 		}
 
-		if (entry.startsWith('bulk-capture-declined: ')) {
+		if (entry.startsWith("bulk-capture-declined: ")) {
 			// Legacy format: "bulk-capture-declined: https://..."
 			return {
-				source: 'chrome',
-				identifier: entry.slice('bulk-capture-declined: '.length),
+				source: "chrome",
+				identifier: entry.slice("bulk-capture-declined: ".length),
 			};
 		}
 

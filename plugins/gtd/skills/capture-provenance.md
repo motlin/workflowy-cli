@@ -36,10 +36,10 @@ The order reflects when information is known:
 
 ## Required Children (Capture Time)
 
-| Child | Format | Example |
-| --- | --- | --- |
-| Provenance | `📜 Provenance: <scheme>://<id>` | `📜 Provenance: things3://DJHa8FkpUnPSwBSKVZMWqw` |
-| Added | `➕ Added: <time ...>` | `➕ Added: <time startYear="2026" startMonth="1" startDay="5">Mon, Jan 5, 2026</time>` |
+| Child      | Format                           | Example                                                                                |
+| ---------- | -------------------------------- | -------------------------------------------------------------------------------------- |
+| Provenance | `📜 Provenance: <scheme>://<id>` | `📜 Provenance: things3://DJHa8FkpUnPSwBSKVZMWqw`                                      |
+| Added      | `➕ Added: <time ...>`           | `➕ Added: <time startYear="2026" startMonth="1" startDay="5">Mon, Jan 5, 2026</time>` |
 
 ## Provenance Schemes
 

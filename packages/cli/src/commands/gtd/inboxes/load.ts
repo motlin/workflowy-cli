@@ -1,10 +1,10 @@
-import {Command, Flags} from '@oclif/core';
-import fs from 'node:fs';
-import path from 'node:path';
-import {createDatabase} from '../../../db/index.js';
-import {CacheService} from '../../../services/cache.js';
-import {findSameTitleSiblings, resolveInboxLinks} from '../../../services/inbox-registry.js';
-import {findUnregisteredInboxes} from '../../../services/unregistered-inboxes.js';
+import {Command, Flags} from "@oclif/core";
+import fs from "node:fs";
+import path from "node:path";
+import {createDatabase} from "../../../db/index.js";
+import {CacheService} from "../../../services/cache.js";
+import {findSameTitleSiblings, resolveInboxLinks} from "../../../services/inbox-registry.js";
+import {findUnregisteredInboxes} from "../../../services/unregistered-inboxes.js";
 
 interface InboxItem {
 	id: string;
@@ -37,19 +37,19 @@ interface InboxesOutput {
  * a consolidated JSON file with all inbox items for the refinement agents.
  */
 export default class Load extends Command {
-	static override description = 'Load inbox items from Workflowy for GTD processing';
+	static override description = "Load inbox items from Workflowy for GTD processing";
 
 	static override examples = [
-		'# Load all inbox items',
-		'<%= config.bin %> <%= command.id %>',
-		'# Load with children (depth 3 for refinement nodes)',
-		'<%= config.bin %> <%= command.id %> --depth 3',
+		"# Load all inbox items",
+		"<%= config.bin %> <%= command.id %>",
+		"# Load with children (depth 3 for refinement nodes)",
+		"<%= config.bin %> <%= command.id %> --depth 3",
 	];
 
 	static override flags = {
 		depth: Flags.integer({
 			default: 0,
-			description: 'Depth of children to fetch for each inbox item (0 = none, max 10)',
+			description: "Depth of children to fetch for each inbox item (0 = none, max 10)",
 			max: 10,
 			min: 0,
 		}),
@@ -60,7 +60,7 @@ export default class Load extends Command {
 		const {depth} = flags;
 
 		const projectRoot = this.findProjectRoot();
-		const outputFile = path.join(projectRoot, '.llm', 'gtd-inboxes.json');
+		const outputFile = path.join(projectRoot, ".llm", "gtd-inboxes.json");
 
 		// Ensure .llm directory exists
 		const llmDir = path.dirname(outputFile);
@@ -73,11 +73,11 @@ export default class Load extends Command {
 		const cacheService = new CacheService(database);
 
 		// Find inboxes node
-		const inboxesPath = ['Metadata', '\u{1F4E5} Inboxes'];
+		const inboxesPath = ["Metadata", "\u{1F4E5} Inboxes"];
 		const inboxesNode = await cacheService.findNodeByPath(inboxesPath);
 
 		if (!inboxesNode) {
-			this.error(`Inboxes node not found at path: ${inboxesPath.join(' > ')}`);
+			this.error(`Inboxes node not found at path: ${inboxesPath.join(" > ")}`);
 		}
 
 		const timestamp = new Date().toISOString();
@@ -90,7 +90,7 @@ export default class Load extends Command {
 		if (broken.length > 0) {
 			const details = broken
 				.map((link) => `${link.name} (link ${link.linkId} -> missing ${link.shortId})`)
-				.join('; ');
+				.join("; ");
 			this.error(
 				`Broken inbox registration under Metadata > 📥 Inboxes: ${details}. The linked inbox no longer exists, so the real inbox would be skipped. Repoint the link before loading.`,
 			);
@@ -102,9 +102,9 @@ export default class Load extends Command {
 			const target = targetUuid ? await cacheService.getNode(targetUuid) : null;
 
 			// Extract inbox name from anchor tag or raw name
-			let inboxName = child.name ?? '';
+			let inboxName = child.name ?? "";
 			inboxName = this.extractAnchorText(inboxName);
-			inboxName = inboxName.replace(/\s*\u{1F4E5}\s*Inbox$/u, '').trim();
+			inboxName = inboxName.replace(/\s*\u{1F4E5}\s*Inbox$/u, "").trim();
 
 			const items: InboxItem[] = [];
 
@@ -173,7 +173,7 @@ export default class Load extends Command {
 	}): InboxItem {
 		return {
 			id: node.id,
-			name: node.name ?? '',
+			name: node.name ?? "",
 			note: node.note ?? undefined,
 			completed: node.completedAt !== null,
 			completedAt: node.completedAt ? Math.floor(node.completedAt.getTime() / 1000) : null,
@@ -223,8 +223,8 @@ export default class Load extends Command {
 	private findProjectRoot(): string {
 		let dir = process.cwd();
 
-		while (dir !== '/') {
-			if (fs.existsSync(path.join(dir, 'workflowy.sqlite')) || fs.existsSync(path.join(dir, 'package.json'))) {
+		while (dir !== "/") {
+			if (fs.existsSync(path.join(dir, "workflowy.sqlite")) || fs.existsSync(path.join(dir, "package.json"))) {
 				return dir;
 			}
 			dir = path.dirname(dir);

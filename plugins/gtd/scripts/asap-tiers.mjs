@@ -19,9 +19,9 @@
 // cap and stays that way until planRebalance reads it. That report is proposals only: which items
 // leave an over-cap tier is the user's judgment, made on the ladder page, never a position.
 
-import {readFileSync} from 'node:fs';
+import {readFileSync} from "node:fs";
 
-const ORDINAL_SUFFIX = {1: 'st', 2: 'nd', 3: 'rd'};
+const ORDINAL_SUFFIX = {1: "st", 2: "nd", 3: "rd"};
 
 function assertTierRank(tier) {
 	if (!Number.isInteger(tier) || tier < 1) throw new Error(`not a tier rank: ${tier}`);
@@ -31,12 +31,12 @@ export function tierLabel(tier) {
 	assertTierRank(tier);
 	// 11th/12th/13th are the exceptions every naive ordinal formatter gets wrong.
 	const teen = tier % 100 >= 11 && tier % 100 <= 13;
-	const suffix = teen ? 'th' : (ORDINAL_SUFFIX[tier % 10] ?? 'th');
+	const suffix = teen ? "th" : (ORDINAL_SUFFIX[tier % 10] ?? "th");
 	return `${tier}${suffix}`;
 }
 
 export function parseTierLabel(name) {
-	const match = /^(\d+)(st|nd|rd|th)$/.exec(String(name ?? '').trim());
+	const match = /^(\d+)(st|nd|rd|th)$/.exec(String(name ?? "").trim());
 	if (!match) return null;
 	const tier = Number(match[1]);
 	// Reject `1th` and `3nd`: a mistyped label is a category node, not a tier.
@@ -160,13 +160,13 @@ export function planRescue(ladder, tier) {
  */
 export function filingChoices(ladder) {
 	const bottom = bottomTier(ladder);
-	if (!bottom) return {summary: '', bottom: null, promote: null};
+	if (!bottom) return {summary: "", bottom: null, promote: null};
 
 	const summary = ladder.tiers
 		.map((t) =>
 			t === bottom ? `${t.label} ${t.items.length} (bottom)` : `${t.label} ${t.items.length}/${t.capacity}`,
 		)
-		.join(' · ');
+		.join(" · ");
 
 	const above = ladder.tiers.at(-2);
 	const promote = above ? {tier: above.tier, label: above.label, id: above.id} : null;
@@ -266,16 +266,16 @@ function main(arguments_) {
 		group: (ladder) =>
 			planGroup(
 				ladder,
-				(memberList ?? '').split(',').filter(Boolean),
+				(memberList ?? "").split(",").filter(Boolean),
 				tierArgument === undefined ? undefined : Number(tierArgument),
 			),
 	};
-	if (!Object.hasOwn(commands, command) || !inputPath || (command === 'group' && !memberList)) {
+	if (!Object.hasOwn(commands, command) || !inputPath || (command === "group" && !memberList)) {
 		throw new Error(
-			'usage: asap-tiers.mjs <rebalance|choices> <bucket.json> | rescue <bucket.json> [tier] | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)',
+			"usage: asap-tiers.mjs <rebalance|choices> <bucket.json> | rescue <bucket.json> [tier] | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)",
 		);
 	}
-	const bucket = JSON.parse(readFileSync(inputPath, 'utf8'));
+	const bucket = JSON.parse(readFileSync(inputPath, "utf8"));
 	process.stdout.write(`${JSON.stringify(commands[command](readLadder(bucket)), null, 2)}\n`);
 }
 

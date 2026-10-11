@@ -1,27 +1,27 @@
-import path from 'node:path';
+import path from "node:path";
 
 export type BackupFileInfo = {
 	filename: string;
 	backupDate: Date;
-	source: 'Data';
+	source: "Data";
 	compressed: boolean;
 };
 
 export function parseBackupFilename(filePath: string): BackupFileInfo | null {
 	const filename = path.basename(filePath);
 	const dirname = path.basename(path.dirname(filePath));
-	const compressed = filename.endsWith('.zst');
+	const compressed = filename.endsWith(".zst");
 
 	const dataPattern = /\(.*?\)\.(\d{4}-\d{2}-\d{2})\.workflowy\.backup(?:\.zst)?$/;
 	const legacyPattern = /^workflowy-backup-(\d{4}-\d{2}-\d{2})\.json(?:\.zst)?$/;
 
 	let match = filename.match(dataPattern);
-	if (match && dirname === 'Data') {
+	if (match && dirname === "Data") {
 		const backupDate = new Date(match[1]);
 		if (Number.isNaN(backupDate.getTime())) {
 			return null;
 		}
-		return {filename, backupDate, source: 'Data', compressed};
+		return {filename, backupDate, source: "Data", compressed};
 	}
 
 	match = filename.match(legacyPattern);
@@ -30,7 +30,7 @@ export function parseBackupFilename(filePath: string): BackupFileInfo | null {
 		if (Number.isNaN(backupDate.getTime())) {
 			return null;
 		}
-		return {filename, backupDate, source: 'Data', compressed};
+		return {filename, backupDate, source: "Data", compressed};
 	}
 
 	return null;
@@ -44,5 +44,5 @@ export function getDateDifference(date1: Date, date2: Date): number {
 }
 
 export function formatDate(date: Date): string {
-	return date.toISOString().split('T')[0];
+	return date.toISOString().split("T")[0];
 }

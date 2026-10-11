@@ -7,17 +7,17 @@
  * `app.fetch(...)` against a fake service with no database and no API key.
  */
 
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {NodeTreeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
-import {Hono} from 'hono';
-import {type AppEnv, type ServerContext} from '../context.js';
-import {ladderEvents} from '../ladder-events.js';
-import {LadderService} from '../ladder-service.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {Hono} from "hono";
+import {type AppEnv, type ServerContext} from "../context.js";
+import {ladderEvents} from "../ladder-events.js";
+import {LadderService} from "../ladder-service.js";
 
 /** Where each ladder lives. Both buckets sit four levels down, under their root. */
 const BUCKET_PATHS: Record<string, string[]> = {
-	work: ['Work', '☑️ Next (Work)', '✅ Tasks', '📌 Tasks (asap) (work)'],
-	personal: ['Personal', '☑️ Next (Personal)', '✅ Tasks', '📌 Tasks (asap) (personal)'],
+	work: ["Work", "☑️ Next (Work)", "✅ Tasks", "📌 Tasks (asap) (work)"],
+	personal: ["Personal", "☑️ Next (Personal)", "✅ Tasks", "📌 Tasks (asap) (personal)"],
 };
 
 export interface LadderRouterOptions {
@@ -28,20 +28,20 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 	const createService = options.createService ?? defaultService;
 	const router = new Hono<AppEnv>();
 
-	router.get('/', async (c) => {
-		const ladders = await createService(c.get('ctx')).read();
+	router.get("/", async (c) => {
+		const ladders = await createService(c.get("ctx")).read();
 		return c.json({ladders});
 	});
 
-	router.post('/move', async (c) => {
+	router.post("/move", async (c) => {
 		const {root, node_id: nodeId, to_tier: toTier, before_id: beforeNodeId} = await readBody(c.req.raw);
 		if (!root || !nodeId || !toTier) {
-			return c.json({error: 'root, node_id and to_tier are required'}, 400);
+			return c.json({error: "root, node_id and to_tier are required"}, 400);
 		}
-		if (beforeNodeId !== undefined && typeof beforeNodeId !== 'string')
-			return c.json({error: 'before_id must be a string'}, 400);
+		if (beforeNodeId !== undefined && typeof beforeNodeId !== "string")
+			return c.json({error: "before_id must be a string"}, 400);
 		try {
-			const event = await createService(c.get('ctx')).move({
+			const event = await createService(c.get("ctx")).move({
 				root,
 				nodeId,
 				toTier,
@@ -53,13 +53,13 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 		}
 	});
 
-	router.post('/complete', async (c) => {
+	router.post("/complete", async (c) => {
 		const {root, node_id: nodeId} = await readBody(c.req.raw);
 		if (!root || !nodeId) {
-			return c.json({error: 'root and node_id are required'}, 400);
+			return c.json({error: "root and node_id are required"}, 400);
 		}
 		try {
-			const event = await createService(c.get('ctx')).complete({root, nodeId});
+			const event = await createService(c.get("ctx")).complete({root, nodeId});
 			return c.json({event});
 		} catch (error) {
 			return c.json({error: messageOf(error)}, 400);
@@ -72,7 +72,7 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 async function readBody(request: Request): Promise<Record<string, string | undefined>> {
 	try {
 		const body: unknown = await request.json();
-		return typeof body === 'object' && body !== null ? (body as Record<string, string | undefined>) : {};
+		return typeof body === "object" && body !== null ? (body as Record<string, string | undefined>) : {};
 	} catch {
 		return {};
 	}
@@ -94,7 +94,7 @@ function defaultService(ctx: ServerContext): LadderService {
 			for (const [root, path] of Object.entries(BUCKET_PATHS)) {
 				const bucket = await ctx.cacheService.findNodeByPath(path);
 				if (!bucket) {
-					throw new Error(`no ${root} asap bucket at ${path.join(' > ')}`);
+					throw new Error(`no ${root} asap bucket at ${path.join(" > ")}`);
 				}
 				const [tree] = await reader.readNodes([bucket.id], {depth: 3});
 				if (!tree) {
@@ -117,7 +117,7 @@ function defaultService(ctx: ServerContext): LadderService {
 
 function apiClient(ctx: ServerContext): WorkflowyApiClient {
 	if (!ctx.apiKey) {
-		throw new Error('WORKFLOWY_API_KEY environment variable is required');
+		throw new Error("WORKFLOWY_API_KEY environment variable is required");
 	}
 	return new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
 }

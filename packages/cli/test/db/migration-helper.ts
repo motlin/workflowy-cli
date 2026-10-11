@@ -1,4 +1,4 @@
-import * as schema from '@workflowy/shared/db';
+import * as schema from "@workflowy/shared/db";
 import type {
 	NewAiMetadata,
 	NewBacklink,
@@ -10,14 +10,14 @@ import type {
 	NewReferencesRoot,
 	NewS3File,
 	NewVirtualRootId,
-} from '@workflowy/shared/db';
-import {splitNodeIntoContentAndMetadata, type TestNode} from '../helpers/node-fixtures.js';
-import type Database from 'better-sqlite3';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import {createDatabase} from '../../src/db/index.js';
+} from "@workflowy/shared/db";
+import {splitNodeIntoContentAndMetadata, type TestNode} from "../helpers/node-fixtures.js";
+import type Database from "better-sqlite3";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {createDatabase} from "../../src/db/index.js";
 
 export interface TestDatabase {
 	db: BetterSQLite3Database<typeof schema>;
@@ -60,8 +60,8 @@ let migratedTemplatePath: string | undefined;
 
 function migratedTemplate(): string {
 	if (migratedTemplatePath === undefined) {
-		const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-db-template-'));
-		const templatePath = path.join(templateDir, 'template.sqlite');
+		const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-db-template-"));
+		const templatePath = path.join(templateDir, "template.sqlite");
 		createDatabase(templatePath).$client.close();
 		migratedTemplatePath = templatePath;
 	}
@@ -72,9 +72,9 @@ function migratedTemplate(): string {
 /**
  * Create a test database with migrations applied
  */
-export function createTestDatabase(dbPath: string = ':memory:'): TestDatabase {
+export function createTestDatabase(dbPath: string = ":memory:"): TestDatabase {
 	// An in-memory database has no file to copy onto, so it pays the full cost.
-	if (dbPath !== ':memory:') {
+	if (dbPath !== ":memory:") {
 		fs.copyFileSync(migratedTemplate(), dbPath);
 	}
 
@@ -87,7 +87,7 @@ export function createTestDatabase(dbPath: string = ':memory:'): TestDatabase {
  * Create an in-memory test database
  */
 export function createInMemoryTestDatabase(): TestDatabase {
-	return createTestDatabase(':memory:');
+	return createTestDatabase(":memory:");
 }
 
 /**
@@ -95,7 +95,7 @@ export function createInMemoryTestDatabase(): TestDatabase {
  */
 export function cleanupTestDatabase(testDb: TestDatabase): void {
 	testDb.sqlite.close();
-	if (testDb.path !== ':memory:' && fs.existsSync(testDb.path)) {
+	if (testDb.path !== ":memory:" && fs.existsSync(testDb.path)) {
 		fs.unlinkSync(testDb.path);
 	}
 }
@@ -105,7 +105,7 @@ export function cleanupTestDatabase(testDb: TestDatabase): void {
  * Disables foreign keys temporarily to avoid constraint violations.
  */
 function clearAllTables(testDb: TestDatabase): void {
-	testDb.sqlite.exec('PRAGMA foreign_keys = OFF');
+	testDb.sqlite.exec("PRAGMA foreign_keys = OFF");
 
 	testDb.db.delete(schema.nodeEmbeddings).run();
 	testDb.db.delete(schema.backlinks).run();
@@ -119,7 +119,7 @@ function clearAllTables(testDb: TestDatabase): void {
 	testDb.db.delete(schema.nodeMetadata).run();
 	testDb.db.delete(schema.backupImports).run();
 
-	testDb.sqlite.exec('PRAGMA foreign_keys = ON');
+	testDb.sqlite.exec("PRAGMA foreign_keys = ON");
 }
 
 /**

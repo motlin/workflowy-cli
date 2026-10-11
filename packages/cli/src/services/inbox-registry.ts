@@ -1,7 +1,7 @@
-import {CacheService} from '@workflowy/shared/cache';
-import type * as schema from '@workflowy/shared/db';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
+import {CacheService} from "@workflowy/shared/cache";
+import type * as schema from "@workflowy/shared/db";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 
 export interface BrokenInboxLink {
 	linkId: string;
@@ -38,14 +38,14 @@ export async function resolveInboxLinks(
 		if (target) {
 			targets.set(link.id, target.id);
 		} else {
-			broken.push({linkId: link.id, name: stripHtmlTags(link.name ?? '').trim(), shortId});
+			broken.push({linkId: link.id, name: stripHtmlTags(link.name ?? "").trim(), shortId});
 		}
 	}
 	return {targets, broken};
 }
 
 function normalizeTitle(name: string): string {
-	return stripHtmlTags(name).trim().replaceAll(/\s+/g, ' ').toLowerCase();
+	return stripHtmlTags(name).trim().replaceAll(/\s+/g, " ").toLowerCase();
 }
 
 /** Group open sibling items whose visible titles match; each group is a probable duplicate. */
@@ -55,7 +55,7 @@ export function findSameTitleSiblings(
 	const groups = new Map<string, {title: string; ids: string[]}>();
 	for (const item of items) {
 		const key = normalizeTitle(item.name);
-		if (item.completed || key === '') continue;
+		if (item.completed || key === "") continue;
 		const group = groups.get(key);
 		if (group) {
 			group.ids.push(item.id);

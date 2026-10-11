@@ -1,29 +1,29 @@
-import {Command, Flags} from '@oclif/core';
-import chalk from 'chalk';
-import {ChangeDetector, type ChangeSummary, type ChangeTreeNode, parseSince} from '@workflowy/shared/changes';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {createDatabase} from '../../db/index.js';
-import {htmlToAnsi} from '../../utils/html-to-ansi.js';
+import {Command, Flags} from "@oclif/core";
+import chalk from "chalk";
+import {ChangeDetector, type ChangeSummary, type ChangeTreeNode, parseSince} from "@workflowy/shared/changes";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {createDatabase} from "../../db/index.js";
+import {htmlToAnsi} from "../../utils/html-to-ansi.js";
 
 export default class Changes extends Command {
-	static override description = 'Show nodes changed since a given time';
+	static override description = "Show nodes changed since a given time";
 
 	static override examples = [
-		'<%= config.bin %> <%= command.id %>',
-		'<%= config.bin %> <%= command.id %> --since 2d',
-		'<%= config.bin %> <%= command.id %> --since 12h',
-		'<%= config.bin %> <%= command.id %> --since 2026-02-01',
-		'<%= config.bin %> <%= command.id %> --json',
+		"<%= config.bin %> <%= command.id %>",
+		"<%= config.bin %> <%= command.id %> --since 2d",
+		"<%= config.bin %> <%= command.id %> --since 12h",
+		"<%= config.bin %> <%= command.id %> --since 2026-02-01",
+		"<%= config.bin %> <%= command.id %> --json",
 	];
 
 	static override flags = {
 		since: Flags.string({
-			char: 's',
-			description: 'Time range: duration (1d, 12h, 1w) or ISO date',
-			default: '1d',
+			char: "s",
+			description: "Time range: duration (1d, 12h, 1w) or ISO date",
+			default: "1d",
 		}),
 		json: Flags.boolean({
-			description: 'Output as JSON',
+			description: "Output as JSON",
 			default: false,
 		}),
 	};
@@ -48,7 +48,7 @@ export default class Changes extends Command {
 
 		this.log(`Changes since ${cutoffDate.toISOString()}:`);
 		this.log(this.formatSummary(result.summary));
-		this.log('');
+		this.log("");
 
 		this.renderTree(result.tree, []);
 	}
@@ -61,7 +61,7 @@ export default class Changes extends Command {
 		if (summary.changed > 0) parts.push(chalk.yellow(`${summary.changed} changed`));
 		if (summary.completed > 0) parts.push(chalk.gray(`${summary.completed} completed`));
 		if (summary.uncompleted > 0) parts.push(chalk.gray(`${summary.uncompleted} uncompleted`));
-		return `  ${parts.join(', ')}`;
+		return `  ${parts.join(", ")}`;
 	}
 
 	private renderTree(nodes: ChangeTreeNode[], ancestors: boolean[]): void {
@@ -69,19 +69,19 @@ export default class Changes extends Command {
 			const node = nodes[i];
 			const isLast = i === nodes.length - 1;
 
-			const indent = ancestors.map((hasMore) => (hasMore ? '│   ' : '    ')).join('');
-			const branch = isLast ? '└── ' : '├── ';
+			const indent = ancestors.map((hasMore) => (hasMore ? "│   " : "    ")).join("");
+			const branch = isLast ? "└── " : "├── ";
 			const prefix = indent + branch;
 
-			const name = node.name ? htmlToAnsi(node.name) : '(unnamed)';
-			const plainName = node.name ? stripHtmlTags(node.name) : '(unnamed)';
+			const name = node.name ? htmlToAnsi(node.name) : "(unnamed)";
+			const plainName = node.name ? stripHtmlTags(node.name) : "(unnamed)";
 
 			if (node.isContext) {
 				this.log(`${prefix}${chalk.dim(plainName)}`);
 			} else if (node.change) {
 				const marker = this.getMarker(node.change);
 				const annotations = this.getAnnotations(node.change);
-				const annotationStr = annotations.length > 0 ? ` ${chalk.dim(`[${annotations.join(', ')}]`)}` : '';
+				const annotationStr = annotations.length > 0 ? ` ${chalk.dim(`[${annotations.join(", ")}]`)}` : "";
 				this.log(`${prefix}${marker} ${name}${annotationStr}`);
 			}
 
@@ -91,23 +91,23 @@ export default class Changes extends Command {
 		}
 	}
 
-	private getMarker(change: import('@workflowy/shared/changes').NodeChange): string {
-		if (change.isNew) return chalk.green('+');
-		if (change.isDeleted) return chalk.red('-');
-		if (change.parentChanged && !change.contentChanged && !change.noteChanged) return chalk.blue('>');
-		return chalk.yellow('~');
+	private getMarker(change: import("@workflowy/shared/changes").NodeChange): string {
+		if (change.isNew) return chalk.green("+");
+		if (change.isDeleted) return chalk.red("-");
+		if (change.parentChanged && !change.contentChanged && !change.noteChanged) return chalk.blue(">");
+		return chalk.yellow("~");
 	}
 
-	private getAnnotations(change: import('@workflowy/shared/changes').NodeChange): string[] {
+	private getAnnotations(change: import("@workflowy/shared/changes").NodeChange): string[] {
 		const annotations: string[] = [];
 		if (change.parentChanged && (change.contentChanged || change.noteChanged)) {
-			annotations.push('moved');
+			annotations.push("moved");
 		}
 		if (change.completionChanged) {
-			annotations.push(change.currentCompletedAt ? 'completed' : 'uncompleted');
+			annotations.push(change.currentCompletedAt ? "completed" : "uncompleted");
 		}
 		if (change.noteChanged && !change.contentChanged) {
-			annotations.push('note edited');
+			annotations.push("note edited");
 		}
 		return annotations;
 	}

@@ -1,8 +1,8 @@
-import {useCallback, useEffect, useState} from 'react';
-import {nodeRoute} from '../navigation.js';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {useNavigate} from 'react-router-dom';
-import {useOutlineStore} from '../stores/outline.js';
+import {useCallback, useEffect, useState} from "react";
+import {nodeRoute} from "../navigation.js";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useNavigate} from "react-router-dom";
+import {useOutlineStore} from "../stores/outline.js";
 
 interface RelatedNode {
 	id: string;
@@ -46,12 +46,12 @@ export function RelatedNodesPanel() {
 		setIsLoading(true);
 		setError(null);
 
-		fetch('/api/related', {
-			method: 'POST',
-			headers: {'Content-Type': 'application/json'},
+		fetch("/api/related", {
+			method: "POST",
+			headers: {"Content-Type": "application/json"},
 			body: JSON.stringify({
 				nodeId: selectedId,
-				type: 'similar',
+				type: "similar",
 				limit: 10,
 				threshold: 0.7,
 			}),
@@ -59,7 +59,7 @@ export function RelatedNodesPanel() {
 			.then(async (response) => {
 				if (!response.ok) {
 					const data = (await response.json()) as {error?: string};
-					throw new Error(data.error ?? 'Failed to fetch related nodes');
+					throw new Error(data.error ?? "Failed to fetch related nodes");
 				}
 				return response.json() as Promise<RelatedResponse>;
 			})
@@ -122,14 +122,14 @@ export function RelatedNodesPanel() {
 								>
 									<div className="related-nodes-panel-item-header">
 										<span className="related-nodes-panel-item-name">
-											{stripHtml(node.name) || 'Untitled'}
+											{stripHtml(node.name) || "Untitled"}
 										</span>
 										<span className="related-nodes-panel-item-score">
 											{formatSimilarityScore(node.distance)}
 										</span>
 									</div>
 									{node.path.length > 0 && (
-										<span className="related-nodes-panel-item-path">{node.path.join(' > ')}</span>
+										<span className="related-nodes-panel-item-path">{node.path.join(" > ")}</span>
 									)}
 									{node.note && (
 										<span className="related-nodes-panel-item-note">{stripHtml(node.note)}</span>

@@ -95,10 +95,10 @@
 
 	/* Font families */
 	--wf-font-family:
-		-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji',
-		'Segoe UI Emoji', 'Segoe UI Symbol';
-	--wf-font-family-brand: 'Open Sans', sans-serif;
-	--wf-font-family-mono: 'Andale Mono', Menlo, monospace;
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
+		"Segoe UI Emoji", "Segoe UI Symbol";
+	--wf-font-family-brand: "Open Sans", sans-serif;
+	--wf-font-family-mono: "Andale Mono", Menlo, monospace;
 
 	/* ================================
 	   Workflowy Theme Colors (Light)
@@ -195,7 +195,7 @@
 	--shadow-modal: 0 4px 24px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
-[data-theme='dark'] {
+[data-theme="dark"] {
 	/* Workflowy-style theme colors (dark) - matched to production workflowy.com */
 	--wf-text-primary: rgb(255, 255, 255);
 	--wf-icon-secondary: rgb(158, 161, 162);
@@ -286,8 +286,8 @@ body {
 	margin: 0;
 	padding: 0;
 	font-family:
-		-apple-system, 'system-ui', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji',
-		'Segoe UI Emoji', 'Segoe UI Symbol';
+		-apple-system, "system-ui", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
+		"Segoe UI Emoji", "Segoe UI Symbol";
 	font-size: 16px;
 	line-height: 1.5;
 	color: var(--color-text);
@@ -578,7 +578,7 @@ body {
 	transition: background-color 0.1s ease;
 }
 
-[data-theme='dark'] .gear-menu-item {
+[data-theme="dark"] .gear-menu-item {
 	color: var(--color-text-secondary);
 }
 
@@ -597,8 +597,8 @@ body {
 	cursor: default;
 }
 
-[data-theme='dark'] .gear-menu-item:disabled,
-[data-theme='dark'] .gear-menu-item.disabled {
+[data-theme="dark"] .gear-menu-item:disabled,
+[data-theme="dark"] .gear-menu-item.disabled {
 	color: var(--color-text-faint);
 }
 
@@ -837,7 +837,7 @@ body {
    production workflowy.com (.project.highlighted::before). NOT a full-width bar —
    the .name spans the 500px left overhang, so the highlight goes on .content. */
 .name.selected .content::before {
-	content: '';
+	content: "";
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -1411,7 +1411,7 @@ span.breadcrumb-home-icon {
 /* Inline code formatting */
 .innerContentContainer code,
 .outline-node-note code {
-	font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 	font-size: 0.9em;
 	background-color: var(--color-bg-code);
 	padding: 0.1em 0.3em;
@@ -2509,7 +2509,7 @@ span.breadcrumb-home-icon {
 	border-radius: 2px;
 }
 
-[data-theme='dark'] .search-panel-result mark {
+[data-theme="dark"] .search-panel-result mark {
 	background-color: #5d4f0f;
 }
 
@@ -3623,7 +3623,7 @@ span.breadcrumb-home-icon {
 	width: 100%;
 	height: 250px;
 	padding: 12px;
-	font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 	font-size: 12px;
 	line-height: 1.5;
 	border: 1px solid var(--color-border-light);
@@ -4127,7 +4127,7 @@ span.breadcrumb-home-icon {
 	background-color: #fdeaea;
 }
 
-[data-theme='dark'] .node-context-menu-item.danger:hover {
+[data-theme="dark"] .node-context-menu-item.danger:hover {
 	background-color: #3a2020;
 }
 
@@ -4417,7 +4417,7 @@ span.breadcrumb-home-icon {
 	color: var(--color-accent);
 }
 
-[data-theme='dark'] .settings-theme-button.selected {
+[data-theme="dark"] .settings-theme-button.selected {
 	color: var(--color-border-focus);
 }
 
@@ -4876,11 +4876,11 @@ span.breadcrumb-home-icon {
 }
 
 /* Dark mode adjustments */
-:root[data-theme='dark'] .toggle-switch-track {
+:root[data-theme="dark"] .toggle-switch-track {
 	background-color: rgb(92, 96, 98);
 }
 
-:root[data-theme='dark'] .toggle-switch-label.on .toggle-switch-track {
+:root[data-theme="dark"] .toggle-switch-label.on .toggle-switch-track {
 	background-color: var(--wf-accent-cyan);
 }
 
@@ -4968,7 +4968,7 @@ span.breadcrumb-home-icon {
 	max-width: 900px;
 	margin: 0 auto;
 	padding: 24px;
-	font-family: var(--wf-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+	font-family: var(--wf-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
 .changes-header {
@@ -5260,7 +5260,7 @@ span.breadcrumb-home-icon {
    but the row gets a centered rule via the content's top border. */
 .project.divider > .name .content::after,
 .outline-node.divider > .name .content::after {
-	content: '';
+	content: "";
 	display: block;
 	border-top: var(--wf-border-width-s) solid var(--wf-gray-300);
 	margin: var(--wf-space-m) 0;

@@ -10,22 +10,22 @@
 // rebalance phase needs most -- pulling an item UP into an empty high tier. As spans between
 // boundaries in a single drag context, an empty tier is a valid drop target by construction.
 
-import {readFileSync, writeFileSync} from 'node:fs';
-import assert from 'node:assert/strict';
-import {dirname, join, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {readLadder, tierLabel} from './asap-tiers.mjs';
+import {readFileSync, writeFileSync} from "node:fs";
+import assert from "node:assert/strict";
+import {dirname, join, resolve} from "node:path";
+import {fileURLToPath} from "node:url";
+import {readLadder, tierLabel} from "./asap-tiers.mjs";
 
-const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'ladder-queue.html');
+const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates", "ladder-queue.html");
 
 /** Strip Workflowy HTML down to display text, keeping links as their anchor text. */
 export function displayText(name) {
-	return String(name ?? '')
-		.replace(/<a[^>]*>(.*?)<\/a>/g, '$1')
-		.replace(/<[^>]+>/g, '')
+	return String(name ?? "")
+		.replace(/<a[^>]*>(.*?)<\/a>/g, "$1")
+		.replace(/<[^>]+>/g, "")
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, "'")
-		.replace(/&amp;/g, '&')
+		.replace(/&amp;/g, "&")
 		.trim();
 }
 
@@ -66,7 +66,7 @@ export function diffSubmission(models, submission) {
 		for (const tier of submitted.tiers ?? []) {
 			if (tier.isNew) {
 				ops.push({
-					op: 'create',
+					op: "create",
 					root: model.root,
 					bucketId: submitted.bucketId,
 					label: tier.label,
@@ -76,7 +76,7 @@ export function diffSubmission(models, submission) {
 			for (const nodeId of tier.items ?? []) {
 				if (wasIn.get(nodeId) === tier.label) continue;
 				moves.push({
-					op: 'move',
+					op: "move",
 					root: model.root,
 					nodeId,
 					text: textOf.get(nodeId) ?? nodeId,
@@ -92,7 +92,7 @@ export function diffSubmission(models, submission) {
 		const model = models.find((candidate) =>
 			candidate.tiers.some((tier) => tier.items.some((item) => item.id === nodeId)),
 		);
-		return {op: 'complete', root: model.root, nodeId};
+		return {op: "complete", root: model.root, nodeId};
 	});
 	return [...ops, ...moves, ...completed];
 }
@@ -102,7 +102,7 @@ export function validateSubmission(models, submission) {
 	assert.deepEqual(
 		Object.keys(submission.roots).sort(),
 		models.map((model) => model.root).sort(),
-		'Submission roots must match the current ladders',
+		"Submission roots must match the current ladders",
 	);
 	const completed = submission.completed ?? [];
 	const allIds = new Set(models.flatMap((model) => model.tiers.flatMap((tier) => tier.items.map((item) => item.id))));
@@ -110,37 +110,37 @@ export function validateSubmission(models, submission) {
 		Array.isArray(completed) &&
 			new Set(completed).size === completed.length &&
 			completed.every((id) => allIds.has(id)),
-		'Completed items must be unique current ladder items',
+		"Completed items must be unique current ladder items",
 	);
 	for (const model of models) {
 		const submitted = submission.roots[model.root];
-		assert.equal(submitted.bucketId, model.bucketId, 'Submission bucket changed');
-		assert.ok(submitted.tiers.length >= model.tiers.length, 'Submission dropped a tier');
+		assert.equal(submitted.bucketId, model.bucketId, "Submission bucket changed");
+		assert.ok(submitted.tiers.length >= model.tiers.length, "Submission dropped a tier");
 		const known = new Map(model.tiers.map((tier) => [tier.tier, tier]));
 		let previous = 0;
 		for (const tier of submitted.tiers) {
-			assert.ok(Number.isInteger(tier.tier) && tier.tier > previous, 'Tiers must be ordered and unique');
+			assert.ok(Number.isInteger(tier.tier) && tier.tier > previous, "Tiers must be ordered and unique");
 			previous = tier.tier;
-			assert.equal(tier.label, tierLabel(tier.tier), 'Invalid tier label');
+			assert.equal(tier.label, tierLabel(tier.tier), "Invalid tier label");
 			const current = known.get(tier.tier);
-			assert.equal(tier.id, current?.id ?? null, 'Submission tier destination changed');
-			assert.equal(tier.isNew, !current, 'Invalid new tier flag');
+			assert.equal(tier.id, current?.id ?? null, "Submission tier destination changed");
+			assert.equal(tier.isNew, !current, "Invalid new tier flag");
 		}
 		for (const tier of model.tiers)
 			assert.ok(
 				submitted.tiers.some((candidate) => candidate.tier === tier.tier),
-				'Submission dropped a current tier',
+				"Submission dropped a current tier",
 			);
 		const expected = model.tiers.flatMap((tier) => tier.items.map((item) => item.id)).sort();
 		assert.deepEqual(
 			submitted.tiers.flatMap((tier) => tier.items).sort(),
 			expected,
-			'Submission items must match current ladder exactly',
+			"Submission items must match current ladder exactly",
 		);
 	}
 }
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function renderLadder(model) {
 	// One running index across every tier: a shift-click range is a slice of this
@@ -149,11 +149,11 @@ function renderLadder(model) {
 	const rows = model.tiers
 		.map((tier) => {
 			const state =
-				tier.items.length > tier.capacity ? 'over' : tier.items.length === tier.capacity ? 'exact' : 'room';
+				tier.items.length > tier.capacity ? "over" : tier.items.length === tier.capacity ? "exact" : "room";
 			const items = tier.items
 				.map(
 					(item, i) => `
-        <li class="row${i >= tier.capacity ? ' excess' : ''}" draggable="true" data-node-id="${esc(item.id)}" data-row-index="${rowIndex++}">
+        <li class="row${i >= tier.capacity ? " excess" : ""}" draggable="true" data-node-id="${esc(item.id)}" data-row-index="${rowIndex++}">
           <span class="handle" aria-hidden="true">⠿</span>
           <span class="row-text">${esc(item.text)}</span>
           <span class="row-nudge">
@@ -162,28 +162,28 @@ function renderLadder(model) {
           </span>
         </li>`,
 				)
-				.join('');
+				.join("");
 			return `
       <li class="boundary ${state}" data-tier-boundary="${tier.tier}">
         <span class="boundary-label">${esc(tier.label)}</span>
         <span class="meter" data-meter="${tier.tier}"></span>
         <span class="chip" data-chip="${tier.tier}"></span>
       </li>
-      <li class="span ${state}" data-state="${state}" data-tier-span="${tier.tier}" data-drop-target="true" data-capacity="${tier.capacity}" data-tier-id="${esc(tier.id ?? '')}" data-is-new="false">
+      <li class="span ${state}" data-state="${state}" data-tier-span="${tier.tier}" data-drop-target="true" data-capacity="${tier.capacity}" data-tier-id="${esc(tier.id ?? "")}" data-is-new="false">
         <ul class="span-items">${items}</ul>
         <div class="slots">${Array.from(
 			{length: Math.max(0, tier.capacity - tier.items.length)},
 			() => '<div class="slot">free</div>',
 		)
 			.slice(0, 8)
-			.join('')}</div>
+			.join("")}</div>
         <p class="empty-note">empty — drop here</p>
       </li>`;
 		})
-		.join('');
+		.join("");
 
 	return `
-  <section class="ladder" data-root="${esc(model.root)}" data-bucket-id="${esc(model.bucketId ?? '')}">
+  <section class="ladder" data-root="${esc(model.root)}" data-bucket-id="${esc(model.bucketId ?? "")}">
     <h2>${esc(model.root)}<span class="over-count" data-over-count></span></h2>
     <ul class="ladder-list">${rows}</ul>
     <button type="button" class="add-tier">+ Add next tier</button>
@@ -193,8 +193,8 @@ function renderLadder(model) {
 /** Stable fingerprint of the tiers and rows a page renders. */
 export function pageSignature(models) {
 	const shape = models
-		.map((m) => `${m.root}:${m.tiers.map((t) => `${t.label}=${t.items.map((i) => i.id).join(',')}`).join('|')}`)
-		.join(';');
+		.map((m) => `${m.root}:${m.tiers.map((t) => `${t.label}=${t.items.map((i) => i.id).join(",")}`).join("|")}`)
+		.join(";");
 	let h = 0;
 	for (let i = 0; i < shape.length; i++) h = (Math.imul(31, h) + shape.charCodeAt(i)) | 0;
 	return (h >>> 0).toString(36);
@@ -233,11 +233,11 @@ export function toQueueLadders(models) {
  * generator responsible only for data.
  */
 export function renderFromTemplate(models, templatePath = TEMPLATE) {
-	const template = readFileSync(templatePath, 'utf8');
+	const template = readFileSync(templatePath, "utf8");
 	// `</script>` anywhere in a task name would close the tag early; \u003c keeps
 	// the payload inert while staying valid JSON.
-	const payload = JSON.stringify(toQueueLadders(models)).replace(/</g, '\\u003c');
-	return template.replace('__LADDERS__', () => payload);
+	const payload = JSON.stringify(toQueueLadders(models)).replace(/</g, "\\u003c");
+	return template.replace("__LADDERS__", () => payload);
 }
 
 export function renderPage(models) {
@@ -333,7 +333,7 @@ export function renderPage(models) {
   <span><i class="over">over</i> drag some out</span>
   <span>Click a row to select &middot; <b>shift-click</b> for a range &middot; drag any selected row to move the whole block</span>
 </div>
-<div class="grid">${models.map(renderLadder).join('')}</div>
+<div class="grid">${models.map(renderLadder).join("")}</div>
 <div id="fallback" hidden>
   <p><strong>Could not save to the artifact store.</strong> Copy this and paste it back to Claude:</p>
   <textarea readonly id="fallback-json"></textarea>
@@ -589,49 +589,49 @@ refresh();
 }
 
 export function renderWebAppLauncher(url) {
-	const target = new URL('/ladder', url);
-	assert.ok(['http:', 'https:'].includes(target.protocol), 'Web app URL must use HTTP or HTTPS');
+	const target = new URL("/ladder", url);
+	assert.ok(["http:", "https:"].includes(target.protocol), "Web app URL must use HTTP or HTTPS");
 	return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Asap ladder</title><body><a href="${esc(target.href)}">Open the local Asap ladder</a><p>Moves and Done apply immediately in the local web app.</p></body></html>`;
 }
 
 function main() {
 	const args = process.argv.slice(2);
-	const htmlIndex = args.indexOf('--html');
+	const htmlIndex = args.indexOf("--html");
 	const html = htmlIndex >= 0;
 	if (html) args.splice(htmlIndex, 1);
-	if (!html && args[0] !== '--apply') {
-		const outputIndex = args.indexOf('--output');
+	if (!html && args[0] !== "--apply") {
+		const outputIndex = args.indexOf("--output");
 		const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
-		assert.ok(args.length === 0, 'Use --html work.json personal.json for an offline or Artifact page');
-		const url = new URL('/ladder', process.env.REBALANCE_WEB_APP_URL ?? 'https://workflowy.m4.notlin.com');
+		assert.ok(args.length === 0, "Use --html work.json personal.json for an offline or Artifact page");
+		const url = new URL("/ladder", process.env.REBALANCE_WEB_APP_URL ?? "https://workflowy.m4.notlin.com");
 		const page = renderWebAppLauncher(url);
 		if (output) {
 			writeFileSync(output, page);
-			process.stdout.write(resolve(output) + '\n');
-		} else process.stdout.write(url.href + '\n');
+			process.stdout.write(resolve(output) + "\n");
+		} else process.stdout.write(url.href + "\n");
 		return;
 	}
-	const apply = args[0] === '--apply';
+	const apply = args[0] === "--apply";
 	const submissionPath = apply ? args.splice(0, 2)[1] : null;
-	const outputIndex = args.indexOf('--output');
+	const outputIndex = args.indexOf("--output");
 	const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
 	assert.equal(
 		args.length,
 		2,
-		'Usage: rebalance-ui.mjs [--html | --apply submission.json] work.json personal.json [--output page.html]',
+		"Usage: rebalance-ui.mjs [--html | --apply submission.json] work.json personal.json [--output page.html]",
 	);
 	const models = args.map((file, index) => {
-		const parsed = JSON.parse(readFileSync(file, 'utf8'));
+		const parsed = JSON.parse(readFileSync(file, "utf8"));
 		const bucket = Array.isArray(parsed) ? parsed[0] : parsed;
-		assert.ok(bucket?.id && Array.isArray(bucket.children), 'Expected a bucket with id and children');
-		return buildLadderModel(index === 0 ? 'work' : 'personal', bucket);
+		assert.ok(bucket?.id && Array.isArray(bucket.children), "Expected a bucket with id and children");
+		return buildLadderModel(index === 0 ? "work" : "personal", bucket);
 	});
 	const result = apply
-		? JSON.stringify(diffSubmission(models, JSON.parse(readFileSync(submissionPath, 'utf8'))), null, 2) + '\n'
+		? JSON.stringify(diffSubmission(models, JSON.parse(readFileSync(submissionPath, "utf8"))), null, 2) + "\n"
 		: renderFromTemplate(models);
 	if (output) {
 		writeFileSync(output, result);
-		process.stdout.write(resolve(output) + '\n');
+		process.stdout.write(resolve(output) + "\n");
 	} else process.stdout.write(result);
 }
 

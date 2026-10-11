@@ -7,19 +7,19 @@
  * idempotent — re-applying a move the page already made is a no-op.
  */
 
-import type {Ladder, LadderTier, TierState} from '../server/ladder-model.js';
-import type {LadderEvent} from '../server/ladder-events.js';
+import type {Ladder, LadderTier, TierState} from "../server/ladder-model.js";
+import type {LadderEvent} from "../server/ladder-events.js";
 
 export type Ladders = Record<string, Ladder>;
 
 function stateFor(count: number, capacity: number): TierState {
 	if (count > capacity) {
-		return 'over';
+		return "over";
 	}
-	return count === capacity ? 'exact' : 'room';
+	return count === capacity ? "exact" : "room";
 }
 
-function withItems(tier: LadderTier, items: LadderTier['items']): LadderTier {
+function withItems(tier: LadderTier, items: LadderTier["items"]): LadderTier {
 	return {...tier, items, state: stateFor(items.length, tier.capacity)};
 }
 
@@ -89,10 +89,10 @@ export function applyLadderEvent(ladders: Ladders, event: LadderEvent): Ladders 
 	if (!root) {
 		return ladders;
 	}
-	if (event.verb === 'move' && event.toTier) {
+	if (event.verb === "move" && event.toTier) {
 		return moveWithin(ladders, root, event.nodeId, event.toTier, event.beforeNodeId);
 	}
-	if (event.verb === 'complete') {
+	if (event.verb === "complete") {
 		return removeRow(ladders, event.nodeId);
 	}
 	return ladders;
@@ -133,10 +133,10 @@ export function ladderMoveSelection(ladder: Ladder, selected: Set<string>, nodeI
 export function stepBeforeId(
 	ladder: Ladder,
 	toTier: string,
-	direction: 'up' | 'down',
+	direction: "up" | "down",
 	moving: readonly string[],
 ): string | undefined {
-	if (direction === 'up') return undefined;
+	if (direction === "up") return undefined;
 	const destination = ladder.tiers.find((tier) => tier.label === toTier);
 	return destination?.items.find((item) => !moving.includes(item.id))?.id;
 }

@@ -1,4 +1,4 @@
-import * as schema from '../db/schema.js';
+import * as schema from "../db/schema.js";
 import {
 	aiMetadata,
 	backlinks,
@@ -9,24 +9,24 @@ import {
 	referencesRoots,
 	s3Files,
 	virtualRootIds,
-} from '../db/schema.js';
-import {stripHtmlTags} from '../html/strip-tags.js';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '../temporal/constants.js';
-import type {Node} from '../types/node.js';
-import type {WorkflowyNode} from '../types/workflowy.js';
-import {uuidToShortId} from '../workflowy/constants.js';
-import {and, eq, inArray, isNull, like, notInArray, or, sql} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
+} from "../db/schema.js";
+import {stripHtmlTags} from "../html/strip-tags.js";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
+import type {Node} from "../types/node.js";
+import type {WorkflowyNode} from "../types/workflowy.js";
+import {uuidToShortId} from "../workflowy/constants.js";
+import {and, eq, inArray, isNull, like, notInArray, or, sql} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {
 	contentMatches,
 	currentVersion,
 	metadataMatches,
 	normalizeLayoutMode,
 	systemFromToDate,
-} from './cache-temporal.js';
-import {loadMirrorOriginals, notAMirror} from './mirror-text.js';
-import {NodeReader} from './node-reader.js';
-import {nextSystemTime, nextSystemTimestamp} from './system-clock.js';
+} from "./cache-temporal.js";
+import {loadMirrorOriginals, notAMirror} from "./mirror-text.js";
+import {NodeReader} from "./node-reader.js";
+import {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
 
 /**
  * Type for a node with all related data from a Drizzle query with relations.
@@ -161,17 +161,17 @@ export class CacheService {
 	 */
 	async getNodeWithMergedData(nodeId: string): Promise<{
 		node: Node | undefined;
-		source: 'cache' | 'none';
+		source: "cache" | "none";
 		fetchedAt?: Date;
 	}> {
 		const node = await this.getNode(nodeId);
 		if (!node) {
-			return {node: undefined, source: 'none'};
+			return {node: undefined, source: "none"};
 		}
 
 		return {
 			node,
-			source: 'cache',
+			source: "cache",
 			fetchedAt: systemFromToDate(node.systemFrom),
 		};
 	}

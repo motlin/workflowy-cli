@@ -2,12 +2,21 @@
 	"name": "@workflowy/mcp",
 	"version": "0.1.0",
 	"description": "MCP server for Workflowy",
-	"type": "module",
 	"bin": {
 		"workflowy-mcp": "./bin/mcp.js"
 	},
+	"files": [
+		"./bin",
+		"./dist"
+	],
+	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "tsc -b",
+		"dev": "tsx src/index.ts",
+		"start": "node dist/index.js"
+	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.31.0",
 		"@workflowy/shared": "workspace:*",
@@ -21,14 +30,5 @@
 	},
 	"engines": {
 		"node": ">=18.0.0"
-	},
-	"files": [
-		"./bin",
-		"./dist"
-	],
-	"scripts": {
-		"build": "tsc -b",
-		"dev": "tsx src/index.ts",
-		"start": "node dist/index.js"
 	}
 }

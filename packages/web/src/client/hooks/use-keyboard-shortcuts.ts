@@ -1,11 +1,11 @@
-import {useQueryClient} from '@tanstack/react-query';
-import {nodeRoute} from '../navigation.js';
-import {nodeKeys} from '../node-cache.js';
-import type {NodeResponse} from '../../node-types.js';
-import {useHotkeys} from 'react-hotkeys-hook';
-import {useNavigate} from 'react-router-dom';
-import {useOutlineStore} from '../stores/outline.js';
-import {sortByPriority} from '../tree-position.js';
+import {useQueryClient} from "@tanstack/react-query";
+import {nodeRoute} from "../navigation.js";
+import {nodeKeys} from "../node-cache.js";
+import type {NodeResponse} from "../../node-types.js";
+import {useHotkeys} from "react-hotkeys-hook";
+import {useNavigate} from "react-router-dom";
+import {useOutlineStore} from "../stores/outline.js";
+import {sortByPriority} from "../tree-position.js";
 import {
 	nextSelectionAfterDelete,
 	planDuplicate,
@@ -14,7 +14,7 @@ import {
 	planMoveDown,
 	planMoveUp,
 	planOutdent,
-} from '../tree-ops.js';
+} from "../tree-ops.js";
 import {
 	useChildren,
 	useCreateNode,
@@ -23,8 +23,8 @@ import {
 	useNode,
 	useToggleComplete,
 	useUpdateNode,
-} from './use-nodes.js';
-import {useVisibleNodes} from './use-visible-nodes.js';
+} from "./use-nodes.js";
+import {useVisibleNodes} from "./use-visible-nodes.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -131,7 +131,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+. (Cmd+Period): Zoom in to selected node
 	useHotkeys(
-		'meta+.',
+		"meta+.",
 		() => {
 			if (selectedId) {
 				void navigate(nodeRoute(selectedId));
@@ -146,7 +146,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+, (Cmd+Comma): Zoom out to parent node
 	useHotkeys(
-		'meta+,',
+		"meta+,",
 		() => {
 			if (!zoomedNodeId) {
 				// Already at root level, nothing to do
@@ -158,7 +158,7 @@ export function useKeyboardShortcuts() {
 				void navigate(nodeRoute(parentId));
 			} else {
 				// No parent means we're at a root node, go to root view
-				void navigate('/');
+				void navigate("/");
 			}
 		},
 		{
@@ -170,7 +170,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+[ (Cmd+LeftBracket): Browser history back
 	useHotkeys(
-		'meta+[',
+		"meta+[",
 		() => {
 			globalThis.history.back();
 		},
@@ -182,7 +182,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+] (Cmd+RightBracket): Browser history forward
 	useHotkeys(
-		'meta+]',
+		"meta+]",
 		() => {
 			globalThis.history.forward();
 		},
@@ -196,7 +196,7 @@ export function useKeyboardShortcuts() {
 	useHotkeys(
 		"meta+'",
 		() => {
-			void navigate('/');
+			void navigate("/");
 		},
 		{
 			preventDefault: true,
@@ -210,7 +210,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+Down (⌘↓): Expand selected node
 	useHotkeys(
-		'meta+down',
+		"meta+down",
 		() => {
 			// Don't expand if editing (let text editing handle the event)
 			if (editingId !== null || editingNoteId !== null) {
@@ -235,7 +235,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+Up (⌘↑): Collapse selected node
 	useHotkeys(
-		'meta+up',
+		"meta+up",
 		() => {
 			// Don't collapse if editing (let text editing handle the event)
 			if (editingId !== null || editingNoteId !== null) {
@@ -260,7 +260,7 @@ export function useKeyboardShortcuts() {
 
 	// ArrowUp: Select previous visible node
 	useHotkeys(
-		'up',
+		"up",
 		() => {
 			if (visibleNodes.length === 0) {
 				return;
@@ -293,7 +293,7 @@ export function useKeyboardShortcuts() {
 
 	// ArrowDown: Select next visible node
 	useHotkeys(
-		'down',
+		"down",
 		() => {
 			if (visibleNodes.length === 0) {
 				return;
@@ -326,7 +326,7 @@ export function useKeyboardShortcuts() {
 
 	// Enter: Create new sibling node below (when not editing)
 	useHotkeys(
-		'enter',
+		"enter",
 		() => {
 			// Don't create sibling if already editing (Enter should submit the edit)
 			if (editingId !== null) {
@@ -355,7 +355,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Enter: Focus/create note field for selected node
 	useHotkeys(
-		'shift+enter',
+		"shift+enter",
 		() => {
 			// Don't trigger if already editing a note
 			if (editingNoteId !== null) {
@@ -378,7 +378,7 @@ export function useKeyboardShortcuts() {
 
 	// Tab: Indent node (make it a child of its previous sibling)
 	useHotkeys(
-		'tab',
+		"tab",
 		() => {
 			// Don't indent if editing (Tab should work normally in text fields)
 			if (editingId !== null) {
@@ -402,7 +402,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Tab: Outdent node (make it a sibling of its parent)
 	useHotkeys(
-		'shift+tab',
+		"shift+tab",
 		() => {
 			// Don't outdent if editing (Shift+Tab should work normally in text fields)
 			if (editingId !== null) {
@@ -426,7 +426,7 @@ export function useKeyboardShortcuts() {
 
 	// Backspace: Delete empty node (when not editing, node is empty and has no children)
 	useHotkeys(
-		'backspace',
+		"backspace",
 		() => {
 			// Don't delete if editing (Backspace should work normally in text fields)
 			if (editingId !== null) {
@@ -439,8 +439,8 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Only delete if node is empty (no name or whitespace-only name)
-			const nodeName = selectedNode.name ?? '';
-			if (nodeName.trim() !== '') {
+			const nodeName = selectedNode.name ?? "";
+			if (nodeName.trim() !== "") {
 				return;
 			}
 
@@ -465,7 +465,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+Enter: Toggle complete/uncomplete on selected node
 	useHotkeys(
-		'meta+enter',
+		"meta+enter",
 		() => {
 			// Need a selected node to toggle completion
 			if (selectedId === null || selectedNode === undefined) {
@@ -488,7 +488,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+Up: Move node up among siblings
 	useHotkeys(
-		'shift+meta+up',
+		"shift+meta+up",
 		() => {
 			// Don't move if editing (let text editing handle the event)
 			if (editingId !== null) {
@@ -512,7 +512,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+Down: Move node down among siblings
 	useHotkeys(
-		'shift+meta+down',
+		"shift+meta+down",
 		() => {
 			// Don't move if editing (let text editing handle the event)
 			if (editingId !== null) {
@@ -536,7 +536,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+D: Duplicate selected node (shallow copy)
 	useHotkeys(
-		'shift+meta+d',
+		"shift+meta+d",
 		() => {
 			// Don't duplicate if editing (let text editing handle the event)
 			if (editingId !== null) {
@@ -564,7 +564,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+9: Jump to previous sibling
 	useHotkeys(
-		'shift+meta+9',
+		"shift+meta+9",
 		() => {
 			// Don't jump if editing (let text editing handle the event)
 			if (editingId !== null) {
@@ -606,7 +606,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+0: Jump to next sibling
 	useHotkeys(
-		'shift+meta+0',
+		"shift+meta+0",
 		() => {
 			// Don't jump if editing (let text editing handle the event)
 			if (editingId !== null) {
@@ -648,7 +648,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+Up: Focus previous sibling (zoom to previous sibling of current zoomed node)
 	useHotkeys(
-		'alt+meta+up',
+		"alt+meta+up",
 		() => {
 			// Only works when zoomed into a node
 			if (zoomedNodeId === null || zoomedNode === undefined) {
@@ -681,7 +681,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+Down: Focus next sibling (zoom to next sibling of current zoomed node)
 	useHotkeys(
-		'alt+meta+down',
+		"alt+meta+down",
 		() => {
 			// Only works when zoomed into a node
 			if (zoomedNodeId === null || zoomedNode === undefined) {
@@ -714,7 +714,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+Backspace: Force delete node and all descendants
 	useHotkeys(
-		'shift+meta+backspace',
+		"shift+meta+backspace",
 		() => {
 			// Don't delete if editing (let text editing handle the event)
 			if (editingId !== null) {
@@ -743,7 +743,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+8: Set layout mode to bullets (default mode)
 	useHotkeys(
-		'alt+meta+8',
+		"alt+meta+8",
 		() => {
 			// Need a selected node to change layout mode
 			if (selectedId === null) {
@@ -752,7 +752,7 @@ export function useKeyboardShortcuts() {
 
 			updateNodeMutation.mutate({
 				nodeId: selectedId,
-				layoutMode: 'bullets',
+				layoutMode: "bullets",
 			});
 		},
 		{
@@ -764,7 +764,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+9: Set layout mode to todo (shows checkboxes)
 	useHotkeys(
-		'alt+meta+9',
+		"alt+meta+9",
 		() => {
 			// Need a selected node to change layout mode
 			if (selectedId === null) {
@@ -773,7 +773,7 @@ export function useKeyboardShortcuts() {
 
 			updateNodeMutation.mutate({
 				nodeId: selectedId,
-				layoutMode: 'todo',
+				layoutMode: "todo",
 			});
 		},
 		{
@@ -785,7 +785,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+1: Set layout mode to heading 1 (largest heading)
 	useHotkeys(
-		'alt+meta+1',
+		"alt+meta+1",
 		() => {
 			// Need a selected node to change layout mode
 			if (selectedId === null) {
@@ -794,7 +794,7 @@ export function useKeyboardShortcuts() {
 
 			updateNodeMutation.mutate({
 				nodeId: selectedId,
-				layoutMode: 'h1',
+				layoutMode: "h1",
 			});
 		},
 		{
@@ -806,7 +806,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+2: Set layout mode to heading 2 (medium heading)
 	useHotkeys(
-		'alt+meta+2',
+		"alt+meta+2",
 		() => {
 			// Need a selected node to change layout mode
 			if (selectedId === null) {
@@ -815,7 +815,7 @@ export function useKeyboardShortcuts() {
 
 			updateNodeMutation.mutate({
 				nodeId: selectedId,
-				layoutMode: 'h2',
+				layoutMode: "h2",
 			});
 		},
 		{
@@ -827,7 +827,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+3: Set layout mode to heading 3 (smallest heading)
 	useHotkeys(
-		'alt+meta+3',
+		"alt+meta+3",
 		() => {
 			// Need a selected node to change layout mode
 			if (selectedId === null) {
@@ -836,7 +836,7 @@ export function useKeyboardShortcuts() {
 
 			updateNodeMutation.mutate({
 				nodeId: selectedId,
-				layoutMode: 'h3',
+				layoutMode: "h3",
 			});
 		},
 		{
@@ -848,7 +848,7 @@ export function useKeyboardShortcuts() {
 
 	// Option+Cmd+4: Set layout mode to paragraph (no bullets, prose text)
 	useHotkeys(
-		'alt+meta+4',
+		"alt+meta+4",
 		() => {
 			// Need a selected node to change layout mode
 			if (selectedId === null) {
@@ -857,7 +857,7 @@ export function useKeyboardShortcuts() {
 
 			updateNodeMutation.mutate({
 				nodeId: selectedId,
-				layoutMode: 'paragraph',
+				layoutMode: "paragraph",
 			});
 		},
 		{
@@ -869,7 +869,7 @@ export function useKeyboardShortcuts() {
 
 	// Ctrl+L: Toggle left sidebar
 	useHotkeys(
-		'ctrl+l',
+		"ctrl+l",
 		() => {
 			toggleLeftSidebar();
 		},
@@ -882,7 +882,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+? (Cmd+Shift+/): Toggle right sidebar (keyboard shortcuts help)
 	useHotkeys(
-		'meta+shift+/',
+		"meta+shift+/",
 		() => {
 			toggleRightSidebar();
 		},
@@ -895,7 +895,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+O: Toggle show/hide completed nodes
 	useHotkeys(
-		'meta+o',
+		"meta+o",
 		() => {
 			toggleCompleted();
 		},
@@ -908,7 +908,7 @@ export function useKeyboardShortcuts() {
 
 	// Shift+Cmd+8: Star/unstar current zoomed page
 	useHotkeys(
-		'shift+meta+8',
+		"shift+meta+8",
 		() => {
 			// Only works when zoomed into a node
 			if (zoomedNodeId === null) {
@@ -927,7 +927,7 @@ export function useKeyboardShortcuts() {
 	// Escape: Open search panel (when not editing and search is closed)
 	// Note: When search panel is open, it handles its own Escape key to close
 	useHotkeys(
-		'escape',
+		"escape",
 		() => {
 			// Don't open search if editing (Escape should cancel editing)
 			if (editingId !== null || editingNoteId !== null) {
@@ -961,7 +961,7 @@ export function useKeyboardShortcuts() {
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 
 	useHotkeys(
-		'meta+k',
+		"meta+k",
 		() => {
 			// Don't open if search panel is open
 			if (searchPanelOpen) {
@@ -997,7 +997,7 @@ export function useKeyboardShortcuts() {
 	// Ctrl+T (^T): Zoom to Today
 	// Searches for a node containing today's date and navigates to it
 	useHotkeys(
-		'ctrl+t',
+		"ctrl+t",
 		async () => {
 			// Don't zoom if editing
 			if (editingId !== null || editingNoteId !== null) {
@@ -1007,20 +1007,20 @@ export function useKeyboardShortcuts() {
 			// Format today's date in common formats to search
 			const today = new Date();
 			const monthNames = [
-				'January',
-				'February',
-				'March',
-				'April',
-				'May',
-				'June',
-				'July',
-				'August',
-				'September',
-				'October',
-				'November',
-				'December',
+				"January",
+				"February",
+				"March",
+				"April",
+				"May",
+				"June",
+				"July",
+				"August",
+				"September",
+				"October",
+				"November",
+				"December",
 			];
-			const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+			const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 			const day = today.getDate();
 			const month = monthNames[today.getMonth()];
 			const year = today.getFullYear();
@@ -1031,14 +1031,14 @@ export function useKeyboardShortcuts() {
 				`${month} ${day}, ${year}`,
 				`${dayOfWeek}, ${month} ${day}`,
 				`${month} ${day}`,
-				`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+				`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
 			];
 
 			// Search for nodes containing today's date
 			for (const dateFormat of dateFormats) {
-				const response = await fetch('/api/search', {
-					method: 'POST',
-					headers: {'Content-Type': 'application/json'},
+				const response = await fetch("/api/search", {
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
 					body: JSON.stringify({query: dateFormat, limit: 1}),
 				});
 
@@ -1063,7 +1063,7 @@ export function useKeyboardShortcuts() {
 	// Shift+Cmd+E (⇧⌘E): Export selected node(s)
 	// Opens export dialog with options for plain text, markdown, or OPML
 	useHotkeys(
-		'shift+meta+e',
+		"shift+meta+e",
 		() => {
 			// Need at least one selected node to export
 			if (selectedId === null) {

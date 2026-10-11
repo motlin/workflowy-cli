@@ -1,18 +1,18 @@
-import {CacheService, NodeTreeReader, PathBuilder} from '@workflowy/shared/cache';
-import {nodeContent} from '@workflowy/shared/db';
-import {buildSearchConditions, parseSearchQuery} from '@workflowy/shared/search';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {and} from 'drizzle-orm';
+import {CacheService, NodeTreeReader, PathBuilder} from "@workflowy/shared/cache";
+import {nodeContent} from "@workflowy/shared/db";
+import {buildSearchConditions, parseSearchQuery} from "@workflowy/shared/search";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {and} from "drizzle-orm";
 import {
 	cleanupTestDatabase,
 	createInMemoryTestDatabase,
 	seedTestData,
 	type TestDatabase,
-} from '../db/migration-helper.js';
-import {createTestNode} from '../helpers/node-fixtures.js';
+} from "../db/migration-helper.js";
+import {createTestNode} from "../helpers/node-fixtures.js";
 
-const NOW = new Date('2026-01-01T12:00:00.000Z');
-const SYSTEM_FROM = '2026-01-01 12:00:00.000';
+const NOW = new Date("2026-01-01T12:00:00.000Z");
+const SYSTEM_FROM = "2026-01-01 12:00:00.000";
 
 /**
  * A mirror never has text of its own: Workflowy renders it with its original's
@@ -20,7 +20,7 @@ const SYSTEM_FROM = '2026-01-01 12:00:00.000';
  * the mirror node (left behind by old writes to the mirror id), so every reader
  * must ignore that text and use the original's.
  */
-describe('mirror text comes from the original', () => {
+describe("mirror text comes from the original", () => {
 	let testDatabase: TestDatabase;
 	let cacheService: CacheService;
 
@@ -38,24 +38,24 @@ describe('mirror text comes from the original', () => {
 		vi.setSystemTime(NOW);
 		seedTestData(testDatabase, {
 			nodes: [
-				createTestNode({id: 'p', name: 'Parent', parentId: null, priority: 0}),
-				createTestNode({id: 'elsewhere', name: 'Elsewhere', parentId: null, priority: 1}),
-				createTestNode({id: 'orig', name: 'Original Name', note: 'Original Note', parentId: 'elsewhere'}),
-				createTestNode({id: 'orig-child', name: 'Original Child', parentId: 'orig'}),
+				createTestNode({id: "p", name: "Parent", parentId: null, priority: 0}),
+				createTestNode({id: "elsewhere", name: "Elsewhere", parentId: null, priority: 1}),
+				createTestNode({id: "orig", name: "Original Name", note: "Original Note", parentId: "elsewhere"}),
+				createTestNode({id: "orig-child", name: "Original Child", parentId: "orig"}),
 				// Stale text stored on the mirrors themselves, as the API and backups can return it.
 				createTestNode({
-					id: 'mir',
-					name: 'Stale mirror name',
-					note: 'Stale mirror note',
-					parentId: 'p',
+					id: "mir",
+					name: "Stale mirror name",
+					note: "Stale mirror note",
+					parentId: "p",
 					priority: 0,
 				}),
-				createTestNode({id: 'orphan', name: 'Stale orphan name', parentId: 'p', priority: 1}),
+				createTestNode({id: "orphan", name: "Stale orphan name", parentId: "p", priority: 1}),
 			],
 			mirrors: [
-				{originalId: 'orig', mirrorId: 'mir', systemFrom: SYSTEM_FROM, systemTo: FAR_FUTURE_DATE},
+				{originalId: "orig", mirrorId: "mir", systemFrom: SYSTEM_FROM, systemTo: FAR_FUTURE_DATE},
 				// The original of this mirror is not in the cache.
-				{originalId: 'missing', mirrorId: 'orphan', systemFrom: SYSTEM_FROM, systemTo: FAR_FUTURE_DATE},
+				{originalId: "missing", mirrorId: "orphan", systemFrom: SYSTEM_FROM, systemTo: FAR_FUTURE_DATE},
 			],
 		});
 	});
@@ -66,7 +66,7 @@ describe('mirror text comes from the original', () => {
 
 	const baseNode = {
 		priority: 0,
-		layoutMode: 'bullets',
+		layoutMode: "bullets",
 		createdAt: NOW,
 		modifiedAt: NOW,
 		completedAt: null,
@@ -76,26 +76,26 @@ describe('mirror text comes from the original', () => {
 	};
 	const mirrorNode = {
 		...baseNode,
-		id: 'mir',
-		shortId: 'mir',
-		parentId: 'p',
-		name: 'Original Name',
-		note: 'Original Note',
-		mirror: {isMirror: true, originalNodeId: 'orig'},
+		id: "mir",
+		shortId: "mir",
+		parentId: "p",
+		name: "Original Name",
+		note: "Original Note",
+		mirror: {isMirror: true, originalNodeId: "orig"},
 	};
 	const orphanNode = {
 		...baseNode,
-		id: 'orphan',
-		shortId: 'orphan',
-		parentId: 'p',
+		id: "orphan",
+		shortId: "orphan",
+		parentId: "p",
 		name: null,
 		note: null,
 		priority: 1,
-		mirror: {isMirror: true, originalNodeId: 'missing'},
+		mirror: {isMirror: true, originalNodeId: "missing"},
 	};
 
-	it('NodeTreeReader ignores stale mirror text instead of throwing', async () => {
-		const trees = await new NodeTreeReader(cacheService).readChildren('p', {depth: 1});
+	it("NodeTreeReader ignores stale mirror text instead of throwing", async () => {
+		const trees = await new NodeTreeReader(cacheService).readChildren("p", {depth: 1});
 
 		expect(trees).toStrictEqual([
 			{
@@ -105,10 +105,10 @@ describe('mirror text comes from the original', () => {
 				children: [
 					{
 						...baseNode,
-						id: 'orig-child',
-						shortId: 'origchild',
-						parentId: 'orig',
-						name: 'Original Child',
+						id: "orig-child",
+						shortId: "origchild",
+						parentId: "orig",
+						name: "Original Child",
 						note: null,
 						mirror: {isMirror: false, originalNodeId: null},
 						inChat: false,
@@ -120,55 +120,55 @@ describe('mirror text comes from the original', () => {
 		]);
 	});
 
-	it('CacheService node reads use the original text', async () => {
+	it("CacheService node reads use the original text", async () => {
 		expect({
-			node: await cacheService.getNode('mir'),
-			children: await cacheService.getChildren('p'),
-			many: [...(await cacheService.getMultipleNodes(['mir', 'orphan'])).entries()],
+			node: await cacheService.getNode("mir"),
+			children: await cacheService.getChildren("p"),
+			many: [...(await cacheService.getMultipleNodes(["mir", "orphan"])).entries()],
 		}).toStrictEqual({
 			node: mirrorNode,
 			children: [mirrorNode, orphanNode],
 			many: [
-				['mir', mirrorNode],
-				['orphan', orphanNode],
+				["mir", mirrorNode],
+				["orphan", orphanNode],
 			],
 		});
 	});
 
-	it('findNodeByPath matches a mirror by its original name and descends into the original', async () => {
-		const node = await cacheService.findNodeByPath(['Parent', 'Original Name', 'Original Child']);
+	it("findNodeByPath matches a mirror by its original name and descends into the original", async () => {
+		const node = await cacheService.findNodeByPath(["Parent", "Original Name", "Original Child"]);
 
-		expect(node?.id).toBe('orig-child');
+		expect(node?.id).toBe("orig-child");
 	});
 
-	it('PathBuilder uses the original text for paths, content, and children', async () => {
+	it("PathBuilder uses the original text for paths, content, and children", async () => {
 		const pathBuilder = new PathBuilder(testDatabase.db);
 
 		expect({
-			path: await pathBuilder.buildFullPath('mir'),
-			content: await pathBuilder.buildTextContentBatch(['mir', 'orphan']),
-			children: await pathBuilder.buildChildrenTextBatch(['p']),
+			path: await pathBuilder.buildFullPath("mir"),
+			content: await pathBuilder.buildTextContentBatch(["mir", "orphan"]),
+			children: await pathBuilder.buildChildrenTextBatch(["p"]),
 		}).toStrictEqual({
-			path: 'Parent > Original Name',
+			path: "Parent > Original Name",
 			content: new Map([
-				['mir', 'Original Name\n\nOriginal Note'],
-				['orphan', ''],
+				["mir", "Original Name\n\nOriginal Note"],
+				["orphan", ""],
 			]),
-			children: new Map([['p', 'Original Name: Original Note\n']]),
+			children: new Map([["p", "Original Name: Original Note\n"]]),
 		});
 	});
 
-	it('text search never matches stale mirror text', async () => {
+	it("text search never matches stale mirror text", async () => {
 		expect({
-			stale: await cacheService.searchText({query: 'Stale'}),
-			original: await cacheService.searchText({query: 'Original Name'}),
+			stale: await cacheService.searchText({query: "Stale"}),
+			original: await cacheService.searchText({query: "Original Name"}),
 		}).toStrictEqual({
 			stale: [],
-			original: [{id: 'orig', name: 'Original Name', note: 'Original Note', shortId: 'orig', completedAt: null}],
+			original: [{id: "orig", name: "Original Name", note: "Original Note", shortId: "orig", completedAt: null}],
 		});
 	});
 
-	it('web search conditions never match stale mirror text', () => {
+	it("web search conditions never match stale mirror text", () => {
 		const matchingIds = (query: string) =>
 			testDatabase.db
 				.select({id: nodeContent.id})
@@ -176,9 +176,9 @@ describe('mirror text comes from the original', () => {
 				.where(and(...buildSearchConditions(parseSearchQuery(query)).contentConditions))
 				.all();
 
-		expect({stale: matchingIds('Stale'), original: matchingIds('Original Name')}).toStrictEqual({
+		expect({stale: matchingIds("Stale"), original: matchingIds("Original Name")}).toStrictEqual({
 			stale: [],
-			original: [{id: 'orig'}],
+			original: [{id: "orig"}],
 		});
 	});
 });

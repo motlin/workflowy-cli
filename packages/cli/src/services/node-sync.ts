@@ -1,13 +1,13 @@
-import type {WorkflowyApiClient} from '@workflowy/shared/api';
-import type {WorkflowyNode} from '@workflowy/shared/types';
-import type {CacheService} from './cache.js';
+import type {WorkflowyApiClient} from "@workflowy/shared/api";
+import type {WorkflowyNode} from "@workflowy/shared/types";
+import type {CacheService} from "./cache.js";
 
 export type NodeSyncStats = {
 	syncedCount: number;
 };
 
 export type NodeSyncProgress = {
-	phase: 'syncing';
+	phase: "syncing";
 	nodeId: string | null;
 	childCount: number;
 	message?: string;
@@ -36,10 +36,10 @@ export class NodeSyncService {
 			syncedCount += nodes.length;
 
 			options.onProgress?.({
-				phase: 'syncing',
+				phase: "syncing",
 				nodeId,
 				childCount: nodes.length,
-				message: `Synced ${nodes.length} children of ${nodeId || 'root'}`,
+				message: `Synced ${nodes.length} children of ${nodeId || "root"}`,
 			});
 
 			if (recursive) {

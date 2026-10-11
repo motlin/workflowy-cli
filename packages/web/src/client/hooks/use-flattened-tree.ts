@@ -1,9 +1,9 @@
-import {useQueries, useQueryClient} from '@tanstack/react-query';
-import {nodeKeys} from '../node-cache.js';
-import type {NodeResponse} from '../../node-types.js';
-import {useMemo} from 'react';
-import {useOutlineStore} from '../stores/outline.js';
-import {useChildren} from './use-nodes.js';
+import {useQueries, useQueryClient} from "@tanstack/react-query";
+import {nodeKeys} from "../node-cache.js";
+import type {NodeResponse} from "../../node-types.js";
+import {useMemo} from "react";
+import {useOutlineStore} from "../stores/outline.js";
+import {useChildren} from "./use-nodes.js";
 
 /**
  * A flattened node includes the original node data plus its depth in the tree.

@@ -1,9 +1,9 @@
-import {useVirtualizer} from '@tanstack/react-virtual';
-import {useRef} from 'react';
-import {useFlattenedTree} from '../hooks/use-flattened-tree.js';
-import {useChildren, useCreateNode, useNode} from '../hooks/use-nodes.js';
-import {useOutlineStore} from '../stores/outline.js';
-import {OutlineNode, VirtualizedOutlineNode} from './outline-node.js';
+import {useVirtualizer} from "@tanstack/react-virtual";
+import {useRef} from "react";
+import {useFlattenedTree} from "../hooks/use-flattened-tree.js";
+import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
+import {useOutlineStore} from "../stores/outline.js";
+import {OutlineNode, VirtualizedOutlineNode} from "./outline-node.js";
 
 interface OutlineTreeProps {
 	parentId: string | null;
@@ -27,7 +27,7 @@ function AddButton({parentId, depth = 0}: AddButtonProps) {
 	const handleClick = () => {
 		createNode.mutate({
 			parent_id: parentId ?? undefined,
-			name: '',
+			name: "",
 		});
 	};
 
@@ -36,10 +36,7 @@ function AddButton({parentId, depth = 0}: AddButtonProps) {
 	};
 
 	return (
-		<div
-			className="add-button-container"
-			style={indentStyle}
-		>
+		<div className="add-button-container" style={indentStyle}>
 			<button
 				aria-label="Add new item"
 				className="addChildButton iconButton ms shape-circle"
@@ -75,12 +72,7 @@ function ZoomedNodeTitle({nodeId}: {nodeId: string}) {
 		return null;
 	}
 
-	return (
-		<div
-			className="zoomed-node-title"
-			dangerouslySetInnerHTML={{__html: node.name || ''}}
-		/>
-	);
+	return <div className="zoomed-node-title" dangerouslySetInnerHTML={{__html: node.name || ""}} />;
 }
 
 /**
@@ -97,7 +89,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 	// This ensures the scrollbar appears at the viewport's right edge
 	const getScrollElement = () => {
 		if (scrollRef.current) return scrollRef.current;
-		const el = containerRef.current?.closest('.outline-container') as HTMLElement | null;
+		const el = containerRef.current?.closest(".outline-container") as HTMLElement | null;
 		if (el) scrollRef.current = el;
 		return el;
 	};
@@ -121,16 +113,10 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 
 	if (flattenedNodes.length === 0) {
 		return (
-			<div
-				className="outline-tree-container"
-				ref={containerRef}
-			>
+			<div className="outline-tree-container" ref={containerRef}>
 				<div className="scroller">
 					{parentId && <ZoomedNodeTitle nodeId={parentId} />}
-					<AddButton
-						depth={0}
-						parentId={parentId}
-					/>
+					<AddButton depth={0} parentId={parentId} />
 				</div>
 			</div>
 		);
@@ -139,18 +125,15 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 	const virtualItems = virtualizer.getVirtualItems();
 
 	return (
-		<div
-			className="outline-tree-container"
-			ref={containerRef}
-		>
+		<div className="outline-tree-container" ref={containerRef}>
 			<div className="scroller">
 				{parentId && <ZoomedNodeTitle nodeId={parentId} />}
 				<div
 					className="outline-tree-virtualizer"
 					style={{
 						height: `${virtualizer.getTotalSize()}px`,
-						width: '100%',
-						position: 'relative',
+						width: "100%",
+						position: "relative",
 					}}
 				>
 					{virtualItems.map((virtualItem) => {
@@ -161,10 +144,10 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 								key={flattenedNode.node.id}
 								ref={virtualizer.measureElement}
 								style={{
-									position: 'absolute',
+									position: "absolute",
 									top: 0,
 									left: 0,
-									width: '100%',
+									width: "100%",
 									transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
 								}}
 							>
@@ -178,10 +161,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 						);
 					})}
 				</div>
-				<AddButton
-					depth={0}
-					parentId={parentId}
-				/>
+				<AddButton depth={0} parentId={parentId} />
 			</div>
 		</div>
 	);
@@ -204,37 +184,22 @@ export function RecursiveOutlineTree({parentId, depth = 0}: {parentId: string | 
 	}
 
 	if (!nodes || nodes.length === 0) {
-		return (
-			<AddButton
-				depth={depth}
-				parentId={parentId}
-			/>
-		);
+		return <AddButton depth={depth} parentId={parentId} />;
 	}
 
 	const visibleNodes = showCompleted ? nodes : nodes.filter((node) => node.completedAt === null);
 
-	const treeClassName = depth > 0 ? 'outline-tree outline-tree-nested' : 'outline-tree';
+	const treeClassName = depth > 0 ? "outline-tree outline-tree-nested" : "outline-tree";
 
 	return (
 		<>
 			<ul className={treeClassName}>
 				{visibleNodes.map((node) => {
 					const isExpanded = expandedIds.has(node.id);
-					return (
-						<OutlineNode
-							depth={depth}
-							isExpanded={isExpanded}
-							key={node.id}
-							node={node}
-						/>
-					);
+					return <OutlineNode depth={depth} isExpanded={isExpanded} key={node.id} node={node} />;
 				})}
 			</ul>
-			<AddButton
-				depth={depth}
-				parentId={parentId}
-			/>
+			<AddButton depth={depth} parentId={parentId} />
 		</>
 	);
 }

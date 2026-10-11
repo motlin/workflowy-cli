@@ -47,14 +47,14 @@ export interface DropTarget {
 
 export function dropAtPoint(x: number, y: number, moving: Set<string>): DropTarget | undefined {
 	const element = document.elementFromPoint(x, y);
-	const target = element?.closest<HTMLElement>('[data-tier]');
+	const target = element?.closest<HTMLElement>("[data-tier]");
 	if (!target?.dataset.tier) return;
-	const zone = target.classList.contains('ladder-zone') ? target : target.nextElementSibling;
-	const rows = Array.from(zone?.querySelectorAll<HTMLElement>('[data-node-id]') ?? []);
+	const zone = target.classList.contains("ladder-zone") ? target : target.nextElementSibling;
+	const rows = Array.from(zone?.querySelectorAll<HTMLElement>("[data-node-id]") ?? []);
 	const before = rows.find((row) => {
 		if (moving.has(row.dataset.nodeId!)) return false;
 		const bounds = row.getBoundingClientRect();
 		return y < bounds.top + bounds.height / 2;
 	});
-	return {tier: target.dataset.tier, beforeNodeId: before?.dataset.nodeId ?? ''};
+	return {tier: target.dataset.tier, beforeNodeId: before?.dataset.nodeId ?? ""};
 }

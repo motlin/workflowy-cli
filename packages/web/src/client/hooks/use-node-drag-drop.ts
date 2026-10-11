@@ -1,6 +1,6 @@
-import {useState} from 'react';
-import {z} from 'zod';
-import {useMoveNode, useReorderNode} from './use-nodes.js';
+import {useState} from "react";
+import {z} from "zod";
+import {useMoveNode, useReorderNode} from "./use-nodes.js";
 
 const DragDataSchema = z.object({
 	nodeId: z.string(),
@@ -8,7 +8,7 @@ const DragDataSchema = z.object({
 	priority: z.number(),
 });
 
-type DropPosition = 'above' | 'below' | 'child';
+type DropPosition = "above" | "below" | "child";
 
 interface NodeDragDropOptions {
 	nodeId: string;
@@ -33,14 +33,14 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 		setIsDragging(true);
 
 		event.dataTransfer.setData(
-			'application/json',
+			"application/json",
 			JSON.stringify({
 				nodeId,
 				parentId,
 				priority,
 			}),
 		);
-		event.dataTransfer.effectAllowed = 'move';
+		event.dataTransfer.effectAllowed = "move";
 	};
 
 	const handleDragEnd = () => {
@@ -57,17 +57,17 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 
 		let position: DropPosition;
 		if (relativeY < height * 0.25) {
-			position = 'above';
+			position = "above";
 		} else if (relativeY > height * 0.75) {
-			position = 'below';
+			position = "below";
 		} else {
-			position = 'child';
+			position = "child";
 		}
 
 		setIsDragOver(true);
 		setDragOverPosition(position);
 
-		event.dataTransfer.dropEffect = 'move';
+		event.dataTransfer.dropEffect = "move";
 	};
 
 	const handleDragLeave = (event: React.DragEvent) => {
@@ -86,7 +86,7 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 		setIsDragOver(false);
 		setDragOverPosition(null);
 
-		const dataString = event.dataTransfer.getData('application/json');
+		const dataString = event.dataTransfer.getData("application/json");
 		if (!dataString) return;
 
 		const parseResult = DragDataSchema.safeParse(JSON.parse(dataString));
@@ -95,14 +95,14 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 
 		if (data.nodeId === nodeId) return;
 
-		if (currentDropPosition === 'child') {
+		if (currentDropPosition === "child") {
 			moveNode.mutate({
 				nodeId: data.nodeId,
 				parent_id: nodeId,
 				position: 0,
 			});
-		} else if (currentDropPosition === 'above' || currentDropPosition === 'below') {
-			const newPosition = currentDropPosition === 'above' ? -1 : 1;
+		} else if (currentDropPosition === "above" || currentDropPosition === "below") {
+			const newPosition = currentDropPosition === "above" ? -1 : 1;
 
 			if (data.parentId === parentId) {
 				reorderNode.mutate({

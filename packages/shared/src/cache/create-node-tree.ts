@@ -1,5 +1,5 @@
-import {z} from 'zod';
-import type {WorkflowyWriteThroughClient} from './workflowy-write-through-client.js';
+import {z} from "zod";
+import type {WorkflowyWriteThroughClient} from "./workflowy-write-through-client.js";
 
 /**
  * A node in a create-tree spec, with recursively nested children. The recursive
@@ -26,7 +26,7 @@ export interface CreatedNodeTree {
 }
 
 /** The minimal write-through surface {@link createNodeTree} needs (fakeable in tests). */
-export type TreeWriteClient = Pick<WorkflowyWriteThroughClient, 'createNode'>;
+export type TreeWriteClient = Pick<WorkflowyWriteThroughClient, "createNode">;
 
 /**
  * Create a tree of nodes depth-first through the write-through client (API first,
@@ -38,7 +38,7 @@ export async function createNodeTree(
 	spec: NodeTreeSpec,
 	parentId: string,
 	client: TreeWriteClient,
-	position?: 'top' | 'bottom',
+	position?: "top" | "bottom",
 ): Promise<CreatedNodeTree> {
 	const node = await client.createNode({
 		parent_id: parentId,
@@ -50,7 +50,7 @@ export async function createNodeTree(
 
 	const children: CreatedNodeTree[] = [];
 	for (const child of spec.children ?? []) {
-		children.push(await createNodeTree(child, node.id, client, 'bottom'));
+		children.push(await createNodeTree(child, node.id, client, "bottom"));
 	}
 
 	return {id: node.id, name: node.name, createdAt: node.createdAt, children};

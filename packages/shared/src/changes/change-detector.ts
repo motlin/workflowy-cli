@@ -1,8 +1,8 @@
-import {and, eq, gte, inArray, lte, ne} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {mirrors, nodeContent, nodeMetadata} from '../db/schema.js';
-import type * as schema from '../db/schema.js';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '../temporal/constants.js';
+import {and, eq, gte, inArray, lte, ne} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {mirrors, nodeContent, nodeMetadata} from "../db/schema.js";
+import type * as schema from "../db/schema.js";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
 
 const SQL_CHUNK_SIZE = 10_000;
 
@@ -62,29 +62,29 @@ export function getChangeLabels(change: NodeChange): string[] {
 	const labels: string[] = [];
 
 	if (change.isNew) {
-		labels.push('Added');
+		labels.push("Added");
 		return labels;
 	}
 
 	if (change.isDeleted) {
-		labels.push('Deleted');
+		labels.push("Deleted");
 		return labels;
 	}
 
 	if (change.completionChanged) {
-		labels.push(change.currentCompletedAt ? 'Completed' : 'Uncompleted');
+		labels.push(change.currentCompletedAt ? "Completed" : "Uncompleted");
 	}
 
 	if (change.contentChanged && change.parentChanged) {
-		labels.push('Changed and moved');
+		labels.push("Changed and moved");
 	} else if (change.contentChanged) {
-		labels.push('Changed');
+		labels.push("Changed");
 	} else if (change.parentChanged) {
-		labels.push('Moved');
+		labels.push("Moved");
 	}
 
 	if (change.noteChanged && !change.contentChanged) {
-		labels.push('Note edited');
+		labels.push("Note edited");
 	}
 
 	return labels;

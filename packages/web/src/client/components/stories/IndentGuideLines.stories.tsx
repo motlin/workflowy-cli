@@ -1,23 +1,23 @@
-import type {Meta, StoryObj} from '@storybook/react-vite';
+import type {Meta, StoryObj} from "@storybook/react-vite";
 
-import {IndentGuideLines} from './primitives.js';
+import {IndentGuideLines} from "./primitives.js";
 
 const meta: Meta<typeof IndentGuideLines> = {
-	title: 'Primitives/IndentGuideLines',
+	title: "Primitives/IndentGuideLines",
 	component: IndentGuideLines,
 	parameters: {
-		layout: 'padded',
+		layout: "padded",
 	},
-	tags: ['autodocs'],
+	tags: ["autodocs"],
 	argTypes: {
 		depth: {
-			control: {type: 'number', min: 0, max: 10},
-			description: 'Nesting depth (number of vertical lines)',
+			control: {type: "number", min: 0, max: 10},
+			description: "Nesting depth (number of vertical lines)",
 		},
 	},
 	decorators: [
 		(Story) => (
-			<div style={{position: 'relative', height: '100px', width: '400px'}}>
+			<div style={{position: "relative", height: "100px", width: "400px"}}>
 				<Story />
 			</div>
 		),

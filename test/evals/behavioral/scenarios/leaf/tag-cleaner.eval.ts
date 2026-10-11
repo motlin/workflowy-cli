@@ -5,16 +5,16 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import {createEvalContext} from '../../helpers/eval-db-setup.js';
-import type {EvalContext} from '../../helpers/eval-types.js';
-import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
+import fs from "node:fs";
+import path from "node:path";
+import {createEvalContext} from "../../helpers/eval-db-setup.js";
+import type {EvalContext} from "../../helpers/eval-types.js";
+import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
 
-describe('Leaf Eval: tag-cleaner', {timeout: 300_000}, () => {
+describe("Leaf Eval: tag-cleaner", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/prompts/refinement/tag-cleaner.md';
+	const agentFile = "plugins/gtd/prompts/refinement/tag-cleaner.md";
 
 	beforeAll(() => {
 		if (!claudeCliAvailable()) {
@@ -32,7 +32,7 @@ describe('Leaf Eval: tag-cleaner', {timeout: 300_000}, () => {
 
 	afterAll(() => ctx?.cleanup());
 
-	it('should validate tags and identify invalid ones', async (context) => {
+	it("should validate tags and identify invalid ones", async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(
@@ -44,7 +44,7 @@ describe('Leaf Eval: tag-cleaner', {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
-		expect(jsonMatch, 'Response should contain JSON').not.toBeNull();
+		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
 		if (parsed.validTags) {

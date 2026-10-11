@@ -1,15 +1,15 @@
-import {backupImports, nodeContent, nodeMetadata} from '@workflowy/shared/db';
-import {formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import type {NewNodeContent, NewNodeMetadata} from '@workflowy/shared/db';
-import {captureOutput} from '@oclif/test';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import type {MockInstance} from 'vite-plus/test';
-import Status from '../../../src/commands/cache/status.js';
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from '../../db/migration-helper.js';
+import {backupImports, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import {formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import type {NewNodeContent, NewNodeMetadata} from "@workflowy/shared/db";
+import {captureOutput} from "@oclif/test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type {MockInstance} from "vite-plus/test";
+import Status from "../../../src/commands/cache/status.js";
+import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../../db/migration-helper.js";
 
-describe('cache:status command', () => {
+describe("cache:status command", () => {
 	let fsExistsSyncStub: MockInstance;
 	let fsStatSyncStub: MockInstance;
 	let tempDir: string;
@@ -19,22 +19,22 @@ describe('cache:status command', () => {
 
 	beforeEach(async () => {
 		vi.useFakeTimers({shouldAdvanceTime: true});
-		vi.setSystemTime(new Date('2026-01-01T12:00:00.000Z'));
+		vi.setSystemTime(new Date("2026-01-01T12:00:00.000Z"));
 
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-test-'));
-		testDbPath = path.join(tempDir, 'test.sqlite');
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-test-"));
+		testDbPath = path.join(tempDir, "test.sqlite");
 		testDatabase = createTestDatabase(testDbPath);
 
 		originalDbPath = process.env.WORKFLOWY_DB_PATH;
 		process.env.WORKFLOWY_DB_PATH = testDbPath;
 
-		testDatabase.db.run('PRAGMA foreign_keys = OFF');
+		testDatabase.db.run("PRAGMA foreign_keys = OFF");
 		testDatabase.db.delete(nodeContent).run();
 		testDatabase.db.delete(nodeMetadata).run();
-		testDatabase.db.run('PRAGMA foreign_keys = ON');
+		testDatabase.db.run("PRAGMA foreign_keys = ON");
 
-		fsExistsSyncStub = vi.spyOn(fs, 'existsSync');
-		fsStatSyncStub = vi.spyOn(fs, 'statSync');
+		fsExistsSyncStub = vi.spyOn(fs, "existsSync");
+		fsStatSyncStub = vi.spyOn(fs, "statSync");
 	});
 
 	afterEach(() => {
@@ -59,8 +59,8 @@ describe('cache:status command', () => {
 		}
 	});
 
-	describe('with empty database', () => {
-		it('displays zero counts for empty database', async () => {
+	describe("with empty database", () => {
+		it("displays zero counts for empty database", async () => {
 			fsExistsSyncStub.mockReturnValue(true);
 			fsStatSyncStub.mockReturnValue({size: 1024});
 
@@ -69,69 +69,69 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 1.00 KB\n',
+					"\n  Size: 1.00 KB\n",
 			);
 		});
 	});
 
-	describe('with cached nodes', () => {
+	describe("with cached nodes", () => {
 		beforeEach(async () => {
 			const testNodeContent: NewNodeContent[] = [
 				{
-					id: 'root-1',
-					name: 'Root Node 1',
+					id: "root-1",
+					name: "Root Node 1",
 					note: null,
 					parentId: null,
-					systemFrom: '2024-01-01 00:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					systemFrom: "2024-01-01 00:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				},
 				{
-					id: 'child-1',
-					name: 'Child Node 1',
+					id: "child-1",
+					name: "Child Node 1",
 					note: null,
-					parentId: 'root-1',
-					systemFrom: '2024-01-01 00:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					parentId: "root-1",
+					systemFrom: "2024-01-01 00:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				},
 				{
-					id: 'child-2',
-					name: 'Child Node 2',
+					id: "child-2",
+					name: "Child Node 2",
 					note: null,
-					parentId: 'root-1',
-					systemFrom: '2024-01-01 00:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					parentId: "root-1",
+					systemFrom: "2024-01-01 00:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				},
 			];
 
 			const testNodeMetadata: NewNodeMetadata[] = [
 				{
-					nodeId: 'root-1',
+					nodeId: "root-1",
 					createdAt: new Date(1_700_000_000 * 1000),
 					modifiedAt: new Date(1_700_000_100 * 1000),
 					completedAt: null,
-					layoutMode: 'bullets',
-					systemFrom: '2024-01-01 00:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					layoutMode: "bullets",
+					systemFrom: "2024-01-01 00:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				},
 				{
-					nodeId: 'child-1',
+					nodeId: "child-1",
 					createdAt: new Date(1_700_000_200 * 1000),
 					modifiedAt: new Date(1_700_000_300 * 1000),
 					completedAt: new Date(1_700_000_400 * 1000),
-					layoutMode: 'todo',
-					systemFrom: '2024-01-01 00:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					layoutMode: "todo",
+					systemFrom: "2024-01-01 00:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				},
 				{
-					nodeId: 'child-2',
+					nodeId: "child-2",
 					createdAt: new Date(1_700_000_500 * 1000),
 					modifiedAt: new Date(1_700_000_600 * 1000),
 					completedAt: null,
-					layoutMode: 'bullets',
-					systemFrom: '2024-01-01 00:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					layoutMode: "bullets",
+					systemFrom: "2024-01-01 00:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				},
 			];
 
@@ -143,7 +143,7 @@ describe('cache:status command', () => {
 			}
 		});
 
-		it('displays correct node counts', async () => {
+		it("displays correct node counts", async () => {
 			fsExistsSyncStub.mockReturnValue(true);
 			fsStatSyncStub.mockReturnValue({size: 2048});
 
@@ -151,18 +151,18 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			const seededSync = new Date('2024-01-01T00:00:00Z').toLocaleString();
+			const seededSync = new Date("2024-01-01T00:00:00Z").toLocaleString();
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 3\n\n🔄 Last Sync:\n  Time: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 3\n\n🔄 Last Sync:\n  Time: " +
 					seededSync +
-					'\n  Age: 2 years ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					"\n  Age: 2 years ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 2.00 KB\n',
+					"\n  Size: 2.00 KB\n",
 			);
 		});
 
-		it('displays last sync from most recent node systemFrom', async () => {
+		it("displays last sync from most recent node systemFrom", async () => {
 			const now = new Date();
 			const tenSecondsAgo = new Date(now.getTime() - 10_000);
 			const systemFromStr = formatTemporalTimestamp(tenSecondsAgo);
@@ -170,12 +170,12 @@ describe('cache:status command', () => {
 			testDatabase.db
 				.insert(nodeContent)
 				.values({
-					id: 'recent-node',
-					name: 'Recent Node',
+					id: "recent-node",
+					name: "Recent Node",
 					note: null,
 					parentId: null,
 					systemFrom: systemFromStr,
-					systemTo: '9999-12-31 23:59:59',
+					systemTo: "9999-12-31 23:59:59",
 				})
 				.run();
 
@@ -187,22 +187,22 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 4\n\n🔄 Last Sync:\n  Time: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 4\n\n🔄 Last Sync:\n  Time: " +
 					tenSecondsAgo.toLocaleString() +
-					'\n  Age: 10 seconds ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					"\n  Age: 10 seconds ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 3.00 KB\n',
+					"\n  Size: 3.00 KB\n",
 			);
 		});
 
-		it('displays backup import information when backup imports exist', async () => {
+		it("displays backup import information when backup imports exist", async () => {
 			testDatabase.db
 				.insert(backupImports)
 				.values({
-					backupDate: '2024-01-15',
-					filename: 'test-backup.json',
-					systemFrom: '2024-01-15 10:00:00',
-					systemTo: '9999-12-31 23:59:59',
+					backupDate: "2024-01-15",
+					filename: "test-backup.json",
+					systemFrom: "2024-01-15 10:00:00",
+					systemTo: "9999-12-31 23:59:59",
 				})
 				.run();
 
@@ -213,20 +213,20 @@ describe('cache:status command', () => {
 				await Status.run([]);
 			});
 
-			const seededSync = new Date('2024-01-01T00:00:00Z').toLocaleString();
+			const seededSync = new Date("2024-01-01T00:00:00Z").toLocaleString();
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 3\n\n🔄 Last Sync:\n  Time: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 3\n\n🔄 Last Sync:\n  Time: " +
 					seededSync +
-					'\n  Age: 2 years ago\n\n💾 Backup Import:\n  Last backup date: 2024-01-15\n\n💿 Database:\n  File: ' +
+					"\n  Age: 2 years ago\n\n💾 Backup Import:\n  Last backup date: 2024-01-15\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 4.00 KB\n',
+					"\n  Size: 4.00 KB\n",
 			);
 		});
 	});
 
-	describe('database file size formatting', () => {
-		it('formats bytes correctly', async () => {
+	describe("database file size formatting", () => {
+		it("formats bytes correctly", async () => {
 			fsExistsSyncStub.mockReturnValue(true);
 			fsStatSyncStub.mockReturnValue({size: 512});
 
@@ -235,13 +235,13 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 512 bytes\n',
+					"\n  Size: 512 bytes\n",
 			);
 		});
 
-		it('formats kilobytes correctly', async () => {
+		it("formats kilobytes correctly", async () => {
 			fsExistsSyncStub.mockReturnValue(true);
 			fsStatSyncStub.mockReturnValue({size: 10_240});
 
@@ -250,13 +250,13 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 10.00 KB\n',
+					"\n  Size: 10.00 KB\n",
 			);
 		});
 
-		it('formats megabytes correctly', async () => {
+		it("formats megabytes correctly", async () => {
 			fsExistsSyncStub.mockReturnValue(true);
 			fsStatSyncStub.mockReturnValue({size: 5 * 1024 * 1024});
 
@@ -265,15 +265,15 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 0\n\n🔄 Last Sync:\n  No data cached\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 5.00 MB\n',
+					"\n  Size: 5.00 MB\n",
 			);
 		});
 	});
 
-	describe('time formatting', () => {
-		it('formats recent times as seconds ago', async () => {
+	describe("time formatting", () => {
+		it("formats recent times as seconds ago", async () => {
 			const now = new Date();
 			const tenSecondsAgo = new Date(now.getTime() - 10_000);
 			const systemFromStr = formatTemporalTimestamp(tenSecondsAgo);
@@ -281,12 +281,12 @@ describe('cache:status command', () => {
 			testDatabase.db
 				.insert(nodeContent)
 				.values({
-					id: 'test-1',
-					name: 'Test',
+					id: "test-1",
+					name: "Test",
 					note: null,
 					parentId: null,
 					systemFrom: systemFromStr,
-					systemTo: '9999-12-31 23:59:59',
+					systemTo: "9999-12-31 23:59:59",
 				})
 				.run();
 
@@ -298,15 +298,15 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 1\n\n🔄 Last Sync:\n  Time: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 1\n\n🔄 Last Sync:\n  Time: " +
 					tenSecondsAgo.toLocaleString() +
-					'\n  Age: 10 seconds ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					"\n  Age: 10 seconds ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 1.00 KB\n',
+					"\n  Size: 1.00 KB\n",
 			);
 		});
 
-		it('formats times as minutes ago', async () => {
+		it("formats times as minutes ago", async () => {
 			const now = new Date();
 			const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 			const systemFromStr = formatTemporalTimestamp(fiveMinutesAgo);
@@ -314,12 +314,12 @@ describe('cache:status command', () => {
 			testDatabase.db
 				.insert(nodeContent)
 				.values({
-					id: 'test-2',
-					name: 'Test',
+					id: "test-2",
+					name: "Test",
 					note: null,
 					parentId: null,
 					systemFrom: systemFromStr,
-					systemTo: '9999-12-31 23:59:59',
+					systemTo: "9999-12-31 23:59:59",
 				})
 				.run();
 
@@ -331,11 +331,11 @@ describe('cache:status command', () => {
 			});
 
 			expect(stdout).toBe(
-				'📊 Cache Status\n\n📁 Cached Nodes: 1\n\n🔄 Last Sync:\n  Time: ' +
+				"📊 Cache Status\n\n📁 Cached Nodes: 1\n\n🔄 Last Sync:\n  Time: " +
 					fiveMinutesAgo.toLocaleString() +
-					'\n  Age: 5 minutes ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: ' +
+					"\n  Age: 5 minutes ago\n\n💾 Backup Import:\n  No backup data imported\n\n💿 Database:\n  File: " +
 					testDbPath +
-					'\n  Size: 1.00 KB\n',
+					"\n  Size: 1.00 KB\n",
 			);
 		});
 	});

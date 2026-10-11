@@ -5,10 +5,10 @@
  * in the SQLite cache without requiring an API key.
  */
 
-import {collectCreatedFiles, createEvalContext, runInEvalContext} from '../helpers/eval-db-setup.js';
-import type {EvalContext, EvalResult} from '../helpers/eval-types.js';
+import {collectCreatedFiles, createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
+import type {EvalContext, EvalResult} from "../helpers/eval-types.js";
 
-describe('Behavioral Eval: node search', () => {
+describe("Behavioral Eval: node search", () => {
 	let ctx: EvalContext;
 
 	beforeAll(() => {
@@ -19,7 +19,7 @@ describe('Behavioral Eval: node search', () => {
 		ctx?.cleanup();
 	});
 
-	it('should find results for a common term', {timeout: 30_000}, async () => {
+	it("should find results for a common term", {timeout: 30_000}, async () => {
 		const result = await runInEvalContext(ctx, './bin/run.js node search --query "Metadata" --json');
 
 		expect(result.exitCode, `Command failed with stderr: ${result.stderr}`).toBe(0);
@@ -30,12 +30,12 @@ describe('Behavioral Eval: node search', () => {
 
 		// Every result should have required fields
 		for (const item of parsed) {
-			expect(item).toHaveProperty('shortId');
-			expect(item).toHaveProperty('path');
+			expect(item).toHaveProperty("shortId");
+			expect(item).toHaveProperty("path");
 		}
 	});
 
-	it('should return empty array for nonsense query', {timeout: 30_000}, async () => {
+	it("should return empty array for nonsense query", {timeout: 30_000}, async () => {
 		const result = await runInEvalContext(ctx, './bin/run.js node search --query "zzzznonexistent99999" --json');
 
 		expect(result.exitCode).toBe(0);
@@ -45,7 +45,7 @@ describe('Behavioral Eval: node search', () => {
 		expect(parsed).toHaveLength(0);
 	});
 
-	it('should respect --limit flag', {timeout: 30_000}, async () => {
+	it("should respect --limit flag", {timeout: 30_000}, async () => {
 		const result = await runInEvalContext(ctx, './bin/run.js node search --query "a" --limit 3 --json');
 
 		expect(result.exitCode, `Command failed with stderr: ${result.stderr}`).toBe(0);
@@ -55,7 +55,7 @@ describe('Behavioral Eval: node search', () => {
 		expect(parsed.length).toBeLessThanOrEqual(3);
 	});
 
-	it('should produce valid EvalResult shape', {timeout: 30_000}, async () => {
+	it("should produce valid EvalResult shape", {timeout: 30_000}, async () => {
 		const result = await runInEvalContext(ctx, './bin/run.js node search --query "Inbox" --json');
 		const files = collectCreatedFiles(ctx);
 
@@ -67,8 +67,8 @@ describe('Behavioral Eval: node search', () => {
 		};
 
 		expect(evalResult.exitCode).toBe(0);
-		expect(typeof evalResult.stdout).toBe('string');
-		expect(typeof evalResult.stderr).toBe('string');
-		expect(typeof evalResult.filesCreated).toBe('object');
+		expect(typeof evalResult.stdout).toBe("string");
+		expect(typeof evalResult.stderr).toBe("string");
+		expect(typeof evalResult.filesCreated).toBe("object");
 	});
 });

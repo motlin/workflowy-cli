@@ -5,12 +5,12 @@
  * environment variables so CLI commands and scripts read from the copy.
  */
 
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import type {EvalContext} from './eval-types.js';
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type {EvalContext} from "./eval-types.js";
 
-const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
+const PROJECT_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
 /**
  * Creates an isolated eval context with a copy of the production database.
@@ -26,33 +26,33 @@ const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
  * @param options.mockServerPort - Port for the mock Workflowy HTTP server
  */
 export function createEvalContext(options?: {mockServerPort?: number}): EvalContext {
-	const sourceDb = process.env.WORKFLOWY_EVAL_SOURCE_DB || path.join(PROJECT_ROOT, 'workflowy.sqlite');
+	const sourceDb = process.env.WORKFLOWY_EVAL_SOURCE_DB || path.join(PROJECT_ROOT, "workflowy.sqlite");
 
 	if (!fs.existsSync(sourceDb)) {
 		throw new Error(
 			`Eval source database not found at ${sourceDb}. ` +
-				'Set WORKFLOWY_EVAL_SOURCE_DB to point to a valid workflowy.sqlite file.',
+				"Set WORKFLOWY_EVAL_SOURCE_DB to point to a valid workflowy.sqlite file.",
 		);
 	}
 
-	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-eval-'));
-	const dbPath = path.join(tempDir, 'workflowy.sqlite');
-	const llmDir = path.join(tempDir, '.llm');
+	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-eval-"));
+	const dbPath = path.join(tempDir, "workflowy.sqlite");
+	const llmDir = path.join(tempDir, ".llm");
 
 	// Copy database to temp directory
 	fs.copyFileSync(sourceDb, dbPath);
 
 	// Create .llm/ directory structure
-	fs.mkdirSync(path.join(llmDir, 'gtd'), {recursive: true});
+	fs.mkdirSync(path.join(llmDir, "gtd"), {recursive: true});
 
 	// Prompts read the synced metadata cache; without a snapshot here, agents go looking in the repo's .llm/
-	const metadataDir = path.join(PROJECT_ROOT, '.llm', 'gtd', 'metadata');
+	const metadataDir = path.join(PROJECT_ROOT, ".llm", "gtd", "metadata");
 	if (fs.existsSync(metadataDir)) {
-		fs.cpSync(metadataDir, path.join(llmDir, 'gtd', 'metadata'), {recursive: true});
+		fs.cpSync(metadataDir, path.join(llmDir, "gtd", "metadata"), {recursive: true});
 	}
 
 	// `claude -p` runs here so prompts' relative `.llm/` writes land in the temp dir; `./bin/run.js` still resolves
-	fs.symlinkSync(path.join(PROJECT_ROOT, 'bin'), path.join(tempDir, 'bin'));
+	fs.symlinkSync(path.join(PROJECT_ROOT, "bin"), path.join(tempDir, "bin"));
 
 	const env: Record<string, string> = {
 		WORKFLOWY_DB_PATH: dbPath,
@@ -60,9 +60,9 @@ export function createEvalContext(options?: {mockServerPort?: number}): EvalCont
 
 	// If a mock server port is provided, configure API URL and key for write-through
 	if (options?.mockServerPort) {
-		env.WORKFLOWY_API_KEY = 'eval-test-key';
+		env.WORKFLOWY_API_KEY = "eval-test-key";
 		env.WORKFLOWY_API_URL = `http://localhost:${options.mockServerPort}`;
-		env.WORKFLOWY_DATA_SOURCE = 'cache';
+		env.WORKFLOWY_DATA_SOURCE = "cache";
 	}
 
 	const cleanup = () => {
@@ -91,7 +91,7 @@ export async function runInEvalContext(
 	ctx: EvalContext,
 	command: string,
 ): Promise<{exitCode: number; stderr: string; stdout: string}> {
-	const {execSync} = await import('node:child_process');
+	const {execSync} = await import("node:child_process");
 
 	// Build environment: inherit current env, overlay eval-specific vars,
 	// and explicitly remove WORKFLOWY_API_KEY (unless mock server provides one)
@@ -106,13 +106,13 @@ export async function runInEvalContext(
 	try {
 		const stdout = execSync(command, {
 			cwd: ctx.projectRoot,
-			encoding: 'utf8',
+			encoding: "utf8",
 			env,
 			maxBuffer: 10 * 1024 * 1024,
-			stdio: ['pipe', 'pipe', 'pipe'],
+			stdio: ["pipe", "pipe", "pipe"],
 			timeout: 60_000,
 		});
-		return {exitCode: 0, stderr: '', stdout};
+		return {exitCode: 0, stderr: "", stdout};
 	} catch (error: unknown) {
 		const execError = error as {
 			status?: number;
@@ -121,8 +121,8 @@ export async function runInEvalContext(
 		};
 		return {
 			exitCode: execError.status ?? 1,
-			stderr: execError.stderr ?? '',
-			stdout: execError.stdout ?? '',
+			stderr: execError.stderr ?? "",
+			stdout: execError.stdout ?? "",
 		};
 	}
 }
@@ -141,11 +141,11 @@ export function collectCreatedFiles(ctx: EvalContext): Record<string, string> {
 			if (entry.isDirectory()) {
 				walk(path.join(dir, entry.name), relativePath);
 			} else {
-				files[relativePath] = fs.readFileSync(path.join(dir, entry.name), 'utf8');
+				files[relativePath] = fs.readFileSync(path.join(dir, entry.name), "utf8");
 			}
 		}
 	}
 
-	walk(ctx.llmDir, '.llm');
+	walk(ctx.llmDir, ".llm");
 	return files;
 }

@@ -1,7 +1,7 @@
-import {Command, Flags} from '@oclif/core';
-import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
+import {Command, Flags} from "@oclif/core";
+import Database from "better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
 
 interface ScannedItem {
 	title: string;
@@ -35,13 +35,13 @@ interface DedupOutput {
 
 // Location aliases for better matching
 const LOCATION_ALIASES: Record<string, Set<string>> = {
-	mia: new Set(['fl', 'florida', 'miami']),
-	ewr: new Set(['newark', 'new jersey', 'nj', 'york']),
-	jfk: new Set(['kennedy', 'new york', 'ny', 'queens']),
-	lga: new Set(['laguardia', 'new york', 'ny']),
-	lax: new Set(['ca', 'california', 'los angeles']),
-	sfo: new Set(['ca', 'california', 'san francisco']),
-	ord: new Set(['chicago', 'il', 'illinois', 'ohare']),
+	mia: new Set(["fl", "florida", "miami"]),
+	ewr: new Set(["newark", "new jersey", "nj", "york"]),
+	jfk: new Set(["kennedy", "new york", "ny", "queens"]),
+	lga: new Set(["laguardia", "new york", "ny"]),
+	lax: new Set(["ca", "california", "los angeles"]),
+	sfo: new Set(["ca", "california", "san francisco"]),
+	ord: new Set(["chicago", "il", "illinois", "ohare"]),
 };
 
 /**
@@ -51,23 +51,23 @@ const LOCATION_ALIASES: Record<string, Set<string>> = {
  * to identify and filter duplicates before creating new entries.
  */
 export default class Dedup extends Command {
-	static override description = 'Deduplicate journal entries against existing calendar';
+	static override description = "Deduplicate journal entries against existing calendar";
 
 	static override examples = [
-		'# Run deduplication analysis',
-		'<%= config.bin %> <%= command.id %>',
-		'',
-		'# Use custom threshold',
-		'<%= config.bin %> <%= command.id %> --threshold 0.6',
+		"# Run deduplication analysis",
+		"<%= config.bin %> <%= command.id %>",
+		"",
+		"# Use custom threshold",
+		"<%= config.bin %> <%= command.id %> --threshold 0.6",
 	];
 
 	static override enableJsonFlag = true;
 
 	static override flags = {
 		threshold: Flags.string({
-			char: 't',
-			description: 'Similarity threshold (0.0-1.0)',
-			default: '0.55',
+			char: "t",
+			description: "Similarity threshold (0.0-1.0)",
+			default: "0.55",
 		}),
 	};
 
@@ -76,16 +76,16 @@ export default class Dedup extends Command {
 
 		const threshold = Number.parseFloat(flags.threshold);
 		const projectRoot = this.findProjectRoot();
-		const scansDir = path.join(projectRoot, '.llm', 'gtd', 'journal', 'scans');
-		const dbPath = path.join(projectRoot, 'workflowy.sqlite');
-		const outputPath = path.join(projectRoot, '.llm', 'gtd', 'journal', 'dedup-analysis.json');
+		const scansDir = path.join(projectRoot, ".llm", "gtd", "journal", "scans");
+		const dbPath = path.join(projectRoot, "workflowy.sqlite");
+		const outputPath = path.join(projectRoot, ".llm", "gtd", "journal", "dedup-analysis.json");
 
 		// Load scanned events
 		const scanned = this.loadScannedEvents(scansDir);
 
 		if (scanned.length === 0) {
 			const output: DedupOutput = {
-				status: 'no_events',
+				status: "no_events",
 				analyzed_at: new Date().toISOString(),
 				threshold,
 				summary: {total_scanned: 0, duplicates: 0, new_items: 0, existing_entries_checked: 0},
@@ -117,7 +117,7 @@ export default class Dedup extends Command {
 		const results = this.deduplicate(scanned, existing, threshold);
 
 		const output: DedupOutput = {
-			status: 'success',
+			status: "success",
 			analyzed_at: new Date().toISOString(),
 			threshold,
 			summary: {
@@ -148,13 +148,13 @@ export default class Dedup extends Command {
 	 * Normalize text for comparison.
 	 */
 	private normalize(text: string): string {
-		if (!text) return '';
+		if (!text) return "";
 		// Remove HTML tags
-		let normalized = text.replaceAll(/<[^>]+>/g, '');
+		let normalized = text.replaceAll(/<[^>]+>/g, "");
 		// Remove non-word characters except spaces
-		normalized = normalized.replaceAll(/[^\w\s]/g, ' ');
+		normalized = normalized.replaceAll(/[^\w\s]/g, " ");
 		// Lowercase and collapse whitespace
-		return normalized.toLowerCase().split(/\s+/).filter(Boolean).join(' ');
+		return normalized.toLowerCase().split(/\s+/).filter(Boolean).join(" ");
 	}
 
 	/**
@@ -163,42 +163,42 @@ export default class Dedup extends Command {
 	private extractKeywords(text: string): Set<string> {
 		const normalized = this.normalize(text);
 		const stopwords = new Set([
-			'a',
-			'all',
-			'an',
-			'and',
-			'at',
-			'be',
-			'been',
-			'browsed',
-			'bump',
-			'dependabot',
-			'deps',
-			'dev',
-			'for',
-			'from',
-			'got',
-			'in',
-			'is',
-			'merged',
-			'of',
-			'on',
-			'or',
-			'our',
-			'out',
-			'pr',
-			'read',
-			'the',
-			'to',
-			'up',
-			'visited',
-			'was',
-			'we',
-			'went',
-			'were',
-			'with',
+			"a",
+			"all",
+			"an",
+			"and",
+			"at",
+			"be",
+			"been",
+			"browsed",
+			"bump",
+			"dependabot",
+			"deps",
+			"dev",
+			"for",
+			"from",
+			"got",
+			"in",
+			"is",
+			"merged",
+			"of",
+			"on",
+			"or",
+			"our",
+			"out",
+			"pr",
+			"read",
+			"the",
+			"to",
+			"up",
+			"visited",
+			"was",
+			"we",
+			"went",
+			"were",
+			"with",
 		]);
-		return new Set(normalized.split(' ').filter((w) => w.length > 2 && !stopwords.has(w)));
+		return new Set(normalized.split(" ").filter((w) => w.length > 2 && !stopwords.has(w)));
 	}
 
 	/**
@@ -231,12 +231,12 @@ export default class Dedup extends Command {
 
 		// Exact match
 		if (n1 === n2) {
-			return {score: 1, method: 'exact'};
+			return {score: 1, method: "exact"};
 		}
 
 		// Substring match
 		if (n1.includes(n2) || n2.includes(n1)) {
-			return {score: 0.85, method: 'substring'};
+			return {score: 0.85, method: "substring"};
 		}
 
 		// Sequence similarity (simple implementation)
@@ -274,7 +274,7 @@ export default class Dedup extends Command {
 			}
 		}
 
-		return {score: seqRatio, method: 'sequence'};
+		return {score: seqRatio, method: "sequence"};
 	}
 
 	/**
@@ -316,18 +316,18 @@ export default class Dedup extends Command {
 			return scanned;
 		}
 
-		const files = fs.readdirSync(scansDir).filter((f) => f.endsWith('.json'));
+		const files = fs.readdirSync(scansDir).filter((f) => f.endsWith(".json"));
 
 		for (const file of files) {
 			try {
 				const filePath = path.join(scansDir, file);
-				const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-				const source = path.basename(file, '.json');
+				const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+				const source = path.basename(file, ".json");
 
 				for (const item of data.items || []) {
 					scanned.push({
-						title: item.title || '',
-						date: item.eventDate || '',
+						title: item.title || "",
+						date: item.eventDate || "",
 						source,
 						...item,
 					});
@@ -358,7 +358,7 @@ export default class Dedup extends Command {
 			for (const date of dates) {
 				try {
 					const dt = new Date(date);
-					const monthName = dt.toLocaleString('en-US', {month: 'short'});
+					const monthName = dt.toLocaleString("en-US", {month: "short"});
 					const day = dt.getDate();
 					const year = dt.getFullYear();
 					dateConditions.push(`p.name LIKE '%${monthName} ${day}%${year}%'`);
@@ -377,7 +377,7 @@ export default class Dedup extends Command {
 				FROM nodes p
 				JOIN nodes c ON c.parent_id = p.id
 				WHERE p.name LIKE '<time%'
-				  AND (${dateConditions.join(' OR ')})
+				  AND (${dateConditions.join(" OR ")})
 			`;
 
 			const rows = db.prepare(query).all() as Array<{date_name: string; entry: string | null}>;
@@ -388,13 +388,13 @@ export default class Dedup extends Command {
 				// Match date to original date string
 				for (const date of dates) {
 					const dt = new Date(date);
-					const monthName = dt.toLocaleString('en-US', {month: 'short'});
+					const monthName = dt.toLocaleString("en-US", {month: "short"});
 					const day = dt.getDate();
 					const year = dt.getFullYear();
 
 					// Check both with and without leading zero
 					const pattern1 = `${monthName} ${day}, ${year}`;
-					const pattern2 = `${monthName} ${day.toString().padStart(2, '0')}, ${year}`;
+					const pattern2 = `${monthName} ${day.toString().padStart(2, "0")}, ${year}`;
 
 					if (row.date_name.includes(pattern1) || row.date_name.includes(pattern2)) {
 						if (!existing[date]) {
@@ -437,7 +437,7 @@ export default class Dedup extends Command {
 
 			let bestMatch: string | null = null;
 			let bestScore = 0;
-			let bestMethod = '';
+			let bestMethod = "";
 
 			for (const entry of existing[date]) {
 				const {score, method} = this.similarity(title, entry);
@@ -468,8 +468,8 @@ export default class Dedup extends Command {
 	private findProjectRoot(): string {
 		let dir = process.cwd();
 
-		while (dir !== '/') {
-			if (fs.existsSync(path.join(dir, 'workflowy.sqlite')) || fs.existsSync(path.join(dir, 'package.json'))) {
+		while (dir !== "/") {
+			if (fs.existsSync(path.join(dir, "workflowy.sqlite")) || fs.existsSync(path.join(dir, "package.json"))) {
 				return dir;
 			}
 			dir = path.dirname(dir);

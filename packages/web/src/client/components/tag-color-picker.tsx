@@ -1,5 +1,5 @@
-import {createPortal} from 'react-dom';
-import {TAG_COLORS, type TagColorName} from '../../tag-colors.js';
+import {createPortal} from "react-dom";
+import {TAG_COLORS, type TagColorName} from "../../tag-colors.js";
 
 /**
  * Floating color picker for assigning a color to a tag (#tag / @mention),
@@ -33,29 +33,19 @@ export function TagColorPicker({top, left, currentColor, onSelect, onRemove}: Ta
 		>
 			<button
 				aria-label="Remove color"
-				className={`tag-color-swatch tag-color-remove${currentColor ? '' : ' selected'}`}
+				className={`tag-color-swatch tag-color-remove${currentColor ? "" : " selected"}`}
 				onClick={onRemove}
 				title="Remove color"
 				type="button"
 			>
-				<svg
-					aria-hidden="true"
-					viewBox="0 0 100 100"
-				>
-					<line
-						stroke="#EB5757"
-						strokeWidth="8"
-						x1="0"
-						x2="100"
-						y1="100"
-						y2="0"
-					/>
+				<svg aria-hidden="true" viewBox="0 0 100 100">
+					<line stroke="#EB5757" strokeWidth="8" x1="0" x2="100" y1="100" y2="0" />
 				</svg>
 			</button>
 			{TAG_COLORS.map((color) => (
 				<button
 					aria-label={color}
-					className={`tag-color-swatch bc-${color}${currentColor === color ? ' selected' : ''}`}
+					className={`tag-color-swatch bc-${color}${currentColor === color ? " selected" : ""}`}
 					key={color}
 					onClick={() => onSelect(color)}
 					title={color[0].toUpperCase() + color.slice(1)}

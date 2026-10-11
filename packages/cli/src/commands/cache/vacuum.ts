@@ -1,14 +1,14 @@
-import {Command} from '@oclif/core';
-import {createDatabase} from '../../db/index.js';
-import {CacheVacuumService, formatBytes, type VacuumResult} from '../../services/cache-vacuum.js';
+import {Command} from "@oclif/core";
+import {createDatabase} from "../../db/index.js";
+import {CacheVacuumService, formatBytes, type VacuumResult} from "../../services/cache-vacuum.js";
 
 export default class Vacuum extends Command {
 	static override enableJsonFlag = true;
 
 	static override description =
-		'Reclaim dead pages from the cache database by running VACUUM, shrinking the file on disk';
+		"Reclaim dead pages from the cache database by running VACUUM, shrinking the file on disk";
 
-	static override examples = ['<%= config.bin %> cache:vacuum', '<%= config.bin %> cache:vacuum --json'];
+	static override examples = ["<%= config.bin %> cache:vacuum", "<%= config.bin %> cache:vacuum --json"];
 
 	public async run(): Promise<VacuumResult> {
 		await this.parse(Vacuum);
@@ -17,7 +17,7 @@ export default class Vacuum extends Command {
 		const cacheVacuumService = new CacheVacuumService(database);
 
 		if (!this.jsonEnabled()) {
-			this.log('🧹 Vacuuming cache database...');
+			this.log("🧹 Vacuuming cache database...");
 		}
 
 		const result = cacheVacuumService.vacuum();

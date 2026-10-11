@@ -19,7 +19,7 @@
 //    "conflicts": [{repo, checkoutCount, dirCount}], "repairs": [{repo, checkoutCount, dirCount}],
 //    "unplugged": [{repo, packageCount, dirCount}], "report": [...]}
 
-import {readFileSync} from 'node:fs';
+import {readFileSync} from "node:fs";
 
 const PR_REPAIR = /^pr-.+-repair$/;
 
@@ -28,27 +28,27 @@ const PR_REPAIR = /^pr-.+-repair$/;
  * segment naming one checkout or package, the count key, and how a report line describes it.
  */
 const KINDS = {
-	worktrees: {marker: ['.worktrees'], matches: () => true, countKey: 'worktreeCount', noun: 'worktree', under: ''},
+	worktrees: {marker: [".worktrees"], matches: () => true, countKey: "worktreeCount", noun: "worktree", under: ""},
 	conflicts: {
-		marker: ['.llm'],
-		matches: (name) => name.startsWith('conflicts-'),
-		countKey: 'checkoutCount',
-		noun: 'conflicts checkout',
-		under: '/.llm',
+		marker: [".llm"],
+		matches: (name) => name.startsWith("conflicts-"),
+		countKey: "checkoutCount",
+		noun: "conflicts checkout",
+		under: "/.llm",
 	},
 	repairs: {
-		marker: ['.llm'],
+		marker: [".llm"],
 		matches: (name) => PR_REPAIR.test(name),
-		countKey: 'checkoutCount',
-		noun: 'PR repair checkout',
-		under: '/.llm',
+		countKey: "checkoutCount",
+		noun: "PR repair checkout",
+		under: "/.llm",
 	},
 	unplugged: {
-		marker: ['.yarn', 'unplugged'],
+		marker: [".yarn", "unplugged"],
 		matches: () => true,
-		countKey: 'packageCount',
-		noun: 'unplugged package',
-		under: '/.yarn/unplugged',
+		countKey: "packageCount",
+		noun: "unplugged package",
+		under: "/.yarn/unplugged",
 	},
 };
 
@@ -66,10 +66,10 @@ function kindAt(segments, index) {
 
 /** The outermost collapsible location containing `path` as `{kind, repo, name}`, or null for a durable path. */
 function locationOf(path) {
-	const segments = path.split('/');
+	const segments = path.split("/");
 	for (let index = 0; index < segments.length; index += 1) {
 		const match = kindAt(segments, index);
-		if (match !== null) return {...match, repo: segments.slice(0, index).join('/')};
+		if (match !== null) return {...match, repo: segments.slice(0, index).join("/")};
 	}
 	return null;
 }
@@ -105,7 +105,7 @@ export function groupBuildDirs(paths) {
 	};
 }
 
-const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+const plural = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 export function formatBuildDirReport(grouped) {
 	return [
@@ -113,7 +113,7 @@ export function formatBuildDirReport(grouped) {
 		...Object.entries(KINDS).flatMap(([kind, {countKey, noun, under}]) =>
 			grouped[kind].map(
 				(entry) =>
-					`${plural(entry.dirCount, 'build dir')} across ${plural(entry[countKey], noun)} under ${entry.repo}${under}`,
+					`${plural(entry.dirCount, "build dir")} across ${plural(entry[countKey], noun)} under ${entry.repo}${under}`,
 			),
 		),
 	];
@@ -121,14 +121,14 @@ export function formatBuildDirReport(grouped) {
 
 export function parsePathList(text) {
 	return text
-		.split('\0')
-		.flatMap((chunk) => chunk.split('\n'))
+		.split("\0")
+		.flatMap((chunk) => chunk.split("\n"))
 		.filter((line) => line.length > 0);
 }
 
 function main() {
-	const grouped = groupBuildDirs(parsePathList(readFileSync(0, 'utf8')));
-	process.stdout.write(`${JSON.stringify({...grouped, report: formatBuildDirReport(grouped)}, null, '\t')}\n`);
+	const grouped = groupBuildDirs(parsePathList(readFileSync(0, "utf8")));
+	process.stdout.write(`${JSON.stringify({...grouped, report: formatBuildDirReport(grouped)}, null, "\t")}\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

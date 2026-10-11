@@ -1,8 +1,8 @@
-import {useEffect, useRef, useState} from 'react';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {createPortal} from 'react-dom';
-import {nodeRoute, useNodeNavigation} from '../navigation.js';
-import type {NodeResponse} from '../../node-types.js';
+import {useEffect, useRef, useState} from "react";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {createPortal} from "react-dom";
+import {nodeRoute, useNodeNavigation} from "../navigation.js";
+import type {NodeResponse} from "../../node-types.js";
 
 interface MirrorLocationPath {
 	id: string;
@@ -33,20 +33,20 @@ interface NodeContextMenuProps {
 }
 
 function formatTimestamp(unixTimestamp: number | null): string {
-	if (unixTimestamp === null) return 'Unknown';
+	if (unixTimestamp === null) return "Unknown";
 	const date = new Date(unixTimestamp * 1000);
 	return date.toLocaleString(undefined, {
-		year: 'numeric',
-		month: 'short',
-		day: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
 	});
 }
 
 function truncate(text: string, maxLength: number): string {
 	if (text.length <= maxLength) return text;
-	return text.slice(0, maxLength) + '...';
+	return text.slice(0, maxLength) + "...";
 }
 
 /**
@@ -64,13 +64,13 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 			}
 		}
 		function handleEscape(event: KeyboardEvent) {
-			if (event.key === 'Escape') onClose();
+			if (event.key === "Escape") onClose();
 		}
-		document.addEventListener('mousedown', handleClickOutside);
-		document.addEventListener('keydown', handleEscape);
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleEscape);
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleEscape);
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleEscape);
 		};
 	}, [onClose]);
 
@@ -84,17 +84,10 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 
 	return createPortal(
 		<div className="mirrors-modal-overlay">
-			<div
-				className="mirrors-modal"
-				ref={modalRef}
-			>
+			<div className="mirrors-modal" ref={modalRef}>
 				<div className="mirrors-modal-header">
 					<h2 className="mirrors-modal-title">Mirrors for &ldquo;{displayName}&rdquo;</h2>
-					<button
-						className="mirrors-modal-close"
-						onClick={onClose}
-						type="button"
-					>
+					<button className="mirrors-modal-close" onClick={onClose} type="button">
 						&times;
 					</button>
 				</div>
@@ -102,12 +95,9 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 					{data.mirrors.map((loc, index) => {
 						const breadcrumbs = loc.path.map((p) => truncate(stripHtml(p.name), 20));
 						return (
-							<div
-								className={`mirrors-modal-location ${loc.isOriginal ? 'original' : ''}`}
-								key={loc.id}
-							>
+							<div className={`mirrors-modal-location ${loc.isOriginal ? "original" : ""}`} key={loc.id}>
 								<div className="mirrors-modal-location-label">
-									{loc.isOriginal ? 'Original' : 'Linked copy'}
+									{loc.isOriginal ? "Original" : "Linked copy"}
 								</div>
 								<a
 									className="mirrors-modal-location-path"
@@ -166,11 +156,7 @@ function MirrorBanner({
 	return (
 		<div className="mirror-banner">
 			<span>Node has {mirrorsData.mirrors.length} mirrors. </span>
-			<button
-				className="mirror-banner-link"
-				onClick={handleSeeAll}
-				type="button"
-			>
+			<button className="mirror-banner-link" onClick={handleSeeAll} type="button">
 				See them
 			</button>
 		</div>
@@ -202,17 +188,17 @@ function NodeContextMenu({
 		}
 
 		function handleEscape(event: KeyboardEvent) {
-			if (event.key === 'Escape') {
+			if (event.key === "Escape") {
 				onClose();
 			}
 		}
 
-		document.addEventListener('mousedown', handleClickOutside);
-		document.addEventListener('keydown', handleEscape);
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleEscape);
 
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleEscape);
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleEscape);
 		};
 	}, [onClose]);
 
@@ -222,11 +208,7 @@ function NodeContextMenu({
 	};
 
 	const menu = (
-		<div
-			className="node-context-menu"
-			ref={menuRef}
-			style={{top: position.top, left: position.left}}
-		>
+		<div className="node-context-menu" ref={menuRef} style={{top: position.top, left: position.left}}>
 			{node.isMirror && node.originalNodeId && onShowMirrors && (
 				<MirrorBanner
 					onShowMirrors={(data) => {
@@ -237,34 +219,18 @@ function NodeContextMenu({
 				/>
 			)}
 			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Turn into...</span>
 				</button>
-				<button
-					className="node-context-menu-item"
-					onClick={() => handleAction(onComplete)}
-					type="button"
-				>
-					<span>{isCompleted ? 'Uncomplete' : 'Complete'}</span>
+				<button className="node-context-menu-item" onClick={() => handleAction(onComplete)} type="button">
+					<span>{isCompleted ? "Uncomplete" : "Complete"}</span>
 					<span className="node-context-menu-shortcut">⌘↵</span>
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Add note</span>
 					<span className="node-context-menu-shortcut">⇧↵</span>
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Add date</span>
 					<span className="node-context-menu-shortcut">!!</span>
 				</button>
@@ -273,19 +239,11 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Present</span>
 					<span className="node-context-menu-shortcut">⇧⌘P</span>
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Add comment</span>
 					<span className="node-context-menu-shortcut">^M</span>
 				</button>
@@ -294,70 +252,34 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Move To...
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Move to Today
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Move to Tomorrow
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Move to Next Week
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Upload file
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Mirror To...
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Mirror</span>
 					<span className="node-context-menu-shortcut">⇧⌘M</span>
 				</button>
 				{node.isMirror && (
-					<button
-						className="node-context-menu-item disabled"
-						disabled
-						type="button"
-					>
+					<button className="node-context-menu-item disabled" disabled type="button">
 						Detach Mirror
 					</button>
 				)}
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Duplicate</span>
 					<span className="node-context-menu-shortcut">⇧⌘D</span>
 				</button>
@@ -366,33 +288,17 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Share
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Export
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Copy internal link</span>
 					<span className="node-context-menu-shortcut">⇧⌘L</span>
 				</button>
-				<button
-					className="node-context-menu-item disabled"
-					disabled
-					type="button"
-				>
+				<button className="node-context-menu-item disabled" disabled type="button">
 					Make template
 				</button>
 			</div>
@@ -400,11 +306,7 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item danger"
-					onClick={() => handleAction(onDelete)}
-					type="button"
-				>
+				<button className="node-context-menu-item danger" onClick={() => handleAction(onDelete)} type="button">
 					<span>Delete</span>
 					<span className="node-context-menu-shortcut">⇧⌘⌫</span>
 				</button>
@@ -413,18 +315,10 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item"
-					onClick={() => handleAction(onExpandAll)}
-					type="button"
-				>
+				<button className="node-context-menu-item" onClick={() => handleAction(onExpandAll)} type="button">
 					Expand all
 				</button>
-				<button
-					className="node-context-menu-item"
-					onClick={() => handleAction(onCollapseAll)}
-					type="button"
-				>
+				<button className="node-context-menu-item" onClick={() => handleAction(onCollapseAll)} type="button">
 					Collapse all
 				</button>
 			</div>
@@ -492,33 +386,16 @@ export function NodeContextMenuButton({
 	return (
 		<div className="nameButtons">
 			<button
-				className={`node-context-menu-button ${isVisible || isMenuOpen ? 'visible' : ''}`}
+				className={`node-context-menu-button ${isVisible || isMenuOpen ? "visible" : ""}`}
 				onClick={handleClick}
 				ref={buttonRef}
 				title="More actions"
 				type="button"
 			>
-				<svg
-					fill="currentColor"
-					height="24"
-					viewBox="0 0 24 24"
-					width="24"
-				>
-					<circle
-						cx="6"
-						cy="12"
-						r="2"
-					/>
-					<circle
-						cx="12"
-						cy="12"
-						r="2"
-					/>
-					<circle
-						cx="18"
-						cy="12"
-						r="2"
-					/>
+				<svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
+					<circle cx="6" cy="12" r="2" />
+					<circle cx="12" cy="12" r="2" />
+					<circle cx="18" cy="12" r="2" />
 				</svg>
 			</button>
 			{isMenuOpen && (
@@ -533,12 +410,7 @@ export function NodeContextMenuButton({
 					position={menuPosition}
 				/>
 			)}
-			{mirrorsModalData && (
-				<MirrorsModal
-					data={mirrorsModalData}
-					onClose={() => setMirrorsModalData(null)}
-				/>
-			)}
+			{mirrorsModalData && <MirrorsModal data={mirrorsModalData} onClose={() => setMirrorsModalData(null)} />}
 		</div>
 	);
 }

@@ -1,40 +1,40 @@
-import {create} from 'zustand';
-import {z} from 'zod';
+import {create} from "zustand";
+import {z} from "zod";
 
 const StringArraySchema = z.array(z.string());
 
-const SHOW_COMPLETED_STORAGE_KEY = 'workflowy-show-completed';
-const STARRED_PAGES_STORAGE_KEY = 'workflowy-starred-pages';
-const THEME_STORAGE_KEY = 'workflowy-theme';
-const SAVED_SEARCHES_STORAGE_KEY = 'workflowy-saved-searches';
-const RECENT_SEARCHES_STORAGE_KEY = 'workflowy-recent-searches';
+const SHOW_COMPLETED_STORAGE_KEY = "workflowy-show-completed";
+const STARRED_PAGES_STORAGE_KEY = "workflowy-starred-pages";
+const THEME_STORAGE_KEY = "workflowy-theme";
+const SAVED_SEARCHES_STORAGE_KEY = "workflowy-saved-searches";
+const RECENT_SEARCHES_STORAGE_KEY = "workflowy-recent-searches";
 const RECENT_SEARCHES_LIMIT = 10;
 
-export type Theme = 'light' | 'dark' | 'system';
+export type Theme = "light" | "dark" | "system";
 
-function getSystemTheme(): 'light' | 'dark' {
-	if (typeof globalThis === 'undefined') {
-		return 'light';
+function getSystemTheme(): "light" | "dark" {
+	if (typeof globalThis === "undefined") {
+		return "light";
 	}
-	return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+	return globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function getInitialTheme(): Theme {
 	const stored = localStorage.getItem(THEME_STORAGE_KEY);
-	if (stored === 'light' || stored === 'dark' || stored === 'system') {
+	if (stored === "light" || stored === "dark" || stored === "system") {
 		return stored;
 	}
-	return 'system';
+	return "system";
 }
 
 function applyTheme(theme: Theme): void {
-	const effectiveTheme = theme === 'system' ? getSystemTheme() : theme;
+	const effectiveTheme = theme === "system" ? getSystemTheme() : theme;
 	document.documentElement.dataset.theme = effectiveTheme;
 }
 
 function getInitialShowCompleted(): boolean {
 	const stored = localStorage.getItem(SHOW_COMPLETED_STORAGE_KEY);
-	return stored === null ? true : stored === 'true';
+	return stored === null ? true : stored === "true";
 }
 
 function getInitialStarredPages(): Set<string> {
@@ -73,7 +73,7 @@ interface LinkInsertContext {
 interface MoveAssistantContext {
 	nodeId: string;
 	nodeName: string;
-	mode: 'move' | 'copy';
+	mode: "move" | "copy";
 }
 
 interface ExportContext {
@@ -88,7 +88,7 @@ interface PresentationContext {
 interface ErrorNotification {
 	id: string;
 	message: string;
-	type: 'error' | 'warning' | 'info';
+	type: "error" | "warning" | "info";
 	timestamp: number;
 	retryAction?: () => void;
 }
@@ -173,7 +173,7 @@ interface OutlineActions {
 	closeSettings: () => void;
 	setTheme: (theme: Theme) => void;
 	setOnline: (isOnline: boolean) => void;
-	addErrorNotification: (message: string, type?: 'error' | 'warning' | 'info', retryAction?: () => void) => string;
+	addErrorNotification: (message: string, type?: "error" | "warning" | "info", retryAction?: () => void) => string;
 	removeErrorNotification: (id: string) => void;
 	clearAllErrorNotifications: () => void;
 	setMutating: (isMutating: boolean) => void;
@@ -208,7 +208,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	presentationContext: null,
 	settingsOpen: false,
 	theme: getInitialTheme(),
-	isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
+	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
 	isMutating: false,
 
@@ -409,7 +409,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setOnline: (isOnline) => set({isOnline}),
 
-	addErrorNotification(message, type = 'error', retryAction) {
+	addErrorNotification(message, type = "error", retryAction) {
 		const id = `error-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 		const notification: ErrorNotification = {
 			id,
@@ -422,7 +422,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			errorNotifications: [...state.errorNotifications, notification],
 		}));
 		// Auto-dismiss after 8 seconds for non-error notifications
-		if (type !== 'error') {
+		if (type !== "error") {
 			setTimeout(() => {
 				get().removeErrorNotification(id);
 			}, 8000);
@@ -441,25 +441,25 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 }));
 
 // Apply initial theme on load and set up event listeners
-if (typeof globalThis !== 'undefined') {
+if (typeof globalThis !== "undefined") {
 	const initialTheme = getInitialTheme();
 	applyTheme(initialTheme);
 
 	// Listen for system theme changes when theme is set to 'system'
-	globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+	globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
 		const currentTheme = useOutlineStore.getState().theme;
-		if (currentTheme === 'system') {
-			applyTheme('system');
+		if (currentTheme === "system") {
+			applyTheme("system");
 		}
 	});
 
 	// Listen for online/offline events
-	globalThis.addEventListener('online', () => {
+	globalThis.addEventListener("online", () => {
 		useOutlineStore.getState().setOnline(true);
-		useOutlineStore.getState().addErrorNotification('Connection restored', 'info');
+		useOutlineStore.getState().addErrorNotification("Connection restored", "info");
 	});
 
-	globalThis.addEventListener('offline', () => {
+	globalThis.addEventListener("offline", () => {
 		useOutlineStore.getState().setOnline(false);
 	});
 }

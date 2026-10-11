@@ -1,4 +1,4 @@
-import {useOutlineStore} from '../stores/outline.js';
+import {useOutlineStore} from "../stores/outline.js";
 
 /**
  * Displays error notifications as toast-like messages in the top-right corner.
@@ -15,15 +15,12 @@ export function ErrorNotifications() {
 	return (
 		<div className="error-notifications">
 			{errorNotifications.map((notification) => (
-				<div
-					className={`error-notification error-notification-${notification.type}`}
-					key={notification.id}
-				>
+				<div className={`error-notification error-notification-${notification.type}`} key={notification.id}>
 					<div className="error-notification-content">
 						<span className="error-notification-icon">
-							{notification.type === 'error' && '!'}
-							{notification.type === 'warning' && '!'}
-							{notification.type === 'info' && 'i'}
+							{notification.type === "error" && "!"}
+							{notification.type === "warning" && "!"}
+							{notification.type === "info" && "i"}
 						</span>
 						<span className="error-notification-message">{notification.message}</span>
 					</div>

@@ -1,4 +1,4 @@
-import type {CacheService, SubtreeMirrors} from './cache-service.js';
+import type {CacheService, SubtreeMirrors} from "./cache-service.js";
 
 /** A parent's children ids in their current Workflowy order (roots for null). */
 export type ChildOrder = (parentId: string | null) => Promise<string[]>;
@@ -17,7 +17,7 @@ export interface MirrorPromotion {
 	/** The mirror's parent, which the original is moved to. */
 	parentId: string | null;
 	/** The end of the parent the original is moved to; the REST move takes only 'top' or 'bottom' (verified live). */
-	position: 'top' | 'bottom';
+	position: "top" | "bottom";
 	/**
 	 * Siblings then moved to the same end, in order, so the original lands in
 	 * the mirror's exact slot. `position` is the end nearer the slot, so this is
@@ -40,21 +40,21 @@ export interface DeletePlan {
 
 /** One API call of a {@link DeletePlan}; `path` is relative to /api/v1. */
 export interface DeletePlanCall {
-	method: 'DELETE' | 'POST';
+	method: "DELETE" | "POST";
 	path: string;
-	body?: {parent_id: string | null; position: 'top' | 'bottom'};
+	body?: {parent_id: string | null; position: "top" | "bottom"};
 }
 
 /** Every mutating API call a plan makes, in order (the GETs that refresh the cache after a move are left out). */
 export function deletePlanCalls(plan: DeletePlan): DeletePlanCall[] {
-	const calls: DeletePlanCall[] = plan.mirrorIds.map((id) => ({method: 'DELETE', path: `/nodes/${id}/mirror`}));
+	const calls: DeletePlanCall[] = plan.mirrorIds.map((id) => ({method: "DELETE", path: `/nodes/${id}/mirror`}));
 	for (const {mirrorId, originalId, parentId, position, siblingIds} of plan.promotions) {
-		calls.push({method: 'DELETE', path: `/nodes/${mirrorId}/mirror`});
+		calls.push({method: "DELETE", path: `/nodes/${mirrorId}/mirror`});
 		for (const id of [originalId, ...siblingIds]) {
-			calls.push({method: 'POST', path: `/nodes/${id}/move`, body: {parent_id: parentId, position}});
+			calls.push({method: "POST", path: `/nodes/${id}/move`, body: {parent_id: parentId, position}});
 		}
 	}
-	if (plan.nodeId !== null) calls.push({method: 'DELETE', path: `/nodes/${plan.nodeId}`});
+	if (plan.nodeId !== null) calls.push({method: "DELETE", path: `/nodes/${plan.nodeId}`});
 	return calls;
 }
 
@@ -104,8 +104,8 @@ export async function planSubtreeDelete(
 		const slot = siblings.indexOf(mirrorId);
 		const before = siblings.slice(0, Math.max(slot, 0));
 		const after = slot === -1 ? [] : siblings.slice(slot + 1);
-		const position = slot !== -1 && before.length <= after.length ? 'top' : 'bottom';
-		const siblingIds = position === 'top' ? before.reverse() : after;
+		const position = slot !== -1 && before.length <= after.length ? "top" : "bottom";
+		const siblingIds = position === "top" ? before.reverse() : after;
 
 		pendingMirrors.delete(mirrorId);
 		outline.remove(mirrorId);
@@ -184,10 +184,10 @@ class OutlineSimulation {
 		}
 	}
 
-	async move(id: string, parentId: string | null, position: 'top' | 'bottom'): Promise<void> {
+	async move(id: string, parentId: string | null, position: "top" | "bottom"): Promise<void> {
 		const list = await this.children(parentId);
 		this.remove(id);
-		if (position === 'top') list.unshift(id);
+		if (position === "top") list.unshift(id);
 		else list.push(id);
 	}
 }

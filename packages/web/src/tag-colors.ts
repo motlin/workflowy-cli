@@ -3,16 +3,16 @@
  * the client-side picker. The matching CSS classes live in `styles.css`.
  */
 export const TAG_COLORS = [
-	'red',
-	'orange',
-	'yellow',
-	'green',
-	'teal',
-	'sky',
-	'blue',
-	'purple',
-	'pink',
-	'gray',
+	"red",
+	"orange",
+	"yellow",
+	"green",
+	"teal",
+	"sky",
+	"blue",
+	"purple",
+	"pink",
+	"gray",
 ] as const;
 
 export type TagColorName = (typeof TAG_COLORS)[number];

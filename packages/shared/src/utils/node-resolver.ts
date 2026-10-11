@@ -1,7 +1,7 @@
-import type {WorkflowyApiClient} from '../api/index.js';
-import {type CacheService, WorkflowyWriteThroughClient} from '../cache/index.js';
-import {isSystemTarget} from '../types/index.js';
-import {isShortId} from '../workflowy/index.js';
+import type {WorkflowyApiClient} from "../api/index.js";
+import {type CacheService, WorkflowyWriteThroughClient} from "../cache/index.js";
+import {isSystemTarget} from "../types/index.js";
+import {isShortId} from "../workflowy/index.js";
 
 /**
  * Expands a 12-character short ID from the Workflowy URL into a full UUID.
@@ -45,7 +45,7 @@ export async function resolveNodeId(
 		return resolveIdOrShortId(flags.id, cacheService);
 	}
 
-	const nodePath = flags.path!.split(',').map((s) => s.trim());
+	const nodePath = flags.path!.split(",").map((s) => s.trim());
 	const cachedNode = await cacheService.findNodeByPath(nodePath);
 	if (cachedNode) {
 		return cachedNode.id;
@@ -53,7 +53,7 @@ export async function resolveNodeId(
 
 	const apiNode = await apiClient.findNodeByPath(nodePath);
 	if (!apiNode) {
-		throw new Error(`Node not found at path: ${nodePath.join(' > ')}`);
+		throw new Error(`Node not found at path: ${nodePath.join(" > ")}`);
 	}
 	return apiNode.id;
 }
@@ -95,7 +95,7 @@ export async function resolveOrCreateNodePath(
 	cacheService: CacheService,
 	apiClient: WorkflowyApiClient,
 ): Promise<string> {
-	const pathParts = path.split(',').map((s) => s.trim());
+	const pathParts = path.split(",").map((s) => s.trim());
 
 	const createdNodes = new Map<string, string>();
 
@@ -103,7 +103,7 @@ export async function resolveOrCreateNodePath(
 
 	for (let i = 0; i < pathParts.length; i++) {
 		const subPath = pathParts.slice(0, i + 1);
-		const subKey = subPath.join('/');
+		const subKey = subPath.join("/");
 
 		if (createdNodes.has(subKey)) {
 			currentParentId = createdNodes.get(subKey);
@@ -183,11 +183,11 @@ export async function resolveParent(
 	const providedCount = [flags.id, flags.path].filter(Boolean).length;
 
 	if (providedCount === 0) {
-		throw new Error('One of --parent-id or --parent-path is required');
+		throw new Error("One of --parent-id or --parent-path is required");
 	}
 
 	if (providedCount > 1) {
-		throw new Error('Only one of --parent-id or --parent-path can be specified');
+		throw new Error("Only one of --parent-id or --parent-path can be specified");
 	}
 
 	if (flags.id) {
@@ -197,7 +197,7 @@ export async function resolveParent(
 		return resolveIdOrShortId(flags.id, cacheService);
 	}
 
-	const nodePath = flags.path!.split(',').map((s) => s.trim());
+	const nodePath = flags.path!.split(",").map((s) => s.trim());
 	const cachedNode = await cacheService.findNodeByPath(nodePath);
 	if (cachedNode) {
 		return cachedNode.id;
@@ -205,7 +205,7 @@ export async function resolveParent(
 
 	const apiNode = await apiClient.findNodeByPath(nodePath);
 	if (!apiNode) {
-		throw new Error(`Node not found at path: ${nodePath.join(' > ')}`);
+		throw new Error(`Node not found at path: ${nodePath.join(" > ")}`);
 	}
 	return apiNode.id;
 }

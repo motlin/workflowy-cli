@@ -1,14 +1,14 @@
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
-import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
-import {registerNodeTools} from './tools/node-tools.js';
-import {registerCacheTools} from './tools/cache-tools.js';
-import {registerSearchTools} from './tools/search-tools.js';
+import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
+import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
+import {registerNodeTools} from "./tools/node-tools.js";
+import {registerCacheTools} from "./tools/cache-tools.js";
+import {registerSearchTools} from "./tools/search-tools.js";
 
-process.title = 'workflowy-mcp';
+process.title = "workflowy-mcp";
 
 const server = new McpServer({
-	name: 'workflowy',
-	version: '0.1.0',
+	name: "workflowy",
+	version: "0.1.0",
 });
 
 registerNodeTools(server);

@@ -1,13 +1,13 @@
-import {Command, Flags} from '@oclif/core';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {createDatabase} from '../../db/index.js';
-import {type SearchMode, type SearchResult, SearchService} from '../../services/search.js';
-import {DEFAULT_MODELS, EMBEDDING_MODELS, type EmbeddingModelKey} from '../../services/embeddings.js';
+import {Command, Flags} from "@oclif/core";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {createDatabase} from "../../db/index.js";
+import {type SearchMode, type SearchResult, SearchService} from "../../services/search.js";
+import {DEFAULT_MODELS, EMBEDDING_MODELS, type EmbeddingModelKey} from "../../services/embeddings.js";
 
 export default class Search extends Command {
 	static override enableJsonFlag = true;
 
-	static override description = 'Semantically search through Workflowy nodes using vector embeddings';
+	static override description = "Semantically search through Workflowy nodes using vector embeddings";
 
 	static override examples = [
 		'<%= config.bin %> <%= command.id %> --query "project ideas"',
@@ -20,39 +20,39 @@ export default class Search extends Command {
 
 	static override flags = {
 		query: Flags.string({
-			char: 'q',
-			description: 'Search query',
+			char: "q",
+			description: "Search query",
 			required: true,
 		}),
 		limit: Flags.integer({
-			char: 'l',
-			description: 'Maximum number of results to return per model',
+			char: "l",
+			description: "Maximum number of results to return per model",
 			default: 5,
 		}),
 		threshold: Flags.string({
-			char: 't',
+			char: "t",
 			description:
-				'Maximum distance threshold (lower = more similar, 0-2). Uses model-specific default if not specified.',
+				"Maximum distance threshold (lower = more similar, 0-2). Uses model-specific default if not specified.",
 		}),
-		'show-distance': Flags.boolean({
-			char: 'd',
-			description: 'Show similarity distance scores',
+		"show-distance": Flags.boolean({
+			char: "d",
+			description: "Show similarity distance scores",
 			default: false,
 		}),
 		model: Flags.string({
-			char: 'm',
-			description: 'Search using a specific model only (minilm or mpnet)',
+			char: "m",
+			description: "Search using a specific model only (minilm or mpnet)",
 			options: Object.keys(EMBEDDING_MODELS),
 		}),
 		json: Flags.boolean({
-			char: 'j',
-			description: 'Output results in JSON format',
+			char: "j",
+			description: "Output results in JSON format",
 			default: false,
 		}),
 		mode: Flags.string({
-			description: 'Search mode: vector (default), keyword (FTS5), or hybrid (BM25 + vector RRF fusion)',
-			options: ['vector', 'keyword', 'hybrid'],
-			default: 'vector',
+			description: "Search mode: vector (default), keyword (FTS5), or hybrid (BM25 + vector RRF fusion)",
+			options: ["vector", "keyword", "hybrid"],
+			default: "vector",
 		}),
 	};
 
@@ -116,7 +116,7 @@ export default class Search extends Command {
 				nodeId: result.nodeId,
 				fullPath: result.fullPath,
 				textContent: result.textContent,
-				...(flags['show-distance'] ? {distance: result.distance} : {}),
+				...(flags["show-distance"] ? {distance: result.distance} : {}),
 				...(flags.model ? {} : {model}),
 			})),
 		);
@@ -130,9 +130,9 @@ export default class Search extends Command {
 
 		if (totalResults === 0) {
 			if (!this.jsonEnabled()) {
-				this.log('No results found. Try:');
-				this.log('  • Using different search terms');
-				this.log('  • Increasing the threshold with --threshold');
+				this.log("No results found. Try:");
+				this.log("  • Using different search terms");
+				this.log("  • Increasing the threshold with --threshold");
 				this.log("  • Generating embeddings if you haven't: workflowy ai:embed");
 			}
 			return transformedResults;
@@ -142,16 +142,16 @@ export default class Search extends Command {
 			for (const {model, results} of allSearchResults) {
 				if (!flags.model) {
 					const modelConfig = EMBEDDING_MODELS[model];
-					this.log(`═══ ${model} (${modelConfig.name.replace('Xenova/', '')}) ═══\n`);
+					this.log(`═══ ${model} (${modelConfig.name.replace("Xenova/", "")}) ═══\n`);
 				}
 
 				if (results.length === 0) {
-					this.log('No results found.\n');
+					this.log("No results found.\n");
 					continue;
 				}
 
 				for (const result of results) {
-					this.displayResult(result, flags['show-distance']);
+					this.displayResult(result, flags["show-distance"]);
 				}
 			}
 		}
@@ -167,12 +167,12 @@ export default class Search extends Command {
 		}
 
 		const preview = stripHtmlTags(result.textContent).slice(0, 150);
-		this.log(`   ${preview}${result.textContent.length > 150 ? '...' : ''}`);
+		this.log(`   ${preview}${result.textContent.length > 150 ? "..." : ""}`);
 		const greyUrl = `\u001B[90mhttps://workflowy.com/#/${result.nodeId}\u001B[0m`;
 		this.log(`   🔗 ${greyUrl}\n`);
 	}
 
 	private formatPathWithGreySeparators(path: string): string {
-		return path.replaceAll(' > ', '\u001B[90m > \u001B[0m');
+		return path.replaceAll(" > ", "\u001B[90m > \u001B[0m");
 	}
 }

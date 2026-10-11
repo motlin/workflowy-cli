@@ -1,10 +1,10 @@
-import {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
-import {App} from './app.js';
+import {StrictMode} from "react";
+import {createRoot} from "react-dom/client";
+import {App} from "./app.js";
 
-const rootElement = document.querySelector('#root');
+const rootElement = document.querySelector("#root");
 if (!rootElement) {
-	throw new Error('Root element not found');
+	throw new Error("Root element not found");
 }
 
 const root = createRoot(rootElement);

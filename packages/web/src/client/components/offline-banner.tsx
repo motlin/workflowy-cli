@@ -1,4 +1,4 @@
-import {useOutlineStore} from '../stores/outline.js';
+import {useOutlineStore} from "../stores/outline.js";
 
 /**
  * Displays a banner when the user is offline.

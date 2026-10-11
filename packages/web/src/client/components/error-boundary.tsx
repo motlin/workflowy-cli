@@ -1,4 +1,4 @@
-import {Component, type ReactNode} from 'react';
+import {Component, type ReactNode} from "react";
 
 interface ErrorBoundaryProps {
 	children: ReactNode;
@@ -25,7 +25,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 	}
 
 	componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-		console.error('ErrorBoundary caught an error:', error, errorInfo);
+		console.error("ErrorBoundary caught an error:", error, errorInfo);
 	}
 
 	handleRetry = (): void => {
@@ -45,12 +45,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 				<div className="error-boundary">
 					<div className="error-boundary-content">
 						<h2 className="error-boundary-title">Something went wrong</h2>
-						<p className="error-boundary-message">{error?.message ?? 'An unexpected error occurred'}</p>
-						<button
-							className="error-boundary-retry"
-							onClick={this.handleRetry}
-							type="button"
-						>
+						<p className="error-boundary-message">{error?.message ?? "An unexpected error occurred"}</p>
+						<button className="error-boundary-retry" onClick={this.handleRetry} type="button">
 							Try again
 						</button>
 					</div>

@@ -1,16 +1,11 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 
 /**
  * Chevron left icon for calendar navigation.
  */
 function ChevronLeftIcon() {
 	return (
-		<svg
-			fill="currentColor"
-			height="16"
-			viewBox="0 0 320 512"
-			width="16"
-		>
+		<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
 			<path d="M20.7 267.3c-6.2-6.2-6.2-16.4 0-22.6l192-192c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6L54.6 256 235.3 436.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0l-192-192z" />
 		</svg>
 	);
@@ -21,19 +16,14 @@ function ChevronLeftIcon() {
  */
 function ChevronRightIcon() {
 	return (
-		<svg
-			fill="currentColor"
-			height="16"
-			viewBox="0 0 320 512"
-			width="16"
-		>
+		<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
 			<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
 		</svg>
 	);
 }
 
-const DAYS_OF_WEEK = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAYS_OF_WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 interface CalendarDay {
 	date: Date;
@@ -164,17 +154,17 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 		}
 
 		function handleEscape(event: KeyboardEvent) {
-			if (event.key === 'Escape') {
+			if (event.key === "Escape") {
 				onClose();
 			}
 		}
 
-		document.addEventListener('mousedown', handleClickOutside);
-		document.addEventListener('keydown', handleEscape);
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleEscape);
 
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleEscape);
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleEscape);
 		};
 	}, [isOpen, onClose, anchorRef]);
 
@@ -187,24 +177,15 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 	}
 
 	return (
-		<div
-			className="calendar-panel"
-			ref={panelRef}
-		>
+		<div className="calendar-panel" ref={panelRef}>
 			<div className="calendar-content">
 				{/* Header with month/year navigation */}
 				<header className="calendar-header">
 					<div className="calendar-month-year">
-						<button
-							className="calendar-month-button"
-							type="button"
-						>
+						<button className="calendar-month-button" type="button">
 							{MONTHS[viewMonth]}
 						</button>
-						<button
-							className="calendar-year-button"
-							type="button"
-						>
+						<button className="calendar-year-button" type="button">
 							{viewYear}
 						</button>
 					</div>
@@ -231,10 +212,7 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 				{/* Day of week labels */}
 				<div className="calendar-weekdays">
 					{DAYS_OF_WEEK.map((day) => (
-						<div
-							className="calendar-weekday"
-							key={day}
-						>
+						<div className="calendar-weekday" key={day}>
 							{day}
 						</div>
 					))}
@@ -243,13 +221,10 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 				{/* Calendar grid */}
 				<div className="calendar-grid">
 					{weeks.map((week, weekIndex) => (
-						<div
-							className="calendar-week"
-							key={weekIndex}
-						>
+						<div className="calendar-week" key={weekIndex}>
 							{week.map((day, dayIndex) => (
 								<button
-									className={`calendar-day ${day.isCurrentMonth ? '' : 'other-month'} ${day.isToday ? 'today' : ''}`}
+									className={`calendar-day ${day.isCurrentMonth ? "" : "other-month"} ${day.isToday ? "today" : ""}`}
 									key={`${weekIndex}-${dayIndex}`}
 									onClick={() => handleDateClick(day)}
 									type="button"

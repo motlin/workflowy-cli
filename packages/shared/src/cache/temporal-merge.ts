@@ -1,6 +1,6 @@
-import {and, eq, type SQL, sql} from 'drizzle-orm';
-import type {SQLiteColumn, SQLiteTable} from 'drizzle-orm/sqlite-core';
-import {FAR_FUTURE_DATE} from '../temporal/index.js';
+import {and, eq, type SQL, sql} from "drizzle-orm";
+import type {SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
+import {FAR_FUTURE_DATE} from "../temporal/index.js";
 
 /**
  * Batch size for bulk insert/phase-out operations.
@@ -16,7 +16,7 @@ const BULK_BATCH_SIZE = 1000;
  * `incomingKey`/`currentKey` with {@link joinKey} so they match the SQL-side
  * concatenation used for phase-out.
  */
-const KEY_SEP = '\u001F';
+const KEY_SEP = "\u001F";
 
 /** Join key parts with the composite-key separator. */
 export function joinKey(...parts: string[]): string {

@@ -1,42 +1,42 @@
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {Command, Flags} from '@oclif/core';
-import {createDatabase} from '../../../db/index.js';
-import {CacheService} from '../../../services/cache.js';
-import {logger} from '../../../services/logger.js';
-import {PathResolutionService} from '../../../services/path-resolution.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {Command, Flags} from "@oclif/core";
+import {createDatabase} from "../../../db/index.js";
+import {CacheService} from "../../../services/cache.js";
+import {logger} from "../../../services/logger.js";
+import {PathResolutionService} from "../../../services/path-resolution.js";
 
 export default class PathToId extends Command {
-	static override description = 'Resolve a Workflowy path to a node ID';
+	static override description = "Resolve a Workflowy path to a node ID";
 
 	static override examples = [
-		'# Resolve a path to get the node ID',
+		"# Resolve a path to get the node ID",
 		'<%= config.bin %> <%= command.id %> --path "Work,Projects,My Project"',
-		'',
-		'# Use with node:list for composition',
+		"",
+		"# Use with node:list for composition",
 		'<%= config.bin %> <%= command.id %> --path "Work,Calendar" | xargs <%= config.bin %> node:list --id',
-		'',
-		'# Resolve from a custom root node',
+		"",
+		"# Resolve from a custom root node",
 		'<%= config.bin %> <%= command.id %> --root-id abc123 --path "Tasks,Today"',
-		'',
-		'# Use cache-only mode (no API calls)',
+		"",
+		"# Use cache-only mode (no API calls)",
 		'<%= config.bin %> <%= command.id %> --path "Home,Inbox" --data-source cache',
 	];
 
 	static override flags = {
 		path: Flags.string({
-			char: 'p',
+			char: "p",
 			description: 'Comma-separated path to the node (e.g., "Work,Projects,My Project")',
 			required: true,
 		}),
-		'root-id': Flags.string({
-			char: 'r',
-			description: 'Root node ID to start path from (omit for root level)',
+		"root-id": Flags.string({
+			char: "r",
+			description: "Root node ID to start path from (omit for root level)",
 		}),
-		'data-source': Flags.string({
-			char: 'd',
-			description: 'Data source to use: auto (default), api, or cache',
-			options: ['auto', 'api', 'cache'],
-			default: 'auto',
+		"data-source": Flags.string({
+			char: "d",
+			description: "Data source to use: auto (default), api, or cache",
+			options: ["auto", "api", "cache"],
+			default: "auto",
 		}),
 	};
 
@@ -54,8 +54,8 @@ export default class PathToId extends Command {
 
 		const pathResolutionService = new PathResolutionService(cacheService, apiClient);
 
-		const rootId = flags['root-id'] ?? null;
-		const dataSource = flags['data-source'] as 'auto' | 'api' | 'cache';
+		const rootId = flags["root-id"] ?? null;
+		const dataSource = flags["data-source"] as "auto" | "api" | "cache";
 
 		try {
 			const result = await pathResolutionService.resolveTargetNodeId({

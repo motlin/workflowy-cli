@@ -1,4 +1,4 @@
-import {fetchWorkflowyEpoch} from '@workflowy/shared/api';
+import {fetchWorkflowyEpoch} from "@workflowy/shared/api";
 import {
 	backlinks,
 	config,
@@ -9,8 +9,8 @@ import {
 	nodeMetadata,
 	type NodeMetadataType,
 	virtualRootIds,
-} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
+} from "@workflowy/shared/db";
+import * as schema from "@workflowy/shared/db";
 import {
 	applyRows,
 	joinKey,
@@ -24,19 +24,19 @@ import {
 	type NormalizedS3FileRow,
 	nextSystemTime,
 	temporalMerge,
-} from '@workflowy/shared/cache';
-import {BackupFileSchema, type BackupNode, BackupNodeSchema} from '@workflowy/shared/schemas';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import {backupToUnixTime, uuidToShortId} from '@workflowy/shared/workflowy';
-import {and, eq, inArray, lt} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {ZodError} from 'zod';
-import {readBackupFile} from '../utils/backup-archive.js';
-import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from './cache-temporal.js';
-import {logger} from './logger.js';
+} from "@workflowy/shared/cache";
+import {BackupFileSchema, type BackupNode, BackupNodeSchema} from "@workflowy/shared/schemas";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import {backupToUnixTime, uuidToShortId} from "@workflowy/shared/workflowy";
+import {and, eq, inArray, lt} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {ZodError} from "zod";
+import {readBackupFile} from "../utils/backup-archive.js";
+import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
+import {logger} from "./logger.js";
 
 // Config key for storing the user's Workflowy epoch
-const WORKFLOWY_EPOCH_CONFIG_KEY = 'workflowy_epoch';
+const WORKFLOWY_EPOCH_CONFIG_KEY = "workflowy_epoch";
 
 /**
  * Get the Workflowy epoch from environment variable or config table.
@@ -122,7 +122,7 @@ async function getOrFetchWorkflowyEpoch(
 	const password = process.env.WORKFLOWY_PASSWORD;
 
 	if (username && password) {
-		logger.debug('Fetching Workflowy epoch from internal API...');
+		logger.debug("Fetching Workflowy epoch from internal API...");
 		const epoch = await fetchWorkflowyEpoch({username, password});
 		setWorkflowyEpoch(tx, epoch);
 		logger.debug(`Workflowy epoch fetched and stored: ${epoch}`);
@@ -130,8 +130,8 @@ async function getOrFetchWorkflowyEpoch(
 	}
 
 	throw new Error(
-		'Workflowy epoch not configured. Set WORKFLOWY_EPOCH env var, ' +
-			'or provide WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD to fetch automatically.',
+		"Workflowy epoch not configured. Set WORKFLOWY_EPOCH env var, " +
+			"or provide WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD to fetch automatically.",
 	);
 }
 
@@ -350,7 +350,7 @@ export async function importBackup(
 	};
 
 	const fileContent = readBackupFile(filePath);
-	logTiming('Read file');
+	logTiming("Read file");
 
 	const parsedJson = JSON.parse(fileContent);
 	const rootNodes = BackupFileSchema.parse(parsedJson);
@@ -434,7 +434,7 @@ export async function importBackup(
 			nodesToProcess.push({
 				id: validatedNode.id,
 				shortId: uuidToShortId(validatedNode.id),
-				name: validatedNode.nm ?? '',
+				name: validatedNode.nm ?? "",
 				note: validatedNode.no || null,
 				parentId,
 				priority,
@@ -453,14 +453,14 @@ export async function importBackup(
 			// Collect all mirror relationships into unified mirrorRecords
 			if (validatedNode.metadata.mirror) {
 				// originalId means this node is a mirror of that ID
-				if ('originalId' in validatedNode.metadata.mirror && validatedNode.metadata.mirror.originalId) {
+				if ("originalId" in validatedNode.metadata.mirror && validatedNode.metadata.mirror.originalId) {
 					mirrorRecords.push({
 						originalId: validatedNode.metadata.mirror.originalId,
 						mirrorId: validatedNode.id,
 					});
 				}
 				// mirrorRootIds: this node is the original; each of those IDs mirrors it
-				if ('mirrorRootIds' in validatedNode.metadata.mirror && validatedNode.metadata.mirror.mirrorRootIds) {
+				if ("mirrorRootIds" in validatedNode.metadata.mirror && validatedNode.metadata.mirror.mirrorRootIds) {
 					for (const rootId of Object.keys(validatedNode.metadata.mirror.mirrorRootIds)) {
 						mirrorRecords.push({
 							originalId: validatedNode.id,
@@ -470,7 +470,7 @@ export async function importBackup(
 				}
 				// backlinkMirrorRootIds: each of those IDs mirrors this node
 				if (
-					'backlinkMirrorRootIds' in validatedNode.metadata.mirror &&
+					"backlinkMirrorRootIds" in validatedNode.metadata.mirror &&
 					validatedNode.metadata.mirror.backlinkMirrorRootIds
 				) {
 					for (const backlinkId of Object.keys(validatedNode.metadata.mirror.backlinkMirrorRootIds)) {
@@ -551,7 +551,7 @@ export async function importBackup(
 				validationErrors++;
 				console.error(`Validation error for node ${node.id}:`);
 				console.error(error.format());
-				console.error('Node JSON:', JSON.stringify(node, null, 2));
+				console.error("Node JSON:", JSON.stringify(node, null, 2));
 			} else {
 				throw error;
 			}
@@ -1034,7 +1034,7 @@ export async function importBackup(
 		logTiming(`Closed ${nodesDeleted} orphaned nodes (deleted from Workflowy)`);
 	});
 
-	logTiming('Transaction complete');
+	logTiming("Transaction complete");
 
 	return {
 		totalNodes: nodesToProcess.length,

@@ -1,6 +1,6 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {useOutlineStore} from '../stores/outline.js';
+import {useCallback, useEffect, useRef, useState} from "react";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useOutlineStore} from "../stores/outline.js";
 
 interface RelatedNode {
 	id: string;
@@ -34,7 +34,7 @@ function formatSimilarityScore(distance: number): string {
  */
 export function MoveAssistant() {
 	const {moveAssistantOpen, moveAssistantContext, closeMoveAssistant} = useOutlineStore();
-	const [query, setQuery] = useState('');
+	const [query, setQuery] = useState("");
 	const [searchResults, setSearchResults] = useState<RelatedNode[]>([]);
 	const [parentCandidates, setParentCandidates] = useState<RelatedNode[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
@@ -47,7 +47,7 @@ export function MoveAssistant() {
 	useEffect(() => {
 		if (moveAssistantOpen && moveAssistantContext && inputRef.current) {
 			inputRef.current.focus();
-			setQuery('');
+			setQuery("");
 			setSearchResults([]);
 			setParentCandidates([]);
 			setSelectedIndex(0);
@@ -55,12 +55,12 @@ export function MoveAssistant() {
 
 			// Fetch semantically related parent candidates using embeddings
 			setIsLoadingCandidates(true);
-			fetch('/api/related', {
-				method: 'POST',
-				headers: {'Content-Type': 'application/json'},
+			fetch("/api/related", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
 				body: JSON.stringify({
 					nodeId: moveAssistantContext.nodeId,
-					type: 'parent-candidates',
+					type: "parent-candidates",
 					limit: 10,
 					threshold: 0.7,
 				}),
@@ -68,7 +68,7 @@ export function MoveAssistant() {
 				.then(async (response) => {
 					if (!response.ok) {
 						const data = (await response.json()) as {error?: string};
-						throw new Error(data.error ?? 'Failed to fetch parent candidates');
+						throw new Error(data.error ?? "Failed to fetch parent candidates");
 					}
 					return response.json() as Promise<RelatedResponse>;
 				})
@@ -96,9 +96,9 @@ export function MoveAssistant() {
 			setIsSearching(true);
 			setError(null);
 			try {
-				const response = await fetch('/api/search', {
-					method: 'POST',
-					headers: {'Content-Type': 'application/json'},
+				const response = await fetch("/api/search", {
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
 					body: JSON.stringify({query, limit: 10}),
 				});
 				if (response.ok) {
@@ -113,7 +113,7 @@ export function MoveAssistant() {
 					setSelectedIndex(0);
 				}
 			} catch {
-				setError('Search failed');
+				setError("Search failed");
 			}
 			setIsSearching(false);
 		}, 150);
@@ -131,24 +131,24 @@ export function MoveAssistant() {
 			const {nodeId, mode} = moveAssistantContext;
 
 			try {
-				if (mode === 'move') {
+				if (mode === "move") {
 					// Move node to new parent
 					const response = await fetch(`/api/v1/nodes/${nodeId}`, {
-						method: 'POST',
-						headers: {'Content-Type': 'application/json'},
+						method: "POST",
+						headers: {"Content-Type": "application/json"},
 						body: JSON.stringify({parent_id: targetNode.id}),
 					});
 
 					if (!response.ok) {
 						const data = (await response.json()) as {error?: string};
-						throw new Error(data.error ?? 'Failed to move node');
+						throw new Error(data.error ?? "Failed to move node");
 					}
 				} else {
 					// Copy node to new parent (create duplicate under new parent)
 					// First get the source node's details
 					const sourceResponse = await fetch(`/api/v1/nodes/${nodeId}`);
 					if (!sourceResponse.ok) {
-						throw new Error('Failed to fetch source node');
+						throw new Error("Failed to fetch source node");
 					}
 					const sourceNode = (await sourceResponse.json()) as {
 						name: string;
@@ -157,9 +157,9 @@ export function MoveAssistant() {
 					};
 
 					// Create a copy under the target parent
-					const createResponse = await fetch('/api/v1/nodes', {
-						method: 'POST',
-						headers: {'Content-Type': 'application/json'},
+					const createResponse = await fetch("/api/v1/nodes", {
+						method: "POST",
+						headers: {"Content-Type": "application/json"},
 						body: JSON.stringify({
 							parent_id: targetNode.id,
 							name: sourceNode.name,
@@ -170,7 +170,7 @@ export function MoveAssistant() {
 
 					if (!createResponse.ok) {
 						const data = (await createResponse.json()) as {error?: string};
-						throw new Error(data.error ?? 'Failed to copy node');
+						throw new Error(data.error ?? "Failed to copy node");
 					}
 				}
 
@@ -178,7 +178,7 @@ export function MoveAssistant() {
 				// Trigger a page refresh to show the updated tree
 				globalThis.location.reload();
 			} catch (error_) {
-				setError(error_ instanceof Error ? error_.message : 'Operation failed');
+				setError(error_ instanceof Error ? error_.message : "Operation failed");
 			}
 		},
 		[moveAssistantContext, closeMoveAssistant],
@@ -199,22 +199,22 @@ export function MoveAssistant() {
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {
 			switch (event.key) {
-				case 'Escape': {
+				case "Escape": {
 					event.preventDefault();
 					closeMoveAssistant();
 					break;
 				}
-				case 'ArrowDown': {
+				case "ArrowDown": {
 					event.preventDefault();
 					setSelectedIndex((previous) => Math.min(previous + 1, displayList.length - 1));
 					break;
 				}
-				case 'ArrowUp': {
+				case "ArrowUp": {
 					event.preventDefault();
 					setSelectedIndex((previous) => Math.max(previous - 1, 0));
 					break;
 				}
-				case 'Enter': {
+				case "Enter": {
 					event.preventDefault();
 					if (displayList[selectedIndex]) {
 						handleSelectParent(displayList[selectedIndex]);
@@ -243,20 +243,17 @@ export function MoveAssistant() {
 	const showingResults = query.trim() && searchResults.length > 0;
 	const showNoResults = query.trim() && !isSearching && searchResults.length === 0;
 	const showEmpty = !query.trim() && !isLoadingCandidates && parentCandidates.length === 0 && !error;
-	const actionVerb = moveAssistantContext.mode === 'move' ? 'Move' : 'Copy';
-	const actionVerbLower = moveAssistantContext.mode === 'move' ? 'move' : 'copy';
+	const actionVerb = moveAssistantContext.mode === "move" ? "Move" : "Copy";
+	const actionVerbLower = moveAssistantContext.mode === "move" ? "move" : "copy";
 
 	return (
-		<div
-			className="move-assistant-overlay"
-			onClick={handleBackdropClick}
-		>
+		<div className="move-assistant-overlay" onClick={handleBackdropClick}>
 			<div className="move-assistant-modal">
 				<div className="move-assistant-header">
 					<div className="move-assistant-title">
-						{actionVerb}:{' '}
+						{actionVerb}:{" "}
 						<span className="move-assistant-node-name">
-							"{stripHtml(moveAssistantContext.nodeName) || 'Untitled'}"
+							"{stripHtml(moveAssistantContext.nodeName) || "Untitled"}"
 						</span>
 					</div>
 					<input
@@ -298,13 +295,13 @@ export function MoveAssistant() {
 								{parentCandidates.map((node, index) => (
 									<li key={node.id}>
 										<button
-											className={`move-assistant-result ${index === selectedIndex ? 'selected' : ''}`}
+											className={`move-assistant-result ${index === selectedIndex ? "selected" : ""}`}
 											onClick={() => handleSelectParent(node)}
 											type="button"
 										>
 											<div className="move-assistant-result-header">
 												<span className="move-assistant-result-name">
-													{stripHtml(node.name) || 'Untitled'}
+													{stripHtml(node.name) || "Untitled"}
 												</span>
 												<span className="move-assistant-result-score">
 													{formatSimilarityScore(node.distance)}
@@ -312,7 +309,7 @@ export function MoveAssistant() {
 											</div>
 											{node.path.length > 0 && (
 												<span className="move-assistant-result-path">
-													{node.path.join(' > ')}
+													{node.path.join(" > ")}
 												</span>
 											)}
 											{node.note && (
@@ -332,12 +329,12 @@ export function MoveAssistant() {
 							{searchResults.map((node, index) => (
 								<li key={node.id}>
 									<button
-										className={`move-assistant-result ${index === selectedIndex ? 'selected' : ''}`}
+										className={`move-assistant-result ${index === selectedIndex ? "selected" : ""}`}
 										onClick={() => handleSelectParent(node)}
 										type="button"
 									>
 										<span className="move-assistant-result-name">
-											{stripHtml(node.name) || 'Untitled'}
+											{stripHtml(node.name) || "Untitled"}
 										</span>
 										{node.note && (
 											<span className="move-assistant-result-note">{stripHtml(node.note)}</span>

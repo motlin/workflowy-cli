@@ -1,13 +1,13 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {nodeRoute} from '../navigation.js';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {useNavigate} from 'react-router-dom';
-import {z} from 'zod';
-import {useOutlineStore} from '../stores/outline.js';
+import {useCallback, useEffect, useRef, useState} from "react";
+import {nodeRoute} from "../navigation.js";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useNavigate} from "react-router-dom";
+import {z} from "zod";
+import {useOutlineStore} from "../stores/outline.js";
 
 const StringArraySchema = z.array(z.string());
 
-const RECENT_NODES_STORAGE_KEY = 'workflowy-recent-nodes';
+const RECENT_NODES_STORAGE_KEY = "workflowy-recent-nodes";
 const MAX_RECENT_NODES = 10;
 
 interface NodeResult {
@@ -43,7 +43,7 @@ function addRecentNode(nodeId: string): void {
  */
 export function JumpMenu() {
 	const {jumpMenuOpen, toggleJumpMenu} = useOutlineStore();
-	const [query, setQuery] = useState('');
+	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<NodeResult[]>([]);
 	const [recentNodes, setRecentNodes] = useState<NodeResult[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
@@ -56,7 +56,7 @@ export function JumpMenu() {
 	useEffect(() => {
 		if (jumpMenuOpen && inputRef.current) {
 			inputRef.current.focus();
-			setQuery('');
+			setQuery("");
 			setResults([]);
 			setSelectedIndex(0);
 
@@ -97,9 +97,9 @@ export function JumpMenu() {
 
 		const searchTimeout = setTimeout(async () => {
 			setIsSearching(true);
-			const response = await fetch('/api/search', {
-				method: 'POST',
-				headers: {'Content-Type': 'application/json'},
+			const response = await fetch("/api/search", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
 				body: JSON.stringify({query, limit: 10}),
 			});
 			if (response.ok) {
@@ -128,22 +128,22 @@ export function JumpMenu() {
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {
 			switch (event.key) {
-				case 'Escape': {
+				case "Escape": {
 					event.preventDefault();
 					toggleJumpMenu();
 					break;
 				}
-				case 'ArrowDown': {
+				case "ArrowDown": {
 					event.preventDefault();
 					setSelectedIndex((previous) => Math.min(previous + 1, displayList.length - 1));
 					break;
 				}
-				case 'ArrowUp': {
+				case "ArrowUp": {
 					event.preventDefault();
 					setSelectedIndex((previous) => Math.max(previous - 1, 0));
 					break;
 				}
-				case 'Enter': {
+				case "Enter": {
 					event.preventDefault();
 					if (displayList[selectedIndex]) {
 						handleNavigateToNode(displayList[selectedIndex]);
@@ -174,10 +174,7 @@ export function JumpMenu() {
 	const showEmpty = !query.trim() && !isLoadingRecent && recentNodes.length === 0;
 
 	return (
-		<div
-			className="jump-menu-overlay"
-			onClick={handleBackdropClick}
-		>
+		<div className="jump-menu-overlay" onClick={handleBackdropClick}>
 			<div className="jump-menu">
 				<div className="jump-menu-header">
 					<input
@@ -215,12 +212,12 @@ export function JumpMenu() {
 								{recentNodes.map((node, index) => (
 									<li key={node.id}>
 										<button
-											className={`jump-menu-result ${index === selectedIndex ? 'selected' : ''}`}
+											className={`jump-menu-result ${index === selectedIndex ? "selected" : ""}`}
 											onClick={() => handleNavigateToNode(node)}
 											type="button"
 										>
 											<span className="jump-menu-result-name">
-												{stripHtml(node.name) || 'Untitled'}
+												{stripHtml(node.name) || "Untitled"}
 											</span>
 											{node.note && (
 												<span className="jump-menu-result-note">{stripHtml(node.note)}</span>
@@ -237,12 +234,12 @@ export function JumpMenu() {
 							{results.map((node, index) => (
 								<li key={node.id}>
 									<button
-										className={`jump-menu-result ${index === selectedIndex ? 'selected' : ''}`}
+										className={`jump-menu-result ${index === selectedIndex ? "selected" : ""}`}
 										onClick={() => handleNavigateToNode(node)}
 										type="button"
 									>
 										<span className="jump-menu-result-name">
-											{stripHtml(node.name) || 'Untitled'}
+											{stripHtml(node.name) || "Untitled"}
 										</span>
 										{node.note && (
 											<span className="jump-menu-result-note">{stripHtml(node.note)}</span>

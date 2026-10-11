@@ -41,7 +41,7 @@ export function calculateWorkflowyEpoch(apiCreatedAt: number, backupCt: number):
  * Example: "3435cb92-d00d-45be-9950-b1ed4735574c" → "b1ed4735574c"
  */
 export function uuidToShortId(uuid: string): string {
-	const withoutHyphens = uuid.replaceAll('-', '');
+	const withoutHyphens = uuid.replaceAll("-", "");
 	return withoutHyphens.slice(-12);
 }
 
@@ -74,17 +74,17 @@ export function getWorkflowyUrl(nodeId: string): string {
 export function formatWorkflowyDate(date: Date | string = new Date()): string {
 	let dateObj: Date;
 
-	if (typeof date === 'string') {
+	if (typeof date === "string") {
 		// Parse YYYY-MM-DD string as local date (not UTC)
-		const [year, month, day] = date.split('-').map(Number);
+		const [year, month, day] = date.split("-").map(Number);
 		dateObj = new Date(year, month - 1, day);
 	} else {
 		dateObj = date;
 	}
 
 	const year = dateObj.getFullYear();
-	const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-	const day = String(dateObj.getDate()).padStart(2, '0');
+	const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+	const day = String(dateObj.getDate()).padStart(2, "0");
 
 	return `[${year}-${month}-${day}]`;
 }
@@ -99,13 +99,13 @@ export function formatWorkflowyDate(date: Date | string = new Date()): string {
  * @returns Bracket-formatted datetime string that Workflowy converts to native datetime
  */
 export function formatWorkflowyDateTime(date: Date | string = new Date()): string {
-	const dateObj: Date = typeof date === 'string' ? new Date(date) : date;
+	const dateObj: Date = typeof date === "string" ? new Date(date) : date;
 
 	const year = dateObj.getFullYear();
-	const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-	const day = String(dateObj.getDate()).padStart(2, '0');
-	const hours = String(dateObj.getHours()).padStart(2, '0');
-	const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+	const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+	const day = String(dateObj.getDate()).padStart(2, "0");
+	const hours = String(dateObj.getHours()).padStart(2, "0");
+	const minutes = String(dateObj.getMinutes()).padStart(2, "0");
 
 	return `[${year}-${month}-${day} ${hours}:${minutes}]`;
 }

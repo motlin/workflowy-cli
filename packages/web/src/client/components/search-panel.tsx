@@ -1,8 +1,8 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {nodeRoute} from '../navigation.js';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {useNavigate} from 'react-router-dom';
-import {useOutlineStore} from '../stores/outline.js';
+import {useCallback, useEffect, useRef, useState} from "react";
+import {nodeRoute} from "../navigation.js";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useNavigate} from "react-router-dom";
+import {useOutlineStore} from "../stores/outline.js";
 
 interface SearchResult {
 	id: string;
@@ -17,7 +17,7 @@ interface SearchResponse {
 	totalCount: number;
 }
 
-type EmbeddingModelKey = 'minilm' | 'mpnet' | 'bge';
+type EmbeddingModelKey = "minilm" | "mpnet" | "bge";
 
 interface ModelInfo {
 	label: string;
@@ -28,38 +28,38 @@ interface ModelInfo {
 
 const EMBEDDING_MODELS: Record<EmbeddingModelKey, ModelInfo> = {
 	minilm: {
-		label: 'MiniLM',
+		label: "MiniLM",
 		dimensions: 384,
-		speed: 'Fast',
-		description: 'Lightweight model, best for quick searches',
+		speed: "Fast",
+		description: "Lightweight model, best for quick searches",
 	},
 	mpnet: {
-		label: 'MPNet',
+		label: "MPNet",
 		dimensions: 768,
-		speed: 'Balanced',
-		description: 'Good balance of speed and quality',
+		speed: "Balanced",
+		description: "Good balance of speed and quality",
 	},
 	bge: {
-		label: 'BGE Large',
+		label: "BGE Large",
 		dimensions: 1024,
-		speed: 'Best quality',
-		description: 'Highest quality, slower processing',
+		speed: "Best quality",
+		description: "Highest quality, slower processing",
 	},
 };
 
-const STORAGE_KEY = 'workflowy-search-model';
+const STORAGE_KEY = "workflowy-search-model";
 
 function getStoredModel(): EmbeddingModelKey {
-	if (typeof globalThis === 'undefined') return 'minilm';
+	if (typeof globalThis === "undefined") return "minilm";
 	const stored = localStorage.getItem(STORAGE_KEY);
 	if (stored && stored in EMBEDDING_MODELS) {
 		return stored as EmbeddingModelKey;
 	}
-	return 'minilm';
+	return "minilm";
 }
 
 function setStoredModel(model: EmbeddingModelKey): void {
-	if (typeof globalThis !== 'undefined') {
+	if (typeof globalThis !== "undefined") {
 		localStorage.setItem(STORAGE_KEY, model);
 	}
 }
@@ -67,8 +67,8 @@ function setStoredModel(model: EmbeddingModelKey): void {
 function highlightMatches(text: string, query: string): string {
 	if (!query.trim()) return text;
 	const escaped = query.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-	const regex = new RegExp(`(${escaped})`, 'gi');
-	return text.replaceAll(regex, '<mark>$1</mark>');
+	const regex = new RegExp(`(${escaped})`, "gi");
+	return text.replaceAll(regex, "<mark>$1</mark>");
 }
 
 /**
@@ -78,21 +78,21 @@ function highlightMatches(text: string, query: string): string {
  * Close with Escape when open.
  * Supports opening with a pre-filled query (e.g., from tag exploding).
  */
-const SEARCH_SCOPE_STORAGE_KEY = 'workflowy-search-scope';
+const SEARCH_SCOPE_STORAGE_KEY = "workflowy-search-scope";
 
-type SearchScope = 'all' | 'branch';
+type SearchScope = "all" | "branch";
 
 function getStoredScope(): SearchScope {
-	if (typeof globalThis === 'undefined') return 'branch';
+	if (typeof globalThis === "undefined") return "branch";
 	const stored = localStorage.getItem(SEARCH_SCOPE_STORAGE_KEY);
-	if (stored === 'all' || stored === 'branch') {
+	if (stored === "all" || stored === "branch") {
 		return stored;
 	}
-	return 'branch';
+	return "branch";
 }
 
 function setStoredScope(scope: SearchScope): void {
-	if (typeof globalThis !== 'undefined') {
+	if (typeof globalThis !== "undefined") {
 		localStorage.setItem(SEARCH_SCOPE_STORAGE_KEY, scope);
 	}
 }
@@ -111,7 +111,7 @@ export function SearchPanel() {
 		clearRecentSearches,
 		zoomedNodeId,
 	} = useOutlineStore();
-	const [query, setQuery] = useState('');
+	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<SearchResult[]>([]);
 	const [totalCount, setTotalCount] = useState(0);
 	const [isSearching, setIsSearching] = useState(false);
@@ -124,7 +124,7 @@ export function SearchPanel() {
 	const navigate = useNavigate();
 
 	// Determine if we should search within branch (only when zoomed and scope is 'branch')
-	const effectiveParentId = zoomedNodeId && searchScope === 'branch' ? zoomedNodeId : null;
+	const effectiveParentId = zoomedNodeId && searchScope === "branch" ? zoomedNodeId : null;
 
 	const handleScopeChange = useCallback((scope: SearchScope) => {
 		setSearchScope(scope);
@@ -160,7 +160,7 @@ export function SearchPanel() {
 				setQuery(searchInitialQuery);
 				clearSearchInitialQuery();
 			} else {
-				setQuery('');
+				setQuery("");
 			}
 			setResults([]);
 			setTotalCount(0);
@@ -195,9 +195,9 @@ export function SearchPanel() {
 			if (effectiveParentId) {
 				requestBody.parentId = effectiveParentId;
 			}
-			const response = await fetch('/api/search', {
-				method: 'POST',
-				headers: {'Content-Type': 'application/json'},
+			const response = await fetch("/api/search", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
 				body: JSON.stringify(requestBody),
 			});
 			if (response.ok) {
@@ -235,9 +235,9 @@ export function SearchPanel() {
 		if (effectiveParentId) {
 			requestBody.parentId = effectiveParentId;
 		}
-		const response = await fetch('/api/search', {
-			method: 'POST',
-			headers: {'Content-Type': 'application/json'},
+		const response = await fetch("/api/search", {
+			method: "POST",
+			headers: {"Content-Type": "application/json"},
 			body: JSON.stringify(requestBody),
 		});
 		if (response.ok) {
@@ -250,22 +250,22 @@ export function SearchPanel() {
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {
 			switch (event.key) {
-				case 'Escape': {
+				case "Escape": {
 					event.preventDefault();
 					toggleSearchPanel();
 					break;
 				}
-				case 'ArrowDown': {
+				case "ArrowDown": {
 					event.preventDefault();
 					setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
 					break;
 				}
-				case 'ArrowUp': {
+				case "ArrowUp": {
 					event.preventDefault();
 					setSelectedIndex((prev) => Math.max(prev - 1, 0));
 					break;
 				}
-				case 'Enter': {
+				case "Enter": {
 					event.preventDefault();
 					if (results[selectedIndex]) {
 						handleNavigateToResult(results[selectedIndex]);
@@ -291,10 +291,7 @@ export function SearchPanel() {
 	}
 
 	return (
-		<div
-			className="search-panel-overlay"
-			onClick={handleBackdropClick}
-		>
+		<div className="search-panel-overlay" onClick={handleBackdropClick}>
 			<div className="search-panel">
 				<div className="search-panel-header">
 					<div className="search-panel-input-row">
@@ -308,14 +305,14 @@ export function SearchPanel() {
 							value={query}
 						/>
 						<button
-							aria-label={isQuerySaved ? 'Search saved' : 'Save search'}
-							className={`search-panel-star ${isQuerySaved ? 'saved' : ''}`}
+							aria-label={isQuerySaved ? "Search saved" : "Save search"}
+							className={`search-panel-star ${isQuerySaved ? "saved" : ""}`}
 							disabled={!query.trim() || isQuerySaved}
 							onClick={handleSaveSearch}
-							title={isQuerySaved ? 'Search saved' : 'Save this search'}
+							title={isQuerySaved ? "Search saved" : "Save this search"}
 							type="button"
 						>
-							{isQuerySaved ? '\u2605' : '\u2606'}
+							{isQuerySaved ? "\u2605" : "\u2606"}
 						</button>
 						<button
 							aria-label="Close search"
@@ -332,7 +329,7 @@ export function SearchPanel() {
 							<div className="search-panel-model-buttons">
 								{(Object.keys(EMBEDDING_MODELS) as EmbeddingModelKey[]).map((modelKey) => (
 									<button
-										className={`search-panel-model-button ${selectedModel === modelKey ? 'selected' : ''}`}
+										className={`search-panel-model-button ${selectedModel === modelKey ? "selected" : ""}`}
 										key={modelKey}
 										onClick={() => handleModelChange(modelKey)}
 										type="button"
@@ -374,15 +371,15 @@ export function SearchPanel() {
 							<label className="search-panel-scope-label">Scope:</label>
 							<div className="search-panel-scope-buttons">
 								<button
-									className={`search-panel-scope-button ${searchScope === 'branch' ? 'selected' : ''}`}
-									onClick={() => handleScopeChange('branch')}
+									className={`search-panel-scope-button ${searchScope === "branch" ? "selected" : ""}`}
+									onClick={() => handleScopeChange("branch")}
 									type="button"
 								>
 									Current branch
 								</button>
 								<button
-									className={`search-panel-scope-button ${searchScope === 'all' ? 'selected' : ''}`}
-									onClick={() => handleScopeChange('all')}
+									className={`search-panel-scope-button ${searchScope === "all" ? "selected" : ""}`}
+									onClick={() => handleScopeChange("all")}
 									type="button"
 								>
 									All nodes
@@ -402,13 +399,13 @@ export function SearchPanel() {
 					{!isSearching && results.length > 0 && (
 						<>
 							<p className="search-panel-count">
-								{results.length} of {totalCount} result{totalCount === 1 ? '' : 's'}
+								{results.length} of {totalCount} result{totalCount === 1 ? "" : "s"}
 							</p>
 							<ul className="search-panel-list">
 								{results.map((result, index) => (
 									<li key={result.id}>
 										<button
-											className={`search-panel-result ${index === selectedIndex ? 'selected' : ''}`}
+											className={`search-panel-result ${index === selectedIndex ? "selected" : ""}`}
 											onClick={() => handleNavigateToResult(result)}
 											type="button"
 										>
@@ -441,7 +438,7 @@ export function SearchPanel() {
 									type="button"
 								>
 									{isLoadingMore
-										? 'Loading...'
+										? "Loading..."
 										: `Load more (${totalCount - results.length} remaining)`}
 								</button>
 							)}
@@ -455,16 +452,13 @@ export function SearchPanel() {
 									<p className="search-panel-saved-searches-title">Saved Searches</p>
 									<ul className="search-panel-saved-searches-list">
 										{savedSearches.map((savedQuery) => (
-											<li
-												className="search-panel-saved-search-item"
-												key={savedQuery}
-											>
+											<li className="search-panel-saved-search-item" key={savedQuery}>
 												<button
 													className="search-panel-saved-search"
 													onClick={() => handleSavedSearchClick(savedQuery)}
 													type="button"
 												>
-													<span className="search-panel-saved-search-icon">{'\u2605'}</span>
+													<span className="search-panel-saved-search-icon">{"\u2605"}</span>
 													<span className="search-panel-saved-search-text">{savedQuery}</span>
 												</button>
 												<button
@@ -495,17 +489,14 @@ export function SearchPanel() {
 									</div>
 									<ul className="search-panel-saved-searches-list">
 										{recentSearches.map((recentQuery) => (
-											<li
-												className="search-panel-saved-search-item"
-												key={recentQuery}
-											>
+											<li className="search-panel-saved-search-item" key={recentQuery}>
 												<button
 													className="search-panel-saved-search"
 													onClick={() => handleRecentSearchClick(recentQuery)}
 													type="button"
 												>
 													<span className="search-panel-saved-search-icon">
-														{'\u{1F551}'}
+														{"\u{1F551}"}
 													</span>
 													<span className="search-panel-saved-search-text">
 														{recentQuery}

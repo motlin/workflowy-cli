@@ -1,7 +1,7 @@
-import type {NewNodeContent, NewNodeMetadata} from '@workflowy/shared/db';
-import type {WorkflowyNode} from '@workflowy/shared/types';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import crypto from 'node:crypto';
+import type {NewNodeContent, NewNodeMetadata} from "@workflowy/shared/db";
+import type {WorkflowyNode} from "@workflowy/shared/types";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import crypto from "node:crypto";
 
 export interface TestNode {
 	id: string;
@@ -23,7 +23,7 @@ function generateTestId(): string {
 }
 
 export function getShortId(id: string): string {
-	return id.replaceAll('-', '').slice(-12);
+	return id.replaceAll("-", "").slice(-12);
 }
 
 export function createTestNode(overrides: Partial<TestNode> = {}): TestNode {
@@ -34,14 +34,14 @@ export function createTestNode(overrides: Partial<TestNode> = {}): TestNode {
 	return {
 		id,
 		shortId: getShortId(id),
-		name: 'Test Node',
+		name: "Test Node",
 		note: null,
 		parentId: null,
 		priority: 0,
 		createdAt: now,
 		modifiedAt: now,
 		completedAt: null,
-		layoutMode: 'bullets',
+		layoutMode: "bullets",
 		systemFrom,
 		systemTo: FAR_FUTURE_DATE,
 		...overrides,
@@ -52,7 +52,7 @@ export function createApiNode(overrides: Partial<WorkflowyNode> = {}): Workflowy
 	const now = Date.now();
 	return {
 		id: generateTestId(),
-		name: 'Test Node',
+		name: "Test Node",
 		note: null,
 		parent_id: null,
 		priority: 0,
@@ -60,7 +60,7 @@ export function createApiNode(overrides: Partial<WorkflowyNode> = {}): Workflowy
 		createdAt: now,
 		modifiedAt: now,
 		completedAt: null,
-		data: {layoutMode: 'bullets'},
+		data: {layoutMode: "bullets"},
 		...overrides,
 	};
 }
@@ -76,12 +76,12 @@ export function createNodeFromContent(
 	}>,
 ): TestNode {
 	return {
-		id: content.id ?? '',
+		id: content.id ?? "",
 		name: content.name ?? null,
 		note: content.note ?? null,
 		parentId: content.parentId ?? null,
-		systemFrom: content.systemFrom ?? '',
-		systemTo: content.systemTo ?? '',
+		systemFrom: content.systemFrom ?? "",
+		systemTo: content.systemTo ?? "",
 		shortId: null,
 		priority: null,
 		createdAt: null,

@@ -1,4 +1,4 @@
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 
 /**
  * Per-tag color assignments, as a map of tag text (incl. leading #/@) to a
@@ -8,11 +8,11 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 export type TagColors = Record<string, string>;
 
 const tagColorKeys = {
-	all: ['tag-colors'] as const,
+	all: ["tag-colors"] as const,
 };
 
 async function fetchTagColors(): Promise<TagColors> {
-	const response = await fetch('/api/v1/tags');
+	const response = await fetch("/api/v1/tags");
 	if (!response.ok) {
 		throw new Error(`Failed to fetch tag colors: ${response.statusText}`);
 	}
@@ -22,8 +22,8 @@ async function fetchTagColors(): Promise<TagColors> {
 
 async function setTagColor(name: string, color: string): Promise<void> {
 	const response = await fetch(`/api/v1/tags/${encodeURIComponent(name)}`, {
-		method: 'PUT',
-		headers: {'Content-Type': 'application/json'},
+		method: "PUT",
+		headers: {"Content-Type": "application/json"},
 		body: JSON.stringify({color}),
 	});
 	if (!response.ok) {
@@ -33,7 +33,7 @@ async function setTagColor(name: string, color: string): Promise<void> {
 
 async function removeTagColor(name: string): Promise<void> {
 	const response = await fetch(`/api/v1/tags/${encodeURIComponent(name)}`, {
-		method: 'DELETE',
+		method: "DELETE",
 	});
 	if (!response.ok) {
 		throw new Error(`Failed to remove tag color: ${response.statusText}`);

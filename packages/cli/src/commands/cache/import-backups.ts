@@ -1,30 +1,30 @@
-import {backupImports} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {Command, Flags} from '@oclif/core';
-import {desc, eq} from 'drizzle-orm';
-import {createDatabase} from '../../db/index.js';
-import {logger} from '../../services/logger.js';
-import {type BackupEntry, listBackups, materializeBackup, resolveBackupsDirectory} from '../../utils/backup-archive.js';
-import {formatDate, getDateDifference} from '../../utils/backup-validation.js';
+import {backupImports} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {Command, Flags} from "@oclif/core";
+import {desc, eq} from "drizzle-orm";
+import {createDatabase} from "../../db/index.js";
+import {logger} from "../../services/logger.js";
+import {type BackupEntry, listBackups, materializeBackup, resolveBackupsDirectory} from "../../utils/backup-archive.js";
+import {formatDate, getDateDifference} from "../../utils/backup-validation.js";
 
 export default class ImportBackups extends Command {
-	static override description = 'Import all missing backups from Dropbox into cache';
+	static override description = "Import all missing backups from Dropbox into cache";
 
 	static override examples = [
-		'<%= config.bin %> cache:import-backups',
-		'<%= config.bin %> cache:import-backups --no-embeddings',
-		'<%= config.bin %> cache:import-backups --batch-size 50',
+		"<%= config.bin %> cache:import-backups",
+		"<%= config.bin %> cache:import-backups --no-embeddings",
+		"<%= config.bin %> cache:import-backups --batch-size 50",
 	];
 
 	static override flags = {
 		embeddings: Flags.boolean({
-			description: 'Generate embeddings after import',
+			description: "Generate embeddings after import",
 			default: true,
 			allowNo: true,
 		}),
-		'batch-size': Flags.integer({
-			char: 'b',
-			description: 'Number of nodes to process in each embedding batch',
+		"batch-size": Flags.integer({
+			char: "b",
+			description: "Number of nodes to process in each embedding batch",
 			default: 20,
 		}),
 	};
@@ -42,18 +42,18 @@ export default class ImportBackups extends Command {
 			.orderBy(desc(backupImports.backupDate))
 			.limit(1)
 			.get();
-		logger.logSqlResult('import-backups.mostRecentImport', mostRecentImport);
+		logger.logSqlResult("import-backups.mostRecentImport", mostRecentImport);
 
-		this.log('📥 Downloading any missing backups from Dropbox...');
-		await this.executeCommand('dropbox', ['download-backup']);
+		this.log("📥 Downloading any missing backups from Dropbox...");
+		await this.executeCommand("dropbox", ["download-backup"]);
 
-		this.log('🗜️  Compressing and archiving local backups...');
-		await this.executeCommand('backups', ['archive']);
+		this.log("🗜️  Compressing and archiving local backups...");
+		await this.executeCommand("backups", ["archive"]);
 
 		const localBackups = listBackups(backupsDirectory);
 
 		if (localBackups.length === 0) {
-			this.log('❌ No backup files found');
+			this.log("❌ No backup files found");
 			return;
 		}
 
@@ -67,10 +67,10 @@ export default class ImportBackups extends Command {
 			: localBackups;
 
 		if (unimportedBackups.length === 0) {
-			this.log('✅ Already up to date!');
+			this.log("✅ Already up to date!");
 			if (flags.embeddings) {
-				this.log('\n🤖 Generating embeddings for any nodes without them...');
-				await this.executeCommand('ai', ['embed', '--batch-size', flags['batch-size'].toString()]);
+				this.log("\n🤖 Generating embeddings for any nodes without them...");
+				await this.executeCommand("ai", ["embed", "--batch-size", flags["batch-size"].toString()]);
 			}
 			return;
 		}
@@ -92,27 +92,27 @@ export default class ImportBackups extends Command {
 			await this.importBackup(backup, flags);
 		}
 
-		this.log('\n✅ Import complete!');
+		this.log("\n✅ Import complete!");
 	}
 
-	private async importBackup(backup: BackupEntry, flags: {embeddings: boolean; 'batch-size': number}): Promise<void> {
+	private async importBackup(backup: BackupEntry, flags: {embeddings: boolean; "batch-size": number}): Promise<void> {
 		// Archived backups live inside a solid `.tar.zst`; materializeBackup extracts
 		// them to a temp file so the path-based cache:import-backup command can run.
 		const {filePath, cleanup} = materializeBackup(backup.location);
 
 		try {
 			const importArgs = [
-				'import-backup',
-				'--file',
+				"import-backup",
+				"--file",
 				filePath,
-				'--yes',
-				'--batch-size',
-				flags['batch-size'].toString(),
+				"--yes",
+				"--batch-size",
+				flags["batch-size"].toString(),
 			];
 			if (!flags.embeddings) {
-				importArgs.push('--no-embeddings');
+				importArgs.push("--no-embeddings");
 			}
-			await this.executeCommand('cache', importArgs);
+			await this.executeCommand("cache", importArgs);
 		} finally {
 			cleanup();
 		}

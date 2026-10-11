@@ -1,11 +1,11 @@
-import {Args, Command, Flags} from '@oclif/core';
-import {execSync} from 'node:child_process';
-import fs from 'node:fs';
+import {Args, Command, Flags} from "@oclif/core";
+import {execSync} from "node:child_process";
+import fs from "node:fs";
 
-const API_BASE = 'https://otter.ai/forward/api/v1';
-const COOKIE_FILE = '/tmp/otter-session-cache';
-const USERID_FILE = '/tmp/otter-userid-cache';
-const CREDS_FILE = '/tmp/otter-creds-cache';
+const API_BASE = "https://otter.ai/forward/api/v1";
+const COOKIE_FILE = "/tmp/otter-session-cache";
+const USERID_FILE = "/tmp/otter-userid-cache";
+const CREDS_FILE = "/tmp/otter-creds-cache";
 
 interface OtterSpeech {
 	otid: string;
@@ -43,44 +43,44 @@ interface ActionItemsResponse {
  *   OTTER_PASSWORD - Otter.ai account password (or op:// reference)
  */
 export default class Api extends Command {
-	static override description = 'Otter.ai API wrapper for fetching meetings';
+	static override description = "Otter.ai API wrapper for fetching meetings";
 
 	static override examples = [
-		'# List available speeches',
-		'<%= config.bin %> <%= command.id %> available_speeches',
-		'',
-		'# Get speech details',
-		'<%= config.bin %> <%= command.id %> speech --otid abc123',
-		'',
-		'# Get action items for a speech',
-		'<%= config.bin %> <%= command.id %> action_items --otid abc123',
+		"# List available speeches",
+		"<%= config.bin %> <%= command.id %> available_speeches",
+		"",
+		"# Get speech details",
+		"<%= config.bin %> <%= command.id %> speech --otid abc123",
+		"",
+		"# Get action items for a speech",
+		"<%= config.bin %> <%= command.id %> action_items --otid abc123",
 	];
 
 	static override args = {
 		command: Args.string({
-			description: 'API command to execute',
+			description: "API command to execute",
 			required: true,
-			options: ['available_speeches', 'speech', 'summary', 'action_items'],
+			options: ["available_speeches", "speech", "summary", "action_items"],
 		}),
 	};
 
 	static override flags = {
 		otid: Flags.string({
-			description: 'Otter transcript ID (required for speech, summary, action_items)',
+			description: "Otter transcript ID (required for speech, summary, action_items)",
 		}),
-		'page-size': Flags.integer({
-			description: 'Number of results per page',
+		"page-size": Flags.integer({
+			description: "Number of results per page",
 			default: 50,
 		}),
 		cursor: Flags.string({
-			description: 'Pagination cursor (last_load_ts)',
+			description: "Pagination cursor (last_load_ts)",
 		}),
-		'modified-after': Flags.string({
-			description: 'Only fetch items modified after this timestamp',
+		"modified-after": Flags.string({
+			description: "Only fetch items modified after this timestamp",
 		}),
 	};
 
-	private verbose = process.env.OTTER_VERBOSE === '1';
+	private verbose = process.env.OTTER_VERBOSE === "1";
 	private startTime = Date.now();
 
 	public async run(): Promise<unknown> {
@@ -89,24 +89,24 @@ export default class Api extends Command {
 		const {command} = args;
 
 		switch (command) {
-			case 'available_speeches': {
+			case "available_speeches": {
 				return this.availableSpeeches(flags);
 			}
-			case 'speech': {
+			case "speech": {
 				if (!flags.otid) {
-					this.error('--otid is required for speech command');
+					this.error("--otid is required for speech command");
 				}
 				return this.speech(flags.otid);
 			}
-			case 'summary': {
+			case "summary": {
 				if (!flags.otid) {
-					this.error('--otid is required for summary command');
+					this.error("--otid is required for summary command");
 				}
 				return this.summary(flags.otid);
 			}
-			case 'action_items': {
+			case "action_items": {
 				if (!flags.otid) {
-					this.error('--otid is required for action_items command');
+					this.error("--otid is required for action_items command");
 				}
 				return this.actionItems(flags.otid);
 			}
@@ -133,88 +133,88 @@ export default class Api extends Command {
 	}
 
 	private async login(): Promise<void> {
-		this.logTiming('login: start');
+		this.logTiming("login: start");
 
 		if (this.cookieValid() && fs.existsSync(USERID_FILE)) {
-			this.logTiming('login: using cached session');
+			this.logTiming("login: using cached session");
 			return;
 		}
 
-		let username = process.env.OTTER_USERNAME ?? '';
-		let password = process.env.OTTER_PASSWORD ?? '';
+		let username = process.env.OTTER_USERNAME ?? "";
+		let password = process.env.OTTER_PASSWORD ?? "";
 
 		// Handle 1Password references
-		if (username.startsWith('op://')) {
+		if (username.startsWith("op://")) {
 			if (fs.existsSync(CREDS_FILE)) {
-				this.logTiming('login: using cached credentials');
-				const lines = fs.readFileSync(CREDS_FILE, 'utf8').trim().split('\n');
+				this.logTiming("login: using cached credentials");
+				const lines = fs.readFileSync(CREDS_FILE, "utf8").trim().split("\n");
 				username = lines[0];
 				password = lines[1];
 			} else {
-				this.logTiming('login: resolving op:// credentials');
+				this.logTiming("login: resolving op:// credentials");
 				const origUsername = username;
 				const origPassword = password;
-				username = execSync(`op read "${origUsername}"`, {encoding: 'utf8'}).trim();
-				this.logTiming('login: got username');
-				password = execSync(`op read "${origPassword}"`, {encoding: 'utf8'}).trim();
-				this.logTiming('login: got password');
+				username = execSync(`op read "${origUsername}"`, {encoding: "utf8"}).trim();
+				this.logTiming("login: got username");
+				password = execSync(`op read "${origPassword}"`, {encoding: "utf8"}).trim();
+				this.logTiming("login: got password");
 				fs.writeFileSync(CREDS_FILE, `${username}\n${password}\n`, {mode: 0o600});
 			}
 		}
 
 		if (!username || !password) {
-			this.error('OTTER_USERNAME and OTTER_PASSWORD must be set');
+			this.error("OTTER_USERNAME and OTTER_PASSWORD must be set");
 		}
 
-		this.logTiming('login: calling Otter API');
+		this.logTiming("login: calling Otter API");
 
 		// Use curl for login since it handles cookie jar format correctly
 		const result = execSync(
 			`curl -s -w '\\n%{http_code}' "${API_BASE}/login?username=${encodeURIComponent(username)}" -u "${username}:${password}" -c "${COOKIE_FILE}"`,
-			{encoding: 'utf8'},
+			{encoding: "utf8"},
 		);
 
-		const lines = result.trim().split('\n');
+		const lines = result.trim().split("\n");
 		const httpCode = lines.at(-1);
-		const body = lines.slice(0, -1).join('\n');
+		const body = lines.slice(0, -1).join("\n");
 
-		if (httpCode !== '200') {
+		if (httpCode !== "200") {
 			this.error(`Login failed with status ${httpCode}: ${body}`);
 		}
 
 		const data = JSON.parse(body);
 		fs.writeFileSync(USERID_FILE, String(data.userid));
-		this.logTiming('login: complete');
+		this.logTiming("login: complete");
 	}
 
 	private curlGet(url: string, referer: string): string {
 		return execSync(`curl -s "${url}" -H 'accept: application/json' -H 'referer: ${referer}' -b "${COOKIE_FILE}"`, {
-			encoding: 'utf8',
+			encoding: "utf8",
 		});
 	}
 
 	private async availableSpeeches(flags: {
-		'page-size': number;
+		"page-size": number;
 		cursor?: string;
-		'modified-after'?: string;
+		"modified-after"?: string;
 	}): Promise<AvailableSpeechesResponse> {
 		await this.login();
 
-		this.logTiming(`available_speeches: page_size=${flags['page-size']}`);
+		this.logTiming(`available_speeches: page_size=${flags["page-size"]}`);
 
-		let url = `${API_BASE}/available_speeches?page_size=${flags['page-size']}&funnel=home_feed&source=home`;
+		let url = `${API_BASE}/available_speeches?page_size=${flags["page-size"]}&funnel=home_feed&source=home`;
 
 		if (flags.cursor) {
 			url += `&last_load_ts=${flags.cursor}`;
 		}
-		if (flags['modified-after']) {
-			url += `&modified_after=${flags['modified-after']}`;
+		if (flags["modified-after"]) {
+			url += `&modified_after=${flags["modified-after"]}`;
 		}
 
-		const response = this.curlGet(url, 'https://otter.ai/all-notes');
+		const response = this.curlGet(url, "https://otter.ai/all-notes");
 		const data = JSON.parse(response) as AvailableSpeechesResponse;
 
-		this.logTiming('available_speeches: done');
+		this.logTiming("available_speeches: done");
 		this.log(JSON.stringify(data, null, 2));
 		return data;
 	}
@@ -228,7 +228,7 @@ export default class Api extends Command {
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
 		const data = JSON.parse(response);
 
-		this.logTiming('speech: done');
+		this.logTiming("speech: done");
 		this.log(JSON.stringify(data, null, 2));
 		return data;
 	}
@@ -242,7 +242,7 @@ export default class Api extends Command {
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
 		const data = JSON.parse(response);
 
-		this.logTiming('summary: done');
+		this.logTiming("summary: done");
 		this.log(JSON.stringify(data, null, 2));
 		return data;
 	}
@@ -256,7 +256,7 @@ export default class Api extends Command {
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
 		const data = JSON.parse(response) as ActionItemsResponse;
 
-		this.logTiming('action_items: done');
+		this.logTiming("action_items: done");
 		this.log(JSON.stringify(data, null, 2));
 		return data;
 	}

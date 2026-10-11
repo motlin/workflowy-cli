@@ -1,39 +1,39 @@
-import type {Meta, StoryObj} from '@storybook/react-vite';
-import {fn} from 'storybook/test';
+import type {Meta, StoryObj} from "@storybook/react-vite";
+import {fn} from "storybook/test";
 
-import {StaticNode} from './primitives.js';
+import {StaticNode} from "./primitives.js";
 
 const meta: Meta<typeof StaticNode> = {
-	title: 'Components/StaticNode',
+	title: "Components/StaticNode",
 	component: StaticNode,
 	parameters: {
-		layout: 'padded',
+		layout: "padded",
 	},
-	tags: ['autodocs'],
+	tags: ["autodocs"],
 	argTypes: {
 		name: {
-			control: 'text',
-			description: 'The node text content (can include HTML)',
+			control: "text",
+			description: "The node text content (can include HTML)",
 		},
 		note: {
-			control: 'text',
-			description: 'Optional note content',
+			control: "text",
+			description: "Optional note content",
 		},
 		isCompleted: {
-			control: 'boolean',
-			description: 'Whether the node is completed (strikethrough)',
+			control: "boolean",
+			description: "Whether the node is completed (strikethrough)",
 		},
 		isExpanded: {
-			control: 'boolean',
-			description: 'Whether the node is expanded',
+			control: "boolean",
+			description: "Whether the node is expanded",
 		},
 		isSelected: {
-			control: 'boolean',
-			description: 'Whether the node is selected',
+			control: "boolean",
+			description: "Whether the node is selected",
 		},
 		depth: {
-			control: {type: 'number', min: 0, max: 10},
-			description: 'Nesting depth',
+			control: {type: "number", min: 0, max: 10},
+			description: "Nesting depth",
 		},
 	},
 	args: {
@@ -41,7 +41,7 @@ const meta: Meta<typeof StaticNode> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{width: '600px', position: 'relative', minHeight: '50px'}}>
+			<div style={{width: "600px", position: "relative", minHeight: "50px"}}>
 				<Story />
 			</div>
 		),
@@ -53,7 +53,7 @@ type Story = StoryObj<typeof meta>;
 
 export const LeafNode: Story = {
 	args: {
-		name: 'A leaf node without children',
+		name: "A leaf node without children",
 		isExpanded: false,
 		isCompleted: false,
 		depth: 0,
@@ -62,7 +62,7 @@ export const LeafNode: Story = {
 
 export const ExpandedNode: Story = {
 	args: {
-		name: 'An expanded node with children',
+		name: "An expanded node with children",
 		isExpanded: true,
 		isCompleted: false,
 		depth: 0,
@@ -71,7 +71,7 @@ export const ExpandedNode: Story = {
 
 export const CompletedNode: Story = {
 	args: {
-		name: 'A completed task',
+		name: "A completed task",
 		isExpanded: false,
 		isCompleted: true,
 		depth: 0,
@@ -80,7 +80,7 @@ export const CompletedNode: Story = {
 
 export const SelectedNode: Story = {
 	args: {
-		name: 'A selected node',
+		name: "A selected node",
 		isExpanded: false,
 		isCompleted: false,
 		isSelected: true,
@@ -90,8 +90,8 @@ export const SelectedNode: Story = {
 
 export const NodeWithNote: Story = {
 	args: {
-		name: 'Node with a note',
-		note: 'This is additional information about the node.',
+		name: "Node with a note",
+		note: "This is additional information about the node.",
 		isExpanded: false,
 		isCompleted: false,
 		depth: 0,
@@ -100,8 +100,8 @@ export const NodeWithNote: Story = {
 
 export const NodeWithLongNote: Story = {
 	args: {
-		name: 'Node with a long note',
-		note: 'This is a much longer note that contains multiple sentences. It provides detailed context about the node, including background information, related links, and additional considerations that might be relevant when working on this item.',
+		name: "Node with a long note",
+		note: "This is a much longer note that contains multiple sentences. It provides detailed context about the node, including background information, related links, and additional considerations that might be relevant when working on this item.",
 		isExpanded: false,
 		isCompleted: false,
 		depth: 0,
@@ -110,7 +110,7 @@ export const NodeWithLongNote: Story = {
 
 export const NestedNode: Story = {
 	args: {
-		name: 'A nested child node',
+		name: "A nested child node",
 		isExpanded: false,
 		isCompleted: false,
 		depth: 2,
@@ -128,8 +128,8 @@ export const WithHTMLContent: Story = {
 
 export const CompletedWithNote: Story = {
 	args: {
-		name: 'Completed task with notes',
-		note: 'This task was completed on time.',
+		name: "Completed task with notes",
+		note: "This task was completed on time.",
 		isExpanded: false,
 		isCompleted: true,
 		depth: 0,

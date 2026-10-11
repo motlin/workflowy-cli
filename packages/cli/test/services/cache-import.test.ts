@@ -1,16 +1,16 @@
-import {backlinks, mirrors, nodeContent, nodeMetadata} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {eq} from 'drizzle-orm';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import {importBackup} from '../../src/services/cache-import.js';
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from '../db/migration-helper.js';
-import {expectActiveRecord} from '../helpers/assertion-helpers.js';
-import {createNodeFromContent} from '../helpers/node-fixtures.js';
+import {backlinks, mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {eq} from "drizzle-orm";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {importBackup} from "../../src/services/cache-import.js";
+import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {expectActiveRecord} from "../helpers/assertion-helpers.js";
+import {createNodeFromContent} from "../helpers/node-fixtures.js";
 
-const T0 = new Date('2024-01-01T00:00:00Z');
-const T1 = new Date('2024-01-01T00:01:00Z');
+const T0 = new Date("2024-01-01T00:00:00Z");
+const T1 = new Date("2024-01-01T00:01:00Z");
 
 type ImportResult = Awaited<ReturnType<typeof importBackup>>;
 
@@ -54,17 +54,17 @@ function expectImportStats(
 	expect(stats).toStrictEqual(expected);
 }
 
-describe('cache-import service', () => {
+describe("cache-import service", () => {
 	let tempDir: string;
 	let testDatabase: TestDatabase;
 	let originalEpoch: string | undefined;
 
 	beforeEach(() => {
 		originalEpoch = process.env.WORKFLOWY_EPOCH;
-		process.env.WORKFLOWY_EPOCH = '0';
+		process.env.WORKFLOWY_EPOCH = "0";
 
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-import-test-'));
-		const testDbPath = path.join(tempDir, 'test.sqlite');
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-import-test-"));
+		const testDbPath = path.join(tempDir, "test.sqlite");
 		testDatabase = createTestDatabase(testDbPath);
 	});
 
@@ -82,22 +82,22 @@ describe('cache-import service', () => {
 	});
 
 	function writeBackupFile(content: unknown): string {
-		const filePath = path.join(tempDir, 'backup.json');
+		const filePath = path.join(tempDir, "backup.json");
 		fs.writeFileSync(filePath, JSON.stringify(content));
 		return filePath;
 	}
 
-	describe('import into empty database', () => {
-		it('imports a single node', async () => {
+	describe("import into empty database", () => {
+		it("imports a single node", async () => {
 			const backupContent = [
 				{
-					id: 'node-1',
-					nm: 'Test Node',
+					id: "node-1",
+					nm: "Test Node",
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expectImportStats(result, {
 				totalNodes: 1,
@@ -115,8 +115,8 @@ describe('cache-import service', () => {
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 			const {systemFrom, ...contentRest} = allNodes[0];
 			expect(contentRest).toStrictEqual({
-				id: 'node-1',
-				name: 'Test Node',
+				id: "node-1",
+				name: "Test Node",
 				note: null,
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
@@ -124,15 +124,15 @@ describe('cache-import service', () => {
 			expectActiveRecord(createNodeFromContent(allNodes[0]));
 		});
 
-		it('imports multiple root nodes', async () => {
+		it("imports multiple root nodes", async () => {
 			const backupContent = [
-				{id: 'node-1', nm: 'First Node'},
-				{id: 'node-2', nm: 'Second Node'},
-				{id: 'node-3', nm: 'Third Node'},
+				{id: "node-1", nm: "First Node"},
+				{id: "node-2", nm: "Second Node"},
+				{id: "node-3", nm: "Third Node"},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expectImportStats(result, {
 				totalNodes: 3,
@@ -151,7 +151,7 @@ describe('cache-import service', () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all();
-			expect(allContent.map((n) => n.id).sort()).toStrictEqual(['node-1', 'node-2', 'node-3']);
+			expect(allContent.map((n) => n.id).sort()).toStrictEqual(["node-1", "node-2", "node-3"]);
 
 			const allMetadata = testDatabase.db
 				.select()
@@ -161,28 +161,28 @@ describe('cache-import service', () => {
 			expect(allMetadata.map((m) => m.priority)).toStrictEqual([0, 100, 200]);
 		});
 
-		it('imports nested nodes with correct parent relationships', async () => {
+		it("imports nested nodes with correct parent relationships", async () => {
 			const backupContent = [
 				{
-					id: 'parent-1',
-					nm: 'Parent Node',
+					id: "parent-1",
+					nm: "Parent Node",
 					ch: [
-						{id: 'child-1', nm: 'First Child'},
-						{id: 'child-2', nm: 'Second Child'},
+						{id: "child-1", nm: "First Child"},
+						{id: "child-2", nm: "Second Child"},
 					],
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(result.nodesAdded).toBe(3);
 
-			const parent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'parent-1')).get()!;
+			const parent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "parent-1")).get()!;
 			expect(createNodeFromContent(parent)).toStrictEqual(
 				createNodeFromContent({
-					id: 'parent-1',
-					name: 'Parent Node',
+					id: "parent-1",
+					name: "Parent Node",
 					note: null,
 					parentId: null,
 					systemFrom: parent.systemFrom,
@@ -190,37 +190,37 @@ describe('cache-import service', () => {
 				}),
 			);
 
-			const childContentRecords = ['child-1', 'child-2'].map((id) =>
+			const childContentRecords = ["child-1", "child-2"].map((id) =>
 				testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
 			);
 			expect(childContentRecords.map((c) => ({id: c.id, parentId: c.parentId}))).toStrictEqual([
-				{id: 'child-1', parentId: 'parent-1'},
-				{id: 'child-2', parentId: 'parent-1'},
+				{id: "child-1", parentId: "parent-1"},
+				{id: "child-2", parentId: "parent-1"},
 			]);
 
-			const childMetaRecords = ['child-1', 'child-2'].map((id) =>
+			const childMetaRecords = ["child-1", "child-2"].map((id) =>
 				testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, id)).get()!,
 			);
 			expect(childMetaRecords.map((m) => ({nodeId: m.nodeId, priority: m.priority}))).toStrictEqual([
-				{nodeId: 'child-1', priority: 0},
-				{nodeId: 'child-2', priority: 100},
+				{nodeId: "child-1", priority: 0},
+				{nodeId: "child-2", priority: 100},
 			]);
 		});
 
-		it('imports deeply nested tree', async () => {
+		it("imports deeply nested tree", async () => {
 			const backupContent = [
 				{
-					id: 'level-1',
-					nm: 'Level 1',
+					id: "level-1",
+					nm: "Level 1",
 					ch: [
 						{
-							id: 'level-2',
-							nm: 'Level 2',
+							id: "level-2",
+							nm: "Level 2",
 							ch: [
 								{
-									id: 'level-3',
-									nm: 'Level 3',
-									ch: [{id: 'level-4', nm: 'Level 4'}],
+									id: "level-3",
+									nm: "Level 3",
+									ch: [{id: "level-4", nm: "Level 4"}],
 								},
 							],
 						},
@@ -229,39 +229,39 @@ describe('cache-import service', () => {
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(result.nodesAdded).toBe(4);
 
-			const level4 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'level-4')).get()!;
-			expect(level4.parentId).toBe('level-3');
+			const level4 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "level-4")).get()!;
+			expect(level4.parentId).toBe("level-3");
 		});
 
-		it('imports node with all metadata', async () => {
+		it("imports node with all metadata", async () => {
 			const backupContent = [
 				{
-					id: 'full-node',
-					nm: 'Full Node',
-					no: 'This is a note',
+					id: "full-node",
+					nm: "Full Node",
+					no: "This is a note",
 					cp: 1_704_067_200,
 					lm: 1_704_153_600,
 					ct: 1_703_980_800,
 					metadata: {
-						layoutMode: 'board',
+						layoutMode: "board",
 					},
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'full-node')).get()!;
+			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "full-node")).get()!;
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 			const {systemFrom, ...contentRest} = content;
 			expect(contentRest).toStrictEqual({
-				id: 'full-node',
-				name: 'Full Node',
-				note: 'This is a note',
+				id: "full-node",
+				name: "Full Node",
+				note: "This is a note",
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
@@ -269,30 +269,30 @@ describe('cache-import service', () => {
 			const metadata = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'full-node'))
+				.where(eq(nodeMetadata.nodeId, "full-node"))
 				.get()!;
 			expect({completedAt: metadata.completedAt, layoutMode: metadata.layoutMode}).toStrictEqual({
 				completedAt: new Date(1_704_067_200 * 1000),
-				layoutMode: 'board',
+				layoutMode: "board",
 			});
 		});
 	});
 
-	describe('re-import identical backup', () => {
-		it('does not create duplicates for unchanged nodes', async () => {
-			const backupContent = [{id: 'node-1', nm: 'Test Node'}];
+	describe("re-import identical backup", () => {
+		it("does not create duplicates for unchanged nodes", async () => {
+			const backupContent = [{id: "node-1", nm: "Test Node"}];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
 			const firstImportNode = testDatabase.db
 				.select()
 				.from(nodeContent)
-				.where(eq(nodeContent.id, 'node-1'))
+				.where(eq(nodeContent.id, "node-1"))
 				.get()!;
 			const firstSystemFrom = firstImportNode.systemFrom;
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expectImportStats(result, {
 				totalNodes: 1,
@@ -306,19 +306,19 @@ describe('cache-import service', () => {
 				priorityUpdated: 0,
 			});
 
-			const allNodes = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).all();
+			const allNodes = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).all();
 			expect(allNodes.map((n) => ({systemFrom: n.systemFrom, systemTo: n.systemTo}))).toStrictEqual([
 				{systemFrom: firstSystemFrom, systemTo: FAR_FUTURE_DATE},
 			]);
 		});
 
-		it('handles multiple re-imports correctly', async () => {
-			const backupContent = [{id: 'node-1', nm: 'Test Node'}];
+		it("handles multiple re-imports correctly", async () => {
+			const backupContent = [{id: "node-1", nm: "Test Node"}];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
-			await importBackup(testDatabase.db, filePath, 'backup.json');
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
+			await importBackup(testDatabase.db, filePath, "backup.json");
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(result.nodesUnchanged).toBe(1);
 
@@ -327,63 +327,63 @@ describe('cache-import service', () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all();
-			expect(activeNodes.map((n) => n.id)).toStrictEqual(['node-1']);
+			expect(activeNodes.map((n) => n.id)).toStrictEqual(["node-1"]);
 		});
 	});
 
-	describe('import with modifications', () => {
-		it('stores correct priority order during initial import', async () => {
+	describe("import with modifications", () => {
+		it("stores correct priority order during initial import", async () => {
 			const initialBackup = [
-				{id: 'node-1', nm: 'First'},
-				{id: 'node-2', nm: 'Second'},
+				{id: "node-1", nm: "First"},
+				{id: "node-2", nm: "Second"},
 			];
 
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json');
+			await importBackup(testDatabase.db, initialPath, "backup.json");
 
-			const metas = ['node-1', 'node-2'].map((id) =>
+			const metas = ["node-1", "node-2"].map((id) =>
 				testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, id)).get()!,
 			);
 			expect(metas.map((m) => ({nodeId: m.nodeId, priority: m.priority}))).toStrictEqual([
-				{nodeId: 'node-1', priority: 0},
-				{nodeId: 'node-2', priority: 100},
+				{nodeId: "node-1", priority: 0},
+				{nodeId: "node-2", priority: 100},
 			]);
 		});
 
-		it('stores correct parent-child relationships', async () => {
+		it("stores correct parent-child relationships", async () => {
 			const initialBackup = [
-				{id: 'parent-a', nm: 'Parent A', ch: [{id: 'child-1', nm: 'Child'}]},
-				{id: 'parent-b', nm: 'Parent B'},
+				{id: "parent-a", nm: "Parent A", ch: [{id: "child-1", nm: "Child"}]},
+				{id: "parent-b", nm: "Parent B"},
 			];
 
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json');
+			await importBackup(testDatabase.db, initialPath, "backup.json");
 
-			const records = ['child-1', 'parent-a'].map((id) =>
+			const records = ["child-1", "parent-a"].map((id) =>
 				testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!,
 			);
 			expect(records.map((r) => ({id: r.id, parentId: r.parentId}))).toStrictEqual([
-				{id: 'child-1', parentId: 'parent-a'},
-				{id: 'parent-a', parentId: null},
+				{id: "child-1", parentId: "parent-a"},
+				{id: "parent-a", parentId: null},
 			]);
 		});
 	});
 
-	describe('import with deleted nodes', () => {
-		it('phases out nodes that are missing from backup', async () => {
+	describe("import with deleted nodes", () => {
+		it("phases out nodes that are missing from backup", async () => {
 			const initialBackup = [
-				{id: 'node-1', nm: 'Keep Me'},
-				{id: 'node-2', nm: 'Delete Me'},
+				{id: "node-1", nm: "Keep Me"},
+				{id: "node-2", nm: "Delete Me"},
 			];
-			const reducedBackup = [{id: 'node-1', nm: 'Keep Me'}];
+			const reducedBackup = [{id: "node-1", nm: "Keep Me"}];
 
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
-			const reducedPath = path.join(tempDir, 'backup2.json');
+			const reducedPath = path.join(tempDir, "backup2.json");
 			fs.writeFileSync(reducedPath, JSON.stringify(reducedBackup));
 
-			await importBackup(testDatabase.db, reducedPath, 'backup.json', false, T1);
+			await importBackup(testDatabase.db, reducedPath, "backup.json", false, T1);
 
 			const activeIds = testDatabase.db
 				.select()
@@ -392,27 +392,27 @@ describe('cache-import service', () => {
 				.all()
 				.map((n) => n.id)
 				.sort();
-			expect(activeIds).toStrictEqual(['node-1']);
+			expect(activeIds).toStrictEqual(["node-1"]);
 		});
 	});
 
-	describe('import of a snapshot older than the cache', () => {
+	describe("import of a snapshot older than the cache", () => {
 		// A backup only describes the tree as of the moment it was taken, so it
 		// cannot testify that a node written afterwards was deleted. Nodes newer
 		// than the snapshot survive; everything else still merges normally.
 		const currentBackup = [
-			{id: 'node-1', nm: 'Original', ct: 1000, lm: 1000},
-			{id: 'node-2', nm: 'Added after the snapshot', ct: 5000, lm: 5000},
+			{id: "node-1", nm: "Original", ct: 1000, lm: 1000},
+			{id: "node-2", nm: "Added after the snapshot", ct: 5000, lm: 5000},
 		];
-		const olderSnapshot = [{id: 'node-1', nm: 'Renamed in the older snapshot', ct: 1000, lm: 2000}];
+		const olderSnapshot = [{id: "node-1", nm: "Renamed in the older snapshot", ct: 1000, lm: 2000}];
 
 		async function importBoth(force: boolean): Promise<ImportResult> {
 			const currentPath = writeBackupFile(currentBackup);
-			await importBackup(testDatabase.db, currentPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, currentPath, "backup.json", false, T0);
 
-			const olderPath = path.join(tempDir, 'older.json');
+			const olderPath = path.join(tempDir, "older.json");
 			fs.writeFileSync(olderPath, JSON.stringify(olderSnapshot));
-			return importBackup(testDatabase.db, olderPath, 'older.json', false, T1, force);
+			return importBackup(testDatabase.db, olderPath, "older.json", false, T1, force);
 		}
 
 		function activeNames(): string[] {
@@ -421,157 +421,157 @@ describe('cache-import service', () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
-				.map((n) => n.name ?? '')
+				.map((n) => n.name ?? "")
 				.sort();
 		}
 
-		it('applies the snapshot but keeps nodes newer than it', async () => {
+		it("applies the snapshot but keeps nodes newer than it", async () => {
 			const result = await importBoth(false);
 
 			expect(result.skipped).toBe(false);
 			expect(result.nodesPreserved).toBe(1);
-			expect(activeNames()).toStrictEqual(['Added after the snapshot', 'Renamed in the older snapshot']);
+			expect(activeNames()).toStrictEqual(["Added after the snapshot", "Renamed in the older snapshot"]);
 		});
 
-		it('phases out the newer nodes when forced', async () => {
+		it("phases out the newer nodes when forced", async () => {
 			const result = await importBoth(true);
 
 			expect(result.nodesPreserved).toBe(0);
-			expect(activeNames()).toStrictEqual(['Renamed in the older snapshot']);
+			expect(activeNames()).toStrictEqual(["Renamed in the older snapshot"]);
 		});
 	});
 
-	describe('temporal timestamps', () => {
-		it('uses correct systemFrom timestamp for new records', async () => {
-			const backupContent = [{id: 'node-1', nm: 'Test Node'}];
+	describe("temporal timestamps", () => {
+		it("uses correct systemFrom timestamp for new records", async () => {
+			const backupContent = [{id: "node-1", nm: "Test Node"}];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, filePath, "backup.json", false, T0);
 
-			const node = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
-			expect(node.systemFrom).toBe('2024-01-01 00:00:00.000');
+			const node = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
+			expect(node.systemFrom).toBe("2024-01-01 00:00:00.000");
 		});
 
-		it('sets systemTo to FAR_FUTURE_DATE for active records', async () => {
-			const backupContent = [{id: 'node-1', nm: 'Test Node'}];
+		it("sets systemTo to FAR_FUTURE_DATE for active records", async () => {
+			const backupContent = [{id: "node-1", nm: "Test Node"}];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const node = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
+			const node = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			expect(node.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 
-		it('preserves systemFrom timestamp for unchanged nodes', async () => {
-			const backupContent = [{id: 'node-1', nm: 'Test Node'}];
+		it("preserves systemFrom timestamp for unchanged nodes", async () => {
+			const backupContent = [{id: "node-1", nm: "Test Node"}];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json', false, T0);
-			const firstNode = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
+			await importBackup(testDatabase.db, filePath, "backup.json", false, T0);
+			const firstNode = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			const originalSystemFrom = firstNode.systemFrom;
 
-			await importBackup(testDatabase.db, filePath, 'backup.json', false, T1);
-			const secondNode = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
+			await importBackup(testDatabase.db, filePath, "backup.json", false, T1);
+			const secondNode = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 
 			expect(secondNode.systemFrom).toBe(originalSystemFrom);
 		});
 	});
 
-	describe('node_content and node_metadata tables', () => {
-		it('creates content records with correct data', async () => {
+	describe("node_content and node_metadata tables", () => {
+		it("creates content records with correct data", async () => {
 			const backupContent = [
 				{
-					id: 'node-1',
-					nm: 'Test Name',
-					no: 'Test Note',
-					ch: [{id: 'child-1', nm: 'Child'}],
+					id: "node-1",
+					nm: "Test Name",
+					no: "Test Note",
+					ch: [{id: "child-1", nm: "Child"}],
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
+			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 			const {systemFrom, ...contentRest} = content;
 			expect(contentRest).toStrictEqual({
-				id: 'node-1',
-				name: 'Test Name',
-				note: 'Test Note',
+				id: "node-1",
+				name: "Test Name",
+				note: "Test Note",
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
 
-			const childContent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'child-1')).get()!;
+			const childContent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "child-1")).get()!;
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 			const {systemFrom: _childSf, ...childRest} = childContent;
 			expect(childRest).toStrictEqual({
-				id: 'child-1',
-				name: 'Child',
+				id: "child-1",
+				name: "Child",
 				note: null,
-				parentId: 'node-1',
+				parentId: "node-1",
 				systemTo: FAR_FUTURE_DATE,
 			});
 		});
 
-		it('creates metadata records with correct data', async () => {
+		it("creates metadata records with correct data", async () => {
 			const backupContent = [
 				{
-					id: 'node-1',
-					nm: 'Test',
+					id: "node-1",
+					nm: "Test",
 					ct: 1_704_067_200,
 					lm: 1_704_153_600,
 					cp: 1_704_240_000,
 					metadata: {
-						layoutMode: 'document',
+						layoutMode: "document",
 					},
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
 			const metadata = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'node-1'))
+				.where(eq(nodeMetadata.nodeId, "node-1"))
 				.get()!;
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 			const {systemFrom: _metaSf, ...metaRest} = metadata;
 			expect(metaRest).toStrictEqual({
-				nodeId: 'node-1',
-				shortId: 'node1',
+				nodeId: "node-1",
+				shortId: "node1",
 				priority: 0,
 				createdAt: new Date(1_704_067_200 * 1000),
 				modifiedAt: new Date(1_704_153_600 * 1000),
 				completedAt: new Date(1_704_240_000 * 1000),
-				layoutMode: 'document',
+				layoutMode: "document",
 				systemTo: FAR_FUTURE_DATE,
 			});
 		});
 
-		it('creates content and metadata records together on initial import', async () => {
-			const backupContent = [{id: 'node-1', nm: 'Test Node', ct: 1_704_067_200}];
+		it("creates content and metadata records together on initial import", async () => {
+			const backupContent = [{id: "node-1", nm: "Test Node", ct: 1_704_067_200}];
 
 			const filePath = writeBackupFile(backupContent);
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
+			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			expect({name: content.name, systemTo: content.systemTo}).toStrictEqual({
-				name: 'Test Node',
+				name: "Test Node",
 				systemTo: FAR_FUTURE_DATE,
 			});
 
 			const metadata = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'node-1'))
+				.where(eq(nodeMetadata.nodeId, "node-1"))
 				.get()!;
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 			const {systemFrom: _metaSf2, ...metaRest2} = metadata;
 			expect(metaRest2).toStrictEqual({
-				nodeId: 'node-1',
-				shortId: 'node1',
+				nodeId: "node-1",
+				shortId: "node1",
 				priority: 0,
 				createdAt: new Date(1_704_067_200 * 1000),
 				modifiedAt: null,
@@ -582,16 +582,16 @@ describe('cache-import service', () => {
 		});
 	});
 
-	describe('mirror records', () => {
-		it('imports mirror originalId', async () => {
+	describe("mirror records", () => {
+		it("imports mirror originalId", async () => {
 			const backupContent = [
-				{id: 'original-node', nm: 'Original'},
+				{id: "original-node", nm: "Original"},
 				{
-					id: 'mirror-node',
-					nm: 'Mirror',
+					id: "mirror-node",
+					nm: "Mirror",
 					metadata: {
 						mirror: {
-							originalId: 'original-node',
+							originalId: "original-node",
 							isMirrorRoot: true,
 						},
 					},
@@ -599,82 +599,82 @@ describe('cache-import service', () => {
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const mirror = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'mirror-node')).get()!;
+			const mirror = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, "mirror-node")).get()!;
 			expect({originalId: mirror.originalId, systemTo: mirror.systemTo}).toStrictEqual({
-				originalId: 'original-node',
+				originalId: "original-node",
 				systemTo: FAR_FUTURE_DATE,
 			});
 		});
 
-		it('updates mirror when originalId changes', async () => {
+		it("updates mirror when originalId changes", async () => {
 			const initialBackup = [
-				{id: 'original-1', nm: 'Original 1'},
-				{id: 'original-2', nm: 'Original 2'},
+				{id: "original-1", nm: "Original 1"},
+				{id: "original-2", nm: "Original 2"},
 				{
-					id: 'mirror-node',
-					nm: 'Mirror',
-					metadata: {mirror: {originalId: 'original-1', isMirrorRoot: true}},
+					id: "mirror-node",
+					nm: "Mirror",
+					metadata: {mirror: {originalId: "original-1", isMirrorRoot: true}},
 				},
 			];
 			const modifiedBackup = [
-				{id: 'original-1', nm: 'Original 1'},
-				{id: 'original-2', nm: 'Original 2'},
+				{id: "original-1", nm: "Original 1"},
+				{id: "original-2", nm: "Original 2"},
 				{
-					id: 'mirror-node',
-					nm: 'Mirror',
-					metadata: {mirror: {originalId: 'original-2', isMirrorRoot: true}},
+					id: "mirror-node",
+					nm: "Mirror",
+					metadata: {mirror: {originalId: "original-2", isMirrorRoot: true}},
 				},
 			];
 
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
-			const modifiedPath = path.join(tempDir, 'backup2.json');
+			const modifiedPath = path.join(tempDir, "backup2.json");
 			fs.writeFileSync(modifiedPath, JSON.stringify(modifiedBackup));
-			await importBackup(testDatabase.db, modifiedPath, 'backup.json', false, T1);
+			await importBackup(testDatabase.db, modifiedPath, "backup.json", false, T1);
 
-			const allMirrors = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'mirror-node')).all();
+			const allMirrors = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, "mirror-node")).all();
 			expect(
 				allMirrors.map((m) => ({originalId: m.originalId, active: m.systemTo === FAR_FUTURE_DATE})),
 			).toStrictEqual([
-				{originalId: 'original-1', active: false},
-				{originalId: 'original-2', active: true},
+				{originalId: "original-1", active: false},
+				{originalId: "original-2", active: true},
 			]);
 		});
 
-		it('imports mirrorRootIds with the owning node as the original', async () => {
+		it("imports mirrorRootIds with the owning node as the original", async () => {
 			// A node carrying `mirrorRootIds` is the original; the listed ids are its
 			// mirror copies. The original keeps its own content; the mirrors are empty.
 			const backupContent = [
 				{
-					id: 'original-node',
-					nm: '⏰ Tasks (due dates) (work)',
+					id: "original-node",
+					nm: "⏰ Tasks (due dates) (work)",
 					metadata: {
 						mirror: {
-							mirrorRootIds: {'mirror-a': true},
+							mirrorRootIds: {"mirror-a": true},
 						},
 					},
 				},
-				{id: 'mirror-a', nm: ''},
+				{id: "mirror-a", nm: ""},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const mirror = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'mirror-a')).get()!;
+			const mirror = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, "mirror-a")).get()!;
 			expect({originalId: mirror.originalId, mirrorId: mirror.mirrorId}).toStrictEqual({
-				originalId: 'original-node',
-				mirrorId: 'mirror-a',
+				originalId: "original-node",
+				mirrorId: "mirror-a",
 			});
 			// The owning node must never be recorded as a mirror of its own copies.
-			const inverted = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, 'original-node')).all();
+			const inverted = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, "original-node")).all();
 			expect(inverted).toStrictEqual([]);
 		});
 	});
 
-	describe('dangling mirror records', () => {
+	describe("dangling mirror records", () => {
 		// Workflowy keeps a mirror's `originalId` after its original is deleted,
 		// and an original's `mirrorRootIds` after one of its mirrors is deleted.
 		// A relationship is only recorded while both of its nodes exist.
@@ -686,132 +686,132 @@ describe('cache-import service', () => {
 				.map((m) => ({originalId: m.originalId, mirrorId: m.mirrorId, active: m.systemTo === FAR_FUTURE_DATE}));
 		}
 
-		it('skips a mirror whose original is absent from the backup', async () => {
+		it("skips a mirror whose original is absent from the backup", async () => {
 			const filePath = writeBackupFile([
-				{id: 'mirror-node', nm: '', metadata: {mirror: {originalId: 'deleted-original', isMirrorRoot: true}}},
+				{id: "mirror-node", nm: "", metadata: {mirror: {originalId: "deleted-original", isMirrorRoot: true}}},
 			]);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(activeMirrorRows()).toStrictEqual([]);
 		});
 
-		it('skips mirrorRootIds and backlinkMirrorRootIds naming mirrors absent from the backup', async () => {
+		it("skips mirrorRootIds and backlinkMirrorRootIds naming mirrors absent from the backup", async () => {
 			const filePath = writeBackupFile([
 				{
-					id: 'original-node',
-					nm: 'Original',
+					id: "original-node",
+					nm: "Original",
 					metadata: {
 						mirror: {
-							mirrorRootIds: {'deleted-mirror': true, 'live-mirror': true},
-							backlinkMirrorRootIds: {'deleted-backlink-mirror': true},
+							mirrorRootIds: {"deleted-mirror": true, "live-mirror": true},
+							backlinkMirrorRootIds: {"deleted-backlink-mirror": true},
 						},
 					},
 				},
-				{id: 'live-mirror', nm: ''},
+				{id: "live-mirror", nm: ""},
 			]);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(activeMirrorRows()).toStrictEqual([
-				{originalId: 'original-node', mirrorId: 'live-mirror', active: true},
+				{originalId: "original-node", mirrorId: "live-mirror", active: true},
 			]);
 		});
 
-		it('closes a mirror row once its original disappears from a later backup', async () => {
+		it("closes a mirror row once its original disappears from a later backup", async () => {
 			const mirrorNode = {
-				id: 'mirror-node',
-				nm: '',
-				metadata: {mirror: {originalId: 'original-node', isMirrorRoot: true}},
+				id: "mirror-node",
+				nm: "",
+				metadata: {mirror: {originalId: "original-node", isMirrorRoot: true}},
 			};
 			await importBackup(
 				testDatabase.db,
-				writeBackupFile([{id: 'original-node', nm: 'Original'}, mirrorNode]),
-				'backup.json',
+				writeBackupFile([{id: "original-node", nm: "Original"}, mirrorNode]),
+				"backup.json",
 				false,
 				T0,
 			);
 
-			const laterPath = path.join(tempDir, 'backup2.json');
+			const laterPath = path.join(tempDir, "backup2.json");
 			fs.writeFileSync(laterPath, JSON.stringify([mirrorNode]));
-			await importBackup(testDatabase.db, laterPath, 'backup2.json', false, T1);
+			await importBackup(testDatabase.db, laterPath, "backup2.json", false, T1);
 
 			expect(activeMirrorRows()).toStrictEqual([
-				{originalId: 'original-node', mirrorId: 'mirror-node', active: false},
+				{originalId: "original-node", mirrorId: "mirror-node", active: false},
 			]);
 		});
 	});
 
-	describe('backlink records', () => {
-		it('imports backlinks correctly', async () => {
+	describe("backlink records", () => {
+		it("imports backlinks correctly", async () => {
 			const backupContent = [
 				{
-					id: 'backlink-node',
-					nm: 'Has Backlink',
+					id: "backlink-node",
+					nm: "Has Backlink",
 					metadata: {
 						backlink: {
-							sourceID: 'source-node',
-							targetID: 'target-node',
+							sourceID: "source-node",
+							targetID: "target-node",
 						},
 					},
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
 			const backlink = testDatabase.db
 				.select()
 				.from(backlinks)
-				.where(eq(backlinks.nodeId, 'backlink-node'))
+				.where(eq(backlinks.nodeId, "backlink-node"))
 				.get()!;
 			expect({sourceId: backlink.sourceId, targetId: backlink.targetId}).toStrictEqual({
-				sourceId: 'source-node',
-				targetId: 'target-node',
+				sourceId: "source-node",
+				targetId: "target-node",
 			});
 		});
 
-		it('closes a backlink globally when it disappears on re-import, even if the node keeps none', async () => {
+		it("closes a backlink globally when it disappears on re-import, even if the node keeps none", async () => {
 			const withBacklink = [
 				{
-					id: 'bn',
-					nm: 'Has Backlink',
-					metadata: {backlink: {sourceID: 'source-node', targetID: 'target-node'}},
+					id: "bn",
+					nm: "Has Backlink",
+					metadata: {backlink: {sourceID: "source-node", targetID: "target-node"}},
 				},
 			];
-			await importBackup(testDatabase.db, writeBackupFile(withBacklink), 'backup.json');
+			await importBackup(testDatabase.db, writeBackupFile(withBacklink), "backup.json");
 
 			// Re-import: the node still exists, but its only backlink is gone. A full
 			// backup is the complete desired state, so the removed backlink must close —
 			// per-node-scoped phase-out would wrongly leave it open (the node has no
 			// incoming backlinks to trigger a scan of its existing ones).
-			const withoutBacklink = [{id: 'bn', nm: 'Has Backlink'}];
-			await importBackup(testDatabase.db, writeBackupFile(withoutBacklink), 'backup.json');
+			const withoutBacklink = [{id: "bn", nm: "Has Backlink"}];
+			await importBackup(testDatabase.db, writeBackupFile(withoutBacklink), "backup.json");
 
 			const open = testDatabase.db
 				.select()
 				.from(backlinks)
-				.where(eq(backlinks.nodeId, 'bn'))
+				.where(eq(backlinks.nodeId, "bn"))
 				.all()
 				.filter((b) => b.systemTo === FAR_FUTURE_DATE);
 			expect(open).toStrictEqual([]);
 		});
 	});
 
-	describe('validation errors', () => {
-		it('throws error for invalid backup format', async () => {
+	describe("validation errors", () => {
+		it("throws error for invalid backup format", async () => {
 			const backupContent = [
-				{id: 'valid-node', nm: 'Valid Node'},
-				{id: null, nm: 'Invalid Node'},
-				{id: 'another-valid', nm: 'Another Valid'},
+				{id: "valid-node", nm: "Valid Node"},
+				{id: null, nm: "Invalid Node"},
+				{id: "another-valid", nm: "Another Valid"},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const error = (await importBackup(testDatabase.db, filePath, 'backup.json').catch(
+			const error = (await importBackup(testDatabase.db, filePath, "backup.json").catch(
 				(caught: unknown) => caught,
 			)) as Error;
 			expect({name: error.name, message: error.message}).toStrictEqual({
-				name: 'ZodError',
+				name: "ZodError",
 				message: `[
   {
     "expected": "string",
@@ -826,28 +826,28 @@ describe('cache-import service', () => {
 			});
 		});
 
-		it('imports valid nodes from file with all valid entries', async () => {
+		it("imports valid nodes from file with all valid entries", async () => {
 			const backupContent = [
-				{id: 'valid-node-1', nm: 'Valid Node 1'},
-				{id: 'valid-node-2', nm: 'Valid Node 2'},
+				{id: "valid-node-1", nm: "Valid Node 1"},
+				{id: "valid-node-2", nm: "Valid Node 2"},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(result.nodesAdded).toBe(2);
 		});
 	});
 
-	describe('batch processing', () => {
-		it('handles large number of nodes', async () => {
+	describe("batch processing", () => {
+		it("handles large number of nodes", async () => {
 			const backupContent: Array<{id: string; nm: string}> = [];
 			for (let i = 0; i < 2500; i++) {
 				backupContent.push({id: `node-${i}`, nm: `Node ${i}`});
 			}
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expectImportStats(result, {
 				totalNodes: 2500,
@@ -870,12 +870,12 @@ describe('cache-import service', () => {
 		});
 	});
 
-	describe('empty backup', () => {
-		it('handles empty backup file', async () => {
+	describe("empty backup", () => {
+		it("handles empty backup file", async () => {
 			const backupContent: unknown[] = [];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expectImportStats(result, {
 				totalNodes: 0,
@@ -890,19 +890,19 @@ describe('cache-import service', () => {
 			});
 		});
 
-		it('phases out all existing nodes when importing empty backup', async () => {
+		it("phases out all existing nodes when importing empty backup", async () => {
 			const initialBackup = [
-				{id: 'node-1', nm: 'Node 1'},
-				{id: 'node-2', nm: 'Node 2'},
+				{id: "node-1", nm: "Node 1"},
+				{id: "node-2", nm: "Node 2"},
 			];
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
 			const emptyBackup: unknown[] = [];
-			const emptyPath = path.join(tempDir, 'empty.json');
+			const emptyPath = path.join(tempDir, "empty.json");
 			fs.writeFileSync(emptyPath, JSON.stringify(emptyBackup));
 
-			await importBackup(testDatabase.db, emptyPath, 'empty.json', false, T1);
+			await importBackup(testDatabase.db, emptyPath, "empty.json", false, T1);
 
 			const activeNodes = testDatabase.db
 				.select()
@@ -913,81 +913,81 @@ describe('cache-import service', () => {
 		});
 	});
 
-	describe('special characters', () => {
-		it('handles special characters in node names', async () => {
+	describe("special characters", () => {
+		it("handles special characters in node names", async () => {
 			const backupContent = [
-				{id: 'node-1', nm: 'Hello <b>World</b> & "Quotes"'},
-				{id: 'node-2', nm: 'Unicode: 日本語 🎉 émojis'},
-				{id: 'node-3', nm: 'Newlines\nin\nnames'},
+				{id: "node-1", nm: 'Hello <b>World</b> & "Quotes"'},
+				{id: "node-2", nm: "Unicode: 日本語 🎉 émojis"},
+				{id: "node-3", nm: "Newlines\nin\nnames"},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const result = await importBackup(testDatabase.db, filePath, 'backup.json');
+			const result = await importBackup(testDatabase.db, filePath, "backup.json");
 
 			expect(result.nodesAdded).toBe(3);
 
-			const node1 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-1')).get()!;
+			const node1 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			expect(node1.name).toBe('Hello <b>World</b> & "Quotes"');
 
-			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-2')).get()!;
-			expect(node2.name).toBe('Unicode: 日本語 🎉 émojis');
+			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-2")).get()!;
+			expect(node2.name).toBe("Unicode: 日本語 🎉 émojis");
 		});
 	});
 
-	describe('priority inference for new nodes', () => {
-		it('infers priorities for new nodes at front of existing siblings', async () => {
+	describe("priority inference for new nodes", () => {
+		it("infers priorities for new nodes at front of existing siblings", async () => {
 			const initialBackup = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'existing-1', nm: 'Existing 1'},
-						{id: 'existing-2', nm: 'Existing 2'},
+						{id: "existing-1", nm: "Existing 1"},
+						{id: "existing-2", nm: "Existing 2"},
 					],
 				},
 			];
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
 			const meta1 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'existing-1'))
+				.where(eq(nodeMetadata.nodeId, "existing-1"))
 				.get()!;
 			const meta2 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'existing-2'))
+				.where(eq(nodeMetadata.nodeId, "existing-2"))
 				.get()!;
 			expect(meta1.priority).toBe(0);
 			expect(meta2.priority).toBe(100);
 
 			const updatedBackup = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'new-1', nm: 'New 1'},
-						{id: 'new-2', nm: 'New 2'},
-						{id: 'existing-1', nm: 'Existing 1'},
-						{id: 'existing-2', nm: 'Existing 2'},
+						{id: "new-1", nm: "New 1"},
+						{id: "new-2", nm: "New 2"},
+						{id: "existing-1", nm: "Existing 1"},
+						{id: "existing-2", nm: "Existing 2"},
 					],
 				},
 			];
-			const updatedPath = path.join(tempDir, 'backup2.json');
+			const updatedPath = path.join(tempDir, "backup2.json");
 			fs.writeFileSync(updatedPath, JSON.stringify(updatedBackup));
-			await importBackup(testDatabase.db, updatedPath, 'backup.json', false, T1);
+			await importBackup(testDatabase.db, updatedPath, "backup.json", false, T1);
 
 			const newMeta1 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'new-1'))
+				.where(eq(nodeMetadata.nodeId, "new-1"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 			const newMeta2 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'new-2'))
+				.where(eq(nodeMetadata.nodeId, "new-2"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 
@@ -997,52 +997,52 @@ describe('cache-import service', () => {
 			const existingMeta1 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'existing-1'))
+				.where(eq(nodeMetadata.nodeId, "existing-1"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 			expect(existingMeta1.priority).toBe(0);
 		});
 
-		it('infers priorities for new nodes at end of existing siblings', async () => {
+		it("infers priorities for new nodes at end of existing siblings", async () => {
 			const initialBackup = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'existing-1', nm: 'Existing 1'},
-						{id: 'existing-2', nm: 'Existing 2'},
+						{id: "existing-1", nm: "Existing 1"},
+						{id: "existing-2", nm: "Existing 2"},
 					],
 				},
 			];
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
 			const updatedBackup = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'existing-1', nm: 'Existing 1'},
-						{id: 'existing-2', nm: 'Existing 2'},
-						{id: 'new-1', nm: 'New 1'},
-						{id: 'new-2', nm: 'New 2'},
+						{id: "existing-1", nm: "Existing 1"},
+						{id: "existing-2", nm: "Existing 2"},
+						{id: "new-1", nm: "New 1"},
+						{id: "new-2", nm: "New 2"},
 					],
 				},
 			];
-			const updatedPath = path.join(tempDir, 'backup2.json');
+			const updatedPath = path.join(tempDir, "backup2.json");
 			fs.writeFileSync(updatedPath, JSON.stringify(updatedBackup));
-			await importBackup(testDatabase.db, updatedPath, 'backup.json', false, T1);
+			await importBackup(testDatabase.db, updatedPath, "backup.json", false, T1);
 
 			const newMeta1 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'new-1'))
+				.where(eq(nodeMetadata.nodeId, "new-1"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 			const newMeta2 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'new-2'))
+				.where(eq(nodeMetadata.nodeId, "new-2"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 
@@ -1050,92 +1050,92 @@ describe('cache-import service', () => {
 			expect(newMeta2.priority).toBe(300);
 		});
 
-		it('infers priority for new node between existing nodes', async () => {
+		it("infers priority for new node between existing nodes", async () => {
 			const initialBackup = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'existing-1', nm: 'Existing 1'},
-						{id: 'existing-2', nm: 'Existing 2'},
+						{id: "existing-1", nm: "Existing 1"},
+						{id: "existing-2", nm: "Existing 2"},
 					],
 				},
 			];
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
 			const updatedBackup = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'existing-1', nm: 'Existing 1'},
-						{id: 'new-middle', nm: 'New Middle'},
-						{id: 'existing-2', nm: 'Existing 2'},
+						{id: "existing-1", nm: "Existing 1"},
+						{id: "new-middle", nm: "New Middle"},
+						{id: "existing-2", nm: "Existing 2"},
 					],
 				},
 			];
-			const updatedPath = path.join(tempDir, 'backup2.json');
+			const updatedPath = path.join(tempDir, "backup2.json");
 			fs.writeFileSync(updatedPath, JSON.stringify(updatedBackup));
-			await importBackup(testDatabase.db, updatedPath, 'backup.json', false, T1);
+			await importBackup(testDatabase.db, updatedPath, "backup.json", false, T1);
 
 			const newMeta = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'new-middle'))
+				.where(eq(nodeMetadata.nodeId, "new-middle"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 
 			expect(newMeta.priority).toBe(50);
 		});
 
-		it('handles all new nodes with no existing siblings', async () => {
+		it("handles all new nodes with no existing siblings", async () => {
 			const backupContent = [
 				{
-					id: 'parent-1',
-					nm: 'Parent',
+					id: "parent-1",
+					nm: "Parent",
 					ch: [
-						{id: 'child-1', nm: 'Child 1'},
-						{id: 'child-2', nm: 'Child 2'},
-						{id: 'child-3', nm: 'Child 3'},
+						{id: "child-1", nm: "Child 1"},
+						{id: "child-2", nm: "Child 2"},
+						{id: "child-3", nm: "Child 3"},
 					],
 				},
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			await importBackup(testDatabase.db, filePath, 'backup.json');
+			await importBackup(testDatabase.db, filePath, "backup.json");
 
-			const meta1 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, 'child-1')).get()!;
-			const meta2 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, 'child-2')).get()!;
-			const meta3 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, 'child-3')).get()!;
+			const meta1 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, "child-1")).get()!;
+			const meta2 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, "child-2")).get()!;
+			const meta3 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, "child-3")).get()!;
 
 			expect(meta1.priority).toBe(0);
 			expect(meta2.priority).toBe(100);
 			expect(meta3.priority).toBe(200);
 		});
 
-		it('preserves existing priority on re-import even if tree position changes', async () => {
+		it("preserves existing priority on re-import even if tree position changes", async () => {
 			const initialBackup = [
-				{id: 'node-1', nm: 'Node 1'},
-				{id: 'node-2', nm: 'Node 2'},
+				{id: "node-1", nm: "Node 1"},
+				{id: "node-2", nm: "Node 2"},
 			];
 			const initialPath = writeBackupFile(initialBackup);
-			await importBackup(testDatabase.db, initialPath, 'backup.json', false, T0);
+			await importBackup(testDatabase.db, initialPath, "backup.json", false, T0);
 
 			const initialMeta1 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'node-1'))
+				.where(eq(nodeMetadata.nodeId, "node-1"))
 				.get()!;
 			const initialMeta2 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'node-2'))
+				.where(eq(nodeMetadata.nodeId, "node-2"))
 				.get()!;
 			expect(initialMeta1.priority).toBe(0);
 			expect(initialMeta2.priority).toBe(100);
 
-			const result = await importBackup(testDatabase.db, initialPath, 'backup.json', false, T1);
+			const result = await importBackup(testDatabase.db, initialPath, "backup.json", false, T1);
 
 			expect(result.nodesUnchanged).toBe(2);
 			expect(result.nodesUpdated).toBe(0);
@@ -1143,13 +1143,13 @@ describe('cache-import service', () => {
 			const finalMeta1 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'node-1'))
+				.where(eq(nodeMetadata.nodeId, "node-1"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 			const finalMeta2 = testDatabase.db
 				.select()
 				.from(nodeMetadata)
-				.where(eq(nodeMetadata.nodeId, 'node-2'))
+				.where(eq(nodeMetadata.nodeId, "node-2"))
 				.all()
 				.find((m) => m.systemTo === FAR_FUTURE_DATE)!;
 			expect(finalMeta1.priority).toBe(0);
@@ -1157,13 +1157,13 @@ describe('cache-import service', () => {
 		});
 	});
 
-	describe('stale-snapshot watermark guard', () => {
+	describe("stale-snapshot watermark guard", () => {
 		// Backup ct/lm/cp are Unix seconds (epoch=0 in this suite). Both watermarks
 		// are source content timestamps, so the `timestamp` argument passed to
 		// importBackup (a cache-write time) does not affect them.
-		const DATE_EARLIER = new Date('2026-04-01T00:00:00Z');
-		const DATE_MIDDLE = new Date('2026-04-05T00:00:00Z');
-		const DATE_LATER = new Date('2026-04-10T00:00:00Z');
+		const DATE_EARLIER = new Date("2026-04-01T00:00:00Z");
+		const DATE_MIDDLE = new Date("2026-04-05T00:00:00Z");
+		const DATE_LATER = new Date("2026-04-10T00:00:00Z");
 		const T_EARLIER = Math.floor(DATE_EARLIER.getTime() / 1000);
 		const T_MIDDLE = Math.floor(DATE_MIDDLE.getTime() / 1000);
 		const T_LATER = Math.floor(DATE_LATER.getTime() / 1000);
@@ -1176,22 +1176,22 @@ describe('cache-import service', () => {
 		// deliberately newer than both content watermarks; only the content
 		// timestamps may drive the comparison. They differ from each other because
 		// two versions of one node cannot share a system_from.
-		const WRITE_1 = new Date('2026-05-01T00:00:00Z');
-		const WRITE_2 = new Date('2026-05-02T00:00:00Z');
+		const WRITE_1 = new Date("2026-05-01T00:00:00Z");
+		const WRITE_2 = new Date("2026-05-02T00:00:00Z");
 
-		it('ignores the cache write time when comparing watermarks', async () => {
-			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_EARLIER, lm: T_EARLIER}]);
-			await importBackup(testDatabase.db, seedPath, 'backup.json', false, WRITE_1);
+		it("ignores the cache write time when comparing watermarks", async () => {
+			const seedPath = writeBackupFile([{id: "node-1", nm: "Seed", ct: T_EARLIER, lm: T_EARLIER}]);
+			await importBackup(testDatabase.db, seedPath, "backup.json", false, WRITE_1);
 
 			const newerPath = writeBackupFile([
-				{id: 'node-1', nm: 'Renamed', ct: T_EARLIER, lm: T_MIDDLE},
-				{id: 'node-2', nm: 'Added', ct: T_MIDDLE, lm: T_MIDDLE},
+				{id: "node-1", nm: "Renamed", ct: T_EARLIER, lm: T_MIDDLE},
+				{id: "node-2", nm: "Added", ct: T_MIDDLE, lm: T_MIDDLE},
 			]);
-			const result = await importBackup(testDatabase.db, newerPath, 'backup.json', false, WRITE_2);
+			const result = await importBackup(testDatabase.db, newerPath, "backup.json", false, WRITE_2);
 
 			expect(result.skipped).toBe(false);
-			expect(result.localWatermark).toBe('2026-04-01 00:00:00.000');
-			expect(result.incomingWatermark).toBe('2026-04-05 00:00:00.000');
+			expect(result.localWatermark).toBe("2026-04-01 00:00:00.000");
+			expect(result.incomingWatermark).toBe("2026-04-05 00:00:00.000");
 			expect(result.nodesPreserved).toBe(0);
 			expect(result.nodesAdded).toBe(1);
 
@@ -1200,21 +1200,21 @@ describe('cache-import service', () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
-				.map((n) => n.name ?? '')
+				.map((n) => n.name ?? "")
 				.sort();
-			expect(activeNames).toStrictEqual(['Added', 'Renamed']);
+			expect(activeNames).toStrictEqual(["Added", "Renamed"]);
 		});
 
-		it('imports a stale snapshot while protecting the nodes it predates', async () => {
-			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
-			await importBackup(testDatabase.db, seedPath, 'backup.json', false, DATE_LATER);
+		it("imports a stale snapshot while protecting the nodes it predates", async () => {
+			const seedPath = writeBackupFile([{id: "node-1", nm: "Seed", ct: T_LATER, lm: T_LATER}]);
+			await importBackup(testDatabase.db, seedPath, "backup.json", false, DATE_LATER);
 
-			const stalePath = writeBackupFile([{id: 'node-2', nm: 'Stale', ct: T_EARLIER, lm: T_EARLIER}]);
-			const result = await importBackup(testDatabase.db, stalePath, 'backup.json', false, DATE_LATER);
+			const stalePath = writeBackupFile([{id: "node-2", nm: "Stale", ct: T_EARLIER, lm: T_EARLIER}]);
+			const result = await importBackup(testDatabase.db, stalePath, "backup.json", false, DATE_LATER);
 
 			expect(result.skipped).toBe(false);
-			expect(result.localWatermark).toBe('2026-04-10 00:00:00.000');
-			expect(result.incomingWatermark).toBe('2026-04-01 00:00:00.000');
+			expect(result.localWatermark).toBe("2026-04-10 00:00:00.000");
+			expect(result.incomingWatermark).toBe("2026-04-01 00:00:00.000");
 			expect(result.nodesAdded).toBe(1);
 			expect(result.nodesPreserved).toBe(1);
 			expect(result.nodesDeleted).toBe(0);
@@ -1226,18 +1226,18 @@ describe('cache-import service', () => {
 				.all()
 				.map((n) => n.id)
 				.sort();
-			expect(activeIds).toStrictEqual(['node-1', 'node-2']);
+			expect(activeIds).toStrictEqual(["node-1", "node-2"]);
 		});
 
-		it('proceeds when the backup snapshot is newer than the local cache', async () => {
-			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_EARLIER, lm: T_EARLIER}]);
-			await importBackup(testDatabase.db, seedPath, 'backup.json', false, DATE_EARLIER);
+		it("proceeds when the backup snapshot is newer than the local cache", async () => {
+			const seedPath = writeBackupFile([{id: "node-1", nm: "Seed", ct: T_EARLIER, lm: T_EARLIER}]);
+			await importBackup(testDatabase.db, seedPath, "backup.json", false, DATE_EARLIER);
 
 			const freshPath = writeBackupFile([
-				{id: 'node-1', nm: 'Seed', ct: T_EARLIER, lm: T_EARLIER},
-				{id: 'node-2', nm: 'New', ct: T_LATER, lm: T_LATER},
+				{id: "node-1", nm: "Seed", ct: T_EARLIER, lm: T_EARLIER},
+				{id: "node-2", nm: "New", ct: T_LATER, lm: T_LATER},
 			]);
-			const result = await importBackup(testDatabase.db, freshPath, 'backup.json', false, DATE_LATER);
+			const result = await importBackup(testDatabase.db, freshPath, "backup.json", false, DATE_LATER);
 
 			expect(result).toStrictEqual({
 				totalNodes: 2,
@@ -1252,17 +1252,17 @@ describe('cache-import service', () => {
 				importTimestamp: DATE_LATER,
 				nodesPreserved: 0,
 				skipped: false,
-				localWatermark: '2026-04-01 00:00:00.000',
-				incomingWatermark: '2026-04-10 00:00:00.000',
+				localWatermark: "2026-04-01 00:00:00.000",
+				incomingWatermark: "2026-04-10 00:00:00.000",
 			});
 		});
 
-		it('proceeds when the incoming watermark equals the local watermark', async () => {
-			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
-			await importBackup(testDatabase.db, seedPath, 'backup.json', false, DATE_LATER);
+		it("proceeds when the incoming watermark equals the local watermark", async () => {
+			const seedPath = writeBackupFile([{id: "node-1", nm: "Seed", ct: T_LATER, lm: T_LATER}]);
+			await importBackup(testDatabase.db, seedPath, "backup.json", false, DATE_LATER);
 
-			const samePath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
-			const result = await importBackup(testDatabase.db, samePath, 'backup.json', false, DATE_LATER);
+			const samePath = writeBackupFile([{id: "node-1", nm: "Seed", ct: T_LATER, lm: T_LATER}]);
+			const result = await importBackup(testDatabase.db, samePath, "backup.json", false, DATE_LATER);
 
 			expect(result).toStrictEqual({
 				totalNodes: 1,
@@ -1277,14 +1277,14 @@ describe('cache-import service', () => {
 				importTimestamp: DATE_LATER,
 				nodesPreserved: 0,
 				skipped: false,
-				localWatermark: '2026-04-10 00:00:00.000',
-				incomingWatermark: '2026-04-10 00:00:00.000',
+				localWatermark: "2026-04-10 00:00:00.000",
+				incomingWatermark: "2026-04-10 00:00:00.000",
 			});
 		});
 
-		it('proceeds when the local cache is empty', async () => {
-			const freshPath = writeBackupFile([{id: 'node-1', nm: 'Only', ct: T_EARLIER, lm: T_EARLIER}]);
-			const result = await importBackup(testDatabase.db, freshPath, 'backup.json', false, DATE_EARLIER);
+		it("proceeds when the local cache is empty", async () => {
+			const freshPath = writeBackupFile([{id: "node-1", nm: "Only", ct: T_EARLIER, lm: T_EARLIER}]);
+			const result = await importBackup(testDatabase.db, freshPath, "backup.json", false, DATE_EARLIER);
 
 			expect(result).toStrictEqual({
 				totalNodes: 1,
@@ -1300,16 +1300,16 @@ describe('cache-import service', () => {
 				nodesPreserved: 0,
 				skipped: false,
 				localWatermark: null,
-				incomingWatermark: '2026-04-01 00:00:00.000',
+				incomingWatermark: "2026-04-01 00:00:00.000",
 			});
 		});
 
-		it('takes the stale snapshot verbatim when force is passed', async () => {
-			const seedPath = writeBackupFile([{id: 'node-1', nm: 'Seed', ct: T_LATER, lm: T_LATER}]);
-			await importBackup(testDatabase.db, seedPath, 'backup.json', false, DATE_LATER);
+		it("takes the stale snapshot verbatim when force is passed", async () => {
+			const seedPath = writeBackupFile([{id: "node-1", nm: "Seed", ct: T_LATER, lm: T_LATER}]);
+			await importBackup(testDatabase.db, seedPath, "backup.json", false, DATE_LATER);
 
-			const stalePath = writeBackupFile([{id: 'node-2', nm: 'Stale', ct: T_EARLIER, lm: T_EARLIER}]);
-			const result = await importBackup(testDatabase.db, stalePath, 'backup.json', false, DATE_LATER, true);
+			const stalePath = writeBackupFile([{id: "node-2", nm: "Stale", ct: T_EARLIER, lm: T_EARLIER}]);
+			const result = await importBackup(testDatabase.db, stalePath, "backup.json", false, DATE_LATER, true);
 
 			expect(result).toStrictEqual({
 				totalNodes: 1,
@@ -1324,17 +1324,17 @@ describe('cache-import service', () => {
 				importTimestamp: DATE_LATER,
 				nodesPreserved: 0,
 				skipped: false,
-				localWatermark: '2026-04-10 00:00:00.000',
-				incomingWatermark: '2026-04-01 00:00:00.000',
+				localWatermark: "2026-04-10 00:00:00.000",
+				incomingWatermark: "2026-04-01 00:00:00.000",
 			});
-			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, 'node-2')).get()!;
+			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-2")).get()!;
 			expectActiveRecord(node2);
 
 			// node-1 is absent from the forced snapshot, so it is tombstoned.
 			const node1 = testDatabase.db
 				.select()
 				.from(nodeContent)
-				.where(eq(nodeContent.id, 'node-1'))
+				.where(eq(nodeContent.id, "node-1"))
 				.all()
 				.find((n) => n.systemTo === FAR_FUTURE_DATE);
 			expect(node1).toBeUndefined();

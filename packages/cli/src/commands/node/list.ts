@@ -1,33 +1,33 @@
-import {isShortId} from '@workflowy/shared/workflowy';
-import {Flags} from '@oclif/core';
-import {BaseListCommand} from '../base-list-command.js';
-import {ListByIdService} from '../../services/list-by-id.js';
-import {formatDuration} from '../../utils/format-duration.js';
-import {logger} from '../../services/logger.js';
+import {isShortId} from "@workflowy/shared/workflowy";
+import {Flags} from "@oclif/core";
+import {BaseListCommand} from "../base-list-command.js";
+import {ListByIdService} from "../../services/list-by-id.js";
+import {formatDuration} from "../../utils/format-duration.js";
+import {logger} from "../../services/logger.js";
 
 export default class List extends BaseListCommand {
 	static override hidden = false;
-	static override description = 'List Workflowy nodes by parent node ID';
+	static override description = "List Workflowy nodes by parent node ID";
 
 	static override examples = [
-		'<%= config.bin %> <%= command.id %>',
-		'<%= config.bin %> <%= command.id %> --parent-id abc123',
-		'<%= config.bin %> <%= command.id %> --parent-id abc123 --force-refresh',
+		"<%= config.bin %> <%= command.id %>",
+		"<%= config.bin %> <%= command.id %> --parent-id abc123",
+		"<%= config.bin %> <%= command.id %> --parent-id abc123 --force-refresh",
 	];
 
 	static override flags = {
-		'parent-id': Flags.string({
-			char: 'p',
-			description: 'Parent node ID (omit for root nodes)',
+		"parent-id": Flags.string({
+			char: "p",
+			description: "Parent node ID (omit for root nodes)",
 		}),
-		'data-source': Flags.string({
-			char: 'd',
-			description: 'Data source to use: auto (default), api, or cache',
-			options: ['auto', 'api', 'cache'],
-			default: 'auto',
+		"data-source": Flags.string({
+			char: "d",
+			description: "Data source to use: auto (default), api, or cache",
+			options: ["auto", "api", "cache"],
+			default: "auto",
 		}),
 		incomplete: Flags.boolean({
-			description: 'Only show incomplete (not completed) nodes',
+			description: "Only show incomplete (not completed) nodes",
 			default: false,
 		}),
 		...BaseListCommand.baseFlags,
@@ -42,7 +42,7 @@ export default class List extends BaseListCommand {
 
 		try {
 			// Resolve parent ID, supporting short IDs (12 hex chars from Workflowy URLs)
-			let parentId: string | null = flags['parent-id'] ?? null;
+			let parentId: string | null = flags["parent-id"] ?? null;
 			if (parentId) {
 				if (isShortId(parentId)) {
 					const resolvedId = await this.cacheService.resolveShortIdToUuid(parentId);
@@ -57,14 +57,14 @@ export default class List extends BaseListCommand {
 
 			const result = await service.listNodes({
 				parentId,
-				dataSource: flags['data-source'] as 'auto' | 'api' | 'cache',
-				forceRefresh: flags['force-refresh'],
+				dataSource: flags["data-source"] as "auto" | "api" | "cache",
+				forceRefresh: flags["force-refresh"],
 				depth: flags.depth,
 			});
 
 			if (result.cacheInfo && !flags.json) {
 				this.log(
-					`Using cached data (age: ${formatDuration(result.cacheInfo.age)}, sources: ${result.cacheInfo.sources.join(', ')})`,
+					`Using cached data (age: ${formatDuration(result.cacheInfo.age)}, sources: ${result.cacheInfo.sources.join(", ")})`,
 				);
 			} else if (result.fromApi && !flags.json) {
 				this.log(`Fetched fresh data from API`);
@@ -76,9 +76,9 @@ export default class List extends BaseListCommand {
 
 			if (result.nodes.length === 0) {
 				if (!result.fromApi && !this.apiClient) {
-					this.log('No nodes found in cache. Set WORKFLOWY_API_KEY to fetch from API.');
+					this.log("No nodes found in cache. Set WORKFLOWY_API_KEY to fetch from API.");
 				} else {
-					this.log('No nodes found');
+					this.log("No nodes found");
 				}
 			} else {
 				await this.displayNodes(result.nodes, flags);

@@ -1,15 +1,15 @@
-import {Command, Flags} from '@oclif/core';
-import {Dropbox} from 'dropbox';
-import type {files} from 'dropbox';
-import fs from 'node:fs';
-import path from 'node:path';
-import {compressBuffer, resolveBackupsDirectory} from '../../utils/backup-archive.js';
+import {Command, Flags} from "@oclif/core";
+import {Dropbox} from "dropbox";
+import type {files} from "dropbox";
+import fs from "node:fs";
+import path from "node:path";
+import {compressBuffer, resolveBackupsDirectory} from "../../utils/backup-archive.js";
 
 function formatTimestamp(): string {
 	return new Date().toISOString();
 }
 
-type DropboxFolder = 'Data' | 'History';
+type DropboxFolder = "Data" | "History";
 
 const MAX_REMOTE_BACKUPS = 3;
 
@@ -37,27 +37,27 @@ export default class DownloadBackup extends Command {
 	static override enableJsonFlag = true;
 
 	static override examples = [
-		'<%= config.bin %> <%= command.id %>',
-		'<%= config.bin %> <%= command.id %> --folder History',
-		'<%= config.bin %> <%= command.id %> --date 2025-11-06',
+		"<%= config.bin %> <%= command.id %>",
+		"<%= config.bin %> <%= command.id %> --folder History",
+		"<%= config.bin %> <%= command.id %> --date 2025-11-06",
 		'<%= config.bin %> <%= command.id %> --json | jq -r ".downloaded[].path"',
 	];
 
-	static override description = 'Download all Workflowy backups from Dropbox that are not already downloaded locally';
+	static override description = "Download all Workflowy backups from Dropbox that are not already downloaded locally";
 
 	static override flags = {
 		folder: Flags.string({
-			char: 'f',
-			description: 'Which Dropbox folder to download from (default: downloads from both Data and History)',
-			options: ['Data', 'History'],
+			char: "f",
+			description: "Which Dropbox folder to download from (default: downloads from both Data and History)",
+			options: ["Data", "History"],
 		}),
 		date: Flags.string({
-			char: 'd',
-			description: 'Download backup from specific date only (YYYY-MM-DD format)',
+			char: "d",
+			description: "Download backup from specific date only (YYYY-MM-DD format)",
 		}),
 		quiet: Flags.boolean({
-			char: 'q',
-			description: 'Suppress all output except the downloaded filenames (for scripting)',
+			char: "q",
+			description: "Suppress all output except the downloaded filenames (for scripting)",
 			default: false,
 		}),
 	};
@@ -67,7 +67,7 @@ export default class DownloadBackup extends Command {
 
 		const dropbox = this.initializeDropbox();
 
-		const folders: DropboxFolder[] = flags.folder ? [flags.folder as DropboxFolder] : ['Data', 'History'];
+		const folders: DropboxFolder[] = flags.folder ? [flags.folder as DropboxFolder] : ["Data", "History"];
 
 		const allResults: DownloadAllResult = {
 			downloaded: [],
@@ -85,7 +85,7 @@ export default class DownloadBackup extends Command {
 		}
 
 		if (!flags.quiet) {
-			this.log('');
+			this.log("");
 			this.log(`📊 Dropbox has ${allResults.total} backup(s) (max ${MAX_REMOTE_BACKUPS} per folder)`);
 			if (allResults.downloaded.length > 0) {
 				this.log(`   Downloaded:    ${allResults.downloaded.length}`);
@@ -116,11 +116,11 @@ export default class DownloadBackup extends Command {
 		}
 
 		this.error(
-			'Dropbox credentials not set. Please set either:\n' +
-				'  1. DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, and DROPBOX_APP_SECRET, or\n' +
-				'  2. DROPBOX_ACCESS_TOKEN\n\n' +
-				'To generate a refresh token, visit:\n' +
-				'  https://www.dropbox.com/developers/apps',
+			"Dropbox credentials not set. Please set either:\n" +
+				"  1. DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, and DROPBOX_APP_SECRET, or\n" +
+				"  2. DROPBOX_ACCESS_TOKEN\n\n" +
+				"To generate a refresh token, visit:\n" +
+				"  https://www.dropbox.com/developers/apps",
 		);
 	}
 
@@ -149,11 +149,11 @@ export default class DownloadBackup extends Command {
 
 			const response = await dropbox.filesListFolder({path: dropboxPath});
 
-			const fileExtension = folder === 'Data' ? '.workflowy.backup' : '.txt';
+			const fileExtension = folder === "Data" ? ".workflowy.backup" : ".txt";
 			let backupFiles = response.result.entries
 				.filter(
 					(entry): entry is files.FileMetadataReference =>
-						entry['.tag'] === 'file' && entry.name.endsWith(fileExtension),
+						entry[".tag"] === "file" && entry.name.endsWith(fileExtension),
 				)
 				.sort((a, b) => {
 					const dateA = new Date(a.client_modified).getTime();
@@ -195,7 +195,7 @@ export default class DownloadBackup extends Command {
 				const sizeMB = (backupFile.size / (1024 * 1024)).toFixed(2);
 				conditionalLog(`Downloading: ${backupFile.name} (${sizeMB} MB)`);
 
-				const downloadResponse = await dropbox.filesDownload({path: backupFile.path_lower || ''});
+				const downloadResponse = await dropbox.filesDownload({path: backupFile.path_lower || ""});
 				const {fileBinary} = downloadResponse.result;
 
 				if (fileBinary === undefined) {
@@ -232,17 +232,17 @@ export default class DownloadBackup extends Command {
 		} catch (error) {
 			if (error instanceof Error) {
 				if (
-					error.message.includes('400') ||
-					error.message.includes('unauthorized') ||
-					error.message.includes('invalid_access_token')
+					error.message.includes("400") ||
+					error.message.includes("unauthorized") ||
+					error.message.includes("invalid_access_token")
 				) {
 					this.error(
-						'Dropbox authentication failed. Your credentials may be missing or invalid.\n\n' +
-							'To authenticate with Dropbox, run:\n' +
-							'  workflowy dropbox:auth\n\n' +
-							'Alternatively, set environment variables:\n' +
-							'  DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, and DROPBOX_APP_SECRET\n' +
-							'  or DROPBOX_ACCESS_TOKEN',
+						"Dropbox authentication failed. Your credentials may be missing or invalid.\n\n" +
+							"To authenticate with Dropbox, run:\n" +
+							"  workflowy dropbox:auth\n\n" +
+							"Alternatively, set environment variables:\n" +
+							"  DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, and DROPBOX_APP_SECRET\n" +
+							"  or DROPBOX_ACCESS_TOKEN",
 					);
 				}
 

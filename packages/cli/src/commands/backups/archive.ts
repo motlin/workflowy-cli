@@ -1,9 +1,9 @@
-import {Command, Flags} from '@oclif/core';
-import fs from 'node:fs';
-import path from 'node:path';
-import {buildMonthArchive, compressFileInPlace, resolveBackupsDirectory} from '../../utils/backup-archive.js';
+import {Command, Flags} from "@oclif/core";
+import fs from "node:fs";
+import path from "node:path";
+import {buildMonthArchive, compressFileInPlace, resolveBackupsDirectory} from "../../utils/backup-archive.js";
 
-const BACKUP_SOURCES = ['Data', 'History'] as const;
+const BACKUP_SOURCES = ["Data", "History"] as const;
 type BackupSource = (typeof BACKUP_SOURCES)[number];
 
 type LooseBackup = {
@@ -16,22 +16,22 @@ type LooseBackup = {
 
 export default class BackupsArchive extends Command {
 	static override description =
-		'Compress local backups: keep recent days as per-file .zst, fold older days into solid monthly archives';
+		"Compress local backups: keep recent days as per-file .zst, fold older days into solid monthly archives";
 
 	static override examples = [
-		'<%= config.bin %> backups:archive',
-		'<%= config.bin %> backups:archive --keep-days 60',
-		'<%= config.bin %> backups:archive --source Data',
+		"<%= config.bin %> backups:archive",
+		"<%= config.bin %> backups:archive --keep-days 60",
+		"<%= config.bin %> backups:archive --source Data",
 	];
 
 	static override flags = {
-		'keep-days': Flags.integer({
+		"keep-days": Flags.integer({
 			description:
-				'Days of backups to keep as individually compressed files before folding into monthly archives',
+				"Days of backups to keep as individually compressed files before folding into monthly archives",
 			default: 30,
 		}),
 		source: Flags.string({
-			description: 'Limit to a single backup source',
+			description: "Limit to a single backup source",
 			options: [...BACKUP_SOURCES],
 		}),
 	};
@@ -45,7 +45,7 @@ export default class BackupsArchive extends Command {
 		}
 
 		const cutoff = new Date();
-		cutoff.setDate(cutoff.getDate() - flags['keep-days']);
+		cutoff.setDate(cutoff.getDate() - flags["keep-days"]);
 
 		const sources = flags.source ? [flags.source as BackupSource] : [...BACKUP_SOURCES];
 		const sizeBefore = directorySize(backupsDirectory);
@@ -88,7 +88,7 @@ export default class BackupsArchive extends Command {
 			byMonth.set(backup.month, monthBackups);
 		}
 
-		const archiveDir = path.join(sourceDir, 'archive');
+		const archiveDir = path.join(sourceDir, "archive");
 		const monthsAscending = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
 		for (const [month, monthBackups] of monthsAscending) {
 			const archivePath = path.join(archiveDir, `${month}.tar.zst`);
@@ -108,7 +108,7 @@ export default class BackupsArchive extends Command {
 
 /** Extract the backup date from a Data, History, or legacy filename (ignoring a `.zst` suffix). */
 function parseDate(filename: string): Date | null {
-	const base = filename.replace(/\.zst$/, '');
+	const base = filename.replace(/\.zst$/, "");
 	const match = base.match(/(\d{4}-\d{2}-\d{2})\.(?:workflowy\.backup|txt|json)$/);
 	if (!match) {
 		return null;
@@ -137,7 +137,7 @@ function scanLooseBackups(sourceDir: string): LooseBackup[] {
 			filePath,
 			backupDate,
 			month: backupDate.toISOString().slice(0, 7),
-			compressed: filename.endsWith('.zst'),
+			compressed: filename.endsWith(".zst"),
 		});
 	}
 
@@ -159,7 +159,7 @@ function directorySize(directory: string): number {
 }
 
 function formatBytes(bytes: number): string {
-	const units = ['B', 'KB', 'MB', 'GB'];
+	const units = ["B", "KB", "MB", "GB"];
 	let value = bytes;
 	let unitIndex = 0;
 	while (value >= 1024 && unitIndex < units.length - 1) {

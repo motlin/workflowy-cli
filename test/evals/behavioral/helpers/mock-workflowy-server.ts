@@ -7,8 +7,8 @@
  * to succeed without a real Workflowy API key.
  */
 
-import {randomUUID} from 'node:crypto';
-import http from 'node:http';
+import {randomUUID} from "node:crypto";
+import http from "node:http";
 
 export interface MockServerRequest {
 	method: string;
@@ -31,17 +31,17 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 	async function start(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			server = http.createServer(async (req, res) => {
-				const url = req.url ?? '/';
-				const method = req.method ?? 'GET';
+				const url = req.url ?? "/";
+				const method = req.method ?? "GET";
 
 				// Read request body
 				let body: unknown = null;
-				if (method === 'POST' || method === 'PUT') {
+				if (method === "POST" || method === "PUT") {
 					const chunks: Buffer[] = [];
 					for await (const chunk of req) {
 						chunks.push(Buffer.from(chunk));
 					}
-					const raw = Buffer.concat(chunks).toString('utf8');
+					const raw = Buffer.concat(chunks).toString("utf8");
 					try {
 						body = JSON.parse(raw);
 					} catch {
@@ -51,44 +51,44 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 
 				requests.push({method, url, body});
 
-				res.setHeader('Content-Type', 'application/json');
+				res.setHeader("Content-Type", "application/json");
 
 				// Route handling
-				if (method === 'POST' && url === '/api/v1/nodes/') {
+				if (method === "POST" && url === "/api/v1/nodes/") {
 					// Create node
 					const id = randomUUID();
 					res.writeHead(200);
 					res.end(JSON.stringify({item_id: id}));
-				} else if (method === 'DELETE' && url?.startsWith('/api/v1/nodes/')) {
+				} else if (method === "DELETE" && url?.startsWith("/api/v1/nodes/")) {
 					// Delete node
 					res.writeHead(200);
-					res.end(JSON.stringify({status: 'ok'}));
-				} else if (method === 'POST' && url?.match(/^\/api\/v1\/nodes\/[^/]+\/complete$/)) {
+					res.end(JSON.stringify({status: "ok"}));
+				} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/complete$/)) {
 					// Complete node
 					res.writeHead(200);
-					res.end(JSON.stringify({status: 'ok'}));
-				} else if (method === 'POST' && url?.match(/^\/api\/v1\/nodes\/[^/]+\/uncomplete$/)) {
+					res.end(JSON.stringify({status: "ok"}));
+				} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/uncomplete$/)) {
 					// Uncomplete node
 					res.writeHead(200);
-					res.end(JSON.stringify({status: 'ok'}));
-				} else if (method === 'POST' && url?.match(/^\/api\/v1\/nodes\/[^/]+\/move$/)) {
+					res.end(JSON.stringify({status: "ok"}));
+				} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/move$/)) {
 					// Move node
 					res.writeHead(200);
-					res.end(JSON.stringify({status: 'ok'}));
-				} else if (method === 'POST' && url?.match(/^\/api\/v1\/nodes\/[^/]+$/)) {
+					res.end(JSON.stringify({status: "ok"}));
+				} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/)) {
 					// Update node
 					res.writeHead(200);
-					res.end(JSON.stringify({status: 'ok'}));
-				} else if (method === 'GET' && url?.match(/^\/api\/v1\/nodes\/[^/]+$/)) {
+					res.end(JSON.stringify({status: "ok"}));
+				} else if (method === "GET" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/)) {
 					// Get node - return a plausible node response
-					const nodeId = url.split('/').pop()!;
+					const nodeId = url.split("/").pop()!;
 					const now = Math.floor(Date.now() / 1000);
 					res.writeHead(200);
 					res.end(
 						JSON.stringify({
 							node: {
 								id: nodeId,
-								name: 'Mock node',
+								name: "Mock node",
 								note: null,
 								parent_id: null,
 								priority: 0,
@@ -99,26 +99,26 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 							},
 						}),
 					);
-				} else if (method === 'GET' && url === '/api/v1/targets') {
+				} else if (method === "GET" && url === "/api/v1/targets") {
 					// Get targets
 					res.writeHead(200);
-					res.end(JSON.stringify({targets: [{name: 'inbox', id: randomUUID()}]}));
-				} else if (method === 'GET' && url?.startsWith('/api/v1/nodes')) {
+					res.end(JSON.stringify({targets: [{name: "inbox", id: randomUUID()}]}));
+				} else if (method === "GET" && url?.startsWith("/api/v1/nodes")) {
 					// List nodes
 					res.writeHead(200);
 					res.end(JSON.stringify({nodes: []}));
 				} else {
 					res.writeHead(404);
-					res.end(JSON.stringify({error: 'Not found'}));
+					res.end(JSON.stringify({error: "Not found"}));
 				}
 			});
 
-			server.on('error', reject);
+			server.on("error", reject);
 
 			// Listen on port 0 to get a random available port
-			server.listen(0, '127.0.0.1', () => {
+			server.listen(0, "127.0.0.1", () => {
 				const addr = server!.address();
-				if (typeof addr === 'object' && addr !== null) {
+				if (typeof addr === "object" && addr !== null) {
 					port = addr.port;
 				}
 				resolve();

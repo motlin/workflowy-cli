@@ -1,16 +1,16 @@
-import {captureOutput} from '@oclif/test';
-import {nodeContent} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {and, eq} from 'drizzle-orm';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import type {MockInstance} from 'vite-plus/test';
-import Move from '../../../src/commands/node/move.js';
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from '../../db/migration-helper.js';
-import {createTestNode} from '../../helpers/node-fixtures.js';
+import {captureOutput} from "@oclif/test";
+import {nodeContent} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {and, eq} from "drizzle-orm";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type {MockInstance} from "vite-plus/test";
+import Move from "../../../src/commands/node/move.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
+import {createTestNode} from "../../helpers/node-fixtures.js";
 
-describe('node:move command', () => {
+describe("node:move command", () => {
 	let originalEnv: typeof process.env;
 	let fetchStub: MockInstance;
 	let tempDir: string;
@@ -19,13 +19,13 @@ describe('node:move command', () => {
 	beforeEach(() => {
 		originalEnv = {...process.env};
 
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-move-test-'));
-		const testDbPath = path.join(tempDir, 'test.sqlite');
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-move-test-"));
+		const testDbPath = path.join(tempDir, "test.sqlite");
 		testDatabase = createTestDatabase(testDbPath);
 		process.env.WORKFLOWY_DB_PATH = testDbPath;
-		process.env.WORKFLOWY_API_KEY = 'test-api-key';
+		process.env.WORKFLOWY_API_KEY = "test-api-key";
 
-		fetchStub = vi.spyOn(globalThis, 'fetch');
+		fetchStub = vi.spyOn(globalThis, "fetch");
 	});
 
 	afterEach(() => {
@@ -38,114 +38,114 @@ describe('node:move command', () => {
 		}
 	});
 
-	describe('environment variable validation', () => {
-		it('requires WORKFLOWY_API_KEY', async () => {
+	describe("environment variable validation", () => {
+		it("requires WORKFLOWY_API_KEY", async () => {
 			delete process.env.WORKFLOWY_API_KEY;
 
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
-					createTestNode({id: 'target-id', name: 'Target', parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: null}),
+					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				],
 			});
 
-			await expect(Move.run(['--node-id', 'source-id', '--parent-id', 'target-id'])).rejects.toThrow(
-				'WORKFLOWY_API_KEY environment variable is required',
+			await expect(Move.run(["--node-id", "source-id", "--parent-id", "target-id"])).rejects.toThrow(
+				"WORKFLOWY_API_KEY environment variable is required",
 			);
 		});
 	});
 
-	describe('flag validation', () => {
-		it('requires either --node-id or --node-path', async () => {
-			await expect(Move.run(['--parent-id', 'target-id'])).rejects.toThrow(
-				'Either --node-id or --node-path is required',
+	describe("flag validation", () => {
+		it("requires either --node-id or --node-path", async () => {
+			await expect(Move.run(["--parent-id", "target-id"])).rejects.toThrow(
+				"Either --node-id or --node-path is required",
 			);
 		});
 
-		it('requires a parent flag', async () => {
+		it("requires a parent flag", async () => {
 			seedTestData(testDatabase, {
-				nodes: [createTestNode({id: 'source-id', name: 'Source', parentId: null})],
+				nodes: [createTestNode({id: "source-id", name: "Source", parentId: null})],
 			});
 
-			await expect(Move.run(['--node-id', 'source-id'])).rejects.toThrow(
-				'Either --parent-id or --parent-path is required',
+			await expect(Move.run(["--node-id", "source-id"])).rejects.toThrow(
+				"Either --parent-id or --parent-path is required",
 			);
 		});
 	});
 
-	describe('dry run mode', () => {
-		it('shows move preview without executing', async () => {
+	describe("dry run mode", () => {
+		it("shows move preview without executing", async () => {
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'source-id', name: 'Source Node', parentId: null}),
-					createTestNode({id: 'target-id', name: 'Target Folder', parentId: null}),
+					createTestNode({id: "source-id", name: "Source Node", parentId: null}),
+					createTestNode({id: "target-id", name: "Target Folder", parentId: null}),
 				],
 			});
 
 			const {stdout} = await captureOutput(async () => {
-				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id', '--dry-run']);
+				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--dry-run"]);
 			});
 
 			// Dry run outputs human-readable text
 			expect(stdout).toBe(
-				'Would move:\n  From: Source Node\n  To:   Target Folder\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id target-id\n',
+				"Would move:\n  From: Source Node\n  To:   Target Folder\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id target-id\n",
 			);
 			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
-		it('shows position in dry run output', async () => {
+		it("shows position in dry run output", async () => {
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
-					createTestNode({id: 'target-id', name: 'Target', parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: null}),
+					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				],
 			});
 
 			const {stdout} = await captureOutput(async () => {
 				await Move.run([
-					'--node-id',
-					'source-id',
-					'--parent-id',
-					'target-id',
-					'--position',
-					'bottom',
-					'--dry-run',
+					"--node-id",
+					"source-id",
+					"--parent-id",
+					"target-id",
+					"--position",
+					"bottom",
+					"--dry-run",
 				]);
 			});
 
 			expect(stdout).toBe(
-				'Would move:\n  From: Source\n  To:   Target\n  Position: bottom\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id target-id --position bottom\n',
+				"Would move:\n  From: Source\n  To:   Target\n  Position: bottom\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id target-id --position bottom\n",
 			);
 		});
 	});
 
-	describe('moving by ID', () => {
-		it('moves node via API', async () => {
+	describe("moving by ID", () => {
+		it("moves node via API", async () => {
 			const now = Math.floor(Date.now() / 1000);
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
-					createTestNode({id: 'target-id', name: 'Target', parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: null}),
+					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				],
 			});
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? 'GET';
+				const method = init?.method ?? "GET";
 
-				if (method === 'POST') {
+				if (method === "POST") {
 					capturedBody = init?.body as string;
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
-				if (method === 'GET' && urlStr.includes('/nodes/source-id')) {
+				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return new Response(
 						JSON.stringify({
 							node: {
-								id: 'source-id',
-								name: 'Source',
-								parent_id: 'target-id',
+								id: "source-id",
+								name: "Source",
+								parent_id: "target-id",
 								priority: 0,
 								completed: false,
 								createdAt: now * 1000,
@@ -162,40 +162,40 @@ describe('node:move command', () => {
 			});
 
 			const {stdout} = await captureOutput(async () => {
-				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id']);
+				await Move.run(["--node-id", "source-id", "--parent-id", "target-id"]);
 			});
 
-			expect(stdout).toBe('Moving:\n  From: Source\n  To:   Target\nSuccessfully moved node\n');
+			expect(stdout).toBe("Moving:\n  From: Source\n  To:   Target\nSuccessfully moved node\n");
 			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'target-id'});
+			expect(body).toStrictEqual({parent_id: "target-id"});
 		});
 
-		it('includes position in API request for top', async () => {
+		it("includes position in API request for top", async () => {
 			const now = Math.floor(Date.now() / 1000);
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
-					createTestNode({id: 'target-id', name: 'Target', parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: null}),
+					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				],
 			});
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? 'GET';
+				const method = init?.method ?? "GET";
 
-				if (method === 'POST') {
+				if (method === "POST") {
 					capturedBody = init?.body as string;
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
-				if (method === 'GET' && urlStr.includes('/nodes/source-id')) {
+				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return new Response(
 						JSON.stringify({
 							node: {
-								id: 'source-id',
-								name: 'Source',
-								parent_id: 'target-id',
+								id: "source-id",
+								name: "Source",
+								parent_id: "target-id",
 								priority: -1,
 								completed: false,
 								createdAt: now * 1000,
@@ -212,39 +212,39 @@ describe('node:move command', () => {
 			});
 
 			await captureOutput(async () => {
-				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id', '--position', 'top']);
+				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--position", "top"]);
 			});
 
 			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'target-id', position: 'top'});
+			expect(body).toStrictEqual({parent_id: "target-id", position: "top"});
 		});
 
-		it('includes position in API request for bottom', async () => {
+		it("includes position in API request for bottom", async () => {
 			const now = Math.floor(Date.now() / 1000);
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
-					createTestNode({id: 'target-id', name: 'Target', parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: null}),
+					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				],
 			});
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? 'GET';
+				const method = init?.method ?? "GET";
 
-				if (method === 'POST') {
+				if (method === "POST") {
 					capturedBody = init?.body as string;
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
-				if (method === 'GET' && urlStr.includes('/nodes/source-id')) {
+				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return new Response(
 						JSON.stringify({
 							node: {
-								id: 'source-id',
-								name: 'Source',
-								parent_id: 'target-id',
+								id: "source-id",
+								name: "Source",
+								parent_id: "target-id",
 								priority: 0,
 								completed: false,
 								createdAt: now * 1000,
@@ -261,23 +261,23 @@ describe('node:move command', () => {
 			});
 
 			await captureOutput(async () => {
-				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id', '--position', 'bottom']);
+				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--position", "bottom"]);
 			});
 
 			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'target-id', position: 'bottom'});
+			expect(body).toStrictEqual({parent_id: "target-id", position: "bottom"});
 		});
 	});
 
-	describe('moving by path', () => {
-		it('resolves source and target paths', async () => {
+	describe("moving by path", () => {
+		it("resolves source and target paths", async () => {
 			const now = Math.floor(Date.now() / 1000);
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'work-id', name: 'Work', parentId: null}),
-					createTestNode({id: 'tasks-id', name: 'Tasks', parentId: 'work-id'}),
-					createTestNode({id: 'source-id', name: 'My Task', parentId: 'tasks-id'}),
-					createTestNode({id: 'archive-id', name: 'Archive', parentId: 'work-id'}),
+					createTestNode({id: "work-id", name: "Work", parentId: null}),
+					createTestNode({id: "tasks-id", name: "Tasks", parentId: "work-id"}),
+					createTestNode({id: "source-id", name: "My Task", parentId: "tasks-id"}),
+					createTestNode({id: "archive-id", name: "Archive", parentId: "work-id"}),
 				],
 			});
 
@@ -285,21 +285,21 @@ describe('node:move command', () => {
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? 'GET';
+				const method = init?.method ?? "GET";
 				capturedUrl = urlStr;
 
-				if (method === 'POST') {
+				if (method === "POST") {
 					capturedBody = init?.body as string;
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
-				if (method === 'GET' && urlStr.includes('/nodes/source-id')) {
+				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return new Response(
 						JSON.stringify({
 							node: {
-								id: 'source-id',
-								name: 'My Task',
-								parent_id: 'archive-id',
+								id: "source-id",
+								name: "My Task",
+								parent_id: "archive-id",
 								priority: 0,
 								completed: false,
 								createdAt: now * 1000,
@@ -316,26 +316,26 @@ describe('node:move command', () => {
 			});
 
 			const {stdout} = await captureOutput(async () => {
-				await Move.run(['--node-path', 'Work,Tasks,My Task', '--parent-path', 'Work,Archive']);
+				await Move.run(["--node-path", "Work,Tasks,My Task", "--parent-path", "Work,Archive"]);
 			});
 
 			expect(stdout).toBe(
-				'Moving:\n  From: Work > Tasks > My Task\n  To:   Work > Archive\nSuccessfully moved node\n',
+				"Moving:\n  From: Work > Tasks > My Task\n  To:   Work > Archive\nSuccessfully moved node\n",
 			);
-			expect(capturedUrl).toBe('https://workflowy.com/api/v1/nodes/source-id');
+			expect(capturedUrl).toBe("https://workflowy.com/api/v1/nodes/source-id");
 			const body = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: 'archive-id'});
+			expect(body).toStrictEqual({parent_id: "archive-id"});
 		});
 	});
 
-	describe('system targets', () => {
-		it('moves to inbox system target via --parent-id', async () => {
+	describe("system targets", () => {
+		it("moves to inbox system target via --parent-id", async () => {
 			// The API accepts 'inbox' as parent_id on move but 404s on GET /nodes/inbox,
 			// so the real parent is learned from the moved node.
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'inbox-uuid', name: 'Inbox', parentId: null}),
-					createTestNode({id: 'source-id', name: 'Source', parentId: null}),
+					createTestNode({id: "inbox-uuid", name: "Inbox", parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: null}),
 				],
 			});
 
@@ -345,100 +345,100 @@ describe('node:move command', () => {
 
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? 'GET';
+				const method = init?.method ?? "GET";
 				requests.push(`${method} ${urlStr}`);
 
-				if (method === 'POST' && urlStr.endsWith('/nodes/source-id/move')) {
+				if (method === "POST" && urlStr.endsWith("/nodes/source-id/move")) {
 					capturedBody = init?.body as string;
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
-				if (method === 'GET' && urlStr.endsWith('/nodes/source-id')) {
+				if (method === "GET" && urlStr.endsWith("/nodes/source-id")) {
 					return new Response(
 						JSON.stringify({
 							node: {
-								id: 'source-id',
-								name: 'Source',
+								id: "source-id",
+								name: "Source",
 								note: null,
-								parent_id: 'inbox-uuid',
+								parent_id: "inbox-uuid",
 								priority: 0,
 								completed: false,
 								createdAt: now,
 								modifiedAt: now,
 								completedAt: null,
-								data: {layoutMode: 'bullets'},
+								data: {layoutMode: "bullets"},
 							},
 						}),
 						{status: 200},
 					);
 				}
 
-				return new Response(JSON.stringify({error: 'Not found'}), {status: 404});
+				return new Response(JSON.stringify({error: "Not found"}), {status: 404});
 			});
 
 			const {error} = await captureOutput(async () => {
-				await Move.run(['--node-id', 'source-id', '--parent-id', 'inbox']);
+				await Move.run(["--node-id", "source-id", "--parent-id", "inbox"]);
 			});
 
 			expect(error).toBeUndefined();
-			expect(JSON.parse(capturedBody!)).toStrictEqual({parent_id: 'inbox'});
+			expect(JSON.parse(capturedBody!)).toStrictEqual({parent_id: "inbox"});
 			expect(requests).toStrictEqual([
-				'POST https://workflowy.com/api/v1/nodes/source-id/move',
-				'GET https://workflowy.com/api/v1/nodes/source-id',
+				"POST https://workflowy.com/api/v1/nodes/source-id/move",
+				"GET https://workflowy.com/api/v1/nodes/source-id",
 			]);
 			expect(
 				testDatabase.db
 					.select({id: nodeContent.id, parentId: nodeContent.parentId})
 					.from(nodeContent)
-					.where(and(eq(nodeContent.id, 'source-id'), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.where(and(eq(nodeContent.id, "source-id"), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 					.all(),
-			).toStrictEqual([{id: 'source-id', parentId: 'inbox-uuid'}]);
+			).toStrictEqual([{id: "source-id", parentId: "inbox-uuid"}]);
 		});
 	});
 
-	describe('output', () => {
-		it('displays from and to paths', async () => {
+	describe("output", () => {
+		it("displays from and to paths", async () => {
 			seedTestData(testDatabase, {
 				nodes: [
-					createTestNode({id: 'work-id', name: 'Work', parentId: null}),
-					createTestNode({id: 'source-id', name: 'Source', parentId: 'work-id'}),
-					createTestNode({id: 'target-id', name: 'Target', parentId: null}),
+					createTestNode({id: "work-id", name: "Work", parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: "work-id"}),
+					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				],
 			});
 
 			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
 
 			const {stdout} = await captureOutput(async () => {
-				await Move.run(['--node-id', 'source-id', '--parent-id', 'target-id']);
+				await Move.run(["--node-id", "source-id", "--parent-id", "target-id"]);
 			});
 
-			expect(stdout).toBe('Moving:\n  From: Work > Source\n  To:   Target\n');
+			expect(stdout).toBe("Moving:\n  From: Work > Source\n  To:   Target\n");
 		});
 	});
 
-	describe('command metadata', () => {
-		it('has correct description', () => {
-			expect(Move.description).toBe('Move a single node to a new location by ID or path');
+	describe("command metadata", () => {
+		it("has correct description", () => {
+			expect(Move.description).toBe("Move a single node to a new location by ID or path");
 		});
 
-		it('has examples', () => {
+		it("has examples", () => {
 			expect(Move.examples).toStrictEqual([
-				'# Move node to inbox (system target)',
-				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox',
-				'',
-				'# Move node by ID to parent ID',
-				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456',
-				'',
-				'# Move node by path to parent path',
+				"# Move node to inbox (system target)",
+				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox",
+				"",
+				"# Move node by ID to parent ID",
+				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456",
+				"",
+				"# Move node by path to parent path",
 				'<%= config.bin %> <%= command.id %> --node-path "Work,Tasks,My Task" --parent-path "Work,Archive"',
-				'',
-				'# Move node to bottom of parent (default is top)',
-				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456 --position bottom',
-				'',
-				'# Preview the move command without executing',
-				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox --dry-run',
-				'',
-				'# Mixed: move by ID to path',
+				"",
+				"# Move node to bottom of parent (default is top)",
+				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456 --position bottom",
+				"",
+				"# Preview the move command without executing",
+				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox --dry-run",
+				"",
+				"# Mixed: move by ID to path",
 				'<%= config.bin %> <%= command.id %> --node-id abc123 --parent-path "Work,Archive"',
 			]);
 		});

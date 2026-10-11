@@ -1,5 +1,5 @@
-import {captureOutput} from '@oclif/test';
-import Schema from '../../../src/commands/node/schema.js';
+import {captureOutput} from "@oclif/test";
+import Schema from "../../../src/commands/node/schema.js";
 
 const EXPECTED_STDOUT = `// Output type for: node get --json
 // Source: NodeTree
@@ -155,8 +155,8 @@ interface NodeMirrorOutput {
 }
 `;
 
-describe('node schema command', () => {
-	it('generates schema for all commands', async () => {
+describe("node schema command", () => {
+	it("generates schema for all commands", async () => {
 		const {stdout} = await captureOutput(async () => {
 			await Schema.run([]);
 		});
@@ -164,25 +164,25 @@ describe('node schema command', () => {
 		expect(stdout).toBe(EXPECTED_STDOUT + EXPECTED_MIRROR_STDOUT);
 	});
 
-	it('generates schema for node mirror', async () => {
+	it("generates schema for node mirror", async () => {
 		const {stdout} = await captureOutput(async () => {
-			await Schema.run(['--command', 'mirror']);
+			await Schema.run(["--command", "mirror"]);
 		});
 
 		expect(stdout).toBe(EXPECTED_MIRROR_STDOUT);
 	});
 
-	it('has correct description', () => {
-		expect(Schema.description).toBe('Show JSON output schema for node commands (for LLM discovery)');
+	it("has correct description", () => {
+		expect(Schema.description).toBe("Show JSON output schema for node commands (for LLM discovery)");
 	});
 
-	it('has examples', () => {
+	it("has examples", () => {
 		expect(Schema.examples).toStrictEqual([
-			'# Show all command output schemas',
-			'<%= config.bin %> <%= command.id %>',
-			'',
-			'# Show schema for a specific command',
-			'<%= config.bin %> <%= command.id %> --command get',
+			"# Show all command output schemas",
+			"<%= config.bin %> <%= command.id %>",
+			"",
+			"# Show schema for a specific command",
+			"<%= config.bin %> <%= command.id %> --command get",
 		]);
 	});
 });

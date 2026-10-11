@@ -1,36 +1,36 @@
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {Command, Flags} from '@oclif/core';
-import {createDatabase} from '../../db/index.js';
-import {CacheService} from '../../services/cache.js';
-import {logger} from '../../services/logger.js';
-import {resolveNodeId} from '@workflowy/shared/utils';
-import {type NodeSyncProgress, NodeSyncService} from '../../services/node-sync.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {Command, Flags} from "@oclif/core";
+import {createDatabase} from "../../db/index.js";
+import {CacheService} from "../../services/cache.js";
+import {logger} from "../../services/logger.js";
+import {resolveNodeId} from "@workflowy/shared/utils";
+import {type NodeSyncProgress, NodeSyncService} from "../../services/node-sync.js";
 
 export default class SyncNode extends Command {
 	static override description =
-		'Sync a specific node and optionally its children from the Workflowy API to the cache';
+		"Sync a specific node and optionally its children from the Workflowy API to the cache";
 
 	static override examples = [
-		'<%= config.bin %> cache:sync-node --id 61111c3a-e939-d4dc-1a8c-6bf42551caa3',
-		'<%= config.bin %> cache:sync-node --path Personal,Journal',
-		'<%= config.bin %> cache:sync-node --path Work,Projects --recursive',
-		'<%= config.bin %> cache:sync-node --id 39caff96-e338-0f20-55f2-65f9e140ba02 --recursive',
+		"<%= config.bin %> cache:sync-node --id 61111c3a-e939-d4dc-1a8c-6bf42551caa3",
+		"<%= config.bin %> cache:sync-node --path Personal,Journal",
+		"<%= config.bin %> cache:sync-node --path Work,Projects --recursive",
+		"<%= config.bin %> cache:sync-node --id 39caff96-e338-0f20-55f2-65f9e140ba02 --recursive",
 	];
 
 	static override flags = {
 		id: Flags.string({
-			char: 'i',
-			description: 'Node ID to sync',
-			exclusive: ['path'],
+			char: "i",
+			description: "Node ID to sync",
+			exclusive: ["path"],
 		}),
 		path: Flags.string({
-			char: 'p',
-			description: 'Path to the node (comma-separated)',
-			exclusive: ['id'],
+			char: "p",
+			description: "Path to the node (comma-separated)",
+			exclusive: ["id"],
 		}),
 		recursive: Flags.boolean({
-			char: 'r',
-			description: 'Recursively sync all children',
+			char: "r",
+			description: "Recursively sync all children",
 			default: false,
 		}),
 	};
@@ -39,12 +39,12 @@ export default class SyncNode extends Command {
 		const {flags} = await this.parse(SyncNode);
 
 		if (!flags.id && !flags.path) {
-			this.error('Either --id or --path must be specified');
+			this.error("Either --id or --path must be specified");
 		}
 
 		const apiKey = process.env.WORKFLOWY_API_KEY;
 		if (!apiKey) {
-			this.error('WORKFLOWY_API_KEY environment variable is not set');
+			this.error("WORKFLOWY_API_KEY environment variable is not set");
 		}
 
 		const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
@@ -56,7 +56,7 @@ export default class SyncNode extends Command {
 
 		this.log(`Syncing node: ${targetNodeName}`);
 		if (flags.recursive) {
-			this.log('Mode: Recursive (will sync all descendants)');
+			this.log("Mode: Recursive (will sync all descendants)");
 		}
 
 		const startTime = Date.now();

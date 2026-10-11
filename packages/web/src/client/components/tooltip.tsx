@@ -1,5 +1,5 @@
-import {type ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {createPortal} from 'react-dom';
+import {type ReactNode, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {createPortal} from "react-dom";
 
 interface TooltipProps {
 	/** The content to show in the tooltip */
@@ -9,7 +9,7 @@ interface TooltipProps {
 	/** Optional keyboard shortcut to display */
 	shortcut?: string;
 	/** Placement of the tooltip relative to the trigger */
-	placement?: 'top' | 'bottom';
+	placement?: "top" | "bottom";
 	/** Delay before showing tooltip in ms */
 	delay?: number;
 }
@@ -24,7 +24,7 @@ interface TooltipProps {
  * - Positioned below element by default
  * - Viewport-aware positioning (stays within bounds)
  */
-export function Tooltip({content, children, shortcut, placement = 'bottom', delay = 200}: TooltipProps) {
+export function Tooltip({content, children, shortcut, placement = "bottom", delay = 200}: TooltipProps) {
 	const [isVisible, setIsVisible] = useState(false);
 	const [isPositioned, setIsPositioned] = useState(false);
 	const [position, setPosition] = useState({top: 0, left: 0, arrowLeft: 0});
@@ -79,7 +79,7 @@ export function Tooltip({content, children, shortcut, placement = 'bottom', dela
 			}
 
 			// Calculate top position
-			const top = placement === 'bottom' ? triggerRect.bottom + 8 : triggerRect.top - tooltipHeight - 8;
+			const top = placement === "bottom" ? triggerRect.bottom + 8 : triggerRect.top - tooltipHeight - 8;
 
 			setPosition({top, left, arrowLeft});
 			setIsPositioned(true);
@@ -97,7 +97,7 @@ export function Tooltip({content, children, shortcut, placement = 'bottom', dela
 
 	const tooltipContent = (
 		<div
-			className={`tooltip ${isPositioned ? 'tooltip-visible' : ''} tooltip-${placement}`}
+			className={`tooltip ${isPositioned ? "tooltip-visible" : ""} tooltip-${placement}`}
 			ref={tooltipRef}
 			role="tooltip"
 			style={{
@@ -109,20 +109,12 @@ export function Tooltip({content, children, shortcut, placement = 'bottom', dela
 				<span>{content}</span>
 				{shortcut && <span className="tooltip-shortcut">{shortcut}</span>}
 			</div>
-			<div
-				className="tooltip-arrow"
-				style={{left: position.arrowLeft}}
-			/>
+			<div className="tooltip-arrow" style={{left: position.arrowLeft}} />
 		</div>
 	);
 
 	return (
-		<div
-			className="tooltip-trigger"
-			onMouseEnter={showTooltip}
-			onMouseLeave={hideTooltip}
-			ref={triggerRef}
-		>
+		<div className="tooltip-trigger" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} ref={triggerRef}>
 			{children}
 			{isVisible && createPortal(tooltipContent, document.body)}
 		</div>

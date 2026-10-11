@@ -1,6 +1,6 @@
-import {eq, type SQL} from 'drizzle-orm';
-import type {AnySQLiteColumn} from 'drizzle-orm/sqlite-core';
-import {FAR_FUTURE_DATE} from '../temporal/constants.js';
+import {eq, type SQL} from "drizzle-orm";
+import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
+import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 
 /**
  * Drizzle predicate selecting the current (open) temporal version of a row:
@@ -16,7 +16,7 @@ export function currentVersion(table: {systemTo: AnySQLiteColumn}): SQL {
  * systemFrom is stored as 'YYYY-MM-DD HH:MM:SS' (UTC).
  */
 export function systemFromToDate(systemFrom: string): Date {
-	return new Date(systemFrom.replace(' ', 'T') + 'Z');
+	return new Date(systemFrom.replace(" ", "T") + "Z");
 }
 
 /**
@@ -24,7 +24,7 @@ export function systemFromToDate(systemFrom: string): Date {
  * 'bullets' is the default, stored as null to save space.
  */
 export function normalizeLayoutMode(layoutMode: string | null | undefined): string | null {
-	if (layoutMode === 'bullets') return null;
+	if (layoutMode === "bullets") return null;
 	return layoutMode ?? null;
 }
 

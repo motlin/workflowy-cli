@@ -1,4 +1,4 @@
-import {z} from 'zod';
+import {z} from "zod";
 
 /**
  * Workflowy internal API client for session-based authentication.
@@ -14,7 +14,7 @@ import {z} from 'zod';
  * 3. Use session cookie for subsequent requests
  */
 
-const WORKFLOWY_URL = 'https://workflowy.com';
+const WORKFLOWY_URL = "https://workflowy.com";
 
 /**
  * Schema for the initialization data response.
@@ -64,20 +64,20 @@ export class WorkflowyInternalClient {
 		const url = `${WORKFLOWY_URL}/ajax_login`;
 
 		const formData = new URLSearchParams();
-		formData.append('username', this.credentials.username);
-		formData.append('password', this.credentials.password);
+		formData.append("username", this.credentials.username);
+		formData.append("password", this.credentials.password);
 
 		const response = await fetch(url, {
-			method: 'POST',
+			method: "POST",
 			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
+				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: formData.toString(),
-			redirect: 'manual',
+			redirect: "manual",
 		});
 
 		// Extract session cookie from Set-Cookie header
-		const setCookie = response.headers.get('set-cookie');
+		const setCookie = response.headers.get("set-cookie");
 		if (setCookie) {
 			// Parse the session cookie (sessionid=...)
 			const sessionMatch = setCookie.match(/sessionid=([^;]+)/);
@@ -94,7 +94,7 @@ export class WorkflowyInternalClient {
 					const data = JSON.parse(text);
 					const parsed = LoginResponseSchema.safeParse(data);
 					if (parsed.success && parsed.data.errors) {
-						const errorMessages = Object.values(parsed.data.errors).flat().join(', ');
+						const errorMessages = Object.values(parsed.data.errors).flat().join(", ");
 						throw new Error(`Login failed: ${errorMessages}`);
 					}
 				} catch {
@@ -104,7 +104,7 @@ export class WorkflowyInternalClient {
 		}
 
 		if (!this.sessionCookie) {
-			throw new Error('Login failed: No session cookie received');
+			throw new Error("Login failed: No session cookie received");
 		}
 	}
 
@@ -114,7 +114,7 @@ export class WorkflowyInternalClient {
 	 */
 	async getInitializationData(): Promise<{dateJoinedTimestampInSeconds: number}> {
 		if (!this.sessionCookie) {
-			throw new Error('Not authenticated. Call login() first.');
+			throw new Error("Not authenticated. Call login() first.");
 		}
 
 		const url = `${WORKFLOWY_URL}/get_initialization_data?client_version=21&client_version_v2=28&no_root_children=1`;

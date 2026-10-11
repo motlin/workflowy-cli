@@ -3,7 +3,7 @@
  */
 export interface NodeMirrorResult {
 	/** Whether a mirror was created or removed. */
-	action: 'created' | 'deleted';
+	action: "created" | "deleted";
 	/** Full UUID of the mirror node. */
 	mirrorId: string;
 	/** Full UUID of the true origin the mirror reflects; null when deleting. */

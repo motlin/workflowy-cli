@@ -1,11 +1,11 @@
-import {Hono} from 'hono';
-import {PathBuilder} from '@workflowy/shared/cache';
-import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
-import {buildSearchConditions, getScoringTerms, parseSearchQuery} from '@workflowy/shared/search';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {and, eq, inArray, sql} from 'drizzle-orm';
-import {getDatabase} from '../db.js';
+import {Hono} from "hono";
+import {PathBuilder} from "@workflowy/shared/cache";
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import {buildSearchConditions, getScoringTerms, parseSearchQuery} from "@workflowy/shared/search";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {and, eq, inArray, sql} from "drizzle-orm";
+import {getDatabase} from "../db.js";
 
 export const searchRouter = new Hono();
 
@@ -41,7 +41,7 @@ async function getDescendantIds(database: ReturnType<typeof getDatabase>, parent
 }
 
 // POST /api/search - Text-based search with operators
-searchRouter.post('/', async (c) => {
+searchRouter.post("/", async (c) => {
 	const body = (await c.req.json()) as SearchBody;
 	const {query, limit = 10, offset = 0, parentId} = body;
 
@@ -121,8 +121,8 @@ searchRouter.post('/', async (c) => {
 
 	// Score results based on match quality
 	const scoredResults = allResults.map((result) => {
-		const namePlain = result.name ? stripHtmlTags(result.name).toLowerCase() : '';
-		const notePlain = result.note ? stripHtmlTags(result.note).toLowerCase() : '';
+		const namePlain = result.name ? stripHtmlTags(result.name).toLowerCase() : "";
+		const notePlain = result.note ? stripHtmlTags(result.note).toLowerCase() : "";
 
 		let score = 0;
 
@@ -178,7 +178,7 @@ searchRouter.post('/', async (c) => {
 
 	const results: SearchResult[] = paginatedResults.map(({id, name, note}) => {
 		const parentId = parentIdOf.get(id) ?? null;
-		return {id, name, note, parentPath: parentId ? (pathByParent.get(parentId) ?? '') : ''};
+		return {id, name, note, parentPath: parentId ? (pathByParent.get(parentId) ?? "") : ""};
 	});
 
 	return c.json({results, totalCount});

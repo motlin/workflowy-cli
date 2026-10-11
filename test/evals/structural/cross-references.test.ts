@@ -1,15 +1,15 @@
-import {existsSync} from 'node:fs';
-import {join} from 'node:path';
-import {parseMarkdownFile} from './helpers/markdown-parser.js';
+import {existsSync} from "node:fs";
+import {join} from "node:path";
+import {parseMarkdownFile} from "./helpers/markdown-parser.js";
 import {
 	PLUGINS_DIR,
 	PROJECT_ROOT,
 	collectComponentFiles,
 	collectMarkdownFiles,
 	listPlugins,
-} from './helpers/scan-roots.js';
+} from "./helpers/scan-roots.js";
 
-const LOCAL_COMMANDS_DIR = join(PROJECT_ROOT, '.claude/commands');
+const LOCAL_COMMANDS_DIR = join(PROJECT_ROOT, ".claude/commands");
 
 /**
  * Build a command registry from plugin and project-local command directories.
@@ -23,18 +23,18 @@ function buildCommandRegistry(): Set<string> {
 	const registry = new Set<string>();
 
 	for (const plugin of listPlugins()) {
-		const commandsDir = join(PLUGINS_DIR, plugin, 'commands');
+		const commandsDir = join(PLUGINS_DIR, plugin, "commands");
 		for (const filePath of collectMarkdownFiles(commandsDir)) {
 			const relative = filePath.slice(commandsDir.length + 1);
-			const withoutExt = relative.replace(/\.md$/, '');
-			registry.add(`${plugin}:${withoutExt.replaceAll('/', ':')}`);
+			const withoutExt = relative.replace(/\.md$/, "");
+			registry.add(`${plugin}:${withoutExt.replaceAll("/", ":")}`);
 		}
 	}
 
 	for (const filePath of collectMarkdownFiles(LOCAL_COMMANDS_DIR)) {
 		const relative = filePath.slice(LOCAL_COMMANDS_DIR.length + 1);
-		const withoutExt = relative.replace(/\.md$/, '');
-		registry.add(withoutExt.replaceAll('/', ':'));
+		const withoutExt = relative.replace(/\.md$/, "");
+		registry.add(withoutExt.replaceAll("/", ":"));
 	}
 
 	return registry;
@@ -46,15 +46,15 @@ function buildCommandRegistry(): Set<string> {
  * refs resolve against the project root.
  */
 function resolveScriptRef(refPath: string, referencingFile: string): string | undefined {
-	if (refPath.startsWith('${CLAUDE_PLUGIN_ROOT}/')) {
+	if (refPath.startsWith("${CLAUDE_PLUGIN_ROOT}/")) {
 		const match = referencingFile.match(/^plugins\/([^/]+)\//);
 		if (!match) return undefined;
-		return join(PLUGINS_DIR, match[1], refPath.slice('${CLAUDE_PLUGIN_ROOT}/'.length));
+		return join(PLUGINS_DIR, match[1], refPath.slice("${CLAUDE_PLUGIN_ROOT}/".length));
 	}
 	return join(PROJECT_ROOT, refPath);
 }
 
-describe('Structural Eval: Cross-References', () => {
+describe("Structural Eval: Cross-References", () => {
 	let commandRegistry: Set<string>;
 	let allCommandRefs: Array<{ref: string; file: string; line: number}>;
 	let allScriptRefs: Array<{path: string; file: string; line: number}>;
@@ -67,15 +67,15 @@ describe('Structural Eval: Cross-References', () => {
 		allCommandRefs = [];
 		allScriptRefs = [];
 		const sourceFiles = [
-			...collectComponentFiles('commands'),
-			...collectComponentFiles('agents'),
-			...collectComponentFiles('prompts'),
-			...collectComponentFiles('skills'),
+			...collectComponentFiles("commands"),
+			...collectComponentFiles("agents"),
+			...collectComponentFiles("prompts"),
+			...collectComponentFiles("skills"),
 		];
 
 		for (const filePath of sourceFiles) {
 			const analysis = parseMarkdownFile(filePath);
-			const relativeFile = filePath.replace(PROJECT_ROOT + '/', '');
+			const relativeFile = filePath.replace(PROJECT_ROOT + "/", "");
 
 			for (const ref of analysis.commandRefs) {
 				allCommandRefs.push({ref: ref.ref, file: relativeFile, line: ref.line});
@@ -87,16 +87,16 @@ describe('Structural Eval: Cross-References', () => {
 		}
 	});
 
-	describe('command references (/gtd:X)', () => {
-		it('should build a non-empty command registry', () => {
+	describe("command references (/gtd:X)", () => {
+		it("should build a non-empty command registry", () => {
 			expect(commandRegistry.size).toBeGreaterThan(0);
 		});
 
-		it('should find command references in markdown files', () => {
+		it("should find command references in markdown files", () => {
 			expect(allCommandRefs.length).toBeGreaterThan(0);
 		});
 
-		it('every /X:Y command reference should resolve to an existing command file', () => {
+		it("every /X:Y command reference should resolve to an existing command file", () => {
 			const missing: string[] = [];
 
 			for (const ref of allCommandRefs) {
@@ -111,12 +111,12 @@ describe('Structural Eval: Cross-References', () => {
 		});
 	});
 
-	describe('script references', () => {
-		it('should find script references in markdown files', () => {
+	describe("script references", () => {
+		it("should find script references in markdown files", () => {
 			expect(allScriptRefs.length).toBeGreaterThan(0);
 		});
 
-		it('every script reference should resolve to an existing file', () => {
+		it("every script reference should resolve to an existing file", () => {
 			const missing: string[] = [];
 
 			for (const ref of allScriptRefs) {

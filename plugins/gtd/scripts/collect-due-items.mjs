@@ -19,7 +19,7 @@
 //
 // Every input is optional; a missing source contributes nothing rather than failing.
 
-import {readFileSync} from 'node:fs';
+import {readFileSync} from "node:fs";
 import {
 	addInterval,
 	buildTimeElement,
@@ -31,35 +31,35 @@ import {
 	stripMarkup,
 	swapTimeElement,
 	workflowyUrl,
-} from './compute-overdue.mjs';
-import {bottomTier, readLadder} from './asap-tiers.mjs';
+} from "./compute-overdue.mjs";
+import {bottomTier, readLadder} from "./asap-tiers.mjs";
 
-const DUE_BUCKET_PREFIX = '⏰';
-const TASKS_WRAPPER_PREFIX = '✅';
-const ASAP_BUCKET_PREFIX = '📌';
+const DUE_BUCKET_PREFIX = "⏰";
+const TASKS_WRAPPER_PREFIX = "✅";
+const ASAP_BUCKET_PREFIX = "📌";
 // Legacy containers from before due dates lived on the nodes themselves. Tasks nest one level
 // deeper inside these, so the collector descends through them until the data is migrated.
-const TIMEFRAME_NAMES = ['Today', 'This week', 'This month'];
+const TIMEFRAME_NAMES = ["Today", "This week", "This month"];
 // Only Workflowy tasks have a subtree. A Things or Reminders task is its title plus its note, and
 // it still fills the same context shape so the walk prints one block without branching on source.
 function noteOnlyContext(title, notes) {
 	return {note: notes ?? null, modifiedAt: null, childCount: 0, children: [], links: extractLinks(title, notes)};
 }
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n) => String(n).padStart(2, "0");
 
 function shellSingleQuote(s) {
 	return `'${String(s).replaceAll("'", `'"'"'`)}'`;
 }
 
 function daysBetween(fromISO, toISO) {
-	const a = new Date(fromISO + 'T00:00:00Z');
-	const b = new Date(toISO + 'T00:00:00Z');
+	const a = new Date(fromISO + "T00:00:00Z");
+	const b = new Date(toISO + "T00:00:00Z");
 	return Math.round((b - a) / 86_400_000);
 }
 
 function addDaysISO(iso, days) {
-	const d = new Date(iso + 'T00:00:00Z');
+	const d = new Date(iso + "T00:00:00Z");
 	d.setUTCDate(d.getUTCDate() + days);
 	return d.toISOString().slice(0, 10);
 }
@@ -71,7 +71,7 @@ function lastDayOfMonth(year, month1) {
 // file-tasks proposes a timeframe; the node stores a date. This is the conversion between them,
 // and it is the only place that mapping lives.
 export function resolveTimeframe(label, todayISO) {
-	const [y, m, d] = todayISO.split('-').map(Number);
+	const [y, m, d] = todayISO.split("-").map(Number);
 	if (/^today$/i.test(label)) return todayISO;
 	if (/^this week$/i.test(label)) {
 		// End of the working week: the upcoming Friday, or today when today already is Friday.
@@ -83,30 +83,30 @@ export function resolveTimeframe(label, todayISO) {
 	if (/^this month$/i.test(label)) return `${y}-${pad(m)}-${pad(lastDayOfMonth(y, m))}`;
 	// The long horizons exist for tasks the walk keeps re-asking about: pushing one out by a
 	// quarter is the honest alternative to nudging it a week at a time forever.
-	if (/^next month$/i.test(label)) return addInterval(todayISO, {amount: 1, unit: 'm'});
-	if (/^next quarter$/i.test(label)) return addInterval(todayISO, {amount: 3, unit: 'm'});
+	if (/^next month$/i.test(label)) return addInterval(todayISO, {amount: 1, unit: "m"});
+	if (/^next quarter$/i.test(label)) return addInterval(todayISO, {amount: 3, unit: "m"});
 	throw new Error(`unknown timeframe: ${label}`);
 }
 
 const MONTH_NAMES = [
-	'January',
-	'February',
-	'March',
-	'April',
-	'May',
-	'June',
-	'July',
-	'August',
-	'September',
-	'October',
-	'November',
-	'December',
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December",
 ];
 
 // AppleScript's `date "..."` parses a plain human date. Workflowy's `<time>` element is HTML and
 // means nothing to it, so the two sources need different substitutions for the same placeholder.
 function appleScriptDate(iso) {
-	const [y, m, d] = iso.split('-').map(Number);
+	const [y, m, d] = iso.split("-").map(Number);
 	return `${MONTH_NAMES[m - 1]} ${d}, ${y}`;
 }
 
@@ -116,8 +116,8 @@ function appleScriptDate(iso) {
  * the wrong one silently writes a garbage date rather than failing.
  */
 export function applyReschedule(item, iso) {
-	const replacement = item.source === 'workflowy' ? buildTimeElement(iso) : appleScriptDate(iso);
-	return item.ops.reschedule.split('{{date}}').join(replacement);
+	const replacement = item.source === "workflowy" ? buildTimeElement(iso) : appleScriptDate(iso);
+	return item.ops.reschedule.split("{{date}}").join(replacement);
 }
 
 function workflowyOps(node, due, asapTargetId) {
@@ -125,8 +125,8 @@ function workflowyOps(node, due, asapTargetId) {
 	// runnable command. Keeping the element out of the template means the weekday label is always
 	// computed, never typed.
 	const rescheduledName = due
-		? swapTimeElement(node.name, '{{date}}')
-		: `${String(node.name).replace(/\s+$/, '')} {{date}}`;
+		? swapTimeElement(node.name, "{{date}}")
+		: `${String(node.name).replace(/\s+$/, "")} {{date}}`;
 	const ops = {
 		complete: `./bin/run.js node complete --id ${node.id}`,
 		reschedule: `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(rescheduledName)}`,
@@ -138,8 +138,8 @@ function workflowyOps(node, due, asapTargetId) {
 	// bucket is the real fix, and the date has to come off because that bucket holds none.
 	if (asapTargetId) {
 		const undatedName = String(node.name)
-			.replace(/<time[^>]*>.*?<\/time>/g, '')
-			.replace(/\s+/g, ' ')
+			.replace(/<time[^>]*>.*?<\/time>/g, "")
+			.replace(/\s+/g, " ")
 			.trim();
 		ops.moveToAsap = `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(undatedName)} && ./bin/run.js node move --node-id ${node.id} --parent-id ${asapTargetId} -p bottom`;
 	}
@@ -177,13 +177,13 @@ export function fromWorkflowy(roots, todayISO) {
 				if (node.completedAt) continue;
 				const due = parseTimeISO(node.name);
 				items.push({
-					source: 'workflowy',
+					source: "workflowy",
 					rootKey,
 					id: node.id,
 					title: stripMarkup(node.name),
 					name: node.name,
 					due,
-					dueSource: due ? 'deadline' : null,
+					dueSource: due ? "deadline" : null,
 					overdueByDays: due ? daysBetween(due, todayISO) : null,
 					needsDate: due === null,
 					group: group ?? String(bucket.name),
@@ -217,8 +217,8 @@ export function fromThings(things, todayISO) {
 	// `due` first so a task carrying a real deadline keeps that framing even when it also sits
 	// in the Today list.
 	const tagged = [
-		...(things.due ?? []).map((task) => ({task, dueSource: 'deadline'})),
-		...(things.today ?? []).map((task) => ({task, dueSource: task.due ? 'deadline' : 'scheduled'})),
+		...(things.due ?? []).map((task) => ({task, dueSource: "deadline"})),
+		...(things.today ?? []).map((task) => ({task, dueSource: task.due ? "deadline" : "scheduled"})),
 	];
 
 	for (const {task, dueSource} of tagged) {
@@ -230,7 +230,7 @@ export function fromThings(things, todayISO) {
 		const activated = task.activationDate && task.activationDate < todayISO ? task.activationDate : todayISO;
 		const due = task.due ?? activated;
 		items.push({
-			source: 'things',
+			source: "things",
 			rootKey: null,
 			id: task.id,
 			title: task.title,
@@ -239,7 +239,7 @@ export function fromThings(things, todayISO) {
 			dueSource,
 			overdueByDays: daysBetween(due, todayISO),
 			needsDate: false,
-			group: task.list ?? 'Things',
+			group: task.list ?? "Things",
 			url: `things:///show?id=${task.id}`,
 			...noteOnlyContext(task.title, task.notes),
 			ops: thingsOps(task.id),
@@ -256,9 +256,9 @@ function remindersOps(title) {
 	const script = (body) =>
 		`osascript -e ${shellSingleQuote(`tell application "Reminders"\nset matches to (${target})\nif (count of matches) > 0 then ${body}\nend tell`)}`;
 	return {
-		complete: script('set completed of (item 1 of matches) to true'),
+		complete: script("set completed of (item 1 of matches) to true"),
 		reschedule: script('set due date of (item 1 of matches) to date "{{date}}"'),
-		drop: script('delete (item 1 of matches)'),
+		drop: script("delete (item 1 of matches)"),
 	};
 }
 
@@ -268,16 +268,16 @@ export function fromReminders(reminders, todayISO) {
 	return [...(reminders.overdue ?? []), ...(reminders.dueToday ?? [])].map((r) => {
 		const due = r.dueDate ? String(r.dueDate).slice(0, 10) : null;
 		return {
-			source: 'reminders',
+			source: "reminders",
 			rootKey: null,
 			id: r.title,
 			title: r.title,
 			name: r.title,
 			due,
-			dueSource: due ? 'deadline' : null,
+			dueSource: due ? "deadline" : null,
 			overdueByDays: due ? daysBetween(due, todayISO) : null,
 			needsDate: false,
-			group: r.list ?? 'Reminders',
+			group: r.list ?? "Reminders",
 			url: null,
 			...noteOnlyContext(r.title, r.notes),
 			ops: remindersOps(r.title),
@@ -290,18 +290,18 @@ export function skipKey(item) {
 	return `${item.source}:${item.id}`;
 }
 
-const titleKey = (row) => stripMarkup(row.title).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+const titleKey = (row) => stripMarkup(row.title).normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 
 export function attachRecurringCounterparts(rows, tree) {
 	const byTitle = new Map();
 	function walk(node, ancestors) {
-		if (node.completedAt || node.mirror?.isMirror || String(node.name).includes('🗃️ Routine Archive')) return;
+		if (node.completedAt || node.mirror?.isMirror || String(node.name).includes("🗃️ Routine Archive")) return;
 		const title = stripMarkup(node.name);
 		const path = [...ancestors, title];
 		const counterpart = {
 			id: node.id,
 			title,
-			path: path.join(' > '),
+			path: path.join(" > "),
 			nextDate: parseTimeISO(node.name),
 			url: workflowyUrl(node.shortId ?? node.id),
 		};
@@ -309,11 +309,11 @@ export function attachRecurringCounterparts(rows, tree) {
 		if (key) byTitle.set(key, [...(byTitle.get(key) ?? []), counterpart]);
 		for (const child of node.children ?? []) walk(child, path);
 	}
-	for (const section of tree.children ?? []) walk(section, ['Personal', '🔄 Review']);
+	for (const section of tree.children ?? []) walk(section, ["Personal", "🔄 Review"]);
 	return rows.map((row) => ({
 		...row,
 		recurringCounterparts: (byTitle.get(titleKey(row)) ?? []).filter(
-			(candidate) => row.source !== 'workflowy' || candidate.id !== row.id,
+			(candidate) => row.source !== "workflowy" || candidate.id !== row.id,
 		),
 	}));
 }
@@ -321,14 +321,14 @@ export function attachRecurringCounterparts(rows, tree) {
 export function groupCrossSourceDuplicates(rows) {
 	const workflowyByTitle = new Map();
 	for (const row of rows) {
-		if (row.source !== 'workflowy') continue;
+		if (row.source !== "workflowy") continue;
 		const key = titleKey(row);
 		workflowyByTitle.set(key, [...(workflowyByTitle.get(key) ?? []), row]);
 	}
 	const copiesBySurvivor = new Map();
 	const groupedCopies = new Set();
 	for (const row of rows) {
-		if (row.source === 'workflowy') continue;
+		if (row.source === "workflowy") continue;
 		const key = titleKey(row);
 		const matches = workflowyByTitle.get(key) ?? [];
 		// A title shared by multiple Workflowy tasks cannot identify a survivor.
@@ -374,7 +374,7 @@ function localTodayISO() {
 }
 
 function readJSON(path) {
-	return path ? JSON.parse(readFileSync(path, 'utf8')) : null;
+	return path ? JSON.parse(readFileSync(path, "utf8")) : null;
 }
 
 function main(argv) {
@@ -385,14 +385,14 @@ function main(argv) {
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
 	let horizonDays = 0;
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === '--today') today = args[++i];
-		else if (args[i] === '--print') print = true;
-		else if (args[i] === '--skip-log') skipLogPath = args[++i];
-		else if (args[i] === '--horizon-days') horizonDays = Number(args[++i]);
-		else if (args[i] === '--workflowy') paths.workflowy = args[++i];
-		else if (args[i] === '--things') paths.things = args[++i];
-		else if (args[i] === '--reminders') paths.reminders = args[++i];
-		else if (args[i] === '--recurring') paths.recurring = args[++i];
+		if (args[i] === "--today") today = args[++i];
+		else if (args[i] === "--print") print = true;
+		else if (args[i] === "--skip-log") skipLogPath = args[++i];
+		else if (args[i] === "--horizon-days") horizonDays = Number(args[++i]);
+		else if (args[i] === "--workflowy") paths.workflowy = args[++i];
+		else if (args[i] === "--things") paths.things = args[++i];
+		else if (args[i] === "--reminders") paths.reminders = args[++i];
+		else if (args[i] === "--recurring") paths.recurring = args[++i];
 	}
 
 	const rows = collectDueItems(
@@ -407,18 +407,18 @@ function main(argv) {
 	);
 
 	if (!print) {
-		process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+		process.stdout.write(JSON.stringify(rows, null, 2) + "\n");
 		return;
 	}
 
 	for (const r of rows) {
 		const lateness = r.overdueByDays < 0 ? `in ${-r.overdueByDays}d` : `overdue ${r.overdueByDays}d`;
-		const when = r.due ? `due ${r.due} (${lateness})` : '⚠️ no date';
-		const streak = r.skipStreak >= 2 ? ` ⏭️ skipped ${r.skipStreak}x` : '';
+		const when = r.due ? `due ${r.due} (${lateness})` : "⚠️ no date";
+		const streak = r.skipStreak >= 2 ? ` ⏭️ skipped ${r.skipStreak}x` : "";
 		process.stdout.write(`  [${r.source}] ${when}${streak} — ${r.title.slice(0, 90)}\n`);
 	}
 	const undated = rows.filter((r) => r.needsDate).length;
-	process.stdout.write(`\nTOTAL DUE: ${rows.length}${undated ? ` (${undated} missing a date)` : ''}\n`);
+	process.stdout.write(`\nTOTAL DUE: ${rows.length}${undated ? ` (${undated} missing a date)` : ""}\n`);
 }
 
 export {buildTimeElement};

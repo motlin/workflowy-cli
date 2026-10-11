@@ -1,5 +1,5 @@
-import type {QueryClient} from '@tanstack/react-query';
-import type {NodeResponse} from '../node-types.js';
+import type {QueryClient} from "@tanstack/react-query";
+import type {NodeResponse} from "../node-types.js";
 
 /**
  * The single source of truth for React Query cache keys under the `nodes`
@@ -9,10 +9,10 @@ import type {NodeResponse} from '../node-types.js';
  * with no type error).
  */
 export const nodeKeys = {
-	all: ['nodes'] as const,
-	children: (parentId: string | null) => [...nodeKeys.all, 'children', parentId] as const,
-	detail: (nodeId: string) => [...nodeKeys.all, 'detail', nodeId] as const,
-	ancestors: (nodeId: string) => [...nodeKeys.all, 'ancestors', nodeId] as const,
+	all: ["nodes"] as const,
+	children: (parentId: string | null) => [...nodeKeys.all, "children", parentId] as const,
+	detail: (nodeId: string) => [...nodeKeys.all, "detail", nodeId] as const,
+	ancestors: (nodeId: string) => [...nodeKeys.all, "ancestors", nodeId] as const,
 };
 
 /** Read a parent's cached children, or undefined if not cached. */

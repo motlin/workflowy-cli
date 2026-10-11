@@ -1,11 +1,11 @@
-import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
-import {NodeReader} from '@workflowy/shared/cache';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import type {Node} from '@workflowy/shared/types';
-import {and, asc, eq, isNotNull} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {logger} from './logger.js';
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import * as schema from "@workflowy/shared/db";
+import {NodeReader} from "@workflowy/shared/cache";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {Node} from "@workflowy/shared/types";
+import {and, asc, eq, isNotNull} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {logger} from "./logger.js";
 
 export class QueryHelpers {
 	private database: BetterSQLite3Database<typeof schema>;
@@ -21,7 +21,7 @@ export class QueryHelpers {
 	 */
 	async getNodeById(id: string): Promise<Node | undefined> {
 		const result = this.nodeReader.getById(id) ?? undefined;
-		logger.logSqlResult('getNodeById', result);
+		logger.logSqlResult("getNodeById", result);
 		return result;
 	}
 
@@ -30,7 +30,7 @@ export class QueryHelpers {
 	 */
 	async getChildren(parentId: string | null): Promise<Node[]> {
 		const results = this.nodeReader.getChildren(parentId);
-		logger.logSqlResult('getChildren', results);
+		logger.logSqlResult("getChildren", results);
 		return results;
 	}
 
@@ -52,7 +52,7 @@ export class QueryHelpers {
 		const results = completedRows
 			.map((row) => nodesById.get(row.id))
 			.filter((node): node is Node => node !== undefined);
-		logger.logSqlResult('getCompletedTasks', results);
+		logger.logSqlResult("getCompletedTasks", results);
 		return results;
 	}
 
@@ -73,7 +73,7 @@ export class QueryHelpers {
 
 		for (const segment of path) {
 			const children = await this.getChildren(currentParentId);
-			logger.logSqlResult('findNodeByPath.children', children);
+			logger.logSqlResult("findNodeByPath.children", children);
 
 			// Using 'includes' because names might contain HTML tags
 			const matchingChild = children.find((child) => child.name && child.name.includes(segment));

@@ -1,10 +1,10 @@
-import * as schema from '../db/schema.js';
-import {nodeContent} from '../db/schema.js';
-import {stripHtmlTags} from '../html/strip-tags.js';
-import {and, inArray} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {currentVersion} from './cache-temporal.js';
-import {withMirrorText} from './mirror-text.js';
+import * as schema from "../db/schema.js";
+import {nodeContent} from "../db/schema.js";
+import {stripHtmlTags} from "../html/strip-tags.js";
+import {and, inArray} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {currentVersion} from "./cache-temporal.js";
+import {withMirrorText} from "./mirror-text.js";
 
 // SQLite 3.32.0+ has SQLITE_MAX_VARIABLE_NUMBER = 32766
 // Use 10000 to stay safely under while minimizing query count
@@ -31,7 +31,7 @@ export class PathBuilder {
 
 	async buildFullPath(nodeId: string): Promise<string> {
 		const paths = await this.buildFullPathsBatch([nodeId]);
-		return paths.get(nodeId) ?? '';
+		return paths.get(nodeId) ?? "";
 	}
 
 	/**
@@ -100,7 +100,7 @@ export class PathBuilder {
 				const info = nodeMap.get(currentId);
 				if (!info) break;
 
-				const name = stripHtmlTags(info.name || '');
+				const name = stripHtmlTags(info.name || "");
 				if (name) {
 					pathParts.unshift(name);
 				}
@@ -121,14 +121,14 @@ export class PathBuilder {
 		const partsMap = await this.buildFullPathPartsBatch(nodeIds);
 		const pathMap = new Map<string, string>();
 		for (const [id, parts] of partsMap) {
-			pathMap.set(id, parts.join(' > '));
+			pathMap.set(id, parts.join(" > "));
 		}
 		return pathMap;
 	}
 
 	async buildTextContent(nodeId: string): Promise<string> {
 		const contents = await this.buildTextContentBatch([nodeId]);
-		return contents.get(nodeId) ?? '';
+		return contents.get(nodeId) ?? "";
 	}
 
 	/**
@@ -158,8 +158,8 @@ export class PathBuilder {
 			);
 
 			for (const node of results) {
-				const name = stripHtmlTags(node.name || '');
-				const note = node.note ? stripHtmlTags(node.note) : '';
+				const name = stripHtmlTags(node.name || "");
+				const note = node.note ? stripHtmlTags(node.note) : "";
 				contentMap.set(node.id, note ? `${name}\n\n${note}` : name);
 			}
 		}
@@ -232,8 +232,8 @@ export class PathBuilder {
 			for (const row of results) {
 				if (!row.parentId) continue;
 
-				const name = stripHtmlTags(row.name || '');
-				const note = row.note ? stripHtmlTags(row.note) : '';
+				const name = stripHtmlTags(row.name || "");
+				const note = row.note ? stripHtmlTags(row.note) : "";
 				const childText = note ? `${name}: ${note}` : name;
 
 				if (!childrenMap.has(row.parentId)) {
@@ -246,7 +246,7 @@ export class PathBuilder {
 		// Convert array of children texts to combined string
 		const contentMap = new Map<string, string>();
 		for (const [parentId, childTexts] of childrenMap) {
-			contentMap.set(parentId, childTexts.join('\n'));
+			contentMap.set(parentId, childTexts.join("\n"));
 		}
 
 		return contentMap;

@@ -20,7 +20,7 @@
 // With --pid, prints this session's helper pid (or `none`) instead, so the
 // restart recipe kills only that helper.
 
-import {execSync} from 'node:child_process';
+import {execSync} from "node:child_process";
 
 // ~1 day, mirrored in overview.md
 export const STALE_THRESHOLD_SECONDS = 86400;
@@ -58,12 +58,12 @@ export function ageSeconds(lstart, nowEpochSeconds) {
 	return start === null ? null : nowEpochSeconds - start;
 }
 
-const HELPER_COMMAND = 'iMCP.app/Contents/MacOS/imcp-server';
+const HELPER_COMMAND = "iMCP.app/Contents/MacOS/imcp-server";
 
 // Parse `ps -A -o pid=,ppid=,command=` output.
 export function parsePsTable(output) {
 	const processes = [];
-	for (const line of String(output).split('\n')) {
+	for (const line of String(output).split("\n")) {
 		const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
 		if (m) processes.push({pid: +m[1], ppid: +m[2], command: m[3].trim()});
 	}
@@ -85,27 +85,27 @@ export function findSessionHelperPid(processes, startPid) {
 }
 
 function main() {
-	const processes = parsePsTable(execSync('ps -A -o pid=,ppid=,command=', {encoding: 'utf8'}));
+	const processes = parsePsTable(execSync("ps -A -o pid=,ppid=,command=", {encoding: "utf8"}));
 	const pid = findSessionHelperPid(processes, process.pid);
-	if (process.argv.includes('--pid')) {
-		process.stdout.write(`${pid ?? 'none'}\n`);
+	if (process.argv.includes("--pid")) {
+		process.stdout.write(`${pid ?? "none"}\n`);
 		return;
 	}
 	if (pid === null) {
-		process.stdout.write('none\n');
+		process.stdout.write("none\n");
 		return;
 	}
 
-	let lstart = '';
+	let lstart = "";
 	try {
-		lstart = execSync(`ps -o lstart= -p ${pid}`, {encoding: 'utf8'}).trim();
+		lstart = execSync(`ps -o lstart= -p ${pid}`, {encoding: "utf8"}).trim();
 	} catch {
-		process.stdout.write('unknown\n');
+		process.stdout.write("unknown\n");
 		return;
 	}
 
 	const age = ageSeconds(lstart, Math.floor(Date.now() / 1000));
-	process.stdout.write(age === null ? 'unknown\n' : `${age}\n`);
+	process.stdout.write(age === null ? "unknown\n" : `${age}\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

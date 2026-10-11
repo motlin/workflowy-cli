@@ -242,21 +242,21 @@ TODAY=$(date +%Y-%m-%d)
 
 The following scanner agents are available. Launch each like `otter-scanner` above, pointing at its prompt file under `${CLAUDE_PLUGIN_ROOT}/`.
 
-| Scanner prompt | Source | Status | Typical Items |
-| --- | --- | --- | --- |
-| `prompts/capture/scanners/legacy/otter-scanner.md` | Otter.ai | **Active** | Transcripts needing review |
-| `prompts/capture/scanners/discord-scanner.md` | Discord channel (read-only bot) | **Active** | Bug reports posted in the channel |
-| `prompts/capture/scanners/chrome-scanner.md` | Chrome tabs & history | Disabled | Open tabs, high-engagement pages |
-| `prompts/capture/scanners/git-scanner.md` | Local Git repos | Disabled | Uncommitted changes, stale branches |
-| `prompts/capture/scanners/github-scanner.md` | GitHub API | Disabled | PRs authored, review requests |
-| `prompts/capture/scanners/gmail-scanner.md` | Gmail | Disabled | Starred, action-required, drafts |
-| `prompts/capture/scanners/imessage-scanner.md` | iMessage | Disabled | Conversations with pending actions |
-| `prompts/capture/scanners/things3-scanner.md` | Things 3 app | Disabled | Inbox items, today tasks |
-| `prompts/capture/scanners/reminders-scanner.md` | Apple Reminders | Disabled | Incomplete reminders |
-| `prompts/capture/scanners/calendar-scanner.md` | Apple Calendar | Disabled | Past events, upcoming prep |
-| `prompts/capture/scanners/tvtime-scanner.md` | TV Time app | Disabled | Shows with new episodes |
-| `prompts/capture/scanners/photos-scanner.md` | Apple Photos | Disabled | Actionable screenshots |
-| `prompts/capture/scanners/workflowy-overdue-scanner.md` | Workflowy calendar | Disabled | Overdue items |
+| Scanner prompt                                          | Source                          | Status     | Typical Items                       |
+| ------------------------------------------------------- | ------------------------------- | ---------- | ----------------------------------- |
+| `prompts/capture/scanners/legacy/otter-scanner.md`      | Otter.ai                        | **Active** | Transcripts needing review          |
+| `prompts/capture/scanners/discord-scanner.md`           | Discord channel (read-only bot) | **Active** | Bug reports posted in the channel   |
+| `prompts/capture/scanners/chrome-scanner.md`            | Chrome tabs & history           | Disabled   | Open tabs, high-engagement pages    |
+| `prompts/capture/scanners/git-scanner.md`               | Local Git repos                 | Disabled   | Uncommitted changes, stale branches |
+| `prompts/capture/scanners/github-scanner.md`            | GitHub API                      | Disabled   | PRs authored, review requests       |
+| `prompts/capture/scanners/gmail-scanner.md`             | Gmail                           | Disabled   | Starred, action-required, drafts    |
+| `prompts/capture/scanners/imessage-scanner.md`          | iMessage                        | Disabled   | Conversations with pending actions  |
+| `prompts/capture/scanners/things3-scanner.md`           | Things 3 app                    | Disabled   | Inbox items, today tasks            |
+| `prompts/capture/scanners/reminders-scanner.md`         | Apple Reminders                 | Disabled   | Incomplete reminders                |
+| `prompts/capture/scanners/calendar-scanner.md`          | Apple Calendar                  | Disabled   | Past events, upcoming prep          |
+| `prompts/capture/scanners/tvtime-scanner.md`            | TV Time app                     | Disabled   | Shows with new episodes             |
+| `prompts/capture/scanners/photos-scanner.md`            | Apple Photos                    | Disabled   | Actionable screenshots              |
+| `prompts/capture/scanners/workflowy-overdue-scanner.md` | Workflowy calendar              | Disabled   | Overdue items                       |
 
 ## Error Handling
 

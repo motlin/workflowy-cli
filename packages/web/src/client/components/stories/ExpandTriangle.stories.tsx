@@ -1,19 +1,19 @@
-import type {Meta, StoryObj} from '@storybook/react-vite';
-import {fn} from 'storybook/test';
+import type {Meta, StoryObj} from "@storybook/react-vite";
+import {fn} from "storybook/test";
 
-import {ExpandTriangle} from './primitives.js';
+import {ExpandTriangle} from "./primitives.js";
 
 const meta: Meta<typeof ExpandTriangle> = {
-	title: 'Primitives/ExpandTriangle',
+	title: "Primitives/ExpandTriangle",
 	component: ExpandTriangle,
 	parameters: {
-		layout: 'centered',
+		layout: "centered",
 	},
-	tags: ['autodocs'],
+	tags: ["autodocs"],
 	argTypes: {
 		isExpanded: {
-			control: 'boolean',
-			description: 'Whether the node is expanded (triangle points down)',
+			control: "boolean",
+			description: "Whether the node is expanded (triangle points down)",
 		},
 	},
 	args: {

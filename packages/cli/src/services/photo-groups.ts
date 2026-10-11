@@ -36,7 +36,7 @@ export interface PhotoGroupMember {
 
 export interface PhotoGroup {
 	/** `wrapped` photos sit inside a blank node; `loose` ones hang off the entry. */
-	kind: 'wrapped' | 'loose';
+	kind: "wrapped" | "loose";
 	/** The calendar entry the photos should end up under. */
 	entryId: string;
 	/** The blank wrapper to delete once emptied, or null for loose groups. */
@@ -46,7 +46,7 @@ export interface PhotoGroup {
 }
 
 export interface PhotoGroupPlan {
-	decision: 'reverse' | 'already-ordered' | 'unverifiable';
+	decision: "reverse" | "already-ordered" | "unverifiable";
 	reason: string;
 	/** Members in the order they should appear once fixed. */
 	orderedIds: string[];
@@ -75,7 +75,7 @@ export function parseImageSequence(fileName: string | null): number | null {
 }
 
 function isBlank(value: string | null): boolean {
-	return (value ?? '').trim() === '';
+	return (value ?? "").trim() === "";
 }
 
 /**
@@ -98,7 +98,7 @@ function toMember(row: CachedNodeRow): PhotoGroupMember {
 
 /** Groups need at least one confirmed image; blank leaves alone prove nothing. */
 function hasImageEvidence(members: PhotoGroupMember[]): boolean {
-	return members.some((member) => member.fileType?.startsWith('image/') ?? false);
+	return members.some((member) => member.fileType?.startsWith("image/") ?? false);
 }
 
 function byPriority(a: {priority: number}, b: {priority: number}): number {
@@ -136,7 +136,7 @@ function collectCandidateGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 
 		if (isWrapper) {
 			groups.push({
-				kind: 'wrapped',
+				kind: "wrapped",
 				entryId: row.parentId as string,
 				wrapperId: row.id,
 				members: children.map((child) => toMember(child)),
@@ -154,7 +154,7 @@ function collectCandidateGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 			}
 			if (run.length >= MINIMUM_GROUP_SIZE) {
 				groups.push({
-					kind: 'loose',
+					kind: "loose",
 					entryId: row.id,
 					wrapperId: null,
 					members: run.map((member) => toMember(member)),
@@ -201,7 +201,7 @@ export function countGroupsWithoutEvidence(rows: CachedNodeRow[]): number {
 export function describeStaleAttachmentData(newestRow: string | null, newestBackup: Date | null): string | null {
 	if (newestRow === null || newestBackup === null) return null;
 
-	const importedThrough = Date.parse(`${newestRow.replace(' ', 'T')}Z`);
+	const importedThrough = Date.parse(`${newestRow.replace(" ", "T")}Z`);
 	if (Number.isNaN(importedThrough) || newestBackup.getTime() <= importedThrough) return null;
 
 	return (
@@ -222,7 +222,7 @@ export function planPhotoGroup(group: PhotoGroup): PhotoGroupPlan {
 		timestamps.length === members.length &&
 		Math.max(...timestamps) - Math.min(...timestamps) > PASTE_WINDOW_SECONDS
 	) {
-		return {decision: 'unverifiable', reason: 'photos were added at different times', orderedIds: currentIds};
+		return {decision: "unverifiable", reason: "photos were added at different times", orderedIds: currentIds};
 	}
 
 	const sequences = members.map((member) => parseImageSequence(member.fileName));
@@ -230,24 +230,24 @@ export function planPhotoGroup(group: PhotoGroup): PhotoGroupPlan {
 		const numbers = sequences as number[];
 		const descending = numbers.every((value, index) => index === 0 || numbers[index - 1] > value);
 		if (descending) {
-			return {decision: 'reverse', reason: 'filenames descend', orderedIds: reversedIds};
+			return {decision: "reverse", reason: "filenames descend", orderedIds: reversedIds};
 		}
 
 		const ascending = numbers.every((value, index) => index === 0 || numbers[index - 1] < value);
 		if (ascending) {
-			return {decision: 'already-ordered', reason: 'filenames ascend', orderedIds: currentIds};
+			return {decision: "already-ordered", reason: "filenames ascend", orderedIds: currentIds};
 		}
 
-		return {decision: 'unverifiable', reason: 'filenames are not monotonic', orderedIds: currentIds};
+		return {decision: "unverifiable", reason: "filenames are not monotonic", orderedIds: currentIds};
 	}
 
-	if (group.kind === 'wrapped') {
+	if (group.kind === "wrapped") {
 		return {
-			decision: 'reverse',
-			reason: 'wrapped group, assuming a single reversed paste',
+			decision: "reverse",
+			reason: "wrapped group, assuming a single reversed paste",
 			orderedIds: reversedIds,
 		};
 	}
 
-	return {decision: 'unverifiable', reason: 'loose group without filename evidence', orderedIds: currentIds};
+	return {decision: "unverifiable", reason: "loose group without filename evidence", orderedIds: currentIds};
 }

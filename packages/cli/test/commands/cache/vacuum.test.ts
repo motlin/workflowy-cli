@@ -1,22 +1,22 @@
-import {nodeContent} from '@workflowy/shared/db';
-import type {NewNodeContent} from '@workflowy/shared/db';
-import {captureOutput} from '@oclif/test';
-import {sql} from 'drizzle-orm';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import Vacuum from '../../../src/commands/cache/vacuum.js';
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from '../../db/migration-helper.js';
+import {nodeContent} from "@workflowy/shared/db";
+import type {NewNodeContent} from "@workflowy/shared/db";
+import {captureOutput} from "@oclif/test";
+import {sql} from "drizzle-orm";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import Vacuum from "../../../src/commands/cache/vacuum.js";
+import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../../db/migration-helper.js";
 
-describe('cache:vacuum command', () => {
+describe("cache:vacuum command", () => {
 	let tempDir: string;
 	let testDbPath: string;
 	let testDatabase: TestDatabase;
 	let originalDbPath: string | undefined;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-vacuum-test-'));
-		testDbPath = path.join(tempDir, 'test.sqlite');
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-vacuum-test-"));
+		testDbPath = path.join(tempDir, "test.sqlite");
 		testDatabase = createTestDatabase(testDbPath);
 
 		originalDbPath = process.env.WORKFLOWY_DB_PATH;
@@ -37,28 +37,28 @@ describe('cache:vacuum command', () => {
 		}
 	});
 
-	it('reports a low freelist count after vacuuming a database with dead pages', async () => {
+	it("reports a low freelist count after vacuuming a database with dead pages", async () => {
 		const rows: NewNodeContent[] = [];
 		for (let index = 0; index < 2000; index++) {
 			rows.push({
 				id: `node-${index}`,
 				name: `Node ${index} `.repeat(50),
-				note: 'x'.repeat(2000),
+				note: "x".repeat(2000),
 				parentId: null,
-				systemFrom: '2024-01-01 00:00:00',
-				systemTo: '9999-12-31 23:59:59',
+				systemFrom: "2024-01-01 00:00:00",
+				systemTo: "9999-12-31 23:59:59",
 			});
 		}
 		testDatabase.db.insert(nodeContent).values(rows).run();
 
-		testDatabase.sqlite.exec('PRAGMA foreign_keys = OFF');
+		testDatabase.sqlite.exec("PRAGMA foreign_keys = OFF");
 		testDatabase.db.delete(nodeContent).run();
-		testDatabase.sqlite.exec('PRAGMA foreign_keys = ON');
+		testDatabase.sqlite.exec("PRAGMA foreign_keys = ON");
 
-		const freelistBeforeRow = testDatabase.db.get<{freelist_count: number}>(sql.raw('PRAGMA freelist_count'));
+		const freelistBeforeRow = testDatabase.db.get<{freelist_count: number}>(sql.raw("PRAGMA freelist_count"));
 		expect(freelistBeforeRow).toStrictEqual({freelist_count: 2076});
 
-		const result = await Vacuum.run(['--json']);
+		const result = await Vacuum.run(["--json"]);
 
 		expect(result).toStrictEqual({
 			path: testDbPath,
@@ -68,19 +68,19 @@ describe('cache:vacuum command', () => {
 			freelistAfter: 0,
 		});
 
-		const freelistAfterRow = testDatabase.db.get<{freelist_count: number}>(sql.raw('PRAGMA freelist_count'));
+		const freelistAfterRow = testDatabase.db.get<{freelist_count: number}>(sql.raw("PRAGMA freelist_count"));
 		expect(freelistAfterRow).toStrictEqual({freelist_count: 0});
 	});
 
-	it('prints a human-readable summary without --json', async () => {
+	it("prints a human-readable summary without --json", async () => {
 		const {stdout, result} = await captureOutput<VacuumRunResult>(async () => {
 			return Vacuum.run([]);
 		});
 
 		expect(stdout).toBe(
-			'🧹 Vacuuming cache database...\n  File: ' +
+			"🧹 Vacuuming cache database...\n  File: " +
 				testDbPath +
-				'\n  Size before: 276.00 KB\n  Size after:  240.00 KB\n  Reclaimed:   36.00 KB\n  Freelist pages: 9 → 0\n',
+				"\n  Size before: 276.00 KB\n  Size after:  240.00 KB\n  Reclaimed:   36.00 KB\n  Freelist pages: 9 → 0\n",
 		);
 		expect(result).toStrictEqual({
 			path: testDbPath,

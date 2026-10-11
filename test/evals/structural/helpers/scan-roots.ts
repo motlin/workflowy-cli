@@ -7,14 +7,14 @@
  * - Project-local: `.claude/{commands,agents,skills}`
  */
 
-import {execFileSync} from 'node:child_process';
-import {existsSync, readdirSync} from 'node:fs';
-import {join, resolve} from 'node:path';
+import {execFileSync} from "node:child_process";
+import {existsSync, readdirSync} from "node:fs";
+import {join, resolve} from "node:path";
 
-export const PROJECT_ROOT = resolve(import.meta.dirname, '../../../..');
-export const PLUGINS_DIR = join(PROJECT_ROOT, 'plugins');
+export const PROJECT_ROOT = resolve(import.meta.dirname, "../../../..");
+export const PLUGINS_DIR = join(PROJECT_ROOT, "plugins");
 
-export type ComponentKind = 'commands' | 'agents' | 'prompts' | 'skills';
+export type ComponentKind = "commands" | "agents" | "prompts" | "skills";
 
 /**
  * Paths of every git-tracked file under a root, relative to PROJECT_ROOT.
@@ -23,11 +23,11 @@ export type ComponentKind = 'commands' | 'agents' | 'prompts' | 'skills';
  * (`.claude/settings.local.json`, `.llm/`) stays exempt by design.
  */
 export function trackedFiles(root: string): string[] {
-	const output = execFileSync('git', ['ls-files', '-z', '--', root], {
+	const output = execFileSync("git", ["ls-files", "-z", "--", root], {
 		cwd: PROJECT_ROOT,
-		encoding: 'utf8',
+		encoding: "utf8",
 	});
-	return output.split('\0').filter(Boolean);
+	return output.split("\0").filter(Boolean);
 }
 
 /**
@@ -40,7 +40,7 @@ export function collectMarkdownFiles(dir: string): string[] {
 		const fullPath = join(dir, entry.name);
 		if (entry.isDirectory()) {
 			results.push(...collectMarkdownFiles(fullPath));
-		} else if (entry.isFile() && entry.name.endsWith('.md')) {
+		} else if (entry.isFile() && entry.name.endsWith(".md")) {
 			results.push(fullPath);
 		}
 	}
@@ -62,7 +62,7 @@ export function listPlugins(): string[] {
  * the project-local .claude tree.
  */
 function componentDirs(kind: ComponentKind): string[] {
-	return [...listPlugins().map((plugin) => join(PLUGINS_DIR, plugin, kind)), join(PROJECT_ROOT, '.claude', kind)];
+	return [...listPlugins().map((plugin) => join(PLUGINS_DIR, plugin, kind)), join(PROJECT_ROOT, ".claude", kind)];
 }
 
 /**

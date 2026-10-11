@@ -68,24 +68,24 @@ A prep command for an interactive task writes `.llm/gtd/review/proposals/<slug>.
 
 ### Top-level fields
 
-| Field | Meaning |
-| --- | --- |
-| `task` | Task slug inferred from the prep command. Matches the filename. |
-| `generatedAt` | ISO-8601 timestamp with offset. Used for idempotency / staleness checks. |
-| `status` | `ready` \| `needs-interactive` \| `empty` \| `error` (see below). |
-| `presentation` | Human label the walk shows while presenting this task. |
-| `summary` | Free-form object of counts the walk folds into the final summary. |
-| `proposals` | Ordered array of per-item proposals (empty unless `status: "ready"`). |
+| Field          | Meaning                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `task`         | Task slug inferred from the prep command. Matches the filename.                                                      |
+| `generatedAt`  | ISO-8601 timestamp with offset. Used for idempotency / staleness checks.                                             |
+| `status`       | `ready` \| `needs-interactive` \| `empty` \| `error` (see below).                                                    |
+| `presentation` | Human label the walk shows while presenting this task.                                                               |
+| `summary`      | Free-form object of counts the walk folds into the final summary.                                                    |
+| `proposals`    | Ordered array of per-item proposals (empty unless `status: "ready"`).                                                |
 | `scannerState` | Optional, top-level (not per-proposal). State a self-tracking scanner persists on apply (see Advance Scanner-State). |
 
 ### `status` values
 
-| Status | Meaning | Walk behavior |
-| --- | --- | --- |
-| `ready` | Prep computed proposals; `proposals[]` is populated. | Present them (batched). |
+| Status              | Meaning                                                        | Walk behavior                                                                  |
+| ------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `ready`             | Prep computed proposals; `proposals[]` is populated.           | Present them (batched).                                                        |
 | `needs-interactive` | Task has no separable autonomous phase (graceful degradation). | Run the task **inline** at its presentation slot, as a fully interactive task. |
-| `empty` | Nothing to do (e.g. month already refined; idempotent re-run). | Skip silently; note in summary. |
-| `error` | Prep failed. | Surface the error; offer to run inline. |
+| `empty`             | Nothing to do (e.g. month already refined; idempotent re-run). | Skip silently; note in summary.                                                |
+| `error`             | Prep failed.                                                   | Surface the error; offer to run inline.                                        |
 
 ### Per-proposal fields
 

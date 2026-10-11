@@ -13,9 +13,9 @@
  * temporal merge-list pattern anymore.
  */
 
-import {eq} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import * as schema from '../db/schema.js';
+import {eq} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import * as schema from "../db/schema.js";
 import {
 	type AiMetadata,
 	aiMetadata,
@@ -33,9 +33,9 @@ import {
 	referencesRoots,
 	type S3File,
 	s3Files,
-} from '../db/schema.js';
-import {FAR_FUTURE_DATE} from '../temporal/index.js';
-import {contentMatches, metadataMatches} from './cache-temporal.js';
+} from "../db/schema.js";
+import {FAR_FUTURE_DATE} from "../temporal/index.js";
+import {contentMatches, metadataMatches} from "./cache-temporal.js";
 import type {
 	NormalizedAiMetadataRow,
 	NormalizedCalendarLevelsRow,
@@ -45,8 +45,8 @@ import type {
 	NormalizedNodeMetadataRow,
 	NormalizedReferencesRootsRow,
 	NormalizedS3FileRow,
-} from './normalized-rows.js';
-import {temporalMerge, type TemporalMergeResult, type TemporalTransaction} from './temporal-merge.js';
+} from "./normalized-rows.js";
+import {temporalMerge, type TemporalMergeResult, type TemporalTransaction} from "./temporal-merge.js";
 
 /**
  * The desired current state of every node-keyed temporal table, as produced by

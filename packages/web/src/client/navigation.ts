@@ -1,4 +1,4 @@
-import {useNavigate} from 'react-router-dom';
+import {useNavigate} from "react-router-dom";
 
 /**
  * The client route for a node view.
@@ -18,8 +18,8 @@ export function useNodeNavigation() {
 
 	return {
 		navigateToNode: (nodeId: string | null) => {
-			void navigate(nodeId === null ? '/' : nodeRoute(nodeId));
+			void navigate(nodeId === null ? "/" : nodeRoute(nodeId));
 		},
-		navigateToRoot: () => void navigate('/'),
+		navigateToRoot: () => void navigate("/"),
 	};
 }

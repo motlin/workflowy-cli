@@ -1,7 +1,7 @@
-import type {QueryClient} from '@tanstack/react-query';
-import type {NodeResponse} from '../node-types.js';
-import {readChildren, readDetail} from './node-cache.js';
-import {insertAfterPriority, insertBeforePriority, sortByPriority} from './tree-position.js';
+import type {QueryClient} from "@tanstack/react-query";
+import type {NodeResponse} from "../node-types.js";
+import {readChildren, readDetail} from "./node-cache.js";
+import {insertAfterPriority, insertBeforePriority, sortByPriority} from "./tree-position.js";
 
 /**
  * Tree-mutation planning: given the React Query cache and a node, compute the
@@ -29,23 +29,23 @@ export interface MoveNodePayload {
 }
 
 /** The minimal node fields the planners read. */
-type PlanNode = Pick<NodeResponse, 'id' | 'parent_id' | 'priority'>;
+type PlanNode = Pick<NodeResponse, "id" | "parent_id" | "priority">;
 
 /** Create an empty sibling positioned immediately after `node` (Enter / new-sibling). */
 export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode): CreateNodePayload {
 	const siblings = readChildren(queryClient, node.parent_id);
 	const position = insertAfterPriority(siblings ? sortByPriority(siblings) : [], node.id, node.priority);
-	return {parent_id: node.parent_id ?? undefined, name: '', position};
+	return {parent_id: node.parent_id ?? undefined, name: "", position};
 }
 
 /** Duplicate `node`'s name/note as a sibling positioned immediately after it. */
 export function planDuplicate(
 	queryClient: QueryClient,
-	node: PlanNode & Pick<NodeResponse, 'name' | 'note'>,
+	node: PlanNode & Pick<NodeResponse, "name" | "note">,
 ): CreateNodePayload {
 	const siblings = readChildren(queryClient, node.parent_id);
 	const position = insertAfterPriority(siblings ? sortByPriority(siblings) : [], node.id, node.priority);
-	return {parent_id: node.parent_id ?? undefined, name: node.name ?? '', note: node.note ?? undefined, position};
+	return {parent_id: node.parent_id ?? undefined, name: node.name ?? "", note: node.note ?? undefined, position};
 }
 
 /** Indent `node` under its previous sibling, or null if it has no previous sibling. */
@@ -105,7 +105,7 @@ export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNode
  */
 export function nextSelectionAfterDelete(
 	visibleNodes: string[],
-	node: Pick<NodeResponse, 'id' | 'parent_id'>,
+	node: Pick<NodeResponse, "id" | "parent_id">,
 ): string | null {
 	const index = visibleNodes.indexOf(node.id);
 	if (index > 0) return visibleNodes[index - 1];

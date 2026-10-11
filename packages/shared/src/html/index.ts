@@ -1,1 +1,1 @@
-export {stripHtmlTags} from './strip-tags.js';
+export {stripHtmlTags} from "./strip-tags.js";

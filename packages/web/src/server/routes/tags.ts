@@ -1,8 +1,8 @@
-import {Hono} from 'hono';
-import {tags} from '@workflowy/shared/db';
-import {eq} from 'drizzle-orm';
-import {getDatabase} from '../db.js';
-import {TAG_COLORS} from '../../tag-colors.js';
+import {Hono} from "hono";
+import {tags} from "@workflowy/shared/db";
+import {eq} from "drizzle-orm";
+import {getDatabase} from "../db.js";
+import {TAG_COLORS} from "../../tag-colors.js";
 
 export const tagsRouter = new Hono();
 
@@ -14,7 +14,7 @@ interface TagColorBody {
 }
 
 // GET /api/v1/tags - all tag color assignments as {name: color}
-tagsRouter.get('/', (c) => {
+tagsRouter.get("/", (c) => {
 	const database = getDatabase();
 	const rows = database.select({name: tags.name, color: tags.color}).from(tags).all();
 	const colors: Record<string, string> = {};
@@ -25,13 +25,13 @@ tagsRouter.get('/', (c) => {
 });
 
 // PUT /api/v1/tags/:name - set the color for a tag (upsert)
-tagsRouter.put('/:name', async (c) => {
-	const name = c.req.param('name');
+tagsRouter.put("/:name", async (c) => {
+	const name = c.req.param("name");
 	const body = (await c.req.json()) as TagColorBody;
 	const color = body.color;
 
 	if (!color || !VALID_COLORS.has(color)) {
-		return c.json({error: `Invalid color: ${color ?? '(missing)'}`}, 400);
+		return c.json({error: `Invalid color: ${color ?? "(missing)"}`}, 400);
 	}
 
 	const database = getDatabase();
@@ -46,8 +46,8 @@ tagsRouter.put('/:name', async (c) => {
 });
 
 // DELETE /api/v1/tags/:name - clear the color for a tag
-tagsRouter.delete('/:name', (c) => {
-	const name = c.req.param('name');
+tagsRouter.delete("/:name", (c) => {
+	const name = c.req.param("name");
 	const database = getDatabase();
 	database.delete(tags).where(eq(tags.name, name)).run();
 	return c.json({name});

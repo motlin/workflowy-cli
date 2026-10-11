@@ -1,12 +1,12 @@
-import {backupImports, nodeContent, nodeMetadata} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {and, count, desc, eq, isNotNull, isNull} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
-import {formatBytes} from './cache-vacuum.js';
-import {logger} from './logger.js';
+import {backupImports, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import * as schema from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {and, count, desc, eq, isNotNull, isNull} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
+import {formatBytes} from "./cache-vacuum.js";
+import {logger} from "./logger.js";
 
 export type CacheStatus = {
 	nodes: {
@@ -36,7 +36,7 @@ export class CacheStatusService {
 			this.getLastImportDate(),
 		]);
 
-		const dbPath = path.resolve(process.env.WORKFLOWY_DB_PATH || 'workflowy.sqlite');
+		const dbPath = path.resolve(process.env.WORKFLOWY_DB_PATH || "workflowy.sqlite");
 		const dbSize = this.getDatabaseSize(dbPath);
 
 		return {
@@ -56,7 +56,7 @@ export class CacheStatusService {
 			.from(nodeContent)
 			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 			.get();
-		logger.logSqlResult('getNodeStats.total', totalNodesResult);
+		logger.logSqlResult("getNodeStats.total", totalNodesResult);
 		const totalNodes = totalNodesResult?.count || 0;
 
 		const completedNodesResult = this.database
@@ -64,7 +64,7 @@ export class CacheStatusService {
 			.from(nodeMetadata)
 			.where(and(isNotNull(nodeMetadata.completedAt), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
 			.get();
-		logger.logSqlResult('getNodeStats.completed', completedNodesResult);
+		logger.logSqlResult("getNodeStats.completed", completedNodesResult);
 		const completedNodes = completedNodesResult?.count || 0;
 
 		const rootNodesResult = this.database
@@ -72,7 +72,7 @@ export class CacheStatusService {
 			.from(nodeContent)
 			.where(and(isNull(nodeContent.parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 			.get();
-		logger.logSqlResult('getNodeStats.root', rootNodesResult);
+		logger.logSqlResult("getNodeStats.root", rootNodesResult);
 		const rootNodes = rootNodesResult?.count || 0;
 
 		return {
@@ -90,18 +90,18 @@ export class CacheStatusService {
 			.orderBy(desc(nodeContent.systemFrom))
 			.limit(1)
 			.get();
-		logger.logSqlResult('getLastSync', result);
+		logger.logSqlResult("getLastSync", result);
 
 		if (!result) {
 			return null;
 		}
 
-		return new Date(result.systemFrom.replace(' ', 'T') + 'Z');
+		return new Date(result.systemFrom.replace(" ", "T") + "Z");
 	}
 
 	private getDatabaseSize(dbPath: string): string {
 		if (!fs.existsSync(dbPath)) {
-			return '0 KB';
+			return "0 KB";
 		}
 
 		return formatBytes(fs.statSync(dbPath).size);
@@ -115,7 +115,7 @@ export class CacheStatusService {
 			.orderBy(desc(backupImports.backupDate))
 			.limit(1)
 			.get();
-		logger.logSqlResult('getLastImportDate', lastImport);
+		logger.logSqlResult("getLastImportDate", lastImport);
 
 		return lastImport?.backupDate ?? null;
 	}

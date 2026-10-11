@@ -9,9 +9,9 @@
  * socket) sees it immediately.
  */
 
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import type {LadderEvent} from '../../server/ladder-events.js';
-import {type LadderItem, type LadderTier, tierLabel} from '../../server/ladder-model.js';
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import type {LadderEvent} from "../../server/ladder-events.js";
+import {type LadderItem, type LadderTier, tierLabel} from "../../server/ladder-model.js";
 import {
 	type Ladders,
 	applyLadderEvent,
@@ -22,14 +22,14 @@ import {
 	selectLadderRange,
 	stepBeforeId,
 	tierOf,
-} from '../ladder-state.js';
-import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from '../pointer-drag.js';
-import {LadderTree} from './ladder-tree.js';
-import '../ladder.css';
+} from "../ladder-state.js";
+import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from "../pointer-drag.js";
+import {LadderTree} from "./ladder-tree.js";
+import "../ladder.css";
 
-const VERDICT: Record<LadderTier['state'], (tier: LadderTier) => string> = {
+const VERDICT: Record<LadderTier["state"], (tier: LadderTier) => string> = {
 	room: (tier) => `room for ${tier.capacity - tier.items.length}`,
-	exact: () => 'at cap',
+	exact: () => "at cap",
 	over: (tier) => `over by ${tier.items.length - tier.capacity}`,
 };
 
@@ -61,7 +61,7 @@ class WriteRejected extends Error {}
 
 export function LadderView() {
 	const [ladders, setLadders] = useState<Ladders>();
-	const [root, setRoot] = useState('personal');
+	const [root, setRoot] = useState("personal");
 	const [error, setError] = useState<string>();
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [live, setLive] = useState(false);
@@ -95,7 +95,7 @@ export function LadderView() {
 	useEffect(() => {
 		void (async () => {
 			try {
-				const response = await fetch('/api/v1/ladder');
+				const response = await fetch("/api/v1/ladder");
 				if (!response.ok) {
 					throw new Error(`ladder request failed: ${response.status}`);
 				}
@@ -109,11 +109,11 @@ export function LadderView() {
 
 	// Every write, from this tab or any other, arrives here as one frame.
 	useEffect(() => {
-		const protocol = globalThis.location.protocol === 'https:' ? 'wss' : 'ws';
+		const protocol = globalThis.location.protocol === "https:" ? "wss" : "ws";
 		const socket = new WebSocket(`${protocol}://${globalThis.location.host}/api/v1/ladder/events`);
-		socket.addEventListener('open', () => setLive(true));
-		socket.addEventListener('close', () => setLive(false));
-		socket.addEventListener('message', (message: MessageEvent<string>) => {
+		socket.addEventListener("open", () => setLive(true));
+		socket.addEventListener("close", () => setLive(false));
+		socket.addEventListener("message", (message: MessageEvent<string>) => {
 			const event = JSON.parse(message.data) as LadderEvent;
 			receivedWrites.current.set(event.nodeId, event);
 			updateLadders((current) => applyLadderEvent(current, event));
@@ -124,7 +124,7 @@ export function LadderView() {
 	/** Replace the page with the server's ladder; false when even that fails. */
 	const reread = useCallback(async () => {
 		try {
-			const refreshed = await fetch('/api/v1/ladder');
+			const refreshed = await fetch("/api/v1/ladder");
 			if (refreshed.ok) {
 				const body = (await refreshed.json()) as {ladders: Ladders};
 				updateLadders(() => body.ladders);
@@ -134,7 +134,7 @@ export function LadderView() {
 			// Fall through to the reload banner.
 		}
 		setNeedsReload(true);
-		setError('Could not refresh after the failed move. Reload before moving more rows.');
+		setError("Could not refresh after the failed move. Reload before moving more rows.");
 		return false;
 	}, [updateLadders]);
 
@@ -154,14 +154,14 @@ export function LadderView() {
 			updateLadders(optimistic);
 			try {
 				const response = await fetch(path, {
-					method: 'POST',
-					headers: {'content-type': 'application/json'},
+					method: "POST",
+					headers: {"content-type": "application/json"},
 					body: JSON.stringify(body),
 				});
 				if (!response.ok) {
 					const failure = (await response.json()) as {error?: string; reconcile?: boolean};
 					if (failure.reconcile) {
-						setRowErrors((current) => ({...current, [nodeId]: failure.error ?? 'Move failed'}));
+						setRowErrors((current) => ({...current, [nodeId]: failure.error ?? "Move failed"}));
 						await reread();
 						return false;
 					}
@@ -192,12 +192,12 @@ export function LadderView() {
 	);
 
 	const move = useCallback(
-		(nodeId: string, toTier: string, placement?: string | {step: 'up' | 'down'}) => {
+		(nodeId: string, toTier: string, placement?: string | {step: "up" | "down"}) => {
 			const ladder = laddersRef.current?.[root];
 			if (busy.current || needsReload || !ladder) return;
 			const ids = ladderMoveSelection(ladder, selected, nodeId).filter((id) => !inFlight.current.has(id));
 			if (ids.length === 0) return;
-			const stepping = typeof placement === 'object';
+			const stepping = typeof placement === "object";
 			const beforeNodeId = stepping ? stepBeforeId(ladder, toTier, placement.step, ids) : placement;
 			claim(ids);
 			void (async () => {
@@ -207,7 +207,7 @@ export function LadderView() {
 						const alreadyThere = current && tierOf(current, root, id) === toTier;
 						if (!current || (alreadyThere && (stepping || beforeNodeId === undefined))) continue;
 						const saved = await write(
-							'/api/v1/ladder/move',
+							"/api/v1/ladder/move",
 							{
 								root,
 								node_id: id,
@@ -261,14 +261,14 @@ export function LadderView() {
 		(event: React.PointerEvent, item: {id: string; name: string}) => {
 			if (busy.current || event.button !== 0 || !event.isPrimary) return;
 			const target = event.target as HTMLElement;
-			if (target.closest('button, a, input, select')) return;
+			if (target.closest("button, a, input, select")) return;
 			suppressClick.current = false;
-			if (target.closest('.ladder-text')) {
+			if (target.closest(".ladder-text")) {
 				if (event.shiftKey) event.preventDefault();
 				return;
 			}
 			// Touch scrolling remains available outside the grip.
-			if (event.pointerType === 'touch' && !target.closest('.grip')) return;
+			if (event.pointerType === "touch" && !target.closest(".grip")) return;
 			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 			const ladder = laddersRef.current?.[root];
 			if (!ladder) return;
@@ -308,14 +308,14 @@ export function LadderView() {
 	);
 
 	const onRowClick = (event: React.MouseEvent, nodeId: string) => {
-		if ((event.target as HTMLElement).closest('button, a, input, select')) return;
+		if ((event.target as HTMLElement).closest("button, a, input, select")) return;
 		if (suppressClick.current) {
 			suppressClick.current = false;
 			return;
 		}
 		if (
 			!event.shiftKey &&
-			(event.target as HTMLElement).closest('.ladder-text') &&
+			(event.target as HTMLElement).closest(".ladder-text") &&
 			globalThis.getSelection()?.isCollapsed === false
 		)
 			return;
@@ -326,7 +326,7 @@ export function LadderView() {
 		(nodeId: string) => {
 			if (busy.current || inFlight.current.has(nodeId)) return;
 			claim([nodeId]);
-			void write('/api/v1/ladder/complete', {root, node_id: nodeId}, (current) =>
+			void write("/api/v1/ladder/complete", {root, node_id: nodeId}, (current) =>
 				removeRow(current, nodeId),
 			).finally(() => release([nodeId]));
 		},
@@ -358,9 +358,9 @@ export function LadderView() {
 		setSaving(true);
 		setError(undefined);
 		try {
-			const response = await fetch('/api/v1/nodes', {
-				method: 'POST',
-				headers: {'content-type': 'application/json'},
+			const response = await fetch("/api/v1/nodes", {
+				method: "POST",
+				headers: {"content-type": "application/json"},
 				body: JSON.stringify({
 					parent_id: ladder.bucketId,
 					name: tierLabel((ladder.tiers.at(-1)?.tier ?? 0) + 1),
@@ -369,7 +369,7 @@ export function LadderView() {
 			});
 			if (!response.ok) throw new Error(`Could not add a tier: ${response.status}`);
 			setNeedsReload(true);
-			const refreshed = await fetch('/api/v1/ladder');
+			const refreshed = await fetch("/api/v1/ladder");
 			if (!refreshed.ok)
 				throw new Error(
 					`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`,
@@ -398,7 +398,7 @@ export function LadderView() {
 	return (
 		<div
 			className="ladder-page"
-			data-dragging={dragging ? '' : undefined}
+			data-dragging={dragging ? "" : undefined}
 			ref={page}
 			onScroll={preview ? hidePreview : undefined}
 		>
@@ -409,13 +409,10 @@ export function LadderView() {
 						Drag a row to place it anywhere in a tier. Each tier holds 2<sup>k</sup>, fixed, so finishing
 						work never pushes anything out of a tier above.
 					</p>
-					<p
-						className="ladder-live"
-						data-live={live ? 'on' : 'off'}
-					>
+					<p className="ladder-live" data-live={live ? "on" : "off"}>
 						{live
-							? 'Live — every write is broadcast as it lands'
-							: 'Write stream disconnected — reload to reconnect'}
+							? "Live — every write is broadcast as it lands"
+							: "Write stream disconnected — reload to reconnect"}
 					</p>
 				</header>
 
@@ -473,25 +470,15 @@ export function LadderView() {
 								dragging={dragging}
 							/>
 						))}
-						<button
-							type="button"
-							disabled={saving || needsReload}
-							onClick={() => void addTier()}
-						>
+						<button type="button" disabled={saving || needsReload} onClick={() => void addTier()}>
 							Add bottom tier
 						</button>
 					</div>
 				) : (
-					<p className="ladder-dek">{error ? 'Could not load the ladder.' : 'Loading…'}</p>
+					<p className="ladder-dek">{error ? "Could not load the ladder." : "Loading…"}</p>
 				)}
 			</div>
-			{treeItem ? (
-				<LadderTree
-					key={treeItem.id}
-					item={treeItem}
-					onClose={() => setTreeItem(undefined)}
-				/>
-			) : null}
+			{treeItem ? <LadderTree key={treeItem.id} item={treeItem} onClose={() => setTreeItem(undefined)} /> : null}
 			{preview && !dragging ? (
 				<div
 					className="ladder-preview"
@@ -503,10 +490,7 @@ export function LadderView() {
 				</div>
 			) : null}
 			{ghost ? (
-				<div
-					className="ladder-ghost"
-					style={{left: ghost.x, top: ghost.y}}
-				>
+				<div className="ladder-ghost" style={{left: ghost.x, top: ghost.y}}>
 					{ghost.name}
 				</div>
 			) : null}
@@ -534,7 +518,7 @@ interface TierProps {
 	onPreview: (item: LadderItem, anchor: {left: number; bottom: number}) => void;
 	onPreviewEnd: () => void;
 	onComplete: (nodeId: string) => void;
-	onStep: (nodeId: string, toTier: string, placement: {step: 'up' | 'down'}) => void;
+	onStep: (nodeId: string, toTier: string, placement: {step: "up" | "down"}) => void;
 	onGripDown: (event: React.PointerEvent, item: {id: string; name: string}) => void;
 	onGripMove: (event: React.PointerEvent, name: string) => void;
 	onGripUp: (event: React.PointerEvent) => void;
@@ -571,10 +555,7 @@ function Tier({
 			 * covers the top of its own zone -- a drop aimed just below a tier name
 			 * would otherwise land on nothing and be silently discarded.
 			 */}
-			<div
-				className={`ladder-sep ${tier.state}${dropping ? ' dropping' : ''}`}
-				data-tier={tier.label}
-			>
+			<div className={`ladder-sep ${tier.state}${dropping ? " dropping" : ""}`} data-tier={tier.label}>
 				<span className="tname">{tier.label}</span>
 				<span className="gauge">
 					{tier.items.length}/{tier.capacity}
@@ -583,30 +564,30 @@ function Tier({
 				{tier.tier <= 2 ? <span className="goal">today&rsquo;s goals</span> : null}
 			</div>
 			<div
-				className={`ladder-zone ${tier.state}${dropping ? ' dropping' : ''}${beforeNodeId === '' ? ' drop-end' : ''}`}
+				className={`ladder-zone ${tier.state}${dropping ? " dropping" : ""}${beforeNodeId === "" ? " drop-end" : ""}`}
 				data-tier={tier.label}
 			>
 				{tier.items.map((item, index) => (
 					<div
 						className={[
-							'ladder-row',
-							selected.has(item.id) ? 'selected' : '',
+							"ladder-row",
+							selected.has(item.id) ? "selected" : "",
 							dragging === item.id || (dragging && selected.has(dragging) && selected.has(item.id))
-								? 'dragging'
-								: '',
-							pending.has(item.id) ? 'pending' : '',
-							index >= tier.capacity ? 'excess' : '',
-							beforeNodeId === item.id ? 'drop-before' : '',
+								? "dragging"
+								: "",
+							pending.has(item.id) ? "pending" : "",
+							index >= tier.capacity ? "excess" : "",
+							beforeNodeId === item.id ? "drop-before" : "",
 						]
 							.filter(Boolean)
-							.join(' ')}
+							.join(" ")}
 						key={item.id}
 						data-node-id={item.id}
 						role="group"
-						aria-label={`${item.name}${selected.has(item.id) ? ', selected' : ''}`}
+						aria-label={`${item.name}${selected.has(item.id) ? ", selected" : ""}`}
 						tabIndex={saving ? -1 : 0}
 						onKeyDown={(event) => {
-							if (event.target !== event.currentTarget || event.key !== ' ' || saving) return;
+							if (event.target !== event.currentTarget || event.key !== " " || saving) return;
 							event.preventDefault();
 							onSelect(item.id, event.shiftKey, event.metaKey || event.ctrlKey);
 						}}
@@ -617,10 +598,7 @@ function Tier({
 						onPointerMove={(event) => onGripMove(event, item.name)}
 						onPointerUp={onGripUp}
 					>
-						<span
-							className="grip"
-							role="presentation"
-						>
+						<span className="grip" role="presentation">
 							&#10303;
 						</span>
 						<span className="rank">{index + 1}</span>
@@ -629,7 +607,7 @@ function Tier({
 							{item.descendantCount > 0 ? (
 								<span
 									className="ladder-child-count"
-									aria-label={`${item.descendantCount} open ${item.descendantCount === 1 ? 'item' : 'items'} below`}
+									aria-label={`${item.descendantCount} open ${item.descendantCount === 1 ? "item" : "items"} below`}
 								>
 									{item.descendantCount}
 								</span>
@@ -648,34 +626,31 @@ function Tier({
 									onMouseLeave={onPreviewEnd}
 									onBlur={onPreviewEnd}
 									onKeyDown={(event) => {
-										if (event.key === 'Escape') onPreviewEnd();
+										if (event.key === "Escape") onPreviewEnd();
 									}}
 								>
 									Tree ▸
 								</button>
 							) : null}
 							{rowErrors[item.id] ? (
-								<span
-									className="ladder-row-error"
-									role="alert"
-								>
+								<span className="ladder-row-error" role="alert">
 									{rowErrors[item.id]} — retry this row.
 								</span>
 							) : null}
 						</span>
 						<span className="step">
 							<button
-								aria-label={`Move to ${previousTier ?? 'the tier above'}`}
+								aria-label={`Move to ${previousTier ?? "the tier above"}`}
 								disabled={saving || pending.has(item.id) || !previousTier}
-								onClick={() => previousTier && onStep(item.id, previousTier, {step: 'up'})}
+								onClick={() => previousTier && onStep(item.id, previousTier, {step: "up"})}
 								type="button"
 							>
 								&#9650;
 							</button>
 							<button
-								aria-label={`Move to ${nextTier ?? 'the tier below'}`}
+								aria-label={`Move to ${nextTier ?? "the tier below"}`}
 								disabled={saving || pending.has(item.id) || !nextTier}
-								onClick={() => nextTier && onStep(item.id, nextTier, {step: 'down'})}
+								onClick={() => nextTier && onStep(item.id, nextTier, {step: "down"})}
 								type="button"
 							>
 								&#9660;
@@ -693,7 +668,7 @@ function Tier({
 				))}
 				{free > 0 ? (
 					<div className="ladder-slot">
-						{free} open {free === 1 ? 'slot' : 'slots'}
+						{free} open {free === 1 ? "slot" : "slots"}
 					</div>
 				) : null}
 			</div>

@@ -12,18 +12,18 @@ Comparison of Workflowy's backup file format (`*.workflowy.backup`) with their W
 
 ### Field Mappings
 
-| Backup File | Web API | Notes |
-| --- | --- | --- |
-| `id` | `id` | Identical UUIDs |
-| `nm` | `name` | Same content (both include HTML tags like `<span class="colored c-green">`) |
-| `ct` | `createdAt` | Different timestamp formats (see below) |
-| `lm` | `modifiedAt` | Different timestamp formats (see below) |
-| `cp` | `completedAt` | Only present when completed |
-| `ch` | _(separate API call)_ | Backup embeds children, API requires parent_id query |
-| `metadata` | `data` | Similar structure, backup has more fields |
-| _(not present)_ | `priority` | API adds sibling ordering |
-| _(not present)_ | `completed` | API adds boolean flag |
-| `no` | `note` | Optional note field |
+| Backup File     | Web API               | Notes                                                                       |
+| --------------- | --------------------- | --------------------------------------------------------------------------- |
+| `id`            | `id`                  | Identical UUIDs                                                             |
+| `nm`            | `name`                | Same content (both include HTML tags like `<span class="colored c-green">`) |
+| `ct`            | `createdAt`           | Different timestamp formats (see below)                                     |
+| `lm`            | `modifiedAt`          | Different timestamp formats (see below)                                     |
+| `cp`            | `completedAt`         | Only present when completed                                                 |
+| `ch`            | _(separate API call)_ | Backup embeds children, API requires parent_id query                        |
+| `metadata`      | `data`                | Similar structure, backup has more fields                                   |
+| _(not present)_ | `priority`            | API adds sibling ordering                                                   |
+| _(not present)_ | `completed`           | API adds boolean flag                                                       |
+| `no`            | `note`                | Optional note field                                                         |
 
 ### Timestamp Formats
 

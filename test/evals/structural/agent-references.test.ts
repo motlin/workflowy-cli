@@ -1,32 +1,32 @@
-import {readFileSync} from 'node:fs';
-import {dirname, join, relative, sep} from 'node:path';
-import {parseMarkdownFile} from './helpers/markdown-parser.js';
+import {readFileSync} from "node:fs";
+import {dirname, join, relative, sep} from "node:path";
+import {parseMarkdownFile} from "./helpers/markdown-parser.js";
 import {
 	PLUGINS_DIR,
 	PROJECT_ROOT,
 	collectComponentFiles,
 	collectMarkdownFiles,
 	listPlugins,
-} from './helpers/scan-roots.js';
+} from "./helpers/scan-roots.js";
 
 /**
  * Extract the `name:` field from YAML frontmatter of an agent file.
  */
 function extractAgentName(filePath: string): string | null {
-	const content = readFileSync(filePath, 'utf8');
+	const content = readFileSync(filePath, "utf8");
 	const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(content);
 	if (!frontmatterMatch) return null;
 
 	const nameMatch = /^name:\s*(.+)$/m.exec(frontmatterMatch[1]);
 	if (!nameMatch) return null;
 
-	return nameMatch[1].trim().replaceAll(/^["']|["']$/g, '');
+	return nameMatch[1].trim().replaceAll(/^["']|["']$/g, "");
 }
 
 // Agent types Claude Code provides without an agent file.
-const BUILT_IN_AGENTS = new Set(['general-purpose']);
+const BUILT_IN_AGENTS = new Set(["general-purpose"]);
 
-describe('Structural Eval: Agent References', () => {
+describe("Structural Eval: Agent References", () => {
 	let agentRegistry: Map<string, string>;
 	let allSubagentRefs: Array<{name: string; file: string; line: number}>;
 
@@ -36,18 +36,18 @@ describe('Structural Eval: Agent References', () => {
 		// "gtd:refinement:item-refiner"); neither the bare name nor "gtd:item-refiner" resolves.
 		agentRegistry = new Map();
 		for (const plugin of listPlugins()) {
-			const agentsDir = join(PLUGINS_DIR, plugin, 'agents');
+			const agentsDir = join(PLUGINS_DIR, plugin, "agents");
 			for (const filePath of collectMarkdownFiles(agentsDir)) {
 				const name = extractAgentName(filePath);
 				if (name) {
 					const subdirs = dirname(relative(agentsDir, filePath))
 						.split(sep)
-						.filter((part) => part !== '.');
-					agentRegistry.set([plugin, ...subdirs, name].join(':'), filePath);
+						.filter((part) => part !== ".");
+					agentRegistry.set([plugin, ...subdirs, name].join(":"), filePath);
 				}
 			}
 		}
-		for (const filePath of collectMarkdownFiles(join(PROJECT_ROOT, '.claude', 'agents'))) {
+		for (const filePath of collectMarkdownFiles(join(PROJECT_ROOT, ".claude", "agents"))) {
 			const name = extractAgentName(filePath);
 			if (name) {
 				agentRegistry.set(name, filePath);
@@ -56,24 +56,24 @@ describe('Structural Eval: Agent References', () => {
 
 		// Collect all subagent_type references from commands and agents
 		allSubagentRefs = [];
-		const sourceFiles = [...collectComponentFiles('commands'), ...collectComponentFiles('agents')];
+		const sourceFiles = [...collectComponentFiles("commands"), ...collectComponentFiles("agents")];
 		for (const filePath of sourceFiles) {
 			const analysis = parseMarkdownFile(filePath);
 			for (const ref of analysis.subagentRefs) {
 				allSubagentRefs.push({
 					name: ref.name,
-					file: filePath.replace(PROJECT_ROOT + '/', ''),
+					file: filePath.replace(PROJECT_ROOT + "/", ""),
 					line: ref.line,
 				});
 			}
 		}
 	});
 
-	it('should find subagent_type references in commands or agents', () => {
+	it("should find subagent_type references in commands or agents", () => {
 		expect(allSubagentRefs.length).toBeGreaterThan(0);
 	});
 
-	it('every subagent_type reference should resolve to an agent file', () => {
+	it("every subagent_type reference should resolve to an agent file", () => {
 		const missing: string[] = [];
 
 		for (const ref of allSubagentRefs) {
@@ -85,28 +85,28 @@ describe('Structural Eval: Agent References', () => {
 		expect(missing).toStrictEqual([]);
 	});
 
-	it('every agent file should have a name: field in frontmatter', () => {
-		const agentFiles = collectComponentFiles('agents');
+	it("every agent file should have a name: field in frontmatter", () => {
+		const agentFiles = collectComponentFiles("agents");
 		const missingName: string[] = [];
 
 		for (const filePath of agentFiles) {
 			const name = extractAgentName(filePath);
 			if (!name) {
-				missingName.push(filePath.replace(PROJECT_ROOT + '/', ''));
+				missingName.push(filePath.replace(PROJECT_ROOT + "/", ""));
 			}
 		}
 
 		expect(missingName).toStrictEqual([]);
 	});
 
-	it('agent names should be unique across all agent files', () => {
+	it("agent names should be unique across all agent files", () => {
 		const nameToFiles = new Map<string, string[]>();
-		const agentFiles = collectComponentFiles('agents');
+		const agentFiles = collectComponentFiles("agents");
 
 		for (const filePath of agentFiles) {
 			const name = extractAgentName(filePath);
 			if (name) {
-				const relativePath = filePath.replace(PROJECT_ROOT + '/', '');
+				const relativePath = filePath.replace(PROJECT_ROOT + "/", "");
 				const existing = nameToFiles.get(name) ?? [];
 				existing.push(relativePath);
 				nameToFiles.set(name, existing);
@@ -116,7 +116,7 @@ describe('Structural Eval: Agent References', () => {
 		const duplicates: string[] = [];
 		for (const [name, files] of nameToFiles) {
 			if (files.length > 1) {
-				duplicates.push(`  "${name}" defined in:\n${files.map((f) => `    - ${f}`).join('\n')}`);
+				duplicates.push(`  "${name}" defined in:\n${files.map((f) => `    - ${f}`).join("\n")}`);
 			}
 		}
 

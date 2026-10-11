@@ -10,11 +10,11 @@
 //   node github-pr-landed.mjs classify pr.json [--config .llm/gtd/performance-notes.json]
 //     -> {repo, number, title, url, author, state, mergedAt, own, ownMerged, year, landedText}
 
-import {readFileSync} from 'node:fs';
+import {readFileSync} from "node:fs";
 
 const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/|$)/;
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function parsePrUrl(raw) {
 	let parsed;
@@ -34,10 +34,10 @@ export function parsePrUrl(raw) {
 	};
 }
 
-const escapeHtml = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+const escapeHtml = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
 export function formatTitle(title) {
-	return escapeHtml(title).replaceAll(/`([^`]+)`/g, '<code>$1</code>');
+	return escapeHtml(title).replaceAll(/`([^`]+)`/g, "<code>$1</code>");
 }
 
 export function timeElement({year, month, day}) {
@@ -47,12 +47,12 @@ export function timeElement({year, month, day}) {
 
 export function landedText(pr, date) {
 	const ref = parsePrUrl(pr.url);
-	const where = ref.host === 'github.com' ? `in open source, in ${ref.repo}` : `in ${ref.repo}`;
+	const where = ref.host === "github.com" ? `in open source, in ${ref.repo}` : `in ${ref.repo}`;
 	return `Landed <a href="${pr.url}">${formatTitle(pr.title)}</a> #${pr.number} ${where} ${timeElement(date)}`;
 }
 
 function localDate(iso, timeZone) {
-	const parts = new Intl.DateTimeFormat('en-US', {timeZone, year: 'numeric', month: 'numeric', day: 'numeric'})
+	const parts = new Intl.DateTimeFormat("en-US", {timeZone, year: "numeric", month: "numeric", day: "numeric"})
 		.formatToParts(new Date(iso))
 		.reduce((acc, {type, value}) => ({...acc, [type]: Number(value)}), {});
 	return {year: parts.year, month: parts.month, day: parts.day};
@@ -63,7 +63,7 @@ export function classifyPr(pr, config, timeZone) {
 	const author = pr.author?.login ?? null;
 	const logins = (config?.githubLogins ?? []).map((login) => login.toLowerCase());
 	const own = author !== null && logins.includes(author.toLowerCase());
-	const ownMerged = own && pr.state === 'MERGED' && Boolean(pr.mergedAt);
+	const ownMerged = own && pr.state === "MERGED" && Boolean(pr.mergedAt);
 	const date = ownMerged ? localDate(pr.mergedAt, timeZone) : null;
 	return {
 		repo: ref?.repo ?? null,
@@ -82,7 +82,7 @@ export function classifyPr(pr, config, timeZone) {
 
 function readConfig(path) {
 	try {
-		return JSON.parse(readFileSync(path, 'utf8'));
+		return JSON.parse(readFileSync(path, "utf8"));
 	} catch {
 		return null;
 	}
@@ -90,14 +90,14 @@ function readConfig(path) {
 
 function main(argv) {
 	const [command, arg, ...rest] = argv;
-	if (command === 'parse') return parsePrUrl(arg);
-	if (command === 'classify') {
-		const configIndex = rest.indexOf('--config');
-		const configPath = configIndex === -1 ? '.llm/gtd/performance-notes.json' : rest[configIndex + 1];
-		const pr = JSON.parse(readFileSync(arg, 'utf8'));
+	if (command === "parse") return parsePrUrl(arg);
+	if (command === "classify") {
+		const configIndex = rest.indexOf("--config");
+		const configPath = configIndex === -1 ? ".llm/gtd/performance-notes.json" : rest[configIndex + 1];
+		const pr = JSON.parse(readFileSync(arg, "utf8"));
 		return classifyPr(pr, readConfig(configPath), Intl.DateTimeFormat().resolvedOptions().timeZone);
 	}
-	throw new Error('usage: github-pr-landed.mjs parse <url> | classify <pr.json> [--config <path>]');
+	throw new Error("usage: github-pr-landed.mjs parse <url> | classify <pr.json> [--config <path>]");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

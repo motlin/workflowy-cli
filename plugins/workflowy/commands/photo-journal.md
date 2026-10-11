@@ -106,10 +106,10 @@ Follow `/workflowy:upload-attachment` with the new entry's ID: it creates an emp
 
 ## DateTime Formatting
 
-| Input | `<time>` attributes | Display |
-| --- | --- | --- |
+| Input            | `<time>` attributes                                                            | Display                      |
+| ---------------- | ------------------------------------------------------------------------------ | ---------------------------- |
 | 2026-01-18 17:03 | `startYear="2026" startMonth="1" startDay="18" startHour="17" startMinute="3"` | Sun, Jan 18, 2026 at 5:03 PM |
-| 2026-01-18 | `startYear="2026" startMonth="1" startDay="18"` | Sun, Jan 18, 2026 |
+| 2026-01-18       | `startYear="2026" startMonth="1" startDay="18"`                                | Sun, Jan 18, 2026            |
 
 Attributes are not zero-padded.
 

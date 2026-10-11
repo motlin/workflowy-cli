@@ -1,9 +1,9 @@
-import {dirname, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {dirname, resolve} from "node:path";
+import {fileURLToPath} from "node:url";
 
-import {Command} from '@oclif/core';
+import {Command} from "@oclif/core";
 
-const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 class ProbeRoot extends Command {
 	async run(): Promise<string> {
@@ -12,8 +12,8 @@ class ProbeRoot extends Command {
 	}
 }
 
-describe('oclif test setup', () => {
-	it('loads the CLI package config when a command runs without explicit load options', async () => {
+describe("oclif test setup", () => {
+	it("loads the CLI package config when a command runs without explicit load options", async () => {
 		expect(await ProbeRoot.run([])).toBe(cliRoot);
 	});
 });

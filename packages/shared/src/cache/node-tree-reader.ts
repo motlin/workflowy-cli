@@ -1,5 +1,5 @@
-import type {Node} from '../types/node.js';
-import type {CacheService, NodeWithRelations} from './cache-service.js';
+import type {Node} from "../types/node.js";
+import type {CacheService, NodeWithRelations} from "./cache-service.js";
 
 /**
  * A Workflowy link target embedded in another node's text. Carries the target's

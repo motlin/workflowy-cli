@@ -11,13 +11,13 @@
 // Prints NUL-delimited unexcluded, untracked paths on stdout, ready for group-build-dirs.mjs.
 // Vanished directories are listed on stderr for the record.
 
-import {execFileSync} from 'node:child_process';
-import {existsSync, readdirSync} from 'node:fs';
-import {homedir} from 'node:os';
-import {join} from 'node:path';
+import {execFileSync} from "node:child_process";
+import {existsSync, readdirSync} from "node:fs";
+import {homedir} from "node:os";
+import {join} from "node:path";
 
-const BUILD_DIR_NAMES = new Set(['node_modules', 'target', 'build', 'dist']);
-const VANISHED_CODES = new Set(['ENOENT', 'ENOTDIR']);
+const BUILD_DIR_NAMES = new Set(["node_modules", "target", "build", "dist"]);
+const VANISHED_CODES = new Set(["ENOENT", "ENOTDIR"]);
 const TMUTIL_BATCH_SIZE = 200;
 
 export function walkBuildDirs(root, {readdir = readdirSync} = {}) {
@@ -51,7 +51,7 @@ export function walkBuildDirs(root, {readdir = readdirSync} = {}) {
 }
 
 function runTmutilIsExcluded(paths) {
-	return execFileSync('tmutil', ['isexcluded', ...paths], {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
+	return execFileSync("tmutil", ["isexcluded", ...paths], {encoding: "utf8", maxBuffer: 64 * 1024 * 1024});
 }
 
 export function classifyExclusions(
@@ -63,16 +63,16 @@ export function classifyExclusions(
 	for (let start = 0; start < paths.length; start += batchSize) {
 		const batch = paths.slice(start, start + batchSize);
 		const lines = runTmutil(batch)
-			.split('\n')
-			.filter((line) => line !== '');
+			.split("\n")
+			.filter((line) => line !== "");
 		if (lines.length !== batch.length) {
 			throw new Error(`tmutil returned ${lines.length} lines for ${batch.length} paths`);
 		}
 		// tmutil prints one status line per argument, in argument order.
 		for (const [index, path] of batch.entries()) {
 			const line = lines[index];
-			if (line.startsWith('[Excluded]')) continue;
-			if (line.startsWith('[Included]')) {
+			if (line.startsWith("[Excluded]")) continue;
+			if (line.startsWith("[Included]")) {
 				unexcluded.push(path);
 			} else if (!exists(path)) {
 				vanished.push(path);
@@ -86,24 +86,24 @@ export function classifyExclusions(
 
 function gitTrackedFiles(path) {
 	try {
-		return execFileSync('git', ['-C', path, 'ls-files', '--', '.'], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore'],
+		return execFileSync("git", ["-C", path, "ls-files", "--", "."], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
 		});
 	} catch {
 		// Not inside a git work tree, so nothing here is tracked.
-		return '';
+		return "";
 	}
 }
 
 // A directory named like build output can be checked-in source (a plugin named `build`).
 // Excluding it would drop real source from backups, so any directory with tracked files stays.
 export function dropTrackedSource(paths, {trackedFiles = gitTrackedFiles} = {}) {
-	return paths.filter((path) => trackedFiles(path) === '');
+	return paths.filter((path) => trackedFiles(path) === "");
 }
 
 function main() {
-	const root = process.argv[2] ?? join(homedir(), 'projects');
+	const root = process.argv[2] ?? join(homedir(), "projects");
 	const walked = walkBuildDirs(root);
 	const classified = classifyExclusions(walked.dirs);
 	for (const path of [...walked.vanished, ...classified.vanished]) {
@@ -112,7 +112,7 @@ function main() {
 	process.stdout.write(
 		dropTrackedSource(classified.unexcluded)
 			.map((path) => `${path}\0`)
-			.join(''),
+			.join(""),
 	);
 }
 

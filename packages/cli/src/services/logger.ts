@@ -1,8 +1,8 @@
-import type {ApiLogger} from '@workflowy/shared/api';
-import pino from 'pino';
-import pinoPretty from 'pino-pretty';
-import {format} from 'sql-formatter';
-import {highlight} from 'sql-highlight';
+import type {ApiLogger} from "@workflowy/shared/api";
+import pino from "pino";
+import pinoPretty from "pino-pretty";
+import {format} from "sql-formatter";
+import {highlight} from "sql-highlight";
 
 /**
  * Category filter definition.
@@ -17,37 +17,37 @@ interface CategoryFilter {
  * Each env var can enable multiple category/subcategory combinations.
  */
 const CATEGORY_FILTERS: Record<string, CategoryFilter[]> = {
-	WORKFLOWY_SQL_READ_LOGGING: [{category: 'sql', subcategory: 'read'}],
-	WORKFLOWY_SQL_WRITE_LOGGING: [{category: 'sql', subcategory: 'write'}],
-	WORKFLOWY_SQL_SCHEMA_LOGGING: [{category: 'sql', subcategory: 'schema'}],
-	WORKFLOWY_SQL_BULK_LOGGING: [{category: 'sql', subcategory: 'bulk'}],
+	WORKFLOWY_SQL_READ_LOGGING: [{category: "sql", subcategory: "read"}],
+	WORKFLOWY_SQL_WRITE_LOGGING: [{category: "sql", subcategory: "write"}],
+	WORKFLOWY_SQL_SCHEMA_LOGGING: [{category: "sql", subcategory: "schema"}],
+	WORKFLOWY_SQL_BULK_LOGGING: [{category: "sql", subcategory: "bulk"}],
 	WORKFLOWY_SQL_QUERY_LOGGING: [
-		{category: 'sql', subcategory: 'read'},
-		{category: 'sql', subcategory: 'write'},
-		{category: 'sql', subcategory: 'schema'},
-		{category: 'sql', subcategory: 'bulk'},
+		{category: "sql", subcategory: "read"},
+		{category: "sql", subcategory: "write"},
+		{category: "sql", subcategory: "schema"},
+		{category: "sql", subcategory: "bulk"},
 	],
-	WORKFLOWY_SQL_RESULTS_LOGGING: [{category: 'sql', subcategory: 'result'}],
+	WORKFLOWY_SQL_RESULTS_LOGGING: [{category: "sql", subcategory: "result"}],
 	WORKFLOWY_REST_LOGGING: [
-		{category: 'rest', subcategory: 'request'},
-		{category: 'rest', subcategory: 'response'},
-		{category: 'rest', subcategory: 'error'},
+		{category: "rest", subcategory: "request"},
+		{category: "rest", subcategory: "response"},
+		{category: "rest", subcategory: "error"},
 	],
-	WORKFLOWY_GENERAL_LOGGING: [{category: 'general'}],
+	WORKFLOWY_GENERAL_LOGGING: [{category: "general"}],
 };
 
 /**
  * Check if any logging category is enabled via environment variables.
  */
 const anyLoggingEnabled =
-	process.env.WORKFLOWY_SQL_QUERY_LOGGING === 'true' ||
-	process.env.WORKFLOWY_SQL_READ_LOGGING === 'true' ||
-	process.env.WORKFLOWY_SQL_WRITE_LOGGING === 'true' ||
-	process.env.WORKFLOWY_SQL_SCHEMA_LOGGING === 'true' ||
-	process.env.WORKFLOWY_SQL_BULK_LOGGING === 'true' ||
-	process.env.WORKFLOWY_SQL_RESULTS_LOGGING === 'true' ||
-	process.env.WORKFLOWY_REST_LOGGING === 'true' ||
-	process.env.WORKFLOWY_GENERAL_LOGGING === 'true';
+	process.env.WORKFLOWY_SQL_QUERY_LOGGING === "true" ||
+	process.env.WORKFLOWY_SQL_READ_LOGGING === "true" ||
+	process.env.WORKFLOWY_SQL_WRITE_LOGGING === "true" ||
+	process.env.WORKFLOWY_SQL_SCHEMA_LOGGING === "true" ||
+	process.env.WORKFLOWY_SQL_BULK_LOGGING === "true" ||
+	process.env.WORKFLOWY_SQL_RESULTS_LOGGING === "true" ||
+	process.env.WORKFLOWY_REST_LOGGING === "true" ||
+	process.env.WORKFLOWY_GENERAL_LOGGING === "true";
 
 /**
  * Check if a log object should be shown based on its category/subcategory
@@ -55,7 +55,7 @@ const anyLoggingEnabled =
  */
 function isEnabled(category?: string, subcategory?: string): boolean {
 	for (const [envVar, filters] of Object.entries(CATEGORY_FILTERS)) {
-		if (process.env[envVar] !== 'true') continue;
+		if (process.env[envVar] !== "true") continue;
 
 		for (const filter of filters) {
 			if (category === filter.category && (!filter.subcategory || subcategory === filter.subcategory)) {
@@ -70,10 +70,10 @@ function isEnabled(category?: string, subcategory?: string): boolean {
  * ANSI color codes for JSON-like param coloring.
  */
 const COLORS = {
-	cyan: '\u001B[36m',
-	green: '\u001B[32m',
-	yellow: '\u001B[33m',
-	reset: '\u001B[0m',
+	cyan: "\u001B[36m",
+	green: "\u001B[32m",
+	yellow: "\u001B[33m",
+	reset: "\u001B[0m",
 };
 
 /**
@@ -81,18 +81,18 @@ const COLORS = {
  */
 function formatParams(params: unknown[], colorize: boolean): string {
 	if (!params || params.length === 0) {
-		return colorize ? `${COLORS.cyan}params=[]${COLORS.reset}` : 'params=[]';
+		return colorize ? `${COLORS.cyan}params=[]${COLORS.reset}` : "params=[]";
 	}
 
 	const formatted = params
 		.map((p) => {
 			const json = JSON.stringify(p);
 			if (!colorize) return json;
-			if (typeof p === 'string') return `${COLORS.green}${json}${COLORS.reset}`;
-			if (typeof p === 'number') return `${COLORS.yellow}${json}${COLORS.reset}`;
+			if (typeof p === "string") return `${COLORS.green}${json}${COLORS.reset}`;
+			if (typeof p === "number") return `${COLORS.yellow}${json}${COLORS.reset}`;
 			return json;
 		})
-		.join(colorize ? `${COLORS.cyan},${COLORS.reset}` : ',');
+		.join(colorize ? `${COLORS.cyan},${COLORS.reset}` : ",");
 
 	return colorize
 		? `${COLORS.cyan}params=[${COLORS.reset}${formatted}${COLORS.cyan}]${COLORS.reset}`
@@ -105,7 +105,7 @@ function formatParams(params: unknown[], colorize: boolean): string {
  * - Otherwise 'debug' if any logging is enabled (to allow filtering)
  * - Otherwise 'silent' to disable all logging
  */
-const level = process.env.WORKFLOWY_LOG_LEVEL ?? (anyLoggingEnabled ? 'debug' : 'silent');
+const level = process.env.WORKFLOWY_LOG_LEVEL ?? (anyLoggingEnabled ? "debug" : "silent");
 
 /**
  * Synchronous pino-pretty stream that writes to stderr.
@@ -114,8 +114,8 @@ const level = process.env.WORKFLOWY_LOG_LEVEL ?? (anyLoggingEnabled ? 'debug' : 
  */
 const prettyStream = pinoPretty({
 	colorize: true,
-	translateTime: 'SYS:standard',
-	ignore: 'pid,hostname,category,subcategory,params',
+	translateTime: "SYS:standard",
+	ignore: "pid,hostname,category,subcategory,params",
 	destination: 2, // stderr
 	sync: true, // Synchronous writes - critical for correct output ordering
 	messageFormat(log, messageKey) {
@@ -126,19 +126,19 @@ const prettyStream = pinoPretty({
 
 		// Skip if category filtering doesn't pass
 		if (!isEnabled(category, subcategory)) {
-			return '';
+			return "";
 		}
 
 		const categoryTag = subcategory ? `${category}:${subcategory}` : category;
-		const paramsStr = params === undefined ? '' : ` ${formatParams(params, true)}`;
-		const metadataSuffix = categoryTag ? ` [${categoryTag}]${paramsStr}` : '';
+		const paramsStr = params === undefined ? "" : ` ${formatParams(params, true)}`;
+		const metadataSuffix = categoryTag ? ` [${categoryTag}]${paramsStr}` : "";
 
-		if (msg.startsWith('SQL\n')) {
+		if (msg.startsWith("SQL\n")) {
 			const query = msg.slice(4);
 			return `SQL${metadataSuffix}\n${query}`;
 		}
 
-		const newlineIndex = msg.indexOf('\n');
+		const newlineIndex = msg.indexOf("\n");
 		if (newlineIndex !== -1 && metadataSuffix) {
 			const firstLine = msg.slice(0, newlineIndex);
 			const rest = msg.slice(newlineIndex);
@@ -178,15 +178,15 @@ const filteringStream = {
 const baseLogger = pino({level}, filteringStream);
 
 // Child loggers with category/subcategory context
-const sqlReadLogger = baseLogger.child({category: 'sql', subcategory: 'read'});
-const sqlWriteLogger = baseLogger.child({category: 'sql', subcategory: 'write'});
-const sqlSchemaLogger = baseLogger.child({category: 'sql', subcategory: 'schema'});
-const sqlBulkLogger = baseLogger.child({category: 'sql', subcategory: 'bulk'});
-const sqlResultLogger = baseLogger.child({category: 'sql', subcategory: 'result'});
-const restRequestLogger = baseLogger.child({category: 'rest', subcategory: 'request'});
-const restResponseLogger = baseLogger.child({category: 'rest', subcategory: 'response'});
-const restErrorLogger = baseLogger.child({category: 'rest', subcategory: 'error'});
-const generalLogger = baseLogger.child({category: 'general'});
+const sqlReadLogger = baseLogger.child({category: "sql", subcategory: "read"});
+const sqlWriteLogger = baseLogger.child({category: "sql", subcategory: "write"});
+const sqlSchemaLogger = baseLogger.child({category: "sql", subcategory: "schema"});
+const sqlBulkLogger = baseLogger.child({category: "sql", subcategory: "bulk"});
+const sqlResultLogger = baseLogger.child({category: "sql", subcategory: "result"});
+const restRequestLogger = baseLogger.child({category: "rest", subcategory: "request"});
+const restResponseLogger = baseLogger.child({category: "rest", subcategory: "response"});
+const restErrorLogger = baseLogger.child({category: "rest", subcategory: "error"});
+const generalLogger = baseLogger.child({category: "general"});
 
 /**
  * Export child loggers directly.
@@ -211,7 +211,7 @@ export const log = {
 /**
  * SQL query categories for granular logging control.
  */
-type SqlCategory = 'read' | 'write' | 'schema' | 'bulk';
+type SqlCategory = "read" | "write" | "schema" | "bulk";
 
 /**
  * Classify a SQL query as read, write, schema (DDL), or bulk operation.
@@ -219,20 +219,20 @@ type SqlCategory = 'read' | 'write' | 'schema' | 'bulk';
  */
 function classifyQuery(query: string): SqlCategory {
 	// Normalize: strip leading whitespace and comments
-	const normalized = query.replaceAll(/^\s*(--[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*/g, '').trim();
+	const normalized = query.replaceAll(/^\s*(--[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*/g, "").trim();
 
 	// Read: SELECT or WITH...SELECT (CTEs)
-	if (/^(SELECT|WITH\b)/i.test(normalized)) return 'read';
+	if (/^(SELECT|WITH\b)/i.test(normalized)) return "read";
 
 	// Schema (DDL): CREATE, ALTER, DROP statements for tables, indexes, triggers, views
-	if (/^(CREATE|ALTER|DROP)\s+(TABLE|INDEX|TRIGGER|VIEW|VIRTUAL TABLE)/i.test(normalized)) return 'schema';
+	if (/^(CREATE|ALTER|DROP)\s+(TABLE|INDEX|TRIGGER|VIEW|VIRTUAL TABLE)/i.test(normalized)) return "schema";
 
 	// Bulk: multiple VALUES tuples or INSERT...SELECT
-	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*VALUES\s*\([^)]*\)\s*,/i.test(normalized)) return 'bulk';
-	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*\bSELECT\b/i.test(normalized)) return 'bulk';
+	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*VALUES\s*\([^)]*\)\s*,/i.test(normalized)) return "bulk";
+	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*\bSELECT\b/i.test(normalized)) return "bulk";
 
 	// Write: INSERT, UPDATE, DELETE, REPLACE (single-row DML)
-	return 'write';
+	return "write";
 }
 
 /**
@@ -283,14 +283,14 @@ function truncateData(data: unknown): unknown {
 	}
 
 	// For objects, show keys and size
-	if (typeof data === 'object') {
+	if (typeof data === "object") {
 		const keys = Object.keys(data);
 		return `[Object: ${keys.length} keys, ${json.length} bytes]`;
 	}
 
 	// For strings, truncate with ellipsis
-	if (typeof data === 'string') {
-		return data.slice(0, MAX_LOG_DATA_SIZE) + '...';
+	if (typeof data === "string") {
+		return data.slice(0, MAX_LOG_DATA_SIZE) + "...";
 	}
 
 	return data;
@@ -312,11 +312,11 @@ function formatSql(query: string): string {
 	// Short queries stay on a single line, long queries get pretty-printed
 	const formatted =
 		query.length <= SHORT_QUERY_THRESHOLD
-			? query.trim().replaceAll(/\s+/g, ' ')
+			? query.trim().replaceAll(/\s+/g, " ")
 			: format(query, {
-					language: 'sqlite',
+					language: "sqlite",
 					tabWidth: 2,
-					keywordCase: 'upper',
+					keywordCase: "upper",
 				});
 
 	// Apply syntax highlighting
@@ -374,7 +374,7 @@ class Logger implements ApiLogger {
 	logSql(query: string, params: unknown[]): void {
 		const category = classifyQuery(query);
 		const formattedQuery = formatSql(query);
-		const sanitizedParams = sanitizeParams(params, category === 'bulk');
+		const sanitizedParams = sanitizeParams(params, category === "bulk");
 
 		const loggers = {
 			read: sqlReadLogger,
@@ -385,7 +385,7 @@ class Logger implements ApiLogger {
 		const logger = loggers[category];
 
 		// Read operations use debug level, write/schema/bulk use info
-		if (category === 'read') {
+		if (category === "read") {
 			logger.debug({params: sanitizedParams}, `SQL\n${formattedQuery}`);
 		} else {
 			logger.info({params: sanitizedParams}, `SQL\n${formattedQuery}`);

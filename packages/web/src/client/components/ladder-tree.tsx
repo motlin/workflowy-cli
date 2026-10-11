@@ -1,8 +1,8 @@
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {getWorkflowyUrl} from '@workflowy/shared/workflowy';
-import {useEffect, useRef} from 'react';
-import type {NodeResponse} from '../../node-types.js';
-import {useChildren, useNode} from '../hooks/use-nodes.js';
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {getWorkflowyUrl} from "@workflowy/shared/workflowy";
+import {useEffect, useRef} from "react";
+import type {NodeResponse} from "../../node-types.js";
+import {useChildren, useNode} from "../hooks/use-nodes.js";
 
 export function LadderTree({item, onClose}: {item: {id: string; name: string}; onClose: () => void}) {
 	const dialog = useRef<HTMLDialogElement>(null);
@@ -24,40 +24,25 @@ export function LadderTree({item, onClose}: {item: {id: string; name: string}; o
 			<header>
 				<div>
 					<h2 id="ladder-tree-title">{item.name}</h2>
-					<a
-						href={getWorkflowyUrl(item.id)}
-						target="_blank"
-						rel="noreferrer"
-					>
+					<a href={getWorkflowyUrl(item.id)} target="_blank" rel="noreferrer">
 						Open in Workflowy ↗
 					</a>
 				</div>
-				<button
-					type="button"
-					onClick={onClose}
-					autoFocus
-					aria-label="Close task tree"
-				>
+				<button type="button" onClick={onClose} autoFocus aria-label="Close task tree">
 					Close
 				</button>
 			</header>
 			<div className="ladder-tree-body">
 				{error ? (
 					<p role="alert">
-						Could not load task details.{' '}
-						<button
-							type="button"
-							onClick={() => void refetch()}
-						>
+						Could not load task details.{" "}
+						<button type="button" onClick={() => void refetch()}>
 							Retry
 						</button>
 					</p>
 				) : null}
 				{node?.note ? <p className="ladder-tree-note">{stripHtmlTags(node.note)}</p> : null}
-				<LadderTreeChildren
-					parentId={item.id}
-					ancestors={[node?.originalNodeId ?? item.id]}
-				/>
+				<LadderTreeChildren parentId={item.id} ancestors={[node?.originalNodeId ?? item.id]} />
 			</div>
 		</dialog>
 	);
@@ -69,11 +54,8 @@ function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors:
 	if (error)
 		return (
 			<p role="alert">
-				Could not load subtasks.{' '}
-				<button
-					type="button"
-					onClick={() => void refetch()}
-				>
+				Could not load subtasks.{" "}
+				<button type="button" onClick={() => void refetch()}>
 					Retry
 				</button>
 			</p>
@@ -82,11 +64,7 @@ function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors:
 	return (
 		<ul>
 			{children.map((node) => (
-				<LadderTreeNode
-					key={node.id}
-					node={node}
-					ancestors={ancestors}
-				/>
+				<LadderTreeNode key={node.id} node={node} ancestors={ancestors} />
 			))}
 		</ul>
 	);
@@ -96,9 +74,9 @@ function LadderTreeNode({node, ancestors}: {node: NodeResponse; ancestors: strin
 	const identity = node.originalNodeId ?? node.id;
 	const cyclic = ancestors.includes(identity);
 	const label = (
-		<span className={node.completedAt ? 'ladder-tree-completed' : undefined}>
-			{stripHtmlTags(node.name) || 'Untitled'}
-			{node.completedAt ? ' (completed)' : ''}
+		<span className={node.completedAt ? "ladder-tree-completed" : undefined}>
+			{stripHtmlTags(node.name) || "Untitled"}
+			{node.completedAt ? " (completed)" : ""}
 		</span>
 	);
 	const note = node.note ? <p className="ladder-tree-note">{stripHtmlTags(node.note)}</p> : null;
@@ -108,10 +86,7 @@ function LadderTreeNode({node, ancestors}: {node: NodeResponse; ancestors: strin
 				<details open>
 					<summary>{label}</summary>
 					{note}
-					<LadderTreeChildren
-						parentId={node.id}
-						ancestors={[...ancestors, identity]}
-					/>
+					<LadderTreeChildren parentId={node.id} ancestors={[...ancestors, identity]} />
 				</details>
 			) : (
 				<>

@@ -1,5 +1,5 @@
-import type {WorkflowyApiClient} from '@workflowy/shared/api';
-import type {CacheService} from './cache.js';
+import type {WorkflowyApiClient} from "@workflowy/shared/api";
+import type {CacheService} from "./cache.js";
 
 export type PathResolutionResult = {
 	nodeId: string;
@@ -9,7 +9,7 @@ export type PathResolutionResult = {
 export type PathResolutionOptions = {
 	rootId: string | null;
 	path: string | undefined;
-	dataSource: 'auto' | 'api' | 'cache';
+	dataSource: "auto" | "api" | "cache";
 };
 
 export class PathResolutionService {
@@ -23,12 +23,12 @@ export class PathResolutionService {
 
 		if (!path) {
 			return {
-				nodeId: rootId ?? '',
+				nodeId: rootId ?? "",
 				foundInCache: true,
 			};
 		}
 
-		const pathComponents = path.split(',').map((s) => s.trim());
+		const pathComponents = path.split(",").map((s) => s.trim());
 
 		const cachedNode = await this.cacheService.findNodeByPath(pathComponents, rootId);
 
@@ -39,14 +39,14 @@ export class PathResolutionService {
 			};
 		}
 
-		if (dataSource === 'cache') {
-			throw new Error(`Could not find node at path: ${pathComponents.join(' > ')} (not in cache)`);
+		if (dataSource === "cache") {
+			throw new Error(`Could not find node at path: ${pathComponents.join(" > ")} (not in cache)`);
 		}
 
 		if (this.apiClient) {
 			const apiNode = await this.apiClient.findNodeByPath(pathComponents, rootId);
 			if (!apiNode) {
-				throw new Error(`Could not find node at path: ${pathComponents.join(' > ')}`);
+				throw new Error(`Could not find node at path: ${pathComponents.join(" > ")}`);
 			}
 			return {
 				nodeId: apiNode.id,
@@ -54,6 +54,6 @@ export class PathResolutionService {
 			};
 		}
 
-		throw new Error(`Could not find node at path: ${pathComponents.join(' > ')} (no cached data and no API key)`);
+		throw new Error(`Could not find node at path: ${pathComponents.join(" > ")} (no cached data and no API key)`);
 	}
 }

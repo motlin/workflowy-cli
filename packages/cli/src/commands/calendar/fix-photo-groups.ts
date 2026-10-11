@@ -1,12 +1,12 @@
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {resolveIdOrShortId} from '@workflowy/shared/utils';
-import {Command, Flags} from '@oclif/core';
-import {sql} from 'drizzle-orm';
-import {createDatabase} from '../../db/index.js';
-import {CacheService} from '../../services/cache.js';
-import {logger} from '../../services/logger.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {resolveIdOrShortId} from "@workflowy/shared/utils";
+import {Command, Flags} from "@oclif/core";
+import {sql} from "drizzle-orm";
+import {createDatabase} from "../../db/index.js";
+import {CacheService} from "../../services/cache.js";
+import {logger} from "../../services/logger.js";
 import {
 	buildPhotoGroups,
 	countGroupsWithoutEvidence,
@@ -14,8 +14,8 @@ import {
 	planPhotoGroup,
 	type CachedNodeRow,
 	type PhotoGroup,
-} from '../../services/photo-groups.js';
-import {listBackups, resolveBackupsDirectory} from '../../utils/backup-archive.js';
+} from "../../services/photo-groups.js";
+import {listBackups, resolveBackupsDirectory} from "../../utils/backup-archive.js";
 
 /** Position argument for the move API: negative is top, zero or more is bottom. */
 const MOVE_TO_BOTTOM = 0;
@@ -127,7 +127,7 @@ function loadEntryTitles(database: ReturnType<typeof createDatabase>, entryIds: 
 	return new Map(
 		database
 			.all<{id: string; name: string | null}>(query)
-			.map((row) => [row.id, (row.name ?? '').replaceAll(/<[^>]*>/g, '').trim()]),
+			.map((row) => [row.id, (row.name ?? "").replaceAll(/<[^>]*>/g, "").trim()]),
 	);
 }
 
@@ -154,40 +154,40 @@ function findStaleAttachmentData(database: ReturnType<typeof createDatabase>): s
 function describeGroup(group: PhotoGroup, titles: Map<string, string>): string {
 	const title = titles.get(group.entryId);
 	const entry = title ? `entry ${group.entryId} "${title.slice(0, 60)}"` : `entry ${group.entryId}`;
-	return group.kind === 'wrapped' ? `wrapper ${group.wrapperId} under ${entry}` : entry;
+	return group.kind === "wrapped" ? `wrapper ${group.wrapperId} under ${entry}` : entry;
 }
 
 export default class FixPhotoGroups extends Command {
 	static override description =
-		'Unwrap blank photo-paste wrappers in the calendar and restore chronological photo order';
+		"Unwrap blank photo-paste wrappers in the calendar and restore chronological photo order";
 
 	static override examples = [
-		'# Preview every group that would be fixed',
-		'<%= config.bin %> <%= command.id %> --dry-run',
-		'',
-		'# Fix a single group by wrapper or entry ID',
-		'<%= config.bin %> <%= command.id %> --node-id b03bd2f9bf47',
-		'',
-		'# Fix the first five groups',
-		'<%= config.bin %> <%= command.id %> --batch-size 5',
+		"# Preview every group that would be fixed",
+		"<%= config.bin %> <%= command.id %> --dry-run",
+		"",
+		"# Fix a single group by wrapper or entry ID",
+		"<%= config.bin %> <%= command.id %> --node-id b03bd2f9bf47",
+		"",
+		"# Fix the first five groups",
+		"<%= config.bin %> <%= command.id %> --batch-size 5",
 	];
 
 	static override flags = {
-		'dry-run': Flags.boolean({
-			char: 'd',
-			description: 'Report the groups and planned order without making API calls',
+		"dry-run": Flags.boolean({
+			char: "d",
+			description: "Report the groups and planned order without making API calls",
 			default: false,
 		}),
-		'node-id': Flags.string({
-			description: 'Limit processing by wrapper or entry UUID or 12-character short ID',
+		"node-id": Flags.string({
+			description: "Limit processing by wrapper or entry UUID or 12-character short ID",
 		}),
-		'batch-size': Flags.integer({
-			char: 'b',
-			description: 'Number of groups to fix before stopping (default: all)',
+		"batch-size": Flags.integer({
+			char: "b",
+			description: "Number of groups to fix before stopping (default: all)",
 		}),
 		delay: Flags.integer({
-			char: 'D',
-			description: 'Milliseconds between API calls',
+			char: "D",
+			description: "Milliseconds between API calls",
 			default: 1000,
 		}),
 	};
@@ -200,9 +200,9 @@ export default class FixPhotoGroups extends Command {
 		const rows = loadCandidateRows(database);
 
 		let groups = buildPhotoGroups(rows);
-		if (flags['node-id']) {
+		if (flags["node-id"]) {
 			// Cache-only resolution keeps --dry-run usable without an API key.
-			const wanted = await resolveIdOrShortId(flags['node-id'], cacheService);
+			const wanted = await resolveIdOrShortId(flags["node-id"], cacheService);
 			groups = groups.filter((group) => group.wrapperId === wanted || group.entryId === wanted);
 			if (groups.length === 0) {
 				this.error(`No photo group found for node ${wanted}`);
@@ -210,8 +210,8 @@ export default class FixPhotoGroups extends Command {
 		}
 
 		const planned = groups.map((group) => ({group, plan: planPhotoGroup(group)}));
-		const fixable = planned.filter((entry) => entry.plan.decision === 'reverse');
-		const skipped = planned.filter((entry) => entry.plan.decision !== 'reverse');
+		const fixable = planned.filter((entry) => entry.plan.decision === "reverse");
+		const skipped = planned.filter((entry) => entry.plan.decision !== "reverse");
 
 		this.log(`Found ${planned.length} photo groups: ${fixable.length} to fix, ${skipped.length} left alone`);
 
@@ -235,19 +235,19 @@ export default class FixPhotoGroups extends Command {
 			this.warn(staleness);
 		}
 
-		const toProcess = flags['batch-size'] ? fixable.slice(0, flags['batch-size']) : fixable;
+		const toProcess = flags["batch-size"] ? fixable.slice(0, flags["batch-size"]) : fixable;
 		const titles = loadEntryTitles(
 			database,
 			toProcess.map(({group}) => group.entryId),
 		);
 
-		if (flags['dry-run']) {
-			this.log('\n--- DRY RUN ---');
+		if (flags["dry-run"]) {
+			this.log("\n--- DRY RUN ---");
 			for (const {group, plan} of toProcess) {
 				this.log(`  ${describeGroup(group, titles)} — ${plan.decision} (${plan.reason})`);
 				for (const id of plan.orderedIds) {
 					const member = group.members.find((candidate) => candidate.id === id);
-					this.log(`    ${id}  ${member?.fileName ?? '(no filename)'}`);
+					this.log(`    ${id}  ${member?.fileName ?? "(no filename)"}`);
 				}
 			}
 			this.log(`\nTotal: ${toProcess.length} groups would be fixed`);
@@ -260,7 +260,7 @@ export default class FixPhotoGroups extends Command {
 
 		const apiKey = process.env.WORKFLOWY_API_KEY;
 		if (!apiKey) {
-			this.error('WORKFLOWY_API_KEY environment variable is required');
+			this.error("WORKFLOWY_API_KEY environment variable is required");
 		}
 
 		const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);

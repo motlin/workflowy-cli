@@ -1,10 +1,10 @@
-import {Command, Flags} from '@oclif/core';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {createDatabase} from '../../db/index.js';
-import {type TextSearchResult, TextSearchService} from '../../services/text-search.js';
+import {Command, Flags} from "@oclif/core";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {createDatabase} from "../../db/index.js";
+import {type TextSearchResult, TextSearchService} from "../../services/text-search.js";
 
 export default class Search extends Command {
-	static override description = 'Search Workflowy nodes by text in names and notes';
+	static override description = "Search Workflowy nodes by text in names and notes";
 
 	static override examples = [
 		'<%= config.bin %> <%= command.id %> --query "meeting notes"',
@@ -15,22 +15,22 @@ export default class Search extends Command {
 
 	static override flags = {
 		query: Flags.string({
-			char: 'q',
-			description: 'Text to search for in node names and notes',
+			char: "q",
+			description: "Text to search for in node names and notes",
 			required: true,
 		}),
 		limit: Flags.integer({
-			char: 'l',
-			description: 'Maximum number of results to return',
+			char: "l",
+			description: "Maximum number of results to return",
 			default: 20,
 		}),
 		incomplete: Flags.boolean({
-			description: 'Only show incomplete (not completed) nodes',
+			description: "Only show incomplete (not completed) nodes",
 			default: false,
 		}),
 		json: Flags.boolean({
-			char: 'j',
-			description: 'Output results in JSON format',
+			char: "j",
+			description: "Output results in JSON format",
 			default: false,
 		}),
 	};
@@ -54,17 +54,17 @@ export default class Search extends Command {
 		}
 
 		if (results.length === 0) {
-			this.log('No results found.');
+			this.log("No results found.");
 			return results;
 		}
 
-		this.log(`Found ${results.length} result${results.length === 1 ? '' : 's'}:\n`);
+		this.log(`Found ${results.length} result${results.length === 1 ? "" : "s"}:\n`);
 
 		for (const result of results) {
 			const formattedPath = this.formatPathWithGreySeparators(result.path);
 			this.log(`  ${formattedPath}`);
 
-			const name = stripHtmlTags(result.name ?? '');
+			const name = stripHtmlTags(result.name ?? "");
 			if (name) {
 				this.log(`    Name: ${name}`);
 			}
@@ -72,7 +72,7 @@ export default class Search extends Command {
 			if (result.note) {
 				const note = stripHtmlTags(result.note);
 				const preview = note.slice(0, 150);
-				this.log(`    Note: ${preview}${note.length > 150 ? '...' : ''}`);
+				this.log(`    Note: ${preview}${note.length > 150 ? "..." : ""}`);
 			}
 
 			if (result.shortId) {
@@ -80,13 +80,13 @@ export default class Search extends Command {
 				this.log(`    ${greyUrl}`);
 			}
 
-			this.log('');
+			this.log("");
 		}
 
 		return results;
 	}
 
 	private formatPathWithGreySeparators(path: string): string {
-		return path.replaceAll(' > ', '\u001B[90m > \u001B[0m');
+		return path.replaceAll(" > ", "\u001B[90m > \u001B[0m");
 	}
 }

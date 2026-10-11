@@ -1,33 +1,33 @@
-import {fetchWorkflowyEpoch} from '@workflowy/shared/api';
-import {config} from '@workflowy/shared/db';
-import {formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import {Command, Flags} from '@oclif/core';
-import {eq} from 'drizzle-orm';
-import {createDatabase} from '../../db/index.js';
+import {fetchWorkflowyEpoch} from "@workflowy/shared/api";
+import {config} from "@workflowy/shared/db";
+import {formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import {Command, Flags} from "@oclif/core";
+import {eq} from "drizzle-orm";
+import {createDatabase} from "../../db/index.js";
 
-const WORKFLOWY_EPOCH_CONFIG_KEY = 'workflowy_epoch';
+const WORKFLOWY_EPOCH_CONFIG_KEY = "workflowy_epoch";
 
 export default class CacheConfig extends Command {
-	static override description = 'Manage cache configuration settings like the Workflowy epoch';
+	static override description = "Manage cache configuration settings like the Workflowy epoch";
 
 	static override examples = [
-		'<%= config.bin %> cache:config --get epoch',
-		'<%= config.bin %> cache:config --set epoch=1324752241',
-		'<%= config.bin %> cache:config --fetch-epoch',
+		"<%= config.bin %> cache:config --get epoch",
+		"<%= config.bin %> cache:config --set epoch=1324752241",
+		"<%= config.bin %> cache:config --fetch-epoch",
 	];
 
 	static override flags = {
 		get: Flags.string({
-			char: 'g',
+			char: "g",
 			description: 'Get a configuration value (e.g., "epoch")',
 		}),
 		set: Flags.string({
-			char: 's',
+			char: "s",
 			description: 'Set a configuration value (e.g., "epoch=1324752241")',
 		}),
-		'fetch-epoch': Flags.boolean({
+		"fetch-epoch": Flags.boolean({
 			description:
-				'Fetch and store the Workflowy epoch from internal API (requires WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)',
+				"Fetch and store the Workflowy epoch from internal API (requires WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)",
 		}),
 	};
 
@@ -35,7 +35,7 @@ export default class CacheConfig extends Command {
 		const {flags} = await this.parse(CacheConfig);
 		const database = createDatabase();
 
-		if (flags['fetch-epoch']) {
+		if (flags["fetch-epoch"]) {
 			await this.fetchAndStoreEpoch(database);
 			return;
 		}
@@ -59,10 +59,10 @@ export default class CacheConfig extends Command {
 		const password = process.env.WORKFLOWY_PASSWORD;
 
 		if (!username || !password) {
-			this.error('WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD environment variables are required');
+			this.error("WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD environment variables are required");
 		}
 
-		this.log('Fetching Workflowy epoch from internal API...');
+		this.log("Fetching Workflowy epoch from internal API...");
 
 		try {
 			const epoch = await fetchWorkflowyEpoch({username, password});
@@ -93,7 +93,7 @@ export default class CacheConfig extends Command {
 	}
 
 	private getConfig(database: ReturnType<typeof createDatabase>, key: string): void {
-		if (key === 'epoch') {
+		if (key === "epoch") {
 			// Check env var first
 			const envEpoch = process.env.WORKFLOWY_EPOCH;
 			if (envEpoch) {
@@ -108,12 +108,12 @@ export default class CacheConfig extends Command {
 				return;
 			}
 
-			this.log('epoch=<not configured>');
-			this.log('\nTo configure, either:');
-			this.log('  1. Set WORKFLOWY_EPOCH environment variable');
-			this.log('  2. Run: ./bin/run.js cache:config --set epoch=<value>');
+			this.log("epoch=<not configured>");
+			this.log("\nTo configure, either:");
+			this.log("  1. Set WORKFLOWY_EPOCH environment variable");
+			this.log("  2. Run: ./bin/run.js cache:config --set epoch=<value>");
 			this.log(
-				'  3. Run: ./bin/run.js cache:config --fetch-epoch (requires WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)',
+				"  3. Run: ./bin/run.js cache:config --fetch-epoch (requires WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)",
 			);
 		} else {
 			this.error(`Unknown config key: ${key}. Supported keys: epoch`);
@@ -121,16 +121,16 @@ export default class CacheConfig extends Command {
 	}
 
 	private setConfig(database: ReturnType<typeof createDatabase>, setting: string): void {
-		const [key, value] = setting.split('=');
+		const [key, value] = setting.split("=");
 
 		if (!key || value === undefined) {
-			this.error('Invalid format. Use: --set key=value');
+			this.error("Invalid format. Use: --set key=value");
 		}
 
-		if (key === 'epoch') {
+		if (key === "epoch") {
 			const epoch = Number.parseInt(value, 10);
 			if (Number.isNaN(epoch)) {
-				this.error('Invalid epoch value. Must be a number (Unix timestamp in seconds).');
+				this.error("Invalid epoch value. Must be a number (Unix timestamp in seconds).");
 			}
 
 			const now = formatTemporalTimestamp(new Date());
@@ -159,7 +159,7 @@ export default class CacheConfig extends Command {
 	}
 
 	private showAllConfig(database: ReturnType<typeof createDatabase>): void {
-		this.log('Cache Configuration:\n');
+		this.log("Cache Configuration:\n");
 
 		// Epoch
 		const envEpoch = process.env.WORKFLOWY_EPOCH;
@@ -170,10 +170,10 @@ export default class CacheConfig extends Command {
 			if (row) {
 				this.log(`  epoch: ${row.value} (from config table)`);
 			} else {
-				this.log('  epoch: <not configured>');
+				this.log("  epoch: <not configured>");
 			}
 		}
 
-		this.log('\nUse --get <key> or --set <key>=<value> to manage settings.');
+		this.log("\nUse --get <key> or --set <key>=<value> to manage settings.");
 	}
 }

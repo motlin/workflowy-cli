@@ -1,7 +1,7 @@
-import {readdirSync, readFileSync, statSync} from 'node:fs';
-import {dirname, extname, join} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {describe, expect, it} from 'vite-plus/test';
+import {readdirSync, readFileSync, statSync} from "node:fs";
+import {dirname, extname, join} from "node:path";
+import {fileURLToPath} from "node:url";
+import {describe, expect, it} from "vite-plus/test";
 
 /**
  * Phase 4c: column-coverage test — the dead-column tripwire.
@@ -17,13 +17,13 @@ import {describe, expect, it} from 'vite-plus/test';
  * property names within them, then scan the rest of the `packages/` source
  * tree for each name. A column counts as covered if it appears anywhere as a
  * property access (`.column`), an object key (`column:`), or a quoted string
- * (`'column'`).
+ * (`"column"` or `'column'`).
  */
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(currentDirectory, '../../..');
-const packagesDirectory = join(repoRoot, 'packages');
-const schemaPath = join(packagesDirectory, 'shared/src/db/schema.ts');
+const repoRoot = join(currentDirectory, "../../..");
+const packagesDirectory = join(repoRoot, "packages");
+const schemaPath = join(packagesDirectory, "shared/src/db/schema.ts");
 
 /**
  * Columns that no read site references by name, yet are still legitimately
@@ -33,7 +33,7 @@ const schemaPath = join(packagesDirectory, 'shared/src/db/schema.ts');
  * Treating the merge engine as a generic reader for those two columns keeps
  * the test honest without weakening it for every other column.
  */
-const allowlistedColumns = new Set(['systemFrom', 'systemTo']);
+const allowlistedColumns = new Set(["systemFrom", "systemTo"]);
 
 interface SchemaColumn {
 	table: string;
@@ -42,26 +42,26 @@ interface SchemaColumn {
 
 /**
  * Extract `{table, column}` pairs from `schema.ts`. Each `export const X =
- * sqliteTable('name', { ... })` block contributes the property names declared
+ * sqliteTable("name", { ... })` block contributes the property names declared
  * in its column-definition object, ignoring the trailing index/PK callback.
  */
 function extractSchemaColumns(source: string): SchemaColumn[] {
 	const columns: SchemaColumn[] = [];
-	const tablePattern = /export const (\w+) = sqliteTable\(\s*'[^']+',/g;
+	const tablePattern = /export const (\w+) = sqliteTable\(\s*(["'])[^"']+\2,/g;
 
 	let match: RegExpExecArray | null;
 	while ((match = tablePattern.exec(source)) !== null) {
 		const tableConstant = match[1];
-		const blockStart = source.indexOf('{', match.index + match[0].length);
+		const blockStart = source.indexOf("{", match.index + match[0].length);
 		expect(blockStart, `column-definition block for ${tableConstant}`).toBeGreaterThan(-1);
 
 		let depth = 0;
 		let blockEnd = blockStart;
 		for (let index = blockStart; index < source.length; index++) {
 			const character = source[index];
-			if (character === '{') {
+			if (character === "{") {
 				depth++;
-			} else if (character === '}') {
+			} else if (character === "}") {
 				depth--;
 				if (depth === 0) {
 					blockEnd = index;
@@ -88,7 +88,7 @@ function extractSchemaColumns(source: string): SchemaColumn[] {
  * or by a test does not count as a real downstream read site.
  */
 function collectSourceFiles(): string[] {
-	const skipDirectories = new Set(['node_modules', 'dist', 'migrations', 'test']);
+	const skipDirectories = new Set(["node_modules", "dist", "migrations", "test"]);
 	const files: string[] = [];
 
 	const walk = (directory: string): void => {
@@ -98,7 +98,7 @@ function collectSourceFiles(): string[] {
 				if (!skipDirectories.has(entry)) {
 					walk(entryPath);
 				}
-			} else if (extname(entry) === '.ts' && entryPath !== schemaPath) {
+			} else if (extname(entry) === ".ts" && entryPath !== schemaPath) {
 				files.push(entryPath);
 			}
 		}
@@ -108,9 +108,9 @@ function collectSourceFiles(): string[] {
 	return files;
 }
 
-describe('column coverage', () => {
-	it('every schema column is referenced by a read site outside migrations', () => {
-		const schemaSource = readFileSync(schemaPath, 'utf8');
+describe("column coverage", () => {
+	it("every schema column is referenced by a read site outside migrations", () => {
+		const schemaSource = readFileSync(schemaPath, "utf8");
 		const schemaColumns = extractSchemaColumns(schemaSource);
 
 		expect(schemaColumns.length).toBeGreaterThan(0);
@@ -118,7 +118,7 @@ describe('column coverage', () => {
 		const sourceFiles = collectSourceFiles();
 		expect(sourceFiles.length).toBeGreaterThan(0);
 
-		const sourceText = sourceFiles.map((file) => readFileSync(file, 'utf8')).join('\n');
+		const sourceText = sourceFiles.map((file) => readFileSync(file, "utf8")).join("\n");
 
 		const deadColumns = schemaColumns.filter(({column}) => {
 			if (allowlistedColumns.has(column)) {
@@ -129,6 +129,6 @@ describe('column coverage', () => {
 		});
 
 		const deadColumnNames = deadColumns.map(({table, column}) => `${table}.${column}`);
-		expect(deadColumnNames, 'columns defined in schema.ts with no downstream read site').toStrictEqual([]);
+		expect(deadColumnNames, "columns defined in schema.ts with no downstream read site").toStrictEqual([]);
 	});
 });

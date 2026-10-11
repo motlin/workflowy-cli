@@ -1,11 +1,11 @@
-import {calendarLevels, calendarMetadata} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {eq} from 'drizzle-orm';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import {importBackup} from '../../src/services/cache-import.js';
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from '../db/migration-helper.js';
+import {calendarLevels, calendarMetadata} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {eq} from "drizzle-orm";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {importBackup} from "../../src/services/cache-import.js";
+import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
 
 /**
  * 📅 Calendar `level` vs `levels` invariant.
@@ -21,17 +21,17 @@ import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from '../db/
  * These tests pin that complementary semantics so a future import change that
  * starts writing both fields on one node fails loudly.
  */
-describe('calendar level/levels invariant', () => {
+describe("calendar level/levels invariant", () => {
 	let tempDir: string;
 	let testDatabase: TestDatabase;
 	let originalEpoch: string | undefined;
 
 	beforeEach(() => {
 		originalEpoch = process.env.WORKFLOWY_EPOCH;
-		process.env.WORKFLOWY_EPOCH = '0';
+		process.env.WORKFLOWY_EPOCH = "0";
 
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflowy-calendar-test-'));
-		testDatabase = createTestDatabase(path.join(tempDir, 'test.sqlite'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-calendar-test-"));
+		testDatabase = createTestDatabase(path.join(tempDir, "test.sqlite"));
 	});
 
 	afterEach(() => {
@@ -48,16 +48,16 @@ describe('calendar level/levels invariant', () => {
 	});
 
 	function writeBackupFile(content: unknown): string {
-		const filePath = path.join(tempDir, 'backup.json');
+		const filePath = path.join(tempDir, "backup.json");
 		fs.writeFileSync(filePath, JSON.stringify(content));
 		return filePath;
 	}
 
-	it('writes levels (not level) for the calendar root node', async () => {
+	it("writes levels (not level) for the calendar root node", async () => {
 		const backupContent = [
 			{
-				id: 'calendar-root',
-				nm: '📆 Calendar',
+				id: "calendar-root",
+				nm: "📆 Calendar",
 				metadata: {
 					calendar: {
 						root: true,
@@ -68,7 +68,7 @@ describe('calendar level/levels invariant', () => {
 			},
 		];
 
-		await importBackup(testDatabase.db, writeBackupFile(backupContent), 'backup.json');
+		await importBackup(testDatabase.db, writeBackupFile(backupContent), "backup.json");
 
 		const metadataRows = testDatabase.db
 			.select()
@@ -83,19 +83,19 @@ describe('calendar level/levels invariant', () => {
 			.where(eq(calendarLevels.systemTo, FAR_FUTURE_DATE))
 			.all();
 		expect(levelsRows.map(({nodeId, day, week, month, year}) => ({nodeId, day, week, month, year}))).toStrictEqual([
-			{nodeId: 'calendar-root', day: 1, week: 0, month: 1, year: 1},
+			{nodeId: "calendar-root", day: 1, week: 0, month: 1, year: 1},
 		]);
 	});
 
-	it('writes level (not a levels row) for a date node', async () => {
+	it("writes level (not a levels row) for a date node", async () => {
 		const backupContent = [
 			{
-				id: 'date-node',
-				nm: '11',
+				id: "date-node",
+				nm: "11",
 				metadata: {
 					calendar: {
-						level: 'day',
-						value: '11',
+						level: "day",
+						value: "11",
 						dateId: 20250211,
 						timestamp: 1739250000000,
 					},
@@ -103,14 +103,14 @@ describe('calendar level/levels invariant', () => {
 			},
 		];
 
-		await importBackup(testDatabase.db, writeBackupFile(backupContent), 'backup.json');
+		await importBackup(testDatabase.db, writeBackupFile(backupContent), "backup.json");
 
 		const metadataRows = testDatabase.db
 			.select()
 			.from(calendarMetadata)
 			.where(eq(calendarMetadata.systemTo, FAR_FUTURE_DATE))
 			.all();
-		expect(metadataRows.map(({level, root}) => ({level, root}))).toStrictEqual([{level: 'day', root: null}]);
+		expect(metadataRows.map(({level, root}) => ({level, root}))).toStrictEqual([{level: "day", root: null}]);
 
 		const levelsRows = testDatabase.db
 			.select()
@@ -120,29 +120,29 @@ describe('calendar level/levels invariant', () => {
 		expect(levelsRows).toStrictEqual([]);
 	});
 
-	it('keeps level and levels mutually exclusive across a mixed calendar tree', async () => {
+	it("keeps level and levels mutually exclusive across a mixed calendar tree", async () => {
 		const backupContent = [
 			{
-				id: 'calendar-root',
-				nm: '📆 Calendar',
+				id: "calendar-root",
+				nm: "📆 Calendar",
 				metadata: {
 					calendar: {root: true, levels: {day: true, month: true, year: true}, found_dates: false},
 				},
 				ch: [
 					{
-						id: 'year-2025',
-						nm: '2025',
-						metadata: {calendar: {level: 'year', value: '2025', dateId: 20250000}},
+						id: "year-2025",
+						nm: "2025",
+						metadata: {calendar: {level: "year", value: "2025", dateId: 20250000}},
 						ch: [
 							{
-								id: 'month-feb',
-								nm: 'February',
-								metadata: {calendar: {level: 'month', value: '2', dateId: 20250200}},
+								id: "month-feb",
+								nm: "February",
+								metadata: {calendar: {level: "month", value: "2", dateId: 20250200}},
 								ch: [
 									{
-										id: 'day-11',
-										nm: '11',
-										metadata: {calendar: {level: 'day', value: '11', dateId: 20250211}},
+										id: "day-11",
+										nm: "11",
+										metadata: {calendar: {level: "day", value: "11", dateId: 20250211}},
 									},
 								],
 							},
@@ -152,7 +152,7 @@ describe('calendar level/levels invariant', () => {
 			},
 		];
 
-		await importBackup(testDatabase.db, writeBackupFile(backupContent), 'backup.json');
+		await importBackup(testDatabase.db, writeBackupFile(backupContent), "backup.json");
 
 		const metadataRows = testDatabase.db
 			.select()
@@ -177,12 +177,12 @@ describe('calendar level/levels invariant', () => {
 			}
 		}
 
-		expect(levelsRows.map((row) => row.nodeId)).toStrictEqual(['calendar-root']);
+		expect(levelsRows.map((row) => row.nodeId)).toStrictEqual(["calendar-root"]);
 		expect(
 			metadataRows
 				.filter((row) => row.level !== null)
 				.map((row) => row.level)
 				.sort((a, b) => String(a).localeCompare(String(b))),
-		).toStrictEqual(['day', 'month', 'year']);
+		).toStrictEqual(["day", "month", "year"]);
 	});
 });

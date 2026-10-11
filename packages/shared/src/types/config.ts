@@ -8,7 +8,7 @@ export interface ArchiveConfig {
 	groups: ArchiveGroup[];
 }
 
-export type DataSource = 'api' | 'cache' | 'auto';
+export type DataSource = "api" | "cache" | "auto";
 
 export interface WorkflowyConfig {
 	archiveGroups?: ArchiveGroup[];

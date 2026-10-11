@@ -1,19 +1,19 @@
-import DatabaseConstructor from 'better-sqlite3';
-import {drizzle} from 'drizzle-orm/better-sqlite3';
-import {migrate} from 'drizzle-orm/better-sqlite3/migrator';
-import {and, eq} from 'drizzle-orm';
-import {dirname, join} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {WorkflowyApiClient} from '../src/api/workflowy-client.js';
-import {CacheService} from '../src/cache/cache-service.js';
-import {deletePlanCalls} from '../src/cache/delete-plan.js';
-import {WorkflowyWriteThroughClient} from '../src/cache/workflowy-write-through-client.js';
-import * as schema from '../src/db/schema.js';
-import {mirrors, nodeContent, nodeMetadata} from '../src/db/schema.js';
-import {FAR_FUTURE_DATE} from '../src/temporal/constants.js';
+import DatabaseConstructor from "better-sqlite3";
+import {drizzle} from "drizzle-orm/better-sqlite3";
+import {migrate} from "drizzle-orm/better-sqlite3/migrator";
+import {and, eq} from "drizzle-orm";
+import {dirname, join} from "node:path";
+import {fileURLToPath} from "node:url";
+import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
+import {CacheService} from "../src/cache/cache-service.js";
+import {deletePlanCalls} from "../src/cache/delete-plan.js";
+import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
+import * as schema from "../src/db/schema.js";
+import {mirrors, nodeContent, nodeMetadata} from "../src/db/schema.js";
+import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
 
-const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
-const SEEDED_AT = '2026-01-01 00:00:00.000';
+const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "../src/db/migrations");
+const SEEDED_AT = "2026-01-01 00:00:00.000";
 
 /*
  * Siblings are listed in priority order, and mirrors in the order they were created.
@@ -37,31 +37,31 @@ const SEEDED_AT = '2026-01-01 00:00:00.000';
  *   mirror-a1       (mirror of task-a1)
  */
 const TREE: Array<[id: string, parentId: string | null]> = [
-	['projects', null],
-	['task-y', 'projects'],
-	['mirror-in', 'projects'],
-	['task-a', 'projects'],
-	['task-a1', 'task-a'],
-	['mirror-y', 'task-a'],
-	['task-b', 'projects'],
-	['mirror-nested', 'task-b'],
-	['mirror-b', 'task-b'],
-	['agendas', null],
-	['agenda-1', 'agendas'],
-	['mirror-out', 'agendas'],
-	['agenda-2', 'agendas'],
-	['agenda-3', 'agendas'],
-	['other', null],
-	['other-original', 'other'],
-	['mirror-a1', 'other'],
+	["projects", null],
+	["task-y", "projects"],
+	["mirror-in", "projects"],
+	["task-a", "projects"],
+	["task-a1", "task-a"],
+	["mirror-y", "task-a"],
+	["task-b", "projects"],
+	["mirror-nested", "task-b"],
+	["mirror-b", "task-b"],
+	["agendas", null],
+	["agenda-1", "agendas"],
+	["mirror-out", "agendas"],
+	["agenda-2", "agendas"],
+	["agenda-3", "agendas"],
+	["other", null],
+	["other-original", "other"],
+	["mirror-a1", "other"],
 ];
 const MIRRORS: Array<[originalId: string, mirrorId: string]> = [
-	['other-original', 'mirror-in'],
-	['task-a', 'mirror-nested'],
-	['task-a', 'mirror-b'],
-	['task-a', 'mirror-out'],
-	['task-a1', 'mirror-a1'],
-	['task-y', 'mirror-y'],
+	["other-original", "mirror-in"],
+	["task-a", "mirror-nested"],
+	["task-a", "mirror-b"],
+	["task-a", "mirror-out"],
+	["task-a1", "mirror-a1"],
+	["task-y", "mirror-y"],
 ];
 
 /** Each parent's children in TREE order, which is also their priority order. */
@@ -72,12 +72,12 @@ function childLists(): Map<string | null, string[]> {
 }
 
 const INITIAL_OUTLINE = {
-	root: ['projects', 'agendas', 'other'],
-	projects: ['task-y', 'mirror-in', 'task-a', 'task-b'],
-	'task-a': ['task-a1', 'mirror-y'],
-	'task-b': ['mirror-nested', 'mirror-b'],
-	agendas: ['agenda-1', 'mirror-out', 'agenda-2', 'agenda-3'],
-	other: ['other-original', 'mirror-a1'],
+	root: ["projects", "agendas", "other"],
+	projects: ["task-y", "mirror-in", "task-a", "task-b"],
+	"task-a": ["task-a1", "mirror-y"],
+	"task-b": ["mirror-nested", "mirror-b"],
+	agendas: ["agenda-1", "mirror-out", "agenda-2", "agenda-3"],
+	other: ["other-original", "mirror-a1"],
 };
 
 /**
@@ -85,7 +85,7 @@ const INITIAL_OUTLINE = {
  * @param serverOutline Children lists the fake server holds in place of the cached ones, as when the cache is stale.
  */
 function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline?: Record<string, string[]>} = {}) {
-	const sqlite = new DatabaseConstructor(':memory:');
+	const sqlite = new DatabaseConstructor(":memory:");
 	const database = drizzle(sqlite, {schema});
 	migrate(database, {migrationsFolder});
 	const seededLists = childLists();
@@ -138,14 +138,14 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 
 	const calls: string[] = [];
 	vi.stubGlobal(
-		'fetch',
+		"fetch",
 		vi.fn(async (url: string, init?: RequestInit) => {
-			const method = init?.method ?? 'GET';
-			const path = url.replace('https://workflowy.test/api/v1', '');
+			const method = init?.method ?? "GET";
+			const path = url.replace("https://workflowy.test/api/v1", "");
 			const call = `${method} ${path}`;
 			calls.push(init?.body === undefined ? call : `${call} ${init.body as string}`);
 			if (call === failCall) {
-				return new Response('{"code":"server_error"}', {status: 500, statusText: 'Internal Server Error'});
+				return new Response('{"code":"server_error"}', {status: 500, statusText: "Internal Server Error"});
 			}
 			const toApi = (id: string, parentId: string | null) => ({
 				id,
@@ -158,27 +158,27 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 				modifiedAt: 0,
 				completedAt: null,
 			});
-			if (method === 'GET' && path.startsWith('/nodes?parent_id=')) {
-				const parentId = path.slice('/nodes?parent_id='.length);
+			if (method === "GET" && path.startsWith("/nodes?parent_id=")) {
+				const parentId = path.slice("/nodes?parent_id=".length);
 				// Workflowy lists children in no particular order, so list them reversed.
 				const nodes = (server.get(parentId) ?? []).map((id) => toApi(id, parentId)).reverse();
 				return new Response(JSON.stringify({nodes}), {status: 200});
 			}
-			const id = path.split('/')[2];
-			if (method === 'DELETE') {
+			const id = path.split("/")[2];
+			if (method === "DELETE") {
 				detach(id);
-			} else if (method === 'POST' && path.endsWith('/move')) {
-				const body = JSON.parse(init?.body as string) as {parent_id: string; position: 'top' | 'bottom'};
+			} else if (method === "POST" && path.endsWith("/move")) {
+				const body = JSON.parse(init?.body as string) as {parent_id: string; position: "top" | "bottom"};
 				detach(id);
 				const siblings = server.get(body.parent_id) ?? [];
-				server.set(body.parent_id, body.position === 'top' ? [id, ...siblings] : [...siblings, id]);
-			} else if (method === 'GET') {
+				server.set(body.parent_id, body.position === "top" ? [id, ...siblings] : [...siblings, id]);
+			} else if (method === "GET") {
 				return new Response(JSON.stringify({node: toApi(id, parentOf(id))}), {status: 200});
 			}
 			return new Response('{"status":"ok"}', {status: 200});
 		}),
 	);
-	const apiClient = new WorkflowyApiClient('test-key', undefined, 'https://workflowy.test', {
+	const apiClient = new WorkflowyApiClient("test-key", undefined, "https://workflowy.test", {
 		maxRetries: 0,
 		baseDelayMs: 0,
 		maxDelayMs: 0,
@@ -198,7 +198,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			.all()
 			.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id));
 		const outline: Record<string, string[]> = {};
-		for (const row of rows) (outline[row.parentId ?? 'root'] ??= []).push(row.id);
+		for (const row of rows) (outline[row.parentId ?? "root"] ??= []).push(row.id);
 		return {
 			outline,
 			mirrors: database
@@ -214,281 +214,281 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 }
 
 const PROJECTS_PLAN = {
-	mirrorIds: ['mirror-in', 'mirror-nested', 'mirror-b'],
+	mirrorIds: ["mirror-in", "mirror-nested", "mirror-b"],
 	promotions: [
-		{originalId: 'task-a', mirrorId: 'mirror-out', parentId: 'agendas', position: 'top', siblingIds: ['agenda-1']},
-		{originalId: 'task-y', mirrorId: 'mirror-y', parentId: 'task-a', position: 'bottom', siblingIds: []},
+		{originalId: "task-a", mirrorId: "mirror-out", parentId: "agendas", position: "top", siblingIds: ["agenda-1"]},
+		{originalId: "task-y", mirrorId: "mirror-y", parentId: "task-a", position: "bottom", siblingIds: []},
 	],
-	nodeId: 'projects',
+	nodeId: "projects",
 };
 
-describe('WorkflowyWriteThroughClient.deleteNode with mirrors', () => {
+describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 		vi.useRealTimers();
 	});
 
-	it('removes a mirror through the mirror endpoint, which also drops it from its original', async () => {
+	it("removes a mirror through the mirror endpoint, which also drops it from its original", async () => {
 		const {client, calls, cacheState} = setup();
 
-		const plan = await client.deleteNode('mirror-out');
+		const plan = await client.deleteNode("mirror-out");
 
 		expect({plan, calls, cache: cacheState()}).toStrictEqual({
-			plan: {mirrorIds: ['mirror-out'], promotions: [], nodeId: null},
-			calls: ['DELETE /nodes/mirror-out/mirror'],
+			plan: {mirrorIds: ["mirror-out"], promotions: [], nodeId: null},
+			calls: ["DELETE /nodes/mirror-out/mirror"],
 			cache: {
-				outline: {...INITIAL_OUTLINE, agendas: ['agenda-1', 'agenda-2', 'agenda-3']},
+				outline: {...INITIAL_OUTLINE, agendas: ["agenda-1", "agenda-2", "agenda-3"]},
 				mirrors: [
-					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
-					{originalId: 'task-a', mirrorId: 'mirror-b'},
-					{originalId: 'other-original', mirrorId: 'mirror-in'},
-					{originalId: 'task-a', mirrorId: 'mirror-nested'},
-					{originalId: 'task-y', mirrorId: 'mirror-y'},
+					{originalId: "task-a1", mirrorId: "mirror-a1"},
+					{originalId: "task-a", mirrorId: "mirror-b"},
+					{originalId: "other-original", mirrorId: "mirror-in"},
+					{originalId: "task-a", mirrorId: "mirror-nested"},
+					{originalId: "task-y", mirrorId: "mirror-y"},
 				],
 			},
 		});
 	});
 
-	it('keeps originals with mirrors elsewhere by moving them into a mirror slot, as the web app does, before deleting the rest', async () => {
+	it("keeps originals with mirrors elsewhere by moving them into a mirror slot, as the web app does, before deleting the rest", async () => {
 		const {client, calls, cacheState} = setup();
 
-		const plan = await client.deleteNode('projects');
+		const plan = await client.deleteNode("projects");
 
 		expect({plan, calls, cache: cacheState()}).toStrictEqual({
 			plan: PROJECTS_PLAN,
 			calls: [
-				'GET /nodes?parent_id=agendas',
-				'GET /nodes?parent_id=task-a',
-				'DELETE /nodes/mirror-in/mirror',
-				'DELETE /nodes/mirror-nested/mirror',
-				'DELETE /nodes/mirror-b/mirror',
-				'DELETE /nodes/mirror-out/mirror',
+				"GET /nodes?parent_id=agendas",
+				"GET /nodes?parent_id=task-a",
+				"DELETE /nodes/mirror-in/mirror",
+				"DELETE /nodes/mirror-nested/mirror",
+				"DELETE /nodes/mirror-b/mirror",
+				"DELETE /nodes/mirror-out/mirror",
 				'POST /nodes/task-a/move {"parent_id":"agendas","position":"top"}',
-				'GET /nodes/task-a',
+				"GET /nodes/task-a",
 				'POST /nodes/agenda-1/move {"parent_id":"agendas","position":"top"}',
-				'GET /nodes/agenda-1',
-				'GET /nodes/task-a',
-				'DELETE /nodes/mirror-y/mirror',
+				"GET /nodes/agenda-1",
+				"GET /nodes/task-a",
+				"DELETE /nodes/mirror-y/mirror",
 				'POST /nodes/task-y/move {"parent_id":"task-a","position":"bottom"}',
-				'GET /nodes/task-y',
-				'DELETE /nodes/projects',
+				"GET /nodes/task-y",
+				"DELETE /nodes/projects",
 			],
 			cache: {
 				outline: {
-					root: ['agendas', 'other'],
-					agendas: ['agenda-1', 'task-a', 'agenda-2', 'agenda-3'],
-					'task-a': ['task-a1', 'task-y'],
-					other: ['other-original', 'mirror-a1'],
+					root: ["agendas", "other"],
+					agendas: ["agenda-1", "task-a", "agenda-2", "agenda-3"],
+					"task-a": ["task-a1", "task-y"],
+					other: ["other-original", "mirror-a1"],
 				},
-				mirrors: [{originalId: 'task-a1', mirrorId: 'mirror-a1'}],
+				mirrors: [{originalId: "task-a1", mirrorId: "mirror-a1"}],
 			},
 		});
 	});
 
 	it("places a kept original in its mirror's live slot, read from Workflowy, when the cached sibling order is stale", async () => {
 		const {client, calls, cacheState} = setup({
-			serverOutline: {agendas: ['agenda-1', 'agenda-2', 'mirror-out', 'agenda-3']},
+			serverOutline: {agendas: ["agenda-1", "agenda-2", "mirror-out", "agenda-3"]},
 		});
 
-		const plan = await client.deleteNode('projects');
+		const plan = await client.deleteNode("projects");
 
 		expect({plan, calls, cache: cacheState()}).toStrictEqual({
 			plan: {
 				...PROJECTS_PLAN,
 				promotions: [
 					{
-						originalId: 'task-a',
-						mirrorId: 'mirror-out',
-						parentId: 'agendas',
-						position: 'bottom',
-						siblingIds: ['agenda-3'],
+						originalId: "task-a",
+						mirrorId: "mirror-out",
+						parentId: "agendas",
+						position: "bottom",
+						siblingIds: ["agenda-3"],
 					},
 					PROJECTS_PLAN.promotions[1],
 				],
 			},
 			calls: [
-				'GET /nodes?parent_id=agendas',
-				'GET /nodes?parent_id=task-a',
-				'DELETE /nodes/mirror-in/mirror',
-				'DELETE /nodes/mirror-nested/mirror',
-				'DELETE /nodes/mirror-b/mirror',
-				'DELETE /nodes/mirror-out/mirror',
+				"GET /nodes?parent_id=agendas",
+				"GET /nodes?parent_id=task-a",
+				"DELETE /nodes/mirror-in/mirror",
+				"DELETE /nodes/mirror-nested/mirror",
+				"DELETE /nodes/mirror-b/mirror",
+				"DELETE /nodes/mirror-out/mirror",
 				'POST /nodes/task-a/move {"parent_id":"agendas","position":"bottom"}',
-				'GET /nodes/task-a',
+				"GET /nodes/task-a",
 				'POST /nodes/agenda-3/move {"parent_id":"agendas","position":"bottom"}',
-				'GET /nodes/agenda-3',
-				'GET /nodes/task-a',
-				'DELETE /nodes/mirror-y/mirror',
+				"GET /nodes/agenda-3",
+				"GET /nodes/task-a",
+				"DELETE /nodes/mirror-y/mirror",
 				'POST /nodes/task-y/move {"parent_id":"task-a","position":"bottom"}',
-				'GET /nodes/task-y',
-				'DELETE /nodes/projects',
+				"GET /nodes/task-y",
+				"DELETE /nodes/projects",
 			],
 			cache: {
 				outline: {
-					root: ['agendas', 'other'],
-					agendas: ['agenda-1', 'agenda-2', 'task-a', 'agenda-3'],
-					'task-a': ['task-a1', 'task-y'],
-					other: ['other-original', 'mirror-a1'],
+					root: ["agendas", "other"],
+					agendas: ["agenda-1", "agenda-2", "task-a", "agenda-3"],
+					"task-a": ["task-a1", "task-y"],
+					other: ["other-original", "mirror-a1"],
 				},
-				mirrors: [{originalId: 'task-a1', mirrorId: 'mirror-a1'}],
+				mirrors: [{originalId: "task-a1", mirrorId: "mirror-a1"}],
 			},
 		});
 	});
 
-	it('caches each version of a node rewritten within the same millisecond, so a fast delete does not collide with itself', async () => {
-		vi.useFakeTimers({toFake: ['Date'], now: new Date('2026-02-01T00:00:00.000Z')});
+	it("caches each version of a node rewritten within the same millisecond, so a fast delete does not collide with itself", async () => {
+		vi.useFakeTimers({toFake: ["Date"], now: new Date("2026-02-01T00:00:00.000Z")});
 		const {client, cacheState} = setup({
-			serverOutline: {agendas: ['agenda-1', 'agenda-2', 'mirror-out', 'agenda-3']},
+			serverOutline: {agendas: ["agenda-1", "agenda-2", "mirror-out", "agenda-3"]},
 		});
 
-		await client.deleteNode('projects');
+		await client.deleteNode("projects");
 
 		expect(cacheState()).toStrictEqual({
 			outline: {
-				root: ['agendas', 'other'],
-				agendas: ['agenda-1', 'agenda-2', 'task-a', 'agenda-3'],
-				'task-a': ['task-a1', 'task-y'],
-				other: ['other-original', 'mirror-a1'],
+				root: ["agendas", "other"],
+				agendas: ["agenda-1", "agenda-2", "task-a", "agenda-3"],
+				"task-a": ["task-a1", "task-y"],
+				other: ["other-original", "mirror-a1"],
 			},
-			mirrors: [{originalId: 'task-a1', mirrorId: 'mirror-a1'}],
+			mirrors: [{originalId: "task-a1", mirrorId: "mirror-a1"}],
 		});
 	});
 
-	it('moves a target with several mirrors elsewhere into the one with the lowest id, as the web app does on a fresh load, leaves the others mirroring it, and deletes nothing', async () => {
+	it("moves a target with several mirrors elsewhere into the one with the lowest id, as the web app does on a fresh load, leaves the others mirroring it, and deletes nothing", async () => {
 		const {client, calls, cacheState} = setup();
 
-		const plan = await client.deleteNode('task-a');
+		const plan = await client.deleteNode("task-a");
 
 		expect({plan, calls, cache: cacheState()}).toStrictEqual({
 			plan: {
 				mirrorIds: [],
 				promotions: [
 					{
-						originalId: 'task-a',
-						mirrorId: 'mirror-b',
-						parentId: 'task-b',
-						position: 'bottom',
+						originalId: "task-a",
+						mirrorId: "mirror-b",
+						parentId: "task-b",
+						position: "bottom",
 						siblingIds: [],
 					},
 				],
 				nodeId: null,
 			},
 			calls: [
-				'GET /nodes?parent_id=task-b',
-				'DELETE /nodes/mirror-b/mirror',
+				"GET /nodes?parent_id=task-b",
+				"DELETE /nodes/mirror-b/mirror",
 				'POST /nodes/task-a/move {"parent_id":"task-b","position":"bottom"}',
-				'GET /nodes/task-a',
+				"GET /nodes/task-a",
 			],
 			cache: {
 				outline: {
 					...INITIAL_OUTLINE,
-					projects: ['task-y', 'mirror-in', 'task-b'],
-					'task-b': ['mirror-nested', 'task-a'],
+					projects: ["task-y", "mirror-in", "task-b"],
+					"task-b": ["mirror-nested", "task-a"],
 				},
 				mirrors: [
-					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
-					{originalId: 'other-original', mirrorId: 'mirror-in'},
-					{originalId: 'task-a', mirrorId: 'mirror-nested'},
-					{originalId: 'task-a', mirrorId: 'mirror-out'},
-					{originalId: 'task-y', mirrorId: 'mirror-y'},
+					{originalId: "task-a1", mirrorId: "mirror-a1"},
+					{originalId: "other-original", mirrorId: "mirror-in"},
+					{originalId: "task-a", mirrorId: "mirror-nested"},
+					{originalId: "task-a", mirrorId: "mirror-out"},
+					{originalId: "task-y", mirrorId: "mirror-y"},
 				],
 			},
 		});
 	});
 
-	it('deletes a node without mirrors through the generic endpoint only', async () => {
+	it("deletes a node without mirrors through the generic endpoint only", async () => {
 		const {client, calls} = setup();
 
-		const plan = await client.deleteNode('agenda-2');
+		const plan = await client.deleteNode("agenda-2");
 
 		expect({plan, calls}).toStrictEqual({
-			plan: {mirrorIds: [], promotions: [], nodeId: 'agenda-2'},
-			calls: ['DELETE /nodes/agenda-2'],
+			plan: {mirrorIds: [], promotions: [], nodeId: "agenda-2"},
+			calls: ["DELETE /nodes/agenda-2"],
 		});
 	});
 
-	it('plans a delete from the live sibling order without changing Workflowy or the cache', async () => {
+	it("plans a delete from the live sibling order without changing Workflowy or the cache", async () => {
 		const {client, calls, cacheState} = setup();
 		const before = cacheState();
 
-		const plan = await client.planDelete('projects');
+		const plan = await client.planDelete("projects");
 
 		expect({plan, calls, cache: cacheState()}).toStrictEqual({
 			plan: PROJECTS_PLAN,
-			calls: ['GET /nodes?parent_id=agendas', 'GET /nodes?parent_id=task-a'],
+			calls: ["GET /nodes?parent_id=agendas", "GET /nodes?parent_id=task-a"],
 			cache: before,
 		});
 	});
 
-	it('lists the API calls of a plan in the order they are made', () => {
+	it("lists the API calls of a plan in the order they are made", () => {
 		expect(deletePlanCalls(PROJECTS_PLAN as Parameters<typeof deletePlanCalls>[0])).toStrictEqual([
-			{method: 'DELETE', path: '/nodes/mirror-in/mirror'},
-			{method: 'DELETE', path: '/nodes/mirror-nested/mirror'},
-			{method: 'DELETE', path: '/nodes/mirror-b/mirror'},
-			{method: 'DELETE', path: '/nodes/mirror-out/mirror'},
-			{method: 'POST', path: '/nodes/task-a/move', body: {parent_id: 'agendas', position: 'top'}},
-			{method: 'POST', path: '/nodes/agenda-1/move', body: {parent_id: 'agendas', position: 'top'}},
-			{method: 'DELETE', path: '/nodes/mirror-y/mirror'},
-			{method: 'POST', path: '/nodes/task-y/move', body: {parent_id: 'task-a', position: 'bottom'}},
-			{method: 'DELETE', path: '/nodes/projects'},
+			{method: "DELETE", path: "/nodes/mirror-in/mirror"},
+			{method: "DELETE", path: "/nodes/mirror-nested/mirror"},
+			{method: "DELETE", path: "/nodes/mirror-b/mirror"},
+			{method: "DELETE", path: "/nodes/mirror-out/mirror"},
+			{method: "POST", path: "/nodes/task-a/move", body: {parent_id: "agendas", position: "top"}},
+			{method: "POST", path: "/nodes/agenda-1/move", body: {parent_id: "agendas", position: "top"}},
+			{method: "DELETE", path: "/nodes/mirror-y/mirror"},
+			{method: "POST", path: "/nodes/task-y/move", body: {parent_id: "task-a", position: "bottom"}},
+			{method: "DELETE", path: "/nodes/projects"},
 		]);
 	});
 
-	it('does not send the generic delete when removing an inner mirror fails, so no dead reference is left', async () => {
-		const {client, calls, cacheState} = setup({failCall: 'DELETE /nodes/mirror-nested/mirror'});
+	it("does not send the generic delete when removing an inner mirror fails, so no dead reference is left", async () => {
+		const {client, calls, cacheState} = setup({failCall: "DELETE /nodes/mirror-nested/mirror"});
 
-		await expect(client.deleteNode('projects')).rejects.toThrow(
+		await expect(client.deleteNode("projects")).rejects.toThrow(
 			'Failed to delete mirror: 500 Internal Server Error\n{"code":"server_error"}',
 		);
 
 		expect({calls, cache: cacheState()}).toStrictEqual({
 			calls: [
-				'GET /nodes?parent_id=agendas',
-				'GET /nodes?parent_id=task-a',
-				'DELETE /nodes/mirror-in/mirror',
-				'DELETE /nodes/mirror-nested/mirror',
+				"GET /nodes?parent_id=agendas",
+				"GET /nodes?parent_id=task-a",
+				"DELETE /nodes/mirror-in/mirror",
+				"DELETE /nodes/mirror-nested/mirror",
 			],
 			cache: {
-				outline: {...INITIAL_OUTLINE, projects: ['task-y', 'task-a', 'task-b']},
+				outline: {...INITIAL_OUTLINE, projects: ["task-y", "task-a", "task-b"]},
 				mirrors: [
-					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
-					{originalId: 'task-a', mirrorId: 'mirror-b'},
-					{originalId: 'task-a', mirrorId: 'mirror-nested'},
-					{originalId: 'task-a', mirrorId: 'mirror-out'},
-					{originalId: 'task-y', mirrorId: 'mirror-y'},
+					{originalId: "task-a1", mirrorId: "mirror-a1"},
+					{originalId: "task-a", mirrorId: "mirror-b"},
+					{originalId: "task-a", mirrorId: "mirror-nested"},
+					{originalId: "task-a", mirrorId: "mirror-out"},
+					{originalId: "task-y", mirrorId: "mirror-y"},
 				],
 			},
 		});
 	});
 
-	it('does not send the generic delete when moving a kept original fails, so its content survives', async () => {
-		const {client, calls, cacheState} = setup({failCall: 'POST /nodes/task-a/move'});
+	it("does not send the generic delete when moving a kept original fails, so its content survives", async () => {
+		const {client, calls, cacheState} = setup({failCall: "POST /nodes/task-a/move"});
 
-		await expect(client.deleteNode('projects')).rejects.toThrow(
+		await expect(client.deleteNode("projects")).rejects.toThrow(
 			'Failed to move node: 500 Internal Server Error\n{"code":"server_error"}',
 		);
 
 		expect({calls, cache: cacheState()}).toStrictEqual({
 			calls: [
-				'GET /nodes?parent_id=agendas',
-				'GET /nodes?parent_id=task-a',
-				'DELETE /nodes/mirror-in/mirror',
-				'DELETE /nodes/mirror-nested/mirror',
-				'DELETE /nodes/mirror-b/mirror',
-				'DELETE /nodes/mirror-out/mirror',
+				"GET /nodes?parent_id=agendas",
+				"GET /nodes?parent_id=task-a",
+				"DELETE /nodes/mirror-in/mirror",
+				"DELETE /nodes/mirror-nested/mirror",
+				"DELETE /nodes/mirror-b/mirror",
+				"DELETE /nodes/mirror-out/mirror",
 				'POST /nodes/task-a/move {"parent_id":"agendas","position":"top"}',
 			],
 			cache: {
 				outline: {
-					root: ['projects', 'agendas', 'other'],
-					projects: ['task-y', 'task-a', 'task-b'],
-					'task-a': ['task-a1', 'mirror-y'],
-					agendas: ['agenda-1', 'agenda-2', 'agenda-3'],
-					other: ['other-original', 'mirror-a1'],
+					root: ["projects", "agendas", "other"],
+					projects: ["task-y", "task-a", "task-b"],
+					"task-a": ["task-a1", "mirror-y"],
+					agendas: ["agenda-1", "agenda-2", "agenda-3"],
+					other: ["other-original", "mirror-a1"],
 				},
 				mirrors: [
-					{originalId: 'task-a1', mirrorId: 'mirror-a1'},
-					{originalId: 'task-y', mirrorId: 'mirror-y'},
+					{originalId: "task-a1", mirrorId: "mirror-a1"},
+					{originalId: "task-y", mirrorId: "mirror-y"},
 				],
 			},
 		});

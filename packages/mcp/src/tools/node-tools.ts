@@ -1,20 +1,20 @@
-import {NodeTreeReader} from '@workflowy/shared/cache';
-import {resolveNodeId, resolveOrCreateNodePath, resolveParent} from '@workflowy/shared/utils';
-import {z} from 'zod';
-import {getApiClient, getCacheService, getWriteThroughClient} from '../services.js';
-import type {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
+import {NodeTreeReader} from "@workflowy/shared/cache";
+import {resolveNodeId, resolveOrCreateNodePath, resolveParent} from "@workflowy/shared/utils";
+import {z} from "zod";
+import {getApiClient, getCacheService, getWriteThroughClient} from "../services.js";
+import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerNodeTools(server: McpServer): void {
 	server.tool(
-		'workflowy_node_get',
-		'Get a node by ID or path',
+		"workflowy_node_get",
+		"Get a node by ID or path",
 		{
-			id: z.string().optional().describe('Node ID'),
-			path: z.string().optional().describe('Comma-separated path to node'),
+			id: z.string().optional().describe("Node ID"),
+			path: z.string().optional().describe("Comma-separated path to node"),
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
-				return {content: [{type: 'text', text: 'Either id or path is required'}], isError: true};
+				return {content: [{type: "text", text: "Either id or path is required"}], isError: true};
 			}
 
 			const cacheService = getCacheService();
@@ -24,20 +24,20 @@ export function registerNodeTools(server: McpServer): void {
 			const [node] = await new NodeTreeReader(cacheService).readNodes([nodeId], {depth: 0});
 
 			if (!node) {
-				return {content: [{type: 'text', text: `Node not found: ${nodeId}`}], isError: true};
+				return {content: [{type: "text", text: `Node not found: ${nodeId}`}], isError: true};
 			}
 
-			return {content: [{type: 'text', text: JSON.stringify(node, null, 2)}]};
+			return {content: [{type: "text", text: JSON.stringify(node, null, 2)}]};
 		},
 	);
 
 	server.tool(
-		'workflowy_node_list',
-		'List children of a node',
+		"workflowy_node_list",
+		"List children of a node",
 		{
-			parentId: z.string().optional().describe('Parent node ID (null for root)'),
-			parentPath: z.string().optional().describe('Comma-separated path to parent'),
-			depth: z.number().optional().default(1).describe('Depth to recurse (1 = immediate children only)'),
+			parentId: z.string().optional().describe("Parent node ID (null for root)"),
+			parentPath: z.string().optional().describe("Comma-separated path to parent"),
+			depth: z.number().optional().default(1).describe("Depth to recurse (1 = immediate children only)"),
 		},
 		async ({parentId, parentPath, depth}) => {
 			const cacheService = getCacheService();
@@ -53,28 +53,28 @@ export function registerNodeTools(server: McpServer): void {
 			const result = await new NodeTreeReader(cacheService).readChildren(resolvedParentId, {
 				depth: Math.max(0, depth - 1),
 			});
-			return {content: [{type: 'text', text: JSON.stringify(result, null, 2)}]};
+			return {content: [{type: "text", text: JSON.stringify(result, null, 2)}]};
 		},
 	);
 
 	server.tool(
-		'workflowy_node_create',
-		'Create a new node',
+		"workflowy_node_create",
+		"Create a new node",
 		{
 			parentId: z.string().optional().describe('Parent node ID or system target (e.g., "inbox")'),
-			parentPath: z.string().optional().describe('Comma-separated path to parent'),
-			name: z.string().describe('Name of the new node'),
-			note: z.string().optional().describe('Note/description for the node'),
-			position: z.enum(['top', 'bottom']).optional().describe('Position among siblings'),
+			parentPath: z.string().optional().describe("Comma-separated path to parent"),
+			name: z.string().describe("Name of the new node"),
+			note: z.string().optional().describe("Note/description for the node"),
+			position: z.enum(["top", "bottom"]).optional().describe("Position among siblings"),
 			createPath: z
 				.boolean()
 				.optional()
 				.default(false)
-				.describe('Create missing parent path segments (like mkdir -p)'),
+				.describe("Create missing parent path segments (like mkdir -p)"),
 		},
 		async ({parentId, parentPath, name, note, position, createPath}) => {
 			if (!parentId && !parentPath) {
-				return {content: [{type: 'text', text: 'Either parentId or parentPath is required'}], isError: true};
+				return {content: [{type: "text", text: "Either parentId or parentPath is required"}], isError: true};
 			}
 
 			const cacheService = getCacheService();
@@ -95,13 +95,13 @@ export function registerNodeTools(server: McpServer): void {
 			return {
 				content: [
 					{
-						type: 'text',
+						type: "text",
 						text: JSON.stringify(
 							{
 								id: newNode.id,
 								name: newNode.name,
 								createdAt: new Date(newNode.createdAt * 1000).toISOString(),
-								url: `https://workflowy.com/#/${newNode.id.replaceAll('-', '')}`,
+								url: `https://workflowy.com/#/${newNode.id.replaceAll("-", "")}`,
 							},
 							null,
 							2,
@@ -113,21 +113,21 @@ export function registerNodeTools(server: McpServer): void {
 	);
 
 	server.tool(
-		'workflowy_node_update',
-		'Update an existing node',
+		"workflowy_node_update",
+		"Update an existing node",
 		{
-			id: z.string().optional().describe('Node ID'),
-			path: z.string().optional().describe('Comma-separated path to node'),
-			name: z.string().optional().describe('New name for the node'),
-			note: z.string().optional().describe('New note for the node'),
+			id: z.string().optional().describe("Node ID"),
+			path: z.string().optional().describe("Comma-separated path to node"),
+			name: z.string().optional().describe("New name for the node"),
+			note: z.string().optional().describe("New note for the node"),
 		},
 		async ({id, path, name, note}) => {
 			if (!id && !path) {
-				return {content: [{type: 'text', text: 'Either id or path is required'}], isError: true};
+				return {content: [{type: "text", text: "Either id or path is required"}], isError: true};
 			}
 			if (!name && note === undefined) {
 				return {
-					content: [{type: 'text', text: 'At least one of name or note must be provided'}],
+					content: [{type: "text", text: "At least one of name or note must be provided"}],
 					isError: true,
 				};
 			}
@@ -142,7 +142,7 @@ export function registerNodeTools(server: McpServer): void {
 			return {
 				content: [
 					{
-						type: 'text',
+						type: "text",
 						text: JSON.stringify(
 							{
 								id: updatedNode.id,
@@ -159,15 +159,15 @@ export function registerNodeTools(server: McpServer): void {
 	);
 
 	server.tool(
-		'workflowy_node_delete',
-		'Delete a node',
+		"workflowy_node_delete",
+		"Delete a node",
 		{
-			id: z.string().optional().describe('Node ID'),
-			path: z.string().optional().describe('Comma-separated path to node'),
+			id: z.string().optional().describe("Node ID"),
+			path: z.string().optional().describe("Comma-separated path to node"),
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
-				return {content: [{type: 'text', text: 'Either id or path is required'}], isError: true};
+				return {content: [{type: "text", text: "Either id or path is required"}], isError: true};
 			}
 
 			const cacheService = getCacheService();
@@ -177,20 +177,20 @@ export function registerNodeTools(server: McpServer): void {
 			const nodeId = await resolveNodeId({id, path}, cacheService, apiClient);
 			await writeThroughClient.deleteNode(nodeId);
 
-			return {content: [{type: 'text', text: `Successfully deleted node: ${nodeId}`}]};
+			return {content: [{type: "text", text: `Successfully deleted node: ${nodeId}`}]};
 		},
 	);
 
 	server.tool(
-		'workflowy_node_complete',
-		'Mark a node as completed',
+		"workflowy_node_complete",
+		"Mark a node as completed",
 		{
-			id: z.string().optional().describe('Node ID'),
-			path: z.string().optional().describe('Comma-separated path to node'),
+			id: z.string().optional().describe("Node ID"),
+			path: z.string().optional().describe("Comma-separated path to node"),
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
-				return {content: [{type: 'text', text: 'Either id or path is required'}], isError: true};
+				return {content: [{type: "text", text: "Either id or path is required"}], isError: true};
 			}
 
 			const cacheService = getCacheService();
@@ -202,22 +202,22 @@ export function registerNodeTools(server: McpServer): void {
 
 			return {
 				content: [
-					{type: 'text', text: `Successfully completed node: ${completedNode.name} (${completedNode.id})`},
+					{type: "text", text: `Successfully completed node: ${completedNode.name} (${completedNode.id})`},
 				],
 			};
 		},
 	);
 
 	server.tool(
-		'workflowy_node_uncomplete',
-		'Mark a node as not completed',
+		"workflowy_node_uncomplete",
+		"Mark a node as not completed",
 		{
-			id: z.string().optional().describe('Node ID'),
-			path: z.string().optional().describe('Comma-separated path to node'),
+			id: z.string().optional().describe("Node ID"),
+			path: z.string().optional().describe("Comma-separated path to node"),
 		},
 		async ({id, path}) => {
 			if (!id && !path) {
-				return {content: [{type: 'text', text: 'Either id or path is required'}], isError: true};
+				return {content: [{type: "text", text: "Either id or path is required"}], isError: true};
 			}
 
 			const cacheService = getCacheService();
@@ -230,7 +230,7 @@ export function registerNodeTools(server: McpServer): void {
 			return {
 				content: [
 					{
-						type: 'text',
+						type: "text",
 						text: `Successfully uncompleted node: ${uncompletedNode.name} (${uncompletedNode.id})`,
 					},
 				],
@@ -239,21 +239,21 @@ export function registerNodeTools(server: McpServer): void {
 	);
 
 	server.tool(
-		'workflowy_node_move',
-		'Move a node to a new parent',
+		"workflowy_node_move",
+		"Move a node to a new parent",
 		{
-			nodeId: z.string().optional().describe('ID of node to move'),
-			nodePath: z.string().optional().describe('Comma-separated path to node to move'),
-			parentId: z.string().optional().describe('Destination parent ID or system target'),
-			parentPath: z.string().optional().describe('Comma-separated path to destination parent'),
-			position: z.enum(['top', 'bottom']).optional().describe('Position within destination'),
+			nodeId: z.string().optional().describe("ID of node to move"),
+			nodePath: z.string().optional().describe("Comma-separated path to node to move"),
+			parentId: z.string().optional().describe("Destination parent ID or system target"),
+			parentPath: z.string().optional().describe("Comma-separated path to destination parent"),
+			position: z.enum(["top", "bottom"]).optional().describe("Position within destination"),
 		},
 		async ({nodeId, nodePath, parentId, parentPath, position}) => {
 			if (!nodeId && !nodePath) {
-				return {content: [{type: 'text', text: 'Either nodeId or nodePath is required'}], isError: true};
+				return {content: [{type: "text", text: "Either nodeId or nodePath is required"}], isError: true};
 			}
 			if (!parentId && !parentPath) {
-				return {content: [{type: 'text', text: 'Either parentId or parentPath is required'}], isError: true};
+				return {content: [{type: "text", text: "Either parentId or parentPath is required"}], isError: true};
 			}
 
 			const cacheService = getCacheService();
@@ -263,11 +263,11 @@ export function registerNodeTools(server: McpServer): void {
 			const resolvedNodeId = await resolveNodeId({id: nodeId, path: nodePath}, cacheService, apiClient);
 			const resolvedParentId = await resolveParent({id: parentId, path: parentPath}, cacheService, apiClient);
 
-			const positionValue = position === 'top' ? -1 : position === 'bottom' ? 0 : undefined;
+			const positionValue = position === "top" ? -1 : position === "bottom" ? 0 : undefined;
 			const movedNode = await writeThroughClient.moveNode(resolvedNodeId, resolvedParentId, positionValue);
 
 			return {
-				content: [{type: 'text', text: `Successfully moved node: ${movedNode.name} (${movedNode.id})`}],
+				content: [{type: "text", text: `Successfully moved node: ${movedNode.name} (${movedNode.id})`}],
 			};
 		},
 	);

@@ -1,14 +1,14 @@
-import {nodeEmbeddings} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import type {WorkflowyNode} from '@workflowy/shared/types';
-import {and, eq, sql} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {EMBEDDING_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
-import {logger} from './logger.js';
-import {notAMirror, PathBuilder} from '@workflowy/shared/cache';
+import {nodeEmbeddings} from "@workflowy/shared/db";
+import * as schema from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {WorkflowyNode} from "@workflowy/shared/types";
+import {and, eq, sql} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {EMBEDDING_MODELS, type EmbeddingModelKey, embeddingService} from "./embeddings.js";
+import {logger} from "./logger.js";
+import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
-export type SearchMode = 'vector' | 'keyword' | 'hybrid';
+export type SearchMode = "vector" | "keyword" | "hybrid";
 
 export type SearchOptions = {
 	query: string;
@@ -37,23 +37,23 @@ export class SearchService {
 	}
 
 	async search(options: SearchOptions): Promise<SearchResult[]> {
-		const {query, limit = 5, mode = 'vector'} = options;
+		const {query, limit = 5, mode = "vector"} = options;
 
 		switch (mode) {
-			case 'vector': {
+			case "vector": {
 				return this.searchVector(options);
 			}
-			case 'keyword': {
+			case "keyword": {
 				return this.searchKeyword(query, limit);
 			}
-			case 'hybrid': {
+			case "hybrid": {
 				return this.searchHybrid(options);
 			}
 		}
 	}
 
 	private async searchVector(options: SearchOptions): Promise<SearchResult[]> {
-		const {query, limit = 5, model = 'minilm'} = options;
+		const {query, limit = 5, model = "minilm"} = options;
 		const modelConfig = EMBEDDING_MODELS[model];
 		const threshold = options.threshold ?? modelConfig.defaultThreshold;
 
@@ -84,7 +84,7 @@ export class SearchService {
 			.orderBy(sql`vec_distance_cosine(${nodeEmbeddings.embedding}, vec_f32(${queryBuffer}))`)
 			.limit(limit)
 			.all();
-		logger.logSqlResult('vectorSearch', searchResults);
+		logger.logSqlResult("vectorSearch", searchResults);
 
 		return this.enrichResults(searchResults.map((r) => ({nodeId: r.nodeId, distance: r.distance})));
 	}
@@ -93,7 +93,7 @@ export class SearchService {
 		const ftsResults = this.database.all(
 			sql`SELECT node_id, rank as score FROM node_fts WHERE node_fts MATCH ${query} ORDER BY rank LIMIT ${limit}`,
 		) as Array<{node_id: string; score: number}>;
-		logger.logSqlResult('ftsSearch', ftsResults);
+		logger.logSqlResult("ftsSearch", ftsResults);
 
 		// FTS5 rank is negative (lower = better), convert to distance-like metric
 		return this.enrichResults(
@@ -167,7 +167,7 @@ export class SearchService {
 						},
 					})
 					.sync();
-				logger.logSqlResult('nodeWithRelations', nodeWithRelations);
+				logger.logSqlResult("nodeWithRelations", nodeWithRelations);
 
 				const priority = nodeWithRelations?.metadata?.priority ?? 0;
 				const data: Record<string, unknown> = {};
@@ -188,7 +188,7 @@ export class SearchService {
 
 				return {
 					id: nodeWithRelations?.id || result.nodeId,
-					name: nodeWithRelations?.name || '',
+					name: nodeWithRelations?.name || "",
 					note: nodeWithRelations?.note,
 					priority,
 					completed: nodeWithRelations?.metadata?.completedAt !== null,

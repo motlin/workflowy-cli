@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import {readFileSync} from 'node:fs';
-import {addInterval, buildTimeElement, localTodayISO, parseTimeISO, swapTimeElement} from './compute-overdue.mjs';
+import {readFileSync} from "node:fs";
+import {addInterval, buildTimeElement, localTodayISO, parseTimeISO, swapTimeElement} from "./compute-overdue.mjs";
 
-const ROOT_NAMES = ['Import', 'Prep', 'Presentation'];
+const ROOT_NAMES = ["Import", "Prep", "Presentation"];
 const PLAN_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const INTERVAL_PREFIX = 'Interval: ';
+const INTERVAL_PREFIX = "Interval: ";
 const INTERVAL_PATTERN = /^(\d+)([dmy])$/;
 const TASK_COMMAND_PATTERN = /^\/[a-z0-9-]+:([a-z0-9-]+)(?:\s|$)/;
 
@@ -20,7 +20,7 @@ function optionalMarker(node, prefix, context) {
 
 function parseInterval(node, context) {
 	const value = optionalMarker(node, INTERVAL_PREFIX, context);
-	if (value === null) return {amount: 1, unit: 'd'};
+	if (value === null) return {amount: 1, unit: "d"};
 	const match = value.match(INTERVAL_PATTERN);
 	if (!match || Number(match[1]) === 0) throw new Error(`${context} has invalid interval "${value}"`);
 	return {amount: Number(match[1]), unit: match[2]};
@@ -28,20 +28,20 @@ function parseInterval(node, context) {
 
 function isMarker(child) {
 	const name = String(child.name);
-	return name.startsWith(INTERVAL_PREFIX) || name === 'Auto';
+	return name.startsWith(INTERVAL_PREFIX) || name === "Auto";
 }
 
 function instructions(node, context) {
-	const obsoleteKey = (node.children ?? []).find((child) => String(child.name).startsWith('Key:'));
+	const obsoleteKey = (node.children ?? []).find((child) => String(child.name).startsWith("Key:"));
 	if (obsoleteKey) throw new Error(`${context} has obsolete Key marker "${obsoleteKey.name}"`);
-	const result = (node.children ?? []).filter((child) => !isMarker(child) && String(child.name).trim() !== '');
+	const result = (node.children ?? []).filter((child) => !isMarker(child) && String(child.name).trim() !== "");
 	if (result.length === 0) throw new Error(`${context} has no instructions`);
 	return result;
 }
 
 function taskDisplayName(name) {
 	return String(name)
-		.replace(/<time[^>]*>.*?<\/time>\s*/g, '')
+		.replace(/<time[^>]*>.*?<\/time>\s*/g, "")
 		.trim();
 }
 
@@ -50,7 +50,7 @@ function taskSlug(taskInstructions, context) {
 		.map((instruction) => String(instruction.name).trim().match(TASK_COMMAND_PATTERN)?.[1])
 		.filter(Boolean);
 	if (commandSlugs.length !== 1) throw new Error(`${context} must have exactly one plugin command`);
-	return commandSlugs[0].replace(/-(?:prep|auto)$/, '');
+	return commandSlugs[0].replace(/-(?:prep|auto)$/, "");
 }
 
 function parsePrepTask(node, today) {
@@ -61,7 +61,7 @@ function parsePrepTask(node, today) {
 	const dueDate = parseTimeISO(node.name);
 	if (dueDate === null) throw new Error(`${context} is missing its date`);
 	const interval = parseInterval(node, context);
-	const autoMarkers = (node.children ?? []).filter((child) => child.name === 'Auto');
+	const autoMarkers = (node.children ?? []).filter((child) => child.name === "Auto");
 	if (autoMarkers.length > 1) throw new Error(`${context} has multiple Auto markers`);
 	const due = node.completedAt === null && dueDate <= today;
 	const nextDate = addInterval(today, interval);
@@ -94,7 +94,7 @@ function parsePresentationTask(node) {
 	if (markerChildren(node, INTERVAL_PREFIX).length > 0) {
 		throw new Error(`${context} must inherit its interval from prep`);
 	}
-	if ((node.children ?? []).some((child) => child.name === 'Auto')) {
+	if ((node.children ?? []).some((child) => child.name === "Auto")) {
 		throw new Error(`${context} cannot be Auto`);
 	}
 	return {
@@ -135,25 +135,25 @@ export function computeLlmDag(tree, today) {
 	// any task. An unpadded date never matches, so it would restage the import barrier forever.
 	if (!PLAN_DATE_PATTERN.test(today)) throw new Error(`plan date must be YYYY-MM-DD, got "${today}"`);
 	const groups = rootGroups(tree);
-	const importNode = groups.get('Import');
-	const prepNode = groups.get('Prep');
-	const presentationNode = groups.get('Presentation');
+	const importNode = groups.get("Import");
+	const prepNode = groups.get("Prep");
+	const presentationNode = groups.get("Presentation");
 	const parsedBranches = (prepNode.children ?? []).map((child) => {
-		if (String(child.name).startsWith('Serial: ')) {
+		if (String(child.name).startsWith("Serial: ")) {
 			if ((child.children ?? []).length === 0) throw new Error(`serial group "${child.name}" is empty`);
 			return {
-				mode: 'serial',
-				name: child.name.slice('Serial: '.length),
+				mode: "serial",
+				name: child.name.slice("Serial: ".length),
 				tasks: child.children.map((task) => parsePrepTask(task, today)),
 			};
 		}
-		return {mode: 'parallel', tasks: [parsePrepTask(child, today)]};
+		return {mode: "parallel", tasks: [parsePrepTask(child, today)]};
 	});
 	const allPrepTasks = parsedBranches.flatMap((branch) => branch.tasks);
 	const allPresentationTasks = (presentationNode.children ?? []).map(parsePresentationTask);
-	const prepByName = uniqueBy(allPrepTasks, 'name', 'Prep');
-	uniqueBy(allPrepTasks, 'slug', 'Prep');
-	const presentationByName = uniqueBy(allPresentationTasks, 'name', 'Presentation');
+	const prepByName = uniqueBy(allPrepTasks, "name", "Prep");
+	uniqueBy(allPrepTasks, "slug", "Prep");
+	const presentationByName = uniqueBy(allPresentationTasks, "name", "Presentation");
 
 	for (const prepTask of allPrepTasks) {
 		if (prepTask.auto && presentationByName.has(prepTask.name)) {
@@ -180,7 +180,7 @@ export function computeLlmDag(tree, today) {
 		.filter((task) => !task.due)
 		.map((task) => ({
 			slug: task.slug,
-			reason: task.dueDate > today ? 'future' : 'completed',
+			reason: task.dueDate > today ? "future" : "completed",
 			dueDate: task.dueDate,
 		}));
 
@@ -188,7 +188,7 @@ export function computeLlmDag(tree, today) {
 		planDate: today,
 		import: {
 			id: importNode.id,
-			instructions: instructions(importNode, 'Import'),
+			instructions: instructions(importNode, "Import"),
 		},
 		prepBranches,
 		presentation,
@@ -198,14 +198,14 @@ export function computeLlmDag(tree, today) {
 
 function main(arguments_) {
 	const argumentsList = arguments_.slice(2);
-	let inputPath = '.llm/gtd/review/phase0-llm-tasks.json';
+	let inputPath = ".llm/gtd/review/phase0-llm-tasks.json";
 	let today = localTodayISO();
 	for (let index = 0; index < argumentsList.length; index++) {
-		if (argumentsList[index] === '--today') today = argumentsList[++index];
-		else if (!argumentsList[index].startsWith('--')) inputPath = argumentsList[index];
+		if (argumentsList[index] === "--today") today = argumentsList[++index];
+		else if (!argumentsList[index].startsWith("--")) inputPath = argumentsList[index];
 		else throw new Error(`unknown option: ${argumentsList[index]}`);
 	}
-	const tree = JSON.parse(readFileSync(inputPath, 'utf8'));
+	const tree = JSON.parse(readFileSync(inputPath, "utf8"));
 	process.stdout.write(`${JSON.stringify(computeLlmDag(tree, today), null, 2)}\n`);
 }
 

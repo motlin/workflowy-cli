@@ -1,55 +1,55 @@
-import {nextSystemTimestamp} from '@workflowy/shared/cache';
-import {backupImports} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {Command, Flags} from '@oclif/core';
-import {and, desc, eq} from 'drizzle-orm';
-import {logger} from '../../services/logger.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import {resolveBackupsDirectory} from '../../utils/backup-archive.js';
-import * as readline from 'node:readline/promises';
-import {createDatabase} from '../../db/index.js';
-import {type BackupImportProgress, BackupImportService} from '../../services/backup-import.js';
-import {formatDate, getDateDifference, parseBackupFilename} from '../../utils/backup-validation.js';
+import {nextSystemTimestamp} from "@workflowy/shared/cache";
+import {backupImports} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {Command, Flags} from "@oclif/core";
+import {and, desc, eq} from "drizzle-orm";
+import {logger} from "../../services/logger.js";
+import fs from "node:fs";
+import path from "node:path";
+import {resolveBackupsDirectory} from "../../utils/backup-archive.js";
+import * as readline from "node:readline/promises";
+import {createDatabase} from "../../db/index.js";
+import {type BackupImportProgress, BackupImportService} from "../../services/backup-import.js";
+import {formatDate, getDateDifference, parseBackupFilename} from "../../utils/backup-validation.js";
 
 export default class ImportBackup extends Command {
-	static override description = 'Import a Workflowy backup file into the cache database';
+	static override description = "Import a Workflowy backup file into the cache database";
 
 	static override examples = [
-		'<%= config.bin %> cache:import-backup --file backup.json',
-		'<%= config.bin %> cache:import-backup --file /path/to/backup.workflowy.backup',
-		'<%= config.bin %> cache:import-backup --file backup.json --no-embeddings',
-		'<%= config.bin %> cache:import-backup --latest',
+		"<%= config.bin %> cache:import-backup --file backup.json",
+		"<%= config.bin %> cache:import-backup --file /path/to/backup.workflowy.backup",
+		"<%= config.bin %> cache:import-backup --file backup.json --no-embeddings",
+		"<%= config.bin %> cache:import-backup --latest",
 	];
 
 	static override flags = {
 		file: Flags.string({
-			char: 'f',
-			description: 'Path to the backup file',
+			char: "f",
+			description: "Path to the backup file",
 			required: false,
 		}),
 		latest: Flags.boolean({
-			description: 'Import the most recent backup file from current directory',
+			description: "Import the most recent backup file from current directory",
 			default: false,
 		}),
 		embeddings: Flags.boolean({
-			description: 'Generate embeddings after import',
+			description: "Generate embeddings after import",
 			default: true,
 			allowNo: true,
 		}),
-		'batch-size': Flags.integer({
-			char: 'b',
-			description: 'Number of nodes to process in each embedding batch',
+		"batch-size": Flags.integer({
+			char: "b",
+			description: "Number of nodes to process in each embedding batch",
 			default: 20,
 		}),
 		yes: Flags.boolean({
-			char: 'y',
-			description: 'Skip confirmation prompts',
+			char: "y",
+			description: "Skip confirmation prompts",
 			default: false,
 		}),
 		force: Flags.boolean({
 			description:
-				'Take the snapshot verbatim: do not protect cached nodes newer than it, tombstoning anything it omits',
+				"Take the snapshot verbatim: do not protect cached nodes newer than it, tombstoning anything it omits",
 			default: false,
 		}),
 	};
@@ -58,11 +58,11 @@ export default class ImportBackup extends Command {
 		const {flags} = await this.parse(ImportBackup);
 
 		if (flags.latest && flags.file) {
-			this.error('Cannot use both --latest and --file flags');
+			this.error("Cannot use both --latest and --file flags");
 		}
 
 		if (!flags.latest && !flags.file) {
-			this.error('Either --file or --latest flag is required');
+			this.error("Either --file or --latest flag is required");
 		}
 
 		let filePath: string;
@@ -112,35 +112,35 @@ export default class ImportBackup extends Command {
 
 			const handleProgress = (progress: BackupImportProgress) => {
 				switch (progress.phase) {
-					case 'parsing': {
+					case "parsing": {
 						break;
 					}
-					case 'importing': {
-						this.log('Processing nodes...');
+					case "importing": {
+						this.log("Processing nodes...");
 
 						break;
 					}
-					case 'embeddings': {
-						if (progress.message?.startsWith('📊')) {
+					case "embeddings": {
+						if (progress.message?.startsWith("📊")) {
 							this.log(`\n🤖 ${progress.message}`);
-						} else if (progress.message?.startsWith('🔄')) {
+						} else if (progress.message?.startsWith("🔄")) {
 							this.log(`  ${progress.message}`);
-						} else if (progress.message?.startsWith('✅ Finished')) {
+						} else if (progress.message?.startsWith("✅ Finished")) {
 							this.log(`  ${progress.message}`);
-						} else if (progress.message?.includes('Initializing')) {
-							this.log('\n🤖 Initializing embedding model...');
-						} else if (progress.message?.includes('Generated embeddings')) {
+						} else if (progress.message?.includes("Initializing")) {
+							this.log("\n🤖 Initializing embedding model...");
+						} else if (progress.message?.includes("Generated embeddings")) {
 							const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
 							this.log(`\n✅ ${progress.message} in ${totalTime}s`);
 							this.log(`\n🔍 You can now search with: workflowy search --query "your query"`);
-						} else if (progress.message?.includes('Failed')) {
+						} else if (progress.message?.includes("Failed")) {
 							this.warn(progress.message);
 						} else if (progress.current > 0 && progress.current % 10 === 0) {
 							const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 							const rate = (progress.current / (Date.now() - startTime)) * 1000;
 							const remaining = Math.ceil((progress.total - progress.current) / rate);
 							this.log(
-								`  [${progress.message?.match(/\[(.*?)\]/)?.[1] ?? 'embedding'}] ${progress.current}/${progress.total} (${elapsed}s elapsed, ~${remaining}s remaining)`,
+								`  [${progress.message?.match(/\[(.*?)\]/)?.[1] ?? "embedding"}] ${progress.current}/${progress.total} (${elapsed}s elapsed, ~${remaining}s remaining)`,
 							);
 						}
 
@@ -153,7 +153,7 @@ export default class ImportBackup extends Command {
 			const stats = await importService.importBackup({
 				filePath,
 				generateEmbeddings: flags.embeddings,
-				embeddingBatchSize: flags['batch-size'],
+				embeddingBatchSize: flags["batch-size"],
 				force: flags.force,
 				onProgress: handleProgress,
 			});
@@ -201,7 +201,7 @@ export default class ImportBackup extends Command {
 			.from(backupImports)
 			.where(and(eq(backupImports.filename, filename), eq(backupImports.systemTo, FAR_FUTURE_DATE)))
 			.get();
-		logger.logSqlResult('import-backup.existingImport', existingImport);
+		logger.logSqlResult("import-backup.existingImport", existingImport);
 
 		return existingImport !== undefined;
 	}
@@ -218,7 +218,7 @@ export default class ImportBackup extends Command {
 			.orderBy(desc(backupImports.backupDate))
 			.limit(1)
 			.get();
-		logger.logSqlResult('import-backup.mostRecentImport', mostRecentImport);
+		logger.logSqlResult("import-backup.mostRecentImport", mostRecentImport);
 
 		if (!mostRecentImport) {
 			return;
@@ -235,7 +235,7 @@ export default class ImportBackup extends Command {
 
 		if (daysDifference > 1) {
 			const skippedDays = daysDifference - 1;
-			const message = `Warning: Skipping ${skippedDays} day${skippedDays > 1 ? 's' : ''} of backups (last: ${formatDate(lastImportDate)}, current: ${formatDate(backupInfo.backupDate)}).`;
+			const message = `Warning: Skipping ${skippedDays} day${skippedDays > 1 ? "s" : ""} of backups (last: ${formatDate(lastImportDate)}, current: ${formatDate(backupInfo.backupDate)}).`;
 
 			if (skipConfirmation) {
 				this.warn(message);
@@ -250,8 +250,8 @@ export default class ImportBackup extends Command {
 			const answer = await rl.question(`${message} Continue? (y/n) `);
 			rl.close();
 
-			if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
-				this.error('Import cancelled by user');
+			if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+				this.error("Import cancelled by user");
 			}
 		}
 	}
@@ -274,13 +274,13 @@ export default class ImportBackup extends Command {
 		const backupsDirectory = resolveBackupsDirectory();
 
 		if (!fs.existsSync(backupsDirectory)) {
-			this.error('No backups directory found. Download a backup first with: workflowy dropbox:download-backup');
+			this.error("No backups directory found. Download a backup first with: workflowy dropbox:download-backup");
 		}
 
 		const allBackupFiles: Array<{path: string; date: Date}> = [];
 
-		for (const subdir of ['Data', 'History', '.']) {
-			const searchDir = subdir === '.' ? backupsDirectory : path.join(backupsDirectory, subdir);
+		for (const subdir of ["Data", "History", "."]) {
+			const searchDir = subdir === "." ? backupsDirectory : path.join(backupsDirectory, subdir);
 
 			if (!fs.existsSync(searchDir)) {
 				continue;
@@ -299,7 +299,7 @@ export default class ImportBackup extends Command {
 		}
 
 		if (allBackupFiles.length === 0) {
-			this.error('No backup files found in backups/ directory');
+			this.error("No backup files found in backups/ directory");
 		}
 
 		allBackupFiles.sort((a, b) => b.date.getTime() - a.date.getTime());

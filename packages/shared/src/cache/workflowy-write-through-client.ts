@@ -3,11 +3,11 @@ import type {
 	CreateNodeRequest,
 	UpdateNodeRequest,
 	WorkflowyApiClient,
-} from '../api/workflowy-client.js';
-import {isSystemTarget} from '../types/targets.js';
-import type {WorkflowyNode} from '../types/workflowy.js';
-import type {CacheService} from './cache-service.js';
-import {type DeletePlan, planSubtreeDelete} from './delete-plan.js';
+} from "../api/workflowy-client.js";
+import {isSystemTarget} from "../types/targets.js";
+import type {WorkflowyNode} from "../types/workflowy.js";
+import type {CacheService} from "./cache-service.js";
+import {type DeletePlan, planSubtreeDelete} from "./delete-plan.js";
 
 /**
  * Unified write-through client that wraps both WorkflowyApiClient and CacheService.
@@ -155,7 +155,7 @@ export class WorkflowyWriteThroughClient {
 			await this.deleteMirror(mirrorId);
 		}
 		for (const {mirrorId, originalId, parentId, position, siblingIds} of plan.promotions) {
-			const end = position === 'top' ? -1 : 0;
+			const end = position === "top" ? -1 : 0;
 			await this.deleteMirror(mirrorId);
 			await this.moveNode(originalId, parentId, end);
 			for (const siblingId of siblingIds) {
@@ -198,12 +198,12 @@ export class WorkflowyWriteThroughClient {
 	 * @param parentId The parent to place the mirror under
 	 * @param position Where among the parent's children to place the mirror
 	 */
-	async createMirror(originId: string, parentId: string, position: 'top' | 'bottom'): Promise<CreateMirrorResult> {
+	async createMirror(originId: string, parentId: string, position: "top" | "bottom"): Promise<CreateMirrorResult> {
 		const result = await this.apiClient.createMirror(originId, parentId, position);
 		const mirrorNode = await this.apiClient.getNode(result.mirrorId);
 		const mirrorParentId = mirrorNode.parent_id ?? parentId;
 		await this.ensureParentInCache(mirrorParentId);
-		await this.cacheService.insertNode({...mirrorNode, name: '', note: null}, mirrorParentId);
+		await this.cacheService.insertNode({...mirrorNode, name: "", note: null}, mirrorParentId);
 		await this.cacheService.insertMirror(result.originId, result.mirrorId);
 		return result;
 	}

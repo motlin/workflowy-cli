@@ -1,4 +1,4 @@
-import {z} from 'zod';
+import {z} from "zod";
 
 /**
  * System target keys that the Workflowy API accepts in place of UUIDs.
@@ -8,12 +8,12 @@ import {z} from 'zod';
  *
  * Currently only 'inbox' is supported by the API.
  */
-export type SystemTargetKey = 'inbox';
+export type SystemTargetKey = "inbox";
 
 /**
  * All known system target keys.
  */
-export const SYSTEM_TARGETS = ['inbox'] as const satisfies readonly SystemTargetKey[];
+export const SYSTEM_TARGETS = ["inbox"] as const satisfies readonly SystemTargetKey[];
 
 /**
  * Type guard to check if a string is a system target key.

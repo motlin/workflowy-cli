@@ -1,6 +1,6 @@
-import {readFileSync} from 'node:fs';
-import {join} from 'node:path';
-import {PROJECT_ROOT, trackedFiles} from './helpers/scan-roots.js';
+import {readFileSync} from "node:fs";
+import {join} from "node:path";
+import {PROJECT_ROOT, trackedFiles} from "./helpers/scan-roots.js";
 
 /**
  * `plugins/` and `.claude/` are version-controlled and meant to be reusable, so
@@ -13,16 +13,16 @@ import {PROJECT_ROOT, trackedFiles} from './helpers/scan-roots.js';
  */
 
 const HOME_PATH = /\/Users\/[A-Za-z0-9._-]+/;
-const SCAN_ROOTS = ['plugins', '.claude'];
+const SCAN_ROOTS = ["plugins", ".claude"];
 
-describe('Structural Eval: No Personal Paths', () => {
-	it('no tracked file under plugins/ or .claude/ hardcodes a home directory', () => {
+describe("Structural Eval: No Personal Paths", () => {
+	it("no tracked file under plugins/ or .claude/ hardcodes a home directory", () => {
 		const violations: string[] = [];
 
 		for (const root of SCAN_ROOTS) {
 			for (const relativePath of trackedFiles(root)) {
-				const content = readFileSync(join(PROJECT_ROOT, relativePath), 'utf8');
-				content.split('\n').forEach((line, index) => {
+				const content = readFileSync(join(PROJECT_ROOT, relativePath), "utf8");
+				content.split("\n").forEach((line, index) => {
 					const match = HOME_PATH.exec(line);
 					if (match) {
 						violations.push(`${relativePath}:${index + 1}: ${match[0]}`);

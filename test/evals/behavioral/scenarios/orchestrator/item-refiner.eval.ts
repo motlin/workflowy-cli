@@ -8,23 +8,23 @@
  * Requires the claude CLI (runs on the subscription login).
  */
 
-import {createEvalContext, runInEvalContext} from '../../helpers/eval-db-setup.js';
-import type {EvalContext} from '../../helpers/eval-types.js';
+import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
+import type {EvalContext} from "../../helpers/eval-types.js";
 import {
 	extractBashCommands,
 	extractSubagentLaunches,
 	flattenSubagentExecutions,
 	runLlmEval,
 	claudeCliAvailable,
-} from '../../helpers/llm-eval-harness.js';
-import {createMockWorkflowyServer, type MockWorkflowyServer} from '../../helpers/mock-workflowy-server.js';
+} from "../../helpers/llm-eval-harness.js";
+import {createMockWorkflowyServer, type MockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
 
-describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
+describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 	let ctx: EvalContext;
 	let itemId: string;
 	let mockServer: MockWorkflowyServer;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/prompts/refinement/item-refiner.md';
+	const agentFile = "plugins/gtd/prompts/refinement/item-refiner.md";
 
 	beforeAll(async () => {
 		if (!claudeCliAvailable()) {
@@ -82,7 +82,7 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 		await mockServer?.stop();
 	});
 
-	it('should fetch item data as first action', async (context) => {
+	it("should fetch item data as first action", async (context) => {
 		if (skipSuite) context.skip();
 
 		// Reading the prompt and skill files takes the first turns
@@ -94,11 +94,11 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 		expect(bashCommands.length).toBeGreaterThan(0);
 
 		const firstCommand = bashCommands[0];
-		expect(firstCommand).toContain('node');
+		expect(firstCommand).toContain("node");
 		expect(firstCommand).toContain(itemId);
 	});
 
-	it('should apply tagger prompts inline without launching subagents', async (context) => {
+	it("should apply tagger prompts inline without launching subagents", async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
@@ -106,19 +106,19 @@ describe('Orchestrator Eval: item-refiner', {timeout: 600_000}, () => {
 		});
 
 		const readPaths = result.toolCalls
-			.filter((call) => call.name === 'Read')
+			.filter((call) => call.name === "Read")
 			.map((call) => call.input.file_path as string);
-		const expectedTaggers = ['project-tagger', 'people-tagger', 'due-date-detector', 'context-tagger'];
+		const expectedTaggers = ["project-tagger", "people-tagger", "due-date-detector", "context-tagger"];
 		const readTaggers = expectedTaggers.filter((tagger) => readPaths.some((path) => path.includes(tagger)));
 
 		expect(
 			readTaggers.length,
-			`Expected to read tagger prompts inline. Read: ${readPaths.join(', ')}`,
+			`Expected to read tagger prompts inline. Read: ${readPaths.join(", ")}`,
 		).toBeGreaterThanOrEqual(2);
 		expect(extractSubagentLaunches(result.toolCalls)).toStrictEqual([]);
 	});
 
-	it('should track token usage in a single conversation', async (context) => {
+	it("should track token usage in a single conversation", async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {

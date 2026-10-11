@@ -1,6 +1,6 @@
-import type {Preview} from '@storybook/react-vite';
+import type {Preview} from "@storybook/react-vite";
 
-import '../src/client/styles.css';
+import "../src/client/styles.css";
 
 const preview: Preview = {
 	parameters: {
@@ -11,18 +11,18 @@ const preview: Preview = {
 			},
 		},
 		backgrounds: {
-			default: 'light',
+			default: "light",
 			values: [
-				{name: 'light', value: '#ffffff'},
-				{name: 'dark', value: '#1a1a1a'},
+				{name: "light", value: "#ffffff"},
+				{name: "dark", value: "#1a1a1a"},
 			],
 		},
 	},
 	decorators: [
 		(Story, context) => {
 			// Apply theme based on selected background
-			const isDark = context.globals.backgrounds?.value === '#1a1a1a';
-			document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+			const isDark = context.globals.backgrounds?.value === "#1a1a1a";
+			document.documentElement.dataset.theme = isDark ? "dark" : "light";
 			return Story();
 		},
 	],

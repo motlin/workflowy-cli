@@ -1,8 +1,8 @@
-import {useQueryClient} from '@tanstack/react-query';
-import {nodeKeys} from '../node-cache.js';
-import type {NodeResponse} from '../../node-types.js';
-import {useMemo} from 'react';
-import {useOutlineStore} from '../stores/outline.js';
+import {useQueryClient} from "@tanstack/react-query";
+import {nodeKeys} from "../node-cache.js";
+import type {NodeResponse} from "../../node-types.js";
+import {useMemo} from "react";
+import {useOutlineStore} from "../stores/outline.js";
 
 /**
  * Builds a flattened list of visible node IDs in display order.

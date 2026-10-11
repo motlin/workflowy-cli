@@ -1,14 +1,14 @@
-import {Hono} from 'hono';
-import {notAMirror, PathBuilder} from '@workflowy/shared/cache';
-import {and, count, eq, ne, sql} from 'drizzle-orm';
-import {nodeContent, nodeEmbeddings} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {stripHtmlTags} from '@workflowy/shared/html';
-import {getDatabase} from '../db.js';
+import {Hono} from "hono";
+import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
+import {and, count, eq, ne, sql} from "drizzle-orm";
+import {nodeContent, nodeEmbeddings} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {stripHtmlTags} from "@workflowy/shared/html";
+import {getDatabase} from "../db.js";
 
 export const relatedRouter = new Hono();
 
-type RelatedType = 'similar' | 'parent-candidates' | 'link-targets';
+type RelatedType = "similar" | "parent-candidates" | "link-targets";
 
 interface RelatedBody {
 	nodeId: string;
@@ -205,7 +205,7 @@ async function findLinkTargets(
 	// Filter to nodes with meaningful names
 	const targets: RelatedNode[] = [];
 	for (const result of results) {
-		const plainName = result.name ? stripHtmlTags(result.name) : '';
+		const plainName = result.name ? stripHtmlTags(result.name) : "";
 		if (plainName.length > 0) {
 			targets.push({
 				id: result.nodeId,
@@ -226,21 +226,21 @@ async function findLinkTargets(
 }
 
 // POST /api/related - Find related nodes using semantic similarity
-relatedRouter.post('/', async (c) => {
+relatedRouter.post("/", async (c) => {
 	const body = (await c.req.json()) as RelatedBody;
-	const {nodeId, type, limit = 10, threshold = 0.5, model = 'minilm'} = body;
+	const {nodeId, type, limit = 10, threshold = 0.5, model = "minilm"} = body;
 
 	if (!nodeId) {
-		return c.json({error: 'nodeId is required'}, 400);
+		return c.json({error: "nodeId is required"}, 400);
 	}
 
 	if (!type) {
-		return c.json({error: 'type is required'}, 400);
+		return c.json({error: "type is required"}, 400);
 	}
 
-	const validTypes: RelatedType[] = ['similar', 'parent-candidates', 'link-targets'];
+	const validTypes: RelatedType[] = ["similar", "parent-candidates", "link-targets"];
 	if (!validTypes.includes(type)) {
-		return c.json({error: `type must be one of: ${validTypes.join(', ')}`}, 400);
+		return c.json({error: `type must be one of: ${validTypes.join(", ")}`}, 400);
 	}
 
 	const database = getDatabase();
@@ -259,7 +259,7 @@ relatedRouter.post('/', async (c) => {
 		.get();
 
 	if (!sourceEmbedding) {
-		return c.json({error: 'Node embedding not found. Ensure embeddings have been generated.'}, 404);
+		return c.json({error: "Node embedding not found. Ensure embeddings have been generated."}, 404);
 	}
 
 	const embeddingBuffer = sourceEmbedding.embedding as Buffer;
@@ -267,15 +267,15 @@ relatedRouter.post('/', async (c) => {
 	let results: RelatedNode[];
 
 	switch (type) {
-		case 'similar': {
+		case "similar": {
 			results = await findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
-		case 'parent-candidates': {
+		case "parent-candidates": {
 			results = await findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
-		case 'link-targets': {
+		case "link-targets": {
 			results = await findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}

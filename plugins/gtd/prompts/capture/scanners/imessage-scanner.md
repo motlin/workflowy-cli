@@ -57,13 +57,13 @@ Note: The iMCP tool returns messages with `sender`, `content`, `date`, and `chat
 
 Scan message content for these patterns:
 
-| Action Type | Patterns |
-| --- | --- |
-| `question` | "Can you...", "Could you...", "Would you...", "Will you...", "Are you...", "Do you...", questions ending with "?" |
-| `request` | "Please...", "Need you to...", "Want you to...", "Help me...", "Send me...", "Let me know..." |
-| `time-sensitive` | "ASAP", "urgent", "by tomorrow", "by Monday", "deadline", "due date", specific dates/times |
-| `follow-up` | "Let me know", "Get back to me", "Waiting to hear", "Any update", "Following up" |
-| `commitment` | "I will...", "I'll...", "I can...", "I'm going to...", "I promise...", "Count on me" |
+| Action Type      | Patterns                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `question`       | "Can you...", "Could you...", "Would you...", "Will you...", "Are you...", "Do you...", questions ending with "?" |
+| `request`        | "Please...", "Need you to...", "Want you to...", "Help me...", "Send me...", "Let me know..."                     |
+| `time-sensitive` | "ASAP", "urgent", "by tomorrow", "by Monday", "deadline", "due date", specific dates/times                        |
+| `follow-up`      | "Let me know", "Get back to me", "Waiting to hear", "Any update", "Following up"                                  |
+| `commitment`     | "I will...", "I'll...", "I can...", "I'm going to...", "I promise...", "Count on me"                              |
 
 A message can have multiple action types. Only include messages matching at least one pattern.
 

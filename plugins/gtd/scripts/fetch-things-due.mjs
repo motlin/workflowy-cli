@@ -15,18 +15,18 @@
 //
 // Usage: node fetch-things-due.mjs [--today YYYY-MM-DD] > things.json
 
-import {execFileSync} from 'node:child_process';
+import {execFileSync} from "node:child_process";
 
 // ASCII unit/record separators: a task title or note can contain any punctuation -- including
 // newlines and pipes -- but never these.
-export const FIELD_SEP = '\x1f';
-export const RECORD_SEP = '\x1e';
+export const FIELD_SEP = "\x1f";
+export const RECORD_SEP = "\x1e";
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n) => String(n).padStart(2, "0");
 
 function normalizeDate(due) {
 	if (!due) return null;
-	const [y, m, d] = due.split('-').map(Number);
+	const [y, m, d] = due.split("-").map(Number);
 	return `${y}-${pad(m)}-${pad(d)}`;
 }
 
@@ -105,7 +105,7 @@ export const OSASCRIPT_TIMEOUT_MS = 180_000;
 
 function run(listName) {
 	return parseThingsRows(
-		execFileSync('osascript', ['-e', script(listName)], {encoding: 'utf8', timeout: OSASCRIPT_TIMEOUT_MS}),
+		execFileSync("osascript", ["-e", script(listName)], {encoding: "utf8", timeout: OSASCRIPT_TIMEOUT_MS}),
 	);
 }
 
@@ -139,10 +139,10 @@ export function partitionThings({todayList, anytime, someday = []}, todayISO) {
 function main(argv) {
 	const args = argv.slice(2);
 	let today = localTodayISO();
-	for (let i = 0; i < args.length; i++) if (args[i] === '--today') today = args[++i];
+	for (let i = 0; i < args.length; i++) if (args[i] === "--today") today = args[++i];
 
-	const sets = partitionThings({todayList: run('Today'), anytime: run('Anytime'), someday: run('Someday')}, today);
-	process.stdout.write(JSON.stringify(sets, null, 2) + '\n');
+	const sets = partitionThings({todayList: run("Today"), anytime: run("Anytime"), someday: run("Someday")}, today);
+	process.stdout.write(JSON.stringify(sets, null, 2) + "\n");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);

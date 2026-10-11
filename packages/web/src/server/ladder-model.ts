@@ -7,9 +7,9 @@
  * out of a higher tier.
  */
 
-const ORDINAL_SUFFIX: Record<number, string> = {1: 'st', 2: 'nd', 3: 'rd'};
+const ORDINAL_SUFFIX: Record<number, string> = {1: "st", 2: "nd", 3: "rd"};
 
-export type TierState = 'room' | 'exact' | 'over';
+export type TierState = "room" | "exact" | "over";
 
 export interface LadderItem {
 	id: string;
@@ -50,11 +50,11 @@ export function tierCapacity(tier: number): number {
 
 export function tierLabel(tier: number): string {
 	const teen = tier % 100 >= 11 && tier % 100 <= 13;
-	return `${tier}${teen ? 'th' : (ORDINAL_SUFFIX[tier % 10] ?? 'th')}`;
+	return `${tier}${teen ? "th" : (ORDINAL_SUFFIX[tier % 10] ?? "th")}`;
 }
 
 function parseTierLabel(name: string | null | undefined): number | null {
-	const match = /^\s*(\d+)(st|nd|rd|th)\s*$/i.exec(stripHtml(name ?? ''));
+	const match = /^\s*(\d+)(st|nd|rd|th)\s*$/i.exec(stripHtml(name ?? ""));
 	if (!match) {
 		return null;
 	}
@@ -63,14 +63,14 @@ function parseTierLabel(name: string | null | undefined): number | null {
 }
 
 function stripHtml(value: string): string {
-	return value.replace(/<[^>]+>/g, '').trim();
+	return value.replace(/<[^>]+>/g, "").trim();
 }
 
 function stateFor(count: number, capacity: number): TierState {
 	if (count > capacity) {
-		return 'over';
+		return "over";
 	}
-	return count === capacity ? 'exact' : 'room';
+	return count === capacity ? "exact" : "room";
 }
 
 export function toLadder(root: string, bucket: RawNode): Ladder {
@@ -102,7 +102,7 @@ function toItem(node: RawNode): LadderItem {
 	const children = (node.children ?? []).filter((child) => !child.completedAt).map(toItem);
 	return {
 		id: node.id,
-		name: stripHtml(node.name ?? ''),
+		name: stripHtml(node.name ?? ""),
 		children,
 		hasChildren: (node.children?.length ?? 0) > 0,
 		descendantCount: children.reduce((total, child) => total + 1 + child.descendantCount, 0),

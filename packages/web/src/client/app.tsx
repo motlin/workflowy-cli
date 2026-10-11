@@ -1,28 +1,28 @@
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {useEffect} from 'react';
-import {BrowserRouter, Route, Routes, useParams} from 'react-router-dom';
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {useEffect} from "react";
+import {BrowserRouter, Route, Routes, useParams} from "react-router-dom";
 
-import {ChangesView} from './components/changes-view.js';
-import {ErrorBoundary} from './components/error-boundary.js';
-import {ErrorNotifications} from './components/error-notification.js';
-import {ExportDialog} from './components/export-dialog.js';
-import {JumpMenu} from './components/jump-menu.js';
-import {LadderView} from './components/ladder-view.js';
-import {LeftSidebar} from './components/left-sidebar.js';
-import {LinkInsertModal} from './components/link-insert-modal.js';
-import {LoadingOverlay} from './components/loading-spinner.js';
-import {MoveAssistant} from './components/move-assistant.js';
-import {OfflineBanner} from './components/offline-banner.js';
-import {OutlineTree} from './components/outline-tree.js';
-import {PresentationMode} from './components/presentation-mode.js';
-import {RelatedNodesPanel} from './components/related-nodes-panel.js';
-import {RightSidebar} from './components/right-sidebar.js';
-import {SearchPanel} from './components/search-panel.js';
-import {Settings} from './components/settings.js';
-import {TopBar} from './components/top-bar.js';
-import {useKeyboardShortcuts} from './hooks/use-keyboard-shortcuts.js';
-import {useOutlineStore} from './stores/outline.js';
-import './styles.css';
+import {ChangesView} from "./components/changes-view.js";
+import {ErrorBoundary} from "./components/error-boundary.js";
+import {ErrorNotifications} from "./components/error-notification.js";
+import {ExportDialog} from "./components/export-dialog.js";
+import {JumpMenu} from "./components/jump-menu.js";
+import {LadderView} from "./components/ladder-view.js";
+import {LeftSidebar} from "./components/left-sidebar.js";
+import {LinkInsertModal} from "./components/link-insert-modal.js";
+import {LoadingOverlay} from "./components/loading-spinner.js";
+import {MoveAssistant} from "./components/move-assistant.js";
+import {OfflineBanner} from "./components/offline-banner.js";
+import {OutlineTree} from "./components/outline-tree.js";
+import {PresentationMode} from "./components/presentation-mode.js";
+import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
+import {RightSidebar} from "./components/right-sidebar.js";
+import {SearchPanel} from "./components/search-panel.js";
+import {Settings} from "./components/settings.js";
+import {TopBar} from "./components/top-bar.js";
+import {useKeyboardShortcuts} from "./hooks/use-keyboard-shortcuts.js";
+import {useOutlineStore} from "./stores/outline.js";
+import "./styles.css";
 
 /**
  * Custom retry function that retries transient failures.
@@ -78,13 +78,13 @@ function OutlineView() {
 	useKeyboardShortcuts();
 
 	const containerClasses = [
-		'outline-container',
-		leftSidebarOpen && 'with-sidebar',
-		rightSidebarOpen && 'with-right-sidebar',
-		relatedNodesPanelOpen && 'with-related-panel',
+		"outline-container",
+		leftSidebarOpen && "with-sidebar",
+		rightSidebarOpen && "with-right-sidebar",
+		relatedNodesPanelOpen && "with-related-panel",
 	]
 		.filter(Boolean)
-		.join(' ');
+		.join(" ");
 
 	return (
 		<div className={containerClasses}>
@@ -145,22 +145,10 @@ export function App() {
 				<BrowserRouter>
 					<div className="app">
 						<Routes>
-							<Route
-								element={<RootRoute />}
-								path="/"
-							/>
-							<Route
-								element={<ChangesView />}
-								path="/changes"
-							/>
-							<Route
-								element={<LadderView />}
-								path="/ladder"
-							/>
-							<Route
-								element={<NodeRoute />}
-								path="/node/:id"
-							/>
+							<Route element={<RootRoute />} path="/" />
+							<Route element={<ChangesView />} path="/changes" />
+							<Route element={<LadderView />} path="/ladder" />
+							<Route element={<NodeRoute />} path="/node/:id" />
 						</Routes>
 					</div>
 				</BrowserRouter>

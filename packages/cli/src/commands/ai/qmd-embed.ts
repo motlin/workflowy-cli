@@ -1,16 +1,16 @@
-import {Command, Flags} from '@oclif/core';
-import {createDatabase} from '../../db/index.js';
-import {QmdSearchService} from '../../services/qmd-search.js';
+import {Command, Flags} from "@oclif/core";
+import {createDatabase} from "../../db/index.js";
+import {QmdSearchService} from "../../services/qmd-search.js";
 
 export default class QmdEmbed extends Command {
-	static override description = 'Sync Workflowy nodes into qmd index and generate embeddings';
+	static override description = "Sync Workflowy nodes into qmd index and generate embeddings";
 
-	static override examples = ['<%= config.bin %> <%= command.id %>', '<%= config.bin %> <%= command.id %> --force'];
+	static override examples = ["<%= config.bin %> <%= command.id %>", "<%= config.bin %> <%= command.id %> --force"];
 
 	static override flags = {
 		force: Flags.boolean({
-			char: 'f',
-			description: 'Re-embed all documents (clear existing embeddings first)',
+			char: "f",
+			description: "Re-embed all documents (clear existing embeddings first)",
 			default: false,
 		}),
 	};
@@ -22,7 +22,7 @@ export default class QmdEmbed extends Command {
 		const service = new QmdSearchService(database);
 
 		try {
-			this.log('Syncing Workflowy nodes to qmd index...');
+			this.log("Syncing Workflowy nodes to qmd index...");
 			const syncResult = await service.syncNodes((message) => {
 				this.log(`  ${message}`);
 			});
@@ -32,11 +32,11 @@ export default class QmdEmbed extends Command {
 			);
 
 			if (syncResult.inserted === 0 && syncResult.updated === 0 && !flags.force) {
-				this.log('\nNo new content to embed. Use --force to re-embed everything.');
+				this.log("\nNo new content to embed. Use --force to re-embed everything.");
 				return;
 			}
 
-			this.log('\nGenerating embeddings...');
+			this.log("\nGenerating embeddings...");
 			const embedResult = await service.embed({force: flags.force}, (progress) => {
 				this.log(`  ${progress.chunksEmbedded}/${progress.totalChunks} chunks (${progress.errors} errors)`);
 			});

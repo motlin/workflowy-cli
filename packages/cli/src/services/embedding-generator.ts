@@ -1,10 +1,10 @@
-import {mirrors, nodeContent, type NodeContentType, nodeEmbeddings} from '@workflowy/shared/db';
-import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {and, eq, inArray, sql} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {DEFAULT_MODELS, type EmbeddingModelKey, embeddingService} from './embeddings.js';
-import {nextSystemTimestamp, notAMirror, PathBuilder} from '@workflowy/shared/cache';
+import {mirrors, nodeContent, type NodeContentType, nodeEmbeddings} from "@workflowy/shared/db";
+import * as schema from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {and, eq, inArray, sql} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {DEFAULT_MODELS, type EmbeddingModelKey, embeddingService} from "./embeddings.js";
+import {nextSystemTimestamp, notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
 /**
  * The current nodes worth indexing: those with children, excluding mirrors,
@@ -114,7 +114,7 @@ export class EmbeddingGeneratorService {
 			elapsed: 0,
 			estimatedRemaining: 0,
 			currentModel: modelsToProcess[0],
-			message: `📊 ${nonLeafNodes.length} nodes (leaf nodes and mirrors skipped), ${modelsToProcess.length} models. Need embeddings: ${[...modelStats.entries()].map(([m, s]) => `${m}=${s.needed}`).join(', ')}`,
+			message: `📊 ${nonLeafNodes.length} nodes (leaf nodes and mirrors skipped), ${modelsToProcess.length} models. Need embeddings: ${[...modelStats.entries()].map(([m, s]) => `${m}=${s.needed}`).join(", ")}`,
 		});
 
 		if (totalToProcess === 0) {
@@ -132,7 +132,7 @@ export class EmbeddingGeneratorService {
 			elapsed: 0,
 			estimatedRemaining: 0,
 			currentModel: modelsToProcess[0],
-			message: `🤖 Initializing ${modelsToProcess.length === 1 ? `model "${modelsToProcess[0]}"` : 'default models'}...`,
+			message: `🤖 Initializing ${modelsToProcess.length === 1 ? `model "${modelsToProcess[0]}"` : "default models"}...`,
 		});
 
 		const startTime = Date.now();
@@ -172,9 +172,9 @@ export class EmbeddingGeneratorService {
 				}> = [];
 
 				for (const node of batch) {
-					const fullPath = pathMap.get(node.id) ?? '';
-					const textContent = contentMap.get(node.id) ?? '';
-					const childrenText = childrenMap.get(node.id) ?? '';
+					const fullPath = pathMap.get(node.id) ?? "";
+					const textContent = contentMap.get(node.id) ?? "";
+					const childrenText = childrenMap.get(node.id) ?? "";
 
 					const combinedText = childrenText
 						? `PATH: ${fullPath}\nCONTENT: ${textContent}\nCHILDREN:\n${childrenText}`
@@ -257,9 +257,9 @@ export class EmbeddingGeneratorService {
 
 		let populated = 0;
 		for (const node of nonLeafNodes) {
-			const fullPath = pathMap.get(node.id) ?? '';
-			const textContent = contentMap.get(node.id) ?? '';
-			const childrenText = childrenMap.get(node.id) ?? '';
+			const fullPath = pathMap.get(node.id) ?? "";
+			const textContent = contentMap.get(node.id) ?? "";
+			const childrenText = childrenMap.get(node.id) ?? "";
 
 			const combinedText = childrenText
 				? `PATH: ${fullPath}\nCONTENT: ${textContent}\nCHILDREN:\n${childrenText}`
@@ -274,7 +274,7 @@ export class EmbeddingGeneratorService {
 			total: 0,
 			elapsed: 0,
 			estimatedRemaining: 0,
-			currentModel: 'minilm' as EmbeddingModelKey,
+			currentModel: "minilm" as EmbeddingModelKey,
 			message: `FTS5 index populated with ${populated} nodes`,
 		});
 	}

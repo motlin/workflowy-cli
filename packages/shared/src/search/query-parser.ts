@@ -41,25 +41,25 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 	while ((match = exactPhraseRegex.exec(remaining)) !== null) {
 		result.exactPhrases.push(match[1]);
 	}
-	remaining = remaining.replaceAll(exactPhraseRegex, ' ');
+	remaining = remaining.replaceAll(exactPhraseRegex, " ");
 
 	// Extract completion filter: is:complete or is:incomplete
 	const completeMatch = /\bis:complete\b/i.exec(remaining);
 	if (completeMatch) {
 		result.isComplete = true;
-		remaining = remaining.replace(completeMatch[0], ' ');
+		remaining = remaining.replace(completeMatch[0], " ");
 	}
 	const incompleteMatch = /\bis:incomplete\b/i.exec(remaining);
 	if (incompleteMatch) {
 		result.isComplete = false;
-		remaining = remaining.replace(incompleteMatch[0], ' ');
+		remaining = remaining.replace(incompleteMatch[0], " ");
 	}
 
 	// Extract date filter: last-changed:7d
 	const dateMatch = /\blast-changed:(\d+)d\b/i.exec(remaining);
 	if (dateMatch) {
 		result.lastChangedDays = Number.parseInt(dateMatch[1], 10);
-		remaining = remaining.replace(dateMatch[0], ' ');
+		remaining = remaining.replace(dateMatch[0], " ");
 	}
 
 	// Extract negated terms: -word
@@ -67,7 +67,7 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 	while ((match = negationRegex.exec(remaining)) !== null) {
 		result.excludedTerms.push(match[1]);
 	}
-	remaining = remaining.replaceAll(negationRegex, ' ');
+	remaining = remaining.replaceAll(negationRegex, " ");
 
 	// Process remaining terms for OR groups and required terms
 	// Split by OR (case-insensitive) to find OR groups

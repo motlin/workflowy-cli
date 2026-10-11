@@ -8,9 +8,9 @@
 //
 // Exit codes: 0 success, 2 missing token or arguments, 1 Discord API failure (message on stderr).
 
-import {pathToFileURL} from 'node:url';
+import {pathToFileURL} from "node:url";
 
-const API = 'https://discord.com/api/v10';
+const API = "https://discord.com/api/v10";
 const DISCORD_EPOCH = 1420070400000n;
 const PAGE_SIZE = 100;
 
@@ -81,7 +81,7 @@ export function toScanRecord(message, guildId) {
 function parseArgs(argv) {
 	const args = {};
 	for (let index = 0; index < argv.length; index += 2) {
-		args[argv[index].replace(/^--/, '')] = argv[index + 1];
+		args[argv[index].replace(/^--/, "")] = argv[index + 1];
 	}
 	return args;
 }
@@ -90,16 +90,16 @@ async function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const token = process.env.DISCORD_BOT_TOKEN;
 	if (!token) {
-		console.error('DISCORD_BOT_TOKEN is not set');
+		console.error("DISCORD_BOT_TOKEN is not set");
 		process.exit(2);
 	}
-	if (!args.channel || !args.guild || (!args.after && !args['since-days'])) {
+	if (!args.channel || !args.guild || (!args.after && !args["since-days"])) {
 		console.error(
-			'usage: fetch-discord-messages.mjs --channel <id> --guild <id> (--after <id> | --since-days <n>)',
+			"usage: fetch-discord-messages.mjs --channel <id> --guild <id> (--after <id> | --since-days <n>)",
 		);
 		process.exit(2);
 	}
-	const afterId = args.after ?? snowflakeFromTime(Date.now() - Number(args['since-days']) * 86_400_000);
+	const afterId = args.after ?? snowflakeFromTime(Date.now() - Number(args["since-days"]) * 86_400_000);
 	const maxPages = 10;
 	try {
 		const raw = await fetchMessagesSince({channelId: args.channel, afterId, token, maxPages});

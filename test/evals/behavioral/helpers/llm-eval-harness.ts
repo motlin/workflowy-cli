@@ -10,13 +10,13 @@
  * holds its own `.llm/` and a `bin` symlink back to the repo CLI.
  */
 
-import {execFile, execFileSync} from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import type {CapturedToolCall, EvalContext, LlmEvalResult} from './eval-types.js';
-import {parseStreamJson, stringInput} from './stream-json.js';
+import {execFile, execFileSync} from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import type {CapturedToolCall, EvalContext, LlmEvalResult} from "./eval-types.js";
+import {parseStreamJson, stringInput} from "./stream-json.js";
 
-export type {CapturedToolCall, LlmEvalResult} from './eval-types.js';
+export type {CapturedToolCall, LlmEvalResult} from "./eval-types.js";
 
 /** Options for running an LLM eval. */
 export interface LlmEvalOptions {
@@ -34,7 +34,7 @@ let cliAvailable: boolean | undefined;
 export function claudeCliAvailable(): boolean {
 	if (cliAvailable === undefined) {
 		try {
-			execFileSync('claude', ['--version'], {stdio: 'ignore', timeout: 30_000});
+			execFileSync("claude", ["--version"], {stdio: "ignore", timeout: 30_000});
 			cliAvailable = true;
 		} catch {
 			cliAvailable = false;
@@ -49,13 +49,13 @@ export function claudeCliAvailable(): boolean {
  * - `plugins/<plugin>/commands/<a>/<b>.md` becomes the slash command `/<plugin>:<a>:<b>`
  */
 function launchMessage(projectRoot: string, agentFile: string, task: string): string {
-	const [, plugin, kind, ...rest] = agentFile.replace(/\.md$/, '').split('/');
-	const pluginRoot = path.join(projectRoot, 'plugins', plugin);
-	if (kind === 'prompts') {
-		return `CLAUDE_PLUGIN_ROOT=${pluginRoot}. Read ${pluginRoot}/prompts/${rest.join('/')}.md and follow it. ${task}`;
+	const [, plugin, kind, ...rest] = agentFile.replace(/\.md$/, "").split("/");
+	const pluginRoot = path.join(projectRoot, "plugins", plugin);
+	if (kind === "prompts") {
+		return `CLAUDE_PLUGIN_ROOT=${pluginRoot}. Read ${pluginRoot}/prompts/${rest.join("/")}.md and follow it. ${task}`;
 	}
-	if (kind === 'commands') {
-		return `/${[plugin, ...rest].join(':')} ${task}`.trim();
+	if (kind === "commands") {
+		return `/${[plugin, ...rest].join(":")} ${task}`.trim();
 	}
 	throw new Error(`Unsupported eval target: ${agentFile}`);
 }
@@ -75,26 +75,26 @@ export async function runLlmEval(
 	options: LlmEvalOptions = {},
 ): Promise<LlmEvalResult> {
 	const args = [
-		'-p',
+		"-p",
 		launchMessage(ctx.projectRoot, agentFile, task),
-		'--output-format',
-		'stream-json',
-		'--verbose',
-		'--model',
-		options.model ?? 'sonnet',
-		'--max-turns',
+		"--output-format",
+		"stream-json",
+		"--verbose",
+		"--model",
+		options.model ?? "sonnet",
+		"--max-turns",
 		String(options.maxTurns ?? 10),
-		'--setting-sources',
-		'',
-		'--strict-mcp-config',
-		'--permission-mode',
-		'bypassPermissions',
-		'--no-session-persistence',
-		'--append-system-prompt',
+		"--setting-sources",
+		"",
+		"--strict-mcp-config",
+		"--permission-mode",
+		"bypassPermissions",
+		"--no-session-persistence",
+		"--append-system-prompt",
 		`This is an eval run. Your working directory is ${ctx.workDir}: its .llm/ holds this run's files and ./bin/run.js is the CLI. Never cd into ${ctx.projectRoot} or write under it.`,
-		'--add-dir',
+		"--add-dir",
 		ctx.projectRoot,
-		...['gtd', 'workflowy'].flatMap((plugin) => ['--plugin-dir', path.join(ctx.projectRoot, 'plugins', plugin)]),
+		...["gtd", "workflowy"].flatMap((plugin) => ["--plugin-dir", path.join(ctx.projectRoot, "plugins", plugin)]),
 	];
 
 	const env: Record<string, string | undefined> = {...process.env, ...ctx.env};
@@ -106,7 +106,7 @@ export async function runLlmEval(
 
 	const stdout = await new Promise<string>((resolve, reject) => {
 		execFile(
-			'claude',
+			"claude",
 			args,
 			{cwd: ctx.workDir, env, maxBuffer: 64 * 1024 * 1024, timeout: options.timeoutMs ?? 600_000},
 			(error, out, stderr) => {
@@ -123,7 +123,7 @@ export async function runLlmEval(
 	// Set EVAL_STREAM_LOG to a directory to keep each run's raw stream for debugging
 	if (process.env.EVAL_STREAM_LOG) {
 		fs.mkdirSync(process.env.EVAL_STREAM_LOG, {recursive: true});
-		const name = `${path.basename(agentFile, '.md')}-${Date.now()}.jsonl`;
+		const name = `${path.basename(agentFile, ".md")}-${Date.now()}.jsonl`;
 		fs.writeFileSync(path.join(process.env.EVAL_STREAM_LOG, name), stdout);
 	}
 
@@ -134,7 +134,7 @@ export async function runLlmEval(
  * Extract bash commands from captured tool calls.
  */
 export function extractBashCommands(toolCalls: CapturedToolCall[]): string[] {
-	return toolCalls.filter((tc) => tc.name === 'Bash').map((tc) => tc.input.command as string);
+	return toolCalls.filter((tc) => tc.name === "Bash").map((tc) => tc.input.command as string);
 }
 
 /**
@@ -145,15 +145,15 @@ export function extractSubagentLaunches(
 	toolCalls: CapturedToolCall[],
 ): Array<{subagentType: string; prompt: string; promptFile: string | undefined}> {
 	return toolCalls
-		.filter((tc) => tc.name === 'Agent' || tc.name === 'Task')
+		.filter((tc) => tc.name === "Agent" || tc.name === "Task")
 		.map((tc) => {
-			const prompt = stringInput(tc, 'prompt');
+			const prompt = stringInput(tc, "prompt");
 			return {
-				subagentType: stringInput(tc, 'subagent_type') || 'general-purpose',
+				subagentType: stringInput(tc, "subagent_type") || "general-purpose",
 				prompt,
 				promptFile: /prompts\/([\w/-]+)\.md/.exec(prompt)?.[1],
 			};
 		});
 }
 
-export {flattenSubagentExecutions} from './stream-json.js';
+export {flattenSubagentExecutions} from "./stream-json.js";

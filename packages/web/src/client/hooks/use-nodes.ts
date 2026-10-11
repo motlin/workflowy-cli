@@ -1,7 +1,7 @@
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
-import type {NodeResponse} from '../../node-types.js';
-import {nodeKeys} from '../node-cache.js';
-import {useOutlineStore} from '../stores/outline.js';
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import type {NodeResponse} from "../../node-types.js";
+import {nodeKeys} from "../node-cache.js";
+import {useOutlineStore} from "../stores/outline.js";
 
 interface CreateNodeRequest {
 	parent_id?: string;
@@ -18,7 +18,7 @@ interface UpdateNodeRequest {
 }
 
 async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
-	const url = parentId === null ? '/api/v1/nodes' : `/api/v1/nodes?parent_id=${encodeURIComponent(parentId)}`;
+	const url = parentId === null ? "/api/v1/nodes" : `/api/v1/nodes?parent_id=${encodeURIComponent(parentId)}`;
 	const response = await fetch(url);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch children: ${response.statusText}`);
@@ -46,9 +46,9 @@ async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 }
 
 async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
-	const response = await fetch('/api/v1/nodes', {
-		method: 'POST',
-		headers: {'Content-Type': 'application/json'},
+	const response = await fetch("/api/v1/nodes", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
@@ -59,8 +59,8 @@ async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 
 async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<NodeResponse> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`, {
-		method: 'POST',
-		headers: {'Content-Type': 'application/json'},
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
@@ -72,7 +72,7 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<N
 
 async function deleteNode(nodeId: string): Promise<void> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`, {
-		method: 'DELETE',
+		method: "DELETE",
 	});
 	if (!response.ok) {
 		throw new Error(`Failed to delete node: ${response.statusText}`);
@@ -91,8 +91,8 @@ interface MoveNodeResponse {
 
 async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveNodeResponse> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/move`, {
-		method: 'POST',
-		headers: {'Content-Type': 'application/json'},
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
@@ -103,7 +103,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 
 async function completeNode(nodeId: string): Promise<NodeResponse> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/complete`, {
-		method: 'POST',
+		method: "POST",
 	});
 	if (!response.ok) {
 		throw new Error(`Failed to complete node: ${response.statusText}`);
@@ -114,7 +114,7 @@ async function completeNode(nodeId: string): Promise<NodeResponse> {
 
 async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/uncomplete`, {
-		method: 'POST',
+		method: "POST",
 	});
 	if (!response.ok) {
 		throw new Error(`Failed to uncomplete node: ${response.statusText}`);
@@ -139,9 +139,9 @@ export function useChildren(parentId: string | null) {
  */
 export function useNode(nodeId: string | null) {
 	return useQuery({
-		queryKey: nodeKeys.detail(nodeId ?? ''),
+		queryKey: nodeKeys.detail(nodeId ?? ""),
 		queryFn: () => fetchNode(nodeId!),
-		enabled: nodeId !== null && nodeId !== '',
+		enabled: nodeId !== null && nodeId !== "",
 	});
 }
 
@@ -151,9 +151,9 @@ export function useNode(nodeId: string | null) {
  */
 export function useAncestors(nodeId: string | null) {
 	return useQuery({
-		queryKey: nodeKeys.ancestors(nodeId ?? ''),
+		queryKey: nodeKeys.ancestors(nodeId ?? ""),
 		queryFn: () => fetchAncestors(nodeId!),
-		enabled: nodeId !== null && nodeId !== '',
+		enabled: nodeId !== null && nodeId !== "",
 	});
 }
 

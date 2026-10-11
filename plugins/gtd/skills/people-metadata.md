@@ -12,26 +12,26 @@ Surname subgroups hold no direct field or `📝` note; every field lives on a pe
 
 Each fact is a child node named `<emoji> Label: value`. The table lists them in canonical display order, top to bottom. When scanning, match on the `Label:` text, since stragglers may lack the emoji; add the matching emoji when you create or fix a field.
 
-| Emoji | Field | Notes |
-| --- | --- | --- |
-| `👥` | Relationship | see below |
-| `📛` | Full / Real / English / Maiden name |  |
-| `🏷️` | Alias / Nickname |  |
-| `💼` | Role |  |
-| `👔` | Team |  |
-| `🏢` | Organization | employer or affiliation (`🏢 Organization: Acme`); distinct from the `🏢 Work` office address |
-| `👶` | Date of birth / Estimated birth year | actual birth year |
-| `🎂` | Birthday | next upcoming occurrence year |
-| `💒` | Married on | wedding date, actual year; on both spouses |
-| `💍` | Anniversary | next occurrence year; on both spouses |
-| `🪦` | Date of death | keeps `🎂` / `💍` live; the birthdays briefing phrases them as remembrances ("would have turned 74") and offers to call next of kin |
-| `🕯️` | Yahrzeit | next occurrence |
-| `📍` | Address | current home; keep the word "Address"; a second or seasonal home is just another `📍 Address:` |
-| `🏢` | Work | office address; only for family/self, or a friend whose office you've been to |
-| `🏠` | Old address | former home; wrap the whole node in `<s>…</s>` |
-| `📞` | Phone | normalize US to `(xxx) xxx-xxxx` |
-| `📧` | Email |  |
-| `🔗` | LinkedIn / social |  |
+| Emoji | Field                                | Notes                                                                                                                               |
+| ----- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `👥`  | Relationship                         | see below                                                                                                                           |
+| `📛`  | Full / Real / English / Maiden name  |                                                                                                                                     |
+| `🏷️`  | Alias / Nickname                     |                                                                                                                                     |
+| `💼`  | Role                                 |                                                                                                                                     |
+| `👔`  | Team                                 |                                                                                                                                     |
+| `🏢`  | Organization                         | employer or affiliation (`🏢 Organization: Acme`); distinct from the `🏢 Work` office address                                       |
+| `👶`  | Date of birth / Estimated birth year | actual birth year                                                                                                                   |
+| `🎂`  | Birthday                             | next upcoming occurrence year                                                                                                       |
+| `💒`  | Married on                           | wedding date, actual year; on both spouses                                                                                          |
+| `💍`  | Anniversary                          | next occurrence year; on both spouses                                                                                               |
+| `🪦`  | Date of death                        | keeps `🎂` / `💍` live; the birthdays briefing phrases them as remembrances ("would have turned 74") and offers to call next of kin |
+| `🕯️`  | Yahrzeit                             | next occurrence                                                                                                                     |
+| `📍`  | Address                              | current home; keep the word "Address"; a second or seasonal home is just another `📍 Address:`                                      |
+| `🏢`  | Work                                 | office address; only for family/self, or a friend whose office you've been to                                                       |
+| `🏠`  | Old address                          | former home; wrap the whole node in `<s>…</s>`                                                                                      |
+| `📞`  | Phone                                | normalize US to `(xxx) xxx-xxxx`                                                                                                    |
+| `📧`  | Email                                |                                                                                                                                     |
+| `🔗`  | LinkedIn / social                    |                                                                                                                                     |
 
 The order groups identity, then life milestones (each base date followed by its recurring observance), then physical contact, then internet contact. To reorder, move each field to the bottom in this sequence (`node move --position bottom`); duplicate fields of one type end up adjacent on their own.
 

@@ -1,7 +1,7 @@
-import {CacheService, PathBuilder, type TextSearchOptions} from '@workflowy/shared/cache';
-import * as schema from '@workflowy/shared/db';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {logger} from './logger.js';
+import {CacheService, PathBuilder, type TextSearchOptions} from "@workflowy/shared/cache";
+import * as schema from "@workflowy/shared/db";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {logger} from "./logger.js";
 
 export type {TextSearchOptions};
 
@@ -23,7 +23,7 @@ export class TextSearchService {
 
 	async search(options: TextSearchOptions): Promise<TextSearchResult[]> {
 		const rows = await this.cacheService.searchText(options);
-		logger.logSqlResult('textSearch', rows);
+		logger.logSqlResult("textSearch", rows);
 
 		if (rows.length === 0) {
 			return [];
@@ -35,7 +35,7 @@ export class TextSearchService {
 			shortId: row.shortId,
 			name: row.name,
 			note: row.note,
-			path: pathMap.get(row.id) ?? '',
+			path: pathMap.get(row.id) ?? "",
 		}));
 	}
 }

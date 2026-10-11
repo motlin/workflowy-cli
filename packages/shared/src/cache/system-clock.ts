@@ -1,11 +1,11 @@
-import {sql} from 'drizzle-orm';
-import type {BaseSQLiteDatabase} from 'drizzle-orm/sqlite-core';
-import {systemClock} from '../db/schema.js';
-import {formatTemporalTimestamp} from '../temporal/constants.js';
+import {sql} from "drizzle-orm";
+import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
+import {systemClock} from "../db/schema.js";
+import {formatTemporalTimestamp} from "../temporal/constants.js";
 
 /** A database or transaction that can advance the system clock. */
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any
-type ClockDatabase = BaseSQLiteDatabase<'sync', any, any>;
+type ClockDatabase = BaseSQLiteDatabase<"sync", any, any>;
 
 /**
  * The system time for a new temporal version: `Date.now()`, or one millisecond

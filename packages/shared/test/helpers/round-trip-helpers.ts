@@ -1,28 +1,28 @@
-import DatabaseConstructor from 'better-sqlite3';
-import type {Database} from 'better-sqlite3';
-import {eq} from 'drizzle-orm';
-import {drizzle, type BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {migrate} from 'drizzle-orm/better-sqlite3/migrator';
-import {readFileSync} from 'node:fs';
-import {dirname, join} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import * as schema from '@workflowy/shared/db';
-import {mirrors, nodeContent} from '@workflowy/shared/db';
+import DatabaseConstructor from "better-sqlite3";
+import type {Database} from "better-sqlite3";
+import {eq} from "drizzle-orm";
+import {drizzle, type BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {migrate} from "drizzle-orm/better-sqlite3/migrator";
+import {readFileSync} from "node:fs";
+import {dirname, join} from "node:path";
+import {fileURLToPath} from "node:url";
+import * as schema from "@workflowy/shared/db";
+import {mirrors, nodeContent} from "@workflowy/shared/db";
 import {
 	type ApplyRowsResult,
 	applyRows,
 	normalizeLayoutMode,
 	type NormalizedRowsByTable,
-} from '@workflowy/shared/cache';
-import {FAR_FUTURE_DATE, formatTemporalTimestamp} from '@workflowy/shared/temporal';
-import type {Node} from '@workflowy/shared/types';
-import {ApiResponseSchema, type WorkflowyNode} from '@workflowy/shared/types';
-import {uuidToShortId} from '@workflowy/shared/workflowy';
-import {BackupFileSchema, type BackupNode} from '@workflowy/shared/schemas';
+} from "@workflowy/shared/cache";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import type {Node} from "@workflowy/shared/types";
+import {ApiResponseSchema, type WorkflowyNode} from "@workflowy/shared/types";
+import {uuidToShortId} from "@workflowy/shared/workflowy";
+import {BackupFileSchema, type BackupNode} from "@workflowy/shared/schemas";
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = join(currentDirectory, '../../src/db/migrations');
-const fixturesFolder = join(currentDirectory, '../fixtures');
+const migrationsFolder = join(currentDirectory, "../../src/db/migrations");
+const fixturesFolder = join(currentDirectory, "../fixtures");
 
 export interface TestDatabase {
 	database: BetterSQLite3Database<typeof schema>;
@@ -37,10 +37,10 @@ export interface TestDatabase {
  * step is required. All Phase 4 round-trip tests build on this.
  */
 export function buildTestDb(): TestDatabase {
-	const sqlite = new DatabaseConstructor(':memory:');
+	const sqlite = new DatabaseConstructor(":memory:");
 	const database = drizzle(sqlite, {schema});
 	migrate(database, {migrationsFolder});
-	sqlite.pragma('foreign_keys = ON');
+	sqlite.pragma("foreign_keys = ON");
 	return {database, sqlite};
 }
 
@@ -50,7 +50,7 @@ export function buildTestDb(): TestDatabase {
  */
 export function loadFixtureBackup(name: string): BackupNode[] {
 	const filePath = join(fixturesFolder, `${name}.json`);
-	const raw: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
+	const raw: unknown = JSON.parse(readFileSync(filePath, "utf8"));
 	return BackupFileSchema.parse(raw);
 }
 
@@ -61,7 +61,7 @@ export function loadFixtureBackup(name: string): BackupNode[] {
  */
 export function loadFixtureRestApiResponse(name: string): WorkflowyNode[] {
 	const filePath = join(fixturesFolder, `${name}.json`);
-	const raw: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
+	const raw: unknown = JSON.parse(readFileSync(filePath, "utf8"));
 	const response = ApiResponseSchema.parse(raw);
 	if (response.nodes === undefined) {
 		throw new Error(`REST API fixture '${name}' has no 'nodes' array`);
@@ -91,8 +91,8 @@ function unixSecondsToDate(seconds: number | null | undefined): Date | null {
  * its zero-based index among its siblings.
  */
 export function normalizeBackupNodes(nodes: BackupNode[]): NormalizedRowsByTable {
-	const contentRows: NonNullable<NormalizedRowsByTable['nodeContent']> = [];
-	const metadataRows: NonNullable<NormalizedRowsByTable['nodeMetadata']> = [];
+	const contentRows: NonNullable<NormalizedRowsByTable["nodeContent"]> = [];
+	const metadataRows: NonNullable<NormalizedRowsByTable["nodeMetadata"]> = [];
 
 	const walk = (siblings: BackupNode[], parentId: string | null): void => {
 		siblings.forEach((node, index) => {
@@ -132,7 +132,7 @@ export function collectBackupMirrorRows(nodes: BackupNode[]): {originalId: strin
 	const walk = (siblings: BackupNode[]): void => {
 		for (const node of siblings) {
 			const mirror = node.metadata.mirror;
-			if (mirror !== undefined && 'originalId' in mirror) {
+			if (mirror !== undefined && "originalId" in mirror) {
 				rows.push({originalId: mirror.originalId, mirrorId: node.id});
 			}
 			if (node.ch !== undefined) {
@@ -158,8 +158,8 @@ export function collectBackupMirrorRows(nodes: BackupNode[]): {originalId: strin
  * regression net.
  */
 export function normalizeRestNodes(nodes: WorkflowyNode[]): NormalizedRowsByTable {
-	const contentRows: NonNullable<NormalizedRowsByTable['nodeContent']> = [];
-	const metadataRows: NonNullable<NormalizedRowsByTable['nodeMetadata']> = [];
+	const contentRows: NonNullable<NormalizedRowsByTable["nodeContent"]> = [];
+	const metadataRows: NonNullable<NormalizedRowsByTable["nodeMetadata"]> = [];
 
 	for (const node of nodes) {
 		contentRows.push({
@@ -225,8 +225,8 @@ export function nodeToRestDto(node: Node): RestDto {
  * zero temporal-row changes.
  */
 export function restDtoToNormalizedRows(dtos: RestDto[]): NormalizedRowsByTable {
-	const contentRows: NonNullable<NormalizedRowsByTable['nodeContent']> = [];
-	const metadataRows: NonNullable<NormalizedRowsByTable['nodeMetadata']> = [];
+	const contentRows: NonNullable<NormalizedRowsByTable["nodeContent"]> = [];
+	const metadataRows: NonNullable<NormalizedRowsByTable["nodeMetadata"]> = [];
 
 	for (const dto of dtos) {
 		contentRows.push({
@@ -303,7 +303,7 @@ export function bulkImportWithWatermarkGuard(
 		.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 		.all();
 	const localWatermarkMs = localRow.reduce<number | null>((newest, row) => {
-		const ms = Date.parse(`${row.systemFrom.replace(' ', 'T')}Z`);
+		const ms = Date.parse(`${row.systemFrom.replace(" ", "T")}Z`);
 		return newest === null || ms > newest ? ms : newest;
 	}, null);
 

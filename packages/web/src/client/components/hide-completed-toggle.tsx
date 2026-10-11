@@ -1,4 +1,4 @@
-import {type RefObject, useEffect, useRef} from 'react';
+import {type RefObject, useEffect, useRef} from "react";
 
 interface HideCompletedToggleProps {
 	anchorRef: RefObject<HTMLButtonElement | null>;
@@ -31,17 +31,17 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 		}
 
 		function handleEscape(event: KeyboardEvent) {
-			if (event.key === 'Escape') {
+			if (event.key === "Escape") {
 				onClose();
 			}
 		}
 
-		document.addEventListener('mousedown', handleClickOutside);
-		document.addEventListener('keydown', handleEscape);
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleEscape);
 
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleEscape);
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleEscape);
 		};
 	}, [isOpen, onClose, anchorRef]);
 
@@ -52,11 +52,8 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 	};
 
 	return (
-		<div
-			className="hide-completed-popup"
-			ref={panelRef}
-		>
-			<label className={`toggle-switch-label ${showCompleted ? 'on' : 'off'}`}>
+		<div className="hide-completed-popup" ref={panelRef}>
+			<label className={`toggle-switch-label ${showCompleted ? "on" : "off"}`}>
 				<button
 					aria-checked={showCompleted}
 					className="toggle-switch-track"

@@ -1,11 +1,11 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {createPortal} from 'react-dom';
-import {useQueryClient} from '@tanstack/react-query';
-import {useOutlineStore} from '../stores/outline.js';
-import {planInsertSiblingAfter} from '../tree-ops.js';
-import {useCreateNode, useUpdateNode} from '../hooks/use-nodes.js';
-import {useRemoveTagColor, useSetTagColor, useTagColors, type TagColors} from '../hooks/use-tag-colors.js';
-import {TagColorPicker, type TagColorName} from './tag-color-picker.js';
+import {useCallback, useEffect, useRef, useState} from "react";
+import {createPortal} from "react-dom";
+import {useQueryClient} from "@tanstack/react-query";
+import {useOutlineStore} from "../stores/outline.js";
+import {planInsertSiblingAfter} from "../tree-ops.js";
+import {useCreateNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useRemoveTagColor, useSetTagColor, useTagColors, type TagColors} from "../hooks/use-tag-colors.js";
+import {TagColorPicker, type TagColorName} from "./tag-color-picker.js";
 
 // Regex to match #tags and @mentions
 // Matches: #tag, #tag-name, #tag_name, @mention, @user-name, @user_name
@@ -21,7 +21,7 @@ function wrapTagsInSpans(html: string, tagColors: TagColors): string {
 	TAG_PATTERN.lastIndex = 0;
 	return html.replaceAll(TAG_PATTERN, (match) => {
 		const color = tagColors[match];
-		const className = color ? `tag-link tag-colored bc-${color}` : 'tag-link';
+		const className = color ? `tag-link tag-colored bc-${color}` : "tag-link";
 		return `<span class="${className}">${match}</span>`;
 	});
 }
@@ -235,7 +235,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		let parentS: HTMLElement | null = null;
 		let node: Node | null = range.commonAncestorContainer;
 		while (node && node !== contentRef.current) {
-			if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'S') {
+			if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === "S") {
 				parentS = node as HTMLElement;
 				break;
 			}
@@ -253,7 +253,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 		} else {
 			// Add strikethrough: wrap selection in <s> tag
-			const sElement = document.createElement('s');
+			const sElement = document.createElement("s");
 			sElement.append(range.extractContents());
 			range.insertNode(sElement);
 
@@ -277,7 +277,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		let parentCode: HTMLElement | null = null;
 		let node: Node | null = range.commonAncestorContainer;
 		while (node && node !== contentRef.current) {
-			if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'CODE') {
+			if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === "CODE") {
 				parentCode = node as HTMLElement;
 				break;
 			}
@@ -295,7 +295,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 		} else {
 			// Add code: wrap selection in <code> tag
-			const codeElement = document.createElement('code');
+			const codeElement = document.createElement("code");
 			codeElement.append(range.extractContents());
 			range.insertNode(codeElement);
 
@@ -314,7 +314,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		// Check if content is already wrapped in <pre><code>
 		const firstChild = contentRef.current.firstElementChild;
-		const isCodeBlock = firstChild?.tagName === 'PRE' && firstChild.firstElementChild?.tagName === 'CODE';
+		const isCodeBlock = firstChild?.tagName === "PRE" && firstChild.firstElementChild?.tagName === "CODE";
 
 		if (isCodeBlock) {
 			// Remove code block: extract content from <pre><code>
@@ -322,11 +322,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			contentRef.current.innerHTML = codeElement.innerHTML;
 		} else {
 			// Add code block: wrap entire content in <pre><code>
-			const preElement = document.createElement('pre');
-			const codeElement = document.createElement('code');
+			const preElement = document.createElement("pre");
+			const codeElement = document.createElement("code");
 			codeElement.innerHTML = contentRef.current.innerHTML;
 			preElement.append(codeElement);
-			contentRef.current.innerHTML = '';
+			contentRef.current.innerHTML = "";
 			contentRef.current.append(preElement);
 		}
 	}, []);
@@ -338,16 +338,16 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		// Check if content is already wrapped in <blockquote>
 		const firstChild = contentRef.current.firstElementChild;
-		const isQuote = firstChild?.tagName === 'BLOCKQUOTE';
+		const isQuote = firstChild?.tagName === "BLOCKQUOTE";
 
 		if (isQuote) {
 			// Remove quote: extract content from <blockquote>
 			contentRef.current.innerHTML = firstChild.innerHTML;
 		} else {
 			// Add quote: wrap entire content in <blockquote>
-			const blockquoteElement = document.createElement('blockquote');
+			const blockquoteElement = document.createElement("blockquote");
 			blockquoteElement.innerHTML = contentRef.current.innerHTML;
-			contentRef.current.innerHTML = '';
+			contentRef.current.innerHTML = "";
 			contentRef.current.append(blockquoteElement);
 		}
 	}, []);
@@ -358,35 +358,35 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
-			if (event.key === 'Enter' && !event.shiftKey) {
+			if (event.key === "Enter" && !event.shiftKey) {
 				event.preventDefault();
 				createSiblingBelow();
-			} else if (event.key === 'Escape') {
+			} else if (event.key === "Escape") {
 				event.preventDefault();
 				// Restore original value on escape
 				if (contentRef.current) {
 					contentRef.current.innerHTML = initialValueRef.current;
 				}
 				stopEditing();
-			} else if (event.key === 'b' && event.metaKey && !event.shiftKey) {
+			} else if (event.key === "b" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
-				document.execCommand('bold');
-			} else if (event.key === 'i' && event.metaKey && !event.shiftKey) {
+				document.execCommand("bold");
+			} else if (event.key === "i" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
-				document.execCommand('italic');
-			} else if (event.key === 'u' && event.metaKey && !event.shiftKey) {
+				document.execCommand("italic");
+			} else if (event.key === "u" && event.metaKey && !event.shiftKey) {
 				event.preventDefault();
-				document.execCommand('underline');
-			} else if (event.key === 'x' && event.metaKey && event.shiftKey) {
+				document.execCommand("underline");
+			} else if (event.key === "x" && event.metaKey && event.shiftKey) {
 				event.preventDefault();
 				toggleStrikethrough();
-			} else if (event.key === 'c' && event.metaKey && event.shiftKey) {
+			} else if (event.key === "c" && event.metaKey && event.shiftKey) {
 				event.preventDefault();
 				toggleCode();
-			} else if (event.key === '6' && event.metaKey && event.altKey) {
+			} else if (event.key === "6" && event.metaKey && event.altKey) {
 				event.preventDefault();
 				toggleCodeBlock();
-			} else if (event.key === '7' && event.metaKey && event.altKey) {
+			} else if (event.key === "7" && event.metaKey && event.altKey) {
 				event.preventDefault();
 				toggleQuote();
 			}
@@ -405,7 +405,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			const target = event.target as HTMLElement;
 
 			// Plain click on a .tag-link span opens search directly
-			if (target.classList.contains('tag-link')) {
+			if (target.classList.contains("tag-link")) {
 				const tagText = target.textContent;
 				if (tagText) {
 					event.preventDefault();
@@ -418,7 +418,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			// Cmd+click: detect tag at cursor position
 			if (event.metaKey) {
 				const element = event.currentTarget;
-				const textContent = element.textContent ?? '';
+				const textContent = element.textContent ?? "";
 				const offset = getCharacterOffsetFromClick(element, event.nativeEvent);
 
 				if (offset !== null) {
@@ -460,14 +460,14 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (colorPicker) {
 				return;
 			}
-			const tagEl = (event.target as HTMLElement).closest?.('.tag-link') as HTMLElement | null;
+			const tagEl = (event.target as HTMLElement).closest?.(".tag-link") as HTMLElement | null;
 			if (!tagEl) {
 				return;
 			}
 			cancelHide();
 			const rect = tagEl.getBoundingClientRect();
 			setTagHover({
-				tag: tagEl.textContent ?? '',
+				tag: tagEl.textContent ?? "",
 				top: rect.top,
 				right: rect.right,
 				bottom: rect.bottom,
@@ -509,20 +509,20 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return;
 		}
 		const onPointerDown = (event: PointerEvent) => {
-			if (!(event.target as HTMLElement).closest('.tag-color-picker')) {
+			if (!(event.target as HTMLElement).closest(".tag-color-picker")) {
 				setColorPicker(null);
 			}
 		};
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
+			if (event.key === "Escape") {
 				setColorPicker(null);
 			}
 		};
-		document.addEventListener('pointerdown', onPointerDown);
-		document.addEventListener('keydown', onKey);
+		document.addEventListener("pointerdown", onPointerDown);
+		document.addEventListener("keydown", onKey);
 		return () => {
-			document.removeEventListener('pointerdown', onPointerDown);
-			document.removeEventListener('keydown', onKey);
+			document.removeEventListener("pointerdown", onPointerDown);
+			document.removeEventListener("keydown", onKey);
 		};
 	}, [colorPicker]);
 
@@ -548,14 +548,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 							style={{top: `${tagHover.top}px`, left: `${tagHover.right + 1}px`}}
 							type="button"
 						>
-							<svg
-								aria-hidden="true"
-								viewBox="0 0 10 6"
-							>
-								<path
-									d="M0 0 L5 6 L10 0 Z"
-									fill="currentColor"
-								/>
+							<svg aria-hidden="true" viewBox="0 0 10 6">
+								<path d="M0 0 L5 6 L10 0 Z" fill="currentColor" />
 							</svg>
 						</button>,
 						document.body,

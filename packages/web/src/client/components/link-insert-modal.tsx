@@ -1,6 +1,6 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {stripHtmlTags as stripHtml} from '@workflowy/shared/html';
-import {useOutlineStore} from '../stores/outline.js';
+import {useCallback, useEffect, useRef, useState} from "react";
+import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useOutlineStore} from "../stores/outline.js";
 
 interface NodeResult {
 	id: string;
@@ -38,7 +38,7 @@ function formatSimilarityScore(distance: number): string {
  */
 export function LinkInsertModal() {
 	const {linkInsertOpen, linkInsertContext, closeLinkInsert} = useOutlineStore();
-	const [query, setQuery] = useState('');
+	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<NodeResult[]>([]);
 	const [relatedNodes, setRelatedNodes] = useState<RelatedNode[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
@@ -50,7 +50,7 @@ export function LinkInsertModal() {
 	useEffect(() => {
 		if (linkInsertOpen && linkInsertContext && inputRef.current) {
 			inputRef.current.focus();
-			setQuery('');
+			setQuery("");
 			setResults([]);
 			setRelatedNodes([]);
 			setSelectedIndex(0);
@@ -58,12 +58,12 @@ export function LinkInsertModal() {
 			// Fetch semantically related nodes using embeddings
 			// These appear automatically without typing - our differentiating feature
 			setIsLoadingRelated(true);
-			void fetch('/api/related', {
-				method: 'POST',
-				headers: {'Content-Type': 'application/json'},
+			void fetch("/api/related", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
 				body: JSON.stringify({
 					nodeId: linkInsertContext.nodeId,
-					type: 'link-targets',
+					type: "link-targets",
 					limit: 8,
 					threshold: 0.6,
 				}),
@@ -90,9 +90,9 @@ export function LinkInsertModal() {
 
 		const searchTimeout = setTimeout(async () => {
 			setIsSearching(true);
-			const response = await fetch('/api/search', {
-				method: 'POST',
-				headers: {'Content-Type': 'application/json'},
+			const response = await fetch("/api/search", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
 				body: JSON.stringify({query, limit: 10}),
 			});
 			if (response.ok) {
@@ -119,10 +119,10 @@ export function LinkInsertModal() {
 			range.deleteContents();
 
 			// Create an anchor element with Workflowy-style internal link
-			const linkElement = document.createElement('a');
+			const linkElement = document.createElement("a");
 			linkElement.href = `#/node/${node.id}`;
 			linkElement.textContent = linkInsertContext.selectedText;
-			linkElement.className = 'internal-link';
+			linkElement.className = "internal-link";
 			linkElement.dataset.nodeId = node.id;
 
 			// Insert the link
@@ -141,7 +141,7 @@ export function LinkInsertModal() {
 			// Trigger a blur event to save the changes
 			const editableElement = range.commonAncestorContainer.parentElement;
 			if (editableElement) {
-				editableElement.dispatchEvent(new Event('input', {bubbles: true}));
+				editableElement.dispatchEvent(new Event("input", {bubbles: true}));
 			}
 
 			closeLinkInsert();
@@ -155,22 +155,22 @@ export function LinkInsertModal() {
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {
 			switch (event.key) {
-				case 'Escape': {
+				case "Escape": {
 					event.preventDefault();
 					closeLinkInsert();
 					break;
 				}
-				case 'ArrowDown': {
+				case "ArrowDown": {
 					event.preventDefault();
 					setSelectedIndex((previous) => Math.min(previous + 1, displayList.length - 1));
 					break;
 				}
-				case 'ArrowUp': {
+				case "ArrowUp": {
 					event.preventDefault();
 					setSelectedIndex((previous) => Math.max(previous - 1, 0));
 					break;
 				}
-				case 'Enter': {
+				case "Enter": {
 					event.preventDefault();
 					if (displayList[selectedIndex]) {
 						insertLink(displayList[selectedIndex]);
@@ -201,14 +201,11 @@ export function LinkInsertModal() {
 	const showEmpty = !query.trim() && !isLoadingRelated && relatedNodes.length === 0;
 
 	return (
-		<div
-			className="link-insert-overlay"
-			onClick={handleBackdropClick}
-		>
+		<div className="link-insert-overlay" onClick={handleBackdropClick}>
 			<div className="link-insert-modal">
 				<div className="link-insert-header">
 					<div className="link-insert-title">
-						Insert link for:{' '}
+						Insert link for:{" "}
 						<span className="link-insert-selected-text">"{linkInsertContext.selectedText}"</span>
 					</div>
 					<input
@@ -248,20 +245,20 @@ export function LinkInsertModal() {
 								{relatedNodes.map((node, index) => (
 									<li key={node.id}>
 										<button
-											className={`link-insert-result ${index === selectedIndex ? 'selected' : ''}`}
+											className={`link-insert-result ${index === selectedIndex ? "selected" : ""}`}
 											onClick={() => insertLink(node)}
 											type="button"
 										>
 											<div className="link-insert-result-header">
 												<span className="link-insert-result-name">
-													{stripHtml(node.name) || 'Untitled'}
+													{stripHtml(node.name) || "Untitled"}
 												</span>
 												<span className="link-insert-result-score">
 													{formatSimilarityScore(node.distance)}
 												</span>
 											</div>
 											{node.path.length > 0 && (
-												<span className="link-insert-result-path">{node.path.join(' > ')}</span>
+												<span className="link-insert-result-path">{node.path.join(" > ")}</span>
 											)}
 											{node.note && (
 												<span className="link-insert-result-note">{stripHtml(node.note)}</span>
@@ -278,12 +275,12 @@ export function LinkInsertModal() {
 							{results.map((node, index) => (
 								<li key={node.id}>
 									<button
-										className={`link-insert-result ${index === selectedIndex ? 'selected' : ''}`}
+										className={`link-insert-result ${index === selectedIndex ? "selected" : ""}`}
 										onClick={() => insertLink(node)}
 										type="button"
 									>
 										<span className="link-insert-result-name">
-											{stripHtml(node.name) || 'Untitled'}
+											{stripHtml(node.name) || "Untitled"}
 										</span>
 										{node.note && (
 											<span className="link-insert-result-note">{stripHtml(node.note)}</span>

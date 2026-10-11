@@ -1,8 +1,8 @@
-import {Command, Flags} from '@oclif/core';
-import fs from 'node:fs';
-import path from 'node:path';
-import {createDatabase} from '../../../db/index.js';
-import {CacheService} from '../../../services/cache.js';
+import {Command, Flags} from "@oclif/core";
+import fs from "node:fs";
+import path from "node:path";
+import {createDatabase} from "../../../db/index.js";
+import {CacheService} from "../../../services/cache.js";
 
 interface ProjectItem {
 	id: string;
@@ -72,22 +72,22 @@ interface MetadataOutput {
  * a normalized JSON structure for fast offline access by refinement agents.
  */
 export default class Sync extends Command {
-	static override description = 'Sync GTD metadata from Workflowy to local JSON';
+	static override description = "Sync GTD metadata from Workflowy to local JSON";
 
 	static override examples = [
-		'# Sync metadata from cache (default)',
-		'<%= config.bin %> <%= command.id %>',
-		'',
-		'# Force sync from API',
-		'<%= config.bin %> <%= command.id %> --data-source api',
+		"# Sync metadata from cache (default)",
+		"<%= config.bin %> <%= command.id %>",
+		"",
+		"# Force sync from API",
+		"<%= config.bin %> <%= command.id %> --data-source api",
 	];
 
 	static override flags = {
-		'data-source': Flags.string({
-			char: 's',
-			description: 'Data source to use',
-			options: ['cache', 'api'],
-			default: 'cache',
+		"data-source": Flags.string({
+			char: "s",
+			description: "Data source to use",
+			options: ["cache", "api"],
+			default: "cache",
 		}),
 	};
 
@@ -98,7 +98,7 @@ export default class Sync extends Command {
 		await this.parse(Sync);
 
 		const projectRoot = this.findProjectRoot();
-		const outputFile = path.join(projectRoot, '.llm', 'gtd', 'metadata.json');
+		const outputFile = path.join(projectRoot, ".llm", "gtd", "metadata.json");
 
 		// Ensure .llm/gtd directory exists
 		const gtdDir = path.dirname(outputFile);
@@ -128,8 +128,8 @@ export default class Sync extends Command {
 			projects,
 			people,
 			contexts: {
-				location: ['#home', '#work', '#errands', '#anywhere'],
-				mode: ['#call', '#email', '#computer', '#read', '#buy', '#waiting'],
+				location: ["#home", "#work", "#errands", "#anywhere"],
+				mode: ["#call", "#email", "#computer", "#read", "#buy", "#waiting"],
 			},
 			destinations: {
 				nextActions,
@@ -164,7 +164,7 @@ export default class Sync extends Command {
 	 * Fetch projects from Metadata > Projects
 	 */
 	private async fetchProjects(): Promise<Project[]> {
-		const projectsPath = ['Metadata', '\u{1F4C1} Projects'];
+		const projectsPath = ["Metadata", "\u{1F4C1} Projects"];
 		const projectsNode = await this.cacheService.findNodeByPath(projectsPath);
 
 		if (!projectsNode) return [];
@@ -178,12 +178,12 @@ export default class Sync extends Command {
 			const target = linkTarget ?? child;
 
 			// Get name from target or extract from anchor text
-			let projectName = target.name ?? '';
+			let projectName = target.name ?? "";
 			projectName = this.extractAnchorText(projectName);
-			projectName = projectName.replace(/\s*\u{1F4C1}\s*Projects?$/u, '').trim();
+			projectName = projectName.replace(/\s*\u{1F4C1}\s*Projects?$/u, "").trim();
 
 			// Extract context from link node name
-			const context = this.extractContext(child.name ?? '');
+			const context = this.extractContext(child.name ?? "");
 
 			// Get project items (children of target)
 			const items: ProjectItem[] = [];
@@ -191,7 +191,7 @@ export default class Sync extends Command {
 			for (const item of targetChildren.slice(0, 20)) {
 				items.push({
 					id: item.id,
-					name: item.name ?? '',
+					name: item.name ?? "",
 				});
 			}
 
@@ -199,7 +199,7 @@ export default class Sync extends Command {
 				id: child.id,
 				name: projectName,
 				linkId: target.id,
-				tag: '#' + projectName.replaceAll(/\s+/g, '-').toLowerCase(),
+				tag: "#" + projectName.replaceAll(/\s+/g, "-").toLowerCase(),
 				context,
 				items,
 			});
@@ -212,7 +212,7 @@ export default class Sync extends Command {
 	 * Fetch people from Metadata > People
 	 */
 	private async fetchPeople(): Promise<Record<string, PersonMember[]>> {
-		const peoplePath = ['Metadata', '\u{1F465} People'];
+		const peoplePath = ["Metadata", "\u{1F465} People"];
 		const peopleNode = await this.cacheService.findNodeByPath(peoplePath);
 
 		if (!peopleNode) return {};
@@ -221,13 +221,13 @@ export default class Sync extends Command {
 		const people: Record<string, PersonMember[]> = {};
 
 		for (const category of categories) {
-			const categoryName = category.name ?? 'Unknown';
+			const categoryName = category.name ?? "Unknown";
 			const members = await this.cacheService.getChildren(category.id);
 
 			people[categoryName] = members.map((member) => ({
 				id: member.id,
-				name: member.name ?? '',
-				tag: '@' + (member.name ?? '').replaceAll(/\s+/g, ''),
+				name: member.name ?? "",
+				tag: "@" + (member.name ?? "").replaceAll(/\s+/g, ""),
 			}));
 		}
 
@@ -238,7 +238,7 @@ export default class Sync extends Command {
 	 * Fetch Next Actions destinations
 	 */
 	private async fetchNextActions(): Promise<NextActionsDestination[]> {
-		const naPath = ['Metadata', '\u{2611}\u{FE0F} Next Actions'];
+		const naPath = ["Metadata", "\u{2611}\u{FE0F} Next Actions"];
 		const naNode = await this.cacheService.findNodeByPath(naPath);
 
 		if (!naNode) return [];
@@ -252,11 +252,11 @@ export default class Sync extends Command {
 			const target = linkTarget ?? child;
 
 			// Get name
-			let name = target.name ?? child.name ?? '';
+			let name = target.name ?? child.name ?? "";
 			name = this.extractAnchorText(name);
 
 			// Extract context
-			const context = this.extractContext(child.name ?? '');
+			const context = this.extractContext(child.name ?? "");
 
 			// Find asap and dueDate containers in target children
 			let asap: {id: string; name: string} | null = null;
@@ -264,7 +264,7 @@ export default class Sync extends Command {
 
 			const targetChildren = await this.cacheService.getChildren(target.id);
 			for (const tc of targetChildren) {
-				const tcName = tc.name ?? '';
+				const tcName = tc.name ?? "";
 				if (/asap/i.test(tcName)) {
 					asap = {id: tc.id, name: tcName};
 				} else if (/due/i.test(tcName)) {
@@ -288,7 +288,7 @@ export default class Sync extends Command {
 	 * Fetch Waiting For destinations
 	 */
 	private async fetchWaitingFor(): Promise<SimpleDestination[]> {
-		const wfPath = ['Metadata', '\u{1F4E4} Waiting For'];
+		const wfPath = ["Metadata", "\u{1F4E4} Waiting For"];
 		const wfNode = await this.cacheService.findNodeByPath(wfPath);
 
 		if (!wfNode) return [];
@@ -301,7 +301,7 @@ export default class Sync extends Command {
 	 * Fetch Calendar destinations
 	 */
 	private async fetchCalendar(): Promise<SimpleDestination[]> {
-		const calPath = ['Metadata', '\u{1F4C5} Calendar'];
+		const calPath = ["Metadata", "\u{1F4C5} Calendar"];
 		const calNode = await this.cacheService.findNodeByPath(calPath);
 
 		if (!calNode) return [];
@@ -314,7 +314,7 @@ export default class Sync extends Command {
 	 * Fetch Someday destinations
 	 */
 	private async fetchSomeday(): Promise<SimpleDestination[]> {
-		const sdPath = ['Metadata', '\u{1F331} Someday'];
+		const sdPath = ["Metadata", "\u{1F331} Someday"];
 		const sdNode = await this.cacheService.findNodeByPath(sdPath);
 
 		if (!sdNode) return [];
@@ -327,7 +327,7 @@ export default class Sync extends Command {
 	 * Fetch Review node
 	 */
 	private async fetchReview(): Promise<{id: string | null; name: string | null}> {
-		const reviewPath = ['Metadata', '\u{1F504} Review'];
+		const reviewPath = ["Metadata", "\u{1F504} Review"];
 		const reviewNode = await this.cacheService.findNodeByPath(reviewPath);
 
 		if (!reviewNode) return {id: null, name: null};
@@ -354,10 +354,10 @@ export default class Sync extends Command {
 			const linkTarget = await this.getLinkTarget(child.id);
 			const target = linkTarget ?? child;
 
-			let name = target.name ?? child.name ?? '';
+			let name = target.name ?? child.name ?? "";
 			name = this.extractAnchorText(name);
 
-			const context = this.extractContext(child.name ?? '');
+			const context = this.extractContext(child.name ?? "");
 
 			destinations.push({
 				id: child.id,
@@ -402,15 +402,15 @@ export default class Sync extends Command {
 		const text = this.extractAnchorText(name);
 		// Remove emoji markers and everything after (folder, checkbox, outbox, calendar, seedling)
 		const emojiPattern = /\s*(?:\u{1F4C1}|\u{2611}\u{FE0F}?|\u{1F4E4}|\u{1F4C5}|\u{1F331}).*$/u;
-		const cleaned = text.replace(emojiPattern, '');
+		const cleaned = text.replace(emojiPattern, "");
 		return cleaned.toLowerCase().trim();
 	}
 
 	private findProjectRoot(): string {
 		let dir = process.cwd();
 
-		while (dir !== '/') {
-			if (fs.existsSync(path.join(dir, 'workflowy.sqlite')) || fs.existsSync(path.join(dir, 'package.json'))) {
+		while (dir !== "/") {
+			if (fs.existsSync(path.join(dir, "workflowy.sqlite")) || fs.existsSync(path.join(dir, "package.json"))) {
 				return dir;
 			}
 			dir = path.dirname(dir);

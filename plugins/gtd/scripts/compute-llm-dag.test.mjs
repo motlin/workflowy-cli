@@ -1,25 +1,25 @@
 // Run: node --test plugins/gtd/scripts/compute-llm-dag.test.mjs
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
-import {test} from 'node:test';
-import assert from 'node:assert/strict';
-import {computeLlmDag} from './compute-llm-dag.mjs';
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {computeLlmDag} from "./compute-llm-dag.mjs";
 
 const time = (date, label) => {
-	const [year, month, day] = date.split('-').map(Number);
+	const [year, month, day] = date.split("-").map(Number);
 	return `<time startYear="${year}" startMonth="${month}" startDay="${day}">${label}</time> `;
 };
 
 const instruction = (name) => ({name, children: []});
 
 const task = ({name, id, date, command, interval, auto = false}) => ({
-	name: `${name} ${time(date, 'Sat, Jan 1, 2000')}`,
+	name: `${name} ${time(date, "Sat, Jan 1, 2000")}`,
 	id,
 	shortId: `${id}-short`,
 	completedAt: null,
 	children: [
 		instruction(`/gtd:${command}`),
 		...(interval ? [instruction(`Interval: ${interval}`)] : []),
-		...(auto ? [instruction('Auto')] : []),
+		...(auto ? [instruction("Auto")] : []),
 	],
 });
 
@@ -32,173 +32,173 @@ const presentation = ({name, id, command}) => ({
 });
 
 const fixture = () => ({
-	name: 'LLM Tasks:',
+	name: "LLM Tasks:",
 	children: [
 		{
-			name: 'Import',
-			id: 'import',
-			children: [instruction('op run -- just daily')],
+			name: "Import",
+			id: "import",
+			children: [instruction("op run -- just daily")],
 		},
 		{
-			name: 'Prep',
-			id: 'prep',
+			name: "Prep",
+			id: "prep",
 			children: [
-				task({name: 'Daily task', id: 'daily', date: '2000-01-01', command: 'daily-prep'}),
+				task({name: "Daily task", id: "daily", date: "2000-01-01", command: "daily-prep"}),
 				{
-					name: 'Serial: calendar',
-					id: 'serial',
+					name: "Serial: calendar",
+					id: "serial",
 					children: [
 						task({
-							name: 'Weekly task',
-							id: 'weekly',
-							date: '1999-12-31',
-							command: 'weekly-prep',
-							interval: '7d',
+							name: "Weekly task",
+							id: "weekly",
+							date: "1999-12-31",
+							command: "weekly-prep",
+							interval: "7d",
 						}),
 					],
 				},
-				task({name: 'Future auto task', id: 'future', date: '2000-01-02', command: 'future-auto', auto: true}),
+				task({name: "Future auto task", id: "future", date: "2000-01-02", command: "future-auto", auto: true}),
 			],
 		},
 		{
-			name: 'Presentation',
-			id: 'presentation',
+			name: "Presentation",
+			id: "presentation",
 			children: [
-				presentation({name: 'Weekly task', id: 'weekly-presentation', command: 'weekly-apply'}),
-				presentation({name: 'Daily task', id: 'daily-presentation', command: 'daily-apply'}),
+				presentation({name: "Weekly task", id: "weekly-presentation", command: "weekly-apply"}),
+				presentation({name: "Daily task", id: "daily-presentation", command: "daily-apply"}),
 			],
 		},
 	],
 });
 
-test('computeLlmDag inherits due state from prep and preserves presentation order', () => {
-	const plan = computeLlmDag(fixture(), '2000-01-01');
+test("computeLlmDag inherits due state from prep and preserves presentation order", () => {
+	const plan = computeLlmDag(fixture(), "2000-01-01");
 
 	assert.deepStrictEqual(
 		plan.prepBranches.map((branch) => ({mode: branch.mode, slugs: branch.tasks.map((item) => item.slug)})),
 		[
-			{mode: 'parallel', slugs: ['daily']},
-			{mode: 'serial', slugs: ['weekly']},
+			{mode: "parallel", slugs: ["daily"]},
+			{mode: "serial", slugs: ["weekly"]},
 		],
 	);
 	assert.deepStrictEqual(
 		plan.presentation.map((item) => item.slug),
-		['weekly', 'daily'],
+		["weekly", "daily"],
 	);
-	assert.deepStrictEqual(plan.skipped, [{slug: 'future', reason: 'future', dueDate: '2000-01-02'}]);
+	assert.deepStrictEqual(plan.skipped, [{slug: "future", reason: "future", dueDate: "2000-01-02"}]);
 });
 
-test('computeLlmDag defaults to daily and honors explicit weekly intervals', () => {
-	const plan = computeLlmDag(fixture(), '2000-01-01');
+test("computeLlmDag defaults to daily and honors explicit weekly intervals", () => {
+	const plan = computeLlmDag(fixture(), "2000-01-01");
 	const tasks = plan.prepBranches.flatMap((branch) => branch.tasks);
-	const daily = tasks.find((item) => item.slug === 'daily');
-	const weekly = tasks.find((item) => item.slug === 'weekly');
+	const daily = tasks.find((item) => item.slug === "daily");
+	const weekly = tasks.find((item) => item.slug === "weekly");
 
-	assert.deepStrictEqual(daily.interval, {amount: 1, unit: 'd'});
-	assert.strictEqual(daily.advance.nextDate, '2000-01-02');
-	assert.deepStrictEqual(weekly.interval, {amount: 7, unit: 'd'});
-	assert.strictEqual(weekly.advance.nextDate, '2000-01-08');
+	assert.deepStrictEqual(daily.interval, {amount: 1, unit: "d"});
+	assert.strictEqual(daily.advance.nextDate, "2000-01-02");
+	assert.deepStrictEqual(weekly.interval, {amount: 7, unit: "d"});
+	assert.strictEqual(weekly.advance.nextDate, "2000-01-08");
 	assert.match(weekly.advance.applyOp, /--id weekly/);
 	assert.match(weekly.advance.applyOp, /--expect-name/);
 });
 
-test('computeLlmDag records the plan date that every next date is computed from', () => {
-	const plan = computeLlmDag(fixture(), '2000-01-01');
+test("computeLlmDag records the plan date that every next date is computed from", () => {
+	const plan = computeLlmDag(fixture(), "2000-01-01");
 
-	assert.strictEqual(plan.planDate, '2000-01-01');
-	assert.strictEqual(plan.prepBranches[0].tasks[0].advance.nextDate, '2000-01-02');
+	assert.strictEqual(plan.planDate, "2000-01-01");
+	assert.strictEqual(plan.prepBranches[0].tasks[0].advance.nextDate, "2000-01-02");
 });
 
-test('computeLlmDag rejects a plan date that is not a padded ISO date', () => {
+test("computeLlmDag rejects a plan date that is not a padded ISO date", () => {
 	// The executor compares planDate to the local date, so an unpadded or empty date never
 	// matches and would restart the import barrier forever instead of failing loudly here.
-	assert.throws(() => computeLlmDag(fixture(), '2000-1-1'), /plan date must be YYYY-MM-DD, got "2000-1-1"/);
+	assert.throws(() => computeLlmDag(fixture(), "2000-1-1"), /plan date must be YYYY-MM-DD, got "2000-1-1"/);
 });
 
-test('computeLlmDag rejects unexpected root children', () => {
+test("computeLlmDag rejects unexpected root children", () => {
 	const tree = fixture();
-	tree.children.push(task({name: 'Orphan', id: 'orphan', date: '2000-01-01', command: 'orphan-prep'}));
+	tree.children.push(task({name: "Orphan", id: "orphan", date: "2000-01-01", command: "orphan-prep"}));
 
-	assert.throws(() => computeLlmDag(tree, '2000-01-01'), /unexpected child "Orphan/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /unexpected child "Orphan/);
 });
 
-test('computeLlmDag rejects unmatched task names', () => {
+test("computeLlmDag rejects unmatched task names", () => {
 	const tree = fixture();
-	tree.children.find((child) => child.name === 'Presentation').children.pop();
+	tree.children.find((child) => child.name === "Presentation").children.pop();
 
-	assert.throws(() => computeLlmDag(tree, '2000-01-01'), /prep task "Daily task" has no matching presentation task/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /prep task "Daily task" has no matching presentation task/);
 });
 
-test('computeLlmDag rejects dates on presentation tasks', () => {
+test("computeLlmDag rejects dates on presentation tasks", () => {
 	const tree = fixture();
-	const item = tree.children.find((child) => child.name === 'Presentation').children[0];
-	item.name += ` ${time('2000-01-01', 'Sat, Jan 1, 2000')}`;
+	const item = tree.children.find((child) => child.name === "Presentation").children[0];
+	item.name += ` ${time("2000-01-01", "Sat, Jan 1, 2000")}`;
 
-	assert.throws(() => computeLlmDag(tree, '2000-01-01'), /presentation task "Weekly task" must inherit its date/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /presentation task "Weekly task" must inherit its date/);
 });
 
-test('computeLlmDag rejects invalid intervals', () => {
+test("computeLlmDag rejects invalid intervals", () => {
 	const tree = fixture();
-	const item = tree.children.find((child) => child.name === 'Prep').children[0];
-	item.children.push(instruction('Interval: weekly'));
+	const item = tree.children.find((child) => child.name === "Prep").children[0];
+	item.children.push(instruction("Interval: weekly"));
 
-	assert.throws(() => computeLlmDag(tree, '2000-01-01'), /invalid interval "weekly"/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /invalid interval "weekly"/);
 });
 
-test('computeLlmDag rejects a presentation task for an auto prep task', () => {
+test("computeLlmDag rejects a presentation task for an auto prep task", () => {
 	const tree = fixture();
 	tree.children
-		.find((child) => child.name === 'Presentation')
-		.children.push(presentation({name: 'Future auto task', id: 'future-presentation', command: 'future-apply'}));
+		.find((child) => child.name === "Presentation")
+		.children.push(presentation({name: "Future auto task", id: "future-presentation", command: "future-apply"}));
 
 	assert.throws(
-		() => computeLlmDag(tree, '2000-01-01'),
+		() => computeLlmDag(tree, "2000-01-01"),
 		/auto prep task "Future auto task" must not have a presentation task/,
 	);
 });
 
-test('computeLlmDag infers the artifact slug from the prep command', () => {
+test("computeLlmDag infers the artifact slug from the prep command", () => {
 	const tree = fixture();
-	const prep = tree.children.find((child) => child.name === 'Prep');
+	const prep = tree.children.find((child) => child.name === "Prep");
 	prep.children.unshift(
-		task({name: 'Refine exercise', id: 'exercise', date: '2000-01-01', command: 'refine-exercise-prep'}),
+		task({name: "Refine exercise", id: "exercise", date: "2000-01-01", command: "refine-exercise-prep"}),
 	);
-	const presentations = tree.children.find((child) => child.name === 'Presentation').children;
+	const presentations = tree.children.find((child) => child.name === "Presentation").children;
 	presentations.push(
-		presentation({name: 'Refine exercise', id: 'exercise-presentation', command: 'refine-exercise-apply'}),
+		presentation({name: "Refine exercise", id: "exercise-presentation", command: "refine-exercise-apply"}),
 	);
 
-	const plan = computeLlmDag(tree, '2000-01-01');
-	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, 'refine-exercise');
-	assert.strictEqual(plan.presentation.at(-1).slug, 'refine-exercise');
+	const plan = computeLlmDag(tree, "2000-01-01");
+	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, "refine-exercise");
+	assert.strictEqual(plan.presentation.at(-1).slug, "refine-exercise");
 });
 
-test('computeLlmDag pairs different commands through the shared task name', () => {
+test("computeLlmDag pairs different commands through the shared task name", () => {
 	const tree = fixture();
-	const prep = tree.children.find((child) => child.name === 'Prep');
-	prep.children.unshift(task({name: 'Process inbox', id: 'inbox', date: '2000-01-01', command: 'refine-inbox'}));
-	const presentations = tree.children.find((child) => child.name === 'Presentation').children;
-	presentations.push(presentation({name: 'Process inbox', id: 'inbox-presentation', command: 'inbox'}));
+	const prep = tree.children.find((child) => child.name === "Prep");
+	prep.children.unshift(task({name: "Process inbox", id: "inbox", date: "2000-01-01", command: "refine-inbox"}));
+	const presentations = tree.children.find((child) => child.name === "Presentation").children;
+	presentations.push(presentation({name: "Process inbox", id: "inbox-presentation", command: "inbox"}));
 
-	const plan = computeLlmDag(tree, '2000-01-01');
-	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, 'refine-inbox');
-	assert.strictEqual(plan.presentation.at(-1).slug, 'refine-inbox');
+	const plan = computeLlmDag(tree, "2000-01-01");
+	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, "refine-inbox");
+	assert.strictEqual(plan.presentation.at(-1).slug, "refine-inbox");
 });
 
-test('computeLlmDag rejects duplicate inferred slugs', () => {
+test("computeLlmDag rejects duplicate inferred slugs", () => {
 	const tree = fixture();
-	const prep = tree.children.find((child) => child.name === 'Prep');
+	const prep = tree.children.find((child) => child.name === "Prep");
 	prep.children.push(
-		task({name: 'Another daily task', id: 'another-daily', date: '2000-01-01', command: 'daily-auto', auto: true}),
+		task({name: "Another daily task", id: "another-daily", date: "2000-01-01", command: "daily-auto", auto: true}),
 	);
 
-	assert.throws(() => computeLlmDag(tree, '2000-01-01'), /Prep has duplicate slug "daily"/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /Prep has duplicate slug "daily"/);
 });
 
-test('computeLlmDag rejects obsolete Key markers', () => {
+test("computeLlmDag rejects obsolete Key markers", () => {
 	const tree = fixture();
-	const item = tree.children.find((child) => child.name === 'Prep').children[0];
-	item.children.push(instruction('Key: daily'));
+	const item = tree.children.find((child) => child.name === "Prep").children[0];
+	item.children.push(instruction("Key: daily"));
 
-	assert.throws(() => computeLlmDag(tree, '2000-01-01'), /obsolete Key marker/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /obsolete Key marker/);
 });

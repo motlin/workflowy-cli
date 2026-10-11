@@ -1,27 +1,27 @@
-import type {Meta, StoryObj} from '@storybook/react-vite';
-import {fn} from 'storybook/test';
+import type {Meta, StoryObj} from "@storybook/react-vite";
+import {fn} from "storybook/test";
 
-import {CompleteBullet} from './primitives.js';
+import {CompleteBullet} from "./primitives.js";
 
 const meta: Meta<typeof CompleteBullet> = {
-	title: 'Primitives/CompleteBullet',
+	title: "Primitives/CompleteBullet",
 	component: CompleteBullet,
 	parameters: {
-		layout: 'padded',
+		layout: "padded",
 	},
-	tags: ['autodocs'],
+	tags: ["autodocs"],
 	argTypes: {
 		isExpanded: {
-			control: 'boolean',
-			description: 'Whether the node is expanded',
+			control: "boolean",
+			description: "Whether the node is expanded",
 		},
 		isCompleted: {
-			control: 'boolean',
-			description: 'Whether the node is completed',
+			control: "boolean",
+			description: "Whether the node is completed",
 		},
 		depth: {
-			control: {type: 'number', min: 0, max: 10},
-			description: 'Nesting depth',
+			control: {type: "number", min: 0, max: 10},
+			description: "Nesting depth",
 		},
 	},
 	args: {
@@ -29,7 +29,7 @@ const meta: Meta<typeof CompleteBullet> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{position: 'relative', minHeight: '50px', width: '400px'}}>
+			<div style={{position: "relative", minHeight: "50px", width: "400px"}}>
 				<Story />
 			</div>
 		),

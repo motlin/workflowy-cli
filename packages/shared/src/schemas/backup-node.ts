@@ -1,4 +1,4 @@
-import {z} from 'zod';
+import {z} from "zod";
 
 const MirrorWithOriginalIdSchema = z.object({
 	originalId: z.string(),

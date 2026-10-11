@@ -578,58 +578,23 @@
 			>
 		</div>
 	</header>
-	<div
-		class="rootnav"
-		id="rootnav"
-	></div>
+	<div class="rootnav" id="rootnav"></div>
 	<div id="app"></div>
 </div>
 
 <div class="bar">
-	<div
-		class="status"
-		id="status"
-	>
-		No changes yet.
-	</div>
-	<button
-		class="act ghost"
-		id="bulkDone"
-		type="button"
-		disabled
-	>
-		Mark done
-	</button>
-	<select
-		class="bulk"
-		id="bulkTier"
-	>
+	<div class="status" id="status">No changes yet.</div>
+	<button class="act ghost" id="bulkDone" type="button" disabled>Mark done</button>
+	<select class="bulk" id="bulkTier">
 		<option value="">Move selected to…</option>
 	</select>
-	<span
-		class="savestate"
-		id="savestate"
-		>&nbsp;</span
-	>
-	<button
-		class="act ghost"
-		id="reset"
-		type="button"
-	>
-		Revert all
-	</button>
+	<span class="savestate" id="savestate">&nbsp;</span>
+	<button class="act ghost" id="reset" type="button">Revert all</button>
 </div>
 
-<div
-	id="fallback"
-	hidden
->
+<div id="fallback" hidden>
 	<p>Copy this arrangement back to Claude:</p>
-	<textarea
-		id="fallback-json"
-		readonly
-		style="width: 100%; min-height: 180px"
-	></textarea>
+	<textarea id="fallback-json" readonly style="width: 100%; min-height: 180px"></textarea>
 </div>
 <script>
 	var LADDERS = __LADDERS__;

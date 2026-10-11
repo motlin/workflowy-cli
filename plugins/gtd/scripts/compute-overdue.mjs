@@ -20,25 +20,25 @@
 // The section -> interval table mirrors plugins/gtd/skills/review-date-updates.md;
 // this script is the executable source of truth for it.
 
-import {appendFileSync, mkdirSync, readFileSync} from 'node:fs';
-import {dirname} from 'node:path';
+import {appendFileSync, mkdirSync, readFileSync} from "node:fs";
+import {dirname} from "node:path";
 
 const SECTION_INTERVALS = [
-	['Daily Review', {amount: 1, unit: 'd'}],
-	['Frequently Important', {amount: 1, unit: 'd'}],
-	['Low priority daily', {amount: 1, unit: 'd'}],
-	['Do goals for today', {amount: 1, unit: 'd'}],
-	['Weekly Review', {amount: 7, unit: 'd'}],
-	['Every 4 weeks', {amount: 28, unit: 'd'}],
-	['Monthly Review', {amount: 1, unit: 'm'}],
-	['Every 2 months', {amount: 2, unit: 'm'}],
-	['Every 6 months', {amount: 6, unit: 'm'}],
-	['Annual Review', {amount: 1, unit: 'y'}],
+	["Daily Review", {amount: 1, unit: "d"}],
+	["Frequently Important", {amount: 1, unit: "d"}],
+	["Low priority daily", {amount: 1, unit: "d"}],
+	["Do goals for today", {amount: 1, unit: "d"}],
+	["Weekly Review", {amount: 7, unit: "d"}],
+	["Every 4 weeks", {amount: 28, unit: "d"}],
+	["Monthly Review", {amount: 1, unit: "m"}],
+	["Every 2 months", {amount: 2, unit: "m"}],
+	["Every 6 months", {amount: 6, unit: "m"}],
+	["Annual Review", {amount: 1, unit: "y"}],
 ];
 
 const TIME_RE = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"[^>]*>.*?<\/time>/;
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n) => String(n).padStart(2, "0");
 
 export function parseTimeISO(name) {
 	const m = String(name).match(TIME_RE);
@@ -48,9 +48,9 @@ export function parseTimeISO(name) {
 /** Node text as a human reads it: no <time> element, no tags, no other HTML. */
 export function stripMarkup(name) {
 	return String(name)
-		.replace(/<time[^>]*>.*?<\/time>/g, '')
-		.replace(/<[^>]+>/g, '')
-		.replace(/\s+/g, ' ')
+		.replace(/<time[^>]*>.*?<\/time>/g, "")
+		.replace(/<[^>]+>/g, "")
+		.replace(/\s+/g, " ")
 		.trim();
 }
 
@@ -77,7 +77,7 @@ export function extractLinks(...texts) {
 		if (!text) continue;
 		const str = String(text);
 		for (const m of str.matchAll(HREF_RE)) urls.push(m[1]);
-		for (const m of str.matchAll(BARE_URL_RE)) urls.push(m[0].replace(/[.,;:]+$/, ''));
+		for (const m of str.matchAll(BARE_URL_RE)) urls.push(m[0].replace(/[.,;:]+$/, ""));
 	}
 	return [...new Set(urls.filter((u) => /^https?:\/\//.test(u) && !WORKFLOWY_HOST_RE.test(u)))];
 }
@@ -116,7 +116,7 @@ export function intervalForSection(sectionName) {
 }
 
 function hardDeadlineFor(node, date) {
-	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith('Hard deadline:'));
+	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith("Hard deadline:"));
 	if (!markers.length) return null;
 	if (markers.length !== 1) throw new Error(`Multiple hard deadline markers on ${node.id}`);
 	const match = stripMarkup(markers[0].name).match(/^Hard deadline: (0|[1-9]\d*)d$/);
@@ -127,11 +127,11 @@ function hardDeadlineFor(node, date) {
 	return {date, leadDays: Number(match[1])};
 }
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** A `Next: <Weekday>` child pins every advanced date to that weekday, e.g. chores saved for the weekend. */
 function weekdayAnchorFor(node) {
-	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith('Next:'));
+	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith("Next:"));
 	if (!markers.length) return null;
 	if (markers.length !== 1) throw new Error(`Multiple Next: <weekday> markers on ${node.id}`);
 	const match = stripMarkup(markers[0].name).match(/^Next: (\w+)$/);
@@ -147,11 +147,11 @@ function weekdayAnchorFor(node) {
  */
 export function anchorToWeekday(todayISO, interval, weekday) {
 	const target = addInterval(todayISO, interval);
-	const windowStart = addInterval(target, {amount: -7, unit: 'd'});
+	const windowStart = addInterval(target, {amount: -7, unit: "d"});
 	let date = windowStart > todayISO ? windowStart : todayISO;
 	const wanted = WEEKDAYS.indexOf(weekday);
-	do date = addInterval(date, {amount: 1, unit: 'd'});
-	while (new Date(date + 'T00:00:00Z').getUTCDay() !== wanted);
+	do date = addInterval(date, {amount: 1, unit: "d"});
+	while (new Date(date + "T00:00:00Z").getUTCDay() !== wanted);
 	return date;
 }
 
@@ -161,13 +161,13 @@ function lastDayOfMonth(year, month1) {
 }
 
 export function addInterval(iso, {amount, unit}) {
-	const [y, m, d] = iso.split('-').map(Number);
-	if (unit === 'd') {
+	const [y, m, d] = iso.split("-").map(Number);
+	if (unit === "d") {
 		const dt = new Date(Date.UTC(y, m - 1, d + amount));
 		return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 	}
-	if (unit === 'm' || unit === 'y') {
-		const totalMonths = (unit === 'y' ? amount * 12 : amount) + (m - 1);
+	if (unit === "m" || unit === "y") {
+		const totalMonths = (unit === "y" ? amount * 12 : amount) + (m - 1);
 		const year = y + Math.floor(totalMonths / 12);
 		const month1 = (totalMonths % 12) + 1;
 		// Clamp the day so e.g. Jan 31 + 1 month -> Feb 28, never rolling into March.
@@ -178,13 +178,13 @@ export function addInterval(iso, {amount, unit}) {
 }
 
 export function buildTimeElement(iso) {
-	const [y, m, d] = iso.split('-').map(Number);
-	const label = new Intl.DateTimeFormat('en-US', {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric',
-		timeZone: 'UTC',
+	const [y, m, d] = iso.split("-").map(Number);
+	const label = new Intl.DateTimeFormat("en-US", {
+		weekday: "short",
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		timeZone: "UTC",
 	}).format(new Date(Date.UTC(y, m - 1, d)));
 	// Trailing space is required so Workflowy renders the element (see review-date-updates.md).
 	return `<time startYear="${y}" startMonth="${m}" startDay="${d}">${label}</time> `;
@@ -192,17 +192,17 @@ export function buildTimeElement(iso) {
 
 export function swapTimeElement(name, newTimeElement) {
 	// Replace the existing element and collapse any duplicated trailing space.
-	return String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/, '') + ' ';
+	return String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/, "") + " ";
 }
 
 // The skip log is an append-only JSONL record of what happened to each item on each run. It is
 // append-only on purpose: the walk dispatches its writes as concurrent background jobs, and a
 // read-modify-write of a single JSON blob would silently lose outcomes when two land at once.
-export const DEFAULT_SKIP_LOG_PATH = '.llm/gtd/review/skip-log.jsonl';
+export const DEFAULT_SKIP_LOG_PATH = ".llm/gtd/review/skip-log.jsonl";
 
 function parseSkipLog(text) {
 	const entries = [];
-	for (const line of String(text).split('\n')) {
+	for (const line of String(text).split("\n")) {
 		if (!line.trim()) continue;
 		try {
 			const entry = JSON.parse(line);
@@ -234,7 +234,7 @@ export function foldSkipLog(entries) {
 		let skipStreak = 0;
 		let skippedSince = null;
 		for (let i = dates.length - 1; i >= 0; i--) {
-			if (byDate.get(dates[i]) !== 'skip') break;
+			if (byDate.get(dates[i]) !== "skip") break;
 			skipStreak++;
 			skippedSince = dates[i];
 		}
@@ -245,7 +245,7 @@ export function foldSkipLog(entries) {
 
 export function loadSkipStreaks(path = DEFAULT_SKIP_LOG_PATH) {
 	try {
-		return foldSkipLog(parseSkipLog(readFileSync(path, 'utf8')));
+		return foldSkipLog(parseSkipLog(readFileSync(path, "utf8")));
 	} catch {
 		return new Map(); // No log yet means no history, which is not an error.
 	}
@@ -254,7 +254,7 @@ export function loadSkipStreaks(path = DEFAULT_SKIP_LOG_PATH) {
 export function recordOutcome(key, outcome, {date = localTodayISO(), path = DEFAULT_SKIP_LOG_PATH} = {}) {
 	const entry = {key, outcome, date};
 	mkdirSync(dirname(path), {recursive: true});
-	appendFileSync(path, JSON.stringify(entry) + '\n');
+	appendFileSync(path, JSON.stringify(entry) + "\n");
 	return entry;
 }
 
@@ -275,7 +275,7 @@ export function nextLongerSection(sections, interval) {
 	if (interval === null) return null; // Unknown cadence -- ask the user rather than guessing a rung.
 	const current = intervalDays(interval);
 	const candidates = (sections ?? [])
-		.filter((section) => !String(section.name).includes('🗃️ Routine Archive'))
+		.filter((section) => !String(section.name).includes("🗃️ Routine Archive"))
 		.map((section) => ({name: section.name, id: section.id, interval: intervalForSection(section.name)}))
 		// A section with no known interval cannot stage a date, so it is not a move target.
 		.filter((section) => section.interval !== null && intervalDays(section.interval) > current)
@@ -288,8 +288,8 @@ function shellSingleQuote(s) {
 }
 
 function daysBetween(fromISO, toISO) {
-	const a = new Date(fromISO + 'T00:00:00Z');
-	const b = new Date(toISO + 'T00:00:00Z');
+	const a = new Date(fromISO + "T00:00:00Z");
+	const b = new Date(toISO + "T00:00:00Z");
 	return Math.round((b - a) / 86_400_000);
 }
 
@@ -319,7 +319,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 	const rows = [];
 
 	sections.forEach((section, sectionIndex) => {
-		if (String(section.name).includes('🗃️ Routine Archive')) return;
+		if (String(section.name).includes("🗃️ Routine Archive")) return;
 		const interval = intervalForSection(section.name);
 		// Every item in a section shares its cadence, so the rung above it is resolved once here.
 		const lengthenTarget = nextLongerSection(sections, interval);
@@ -327,7 +327,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 		const walk = (node) => {
 			for (const child of node.children ?? []) {
 				// The keyed DAG owns the entire LLM Tasks subtree, so recurring review must not surface it.
-				if (String(child.name).includes('LLM Tasks:')) continue;
+				if (String(child.name).includes("LLM Tasks:")) continue;
 				// A mirror reflects a node that lives elsewhere -- typically the ⏰/📌 task buckets
 				// mirrored under "Set goals for today". Those reflections are one-shot Next Actions,
 				// not recurring items, so neither the mirror nor anything beneath it is a row here.
@@ -341,7 +341,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 				if (weekday && hardDeadline) {
 					throw new Error(`Next: <weekday> cannot combine with Hard deadline on ${child.id}`);
 				}
-				const due = hardDeadline ? addInterval(date, {amount: -hardDeadline.leadDays, unit: 'd'}) : date;
+				const due = hardDeadline ? addInterval(date, {amount: -hardDeadline.leadDays, unit: "d"}) : date;
 				if (due && due <= todayISO && !isCompleted) {
 					const needsInterval = interval === null;
 					const nextStoredDate = needsInterval
@@ -351,7 +351,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 							: addInterval(hardDeadline ? date : todayISO, interval);
 					const nextDate =
 						hardDeadline && nextStoredDate
-							? addInterval(nextStoredDate, {amount: -hardDeadline.leadDays, unit: 'd'})
+							? addInterval(nextStoredDate, {amount: -hardDeadline.leadDays, unit: "d"})
 							: nextStoredDate;
 					let newName = null;
 					let applyOp = null;
@@ -402,33 +402,33 @@ export function localTodayISO() {
 
 function main(argv) {
 	const args = argv.slice(2);
-	let treePath = '.llm/gtd/review/tree.json';
+	let treePath = ".llm/gtd/review/tree.json";
 	let today = localTodayISO();
 	let print = false;
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
 	let recordKey = null;
 	let outcome = null;
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === '--today') today = args[++i];
-		else if (args[i] === '--print') print = true;
-		else if (args[i] === '--skip-log') skipLogPath = args[++i];
-		else if (args[i] === '--record') recordKey = args[++i];
-		else if (args[i] === '--outcome') outcome = args[++i];
-		else if (!args[i].startsWith('--')) treePath = args[i];
+		if (args[i] === "--today") today = args[++i];
+		else if (args[i] === "--print") print = true;
+		else if (args[i] === "--skip-log") skipLogPath = args[++i];
+		else if (args[i] === "--record") recordKey = args[++i];
+		else if (args[i] === "--outcome") outcome = args[++i];
+		else if (!args[i].startsWith("--")) treePath = args[i];
 	}
 
 	if (recordKey) {
-		if (!outcome) throw new Error('--record requires --outcome');
+		if (!outcome) throw new Error("--record requires --outcome");
 		const entry = recordOutcome(recordKey, outcome, {date: today, path: skipLogPath});
-		process.stdout.write(JSON.stringify(entry) + '\n');
+		process.stdout.write(JSON.stringify(entry) + "\n");
 		return;
 	}
 
-	const tree = JSON.parse(readFileSync(treePath, 'utf8'));
+	const tree = JSON.parse(readFileSync(treePath, "utf8"));
 	const rows = computeOverdue(tree, today, {skipStreaks: loadSkipStreaks(skipLogPath)});
 
 	if (!print) {
-		process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+		process.stdout.write(JSON.stringify(rows, null, 2) + "\n");
 		return;
 	}
 
@@ -441,19 +441,19 @@ function main(argv) {
 		process.stdout.write(`\n=== ${section} — ${items.length} overdue ===\n`);
 		for (const it of items) {
 			const tags = [
-				it.isLlmTask ? '[#llm-task]' : '',
+				it.isLlmTask ? "[#llm-task]" : "",
 				it.hardDeadline
 					? `⚠️ HARD deadline ${it.hardDeadline.date}; review ${it.hardDeadline.leadDays} days before`
-					: '',
-				it.childCount ? `(${it.childCount} children)` : '',
+					: "",
+				it.childCount ? `(${it.childCount} children)` : "",
 				!it.hardDeadline && it.skipStreak >= 2
-					? `⏭️ skipped ${it.skipStreak}x → offer ${it.lengthen?.section ?? 'a longer cadence'}`
-					: '',
-				it.needsInterval ? '⚠️ needs interval' : `→ ${it.nextDate}`,
+					? `⏭️ skipped ${it.skipStreak}x → offer ${it.lengthen?.section ?? "a longer cadence"}`
+					: "",
+				it.needsInterval ? "⚠️ needs interval" : `→ ${it.nextDate}`,
 			]
 				.filter(Boolean)
-				.join(' ');
-			const display = it.name.replace(TIME_RE, '⟨time⟩').slice(0, 200);
+				.join(" ");
+			const display = it.name.replace(TIME_RE, "⟨time⟩").slice(0, 200);
 			process.stdout.write(
 				`  [${it.shortId}] due ${it.due} (overdue ${it.overdueByDays}d) ${tags}\n      ${display}\n`,
 			);

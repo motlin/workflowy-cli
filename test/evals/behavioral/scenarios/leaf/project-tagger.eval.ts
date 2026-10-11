@@ -5,18 +5,18 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import {createEvalContext, runInEvalContext} from '../../helpers/eval-db-setup.js';
-import type {EvalContext} from '../../helpers/eval-types.js';
-import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
+import fs from "node:fs";
+import path from "node:path";
+import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
+import type {EvalContext} from "../../helpers/eval-types.js";
+import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
 
-describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
+describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let itemId: string;
 	let itemName: string;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/prompts/refinement/project-tagger.md';
+	const agentFile = "plugins/gtd/prompts/refinement/project-tagger.md";
 
 	beforeAll(async () => {
 		if (!claudeCliAvailable()) {
@@ -63,7 +63,7 @@ describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 			const inboxNode = JSON.parse(itemResult.stdout);
 			const firstItem = inboxNode.children?.[0];
 			itemId = firstItem?.id;
-			itemName = firstItem?.name ?? 'Unknown item';
+			itemName = firstItem?.name ?? "Unknown item";
 
 			if (!itemId) {
 				skipSuite = true;
@@ -75,7 +75,7 @@ describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 
 	afterAll(() => ctx?.cleanup());
 
-	it('should return valid JSON with project tag suggestions', async (context) => {
+	it("should return valid JSON with project tag suggestions", async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(
@@ -87,14 +87,14 @@ describe('Leaf Eval: project-tagger', {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
-		expect(jsonMatch, 'Response should contain JSON').not.toBeNull();
+		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
 		if (parsed.suggestedProjects) {
 			expect(Array.isArray(parsed.suggestedProjects)).toBe(true);
 			for (const proj of parsed.suggestedProjects) {
-				expect(proj).toHaveProperty('tag');
-				expect(typeof proj.tag).toBe('string');
+				expect(proj).toHaveProperty("tag");
+				expect(typeof proj.tag).toBe("string");
 			}
 		}
 	});

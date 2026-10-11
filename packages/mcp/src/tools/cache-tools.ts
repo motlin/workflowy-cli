@@ -1,9 +1,9 @@
-import {getDatabase} from '../services.js';
-import {sql} from 'drizzle-orm';
-import type {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
+import {getDatabase} from "../services.js";
+import {sql} from "drizzle-orm";
+import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCacheTools(server: McpServer): void {
-	server.tool('workflowy_cache_status', 'Get cache database status and statistics', {}, async () => {
+	server.tool("workflowy_cache_status", "Get cache database status and statistics", {}, async () => {
 		const db = getDatabase();
 
 		const stats = db.all(sql`
@@ -24,7 +24,7 @@ export function registerCacheTools(server: McpServer): void {
 		return {
 			content: [
 				{
-					type: 'text',
+					type: "text",
 					text: JSON.stringify(
 						{
 							totalNodes: result.total_nodes,

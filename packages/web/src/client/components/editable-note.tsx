@@ -1,6 +1,6 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {useOutlineStore} from '../stores/outline.js';
-import {useUpdateNode} from '../hooks/use-nodes.js';
+import {useCallback, useEffect, useRef, useState} from "react";
+import {useOutlineStore} from "../stores/outline.js";
+import {useUpdateNode} from "../hooks/use-nodes.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -66,10 +66,10 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			if (event.key === 'Enter' && !event.shiftKey) {
+			if (event.key === "Enter" && !event.shiftKey) {
 				event.preventDefault();
 				saveChanges();
-			} else if (event.key === 'Escape') {
+			} else if (event.key === "Escape") {
 				event.preventDefault();
 				// Restore original value on escape
 				if (contentRef.current) {
@@ -87,7 +87,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 	}, []);
 
 	// Only show note if editing or has content
-	const hasContent = initialValue.trim() !== '';
+	const hasContent = initialValue.trim() !== "";
 	if (!isEditing && !hasContent) {
 		return null;
 	}
@@ -95,7 +95,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 	if (!isEditing) {
 		return (
 			<div
-				className={`outline-node-note ${isExpanded ? 'expanded' : 'collapsed'}`}
+				className={`outline-node-note ${isExpanded ? "expanded" : "collapsed"}`}
 				dangerouslySetInnerHTML={{__html: initialValue}}
 				onClick={toggleExpand}
 			/>

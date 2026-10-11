@@ -1,11 +1,11 @@
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import {WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {Command, Flags} from '@oclif/core';
-import {sql} from 'drizzle-orm';
-import {createDatabase} from '../../db/index.js';
-import {CacheService} from '../../services/cache.js';
-import {logger} from '../../services/logger.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {Command, Flags} from "@oclif/core";
+import {sql} from "drizzle-orm";
+import {createDatabase} from "../../db/index.js";
+import {CacheService} from "../../services/cache.js";
+import {logger} from "../../services/logger.js";
 
 const MONTH_ABBREVS: Record<string, number> = {
 	Jan: 1,
@@ -100,8 +100,8 @@ function parseTextDate(name: string): ParsedDate | null {
 	return null;
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_ABBREV_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_ABBREV_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatTimeElement(parsed: ParsedDate): string {
 	const date = new Date(parsed.year, parsed.month - 1, parsed.day);
@@ -112,44 +112,44 @@ function formatTimeElement(parsed: ParsedDate): string {
 }
 
 export default class MigrateDates extends Command {
-	static override description = 'Convert text dates to native Workflowy dates in calendar archive day nodes';
+	static override description = "Convert text dates to native Workflowy dates in calendar archive day nodes";
 
 	static override examples = [
-		'# Preview all changes without making API calls',
-		'<%= config.bin %> <%= command.id %> --dry-run',
-		'',
-		'# Test with a specific year first',
-		'<%= config.bin %> <%= command.id %> --dry-run --year 2017',
-		'',
-		'# Execute migration for one year',
-		'<%= config.bin %> <%= command.id %> --year 2017',
-		'',
-		'# Execute full migration with custom delay',
-		'<%= config.bin %> <%= command.id %> --delay 300',
+		"# Preview all changes without making API calls",
+		"<%= config.bin %> <%= command.id %> --dry-run",
+		"",
+		"# Test with a specific year first",
+		"<%= config.bin %> <%= command.id %> --dry-run --year 2017",
+		"",
+		"# Execute migration for one year",
+		"<%= config.bin %> <%= command.id %> --year 2017",
+		"",
+		"# Execute full migration with custom delay",
+		"<%= config.bin %> <%= command.id %> --delay 300",
 	];
 
 	static override flags = {
-		'dry-run': Flags.boolean({
-			char: 'd',
-			description: 'Parse and log all changes without making API calls',
+		"dry-run": Flags.boolean({
+			char: "d",
+			description: "Parse and log all changes without making API calls",
 			default: false,
 		}),
-		'archive-id': Flags.string({
-			char: 'a',
-			description: 'ID of the archive root node',
-			default: 'f6b557fbf770',
+		"archive-id": Flags.string({
+			char: "a",
+			description: "ID of the archive root node",
+			default: "f6b557fbf770",
 		}),
-		'batch-size': Flags.integer({
-			char: 'b',
-			description: 'Number of nodes to process before stopping (default: all)',
+		"batch-size": Flags.integer({
+			char: "b",
+			description: "Number of nodes to process before stopping (default: all)",
 		}),
 		delay: Flags.integer({
-			char: 'D',
-			description: 'Milliseconds between API calls',
+			char: "D",
+			description: "Milliseconds between API calls",
 			default: 1000,
 		}),
 		year: Flags.integer({
-			description: 'Limit processing to a specific year',
+			description: "Limit processing to a specific year",
 		}),
 	};
 
@@ -158,7 +158,7 @@ export default class MigrateDates extends Command {
 
 		const database = createDatabase();
 
-		const archiveShortId = flags['archive-id'];
+		const archiveShortId = flags["archive-id"];
 		const yearFilter = flags.year ? String(flags.year) : null;
 
 		// Find archive root node by short ID
@@ -221,7 +221,7 @@ export default class MigrateDates extends Command {
 
 			const date = parseTextDate(node.name);
 			if (!date) {
-				skipped.push({id: node.id, name: node.name, reason: 'unparseable'});
+				skipped.push({id: node.id, name: node.name, reason: "unparseable"});
 				continue;
 			}
 
@@ -245,14 +245,14 @@ export default class MigrateDates extends Command {
 		this.log(`Parsed: ${parsed.length}, Skipped: ${skipped.length}`);
 
 		if (skipped.length > 0) {
-			this.log('\nSkipped nodes:');
+			this.log("\nSkipped nodes:");
 			for (const s of skipped) {
 				this.log(`  [${s.id}] "${s.name}" (${s.reason})`);
 			}
 		}
 
-		if (flags['dry-run']) {
-			this.log('\n--- DRY RUN ---');
+		if (flags["dry-run"]) {
+			this.log("\n--- DRY RUN ---");
 			for (const {node, formatted} of parsed) {
 				this.log(`  "${node.name}" → ${formatted}  (${node.yearName}/${node.monthName})`);
 			}
@@ -263,14 +263,14 @@ export default class MigrateDates extends Command {
 		// Execute updates
 		const apiKey = process.env.WORKFLOWY_API_KEY;
 		if (!apiKey) {
-			this.error('WORKFLOWY_API_KEY environment variable is required');
+			this.error("WORKFLOWY_API_KEY environment variable is required");
 		}
 
 		const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
 		const cacheService = new CacheService(database);
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
 
-		const batchSize = flags['batch-size'];
+		const batchSize = flags["batch-size"];
 		const {delay} = flags;
 		const toProcess = batchSize ? parsed.slice(0, batchSize) : parsed;
 

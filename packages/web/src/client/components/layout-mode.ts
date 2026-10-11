@@ -24,9 +24,9 @@ export interface LayoutModeRendering {
 }
 
 const HEADING_CLASS: Record<string, string> = {
-	h1: 'header1',
-	h2: 'header2',
-	h3: 'header3',
+	h1: "header1",
+	h2: "header2",
+	h3: "header3",
 };
 
 /**
@@ -41,7 +41,7 @@ export function resolveLayoutMode(layoutMode: string | null | undefined): Layout
 		hidesBullet: false,
 	};
 
-	if (!layoutMode || layoutMode === 'bullets' || layoutMode === 'bullet') {
+	if (!layoutMode || layoutMode === "bullets" || layoutMode === "bullet") {
 		return none;
 	}
 
@@ -50,32 +50,32 @@ export function resolveLayoutMode(layoutMode: string | null | undefined): Layout
 		return {projectClass: heading, isTodo: false, isMultiline: false, hidesBullet: true};
 	}
 
-	if (layoutMode === 'todo') {
-		return {projectClass: 'checkmark', isTodo: true, isMultiline: false, hidesBullet: false};
+	if (layoutMode === "todo") {
+		return {projectClass: "checkmark", isTodo: true, isMultiline: false, hidesBullet: false};
 	}
 
-	if (layoutMode === 'code-block') {
-		return {projectClass: 'code-block', isTodo: false, isMultiline: true, hidesBullet: false};
+	if (layoutMode === "code-block") {
+		return {projectClass: "code-block", isTodo: false, isMultiline: true, hidesBullet: false};
 	}
 
-	if (layoutMode === 'quote' || layoutMode === 'quote-block') {
-		return {projectClass: 'quote-block', isTodo: false, isMultiline: true, hidesBullet: false};
+	if (layoutMode === "quote" || layoutMode === "quote-block") {
+		return {projectClass: "quote-block", isTodo: false, isMultiline: true, hidesBullet: false};
 	}
 
-	if (layoutMode === 'divider') {
-		return {projectClass: 'divider', isTodo: false, isMultiline: false, hidesBullet: true};
+	if (layoutMode === "divider") {
+		return {projectClass: "divider", isTodo: false, isMultiline: false, hidesBullet: true};
 	}
 
-	if (layoutMode === 'numbered') {
-		return {projectClass: 'numbered', isTodo: false, isMultiline: false, hidesBullet: false};
+	if (layoutMode === "numbered") {
+		return {projectClass: "numbered", isTodo: false, isMultiline: false, hidesBullet: false};
 	}
 
-	if (layoutMode === 'board') {
-		return {projectClass: 'board', isTodo: false, isMultiline: false, hidesBullet: false};
+	if (layoutMode === "board") {
+		return {projectClass: "board", isTodo: false, isMultiline: false, hidesBullet: false};
 	}
 
-	if (layoutMode === 'paragraph' || layoutMode === 'p') {
-		return {projectClass: 'paragraph', isTodo: false, isMultiline: false, hidesBullet: false};
+	if (layoutMode === "paragraph" || layoutMode === "p") {
+		return {projectClass: "paragraph", isTodo: false, isMultiline: false, hidesBullet: false};
 	}
 
 	return none;

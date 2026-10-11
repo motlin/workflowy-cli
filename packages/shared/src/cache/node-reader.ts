@@ -1,10 +1,10 @@
-import * as schema from '../db/schema.js';
-import {nodeContent} from '../db/schema.js';
-import type {Node} from '../types/node.js';
-import {and, eq, inArray, isNull} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {currentVersion} from './cache-temporal.js';
-import {applyMirrorText, loadMirrorOriginals} from './mirror-text.js';
+import * as schema from "../db/schema.js";
+import {nodeContent} from "../db/schema.js";
+import type {Node} from "../types/node.js";
+import {and, eq, inArray, isNull} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {currentVersion} from "./cache-temporal.js";
+import {applyMirrorText, loadMirrorOriginals} from "./mirror-text.js";
 
 /**
  * Raw joined row shape returned by the nodeContent + nodeMetadata queries.

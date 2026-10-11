@@ -5,16 +5,16 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import {createEvalContext} from '../../helpers/eval-db-setup.js';
-import type {EvalContext} from '../../helpers/eval-types.js';
-import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
+import fs from "node:fs";
+import path from "node:path";
+import {createEvalContext} from "../../helpers/eval-db-setup.js";
+import type {EvalContext} from "../../helpers/eval-types.js";
+import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
 
-describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
+describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/prompts/refinement/text-composer.md';
+	const agentFile = "plugins/gtd/prompts/refinement/text-composer.md";
 
 	beforeAll(() => {
 		if (!claudeCliAvailable()) {
@@ -32,17 +32,17 @@ describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 
 	afterAll(() => ctx?.cleanup());
 
-	it('should compose text with integrated tags', async (context) => {
+	it("should compose text with integrated tags", async (context) => {
 		if (skipSuite) context.skip();
 
 		const taggerResults = {
-			itemId: 'test-item-1',
-			originalText: 'Fix the login page',
-			projectTagger: {suggestedTag: '#web-app', confidence: 0.8},
-			peopleTagger: {suggestedTags: ['@Alice']},
+			itemId: "test-item-1",
+			originalText: "Fix the login page",
+			projectTagger: {suggestedTag: "#web-app", confidence: 0.8},
+			peopleTagger: {suggestedTags: ["@Alice"]},
 			dueDateDetector: {date: null},
-			contextTagger: {suggestions: [{tag: '#computer'}]},
-			destination: {path: 'Next Actions', confidence: 0.9},
+			contextTagger: {suggestions: [{tag: "#computer"}]},
+			destination: {path: "Next Actions", confidence: 0.9},
 		};
 
 		const result = await runLlmEval(
@@ -54,11 +54,11 @@ describe('Leaf Eval: text-composer', {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
-		expect(jsonMatch, 'Response should contain JSON').not.toBeNull();
+		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
 		if (parsed.suggestedText) {
-			expect(typeof parsed.suggestedText).toBe('string');
+			expect(typeof parsed.suggestedText).toBe("string");
 			expect(parsed.suggestedText.length).toBeGreaterThan(0);
 		}
 		if (parsed.tagsAdded) {

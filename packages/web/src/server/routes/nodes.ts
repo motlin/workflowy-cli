@@ -1,13 +1,13 @@
-import {WorkflowyApiClient} from '@workflowy/shared/api';
-import type {NodeAttachment, NodeResponse} from '../../node-types.js';
-import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from '@workflowy/shared/cache';
-import {mirrors as mirrorsTable, nodeContent, s3Files} from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import type {Node} from '@workflowy/shared/types';
-import {isShortId} from '@workflowy/shared/workflowy';
-import {and, eq, inArray} from 'drizzle-orm';
-import {Hono} from 'hono';
-import {type AppEnv, type ServerContext} from '../context.js';
+import {WorkflowyApiClient} from "@workflowy/shared/api";
+import type {NodeAttachment, NodeResponse} from "../../node-types.js";
+import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {mirrors as mirrorsTable, nodeContent, s3Files} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {Node} from "@workflowy/shared/types";
+import {isShortId} from "@workflowy/shared/workflowy";
+import {and, eq, inArray} from "drizzle-orm";
+import {Hono} from "hono";
+import {type AppEnv, type ServerContext} from "../context.js";
 
 /**
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
@@ -120,18 +120,18 @@ function getWriteClient(ctx: ServerContext): WorkflowyWriteThroughClient | undef
 export const nodesRouter = new Hono<AppEnv>();
 
 // GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
-nodesRouter.get('/', async (c) => {
-	const ctx = c.get('ctx');
-	const parentIdParam = c.req.query('parent_id');
+nodesRouter.get("/", async (c) => {
+	const ctx = c.get("ctx");
+	const parentIdParam = c.req.query("parent_id");
 
 	// Workflowy API accepts "None" for top-level nodes, or omitting the param
-	let parentId = parentIdParam === 'None' || parentIdParam === '' ? null : (parentIdParam ?? null);
+	let parentId = parentIdParam === "None" || parentIdParam === "" ? null : (parentIdParam ?? null);
 
 	// Resolve short ID to full UUID if needed
 	if (parentId) {
 		const resolved = await resolveNodeId(ctx, parentId);
 		if (!resolved) {
-			return c.json({error: 'Parent node not found'}, 404);
+			return c.json({error: "Parent node not found"}, 404);
 		}
 		// If the node is a mirror, fetch the original's children
 		parentId = resolveMirrorToOriginal(ctx, resolved);
@@ -173,12 +173,12 @@ nodesRouter.get('/', async (c) => {
 });
 
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
-nodesRouter.get('/:id', async (c) => {
-	const ctx = c.get('ctx');
-	const rawId = c.req.param('id');
+nodesRouter.get("/:id", async (c) => {
+	const ctx = c.get("ctx");
+	const rawId = c.req.param("id");
 	const id = await resolveNodeId(ctx, rawId);
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const {db} = ctx;
@@ -186,7 +186,7 @@ nodesRouter.get('/:id', async (c) => {
 	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
 	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
 	if (!node) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	// Check if this node has children
@@ -211,11 +211,11 @@ nodesRouter.get('/:id', async (c) => {
 });
 
 // POST /api/v1/nodes - Create node
-nodesRouter.post('/', async (c) => {
-	const ctx = c.get('ctx');
+nodesRouter.post("/", async (c) => {
+	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
-		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
 	const body = await c.req.json();
@@ -234,19 +234,19 @@ nodesRouter.post('/', async (c) => {
 	};
 
 	if (!name) {
-		return c.json({error: 'name is required'}, 400);
+		return c.json({error: "name is required"}, 400);
 	}
 
 	if (!parentId) {
-		return c.json({error: 'parent_id is required'}, 400);
+		return c.json({error: "parent_id is required"}, 400);
 	}
 
 	if (!client) {
-		return c.json({error: 'Failed to initialize client'}, 500);
+		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
-	const resolvedPosition: 'top' | 'bottom' | undefined =
-		position === undefined ? undefined : position < 0 ? 'top' : 'bottom';
+	const resolvedPosition: "top" | "bottom" | undefined =
+		position === undefined ? undefined : position < 0 ? "top" : "bottom";
 
 	const createdNode = await client.createNode({
 		parent_id: parentId,
@@ -277,16 +277,16 @@ nodesRouter.post('/', async (c) => {
 });
 
 // POST /api/v1/nodes/:id - Update node
-nodesRouter.post('/:id', async (c) => {
-	const ctx = c.get('ctx');
+nodesRouter.post("/:id", async (c) => {
+	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
-		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 	const body = await c.req.json();
 	const {name, note, layoutMode} = body as {
@@ -297,18 +297,18 @@ nodesRouter.post('/:id', async (c) => {
 
 	// Validate that at least one field is provided
 	if (name === undefined && note === undefined && layoutMode === undefined) {
-		return c.json({error: 'At least one of name, note, or layoutMode is required'}, 400);
+		return c.json({error: "At least one of name, note, or layoutMode is required"}, 400);
 	}
 
 	const {cacheService} = ctx;
 	if (!client) {
-		return c.json({error: 'Failed to initialize client'}, 500);
+		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
 	// Get current node to preserve parentId and verify existence
 	const existingNode = await cacheService.getNode(id);
 	if (!existingNode) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const updatedNode = await client.updateNode(id, {name, note, layoutMode});
@@ -334,27 +334,27 @@ nodesRouter.post('/:id', async (c) => {
 });
 
 // DELETE /api/v1/nodes/:id - Delete node
-nodesRouter.delete('/:id', async (c) => {
-	const ctx = c.get('ctx');
+nodesRouter.delete("/:id", async (c) => {
+	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
-		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const {cacheService} = ctx;
 	if (!client) {
-		return c.json({error: 'Failed to initialize client'}, 500);
+		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
 	// Verify the node exists before attempting to delete
 	const existingNode = await cacheService.getNode(id);
 	if (!existingNode) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	await client.deleteNode(id);
@@ -363,27 +363,27 @@ nodesRouter.delete('/:id', async (c) => {
 });
 
 // POST /api/v1/nodes/:id/complete - Mark node as completed
-nodesRouter.post('/:id/complete', async (c) => {
-	const ctx = c.get('ctx');
+nodesRouter.post("/:id/complete", async (c) => {
+	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
-		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const {cacheService} = ctx;
 	if (!client) {
-		return c.json({error: 'Failed to initialize client'}, 500);
+		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
 	// Verify the node exists before attempting to complete
 	const existingNode = await cacheService.getNode(id);
 	if (!existingNode) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const completedNode = await client.completeNode(id);
@@ -409,11 +409,11 @@ nodesRouter.post('/:id/complete', async (c) => {
 });
 
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
-nodesRouter.get('/:id/ancestors', async (c) => {
-	const ctx = c.get('ctx');
-	const id = await resolveNodeId(ctx, c.req.param('id'));
+nodesRouter.get("/:id/ancestors", async (c) => {
+	const ctx = c.get("ctx");
+	const id = await resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const reader = new NodeReader(ctx.db);
@@ -442,12 +442,12 @@ nodesRouter.get('/:id/ancestors', async (c) => {
 });
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
-nodesRouter.get('/:id/mirrors', async (c) => {
-	const ctx = c.get('ctx');
-	const rawId = c.req.param('id');
+nodesRouter.get("/:id/mirrors", async (c) => {
+	const ctx = c.get("ctx");
+	const rawId = c.req.param("id");
 	const id = await resolveNodeId(ctx, rawId);
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const {db} = ctx;
@@ -467,7 +467,7 @@ nodesRouter.get('/:id/mirrors', async (c) => {
 	const allIds = [originalId, ...mirrorRows.map((r) => r.mirrorId)];
 
 	// A mirror's text always comes from its original.
-	const nodeName = reader.getById(originalId)?.name || 'Untitled';
+	const nodeName = reader.getById(originalId)?.name || "Untitled";
 
 	// Helper to build ancestor breadcrumb path for a node
 	function getAncestorPath(nodeId: string): {id: string; name: string}[] {
@@ -476,7 +476,7 @@ nodesRouter.get('/:id/mirrors', async (c) => {
 		while (currentId !== null) {
 			const node = reader.getById(currentId);
 			if (!node) break;
-			path.unshift({id: node.id, name: node.name ?? 'Untitled'});
+			path.unshift({id: node.id, name: node.name ?? "Untitled"});
 			currentId = node.parentId;
 		}
 		return path;
@@ -501,27 +501,27 @@ nodesRouter.get('/:id/mirrors', async (c) => {
 });
 
 // POST /api/v1/nodes/:id/uncomplete - Mark node as not completed
-nodesRouter.post('/:id/uncomplete', async (c) => {
-	const ctx = c.get('ctx');
+nodesRouter.post("/:id/uncomplete", async (c) => {
+	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
-		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const {cacheService} = ctx;
 	if (!client) {
-		return c.json({error: 'Failed to initialize client'}, 500);
+		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
 	// Verify the node exists before attempting to uncomplete
 	const existingNode = await cacheService.getNode(id);
 	if (!existingNode) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const uncompletedNode = await client.uncompleteNode(id);
@@ -547,16 +547,16 @@ nodesRouter.post('/:id/uncomplete', async (c) => {
 });
 
 // POST /api/v1/nodes/:id/move - Move node to new parent
-nodesRouter.post('/:id/move', async (c) => {
-	const ctx = c.get('ctx');
+nodesRouter.post("/:id/move", async (c) => {
+	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
-		return c.json({error: 'WORKFLOWY_API_KEY environment variable is required'}, 500);
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param('id'));
+	const id = await resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 	const body = await c.req.json();
 	const {parent_id: newParentId, position} = body as {
@@ -566,21 +566,21 @@ nodesRouter.post('/:id/move', async (c) => {
 
 	// parent_id is required but can be null (for root level) or a string (for a parent node)
 	// Empty string means root level as well
-	const normalizedParentId = newParentId === '' ? null : newParentId;
+	const normalizedParentId = newParentId === "" ? null : newParentId;
 
 	if (normalizedParentId === undefined) {
-		return c.json({error: 'parent_id is required'}, 400);
+		return c.json({error: "parent_id is required"}, 400);
 	}
 
 	const {cacheService} = ctx;
 	if (!client) {
-		return c.json({error: 'Failed to initialize client'}, 500);
+		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
 	// Verify the node exists
 	const existingNode = await cacheService.getNode(id);
 	if (!existingNode) {
-		return c.json({error: 'Node not found'}, 404);
+		return c.json({error: "Node not found"}, 404);
 	}
 
 	const oldParentId = existingNode.parentId;

@@ -6,7 +6,7 @@
  * `upgradeWebSocket` expects.
  */
 
-import type {LadderEventBus} from './ladder-events.js';
+import type {LadderEventBus} from "./ladder-events.js";
 
 interface SocketLike {
 	send: (data: string) => void;

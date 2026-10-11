@@ -1,9 +1,9 @@
-import type {EnhancedWorkflowyNode} from '@workflowy/shared/types';
-import {Command, Flags} from '@oclif/core';
-import fs from 'node:fs';
-import path from 'node:path';
-import {createDatabase} from '../../../db/index.js';
-import {CacheService} from '../../../services/cache.js';
+import type {EnhancedWorkflowyNode} from "@workflowy/shared/types";
+import {Command, Flags} from "@oclif/core";
+import fs from "node:fs";
+import path from "node:path";
+import {createDatabase} from "../../../db/index.js";
+import {CacheService} from "../../../services/cache.js";
 
 interface Task {
 	id: string;
@@ -51,22 +51,22 @@ interface MetadataJson {
  * to enable duplicate detection when capturing new items.
  */
 export default class Load extends Command {
-	static override description = 'Load existing tasks for duplicate detection';
+	static override description = "Load existing tasks for duplicate detection";
 
 	static override examples = [
-		'# Load existing tasks (requires metadata.json)',
-		'<%= config.bin %> <%= command.id %>',
-		'',
-		'# Output as formatted JSON',
-		'<%= config.bin %> <%= command.id %> --json',
+		"# Load existing tasks (requires metadata.json)",
+		"<%= config.bin %> <%= command.id %>",
+		"",
+		"# Output as formatted JSON",
+		"<%= config.bin %> <%= command.id %> --json",
 	];
 
 	static override enableJsonFlag = true;
 
 	static override flags = {
-		'lookback-days': Flags.integer({
-			char: 'l',
-			description: 'Number of days to look back for recent meetings',
+		"lookback-days": Flags.integer({
+			char: "l",
+			description: "Number of days to look back for recent meetings",
 			default: 7,
 		}),
 	};
@@ -77,14 +77,14 @@ export default class Load extends Command {
 		const {flags} = await this.parse(Load);
 
 		const projectRoot = this.findProjectRoot();
-		const metadataFile = path.join(projectRoot, '.llm', 'gtd', 'metadata.json');
+		const metadataFile = path.join(projectRoot, ".llm", "gtd", "metadata.json");
 
 		// Check that metadata.json exists
 		if (!fs.existsSync(metadataFile)) {
-			this.error('metadata.json not found. Run gtd:metadata:sync first.');
+			this.error("metadata.json not found. Run gtd:metadata:sync first.");
 		}
 
-		const metadata: MetadataJson = JSON.parse(fs.readFileSync(metadataFile, 'utf8'));
+		const metadata: MetadataJson = JSON.parse(fs.readFileSync(metadataFile, "utf8"));
 
 		// Initialize cache service
 		const database = createDatabase();
@@ -92,7 +92,7 @@ export default class Load extends Command {
 
 		// Calculate date threshold for recent meetings
 		const now = new Date();
-		const cutoffDate = new Date(now.getTime() - flags['lookback-days'] * 24 * 60 * 60 * 1000);
+		const cutoffDate = new Date(now.getTime() - flags["lookback-days"] * 24 * 60 * 60 * 1000);
 		const cutoffDateStr = cutoffDate.toISOString().slice(0, 10);
 
 		// Fetch all data
@@ -136,7 +136,7 @@ export default class Load extends Command {
 			}
 		}
 
-		const allIds = [...containerIds, ...targetIds].filter((id) => id && id !== 'null');
+		const allIds = [...containerIds, ...targetIds].filter((id) => id && id !== "null");
 
 		for (const id of allIds) {
 			const node = await this.cacheService.getNode(id);
@@ -205,13 +205,13 @@ export default class Load extends Command {
 		const allTasks: ProjectTask[] = [];
 		const seenIds = new Set<string>();
 
-		const projectIds = metadata.projects.map((p) => p.linkId).filter((id) => id && id !== 'null');
+		const projectIds = metadata.projects.map((p) => p.linkId).filter((id) => id && id !== "null");
 
 		for (const id of projectIds) {
 			const node = await this.cacheService.getNode(id);
 			if (!node) continue;
 
-			const projectName = node.name ?? '';
+			const projectName = node.name ?? "";
 
 			// Get children (depth 2)
 			const children = await this.cacheService.getChildren(id);
@@ -278,7 +278,7 @@ export default class Load extends Command {
 		const allMeetings: Meeting[] = [];
 		const seenIds = new Set<string>();
 
-		const calendarIds = metadata.destinations.calendar.map((c) => c.id).filter((id) => id && id !== 'null');
+		const calendarIds = metadata.destinations.calendar.map((c) => c.id).filter((id) => id && id !== "null");
 
 		// Date pattern to extract from <time> elements
 		const timePattern = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"/;
@@ -293,8 +293,8 @@ export default class Load extends Command {
 				if (!match) continue;
 
 				const year = match[1];
-				const month = String(Number(match[2])).padStart(2, '0');
-				const day = String(Number(match[3])).padStart(2, '0');
+				const month = String(Number(match[2])).padStart(2, "0");
+				const day = String(Number(match[3])).padStart(2, "0");
 				const dateStr = `${year}-${month}-${day}`;
 
 				// Skip if before cutoff
@@ -331,7 +331,7 @@ export default class Load extends Command {
 
 		results.push({
 			id: node.id,
-			name: node.name ?? '',
+			name: node.name ?? "",
 			note: node.note ?? undefined,
 			priority: 0,
 			completed: node.completedAt !== null,
@@ -354,8 +354,8 @@ export default class Load extends Command {
 	private findProjectRoot(): string {
 		let dir = process.cwd();
 
-		while (dir !== '/') {
-			if (fs.existsSync(path.join(dir, 'workflowy.sqlite')) || fs.existsSync(path.join(dir, 'package.json'))) {
+		while (dir !== "/") {
+			if (fs.existsSync(path.join(dir, "workflowy.sqlite")) || fs.existsSync(path.join(dir, "package.json"))) {
 				return dir;
 			}
 			dir = path.dirname(dir);

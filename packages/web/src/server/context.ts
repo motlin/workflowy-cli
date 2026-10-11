@@ -1,5 +1,5 @@
-import {CacheService} from '@workflowy/shared/cache';
-import {getDatabase} from './db.js';
+import {CacheService} from "@workflowy/shared/cache";
+import {getDatabase} from "./db.js";
 
 type ServerDatabase = ReturnType<typeof getDatabase>;
 

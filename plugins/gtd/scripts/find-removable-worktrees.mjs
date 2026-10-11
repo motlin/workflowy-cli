@@ -17,38 +17,38 @@
 //   node find-removable-worktrees.mjs --remove <worktree>...
 //     Prints JSON: [{path, removed, error?}].
 
-import {execFileSync} from 'node:child_process';
-import {existsSync, lstatSync, readFileSync} from 'node:fs';
-import {dirname, join} from 'node:path';
+import {execFileSync} from "node:child_process";
+import {existsSync, lstatSync, readFileSync} from "node:fs";
+import {dirname, join} from "node:path";
 
 const LINKED_GITDIR = /^gitdir: (.*\/\.git\/worktrees\/[^/]+)\s*$/;
 
 function git(cwd, ...args) {
-	return execFileSync('git', ['-C', cwd, ...args], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim();
+	return execFileSync("git", ["-C", cwd, ...args], {encoding: "utf8", stdio: ["ignore", "pipe", "pipe"]}).trim();
 }
 
 /** The root of the linked worktree containing `path`, or null when the nearest checkout is not one. */
 function linkedWorktreeRoot(path) {
 	for (let directory = dirname(path); directory !== dirname(directory); directory = dirname(directory)) {
-		const dotGit = join(directory, '.git');
+		const dotGit = join(directory, ".git");
 		if (!existsSync(dotGit)) continue;
 		if (lstatSync(dotGit).isDirectory()) return null;
-		return LINKED_GITDIR.test(readFileSync(dotGit, 'utf8')) ? directory : null;
+		return LINKED_GITDIR.test(readFileSync(dotGit, "utf8")) ? directory : null;
 	}
 	return null;
 }
 
 function mainRepoOf(worktree) {
-	return dirname(git(worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
+	return dirname(git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir"));
 }
 
 function describeWorktree(path, dirCount) {
 	return {
 		path,
 		repo: mainRepoOf(path),
-		branch: git(path, 'rev-parse', '--abbrev-ref', 'HEAD'),
+		branch: git(path, "rev-parse", "--abbrev-ref", "HEAD"),
 		dirCount,
-		clean: git(path, 'status', '--porcelain') === '',
+		clean: git(path, "status", "--porcelain") === "",
 	};
 }
 
@@ -66,7 +66,7 @@ export function findWorktrees(paths) {
 export function removeWorktrees(worktrees) {
 	return worktrees.map((path) => {
 		try {
-			git(mainRepoOf(path), 'worktree', 'remove', path);
+			git(mainRepoOf(path), "worktree", "remove", path);
 			return {path, removed: true};
 		} catch (error) {
 			return {path, removed: false, error: String(error.stderr || error.message).trim()};
@@ -76,15 +76,15 @@ export function removeWorktrees(worktrees) {
 
 function parsePathList(text) {
 	return text
-		.split('\0')
-		.flatMap((chunk) => chunk.split('\n'))
+		.split("\0")
+		.flatMap((chunk) => chunk.split("\n"))
 		.filter((line) => line.length > 0);
 }
 
 function main() {
 	const [flag, ...rest] = process.argv.slice(2);
-	const result = flag === '--remove' ? removeWorktrees(rest) : findWorktrees(parsePathList(readFileSync(0, 'utf8')));
-	process.stdout.write(`${JSON.stringify(result, null, '\t')}\n`);
+	const result = flag === "--remove" ? removeWorktrees(rest) : findWorktrees(parsePathList(readFileSync(0, "utf8")));
+	process.stdout.write(`${JSON.stringify(result, null, "\t")}\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

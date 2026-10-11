@@ -1,10 +1,10 @@
-import * as schema from '@workflowy/shared/db';
-import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {and, eq} from 'drizzle-orm';
-import type {BetterSQLite3Database} from 'drizzle-orm/better-sqlite3';
-import {existsSync, mkdirSync} from 'node:fs';
-import {dirname, join} from 'node:path';
-import {createHash} from 'node:crypto';
+import * as schema from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {and, eq} from "drizzle-orm";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {existsSync, mkdirSync} from "node:fs";
+import {dirname, join} from "node:path";
+import {createHash} from "node:crypto";
 import {
 	createStore,
 	type EmbedProgress,
@@ -12,20 +12,20 @@ import {
 	type HybridQueryResult,
 	type SearchResult as QmdSearchResult,
 	type QMDStore,
-} from '@tobilu/qmd';
-import {PathBuilder} from '@workflowy/shared/cache';
-import {loadEmbeddableNodes} from './embedding-generator.js';
-import {logger} from './logger.js';
+} from "@tobilu/qmd";
+import {PathBuilder} from "@workflowy/shared/cache";
+import {loadEmbeddableNodes} from "./embedding-generator.js";
+import {logger} from "./logger.js";
 
 function hashContent(content: string): string {
-	return createHash('sha256').update(content).digest('hex');
+	return createHash("sha256").update(content).digest("hex");
 }
 
-const COLLECTION_NAME = 'workflowy';
-const QMD_DB_DIR = '.cache/qmd';
-const QMD_DB_FILE = 'workflowy.sqlite';
+const COLLECTION_NAME = "workflowy";
+const QMD_DB_DIR = ".cache/qmd";
+const QMD_DB_FILE = "workflowy.sqlite";
 
-export type QmdSearchMode = 'hybrid' | 'vector' | 'keyword';
+export type QmdSearchMode = "hybrid" | "vector" | "keyword";
 
 export type QmdSearchOptions = {
 	query: string;
@@ -95,8 +95,8 @@ export class QmdSearchService {
 			config: {
 				collections: {
 					[COLLECTION_NAME]: {
-						path: '/virtual/workflowy',
-						pattern: '**/*',
+						path: "/virtual/workflowy",
+						pattern: "**/*",
 					},
 				},
 			},
@@ -131,9 +131,9 @@ export class QmdSearchService {
 
 		for (let i = 0; i < nonLeafNodes.length; i++) {
 			const node = nonLeafNodes[i];
-			const fullPath = pathMap.get(node.id) ?? '';
-			const textContent = contentMap.get(node.id) ?? '';
-			const childrenText = childrenMap.get(node.id) ?? '';
+			const fullPath = pathMap.get(node.id) ?? "";
+			const textContent = contentMap.get(node.id) ?? "";
+			const childrenText = childrenMap.get(node.id) ?? "";
 
 			const combinedText = childrenText
 				? `PATH: ${fullPath}\nCONTENT: ${textContent}\nCHILDREN:\n${childrenText}`
@@ -141,7 +141,7 @@ export class QmdSearchService {
 
 			const nodePath = node.id;
 			processedPaths.add(nodePath);
-			const nodeName = node.name ?? '';
+			const nodeName = node.name ?? "";
 
 			const hash = hashContent(combinedText);
 
@@ -194,13 +194,13 @@ export class QmdSearchService {
 	}
 
 	async search(options: QmdSearchOptions): Promise<QmdSearchResultItem[]> {
-		const {query, limit = 5, minScore, mode = 'hybrid'} = options;
+		const {query, limit = 5, minScore, mode = "hybrid"} = options;
 		const store = await this.getStore();
 
 		let rawResults: Array<{nodeId: string; score: number}>;
 
 		switch (mode) {
-			case 'hybrid': {
+			case "hybrid": {
 				const results: HybridQueryResult[] = await store.search({
 					query,
 					limit,
@@ -214,7 +214,7 @@ export class QmdSearchService {
 				break;
 			}
 
-			case 'keyword': {
+			case "keyword": {
 				const results: QmdSearchResult[] = await store.searchLex(query, {
 					limit,
 					collection: COLLECTION_NAME,
@@ -226,7 +226,7 @@ export class QmdSearchService {
 				break;
 			}
 
-			case 'vector': {
+			case "vector": {
 				const results: QmdSearchResult[] = await store.searchVector(query, {
 					limit,
 					collection: COLLECTION_NAME,
@@ -292,7 +292,7 @@ export class QmdSearchService {
 
 			enriched.push({
 				id: nodeWithRelations.id,
-				name: nodeWithRelations.name || '',
+				name: nodeWithRelations.name || "",
 				note: nodeWithRelations.note,
 				priority,
 				completed: nodeWithRelations.metadata?.completedAt !== null,

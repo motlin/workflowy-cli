@@ -7,8 +7,8 @@
  * woken — are testable without a live Workflowy or an HTTP server.
  */
 
-import type {LadderEvent, LadderEventBus} from './ladder-events.js';
-import {type Ladder, type RawNode, planTierMove, toLadder} from './ladder-model.js';
+import type {LadderEvent, LadderEventBus} from "./ladder-events.js";
+import {type Ladder, type RawNode, planTierMove, toLadder} from "./ladder-model.js";
 
 export type LadderBuckets = Record<string, RawNode>;
 
@@ -66,26 +66,26 @@ export class LadderService {
 		const index = beforeNodeId ? remaining.findIndex((item) => item.id === beforeNodeId) : remaining.length;
 		if (index < 0) throw new Error(`node ${beforeNodeId} is not a destination row`);
 		const event = {
-			verb: 'move' as const,
+			verb: "move" as const,
 			nodeId,
 			name: findItem(ladder, nodeId)?.name ?? null,
 			fromTier: plan.fromTier,
 			toTier,
 		};
 		await this.#options.moveNode(nodeId, plan.parentId, index === 0 ? -1 : 0);
-		if (index === 0) return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ''});
-		if (index === remaining.length) return this.#landed(plan.parentId, {...event, beforeNodeId: ''});
-		this.#publish({...event, beforeNodeId: ''});
+		if (index === 0) return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ""});
+		if (index === remaining.length) return this.#landed(plan.parentId, {...event, beforeNodeId: ""});
+		this.#publish({...event, beforeNodeId: ""});
 		// Workflowy's API supports only top/bottom. Rotate the suffix to preserve exact placement.
 		for (const item of remaining.slice(index)) {
 			await this.#options.moveNode(item.id, plan.parentId, 0);
-			this.#publish({verb: 'move', nodeId: item.id, name: item.name, fromTier: toTier, toTier, beforeNodeId: ''});
+			this.#publish({verb: "move", nodeId: item.id, name: item.name, fromTier: toTier, toTier, beforeNodeId: ""});
 		}
-		return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ''});
+		return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ""});
 	}
 
 	/** Announce a landed move, then refresh its tier without holding the response. */
-	#landed(parentId: string, event: Omit<LadderEvent, 'at'>): LadderEvent {
+	#landed(parentId: string, event: Omit<LadderEvent, "at">): LadderEvent {
 		const published = this.#publish(event);
 		this.#options.refreshTier?.(parentId).catch((error: unknown) => {
 			const message = error instanceof Error ? error.message : String(error);
@@ -102,7 +102,7 @@ export class LadderService {
 		}
 		const name = findItem(ladder, nodeId)?.name ?? null;
 		await this.#options.completeNode(nodeId);
-		return this.#publish({verb: 'complete', nodeId, name, fromTier: origin.label, toTier: null});
+		return this.#publish({verb: "complete", nodeId, name, fromTier: origin.label, toTier: null});
 	}
 
 	async #ladder(root: string): Promise<Ladder> {
@@ -114,7 +114,7 @@ export class LadderService {
 		return ladder;
 	}
 
-	#publish(event: Omit<LadderEvent, 'at'>): LadderEvent {
+	#publish(event: Omit<LadderEvent, "at">): LadderEvent {
 		const at = (this.#options.now?.() ?? new Date()).toISOString();
 		const published = {...event, at};
 		this.#options.events.publish(published);

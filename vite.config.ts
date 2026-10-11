@@ -1,46 +1,72 @@
-import {defineConfig} from 'vite-plus';
+import {defineConfig} from "vite-plus";
 
 export default defineConfig({
 	fmt: {
-		tabWidth: 4,
-		useTabs: true,
 		semi: true,
-		singleQuote: true,
-		trailingComma: 'all',
-		bracketSpacing: false,
-		arrowParens: 'always',
+		singleQuote: false,
+		useTabs: true,
+		tabWidth: 4,
 		printWidth: 120,
-		quoteProps: 'as-needed',
-		jsxSingleQuote: false,
-		bracketSameLine: false,
-		singleAttributePerLine: true,
-		proseWrap: 'never',
-		htmlWhitespaceSensitivity: 'css',
-		endOfLine: 'lf',
-		sortPackageJson: false,
+		proseWrap: "never",
+		embeddedLanguageFormatting: "off",
+		bracketSpacing: false,
+		trailingComma: "all",
+		arrowParens: "always",
 		overrides: [
 			{
-				files: ['.yamllint.yaml', '**/*.yaml', '**/*.yml'],
-				options: {useTabs: false, tabWidth: 2, singleQuote: false},
+				files: [".yamllint.yaml", "**/*.yaml", "**/*.yml"],
+				options: {
+					useTabs: false,
+					tabWidth: 2,
+				},
+			},
+			{
+				files: ["**/*.md"],
+				options: {
+					printWidth: 320,
+				},
 			},
 		],
 	},
 	run: {
 		tasks: {
 			check: {
-				command: 'vp check',
+				command: "vp check",
 			},
-			'test:run': {
-				command: 'node node_modules/vitest/dist/cli.js run',
+			"test:run": {
+				command: "node node_modules/vitest/dist/cli.js run",
 				cache: {
-					input: [{auto: true}, '!node_modules/.experimental-vitest-cache/**'],
+					input: [{auto: true}, "!node_modules/.experimental-vitest-cache/**"],
 					output: [],
 				},
 			},
 		},
 	},
 	lint: {
-		ignorePatterns: ['packages/web/src/client/app.tsx', 'packages/web/.storybook/preview.ts'],
+		plugins: [],
+		jsPlugins: [
+			{
+				name: "vite-plus",
+				specifier: "vite-plus/oxlint-plugin",
+			},
+		],
+		categories: {
+			correctness: "off",
+		},
+		rules: {
+			"vite-plus/prefer-vite-plus-imports": "error",
+		},
+		env: {
+			builtin: true,
+		},
+		ignorePatterns: [
+			"dist",
+			"build",
+			"storybook-static",
+			".llm/**",
+			"packages/web/src/client/app.tsx",
+			"packages/web/.storybook/preview.ts",
+		],
 		options: {typeAware: true, typeCheck: true},
 	},
 });

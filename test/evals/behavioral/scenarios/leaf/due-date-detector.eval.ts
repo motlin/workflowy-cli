@@ -5,16 +5,16 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import {createEvalContext} from '../../helpers/eval-db-setup.js';
-import type {EvalContext} from '../../helpers/eval-types.js';
-import {runLlmEval, claudeCliAvailable} from '../../helpers/llm-eval-harness.js';
+import fs from "node:fs";
+import path from "node:path";
+import {createEvalContext} from "../../helpers/eval-db-setup.js";
+import type {EvalContext} from "../../helpers/eval-types.js";
+import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
 
-describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
+describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
 	let skipSuite = false;
-	const agentFile = 'plugins/gtd/prompts/refinement/due-date-detector.md';
+	const agentFile = "plugins/gtd/prompts/refinement/due-date-detector.md";
 
 	beforeAll(() => {
 		if (!claudeCliAvailable()) {
@@ -32,7 +32,7 @@ describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 
 	afterAll(() => ctx?.cleanup());
 
-	it('should detect date from item text with explicit deadline', async (context) => {
+	it("should detect date from item text with explicit deadline", async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(
@@ -44,13 +44,13 @@ describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
-		expect(jsonMatch, 'Response should contain JSON').not.toBeNull();
+		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
 		expect(parsed.due).toMatch(/^\d{4}-04-15$/);
 	});
 
-	it('should detect urgency keywords', async (context) => {
+	it("should detect urgency keywords", async (context) => {
 		if (skipSuite) context.skip();
 
 		const result = await runLlmEval(
@@ -62,14 +62,14 @@ describe('Leaf Eval: due-date-detector', {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
-		expect(jsonMatch, 'Response should contain JSON').not.toBeNull();
+		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = JSON.parse(jsonMatch![0]);
 		if (parsed.isAsap !== undefined) {
 			expect(parsed.isAsap).toBe(true);
 		}
 		if (parsed.urgencyLevel !== undefined) {
-			expect(typeof parsed.urgencyLevel).toBe('string');
+			expect(typeof parsed.urgencyLevel).toBe("string");
 		}
 	});
 });

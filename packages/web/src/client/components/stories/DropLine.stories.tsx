@@ -1,23 +1,23 @@
-import type {Meta, StoryObj} from '@storybook/react-vite';
+import type {Meta, StoryObj} from "@storybook/react-vite";
 
-import {DropLine} from './primitives.js';
+import {DropLine} from "./primitives.js";
 
 const meta: Meta<typeof DropLine> = {
-	title: 'Primitives/DropLine',
+	title: "Primitives/DropLine",
 	component: DropLine,
 	parameters: {
-		layout: 'padded',
+		layout: "padded",
 	},
-	tags: ['autodocs'],
+	tags: ["autodocs"],
 	argTypes: {
 		isVisible: {
-			control: 'boolean',
-			description: 'Whether the drop line is visible',
+			control: "boolean",
+			description: "Whether the drop line is visible",
 		},
 	},
 	decorators: [
 		(Story) => (
-			<div style={{width: '400px', padding: '20px 0'}}>
+			<div style={{width: "400px", padding: "20px 0"}}>
 				<Story />
 			</div>
 		),

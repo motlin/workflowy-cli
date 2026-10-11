@@ -2,6 +2,9 @@
 	"name": "@workflowy/shared",
 	"version": "0.0.0",
 	"description": "Shared code between CLI and web packages",
+	"files": [
+		"dist"
+	],
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -67,9 +70,6 @@
 			"import": "./dist/search/index.js"
 		}
 	},
-	"files": [
-		"dist"
-	],
 	"scripts": {
 		"build": "tsc && shx cp -r src/db/migrations dist/db/",
 		"dev": "tsc --watch",

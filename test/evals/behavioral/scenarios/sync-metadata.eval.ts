@@ -8,95 +8,95 @@
  * to the real project root. We verify the script succeeds and produces valid output.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import {createEvalContext, runInEvalContext} from '../helpers/eval-db-setup.js';
-import type {EvalContext} from '../helpers/eval-types.js';
+import fs from "node:fs";
+import path from "node:path";
+import {createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
+import type {EvalContext} from "../helpers/eval-types.js";
 
 // Phase 3 of sync-metadata.sh emits this aggregate rather than a node dump.
-const TAG_FREQUENCY_FILE = 'tag-frequency.json';
+const TAG_FREQUENCY_FILE = "tag-frequency.json";
 
-describe('Behavioral Eval: sync-metadata.sh', () => {
+describe("Behavioral Eval: sync-metadata.sh", () => {
 	let ctx: EvalContext;
 	let metadataDir: string;
 
 	beforeAll(() => {
 		ctx = createEvalContext();
-		metadataDir = path.join(ctx.projectRoot, '.llm/gtd/metadata');
+		metadataDir = path.join(ctx.projectRoot, ".llm/gtd/metadata");
 	});
 
 	afterAll(() => {
 		ctx?.cleanup();
 	});
 
-	it('should run without errors against the eval database', {timeout: 120_000}, async () => {
-		const result = await runInEvalContext(ctx, 'plugins/gtd/scripts/sync-metadata.sh');
+	it("should run without errors against the eval database", {timeout: 120_000}, async () => {
+		const result = await runInEvalContext(ctx, "plugins/gtd/scripts/sync-metadata.sh");
 
 		expect(result.exitCode, `Script failed with stderr: ${result.stderr}\nstdout: ${result.stdout}`).toBe(0);
-		expect(result.stdout).toContain('Phase 1:');
-		expect(result.stdout).toContain('Sync complete');
+		expect(result.stdout).toContain("Phase 1:");
+		expect(result.stdout).toContain("Sync complete");
 	});
 
-	it('should create metadata.json root index', {timeout: 120_000}, async () => {
-		await runInEvalContext(ctx, 'plugins/gtd/scripts/sync-metadata.sh');
+	it("should create metadata.json root index", {timeout: 120_000}, async () => {
+		await runInEvalContext(ctx, "plugins/gtd/scripts/sync-metadata.sh");
 
-		const rootFile = path.join(ctx.projectRoot, '.llm/gtd/metadata.json');
+		const rootFile = path.join(ctx.projectRoot, ".llm/gtd/metadata.json");
 		expect(fs.existsSync(rootFile), `Expected ${rootFile} to exist`).toBe(true);
 
-		const content = fs.readFileSync(rootFile, 'utf8');
+		const content = fs.readFileSync(rootFile, "utf8");
 		const parsed = JSON.parse(content);
 
-		expect(parsed).toHaveProperty('id');
-		expect(parsed).toHaveProperty('children');
+		expect(parsed).toHaveProperty("id");
+		expect(parsed).toHaveProperty("children");
 		expect(Array.isArray(parsed.children)).toBe(true);
 		expect(parsed.children.length).toBeGreaterThan(0);
 	});
 
-	it('should create section JSON files in metadata/', {timeout: 120_000}, async () => {
-		await runInEvalContext(ctx, 'plugins/gtd/scripts/sync-metadata.sh');
+	it("should create section JSON files in metadata/", {timeout: 120_000}, async () => {
+		await runInEvalContext(ctx, "plugins/gtd/scripts/sync-metadata.sh");
 
 		expect(fs.existsSync(metadataDir), `Expected ${metadataDir} to exist`).toBe(true);
 
-		const files = fs.readdirSync(metadataDir).filter((f) => f.endsWith('.json'));
-		expect(files.length, 'Should have at least one section JSON file').toBeGreaterThan(0);
+		const files = fs.readdirSync(metadataDir).filter((f) => f.endsWith(".json"));
+		expect(files.length, "Should have at least one section JSON file").toBeGreaterThan(0);
 
 		// Phase 1/2 write one node dump per section; Phase 3 writes tag-frequency.json,
 		// an aggregate over the cache that is deliberately not shaped like a node.
 		for (const file of files) {
 			const filePath = path.join(metadataDir, file);
-			const content = fs.readFileSync(filePath, 'utf8').trim();
+			const content = fs.readFileSync(filePath, "utf8").trim();
 			if (content.length === 0) continue;
 			const parsed = JSON.parse(content);
 
 			if (file === TAG_FREQUENCY_FILE) {
 				expect(Object.keys(parsed), `${file} should be a tag-frequency aggregate`).toStrictEqual([
-					'generatedFrom',
-					'distinctTags',
-					'taggedRowsScanned',
-					'tags',
+					"generatedFrom",
+					"distinctTags",
+					"taggedRowsScanned",
+					"tags",
 				]);
-				expect(parsed.generatedFrom).toBe('workflowy.sqlite');
+				expect(parsed.generatedFrom).toBe("workflowy.sqlite");
 				expect(parsed.distinctTags).toBe(Object.keys(parsed.tags).length);
 				continue;
 			}
 
-			expect(parsed, `${file} should have an id`).toHaveProperty('id');
+			expect(parsed, `${file} should have an id`).toHaveProperty("id");
 		}
 	});
 
-	it('should create subdirectories for link-based sections', {timeout: 120_000}, async () => {
-		await runInEvalContext(ctx, 'plugins/gtd/scripts/sync-metadata.sh');
+	it("should create subdirectories for link-based sections", {timeout: 120_000}, async () => {
+		await runInEvalContext(ctx, "plugins/gtd/scripts/sync-metadata.sh");
 
 		// Check for at least one subdirectory (e.g., inboxes/, next-actions/)
 		const entries = fs.readdirSync(metadataDir, {withFileTypes: true});
 		const subdirs = entries.filter((e) => e.isDirectory());
 
-		expect(subdirs.length, 'Should have at least one link-based section subdirectory').toBeGreaterThan(0);
+		expect(subdirs.length, "Should have at least one link-based section subdirectory").toBeGreaterThan(0);
 
 		// Each subdirectory should contain JSON files
 		for (const subdir of subdirs) {
 			const subdirPath = path.join(metadataDir, subdir.name);
-			const subFiles = fs.readdirSync(subdirPath).filter((f) => f.endsWith('.json'));
+			const subFiles = fs.readdirSync(subdirPath).filter((f) => f.endsWith(".json"));
 			expect(subFiles.length, `${subdir.name}/ should have at least one JSON file`).toBeGreaterThan(0);
 		}
 	});

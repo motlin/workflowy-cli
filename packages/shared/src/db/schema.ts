@@ -1,26 +1,26 @@
-import type {InferInsertModel, InferSelectModel} from 'drizzle-orm';
-import {relations} from 'drizzle-orm';
-import {blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core';
+import type {InferInsertModel, InferSelectModel} from "drizzle-orm";
+import {relations} from "drizzle-orm";
+import {blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex} from "drizzle-orm/sqlite-core";
 
 /**
  * node_content: Fields that affect embeddings (name, note, parentId)
  */
 export const nodeContent = sqliteTable(
-	'node_content',
+	"node_content",
 	{
-		id: text('id').notNull(),
+		id: text("id").notNull(),
 
-		name: text('name'),
-		note: text('note'),
-		parentId: text('parent_id'),
+		name: text("name"),
+		note: text("note"),
+		parentId: text("parent_id"),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.id, table.systemFrom]}),
-		systemToIdx: uniqueIndex('node_content_system_to_idx').on(table.id, table.systemTo),
-		parentIdx: uniqueIndex('node_content_parent_idx').on(
+		systemToIdx: uniqueIndex("node_content_system_to_idx").on(table.id, table.systemTo),
+		parentIdx: uniqueIndex("node_content_parent_idx").on(
 			table.parentId,
 			table.systemFrom,
 			table.systemTo,
@@ -34,27 +34,27 @@ export const nodeContent = sqliteTable(
  * Changes to these fields (like priority reordering) do not trigger embedding regeneration.
  */
 export const nodeMetadata = sqliteTable(
-	'node_metadata',
+	"node_metadata",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 		// Last 12 hex chars of UUID (after final hyphen), used for resolving Workflowy short links
-		shortId: text('short_id'),
+		shortId: text("short_id"),
 
-		priority: integer('priority'),
+		priority: integer("priority"),
 
-		createdAt: integer('created_at', {mode: 'timestamp'}),
-		modifiedAt: integer('modified_at', {mode: 'timestamp'}),
-		completedAt: integer('completed_at', {mode: 'timestamp'}),
+		createdAt: integer("created_at", {mode: "timestamp"}),
+		modifiedAt: integer("modified_at", {mode: "timestamp"}),
+		completedAt: integer("completed_at", {mode: "timestamp"}),
 
-		layoutMode: text('layout_mode'),
+		layoutMode: text("layout_mode"),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('node_metadata_system_to_idx').on(table.nodeId, table.systemTo),
-		shortIdIdx: index('node_metadata_short_id_idx').on(table.shortId, table.systemTo),
+		systemToIdx: index("node_metadata_system_to_idx").on(table.nodeId, table.systemTo),
+		shortIdIdx: index("node_metadata_short_id_idx").on(table.shortId, table.systemTo),
 	}),
 );
 
@@ -76,23 +76,23 @@ export const nodeMetadata = sqliteTable(
  * only the field appropriate to its role.
  */
 export const calendarMetadata = sqliteTable(
-	'calendar_metadata',
+	"calendar_metadata",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 
-		root: integer('root'),
-		level: text('level'),
-		value: text('value'),
-		dateId: integer('date_id'),
-		timestamp: integer('timestamp'),
-		foundDates: integer('found_dates'),
+		root: integer("root"),
+		level: text("level"),
+		value: text("value"),
+		dateId: integer("date_id"),
+		timestamp: integer("timestamp"),
+		foundDates: integer("found_dates"),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('calendar_metadata_system_to_idx').on(table.nodeId, table.systemTo),
+		systemToIdx: index("calendar_metadata_system_to_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
@@ -103,37 +103,37 @@ export const calendarMetadata = sqliteTable(
  * calendar_metadata.level instead. See the calendar_metadata doc comment above.
  */
 export const calendarLevels = sqliteTable(
-	'calendar_levels',
+	"calendar_levels",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 
-		day: integer('day'),
-		week: integer('week'),
-		month: integer('month'),
-		year: integer('year'),
+		day: integer("day"),
+		week: integer("week"),
+		month: integer("month"),
+		year: integer("year"),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('calendar_levels_system_to_idx').on(table.nodeId, table.systemTo),
+		systemToIdx: index("calendar_levels_system_to_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
 export const nodeEmbeddings = sqliteTable(
-	'node_embeddings',
+	"node_embeddings",
 	{
-		nodeId: text('node_id').notNull(),
-		model: text('model').notNull().default('minilm'),
-		embedding: blob('embedding', {mode: 'buffer'}).notNull(),
+		nodeId: text("node_id").notNull(),
+		model: text("model").notNull().default("minilm"),
+		embedding: blob("embedding", {mode: "buffer"}).notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.model, table.systemFrom]}),
-		systemToIdx: index('node_embeddings_system_to_idx').on(table.nodeId, table.model, table.systemTo),
+		systemToIdx: index("node_embeddings_system_to_idx").on(table.nodeId, table.model, table.systemTo),
 	}),
 );
 
@@ -144,135 +144,135 @@ export const nodeEmbeddings = sqliteTable(
  * Backlinks are derived via inverse queries (WHERE originalId = X)
  */
 export const mirrors = sqliteTable(
-	'mirrors',
+	"mirrors",
 	{
-		originalId: text('original_id').notNull(),
-		mirrorId: text('mirror_id').notNull(),
+		originalId: text("original_id").notNull(),
+		mirrorId: text("mirror_id").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.originalId, table.mirrorId, table.systemFrom]}),
-		mirrorIdx: index('mirrors_mirror_idx').on(table.mirrorId, table.systemTo),
-		originalIdx: index('mirrors_original_idx').on(table.originalId, table.systemTo),
+		mirrorIdx: index("mirrors_mirror_idx").on(table.mirrorId, table.systemTo),
+		originalIdx: index("mirrors_original_idx").on(table.originalId, table.systemTo),
 	}),
 );
 
 export const backlinks = sqliteTable(
-	'backlinks',
+	"backlinks",
 	{
-		nodeId: text('node_id').notNull(),
-		sourceId: text('source_id').notNull(),
-		targetId: text('target_id').notNull(),
+		nodeId: text("node_id").notNull(),
+		sourceId: text("source_id").notNull(),
+		targetId: text("target_id").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.sourceId, table.targetId, table.systemFrom]}),
-		nodeIdx: index('backlinks_node_idx').on(table.nodeId, table.systemTo),
-		sourceIdx: index('backlinks_source_idx').on(table.sourceId, table.systemTo),
-		targetIdx: index('backlinks_target_idx').on(table.targetId, table.systemTo),
+		nodeIdx: index("backlinks_node_idx").on(table.nodeId, table.systemTo),
+		sourceIdx: index("backlinks_source_idx").on(table.sourceId, table.systemTo),
+		targetIdx: index("backlinks_target_idx").on(table.targetId, table.systemTo),
 	}),
 );
 
 export const virtualRootIds = sqliteTable(
-	'virtual_root_ids',
+	"virtual_root_ids",
 	{
-		nodeId: text('node_id').notNull(),
-		virtualRootId: text('virtual_root_id').notNull(),
+		nodeId: text("node_id").notNull(),
+		virtualRootId: text("virtual_root_id").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.virtualRootId, table.systemFrom]}),
-		nodeIdx: index('virtual_root_ids_node_idx').on(table.nodeId, table.systemTo),
+		nodeIdx: index("virtual_root_ids_node_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
 export const aiMetadata = sqliteTable(
-	'ai_metadata',
+	"ai_metadata",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 
-		inChat: integer('in_chat').notNull(),
+		inChat: integer("in_chat").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('ai_metadata_system_to_idx').on(table.nodeId, table.systemTo),
+		systemToIdx: index("ai_metadata_system_to_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
 export const s3Files = sqliteTable(
-	's3_files',
+	"s3_files",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 
-		fileName: text('file_name').notNull(),
-		fileType: text('file_type').notNull(),
-		objectFolder: text('object_folder'),
-		isAnimatedGif: integer('is_animated_gif'),
-		imageOriginalWidth: integer('image_original_width'),
-		imageOriginalHeight: integer('image_original_height'),
-		imageOriginalPixels: integer('image_original_pixels'),
-		isDeleted: integer('is_deleted'),
+		fileName: text("file_name").notNull(),
+		fileType: text("file_type").notNull(),
+		objectFolder: text("object_folder"),
+		isAnimatedGif: integer("is_animated_gif"),
+		imageOriginalWidth: integer("image_original_width"),
+		imageOriginalHeight: integer("image_original_height"),
+		imageOriginalPixels: integer("image_original_pixels"),
+		isDeleted: integer("is_deleted"),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('s3_files_system_to_idx').on(table.nodeId, table.systemTo),
+		systemToIdx: index("s3_files_system_to_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
 export const changesMetadata = sqliteTable(
-	'changes_metadata',
+	"changes_metadata",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 
-		ctBy: integer('ct_by').notNull(),
+		ctBy: integer("ct_by").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('changes_metadata_system_to_idx').on(table.nodeId, table.systemTo),
+		systemToIdx: index("changes_metadata_system_to_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
 export const referencesRoots = sqliteTable(
-	'references_roots',
+	"references_roots",
 	{
-		nodeId: text('node_id').notNull(),
+		nodeId: text("node_id").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.nodeId, table.systemFrom]}),
-		systemToIdx: index('references_roots_system_to_idx').on(table.nodeId, table.systemTo),
+		systemToIdx: index("references_roots_system_to_idx").on(table.nodeId, table.systemTo),
 	}),
 );
 
 export const backupImports = sqliteTable(
-	'backup_imports',
+	"backup_imports",
 	{
-		filename: text('filename').notNull(),
-		backupDate: text('backup_date').notNull(),
+		filename: text("filename").notNull(),
+		backupDate: text("backup_date").notNull(),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.filename, table.systemFrom]}),
-		systemToIdx: index('backup_imports_system_to_idx').on(table.filename, table.systemTo),
+		systemToIdx: index("backup_imports_system_to_idx").on(table.filename, table.systemTo),
 	}),
 );
 
@@ -282,17 +282,17 @@ export const backupImports = sqliteTable(
  * this table tracks timestamps for API-driven ingestion pipelines.
  */
 export const apiImportTimestamp = sqliteTable(
-	'api_import_timestamp',
+	"api_import_timestamp",
 	{
-		name: text('name').notNull(),
-		timestamp: integer('timestamp', {mode: 'timestamp'}),
+		name: text("name").notNull(),
+		timestamp: integer("timestamp", {mode: "timestamp"}),
 
-		systemFrom: text('system_from').notNull(),
-		systemTo: text('system_to').notNull(),
+		systemFrom: text("system_from").notNull(),
+		systemTo: text("system_to").notNull(),
 	},
 	(table) => ({
 		pk: primaryKey({columns: [table.name, table.systemFrom]}),
-		systemToIdx: index('api_import_timestamp_system_to_idx').on(table.name, table.systemTo),
+		systemToIdx: index("api_import_timestamp_system_to_idx").on(table.name, table.systemTo),
 	}),
 );
 
@@ -314,11 +314,11 @@ export const apiImportTimestamp = sqliteTable(
  * (The former `node_collapsed` table was the other exemption; it was ephemeral UI state
  * that was never populated and has been dropped — see migration 0025_drop_dead_columns.sql.)
  */
-export const config = sqliteTable('config', {
-	key: text('key').primaryKey(),
-	value: text('value').notNull(),
-	createdAt: text('created_at').notNull(),
-	updatedAt: text('updated_at').notNull(),
+export const config = sqliteTable("config", {
+	key: text("key").primaryKey(),
+	value: text("value").notNull(),
+	createdAt: text("created_at").notNull(),
+	updatedAt: text("updated_at").notNull(),
 });
 
 /**
@@ -332,11 +332,11 @@ export const config = sqliteTable('config', {
  * `name` is the full tag text including the leading `#`/`@`. `color` is a Workflowy color
  * name (red/orange/yellow/green/teal/sky/blue/purple/pink/gray).
  */
-export const tags = sqliteTable('tags', {
-	name: text('name').primaryKey(),
-	color: text('color').notNull(),
-	createdAt: text('created_at').notNull(),
-	updatedAt: text('updated_at').notNull(),
+export const tags = sqliteTable("tags", {
+	name: text("name").primaryKey(),
+	color: text("color").notNull(),
+	createdAt: text("created_at").notNull(),
+	updatedAt: text("updated_at").notNull(),
 });
 
 export type Tag = typeof tags.$inferSelect;
@@ -347,9 +347,9 @@ export type Tag = typeof tags.$inferSelect;
  * orders writes across connections and processes sharing one cache file. It is
  * bookkeeping, not data, so it is non-bitemporal and excluded from temporal rollback.
  */
-export const systemClock = sqliteTable('system_clock', {
-	id: integer('id').primaryKey(),
-	lastMs: integer('last_ms').notNull(),
+export const systemClock = sqliteTable("system_clock", {
+	id: integer("id").primaryKey(),
+	lastMs: integer("last_ms").notNull(),
 });
 
 export const nodeContentRelations = relations(nodeContent, ({one, many}) => ({
@@ -358,9 +358,9 @@ export const nodeContentRelations = relations(nodeContent, ({one, many}) => ({
 		references: [nodeMetadata.nodeId, nodeMetadata.systemTo],
 	}),
 	// Mirrors where this node is the original (backlinks = nodes that mirror this one)
-	mirrorsAsOriginal: many(mirrors, {relationName: 'original'}),
+	mirrorsAsOriginal: many(mirrors, {relationName: "original"}),
 	// Mirrors where this node is the mirror copy
-	mirrorsAsCopy: many(mirrors, {relationName: 'mirror'}),
+	mirrorsAsCopy: many(mirrors, {relationName: "mirror"}),
 	backlinks: many(backlinks),
 	virtualRootIds: many(virtualRootIds),
 	aiMetadata: one(aiMetadata, {
@@ -398,13 +398,13 @@ export const mirrorsRelations = relations(mirrors, ({one}) => ({
 	original: one(nodeContent, {
 		fields: [mirrors.originalId],
 		references: [nodeContent.id],
-		relationName: 'original',
+		relationName: "original",
 	}),
 	// The node that is the mirror/copy
 	mirror: one(nodeContent, {
 		fields: [mirrors.mirrorId],
 		references: [nodeContent.id],
-		relationName: 'mirror',
+		relationName: "mirror",
 	}),
 }));
 

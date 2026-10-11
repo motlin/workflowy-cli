@@ -1,9 +1,9 @@
-import {BackupFileSchema} from '@workflowy/shared/schemas';
-import {createDatabase} from '../db/index.js';
-import {CacheService} from './cache.js';
-import {EmbeddingGeneratorService} from './embedding-generator.js';
-import {readBackupFile} from '../utils/backup-archive.js';
-import path from 'node:path';
+import {BackupFileSchema} from "@workflowy/shared/schemas";
+import {createDatabase} from "../db/index.js";
+import {CacheService} from "./cache.js";
+import {EmbeddingGeneratorService} from "./embedding-generator.js";
+import {readBackupFile} from "../utils/backup-archive.js";
+import path from "node:path";
 
 export type BackupImportStats = {
 	totalNodes: number;
@@ -28,7 +28,7 @@ export type BackupFileNode = {
 };
 
 export type BackupImportProgress = {
-	phase: 'parsing' | 'importing' | 'embeddings';
+	phase: "parsing" | "importing" | "embeddings";
 	current: number;
 	total: number;
 	message?: string;
@@ -59,16 +59,16 @@ export class BackupImportService {
 
 		const nodeCount = this.countNodes(rootNodes);
 		onProgress?.({
-			phase: 'parsing',
+			phase: "parsing",
 			current: nodeCount,
 			total: nodeCount,
 		});
 
 		onProgress?.({
-			phase: 'importing',
+			phase: "importing",
 			current: 0,
 			total: nodeCount,
-			message: 'Processing nodes...',
+			message: "Processing nodes...",
 		});
 
 		const filename = path.basename(filePath);
@@ -98,7 +98,7 @@ export class BackupImportService {
 		const embeddingGenerator = new EmbeddingGeneratorService(this.database);
 		const result = await embeddingGenerator.generateEmbeddings({batchSize, force: false}, (progress) => {
 			onProgress?.({
-				phase: 'embeddings',
+				phase: "embeddings",
 				current: progress.processed,
 				total: progress.total,
 				message: progress.message ?? `[${progress.currentModel}] ${progress.processed}/${progress.total}`,
@@ -106,7 +106,7 @@ export class BackupImportService {
 		});
 
 		onProgress?.({
-			phase: 'embeddings',
+			phase: "embeddings",
 			current: result.totalProcessed,
 			total: result.totalProcessed,
 			message: `Generated embeddings for ${result.totalProcessed} nodes across all models`,
