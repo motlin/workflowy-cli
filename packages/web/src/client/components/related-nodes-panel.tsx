@@ -45,12 +45,12 @@ async function fetchRelatedNodes(nodeId: string): Promise<RelatedNode[]> {
 }
 
 /**
- * Sidebar panel showing nodes semantically related to the currently selected node.
- * Updates automatically when the selected node changes.
+ * Sidebar panel showing nodes semantically related to the most recently edited node.
+ * Updates automatically when editing moves to another node, and keeps its results after the edit ends.
  * Click a result to navigate to that node.
  */
 export function RelatedNodesPanel() {
-	const {selectedId, relatedNodesPanelOpen, toggleRelatedNodesPanel} = useOutlineStore();
+	const {lastEditedId, relatedNodesPanelOpen, toggleRelatedNodesPanel} = useOutlineStore();
 	const navigate = useNavigate();
 
 	const {
@@ -58,9 +58,9 @@ export function RelatedNodesPanel() {
 		isLoading,
 		error: queryError,
 	} = useQuery({
-		queryKey: ["related", selectedId],
-		queryFn: async () => fetchRelatedNodes(selectedId!),
-		enabled: relatedNodesPanelOpen && selectedId !== null,
+		queryKey: ["related", lastEditedId],
+		queryFn: async () => fetchRelatedNodes(lastEditedId!),
+		enabled: relatedNodesPanelOpen && lastEditedId !== null,
 	});
 	const error = queryError?.message ?? null;
 
@@ -90,17 +90,17 @@ export function RelatedNodesPanel() {
 			</div>
 
 			<div className="related-nodes-panel-content">
-				{!selectedId && <p className="related-nodes-panel-hint">Select a node to see related content</p>}
+				{!lastEditedId && <p className="related-nodes-panel-hint">Edit a node to see related content</p>}
 
-				{selectedId && isLoading && <p className="related-nodes-panel-status">Loading...</p>}
+				{lastEditedId && isLoading && <p className="related-nodes-panel-status">Loading...</p>}
 
-				{selectedId && error && <p className="related-nodes-panel-error">{error}</p>}
+				{lastEditedId && error && <p className="related-nodes-panel-error">{error}</p>}
 
-				{selectedId && !isLoading && !error && relatedNodes.length === 0 && (
+				{lastEditedId && !isLoading && !error && relatedNodes.length === 0 && (
 					<p className="related-nodes-panel-empty">No related nodes found</p>
 				)}
 
-				{selectedId && !isLoading && !error && relatedNodes.length > 0 && (
+				{lastEditedId && !isLoading && !error && relatedNodes.length > 0 && (
 					<ul className="related-nodes-panel-list">
 						{relatedNodes.map((node) => (
 							<li key={node.id}>

@@ -136,10 +136,6 @@
 	/* Indentation guide line - matches production workflowy.com */
 	--wf-guide-line: rgb(236, 238, 240);
 
-	/* Selected-row highlight inset + radius - matches production workflowy.com */
-	--item-selection-x-offset: -5px;
-	--item-selection-border-radius: 5px;
-
 	/* Colored tag pill backgrounds + text - sampled from production workflowy.com */
 	--wf-tag-pill-text: rgb(75, 81, 85);
 	--wf-tag-bg-red: rgb(251, 213, 213);
@@ -832,22 +828,6 @@ body {
 }
 
 /* Production Workflowy does not highlight rows on hover - only icons change color */
-
-/* Selected row: a subtle rounded highlight around the content only, matching
-   production workflowy.com (.project.highlighted::before). NOT a full-width bar —
-   the .name spans the 500px left overhang, so the highlight goes on .content. */
-.name.selected .content::before {
-	content: "";
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: var(--item-selection-x-offset);
-	right: var(--item-selection-x-offset);
-	background-color: var(--wf-background-tertiary);
-	border-radius: var(--item-selection-border-radius);
-	z-index: -1;
-	pointer-events: none;
-}
 
 /* Completed nodes - no container opacity per production Workflowy */
 

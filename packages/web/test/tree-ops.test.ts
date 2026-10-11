@@ -3,7 +3,6 @@ import {describe, expect, it} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {
-	nextSelectionAfterDelete,
 	planDuplicate,
 	planIndent,
 	planInsertSiblingAfter,
@@ -104,18 +103,5 @@ describe("planMoveUp / planMoveDown", () => {
 	});
 	it("returns null moving down the last sibling", () => {
 		expect(planMoveDown(seed({p: siblings}), siblings[2])).toBeNull();
-	});
-});
-
-describe("nextSelectionAfterDelete", () => {
-	const visible = ["a", "b", "c"];
-	it("picks the previous visible node", () => {
-		expect(nextSelectionAfterDelete(visible, node({id: "b", parent_id: "p"}))).toBe("a");
-	});
-	it("falls back to the parent when first", () => {
-		expect(nextSelectionAfterDelete(visible, node({id: "a", parent_id: "p"}))).toBe("p");
-	});
-	it("returns null at the top with no parent", () => {
-		expect(nextSelectionAfterDelete(visible, node({id: "a", parent_id: null}))).toBeNull();
 	});
 });

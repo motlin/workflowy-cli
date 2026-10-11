@@ -216,7 +216,7 @@ interface StaticNodeProps {
 	note?: string;
 	isCompleted?: boolean;
 	isExpanded?: boolean;
-	isSelected?: boolean;
+	isEditing?: boolean;
 	depth?: number;
 	layoutMode?: string | null;
 	onToggleExpand?: () => void;
@@ -230,12 +230,12 @@ export function StaticNode({
 	note = "",
 	isCompleted = false,
 	isExpanded = false,
-	isSelected = false,
+	isEditing = false,
 	depth = 0,
 	layoutMode = null,
 	onToggleExpand,
 }: StaticNodeProps) {
-	const nameClasses = ["name", isSelected && "selected", isCompleted && "completed"].filter(Boolean).join(" ");
+	const nameClasses = ["name", isCompleted && "completed"].filter(Boolean).join(" ");
 	const layout = resolveLayoutMode(layoutMode);
 	const projectClasses = ["project", layout.projectClass].filter(Boolean).join(" ");
 
@@ -247,7 +247,7 @@ export function StaticNode({
 		<div className={projectClasses} style={indentStyle}>
 			<IndentGuideLines depth={depth} />
 			<div className={nameClasses}>
-				<MenuButton isVisible={isSelected} />
+				<MenuButton isVisible={isEditing} />
 				<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
 				<BulletDot isCompleted={isCompleted} />
 				{layout.isTodo ? (

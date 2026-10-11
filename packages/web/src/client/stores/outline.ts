@@ -111,7 +111,10 @@ interface OutlineState {
 	/** Text offset to place the caret at when editing resumes after dismissing search. */
 	editingCaretOffset: number | null;
 	editingNoteId: string | null;
-	selectedId: string | null;
+	/** Set while a structural shortcut moves the edited node, so the blur from re-rendering keeps editing. */
+	editingHeld: boolean;
+	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
+	lastEditedId: string | null;
 	showCompleted: boolean;
 	leftSidebarOpen: boolean;
 	rightSidebarOpen: boolean;
@@ -153,7 +156,10 @@ interface OutlineActions {
 	stopEditing: () => void;
 	startEditingNote: (id: string) => void;
 	stopEditingNote: () => void;
-	select: (id: string | null) => void;
+	/** Edit `id` with the caret `caretOffset` text characters in (clamped to the end). */
+	resumeEditing: (id: string, caretOffset: number) => void;
+	holdEditing: (caretOffset: number) => void;
+	releaseEditing: () => void;
 	toggleCompleted: () => void;
 	toggleLeftSidebar: () => void;
 	toggleRightSidebar: () => void;
@@ -193,6 +199,15 @@ interface OutlineActions {
 
 type OutlineStore = OutlineActions & OutlineState;
 
+/**
+ * Whether a blur of `nodeId`'s editor should commit its text and stop editing.
+ * Not when a structural shortcut holds editing across the re-render, and not
+ * when editing already moved to another node (the mover committed the text).
+ */
+export function shouldCommitOnBlur(state: Pick<OutlineState, "editingId" | "editingHeld">, nodeId: string): boolean {
+	return state.editingId === nodeId && !state.editingHeld;
+}
+
 export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	zoomedNodeId: null,
 	expandedIds: new Set<string>(),
@@ -200,7 +215,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingClickPosition: null,
 	editingCaretOffset: null,
 	editingNoteId: null,
-	selectedId: null,
+	editingHeld: false,
+	lastEditedId: null,
 	showCompleted: getInitialShowCompleted(),
 	leftSidebarOpen: false,
 	rightSidebarOpen: false,
@@ -275,15 +291,20 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}),
 
 	startEditing: (id, clickPosition) =>
-		set({editingId: id, editingClickPosition: clickPosition ?? null, editingCaretOffset: null, selectedId: id}),
+		set({editingId: id, editingClickPosition: clickPosition ?? null, editingCaretOffset: null, lastEditedId: id}),
 
 	stopEditing: () => set({editingId: null, editingClickPosition: null, editingCaretOffset: null}),
 
-	startEditingNote: (id) => set({editingNoteId: id, selectedId: id}),
+	startEditingNote: (id) => set({editingNoteId: id, lastEditedId: id}),
 
 	stopEditingNote: () => set({editingNoteId: null}),
 
-	select: (id) => set({selectedId: id}),
+	resumeEditing: (id, caretOffset) =>
+		set({editingId: id, editingClickPosition: null, editingCaretOffset: caretOffset, lastEditedId: id}),
+
+	holdEditing: (caretOffset) => set({editingHeld: true, editingCaretOffset: caretOffset}),
+
+	releaseEditing: () => set({editingHeld: false}),
 
 	toggleCompleted: () =>
 		set((state) => {
@@ -361,7 +382,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
-			selectedId: nodeId,
+			lastEditedId: nodeId,
 			searchPanelOpen: true,
 			searchInitialQuery: null,
 			searchPanelSession: state.searchPanelSession + 1,
@@ -380,7 +401,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 				editingId: nodeId,
 				editingClickPosition: null,
 				editingCaretOffset: caretOffset,
-				selectedId: nodeId,
+				lastEditedId: nodeId,
 			};
 		}),
 

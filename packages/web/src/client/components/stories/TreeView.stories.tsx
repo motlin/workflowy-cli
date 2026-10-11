@@ -82,7 +82,7 @@ export const ComplexTree: Story = {
 			<StaticNode depth={2} isCompleted name="Fix navigation bug" />
 			<StaticNode
 				depth={2}
-				isSelected
+				isEditing
 				name="Implement search feature"
 				note="Use fuzzy matching for better results"
 			/>

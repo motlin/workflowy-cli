@@ -1,5 +1,10 @@
 import {describe, expect, it} from "vite-plus/test";
-import {adjacentVisibleNode, isCaretOnBoundaryLine} from "../src/client/caret-navigation.js";
+import {
+	adjacentVisibleNode,
+	backspaceDeleteTarget,
+	editingAfterRemoval,
+	isCaretOnBoundaryLine,
+} from "../src/client/caret-navigation.js";
 
 describe("isCaretOnBoundaryLine", () => {
 	// A three-line node: lines at 100-116, 120-136, 140-156 (16px caret, 20px line pitch).
@@ -66,5 +71,42 @@ describe("adjacentVisibleNode", () => {
 
 	it("does nothing when the edited node is not visible", () => {
 		expect(adjacentVisibleNode(visible, "z", "down")).toBeNull();
+	});
+});
+
+describe("backspaceDeleteTarget", () => {
+	const visible = ["a", "b", "c"];
+
+	it("deletes an empty childless node and edits the previous visible node", () => {
+		expect(backspaceDeleteTarget(visible, "b", {text: "", hasChildren: false})).toBe("a");
+	});
+
+	it("keeps a node that still has text", () => {
+		expect(backspaceDeleteTarget(visible, "b", {text: "x", hasChildren: false})).toBeNull();
+	});
+
+	it("keeps an empty node that has children", () => {
+		expect(backspaceDeleteTarget(visible, "b", {text: "", hasChildren: true})).toBeNull();
+	});
+
+	it("keeps the first visible node, which has nowhere to move the caret", () => {
+		expect(backspaceDeleteTarget(visible, "a", {text: "", hasChildren: false})).toBeNull();
+	});
+});
+
+describe("editingAfterRemoval", () => {
+	it("continues at the end of the previous visible node", () => {
+		expect(editingAfterRemoval(["a", "b", "c"], "b")).toStrictEqual({
+			nodeId: "a",
+			caretOffset: Number.MAX_SAFE_INTEGER,
+		});
+	});
+
+	it("continues at the start of the next visible node when the removed node was first", () => {
+		expect(editingAfterRemoval(["a", "b", "c"], "a")).toStrictEqual({nodeId: "b", caretOffset: 0});
+	});
+
+	it("stops editing when no other node is visible", () => {
+		expect(editingAfterRemoval(["a"], "a")).toBeNull();
 	});
 });

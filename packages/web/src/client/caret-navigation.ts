@@ -44,3 +44,36 @@ export function adjacentVisibleNode(
 	}
 	return visibleIds[direction === "up" ? index - 1 : index + 1] ?? null;
 }
+
+/**
+ * The node to edit after Backspace deletes `nodeId`, or null when Backspace should
+ * not delete it: the node still has text or children, or it is the first visible
+ * node and the caret would have nowhere to go.
+ */
+export function backspaceDeleteTarget(
+	visibleIds: readonly string[],
+	nodeId: string,
+	node: {text: string; hasChildren: boolean},
+): string | null {
+	if (node.text !== "" || node.hasChildren) {
+		return null;
+	}
+	return adjacentVisibleNode(visibleIds, nodeId, "up");
+}
+
+/**
+ * Where editing continues when the edited node leaves the view (deleted, or
+ * completed while completed nodes are hidden): the end of the previous visible
+ * node, else the start of the next one, else nowhere (null).
+ */
+export function editingAfterRemoval(
+	visibleIds: readonly string[],
+	nodeId: string,
+): {nodeId: string; caretOffset: number} | null {
+	const previous = adjacentVisibleNode(visibleIds, nodeId, "up");
+	if (previous !== null) {
+		return {nodeId: previous, caretOffset: Number.MAX_SAFE_INTEGER};
+	}
+	const next = adjacentVisibleNode(visibleIds, nodeId, "down");
+	return next === null ? null : {nodeId: next, caretOffset: 0};
+}

@@ -1,20 +1,17 @@
+import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {nodeRoute} from "../navigation.js";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useHotkeys} from "react-hotkeys-hook";
+import type {Options} from "react-hotkeys-hook";
 import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
-import {
-	nextSelectionAfterDelete,
-	planDuplicate,
-	planIndent,
-	planInsertSiblingAfter,
-	planMoveDown,
-	planMoveUp,
-	planOutdent,
-} from "../tree-ops.js";
+import {caretTextOffset, editorElement} from "../caret-dom.js";
+import {editingAfterRemoval} from "../caret-navigation.js";
+import {planDuplicate, planIndent, planMoveDown, planMoveUp, planOutdent} from "../tree-ops.js";
+import type {MoveNodePayload} from "../tree-ops.js";
 import {
 	useChildren,
 	useCreateNode,
@@ -31,53 +28,53 @@ import {readJson} from "../read-json.js";
  * Keyboard shortcuts for the outline view.
  * Matches Workflowy keyboard shortcuts from https://blog.workflowy.com/keyboard-shortcuts/
  *
+ * Like workflowy.com there is no "selected but not editing" state: the node being
+ * edited is the only focus, and every node shortcut acts on it while its text is
+ * focused. With nothing being edited, node shortcuts do nothing. Moving between
+ * nodes is caret movement (Up/Down at a node's edge, handled by EditableText).
+ *
  * Navigation & Zoom:
- * - Cmd+Period (Cmd+.): Zoom in to selected node
+ * - Cmd+Period (Cmd+.): Zoom in to the edited node
  * - Cmd+Comma (Cmd+,): Zoom out to parent node
  * - Cmd+Quote (Cmd+'): Navigate home to root view
  * - Cmd+LeftBracket (Cmd+[): Browser history back
  * - Cmd+RightBracket (Cmd+]): Browser history forward
+ * - Cmd+Down / Cmd+Up: Expand / collapse the edited node
  *
- * Arrow Key Navigation:
- * - ArrowUp: Select previous visible node
- * - ArrowDown: Select next visible node
+ * Editing (Enter, Backspace, Escape and Up/Down are handled by EditableText):
+ * - Shift+Enter: Edit the note of the edited node
+ * - Tab: Indent the edited node (make it a child of its previous sibling)
+ * - Shift+Tab: Outdent the edited node (make it a sibling of its parent)
+ * - Cmd+Enter: Toggle complete/uncomplete on the edited node
  *
- * Editing:
- * - Enter: Create new sibling node below (when not editing)
- * - Shift+Enter: Focus/create note field for selected node
- * - Tab: Indent node (make it a child of previous sibling)
- * - Shift+Tab: Outdent node (make it a sibling of its parent)
- * - Backspace: Delete empty node (when not editing, node is empty and has no children)
- * - Cmd+Enter: Toggle complete/uncomplete on selected node
+ * Structural shortcuts keep the caret and unsaved text in place: they hold editing
+ * across the re-render so the edited row keeps (or regains) focus.
  *
  * Movement:
- * - Shift+Cmd+Up: Move node up among siblings (swap with previous sibling)
- * - Shift+Cmd+Down: Move node down among siblings (swap with next sibling)
+ * - Shift+Cmd+Up: Move the edited node up among siblings
+ * - Shift+Cmd+Down: Move the edited node down among siblings
  *
  * Duplication:
- * - Shift+Cmd+D: Duplicate selected node (shallow copy, placed below current)
+ * - Shift+Cmd+D: Duplicate the edited node (shallow copy, placed below) and edit the copy
  *
  * Deletion:
- * - Shift+Cmd+Backspace: Force delete node and all descendants (works on any node)
+ * - Shift+Cmd+Backspace: Delete the edited node and all descendants
  *
  * Sibling Navigation:
- * - Shift+Cmd+9: Jump to previous sibling (skips over children)
- * - Shift+Cmd+0: Jump to next sibling (skips over children)
+ * - Shift+Cmd+9: Edit the previous sibling (skips over children)
+ * - Shift+Cmd+0: Edit the next sibling (skips over children)
  *
  * Focus Sibling (Zoomed Navigation):
  * - Option+Cmd+Up (⌥⌘↑): Zoom to previous sibling of current zoomed node
  * - Option+Cmd+Down (⌥⌘↓): Zoom to next sibling of current zoomed node
  *
- * Layout Modes:
- * - Option+Cmd+8 (⌥⌘8): Set layout mode to bullets (default mode)
- * - Option+Cmd+9 (⌥⌘9): Set layout mode to todo (shows checkboxes)
- * - Option+Cmd+1 (⌥⌘1): Set layout mode to heading 1 (largest heading)
- * - Option+Cmd+2 (⌥⌘2): Set layout mode to heading 2 (medium heading)
- * - Option+Cmd+3 (⌥⌘3): Set layout mode to heading 3 (smallest heading)
- * - Option+Cmd+4 (⌥⌘4): Set layout mode to paragraph (no bullets, prose text)
- *
- * Search:
- * - Escape (Esc): Open search panel (while editing, EditableText opens it and dismissal resumes editing)
+ * Layout Modes (of the edited node):
+ * - Option+Cmd+8 (⌥⌘8): bullets (default mode)
+ * - Option+Cmd+9 (⌥⌘9): todo (shows checkboxes)
+ * - Option+Cmd+1 (⌥⌘1): heading 1 (largest heading)
+ * - Option+Cmd+2 (⌥⌘2): heading 2 (medium heading)
+ * - Option+Cmd+3 (⌥⌘3): heading 3 (smallest heading)
+ * - Option+Cmd+4 (⌥⌘4): paragraph (no bullets, prose text)
  *
  * Jump Menu:
  * - Cmd+K (⌘K): Open jump menu (command palette style navigation)
@@ -91,26 +88,30 @@ import {readJson} from "../read-json.js";
  * - Shift+Cmd+8 (⇧⌘8): Star/unstar current zoomed page (adds to sidebar)
  *
  * Export:
- * - Shift+Cmd+E (⇧⌘E): Export selected node(s) to plain text, markdown, or OPML
+ * - Shift+Cmd+E (⇧⌘E): Export the edited node to plain text, markdown, or OPML
  */
 export function useKeyboardShortcuts() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const selectedId = useOutlineStore((state) => state.selectedId);
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const editingId = useOutlineStore((state) => state.editingId);
 	const editingNoteId = useOutlineStore((state) => state.editingNoteId);
-	const select = useOutlineStore((state) => state.select);
-	const startEditing = useOutlineStore((state) => state.startEditing);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+	const stopEditing = useOutlineStore((state) => state.stopEditing);
+	const holdEditing = useOutlineStore((state) => state.holdEditing);
+	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const startEditingNote = useOutlineStore((state) => state.startEditingNote);
 	const toggleLeftSidebar = useOutlineStore((state) => state.toggleLeftSidebar);
 	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
 	const toggleCompleted = useOutlineStore((state) => state.toggleCompleted);
 	const toggleStarPage = useOutlineStore((state) => state.toggleStarPage);
 	const searchPanelOpen = useOutlineStore((state) => state.searchPanelOpen);
-	const toggleSearchPanel = useOutlineStore((state) => state.toggleSearchPanel);
-	const jumpMenuOpen = useOutlineStore((state) => state.jumpMenuOpen);
 	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
+	const expand = useOutlineStore((state) => state.expand);
+	const collapse = useOutlineStore((state) => state.collapse);
+	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
+	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const visibleNodes = useVisibleNodes();
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
@@ -121,39 +122,98 @@ export function useKeyboardShortcuts() {
 	// Fetch the current zoomed node to get its parent_id
 	const {data: zoomedNode} = useNode(zoomedNodeId);
 
-	// Fetch the selected node to get its parent_id for creating siblings
-	const {data: selectedNode} = useNode(selectedId);
-
-	// Fetch children of the selected node to check if it can be deleted
-	const {data: selectedNodeChildren} = useChildren(selectedId);
+	// The edited node is the target of every node shortcut
+	const {data: editedNode} = useNode(editingId);
 
 	// Fetch siblings of the zoomed node for focus sibling navigation
 	const {data: zoomedNodeSiblings} = useChildren(zoomedNode?.parent_id ?? null);
 
-	// Cmd+. (Cmd+Period): Zoom in to selected node
-	useHotkeys(
-		"meta+.",
-		() => {
-			if (selectedId) {
-				void navigate(nodeRoute(selectedId));
+	/** Node shortcuts fire from inside the edited text and only while a node is being edited. */
+	const editingShortcut: Options = {
+		preventDefault: true,
+		enableOnFormTags: false,
+		enableOnContentEditable: true,
+		enabled: editingId !== null,
+	};
+
+	/** Commit the edited text and stop editing, exactly as clicking away would. */
+	const commitEdit = useCallback(() => {
+		if (editingId !== null) {
+			editorElement(editingId)?.blur();
+		}
+	}, [editingId]);
+
+	/** Move the edited node, keeping its caret and unsaved text through the re-render. */
+	const moveEditedNode = useCallback(
+		(payload: MoveNodePayload | null) => {
+			if (payload === null) {
+				return;
 			}
+			const editor = editorElement(payload.nodeId);
+			holdEditing(editor ? caretTextOffset(editor) : Number.MAX_SAFE_INTEGER);
+			moveNodeMutation.mutate(payload, {onSettled: releaseEditing});
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId],
+		[holdEditing, releaseEditing, moveNodeMutation],
 	);
 
-	// Cmd+, (Cmd+Comma): Zoom out to parent node
+	/** Continue editing beside the edited node, which is about to leave the view. */
+	const editBesideRemovedNode = useCallback(
+		(nodeId: string) => {
+			const next = editingAfterRemoval(visibleNodes, nodeId);
+			if (next === null) {
+				stopEditing();
+			} else {
+				resumeEditing(next.nodeId, next.caretOffset);
+			}
+		},
+		[visibleNodes, stopEditing, resumeEditing],
+	);
+
+	/** Commit the edited text, then edit `nodeId` with the caret at its end. */
+	const editInstead = useCallback(
+		(nodeId: string) => {
+			commitEdit();
+			resumeEditing(nodeId, Number.MAX_SAFE_INTEGER);
+		},
+		[commitEdit, resumeEditing],
+	);
+
+	const setLayoutMode = useCallback(
+		(layoutMode: "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph") => {
+			if (editingId !== null) {
+				updateNodeMutation.mutate({nodeId: editingId, layoutMode});
+			}
+		},
+		[editingId, updateNodeMutation],
+	);
+
+	// Cmd+. (Cmd+Period): Zoom in to the edited node
+	// Hotkeys match KeyboardEvent.code, so punctuation is spelled by code name ("period", not ".")
 	useHotkeys(
-		"meta+,",
+		"meta+period",
+		() => {
+			if (editingId === null) {
+				return;
+			}
+			const nodeId = editingId;
+			commitEdit();
+			void navigate(nodeRoute(nodeId));
+		},
+		editingShortcut,
+		[editingId, commitEdit, navigate],
+	);
+
+	// Cmd+, (Cmd+Comma): Zoom out to parent node, also while editing
+	// "comma", not ",": a comma separates alternative hotkeys
+	useHotkeys(
+		"meta+comma",
 		() => {
 			if (!zoomedNodeId) {
 				// Already at root level, nothing to do
 				return;
 			}
 
+			commitEdit();
 			const parentId = zoomedNode?.parent_id;
 			if (parentId) {
 				void navigate(nodeRoute(parentId));
@@ -165,8 +225,9 @@ export function useKeyboardShortcuts() {
 		{
 			preventDefault: true,
 			enableOnFormTags: false,
+			enableOnContentEditable: true,
 		},
-		[zoomedNodeId, zoomedNode],
+		[zoomedNodeId, zoomedNode, commitEdit, navigate],
 	);
 
 	// Cmd+[ (Cmd+LeftBracket): Browser history back
@@ -205,454 +266,171 @@ export function useKeyboardShortcuts() {
 		},
 	);
 
-	// Get expand/collapse actions from store
-	const expand = useOutlineStore((state) => state.expand);
-	const collapse = useOutlineStore((state) => state.collapse);
-
-	// Cmd+Down (⌘↓): Expand selected node
+	// Cmd+Down (⌘↓): Expand the edited node
 	useHotkeys(
 		"meta+down",
 		() => {
-			// Don't expand if editing (let text editing handle the event)
-			if (editingId !== null || editingNoteId !== null) {
-				return;
+			if (editingId !== null) {
+				expand(editingId);
 			}
-
-			// Need a selected node to expand
-			if (selectedId === null) {
-				return;
-			}
-
-			// If already expanded, expand all descendants (recursive)
-			// For now, just expand the selected node
-			expand(selectedId);
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, editingId, editingNoteId, expand],
+		editingShortcut,
+		[editingId, expand],
 	);
 
-	// Cmd+Up (⌘↑): Collapse selected node
+	// Cmd+Up (⌘↑): Collapse the edited node
 	useHotkeys(
 		"meta+up",
 		() => {
-			// Don't collapse if editing (let text editing handle the event)
-			if (editingId !== null || editingNoteId !== null) {
-				return;
-			}
-
-			// Need a selected node to collapse
-			if (selectedId === null) {
-				return;
-			}
-
-			// If already collapsed, collapse all descendants (recursive)
-			// For now, just collapse the selected node
-			collapse(selectedId);
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, editingId, editingNoteId, collapse],
-	);
-
-	// ArrowUp: Select previous visible node
-	useHotkeys(
-		"up",
-		() => {
-			if (visibleNodes.length === 0) {
-				return;
-			}
-
-			if (selectedId === null) {
-				// No selection, select the last visible node
-				select(visibleNodes.at(-1) ?? null);
-				return;
-			}
-
-			const currentIndex = visibleNodes.indexOf(selectedId);
-			if (currentIndex === -1) {
-				// Current selection is not visible, select last visible node
-				select(visibleNodes.at(-1) ?? null);
-				return;
-			}
-
-			if (currentIndex > 0) {
-				select(visibleNodes[currentIndex - 1]);
-			}
-			// At first node, do nothing (don't wrap)
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, visibleNodes, select],
-	);
-
-	// ArrowDown: Select next visible node
-	useHotkeys(
-		"down",
-		() => {
-			if (visibleNodes.length === 0) {
-				return;
-			}
-
-			if (selectedId === null) {
-				// No selection, select the first visible node
-				select(visibleNodes[0]);
-				return;
-			}
-
-			const currentIndex = visibleNodes.indexOf(selectedId);
-			if (currentIndex === -1) {
-				// Current selection is not visible, select first visible node
-				select(visibleNodes[0]);
-				return;
-			}
-
-			if (currentIndex < visibleNodes.length - 1) {
-				select(visibleNodes[currentIndex + 1]);
-			}
-			// At last node, do nothing (don't wrap)
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, visibleNodes, select],
-	);
-
-	// Enter: Create new sibling node below (when not editing)
-	useHotkeys(
-		"enter",
-		() => {
-			// Don't create sibling if already editing (Enter should submit the edit)
 			if (editingId !== null) {
-				return;
+				collapse(editingId);
 			}
-
-			// Need a selected node to create a sibling
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			createNodeMutation.mutate(planInsertSiblingAfter(queryClient, selectedNode), {
-				onSuccess(createdNode) {
-					// Select and start editing the new node
-					select(createdNode.id);
-					startEditing(createdNode.id);
-				},
-			});
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, createNodeMutation, select, startEditing],
+		editingShortcut,
+		[editingId, collapse],
 	);
 
-	// Shift+Enter: Focus/create note field for selected node
+	// Shift+Enter: Edit the note of the edited node
 	useHotkeys(
 		"shift+enter",
 		() => {
-			// Don't trigger if already editing a note
-			if (editingNoteId !== null) {
-				return;
+			if (editingId !== null && editingNoteId === null) {
+				startEditingNote(editingId);
 			}
-
-			// Need a selected node to add a note
-			if (selectedId === null) {
-				return;
-			}
-
-			startEditingNote(selectedId);
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, editingNoteId, startEditingNote],
+		editingShortcut,
+		[editingId, editingNoteId, startEditingNote],
 	);
 
-	// Tab: Indent node (make it a child of its previous sibling)
+	// Tab: Indent the edited node (make it a child of its previous sibling)
 	useHotkeys(
 		"tab",
 		() => {
-			// Don't indent if editing (Tab should work normally in text fields)
-			if (editingId !== null) {
-				return;
-			}
-
-			// Need a selected node to indent
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			const payload = planIndent(queryClient, selectedNode);
-			if (payload) {
-				moveNodeMutation.mutate(payload);
+			if (editedNode !== undefined) {
+				moveEditedNode(planIndent(queryClient, editedNode));
 			}
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, moveNodeMutation],
+		editingShortcut,
+		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Shift+Tab: Outdent node (make it a sibling of its parent)
+	// Shift+Tab: Outdent the edited node (make it a sibling of its parent)
 	useHotkeys(
 		"shift+tab",
 		() => {
-			// Don't outdent if editing (Shift+Tab should work normally in text fields)
-			if (editingId !== null) {
-				return;
-			}
-
-			// Need a selected node to outdent
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			const payload = planOutdent(queryClient, selectedNode);
-			if (payload) {
-				moveNodeMutation.mutate(payload);
+			if (editedNode !== undefined) {
+				moveEditedNode(planOutdent(queryClient, editedNode));
 			}
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, moveNodeMutation],
+		editingShortcut,
+		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Backspace: Delete empty node (when not editing, node is empty and has no children)
-	useHotkeys(
-		"backspace",
-		() => {
-			// Don't delete if editing (Backspace should work normally in text fields)
-			if (editingId !== null) {
-				return;
-			}
-
-			// Need a selected node to delete
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			// Only delete if node is empty (no name or whitespace-only name)
-			const nodeName = selectedNode.name ?? "";
-			if (nodeName.trim() !== "") {
-				return;
-			}
-
-			// Only delete if node has no children
-			if (selectedNodeChildren && selectedNodeChildren.length > 0) {
-				return;
-			}
-
-			const nextSelectedId = nextSelectionAfterDelete(visibleNodes, selectedNode);
-			deleteNodeMutation.mutate(selectedId, {
-				onSuccess() {
-					select(nextSelectedId);
-				},
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, selectedNodeChildren, editingId, visibleNodes, deleteNodeMutation, select],
-	);
-
-	// Cmd+Enter: Toggle complete/uncomplete on selected node
+	// Cmd+Enter: Toggle complete/uncomplete on the edited node
 	useHotkeys(
 		"meta+enter",
 		() => {
-			// Need a selected node to toggle completion
-			if (selectedId === null || selectedNode === undefined) {
+			if (editedNode === undefined) {
 				return;
 			}
 
-			const isCurrentlyCompleted = selectedNode.completedAt !== null;
-
-			toggleCompleteMutation.mutate({
-				nodeId: selectedId,
-				isCurrentlyCompleted,
-			});
+			const isCurrentlyCompleted = editedNode.completedAt !== null;
+			if (!isCurrentlyCompleted && !showCompleted) {
+				// The node is about to be hidden; keep the text and continue editing beside it
+				commitEdit();
+				editBesideRemovedNode(editedNode.id);
+			}
+			toggleCompleteMutation.mutate({nodeId: editedNode.id, isCurrentlyCompleted});
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, selectedNode, toggleCompleteMutation],
+		editingShortcut,
+		[editedNode, showCompleted, commitEdit, editBesideRemovedNode, toggleCompleteMutation],
 	);
 
-	// Shift+Cmd+Up: Move node up among siblings
+	// Shift+Cmd+Up: Move the edited node up among siblings
 	useHotkeys(
 		"shift+meta+up",
 		() => {
-			// Don't move if editing (let text editing handle the event)
-			if (editingId !== null) {
-				return;
-			}
-
-			// Need a selected node to move
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			const payload = planMoveUp(queryClient, selectedNode);
-			if (payload) {
-				moveNodeMutation.mutate(payload);
+			if (editedNode !== undefined) {
+				moveEditedNode(planMoveUp(queryClient, editedNode));
 			}
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, moveNodeMutation],
+		editingShortcut,
+		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Shift+Cmd+Down: Move node down among siblings
+	// Shift+Cmd+Down: Move the edited node down among siblings
 	useHotkeys(
 		"shift+meta+down",
 		() => {
-			// Don't move if editing (let text editing handle the event)
-			if (editingId !== null) {
-				return;
-			}
-
-			// Need a selected node to move
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			const payload = planMoveDown(queryClient, selectedNode);
-			if (payload) {
-				moveNodeMutation.mutate(payload);
+			if (editedNode !== undefined) {
+				moveEditedNode(planMoveDown(queryClient, editedNode));
 			}
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, moveNodeMutation],
+		editingShortcut,
+		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Shift+Cmd+D: Duplicate selected node (shallow copy)
+	// Shift+Cmd+D: Duplicate the edited node (shallow copy, including unsaved text) and edit the copy
 	useHotkeys(
 		"shift+meta+d",
 		() => {
-			// Don't duplicate if editing (let text editing handle the event)
-			if (editingId !== null) {
+			if (editedNode === undefined) {
 				return;
 			}
 
-			// Need a selected node to duplicate
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			createNodeMutation.mutate(planDuplicate(queryClient, selectedNode), {
+			const name = editorElement(editedNode.id)?.innerHTML ?? editedNode.name;
+			commitEdit();
+			createNodeMutation.mutate(planDuplicate(queryClient, {...editedNode, name}), {
 				onSuccess(createdNode) {
-					// Select the new duplicate node
-					select(createdNode.id);
+					resumeEditing(createdNode.id, Number.MAX_SAFE_INTEGER);
 				},
 			});
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, createNodeMutation, select],
+		editingShortcut,
+		[editedNode, queryClient, commitEdit, createNodeMutation, resumeEditing],
 	);
 
-	// Shift+Cmd+9: Jump to previous sibling
+	/** The edited node's sibling `step` places away in priority order, or null past either end. */
+	const siblingOfEdited = useCallback(
+		(step: -1 | 1): string | null => {
+			if (editedNode === undefined) {
+				return null;
+			}
+			const siblings = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(editedNode.parent_id));
+			if (!siblings) {
+				return null;
+			}
+			const sorted = sortByPriority(siblings);
+			const index = sorted.findIndex((sibling) => sibling.id === editedNode.id);
+			return index === -1 ? null : (sorted[index + step]?.id ?? null);
+		},
+		[editedNode, queryClient],
+	);
+
+	// Shift+Cmd+9: Edit the previous sibling
 	useHotkeys(
 		"shift+meta+9",
 		() => {
-			// Don't jump if editing (let text editing handle the event)
-			if (editingId !== null) {
-				return;
+			const siblingId = siblingOfEdited(-1);
+			if (siblingId !== null) {
+				editInstead(siblingId);
 			}
-
-			// Need a selected node to find siblings
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			// Get siblings of the selected node
-			const parentId = selectedNode.parent_id;
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-			if (!siblings || siblings.length < 2) {
-				return;
-			}
-
-			// Sort siblings by priority to find the previous one
-			const sortedSiblings = sortByPriority(siblings);
-			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-
-			// Can't jump to previous if already at the first sibling
-			if (selectedIndex <= 0) {
-				return;
-			}
-
-			const previousSibling = sortedSiblings[selectedIndex - 1];
-			select(previousSibling.id);
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, select],
+		editingShortcut,
+		[siblingOfEdited, editInstead],
 	);
 
-	// Shift+Cmd+0: Jump to next sibling
+	// Shift+Cmd+0: Edit the next sibling
 	useHotkeys(
 		"shift+meta+0",
 		() => {
-			// Don't jump if editing (let text editing handle the event)
-			if (editingId !== null) {
-				return;
+			const siblingId = siblingOfEdited(1);
+			if (siblingId !== null) {
+				editInstead(siblingId);
 			}
-
-			// Need a selected node to find siblings
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			// Get siblings of the selected node
-			const parentId = selectedNode.parent_id;
-			const queryKey = nodeKeys.children(parentId);
-			const siblings = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-			if (!siblings || siblings.length < 2) {
-				return;
-			}
-
-			// Sort siblings by priority to find the next one
-			const sortedSiblings = sortByPriority(siblings);
-			const selectedIndex = sortedSiblings.findIndex((sibling) => sibling.id === selectedId);
-
-			// Can't jump to next if already at the last sibling
-			if (selectedIndex === -1 || selectedIndex >= sortedSiblings.length - 1) {
-				return;
-			}
-
-			const nextSibling = sortedSiblings[selectedIndex + 1];
-			select(nextSibling.id);
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, queryClient, select],
+		editingShortcut,
+		[siblingOfEdited, editInstead],
 	);
 
 	// Option+Cmd+Up: Focus previous sibling (zoom to previous sibling of current zoomed node)
@@ -721,160 +499,28 @@ export function useKeyboardShortcuts() {
 		[zoomedNodeId, zoomedNode, zoomedNodeSiblings, navigate],
 	);
 
-	// Shift+Cmd+Backspace: Force delete node and all descendants
+	// Shift+Cmd+Backspace: Delete the edited node and all descendants
 	useHotkeys(
 		"shift+meta+backspace",
 		() => {
-			// Don't delete if editing (let text editing handle the event)
-			if (editingId !== null) {
+			if (editingId === null) {
 				return;
 			}
-
-			// Need a selected node to delete
-			if (selectedId === null || selectedNode === undefined) {
-				return;
-			}
-
-			// Force delete - no checks for empty/children.
-			const nextSelectedId = nextSelectionAfterDelete(visibleNodes, selectedNode);
-			deleteNodeMutation.mutate(selectedId, {
-				onSuccess() {
-					select(nextSelectedId);
-				},
-			});
+			const nodeId = editingId;
+			editBesideRemovedNode(nodeId);
+			deleteNodeMutation.mutate(nodeId);
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, selectedNode, editingId, visibleNodes, deleteNodeMutation, select],
+		editingShortcut,
+		[editingId, editBesideRemovedNode, deleteNodeMutation],
 	);
 
-	// Option+Cmd+8: Set layout mode to bullets (default mode)
-	useHotkeys(
-		"alt+meta+8",
-		() => {
-			// Need a selected node to change layout mode
-			if (selectedId === null) {
-				return;
-			}
-
-			updateNodeMutation.mutate({
-				nodeId: selectedId,
-				layoutMode: "bullets",
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, updateNodeMutation],
-	);
-
-	// Option+Cmd+9: Set layout mode to todo (shows checkboxes)
-	useHotkeys(
-		"alt+meta+9",
-		() => {
-			// Need a selected node to change layout mode
-			if (selectedId === null) {
-				return;
-			}
-
-			updateNodeMutation.mutate({
-				nodeId: selectedId,
-				layoutMode: "todo",
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, updateNodeMutation],
-	);
-
-	// Option+Cmd+1: Set layout mode to heading 1 (largest heading)
-	useHotkeys(
-		"alt+meta+1",
-		() => {
-			// Need a selected node to change layout mode
-			if (selectedId === null) {
-				return;
-			}
-
-			updateNodeMutation.mutate({
-				nodeId: selectedId,
-				layoutMode: "h1",
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, updateNodeMutation],
-	);
-
-	// Option+Cmd+2: Set layout mode to heading 2 (medium heading)
-	useHotkeys(
-		"alt+meta+2",
-		() => {
-			// Need a selected node to change layout mode
-			if (selectedId === null) {
-				return;
-			}
-
-			updateNodeMutation.mutate({
-				nodeId: selectedId,
-				layoutMode: "h2",
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, updateNodeMutation],
-	);
-
-	// Option+Cmd+3: Set layout mode to heading 3 (smallest heading)
-	useHotkeys(
-		"alt+meta+3",
-		() => {
-			// Need a selected node to change layout mode
-			if (selectedId === null) {
-				return;
-			}
-
-			updateNodeMutation.mutate({
-				nodeId: selectedId,
-				layoutMode: "h3",
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, updateNodeMutation],
-	);
-
-	// Option+Cmd+4: Set layout mode to paragraph (no bullets, prose text)
-	useHotkeys(
-		"alt+meta+4",
-		() => {
-			// Need a selected node to change layout mode
-			if (selectedId === null) {
-				return;
-			}
-
-			updateNodeMutation.mutate({
-				nodeId: selectedId,
-				layoutMode: "paragraph",
-			});
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
-		[selectedId, updateNodeMutation],
-	);
+	// Option+Cmd+8/9/1/2/3/4: Set the edited node's layout mode
+	useHotkeys("alt+meta+8", () => setLayoutMode("bullets"), editingShortcut, [setLayoutMode]);
+	useHotkeys("alt+meta+9", () => setLayoutMode("todo"), editingShortcut, [setLayoutMode]);
+	useHotkeys("alt+meta+1", () => setLayoutMode("h1"), editingShortcut, [setLayoutMode]);
+	useHotkeys("alt+meta+2", () => setLayoutMode("h2"), editingShortcut, [setLayoutMode]);
+	useHotkeys("alt+meta+3", () => setLayoutMode("h3"), editingShortcut, [setLayoutMode]);
+	useHotkeys("alt+meta+4", () => setLayoutMode("paragraph"), editingShortcut, [setLayoutMode]);
 
 	// Ctrl+L: Toggle left sidebar
 	useHotkeys(
@@ -933,42 +579,10 @@ export function useKeyboardShortcuts() {
 		[zoomedNodeId, toggleStarPage],
 	);
 
-	// Escape: Open search panel (when not editing and search is closed)
-	// Note: When search panel is open, it handles its own Escape key to close
-	useHotkeys(
-		"escape",
-		() => {
-			// While editing, EditableText handles Escape so dismissing search can resume the edit
-			if (editingId !== null || editingNoteId !== null) {
-				return;
-			}
-
-			// Don't open search if already open (the SearchPanel handles closing)
-			if (searchPanelOpen) {
-				return;
-			}
-
-			// Don't open search if jump menu is open
-			if (jumpMenuOpen) {
-				return;
-			}
-
-			toggleSearchPanel();
-		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[editingId, editingNoteId, searchPanelOpen, jumpMenuOpen, toggleSearchPanel],
-	);
-
 	// Cmd+K: Open jump menu OR link insert modal
 	// - If text is selected in an editable field: open link insert modal
 	// - Otherwise: open jump menu (command palette style navigation)
 	// Note: When jump menu is open, it handles its own Escape key to close
-	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
-	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
-
 	useHotkeys(
 		"meta+k",
 		() => {
@@ -1072,24 +686,19 @@ export function useKeyboardShortcuts() {
 		[editingId, editingNoteId, navigate],
 	);
 
-	// Shift+Cmd+E (⇧⌘E): Export selected node(s)
+	// Shift+Cmd+E (⇧⌘E): Export the edited node
 	// Opens export dialog with options for plain text, markdown, or OPML
 	useHotkeys(
 		"shift+meta+e",
 		() => {
-			// Need at least one selected node to export
-			if (selectedId === null) {
+			if (editingId === null) {
 				return;
 			}
-
-			openExportDialog({
-				nodeIds: [selectedId],
-			});
+			const nodeId = editingId;
+			commitEdit();
+			openExportDialog({nodeIds: [nodeId]});
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[selectedId, openExportDialog],
+		editingShortcut,
+		[editingId, commitEdit, openExportDialog],
 	);
 }

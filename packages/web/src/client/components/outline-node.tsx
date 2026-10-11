@@ -92,8 +92,7 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 		toggleExpand,
 		expandAll,
 		collapseDescendants,
-		select,
-		selectedId,
+		resumeEditing,
 		editingId,
 		editingClickPosition,
 		editingNoteId,
@@ -102,7 +101,6 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 	const {navigateToNode} = useNodeNavigation();
 	const deleteNode = useDeleteNode();
 	const toggleComplete = useToggleComplete();
-	const isSelected = selectedId === node.id;
 	const isEditing = editingId === node.id;
 	const isEditingNote = editingNoteId === node.id;
 	const isCompleted = node.completedAt !== null;
@@ -124,8 +122,13 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 		toggleExpand(node.id);
 	};
 
-	const handleSelect = () => {
-		select(node.id);
+	// Clicking the row outside its text edits the node with the caret at the end;
+	// clicks inside an editor (the text or note being edited) belong to that editor.
+	const handleRowClick = (event: React.MouseEvent) => {
+		if (event.target instanceof Element && event.target.closest("[contenteditable]")) {
+			return;
+		}
+		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
 	};
 
 	const handleBulletClick = (event: React.MouseEvent) => {
@@ -154,7 +157,6 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 
 	const nameClasses = [
 		"name",
-		isSelected && "selected",
 		isCompleted && "completed",
 		isDragging && "dragging",
 		isDragOver && "drag-over",
@@ -189,17 +191,17 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 			style={indentStyle}
 		>
 			<IndentGuideLines depth={depth} />
-			{/* Mouse shortcut for selection; keyboard users select through the outline's arrow-key navigation. */}
+			{/* Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys. */}
 			<div
 				className={nameClasses}
-				onClick={handleSelect}
+				onClick={handleRowClick}
 				onDragLeave={handleDragLeave}
 				onDragOver={handleDragOver}
 				onDrop={handleDrop}
 				role="presentation"
 			>
 				<NodeContextMenuButton
-					isVisible={isHovered || isSelected}
+					isVisible={isHovered || isEditing}
 					node={node}
 					onCollapseAll={handleCollapseAll}
 					onComplete={handleComplete}
@@ -325,8 +327,7 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 		toggleExpand,
 		expandAll,
 		collapseDescendants,
-		select,
-		selectedId,
+		resumeEditing,
 		editingId,
 		editingClickPosition,
 		editingNoteId,
@@ -335,7 +336,6 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 	const {navigateToNode} = useNodeNavigation();
 	const deleteNode = useDeleteNode();
 	const toggleComplete = useToggleComplete();
-	const isSelected = selectedId === node.id;
 	const isEditing = editingId === node.id;
 	const isEditingNote = editingNoteId === node.id;
 	const isCompleted = node.completedAt !== null;
@@ -356,8 +356,13 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 		toggleExpand(node.id);
 	};
 
-	const handleSelect = () => {
-		select(node.id);
+	// Clicking the row outside its text edits the node with the caret at the end;
+	// clicks inside an editor (the text or note being edited) belong to that editor.
+	const handleRowClick = (event: React.MouseEvent) => {
+		if (event.target instanceof Element && event.target.closest("[contenteditable]")) {
+			return;
+		}
+		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
 	};
 
 	const handleBulletClick = (event: React.MouseEvent) => {
@@ -386,7 +391,6 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 
 	const nameClasses = [
 		"name",
-		isSelected && "selected",
 		isCompleted && "completed",
 		isDragging && "dragging",
 		isDragOver && "drag-over",
@@ -403,17 +407,17 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 
 	return (
 		<li className={liClasses}>
-			{/* Mouse shortcut for selection; keyboard users select through the outline's arrow-key navigation. */}
+			{/* Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys. */}
 			<div
 				className={nameClasses}
-				onClick={handleSelect}
+				onClick={handleRowClick}
 				onDragLeave={handleDragLeave}
 				onDragOver={handleDragOver}
 				onDrop={handleDrop}
 				role="presentation"
 			>
 				<NodeContextMenuButton
-					isVisible={isSelected}
+					isVisible={isEditing}
 					node={node}
 					onCollapseAll={handleCollapseAll}
 					onComplete={handleComplete}

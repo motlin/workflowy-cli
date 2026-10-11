@@ -8,8 +8,8 @@ vi.stubGlobal("addEventListener", () => {});
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 
 function editingState() {
-	const {editingId, editingCaretOffset, selectedId, searchPanelOpen, searchReturn} = useOutlineStore.getState();
-	return {editingId, editingCaretOffset, selectedId, searchPanelOpen, searchReturn};
+	const {editingId, editingCaretOffset, lastEditedId, searchPanelOpen, searchReturn} = useOutlineStore.getState();
+	return {editingId, editingCaretOffset, lastEditedId, searchPanelOpen, searchReturn};
 }
 
 describe("Escape while editing opens search and returns to the edited node", () => {
@@ -18,7 +18,7 @@ describe("Escape while editing opens search and returns to the edited node", () 
 			editingId: null,
 			editingCaretOffset: null,
 			editingClickPosition: null,
-			selectedId: null,
+			lastEditedId: null,
 			searchPanelOpen: false,
 			searchInitialQuery: null,
 			searchReturn: null,
@@ -36,14 +36,14 @@ describe("Escape while editing opens search and returns to the edited node", () 
 			opened: {
 				editingId: null,
 				editingCaretOffset: null,
-				selectedId: "node-a",
+				lastEditedId: "node-a",
 				searchPanelOpen: true,
 				searchReturn: {nodeId: "node-a", caretOffset: 7},
 			},
 			dismissed: {
 				editingId: "node-a",
 				editingCaretOffset: 7,
-				selectedId: "node-a",
+				lastEditedId: "node-a",
 				searchPanelOpen: false,
 				searchReturn: null,
 			},
@@ -56,7 +56,7 @@ describe("Escape while editing opens search and returns to the edited node", () 
 		expect(editingState()).toStrictEqual({
 			editingId: null,
 			editingCaretOffset: null,
-			selectedId: "node-a",
+			lastEditedId: "node-a",
 			searchPanelOpen: false,
 			searchReturn: null,
 		});
@@ -68,7 +68,7 @@ describe("Escape while editing opens search and returns to the edited node", () 
 		expect(editingState()).toStrictEqual({
 			editingId: null,
 			editingCaretOffset: null,
-			selectedId: null,
+			lastEditedId: null,
 			searchPanelOpen: false,
 			searchReturn: null,
 		});
@@ -81,7 +81,7 @@ describe("Escape while editing opens search and returns to the edited node", () 
 		expect(editingState()).toStrictEqual({
 			editingId: "node-b",
 			editingCaretOffset: null,
-			selectedId: "node-b",
+			lastEditedId: "node-b",
 			searchPanelOpen: false,
 			searchReturn: null,
 		});

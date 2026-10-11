@@ -27,9 +27,9 @@ const meta: Meta<typeof StaticNode> = {
 			control: "boolean",
 			description: "Whether the node is expanded",
 		},
-		isSelected: {
+		isEditing: {
 			control: "boolean",
-			description: "Whether the node is selected",
+			description: "Whether the node is being edited (shows its menu button)",
 		},
 		depth: {
 			control: {type: "number", min: 0, max: 10},
@@ -78,12 +78,12 @@ export const CompletedNode: Story = {
 	},
 };
 
-export const SelectedNode: Story = {
+export const EditingNode: Story = {
 	args: {
-		name: "A selected node",
+		name: "A node being edited",
 		isExpanded: false,
 		isCompleted: false,
-		isSelected: true,
+		isEditing: true,
 		depth: 0,
 	},
 };

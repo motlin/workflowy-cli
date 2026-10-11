@@ -1,12 +1,14 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
-import {useOutlineStore} from "../stores/outline.js";
+import {shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
 import {planInsertSiblingAfter} from "../tree-ops.js";
-import {adjacentVisibleNode, isCaretOnBoundaryLine} from "../caret-navigation.js";
+import {adjacentVisibleNode, backspaceDeleteTarget, isCaretOnBoundaryLine} from "../caret-navigation.js";
 import type {VerticalDirection} from "../caret-navigation.js";
+import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
+import {readChildren} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
-import {useCreateNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useCreateNode, useDeleteNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
@@ -110,46 +112,6 @@ function verticalEntryPoint(
 	return {x, y: line.top + line.height / 2};
 }
 
-/** Number of text characters between the start of `element` and the caret. */
-function caretTextOffset(element: HTMLElement): number {
-	const selection = globalThis.getSelection();
-	if (!selection || selection.rangeCount === 0) {
-		return element.textContent.length;
-	}
-	const caret = selection.getRangeAt(0);
-	if (!element.contains(caret.endContainer)) {
-		return element.textContent.length;
-	}
-	const before = document.createRange();
-	before.selectNodeContents(element);
-	before.setEnd(caret.endContainer, caret.endOffset);
-	return before.toString().length;
-}
-
-/** Collapse the selection to `offset` text characters into `element`, clamped to its end. */
-function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
-	const range = document.createRange();
-	const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-	let remaining = offset;
-	let placed = false;
-	for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
-		const length = text.textContent?.length ?? 0;
-		if (remaining <= length) {
-			range.setStart(text, remaining);
-			placed = true;
-			break;
-		}
-		remaining -= length;
-	}
-	if (!placed) {
-		range.selectNodeContents(element);
-	}
-	range.collapse(placed);
-	const selection = globalThis.getSelection();
-	selection?.removeAllRanges();
-	selection?.addRange(range);
-}
-
 function execFormatCommand(command: "bold" | "italic" | "underline"): void {
 	// oxlint-disable-next-line typescript/no-deprecated -- no standard replacement applies inline formatting to a contenteditable with native undo
 	document.execCommand(command);
@@ -169,18 +131,21 @@ interface EditableTextProps {
  * - Supports HTML formatting (bold, italic preserved from node content)
  * - Saves on blur
  * - Enter creates a new sibling node below and focuses it
+ * - Backspace in an empty, childless node deletes it and edits the previous node
  * - Escape commits the text and opens search; dismissing search resumes editing here
  */
 export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
 	const queryClient = useQueryClient();
 	const stopEditing = useOutlineStore((state) => state.stopEditing);
-	const select = useOutlineStore((state) => state.select);
 	const startEditing = useOutlineStore((state) => state.startEditing);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
 	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
+	const deleteNodeMutation = useDeleteNode();
 	const tagColors = useTagColors();
 	const setTagColorMutation = useSetTagColor();
 	const removeTagColorMutation = useRemoveTagColor();
@@ -308,21 +273,54 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		// Create the new node
 		createNodeMutation.mutate(payload, {
 			onSuccess(createdNode) {
-				select(createdNode.id);
 				startEditing(createdNode.id);
 			},
 		});
-	}, [
-		nodeId,
-		parentId,
-		priority,
-		queryClient,
-		updateNodeMutation,
-		createNodeMutation,
-		stopEditing,
-		select,
-		startEditing,
-	]);
+	}, [nodeId, parentId, priority, queryClient, updateNodeMutation, createNodeMutation, stopEditing, startEditing]);
+
+	/**
+	 * Backspace in an empty, childless node deletes it and continues editing at the
+	 * end of the previous visible node. Returns false when Backspace should edit text.
+	 */
+	const deleteIfEmpty = useCallback((): boolean => {
+		const content = contentRef.current;
+		if (!content) {
+			return false;
+		}
+		// Unknown children count as children: never delete a subtree that has not loaded.
+		const children = readChildren(queryClient, nodeId);
+		const listed = readChildren(queryClient, parentId)?.find((sibling) => sibling.id === nodeId);
+		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
+		const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore.getState();
+		const visibleIds = collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted);
+		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {text: content.textContent, hasChildren});
+		if (targetId === null) {
+			return false;
+		}
+		resumeEditing(targetId, Number.MAX_SAFE_INTEGER);
+		deleteNodeMutation.mutate(nodeId);
+		return true;
+	}, [nodeId, parentId, queryClient, resumeEditing, deleteNodeMutation]);
+
+	/**
+	 * A structural shortcut (indent, outdent, move) holds editing while it re-renders
+	 * the edited row. If React moved the row and focus fell to the page, take it back
+	 * at the caret captured before the move, keeping the unsaved text in the DOM.
+	 */
+	useLayoutEffect(() => {
+		const content = contentRef.current;
+		if (!isEditing || !content || document.activeElement === content) {
+			return;
+		}
+		const {editingHeld, editingCaretOffset} = useOutlineStore.getState();
+		const focusIsLost = document.activeElement === null || document.activeElement === document.body;
+		if (!editingHeld || !focusIsLost) {
+			return;
+		}
+		content.focus();
+		placeCaretAtTextOffset(content, editingCaretOffset ?? Number.MAX_SAFE_INTEGER);
+		releaseEditing();
+	});
 
 	const toggleStrikethrough = useCallback(() => {
 		const selection = globalThis.getSelection();
@@ -453,8 +451,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}, []);
 
 	const handleBlur = useCallback(() => {
-		saveChanges();
-	}, [saveChanges]);
+		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
+			saveChanges();
+		}
+	}, [nodeId, saveChanges]);
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
@@ -463,9 +463,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				if (moveToAdjacentNode(event.key === "ArrowUp" ? "up" : "down")) {
 					event.preventDefault();
 				}
-			} else if (event.key === "Enter" && !event.shiftKey) {
+			} else if (event.key === "Enter" && plainKey) {
 				event.preventDefault();
 				createSiblingBelow();
+			} else if (event.key === "Backspace" && plainKey) {
+				if (deleteIfEmpty()) {
+					event.preventDefault();
+				}
 			} else if (event.key === "Escape") {
 				event.preventDefault();
 				const caretOffset = contentRef.current ? caretTextOffset(contentRef.current) : 0;
@@ -496,6 +500,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		},
 		[
 			createSiblingBelow,
+			deleteIfEmpty,
 			moveToAdjacentNode,
 			nodeId,
 			openSearchFromEditing,

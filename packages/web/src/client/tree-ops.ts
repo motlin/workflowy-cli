@@ -114,21 +114,3 @@ export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNode
 	const next = sorted[index + 1];
 	return {nodeId: node.id, parent_id: node.parent_id, position: insertAfterPriority(sorted, next.id, next.priority)};
 }
-
-/**
- * The node to select after `node` is deleted: the previous visible node, else the
- * parent, else null (root with nothing before it).
- */
-export function nextSelectionAfterDelete(
-	visibleNodes: string[],
-	node: Pick<NodeResponse, "id" | "parent_id">,
-): string | null {
-	const index = visibleNodes.indexOf(node.id);
-	if (index > 0) {
-		return visibleNodes[index - 1];
-	}
-	if (node.parent_id !== null) {
-		return node.parent_id;
-	}
-	return null;
-}
