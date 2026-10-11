@@ -55,7 +55,7 @@ function getTagAtPosition(text: string, position: number): string | null {
  * Uses caretPositionFromPoint.
  */
 function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): number | null {
-	if (document.caretPositionFromPoint) {
+	if ("caretPositionFromPoint" in document) {
 		const position = document.caretPositionFromPoint(event.clientX, event.clientY);
 		if (position?.offsetNode.nodeType === Node.TEXT_NODE) {
 			// Calculate offset within the full text content
@@ -178,7 +178,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 
 			// If we have a click position, use caretPositionFromPoint to place the cursor there
-			if (clickPosition && document.caretPositionFromPoint) {
+			if (clickPosition && "caretPositionFromPoint" in document) {
 				const position = document.caretPositionFromPoint(clickPosition.x, clickPosition.y);
 				if (position && contentRef.current.contains(position.offsetNode)) {
 					const range = document.createRange();

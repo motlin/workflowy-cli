@@ -59,9 +59,10 @@ export function createEvalContext(options?: {mockServerPort?: number}): EvalCont
 	};
 
 	// If a mock server port is provided, configure API URL and key for write-through
-	if (options?.mockServerPort) {
+	const mockServerPort = options?.mockServerPort ?? 0;
+	if (mockServerPort !== 0) {
 		env.WORKFLOWY_API_KEY = "eval-test-key";
-		env.WORKFLOWY_API_URL = `http://localhost:${options.mockServerPort}`;
+		env.WORKFLOWY_API_URL = `http://localhost:${mockServerPort}`;
 		env.WORKFLOWY_DATA_SOURCE = "cache";
 	}
 
@@ -104,7 +105,7 @@ export async function runInEvalContext(
 		...process.env,
 		...ctx.env,
 	};
-	if (!ctx.mockServerPort) {
+	if ((ctx.mockServerPort ?? 0) === 0) {
 		delete env.WORKFLOWY_API_KEY;
 	}
 

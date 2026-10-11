@@ -69,6 +69,6 @@ export class ListByIdService {
 			.filter((d): d is Date => d !== undefined)
 			.map((d) => d.getTime());
 		const oldestFetch = fetchTimes.length > 0 ? Math.min(...fetchTimes) : undefined;
-		return oldestFetch ? Math.floor((Date.now() - oldestFetch) / 1000) : 0;
+		return oldestFetch !== undefined && oldestFetch !== 0 ? Math.floor((Date.now() - oldestFetch) / 1000) : 0;
 	}
 }

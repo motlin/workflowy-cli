@@ -165,7 +165,7 @@ export default class MigrateDates extends Command {
 		const database = createDatabase();
 
 		const archiveShortId = flags["archive-id"];
-		const yearFilter = flags.year ? String(flags.year) : null;
+		const yearFilter = flags.year === undefined || flags.year === 0 ? null : String(flags.year);
 
 		// Find archive root node by short ID
 		const archiveQuery = sql`
@@ -278,7 +278,7 @@ export default class MigrateDates extends Command {
 
 		const batchSize = flags["batch-size"];
 		const {delay} = flags;
-		const toProcess = batchSize ? parsed.slice(0, batchSize) : parsed;
+		const toProcess = batchSize !== undefined && batchSize !== 0 ? parsed.slice(0, batchSize) : parsed;
 
 		this.log(`\nUpdating ${toProcess.length} nodes (delay: ${delay}ms)...`);
 
@@ -307,7 +307,7 @@ export default class MigrateDates extends Command {
 		}
 
 		this.log(`\nDone: ${updated} updated, ${errors} errors`);
-		if (batchSize && parsed.length > batchSize) {
+		if (batchSize !== undefined && batchSize !== 0 && parsed.length > batchSize) {
 			this.log(`Remaining: ${parsed.length - batchSize} nodes`);
 		}
 	}

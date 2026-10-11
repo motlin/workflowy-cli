@@ -158,7 +158,7 @@ export abstract class BaseListCommand extends Command {
 			.filter((d): d is Date => d !== undefined)
 			.map((d) => d.getTime());
 		const oldestFetch = fetchTimes.length > 0 ? Math.min(...fetchTimes) : undefined;
-		return oldestFetch ? Math.floor((Date.now() - oldestFetch) / 1000) : 0;
+		return oldestFetch !== undefined && oldestFetch !== 0 ? Math.floor((Date.now() - oldestFetch) / 1000) : 0;
 	}
 
 	protected async displayNodes(nodes: NodeTree[], flags: ListCommandFlags): Promise<void> {

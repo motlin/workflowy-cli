@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 		const {children, fallback} = this.props;
 
 		if (hasError) {
-			if (fallback) {
+			if (fallback != null) {
 				return fallback;
 			}
 

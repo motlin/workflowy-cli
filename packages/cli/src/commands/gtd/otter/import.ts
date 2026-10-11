@@ -126,7 +126,7 @@ export default class Import extends Command {
 		const projectRoot = this.findProjectRoot();
 		const syncOutput = await this.runOtterSync(projectRoot);
 
-		if (!syncOutput.speeches || syncOutput.speeches.length === 0) {
+		if (syncOutput.speeches.length === 0) {
 			this.log("No meetings to import");
 			return {imported: 0, total: state.imported_count};
 		}
@@ -270,7 +270,7 @@ export default class Import extends Command {
 			}
 
 			// 5. Create Outline
-			if (meeting.outline && meeting.outline.length > 0) {
+			if (meeting.outline.length > 0) {
 				// Create Outline header
 				const outlineNode = await this.client.createNode({
 					parent_id: meetingNode.id,

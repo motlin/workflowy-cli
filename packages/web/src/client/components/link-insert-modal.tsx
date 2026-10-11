@@ -186,8 +186,9 @@ export function LinkInsertModal() {
 				}
 				case "Enter": {
 					event.preventDefault();
-					if (displayList[selectedIndex]) {
-						insertLink(displayList[selectedIndex]);
+					const selected = displayList[selectedIndex];
+					if (selected !== undefined) {
+						insertLink(selected);
 					}
 					break;
 				}
@@ -210,8 +211,8 @@ export function LinkInsertModal() {
 	}
 
 	const showingRelated = !query.trim() && relatedNodes.length > 0;
-	const showingResults = query.trim() && results.length > 0;
-	const showNoResults = query.trim() && !isSearching && results.length === 0;
+	const showingResults = query.trim() !== "" && results.length > 0;
+	const showNoResults = query.trim() !== "" && !isSearching && results.length === 0;
 	const showEmpty = !query.trim() && !isLoadingRelated && relatedNodes.length === 0;
 
 	return (

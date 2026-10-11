@@ -55,7 +55,7 @@ export class CacheStatusService {
 			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 			.get();
 		logger.logSqlResult("getNodeStats.total", totalNodesResult);
-		const totalNodes = totalNodesResult?.count || 0;
+		const totalNodes = totalNodesResult?.count ?? 0;
 
 		const completedNodesResult = this.database
 			.select({count: count()})
@@ -63,7 +63,7 @@ export class CacheStatusService {
 			.where(and(isNotNull(nodeMetadata.completedAt), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
 			.get();
 		logger.logSqlResult("getNodeStats.completed", completedNodesResult);
-		const completedNodes = completedNodesResult?.count || 0;
+		const completedNodes = completedNodesResult?.count ?? 0;
 
 		const rootNodesResult = this.database
 			.select({count: count()})
@@ -71,7 +71,7 @@ export class CacheStatusService {
 			.where(and(isNull(nodeContent.parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 			.get();
 		logger.logSqlResult("getNodeStats.root", rootNodesResult);
-		const rootNodes = rootNodesResult?.count || 0;
+		const rootNodes = rootNodesResult?.count ?? 0;
 
 		return {
 			total: totalNodes,

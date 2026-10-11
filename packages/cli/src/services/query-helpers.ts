@@ -76,7 +76,9 @@ export class QueryHelpers {
 			logger.logSqlResult("findNodeByPath.children", children);
 
 			// Using 'includes' because names might contain HTML tags
-			const matchingChild = children.find((child) => child.name && child.name.includes(segment));
+			const matchingChild = children.find(
+				(child) => child.name !== null && child.name !== "" && child.name.includes(segment),
+			);
 
 			if (!matchingChild) {
 				return undefined;

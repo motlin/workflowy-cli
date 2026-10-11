@@ -71,7 +71,7 @@ const readLiveName = (nodeId) =>
 		execFileSync("./bin/run.js", ["node", "get", "--id", nodeId, "--json", "--fields", "name"], {encoding: "utf8"}),
 	).name;
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
 	const [command, exercisePath, journalPath] = process.argv.slice(2);
 	if (command === "validate" && exercisePath && journalPath) {

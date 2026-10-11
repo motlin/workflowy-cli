@@ -88,7 +88,7 @@ function render() {
 }
 
 function tierProps() {
-	const props = render().find((element) => element.props.tier)?.props;
+	const props = render().find((element) => element.props.tier !== undefined)?.props;
 	if (!props) {
 		throw new Error("no tier is rendered");
 	}
@@ -380,7 +380,7 @@ describe("local ladder actions", () => {
 describe("a row whose write is in flight", () => {
 	function rowButtons(nodeId: string) {
 		const rows = render()
-			.filter((element) => element.props.tier)
+			.filter((element) => element.props.tier !== undefined)
 			.flatMap((tier) => elements(renderComponent(tier)));
 		const row = rows.find((element) => element.props["data-node-id"] === nodeId);
 		if (!row) {
@@ -548,7 +548,7 @@ describe("subtree preview", () => {
 
 	function rows() {
 		return render()
-			.filter((element) => element.props.tier)
+			.filter((element) => element.props.tier !== undefined)
 			.flatMap((tier) => elements(renderComponent(tier)))
 			.filter((element) => typeof element.props["data-node-id"] === "string");
 	}

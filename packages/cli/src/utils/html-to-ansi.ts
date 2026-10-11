@@ -127,11 +127,9 @@ function processSpan(element: HTMLElement, childText: string): string {
 	let hasStyle = false;
 
 	for (const cls of classes) {
-		if (FOREGROUND_COLORS[cls]) {
-			styledText = FOREGROUND_COLORS[cls](styledText);
-			hasStyle = true;
-		} else if (BACKGROUND_COLORS[cls]) {
-			styledText = BACKGROUND_COLORS[cls](styledText);
+		const color = FOREGROUND_COLORS[cls] ?? BACKGROUND_COLORS[cls];
+		if (color !== undefined) {
+			styledText = color(styledText);
 			hasStyle = true;
 		}
 	}

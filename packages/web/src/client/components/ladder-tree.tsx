@@ -69,7 +69,7 @@ function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors:
 			</p>
 		);
 	}
-	if (!children?.length) {
+	if (children === undefined || children.length === 0) {
 		return <p className="ladder-tree-empty">No subtasks.</p>;
 	}
 	return (
@@ -84,10 +84,11 @@ function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors:
 function LadderTreeNode({node, ancestors}: {node: NodeResponse; ancestors: string[]}) {
 	const identity = node.originalNodeId ?? node.id;
 	const cyclic = ancestors.includes(identity);
+	const completed = node.completedAt !== null && node.completedAt !== 0;
 	const label = (
-		<span className={node.completedAt ? "ladder-tree-completed" : undefined}>
+		<span className={completed ? "ladder-tree-completed" : undefined}>
 			{stripHtmlTags(node.name) || "Untitled"}
-			{node.completedAt ? " (completed)" : ""}
+			{completed ? " (completed)" : ""}
 		</span>
 	);
 	const note = node.note ? <p className="ladder-tree-note">{stripHtmlTags(node.note)}</p> : null;

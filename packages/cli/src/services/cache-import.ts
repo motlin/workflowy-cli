@@ -36,6 +36,15 @@ import {logger} from "./logger.js";
 // Config key for storing the user's Workflowy epoch
 const WORKFLOWY_EPOCH_CONFIG_KEY = "workflowy_epoch";
 
+// Backups write 0 for unknown image dimensions and timestamps.
+function nonZeroOrNull(value: number | undefined): number | null {
+	return value === undefined || value === 0 ? null : value;
+}
+
+function backupTimeOrNull(backupTime: number | undefined, workflowyEpoch: number): number | null {
+	return backupTime === undefined || backupTime === 0 ? null : backupToUnixTime(backupTime, workflowyEpoch);
+}
+
 /**
  * Get the Workflowy epoch from environment variable or config table.
  * Throws if no epoch is configured and credentials are not available.
@@ -438,9 +447,9 @@ export async function importBackup(
 				note: validatedNode.no || null,
 				parentId,
 				priority,
-				createdAt: validatedNode.ct ? backupToUnixTime(validatedNode.ct, workflowyEpoch) : null,
-				modifiedAt: validatedNode.lm ? backupToUnixTime(validatedNode.lm, workflowyEpoch) : null,
-				completedAt: validatedNode.cp ? backupToUnixTime(validatedNode.cp, workflowyEpoch) : null,
+				createdAt: backupTimeOrNull(validatedNode.ct, workflowyEpoch),
+				modifiedAt: backupTimeOrNull(validatedNode.lm, workflowyEpoch),
+				completedAt: backupTimeOrNull(validatedNode.cp, workflowyEpoch),
 				layoutMode: normalizeLayoutMode(validatedNode.metadata.layoutMode),
 			});
 
@@ -460,7 +469,7 @@ export async function importBackup(
 					});
 				}
 				// mirrorRootIds: this node is the original; each of those IDs mirrors it
-				if ("mirrorRootIds" in validatedNode.metadata.mirror && validatedNode.metadata.mirror.mirrorRootIds) {
+				if ("mirrorRootIds" in validatedNode.metadata.mirror) {
 					for (const rootId of Object.keys(validatedNode.metadata.mirror.mirrorRootIds)) {
 						mirrorRecords.push({
 							originalId: validatedNode.id,
@@ -469,10 +478,7 @@ export async function importBackup(
 					}
 				}
 				// backlinkMirrorRootIds: each of those IDs mirrors this node
-				if (
-					"backlinkMirrorRootIds" in validatedNode.metadata.mirror &&
-					validatedNode.metadata.mirror.backlinkMirrorRootIds
-				) {
+				if ("backlinkMirrorRootIds" in validatedNode.metadata.mirror) {
 					for (const backlinkId of Object.keys(validatedNode.metadata.mirror.backlinkMirrorRootIds)) {
 						mirrorRecords.push({
 							originalId: validatedNode.id,
@@ -511,9 +517,9 @@ export async function importBackup(
 					fileType: validatedNode.metadata.s3File.fileType,
 					objectFolder: validatedNode.metadata.s3File.objectFolder || null,
 					isAnimatedGif: validatedNode.metadata.s3File.isAnimatedGIF ? 1 : 0,
-					imageOriginalWidth: validatedNode.metadata.s3File.imageOriginalWidth || null,
-					imageOriginalHeight: validatedNode.metadata.s3File.imageOriginalHeight || null,
-					imageOriginalPixels: validatedNode.metadata.s3File.imageOriginalPixels || null,
+					imageOriginalWidth: nonZeroOrNull(validatedNode.metadata.s3File.imageOriginalWidth),
+					imageOriginalHeight: nonZeroOrNull(validatedNode.metadata.s3File.imageOriginalHeight),
+					imageOriginalPixels: nonZeroOrNull(validatedNode.metadata.s3File.imageOriginalPixels),
 					isDeleted: validatedNode.metadata.s3File.isDeleted ? 1 : 0,
 				});
 			}

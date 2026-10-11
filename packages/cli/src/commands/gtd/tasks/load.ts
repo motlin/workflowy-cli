@@ -145,7 +145,7 @@ export default class Load extends Command {
 			}
 		}
 
-		const allIds = [...containerIds, ...targetIds].filter((id) => id && id !== "null");
+		const allIds = [...containerIds, ...targetIds].filter((id) => id !== "" && id !== "null");
 
 		for (const id of allIds) {
 			const node = this.cacheService.getNode(id);
@@ -228,7 +228,7 @@ export default class Load extends Command {
 		const allTasks: ProjectTask[] = [];
 		const seenIds = new Set<string>();
 
-		const projectIds = metadata.projects.map((p) => p.linkId).filter((id) => id && id !== "null");
+		const projectIds = metadata.projects.map((p) => p.linkId).filter((id) => id !== "" && id !== "null");
 
 		for (const id of projectIds) {
 			const node = this.cacheService.getNode(id);
@@ -318,7 +318,7 @@ export default class Load extends Command {
 		const allMeetings: Meeting[] = [];
 		const seenIds = new Set<string>();
 
-		const calendarIds = metadata.destinations.calendar.map((c) => c.id).filter((id) => id && id !== "null");
+		const calendarIds = metadata.destinations.calendar.map((c) => c.id).filter((id) => id !== "" && id !== "null");
 
 		// Date pattern to extract from <time> elements
 		const timePattern = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"/u;

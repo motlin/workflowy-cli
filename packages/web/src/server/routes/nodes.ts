@@ -187,7 +187,7 @@ nodesRouter.get("/:id", async (c) => {
 
 	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
 	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
-	if (!node) {
+	if (node === undefined) {
 		return c.json({error: "Node not found"}, 404);
 	}
 
@@ -240,10 +240,6 @@ nodesRouter.post("/", async (c) => {
 
 	if (!parentId) {
 		return c.json({error: "parent_id is required"}, 400);
-	}
-
-	if (!client) {
-		return c.json({error: "Failed to initialize client"}, 500);
 	}
 
 	const resolvedPosition: "top" | "bottom" | undefined =
@@ -301,10 +297,6 @@ nodesRouter.post("/:id", async (c) => {
 	}
 
 	const {cacheService} = ctx;
-	if (!client) {
-		return c.json({error: "Failed to initialize client"}, 500);
-	}
-
 	// Get current node to preserve parentId and verify existence
 	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
@@ -347,10 +339,6 @@ nodesRouter.delete("/:id", async (c) => {
 	}
 
 	const {cacheService} = ctx;
-	if (!client) {
-		return c.json({error: "Failed to initialize client"}, 500);
-	}
-
 	// Verify the node exists before attempting to delete
 	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
@@ -376,10 +364,6 @@ nodesRouter.post("/:id/complete", async (c) => {
 	}
 
 	const {cacheService} = ctx;
-	if (!client) {
-		return c.json({error: "Failed to initialize client"}, 500);
-	}
-
 	// Verify the node exists before attempting to complete
 	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
@@ -516,10 +500,6 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 	}
 
 	const {cacheService} = ctx;
-	if (!client) {
-		return c.json({error: "Failed to initialize client"}, 500);
-	}
-
 	// Verify the node exists before attempting to uncomplete
 	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
@@ -574,10 +554,6 @@ nodesRouter.post("/:id/move", async (c) => {
 	}
 
 	const {cacheService} = ctx;
-	if (!client) {
-		return c.json({error: "Failed to initialize client"}, 500);
-	}
-
 	// Verify the node exists
 	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {

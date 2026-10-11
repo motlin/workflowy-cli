@@ -100,7 +100,7 @@ export async function runLlmEval(
 	const env: Record<string, string | undefined> = {...process.env, ...ctx.env};
 	// An API key would bill the API instead of the subscription login
 	delete env.ANTHROPIC_API_KEY;
-	if (!ctx.mockServerPort) {
+	if ((ctx.mockServerPort ?? 0) === 0) {
 		delete env.WORKFLOWY_API_KEY;
 	}
 

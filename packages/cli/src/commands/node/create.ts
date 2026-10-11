@@ -102,6 +102,8 @@ export default class Create extends Command {
 
 	public async run(): Promise<void> {
 		const {flags} = await this.parse(Create);
+		// oclif types parsed flags as `F & {json: boolean | undefined}`, which collapses this string flag to `undefined`.
+		const {json: jsonFlag} = flags as {json?: string};
 
 		const apiKey = process.env.WORKFLOWY_API_KEY;
 		if (!apiKey) {
@@ -109,7 +111,7 @@ export default class Create extends Command {
 		}
 
 		// Validate that either --name or --json/--json-file is provided
-		if (flags.name === undefined && !flags.json && !flags["json-file"]) {
+		if (flags.name === undefined && !jsonFlag && !flags["json-file"]) {
 			this.error("Either --name, --json, or --json-file is required");
 		}
 
@@ -131,7 +133,7 @@ export default class Create extends Command {
 				: await resolveParent({id: flags["parent-id"], path: flags["parent-path"]}, cacheService, apiClient);
 
 		// Handle JSON input mode
-		if (flags.json || flags["json-file"]) {
+		if (jsonFlag || flags["json-file"]) {
 			await this.runJsonMode(flags, parentId, apiClient, cacheService, database);
 			return;
 		}

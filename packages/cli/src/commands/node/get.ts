@@ -120,7 +120,7 @@ export default class Get extends BaseListCommand {
 			followLinks: typedFlags["follow-links"],
 		});
 		const node = trees[0];
-		if (!node) {
+		if (node === undefined) {
 			this.error(`Node not found with ID: ${nodeId}`);
 		}
 

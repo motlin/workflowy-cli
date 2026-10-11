@@ -280,11 +280,11 @@ export class QmdSearchService {
 				data.layoutMode = nodeWithRelations.metadata.layoutMode;
 			}
 
-			if (nodeWithRelations.referencesRoot) {
+			if (nodeWithRelations.referencesRoot != null) {
 				data.isReferencesRoot = true;
 			}
 
-			if (nodeWithRelations.aiMetadata) {
+			if (nodeWithRelations.aiMetadata != null) {
 				data.ai = {
 					inChat: Boolean(nodeWithRelations.aiMetadata.inChat),
 				};

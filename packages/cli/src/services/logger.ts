@@ -83,7 +83,7 @@ const COLORS = {
  * Format params array for display.
  */
 function formatParams(params: unknown[], colorize: boolean): string {
-	if (!params || params.length === 0) {
+	if (params.length === 0) {
 		return colorize ? `${COLORS.cyan}params=[]${COLORS.reset}` : "params=[]";
 	}
 

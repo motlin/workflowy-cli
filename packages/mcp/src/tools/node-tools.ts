@@ -25,7 +25,7 @@ export function registerNodeTools(server: McpServer): void {
 			const nodeId = await resolveNodeId({id, path}, cacheService, apiClient);
 			const [node] = await new NodeTreeReader(cacheService).readNodes([nodeId], {depth: 0});
 
-			if (!node) {
+			if (node === undefined) {
 				return {content: [{type: "text", text: `Node not found: ${nodeId}`}], isError: true};
 			}
 

@@ -159,7 +159,7 @@ describe("node update command", () => {
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
+				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
@@ -184,7 +184,7 @@ describe("node update command", () => {
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
+				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
@@ -214,7 +214,7 @@ describe("node update command", () => {
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
+				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
@@ -243,7 +243,7 @@ describe("node update command", () => {
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
+				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(new Response(JSON.stringify({node: {id: "clear-id", name: ""}}), {status: 200}));
@@ -266,7 +266,7 @@ describe("node update command", () => {
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
+				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
@@ -299,7 +299,7 @@ describe("node update command", () => {
 
 			let capturedBody: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.body) {
+				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(

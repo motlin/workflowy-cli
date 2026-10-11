@@ -224,8 +224,9 @@ export function MoveAssistant() {
 				}
 				case "Enter": {
 					event.preventDefault();
-					if (displayList[selectedIndex]) {
-						handleSelectParent(displayList[selectedIndex]);
+					const selected = displayList[selectedIndex];
+					if (selected !== undefined) {
+						handleSelectParent(selected);
 					}
 					break;
 				}
@@ -248,8 +249,8 @@ export function MoveAssistant() {
 	}
 
 	const showingCandidates = !query.trim() && parentCandidates.length > 0;
-	const showingResults = query.trim() && searchResults.length > 0;
-	const showNoResults = query.trim() && !isSearching && searchResults.length === 0;
+	const showingResults = query.trim() !== "" && searchResults.length > 0;
+	const showNoResults = query.trim() !== "" && !isSearching && searchResults.length === 0;
 	const showEmpty = !query.trim() && !isLoadingCandidates && parentCandidates.length === 0 && !error;
 	const actionVerb = moveAssistantContext.mode === "move" ? "Move" : "Copy";
 	const actionVerbLower = moveAssistantContext.mode === "move" ? "move" : "copy";

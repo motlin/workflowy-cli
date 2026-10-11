@@ -148,8 +148,9 @@ function JumpMenuDialog() {
 				}
 				case "Enter": {
 					event.preventDefault();
-					if (displayList[selectedIndex]) {
-						handleNavigateToNode(displayList[selectedIndex]);
+					const selected = displayList[selectedIndex];
+					if (selected !== undefined) {
+						handleNavigateToNode(selected);
 					}
 					break;
 				}
@@ -168,8 +169,8 @@ function JumpMenuDialog() {
 	);
 
 	const showingRecent = !query.trim() && recentNodes.length > 0;
-	const showingResults = query.trim() && results.length > 0;
-	const showNoResults = query.trim() && !isSearching && results.length === 0;
+	const showingResults = query.trim() !== "" && results.length > 0;
+	const showNoResults = query.trim() !== "" && !isSearching && results.length === 0;
 	const showEmpty = !query.trim() && !isLoadingRecent && recentNodes.length === 0;
 
 	return (

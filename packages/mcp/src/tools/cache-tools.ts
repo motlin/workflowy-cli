@@ -31,7 +31,10 @@ export function registerCacheTools(server: McpServer): void {
 								totalNodes: result.total_nodes,
 								completedNodes: result.completed_nodes,
 								metadataCount: result.metadata_count,
-								lastSync: result.last_sync ? new Date(result.last_sync * 1000).toISOString() : null,
+								lastSync:
+									result.last_sync === null || result.last_sync === 0
+										? null
+										: new Date(result.last_sync * 1000).toISOString(),
 							},
 							null,
 							2,

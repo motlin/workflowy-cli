@@ -57,7 +57,7 @@ class EmbeddingService {
 		}
 
 		const modelConfig = EMBEDDING_MODELS[modelKey];
-		if (!modelConfig || modelConfig.type !== "local") {
+		if (modelConfig?.type !== "local") {
 			throw new Error(`Model ${modelKey} is not a local model`);
 		}
 
@@ -72,7 +72,7 @@ class EmbeddingService {
 		options?: {isQuery?: boolean},
 	): Promise<Float32Array> {
 		const modelConfig = EMBEDDING_MODELS[modelKey];
-		if (!modelConfig) {
+		if (modelConfig === undefined) {
 			throw new Error(`Unknown model: ${modelKey}`);
 		}
 

@@ -130,6 +130,16 @@ export default defineConfig({
 			"typescript/no-unsafe-argument": "error",
 			// Target is es2023, so the `v` flag is unavailable; `u` makes regex parsing strict and astral-aware.
 			"require-unicode-regexp": "error",
+			"typescript/strict-boolean-expressions": [
+				"error",
+				{
+					allowString: true,
+					allowNumber: true,
+					allowNullableObject: true,
+					allowNullableBoolean: true,
+					allowNullableString: true,
+				},
+			],
 			"typescript/restrict-plus-operands": [
 				"error",
 				{
@@ -145,7 +155,7 @@ export default defineConfig({
 			{
 				files: ["plugins/**/*.mjs"],
 				rules: {
-					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules and restrict-plus-operands any-checks only add noise.
+					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules and the any-checks in restrict-plus-operands and strict-boolean-expressions only add noise.
 					"typescript/no-unsafe-member-access": "off",
 					"typescript/no-unsafe-assignment": "off",
 					"typescript/no-unsafe-call": "off",
@@ -159,6 +169,17 @@ export default defineConfig({
 							allowNullish: false,
 							allowNumberAndString: false,
 							allowRegExp: false,
+						},
+					],
+					"typescript/strict-boolean-expressions": [
+						"error",
+						{
+							allowString: true,
+							allowNumber: true,
+							allowNullableObject: true,
+							allowNullableBoolean: true,
+							allowNullableString: true,
+							allowAny: true,
 						},
 					],
 				},

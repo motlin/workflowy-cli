@@ -32,7 +32,7 @@ export function moveWithin(
 	beforeNodeId?: string,
 ): Ladders {
 	const ladder = ladders[root];
-	if (!ladder) {
+	if (ladder === undefined) {
 		return ladders;
 	}
 	const origin = ladder.tiers.find((tier) => tier.items.some((item) => item.id === nodeId));
@@ -151,7 +151,7 @@ export function stepBeforeId(
 /** Restore only the failed row, preserving writes received for other rows. */
 export function restoreRow(current: Ladders, before: Ladders, nodeId: string): Ladders {
 	const root = Object.keys(before).find((name) => tierOf(before, name, nodeId));
-	if (!root || !current[root]) {
+	if (!root || current[root] === undefined) {
 		return current;
 	}
 	const origin = before[root].tiers.find((tier) => tier.items.some((item) => item.id === nodeId))!;

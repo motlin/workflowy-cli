@@ -276,8 +276,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 				}
 				case "Enter": {
 					event.preventDefault();
-					if (results[selectedIndex]) {
-						handleNavigateToResult(results[selectedIndex]);
+					const selected = results[selectedIndex];
+					if (selected !== undefined) {
+						handleNavigateToResult(selected);
 					}
 					break;
 				}

@@ -199,7 +199,7 @@ export function PresentationMode() {
 			<PresentationHeader onClose={closePresentation} parentName={parentName} />
 
 			<div className="presentation-content">
-				{currentSlide && (
+				{currentSlide !== undefined && (
 					<Slide isFirstSlide={currentSlide.isTitle} nodeName={currentSlide.name} parentName={parentName} />
 				)}
 			</div>

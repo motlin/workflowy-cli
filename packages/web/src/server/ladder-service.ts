@@ -115,7 +115,7 @@ export class LadderService {
 	async #ladder(root: string): Promise<Ladder> {
 		const ladders = await this.read();
 		const ladder = ladders[root];
-		if (!ladder) {
+		if (ladder === undefined) {
 			throw new Error(`no ladder named ${root}`);
 		}
 		return ladder;

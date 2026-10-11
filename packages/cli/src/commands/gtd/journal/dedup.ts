@@ -215,10 +215,8 @@ export default class Dedup extends Command {
 		const expanded = new Set(keywords);
 		for (const kw of keywords) {
 			const kwLower = kw.toLowerCase();
-			if (LOCATION_ALIASES[kwLower]) {
-				for (const alias of LOCATION_ALIASES[kwLower]) {
-					expanded.add(alias);
-				}
+			for (const alias of LOCATION_ALIASES[kwLower] ?? []) {
+				expanded.add(alias);
 			}
 			for (const [code, aliases] of Object.entries(LOCATION_ALIASES)) {
 				if (aliases.has(kwLower)) {
@@ -410,10 +408,7 @@ export default class Dedup extends Command {
 					const pattern2 = `${monthName} ${day.toString().padStart(2, "0")}, ${year}`;
 
 					if (row.date_name.includes(pattern1) || row.date_name.includes(pattern2)) {
-						if (!existing[date]) {
-							existing[date] = [];
-						}
-						existing[date].push(row.entry);
+						(existing[date] ??= []).push(row.entry);
 						break;
 					}
 				}
@@ -443,7 +438,8 @@ export default class Dedup extends Command {
 			const {title} = item;
 			const {source} = item;
 
-			if (!existing[date]) {
+			const existingEntries = existing[date];
+			if (existingEntries === undefined) {
 				newItems.push(item);
 				continue;
 			}
@@ -452,7 +448,7 @@ export default class Dedup extends Command {
 			let bestScore = 0;
 			let bestMethod = "";
 
-			for (const entry of existing[date]) {
+			for (const entry of existingEntries) {
 				const {score, method} = this.similarity(title, entry);
 				if (score > bestScore) {
 					bestScore = score;

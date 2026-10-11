@@ -151,7 +151,7 @@ export const validateProposal = (staged) => {
 	return {valid: errors.length === 0, errors};
 };
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
 	const path = process.argv[2];
 	if (!path) {

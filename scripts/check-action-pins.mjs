@@ -22,8 +22,11 @@ export function findPinConflicts(files) {
 		content.split("\n").forEach((text, index) => {
 			const uses = USES.exec(text);
 			const target = uses?.[1];
-			const remote = target && !target.startsWith("./") && !target.startsWith("docker://") && REMOTE.exec(target);
-			if (!remote) {
+			if (target === undefined || target === "" || target.startsWith("./") || target.startsWith("docker://")) {
+				return;
+			}
+			const remote = REMOTE.exec(target);
+			if (remote === null) {
 				return;
 			}
 			const [, action, ref] = remote;

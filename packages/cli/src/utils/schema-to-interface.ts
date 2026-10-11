@@ -17,11 +17,12 @@ export function schemaToInterface(schema: SchemaObject, interfaceName: string): 
 	const lines: string[] = [];
 	const visited = new Set<string>();
 
-	if (rootRefName && definitions[rootRefName]) {
-		const rootDef = definitions[rootRefName] as SchemaObject;
-		formatObject(rootDef, interfaceName, lines, definitions, visited, nameMap);
-	} else {
+	const rootDefinition = rootRefName === undefined ? undefined : definitions[rootRefName];
+	if (rootDefinition === undefined) {
 		formatObject(schema, interfaceName, lines, definitions, visited, nameMap);
+	} else {
+		const rootDef = rootDefinition as SchemaObject;
+		formatObject(rootDef, interfaceName, lines, definitions, visited, nameMap);
 	}
 
 	return lines.join("\n");
@@ -66,7 +67,7 @@ function resolveRef(schema: SchemaObject, definitions: Record<string, Definition
 	if (schema.$ref) {
 		const refName = schema.$ref.replace("#/definitions/", "");
 		const def = definitions[refName];
-		if (def && typeof def !== "boolean") {
+		if (def !== undefined && typeof def !== "boolean") {
 			return def;
 		}
 	}
@@ -83,7 +84,7 @@ function formatType(
 		const refName = schema.$ref.replace("#/definitions/", "");
 		const displayName = nameMap.get(refName) ?? refName;
 		const def = definitions[refName];
-		if (def && typeof def !== "boolean") {
+		if (def !== undefined && typeof def !== "boolean") {
 			const resolved = def as SchemaObject;
 			if (resolved.properties) {
 				nestedInterfaces.push({schema: resolved, name: displayName});
@@ -104,7 +105,7 @@ function formatType(
 
 	if (schema.type === "array") {
 		const {items} = schema;
-		if (items && typeof items !== "boolean" && !Array.isArray(items)) {
+		if (items !== undefined && typeof items !== "boolean" && !Array.isArray(items)) {
 			const itemType = formatType(items, definitions, nestedInterfaces, nameMap);
 			return itemType.includes("|") ? `(${itemType})[]` : `${itemType}[]`;
 		}

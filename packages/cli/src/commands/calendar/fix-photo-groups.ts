@@ -238,7 +238,8 @@ export default class FixPhotoGroups extends Command {
 			this.warn(staleness);
 		}
 
-		const toProcess = flags["batch-size"] ? fixable.slice(0, flags["batch-size"]) : fixable;
+		const batchSize = flags["batch-size"];
+		const toProcess = batchSize !== undefined && batchSize !== 0 ? fixable.slice(0, batchSize) : fixable;
 		const titles = loadEntryTitles(
 			database,
 			toProcess.map(({group}) => group.entryId),
