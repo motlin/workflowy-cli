@@ -131,12 +131,12 @@ describe("round-trip test infrastructure", () => {
 
 /** Sort temporal rows by their `id` column for order-independent comparison. */
 function sortById<T extends {id: string}>(rows: T[]): T[] {
-	return [...rows].sort((a, b) => a.id.localeCompare(b.id));
+	return [...rows].toSorted((a, b) => a.id.localeCompare(b.id));
 }
 
 /** Sort temporal rows by their `nodeId` column for order-independent comparison. */
 function sortByNodeId<T extends {nodeId: string}>(rows: T[]): T[] {
-	return [...rows].sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+	return [...rows].toSorted((a, b) => a.nodeId.localeCompare(b.nodeId));
 }
 
 /**
@@ -165,7 +165,7 @@ describe("round-trip equivalence", () => {
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
 				.map((row) => row.id);
-			expect(ids.sort()).toStrictEqual([
+			expect(ids.toSorted()).toStrictEqual([
 				"11111111-1111-1111-1111-111111111111",
 				"22222222-2222-2222-2222-222222222222",
 				"33333333-3333-3333-3333-333333333333",

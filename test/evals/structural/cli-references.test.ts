@@ -90,7 +90,7 @@ describe("CLI Reference Validation", () => {
 				const relativePath = filePath.replace(projectRoot + "/", "");
 				const validCommands = [...commandIds]
 					.filter((id) => !HIDDEN_BASE_COMMANDS.has(id))
-					.sort()
+					.toSorted()
 					.join(", ");
 				errors.push(
 					`${relativePath}:${line}: ./bin/run.js ${command}\n` +
@@ -123,7 +123,7 @@ describe("CLI Reference Validation", () => {
 				if (validFlags.has(resolvedFlag)) continue;
 
 				const relativePath = filePath.replace(projectRoot + "/", "");
-				const validFlagList = [...validFlags].sort().join(", ");
+				const validFlagList = [...validFlags].toSorted().join(", ");
 				errors.push(
 					`${relativePath}:${line}: --${flag} on command "${command}"\n` +
 						`  Unknown flag "${resolvedFlag}". Valid flags for ${command}: ${validFlagList}`,

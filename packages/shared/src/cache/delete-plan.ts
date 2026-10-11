@@ -105,7 +105,7 @@ export async function planSubtreeDelete(
 		const before = siblings.slice(0, Math.max(slot, 0));
 		const after = slot === -1 ? [] : siblings.slice(slot + 1);
 		const position = slot !== -1 && before.length <= after.length ? "top" : "bottom";
-		const siblingIds = position === "top" ? before.reverse() : after;
+		const siblingIds = position === "top" ? before.toReversed() : after;
 
 		pendingMirrors.delete(mirrorId);
 		outline.remove(mirrorId);

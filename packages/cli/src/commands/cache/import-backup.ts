@@ -150,7 +150,7 @@ export default class ImportBackup extends Command {
 				}
 			};
 
-			const stats = await importService.importBackup({
+			const importStats = await importService.importBackup({
 				filePath,
 				generateEmbeddings: flags.embeddings,
 				embeddingBatchSize: flags["batch-size"],
@@ -160,26 +160,26 @@ export default class ImportBackup extends Command {
 
 			const importElapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 
-			if (stats.nodesPreserved > 0) {
+			if (importStats.nodesPreserved > 0) {
 				this.log(
-					`\n🛡  Snapshot predates the cache (snapshot ${stats.incomingWatermark}, cache ${stats.localWatermark}); ` +
-						`kept ${stats.nodesPreserved.toLocaleString()} newer node(s) it does not describe.`,
+					`\n🛡  Snapshot predates the cache (snapshot ${importStats.incomingWatermark}, cache ${importStats.localWatermark}); ` +
+						`kept ${importStats.nodesPreserved.toLocaleString()} newer node(s) it does not describe.`,
 				);
 			}
 
-			const changedCount = stats.nodesAdded + stats.nodesUpdated + stats.nodesDeleted;
+			const changedCount = importStats.nodesAdded + importStats.nodesUpdated + importStats.nodesDeleted;
 			if (changedCount === 0) {
-				this.log(`✓ No changes (${stats.totalNodes.toLocaleString()} nodes in ${importElapsedSeconds}s)`);
+				this.log(`✓ No changes (${importStats.totalNodes.toLocaleString()} nodes in ${importElapsedSeconds}s)`);
 			} else {
 				this.log(
-					`✓ +${stats.nodesAdded.toLocaleString()} added, ` +
-						`~${stats.nodesUpdated.toLocaleString()} updated ` +
-						`(${stats.contentUpdated.toLocaleString()} content, ${stats.priorityUpdated.toLocaleString()} priority, ${stats.metadataUpdated.toLocaleString()} metadata), ` +
-						`=${stats.nodesUnchanged.toLocaleString()} unchanged, ` +
-						`-${stats.nodesDeleted.toLocaleString()} deleted`,
+					`✓ +${importStats.nodesAdded.toLocaleString()} added, ` +
+						`~${importStats.nodesUpdated.toLocaleString()} updated ` +
+						`(${importStats.contentUpdated.toLocaleString()} content, ${importStats.priorityUpdated.toLocaleString()} priority, ${importStats.metadataUpdated.toLocaleString()} metadata), ` +
+						`=${importStats.nodesUnchanged.toLocaleString()} unchanged, ` +
+						`-${importStats.nodesDeleted.toLocaleString()} deleted`,
 				);
 				this.log(
-					`  (${stats.nodesAdded} + ${stats.nodesUpdated} + ${stats.nodesUnchanged} + ${stats.nodesDeleted} = ${stats.totalNodes.toLocaleString()} nodes in ${importElapsedSeconds}s)`,
+					`  (${importStats.nodesAdded} + ${importStats.nodesUpdated} + ${importStats.nodesUnchanged} + ${importStats.nodesDeleted} = ${importStats.totalNodes.toLocaleString()} nodes in ${importElapsedSeconds}s)`,
 				);
 			}
 

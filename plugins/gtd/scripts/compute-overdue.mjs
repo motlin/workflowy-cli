@@ -230,7 +230,7 @@ export function foldSkipLog(entries) {
 	const streaks = new Map();
 	for (const [key, byDate] of byKey) {
 		// ISO YYYY-MM-DD keys sort chronologically.
-		const dates = [...byDate.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+		const dates = [...byDate.keys()].toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 		let skipStreak = 0;
 		let skippedSince = null;
 		for (let i = dates.length - 1; i >= 0; i--) {
@@ -279,7 +279,7 @@ export function nextLongerSection(sections, interval) {
 		.map((section) => ({name: section.name, id: section.id, interval: intervalForSection(section.name)}))
 		// A section with no known interval cannot stage a date, so it is not a move target.
 		.filter((section) => section.interval !== null && intervalDays(section.interval) > current)
-		.sort((a, b) => intervalDays(a.interval) - intervalDays(b.interval));
+		.toSorted((a, b) => intervalDays(a.interval) - intervalDays(b.interval));
 	return candidates[0] ?? null;
 }
 

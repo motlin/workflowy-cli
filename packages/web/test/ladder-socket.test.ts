@@ -14,7 +14,7 @@ const event = (nodeId: string) => ({
 function connect(bus: LadderEventBus, options?: {replay?: boolean}) {
 	const ws = {send: vi.fn<(data: string) => void>(), close: vi.fn<() => void>()};
 	const handlers = ladderSocketHandlers(bus, options);
-	handlers.onOpen?.({} as never, ws as never);
+	handlers.onOpen?.({}, ws);
 	return {ws, handlers};
 }
 
@@ -38,7 +38,7 @@ describe("ladderSocketHandlers", () => {
 	it("stops sending after the socket closes", () => {
 		const bus = new LadderEventBus();
 		const {ws, handlers} = connect(bus);
-		handlers.onClose?.({} as never, ws as never);
+		handlers.onClose?.({}, ws);
 		bus.publish(event("a"));
 		expect(ws.send).not.toHaveBeenCalled();
 	});

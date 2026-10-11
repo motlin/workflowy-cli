@@ -76,7 +76,7 @@ export default class ImportBackups extends Command {
 		}
 
 		if (lastImportDate && unimportedBackups.length > 0) {
-			const firstUnimported = unimportedBackups[0]!;
+			const firstUnimported = unimportedBackups[0];
 			const daysDiff = getDateDifference(lastImportDate, firstUnimported.backupDate);
 			if (daysDiff > 1) {
 				this.log(
@@ -119,7 +119,7 @@ export default class ImportBackups extends Command {
 	}
 
 	private async executeCommand(topic: string, args: string[]): Promise<void> {
-		const {default: Command} = await import(`../${topic}/${args[0]}.js`);
-		await Command.run(args.slice(1));
+		const {default: SubCommand} = await import(`../${topic}/${args[0]}.js`);
+		await SubCommand.run(args.slice(1));
 	}
 }

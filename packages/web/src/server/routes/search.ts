@@ -42,7 +42,7 @@ async function getDescendantIds(database: ReturnType<typeof getDatabase>, parent
 
 // POST /api/search - Text-based search with operators
 searchRouter.post("/", async (c) => {
-	const body = (await c.req.json()) as SearchBody;
+	const body = await c.req.json<SearchBody>();
 	const {query, limit = 10, offset = 0, parentId} = body;
 
 	if (!query || query.trim().length === 0) {
@@ -177,8 +177,8 @@ searchRouter.post("/", async (c) => {
 	const pathByParent = await new PathBuilder(database).buildFullPathsBatch(parentIds);
 
 	const results: SearchResult[] = paginatedResults.map(({id, name, note}) => {
-		const parentId = parentIdOf.get(id) ?? null;
-		return {id, name, note, parentPath: parentId ? (pathByParent.get(parentId) ?? "") : ""};
+		const nodeParentId = parentIdOf.get(id) ?? null;
+		return {id, name, note, parentPath: nodeParentId ? (pathByParent.get(nodeParentId) ?? "") : ""};
 	});
 
 	return c.json({results, totalCount});

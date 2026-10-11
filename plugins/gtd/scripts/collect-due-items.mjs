@@ -360,7 +360,7 @@ export function collectDueItems(sources, todayISO, {skipStreaks = new Map(), hor
 	// A positive horizon also admits items due soon; their overdueByDays comes out negative.
 	const lastDueISO = addDaysISO(todayISO, horizonDays);
 	// Undated items sort last: they still need handling, but a real deadline outranks a maybe.
-	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= lastDueISO)).sort((a, b) => {
+	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= lastDueISO)).toSorted((a, b) => {
 		if (a.due === null && b.due === null) return 0;
 		if (a.due === null) return 1;
 		if (b.due === null) return -1;

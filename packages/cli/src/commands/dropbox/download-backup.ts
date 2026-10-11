@@ -115,7 +115,7 @@ export default class DownloadBackup extends Command {
 			return new Dropbox({accessToken});
 		}
 
-		this.error(
+		return this.error(
 			"Dropbox credentials not set. Please set either:\n" +
 				"  1. DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, and DROPBOX_APP_SECRET, or\n" +
 				"  2. DROPBOX_ACCESS_TOKEN\n\n" +
@@ -155,7 +155,7 @@ export default class DownloadBackup extends Command {
 					(entry): entry is files.FileMetadataReference =>
 						entry[".tag"] === "file" && entry.name.endsWith(fileExtension),
 				)
-				.sort((a, b) => {
+				.toSorted((a, b) => {
 					const dateA = new Date(a.client_modified).getTime();
 					const dateB = new Date(b.client_modified).getTime();
 					return dateA - dateB;
@@ -249,7 +249,7 @@ export default class DownloadBackup extends Command {
 				this.error(`Failed to download backup: ${error.message}`);
 			}
 
-			this.error(`Failed to download backup: ${String(error)}`);
+			return this.error(`Failed to download backup: ${String(error)}`);
 		}
 	}
 

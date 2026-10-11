@@ -59,7 +59,7 @@ export function findWorktrees(paths) {
 		if (root !== null) dirCounts.set(root, (dirCounts.get(root) ?? 0) + 1);
 	}
 	return [...dirCounts.keys()]
-		.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+		.toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 		.map((root) => describeWorktree(root, dirCounts.get(root)));
 }
 

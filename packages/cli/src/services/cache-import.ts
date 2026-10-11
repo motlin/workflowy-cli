@@ -195,7 +195,9 @@ function calculatePriorities(
 
 	// Check if order changed for existing nodes
 	// Existing order: sort by priority, extract IDs
-	const existingOrder = [...existingNodes].sort((a, b) => a.existingPriority! - b.existingPriority!).map((s) => s.id);
+	const existingOrder = [...existingNodes]
+		.toSorted((a, b) => a.existingPriority! - b.existingPriority!)
+		.map((s) => s.id);
 	// Backup order: already sorted by backupPosition, just extract IDs of existing nodes
 	const backupOrderOfExisting = siblings.filter((s) => s.existingPriority !== null).map((s) => s.id);
 
@@ -539,10 +541,10 @@ export async function importBackup(
 				if (cal.levels) {
 					calendarLevelsRecords.push({
 						nodeId: validatedNode.id,
-						day: cal.levels.day ? 1 : cal.levels.day === false ? 0 : null,
-						week: cal.levels.week ? 1 : cal.levels.week === false ? 0 : null,
-						month: cal.levels.month ? 1 : cal.levels.month === false ? 0 : null,
-						year: cal.levels.year ? 1 : cal.levels.year === false ? 0 : null,
+						day: optionalBooleanToInt(cal.levels.day),
+						week: optionalBooleanToInt(cal.levels.week),
+						month: optionalBooleanToInt(cal.levels.month),
+						year: optionalBooleanToInt(cal.levels.year),
 					});
 				}
 			}
@@ -1052,4 +1054,12 @@ export async function importBackup(
 		localWatermark,
 		incomingWatermark,
 	};
+}
+
+// Record lookups on the backup schema type as `boolean`, but absent keys must stay null.
+function optionalBooleanToInt(value: boolean | undefined): 0 | 1 | null {
+	if (value === undefined) {
+		return null;
+	}
+	return value ? 1 : 0;
 }

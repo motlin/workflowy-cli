@@ -45,7 +45,7 @@ test("nextActions includes open tasks on the asap ladder tiers and skips tiers a
 	);
 
 	assert.deepEqual(
-		output.nextActions.map((task) => ({id: task.id, name: task.name})).sort((a, b) => a.id.localeCompare(b.id)),
+		output.nextActions.map((task) => ({id: task.id, name: task.name})).toSorted((a, b) => a.id.localeCompare(b.id)),
 		[
 			{id: "t-open", name: "Arrange Dev Practice work into Arcs #work"},
 			{id: "t-two", name: "Set up a weekly Dev Practice meeting #work"},

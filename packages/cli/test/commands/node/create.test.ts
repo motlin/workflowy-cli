@@ -279,13 +279,13 @@ describe("node create command", () => {
 			});
 
 			const now = Math.floor(Date.now() / 1000);
-			const requests: string[] = [];
+			const capturedRequests: string[] = [];
 			let capturedBody: string | undefined;
 
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const urlStr = url instanceof Request ? url.url : String(url);
 				const method = init?.method ?? "GET";
-				requests.push(`${method} ${urlStr}`);
+				capturedRequests.push(`${method} ${urlStr}`);
 
 				if (method === "POST" && urlStr.endsWith("/nodes/")) {
 					capturedBody = init?.body as string;
@@ -323,7 +323,7 @@ describe("node create command", () => {
 				"Creating node: Test\nParent: \n\nSuccessfully created node\n  ID: new-id\n  Name: Test\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newid\n",
 			);
 			expect(JSON.parse(capturedBody!)).toStrictEqual({parent_id: "inbox", name: "Test"});
-			expect(requests).toStrictEqual([
+			expect(capturedRequests).toStrictEqual([
 				"POST https://workflowy.com/api/v1/nodes/",
 				"GET https://workflowy.com/api/v1/nodes/new-id",
 			]);

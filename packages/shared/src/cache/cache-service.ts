@@ -432,7 +432,7 @@ export class CacheService {
 						layoutMode: normalizeLayoutMode(apiNode.data?.layoutMode),
 					};
 
-					const contentChanged = !contentMatches(existingContent!, contentData);
+					const contentChanged = !contentMatches(existingContent, contentData);
 					const metadataChanged = existingMetadata && !metadataMatches(existingMetadata, metaData);
 
 					if (contentChanged) {
@@ -613,7 +613,7 @@ export class CacheService {
 				layoutMode: normalizeLayoutMode(node.data?.layoutMode),
 			};
 
-			const contentChanged = !contentMatches(existingContent!, contentData);
+			const contentChanged = !contentMatches(existingContent, contentData);
 			const metadataChanged = existingMetadata && !metadataMatches(existingMetadata, metaData);
 
 			if (contentChanged || metadataChanged) {
@@ -996,7 +996,7 @@ export class CacheService {
 		const mirrorsOf = new Map<string, string[]>();
 		for (const id of nonMirrorIds) {
 			const ids = mirrorIds.get(id);
-			if (ids !== undefined) mirrorsOf.set(id, ids.sort());
+			if (ids !== undefined) mirrorsOf.set(id, ids.toSorted());
 		}
 		return {parents, inside, mirrorsOf};
 	}

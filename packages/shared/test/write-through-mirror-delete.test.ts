@@ -161,7 +161,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			if (method === "GET" && path.startsWith("/nodes?parent_id=")) {
 				const parentId = path.slice("/nodes?parent_id=".length);
 				// Workflowy lists children in no particular order, so list them reversed.
-				const nodes = (server.get(parentId) ?? []).map((id) => toApi(id, parentId)).reverse();
+				const nodes = (server.get(parentId) ?? []).map((id) => toApi(id, parentId)).toReversed();
 				return new Response(JSON.stringify({nodes}), {status: 200});
 			}
 			const id = path.split("/")[2];
@@ -196,7 +196,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			)
 			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 			.all()
-			.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id));
+			.toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id));
 		const outline: Record<string, string[]> = {};
 		for (const row of rows) (outline[row.parentId ?? "root"] ??= []).push(row.id);
 		return {

@@ -21,7 +21,7 @@ test("recurring lookup includes future nested matches and excludes mirrors, arch
 	const future = {
 		id: "alice",
 		shortId: "alice-short",
-		name: "<b>Check filter</b> " + '<time startYear="2000" startMonth="7" startDay="1">date</time>',
+		name: '<b>Check filter</b> <time startYear="2000" startMonth="7" startDay="1">date</time>',
 	};
 	const tree = {
 		children: [

@@ -58,25 +58,27 @@ export function LinkInsertModal() {
 			// Fetch semantically related nodes using embeddings
 			// These appear automatically without typing - our differentiating feature
 			setIsLoadingRelated(true);
-			void fetch("/api/related", {
-				method: "POST",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({
-					nodeId: linkInsertContext.nodeId,
-					type: "link-targets",
-					limit: 8,
-					threshold: 0.6,
-				}),
-			})
-				.then(async (response) => {
+			const {nodeId} = linkInsertContext;
+			void (async () => {
+				try {
+					const response = await fetch("/api/related", {
+						method: "POST",
+						headers: {"Content-Type": "application/json"},
+						body: JSON.stringify({
+							nodeId,
+							type: "link-targets",
+							limit: 8,
+							threshold: 0.6,
+						}),
+					});
 					if (response.ok) {
 						const data = (await response.json()) as RelatedResponse;
 						setRelatedNodes(data.results);
 					}
-				})
-				.finally(() => {
+				} finally {
 					setIsLoadingRelated(false);
-				});
+				}
+			})();
 		}
 	}, [linkInsertOpen, linkInsertContext]);
 
@@ -92,7 +94,7 @@ export function LinkInsertModal() {
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
-			return;
+			return undefined;
 		}
 
 		const searchTimeout = setTimeout(async () => {

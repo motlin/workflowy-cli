@@ -173,6 +173,10 @@ export function ExportDialog() {
 			case "opml": {
 				return formatOpml(trees);
 			}
+			default: {
+				const unknownFormat: never = format;
+				throw new Error(`Unknown export format: ${String(unknownFormat)}`);
+			}
 		}
 	}, [format, isError, trees]);
 

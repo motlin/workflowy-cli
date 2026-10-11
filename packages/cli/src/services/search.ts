@@ -49,6 +49,10 @@ export class SearchService {
 			case "hybrid": {
 				return this.searchHybrid(options);
 			}
+			default: {
+				const unknownMode: never = mode;
+				throw new Error(`Unknown search mode: ${String(unknownMode)}`);
+			}
 		}
 	}
 
@@ -138,7 +142,7 @@ export class SearchService {
 		}
 
 		// Sort by RRF score descending, convert to distance (lower = better)
-		const sorted = [...rrfScores.values()].sort((a, b) => b.score - a.score).slice(0, limit);
+		const sorted = [...rrfScores.values()].toSorted((a, b) => b.score - a.score).slice(0, limit);
 
 		return sorted.map(({result, score}) => ({
 			...result,

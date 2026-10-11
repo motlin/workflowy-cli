@@ -1,7 +1,7 @@
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
 import {EmbeddingGeneratorService} from "../../services/embedding-generator.js";
-import {EMBEDDING_MODELS, type EmbeddingModelKey} from "../../services/embeddings.js";
+import {EMBEDDING_MODELS} from "../../services/embeddings.js";
 
 export default class Embed extends Command {
 	static override description = "Generate vector embeddings for all Workflowy nodes";
@@ -35,7 +35,7 @@ export default class Embed extends Command {
 
 		const database = createDatabase();
 		const service = new EmbeddingGeneratorService(database);
-		const model = flags.model as EmbeddingModelKey | undefined;
+		const model = flags.model;
 
 		const result = await service.generateEmbeddings(
 			{

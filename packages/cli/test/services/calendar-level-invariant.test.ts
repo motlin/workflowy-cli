@@ -185,7 +185,7 @@ describe("calendar level/levels invariant", () => {
 			metadataRows
 				.filter((row) => row.level !== null)
 				.map((row) => row.level)
-				.sort((a, b) => String(a).localeCompare(String(b))),
+				.toSorted((a, b) => String(a).localeCompare(String(b))),
 		).toStrictEqual(["day", "month", "year"]);
 	});
 });

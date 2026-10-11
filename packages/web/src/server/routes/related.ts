@@ -227,7 +227,7 @@ async function findLinkTargets(
 
 // POST /api/related - Find related nodes using semantic similarity
 relatedRouter.post("/", async (c) => {
-	const body = (await c.req.json()) as RelatedBody;
+	const body = await c.req.json<RelatedBody>();
 	const {nodeId, type, limit = 10, threshold = 0.5, model = "minilm"} = body;
 
 	if (!nodeId) {
@@ -262,7 +262,7 @@ relatedRouter.post("/", async (c) => {
 		return c.json({error: "Node embedding not found. Ensure embeddings have been generated."}, 404);
 	}
 
-	const embeddingBuffer = sourceEmbedding.embedding as Buffer;
+	const embeddingBuffer = sourceEmbedding.embedding;
 
 	let results: RelatedNode[];
 

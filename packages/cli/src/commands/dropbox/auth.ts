@@ -51,7 +51,7 @@ export default class DropboxAuthCommand extends Command {
 		this.log("Opening browser for authentication...\n");
 
 		const {exec} = await import("node:child_process");
-		exec(`open "${String(authUrl)}"`);
+		exec(`open "${authUrl}"`);
 
 		let authCode = "";
 		const server = createServer((req, res) => {

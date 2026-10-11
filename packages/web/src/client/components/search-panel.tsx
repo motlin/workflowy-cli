@@ -164,7 +164,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 	// Perform search when query, model, or scope changes
 	useEffect(() => {
 		if (!query.trim()) {
-			return;
+			return undefined;
 		}
 
 		const searchTimeout = setTimeout(async () => {

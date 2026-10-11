@@ -20,21 +20,21 @@ export abstract class BaseListCommand extends Command {
 	static hidden = true;
 
 	protected apiClient: WorkflowyApiClient | null = null;
-	private _cacheService?: CacheService;
-	private _pathBuilder?: PathBuilder;
+	#cacheService?: CacheService;
+	#pathBuilder?: PathBuilder;
 
 	protected get cacheService(): CacheService {
-		if (!this._cacheService) {
-			this._cacheService = new CacheService(createDatabase());
+		if (!this.#cacheService) {
+			this.#cacheService = new CacheService(createDatabase());
 		}
-		return this._cacheService;
+		return this.#cacheService;
 	}
 
 	protected get pathBuilder(): PathBuilder {
-		if (!this._pathBuilder) {
-			this._pathBuilder = new PathBuilder(createDatabase());
+		if (!this.#pathBuilder) {
+			this.#pathBuilder = new PathBuilder(createDatabase());
 		}
-		return this._pathBuilder;
+		return this.#pathBuilder;
 	}
 
 	static baseFlags = {

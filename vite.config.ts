@@ -52,13 +52,29 @@ export default defineConfig({
 		],
 		categories: {
 			correctness: "error",
+			suspicious: "error",
 		},
 		rules: {
 			"vite-plus/prefer-vite-plus-imports": "error",
 			"react/react-in-jsx-scope": "off",
 			"vitest/expect-expect": ["error", {assertFunctionNames: ["expect", "expect*"]}],
 			"vitest/valid-expect": ["error", {maxArgs: 2}],
+			// Stylesheets and the MCP bin entrypoint are imported for their side effects.
+			"import/no-unassigned-import": ["error", {allow: ["**/*.css", "**/dist/index.js"]}],
+			// False positives on deps used inside a nested async IIFE; dropping them creates stale closures.
+			"react/memo-dependencies": "off",
+			// Temporarily off: 200+ violations, being fixed in follow-up tasks in .llm/todo.md.
+			"typescript/no-unsafe-type-assertion": "off",
 		},
+		overrides: [
+			{
+				files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"],
+				rules: {
+					// Per-test fakes read better next to the assertion that uses them than hoisted to module scope.
+					"unicorn/consistent-function-scoping": "off",
+				},
+			},
+		],
 		env: {
 			builtin: true,
 		},

@@ -111,7 +111,7 @@ export default class Api extends Command {
 				return this.actionItems(flags.otid);
 			}
 			default: {
-				this.error(`Unknown command: ${command}`);
+				return this.error(`Unknown command: ${command}`);
 			}
 		}
 	}

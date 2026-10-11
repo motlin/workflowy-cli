@@ -39,7 +39,7 @@ export type EmbeddingModelKey = keyof typeof EMBEDDING_MODELS;
 
 export const DEFAULT_MODELS = Object.entries(EMBEDDING_MODELS)
 	.filter(([, config]) => config.type === "local")
-	.map(([key]) => key) as EmbeddingModelKey[];
+	.map(([key]) => key);
 
 class EmbeddingService {
 	private extractors: Map<string, FeatureExtractionPipeline> = new Map();

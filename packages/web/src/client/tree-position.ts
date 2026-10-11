@@ -15,7 +15,7 @@ export interface SiblingLike {
 
 /** Return a copy of the siblings sorted by ascending priority. */
 export function sortByPriority<T extends SiblingLike>(siblings: T[]): T[] {
-	return [...siblings].sort((a, b) => a.priority - b.priority);
+	return [...siblings].toSorted((a, b) => a.priority - b.priority);
 }
 
 /**

@@ -213,9 +213,9 @@ export function describeStaleAttachmentData(newestRow: string | null, newestBack
 
 /** Decide what order a group's photos belong in, and whether to touch it at all. */
 export function planPhotoGroup(group: PhotoGroup): PhotoGroupPlan {
-	const members = [...group.members].sort(byPriority);
+	const members = [...group.members].toSorted(byPriority);
 	const currentIds = members.map((member) => member.id);
-	const reversedIds = [...currentIds].reverse();
+	const reversedIds = [...currentIds].toReversed();
 
 	const timestamps = members.map((member) => member.createdAt).filter((value): value is number => value !== null);
 	if (
@@ -227,7 +227,7 @@ export function planPhotoGroup(group: PhotoGroup): PhotoGroupPlan {
 
 	const sequences = members.map((member) => parseImageSequence(member.fileName));
 	if (sequences.every((sequence) => sequence !== null)) {
-		const numbers = sequences as number[];
+		const numbers = sequences;
 		const descending = numbers.every((value, index) => index === 0 || numbers[index - 1] > value);
 		if (descending) {
 			return {decision: "reverse", reason: "filenames descend", orderedIds: reversedIds};

@@ -20,5 +20,5 @@ export async function findUnregisteredInboxes(
 			name: stripHtmlTags(node.name ?? "").trim(),
 			path: paths.get(node.id) ?? "",
 		}))
-		.sort((left, right) => left.id.localeCompare(right.id));
+		.toSorted((left, right) => left.id.localeCompare(right.id));
 }

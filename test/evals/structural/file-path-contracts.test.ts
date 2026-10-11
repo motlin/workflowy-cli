@@ -332,7 +332,7 @@ describe("Structural Eval: File Path Contracts", () => {
 					`  - ${c.raw} (consumed in ${c.sourceFile}:${c.line})\n    normalized: ${c.pattern}\n    contract: ${contractKey(c.pattern)}`,
 			)
 			.join("\n");
-		const producerList = [...producerContracts].sort().join("\n  - ");
+		const producerList = [...producerContracts].toSorted().join("\n  - ");
 
 		expect(
 			orphanedConsumers,

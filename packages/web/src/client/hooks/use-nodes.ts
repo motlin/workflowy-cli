@@ -406,7 +406,7 @@ export function useReorderNode() {
 				const reorderedNode = {...node, priority: position};
 
 				// Insert at new position and update priorities
-				const newChildren = [...otherChildren, reorderedNode].sort((a, b) => a.priority - b.priority);
+				const newChildren = [...otherChildren, reorderedNode].toSorted((a, b) => a.priority - b.priority);
 
 				queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), newChildren);
 			}

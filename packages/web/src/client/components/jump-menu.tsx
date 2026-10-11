@@ -90,7 +90,7 @@ function JumpMenuDialog() {
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
-			return;
+			return undefined;
 		}
 
 		const searchTimeout = setTimeout(async () => {

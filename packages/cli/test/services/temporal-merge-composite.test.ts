@@ -69,7 +69,7 @@ describe("temporalMerge with a composite key", () => {
 		expect(result).toStrictEqual({inserted: 1, phasedOut: 1, unchanged: 1});
 		const open = currentMirrors(testDatabase)
 			.map((m) => `${m.originalId}/${m.mirrorId}`)
-			.sort();
+			.toSorted();
 		expect(open).toStrictEqual(["A/X", "C/Z"]); // B/Y phased out
 	});
 
@@ -95,7 +95,7 @@ describe("temporalMerge with a composite key", () => {
 		expect(result).toStrictEqual({inserted: 0, phasedOut: 0, unchanged: 1});
 		const open = currentMirrors(testDatabase)
 			.map((m) => `${m.originalId}/${m.mirrorId}`)
-			.sort();
+			.toSorted();
 		expect(open).toStrictEqual(["A/X", "B/Y"]);
 	});
 

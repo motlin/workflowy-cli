@@ -280,8 +280,8 @@ export default class Import extends Command {
 
 				// Create each section with segments
 				for (const section of meeting.outline) {
-					const escapedTitle = this.escapeHtml(section.title);
-					let sectionMd = `- <b>${escapedTitle}</b>`;
+					const escapedSectionTitle = this.escapeHtml(section.title);
+					let sectionMd = `- <b>${escapedSectionTitle}</b>`;
 
 					for (const segment of section.segments) {
 						const escapedSegment = this.escapeHtml(segment);

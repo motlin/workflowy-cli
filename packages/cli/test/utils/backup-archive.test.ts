@@ -83,7 +83,7 @@ describe("backup-archive", () => {
 			createMonthArchive(archivePath, tmpDir, [day1, day2]);
 
 			expect(fs.existsSync(archivePath)).toBe(true);
-			expect(listArchiveEntries(archivePath).sort()).toStrictEqual([day1, day2].sort());
+			expect(listArchiveEntries(archivePath).toSorted()).toStrictEqual([day1, day2].toSorted());
 			expect(readArchiveEntry(archivePath, day1).toString("utf8")).toBe('{"day":1}');
 			expect(readArchiveEntry(archivePath, day2).toString("utf8")).toBe('{"day":2}');
 		});
@@ -127,8 +127,8 @@ describe("backup-archive", () => {
 			buildMonthArchive(archivePath, [rawDay, zstDay]);
 
 			// Members are stored uncompressed under their raw filenames.
-			expect(listArchiveEntries(archivePath).sort()).toStrictEqual(
-				[dataName("2025-09-04"), dataName("2025-09-05")].sort(),
+			expect(listArchiveEntries(archivePath).toSorted()).toStrictEqual(
+				[dataName("2025-09-04"), dataName("2025-09-05")].toSorted(),
 			);
 			expect(readArchiveEntry(archivePath, dataName("2025-09-05")).toString("utf8")).toBe('{"day":5}');
 		});
@@ -143,8 +143,8 @@ describe("backup-archive", () => {
 			fs.writeFileSync(second, '{"day":5}');
 			buildMonthArchive(archivePath, [second]);
 
-			expect(listArchiveEntries(archivePath).sort()).toStrictEqual(
-				[dataName("2025-09-04"), dataName("2025-09-05")].sort(),
+			expect(listArchiveEntries(archivePath).toSorted()).toStrictEqual(
+				[dataName("2025-09-04"), dataName("2025-09-05")].toSorted(),
 			);
 		});
 	});

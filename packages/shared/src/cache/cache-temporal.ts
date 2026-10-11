@@ -82,7 +82,7 @@ export const metadataComparisonStats = {
 			);
 			if (this.diffCounts.size > 0) {
 				console.log(`[createdAt diff distribution]:`);
-				const sortedDiffs = [...this.diffCounts.entries()].sort((a, b) => b[1] - a[1]);
+				const sortedDiffs = [...this.diffCounts.entries()].toSorted((a, b) => b[1] - a[1]);
 				for (const [diff, count] of sortedDiffs.slice(0, 10)) {
 					console.log(`  diff=${diff}: ${count} occurrences`);
 				}

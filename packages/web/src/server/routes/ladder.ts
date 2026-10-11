@@ -102,7 +102,7 @@ function defaultService(ctx: ServerContext): LadderService {
 				}
 				buckets[root] = tree as never;
 			}
-			return buckets as never;
+			return buckets;
 		},
 		moveNode: async (nodeId, parentId, position) => writeClient(ctx).moveNode(nodeId, parentId, position),
 		// Reordering can renumber siblings, so refresh their cached priorities too.

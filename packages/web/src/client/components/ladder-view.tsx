@@ -143,7 +143,7 @@ export function LadderView() {
 		async (path: string, body: Record<string, string>, optimistic: (current: Ladders) => Ladders) => {
 			const before = laddersRef.current;
 			if (!before) {
-				return;
+				return false;
 			}
 			const nodeId = body.node_id;
 			const lastReceived = receivedWrites.current.get(nodeId);
@@ -215,7 +215,7 @@ export function LadderView() {
 								to_tier: toTier,
 								...(beforeNodeId === undefined ? {} : {before_id: beforeNodeId}),
 							},
-							(ladders) => moveWithin(ladders, root, id, toTier, beforeNodeId),
+							(state) => moveWithin(state, root, id, toTier, beforeNodeId),
 						);
 						if (!saved) break;
 					}
@@ -242,7 +242,7 @@ export function LadderView() {
 	}, []);
 
 	useEffect(() => {
-		if (!dragging) return;
+		if (!dragging) return undefined;
 		let frame: number;
 		const scroll = () => {
 			const at = dragPoint.current;
@@ -397,8 +397,8 @@ export function LadderView() {
 	const ladder = ladders?.[root];
 	const [treeItem, setTreeItem] = useState<{id: string; name: string}>();
 	const [preview, setPreview] = useState<Preview>();
-	const showPreview = useCallback((item: LadderItem, anchor: {left: number; bottom: number}) => {
-		setPreview({item, left: anchor.left, top: anchor.bottom + 4});
+	const showPreview = useCallback((item: LadderItem, position: {left: number; bottom: number}) => {
+		setPreview({item, left: position.left, top: position.bottom + 4});
 	}, []);
 	const hidePreview = useCallback(() => setPreview(undefined), []);
 

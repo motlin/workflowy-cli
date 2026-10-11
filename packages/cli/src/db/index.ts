@@ -3,12 +3,8 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import DatabaseConstructor from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import * as schema from "@workflowy/shared/db";
-import {fileURLToPath} from "node:url";
-import {dirname, join} from "node:path";
+import {join} from "node:path";
 import {sqlLogger} from "../services/sql-logger.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 export function createDatabase(dbPath?: string) {
 	const actualPath = dbPath || process.env.WORKFLOWY_DB_PATH || "workflowy.sqlite";
@@ -26,7 +22,7 @@ export function createDatabase(dbPath?: string) {
 	});
 
 	if (process.env.WORKFLOWY_SKIP_MIGRATIONS !== "true") {
-		const migrationsFolder = join(__dirname, "../../../shared/dist/db/migrations");
+		const migrationsFolder = join(import.meta.dirname, "../../../shared/dist/db/migrations");
 		migrate(db, {migrationsFolder});
 	}
 

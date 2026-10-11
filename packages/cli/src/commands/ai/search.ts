@@ -85,7 +85,7 @@ export default class Search extends Command {
 			this.log(`🔍 Searching for: "${query}"\n`);
 		}
 
-		const modelsToSearch: EmbeddingModelKey[] = flags.model ? [flags.model as EmbeddingModelKey] : DEFAULT_MODELS;
+		const modelsToSearch: EmbeddingModelKey[] = flags.model ? [flags.model] : DEFAULT_MODELS;
 
 		const searchMode = flags.mode as SearchMode;
 

@@ -222,7 +222,7 @@ describe("planPhotoGroup", () => {
 
 	it("leaves a group whose filenames already ascend", () => {
 		const ascending = [...members]
-			.reverse()
+			.toReversed()
 			.map((groupMember, index) => ({...groupMember, priority: (index + 1) * 100}));
 
 		expect(planPhotoGroup({kind: "loose", entryId: "entry", wrapperId: null, members: ascending})).toStrictEqual({

@@ -460,7 +460,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (colorPicker) {
 				return;
 			}
-			const tagEl = (event.target as HTMLElement).closest?.(".tag-link") as HTMLElement | null;
+			const tagEl = (event.target as HTMLElement).closest?.(".tag-link");
 			if (!tagEl) {
 				return;
 			}
@@ -506,7 +506,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	// Close the open picker on a click/escape outside of it.
 	useEffect(() => {
 		if (!colorPicker) {
-			return;
+			return undefined;
 		}
 		const onPointerDown = (event: PointerEvent) => {
 			if (!(event.target as HTMLElement).closest(".tag-color-picker")) {

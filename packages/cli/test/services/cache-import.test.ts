@@ -151,7 +151,7 @@ describe("cache-import service", () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all();
-			expect(allContent.map((n) => n.id).sort()).toStrictEqual(["node-1", "node-2", "node-3"]);
+			expect(allContent.map((n) => n.id).toSorted()).toStrictEqual(["node-1", "node-2", "node-3"]);
 
 			const allMetadata = testDatabase.db
 				.select()
@@ -391,7 +391,7 @@ describe("cache-import service", () => {
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
 				.map((n) => n.id)
-				.sort();
+				.toSorted();
 			expect(activeIds).toStrictEqual(["node-1"]);
 		});
 	});
@@ -422,7 +422,7 @@ describe("cache-import service", () => {
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
 				.map((n) => n.name ?? "")
-				.sort();
+				.toSorted();
 		}
 
 		it("applies the snapshot but keeps nodes newer than it", async () => {
@@ -1201,7 +1201,7 @@ describe("cache-import service", () => {
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
 				.map((n) => n.name ?? "")
-				.sort();
+				.toSorted();
 			expect(activeNames).toStrictEqual(["Added", "Renamed"]);
 		});
 
@@ -1225,7 +1225,7 @@ describe("cache-import service", () => {
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all()
 				.map((n) => n.id)
-				.sort();
+				.toSorted();
 			expect(activeIds).toStrictEqual(["node-1", "node-2"]);
 		});
 

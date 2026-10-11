@@ -89,7 +89,7 @@ export default class BackupsArchive extends Command {
 		}
 
 		const archiveDir = path.join(sourceDir, "archive");
-		const monthsAscending = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
+		const monthsAscending = [...byMonth.entries()].toSorted(([a], [b]) => a.localeCompare(b));
 		for (const [month, monthBackups] of monthsAscending) {
 			const archivePath = path.join(archiveDir, `${month}.tar.zst`);
 			buildMonthArchive(

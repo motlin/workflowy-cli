@@ -55,32 +55,31 @@ export function MoveAssistant() {
 
 			// Fetch semantically related parent candidates using embeddings
 			setIsLoadingCandidates(true);
-			fetch("/api/related", {
-				method: "POST",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({
-					nodeId: moveAssistantContext.nodeId,
-					type: "parent-candidates",
-					limit: 10,
-					threshold: 0.7,
-				}),
-			})
-				.then(async (response) => {
+			const {nodeId} = moveAssistantContext;
+			void (async () => {
+				try {
+					const response = await fetch("/api/related", {
+						method: "POST",
+						headers: {"Content-Type": "application/json"},
+						body: JSON.stringify({
+							nodeId,
+							type: "parent-candidates",
+							limit: 10,
+							threshold: 0.7,
+						}),
+					});
 					if (!response.ok) {
 						const data = (await response.json()) as {error?: string};
 						throw new Error(data.error ?? "Failed to fetch parent candidates");
 					}
-					return response.json() as Promise<RelatedResponse>;
-				})
-				.then((data) => {
+					const data = (await response.json()) as RelatedResponse;
 					setParentCandidates(data.results);
-				})
-				.catch((error_: Error) => {
-					setError(error_.message);
-				})
-				.finally(() => {
+				} catch (error_) {
+					setError(error_ instanceof Error ? error_.message : String(error_));
+				} finally {
 					setIsLoadingCandidates(false);
-				});
+				}
+			})();
 		}
 	}, [moveAssistantOpen, moveAssistantContext]);
 
@@ -96,7 +95,7 @@ export function MoveAssistant() {
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
-			return;
+			return undefined;
 		}
 
 		const searchTimeout = setTimeout(async () => {

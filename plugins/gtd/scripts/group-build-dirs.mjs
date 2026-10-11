@@ -77,7 +77,7 @@ function locationOf(path) {
 function aggregate(byRepo, countKey) {
 	return [...byRepo.entries()]
 		.map(([repo, {names, dirCount}]) => ({repo, [countKey]: names.size, dirCount}))
-		.sort((a, b) => a.repo.localeCompare(b.repo));
+		.toSorted((a, b) => a.repo.localeCompare(b.repo));
 }
 
 export function groupBuildDirs(paths) {

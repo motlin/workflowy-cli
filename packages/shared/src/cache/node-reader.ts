@@ -67,7 +67,7 @@ export class NodeReader {
 			})
 			.sync();
 
-		return this.toNodes(results).sort((a, b) => {
+		return this.toNodes(results).toSorted((a, b) => {
 			const priorityDifference = a.priority - b.priority;
 			if (priorityDifference !== 0) {
 				return priorityDifference;

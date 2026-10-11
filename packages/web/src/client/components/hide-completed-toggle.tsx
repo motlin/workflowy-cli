@@ -16,7 +16,7 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		if (!isOpen) return;
+		if (!isOpen) return undefined;
 
 		function handleClickOutside(event: MouseEvent) {
 			const target = event.target as Node;

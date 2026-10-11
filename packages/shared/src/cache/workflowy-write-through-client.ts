@@ -134,7 +134,7 @@ export class WorkflowyWriteThroughClient {
 	private async liveChildOrder(parentId: string | null): Promise<string[]> {
 		const children =
 			parentId === null ? await this.apiClient.getRootNodes() : await this.apiClient.getChildNodes(parentId);
-		return children.sort((a, b) => a.priority - b.priority).map((node) => node.id);
+		return children.toSorted((a, b) => a.priority - b.priority).map((node) => node.id);
 	}
 
 	/**

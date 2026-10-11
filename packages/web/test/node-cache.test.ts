@@ -17,7 +17,7 @@ describe("readChildren / readDetail", () => {
 		const qc = new QueryClient();
 		const kids = [{id: "a", priority: 0}] as never;
 		qc.setQueryData(nodeKeys.children("parent"), kids);
-		qc.setQueryData(nodeKeys.detail("n"), {id: "n"} as never);
+		qc.setQueryData(nodeKeys.detail("n"), {id: "n"});
 
 		expect(readChildren(qc, "parent")).toBe(kids);
 		expect(readDetail(qc, "n")).toStrictEqual({id: "n"});

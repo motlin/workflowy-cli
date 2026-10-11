@@ -20,6 +20,8 @@ const BUILD_DIR_NAMES = new Set(["node_modules", "target", "build", "dist"]);
 const VANISHED_CODES = new Set(["ENOENT", "ENOTDIR"]);
 const TMUTIL_BATCH_SIZE = 200;
 
+const byPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 export function walkBuildDirs(root, {readdir = readdirSync} = {}) {
 	const dirs = [];
 	const vanished = [];
@@ -46,8 +48,7 @@ export function walkBuildDirs(root, {readdir = readdirSync} = {}) {
 			}
 		}
 	}
-	const byPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
-	return {dirs: dirs.sort(byPath), vanished: vanished.sort(byPath)};
+	return {dirs: dirs.toSorted(byPath), vanished: vanished.toSorted(byPath)};
 }
 
 function runTmutilIsExcluded(paths) {

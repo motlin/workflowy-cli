@@ -72,7 +72,7 @@ describe("API Sync with Cache", () => {
 			fetchStub.mockResolvedValue({
 				ok: true,
 				json: async () => apiResponse,
-			} as Response);
+			});
 
 			const nodes = await apiClient.getRootNodes();
 			await cacheService.storeApiResponse(nodes, null);
@@ -193,7 +193,7 @@ describe("API Sync with Cache", () => {
 			fetchStub.mockResolvedValue({
 				ok: true,
 				json: async () => apiResponse,
-			} as Response);
+			});
 
 			const nodes = await apiClient.getChildNodes(parentId);
 			await cacheService.storeApiResponse(nodes, parentId);
@@ -311,7 +311,7 @@ describe("API Sync with Cache", () => {
 			fetchStub.mockResolvedValue({
 				ok: true,
 				json: async () => apiResponse,
-			} as Response);
+			});
 
 			const nodes = await apiClient.getRootNodes();
 			await cacheService.storeApiResponse(nodes, null);
@@ -412,7 +412,7 @@ describe("API Sync with Cache", () => {
 					},
 				],
 			};
-			fetchStub.mockResolvedValue({ok: true, json: async () => apiResponse} as Response);
+			fetchStub.mockResolvedValue({ok: true, json: async () => apiResponse});
 
 			const nodes = await apiClient.getRootNodes();
 			await cacheService.storeApiResponse(nodes, null);
@@ -512,7 +512,7 @@ describe("API Sync with Cache", () => {
 			fetchStub.mockResolvedValue({
 				ok: true,
 				json: async () => apiResponse,
-			} as Response);
+			});
 
 			const startTime = Date.now();
 
@@ -523,8 +523,8 @@ describe("API Sync with Cache", () => {
 			const duration = endTime - startTime;
 
 			const storedContent = testDatabase.db.select().from(nodeContent).all();
-			expect(storedContent.map((content) => content.id).sort()).toStrictEqual(
-				Array.from({length: 100}, (_, index) => `node-${index}`).sort(),
+			expect(storedContent.map((content) => content.id).toSorted()).toStrictEqual(
+				Array.from({length: 100}, (_, index) => `node-${index}`).toSorted(),
 			);
 
 			expect(duration).toBeLessThan(5000);
@@ -589,7 +589,7 @@ describe("API Sync with Cache", () => {
 				ok: false,
 				status: 500,
 				statusText: "Internal Server Error",
-			} as Response);
+			});
 
 			await expect(apiClient.getRootNodes()).rejects.toThrow("API request failed: 500 Internal Server Error");
 
@@ -603,7 +603,7 @@ describe("API Sync with Cache", () => {
 				json: async () => ({
 					invalid: "response",
 				}),
-			} as Response);
+			});
 
 			const expectedMessage = JSON.stringify(
 				[

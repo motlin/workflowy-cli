@@ -130,7 +130,7 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 
 	// Handle click outside to close
 	useEffect(() => {
-		if (!isOpen) return;
+		if (!isOpen) return undefined;
 
 		function handleClickOutside(event: MouseEvent) {
 			const target = event.target as Node;

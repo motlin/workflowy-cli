@@ -100,8 +100,8 @@ export function diffSubmission(models, submission) {
 /** Reject stale or incomplete arrangements before producing any write proposals. */
 export function validateSubmission(models, submission) {
 	assert.deepEqual(
-		Object.keys(submission.roots).sort(),
-		models.map((model) => model.root).sort(),
+		Object.keys(submission.roots).toSorted(),
+		models.map((model) => model.root).toSorted(),
 		"Submission roots must match the current ladders",
 	);
 	const completed = submission.completed ?? [];
@@ -131,9 +131,9 @@ export function validateSubmission(models, submission) {
 				submitted.tiers.some((candidate) => candidate.tier === tier.tier),
 				"Submission dropped a current tier",
 			);
-		const expected = model.tiers.flatMap((tier) => tier.items.map((item) => item.id)).sort();
+		const expected = model.tiers.flatMap((tier) => tier.items.map((item) => item.id)).toSorted();
 		assert.deepEqual(
-			submitted.tiers.flatMap((tier) => tier.items).sort(),
+			submitted.tiers.flatMap((tier) => tier.items).toSorted(),
 			expected,
 			"Submission items must match current ladder exactly",
 		);

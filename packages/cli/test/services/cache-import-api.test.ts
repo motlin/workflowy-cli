@@ -123,7 +123,7 @@ describe("cache-import-api service", () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all();
-			expect(allNodes.map((n) => n.id).sort()).toStrictEqual(["node-1", "node-2", "node-3"]);
+			expect(allNodes.map((n) => n.id).toSorted()).toStrictEqual(["node-1", "node-2", "node-3"]);
 		});
 
 		it("imports nodes with parent relationships", async () => {
@@ -425,7 +425,7 @@ describe("cache-import-api service", () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all();
-			expect(activeNodes.map((n) => n.id).sort()).toStrictEqual(["node-1", "node-3"]);
+			expect(activeNodes.map((n) => n.id).toSorted()).toStrictEqual(["node-1", "node-3"]);
 
 			const node2Active = testDatabase.db
 				.select()

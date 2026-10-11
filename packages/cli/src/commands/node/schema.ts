@@ -1,19 +1,16 @@
 import {Command, Flags} from "@oclif/core";
 import path from "node:path";
-import {fileURLToPath} from "node:url";
 import {schemaToInterface} from "../../utils/schema-to-interface.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 function findPackageRoot(): string {
-	// At runtime __dirname is dist/commands/node/ — walk up to find package root
-	let dir = __dirname;
+	// At runtime import.meta.dirname is dist/commands/node/ — walk up to find package root
+	let dir = import.meta.dirname;
 	for (let i = 0; i < 10; i++) {
 		if (dir.endsWith("/packages/cli") || dir.endsWith(String.raw`\packages\cli`)) return dir;
 		dir = path.dirname(dir);
 	}
 	// Fallback: assume dist/commands/node -> 3 levels up
-	return path.resolve(__dirname, "../../..");
+	return path.resolve(import.meta.dirname, "../../..");
 }
 
 const PKG_ROOT = findPackageRoot();

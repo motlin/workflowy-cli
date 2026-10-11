@@ -32,28 +32,26 @@ describe("Leaf Eval: context-tagger", {timeout: 300_000}, () => {
 
 	afterAll(() => ctx?.cleanup());
 
-	it("should suggest context tags from known set", (context) => {
+	it("should suggest context tags from known set", async (context) => {
 		if (skipSuite) context.skip();
 
-		const result = runLlmEval(
+		const result = await runLlmEval(
 			agentFile,
 			`Analyze this item for context tags:\nID: test-item-1\nName: Call dentist to schedule appointment`,
 			ctx,
 			{maxTurns: 15},
 		);
 
-		return result.then((result) => {
-			const response = result.finalResponse;
-			const jsonMatch = response.match(/\{[\s\S]*\}/);
-			expect(jsonMatch, "Response should contain JSON").not.toBeNull();
+		const response = result.finalResponse;
+		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-			const parsed = JSON.parse(jsonMatch![0]);
-			if (parsed.suggestions) {
-				expect(Array.isArray(parsed.suggestions)).toBe(true);
-				const tags = parsed.suggestions.map((s: {tag?: string; context?: string}) => s.tag ?? s.context ?? s);
-				const allStrings = tags.every((t: unknown) => typeof t === "string");
-				expect(allStrings, "All suggestions should be strings").toBe(true);
-			}
-		});
+		const parsed = JSON.parse(jsonMatch![0]);
+		if (parsed.suggestions) {
+			expect(Array.isArray(parsed.suggestions)).toBe(true);
+			const tags = parsed.suggestions.map((s: {tag?: string; context?: string}) => s.tag ?? s.context ?? s);
+			const allStrings = tags.every((t: unknown) => typeof t === "string");
+			expect(allStrings, "All suggestions should be strings").toBe(true);
+		}
 	});
 });

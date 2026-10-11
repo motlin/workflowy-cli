@@ -46,7 +46,7 @@ function formatObject(
 		for (const [key, prop] of Object.entries(schema.properties)) {
 			if (typeof prop === "boolean") continue;
 			const optional = required.has(key) ? "" : "?";
-			const typeStr = formatType(prop as SchemaObject, definitions, nestedInterfaces, nameMap);
+			const typeStr = formatType(prop, definitions, nestedInterfaces, nameMap);
 			lines.push(`  ${key}${optional}: ${typeStr};`);
 		}
 	}
@@ -63,7 +63,7 @@ function resolveRef(schema: SchemaObject, definitions: Record<string, Definition
 		const refName = schema.$ref.replace("#/definitions/", "");
 		const def = definitions[refName];
 		if (def && typeof def !== "boolean") {
-			return def as SchemaObject;
+			return def;
 		}
 	}
 	return schema;
@@ -111,7 +111,7 @@ function formatType(
 		const required = new Set(schema.required ?? []);
 		for (const [key, prop] of Object.entries(schema.properties)) {
 			if (typeof prop === "boolean") continue;
-			const resolved = resolveRef(prop as SchemaObject, definitions);
+			const resolved = resolveRef(prop, definitions);
 			const optional = required.has(key) ? "" : "?";
 			const typeStr = formatType(resolved, definitions, nestedInterfaces, nameMap);
 			parts.push(`${key}${optional}: ${typeStr}`);

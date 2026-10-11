@@ -27,7 +27,7 @@ tagsRouter.get("/", (c) => {
 // PUT /api/v1/tags/:name - set the color for a tag (upsert)
 tagsRouter.put("/:name", async (c) => {
 	const name = c.req.param("name");
-	const body = (await c.req.json()) as TagColorBody;
+	const body = await c.req.json<TagColorBody>();
 	const color = body.color;
 
 	if (!color || !VALID_COLORS.has(color)) {

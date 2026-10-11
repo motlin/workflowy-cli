@@ -3,12 +3,8 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import * as schema from "@workflowy/shared/db";
-import {fileURLToPath} from "node:url";
-import {dirname, join} from "node:path";
+import {join} from "node:path";
 import {sqlLogger} from "./sql-logger.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
@@ -32,7 +28,7 @@ export function getDatabase() {
 	});
 
 	if (process.env.WORKFLOWY_SKIP_MIGRATIONS !== "true") {
-		const migrationsFolder = join(__dirname, "../../../shared/dist/db/migrations");
+		const migrationsFolder = join(import.meta.dirname, "../../../shared/dist/db/migrations");
 		migrate(dbInstance, {migrationsFolder});
 	}
 

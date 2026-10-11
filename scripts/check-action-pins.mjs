@@ -62,7 +62,7 @@ function listFiles(dir, accept) {
 	return entries
 		.filter((entry) => entry.isFile() && accept(entry.name))
 		.map((entry) => join(entry.parentPath, entry.name))
-		.sort();
+		.toSorted();
 }
 
 function main() {

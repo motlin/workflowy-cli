@@ -136,14 +136,17 @@ function MirrorBanner({
 	const [mirrorsData, setMirrorsData] = useState<MirrorsResponse | null>(null);
 
 	useEffect(() => {
-		fetch(`/api/v1/nodes/${encodeURIComponent(originalNodeId)}/mirrors`)
-			.then(async (response) => {
+		void (async () => {
+			try {
+				const response = await fetch(`/api/v1/nodes/${encodeURIComponent(originalNodeId)}/mirrors`);
 				if (response.ok) {
 					const data = (await response.json()) as MirrorsResponse;
 					setMirrorsData(data);
 				}
-			})
-			.catch(() => {});
+			} catch {
+				// The mirrors badge is optional; a failed lookup just leaves it hidden.
+			}
+		})();
 	}, [originalNodeId]);
 
 	if (!mirrorsData || mirrorsData.mirrors.length <= 1) return null;

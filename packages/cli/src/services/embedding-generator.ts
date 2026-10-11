@@ -274,7 +274,7 @@ export class EmbeddingGeneratorService {
 			total: 0,
 			elapsed: 0,
 			estimatedRemaining: 0,
-			currentModel: "minilm" as EmbeddingModelKey,
+			currentModel: "minilm",
 			message: `FTS5 index populated with ${populated} nodes`,
 		});
 	}

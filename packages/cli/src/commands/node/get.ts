@@ -158,11 +158,11 @@ export default class Get extends BaseListCommand {
 		this.log("");
 
 		if (flags.depth > 0 && node.children && node.children.length > 0) {
-			this.log(`${htmlToAnsi(node.name ?? "")}`);
+			this.log(htmlToAnsi(node.name ?? ""));
 			this.log(`Children (${this.countDescendants(node)} nodes):`);
 			await this.displayNodes(node.children, flags);
 		} else if (flags.depth > 0) {
-			this.log(`${htmlToAnsi(node.name ?? "")}`);
+			this.log(htmlToAnsi(node.name ?? ""));
 			this.log("No children");
 		} else {
 			this.log(`Name: ${htmlToAnsi(node.name ?? "")}`);

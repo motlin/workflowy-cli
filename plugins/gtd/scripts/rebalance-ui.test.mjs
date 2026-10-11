@@ -745,12 +745,12 @@ test("generated Queue keeps the range anchor and autosaves ordered group drag, n
 			.get("app")
 			.children[0].children.flatMap((zone) => zone.children)
 			.filter((row) => row.dataset.id);
-	const row = (id) => rows().find((row) => row.dataset.id === id + "-id");
+	const row = (id) => rows().find((candidate) => candidate.dataset.id === id + "-id");
 	const click = (id, modifiers = {}) => row(id).handlers.click({target: row(id), ...modifiers});
 	const selection = () =>
 		rows()
-			.filter((row) => row.classList.contains("sel"))
-			.map((row) => row.dataset.id);
+			.filter((candidate) => candidate.classList.contains("sel"))
+			.map((candidate) => candidate.dataset.id);
 	click("c");
 	click("c");
 	assert.deepStrictEqual(selection(), ["c-id"]);

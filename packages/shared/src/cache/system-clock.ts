@@ -21,7 +21,7 @@ export function nextSystemTime(database: ClockDatabase): Date {
 		.update(systemClock)
 		.set({lastMs: sql`max(${Date.now()}, ${systemClock.lastMs} + 1)`})
 		.returning({lastMs: systemClock.lastMs})
-		.get()!;
+		.get();
 	return new Date(lastMs);
 }
 

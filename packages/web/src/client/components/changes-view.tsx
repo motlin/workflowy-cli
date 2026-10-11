@@ -193,7 +193,7 @@ export function ChangesView() {
 			</div>
 
 			{isLoading && <div className="changes-loading">Loading changes...</div>}
-			{error && <div className="changes-error">Error: {(error as Error).message}</div>}
+			{error && <div className="changes-error">Error: {error.message}</div>}
 
 			{data && (
 				<>

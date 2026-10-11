@@ -12,7 +12,7 @@
 		"transpileOnly": true,
 		"compilerOptions": {
 			"module": "esnext",
-			"target": "es2022"
+			"target": "es2023"
 		}
 	}
 }

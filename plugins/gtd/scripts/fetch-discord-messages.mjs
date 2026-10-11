@@ -55,7 +55,7 @@ export async function fetchMessagesSince({
 				`Discord API ${response.status} for channel ${channelId}: ${body.message} (code ${body.code})`,
 			);
 		}
-		const sorted = [...body].sort(byId);
+		const sorted = [...body].toSorted(byId);
 		messages.push(...sorted);
 		if (sorted.length < PAGE_SIZE) break;
 		cursor = sorted.at(-1).id;

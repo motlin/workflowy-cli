@@ -529,7 +529,7 @@ describe("CacheService (shared)", () => {
 				.from(nodeContent)
 				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
 				.all();
-			expect(stored.map((s) => s.id).sort()).toStrictEqual(["node-1", "node-2"]);
+			expect(stored.map((s) => s.id).toSorted()).toStrictEqual(["node-1", "node-2"]);
 		});
 
 		it("updates changed nodes with temporal versioning", async () => {

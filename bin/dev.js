@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import {setDefaultAutoSelectFamily} from "node:net";
 import {execute} from "@oclif/core";
-import {fileURLToPath} from "node:url";
-import {dirname, join} from "node:path";
+import {join} from "node:path";
 
 process.title = "workflowy-cli";
 
@@ -12,9 +11,7 @@ process.title = "workflowy-cli";
 // See: https://github.com/nodejs/node/issues/54359
 setDefaultAutoSelectFamily(false);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const cliPackageDir = join(__dirname, "..", "packages", "cli");
+const cliPackageDir = join(import.meta.dirname, "..", "packages", "cli");
 
 await execute({
 	development: true,
