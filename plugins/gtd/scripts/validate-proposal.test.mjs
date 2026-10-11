@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {validateProposal} from './validate-proposal.mjs';
 
 const proposal = (overrides = {}) => ({
@@ -304,4 +305,16 @@ test('still rejects messageId as a stray node id on other tasks', () => {
 
 test('does not require a ledger key on other tasks', () => {
 	assert.deepStrictEqual(validateProposal(staged()), {valid: true, errors: []});
+});
+
+test('every name-update op documented in a staging command carries --expect-name', () => {
+	const commands = ['../commands/review/daily/file-tasks.md'];
+	const unguarded = commands.flatMap((relative) =>
+		readFileSync(new URL(relative, import.meta.url), 'utf8')
+			.split('\n')
+			.filter((line) => /node update --id \S+ --name /.test(line) && !line.includes('--expect-name'))
+			.map((line) => `${relative}: ${line.trim()}`),
+	);
+
+	assert.deepStrictEqual(unguarded, []);
 });

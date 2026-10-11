@@ -157,7 +157,7 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 				}
 			],
 			"applyOps": [
-				"./bin/run.js node update --id <full-uuid-of-the-loose-task> --name '<name with the <time> element appended>'",
+				"./bin/run.js node update --id <full-uuid-of-the-loose-task> --name '<name with the <time> element appended>' --expect-name '<current name>'",
 				"./bin/run.js node move --node-id <full-uuid-of-the-loose-task> --parent-id <due-bucket-uuid> -p bottom"
 			]
 		}
@@ -167,7 +167,7 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 
 `related` is the best match from the filed-task search, or `null` when nothing matched. It is not a destination and carries no `applyOps` — the walk builds the Merge outcome from it.
 
-`applyOps` holds the **recommended** destination's commands, escaped and ready to run verbatim, **in order**. A due-dates destination is two ops — stamp the date, then move — because the date lives on the node rather than in a container. An asap destination carries no `timeframe` / `due`; it is a `node update --name` when `addTags` is non-empty, then the move into `destUuid`. It never moves any other item. Every `destUuid` is a full UUID read off the ladder; for due-dates that is always the `⏰` bucket itself.
+`applyOps` holds the **recommended** destination's commands, escaped and ready to run verbatim, **in order**. A due-dates destination is two ops — stamp the date, then move — because the date lives on the node rather than in a container. An asap destination carries no `timeframe` / `due`; it is a `node update --name` when `addTags` is non-empty, then the move into `destUuid`. Every `node update --name` op, date stamp or tag append, carries `--expect-name '<current name>'` per the stale-write guard in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`; the validator rejects a staged file without it. It never moves any other item. Every `destUuid` is a full UUID read off the ladder; for due-dates that is always the `⏰` bucket itself.
 
 A tier in `createTiers` has no UUID yet, so it cannot be staged as a shell string. Create those tiers during normalization — before staging — and stage against the resulting UUIDs.
 
