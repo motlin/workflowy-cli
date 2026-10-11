@@ -261,7 +261,7 @@ export function MoveAssistant() {
 					<div className="move-assistant-title">
 						{actionVerb}:{" "}
 						<span className="move-assistant-node-name">
-							"{stripHtml(moveAssistantContext.nodeName) || "Untitled"}"
+							&quot;{stripHtml(moveAssistantContext.nodeName) || "Untitled"}&quot;
 						</span>
 					</div>
 					<input

@@ -220,7 +220,7 @@ export function LinkInsertModal() {
 				<div className="link-insert-header">
 					<div className="link-insert-title">
 						Insert link for:{" "}
-						<span className="link-insert-selected-text">"{linkInsertContext.selectedText}"</span>
+						<span className="link-insert-selected-text">&quot;{linkInsertContext.selectedText}&quot;</span>
 					</div>
 					<input
 						className="link-insert-input"
