@@ -333,16 +333,13 @@ function extractCommandRefs(lines: string[]): CommandRef[] {
 	const pattern = /(?:^|[\s`"'(])(\/([\w-]+:[\w-]+(?::[\w-]+)*))/u;
 
 	for (const [i, line] of lines.entries()) {
-		if (line.includes("http://") || line.includes("https://")) {
-			const match = pattern.exec(line);
-			if (match && !/https?:$/u.test(line.slice(0, line.indexOf(match[0])))) {
-				results.push({ref: match[1], line: i + 1});
-			}
-		} else {
-			const match = pattern.exec(line);
-			if (match) {
-				results.push({ref: match[1], line: i + 1});
-			}
+		const match = pattern.exec(line);
+		if (!match) {
+			continue;
+		}
+		const hasUrl = line.includes("http://") || line.includes("https://");
+		if (!hasUrl || !/https?:$/u.test(line.slice(0, line.indexOf(match[0])))) {
+			results.push({ref: match[1], line: i + 1});
 		}
 	}
 
