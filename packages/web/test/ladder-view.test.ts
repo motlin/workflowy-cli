@@ -7,6 +7,10 @@ import {LadderView} from "../src/client/components/ladder-view.js";
 
 vi.mock("../src/client/components/ladder-tree.js", () => ({LadderTree: () => null}));
 
+function isUpdater(value: unknown): value is (previous: unknown) => unknown {
+	return typeof value === "function";
+}
+
 const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0, effects: [] as (() => unknown)[]}));
 vi.mock("react", () => ({
 	useState(initial: unknown) {
@@ -17,7 +21,7 @@ vi.mock("react", () => ({
 		return [
 			hooks.values[index],
 			(value: unknown) => {
-				hooks.values[index] = typeof value === "function" ? value(hooks.values[index]) : value;
+				hooks.values[index] = isUpdater(value) ? value(hooks.values[index]) : value;
 			},
 		];
 	},

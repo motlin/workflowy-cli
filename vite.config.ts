@@ -108,6 +108,7 @@ export default defineConfig({
 			"typescript/no-deprecated": "error",
 			"typescript/no-unsafe-member-access": "error",
 			"typescript/no-unsafe-assignment": "error",
+			"typescript/no-unsafe-call": "error",
 		},
 		overrides: [
 			{
@@ -116,6 +117,7 @@ export default defineConfig({
 					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules only add noise.
 					"typescript/no-unsafe-member-access": "off",
 					"typescript/no-unsafe-assignment": "off",
+					"typescript/no-unsafe-call": "off",
 				},
 			},
 			{
