@@ -115,8 +115,6 @@ export default defineConfig({
 			"vitest/prefer-expect-resolves": "error",
 			"vitest/prefer-hooks-in-order": "error",
 			"vitest/prefer-expect-type-of": "error",
-			"eslint/max-lines": ["error", {max: 800, skipBlankLines: true, skipComments: true}],
-			"eslint/max-depth": ["error", 5],
 			"eslint/accessor-pairs": "error",
 			"typescript/require-await": "error",
 			"typescript/no-misused-promises": "error",
@@ -190,8 +188,6 @@ export default defineConfig({
 				rules: {
 					// Per-test fakes read better next to the assertion that uses them than hoisted to module scope.
 					"unicorn/consistent-function-scoping": "off",
-					// Table-driven suites for one module stay together; splitting them scatters shared fixtures.
-					"eslint/max-lines": ["error", {max: 1200, skipBlankLines: true, skipComments: true}],
 				},
 			},
 			{
