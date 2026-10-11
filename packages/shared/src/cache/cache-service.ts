@@ -17,15 +17,10 @@ import type {WorkflowyNode} from "../types/workflowy.js";
 import {uuidToShortId} from "../workflowy/constants.js";
 import {and, eq, inArray, isNull, like, notInArray, or, sql} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import {
-	contentMatches,
-	currentVersion,
-	metadataMatches,
-	normalizeLayoutMode,
-	systemFromToDate,
-} from "./cache-temporal.js";
+import {currentVersion, systemFromToDate} from "./cache-temporal.js";
 import {loadMirrorOriginals, notAMirror} from "./mirror-text.js";
 import {NodeReader} from "./node-reader.js";
+import {upsertNodeVersion} from "./node-upsert.js";
 import {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
 
 /**
@@ -99,14 +94,6 @@ export type TextSearchRow = {
 	note: string | null;
 	completedAt: Date | null;
 };
-
-/**
- * Convert a Unix timestamp (seconds since epoch) to a Date object.
- * Returns null if the input is null or undefined.
- */
-function timestampToDate(timestamp: number | null | undefined): Date | null {
-	return timestamp === null || timestamp === undefined ? null : new Date(timestamp * 1000);
-}
 
 /** The cached subtree under a node, as {@link CacheService.getSubtreeMirrors} returns it. */
 export interface SubtreeMirrors {
@@ -408,96 +395,7 @@ export class CacheService {
 			for (const apiNode of apiNodes) {
 				const systemTimestampStr = formatTemporalTimestamp(fetchTimestamp);
 
-				const existingContent = tx
-					.select()
-					.from(nodeContent)
-					.where(and(eq(nodeContent.id, apiNode.id), currentVersion(nodeContent)))
-					.get();
-
-				const existingMetadata = tx
-					.select()
-					.from(nodeMetadata)
-					.where(and(eq(nodeMetadata.nodeId, apiNode.id), currentVersion(nodeMetadata)))
-					.get();
-
-				if (existingContent) {
-					const contentData = {
-						name: apiNode.name,
-						note: apiNode.note || null,
-						parentId,
-					};
-					const metaData = {
-						priority: apiNode.priority,
-						createdAt: apiNode.createdAt,
-						modifiedAt: apiNode.modifiedAt,
-						completedAt: apiNode.completedAt ?? null,
-						layoutMode: normalizeLayoutMode(apiNode.data?.layoutMode),
-					};
-
-					const contentChanged = !contentMatches(existingContent, contentData);
-					const metadataChanged = existingMetadata && !metadataMatches(existingMetadata, metaData);
-
-					if (contentChanged) {
-						tx.update(nodeContent)
-							.set({systemTo: systemTimestampStr})
-							.where(and(eq(nodeContent.id, apiNode.id), currentVersion(nodeContent)))
-							.run();
-						tx.insert(nodeContent)
-							.values({
-								id: apiNode.id,
-								name: apiNode.name,
-								note: apiNode.note || null,
-								parentId,
-								systemFrom: systemTimestampStr,
-								systemTo: FAR_FUTURE_DATE,
-							})
-							.run();
-					}
-
-					if (metadataChanged) {
-						tx.update(nodeMetadata)
-							.set({systemTo: systemTimestampStr})
-							.where(and(eq(nodeMetadata.nodeId, apiNode.id), currentVersion(nodeMetadata)))
-							.run();
-						tx.insert(nodeMetadata)
-							.values({
-								nodeId: apiNode.id,
-								shortId: uuidToShortId(apiNode.id),
-								priority: apiNode.priority,
-								createdAt: timestampToDate(apiNode.createdAt),
-								modifiedAt: timestampToDate(apiNode.modifiedAt),
-								completedAt: timestampToDate(apiNode.completedAt),
-								layoutMode: normalizeLayoutMode(apiNode.data?.layoutMode),
-								systemFrom: systemTimestampStr,
-								systemTo: FAR_FUTURE_DATE,
-							})
-							.run();
-					}
-				} else {
-					tx.insert(nodeContent)
-						.values({
-							id: apiNode.id,
-							name: apiNode.name,
-							note: apiNode.note || null,
-							parentId,
-							systemFrom: systemTimestampStr,
-							systemTo: FAR_FUTURE_DATE,
-						})
-						.run();
-					tx.insert(nodeMetadata)
-						.values({
-							nodeId: apiNode.id,
-							shortId: uuidToShortId(apiNode.id),
-							priority: apiNode.priority,
-							createdAt: timestampToDate(apiNode.createdAt),
-							modifiedAt: timestampToDate(apiNode.modifiedAt),
-							completedAt: timestampToDate(apiNode.completedAt),
-							layoutMode: normalizeLayoutMode(apiNode.data?.layoutMode),
-							systemFrom: systemTimestampStr,
-							systemTo: FAR_FUTURE_DATE,
-						})
-						.run();
-				}
+				upsertNodeVersion(tx, apiNode, parentId, systemTimestampStr);
 
 				// Mirrors, backlinks, and virtual-root rows are sourced ONLY from backup imports — the API
 				// response never carries them, so expiring them here would be permanent data loss, not a
@@ -582,117 +480,8 @@ export class CacheService {
 	 * @param parentId The parent ID this node belongs to (null for root)
 	 */
 	insertNode(node: WorkflowyNode, parentId: string | null): void {
-		const fetchTimestamp = nextSystemTime(this.database);
-		const systemFromStr = formatTemporalTimestamp(fetchTimestamp);
-
-		// Check if node already exists
-		const existingContent = this.database
-			.select()
-			.from(nodeContent)
-			.where(and(eq(nodeContent.id, node.id), currentVersion(nodeContent)))
-			.get();
-
-		const existingMetadata = existingContent
-			? this.database
-					.select()
-					.from(nodeMetadata)
-					.where(and(eq(nodeMetadata.nodeId, node.id), currentVersion(nodeMetadata)))
-					.get()
-			: null;
-
-		if (existingContent) {
-			// Node already exists - update only tables where data actually changed
-			const contentData = {
-				name: node.name,
-				note: node.note || null,
-				parentId,
-			};
-			const metaData = {
-				priority: node.priority,
-				createdAt: node.createdAt,
-				modifiedAt: node.modifiedAt,
-				completedAt: node.completedAt ?? null,
-				layoutMode: normalizeLayoutMode(node.data?.layoutMode),
-			};
-
-			const contentChanged = !contentMatches(existingContent, contentData);
-			const metadataChanged = existingMetadata && !metadataMatches(existingMetadata, metaData);
-
-			if (contentChanged || metadataChanged) {
-				const systemTimestampStr = formatTemporalTimestamp(fetchTimestamp);
-
-				if (contentChanged) {
-					this.database
-						.update(nodeContent)
-						.set({systemTo: systemTimestampStr})
-						.where(and(eq(nodeContent.id, node.id), currentVersion(nodeContent)))
-						.run();
-					this.database
-						.insert(nodeContent)
-						.values({
-							id: node.id,
-							name: node.name,
-							note: node.note || null,
-							parentId,
-							systemFrom: systemTimestampStr,
-							systemTo: FAR_FUTURE_DATE,
-						})
-						.run();
-				}
-
-				if (metadataChanged) {
-					this.database
-						.update(nodeMetadata)
-						.set({systemTo: systemTimestampStr})
-						.where(and(eq(nodeMetadata.nodeId, node.id), currentVersion(nodeMetadata)))
-						.run();
-					this.database
-						.insert(nodeMetadata)
-						.values({
-							nodeId: node.id,
-							shortId: uuidToShortId(node.id),
-							priority: node.priority,
-							createdAt: timestampToDate(node.createdAt),
-							modifiedAt: timestampToDate(node.modifiedAt),
-							completedAt: timestampToDate(node.completedAt),
-							layoutMode: normalizeLayoutMode(node.data?.layoutMode),
-							systemFrom: systemTimestampStr,
-							systemTo: FAR_FUTURE_DATE,
-						})
-						.run();
-				}
-			}
-		} else {
-			// Insert new node
-			this.database
-				.insert(nodeContent)
-				.values({
-					id: node.id,
-					name: node.name,
-					note: node.note || null,
-					parentId,
-					systemFrom: systemFromStr,
-					systemTo: FAR_FUTURE_DATE,
-				})
-				.run();
-			this.database
-				.insert(nodeMetadata)
-				.values({
-					nodeId: node.id,
-					shortId: uuidToShortId(node.id),
-					priority: node.priority,
-					createdAt: timestampToDate(node.createdAt),
-					modifiedAt: timestampToDate(node.modifiedAt),
-					completedAt: timestampToDate(node.completedAt),
-					layoutMode: normalizeLayoutMode(node.data?.layoutMode),
-					systemFrom: systemFromStr,
-					systemTo: FAR_FUTURE_DATE,
-				})
-				.run();
-		}
-
-		// Note: We intentionally do NOT phase out siblings here.
-		// This is for incremental inserts, not bulk sync.
+		const systemTime = formatTemporalTimestamp(nextSystemTime(this.database));
+		upsertNodeVersion(this.database, node, parentId, systemTime);
 	}
 
 	/**
