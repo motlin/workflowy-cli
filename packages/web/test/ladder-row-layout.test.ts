@@ -7,9 +7,13 @@ const tsx = readFileSync(fileURLToPath(new URL("../src/client/components/ladder-
 
 function rowTracks(): string[] {
 	const rule = /\.ladder-row \{([^}]*)\}/.exec(css);
-	if (!rule) throw new Error("no .ladder-row rule");
+	if (!rule) {
+		throw new Error("no .ladder-row rule");
+	}
 	const declaration = /grid-template-columns:\s*([^;]+);/.exec(rule[1]);
-	if (!declaration) throw new Error("no grid-template-columns on .ladder-row");
+	if (!declaration) {
+		throw new Error("no grid-template-columns on .ladder-row");
+	}
 	// Split on spaces that are not inside minmax(...).
 	return declaration[1].trim().split(/\s+(?![^(]*\))/);
 }

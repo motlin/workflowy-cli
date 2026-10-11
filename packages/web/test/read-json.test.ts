@@ -5,7 +5,7 @@ describe("readJson", () => {
 	it("returns the parsed response body", async () => {
 		const response = new Response(JSON.stringify({nodes: [{id: "a"}]}));
 
-		const body = await readJson<{nodes: Array<{id: string}>}>(response);
+		const body = await readJson<{nodes: {id: string}[]}>(response);
 
 		expect(body).toStrictEqual({nodes: [{id: "a"}]});
 	});

@@ -16,15 +16,21 @@ export function parseArgs(argv) {
 		return index === -1 ? undefined : options[index + 1];
 	};
 	const label = value("--label");
-	if (!label) throw new Error("--label is required");
-	if (command.length === 0) throw new Error("a command is required after --");
+	if (!label) {
+		throw new Error("--label is required");
+	}
+	if (command.length === 0) {
+		throw new Error("a command is required after --");
+	}
 	return {label, cwd: value("--cwd") ?? `${homedir()}/projects`, focus: !options.includes("--no-focus"), command};
 }
 
 export function insertIndexRightOf(tabs, workspaceId, callerTabId) {
 	const workspaceTabs = tabs.filter((t) => t.workspace_id === workspaceId);
 	const callerIndex = workspaceTabs.findIndex((t) => t.tab_id === callerTabId);
-	if (callerIndex === -1) throw new Error(`caller tab ${callerTabId} not found in workspace ${workspaceId}`);
+	if (callerIndex === -1) {
+		throw new Error(`caller tab ${callerTabId} not found in workspace ${workspaceId}`);
+	}
 	return callerIndex + 1;
 }
 
@@ -40,11 +46,16 @@ function socketRequest(method, params) {
 		socket.on("data", (chunk) => {
 			buffer += chunk;
 			const newline = buffer.indexOf("\n");
-			if (newline === -1) return;
+			if (newline === -1) {
+				return;
+			}
 			socket.end();
 			const response = JSON.parse(buffer.slice(0, newline));
-			if (response.error) reject(new Error(`${method}: ${JSON.stringify(response.error)}`));
-			else resolve(response.result);
+			if (response.error) {
+				reject(new Error(`${method}: ${JSON.stringify(response.error)}`));
+			} else {
+				resolve(response.result);
+			}
 		});
 		socket.write(`${JSON.stringify({id: "launch-herdr-tab", method, params})}\n`);
 	});

@@ -1,4 +1,5 @@
-import {and, eq, type SQL, sql} from "drizzle-orm";
+import {and, eq, sql} from "drizzle-orm";
+import type {SQL} from "drizzle-orm";
 import type {SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
 
@@ -173,7 +174,7 @@ export function temporalMerge<TIncoming, TCurrent>(
 	const incomingKeys = new Set<string>();
 	const keysToPhaseOut: string[] = [];
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	const rowsToInsert: Array<Record<string, any>> = [];
+	const rowsToInsert: Record<string, any>[] = [];
 	let unchanged = 0;
 
 	for (const row of incoming) {

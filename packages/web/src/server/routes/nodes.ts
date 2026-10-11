@@ -7,7 +7,7 @@ import type {Node} from "@workflowy/shared/types";
 import {isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray} from "drizzle-orm";
 import {Hono} from "hono";
-import {type AppEnv, type ServerContext} from "../context.js";
+import type {AppEnv, ServerContext} from "../context.js";
 
 /**
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
@@ -153,7 +153,9 @@ nodesRouter.get("/", async (c) => {
 			.where(and(inArray(nodeContent.parentId, childParentIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 			.all();
 		for (const row of childRows) {
-			if (row.parentId) parentIdsWithChildren.add(row.parentId);
+			if (row.parentId) {
+				parentIdsWithChildren.add(row.parentId);
+			}
 		}
 	}
 
@@ -473,7 +475,9 @@ nodesRouter.get("/:id/mirrors", async (c) => {
 		let currentId: string | null = nodeId;
 		while (currentId !== null) {
 			const node = reader.getById(currentId);
-			if (!node) break;
+			if (!node) {
+				break;
+			}
 			path.unshift({id: node.id, name: node.name ?? "Untitled"});
 			currentId = node.parentId;
 		}

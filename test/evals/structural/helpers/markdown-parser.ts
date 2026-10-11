@@ -63,8 +63,8 @@ export function resolveCommandId(words: string[]): {command: string; remaining: 
  * Join continuation lines (lines ending with `\`) into a single logical line.
  * Returns an array of {text, lineNumber} where lineNumber is the 1-based start line.
  */
-export function joinContinuationLines(lines: string[]): Array<{text: string; lineNumber: number}> {
-	const result: Array<{text: string; lineNumber: number}> = [];
+export function joinContinuationLines(lines: string[]): {text: string; lineNumber: number}[] {
+	const result: {text: string; lineNumber: number}[] = [];
 	let buffer = "";
 	let startLine = 0;
 
@@ -74,7 +74,7 @@ export function joinContinuationLines(lines: string[]): Array<{text: string; lin
 		}
 
 		if (line.endsWith("\\")) {
-			buffer += line.slice(0, -1) + " ";
+			buffer += `${line.slice(0, -1)} `;
 		} else {
 			buffer += line;
 			result.push({text: buffer, lineNumber: startLine});
@@ -183,7 +183,9 @@ function tokenize(str: string): string[] {
  */
 function parseCliInvocation(text: string, lineNumber: number): CliInvocation | null {
 	const runJsIndex = text.indexOf("./bin/run.js");
-	if (runJsIndex === -1) return null;
+	if (runJsIndex === -1) {
+		return null;
+	}
 
 	const afterRunJs = text.slice(runJsIndex + "./bin/run.js".length).trim();
 	if (!afterRunJs) {
@@ -242,14 +244,16 @@ function parseCliInvocation(text: string, lineNumber: number): CliInvocation | n
  * Extract CLI invocations from joined lines.
  * Handles: `./bin/run.js`, `LOG_LEVEL=fatal ./bin/run.js`, pipes with `xargs ... ./bin/run.js`
  */
-function extractCliInvocations(joinedLines: Array<{text: string; lineNumber: number}>): CliInvocation[] {
+function extractCliInvocations(joinedLines: {text: string; lineNumber: number}[]): CliInvocation[] {
 	const results: CliInvocation[] = [];
 
 	for (const {text, lineNumber} of joinedLines) {
 		let searchStart = 0;
 		while (true) {
 			const idx = text.indexOf("./bin/run.js", searchStart);
-			if (idx === -1) break;
+			if (idx === -1) {
+				break;
+			}
 
 			const afterRunJs = text.slice(idx + "./bin/run.js".length);
 

@@ -1,4 +1,5 @@
-import {type FeatureExtractionPipeline, pipeline} from "@xenova/transformers";
+import {pipeline} from "@xenova/transformers";
+import type {FeatureExtractionPipeline} from "@xenova/transformers";
 import {z} from "zod";
 
 type LocalModel = {

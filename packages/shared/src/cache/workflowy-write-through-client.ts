@@ -7,7 +7,8 @@ import type {
 import {isSystemTarget} from "../types/targets.js";
 import type {WorkflowyNode} from "../types/workflowy.js";
 import type {CacheService} from "./cache-service.js";
-import {type DeletePlan, planSubtreeDelete} from "./delete-plan.js";
+import {planSubtreeDelete} from "./delete-plan.js";
+import type {DeletePlan} from "./delete-plan.js";
 
 /**
  * Unified write-through client that wraps both WorkflowyApiClient and CacheService.

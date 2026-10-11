@@ -18,7 +18,9 @@ export function LadderTree({item, onClose}: {item: {id: string; name: string}; o
 			ref={dialog}
 			aria-labelledby="ladder-tree-title"
 			onClose={() => {
-				if (!dialog.current?.open) onClose();
+				if (!dialog.current?.open) {
+					onClose();
+				}
 			}}
 		>
 			<header>
@@ -50,13 +52,14 @@ export function LadderTree({item, onClose}: {item: {id: string; name: string}; o
 
 function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors: string[]}) {
 	const {data: children, isLoading, error, refetch} = useChildren(parentId);
-	if (isLoading)
+	if (isLoading) {
 		return (
 			<p>
 				<output>Loading subtasks…</output>
 			</p>
 		);
-	if (error)
+	}
+	if (error) {
 		return (
 			<p role="alert">
 				Could not load subtasks.{" "}
@@ -65,7 +68,10 @@ function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors:
 				</button>
 			</p>
 		);
-	if (!children?.length) return <p className="ladder-tree-empty">No subtasks.</p>;
+	}
+	if (!children?.length) {
+		return <p className="ladder-tree-empty">No subtasks.</p>;
+	}
 	return (
 		<ul>
 			{children.map((node) => (

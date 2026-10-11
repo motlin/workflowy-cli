@@ -1,12 +1,12 @@
+import {describe, expect, it} from "vite-plus/test";
 import {
 	buildPhotoGroups,
 	countGroupsWithoutEvidence,
 	describeStaleAttachmentData,
 	parseImageSequence,
 	planPhotoGroup,
-	type CachedNodeRow,
-	type PhotoGroupMember,
 } from "../../src/services/photo-groups.js";
+import type {CachedNodeRow, PhotoGroupMember} from "../../src/services/photo-groups.js";
 
 const CREATED_AT = 1_700_000_000;
 
@@ -46,11 +46,11 @@ describe("parseImageSequence", () => {
 	});
 
 	it("returns null for generic filenames", () => {
-		expect(parseImageSequence("image.jpeg")).toBe(null);
+		expect(parseImageSequence("image.jpeg")).toBeNull();
 	});
 
 	it("returns null when there is no filename", () => {
-		expect(parseImageSequence(null)).toBe(null);
+		expect(parseImageSequence(null)).toBeNull();
 	});
 });
 

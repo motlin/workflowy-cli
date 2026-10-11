@@ -83,6 +83,23 @@ export default defineConfig({
 			"oxc/no-map-spread": "off",
 			// ~77 hits are deliberately sequential: rate-limited Workflowy writes, ordered moves, retries, and path walks.
 			"no-await-in-loop": "off",
+			curly: "error",
+			"prefer-template": "error",
+			"no-implicit-coercion": "error",
+			"typescript/array-type": "error",
+			"typescript/consistent-type-imports": "error",
+			"import/consistent-type-specifier-style": "error",
+			"unicorn/numeric-separators-style": "error",
+			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
+			"vitest/prefer-importing-vitest-globals": "error",
+			"vitest/prefer-strict-equal": "error",
+			"vitest/prefer-to-be": "error",
+			"vitest/prefer-to-have-length": "error",
+			"vitest/prefer-each": "error",
+			"vitest/prefer-called-once": "error",
+			"vitest/prefer-expect-resolves": "error",
+			"vitest/prefer-hooks-in-order": "error",
+			"vitest/prefer-expect-type-of": "error",
 		},
 		overrides: [
 			{
@@ -90,6 +107,20 @@ export default defineConfig({
 				rules: {
 					// Per-test fakes read better next to the assertion that uses them than hoisted to module scope.
 					"unicorn/consistent-function-scoping": "off",
+				},
+			},
+			{
+				files: ["test/evals/**"],
+				rules: {
+					// LLM responses include optional fields, so evals assert on them only when present.
+					"vitest/no-conditional-expect": "off",
+				},
+			},
+			{
+				files: ["plugins/**/*.test.mjs"],
+				rules: {
+					// These run under node:test; the rule mistakes its `test` import for a Vitest global.
+					"vitest/prefer-importing-vitest-globals": "off",
 				},
 			},
 		],

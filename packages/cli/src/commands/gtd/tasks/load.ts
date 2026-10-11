@@ -31,17 +31,17 @@ interface TasksOutput {
 
 interface MetadataJson {
 	destinations: {
-		nextActions: Array<{
+		nextActions: {
 			id: string;
 			targetId?: string;
 			containers?: {
 				asap?: {id: string; name: string} | null;
 				dueDate?: {id: string; name: string} | null;
 			};
-		}>;
-		calendar: Array<{id: string}>;
+		}[];
+		calendar: {id: string}[];
 	};
-	projects: Array<{linkId: string}>;
+	projects: {linkId: string}[];
 }
 
 /**
@@ -140,27 +140,36 @@ export default class Load extends Command {
 
 		for (const id of allIds) {
 			const node = await this.cacheService.getNode(id);
-			if (!node) continue;
+			if (!node) {
+				continue;
+			}
 
 			// Get children (depth 2 to get tasks inside containers)
 			const children = await this.cacheService.getChildren(id);
 
 			for (const child of children) {
 				// Skip the root node itself
-				if (child.id === id) continue;
+				if (child.id === id) {
+					continue;
+				}
 
 				// Skip completed tasks
-				if (child.completedAt) continue;
+				if (child.completedAt) {
+					continue;
+				}
 
 				// Skip container nodes (emoji prefixes: pushpin, alarm, checkbox, checkmark, page, clipboard)
 				if (
 					child.name &&
 					/^(?:\u{1F4CC}|\u{23F0}|\u{2611}\u{FE0F}?|\u{2705}|\u{1F4C4}|\u{1F4CB})\s/u.test(child.name)
-				)
+				) {
 					continue;
+				}
 
 				// Skip empty names
-				if (!child.name || child.name.trim().length === 0) continue;
+				if (!child.name || child.name.trim().length === 0) {
+					continue;
+				}
 
 				if (!seenIds.has(child.id)) {
 					seenIds.add(child.id);
@@ -174,14 +183,19 @@ export default class Load extends Command {
 				// Also check grandchildren (depth 2)
 				const grandchildren = await this.cacheService.getChildren(child.id);
 				for (const grandchild of grandchildren) {
-					if (grandchild.completedAt) continue;
-					if (!grandchild.name || grandchild.name.trim().length === 0) continue;
+					if (grandchild.completedAt) {
+						continue;
+					}
+					if (!grandchild.name || grandchild.name.trim().length === 0) {
+						continue;
+					}
 					if (
 						/^(?:\u{1F4CC}|\u{23F0}|\u{2611}\u{FE0F}?|\u{2705}|\u{1F4C4}|\u{1F4CB})\s/u.test(
 							grandchild.name,
 						)
-					)
+					) {
 						continue;
+					}
 
 					if (!seenIds.has(grandchild.id)) {
 						seenIds.add(grandchild.id);
@@ -209,7 +223,9 @@ export default class Load extends Command {
 
 		for (const id of projectIds) {
 			const node = await this.cacheService.getNode(id);
-			if (!node) continue;
+			if (!node) {
+				continue;
+			}
 
 			const projectName = node.name ?? "";
 
@@ -218,10 +234,14 @@ export default class Load extends Command {
 
 			for (const child of children) {
 				// Skip the root node
-				if (child.id === id) continue;
+				if (child.id === id) {
+					continue;
+				}
 
 				// Skip completed tasks
-				if (child.completedAt) continue;
+				if (child.completedAt) {
+					continue;
+				}
 
 				// Skip project header nodes (emoji prefixes)
 				if (
@@ -229,14 +249,19 @@ export default class Load extends Command {
 					/^[\u{1F4C1}\u{1F527}\u{1F4E6}\u{1F3AE}\u{1F310}\u{1F4DD}\u{1F3A8}\u{1F50C}\u{1F6AB}\u{2705}\u{1F3F0}\u{1F981}\u{1F916}\u{1F9EC}]/u.test(
 						child.name,
 					)
-				)
+				) {
 					continue;
+				}
 
 				// Skip nodes that are just hashtags
-				if (child.name && /^#[a-z-]+$/i.test(child.name)) continue;
+				if (child.name && /^#[a-z-]+$/i.test(child.name)) {
+					continue;
+				}
 
 				// Skip empty names
-				if (!child.name || child.name.trim().length === 0) continue;
+				if (!child.name || child.name.trim().length === 0) {
+					continue;
+				}
 
 				if (!seenIds.has(child.id)) {
 					seenIds.add(child.id);
@@ -250,8 +275,12 @@ export default class Load extends Command {
 				// Also check grandchildren
 				const grandchildren = await this.cacheService.getChildren(child.id);
 				for (const grandchild of grandchildren) {
-					if (grandchild.completedAt) continue;
-					if (!grandchild.name || grandchild.name.trim().length === 0) continue;
+					if (grandchild.completedAt) {
+						continue;
+					}
+					if (!grandchild.name || grandchild.name.trim().length === 0) {
+						continue;
+					}
 
 					if (!seenIds.has(grandchild.id)) {
 						seenIds.add(grandchild.id);
@@ -265,7 +294,9 @@ export default class Load extends Command {
 			}
 
 			// Limit per project to prevent excessive output
-			if (allTasks.length > 100) break;
+			if (allTasks.length > 100) {
+				break;
+			}
 		}
 
 		return allTasks.slice(0, 100);
@@ -290,7 +321,9 @@ export default class Load extends Command {
 			for (const child of children) {
 				// Try to extract date from <time> element in name
 				const match = child.name?.match(timePattern);
-				if (!match) continue;
+				if (!match) {
+					continue;
+				}
 
 				const year = match[1];
 				const month = String(Number(match[2])).padStart(2, "0");
@@ -298,12 +331,16 @@ export default class Load extends Command {
 				const dateStr = `${year}-${month}-${day}`;
 
 				// Skip if before cutoff
-				if (dateStr < cutoffDateStr) continue;
+				if (dateStr < cutoffDateStr) {
+					continue;
+				}
 
 				// Get children of this date node (meetings)
 				const dateChildren = await this.cacheService.getChildren(child.id);
 				for (const meeting of dateChildren) {
-					if (!meeting.name || meeting.name.trim().length === 0) continue;
+					if (!meeting.name || meeting.name.trim().length === 0) {
+						continue;
+					}
 
 					if (!seenIds.has(meeting.id)) {
 						seenIds.add(meeting.id);
@@ -327,7 +364,9 @@ export default class Load extends Command {
 		const results: EnhancedWorkflowyNode[] = [];
 
 		const node = await this.cacheService.getNode(nodeId);
-		if (!node) return results;
+		if (!node) {
+			return results;
+		}
 
 		results.push({
 			id: node.id,

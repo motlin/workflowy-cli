@@ -14,15 +14,21 @@ const markerChildren = (node, prefix) => (node.children ?? []).filter((child) =>
 
 function optionalMarker(node, prefix, context) {
 	const matches = markerChildren(node, prefix);
-	if (matches.length > 1) throw new Error(`${context} has multiple ${prefix.trim()} markers`);
+	if (matches.length > 1) {
+		throw new Error(`${context} has multiple ${prefix.trim()} markers`);
+	}
 	return matches[0]?.name.slice(prefix.length) ?? null;
 }
 
 function parseInterval(node, context) {
 	const value = optionalMarker(node, INTERVAL_PREFIX, context);
-	if (value === null) return {amount: 1, unit: "d"};
+	if (value === null) {
+		return {amount: 1, unit: "d"};
+	}
 	const match = value.match(INTERVAL_PATTERN);
-	if (!match || Number(match[1]) === 0) throw new Error(`${context} has invalid interval "${value}"`);
+	if (!match || Number(match[1]) === 0) {
+		throw new Error(`${context} has invalid interval "${value}"`);
+	}
 	return {amount: Number(match[1]), unit: match[2]};
 }
 
@@ -33,9 +39,13 @@ function isMarker(child) {
 
 function instructions(node, context) {
 	const obsoleteKey = (node.children ?? []).find((child) => String(child.name).startsWith("Key:"));
-	if (obsoleteKey) throw new Error(`${context} has obsolete Key marker "${obsoleteKey.name}"`);
+	if (obsoleteKey) {
+		throw new Error(`${context} has obsolete Key marker "${obsoleteKey.name}"`);
+	}
 	const result = (node.children ?? []).filter((child) => !isMarker(child) && String(child.name).trim() !== "");
-	if (result.length === 0) throw new Error(`${context} has no instructions`);
+	if (result.length === 0) {
+		throw new Error(`${context} has no instructions`);
+	}
 	return result;
 }
 
@@ -49,7 +59,9 @@ function taskSlug(taskInstructions, context) {
 	const commandSlugs = taskInstructions
 		.map((instruction) => String(instruction.name).trim().match(TASK_COMMAND_PATTERN)?.[1])
 		.filter(Boolean);
-	if (commandSlugs.length !== 1) throw new Error(`${context} must have exactly one plugin command`);
+	if (commandSlugs.length !== 1) {
+		throw new Error(`${context} must have exactly one plugin command`);
+	}
 	return commandSlugs[0].replace(/-(?:prep|auto)$/, "");
 }
 
@@ -59,10 +71,14 @@ function parsePrepTask(node, today) {
 	const taskInstructions = instructions(node, context);
 	const slug = taskSlug(taskInstructions, context);
 	const dueDate = parseTimeISO(node.name);
-	if (dueDate === null) throw new Error(`${context} is missing its date`);
+	if (dueDate === null) {
+		throw new Error(`${context} is missing its date`);
+	}
 	const interval = parseInterval(node, context);
 	const autoMarkers = (node.children ?? []).filter((child) => child.name === "Auto");
-	if (autoMarkers.length > 1) throw new Error(`${context} has multiple Auto markers`);
+	if (autoMarkers.length > 1) {
+		throw new Error(`${context} has multiple Auto markers`);
+	}
 	const due = node.completedAt === null && dueDate <= today;
 	const nextDate = addInterval(today, interval);
 	const newName = swapTimeElement(node.name, buildTimeElement(nextDate));
@@ -109,7 +125,9 @@ function uniqueBy(tasks, property, context) {
 	const result = new Map();
 	for (const task of tasks) {
 		const value = task[property];
-		if (result.has(value)) throw new Error(`${context} has duplicate ${property} "${value}"`);
+		if (result.has(value)) {
+			throw new Error(`${context} has duplicate ${property} "${value}"`);
+		}
 		result.set(value, task);
 	}
 	return result;
@@ -124,7 +142,9 @@ function rootGroups(tree) {
 	const groups = new Map();
 	for (const name of ROOT_NAMES) {
 		const matches = children.filter((child) => child.name === name);
-		if (matches.length !== 1) throw new Error(`LLM Tasks must contain exactly one ${name} node`);
+		if (matches.length !== 1) {
+			throw new Error(`LLM Tasks must contain exactly one ${name} node`);
+		}
 		groups.set(name, matches[0]);
 	}
 	return groups;
@@ -133,14 +153,18 @@ function rootGroups(tree) {
 export function computeLlmDag(tree, today) {
 	// planDate ships in the plan and the executor compares it to the local date before advancing
 	// any task. An unpadded date never matches, so it would restage the import barrier forever.
-	if (!PLAN_DATE_PATTERN.test(today)) throw new Error(`plan date must be YYYY-MM-DD, got "${today}"`);
+	if (!PLAN_DATE_PATTERN.test(today)) {
+		throw new Error(`plan date must be YYYY-MM-DD, got "${today}"`);
+	}
 	const groups = rootGroups(tree);
 	const importNode = groups.get("Import");
 	const prepNode = groups.get("Prep");
 	const presentationNode = groups.get("Presentation");
 	const parsedBranches = (prepNode.children ?? []).map((child) => {
 		if (String(child.name).startsWith("Serial: ")) {
-			if ((child.children ?? []).length === 0) throw new Error(`serial group "${child.name}" is empty`);
+			if ((child.children ?? []).length === 0) {
+				throw new Error(`serial group "${child.name}" is empty`);
+			}
 			return {
 				mode: "serial",
 				name: child.name.slice("Serial: ".length),
@@ -201,12 +225,18 @@ function main(arguments_) {
 	let inputPath = ".llm/gtd/review/phase0-llm-tasks.json";
 	let today = localTodayISO();
 	for (let index = 0; index < argumentsList.length; index++) {
-		if (argumentsList[index] === "--today") today = argumentsList[++index];
-		else if (!argumentsList[index].startsWith("--")) inputPath = argumentsList[index];
-		else throw new Error(`unknown option: ${argumentsList[index]}`);
+		if (argumentsList[index] === "--today") {
+			today = argumentsList[++index];
+		} else if (!argumentsList[index].startsWith("--")) {
+			inputPath = argumentsList[index];
+		} else {
+			throw new Error(`unknown option: ${argumentsList[index]}`);
+		}
 	}
 	const tree = JSON.parse(readFileSync(inputPath, "utf8"));
 	process.stdout.write(`${JSON.stringify(computeLlmDag(tree, today), null, 2)}\n`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main(process.argv);
+}

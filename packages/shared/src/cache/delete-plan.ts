@@ -54,7 +54,9 @@ export function deletePlanCalls(plan: DeletePlan): DeletePlanCall[] {
 			calls.push({method: "POST", path: `/nodes/${id}/move`, body: {parent_id: parentId, position}});
 		}
 	}
-	if (plan.nodeId !== null) calls.push({method: "DELETE", path: `/nodes/${plan.nodeId}`});
+	if (plan.nodeId !== null) {
+		calls.push({method: "DELETE", path: `/nodes/${plan.nodeId}`});
+	}
 	return calls;
 }
 
@@ -109,7 +111,9 @@ export async function planSubtreeDelete(
 
 		pendingMirrors.delete(mirrorId);
 		outline.remove(mirrorId);
-		for (const id of [originalId, ...siblingIds]) await outline.move(id, parentId, position);
+		for (const id of [originalId, ...siblingIds]) {
+			await outline.move(id, parentId, position);
+		}
 		promotions.push({originalId, mirrorId, parentId, position, siblingIds});
 	}
 
@@ -130,7 +134,9 @@ function findKeptOriginals(nodeId: string, subtree: SubtreeMirrors): Map<string,
 	while (changed) {
 		changed = false;
 		for (const [originalId, mirrorIds] of subtree.mirrorsOf) {
-			if (!isDeleted(originalId, nodeId, subtree.parents, kept)) continue;
+			if (!isDeleted(originalId, nodeId, subtree.parents, kept)) {
+				continue;
+			}
 			if (mirrorIds.some((id) => !isDeleted(id, nodeId, subtree.parents, kept))) {
 				kept.set(originalId, []);
 				changed = true;
@@ -149,9 +155,13 @@ function findKeptOriginals(nodeId: string, subtree: SubtreeMirrors): Map<string,
 
 /** Whether `id` is in the subtree of `nodeId` and not under (or itself) a kept original. */
 function isDeleted(id: string, nodeId: string, parents: Map<string, string>, kept: Map<string, unknown>): boolean {
-	if (id !== nodeId && !parents.has(id)) return false;
+	if (id !== nodeId && !parents.has(id)) {
+		return false;
+	}
 	for (let current: string | undefined = id; current !== undefined; current = parents.get(current)) {
-		if (kept.has(current)) return false;
+		if (kept.has(current)) {
+			return false;
+		}
 	}
 	return true;
 }
@@ -180,14 +190,19 @@ class OutlineSimulation {
 		this.touched.add(id);
 		for (const list of this.lists.values()) {
 			const index = list.indexOf(id);
-			if (index !== -1) list.splice(index, 1);
+			if (index !== -1) {
+				list.splice(index, 1);
+			}
 		}
 	}
 
 	async move(id: string, parentId: string | null, position: "top" | "bottom"): Promise<void> {
 		const list = await this.children(parentId);
 		this.remove(id);
-		if (position === "top") list.unshift(id);
-		else list.push(id);
+		if (position === "top") {
+			list.unshift(id);
+		} else {
+			list.push(id);
+		}
 	}
 }

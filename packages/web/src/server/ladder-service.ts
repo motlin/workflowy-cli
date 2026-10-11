@@ -8,7 +8,8 @@
  */
 
 import type {LadderEvent, LadderEventBus} from "./ladder-events.js";
-import {type Ladder, type RawNode, planTierMove, toLadder} from "./ladder-model.js";
+import {planTierMove, toLadder} from "./ladder-model.js";
+import type {Ladder, RawNode} from "./ladder-model.js";
 
 export type LadderBuckets = Record<string, RawNode>;
 
@@ -64,7 +65,9 @@ export class LadderService {
 		const destination = ladder.tiers.find((tier) => tier.id === plan.parentId)!;
 		const remaining = destination.items.filter((item) => item.id !== nodeId);
 		const index = beforeNodeId ? remaining.findIndex((item) => item.id === beforeNodeId) : remaining.length;
-		if (index < 0) throw new Error(`node ${beforeNodeId} is not a destination row`);
+		if (index < 0) {
+			throw new Error(`node ${beforeNodeId} is not a destination row`);
+		}
 		const event = {
 			verb: "move" as const,
 			nodeId,
@@ -73,8 +76,12 @@ export class LadderService {
 			toTier,
 		};
 		await this.#options.moveNode(nodeId, plan.parentId, index === 0 ? -1 : 0);
-		if (index === 0) return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ""});
-		if (index === remaining.length) return this.#landed(plan.parentId, {...event, beforeNodeId: ""});
+		if (index === 0) {
+			return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ""});
+		}
+		if (index === remaining.length) {
+			return this.#landed(plan.parentId, {...event, beforeNodeId: ""});
+		}
 		this.#publish({...event, beforeNodeId: ""});
 		// Workflowy's API supports only top/bottom. Rotate the suffix to preserve exact placement.
 		for (const item of remaining.slice(index)) {

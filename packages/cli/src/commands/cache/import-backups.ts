@@ -4,7 +4,8 @@ import {Command, Flags} from "@oclif/core";
 import {desc, eq} from "drizzle-orm";
 import {createDatabase} from "../../db/index.js";
 import {logger} from "../../services/logger.js";
-import {type BackupEntry, listBackups, materializeBackup, resolveBackupsDirectory} from "../../utils/backup-archive.js";
+import {listBackups, materializeBackup, resolveBackupsDirectory} from "../../utils/backup-archive.js";
+import type {BackupEntry} from "../../utils/backup-archive.js";
 import {formatDate, getDateDifference} from "../../utils/backup-validation.js";
 
 export default class ImportBackups extends Command {

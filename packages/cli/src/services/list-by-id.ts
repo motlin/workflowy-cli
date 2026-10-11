@@ -1,5 +1,6 @@
 import type {WorkflowyApiClient} from "@workflowy/shared/api";
-import {type NodeTree, NodeTreeReader, systemFromToDate} from "@workflowy/shared/cache";
+import {NodeTreeReader, systemFromToDate} from "@workflowy/shared/cache";
+import type {NodeTree} from "@workflowy/shared/cache";
 import type {CacheService} from "./cache.js";
 import {logger} from "./logger.js";
 

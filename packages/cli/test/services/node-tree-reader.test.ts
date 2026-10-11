@@ -1,9 +1,11 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {CacheService, NodeTreeReader} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 describe("NodeTreeReader", () => {
@@ -24,7 +26,9 @@ describe("NodeTreeReader", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		cleanupTestDatabase(testDatabase);
-		if (fs.existsSync(tempDir)) fs.rmSync(tempDir, {recursive: true, force: true});
+		if (fs.existsSync(tempDir)) {
+			fs.rmSync(tempDir, {recursive: true, force: true});
+		}
 	});
 
 	it("reads children as subtrees to the requested depth", async () => {

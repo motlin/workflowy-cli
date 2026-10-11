@@ -1,3 +1,4 @@
+import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

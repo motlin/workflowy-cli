@@ -375,7 +375,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	nextSlide: () =>
 		set((state) => {
-			if (!state.presentationContext) return state;
+			if (!state.presentationContext) {
+				return state;
+			}
 			return {
 				presentationContext: {
 					...state.presentationContext,
@@ -386,7 +388,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	previousSlide: () =>
 		set((state) => {
-			if (!state.presentationContext) return state;
+			if (!state.presentationContext) {
+				return state;
+			}
 			const newIndex = Math.max(0, state.presentationContext.currentSlideIndex - 1);
 			return {
 				presentationContext: {
@@ -398,7 +402,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	goToSlide: (index) =>
 		set((state) => {
-			if (!state.presentationContext) return state;
+			if (!state.presentationContext) {
+				return state;
+			}
 			return {
 				presentationContext: {
 					...state.presentationContext,

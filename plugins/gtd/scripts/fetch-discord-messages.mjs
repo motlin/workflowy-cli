@@ -11,7 +11,7 @@
 import {pathToFileURL} from "node:url";
 
 const API = "https://discord.com/api/v10";
-const DISCORD_EPOCH = 1420070400000n;
+const DISCORD_EPOCH = 1_420_070_400_000n;
 const PAGE_SIZE = 100;
 
 export function snowflakeFromTime(ms) {
@@ -57,7 +57,9 @@ export async function fetchMessagesSince({
 		}
 		const sorted = [...body].toSorted(byId);
 		messages.push(...sorted);
-		if (sorted.length < PAGE_SIZE) break;
+		if (sorted.length < PAGE_SIZE) {
+			break;
+		}
 		cursor = sorted.at(-1).id;
 	}
 	return messages;

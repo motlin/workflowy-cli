@@ -155,7 +155,7 @@ function workflowyRoot({
 }
 
 const dated = (name, iso, id) => ({
-	name: `${name} <time startYear="${iso.slice(0, 4)}" startMonth="${+iso.slice(5, 7)}" startDay="${+iso.slice(8, 10)}">label</time> `,
+	name: `${name} <time startYear="${iso.slice(0, 4)}" startMonth="${Number(iso.slice(5, 7))}" startDay="${Number(iso.slice(8, 10))}">label</time> `,
 	id,
 	shortId: id.slice(-12),
 	children: [],

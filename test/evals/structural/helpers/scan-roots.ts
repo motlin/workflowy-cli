@@ -34,7 +34,9 @@ export function trackedFiles(root: string): string[] {
  * Recursively collect all .md files under a directory.
  */
 export function collectMarkdownFiles(dir: string): string[] {
-	if (!existsSync(dir)) return [];
+	if (!existsSync(dir)) {
+		return [];
+	}
 	const results: string[] = [];
 	for (const entry of readdirSync(dir, {withFileTypes: true})) {
 		const fullPath = join(dir, entry.name);
@@ -51,7 +53,9 @@ export function collectMarkdownFiles(dir: string): string[] {
  * List plugin names (subdirectories of plugins/).
  */
 export function listPlugins(): string[] {
-	if (!existsSync(PLUGINS_DIR)) return [];
+	if (!existsSync(PLUGINS_DIR)) {
+		return [];
+	}
 	return readdirSync(PLUGINS_DIR, {withFileTypes: true})
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => entry.name);

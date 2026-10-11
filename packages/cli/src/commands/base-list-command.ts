@@ -1,5 +1,6 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import {type NodeTree, NodeTreeReader, PathBuilder, systemFromToDate} from "@workflowy/shared/cache";
+import {NodeTreeReader, PathBuilder, systemFromToDate} from "@workflowy/shared/cache";
+import type {NodeTree} from "@workflowy/shared/cache";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../db/index.js";
@@ -197,7 +198,7 @@ export abstract class BaseListCommand extends Command {
 				const branch = isLast ? "└── " : "├── ";
 				prefix = indent + branch;
 				const urlIndent = depth > 0 ? "│   ".repeat(depth) : "";
-				urlPrefix = urlIndent + (isLast ? "    " : "│   ") + "    ";
+				urlPrefix = `${urlIndent + (isLast ? "    " : "│   ")}    `;
 			} else {
 				prefix = "  ";
 				urlPrefix = "     ";

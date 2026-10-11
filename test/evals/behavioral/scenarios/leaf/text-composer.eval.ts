@@ -5,6 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
+import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
@@ -33,7 +34,9 @@ describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 	afterAll(() => ctx?.cleanup());
 
 	it("should compose text with integrated tags", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const taggerResults = {
 			itemId: "test-item-1",
@@ -58,7 +61,7 @@ describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 
 		const parsed = JSON.parse(jsonMatch![0]);
 		if (parsed.suggestedText) {
-			expect(typeof parsed.suggestedText).toBe("string");
+			expect(parsed.suggestedText).toBeTypeOf("string");
 			expect(parsed.suggestedText.length).toBeGreaterThan(0);
 		}
 		if (parsed.tagsAdded) {

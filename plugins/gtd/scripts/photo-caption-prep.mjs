@@ -39,7 +39,9 @@ const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u{1F3FB}-\u
 const ENTITIES = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'"};
 
 export function favoritesQuery(days) {
-	if (!Number.isInteger(days) || days < 1) throw new Error(`days must be a positive integer, got ${days}`);
+	if (!Number.isInteger(days) || days < 1) {
+		throw new Error(`days must be a positive integer, got ${days}`);
+	}
 	return (
 		"SELECT A.ZUUID AS uuid, datetime(A.ZDATECREATED+978307200,'unixepoch','localtime') AS created, A.ZDIRECTORY AS directory, A.ZFILENAME AS filename, COALESCE(B.ZORIGINALFILENAME,'') AS originalFilename" +
 		" FROM ZASSET A LEFT JOIN ZADDITIONALASSETATTRIBUTES B ON A.Z_PK=B.ZASSET" +
@@ -52,7 +54,9 @@ export function favoritesQuery(days) {
 
 export function facesQuery(uuids) {
 	for (const uuid of uuids) {
-		if (!UUID_RE.test(uuid)) throw new Error(`Invalid uuid: ${uuid}`);
+		if (!UUID_RE.test(uuid)) {
+			throw new Error(`Invalid uuid: ${uuid}`);
+		}
 	}
 	const list = uuids.map((uuid) => `'${uuid}'`).join(",");
 	return (
@@ -66,16 +70,23 @@ export function groupFaces(rows) {
 	const byUuid = {};
 	for (const {uuid, name} of rows) {
 		const entry = (byUuid[uuid] ??= {named: [], unnamed: 0});
-		if (!name) entry.unnamed += 1;
-		else if (!entry.named.includes(name)) entry.named.push(name);
+		if (!name) {
+			entry.unnamed += 1;
+		} else if (!entry.named.includes(name)) {
+			entry.named.push(name);
+		}
 	}
 	return byUuid;
 }
 
 export function facesSummary({named, unnamed}) {
-	if (named.length === 0 && unnamed === 0) return "No faces detected.";
+	if (named.length === 0 && unnamed === 0) {
+		return "No faces detected.";
+	}
 	const tagged = `Tagged: ${named.length > 0 ? named.join(", ") : "nobody"}.`;
-	if (unnamed === 0) return tagged;
+	if (unnamed === 0) {
+		return tagged;
+	}
 	return `${tagged} ${unnamed} untagged face${unnamed === 1 ? "" : "s"}, ready to tag in Photos.`;
 }
 
@@ -97,7 +108,9 @@ export function captionSeed(name) {
 
 function dayPrefix(date) {
 	const match = DATE_RE.exec(date);
-	if (!match) throw new Error(`Invalid date: ${date}`);
+	if (!match) {
+		throw new Error(`Invalid date: ${date}`);
+	}
 	const [, year, month, day] = match;
 	return `<time startYear="${year}" startMonth="${Number(month)}" startDay="${Number(day)}">`;
 }
@@ -115,18 +128,24 @@ export function groupJournal(rows) {
 	const byDate = {};
 	for (const {day, entry} of rows) {
 		const match = /startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)"/.exec(day);
-		if (!match) continue;
+		if (!match) {
+			continue;
+		}
 		const date = `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
 		const seed = captionSeed(entry ?? "");
 		const seeds = (byDate[date] ??= []);
-		if (seed && !seeds.includes(seed)) seeds.push(seed);
+		if (seed && !seeds.includes(seed)) {
+			seeds.push(seed);
+		}
 	}
 	return byDate;
 }
 
 function minuteTime(created) {
 	const match = TIMESTAMP_RE.exec(created);
-	if (!match) throw new Error(`Invalid timestamp: ${created}`);
+	if (!match) {
+		throw new Error(`Invalid timestamp: ${created}`);
+	}
 	const [, year, month, day, hour, minute] = match.map(Number);
 	return `<time startYear="${year}" startMonth="${month}" startDay="${day}" startHour="${hour}" startMinute="${minute}">`;
 }
@@ -141,7 +160,9 @@ export function journaledQuery(favorites) {
 export function splitJournaled(favorites, rows) {
 	const times = new Set();
 	for (const {name} of rows) {
-		for (const match of (name ?? "").matchAll(MINUTE_TIME_RE)) times.add(match[0]);
+		for (const match of (name ?? "").matchAll(MINUTE_TIME_RE)) {
+			times.add(match[0]);
+		}
 	}
 	const journaled = [];
 	const remaining = [];
@@ -156,8 +177,11 @@ export function planSources(favorites, libraryPath, exists) {
 	const icloud = [];
 	for (const favorite of favorites) {
 		const originalPath = join(libraryPath, "originals", favorite.directory, favorite.filename);
-		if (exists(originalPath)) local.push({...favorite, originalPath});
-		else icloud.push(favorite);
+		if (exists(originalPath)) {
+			local.push({...favorite, originalPath});
+		} else {
+			icloud.push(favorite);
+		}
 	}
 	return {local, icloud};
 }
@@ -220,29 +244,41 @@ export function buildManifest({local, icloud, views, faces, journal}) {
 function parseArgs(argv) {
 	const args = {days: 14, out: ".llm/gtd/photo-captions", countOnly: false, workflowyDb: "workflowy.sqlite"};
 	for (let i = 0; i < argv.length; i++) {
-		if (argv[i] === "--days") args.days = Number(argv[++i]);
-		else if (argv[i] === "--workflowy-db") args.workflowyDb = argv[++i];
-		else if (argv[i] === "--out") args.out = argv[++i];
-		else if (argv[i] === "--count-only") args.countOnly = true;
-		else throw new Error(`Unknown argument: ${argv[i]}`);
+		if (argv[i] === "--days") {
+			args.days = Number(argv[++i]);
+		} else if (argv[i] === "--workflowy-db") {
+			args.workflowyDb = argv[++i];
+		} else if (argv[i] === "--out") {
+			args.out = argv[++i];
+		} else if (argv[i] === "--count-only") {
+			args.countOnly = true;
+		} else {
+			throw new Error(`Unknown argument: ${argv[i]}`);
+		}
 	}
 	return args;
 }
 
 function copyDatabase(libraryPath, outDir) {
 	const target = join(outDir, "photos-ro.sqlite");
-	for (const suffix of ["-wal", "-shm"]) rmSync(target + suffix, {force: true});
+	for (const suffix of ["-wal", "-shm"]) {
+		rmSync(target + suffix, {force: true});
+	}
 	const source = join(libraryPath, "database", "Photos.sqlite");
 	copyFileSync(source, target);
 	for (const suffix of ["-wal", "-shm"]) {
-		if (existsSync(source + suffix)) copyFileSync(source + suffix, target + suffix);
+		if (existsSync(source + suffix)) {
+			copyFileSync(source + suffix, target + suffix);
+		}
 	}
 	return target;
 }
 
 function sqliteJson(dbPath, sql) {
 	const result = spawnSync("sqlite3", ["-readonly", "-json", dbPath, sql], {encoding: "utf8"});
-	if (result.status !== 0) throw new Error(`sqlite3 failed: ${result.stderr}`);
+	if (result.status !== 0) {
+		throw new Error(`sqlite3 failed: ${result.stderr}`);
+	}
 	return result.stdout.trim() ? JSON.parse(result.stdout) : [];
 }
 
@@ -261,7 +297,9 @@ function main() {
 
 	const dbPath = copyDatabase(libraryPath, outDir);
 	const workflowyDb = resolve(args.workflowyDb);
-	if (!existsSync(workflowyDb)) throw new Error(`Workflowy cache not found: ${workflowyDb}`);
+	if (!existsSync(workflowyDb)) {
+		throw new Error(`Workflowy cache not found: ${workflowyDb}`);
+	}
 	const candidates = sqliteJson(dbPath, favoritesQuery(args.days));
 	const {journaled, remaining: favorites} =
 		candidates.length > 0
@@ -282,11 +320,15 @@ function main() {
 	const views = {};
 	for (const favorite of local) {
 		const viewPath = join(viewDir, `${favorite.uuid}.jpg`);
-		if (toViewJpeg(favorite.originalPath, viewPath)) views[favorite.uuid] = viewPath;
+		if (toViewJpeg(favorite.originalPath, viewPath)) {
+			views[favorite.uuid] = viewPath;
+		}
 	}
 
 	if (icloud.length > 0) {
-		for (const favorite of icloud) mkdirSync(join(exportDir, favorite.uuid), {recursive: true});
+		for (const favorite of icloud) {
+			mkdirSync(join(exportDir, favorite.uuid), {recursive: true});
+		}
 		const script = buildExportAppleScript(icloud.map((f) => f.uuid)).flatMap((line) => ["-e", line]);
 		const result = spawnSync("osascript", [...script, exportDir], {encoding: "utf8"});
 		writeFileSync(
@@ -297,7 +339,9 @@ function main() {
 			const folder = join(exportDir, favorite.uuid);
 			const [file] = readdirSync(folder);
 			const viewPath = join(viewDir, `${favorite.uuid}.jpg`);
-			if (file && toViewJpeg(join(folder, file), viewPath)) views[favorite.uuid] = viewPath;
+			if (file && toViewJpeg(join(folder, file), viewPath)) {
+				views[favorite.uuid] = viewPath;
+			}
 		}
 	}
 

@@ -1,7 +1,8 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
-import {type ImportApiResult, importFromApi} from "../../services/cache-import-api.js";
+import {importFromApi} from "../../services/cache-import-api.js";
+import type {ImportApiResult} from "../../services/cache-import-api.js";
 import {logger} from "../../services/logger.js";
 
 export default class ImportApi extends Command {

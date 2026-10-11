@@ -148,7 +148,9 @@ export default class Dedup extends Command {
 	 * Normalize text for comparison.
 	 */
 	private normalize(text: string): string {
-		if (!text) return "";
+		if (!text) {
+			return "";
+		}
 		// Remove HTML tags
 		let normalized = text.replaceAll(/<[^>]+>/g, "");
 		// Remove non-word characters except spaces
@@ -281,8 +283,12 @@ export default class Dedup extends Command {
 	 * Simple sequence similarity ratio.
 	 */
 	private sequenceRatio(s1: string, s2: string): number {
-		if (s1.length === 0 && s2.length === 0) return 1;
-		if (s1.length === 0 || s2.length === 0) return 0;
+		if (s1.length === 0 && s2.length === 0) {
+			return 1;
+		}
+		if (s1.length === 0 || s2.length === 0) {
+			return 0;
+		}
 
 		// Simple LCS-based ratio
 		const lcs = this.longestCommonSubsequence(s1, s2);
@@ -383,7 +389,9 @@ export default class Dedup extends Command {
 			const rows = db.prepare<[], {date_name: string; entry: string | null}>(query).all();
 
 			for (const row of rows) {
-				if (!row.entry) continue;
+				if (!row.entry) {
+					continue;
+				}
 
 				// Match date to original date string
 				for (const date of dates) {

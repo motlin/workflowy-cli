@@ -1,5 +1,6 @@
 import type {WorkflowyApiClient} from "../api/index.js";
-import {type CacheService, WorkflowyWriteThroughClient} from "../cache/index.js";
+import {WorkflowyWriteThroughClient} from "../cache/index.js";
+import type {CacheService} from "../cache/index.js";
 import {isSystemTarget} from "../types/index.js";
 import {isShortId} from "../workflowy/index.js";
 

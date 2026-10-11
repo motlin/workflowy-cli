@@ -51,18 +51,26 @@ export function planDuplicate(
 /** Indent `node` under its previous sibling, or null if it has no previous sibling. */
 export function planIndent(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
 	const siblings = readChildren(queryClient, node.parent_id);
-	if (!siblings) return null;
+	if (!siblings) {
+		return null;
+	}
 	const sorted = sortByPriority(siblings);
 	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	if (index <= 0) return null;
+	if (index <= 0) {
+		return null;
+	}
 	return {nodeId: node.id, parent_id: sorted[index - 1].id};
 }
 
 /** Outdent `node` to sit after its parent among the grandparent's children, or null if at root. */
 export function planOutdent(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
-	if (node.parent_id === null) return null;
+	if (node.parent_id === null) {
+		return null;
+	}
 	const parent = readDetail(queryClient, node.parent_id);
-	if (parent === undefined) return null;
+	if (parent === undefined) {
+		return null;
+	}
 	const grandparentId = parent.parent_id;
 	const parentSiblings = readChildren(queryClient, grandparentId);
 	const position = insertAfterPriority(
@@ -76,10 +84,14 @@ export function planOutdent(queryClient: QueryClient, node: PlanNode): MoveNodeP
 /** Move `node` up among its siblings (before the previous one), or null if already first. */
 export function planMoveUp(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
 	const siblings = readChildren(queryClient, node.parent_id);
-	if (!siblings || siblings.length < 2) return null;
+	if (!siblings || siblings.length < 2) {
+		return null;
+	}
 	const sorted = sortByPriority(siblings);
 	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	if (index <= 0) return null;
+	if (index <= 0) {
+		return null;
+	}
 	const previous = sorted[index - 1];
 	return {
 		nodeId: node.id,
@@ -91,10 +103,14 @@ export function planMoveUp(queryClient: QueryClient, node: PlanNode): MoveNodePa
 /** Move `node` down among its siblings (after the next one), or null if already last. */
 export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
 	const siblings = readChildren(queryClient, node.parent_id);
-	if (!siblings || siblings.length < 2) return null;
+	if (!siblings || siblings.length < 2) {
+		return null;
+	}
 	const sorted = sortByPriority(siblings);
 	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	if (index === -1 || index >= sorted.length - 1) return null;
+	if (index === -1 || index >= sorted.length - 1) {
+		return null;
+	}
 	const next = sorted[index + 1];
 	return {nodeId: node.id, parent_id: node.parent_id, position: insertAfterPriority(sorted, next.id, next.priority)};
 }
@@ -108,7 +124,11 @@ export function nextSelectionAfterDelete(
 	node: Pick<NodeResponse, "id" | "parent_id">,
 ): string | null {
 	const index = visibleNodes.indexOf(node.id);
-	if (index > 0) return visibleNodes[index - 1];
-	if (node.parent_id !== null) return node.parent_id;
+	if (index > 0) {
+		return visibleNodes[index - 1];
+	}
+	if (node.parent_id !== null) {
+		return node.parent_id;
+	}
 	return null;
 }

@@ -29,7 +29,9 @@ function sandbox(pages) {
 	const cache = join(dir, "cache");
 	const fixtures = join(dir, "fixtures");
 	const calls = join(dir, "curl-calls.log");
-	for (const d of [bin, cache, fixtures]) mkdirSync(d);
+	for (const d of [bin, cache, fixtures]) {
+		mkdirSync(d);
+	}
 	writeFileSync(join(cache, "otter-session-cache"), "");
 	writeFileSync(join(cache, "otter-userid-cache"), "42");
 	for (const [cursor, body] of Object.entries(pages)) {

@@ -1,4 +1,4 @@
-import * as schema from "../db/schema.js";
+import type * as schema from "../db/schema.js";
 import {nodeContent} from "../db/schema.js";
 import type {Node} from "../types/node.js";
 import {and, eq, inArray, isNull} from "drizzle-orm";

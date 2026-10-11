@@ -1,10 +1,12 @@
+import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import {QueryHelpers} from "../../src/services/query-helpers.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode, getShortId, splitNodeIntoContentAndMetadata} from "../helpers/node-fixtures.js";
 import {withoutSystemFrom} from "../helpers/assertion-helpers.js";
 
@@ -70,7 +72,7 @@ describe("QueryHelpers", () => {
 			});
 
 			// Verify systemFrom is a valid timestamp
-			expect(typeof actualSystemFrom).toBe("string");
+			expect(actualSystemFrom).toBeTypeOf("string");
 		});
 
 		it("returns undefined for non-existent ID", async () => {

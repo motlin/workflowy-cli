@@ -1,7 +1,8 @@
 import {Command, Flags} from "@oclif/core";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
-import {type QmdSearchResultItem, QmdSearchService} from "../../services/qmd-search.js";
+import {QmdSearchService} from "../../services/qmd-search.js";
+import type {QmdSearchResultItem} from "../../services/qmd-search.js";
 
 export default class QmdSearch extends Command {
 	static override enableJsonFlag = true;
@@ -49,7 +50,7 @@ export default class QmdSearch extends Command {
 	};
 
 	public async run(): Promise<
-		Array<{
+		{
 			id: string;
 			name: string;
 			note: string | null | undefined;
@@ -63,7 +64,7 @@ export default class QmdSearch extends Command {
 			fullPath: string;
 			textContent: string;
 			score?: number;
-		}>
+		}[]
 	> {
 		const {flags} = await this.parse(QmdSearch);
 		const {query} = flags;

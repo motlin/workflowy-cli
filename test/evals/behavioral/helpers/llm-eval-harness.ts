@@ -143,7 +143,7 @@ export function extractBashCommands(toolCalls: CapturedToolCall[]): string[] {
  */
 export function extractSubagentLaunches(
 	toolCalls: CapturedToolCall[],
-): Array<{subagentType: string; prompt: string; promptFile: string | undefined}> {
+): {subagentType: string; prompt: string; promptFile: string | undefined}[] {
 	return toolCalls
 		.filter((tc) => tc.name === "Agent" || tc.name === "Task")
 		.map((tc) => {

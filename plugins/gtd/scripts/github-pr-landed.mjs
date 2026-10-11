@@ -24,7 +24,9 @@ export function parsePrUrl(raw) {
 		return null;
 	}
 	const match = PR_PATH.exec(parsed.pathname);
-	if (!match) return null;
+	if (!match) {
+		return null;
+	}
 	const [, owner, name, number] = match;
 	return {
 		url: `${parsed.origin}/${owner}/${name}/pull/${number}`,
@@ -91,7 +93,9 @@ function readConfig(path) {
 
 function main(argv) {
 	const [command, arg, ...rest] = argv;
-	if (command === "parse") return parsePrUrl(arg);
+	if (command === "parse") {
+		return parsePrUrl(arg);
+	}
 	if (command === "classify") {
 		const configIndex = rest.indexOf("--config");
 		const configPath = configIndex === -1 ? ".llm/gtd/performance-notes.json" : rest[configIndex + 1];

@@ -1,3 +1,4 @@
+import {describe, expect, it} from "vite-plus/test";
 import {dirname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
@@ -14,6 +15,6 @@ class ProbeRoot extends Command {
 
 describe("oclif test setup", () => {
 	it("loads the CLI package config when a command runs without explicit load options", async () => {
-		expect(await ProbeRoot.run([])).toBe(cliRoot);
+		await expect(ProbeRoot.run([])).resolves.toBe(cliRoot);
 	});
 });

@@ -1,5 +1,6 @@
 import {useHotkeys} from "react-hotkeys-hook";
-import {type Theme, useOutlineStore} from "../stores/outline.js";
+import {useOutlineStore} from "../stores/outline.js";
+import type {Theme} from "../stores/outline.js";
 
 /**
  * Settings modal with theme selector and preferences.
@@ -35,7 +36,9 @@ export function Settings() {
 		<div
 			className="settings-overlay"
 			onClick={(event) => {
-				if (event.target === event.currentTarget) closeSettings();
+				if (event.target === event.currentTarget) {
+					closeSettings();
+				}
 			}}
 			role="presentation"
 		>

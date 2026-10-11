@@ -48,15 +48,20 @@ export function moveWithin(
 	const position = beforeNodeId
 		? destinationItems.findIndex((candidate) => candidate.id === beforeNodeId)
 		: destinationItems.length;
-	if (position < 0) return ladders;
+	if (position < 0) {
+		return ladders;
+	}
 	destinationItems.splice(position, 0, item);
 	const tiers = ladder.tiers.map((tier) => {
-		if (tier.label === destination.label) return withItems(tier, destinationItems);
-		if (tier.label === origin.label)
+		if (tier.label === destination.label) {
+			return withItems(tier, destinationItems);
+		}
+		if (tier.label === origin.label) {
 			return withItems(
 				tier,
 				tier.items.filter((candidate) => candidate.id !== nodeId),
 			);
+		}
 		return tier;
 	});
 	return {...ladders, [root]: {...ladder, tiers}};
@@ -136,7 +141,9 @@ export function stepBeforeId(
 	direction: "up" | "down",
 	moving: readonly string[],
 ): string | undefined {
-	if (direction === "up") return undefined;
+	if (direction === "up") {
+		return undefined;
+	}
 	const destination = ladder.tiers.find((tier) => tier.label === toTier);
 	return destination?.items.find((item) => !moving.includes(item.id))?.id;
 }
@@ -144,7 +151,9 @@ export function stepBeforeId(
 /** Restore only the failed row, preserving writes received for other rows. */
 export function restoreRow(current: Ladders, before: Ladders, nodeId: string): Ladders {
 	const root = Object.keys(before).find((name) => tierOf(before, name, nodeId));
-	if (!root || !current[root]) return current;
+	if (!root || !current[root]) {
+		return current;
+	}
 	const origin = before[root].tiers.find((tier) => tier.items.some((item) => item.id === nodeId))!;
 	const index = origin.items.findIndex((item) => item.id === nodeId);
 	const without = removeRow(current, nodeId);
@@ -153,7 +162,9 @@ export function restoreRow(current: Ladders, before: Ladders, nodeId: string): L
 		[root]: {
 			...without[root],
 			tiers: without[root].tiers.map((tier) => {
-				if (tier.id !== origin.id) return tier;
+				if (tier.id !== origin.id) {
+					return tier;
+				}
 				const items = [...tier.items];
 				items.splice(index, 0, origin.items[index]);
 				return withItems(tier, items);

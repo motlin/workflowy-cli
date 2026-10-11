@@ -53,13 +53,13 @@ function shellSingleQuote(s) {
 }
 
 function daysBetween(fromISO, toISO) {
-	const a = new Date(fromISO + "T00:00:00Z");
-	const b = new Date(toISO + "T00:00:00Z");
+	const a = new Date(`${fromISO}T00:00:00Z`);
+	const b = new Date(`${toISO}T00:00:00Z`);
 	return Math.round((b - a) / 86_400_000);
 }
 
 function addDaysISO(iso, days) {
-	const d = new Date(iso + "T00:00:00Z");
+	const d = new Date(`${iso}T00:00:00Z`);
 	d.setUTCDate(d.getUTCDate() + days);
 	return d.toISOString().slice(0, 10);
 }
@@ -72,7 +72,9 @@ function lastDayOfMonth(year, month1) {
 // and it is the only place that mapping lives.
 export function resolveTimeframe(label, todayISO) {
 	const [y, m, d] = todayISO.split("-").map(Number);
-	if (/^today$/i.test(label)) return todayISO;
+	if (/^today$/i.test(label)) {
+		return todayISO;
+	}
 	if (/^this week$/i.test(label)) {
 		// End of the working week: the upcoming Friday, or today when today already is Friday.
 		const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -80,11 +82,17 @@ export function resolveTimeframe(label, todayISO) {
 		const dt = new Date(Date.UTC(y, m - 1, d + until));
 		return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 	}
-	if (/^this month$/i.test(label)) return `${y}-${pad(m)}-${pad(lastDayOfMonth(y, m))}`;
+	if (/^this month$/i.test(label)) {
+		return `${y}-${pad(m)}-${pad(lastDayOfMonth(y, m))}`;
+	}
 	// The long horizons exist for tasks the walk keeps re-asking about: pushing one out by a
 	// quarter is the honest alternative to nudging it a week at a time forever.
-	if (/^next month$/i.test(label)) return addInterval(todayISO, {amount: 1, unit: "m"});
-	if (/^next quarter$/i.test(label)) return addInterval(todayISO, {amount: 3, unit: "m"});
+	if (/^next month$/i.test(label)) {
+		return addInterval(todayISO, {amount: 1, unit: "m"});
+	}
+	if (/^next quarter$/i.test(label)) {
+		return addInterval(todayISO, {amount: 3, unit: "m"});
+	}
 	throw new Error(`unknown timeframe: ${label}`);
 }
 
@@ -154,7 +162,9 @@ export function fromWorkflowy(roots, todayISO) {
 		const wrapper = (root.children ?? []).find((c) => String(c.name).startsWith(TASKS_WRAPPER_PREFIX));
 		const containers = wrapper ? (wrapper.children ?? []) : (root.children ?? []);
 		const bucket = containers.find((c) => String(c.name).startsWith(DUE_BUCKET_PREFIX));
-		if (!bucket) continue;
+		if (!bucket) {
+			continue;
+		}
 		const asapBucket = containers.find((c) => String(c.name).startsWith(ASAP_BUCKET_PREFIX));
 		// A task with no real deadline is not urgent, so it joins the bottom rung of the asap
 		// ladder rather than the top of the bucket. A bucket still carrying category containers
@@ -174,7 +184,9 @@ export function fromWorkflowy(roots, todayISO) {
 
 		for (const {group, nodes} of taskGroups) {
 			for (const node of nodes) {
-				if (node.completedAt) continue;
+				if (node.completedAt) {
+					continue;
+				}
 				const due = parseTimeISO(node.name);
 				items.push({
 					source: "workflowy",
@@ -210,7 +222,9 @@ function thingsOps(id) {
 }
 
 export function fromThings(things, todayISO) {
-	if (!things) return [];
+	if (!things) {
+		return [];
+	}
 	const seen = new Set();
 	const items = [];
 
@@ -222,7 +236,9 @@ export function fromThings(things, todayISO) {
 	];
 
 	for (const {task, dueSource} of tagged) {
-		if (seen.has(task.id)) continue;
+		if (seen.has(task.id)) {
+			continue;
+		}
 		seen.add(task.id);
 		// A Today-list task without a deadline is not undated work. Things putting it in Today is
 		// itself the due signal, so it dates to when Things activated it -- a repeating chore left
@@ -263,7 +279,9 @@ function remindersOps(title) {
 }
 
 export function fromReminders(reminders, todayISO) {
-	if (!reminders) return [];
+	if (!reminders) {
+		return [];
+	}
 	// dueTomorrow is deliberately excluded: the walk is for what is due now, not a preview.
 	return [...(reminders.overdue ?? []), ...(reminders.dueToday ?? [])].map((r) => {
 		const due = r.dueDate ? String(r.dueDate).slice(0, 10) : null;
@@ -295,7 +313,9 @@ const titleKey = (row) => stripMarkup(row.title).normalize("NFKC").toLowerCase()
 export function attachRecurringCounterparts(rows, tree) {
 	const byTitle = new Map();
 	function walk(node, ancestors) {
-		if (node.completedAt || node.mirror?.isMirror || String(node.name).includes("🗃️ Routine Archive")) return;
+		if (node.completedAt || node.mirror?.isMirror || String(node.name).includes("🗃️ Routine Archive")) {
+			return;
+		}
 		const title = stripMarkup(node.name);
 		const path = [...ancestors, title];
 		const counterpart = {
@@ -306,10 +326,16 @@ export function attachRecurringCounterparts(rows, tree) {
 			url: workflowyUrl(node.shortId ?? node.id),
 		};
 		const key = titleKey(counterpart);
-		if (key) byTitle.set(key, [...(byTitle.get(key) ?? []), counterpart]);
-		for (const child of node.children ?? []) walk(child, path);
+		if (key) {
+			byTitle.set(key, [...(byTitle.get(key) ?? []), counterpart]);
+		}
+		for (const child of node.children ?? []) {
+			walk(child, path);
+		}
 	}
-	for (const section of tree.children ?? []) walk(section, ["Personal", "🔄 Review"]);
+	for (const section of tree.children ?? []) {
+		walk(section, ["Personal", "🔄 Review"]);
+	}
 	return rows.map((row) => ({
 		...row,
 		recurringCounterparts: (byTitle.get(titleKey(row)) ?? []).filter(
@@ -321,18 +347,24 @@ export function attachRecurringCounterparts(rows, tree) {
 export function groupCrossSourceDuplicates(rows) {
 	const workflowyByTitle = new Map();
 	for (const row of rows) {
-		if (row.source !== "workflowy") continue;
+		if (row.source !== "workflowy") {
+			continue;
+		}
 		const key = titleKey(row);
 		workflowyByTitle.set(key, [...(workflowyByTitle.get(key) ?? []), row]);
 	}
 	const copiesBySurvivor = new Map();
 	const groupedCopies = new Set();
 	for (const row of rows) {
-		if (row.source === "workflowy") continue;
+		if (row.source === "workflowy") {
+			continue;
+		}
 		const key = titleKey(row);
 		const matches = workflowyByTitle.get(key) ?? [];
 		// A title shared by multiple Workflowy tasks cannot identify a survivor.
-		if (!key || matches.length !== 1) continue;
+		if (!key || matches.length !== 1) {
+			continue;
+		}
 		const survivor = matches[0];
 		copiesBySurvivor.set(survivor, [...(copiesBySurvivor.get(survivor) ?? []), row]);
 		groupedCopies.add(row);
@@ -355,15 +387,23 @@ export function collectDueItems(sources, todayISO, {skipStreaks = new Map(), hor
 		return {...row, skipStreak: streak?.skipStreak ?? 0, skippedSince: streak?.skippedSince ?? null};
 	});
 
-	if (sources.recurring) rows = attachRecurringCounterparts(rows, sources.recurring);
+	if (sources.recurring) {
+		rows = attachRecurringCounterparts(rows, sources.recurring);
+	}
 
 	// A positive horizon also admits items due soon; their overdueByDays comes out negative.
 	const lastDueISO = addDaysISO(todayISO, horizonDays);
 	// Undated items sort last: they still need handling, but a real deadline outranks a maybe.
 	return groupCrossSourceDuplicates(rows.filter((r) => r.due === null || r.due <= lastDueISO)).toSorted((a, b) => {
-		if (a.due === null && b.due === null) return 0;
-		if (a.due === null) return 1;
-		if (b.due === null) return -1;
+		if (a.due === null && b.due === null) {
+			return 0;
+		}
+		if (a.due === null) {
+			return 1;
+		}
+		if (b.due === null) {
+			return -1;
+		}
 		return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
 	});
 }
@@ -385,14 +425,23 @@ function main(argv) {
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
 	let horizonDays = 0;
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "--today") today = args[++i];
-		else if (args[i] === "--print") print = true;
-		else if (args[i] === "--skip-log") skipLogPath = args[++i];
-		else if (args[i] === "--horizon-days") horizonDays = Number(args[++i]);
-		else if (args[i] === "--workflowy") paths.workflowy = args[++i];
-		else if (args[i] === "--things") paths.things = args[++i];
-		else if (args[i] === "--reminders") paths.reminders = args[++i];
-		else if (args[i] === "--recurring") paths.recurring = args[++i];
+		if (args[i] === "--today") {
+			today = args[++i];
+		} else if (args[i] === "--print") {
+			print = true;
+		} else if (args[i] === "--skip-log") {
+			skipLogPath = args[++i];
+		} else if (args[i] === "--horizon-days") {
+			horizonDays = Number(args[++i]);
+		} else if (args[i] === "--workflowy") {
+			paths.workflowy = args[++i];
+		} else if (args[i] === "--things") {
+			paths.things = args[++i];
+		} else if (args[i] === "--reminders") {
+			paths.reminders = args[++i];
+		} else if (args[i] === "--recurring") {
+			paths.recurring = args[++i];
+		}
 	}
 
 	const rows = collectDueItems(
@@ -407,7 +456,7 @@ function main(argv) {
 	);
 
 	if (!print) {
-		process.stdout.write(JSON.stringify(rows, null, 2) + "\n");
+		process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
 		return;
 	}
 
@@ -423,4 +472,6 @@ function main(argv) {
 
 export {buildTimeElement};
 
-if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main(process.argv);
+}

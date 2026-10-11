@@ -1,3 +1,4 @@
+import {it, vi, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
 import {nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
@@ -8,7 +9,8 @@ import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import {z} from "zod";
 import Create from "../../../src/commands/node/create.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody, requestJson} from "../../helpers/request-body.js";
 

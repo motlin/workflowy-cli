@@ -1,6 +1,8 @@
+import {it, expect, beforeAll, describe} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
-import {type CliInvocation, type MarkdownFileAnalysis, parseMarkdownFile} from "./helpers/markdown-parser.js";
+import {parseMarkdownFile} from "./helpers/markdown-parser.js";
+import type {CliInvocation, MarkdownFileAnalysis} from "./helpers/markdown-parser.js";
 import {collectComponentFiles} from "./helpers/scan-roots.js";
 
 interface ManifestCommand {
@@ -58,7 +60,7 @@ describe("CLI Reference Validation", () => {
 
 	let manifest: Manifest;
 	let allAnalyses: MarkdownFileAnalysis[];
-	let allInvocations: Array<{invocation: CliInvocation; filePath: string}>;
+	let allInvocations: {invocation: CliInvocation; filePath: string}[];
 
 	beforeAll(() => {
 		const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -96,16 +98,22 @@ describe("CLI Reference Validation", () => {
 			const {command, line} = invocation;
 
 			// Skip empty commands (bare ./bin/run.js --help, --version)
-			if (!command) continue;
+			if (!command) {
+				continue;
+			}
 
 			// Skip hidden base commands
-			if (HIDDEN_BASE_COMMANDS.has(command)) continue;
+			if (HIDDEN_BASE_COMMANDS.has(command)) {
+				continue;
+			}
 
 			// Skip template placeholders like <command>
-			if (command.includes("<") || command.includes(">")) continue;
+			if (command.includes("<") || command.includes(">")) {
+				continue;
+			}
 
 			if (!commandIds.has(command)) {
-				const relativePath = filePath.replace(projectRoot + "/", "");
+				const relativePath = filePath.replace(`${projectRoot}/`, "");
 				const validCommands = [...commandIds]
 					.filter((id) => !HIDDEN_BASE_COMMANDS.has(id))
 					.toSorted()
@@ -128,7 +136,9 @@ describe("CLI Reference Validation", () => {
 			const {command, flags, line} = invocation;
 
 			// Skip empty commands or commands not in manifest (caught by the previous test)
-			if (!command || !commandIds.has(command)) continue;
+			if (!command || !commandIds.has(command)) {
+				continue;
+			}
 
 			const manifestCmd = manifest.commands[command];
 			const validFlags = new Set(Object.keys(manifestCmd.flags));
@@ -137,10 +147,14 @@ describe("CLI Reference Validation", () => {
 			for (const flag of flags) {
 				const resolvedFlag = resolveFlag(flag, charMap);
 
-				if (UNIVERSAL_FLAGS.has(resolvedFlag)) continue;
-				if (validFlags.has(resolvedFlag)) continue;
+				if (UNIVERSAL_FLAGS.has(resolvedFlag)) {
+					continue;
+				}
+				if (validFlags.has(resolvedFlag)) {
+					continue;
+				}
 
-				const relativePath = filePath.replace(projectRoot + "/", "");
+				const relativePath = filePath.replace(`${projectRoot}/`, "");
 				const validFlagList = [...validFlags].toSorted().join(", ");
 				errors.push(
 					`${relativePath}:${line}: --${flag} on command "${command}"\n` +

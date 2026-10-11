@@ -1,3 +1,4 @@
+import {it, vi, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
 import {mirrors, nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
@@ -7,7 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Delete from "../../../src/commands/node/delete.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import type {TestDatabase} from "../../db/migration-helper.js";
 import {createApiNode, createTestNode} from "../../helpers/node-fixtures.js";
 import {requestBody} from "../../helpers/request-body.js";
 

@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {LadderEventBus, type LadderEvent, type LadderListener, parseLadderEvent} from "../src/server/ladder-events.js";
+import {LadderEventBus, parseLadderEvent} from "../src/server/ladder-events.js";
+import type {LadderEvent, LadderListener} from "../src/server/ladder-events.js";
 
 function evt(partial: Partial<LadderEvent> = {}): LadderEvent {
 	return {
@@ -52,15 +53,17 @@ describe("LadderEventBus", () => {
 		const late = vi.fn<LadderListener>();
 		bus.subscribe(late, {replay: true});
 		expect(late).toHaveBeenCalledTimes(2);
-		expect(late.mock.calls.map((c) => c[0].nodeId)).toEqual(["n1", "n2"]);
+		expect(late.mock.calls.map((c) => c[0].nodeId)).toStrictEqual(["n1", "n2"]);
 	});
 
 	it("caps the replay buffer so a long session does not grow without bound", () => {
 		const bus = new LadderEventBus({bufferSize: 3});
-		for (const nodeId of ["n1", "n2", "n3", "n4"]) bus.publish(evt({nodeId}));
+		for (const nodeId of ["n1", "n2", "n3", "n4"]) {
+			bus.publish(evt({nodeId}));
+		}
 		const late = vi.fn<LadderListener>();
 		bus.subscribe(late, {replay: true});
-		expect(late.mock.calls.map((c) => c[0].nodeId)).toEqual(["n2", "n3", "n4"]);
+		expect(late.mock.calls.map((c) => c[0].nodeId)).toStrictEqual(["n2", "n3", "n4"]);
 	});
 
 	it("serialises an event as one line, because Monitor treats each frame as one notification", () => {

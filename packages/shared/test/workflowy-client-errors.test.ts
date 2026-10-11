@@ -1,3 +1,4 @@
+import {vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 
 /**

@@ -1,3 +1,4 @@
+import {describe, expect, it} from "vite-plus/test";
 import {existsSync, readFileSync} from "node:fs";
 import {join, relative} from "node:path";
 import {PLUGINS_DIR, PROJECT_ROOT, collectMarkdownFiles} from "./helpers/scan-roots.js";
@@ -9,8 +10,8 @@ const GTD_DIR = join(PLUGINS_DIR, "gtd");
 const PROMPTS_DIR = join(GTD_DIR, "prompts");
 const PROMPT_REF = /\bprompts\/([\w/-]+\.md)/g;
 
-function promptRefs(): Array<{path: string; at: string}> {
-	const refs: Array<{path: string; at: string}> = [];
+function promptRefs(): {path: string; at: string}[] {
+	const refs: {path: string; at: string}[] = [];
 	for (const filePath of collectMarkdownFiles(GTD_DIR)) {
 		const lines = readFileSync(filePath, "utf8").split("\n");
 		for (const [index, line] of lines.entries()) {

@@ -130,8 +130,10 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 
 	// Handle click outside to close
 	useEffect(() => {
-		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
-		if (!isOpen) return undefined;
+		if (!isOpen) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
+			return undefined;
+		}
 
 		function handleClickOutside(event: MouseEvent) {
 			const target = event.target instanceof Node ? event.target : null;
@@ -160,7 +162,9 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 		};
 	}, [isOpen, onClose, anchorRef]);
 
-	if (!isOpen) return null;
+	if (!isOpen) {
+		return null;
+	}
 
 	// Split days into weeks (7 days per row)
 	const weeks: CalendarDay[][] = [];

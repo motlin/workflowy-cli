@@ -15,24 +15,26 @@
 
 import {eq} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import * as schema from "../db/schema.js";
+import type * as schema from "../db/schema.js";
 import {
-	type AiMetadata,
 	aiMetadata,
-	type CalendarLevels,
 	calendarLevels,
-	type CalendarMetadata,
 	calendarMetadata,
-	type ChangesMetadata,
 	changesMetadata,
-	type NodeContentType,
 	nodeContent,
-	type NodeMetadataType,
 	nodeMetadata,
-	type ReferencesRoot,
 	referencesRoots,
-	type S3File,
 	s3Files,
+} from "../db/schema.js";
+import type {
+	AiMetadata,
+	CalendarLevels,
+	CalendarMetadata,
+	ChangesMetadata,
+	NodeContentType,
+	NodeMetadataType,
+	ReferencesRoot,
+	S3File,
 } from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
 import {contentMatches, metadataMatches} from "./cache-temporal.js";
@@ -46,7 +48,8 @@ import type {
 	NormalizedReferencesRootsRow,
 	NormalizedS3FileRow,
 } from "./normalized-rows.js";
-import {temporalMerge, type TemporalMergeResult, type TemporalTransaction} from "./temporal-merge.js";
+import {temporalMerge} from "./temporal-merge.js";
+import type {TemporalMergeResult, TemporalTransaction} from "./temporal-merge.js";
 
 /**
  * The desired current state of every node-keyed temporal table, as produced by

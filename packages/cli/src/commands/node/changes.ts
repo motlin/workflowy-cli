@@ -1,6 +1,7 @@
 import {Command, Flags} from "@oclif/core";
 import chalk from "chalk";
-import {ChangeDetector, type ChangeSummary, type ChangeTreeNode, parseSince} from "@workflowy/shared/changes";
+import {ChangeDetector, parseSince} from "@workflowy/shared/changes";
+import type {ChangeSummary, ChangeTreeNode, NodeChange} from "@workflowy/shared/changes";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
 import {htmlToAnsi} from "../../utils/html-to-ansi.js";
@@ -55,12 +56,24 @@ export default class Changes extends Command {
 
 	private formatSummary(summary: ChangeSummary): string {
 		const parts: string[] = [];
-		if (summary.added > 0) parts.push(chalk.green(`${summary.added} added`));
-		if (summary.deleted > 0) parts.push(chalk.red(`${summary.deleted} deleted`));
-		if (summary.moved > 0) parts.push(chalk.blue(`${summary.moved} moved`));
-		if (summary.changed > 0) parts.push(chalk.yellow(`${summary.changed} changed`));
-		if (summary.completed > 0) parts.push(chalk.gray(`${summary.completed} completed`));
-		if (summary.uncompleted > 0) parts.push(chalk.gray(`${summary.uncompleted} uncompleted`));
+		if (summary.added > 0) {
+			parts.push(chalk.green(`${summary.added} added`));
+		}
+		if (summary.deleted > 0) {
+			parts.push(chalk.red(`${summary.deleted} deleted`));
+		}
+		if (summary.moved > 0) {
+			parts.push(chalk.blue(`${summary.moved} moved`));
+		}
+		if (summary.changed > 0) {
+			parts.push(chalk.yellow(`${summary.changed} changed`));
+		}
+		if (summary.completed > 0) {
+			parts.push(chalk.gray(`${summary.completed} completed`));
+		}
+		if (summary.uncompleted > 0) {
+			parts.push(chalk.gray(`${summary.uncompleted} uncompleted`));
+		}
 		return `  ${parts.join(", ")}`;
 	}
 
@@ -91,14 +104,20 @@ export default class Changes extends Command {
 		}
 	}
 
-	private getMarker(change: import("@workflowy/shared/changes").NodeChange): string {
-		if (change.isNew) return chalk.green("+");
-		if (change.isDeleted) return chalk.red("-");
-		if (change.parentChanged && !change.contentChanged && !change.noteChanged) return chalk.blue(">");
+	private getMarker(change: NodeChange): string {
+		if (change.isNew) {
+			return chalk.green("+");
+		}
+		if (change.isDeleted) {
+			return chalk.red("-");
+		}
+		if (change.parentChanged && !change.contentChanged && !change.noteChanged) {
+			return chalk.blue(">");
+		}
 		return chalk.yellow("~");
 	}
 
-	private getAnnotations(change: import("@workflowy/shared/changes").NodeChange): string[] {
+	private getAnnotations(change: NodeChange): string[] {
 		const annotations: string[] = [];
 		if (change.parentChanged && (change.contentChanged || change.noteChanged)) {
 			annotations.push("moved");

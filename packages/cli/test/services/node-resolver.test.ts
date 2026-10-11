@@ -1,3 +1,4 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,7 +12,8 @@ import {
 	resolveOrCreateNodePath,
 	resolveParent,
 } from "@workflowy/shared/utils";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createApiNode, createTestNode} from "../helpers/node-fixtures.js";
 
 describe("node-resolver service", () => {
@@ -97,7 +99,7 @@ describe("node-resolver service", () => {
 			const result = await resolveNodeId({path: "Missing,Path"}, cacheService, apiClient);
 
 			expect(result).toBe("api-resolved-id");
-			expect(mockApiClient.findNodeByPath).toHaveBeenCalledTimes(1);
+			expect(mockApiClient.findNodeByPath).toHaveBeenCalledOnce();
 			expect(mockApiClient.findNodeByPath.mock.calls[0][0]).toStrictEqual(["Missing", "Path"]);
 		});
 
@@ -188,7 +190,7 @@ describe("node-resolver service", () => {
 			const result = await resolveParent({path: "Missing,Parent"}, cacheService, apiClient);
 
 			expect(result).toBe("api-parent-id");
-			expect(mockApiClient.findNodeByPath).toHaveBeenCalledTimes(1);
+			expect(mockApiClient.findNodeByPath).toHaveBeenCalledOnce();
 		});
 
 		it("throws error when no flags provided", async () => {
@@ -266,7 +268,7 @@ describe("node-resolver service", () => {
 			const result = await resolveOrCreateNodePath("Root,NewChild", cacheService, apiClient);
 
 			expect(result).toBe("new-child-id");
-			expect(mockApiClient.createNode).toHaveBeenCalledTimes(1);
+			expect(mockApiClient.createNode).toHaveBeenCalledOnce();
 			expect(mockApiClient.createNode.mock.calls[0][0]).toStrictEqual({
 				parent_id: "root-id",
 				name: "NewChild",
@@ -314,7 +316,7 @@ describe("node-resolver service", () => {
 			const result = await resolveOrCreateNodePath("Root,New", cacheService, apiClient);
 
 			expect(result).toBe("new-id");
-			expect(mockApiClient.createNode).toHaveBeenCalledTimes(1);
+			expect(mockApiClient.createNode).toHaveBeenCalledOnce();
 		});
 
 		it("caches created nodes in database", async () => {

@@ -48,11 +48,15 @@ export interface DropTarget {
 export function dropAtPoint(x: number, y: number, moving: Set<string>): DropTarget | undefined {
 	const element = document.elementFromPoint(x, y);
 	const target = element?.closest<HTMLElement>("[data-tier]");
-	if (!target?.dataset.tier) return undefined;
+	if (!target?.dataset.tier) {
+		return undefined;
+	}
 	const zone = target.classList.contains("ladder-zone") ? target : target.nextElementSibling;
 	const rows = Array.from(zone?.querySelectorAll<HTMLElement>("[data-node-id]") ?? []);
 	const before = rows.find((row) => {
-		if (moving.has(row.dataset.nodeId!)) return false;
+		if (moving.has(row.dataset.nodeId!)) {
+			return false;
+		}
 		const bounds = row.getBoundingClientRect();
 		return y < bounds.top + bounds.height / 2;
 	});

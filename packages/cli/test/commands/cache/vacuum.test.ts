@@ -1,3 +1,4 @@
+import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import {nodeContent} from "@workflowy/shared/db";
 import type {NewNodeContent} from "@workflowy/shared/db";
 import {captureOutput} from "@oclif/test";
@@ -6,7 +7,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Vacuum from "../../../src/commands/cache/vacuum.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../../db/migration-helper.js";
+import type {TestDatabase} from "../../db/migration-helper.js";
 
 describe("cache:vacuum command", () => {
 	let tempDir: string;
@@ -78,9 +80,9 @@ describe("cache:vacuum command", () => {
 		});
 
 		expect(stdout).toBe(
-			"🧹 Vacuuming cache database...\n  File: " +
-				testDbPath +
-				"\n  Size before: 276.00 KB\n  Size after:  240.00 KB\n  Reclaimed:   36.00 KB\n  Freelist pages: 9 → 0\n",
+			`🧹 Vacuuming cache database...\n  File: ${
+				testDbPath
+			}\n  Size before: 276.00 KB\n  Size after:  240.00 KB\n  Reclaimed:   36.00 KB\n  Freelist pages: 9 → 0\n`,
 		);
 		expect(result).toStrictEqual({
 			path: testDbPath,

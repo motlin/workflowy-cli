@@ -167,7 +167,9 @@ export default class Sync extends Command {
 		const projectsPath = ["Metadata", "\u{1F4C1} Projects"];
 		const projectsNode = await this.cacheService.findNodeByPath(projectsPath);
 
-		if (!projectsNode) return [];
+		if (!projectsNode) {
+			return [];
+		}
 
 		const children = await this.cacheService.getChildren(projectsNode.id);
 		const projects: Project[] = [];
@@ -199,7 +201,7 @@ export default class Sync extends Command {
 				id: child.id,
 				name: projectName,
 				linkId: target.id,
-				tag: "#" + projectName.replaceAll(/\s+/g, "-").toLowerCase(),
+				tag: `#${projectName.replaceAll(/\s+/g, "-").toLowerCase()}`,
 				context,
 				items,
 			});
@@ -215,7 +217,9 @@ export default class Sync extends Command {
 		const peoplePath = ["Metadata", "\u{1F465} People"];
 		const peopleNode = await this.cacheService.findNodeByPath(peoplePath);
 
-		if (!peopleNode) return {};
+		if (!peopleNode) {
+			return {};
+		}
 
 		const categories = await this.cacheService.getChildren(peopleNode.id);
 		const people: Record<string, PersonMember[]> = {};
@@ -227,7 +231,7 @@ export default class Sync extends Command {
 			people[categoryName] = members.map((member) => ({
 				id: member.id,
 				name: member.name ?? "",
-				tag: "@" + (member.name ?? "").replaceAll(/\s+/g, ""),
+				tag: `@${(member.name ?? "").replaceAll(/\s+/g, "")}`,
 			}));
 		}
 
@@ -241,7 +245,9 @@ export default class Sync extends Command {
 		const naPath = ["Metadata", "\u{2611}\u{FE0F} Next Actions"];
 		const naNode = await this.cacheService.findNodeByPath(naPath);
 
-		if (!naNode) return [];
+		if (!naNode) {
+			return [];
+		}
 
 		const children = await this.cacheService.getChildren(naNode.id);
 		const destinations: NextActionsDestination[] = [];
@@ -291,7 +297,9 @@ export default class Sync extends Command {
 		const wfPath = ["Metadata", "\u{1F4E4} Waiting For"];
 		const wfNode = await this.cacheService.findNodeByPath(wfPath);
 
-		if (!wfNode) return [];
+		if (!wfNode) {
+			return [];
+		}
 
 		const children = await this.cacheService.getChildren(wfNode.id);
 		return this.mapToSimpleDestinations(children);
@@ -304,7 +312,9 @@ export default class Sync extends Command {
 		const calPath = ["Metadata", "\u{1F4C5} Calendar"];
 		const calNode = await this.cacheService.findNodeByPath(calPath);
 
-		if (!calNode) return [];
+		if (!calNode) {
+			return [];
+		}
 
 		const children = await this.cacheService.getChildren(calNode.id);
 		return this.mapToSimpleDestinations(children);
@@ -317,7 +327,9 @@ export default class Sync extends Command {
 		const sdPath = ["Metadata", "\u{1F331} Someday"];
 		const sdNode = await this.cacheService.findNodeByPath(sdPath);
 
-		if (!sdNode) return [];
+		if (!sdNode) {
+			return [];
+		}
 
 		const children = await this.cacheService.getChildren(sdNode.id);
 		return this.mapToSimpleDestinations(children);
@@ -330,7 +342,9 @@ export default class Sync extends Command {
 		const reviewPath = ["Metadata", "\u{1F504} Review"];
 		const reviewNode = await this.cacheService.findNodeByPath(reviewPath);
 
-		if (!reviewNode) return {id: null, name: null};
+		if (!reviewNode) {
+			return {id: null, name: null};
+		}
 
 		// Check for link target
 		const linkTarget = await this.getLinkTarget(reviewNode.id);
@@ -346,7 +360,7 @@ export default class Sync extends Command {
 	 * Map children to simple destinations
 	 */
 	private async mapToSimpleDestinations(
-		children: Array<{id: string; name?: string | null}>,
+		children: {id: string; name?: string | null}[],
 	): Promise<SimpleDestination[]> {
 		const destinations: SimpleDestination[] = [];
 

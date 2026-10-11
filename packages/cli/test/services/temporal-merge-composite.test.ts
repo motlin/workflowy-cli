@@ -1,3 +1,4 @@
+import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import {joinKey, temporalMerge} from "@workflowy/shared/cache";
 import {mirrors} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
@@ -5,7 +6,8 @@ import {eq} from "drizzle-orm";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 
 interface MirrorRow {
 	originalId: string;
@@ -41,7 +43,9 @@ describe("temporalMerge with a composite key", () => {
 	});
 	afterEach(() => {
 		cleanupTestDatabase(testDatabase);
-		if (fs.existsSync(tempDir)) fs.rmSync(tempDir, {recursive: true, force: true});
+		if (fs.existsSync(tempDir)) {
+			fs.rmSync(tempDir, {recursive: true, force: true});
+		}
 	});
 
 	it("inserts new rows, phases out absent ones, leaves unchanged untouched", () => {

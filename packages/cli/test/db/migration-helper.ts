@@ -11,7 +11,8 @@ import type {
 	NewS3File,
 	NewVirtualRootId,
 } from "@workflowy/shared/db";
-import {splitNodeIntoContentAndMetadata, type TestNode} from "../helpers/node-fixtures.js";
+import {splitNodeIntoContentAndMetadata} from "../helpers/node-fixtures.js";
+import type {TestNode} from "../helpers/node-fixtures.js";
 import type Database from "better-sqlite3";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import fs from "node:fs";

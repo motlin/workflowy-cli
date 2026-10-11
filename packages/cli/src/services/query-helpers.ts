@@ -1,5 +1,5 @@
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
-import * as schema from "@workflowy/shared/db";
+import type * as schema from "@workflowy/shared/db";
 import {NodeReader} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {Node} from "@workflowy/shared/types";

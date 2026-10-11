@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {parseMarkdownContent, resolveCommandId} from "./markdown-parser.js";
 
 describe("markdown-parser", () => {

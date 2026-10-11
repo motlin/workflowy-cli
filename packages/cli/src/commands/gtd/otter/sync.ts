@@ -13,10 +13,10 @@ interface OtterSpeech {
 	start_time: number;
 	short_abstract_summary?: string;
 	action_item_count?: number;
-	speech_outline?: Array<{
+	speech_outline?: {
 		text: string;
-		segments?: Array<{text: string}>;
-	}>;
+		segments?: {text: string}[];
+	}[];
 }
 
 interface ActionItem {
@@ -31,10 +31,10 @@ interface ProcessedSpeech {
 	start_time: number;
 	summary: string | null;
 	action_item_count: number | null;
-	outline: Array<{
+	outline: {
 		title: string;
 		segments: string[];
-	}>;
+	}[];
 	action_items?: ActionItem[];
 }
 
@@ -102,7 +102,7 @@ export default class Sync extends Command {
 		// Extract pagination info and minimal meeting data
 		const speeches: ProcessedSpeech[] = [];
 		for (const speech of rawResponse.speeches || []) {
-			const outline: Array<{title: string; segments: string[]}> = [];
+			const outline: {title: string; segments: string[]}[] = [];
 			for (const item of speech.speech_outline ?? []) {
 				outline.push({
 					title: item.text,

@@ -17,11 +17,11 @@ interface RelatedResponse {
 }
 
 interface SearchResponse {
-	results: Array<{
+	results: {
 		id: string;
 		name: string | null;
 		note: string | null;
-	}>;
+	}[];
 }
 
 function formatSimilarityScore(distance: number): string {

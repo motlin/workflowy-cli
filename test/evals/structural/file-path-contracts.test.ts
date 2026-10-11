@@ -1,7 +1,9 @@
+import {expect, describe, beforeAll, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import path from "node:path";
 
-import {type LlmPath, parseMarkdownFile} from "./helpers/markdown-parser.js";
+import {parseMarkdownFile} from "./helpers/markdown-parser.js";
+import type {LlmPath} from "./helpers/markdown-parser.js";
 import {PROJECT_ROOT, collectComponentFiles} from "./helpers/scan-roots.js";
 
 /**
@@ -221,13 +223,19 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
  */
 function contractsMatch(consumerKey: string, producerKeys: Set<string>): boolean {
 	// Direct match
-	if (producerKeys.has(consumerKey)) return true;
+	if (producerKeys.has(consumerKey)) {
+		return true;
+	}
 
 	for (const pk of producerKeys) {
 		// Consumer is under a producer directory
-		if (consumerKey.startsWith(pk + "/")) return true;
+		if (consumerKey.startsWith(`${pk}/`)) {
+			return true;
+		}
 		// Producer writes into a directory the consumer references
-		if (pk.startsWith(consumerKey + "/")) return true;
+		if (pk.startsWith(`${consumerKey}/`)) {
+			return true;
+		}
 	}
 
 	return false;
@@ -250,7 +258,9 @@ describe("Structural Eval: File Path Contracts", () => {
 
 		for (const filePath of mdFiles) {
 			const analysis = parseMarkdownFile(filePath);
-			if (analysis.llmPaths.length === 0) continue;
+			if (analysis.llmPaths.length === 0) {
+				continue;
+			}
 
 			const content = readFileSync(filePath, "utf8");
 			const relPath = path.relative(PROJECT_ROOT, filePath);
@@ -311,21 +321,31 @@ describe("Structural Eval: File Path Contracts", () => {
 		const orphanedConsumers: ClassifiedPath[] = [];
 
 		for (const ref of allClassified) {
-			if (ref.role !== "consumer") continue;
+			if (ref.role !== "consumer") {
+				continue;
+			}
 
 			// Skip known orphans
-			if (knownOrphans.has(ref.pattern)) continue;
+			if (knownOrphans.has(ref.pattern)) {
+				continue;
+			}
 
 			const consumerKey = contractKey(ref.pattern);
 
 			// Direct pattern match
-			if (producerPatterns.has(ref.pattern)) continue;
+			if (producerPatterns.has(ref.pattern)) {
+				continue;
+			}
 
 			// Contract key match (directory-level)
-			if (contractsMatch(consumerKey, producerContracts)) continue;
+			if (contractsMatch(consumerKey, producerContracts)) {
+				continue;
+			}
 
 			// Also check the pattern itself against producer contracts
-			if (contractsMatch(ref.pattern, producerContracts)) continue;
+			if (contractsMatch(ref.pattern, producerContracts)) {
+				continue;
+			}
 
 			orphanedConsumers.push(ref);
 		}
@@ -374,7 +394,7 @@ describe("Structural Eval: File Path Contracts", () => {
 				(c) =>
 					c.role === "producer" &&
 					(c.pattern === contract.producerPattern ||
-						c.pattern.startsWith(contract.producerPattern + "/") ||
+						c.pattern.startsWith(`${contract.producerPattern}/`) ||
 						contractKey(c.pattern) === contract.producerPattern),
 			);
 

@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {PROJECT_ROOT, collectComponentFiles} from "./helpers/scan-roots.js";
 
@@ -14,7 +15,7 @@ describe("Structural Eval: No synchronous subagent flag", () => {
 			const lines = readFileSync(filePath, "utf8").split("\n");
 			for (const [index, line] of lines.entries()) {
 				if (/run_in_background:\s*false/.test(line)) {
-					offenders.push(`${filePath.replace(PROJECT_ROOT + "/", "")}:${index + 1}`);
+					offenders.push(`${filePath.replace(`${PROJECT_ROOT}/`, "")}:${index + 1}`);
 				}
 			}
 		}

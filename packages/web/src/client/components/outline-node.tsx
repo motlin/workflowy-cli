@@ -67,7 +67,9 @@ const INDENT_PER_LEVEL = 36;
  * Each line represents one level of nesting.
  */
 function IndentGuideLines({depth}: {depth: number}) {
-	if (depth === 0) return null;
+	if (depth === 0) {
+		return null;
+	}
 
 	const lines = [];
 	for (let i = 0; i < depth; i++) {

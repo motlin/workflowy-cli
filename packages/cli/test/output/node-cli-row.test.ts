@@ -1,3 +1,4 @@
+import {describe, expect, it} from "vite-plus/test";
 import {nodeToCliRow} from "../../src/output/node-cli-row.js";
 import type {Node} from "@workflowy/shared/types";
 

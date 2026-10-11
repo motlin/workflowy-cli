@@ -1,5 +1,5 @@
 import {BackupFileSchema} from "@workflowy/shared/schemas";
-import {createDatabase} from "../db/index.js";
+import type {createDatabase} from "../db/index.js";
 import {CacheService} from "./cache.js";
 import {EmbeddingGeneratorService} from "./embedding-generator.js";
 import {readBackupFile} from "../utils/backup-archive.js";

@@ -392,7 +392,9 @@ export function useKeyboardShortcuts() {
 			}
 
 			const payload = planIndent(queryClient, selectedNode);
-			if (payload) moveNodeMutation.mutate(payload);
+			if (payload) {
+				moveNodeMutation.mutate(payload);
+			}
 		},
 		{
 			preventDefault: true,
@@ -416,7 +418,9 @@ export function useKeyboardShortcuts() {
 			}
 
 			const payload = planOutdent(queryClient, selectedNode);
-			if (payload) moveNodeMutation.mutate(payload);
+			if (payload) {
+				moveNodeMutation.mutate(payload);
+			}
 		},
 		{
 			preventDefault: true,
@@ -502,7 +506,9 @@ export function useKeyboardShortcuts() {
 			}
 
 			const payload = planMoveUp(queryClient, selectedNode);
-			if (payload) moveNodeMutation.mutate(payload);
+			if (payload) {
+				moveNodeMutation.mutate(payload);
+			}
 		},
 		{
 			preventDefault: true,
@@ -526,7 +532,9 @@ export function useKeyboardShortcuts() {
 			}
 
 			const payload = planMoveDown(queryClient, selectedNode);
-			if (payload) moveNodeMutation.mutate(payload);
+			if (payload) {
+				moveNodeMutation.mutate(payload);
+			}
 		},
 		{
 			preventDefault: true,
@@ -1044,7 +1052,7 @@ export function useKeyboardShortcuts() {
 				});
 
 				if (response.ok) {
-					const data = await readJson<{results: Array<{id: string; name: string | null}>}>(response);
+					const data = await readJson<{results: {id: string; name: string | null}[]}>(response);
 					if (data.results.length > 0) {
 						void navigate(nodeRoute(data.results[0].id));
 						return;

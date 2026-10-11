@@ -5,9 +5,11 @@ import {and, eq} from "drizzle-orm";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import {assert, type MockInstance} from "vite-plus/test";
+import {afterEach, assert, beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import type {MockInstance} from "vite-plus/test";
 import {CacheService} from "../../src/services/cache.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {withoutSystemFrom} from "../helpers/assertion-helpers.js";
 import {createTestNode, splitNodeIntoContentAndMetadata} from "../helpers/node-fixtures.js";
 
@@ -115,7 +117,7 @@ describe("API Sync with Cache", () => {
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expect(typeof content1SystemFrom).toBe("string");
+			expect(content1SystemFrom).toBeTypeOf("string");
 
 			const storedMetadata = testDatabase.db.select().from(nodeMetadata).all();
 			const metadata1 = storedMetadata.find((m) => m.nodeId === "api-root-1");
@@ -460,7 +462,7 @@ describe("API Sync with Cache", () => {
 				mirror: {isMirror: false, originalNodeId: null},
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expect(typeof actualSystemFrom).toBe("string");
+			expect(actualSystemFrom).toBeTypeOf("string");
 
 			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});

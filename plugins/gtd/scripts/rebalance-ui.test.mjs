@@ -424,7 +424,7 @@ test("CLI generates a static page and emits creates before moves across both roo
 		const script = new URL("./rebalance-ui.mjs", import.meta.url).pathname;
 		assert.equal(
 			execFileSync(process.execPath, [script, "--html", ...paths, "--output", page], {encoding: "utf8"}),
-			page + "\n",
+			`${page}\n`,
 		);
 		const html = readFileSync(page, "utf8");
 		const ladders = JSON.parse(html.match(/var LADDERS = (\{[\s\S]*?\});\n/)[1]);
@@ -507,7 +507,7 @@ test("static page persistence offers the same JSON when artifact storage is unav
 			saveState: {},
 			document: {getElementById: (id) => elements[id]},
 		};
-		await runInNewContext(persistence + "\npersist()", context);
+		await runInNewContext(`${persistence}\npersist()`, context);
 		assert.deepStrictEqual(elements, {
 			fallback: {hidden: false},
 			"fallback-json": {value: JSON.stringify(payload, null, 2)},
@@ -534,7 +534,9 @@ test("Queue collects and restores a draft with a ninth tier and resets to the so
 		localStorage: {getItem: () => JSON.stringify(draft)},
 		document: {
 			getElementById: (id) => {
-				if (!elements.has(id)) elements.set(id, {addEventListener() {}});
+				if (!elements.has(id)) {
+					elements.set(id, {addEventListener() {}});
+				}
 				return elements.get(id);
 			},
 		},
@@ -582,7 +584,9 @@ function runQueuePage(html) {
 				this.insertBefore(child, null);
 			},
 			insertBefore(child, before) {
-				if (child.parentNode) child.parentNode.removeChild(child);
+				if (child.parentNode) {
+					child.parentNode.removeChild(child);
+				}
 				this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, child);
 				child.parentNode = this;
 			},
@@ -607,7 +611,7 @@ function runQueuePage(html) {
 		node.classList = {
 			contains: (name) => node.className.split(" ").includes(name),
 			add: (name) => {
-				node.className += " " + name;
+				node.className += ` ${name}`;
 			},
 			remove: (name) => {
 				node.className = node.className
@@ -647,7 +651,9 @@ function runQueuePage(html) {
 		document: {
 			createElement: element,
 			getElementById(id) {
-				if (!elements.has(id)) elements.set(id, element());
+				if (!elements.has(id)) {
+					elements.set(id, element());
+				}
 				return elements.get(id);
 			},
 			elementFromPoint: () => target,
@@ -745,7 +751,7 @@ test("generated Queue keeps the range anchor and autosaves ordered group drag, n
 			.get("app")
 			.children[0].children.flatMap((zone) => zone.children)
 			.filter((row) => row.dataset.id);
-	const row = (id) => rows().find((candidate) => candidate.dataset.id === id + "-id");
+	const row = (id) => rows().find((candidate) => candidate.dataset.id === `${id}-id`);
 	const click = (id, modifiers = {}) => row(id).handlers.click({target: row(id), ...modifiers});
 	const selection = () =>
 		rows()

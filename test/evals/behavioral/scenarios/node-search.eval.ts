@@ -5,6 +5,7 @@
  * in the SQLite cache without requiring an API key.
  */
 
+import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {collectCreatedFiles, createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
 import type {EvalContext, EvalResult} from "../helpers/eval-types.js";
 
@@ -67,8 +68,8 @@ describe("Behavioral Eval: node search", () => {
 		};
 
 		expect(evalResult.exitCode).toBe(0);
-		expect(typeof evalResult.stdout).toBe("string");
-		expect(typeof evalResult.stderr).toBe("string");
-		expect(typeof evalResult.filesCreated).toBe("object");
+		expect(evalResult.stdout).toBeTypeOf("string");
+		expect(evalResult.stderr).toBeTypeOf("string");
+		expect(evalResult.filesCreated).toBeTypeOf("object");
 	});
 });

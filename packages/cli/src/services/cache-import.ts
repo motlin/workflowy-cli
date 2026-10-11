@@ -4,28 +4,25 @@ import {
 	config,
 	mirrors,
 	nodeContent,
-	type NodeContentType,
 	nodeEmbeddings,
 	nodeMetadata,
-	type NodeMetadataType,
 	virtualRootIds,
 } from "@workflowy/shared/db";
-import * as schema from "@workflowy/shared/db";
-import {
-	applyRows,
-	joinKey,
-	type NormalizedAiMetadataRow,
-	type NormalizedCalendarLevelsRow,
-	type NormalizedCalendarMetadataRow,
-	type NormalizedChangesMetadataRow,
-	type NormalizedNodeContentRow,
-	type NormalizedNodeMetadataRow,
-	type NormalizedReferencesRootsRow,
-	type NormalizedS3FileRow,
-	nextSystemTime,
-	temporalMerge,
+import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
+import type * as schema from "@workflowy/shared/db";
+import {applyRows, joinKey, nextSystemTime, temporalMerge} from "@workflowy/shared/cache";
+import type {
+	NormalizedAiMetadataRow,
+	NormalizedCalendarLevelsRow,
+	NormalizedCalendarMetadataRow,
+	NormalizedChangesMetadataRow,
+	NormalizedNodeContentRow,
+	NormalizedNodeMetadataRow,
+	NormalizedReferencesRootsRow,
+	NormalizedS3FileRow,
 } from "@workflowy/shared/cache";
-import {BackupFileSchema, type BackupNode, BackupNodeSchema} from "@workflowy/shared/schemas";
+import {BackupFileSchema, BackupNodeSchema} from "@workflowy/shared/schemas";
+import type {BackupNode} from "@workflowy/shared/schemas";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {backupToUnixTime, uuidToShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, lt} from "drizzle-orm";
@@ -149,9 +146,11 @@ function timestampToDate(timestamp: number | null | undefined): Date | null {
 /**
  * Find the index of the previous element with a non-null priority.
  */
-function findPrevWithPriority(arr: Array<number | null>, start: number): number | null {
+function findPrevWithPriority(arr: (number | null)[], start: number): number | null {
 	for (let i = start - 1; i >= 0; i--) {
-		if (arr[i] !== null) return i;
+		if (arr[i] !== null) {
+			return i;
+		}
 	}
 	return null;
 }
@@ -159,9 +158,11 @@ function findPrevWithPriority(arr: Array<number | null>, start: number): number 
 /**
  * Find the index of the next element with a non-null priority.
  */
-function findNextWithPriority(arr: Array<number | null>, start: number): number | null {
+function findNextWithPriority(arr: (number | null)[], start: number): number | null {
 	for (let i = start + 1; i < arr.length; i++) {
-		if (arr[i] !== null) return i;
+		if (arr[i] !== null) {
+			return i;
+		}
 	}
 	return null;
 }
@@ -177,7 +178,7 @@ function findNextWithPriority(arr: Array<number | null>, start: number): number 
  * @returns Map of nodeId → priority (only for nodes that need updating)
  */
 function calculatePriorities(
-	siblings: Array<{id: string; backupPosition: number; existingPriority: number | null}>,
+	siblings: {id: string; backupPosition: number; existingPriority: number | null}[],
 ): Map<string, number> {
 	const result = new Map<string, number>();
 
@@ -209,7 +210,7 @@ function calculatePriorities(
 	}
 
 	// Build working array of priorities (null means needs calculation)
-	const priorities: Array<number | null> = siblings.map((s) => (orderChanged ? null : s.existingPriority));
+	const priorities: (number | null)[] = siblings.map((s) => (orderChanged ? null : s.existingPriority));
 
 	// If order changed, find an anchor: rightmost existing node to use as reference
 	// We'll propagate backwards from it
@@ -254,7 +255,9 @@ function calculatePriorities(
 	while (changed) {
 		changed = false;
 		for (let i = 0; i < priorities.length; i++) {
-			if (priorities[i] !== null) continue;
+			if (priorities[i] !== null) {
+				continue;
+			}
 
 			const prevIdx = findPrevWithPriority(priorities, i);
 			const nextIdx = findNextWithPriority(priorities, i);
@@ -262,7 +265,9 @@ function calculatePriorities(
 			const adjacentToPrev = prevIdx !== null && prevIdx === i - 1;
 			const adjacentToNext = nextIdx !== null && nextIdx === i + 1;
 
-			if (!adjacentToPrev && !adjacentToNext) continue;
+			if (!adjacentToPrev && !adjacentToNext) {
+				continue;
+			}
 
 			let newPriority: number;
 			if (prevIdx !== null && nextIdx !== null) {
@@ -343,7 +348,9 @@ export async function importBackup(
 	}
 
 	const logTiming = (phase: string) => {
-		if (!verbose) return;
+		if (!verbose) {
+			return;
+		}
 		const now = Date.now();
 		const elapsed = now - lastTime;
 		const total = now - startTime;
@@ -358,7 +365,7 @@ export async function importBackup(
 	const rootNodes = BackupFileSchema.parse(parsedJson);
 	logTiming(`Parse and validate JSON (${rootNodes.length} root nodes)`);
 
-	const allNodes: Array<{node: BackupNode; parentId: string | null; priority: number}> = [];
+	const allNodes: {node: BackupNode; parentId: string | null; priority: number}[] = [];
 	const collectNodes = (node: BackupNode, parentId: string | null, priority: number) => {
 		allNodes.push({node, parentId, priority});
 		if (node.ch && Array.isArray(node.ch)) {
@@ -380,7 +387,7 @@ export async function importBackup(
 	const workflowyEpoch = await getOrFetchWorkflowyEpoch(database);
 	logTiming(`Using Workflowy epoch: ${workflowyEpoch}`);
 
-	const nodesToProcess: Array<{
+	const nodesToProcess: {
 		id: string;
 		shortId: string;
 		name: string;
@@ -391,13 +398,13 @@ export async function importBackup(
 		modifiedAt: number | null;
 		completedAt: number | null;
 		layoutMode: string | null;
-	}> = [];
+	}[] = [];
 	// Consolidated mirror relationships: mirrorId is the mirror, originalId is what it mirrors
-	const mirrorRecords: Array<{originalId: string; mirrorId: string}> = [];
-	const backlinkRecords: Array<{nodeId: string; sourceId: string; targetId: string}> = [];
-	const virtualRootIdRecords: Array<{nodeId: string; virtualRootIds: string[]}> = [];
-	const aiMetadataRecords: Array<{nodeId: string; inChat: number}> = [];
-	const s3FileRecords: Array<{
+	const mirrorRecords: {originalId: string; mirrorId: string}[] = [];
+	const backlinkRecords: {nodeId: string; sourceId: string; targetId: string}[] = [];
+	const virtualRootIdRecords: {nodeId: string; virtualRootIds: string[]}[] = [];
+	const aiMetadataRecords: {nodeId: string; inChat: number}[] = [];
+	const s3FileRecords: {
 		nodeId: string;
 		fileName: string;
 		fileType: string;
@@ -407,10 +414,10 @@ export async function importBackup(
 		imageOriginalHeight: number | null;
 		imageOriginalPixels: number | null;
 		isDeleted: number | null;
-	}> = [];
-	const changesMetadataRecords: Array<{nodeId: string; ctBy: number}> = [];
-	const referencesRootsRecords: Array<{nodeId: string}> = [];
-	const calendarMetadataRecords: Array<{
+	}[] = [];
+	const changesMetadataRecords: {nodeId: string; ctBy: number}[] = [];
+	const referencesRootsRecords: {nodeId: string}[] = [];
+	const calendarMetadataRecords: {
 		nodeId: string;
 		root: number | null;
 		level: string | null;
@@ -418,14 +425,14 @@ export async function importBackup(
 		dateId: number | null;
 		timestamp: number | null;
 		foundDates: number | null;
-	}> = [];
-	const calendarLevelsRecords: Array<{
+	}[] = [];
+	const calendarLevelsRecords: {
 		nodeId: string;
 		day: number | null;
 		week: number | null;
 		month: number | null;
 		year: number | null;
-	}> = [];
+	}[] = [];
 
 	let validationErrors = 0;
 
@@ -587,9 +594,15 @@ export async function importBackup(
 	// `cache import-api` stamps it with the wall clock on each daily run.
 	let incomingMaxUnix = 0;
 	for (const n of nodesToProcess) {
-		if (n.createdAt !== null && n.createdAt > incomingMaxUnix) incomingMaxUnix = n.createdAt;
-		if (n.modifiedAt !== null && n.modifiedAt > incomingMaxUnix) incomingMaxUnix = n.modifiedAt;
-		if (n.completedAt !== null && n.completedAt > incomingMaxUnix) incomingMaxUnix = n.completedAt;
+		if (n.createdAt !== null && n.createdAt > incomingMaxUnix) {
+			incomingMaxUnix = n.createdAt;
+		}
+		if (n.modifiedAt !== null && n.modifiedAt > incomingMaxUnix) {
+			incomingMaxUnix = n.modifiedAt;
+		}
+		if (n.completedAt !== null && n.completedAt > incomingMaxUnix) {
+			incomingMaxUnix = n.completedAt;
+		}
 	}
 	const incomingWatermarkMs = incomingMaxUnix === 0 ? null : incomingMaxUnix * 1000;
 	const incomingWatermark: string | null =
@@ -639,7 +652,9 @@ export async function importBackup(
 	for (const metadata of existingMetadataMap.values()) {
 		for (const stamp of [metadata.createdAt, metadata.modifiedAt, metadata.completedAt]) {
 			const unix = toUnixSeconds(stamp);
-			if (unix !== null && unix > localMaxUnix) localMaxUnix = unix;
+			if (unix !== null && unix > localMaxUnix) {
+				localMaxUnix = unix;
+			}
 		}
 	}
 	localWatermark = localMaxUnix === 0 ? null : formatTemporalTimestamp(new Date(localMaxUnix * 1000));
@@ -647,13 +662,17 @@ export async function importBackup(
 	if (!force && incomingMaxUnix > 0) {
 		const backupNodeIds = new Set(nodesToProcess.map((n) => n.id));
 		for (const [nodeId, metadata] of existingMetadataMap) {
-			if (backupNodeIds.has(nodeId)) continue;
+			if (backupNodeIds.has(nodeId)) {
+				continue;
+			}
 			const newest = Math.max(
 				toUnixSeconds(metadata.createdAt) ?? 0,
 				toUnixSeconds(metadata.modifiedAt) ?? 0,
 				toUnixSeconds(metadata.completedAt) ?? 0,
 			);
-			if (newest > incomingMaxUnix) protectedIds.add(nodeId);
+			if (newest > incomingMaxUnix) {
+				protectedIds.add(nodeId);
+			}
 		}
 	}
 	logTiming(`Protected ${protectedIds.size} nodes newer than the snapshot`);
@@ -689,11 +708,11 @@ export async function importBackup(
 		// Group nodes by parent with their backup position (tree traversal order)
 		const siblingsByParent = new Map<
 			string | null,
-			Array<{
+			{
 				id: string;
 				backupPosition: number;
 				existingPriority: number | null;
-			}>
+			}[]
 		>();
 
 		for (const nodeData of nodesToProcess) {

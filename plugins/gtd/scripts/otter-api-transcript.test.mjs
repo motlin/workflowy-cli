@@ -15,7 +15,9 @@ function sandbox(speechBody) {
 	const dir = mkdtempSync(join(tmpdir(), "otter-transcript-"));
 	const bin = join(dir, "bin");
 	const cache = join(dir, "cache");
-	for (const d of [bin, cache]) mkdirSync(d);
+	for (const d of [bin, cache]) {
+		mkdirSync(d);
+	}
 	writeFileSync(join(cache, "otter-session-cache"), "");
 	writeFileSync(join(cache, "otter-userid-cache"), "42");
 	const fixture = join(dir, "speech.json");
@@ -50,15 +52,15 @@ test("transcript renders a header and one speaker-labelled line per transcript s
 		speech: {
 			otid: "abc123",
 			title: "1:1 Alice",
-			start_time: 1790000000,
+			start_time: 1_790_000_000,
 			speakers: [
 				{id: 1, speaker_name: "Alice"},
 				{id: 2, speaker_name: "Bob"},
 			],
 			transcripts: [
-				{start_offset: 1040000, speaker_id: 2, transcript: "Second thing."},
+				{start_offset: 1_040_000, speaker_id: 2, transcript: "Second thing."},
 				{start_offset: 0, speaker_id: 1, transcript: "First thing."},
-				{start_offset: 59600000, speaker_id: 9, transcript: "Unknown speaker."},
+				{start_offset: 59_600_000, speaker_id: 9, transcript: "Unknown speaker."},
 			],
 		},
 	});

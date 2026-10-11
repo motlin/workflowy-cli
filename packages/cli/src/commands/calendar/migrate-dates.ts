@@ -71,7 +71,9 @@ function parseTextDate(name: string): ParsedDate | null {
 		const month = Number.parseInt(match[1], 10);
 		const day = Number.parseInt(match[2], 10);
 		let year = Number.parseInt(match[3], 10);
-		if (year < 100) year += 2000;
+		if (year < 100) {
+			year += 2000;
+		}
 		return {year, month, day};
 	}
 
@@ -80,7 +82,9 @@ function parseTextDate(name: string): ParsedDate | null {
 	match = abbrevFormat.exec(trimmed);
 	if (match) {
 		const monthNum = MONTH_ABBREVS[match[1]];
-		if (!monthNum) return null;
+		if (!monthNum) {
+			return null;
+		}
 		const day = Number.parseInt(match[2], 10);
 		const year = Number.parseInt(match[3], 10);
 		return {year, month: monthNum, day};
@@ -93,7 +97,9 @@ function parseTextDate(name: string): ParsedDate | null {
 		const month = Number.parseInt(match[1], 10);
 		const day = Number.parseInt(match[2], 10);
 		let year = Number.parseInt(match[3], 10);
-		if (year < 100) year += 2000;
+		if (year < 100) {
+			year += 2000;
+		}
 		return {year, month, day};
 	}
 
@@ -208,8 +214,8 @@ export default class MigrateDates extends Command {
 
 		this.log(`Found ${candidates.length} candidate nodes`);
 
-		const parsed: Array<{node: CandidateNode; date: ParsedDate; formatted: string}> = [];
-		const skipped: Array<{id: string; name: string; reason: string}> = [];
+		const parsed: {node: CandidateNode; date: ParsedDate; formatted: string}[] = [];
+		const skipped: {id: string; name: string; reason: string}[] = [];
 
 		for (const row of candidates) {
 			const node: CandidateNode = {

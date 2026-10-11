@@ -1,5 +1,6 @@
 import {createPortal} from "react-dom";
-import {TAG_COLORS, type TagColorName} from "../../tag-colors.js";
+import {TAG_COLORS} from "../../tag-colors.js";
+import type {TagColorName} from "../../tag-colors.js";
 
 /**
  * Floating color picker for assigning a color to a tag (#tag / @mention),

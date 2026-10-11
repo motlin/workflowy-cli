@@ -57,9 +57,15 @@ function kindAt(segments, index) {
 	for (const [kind, {marker, matches}] of Object.entries(KINDS)) {
 		const nameIndex = index + marker.length;
 		// The last segment is the build dir itself, so a location needs a named segment before it.
-		if (nameIndex >= segments.length - 1) continue;
-		if (!marker.every((segment, offset) => segments[index + offset] === segment)) continue;
-		if (matches(segments[nameIndex])) return {kind, name: segments[nameIndex]};
+		if (nameIndex >= segments.length - 1) {
+			continue;
+		}
+		if (!marker.every((segment, offset) => segments[index + offset] === segment)) {
+			continue;
+		}
+		if (matches(segments[nameIndex])) {
+			return {kind, name: segments[nameIndex]};
+		}
 	}
 	return null;
 }
@@ -69,7 +75,9 @@ function locationOf(path) {
 	const segments = path.split("/");
 	for (let index = 0; index < segments.length; index += 1) {
 		const match = kindAt(segments, index);
-		if (match !== null) return {...match, repo: segments.slice(0, index).join("/")};
+		if (match !== null) {
+			return {...match, repo: segments.slice(0, index).join("/")};
+		}
 	}
 	return null;
 }
@@ -131,4 +139,6 @@ function main() {
 	process.stdout.write(`${JSON.stringify({...grouped, report: formatBuildDirReport(grouped)}, null, "\t")}\n`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main();
+}

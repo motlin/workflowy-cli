@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
 import {joinContinuationLines} from "./helpers/markdown-parser.js";

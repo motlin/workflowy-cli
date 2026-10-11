@@ -1,7 +1,8 @@
 import {dirname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
-import {Command, type Interfaces} from "@oclif/core";
+import {Command} from "@oclif/core";
+import type {Interfaces} from "@oclif/core";
 
 // Under vitest, require.main is unset, so Command.run falls back to @oclif/core's own package.json,
 // whose oclif.devPlugins names @oclif/plugin-plugins and warns on every test that it cannot be found.

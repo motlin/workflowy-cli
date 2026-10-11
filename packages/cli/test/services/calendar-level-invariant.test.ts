@@ -1,3 +1,4 @@
+import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import {calendarLevels, calendarMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {eq} from "drizzle-orm";
@@ -5,7 +6,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {importBackup} from "../../src/services/cache-import.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 
 /**
  * 📅 Calendar `level` vs `levels` invariant.
@@ -96,8 +98,8 @@ describe("calendar level/levels invariant", () => {
 					calendar: {
 						level: "day",
 						value: "11",
-						dateId: 20250211,
-						timestamp: 1739250000000,
+						dateId: 20_250_211,
+						timestamp: 1_739_250_000_000,
 					},
 				},
 			},
@@ -132,17 +134,17 @@ describe("calendar level/levels invariant", () => {
 					{
 						id: "year-2025",
 						nm: "2025",
-						metadata: {calendar: {level: "year", value: "2025", dateId: 20250000}},
+						metadata: {calendar: {level: "year", value: "2025", dateId: 20_250_000}},
 						ch: [
 							{
 								id: "month-feb",
 								nm: "February",
-								metadata: {calendar: {level: "month", value: "2", dateId: 20250200}},
+								metadata: {calendar: {level: "month", value: "2", dateId: 20_250_200}},
 								ch: [
 									{
 										id: "day-11",
 										nm: "11",
-										metadata: {calendar: {level: "day", value: "11", dateId: 20250211}},
+										metadata: {calendar: {level: "day", value: "11", dateId: 20_250_211}},
 									},
 								],
 							},

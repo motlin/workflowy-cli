@@ -4,8 +4,10 @@ import {useQueryClient} from "@tanstack/react-query";
 import {useOutlineStore} from "../stores/outline.js";
 import {planInsertSiblingAfter} from "../tree-ops.js";
 import {useCreateNode, useUpdateNode} from "../hooks/use-nodes.js";
-import {useRemoveTagColor, useSetTagColor, useTagColors, type TagColors} from "../hooks/use-tag-colors.js";
-import {TagColorPicker, type TagColorName} from "./tag-color-picker.js";
+import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
+import type {TagColors} from "../hooks/use-tag-colors.js";
+import {TagColorPicker} from "./tag-color-picker.js";
+import type {TagColorName} from "./tag-color-picker.js";
 
 // Regex to match #tags and @mentions
 // Matches: #tag, #tag-name, #tag_name, @mention, @user-name, @user_name

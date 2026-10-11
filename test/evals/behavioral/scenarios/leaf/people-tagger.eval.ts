@@ -5,6 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
+import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
@@ -76,7 +77,9 @@ describe("Leaf Eval: people-tagger", {timeout: 300_000}, () => {
 	afterAll(() => ctx?.cleanup());
 
 	it("should return valid JSON with people detections", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(
 			agentFile,

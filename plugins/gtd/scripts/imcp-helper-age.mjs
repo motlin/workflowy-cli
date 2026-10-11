@@ -23,7 +23,7 @@
 import {execSync} from "node:child_process";
 
 // ~1 day, mirrored in overview.md
-export const STALE_THRESHOLD_SECONDS = 86400;
+export const STALE_THRESHOLD_SECONDS = 86_400;
 
 const MONTHS = {
 	Jan: 0,
@@ -46,11 +46,15 @@ const LSTART_RE = /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{
 
 export function parseLstartToEpochSeconds(lstart) {
 	const m = String(lstart).trim().match(LSTART_RE);
-	if (!m) return null;
+	if (!m) {
+		return null;
+	}
 	const month = MONTHS[m[1]];
-	if (month === undefined) return null;
+	if (month === undefined) {
+		return null;
+	}
 	const [, , day, hh, mm, ss, year] = m;
-	return Math.floor(new Date(+year, month, +day, +hh, +mm, +ss).getTime() / 1000);
+	return Math.floor(new Date(Number(year), month, Number(day), Number(hh), Number(mm), Number(ss)).getTime() / 1000);
 }
 
 export function ageSeconds(lstart, nowEpochSeconds) {
@@ -65,7 +69,9 @@ export function parsePsTable(output) {
 	const processes = [];
 	for (const line of String(output).split("\n")) {
 		const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
-		if (m) processes.push({pid: +m[1], ppid: +m[2], command: m[3].trim()});
+		if (m) {
+			processes.push({pid: Number(m[1]), ppid: Number(m[2]), command: m[3].trim()});
+		}
 	}
 	return processes;
 }
@@ -79,7 +85,9 @@ export function findSessionHelperPid(processes, startPid) {
 	for (let pid = startPid; pid > 0 && !seen.has(pid); pid = parentOf.get(pid) ?? 0) {
 		seen.add(pid);
 		const helper = helpers.find((p) => p.ppid === pid);
-		if (helper) return helper.pid;
+		if (helper) {
+			return helper.pid;
+		}
 	}
 	return null;
 }

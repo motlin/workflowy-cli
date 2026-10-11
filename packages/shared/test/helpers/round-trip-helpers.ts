@@ -1,24 +1,23 @@
 import DatabaseConstructor from "better-sqlite3";
 import type {Database} from "better-sqlite3";
 import {eq} from "drizzle-orm";
-import {drizzle, type BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import {drizzle} from "drizzle-orm/better-sqlite3";
+import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {readFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import * as schema from "@workflowy/shared/db";
 import {mirrors, nodeContent} from "@workflowy/shared/db";
-import {
-	type ApplyRowsResult,
-	applyRows,
-	normalizeLayoutMode,
-	type NormalizedRowsByTable,
-} from "@workflowy/shared/cache";
+import {applyRows, normalizeLayoutMode} from "@workflowy/shared/cache";
+import type {ApplyRowsResult, NormalizedRowsByTable} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import type {Node} from "@workflowy/shared/types";
-import {ApiResponseSchema, type WorkflowyNode} from "@workflowy/shared/types";
+import {ApiResponseSchema} from "@workflowy/shared/types";
+import type {WorkflowyNode} from "@workflowy/shared/types";
 import {uuidToShortId} from "@workflowy/shared/workflowy";
-import {BackupFileSchema, type BackupNode} from "@workflowy/shared/schemas";
+import {BackupFileSchema} from "@workflowy/shared/schemas";
+import type {BackupNode} from "@workflowy/shared/schemas";
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = join(currentDirectory, "../../src/db/migrations");

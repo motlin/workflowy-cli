@@ -1,3 +1,4 @@
+import {vi, afterEach, describe, expect, it} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {and, eq} from "drizzle-orm";
 import {drizzle} from "drizzle-orm/better-sqlite3";
@@ -29,7 +30,7 @@ function setup() {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const database = drizzle(sqlite, {schema});
 	migrate(database, {migrationsFolder});
-	const seed: Array<[id: string, parentId: string | null, priority: number]> = [
+	const seed: [id: string, parentId: string | null, priority: number][] = [
 		["home", null, 0],
 		["existing", "home", 100],
 	];

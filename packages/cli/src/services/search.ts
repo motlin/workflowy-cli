@@ -4,7 +4,8 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {and, eq, sql} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import {EMBEDDING_MODELS, type EmbeddingModelKey, embeddingService} from "./embeddings.js";
+import {EMBEDDING_MODELS, embeddingService} from "./embeddings.js";
+import type {EmbeddingModelKey} from "./embeddings.js";
 import {logger} from "./logger.js";
 import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
@@ -150,7 +151,7 @@ export class SearchService {
 		}));
 	}
 
-	private async enrichResults(rawResults: Array<{nodeId: string; distance: number}>): Promise<SearchResult[]> {
+	private async enrichResults(rawResults: {nodeId: string; distance: number}[]): Promise<SearchResult[]> {
 		return Promise.all(
 			rawResults.map(async (result) => {
 				const [fullPath, textContent] = await Promise.all([

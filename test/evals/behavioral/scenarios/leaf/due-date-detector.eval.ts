@@ -5,6 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
+import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
@@ -33,7 +34,9 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 	afterAll(() => ctx?.cleanup());
 
 	it("should detect date from item text with explicit deadline", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(
 			agentFile,
@@ -51,7 +54,9 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 	});
 
 	it("should detect urgency keywords", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(
 			agentFile,
@@ -69,7 +74,7 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 			expect(parsed.isAsap).toBe(true);
 		}
 		if (parsed.urgencyLevel !== undefined) {
-			expect(typeof parsed.urgencyLevel).toBe("string");
+			expect(parsed.urgencyLevel).toBeTypeOf("string");
 		}
 	});
 });

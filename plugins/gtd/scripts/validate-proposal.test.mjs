@@ -154,7 +154,7 @@ const emailCalendarProposal = (overrides = {}) => ({
 	altKeys: ["Book club dinner | 2026-09-25"],
 	account: "alice",
 	mailbox: "INBOX",
-	messageUid: 12345,
+	messageUid: 12_345,
 	messageId: "<CAB12345@mail.example.com>",
 	actionLinks: ["https://example.com/rsvp/12345"],
 	before: "Unread email offering registration for a dinner on Sep 25",

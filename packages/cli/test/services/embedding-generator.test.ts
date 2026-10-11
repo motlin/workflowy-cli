@@ -1,13 +1,10 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {nodeEmbeddings} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {EmbeddingGeneratorService, loadEmbeddableNodes} from "../../src/services/embedding-generator.js";
 import {embeddingService} from "../../src/services/embeddings.js";
-import {
-	cleanupTestDatabase,
-	createInMemoryTestDatabase,
-	seedTestData,
-	type TestDatabase,
-} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 const EARLIER = "2025-12-01 00:00:00.000";

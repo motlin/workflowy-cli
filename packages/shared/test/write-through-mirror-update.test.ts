@@ -1,4 +1,6 @@
-import {type UpdateNodeRequest, WorkflowyApiClient} from "../src/api/workflowy-client.js";
+import {vi, describe, expect, it} from "vite-plus/test";
+import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
+import type {UpdateNodeRequest} from "../src/api/workflowy-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import {buildTestDb} from "./helpers/round-trip-helpers.js";
@@ -9,7 +11,7 @@ const PLAIN_ID = "plain-node";
 
 /** An API that records which node id each update targets, over an empty cache that knows one mirror. */
 function fakes() {
-	const updates: Array<[string, UpdateNodeRequest]> = [];
+	const updates: [string, UpdateNodeRequest][] = [];
 	const apiClient = new WorkflowyApiClient("test-key");
 	vi.spyOn(apiClient, "updateNode").mockImplementation(async (id, request) => {
 		updates.push([id, request]);
@@ -56,8 +58,8 @@ describe("WorkflowyWriteThroughClient.updateNode on mirrors", () => {
 	it("resolves the update target the same way for callers that pre-check the current text", async () => {
 		const {client} = fakes();
 
-		expect(
-			await Promise.all([client.resolveUpdateTarget(MIRROR_ID), client.resolveUpdateTarget(PLAIN_ID)]),
-		).toStrictEqual([ORIGINAL_ID, PLAIN_ID]);
+		await expect(
+			Promise.all([client.resolveUpdateTarget(MIRROR_ID), client.resolveUpdateTarget(PLAIN_ID)]),
+		).resolves.toStrictEqual([ORIGINAL_ID, PLAIN_ID]);
 	});
 });

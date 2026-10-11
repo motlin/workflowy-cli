@@ -11,7 +11,9 @@ const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0, effects: []
 vi.mock("react", () => ({
 	useState(initial: unknown) {
 		const index = hooks.cursor++;
-		if (!(index in hooks.values)) hooks.values[index] = initial;
+		if (!(index in hooks.values)) {
+			hooks.values[index] = initial;
+		}
 		return [
 			hooks.values[index],
 			(value: unknown) => {
@@ -21,7 +23,9 @@ vi.mock("react", () => ({
 	},
 	useRef(initial: unknown) {
 		const index = hooks.cursor++;
-		if (!(index in hooks.values)) hooks.values[index] = {current: initial};
+		if (!(index in hooks.values)) {
+			hooks.values[index] = {current: initial};
+		}
 		return hooks.values[index];
 	},
 	useEffect(callback: () => unknown) {
@@ -41,21 +45,29 @@ function isElement(node: ReactNode): node is ReactElement<ElementProps> {
 }
 
 function elements(node: ReactNode): ReactElement<ElementProps>[] {
-	if (Array.isArray(node)) return node.flatMap(elements);
-	if (!isElement(node)) return [];
+	if (Array.isArray(node)) {
+		return node.flatMap(elements);
+	}
+	if (!isElement(node)) {
+		return [];
+	}
 	return [node, ...elements(node.props.children)];
 }
 
 /** Call the callback prop `key`, failing the test when the element has none. */
 function invoke(props: ElementProps, key: string, ...args: unknown[]): unknown {
 	const callback = props[key];
-	if (typeof callback !== "function") throw new Error(`${key} is not a callback prop`);
+	if (typeof callback !== "function") {
+		throw new Error(`${key} is not a callback prop`);
+	}
 	return Reflect.apply(callback, undefined, args);
 }
 
 /** Render a function component element one level down, the way React would. */
 function renderComponent(element: ReactElement<ElementProps>): ReactNode {
-	if (typeof element.type !== "function") throw new Error("not a function component");
+	if (typeof element.type !== "function") {
+		throw new Error("not a function component");
+	}
 	return Reflect.apply(element.type, undefined, [element.props]);
 }
 
@@ -71,7 +83,9 @@ function render() {
 
 function tierProps() {
 	const props = render().find((element) => element.props.tier)?.props;
-	if (!props) throw new Error("no tier is rendered");
+	if (!props) {
+		throw new Error("no tier is rendered");
+	}
 	const callback =
 		(key: string) =>
 		(...args: unknown[]): void => {
@@ -333,7 +347,9 @@ describe("local ladder actions", () => {
 			.mockResolvedValueOnce({ok: true, json: async () => ({})})
 			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: ladders()})});
 		const button = render().find((element) => element.props.children === "Add bottom tier");
-		if (!button) throw new Error("Add bottom tier button is missing");
+		if (!button) {
+			throw new Error("Add bottom tier button is missing");
+		}
 		invoke(button.props, "onClick");
 		await settle();
 		expect(request.mock.calls).toStrictEqual([
@@ -356,7 +372,9 @@ describe("a row whose write is in flight", () => {
 			.filter((element) => element.props.tier)
 			.flatMap((tier) => elements(renderComponent(tier)));
 		const row = rows.find((element) => element.props["data-node-id"] === nodeId);
-		if (!row) throw new Error(`no row ${nodeId}`);
+		if (!row) {
+			throw new Error(`no row ${nodeId}`);
+		}
 		return elements(row.props.children)
 			.filter((element) => element.type === "button" && element.props.className !== "ladder-tree-button")
 			.map((button) => ({
@@ -525,7 +543,9 @@ describe("subtree preview", () => {
 		const found = rows()
 			.flatMap((row) => elements(row.props.children))
 			.find((element) => element.props.className === "ladder-tree-button");
-		if (!found) throw new Error("no Tree button");
+		if (!found) {
+			throw new Error("no Tree button");
+		}
 		const handler = (key: string) => (event: unknown) => {
 			invoke(found.props, key, event);
 		};
@@ -587,7 +607,9 @@ describe("subtree preview", () => {
 	it("shows the subtree with its real nesting", () => {
 		treeButton().onFocus({currentTarget: button});
 		const list = elements(preview()[0].props.children).find((element) => element.type === "ul");
-		if (!list) throw new Error("no preview list");
+		if (!list) {
+			throw new Error("no preview list");
+		}
 		expect(shape(list)).toStrictEqual([
 			["first child", []],
 			["second child", [["grandchild", []]]],

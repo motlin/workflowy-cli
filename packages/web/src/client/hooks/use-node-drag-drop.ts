@@ -87,13 +87,19 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 		setDragOverPosition(null);
 
 		const dataString = event.dataTransfer.getData("application/json");
-		if (!dataString) return;
+		if (!dataString) {
+			return;
+		}
 
 		const parseResult = DragDataSchema.safeParse(JSON.parse(dataString));
-		if (!parseResult.success) return;
+		if (!parseResult.success) {
+			return;
+		}
 		const {data} = parseResult;
 
-		if (data.nodeId === nodeId) return;
+		if (data.nodeId === nodeId) {
+			return;
+		}
 
 		if (currentDropPosition === "child") {
 			moveNode.mutate({

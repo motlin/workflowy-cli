@@ -1,11 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {type RawNode, tierCapacity, toLadder, planTierMove} from "../src/server/ladder-model.js";
+import {tierCapacity, toLadder, planTierMove} from "../src/server/ladder-model.js";
+import type {RawNode} from "../src/server/ladder-model.js";
 
 const node = (id: string, name: string, children: RawNode[] = []): RawNode => ({id, name, children, completedAt: null});
 
 describe("tierCapacity", () => {
 	it("doubles with each tier, so 1st holds 2 and 6th holds 64", () => {
-		expect([1, 2, 3, 4, 5, 6].map(tierCapacity)).toEqual([2, 4, 8, 16, 32, 64]);
+		expect([1, 2, 3, 4, 5, 6].map(tierCapacity)).toStrictEqual([2, 4, 8, 16, 32, 64]);
 	});
 });
 
@@ -22,7 +23,7 @@ describe("toLadder", () => {
 
 	it("reads tiers in order with their capacities", () => {
 		const ladder = toLadder("work", bucket);
-		expect(ladder.tiers.map((t) => [t.label, t.capacity, t.items.length])).toEqual([
+		expect(ladder.tiers.map((t) => [t.label, t.capacity, t.items.length])).toStrictEqual([
 			["1st", 2, 2],
 			["2nd", 4, 0],
 			["3rd", 8, 1],
@@ -31,12 +32,12 @@ describe("toLadder", () => {
 
 	it("keeps an empty tier, because pulling an item up into one is the main repair", () => {
 		const ladder = toLadder("work", bucket);
-		expect(ladder.tiers.find((t) => t.label === "2nd")?.items).toEqual([]);
+		expect(ladder.tiers.find((t) => t.label === "2nd")?.items).toStrictEqual([]);
 	});
 
 	it("marks each tier over, exact or room so the client does not recompute it", () => {
 		const ladder = toLadder("work", bucket);
-		expect(ladder.tiers.map((t) => t.state)).toEqual(["exact", "room", "room"]);
+		expect(ladder.tiers.map((t) => t.state)).toStrictEqual(["exact", "room", "room"]);
 	});
 
 	it("drops completed tasks rather than showing work already done", () => {
@@ -51,7 +52,7 @@ describe("toLadder", () => {
 				},
 			],
 		};
-		expect(toLadder("work", withDone).tiers[0].items.map((i) => i.id)).toEqual(["a"]);
+		expect(toLadder("work", withDone).tiers[0].items.map((i) => i.id)).toStrictEqual(["a"]);
 	});
 });
 
@@ -63,7 +64,12 @@ describe("planTierMove", () => {
 	});
 
 	it("resolves a tier label to the parent id the move endpoint needs", () => {
-		expect(planTierMove(ladder, "a", "2nd")).toEqual({nodeId: "a", parentId: "t2", fromTier: "1st", toTier: "2nd"});
+		expect(planTierMove(ladder, "a", "2nd")).toStrictEqual({
+			nodeId: "a",
+			parentId: "t2",
+			fromTier: "1st",
+			toTier: "2nd",
+		});
 	});
 
 	it("refuses a tier that does not exist rather than guessing", () => {
@@ -94,8 +100,8 @@ describe("toLadder subtrees", () => {
 	it("carries each row subtree, so the page can show it without another request", () => {
 		const [tier] = toLadder("work", bucket).tiers;
 		const [withKids] = tier.items;
-		expect(withKids.children.map((child) => child.name)).toEqual(["Request transcripts", "Book the tour"]);
-		expect(withKids.children[0].children.map((child) => child.name)).toEqual(["Email the registrar"]);
+		expect(withKids.children.map((child) => child.name)).toStrictEqual(["Request transcripts", "Book the tour"]);
+		expect(withKids.children[0].children.map((child) => child.name)).toStrictEqual(["Email the registrar"]);
 	});
 
 	it("leaves completed children out, the same as completed rows", () => {
@@ -105,7 +111,7 @@ describe("toLadder subtrees", () => {
 
 	it("gives a childless row an empty list rather than undefined", () => {
 		const [tier] = toLadder("work", bucket).tiers;
-		expect(tier.items[1].children).toEqual([]);
+		expect(tier.items[1].children).toStrictEqual([]);
 	});
 
 	it("counts the whole subtree, so a row can say how much is hidden under it", () => {

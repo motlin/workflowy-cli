@@ -1,10 +1,7 @@
+import {beforeEach, beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {PathBuilder} from "@workflowy/shared/cache";
-import {
-	cleanupTestDatabase,
-	createInMemoryTestDatabase,
-	seedTestData,
-	type TestDatabase,
-} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 describe("PathBuilder", () => {
@@ -19,12 +16,12 @@ describe("PathBuilder", () => {
 		pathBuilder = new PathBuilder(testDatabase.db);
 	});
 
-	afterAll(() => {
-		cleanupTestDatabase(testDatabase);
-	});
-
 	beforeEach(() => {
 		seedTestData(testDatabase, {});
+	});
+
+	afterAll(() => {
+		cleanupTestDatabase(testDatabase);
 	});
 
 	describe("buildFullPathsBatch", () => {

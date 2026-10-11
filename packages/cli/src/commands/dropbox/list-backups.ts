@@ -21,7 +21,7 @@ export default class ListBackups extends Command {
 
 		const dropbox = this.initializeDropbox();
 
-		const allBackups: Array<{date: string; filename: string; sizeMB: string; source: string}> = [];
+		const allBackups: {date: string; filename: string; sizeMB: string; source: string}[] = [];
 
 		for (const folder of ["Data", "History"]) {
 			const dropboxPath = `/Apps/WorkFlowy/${folder}`;

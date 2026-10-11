@@ -24,7 +24,9 @@ import {readFileSync} from "node:fs";
 const ORDINAL_SUFFIX = {1: "st", 2: "nd", 3: "rd"};
 
 function assertTierRank(tier) {
-	if (!Number.isInteger(tier) || tier < 1) throw new Error(`not a tier rank: ${tier}`);
+	if (!Number.isInteger(tier) || tier < 1) {
+		throw new Error(`not a tier rank: ${tier}`);
+	}
 }
 
 export function tierLabel(tier) {
@@ -37,7 +39,9 @@ export function tierLabel(tier) {
 
 export function parseTierLabel(name) {
 	const match = /^(\d+)(st|nd|rd|th)$/.exec(String(name ?? "").trim());
-	if (!match) return null;
+	if (!match) {
+		return null;
+	}
 	const tier = Number(match[1]);
 	// Reject `1th` and `3nd`: a mistyped label is a category node, not a tier.
 	return tier >= 1 && tierLabel(tier) === match[0] ? tier : null;
@@ -57,7 +61,9 @@ export function ladderCapacity(tiers) {
 /** How deep a ladder has to be to hold `count` tasks. Used once, when migrating a bucket. */
 export function tiersNeededFor(count) {
 	let tiers = 1;
-	while (ladderCapacity(tiers) < count) tiers += 1;
+	while (ladderCapacity(tiers) < count) {
+		tiers += 1;
+	}
 	return tiers;
 }
 
@@ -106,7 +112,9 @@ export function planInsertion(ladder, targetTier) {
 	// Never leave a hole in the ladder: a `3rd` with no `1st` above it reads as a broken migration.
 	const createTiers = [];
 	for (let tier = 1; tier <= targetTier; tier++) {
-		if (!byTier.has(tier)) createTiers.push({tier, label: tierLabel(tier)});
+		if (!byTier.has(tier)) {
+			createTiers.push({tier, label: tierLabel(tier)});
+		}
 	}
 
 	return {targetTier, targetId: byTier.get(targetTier)?.id ?? null, createTiers};
@@ -125,8 +133,9 @@ export function planGroup(ladder, memberIds, tier) {
 	const found = new Map();
 	for (const t of ladder.tiers) {
 		for (const node of t.items) {
-			if (wanted.has(node.id) && !found.has(node.id))
+			if (wanted.has(node.id) && !found.has(node.id)) {
 				found.set(node.id, {nodeId: node.id, name: node.name, fromTier: t.tier});
+			}
 		}
 	}
 
@@ -160,7 +169,9 @@ export function planRescue(ladder, tier) {
  */
 export function filingChoices(ladder) {
 	const bottom = bottomTier(ladder);
-	if (!bottom) return {summary: "", bottom: null, promote: null};
+	if (!bottom) {
+		return {summary: "", bottom: null, promote: null};
+	}
 
 	const summary = ladder.tiers
 		.map((t) =>
@@ -203,7 +214,9 @@ export function planRebalance(ladder) {
 	const pushDowns = [];
 	for (let tier = 1; tier < deepest; tier++) {
 		const {label, id, capacity, items} = tierAt(tier);
-		if (items.length <= capacity) continue;
+		if (items.length <= capacity) {
+			continue;
+		}
 		pushDowns.push({
 			tier,
 			label,
@@ -220,7 +233,9 @@ export function planRebalance(ladder) {
 	const pullUps = [];
 	if (deepest >= 2 && tierAt(2).items.length === 0) {
 		let source = 2;
-		while (source <= deepest && tierAt(source).items.length === 0) source += 1;
+		while (source <= deepest && tierAt(source).items.length === 0) {
+			source += 1;
+		}
 		if (source <= deepest) {
 			const from = tierAt(source);
 			for (let tier = 2; tier < source; tier++) {
@@ -279,4 +294,6 @@ function main(arguments_) {
 	process.stdout.write(`${JSON.stringify(commands[command](readLadder(bucket)), null, 2)}\n`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main(process.argv);
+}

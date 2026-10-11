@@ -1,5 +1,5 @@
 import {backupImports, nodeContent, nodeMetadata} from "@workflowy/shared/db";
-import * as schema from "@workflowy/shared/db";
+import type * as schema from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, count, desc, eq, isNotNull, isNull} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
@@ -96,7 +96,7 @@ export class CacheStatusService {
 			return null;
 		}
 
-		return new Date(result.systemFrom.replace(" ", "T") + "Z");
+		return new Date(`${result.systemFrom.replace(" ", "T")}Z`);
 	}
 
 	private getDatabaseSize(dbPath: string): string {

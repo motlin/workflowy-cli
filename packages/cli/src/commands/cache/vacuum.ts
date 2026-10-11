@@ -1,6 +1,7 @@
 import {Command} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
-import {CacheVacuumService, formatBytes, type VacuumResult} from "../../services/cache-vacuum.js";
+import {CacheVacuumService, formatBytes} from "../../services/cache-vacuum.js";
+import type {VacuumResult} from "../../services/cache-vacuum.js";
 
 export default class Vacuum extends Command {
 	static override enableJsonFlag = true;

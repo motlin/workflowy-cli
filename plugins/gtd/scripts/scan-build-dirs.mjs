@@ -39,7 +39,9 @@ export function walkBuildDirs(root, {readdir = readdirSync} = {}) {
 			throw error;
 		}
 		for (const entry of entries) {
-			if (!entry.isDirectory()) continue;
+			if (!entry.isDirectory()) {
+				continue;
+			}
 			const path = join(directory, entry.name);
 			if (BUILD_DIR_NAMES.has(entry.name)) {
 				dirs.push(path);
@@ -72,7 +74,9 @@ export function classifyExclusions(
 		// tmutil prints one status line per argument, in argument order.
 		for (const [index, path] of batch.entries()) {
 			const line = lines[index];
-			if (line.startsWith("[Excluded]")) continue;
+			if (line.startsWith("[Excluded]")) {
+				continue;
+			}
 			if (line.startsWith("[Included]")) {
 				unexcluded.push(path);
 			} else if (!exists(path)) {
@@ -117,4 +121,6 @@ function main() {
 	);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main();
+}

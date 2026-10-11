@@ -1,10 +1,7 @@
+import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {findSameTitleSiblings, resolveInboxLinks} from "../../src/services/inbox-registry.js";
-import {
-	cleanupTestDatabase,
-	createInMemoryTestDatabase,
-	seedTestData,
-	type TestDatabase,
-} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 const LIVE_INBOX_ID = "aaaaaaaa-aaaa-aaaa-aaaa-41bd95477fbc";

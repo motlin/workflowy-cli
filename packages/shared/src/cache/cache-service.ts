@@ -1,4 +1,4 @@
-import * as schema from "../db/schema.js";
+import type * as schema from "../db/schema.js";
 import {
 	aiMetadata,
 	backlinks,
@@ -50,11 +50,11 @@ export type NodeWithRelations = {
 	systemFrom: string;
 	systemTo: string;
 	// Mirrors where this node is the original (other nodes mirror this one)
-	mirrorsAsOriginal?: Array<{mirrorId: string}>;
+	mirrorsAsOriginal?: {mirrorId: string}[];
 	// Mirrors where this node is the copy (this node mirrors others)
-	mirrorsAsCopy?: Array<{originalId: string}>;
-	backlinks?: Array<{sourceId: string; targetId: string}>;
-	virtualRootIds?: Array<{virtualRootId: string}>;
+	mirrorsAsCopy?: {originalId: string}[];
+	backlinks?: {sourceId: string; targetId: string}[];
+	virtualRootIds?: {virtualRootId: string}[];
 	aiMetadata?: {inChat: number} | null;
 	s3File?: {
 		fileName: string;
@@ -302,7 +302,9 @@ export class CacheService {
 	 * subtree read from arbitrary root nodes rather than from a single parent.
 	 */
 	async getMergedDataForNodes(nodeIds: string[]): Promise<NodeWithRelations[]> {
-		if (nodeIds.length === 0) return [];
+		if (nodeIds.length === 0) {
+			return [];
+		}
 
 		const results = this.database.query.nodeContent
 			.findMany({
@@ -838,7 +840,9 @@ export class CacheService {
 		children.sort((a, b) => {
 			const priorityA = a.metadata?.priority ?? 0;
 			const priorityB = b.metadata?.priority ?? 0;
-			if (priorityA !== priorityB) return priorityA - priorityB;
+			if (priorityA !== priorityB) {
+				return priorityA - priorityB;
+			}
 			const createdAtA = a.metadata?.createdAt?.getTime() ?? 0;
 			const createdAtB = b.metadata?.createdAt?.getTime() ?? 0;
 			return createdAtA - createdAtB;
@@ -852,7 +856,9 @@ export class CacheService {
 
 		for (const child of children) {
 			const {parentId} = child;
-			if (!parentId) continue;
+			if (!parentId) {
+				continue;
+			}
 
 			const existingList = resultMap.get(parentId);
 			if (existingList) {
@@ -956,7 +962,7 @@ export class CacheService {
 		let level = [nodeId];
 		while (level.length > 0) {
 			const levelIndex = new Map(level.map((id, index) => [id, index]));
-			const rows: Array<{id: string; parentId: string; priority: number}> = [];
+			const rows: {id: string; parentId: string; priority: number}[] = [];
 			for (let i = 0; i < level.length; i += chunkSize) {
 				const chunk = this.database
 					.select({id: nodeContent.id, parentId: nodeContent.parentId, priority: nodeMetadata.priority})
@@ -966,7 +972,9 @@ export class CacheService {
 						and(inArray(nodeContent.parentId, level.slice(i, i + chunkSize)), currentVersion(nodeContent)),
 					)
 					.all();
-				for (const row of chunk) rows.push({id: row.id, parentId: row.parentId!, priority: row.priority ?? 0});
+				for (const row of chunk) {
+					rows.push({id: row.id, parentId: row.parentId!, priority: row.priority ?? 0});
+				}
 			}
 			rows.sort(
 				(a, b) =>
@@ -974,7 +982,9 @@ export class CacheService {
 					a.priority - b.priority ||
 					a.id.localeCompare(b.id),
 			);
-			for (const row of rows) parents.set(row.id, row.parentId);
+			for (const row of rows) {
+				parents.set(row.id, row.parentId);
+			}
 			const childIds = rows.map((row) => row.id);
 			const childMirrors = loadMirrorOriginals(this.database, childIds);
 			level = childIds.filter((id) => !childMirrors.has(id));
@@ -990,13 +1000,16 @@ export class CacheService {
 				.innerJoin(nodeContent, and(eq(nodeContent.id, mirrors.mirrorId), currentVersion(nodeContent)))
 				.where(and(inArray(mirrors.originalId, nonMirrorIds.slice(i, i + chunkSize)), currentVersion(mirrors)))
 				.all();
-			for (const row of rows)
+			for (const row of rows) {
 				mirrorIds.set(row.originalId, [...(mirrorIds.get(row.originalId) ?? []), row.mirrorId]);
+			}
 		}
 		const mirrorsOf = new Map<string, string[]>();
 		for (const id of nonMirrorIds) {
 			const ids = mirrorIds.get(id);
-			if (ids !== undefined) mirrorsOf.set(id, ids.toSorted());
+			if (ids !== undefined) {
+				mirrorsOf.set(id, ids.toSorted());
+			}
 		}
 		return {parents, inside, mirrorsOf};
 	}

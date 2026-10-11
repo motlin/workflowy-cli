@@ -321,7 +321,9 @@ export default class Import extends Command {
 		const monthName = months[month];
 
 		let hours12 = date.getHours() % 12;
-		if (hours12 === 0) hours12 = 12;
+		if (hours12 === 0) {
+			hours12 = 12;
+		}
 		const ampm = date.getHours() >= 12 ? "pm" : "am";
 		const readable = `${dayName}, ${monthName} ${day}, ${year} at ${hours12}:${min}${ampm}`;
 

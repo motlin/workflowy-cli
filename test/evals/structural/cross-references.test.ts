@@ -1,3 +1,4 @@
+import {expect, describe, beforeAll, it} from "vite-plus/test";
 import {existsSync} from "node:fs";
 import {join} from "node:path";
 import {parseMarkdownFile} from "./helpers/markdown-parser.js";
@@ -48,7 +49,9 @@ function buildCommandRegistry(): Set<string> {
 function resolveScriptRef(refPath: string, referencingFile: string): string | undefined {
 	if (refPath.startsWith("${CLAUDE_PLUGIN_ROOT}/")) {
 		const match = referencingFile.match(/^plugins\/([^/]+)\//);
-		if (!match) return undefined;
+		if (!match) {
+			return undefined;
+		}
 		return join(PLUGINS_DIR, match[1], refPath.slice("${CLAUDE_PLUGIN_ROOT}/".length));
 	}
 	return join(PROJECT_ROOT, refPath);
@@ -56,8 +59,8 @@ function resolveScriptRef(refPath: string, referencingFile: string): string | un
 
 describe("Structural Eval: Cross-References", () => {
 	let commandRegistry: Set<string>;
-	let allCommandRefs: Array<{ref: string; file: string; line: number}>;
-	let allScriptRefs: Array<{path: string; file: string; line: number}>;
+	let allCommandRefs: {ref: string; file: string; line: number}[];
+	let allScriptRefs: {path: string; file: string; line: number}[];
 
 	beforeAll(() => {
 		commandRegistry = buildCommandRegistry();
@@ -75,7 +78,7 @@ describe("Structural Eval: Cross-References", () => {
 
 		for (const filePath of sourceFiles) {
 			const analysis = parseMarkdownFile(filePath);
-			const relativeFile = filePath.replace(PROJECT_ROOT + "/", "");
+			const relativeFile = filePath.replace(`${PROJECT_ROOT}/`, "");
 
 			for (const ref of analysis.commandRefs) {
 				allCommandRefs.push({ref: ref.ref, file: relativeFile, line: ref.line});

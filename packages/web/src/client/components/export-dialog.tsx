@@ -242,7 +242,9 @@ export function ExportDialog() {
 		<div
 			className="export-dialog-overlay"
 			onClick={(event) => {
-				if (event.target === event.currentTarget) closeExportDialog();
+				if (event.target === event.currentTarget) {
+					closeExportDialog();
+				}
 			}}
 			role="presentation"
 		>

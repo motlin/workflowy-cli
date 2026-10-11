@@ -1,3 +1,4 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
 import fs from "node:fs";
 import os from "node:os";
@@ -5,7 +6,8 @@ import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Complete from "../../../src/commands/node/complete.js";
 import Uncomplete from "../../../src/commands/node/uncomplete.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 
 const FULL_ID = "3435cb92-d00d-45be-9950-b1ed4735574c";

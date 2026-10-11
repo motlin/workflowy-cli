@@ -10,10 +10,11 @@
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {type LadderEvent, parseLadderEvent} from "../../server/ladder-events.js";
-import {type LadderItem, type LadderTier, tierLabel} from "../../server/ladder-model.js";
+import {parseLadderEvent} from "../../server/ladder-events.js";
+import type {LadderEvent} from "../../server/ladder-events.js";
+import {tierLabel} from "../../server/ladder-model.js";
+import type {LadderItem, LadderTier} from "../../server/ladder-model.js";
 import {
-	type Ladders,
 	applyLadderEvent,
 	ladderMoveSelection,
 	moveWithin,
@@ -23,7 +24,9 @@ import {
 	stepBeforeId,
 	tierOf,
 } from "../ladder-state.js";
-import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from "../pointer-drag.js";
+import type {Ladders} from "../ladder-state.js";
+import {autoScrollBy, isDragGesture, dropAtPoint} from "../pointer-drag.js";
+import type {Point, DropTarget} from "../pointer-drag.js";
 import {LadderTree} from "./ladder-tree.js";
 import "../ladder.css";
 import {readJson} from "../read-json.js";
@@ -77,18 +80,24 @@ export function LadderView() {
 	// Rows with a write in flight. Only these rows lock; a slow write must not freeze the page.
 	const inFlight = useRef(new Set<string>());
 	const claim = useCallback((ids: string[]) => {
-		for (const id of ids) inFlight.current.add(id);
+		for (const id of ids) {
+			inFlight.current.add(id);
+		}
 		setPending(new Set(inFlight.current));
 	}, []);
 	const release = useCallback((ids: string[]) => {
-		for (const id of ids) inFlight.current.delete(id);
+		for (const id of ids) {
+			inFlight.current.delete(id);
+		}
 		setPending(new Set(inFlight.current));
 	}, []);
 	const receivedWrites = useRef(new Map<string, LadderEvent>());
 	// Callbacks read the latest ladder here; every setLadders call writes it first.
 	const laddersRef = useRef<Ladders | undefined>(undefined);
 	const updateLadders = useCallback((update: (current: Ladders) => Ladders) => {
-		if (!laddersRef.current) return;
+		if (!laddersRef.current) {
+			return;
+		}
 		laddersRef.current = update(laddersRef.current);
 		setLadders(laddersRef.current);
 	}, []);
@@ -117,7 +126,9 @@ export function LadderView() {
 		socket.addEventListener("close", () => setLive(false));
 		socket.addEventListener("message", (message: MessageEvent<string>) => {
 			const event = parseLadderEvent(message.data);
-			if (!event) return;
+			if (!event) {
+				return;
+			}
 			receivedWrites.current.set(event.nodeId, event);
 			updateLadders((current) => applyLadderEvent(current, event));
 		});
@@ -177,7 +188,9 @@ export function LadderView() {
 				return true;
 			} catch (cause) {
 				// A received write is authoritative even if its HTTP response was lost.
-				if (receivedWrites.current.get(nodeId) !== lastReceived) return true;
+				if (receivedWrites.current.get(nodeId) !== lastReceived) {
+					return true;
+				}
 				// A dropped connection may have outlived a write that landed, so ask rather than guess.
 				if (!(cause instanceof WriteRejected)) {
 					await reread();
@@ -197,9 +210,13 @@ export function LadderView() {
 	const move = useCallback(
 		(nodeId: string, toTier: string, placement?: string | {step: "up" | "down"}) => {
 			const ladder = laddersRef.current?.[root];
-			if (busy.current || needsReload || !ladder) return;
+			if (busy.current || needsReload || !ladder) {
+				return;
+			}
 			const ids = ladderMoveSelection(ladder, selected, nodeId).filter((id) => !inFlight.current.has(id));
-			if (ids.length === 0) return;
+			if (ids.length === 0) {
+				return;
+			}
 			const stepping = typeof placement === "object";
 			const beforeNodeId = stepping ? stepBeforeId(ladder, toTier, placement.step, ids) : placement;
 			claim(ids);
@@ -208,7 +225,9 @@ export function LadderView() {
 					for (const id of ids) {
 						const current = laddersRef.current;
 						const alreadyThere = current && tierOf(current, root, id) === toTier;
-						if (!current || (alreadyThere && (stepping || beforeNodeId === undefined))) continue;
+						if (!current || (alreadyThere && (stepping || beforeNodeId === undefined))) {
+							continue;
+						}
 						const saved = await write(
 							"/api/v1/ladder/move",
 							{
@@ -219,7 +238,9 @@ export function LadderView() {
 							},
 							(state) => moveWithin(state, root, id, toTier, beforeNodeId),
 						);
-						if (!saved) break;
+						if (!saved) {
+							break;
+						}
 					}
 				} finally {
 					release(ids);
@@ -244,8 +265,10 @@ export function LadderView() {
 	}, []);
 
 	useEffect(() => {
-		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
-		if (!dragging) return undefined;
+		if (!dragging) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
+			return undefined;
+		}
 		let frame: number;
 		const scroll = () => {
 			const at = dragPoint.current;
@@ -263,19 +286,29 @@ export function LadderView() {
 
 	const onGripDown = useCallback(
 		(event: React.PointerEvent, item: {id: string; name: string}) => {
-			if (busy.current || event.button !== 0 || !event.isPrimary) return;
+			if (busy.current || event.button !== 0 || !event.isPrimary) {
+				return;
+			}
 			const target = event.target;
-			if (!(target instanceof Element) || target.closest("button, a, input, select")) return;
+			if (!(target instanceof Element) || target.closest("button, a, input, select")) {
+				return;
+			}
 			suppressClick.current = false;
 			if (target.closest(".ladder-text")) {
-				if (event.shiftKey) event.preventDefault();
+				if (event.shiftKey) {
+					event.preventDefault();
+				}
 				return;
 			}
 			// Touch scrolling remains available outside the grip.
-			if (event.pointerType === "touch" && !target.closest(".grip")) return;
+			if (event.pointerType === "touch" && !target.closest(".grip")) {
+				return;
+			}
 			event.currentTarget.setPointerCapture(event.pointerId);
 			const ladder = laddersRef.current?.[root];
-			if (!ladder) return;
+			if (!ladder) {
+				return;
+			}
 			gesture.current = {
 				nodeId: item.id,
 				origin: {x: event.clientX, y: event.clientY},
@@ -288,10 +321,14 @@ export function LadderView() {
 
 	const onGripMove = useCallback((event: React.PointerEvent, name: string) => {
 		const active = gesture.current;
-		if (!active) return;
+		if (!active) {
+			return;
+		}
 		const at = {x: event.clientX, y: event.clientY};
 		if (!active.started) {
-			if (!isDragGesture(active.origin, at)) return;
+			if (!isDragGesture(active.origin, at)) {
+				return;
+			}
 			active.started = true;
 			suppressClick.current = true;
 			setDragging(active.nodeId);
@@ -306,25 +343,36 @@ export function LadderView() {
 			const active = gesture.current;
 			const target = active?.started ? dropAtPoint(event.clientX, event.clientY, active.moving) : undefined;
 			cancelDrag();
-			if (active?.started && target) move(active.nodeId, target.tier, target.beforeNodeId);
+			if (active?.started && target) {
+				move(active.nodeId, target.tier, target.beforeNodeId);
+			}
 		},
 		[move, cancelDrag],
 	);
 
 	const onRowClick = (event: React.MouseEvent, nodeId: string) => {
-		if (!(event.target instanceof Element) || event.target.closest("button, a, input, select")) return;
+		if (!(event.target instanceof Element) || event.target.closest("button, a, input, select")) {
+			return;
+		}
 		if (suppressClick.current) {
 			suppressClick.current = false;
 			return;
 		}
-		if (!event.shiftKey && event.target.closest(".ladder-text") && globalThis.getSelection()?.isCollapsed === false)
+		if (
+			!event.shiftKey &&
+			event.target.closest(".ladder-text") &&
+			globalThis.getSelection()?.isCollapsed === false
+		) {
 			return;
+		}
 		select(nodeId, event.shiftKey, event.metaKey || event.ctrlKey);
 	};
 
 	const complete = useCallback(
 		(nodeId: string) => {
-			if (busy.current || inFlight.current.has(nodeId)) return;
+			if (busy.current || inFlight.current.has(nodeId)) {
+				return;
+			}
 			claim([nodeId]);
 			void (async () => {
 				try {
@@ -340,9 +388,13 @@ export function LadderView() {
 	);
 
 	const select = (nodeId: string, range: boolean, additive = false) => {
-		if (busy.current) return;
+		if (busy.current) {
+			return;
+		}
 		const ladder = laddersRef.current?.[root];
-		if (!ladder) return;
+		if (!ladder) {
+			return;
+		}
 		if (range && anchor.current) {
 			const rangeIds = selectLadderRange(ladder, anchor.current, nodeId);
 			setSelected((current) => (additive ? new Set([...current, ...rangeIds]) : rangeIds));
@@ -350,8 +402,11 @@ export function LadderView() {
 			anchor.current = nodeId;
 			setSelected((current) => {
 				const next = additive ? new Set(current) : new Set<string>();
-				if (next.has(nodeId)) next.delete(nodeId);
-				else next.add(nodeId);
+				if (next.has(nodeId)) {
+					next.delete(nodeId);
+				} else {
+					next.add(nodeId);
+				}
 				return next;
 			});
 		}
@@ -359,7 +414,9 @@ export function LadderView() {
 
 	const addTier = async () => {
 		const ladder = laddersRef.current?.[root];
-		if (!ladder || busy.current) return;
+		if (!ladder || busy.current) {
+			return;
+		}
 		busy.current = true;
 		setSaving(true);
 		setError(undefined);
@@ -373,13 +430,16 @@ export function LadderView() {
 					position: 0,
 				}),
 			});
-			if (!response.ok) throw new Error(`Could not add a tier: ${response.status}`);
+			if (!response.ok) {
+				throw new Error(`Could not add a tier: ${response.status}`);
+			}
 			setNeedsReload(true);
 			const refreshed = await fetch("/api/v1/ladder");
-			if (!refreshed.ok)
+			if (!refreshed.ok) {
 				throw new Error(
 					`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`,
 				);
+			}
 			const body = await readJson<{ladders: Ladders}>(refreshed);
 			laddersRef.current = body.ladders;
 			setLadders(body.ladders);
@@ -595,7 +655,9 @@ function Tier({
 						aria-label={`${item.name}${selected.has(item.id) ? ", selected" : ""}`}
 						tabIndex={saving ? -1 : 0}
 						onKeyDown={(event) => {
-							if (event.target !== event.currentTarget || event.key !== " " || saving) return;
+							if (event.target !== event.currentTarget || event.key !== " " || saving) {
+								return;
+							}
 							event.preventDefault();
 							onSelect(item.id, event.shiftKey, event.metaKey || event.ctrlKey);
 						}}
@@ -634,7 +696,9 @@ function Tier({
 									onMouseLeave={onPreviewEnd}
 									onBlur={onPreviewEnd}
 									onKeyDown={(event) => {
-										if (event.key === "Escape") onPreviewEnd();
+										if (event.key === "Escape") {
+											onPreviewEnd();
+										}
 									}}
 								>
 									Tree ▸

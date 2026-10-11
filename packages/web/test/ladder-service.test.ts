@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {LadderEventBus} from "../src/server/ladder-events.js";
-import {LadderService, type LadderServiceOptions} from "../src/server/ladder-service.js";
+import {LadderService} from "../src/server/ladder-service.js";
+import type {LadderServiceOptions} from "../src/server/ladder-service.js";
 
 const tier = (id: string, label: string, items: {id: string; name: string}[]) => ({
 	id,
@@ -31,8 +32,8 @@ describe("LadderService.read", () => {
 	it("returns both ladders with tiers and capacity state", async () => {
 		const {service} = makeService();
 		const ladders = await service.read();
-		expect(Object.keys(ladders)).toEqual(["work", "personal"]);
-		expect(ladders.work.tiers.map((t) => t.label)).toEqual(["1st", "2nd"]);
+		expect(Object.keys(ladders)).toStrictEqual(["work", "personal"]);
+		expect(ladders.work.tiers.map((t) => t.label)).toStrictEqual(["1st", "2nd"]);
 		expect(ladders.work.tiers[0].state).toBe("room");
 	});
 });
@@ -62,7 +63,7 @@ describe("LadderService.move", () => {
 		const seen: unknown[] = [];
 		events.subscribe((e) => seen.push(e));
 		await expect(service.move({root: "work", nodeId: "a", toTier: "2nd"})).rejects.toThrow("workflowy 500");
-		expect(seen).toEqual([]);
+		expect(seen).toStrictEqual([]);
 	});
 
 	it("answers once the move lands, without waiting for the tier refresh", async () => {

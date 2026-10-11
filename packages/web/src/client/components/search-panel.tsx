@@ -57,7 +57,9 @@ const EMBEDDING_MODELS: Record<EmbeddingModelKey, ModelInfo> = {
 const STORAGE_KEY = "workflowy-search-model";
 
 function getStoredModel(): EmbeddingModelKey {
-	if (typeof globalThis === "undefined") return "minilm";
+	if (typeof globalThis === "undefined") {
+		return "minilm";
+	}
 	const stored = localStorage.getItem(STORAGE_KEY);
 	if (stored !== null && isEmbeddingModelKey(stored)) {
 		return stored;
@@ -72,7 +74,9 @@ function setStoredModel(model: EmbeddingModelKey): void {
 }
 
 function highlightMatches(text: string, query: string): string {
-	if (!query.trim()) return text;
+	if (!query.trim()) {
+		return text;
+	}
 	const escaped = query.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 	const regex = new RegExp(`(${escaped})`, "gi");
 	return text.replaceAll(regex, "<mark>$1</mark>");
@@ -90,7 +94,9 @@ const SEARCH_SCOPE_STORAGE_KEY = "workflowy-search-scope";
 type SearchScope = "all" | "branch";
 
 function getStoredScope(): SearchScope {
-	if (typeof globalThis === "undefined") return "branch";
+	if (typeof globalThis === "undefined") {
+		return "branch";
+	}
 	const stored = localStorage.getItem(SEARCH_SCOPE_STORAGE_KEY);
 	if (stored === "all" || stored === "branch") {
 		return stored;
@@ -219,7 +225,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 	);
 
 	const handleLoadMore = useCallback(async () => {
-		if (isLoadingMore || results.length >= totalCount) return;
+		if (isLoadingMore || results.length >= totalCount) {
+			return;
+		}
 
 		setIsLoadingMore(true);
 		const requestBody: {query: string; limit: number; offset: number; model: EmbeddingModelKey; parentId?: string} =

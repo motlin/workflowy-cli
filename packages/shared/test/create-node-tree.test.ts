@@ -1,4 +1,6 @@
-import {createNodeTree, type TreeWriteClient} from "../src/cache/create-node-tree.js";
+import {describe, expect, it} from "vite-plus/test";
+import {createNodeTree} from "../src/cache/create-node-tree.js";
+import type {TreeWriteClient} from "../src/cache/create-node-tree.js";
 
 /** A fake write-through client that records createNode calls and hands back ids. */
 function fakeClient() {

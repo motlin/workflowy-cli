@@ -1,3 +1,4 @@
+import {describe, expect, it} from "vite-plus/test";
 import {parseStreamJson} from "./stream-json.js";
 
 const usage = (input: number, output: number) => ({

@@ -1,3 +1,4 @@
+import {beforeAll, describe, expect, it} from "vite-plus/test";
 import {parseMarkdownFile} from "./helpers/markdown-parser.js";
 import {PROJECT_ROOT, collectComponentFiles} from "./helpers/scan-roots.js";
 
@@ -21,7 +22,7 @@ describe("Structural Eval: Numeric Thresholds", () => {
 
 		for (const filePath of sourceFiles) {
 			const analysis = parseMarkdownFile(filePath);
-			const relativeFile = filePath.replace(PROJECT_ROOT + "/", "");
+			const relativeFile = filePath.replace(`${PROJECT_ROOT}/`, "");
 
 			for (const ref of analysis.thresholds) {
 				allThresholds.push({

@@ -1,10 +1,12 @@
+import {it, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {captureOutput} from "@oclif/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import List from "../../../src/commands/node/list.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../../db/migration-helper.js";
+import type {TestDatabase} from "../../db/migration-helper.js";
 
 describe("node:list command", () => {
 	let originalEnv: typeof process.env;

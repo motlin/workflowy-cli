@@ -207,7 +207,9 @@ export class ChangeDetector {
 			const hasContentChange = oldC !== undefined || newC !== undefined;
 			const hasMetaChange = oldM !== undefined || newM !== undefined;
 
-			if (!hasContentChange && !hasMetaChange) continue;
+			if (!hasContentChange && !hasMetaChange) {
+				continue;
+			}
 
 			const isNew = !oldC && !oldM && (Boolean(newC) || Boolean(newM));
 			const isDeleted = (Boolean(oldC) || Boolean(oldM)) && !newC && !newM;
@@ -246,8 +248,9 @@ export class ChangeDetector {
 
 			const contentChanged = nameChanged;
 
-			if (!isNew && !isDeleted && !contentChanged && !noteChanged && !parentChanged && !completionChanged)
+			if (!isNew && !isDeleted && !contentChanged && !noteChanged && !parentChanged && !completionChanged) {
 				continue;
+			}
 
 			changes.push({
 				id,
@@ -290,7 +293,9 @@ export class ChangeDetector {
 				)
 				.orderBy(mirrors.systemTo)
 				.all();
-			for (const row of rows) originals.set(row.mirrorId, row.originalId);
+			for (const row of rows) {
+				originals.set(row.mirrorId, row.originalId);
+			}
 		}
 		return originals;
 	}
@@ -367,7 +372,9 @@ export class ChangeDetector {
 
 		const buildNode = (id: string): ChangeTreeNode | null => {
 			const info = nodeInfoMap.get(id);
-			if (!info) return null;
+			if (!info) {
+				return null;
+			}
 
 			const childIds = childrenMap.get(id) ?? [];
 			const children = childIds
@@ -377,7 +384,9 @@ export class ChangeDetector {
 			const change = changeMap.get(id) ?? null;
 			const isContext = change === null;
 
-			if (isContext && children.length === 0) return null;
+			if (isContext && children.length === 0) {
+				return null;
+			}
 
 			return {
 				id,
@@ -403,14 +412,23 @@ export class ChangeDetector {
 		};
 
 		for (const c of changes) {
-			if (c.isNew) summary.added++;
-			else if (c.isDeleted) summary.deleted++;
-			else {
-				if (c.contentChanged || c.noteChanged) summary.changed++;
-				if (c.parentChanged) summary.moved++;
+			if (c.isNew) {
+				summary.added++;
+			} else if (c.isDeleted) {
+				summary.deleted++;
+			} else {
+				if (c.contentChanged || c.noteChanged) {
+					summary.changed++;
+				}
+				if (c.parentChanged) {
+					summary.moved++;
+				}
 				if (c.completionChanged) {
-					if (c.currentCompletedAt) summary.completed++;
-					else summary.uncompleted++;
+					if (c.currentCompletedAt) {
+						summary.completed++;
+					} else {
+						summary.uncompleted++;
+					}
 				}
 			}
 		}

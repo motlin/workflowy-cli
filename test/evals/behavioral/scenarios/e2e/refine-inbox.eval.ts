@@ -12,6 +12,7 @@
  * Requires the claude CLI (runs on the subscription login).
  */
 
+import {expect, afterAll, describe, beforeAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
@@ -22,7 +23,8 @@ import {
 	runLlmEval,
 	claudeCliAvailable,
 } from "../../helpers/llm-eval-harness.js";
-import {createMockWorkflowyServer, type MockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
+import {createMockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
+import type {MockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
 
 describe("E2E Eval: refine-inbox", {timeout: 900_000}, () => {
 	let ctx: EvalContext;
@@ -56,7 +58,9 @@ describe("E2E Eval: refine-inbox", {timeout: 900_000}, () => {
 	});
 
 	it("should launch Phase 1 loaders (inbox-loader and metadata-sync)", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, "", ctx, {
 			maxTurns: 5,
@@ -73,7 +77,9 @@ describe("E2E Eval: refine-inbox", {timeout: 900_000}, () => {
 	});
 
 	it("should follow two-phase architecture (Phase 1 before Phase 2)", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, "", ctx, {
 			maxTurns: 10,
@@ -100,7 +106,9 @@ describe("E2E Eval: refine-inbox", {timeout: 900_000}, () => {
 	});
 
 	it("should produce recursive subagent execution tree", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, "", ctx, {
 			maxTurns: 10,
@@ -119,7 +127,9 @@ describe("E2E Eval: refine-inbox", {timeout: 900_000}, () => {
 	});
 
 	it("should stop at the --max-turns limit with partial results", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, "", ctx, {maxTurns: 3});
 

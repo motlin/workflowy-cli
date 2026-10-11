@@ -2,7 +2,7 @@ import {useOutlineStore} from "../stores/outline.js";
 
 interface ShortcutGroup {
 	title: string;
-	shortcuts: Array<{keys: string; description: string}>;
+	shortcuts: {keys: string; description: string}[];
 }
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [

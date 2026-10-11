@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
-import {createLadderRouter, type LadderOperations} from "../src/server/routes/ladder.js";
+import {createLadderRouter} from "../src/server/routes/ladder.js";
+import type {LadderOperations} from "../src/server/routes/ladder.js";
 import type {AppEnv} from "../src/server/context.js";
 import type {Ladder} from "../src/server/ladder-model.js";
 import type {LadderService} from "../src/server/ladder-service.js";
@@ -29,7 +30,7 @@ describe("GET /api/v1/ladder", () => {
 		const app = makeApp({read: async () => ladders});
 		const res = await app.fetch(new Request("http://x/api/v1/ladder"));
 		expect(res.status).toBe(200);
-		await expect(res.json()).resolves.toEqual({ladders});
+		await expect(res.json()).resolves.toStrictEqual({ladders});
 	});
 });
 
@@ -114,7 +115,7 @@ describe("POST /api/v1/ladder/move", () => {
 			}),
 		);
 		expect(res.status).toBe(400);
-		await expect(res.json()).resolves.toEqual({error: "no tier 9th on the work ladder", reconcile: true});
+		await expect(res.json()).resolves.toStrictEqual({error: "no tier 9th on the work ladder", reconcile: true});
 	});
 });
 

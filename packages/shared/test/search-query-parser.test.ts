@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {parseSearchQuery} from "../src/search/query-parser.js";
 
 describe("parseSearchQuery", () => {

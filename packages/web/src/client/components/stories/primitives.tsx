@@ -80,7 +80,9 @@ interface IndentGuideLinesProps {
  * Each line represents one level of nesting.
  */
 export function IndentGuideLines({depth}: IndentGuideLinesProps) {
-	if (depth === 0) return null;
+	if (depth === 0) {
+		return null;
+	}
 
 	const lines = [];
 	for (let i = 0; i < depth; i++) {
@@ -195,7 +197,9 @@ interface NoteDisplayProps {
  * Note display component (non-editing state).
  */
 export function NoteDisplay({content, isExpanded = false, onToggle}: NoteDisplayProps) {
-	if (!content.trim()) return null;
+	if (!content.trim()) {
+		return null;
+	}
 
 	return (
 		<div

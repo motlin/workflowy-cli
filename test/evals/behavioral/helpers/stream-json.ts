@@ -22,7 +22,7 @@ interface ContentBlock {
 	input?: Record<string, unknown>;
 	text?: string;
 	tool_use_id?: string;
-	content?: string | Array<{type: string; text?: string}>;
+	content?: string | {type: string; text?: string}[];
 }
 
 interface StreamEvent {
@@ -47,7 +47,9 @@ const inputTokensOf = (usage: Usage = {}) =>
 	(usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
 
 function resultText(content: ContentBlock["content"]): string {
-	if (typeof content === "string") return content;
+	if (typeof content === "string") {
+		return content;
+	}
 	return (content ?? []).map((part) => part.text ?? "").join("");
 }
 
@@ -84,16 +86,22 @@ export function parseStreamJson(output: string): LlmEvalResult {
 	let final: StreamEvent | undefined;
 
 	for (const event of output.split("\n").map(parseLine)) {
-		if (!event) continue;
+		if (!event) {
+			continue;
+		}
 		if (event.type === "result") {
 			final = event;
 			continue;
 		}
-		if (event.type !== "assistant" && event.type !== "user") continue;
+		if (event.type !== "assistant" && event.type !== "user") {
+			continue;
+		}
 
 		const scope = scopeFor(event.parent_tool_use_id ?? null);
 		const content = event.message?.content;
-		if (!Array.isArray(content)) continue;
+		if (!Array.isArray(content)) {
+			continue;
+		}
 
 		if (event.type === "assistant") {
 			scope.inputTokens += inputTokensOf(event.message?.usage);
@@ -113,7 +121,9 @@ export function parseStreamJson(output: string): LlmEvalResult {
 				}
 			} else if (block.type === "tool_result" && block.tool_use_id) {
 				const call = scope.pending.get(block.tool_use_id);
-				if (call) call.result = resultText(block.content);
+				if (call) {
+					call.result = resultText(block.content);
+				}
 			}
 		}
 	}

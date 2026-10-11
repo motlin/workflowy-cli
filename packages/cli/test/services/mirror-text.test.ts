@@ -1,14 +1,11 @@
+import {expect, describe, beforeEach, beforeAll, vi, it, afterEach, afterAll} from "vite-plus/test";
 import {CacheService, NodeTreeReader, PathBuilder} from "@workflowy/shared/cache";
 import {nodeContent} from "@workflowy/shared/db";
 import {buildSearchConditions, parseSearchQuery} from "@workflowy/shared/search";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and} from "drizzle-orm";
-import {
-	cleanupTestDatabase,
-	createInMemoryTestDatabase,
-	seedTestData,
-	type TestDatabase,
-} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 const NOW = new Date("2026-01-01T12:00:00.000Z");
@@ -27,10 +24,6 @@ describe("mirror text comes from the original", () => {
 	beforeAll(() => {
 		testDatabase = createInMemoryTestDatabase();
 		cacheService = new CacheService(testDatabase.db);
-	});
-
-	afterAll(() => {
-		cleanupTestDatabase(testDatabase);
 	});
 
 	beforeEach(() => {
@@ -62,6 +55,10 @@ describe("mirror text comes from the original", () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+	});
+
+	afterAll(() => {
+		cleanupTestDatabase(testDatabase);
 	});
 
 	const baseNode = {

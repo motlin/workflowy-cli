@@ -6,7 +6,9 @@ import {existsSync, readFileSync} from "node:fs";
 import {homedir} from "node:os";
 
 export function expandHome(path, home) {
-	if (path === "~") return home;
+	if (path === "~") {
+		return home;
+	}
 	return path.startsWith("~/") ? `${home}${path.slice(1)}` : path;
 }
 
@@ -15,7 +17,9 @@ const LINK = /<a href="https:\/\/workflowy\.com\/#\/([0-9a-f]+)">(.*?)<\/a>/;
 export function parseProjectDirectories(exported, home) {
 	return (exported.children ?? []).flatMap((project) => {
 		const [pathChild, linkChild] = project.children ?? [];
-		if (!pathChild) return [];
+		if (!pathChild) {
+			return [];
+		}
 		const link = linkChild ? LINK.exec(linkChild.name) : null;
 		const tasksName = link ? link[2] : null;
 		return [
@@ -44,7 +48,9 @@ function main() {
 	const args = process.argv.slice(2);
 	const value = (flag) => {
 		const index = args.indexOf(flag);
-		if (index === -1 || !args[index + 1]) throw new Error(`${flag} <file> is required`);
+		if (index === -1 || !args[index + 1]) {
+			throw new Error(`${flag} <file> is required`);
+		}
 		return args[index + 1];
 	};
 	const exported = JSON.parse(readFileSync(value("--projects"), "utf8"));

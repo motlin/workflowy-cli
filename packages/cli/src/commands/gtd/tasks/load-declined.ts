@@ -79,7 +79,9 @@ export default class LoadDeclined extends Command {
 			// Filter date nodes >= cutoff date
 			// Date node names are in format YYYY-MM-DD
 			const dateStr = dateNode.name?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
-			if (!dateStr || dateStr < cutoffDateStr) continue;
+			if (!dateStr || dateStr < cutoffDateStr) {
+				continue;
+			}
 
 			// Get entries (children of date node)
 			const entries = await cacheService.getChildren(dateNode.id);

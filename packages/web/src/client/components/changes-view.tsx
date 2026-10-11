@@ -40,17 +40,31 @@ function getChangeLabels(change: NodeChange): string[] {
 }
 
 function getLabelColor(label: string): string {
-	if (label === "Added") return "var(--changes-green)";
-	if (label === "Deleted") return "var(--changes-red)";
-	if (label === "Moved" || label === "Changed and moved") return "var(--changes-blue)";
-	if (label === "Completed" || label === "Uncompleted") return "var(--changes-gray)";
+	if (label === "Added") {
+		return "var(--changes-green)";
+	}
+	if (label === "Deleted") {
+		return "var(--changes-red)";
+	}
+	if (label === "Moved" || label === "Changed and moved") {
+		return "var(--changes-blue)";
+	}
+	if (label === "Completed" || label === "Uncompleted") {
+		return "var(--changes-gray)";
+	}
 	return "var(--changes-gray)";
 }
 
 function getBulletColor(change: NodeChange): string {
-	if (change.isNew) return "var(--changes-green)";
-	if (change.isDeleted) return "var(--changes-red)";
-	if (change.parentChanged && !change.contentChanged && !change.noteChanged) return "var(--changes-blue)";
+	if (change.isNew) {
+		return "var(--changes-green)";
+	}
+	if (change.isDeleted) {
+		return "var(--changes-red)";
+	}
+	if (change.parentChanged && !change.contentChanged && !change.noteChanged) {
+		return "var(--changes-blue)";
+	}
 	return "var(--changes-gray)";
 }
 
@@ -126,14 +140,24 @@ function ChangeTreeNodeView({node, depth}: {node: ChangeTreeNode; depth: number}
 
 function SummaryBar({summary}: {summary: ChangeSummary}) {
 	const parts: {label: string; count: number; className: string}[] = [];
-	if (summary.added > 0) parts.push({label: "added", count: summary.added, className: "summary-added"});
-	if (summary.deleted > 0) parts.push({label: "deleted", count: summary.deleted, className: "summary-deleted"});
-	if (summary.moved > 0) parts.push({label: "moved", count: summary.moved, className: "summary-moved"});
-	if (summary.changed > 0) parts.push({label: "changed", count: summary.changed, className: "summary-changed"});
-	if (summary.completed > 0)
+	if (summary.added > 0) {
+		parts.push({label: "added", count: summary.added, className: "summary-added"});
+	}
+	if (summary.deleted > 0) {
+		parts.push({label: "deleted", count: summary.deleted, className: "summary-deleted"});
+	}
+	if (summary.moved > 0) {
+		parts.push({label: "moved", count: summary.moved, className: "summary-moved"});
+	}
+	if (summary.changed > 0) {
+		parts.push({label: "changed", count: summary.changed, className: "summary-changed"});
+	}
+	if (summary.completed > 0) {
 		parts.push({label: "completed", count: summary.completed, className: "summary-completed"});
-	if (summary.uncompleted > 0)
+	}
+	if (summary.uncompleted > 0) {
 		parts.push({label: "uncompleted", count: summary.uncompleted, className: "summary-uncompleted"});
+	}
 
 	return (
 		<div className="changes-summary">
@@ -155,7 +179,9 @@ export function ChangesView() {
 		queryKey: ["changes", sinceParam],
 		async queryFn() {
 			const response = await fetch(`/api/changes?since=${encodeURIComponent(sinceParam)}`);
-			if (!response.ok) throw new Error(`Failed to fetch changes: ${response.statusText}`);
+			if (!response.ok) {
+				throw new Error(`Failed to fetch changes: ${response.statusText}`);
+			}
 			return response.json();
 		},
 	});

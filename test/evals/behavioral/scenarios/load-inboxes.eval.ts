@@ -10,6 +10,7 @@
  * then clean up the generated file.
  */
 
+import {beforeAll, expect, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
@@ -45,19 +46,19 @@ describe("Behavioral Eval: gtd inboxes load", () => {
 
 		// Validate top-level structure
 		expect(data).toHaveProperty("loadedAt");
-		expect(typeof data.loadedAt).toBe("string");
+		expect(data.loadedAt).toBeTypeOf("string");
 		expect(data).toHaveProperty("inboxes");
 		expect(Array.isArray(data.inboxes)).toBe(true);
 		expect(data).toHaveProperty("itemCount");
-		expect(typeof data.itemCount).toBe("number");
+		expect(data.itemCount).toBeTypeOf("number");
 
 		// Validate inbox structure
 		expect(data.inboxes.length).toBeGreaterThan(0);
 		for (const inbox of data.inboxes) {
 			expect(inbox).toHaveProperty("id");
-			expect(typeof inbox.id).toBe("string");
+			expect(inbox.id).toBeTypeOf("string");
 			expect(inbox).toHaveProperty("name");
-			expect(typeof inbox.name).toBe("string");
+			expect(inbox.name).toBeTypeOf("string");
 			expect(inbox).toHaveProperty("items");
 			expect(Array.isArray(inbox.items)).toBe(true);
 		}
@@ -67,9 +68,9 @@ describe("Behavioral Eval: gtd inboxes load", () => {
 		expect(allItems.length).toBeGreaterThan(0);
 		for (const item of allItems) {
 			expect(item).toHaveProperty("id");
-			expect(typeof item.id).toBe("string");
+			expect(item.id).toBeTypeOf("string");
 			expect(item).toHaveProperty("name");
-			expect(typeof item.name).toBe("string");
+			expect(item.name).toBeTypeOf("string");
 			// children is optional — if present, it should be an array
 			if (item.children !== undefined) {
 				expect(Array.isArray(item.children)).toBe(true);

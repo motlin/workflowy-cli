@@ -9,7 +9,8 @@ import path from "node:path";
 import {resolveBackupsDirectory} from "../../utils/backup-archive.js";
 import * as readline from "node:readline/promises";
 import {createDatabase} from "../../db/index.js";
-import {type BackupImportProgress, BackupImportService} from "../../services/backup-import.js";
+import {BackupImportService} from "../../services/backup-import.js";
+import type {BackupImportProgress} from "../../services/backup-import.js";
 import {formatDate, getDateDifference, parseBackupFilename} from "../../utils/backup-validation.js";
 
 export default class ImportBackup extends Command {
@@ -277,7 +278,7 @@ export default class ImportBackup extends Command {
 			this.error("No backups directory found. Download a backup first with: workflowy dropbox:download-backup");
 		}
 
-		const allBackupFiles: Array<{path: string; date: Date}> = [];
+		const allBackupFiles: {path: string; date: Date}[] = [];
 
 		for (const subdir of ["Data", "History", "."]) {
 			const searchDir = subdir === "." ? backupsDirectory : path.join(backupsDirectory, subdir);

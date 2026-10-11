@@ -1,3 +1,4 @@
+import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import {backlinks, mirrors, nodeContent, nodeMetadata, virtualRootIds} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {eq} from "drizzle-orm";
@@ -5,7 +6,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {
 	createApiNode,
 	createNodeFromContent,
@@ -880,8 +882,8 @@ describe("CacheService (shared)", () => {
 
 			const result = await cacheService.getChildrenForMultipleParents(["parent-1", "parent-2"]);
 
-			expect(result.get("parent-1")!.length).toBe(2);
-			expect(result.get("parent-2")!.length).toBe(1);
+			expect(result.get("parent-1")!).toHaveLength(2);
+			expect(result.get("parent-2")!).toHaveLength(1);
 		});
 
 		it("returns empty arrays for parents with no children", async () => {

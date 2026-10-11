@@ -120,7 +120,9 @@ export function PresentationMode() {
 
 	// Build slides array: first slide is the root node, then each child
 	const slides = useMemo(() => {
-		if (!rootNode) return [];
+		if (!rootNode) {
+			return [];
+		}
 
 		const slideList = [{id: rootNode.id, name: rootNode.name ?? "", isTitle: true}];
 
@@ -139,7 +141,9 @@ export function PresentationMode() {
 	// Keyboard navigation
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
-			if (!presentationOpen) return;
+			if (!presentationOpen) {
+				return;
+			}
 
 			switch (event.key) {
 				case "ArrowRight":

@@ -193,7 +193,9 @@ export default class Load extends Command {
 		let currentLevelIds = items.map((item) => item.id);
 
 		for (let currentDepth = 1; currentDepth <= maxDepth; currentDepth++) {
-			if (currentLevelIds.length === 0) break;
+			if (currentLevelIds.length === 0) {
+				break;
+			}
 
 			const childrenByParent = await cacheService.getChildrenForMultipleParents(currentLevelIds);
 			const nextLevelIds: string[] = [];

@@ -1,3 +1,4 @@
+import {describe, expect, it} from "vite-plus/test";
 import {formatDate, getDateDifference, parseBackupFilename} from "../src/utils/backup-validation.js";
 
 describe("Backup Validation", () => {

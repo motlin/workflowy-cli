@@ -1,4 +1,5 @@
-import {eq, type SQL} from "drizzle-orm";
+import {eq} from "drizzle-orm";
+import type {SQL} from "drizzle-orm";
 import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 
@@ -16,7 +17,7 @@ export function currentVersion(table: {systemTo: AnySQLiteColumn}): SQL {
  * systemFrom is stored as 'YYYY-MM-DD HH:MM:SS' (UTC).
  */
 export function systemFromToDate(systemFrom: string): Date {
-	return new Date(systemFrom.replace(" ", "T") + "Z");
+	return new Date(`${systemFrom.replace(" ", "T")}Z`);
 }
 
 /**
@@ -24,7 +25,9 @@ export function systemFromToDate(systemFrom: string): Date {
  * 'bullets' is the default, stored as null to save space.
  */
 export function normalizeLayoutMode(layoutMode: string | null | undefined): string | null {
-	if (layoutMode === "bullets") return null;
+	if (layoutMode === "bullets") {
+		return null;
+	}
 	return layoutMode ?? null;
 }
 
@@ -100,8 +103,12 @@ export const metadataComparisonStats = {
  * which nodes are affected, we tolerate ±1 second differences.
  */
 function timestampsMatch(a: number | null, b: number | null): boolean {
-	if (a === null && b === null) return true;
-	if (a === null || b === null) return false;
+	if (a === null && b === null) {
+		return true;
+	}
+	if (a === null || b === null) {
+		return false;
+	}
 	return Math.abs(a - b) <= 1;
 }
 
@@ -146,9 +153,15 @@ export function metadataMatches(
 			metadataComparisonStats.diffCounts.set(diff, count + 1);
 		}
 	}
-	if (!completedAtMatch) metadataComparisonStats.completedAtMismatch++;
-	if (!layoutModeMatch) metadataComparisonStats.layoutModeMismatch++;
-	if (!priorityMatch) metadataComparisonStats.priorityMismatch++;
+	if (!completedAtMatch) {
+		metadataComparisonStats.completedAtMismatch++;
+	}
+	if (!layoutModeMatch) {
+		metadataComparisonStats.layoutModeMismatch++;
+	}
+	if (!priorityMatch) {
+		metadataComparisonStats.priorityMismatch++;
+	}
 
 	return createdAtMatch && completedAtMatch && layoutModeMatch && priorityMatch;
 }

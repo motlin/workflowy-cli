@@ -32,7 +32,9 @@ function fakeFetch(responses) {
 	const fetchImpl = async (url, init) => {
 		calls.push({url, authorization: init.headers.Authorization});
 		const next = responses.shift();
-		if (!next) throw new Error(`unexpected request ${url}`);
+		if (!next) {
+			throw new Error(`unexpected request ${url}`);
+		}
 		return next;
 	};
 	return {fetchImpl, calls};
@@ -121,7 +123,7 @@ test("fetchMessagesSince waits out a 429 and retries the same page", async () =>
 });
 
 test("fetchMessagesSince throws a readable error on a non-retryable failure", async () => {
-	const {fetchImpl} = fakeFetch([page({message: "Missing Access", code: 50001}, 403)]);
+	const {fetchImpl} = fakeFetch([page({message: "Missing Access", code: 50_001}, 403)]);
 
 	await assert.rejects(fetchMessagesSince({channelId: "200", afterId: "1000", token: "tok", fetchImpl}), {
 		message: "Discord API 403 for channel 200: Missing Access (code 50001)",

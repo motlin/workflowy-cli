@@ -1,3 +1,4 @@
+import {beforeAll, describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {dirname, join, relative, sep} from "node:path";
 import {parseMarkdownFile} from "./helpers/markdown-parser.js";
@@ -15,10 +16,14 @@ import {
 function extractAgentName(filePath: string): string | null {
 	const content = readFileSync(filePath, "utf8");
 	const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(content);
-	if (!frontmatterMatch) return null;
+	if (!frontmatterMatch) {
+		return null;
+	}
 
 	const nameMatch = /^name:\s*(.+)$/m.exec(frontmatterMatch[1]);
-	if (!nameMatch) return null;
+	if (!nameMatch) {
+		return null;
+	}
 
 	return nameMatch[1].trim().replaceAll(/^["']|["']$/g, "");
 }
@@ -28,7 +33,7 @@ const BUILT_IN_AGENTS = new Set(["general-purpose"]);
 
 describe("Structural Eval: Agent References", () => {
 	let agentRegistry: Map<string, string>;
-	let allSubagentRefs: Array<{name: string; file: string; line: number}>;
+	let allSubagentRefs: {name: string; file: string; line: number}[];
 
 	beforeAll(() => {
 		// Build agent registry: name -> file path. Claude Code registers a plugin agent under its
@@ -62,7 +67,7 @@ describe("Structural Eval: Agent References", () => {
 			for (const ref of analysis.subagentRefs) {
 				allSubagentRefs.push({
 					name: ref.name,
-					file: filePath.replace(PROJECT_ROOT + "/", ""),
+					file: filePath.replace(`${PROJECT_ROOT}/`, ""),
 					line: ref.line,
 				});
 			}
@@ -92,7 +97,7 @@ describe("Structural Eval: Agent References", () => {
 		for (const filePath of agentFiles) {
 			const name = extractAgentName(filePath);
 			if (!name) {
-				missingName.push(filePath.replace(PROJECT_ROOT + "/", ""));
+				missingName.push(filePath.replace(`${PROJECT_ROOT}/`, ""));
 			}
 		}
 
@@ -106,7 +111,7 @@ describe("Structural Eval: Agent References", () => {
 		for (const filePath of agentFiles) {
 			const name = extractAgentName(filePath);
 			if (name) {
-				const relativePath = filePath.replace(PROJECT_ROOT + "/", "");
+				const relativePath = filePath.replace(`${PROJECT_ROOT}/`, "");
 				const existing = nameToFiles.get(name) ?? [];
 				existing.push(relativePath);
 				nameToFiles.set(name, existing);

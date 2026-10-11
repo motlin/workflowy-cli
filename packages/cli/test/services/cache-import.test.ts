@@ -5,10 +5,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {importBackup} from "../../src/services/cache-import.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {expectActiveRecord} from "../helpers/assertion-helpers.js";
 import {createNodeFromContent} from "../helpers/node-fixtures.js";
-import {assert} from "vite-plus/test";
+import {assert, it, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 
 const T0 = new Date("2024-01-01T00:00:00Z");
 const T1 = new Date("2024-01-01T00:01:00Z");
@@ -843,7 +844,7 @@ describe("cache-import service", () => {
 
 	describe("batch processing", () => {
 		it("handles large number of nodes", async () => {
-			const backupContent: Array<{id: string; nm: string}> = [];
+			const backupContent: {id: string; nm: string}[] = [];
 			for (let i = 0; i < 2500; i++) {
 				backupContent.push({id: `node-${i}`, nm: `Node ${i}`});
 			}

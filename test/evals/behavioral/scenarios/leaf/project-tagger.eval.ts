@@ -5,6 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
+import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
@@ -76,7 +77,9 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 	afterAll(() => ctx?.cleanup());
 
 	it("should return valid JSON with project tag suggestions", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(
 			agentFile,
@@ -94,7 +97,7 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 			expect(Array.isArray(parsed.suggestedProjects)).toBe(true);
 			for (const proj of parsed.suggestedProjects) {
 				expect(proj).toHaveProperty("tag");
-				expect(typeof proj.tag).toBe("string");
+				expect(proj.tag).toBeTypeOf("string");
 			}
 		}
 	});

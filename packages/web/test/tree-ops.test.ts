@@ -31,7 +31,9 @@ function seed(children: Record<string, NodeResponse[]>, details: NodeResponse[] 
 	for (const [parentId, kids] of Object.entries(children)) {
 		qc.setQueryData(nodeKeys.children(parentId === "root" ? null : parentId), kids);
 	}
-	for (const d of details) qc.setQueryData(nodeKeys.detail(d.id), d);
+	for (const d of details) {
+		qc.setQueryData(nodeKeys.detail(d.id), d);
+	}
 	return qc;
 }
 

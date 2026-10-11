@@ -169,7 +169,7 @@ test("the parsed row count is reconciled against the id snapshot", () => {
 	// Reporting the skip count only helps if something reads it. parseThingsRows must be able to
 	// see the trailing count line without mistaking it for a to-do.
 	const raw = out(row("A1", "Real task", "", "Anytime", "", ""));
-	const rows = parseThingsRows(raw + "SKIPPED\x1f2" + RECORD_SEP);
+	const rows = parseThingsRows(`${raw}SKIPPED\x1f2${RECORD_SEP}`);
 	assert.deepStrictEqual(
 		rows.map((r) => r.id),
 		["A1"],

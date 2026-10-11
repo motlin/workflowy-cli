@@ -1,3 +1,4 @@
+import {vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 
 const ORIGIN_ID = "10e2d6c2-d165-b390-9484-d4fdbf4c4afa";

@@ -8,12 +8,14 @@
  */
 
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import {type NodeTree, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import type {NodeTree} from "@workflowy/shared/cache";
 import {Hono} from "hono";
 import {z} from "zod";
-import {type AppEnv, type ServerContext} from "../context.js";
+import type {AppEnv, ServerContext} from "../context.js";
 import {ladderEvents} from "../ladder-events.js";
-import {type LadderBuckets, LadderService} from "../ladder-service.js";
+import {LadderService} from "../ladder-service.js";
+import type {LadderBuckets} from "../ladder-service.js";
 import type {RawNode} from "../ladder-model.js";
 
 /** Where each ladder lives. Both buckets sit four levels down, under their root. */
@@ -46,8 +48,9 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 		if (!root || !nodeId || !toTier) {
 			return c.json({error: "root, node_id and to_tier are required"}, 400);
 		}
-		if (body.before_id !== undefined && typeof body.before_id !== "string")
+		if (body.before_id !== undefined && typeof body.before_id !== "string") {
 			return c.json({error: "before_id must be a string"}, 400);
+		}
 		const beforeNodeId = text(body.before_id);
 		try {
 			const event = await createService(c.get("ctx")).move({
@@ -134,7 +137,9 @@ function defaultService(ctx: ServerContext): LadderService {
 		// Reordering can renumber siblings, so refresh their cached priorities too.
 		refreshTier: async (parentId) => {
 			const children = await apiClient(ctx).getChildNodes(parentId);
-			for (const child of children) await ctx.cacheService.insertNode(child, parentId);
+			for (const child of children) {
+				await ctx.cacheService.insertNode(child, parentId);
+			}
 		},
 		completeNode: async (nodeId) => writeClient(ctx).completeNode(nodeId),
 		events: ladderEvents,

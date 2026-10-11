@@ -42,7 +42,7 @@ const pad = (n) => String(n).padStart(2, "0");
 
 export function parseTimeISO(name) {
 	const m = String(name).match(TIME_RE);
-	return m ? `${m[1]}-${pad(+m[2])}-${pad(+m[3])}` : null;
+	return m ? `${m[1]}-${pad(Number(m[2]))}-${pad(Number(m[3]))}` : null;
 }
 
 /** Node text as a human reads it: no <time> element, no tags, no other HTML. */
@@ -74,10 +74,16 @@ const WORKFLOWY_HOST_RE = /^https?:\/\/([^/?#]*\.)?workflowy\.com(?=[/?#]|$)/i;
 export function extractLinks(...texts) {
 	const urls = [];
 	for (const text of texts) {
-		if (!text) continue;
+		if (!text) {
+			continue;
+		}
 		const str = String(text);
-		for (const m of str.matchAll(HREF_RE)) urls.push(m[1]);
-		for (const m of str.matchAll(BARE_URL_RE)) urls.push(m[0].replace(/[.,;:]+$/, ""));
+		for (const m of str.matchAll(HREF_RE)) {
+			urls.push(m[1]);
+		}
+		for (const m of str.matchAll(BARE_URL_RE)) {
+			urls.push(m[0].replace(/[.,;:]+$/, ""));
+		}
 	}
 	return [...new Set(urls.filter((u) => /^https?:\/\//.test(u) && !WORKFLOWY_HOST_RE.test(u)))];
 }
@@ -110,20 +116,28 @@ export function nodeContext(node) {
 export function intervalForSection(sectionName) {
 	const name = String(sectionName);
 	for (const [pattern, interval] of SECTION_INTERVALS) {
-		if (name.includes(pattern)) return interval;
+		if (name.includes(pattern)) {
+			return interval;
+		}
 	}
 	return null; // "Every few years" / unrecognized -> ask the user for the interval
 }
 
 function hardDeadlineFor(node, date) {
 	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith("Hard deadline:"));
-	if (!markers.length) return null;
-	if (markers.length !== 1) throw new Error(`Multiple hard deadline markers on ${node.id}`);
+	if (!markers.length) {
+		return null;
+	}
+	if (markers.length !== 1) {
+		throw new Error(`Multiple hard deadline markers on ${node.id}`);
+	}
 	const match = stripMarkup(markers[0].name).match(/^Hard deadline: (0|[1-9]\d*)d$/);
 	if (!match || !Number.isSafeInteger(Number(match[1]))) {
 		throw new Error(`Expected Hard deadline: <nonnegative days>d on ${node.id}`);
 	}
-	if (!date) throw new Error(`Hard deadline requires a dated item: ${node.id}`);
+	if (!date) {
+		throw new Error(`Hard deadline requires a dated item: ${node.id}`);
+	}
 	return {date, leadDays: Number(match[1])};
 }
 
@@ -132,11 +146,17 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 /** A `Next: <Weekday>` child pins every advanced date to that weekday, e.g. chores saved for the weekend. */
 function weekdayAnchorFor(node) {
 	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith("Next:"));
-	if (!markers.length) return null;
-	if (markers.length !== 1) throw new Error(`Multiple Next: <weekday> markers on ${node.id}`);
+	if (!markers.length) {
+		return null;
+	}
+	if (markers.length !== 1) {
+		throw new Error(`Multiple Next: <weekday> markers on ${node.id}`);
+	}
 	const match = stripMarkup(markers[0].name).match(/^Next: (\w+)$/);
 	const weekday = WEEKDAYS.find((day) => day.toLowerCase() === match?.[1].toLowerCase());
-	if (!weekday) throw new Error(`Expected Next: <weekday> on ${node.id}`);
+	if (!weekday) {
+		throw new Error(`Expected Next: <weekday> on ${node.id}`);
+	}
 	return weekday;
 }
 
@@ -150,8 +170,9 @@ export function anchorToWeekday(todayISO, interval, weekday) {
 	const windowStart = addInterval(target, {amount: -7, unit: "d"});
 	let date = windowStart > todayISO ? windowStart : todayISO;
 	const wanted = WEEKDAYS.indexOf(weekday);
-	do date = addInterval(date, {amount: 1, unit: "d"});
-	while (new Date(date + "T00:00:00Z").getUTCDay() !== wanted);
+	do {
+		date = addInterval(date, {amount: 1, unit: "d"});
+	} while (new Date(`${date}T00:00:00Z`).getUTCDay() !== wanted);
 	return date;
 }
 
@@ -192,7 +213,7 @@ export function buildTimeElement(iso) {
 
 export function swapTimeElement(name, newTimeElement) {
 	// Replace the existing element and collapse any duplicated trailing space.
-	return String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/, "") + " ";
+	return `${String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/, "")} `;
 }
 
 // The skip log is an append-only JSONL record of what happened to each item on each run. It is
@@ -203,10 +224,14 @@ export const DEFAULT_SKIP_LOG_PATH = ".llm/gtd/review/skip-log.jsonl";
 function parseSkipLog(text) {
 	const entries = [];
 	for (const line of String(text).split("\n")) {
-		if (!line.trim()) continue;
+		if (!line.trim()) {
+			continue;
+		}
 		try {
 			const entry = JSON.parse(line);
-			if (entry?.key && entry?.outcome && entry?.date) entries.push(entry);
+			if (entry?.key && entry?.outcome && entry?.date) {
+				entries.push(entry);
+			}
 		} catch {
 			// A truncated line from an interrupted run costs one item's history, never the whole log.
 		}
@@ -223,7 +248,9 @@ function parseSkipLog(text) {
 export function foldSkipLog(entries) {
 	const byKey = new Map();
 	for (const {key, outcome, date} of entries ?? []) {
-		if (!byKey.has(key)) byKey.set(key, new Map());
+		if (!byKey.has(key)) {
+			byKey.set(key, new Map());
+		}
 		byKey.get(key).set(date, outcome);
 	}
 
@@ -234,7 +261,9 @@ export function foldSkipLog(entries) {
 		let skipStreak = 0;
 		let skippedSince = null;
 		for (let i = dates.length - 1; i >= 0; i--) {
-			if (byDate.get(dates[i]) !== "skip") break;
+			if (byDate.get(dates[i]) !== "skip") {
+				break;
+			}
 			skipStreak++;
 			skippedSince = dates[i];
 		}
@@ -254,7 +283,7 @@ export function loadSkipStreaks(path = DEFAULT_SKIP_LOG_PATH) {
 export function recordOutcome(key, outcome, {date = localTodayISO(), path = DEFAULT_SKIP_LOG_PATH} = {}) {
 	const entry = {key, outcome, date};
 	mkdirSync(dirname(path), {recursive: true});
-	appendFileSync(path, JSON.stringify(entry) + "\n");
+	appendFileSync(path, `${JSON.stringify(entry)}\n`);
 	return entry;
 }
 
@@ -272,7 +301,9 @@ export function intervalDays(interval) {
  * cadence means moving the node, not editing a field.
  */
 export function nextLongerSection(sections, interval) {
-	if (interval === null) return null; // Unknown cadence -- ask the user rather than guessing a rung.
+	if (interval === null) {
+		return null;
+	} // Unknown cadence -- ask the user rather than guessing a rung.
 	const current = intervalDays(interval);
 	const candidates = (sections ?? [])
 		.filter((section) => !String(section.name).includes("🗃️ Routine Archive"))
@@ -288,8 +319,8 @@ function shellSingleQuote(s) {
 }
 
 function daysBetween(fromISO, toISO) {
-	const a = new Date(fromISO + "T00:00:00Z");
-	const b = new Date(toISO + "T00:00:00Z");
+	const a = new Date(`${fromISO}T00:00:00Z`);
+	const b = new Date(`${toISO}T00:00:00Z`);
 	return Math.round((b - a) / 86_400_000);
 }
 
@@ -299,7 +330,9 @@ function daysBetween(fromISO, toISO) {
  * than that the item is dead, so this is the alternative to deleting it.
  */
 function buildLengthen(target, child, todayISO, weekday) {
-	if (!target?.id) return null; // Top of the ladder, or a section we cannot address by id.
+	if (!target?.id) {
+		return null;
+	} // Top of the ladder, or a section we cannot address by id.
 	const nextDate = weekday
 		? anchorToWeekday(todayISO, target.interval, weekday)
 		: addInterval(todayISO, target.interval);
@@ -319,7 +352,9 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 	const rows = [];
 
 	sections.forEach((section, sectionIndex) => {
-		if (String(section.name).includes("🗃️ Routine Archive")) return;
+		if (String(section.name).includes("🗃️ Routine Archive")) {
+			return;
+		}
 		const interval = intervalForSection(section.name);
 		// Every item in a section shares its cadence, so the rung above it is resolved once here.
 		const lengthenTarget = nextLongerSection(sections, interval);
@@ -327,11 +362,15 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 		const walk = (node) => {
 			for (const child of node.children ?? []) {
 				// The keyed DAG owns the entire LLM Tasks subtree, so recurring review must not surface it.
-				if (String(child.name).includes("LLM Tasks:")) continue;
+				if (String(child.name).includes("LLM Tasks:")) {
+					continue;
+				}
 				// A mirror reflects a node that lives elsewhere -- typically the ⏰/📌 task buckets
 				// mirrored under "Set goals for today". Those reflections are one-shot Next Actions,
 				// not recurring items, so neither the mirror nor anything beneath it is a row here.
-				if (child.mirror?.isMirror) continue;
+				if (child.mirror?.isMirror) {
+					continue;
+				}
 				// A finished item keeps its old <time>. Asking about it is asking about work
 				// that is already done, so completion wins over the date.
 				const isCompleted = child.completedAt != null;
@@ -385,7 +424,9 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						lengthen: hardDeadline ? null : buildLengthen(lengthenTarget, child, todayISO, weekday),
 					});
 				}
-				if (child.children?.length) walk(child);
+				if (child.children?.length) {
+					walk(child);
+				}
 			}
 		};
 		walk(section);
@@ -409,18 +450,27 @@ function main(argv) {
 	let recordKey = null;
 	let outcome = null;
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "--today") today = args[++i];
-		else if (args[i] === "--print") print = true;
-		else if (args[i] === "--skip-log") skipLogPath = args[++i];
-		else if (args[i] === "--record") recordKey = args[++i];
-		else if (args[i] === "--outcome") outcome = args[++i];
-		else if (!args[i].startsWith("--")) treePath = args[i];
+		if (args[i] === "--today") {
+			today = args[++i];
+		} else if (args[i] === "--print") {
+			print = true;
+		} else if (args[i] === "--skip-log") {
+			skipLogPath = args[++i];
+		} else if (args[i] === "--record") {
+			recordKey = args[++i];
+		} else if (args[i] === "--outcome") {
+			outcome = args[++i];
+		} else if (!args[i].startsWith("--")) {
+			treePath = args[i];
+		}
 	}
 
 	if (recordKey) {
-		if (!outcome) throw new Error("--record requires --outcome");
+		if (!outcome) {
+			throw new Error("--record requires --outcome");
+		}
 		const entry = recordOutcome(recordKey, outcome, {date: today, path: skipLogPath});
-		process.stdout.write(JSON.stringify(entry) + "\n");
+		process.stdout.write(`${JSON.stringify(entry)}\n`);
 		return;
 	}
 
@@ -428,38 +478,42 @@ function main(argv) {
 	const rows = computeOverdue(tree, today, {skipStreaks: loadSkipStreaks(skipLogPath)});
 
 	if (!print) {
-		process.stdout.write(JSON.stringify(rows, null, 2) + "\n");
+		process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
 		return;
 	}
 
 	const bySection = new Map();
 	for (const r of rows) {
-		if (!bySection.has(r.section)) bySection.set(r.section, []);
+		if (!bySection.has(r.section)) {
+			bySection.set(r.section, []);
+		}
 		bySection.get(r.section).push(r);
 	}
 	for (const [section, items] of bySection) {
 		process.stdout.write(`\n=== ${section} — ${items.length} overdue ===\n`);
-		for (const it of items) {
+		for (const row of items) {
 			const tags = [
-				it.isLlmTask ? "[#llm-task]" : "",
-				it.hardDeadline
-					? `⚠️ HARD deadline ${it.hardDeadline.date}; review ${it.hardDeadline.leadDays} days before`
+				row.isLlmTask ? "[#llm-task]" : "",
+				row.hardDeadline
+					? `⚠️ HARD deadline ${row.hardDeadline.date}; review ${row.hardDeadline.leadDays} days before`
 					: "",
-				it.childCount ? `(${it.childCount} children)` : "",
-				!it.hardDeadline && it.skipStreak >= 2
-					? `⏭️ skipped ${it.skipStreak}x → offer ${it.lengthen?.section ?? "a longer cadence"}`
+				row.childCount ? `(${row.childCount} children)` : "",
+				!row.hardDeadline && row.skipStreak >= 2
+					? `⏭️ skipped ${row.skipStreak}x → offer ${row.lengthen?.section ?? "a longer cadence"}`
 					: "",
-				it.needsInterval ? "⚠️ needs interval" : `→ ${it.nextDate}`,
+				row.needsInterval ? "⚠️ needs interval" : `→ ${row.nextDate}`,
 			]
 				.filter(Boolean)
 				.join(" ");
-			const display = it.name.replace(TIME_RE, "⟨time⟩").slice(0, 200);
+			const display = row.name.replace(TIME_RE, "⟨time⟩").slice(0, 200);
 			process.stdout.write(
-				`  [${it.shortId}] due ${it.due} (overdue ${it.overdueByDays}d) ${tags}\n      ${display}\n`,
+				`  [${row.shortId}] due ${row.due} (overdue ${row.overdueByDays}d) ${tags}\n      ${display}\n`,
 			);
 		}
 	}
 	process.stdout.write(`\nTOTAL OVERDUE: ${rows.length} (${rows.filter((r) => r.isLlmTask).length} #llm-task)\n`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main(process.argv);
+}

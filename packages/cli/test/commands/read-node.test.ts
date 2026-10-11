@@ -1,3 +1,4 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {captureOutput} from "@oclif/test";
 import fs from "node:fs";
@@ -5,7 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 import Get from "../../src/commands/node/get.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 describe("node get command", () => {

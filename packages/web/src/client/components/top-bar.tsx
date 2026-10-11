@@ -8,7 +8,8 @@ import {Breadcrumbs} from "./breadcrumbs.js";
 import {CalendarPanel} from "./calendar-panel.js";
 import {GearMenu} from "./gear-menu.js";
 import {HideCompletedToggle} from "./hide-completed-toggle.js";
-import {LayoutMenu, type LayoutMode} from "./layout-menu.js";
+import {LayoutMenu} from "./layout-menu.js";
+import type {LayoutMode} from "./layout-menu.js";
 import {Tooltip} from "./tooltip.js";
 
 /**

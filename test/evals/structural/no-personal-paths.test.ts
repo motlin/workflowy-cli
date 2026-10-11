@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
 import {PROJECT_ROOT, trackedFiles} from "./helpers/scan-roots.js";

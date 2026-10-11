@@ -69,7 +69,9 @@ const IMAGE_SEQUENCE_PATTERN = /^IMG_(\d+)\./i;
  * evidence available — the cache stores no EXIF data.
  */
 export function parseImageSequence(fileName: string | null): number | null {
-	if (!fileName) return null;
+	if (!fileName) {
+		return null;
+	}
 	const match = IMAGE_SEQUENCE_PATTERN.exec(fileName);
 	return match ? Number.parseInt(match[1], 10) : null;
 }
@@ -113,7 +115,9 @@ function byPriority(a: {priority: number}, b: {priority: number}): number {
 function collectCandidateGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 	const childrenByParent = new Map<string, CachedNodeRow[]>();
 	for (const row of rows) {
-		if (!row.parentId) continue;
+		if (!row.parentId) {
+			continue;
+		}
 		const siblings = childrenByParent.get(row.parentId) ?? [];
 		siblings.push(row);
 		childrenByParent.set(row.parentId, siblings);
@@ -145,7 +149,9 @@ function collectCandidateGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 			continue;
 		}
 
-		if (isBlank(row.name)) continue;
+		if (isBlank(row.name)) {
+			continue;
+		}
 
 		let run: CachedNodeRow[] = [];
 		for (const child of [...children, null]) {
@@ -200,10 +206,14 @@ export function countGroupsWithoutEvidence(rows: CachedNodeRow[]): number {
  * @returns The warning text, or null when the cache is current enough.
  */
 export function describeStaleAttachmentData(newestRow: string | null, newestBackup: Date | null): string | null {
-	if (newestRow === null || newestBackup === null) return null;
+	if (newestRow === null || newestBackup === null) {
+		return null;
+	}
 
 	const importedThrough = Date.parse(`${newestRow.replace(" ", "T")}Z`);
-	if (Number.isNaN(importedThrough) || newestBackup.getTime() <= importedThrough) return null;
+	if (Number.isNaN(importedThrough) || newestBackup.getTime() <= importedThrough) {
+		return null;
+	}
 
 	return (
 		`attachment data is stale: newest s3_files row is ${newestRow.slice(0, 10)}, ` +

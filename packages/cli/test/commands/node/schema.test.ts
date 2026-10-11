@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
 import Schema from "../../../src/commands/node/schema.js";
 

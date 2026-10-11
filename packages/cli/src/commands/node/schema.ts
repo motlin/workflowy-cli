@@ -6,7 +6,9 @@ function findPackageRoot(): string {
 	// At runtime import.meta.dirname is dist/commands/node/ — walk up to find package root
 	let dir = import.meta.dirname;
 	for (let i = 0; i < 10; i++) {
-		if (dir.endsWith("/packages/cli") || dir.endsWith(String.raw`\packages\cli`)) return dir;
+		if (dir.endsWith("/packages/cli") || dir.endsWith(String.raw`\packages\cli`)) {
+			return dir;
+		}
 		dir = path.dirname(dir);
 	}
 	// Fallback: assume dist/commands/node -> 3 levels up
@@ -87,7 +89,9 @@ export default class Schema extends Command {
 		const generators = new Map<string, ReturnType<typeof createGenerator>>();
 
 		for (const [i, cmd] of commands.entries()) {
-			if (i > 0) this.log("");
+			if (i > 0) {
+				this.log("");
+			}
 
 			const mapping = COMMAND_TYPE_MAP[cmd];
 

@@ -138,7 +138,9 @@ export function collectCreatedFiles(ctx: EvalContext): Record<string, string> {
 	const files: Record<string, string> = {};
 
 	function walk(dir: string, prefix: string): void {
-		if (!fs.existsSync(dir)) return;
+		if (!fs.existsSync(dir)) {
+			return;
+		}
 		for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
 			const relativePath = path.join(prefix, entry.name);
 			if (entry.isDirectory()) {

@@ -125,7 +125,9 @@ export function useFlattenedTree(rootParentId: string | null) {
 
 		// Collect cached children for all expanded nodes
 		const collectCached = (nodes: NodeResponse[] | undefined): void => {
-			if (!nodes) return;
+			if (!nodes) {
+				return;
+			}
 			for (const node of nodes) {
 				if (expandedIds.has(node.id)) {
 					const cached = getCached(node.id);

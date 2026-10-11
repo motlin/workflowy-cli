@@ -34,7 +34,9 @@ interface NodeContextMenuProps {
 }
 
 function formatTimestamp(unixTimestamp: number | null): string {
-	if (unixTimestamp === null) return "Unknown";
+	if (unixTimestamp === null) {
+		return "Unknown";
+	}
 	const date = new Date(unixTimestamp * 1000);
 	return date.toLocaleString(undefined, {
 		year: "numeric",
@@ -46,8 +48,10 @@ function formatTimestamp(unixTimestamp: number | null): string {
 }
 
 function truncate(text: string, maxLength: number): string {
-	if (text.length <= maxLength) return text;
-	return text.slice(0, maxLength) + "...";
+	if (text.length <= maxLength) {
+		return text;
+	}
+	return `${text.slice(0, maxLength)}...`;
 }
 
 /**
@@ -65,7 +69,9 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 			}
 		}
 		function handleEscape(event: KeyboardEvent) {
-			if (event.key === "Escape") onClose();
+			if (event.key === "Escape") {
+				onClose();
+			}
 		}
 		document.addEventListener("mousedown", handleClickOutside);
 		document.addEventListener("keydown", handleEscape);
@@ -152,7 +158,9 @@ function MirrorBanner({
 		})();
 	}, [originalNodeId]);
 
-	if (!mirrorsData || mirrorsData.mirrors.length <= 1) return null;
+	if (!mirrorsData || mirrorsData.mirrors.length <= 1) {
+		return null;
+	}
 
 	const handleSeeAll = (event: React.MouseEvent) => {
 		event.stopPropagation();

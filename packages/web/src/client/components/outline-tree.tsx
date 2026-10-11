@@ -81,9 +81,13 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 	// Find the .outline-container scroll parent for the virtualizer
 	// This ensures the scrollbar appears at the viewport's right edge
 	const getScrollElement = () => {
-		if (scrollRef.current) return scrollRef.current;
+		if (scrollRef.current) {
+			return scrollRef.current;
+		}
 		const el = containerRef.current?.closest(".outline-container");
-		if (!(el instanceof HTMLElement)) return null;
+		if (!(el instanceof HTMLElement)) {
+			return null;
+		}
 		scrollRef.current = el;
 		return el;
 	};

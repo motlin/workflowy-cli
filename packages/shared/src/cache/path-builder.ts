@@ -1,4 +1,4 @@
-import * as schema from "../db/schema.js";
+import type * as schema from "../db/schema.js";
 import {nodeContent} from "../db/schema.js";
 import {stripHtmlTags} from "../html/strip-tags.js";
 import {and, inArray} from "drizzle-orm";
@@ -98,7 +98,9 @@ export class PathBuilder {
 
 			while (currentId) {
 				const info = nodeMap.get(currentId);
-				if (!info) break;
+				if (!info) {
+					break;
+				}
 
 				const name = stripHtmlTags(info.name || "");
 				if (name) {
@@ -230,7 +232,9 @@ export class PathBuilder {
 			);
 
 			for (const row of results) {
-				if (!row.parentId) continue;
+				if (!row.parentId) {
+					continue;
+				}
 
 				const name = stripHtmlTags(row.name || "");
 				const note = row.note ? stripHtmlTags(row.note) : "";

@@ -5,6 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
+import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
@@ -33,7 +34,9 @@ describe("Leaf Eval: url-linker", {timeout: 300_000}, () => {
 	afterAll(() => ctx?.cleanup());
 
 	it("should extract URLs from item text", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(
 			agentFile,

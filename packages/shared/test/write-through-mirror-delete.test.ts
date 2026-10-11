@@ -1,3 +1,4 @@
+import {vi, afterEach, expect, describe, it} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
@@ -6,7 +7,8 @@ import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
-import {type DeletePlan, deletePlanCalls} from "../src/cache/delete-plan.js";
+import {deletePlanCalls} from "../src/cache/delete-plan.js";
+import type {DeletePlan} from "../src/cache/delete-plan.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
 import {mirrors, nodeContent, nodeMetadata} from "../src/db/schema.js";
@@ -40,7 +42,7 @@ const SEEDED_AT = "2026-01-01 00:00:00.000";
  *   other-original
  *   mirror-a1       (mirror of task-a1)
  */
-const TREE: Array<[id: string, parentId: string | null]> = [
+const TREE: [id: string, parentId: string | null][] = [
 	["projects", null],
 	["task-y", "projects"],
 	["mirror-in", "projects"],
@@ -59,7 +61,7 @@ const TREE: Array<[id: string, parentId: string | null]> = [
 	["other-original", "other"],
 	["mirror-a1", "other"],
 ];
-const MIRRORS: Array<[originalId: string, mirrorId: string]> = [
+const MIRRORS: [originalId: string, mirrorId: string][] = [
 	["other-original", "mirror-in"],
 	["task-a", "mirror-nested"],
 	["task-a", "mirror-b"],
@@ -71,7 +73,9 @@ const MIRRORS: Array<[originalId: string, mirrorId: string]> = [
 /** Each parent's children in TREE order, which is also their priority order. */
 function childLists(): Map<string | null, string[]> {
 	const lists = new Map<string | null, string[]>();
-	for (const [id, parentId] of TREE) lists.set(parentId, [...(lists.get(parentId) ?? []), id]);
+	for (const [id, parentId] of TREE) {
+		lists.set(parentId, [...(lists.get(parentId) ?? []), id]);
+	}
 	return lists;
 }
 
@@ -131,12 +135,16 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 
 	// A fake Workflowy that tracks each parent's ordered children, so moves and GETs agree.
 	const server = childLists();
-	for (const [parentId, ids] of Object.entries(serverOutline)) server.set(parentId, [...ids]);
+	for (const [parentId, ids] of Object.entries(serverOutline)) {
+		server.set(parentId, [...ids]);
+	}
 	const parentOf = (id: string) => [...server].find(([, ids]) => ids.includes(id))?.[0] ?? null;
 	const detach = (id: string) => {
 		for (const ids of server.values()) {
 			const index = ids.indexOf(id);
-			if (index !== -1) ids.splice(index, 1);
+			if (index !== -1) {
+				ids.splice(index, 1);
+			}
 		}
 	};
 
@@ -202,7 +210,9 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			.all()
 			.toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id));
 		const outline: Record<string, string[]> = {};
-		for (const row of rows) (outline[row.parentId ?? "root"] ??= []).push(row.id);
+		for (const row of rows) {
+			(outline[row.parentId ?? "root"] ??= []).push(row.id);
+		}
 		return {
 			outline,
 			mirrors: database

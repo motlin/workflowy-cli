@@ -1,3 +1,4 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
@@ -28,7 +29,9 @@ describe("system time shared across writers", () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
-		for (const connection of connections) connection.close();
+		for (const connection of connections) {
+			connection.close();
+		}
 		fs.rmSync(tempDir, {recursive: true, force: true});
 	});
 

@@ -4,10 +4,11 @@
  * a mirror node (left by old writes to the mirror id), so readers ignore any
  * text on a mirror row and use the original's instead.
  */
-import * as schema from "../db/schema.js";
+import type * as schema from "../db/schema.js";
 import {mirrors, nodeContent} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
-import {and, eq, inArray, type SQL, sql} from "drizzle-orm";
+import {and, eq, inArray, sql} from "drizzle-orm";
+import type {SQL} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
 import {currentVersion} from "./cache-temporal.js";
@@ -28,7 +29,9 @@ export function loadMirrorOriginals(database: Database, nodeIds: string[]): Map<
 			.from(mirrors)
 			.where(and(inArray(mirrors.mirrorId, nodeIds.slice(i, i + SQL_CHUNK_SIZE)), currentVersion(mirrors)))
 			.all();
-		for (const row of rows) originals.set(row.mirrorId, row.originalId);
+		for (const row of rows) {
+			originals.set(row.mirrorId, row.originalId);
+		}
 	}
 	return originals;
 }
@@ -43,7 +46,9 @@ export function applyMirrorText<T extends TextRow>(
 	rows: T[],
 	mirrorOriginals: Map<string, string>,
 ): T[] {
-	if (mirrorOriginals.size === 0) return rows;
+	if (mirrorOriginals.size === 0) {
+		return rows;
+	}
 	const originalIds = [...new Set(mirrorOriginals.values())];
 	const originalText = new Map<string, {name: string | null; note: string | null}>();
 	for (let i = 0; i < originalIds.length; i += SQL_CHUNK_SIZE) {
@@ -52,11 +57,15 @@ export function applyMirrorText<T extends TextRow>(
 			.from(nodeContent)
 			.where(and(inArray(nodeContent.id, originalIds.slice(i, i + SQL_CHUNK_SIZE)), currentVersion(nodeContent)))
 			.all();
-		for (const original of originals) originalText.set(original.id, {name: original.name, note: original.note});
+		for (const original of originals) {
+			originalText.set(original.id, {name: original.name, note: original.note});
+		}
 	}
 	return rows.map((row) => {
 		const originalId = mirrorOriginals.get(row.id);
-		if (originalId === undefined) return row;
+		if (originalId === undefined) {
+			return row;
+		}
 		const text = originalText.get(originalId);
 		return {...row, name: text?.name ?? null, note: text?.note ?? null};
 	});

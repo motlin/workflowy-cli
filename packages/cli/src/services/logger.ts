@@ -55,7 +55,9 @@ const anyLoggingEnabled =
  */
 function isEnabled(category?: string, subcategory?: string): boolean {
 	for (const [envVar, filters] of Object.entries(CATEGORY_FILTERS)) {
-		if (process.env[envVar] !== "true") continue;
+		if (process.env[envVar] !== "true") {
+			continue;
+		}
 
 		for (const filter of filters) {
 			if (category === filter.category && (!filter.subcategory || subcategory === filter.subcategory)) {
@@ -87,9 +89,15 @@ function formatParams(params: unknown[], colorize: boolean): string {
 	const formatted = params
 		.map((p) => {
 			const json = JSON.stringify(p);
-			if (!colorize) return json;
-			if (typeof p === "string") return `${COLORS.green}${json}${COLORS.reset}`;
-			if (typeof p === "number") return `${COLORS.yellow}${json}${COLORS.reset}`;
+			if (!colorize) {
+				return json;
+			}
+			if (typeof p === "string") {
+				return `${COLORS.green}${json}${COLORS.reset}`;
+			}
+			if (typeof p === "number") {
+				return `${COLORS.yellow}${json}${COLORS.reset}`;
+			}
 			return json;
 		})
 		.join(colorize ? `${COLORS.cyan},${COLORS.reset}` : ",");
@@ -226,14 +234,22 @@ function classifyQuery(query: string): SqlCategory {
 	const normalized = query.replaceAll(/^\s*(--[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*/g, "").trim();
 
 	// Read: SELECT or WITH...SELECT (CTEs)
-	if (/^(SELECT|WITH\b)/i.test(normalized)) return "read";
+	if (/^(SELECT|WITH\b)/i.test(normalized)) {
+		return "read";
+	}
 
 	// Schema (DDL): CREATE, ALTER, DROP statements for tables, indexes, triggers, views
-	if (/^(CREATE|ALTER|DROP)\s+(TABLE|INDEX|TRIGGER|VIEW|VIRTUAL TABLE)/i.test(normalized)) return "schema";
+	if (/^(CREATE|ALTER|DROP)\s+(TABLE|INDEX|TRIGGER|VIEW|VIRTUAL TABLE)/i.test(normalized)) {
+		return "schema";
+	}
 
 	// Bulk: multiple VALUES tuples or INSERT...SELECT
-	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*VALUES\s*\([^)]*\)\s*,/i.test(normalized)) return "bulk";
-	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*\bSELECT\b/i.test(normalized)) return "bulk";
+	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*VALUES\s*\([^)]*\)\s*,/i.test(normalized)) {
+		return "bulk";
+	}
+	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*\bSELECT\b/i.test(normalized)) {
+		return "bulk";
+	}
 
 	// Write: INSERT, UPDATE, DELETE, REPLACE (single-row DML)
 	return "write";
@@ -276,10 +292,14 @@ const MAX_LOG_DATA_SIZE = 10_000;
  * Returns a placeholder for objects that would produce large JSON output.
  */
 function truncateData(data: unknown): unknown {
-	if (data === null || data === undefined) return data;
+	if (data === null || data === undefined) {
+		return data;
+	}
 
 	const json = JSON.stringify(data);
-	if (json.length <= MAX_LOG_DATA_SIZE) return data;
+	if (json.length <= MAX_LOG_DATA_SIZE) {
+		return data;
+	}
 
 	// For arrays, show count
 	if (Array.isArray(data)) {
@@ -294,7 +314,7 @@ function truncateData(data: unknown): unknown {
 
 	// For strings, truncate with ellipsis
 	if (typeof data === "string") {
-		return data.slice(0, MAX_LOG_DATA_SIZE) + "...";
+		return `${data.slice(0, MAX_LOG_DATA_SIZE)}...`;
 	}
 
 	return data;

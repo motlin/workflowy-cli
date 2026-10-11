@@ -25,7 +25,9 @@ export const RECORD_SEP = "\x1e";
 const pad = (n) => String(n).padStart(2, "0");
 
 function normalizeDate(due) {
-	if (!due) return null;
+	if (!due) {
+		return null;
+	}
 	const [y, m, d] = due.split("-").map(Number);
 	return `${y}-${pad(m)}-${pad(d)}`;
 }
@@ -139,10 +141,16 @@ export function partitionThings({todayList, anytime, someday = []}, todayISO) {
 function main(argv) {
 	const args = argv.slice(2);
 	let today = localTodayISO();
-	for (let i = 0; i < args.length; i++) if (args[i] === "--today") today = args[++i];
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--today") {
+			today = args[++i];
+		}
+	}
 
 	const sets = partitionThings({todayList: run("Today"), anytime: run("Anytime"), someday: run("Someday")}, today);
-	process.stdout.write(JSON.stringify(sets, null, 2) + "\n");
+	process.stdout.write(`${JSON.stringify(sets, null, 2)}\n`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main(process.argv);
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main(process.argv);
+}

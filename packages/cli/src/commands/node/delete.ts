@@ -95,21 +95,30 @@ export default class Delete extends Command {
 		if (innerMirrorPaths.length > 0) {
 			this.log("");
 			this.log("Mirrors removed first through the mirror endpoint, so their originals drop the reference:");
-			for (const mirrorPath of innerMirrorPaths) this.log(`  ${mirrorPath}`);
+			for (const mirrorPath of innerMirrorPaths) {
+				this.log(`  ${mirrorPath}`);
+			}
 		}
 		if (keptPaths.length > 0) {
 			this.log("");
-			for (const {from, to} of keptPaths) this.log(`Keeping ${from} by moving it to ${to} (as the web app does)`);
+			for (const {from, to} of keptPaths) {
+				this.log(`Keeping ${from} by moving it to ${to} (as the web app does)`);
+			}
 		}
 		this.log("");
 		this.log(warning);
-		if (flags["dry-run"]) return;
+		if (flags["dry-run"]) {
+			return;
+		}
 
 		await client.deleteNode(nodeId, plan);
 
 		this.log("");
-		if (removingMirror) this.log("Successfully removed mirror");
-		else if (plan.nodeId !== null) this.log("Successfully deleted node");
+		if (removingMirror) {
+			this.log("Successfully removed mirror");
+		} else if (plan.nodeId !== null) {
+			this.log("Successfully deleted node");
+		}
 		for (const {originalId, from} of keptPaths) {
 			this.log(`Kept ${from}, now at ${await pathBuilder.buildFullPath(originalId)}`);
 		}

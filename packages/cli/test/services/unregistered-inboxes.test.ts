@@ -1,10 +1,7 @@
+import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {findUnregisteredInboxes} from "../../src/services/unregistered-inboxes.js";
-import {
-	cleanupTestDatabase,
-	createInMemoryTestDatabase,
-	seedTestData,
-	type TestDatabase,
-} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createInMemoryTestDatabase, seedTestData} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
 
 describe("unregistered inbox diagnostics", () => {
@@ -32,7 +29,7 @@ describe("unregistered inbox diagnostics", () => {
 		});
 		const before = database.sqlite.serialize();
 		const registeredIds = new Set([...Array.from({length: 30}, (_, index) => `registered-${index}`), "link"]);
-		expect(await findUnregisteredInboxes(database.db, registeredIds)).toStrictEqual([
+		await expect(findUnregisteredInboxes(database.db, registeredIds)).resolves.toStrictEqual([
 			{id: "nested", name: "📥 Inbox", path: "Work > Reference > 📥 Inbox"},
 			{id: "root", name: "Inbox", path: "Inbox"},
 		]);
@@ -41,6 +38,6 @@ describe("unregistered inbox diagnostics", () => {
 
 	it("returns no warnings when all inbox nodes are registered", async () => {
 		seedTestData(database, {nodes: [createTestNode({id: "registered", name: "📥 Inbox"})]});
-		expect(await findUnregisteredInboxes(database.db, new Set(["registered"]))).toStrictEqual([]);
+		await expect(findUnregisteredInboxes(database.db, new Set(["registered"]))).resolves.toStrictEqual([]);
 	});
 });

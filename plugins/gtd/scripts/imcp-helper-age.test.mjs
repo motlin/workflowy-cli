@@ -35,7 +35,7 @@ test("ageSeconds returns null when lstart is unparseable", () => {
 });
 
 test("STALE_THRESHOLD_SECONDS is one day, matching the skill doc", () => {
-	assert.strictEqual(STALE_THRESHOLD_SECONDS, 86400);
+	assert.strictEqual(STALE_THRESHOLD_SECONDS, 86_400);
 });
 
 const SERVER = "/Applications/iMCP.app/Contents/MacOS/imcp-server";
@@ -45,7 +45,7 @@ test("parsePsTable parses pid, ppid, and command columns", () => {
 	assert.deepStrictEqual(parsePsTable(out), [
 		{pid: 1, ppid: 0, command: "/sbin/launchd"},
 		{pid: 4435, ppid: 4273, command: SERVER},
-		{pid: 27342, ppid: 27262, command: "/bin/zsh -c echo hi"},
+		{pid: 27_342, ppid: 27_262, command: "/bin/zsh -c echo hi"},
 	]);
 });
 

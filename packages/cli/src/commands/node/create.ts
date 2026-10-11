@@ -1,12 +1,6 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import {
-	type CreatedNodeTree,
-	createNodeTree,
-	type NodeTreeSpec,
-	NodeTreeSpecSchema,
-	PathBuilder,
-	WorkflowyWriteThroughClient,
-} from "@workflowy/shared/cache";
+import {createNodeTree, NodeTreeSpecSchema, PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import type {CreatedNodeTree, NodeTreeSpec} from "@workflowy/shared/cache";
 import {getWorkflowyUrl} from "@workflowy/shared/workflowy";
 import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
@@ -313,8 +307,8 @@ export default class Create extends Command {
 	private flattenCreatedNodes(
 		node: CreatedNodeTree,
 		parentId?: string,
-	): Array<{id: string; name: string; parentId: string | null}> {
-		const result: Array<{id: string; name: string; parentId: string | null}> = [
+	): {id: string; name: string; parentId: string | null}[] {
+		const result: {id: string; name: string; parentId: string | null}[] = [
 			{
 				id: node.id,
 				name: node.name,

@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {formatDuration} from "../../src/utils/format-duration.js";
 
 describe("formatDuration", () => {

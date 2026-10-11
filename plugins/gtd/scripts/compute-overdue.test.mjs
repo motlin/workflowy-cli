@@ -485,7 +485,7 @@ test("nodeContext drops completed children so finished work is never read aloud 
 				completedAt: "2026-08-19T12:00:00Z",
 				children: [],
 			},
-			{name: "Cancel Apple iCloud Subscriptions", shortId: "sid-2", completedAt: 1755600000, children: []},
+			{name: "Cancel Apple iCloud Subscriptions", shortId: "sid-2", completedAt: 1_755_600_000, children: []},
 			{name: "Respond to blog comments", shortId: "sid-3", completedAt: null, children: []},
 		],
 	};
@@ -525,7 +525,7 @@ test("computeOverdue skips items that are already completed", () => {
 						name: 'Already done <time startYear="2026" startMonth="6" startDay="1">Mon, Jun 1, 2026</time>',
 						id: "id-done",
 						shortId: "sid-done",
-						completedAt: 1786587745,
+						completedAt: 1_786_587_745,
 						children: [],
 					},
 					{
@@ -647,7 +647,7 @@ const HARD_DEADLINE_TREE = {
 				{
 					id: "test-deadline",
 					shortId: "test-short",
-					name: "Example renewal " + buildTimeElement("2000-01-01"),
+					name: `Example renewal ${buildTimeElement("2000-01-01")}`,
 					children: [{name: "Hard deadline: 3d"}],
 				},
 			],
@@ -730,7 +730,7 @@ const WEEKDAY_TREE = {
 				{
 					id: "test-weekday",
 					shortId: "weekday-short",
-					name: "Example chore " + buildTimeElement("2000-01-01"),
+					name: `Example chore ${buildTimeElement("2000-01-01")}`,
 					children: [{name: "Next: Saturday"}],
 				},
 			],
@@ -740,7 +740,7 @@ const WEEKDAY_TREE = {
 			children: [
 				{
 					id: "test-daily-weekday",
-					name: "Daily chore " + buildTimeElement("2000-01-01"),
+					name: `Daily chore ${buildTimeElement("2000-01-01")}`,
 					children: [{name: "Next: Saturday"}],
 				},
 			],
@@ -751,7 +751,7 @@ const WEEKDAY_TREE = {
 			children: [
 				{
 					id: "test-monthly-weekday",
-					name: "Monthly chore " + buildTimeElement("2000-01-01"),
+					name: `Monthly chore ${buildTimeElement("2000-01-01")}`,
 					children: [{name: "Next: sunday"}],
 				},
 			],

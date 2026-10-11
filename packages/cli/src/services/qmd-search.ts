@@ -5,13 +5,13 @@ import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {existsSync, mkdirSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {createHash} from "node:crypto";
-import {
-	createStore,
-	type EmbedProgress,
-	type EmbedResult,
-	type HybridQueryResult,
-	type SearchResult as QmdSearchResult,
-	type QMDStore,
+import {createStore} from "@tobilu/qmd";
+import type {
+	EmbedProgress,
+	EmbedResult,
+	HybridQueryResult,
+	SearchResult as QmdSearchResult,
+	QMDStore,
 } from "@tobilu/qmd";
 import {PathBuilder} from "@workflowy/shared/cache";
 import {loadEmbeddableNodes} from "./embedding-generator.js";
@@ -82,7 +82,9 @@ export class QmdSearchService {
 	}
 
 	private async getStore(): Promise<QMDStore> {
-		if (this.store) return this.store;
+		if (this.store) {
+			return this.store;
+		}
 
 		const dbPath = this.getDbPath();
 		const dir = dirname(dbPath);
@@ -197,7 +199,7 @@ export class QmdSearchService {
 		const {query, limit = 5, minScore, mode = "hybrid"} = options;
 		const store = await this.getStore();
 
-		let rawResults: Array<{nodeId: string; score: number}>;
+		let rawResults: {nodeId: string; score: number}[];
 
 		switch (mode) {
 			case "hybrid": {
@@ -249,7 +251,7 @@ export class QmdSearchService {
 		}
 	}
 
-	private async enrichResults(rawResults: Array<{nodeId: string; score: number}>): Promise<QmdSearchResultItem[]> {
+	private async enrichResults(rawResults: {nodeId: string; score: number}[]): Promise<QmdSearchResultItem[]> {
 		const enriched: QmdSearchResultItem[] = [];
 
 		for (const raw of rawResults) {
@@ -271,7 +273,9 @@ export class QmdSearchService {
 				})
 				.sync();
 
-			if (!nodeWithRelations) continue;
+			if (!nodeWithRelations) {
+				continue;
+			}
 
 			const priority = nodeWithRelations.metadata?.priority ?? 0;
 			const data: Record<string, unknown> = {};

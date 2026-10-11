@@ -35,16 +35,20 @@ function formatObject(
 	visited: Set<string>,
 	nameMap: Map<string, string>,
 ): void {
-	if (visited.has(name)) return;
+	if (visited.has(name)) {
+		return;
+	}
 	visited.add(name);
 
-	const nestedInterfaces: Array<{schema: SchemaObject; name: string}> = [];
+	const nestedInterfaces: {schema: SchemaObject; name: string}[] = [];
 
 	lines.push(`interface ${name} {`);
 	if (schema.properties) {
 		const required = new Set(schema.required ?? []);
 		for (const [key, prop] of Object.entries(schema.properties)) {
-			if (typeof prop === "boolean") continue;
+			if (typeof prop === "boolean") {
+				continue;
+			}
 			const optional = required.has(key) ? "" : "?";
 			const typeStr = formatType(prop, definitions, nestedInterfaces, nameMap);
 			lines.push(`  ${key}${optional}: ${typeStr};`);
@@ -72,7 +76,7 @@ function resolveRef(schema: SchemaObject, definitions: Record<string, Definition
 function formatType(
 	schema: SchemaObject,
 	definitions: Record<string, Definition>,
-	nestedInterfaces: Array<{schema: SchemaObject; name: string}>,
+	nestedInterfaces: {schema: SchemaObject; name: string}[],
 	nameMap: Map<string, string>,
 ): string {
 	if (schema.$ref) {
@@ -111,7 +115,9 @@ function formatType(
 		const parts: string[] = [];
 		const required = new Set(schema.required ?? []);
 		for (const [key, prop] of Object.entries(schema.properties)) {
-			if (typeof prop === "boolean") continue;
+			if (typeof prop === "boolean") {
+				continue;
+			}
 			const resolved = resolveRef(prop, definitions);
 			const optional = required.has(key) ? "" : "?";
 			const typeStr = formatType(resolved, definitions, nestedInterfaces, nameMap);

@@ -1,4 +1,5 @@
-import {type RefObject, useEffect, useId, useRef} from "react";
+import {useEffect, useId, useRef} from "react";
+import type {RefObject} from "react";
 
 interface HideCompletedToggleProps {
 	anchorRef: RefObject<HTMLButtonElement | null>;
@@ -17,8 +18,10 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 	const switchId = useId();
 
 	useEffect(() => {
-		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
-		if (!isOpen) return undefined;
+		if (!isOpen) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
+			return undefined;
+		}
 
 		function handleClickOutside(event: MouseEvent) {
 			const target = event.target instanceof Node ? event.target : null;
@@ -47,7 +50,9 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 		};
 	}, [isOpen, onClose, anchorRef]);
 
-	if (!isOpen) return null;
+	if (!isOpen) {
+		return null;
+	}
 
 	const handleToggleClick = () => {
 		onToggle();

@@ -104,7 +104,9 @@ export class NodeTreeReader {
 
 	/** Read the given nodes as subtrees to the requested depth, preserving caller order. */
 	async readNodes(nodeIds: string[], options: ReadTreeOptions): Promise<NodeTree[]> {
-		if (nodeIds.length === 0) return [];
+		if (nodeIds.length === 0) {
+			return [];
+		}
 		const rows = await this.cache.getMergedDataForNodes(nodeIds);
 		const byId = new Map(rows.map((row) => [row.id, row]));
 		const ordered = nodeIds.map((id) => byId.get(id)).filter((row): row is NodeWithRelations => row !== undefined);
@@ -114,11 +116,15 @@ export class NodeTreeReader {
 	private async buildTrees(rootRows: NodeWithRelations[], options: ReadTreeOptions): Promise<NodeTree[]> {
 		const {depth, followLinks = false} = options;
 		const roots = rootRows.map((row) => rawToTree(row));
-		if (roots.length === 0) return roots;
+		if (roots.length === 0) {
+			return roots;
+		}
 
 		// Map every node reachable in the tree by ID so children can be attached.
 		const treeMap = new Map<string, NodeTree>();
-		for (const root of roots) treeMap.set(root.id, root);
+		for (const root of roots) {
+			treeMap.set(root.id, root);
+		}
 
 		// Records where a fetch ID (the original's ID for a mirror) maps back to the
 		// tree node that should receive the fetched children.
@@ -130,12 +136,16 @@ export class NodeTreeReader {
 		let fetchIdToNode = new Map<string, NodeTree>();
 		let currentLevelIds = roots.map((node) => {
 			const fetchId = node.mirror.originalNodeId ?? node.id;
-			if (node.mirror.originalNodeId) fetchIdToNode.set(fetchId, node);
+			if (node.mirror.originalNodeId) {
+				fetchIdToNode.set(fetchId, node);
+			}
 			return fetchId;
 		});
 
 		for (let currentDepth = 1; currentDepth <= depth; currentDepth++) {
-			if (currentLevelIds.length === 0) break;
+			if (currentLevelIds.length === 0) {
+				break;
+			}
 
 			const childrenByParent = await this.cache.getChildrenForMultipleParents(currentLevelIds);
 			const nextLevelIds: string[] = [];
@@ -143,7 +153,9 @@ export class NodeTreeReader {
 
 			for (const [fetchId, childRows] of childrenByParent) {
 				const parentNode = fetchIdToNode.get(fetchId) ?? treeMap.get(fetchId);
-				if (!parentNode || childRows.length === 0) continue;
+				if (!parentNode || childRows.length === 0) {
+					continue;
+				}
 
 				const children = childRows.map((row) => rawToTree(row));
 				parentNode.children = children;
@@ -153,7 +165,9 @@ export class NodeTreeReader {
 					treeMap.set(child.id, child);
 					const childFetchId = child.mirror.originalNodeId ?? child.id;
 					nextLevelIds.push(childFetchId);
-					if (child.mirror.originalNodeId) nextFetchIdToNode.set(childFetchId, child);
+					if (child.mirror.originalNodeId) {
+						nextFetchIdToNode.set(childFetchId, child);
+					}
 				}
 				this.collectLinkSites(children, currentDepth, linkSites);
 			}
@@ -170,7 +184,9 @@ export class NodeTreeReader {
 	/** Assign originals' content to any mirrors in this level. */
 	private async resolveMirrorContent(nodes: NodeTree[]): Promise<void> {
 		const mirrors = nodes.filter((node) => node.mirror.originalNodeId !== null);
-		if (mirrors.length === 0) return;
+		if (mirrors.length === 0) {
+			return;
+		}
 		const originalIds = mirrors.map((node) => node.mirror.originalNodeId!);
 		const originals = await this.cache.getMultipleNodes(originalIds);
 		for (const node of mirrors) {
@@ -185,7 +201,9 @@ export class NodeTreeReader {
 		linkSites: Map<string, {node: NodeTree; depthFound: number}[]>,
 	): void {
 		for (const node of nodes) {
-			if (!node.name) continue;
+			if (!node.name) {
+				continue;
+			}
 			for (const shortId of extractWorkflowyLinkShortIds(node.name)) {
 				const existing = linkSites.get(shortId) ?? [];
 				existing.push({node, depthFound});
@@ -200,13 +218,17 @@ export class NodeTreeReader {
 		maxDepth: number,
 		followLinks: boolean,
 	): Promise<void> {
-		if (linkSites.size === 0) return;
+		if (linkSites.size === 0) {
+			return;
+		}
 
 		const shortIdToUuid = await this.cache.resolveMultipleShortIds([...linkSites.keys()]);
 		for (const [shortId, uuid] of shortIdToUuid) {
 			const sites = linkSites.get(shortId);
 			const targetNode = await this.cache.getNode(uuid);
-			if (!sites || !targetNode) continue;
+			if (!sites || !targetNode) {
+				continue;
+			}
 
 			let targetChildren: NodeTree[] | undefined;
 			if (followLinks) {

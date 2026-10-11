@@ -1,5 +1,6 @@
 import chalk from "chalk";
-import {HTMLElement, type Node, NodeType, parse} from "node-html-parser";
+import {HTMLElement, NodeType, parse} from "node-html-parser";
+import type {Node} from "node-html-parser";
 
 type ChalkColor = (text: string) => string;
 

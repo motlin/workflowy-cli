@@ -4,7 +4,8 @@ import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
 import {logger} from "../../services/logger.js";
 import {resolveNodeId} from "@workflowy/shared/utils";
-import {type NodeSyncProgress, NodeSyncService} from "../../services/node-sync.js";
+import {NodeSyncService} from "../../services/node-sync.js";
+import type {NodeSyncProgress} from "../../services/node-sync.js";
 
 export default class SyncNode extends Command {
 	static override description =

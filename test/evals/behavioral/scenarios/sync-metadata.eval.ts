@@ -8,6 +8,7 @@
  * to the real project root. We verify the script succeeds and produces valid output.
  */
 
+import {beforeAll, expect, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
@@ -65,7 +66,9 @@ describe("Behavioral Eval: sync-metadata.sh", () => {
 		for (const file of files) {
 			const filePath = path.join(metadataDir, file);
 			const content = fs.readFileSync(filePath, "utf8").trim();
-			if (content.length === 0) continue;
+			if (content.length === 0) {
+				continue;
+			}
 			const parsed = JSON.parse(content);
 
 			if (file === TAG_FREQUENCY_FILE) {

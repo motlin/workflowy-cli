@@ -1,3 +1,4 @@
+import {expect, describe, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
 import {PLUGINS_DIR} from "./helpers/scan-roots.js";

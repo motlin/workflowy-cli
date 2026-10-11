@@ -6,6 +6,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
+import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
@@ -92,7 +93,9 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 	afterAll(() => ctx?.cleanup());
 
 	it("should produce destination recommendation with a confidence level", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, `Determine destination for item ${itemId}`, ctx, {maxTurns: 25});
 
@@ -105,7 +108,9 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 	});
 
 	it("should use CLI to query node data", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, `Determine destination for item ${itemId}`, ctx, {maxTurns: 25});
 

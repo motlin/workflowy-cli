@@ -8,6 +8,7 @@
  * Requires the claude CLI (runs on the subscription login).
  */
 
+import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
 import {
@@ -18,7 +19,8 @@ import {
 	claudeCliAvailable,
 	stringInput,
 } from "../../helpers/llm-eval-harness.js";
-import {createMockWorkflowyServer, type MockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
+import {createMockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
+import type {MockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
 
 describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 	let ctx: EvalContext;
@@ -84,7 +86,9 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 	});
 
 	it("should fetch item data as first action", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		// Reading the prompt and skill files takes the first turns
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
@@ -100,7 +104,9 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 	});
 
 	it("should apply tagger prompts inline without launching subagents", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
 			maxTurns: 12,
@@ -120,7 +126,9 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 	});
 
 	it("should track token usage in a single conversation", async (context) => {
-		if (skipSuite) context.skip();
+		if (skipSuite) {
+			context.skip();
+		}
 
 		const result = await runLlmEval(agentFile, `Refine item ${itemId}`, ctx, {
 			maxTurns: 10,

@@ -1,9 +1,11 @@
-import {mirrors, nodeContent, type NodeContentType, nodeEmbeddings} from "@workflowy/shared/db";
-import * as schema from "@workflowy/shared/db";
+import {mirrors, nodeContent, nodeEmbeddings} from "@workflowy/shared/db";
+import type {NodeContentType} from "@workflowy/shared/db";
+import type * as schema from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import {DEFAULT_MODELS, type EmbeddingModelKey, embeddingService} from "./embeddings.js";
+import {DEFAULT_MODELS, embeddingService} from "./embeddings.js";
+import type {EmbeddingModelKey} from "./embeddings.js";
 import {nextSystemTimestamp, notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
 /**
@@ -165,11 +167,11 @@ export class EmbeddingGeneratorService {
 
 			for (let index = 0; index < nodesToProcess.length; index += options.batchSize) {
 				const batch = nodesToProcess.slice(index, index + options.batchSize);
-				const embeddingRows: Array<{
+				const embeddingRows: {
 					nodeId: string;
 					model: EmbeddingModelKey;
 					embedding: Buffer;
-				}> = [];
+				}[] = [];
 
 				for (const node of batch) {
 					const fullPath = pathMap.get(node.id) ?? "";
@@ -244,7 +246,9 @@ export class EmbeddingGeneratorService {
 		const tableExists = this.database.all(
 			sql`SELECT name FROM sqlite_master WHERE type='table' AND name='node_fts'`,
 		);
-		if (tableExists.length === 0) return;
+		if (tableExists.length === 0) {
+			return;
+		}
 
 		const [pathMap, contentMap, childrenMap] = await Promise.all([
 			this.pathBuilder.buildFullPathsBatch(nodeIds),

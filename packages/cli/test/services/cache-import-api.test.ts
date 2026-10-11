@@ -1,3 +1,4 @@
+import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
@@ -6,7 +7,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {importFromApi} from "../../src/services/cache-import-api.js";
-import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase} from "../db/migration-helper.js";
+import type {TestDatabase} from "../db/migration-helper.js";
 import {createApiNode, createNodeFromContent} from "../helpers/node-fixtures.js";
 import {expectActiveRecord} from "../helpers/assertion-helpers.js";
 

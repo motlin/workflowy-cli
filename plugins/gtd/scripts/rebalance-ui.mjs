@@ -56,12 +56,22 @@ export function diffSubmission(models, submission) {
 
 	for (const model of models) {
 		const submitted = submission?.roots?.[model.root];
-		if (!submitted) continue;
+		if (!submitted) {
+			continue;
+		}
 
 		const wasIn = new Map();
-		for (const tier of model.tiers) for (const item of tier.items) wasIn.set(item.id, tier.label);
+		for (const tier of model.tiers) {
+			for (const item of tier.items) {
+				wasIn.set(item.id, tier.label);
+			}
+		}
 		const textOf = new Map();
-		for (const tier of model.tiers) for (const item of tier.items) textOf.set(item.id, item.text);
+		for (const tier of model.tiers) {
+			for (const item of tier.items) {
+				textOf.set(item.id, item.text);
+			}
+		}
 
 		for (const tier of submitted.tiers ?? []) {
 			if (tier.isNew) {
@@ -74,7 +84,9 @@ export function diffSubmission(models, submission) {
 				});
 			}
 			for (const nodeId of tier.items ?? []) {
-				if (wasIn.get(nodeId) === tier.label) continue;
+				if (wasIn.get(nodeId) === tier.label) {
+					continue;
+				}
 				moves.push({
 					op: "move",
 					root: model.root,
@@ -126,11 +138,12 @@ export function validateSubmission(models, submission) {
 			assert.equal(tier.id, current?.id ?? null, "Submission tier destination changed");
 			assert.equal(tier.isNew, !current, "Invalid new tier flag");
 		}
-		for (const tier of model.tiers)
+		for (const tier of model.tiers) {
 			assert.ok(
 				submitted.tiers.some((candidate) => candidate.tier === tier.tier),
 				"Submission dropped a current tier",
 			);
+		}
 		const expected = model.tiers.flatMap((tier) => tier.items.map((item) => item.id)).toSorted();
 		assert.deepEqual(
 			submitted.tiers.flatMap((tier) => tier.items).toSorted(),
@@ -197,7 +210,9 @@ export function pageSignature(models) {
 		.map((m) => `${m.root}:${m.tiers.map((t) => `${t.label}=${t.items.map((i) => i.id).join(",")}`).join("|")}`)
 		.join(";");
 	let h = 0;
-	for (let i = 0; i < shape.length; i++) h = (Math.imul(31, h) + shape.charCodeAt(i)) | 0;
+	for (let i = 0; i < shape.length; i++) {
+		h = (Math.imul(31, h) + shape.charCodeAt(i)) | 0;
+	}
 	return (h >>> 0).toString(36);
 }
 
@@ -599,7 +614,9 @@ function main() {
 	const args = process.argv.slice(2);
 	const htmlIndex = args.indexOf("--html");
 	const html = htmlIndex >= 0;
-	if (html) args.splice(htmlIndex, 1);
+	if (html) {
+		args.splice(htmlIndex, 1);
+	}
 	if (!html && args[0] !== "--apply") {
 		const outputIndex = args.indexOf("--output");
 		const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
@@ -608,8 +625,10 @@ function main() {
 		const page = renderWebAppLauncher(url);
 		if (output) {
 			writeFileSync(output, page);
-			process.stdout.write(resolve(output) + "\n");
-		} else process.stdout.write(url.href + "\n");
+			process.stdout.write(`${resolve(output)}\n`);
+		} else {
+			process.stdout.write(`${url.href}\n`);
+		}
 		return;
 	}
 	const apply = args[0] === "--apply";
@@ -628,12 +647,16 @@ function main() {
 		return buildLadderModel(index === 0 ? "work" : "personal", bucket);
 	});
 	const result = apply
-		? JSON.stringify(diffSubmission(models, JSON.parse(readFileSync(submissionPath, "utf8"))), null, 2) + "\n"
+		? `${JSON.stringify(diffSubmission(models, JSON.parse(readFileSync(submissionPath, "utf8"))), null, 2)}\n`
 		: renderFromTemplate(models);
 	if (output) {
 		writeFileSync(output, result);
-		process.stdout.write(resolve(output) + "\n");
-	} else process.stdout.write(result);
+		process.stdout.write(`${resolve(output)}\n`);
+	} else {
+		process.stdout.write(result);
+	}
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main();
+}

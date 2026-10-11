@@ -12,9 +12,8 @@ import {
 	countGroupsWithoutEvidence,
 	describeStaleAttachmentData,
 	planPhotoGroup,
-	type CachedNodeRow,
-	type PhotoGroup,
 } from "../../services/photo-groups.js";
+import type {CachedNodeRow, PhotoGroup} from "../../services/photo-groups.js";
 import {listBackups, resolveBackupsDirectory} from "../../utils/backup-archive.js";
 
 /** Position argument for the move API: negative is top, zero or more is bottom. */
@@ -117,7 +116,9 @@ function loadCandidateRows(database: ReturnType<typeof createDatabase>): CachedN
 }
 
 function loadEntryTitles(database: ReturnType<typeof createDatabase>, entryIds: string[]): Map<string, string> {
-	if (entryIds.length === 0) return new Map();
+	if (entryIds.length === 0) {
+		return new Map();
+	}
 
 	const query = sql`
 		SELECT id, name FROM node_content
@@ -142,7 +143,9 @@ function findStaleAttachmentData(database: ReturnType<typeof createDatabase>): s
 	let newestBackup: Date | null = null;
 	try {
 		for (const backup of listBackups(resolveBackupsDirectory())) {
-			if (newestBackup === null || backup.backupDate > newestBackup) newestBackup = backup.backupDate;
+			if (newestBackup === null || backup.backupDate > newestBackup) {
+				newestBackup = backup.backupDate;
+			}
 		}
 	} catch {
 		return null;

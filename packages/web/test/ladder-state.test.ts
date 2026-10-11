@@ -33,9 +33,9 @@ const ladder = (): Record<string, Ladder> => ({
 describe("moveWithin", () => {
 	it("relocates the row and recomputes both tiers capacity state", () => {
 		const next = moveWithin(ladder(), "work", "a", "2nd");
-		expect(next.work.tiers[0].items.map((i) => i.id)).toEqual(["b"]);
+		expect(next.work.tiers[0].items.map((i) => i.id)).toStrictEqual(["b"]);
 		expect(next.work.tiers[0].state).toBe("room");
-		expect(next.work.tiers[1].items.map((i) => i.id)).toEqual(["a"]);
+		expect(next.work.tiers[1].items.map((i) => i.id)).toStrictEqual(["a"]);
 	});
 
 	it("flags the destination as over once it passes its cap", () => {
@@ -65,7 +65,7 @@ describe("applyLadderEvent", () => {
 			toTier: "2nd",
 			at: "T",
 		});
-		expect(next.work.tiers[1].items.map((i) => i.id)).toEqual(["a"]);
+		expect(next.work.tiers[1].items.map((i) => i.id)).toStrictEqual(["a"]);
 	});
 
 	it("drops a completed row off the ladder", () => {
@@ -77,7 +77,7 @@ describe("applyLadderEvent", () => {
 			toTier: null,
 			at: "T",
 		});
-		expect(next.work.tiers[0].items.map((i) => i.id)).toEqual(["b"]);
+		expect(next.work.tiers[0].items.map((i) => i.id)).toStrictEqual(["b"]);
 		expect(next.work.tiers[0].state).toBe("room");
 	});
 

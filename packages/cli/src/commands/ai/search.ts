@@ -1,8 +1,10 @@
 import {Command, Flags} from "@oclif/core";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
-import {type SearchMode, type SearchResult, SearchService} from "../../services/search.js";
-import {DEFAULT_MODELS, EMBEDDING_MODELS, type EmbeddingModelKey} from "../../services/embeddings.js";
+import {SearchService} from "../../services/search.js";
+import type {SearchMode, SearchResult} from "../../services/search.js";
+import {DEFAULT_MODELS, EMBEDDING_MODELS} from "../../services/embeddings.js";
+import type {EmbeddingModelKey} from "../../services/embeddings.js";
 
 export default class Search extends Command {
 	static override enableJsonFlag = true;
@@ -57,7 +59,7 @@ export default class Search extends Command {
 	};
 
 	public async run(): Promise<
-		Array<{
+		{
 			id: string;
 			name: string;
 			note: string | null | undefined;
@@ -72,7 +74,7 @@ export default class Search extends Command {
 			textContent: string;
 			distance?: number;
 			model?: EmbeddingModelKey;
-		}>
+		}[]
 	> {
 		const {flags} = await this.parse(Search);
 		const {query} = flags;

@@ -1,6 +1,7 @@
 import {CacheService as BaseCacheService} from "@workflowy/shared/cache";
 import type {Node} from "@workflowy/shared/types";
-import {importBackup, type ImportBackupResult} from "./cache-import.js";
+import {importBackup} from "./cache-import.js";
+import type {ImportBackupResult} from "./cache-import.js";
 import {logger} from "./logger.js";
 
 /**

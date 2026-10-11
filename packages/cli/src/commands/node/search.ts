@@ -1,7 +1,8 @@
 import {Command, Flags} from "@oclif/core";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
-import {type TextSearchResult, TextSearchService} from "../../services/text-search.js";
+import {TextSearchService} from "../../services/text-search.js";
+import type {TextSearchResult} from "../../services/text-search.js";
 
 export default class Search extends Command {
 	static override description = "Search Workflowy nodes by text in names and notes";

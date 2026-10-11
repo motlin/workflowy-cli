@@ -55,7 +55,9 @@ export function findSameTitleSiblings(
 	const groups = new Map<string, {title: string; ids: string[]}>();
 	for (const item of items) {
 		const key = normalizeTitle(item.name);
-		if (item.completed || key === "") continue;
+		if (item.completed || key === "") {
+			continue;
+		}
 		const group = groups.get(key);
 		if (group) {
 			group.ids.push(item.id);

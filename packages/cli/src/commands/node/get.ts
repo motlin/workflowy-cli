@@ -1,9 +1,11 @@
-import {type NodeTree, NodeTreeReader} from "@workflowy/shared/cache";
+import {NodeTreeReader} from "@workflowy/shared/cache";
+import type {NodeTree} from "@workflowy/shared/cache";
 import {isShortId} from "@workflowy/shared/workflowy";
 import {Flags} from "@oclif/core";
 import {logger} from "../../services/logger.js";
 import {htmlToAnsi} from "../../utils/html-to-ansi.js";
-import {BaseListCommand, type ListCommandFlags} from "../base-list-command.js";
+import {BaseListCommand} from "../base-list-command.js";
+import type {ListCommandFlags} from "../base-list-command.js";
 
 interface GetFlags extends ListCommandFlags {
 	id?: string;

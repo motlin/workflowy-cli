@@ -1,14 +1,11 @@
-import {mirrors, nodeContent, type NodeContentType, nodeMetadata, type NodeMetadataType} from "@workflowy/shared/db";
-import * as schema from "@workflowy/shared/db";
-import {
-	applyRows,
-	type NormalizedNodeContentRow,
-	type NormalizedNodeMetadataRow,
-	type NormalizedRowsByTable,
-	nextSystemTime,
-} from "@workflowy/shared/cache";
+import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
+import type * as schema from "@workflowy/shared/db";
+import {applyRows, nextSystemTime} from "@workflowy/shared/cache";
+import type {NormalizedNodeContentRow, NormalizedNodeMetadataRow, NormalizedRowsByTable} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
-import {type WorkflowyNode, WorkflowyNodeSchema} from "@workflowy/shared/types";
+import {WorkflowyNodeSchema} from "@workflowy/shared/types";
+import type {WorkflowyNode} from "@workflowy/shared/types";
 import {uuidToShortId} from "@workflowy/shared/workflowy";
 import {and, eq, notExists, or} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
@@ -97,7 +94,9 @@ export async function importFromApi(
 	}
 
 	const logTiming = (phase: string) => {
-		if (!verbose) return;
+		if (!verbose) {
+			return;
+		}
 		const now = Date.now();
 		const elapsed = now - lastTime;
 		const total = now - startTime;
@@ -194,8 +193,12 @@ export async function importFromApi(
 			nodesAdded++;
 		} else if (contentChanged || metadataChanged) {
 			nodesUpdated++;
-			if (contentChanged) contentUpdated++;
-			if (metadataChanged) metadataUpdated++;
+			if (contentChanged) {
+				contentUpdated++;
+			}
+			if (metadataChanged) {
+				metadataUpdated++;
+			}
 		} else {
 			nodesUnchanged++;
 		}

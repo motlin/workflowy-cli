@@ -1,3 +1,4 @@
+import {it, vi, afterEach, expect, describe, beforeEach} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
 import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
@@ -7,7 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import Mirror from "../../../src/commands/node/mirror.js";
-import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
+import {cleanupTestDatabase, createTestDatabase, seedTestData} from "../../db/migration-helper.js";
+import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
 import {requestJson} from "../../helpers/request-body.js";
 
@@ -50,8 +52,8 @@ describe("node:mirror command", () => {
 		}
 	});
 
-	function stubCreateMirrorApi(): Array<{method: string; url: string; body: unknown}> {
-		const calls: Array<{method: string; url: string; body: unknown}> = [];
+	function stubCreateMirrorApi(): {method: string; url: string; body: unknown}[] {
+		const calls: {method: string; url: string; body: unknown}[] = [];
 		fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 			const urlStr = url instanceof Request ? url.url : String(url);
 			const method = init?.method ?? "GET";
@@ -203,7 +205,7 @@ describe("node:mirror command", () => {
 		});
 
 		it("sends DELETE to the mirror endpoint and removes the mirror from the cache", async () => {
-			const calls: Array<{method: string; url: string}> = [];
+			const calls: {method: string; url: string}[] = [];
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				calls.push({method: init?.method ?? "GET", url: url instanceof Request ? url.url : String(url)});
 				return new Response(JSON.stringify({status: "ok"}), {status: 200});
