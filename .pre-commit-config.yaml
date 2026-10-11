@@ -56,6 +56,12 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: check-action-pins
+        name: check action pins
+        entry: node scripts/check-action-pins.mjs
+        language: system
+        files: '^\.github/(workflows|actions)/'
+        pass_filenames: false
       - id: markdownlint-cli2
         name: markdownlint-cli2
         entry: pnpm exec vp exec markdownlint-cli2
