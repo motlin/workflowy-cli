@@ -125,7 +125,7 @@ export function intervalForSection(sectionName) {
 
 function hardDeadlineFor(node, date) {
 	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith("Hard deadline:"));
-	if (!markers.length) {
+	if (markers.length === 0) {
 		return null;
 	}
 	if (markers.length !== 1) {
@@ -146,7 +146,7 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 /** A `Next: <Weekday>` child pins every advanced date to that weekday, e.g. chores saved for the weekend. */
 function weekdayAnchorFor(node) {
 	const markers = (node.children ?? []).filter((child) => stripMarkup(child.name).startsWith("Next:"));
-	if (!markers.length) {
+	if (markers.length === 0) {
 		return null;
 	}
 	if (markers.length !== 1) {

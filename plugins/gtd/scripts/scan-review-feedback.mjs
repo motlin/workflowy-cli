@@ -141,7 +141,7 @@ export function assistantSummary(obj) {
 			parts.push(`${b.name}${cmd ? `(${String(cmd).slice(0, 80)})` : ""}`);
 		}
 	}
-	if (parts.length) {
+	if (parts.length > 0) {
 		return `ran ${parts.join(", ")}`;
 	}
 	const text = blocks
