@@ -9,6 +9,7 @@ import type {MockInstance} from "vite-plus/test";
 import Mirror from "../../../src/commands/node/mirror.js";
 import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
+import {requestJson} from "../../helpers/request-body.js";
 
 const ORIGIN_ID = "10e2d6c2-d165-b390-9484-d4fdbf4c4afa";
 const PARENT_ID = "a71aed23-b0cc-4000-8000-000000000001";
@@ -54,7 +55,7 @@ describe("node:mirror command", () => {
 		fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 			const urlStr = url instanceof Request ? url.url : String(url);
 			const method = init?.method ?? "GET";
-			calls.push({method, url: urlStr, body: init?.body ? JSON.parse(init.body as string) : undefined});
+			calls.push({method, url: urlStr, body: requestJson(init)});
 
 			if (method === "POST" && urlStr.endsWith(`/nodes/${ORIGIN_ID}/mirror`)) {
 				return new Response(JSON.stringify({item_id: MIRROR_ID, origin_id: ORIGIN_ID}), {status: 200});

@@ -5,9 +5,10 @@ import {and, eq} from "drizzle-orm";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import type {MockInstance} from "vite-plus/test";
+import {assert, type MockInstance} from "vite-plus/test";
 import {CacheService} from "../../src/services/cache.js";
 import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
+import {withoutSystemFrom} from "../helpers/assertion-helpers.js";
 import {createTestNode, splitNodeIntoContentAndMetadata} from "../helpers/node-fixtures.js";
 
 function insertTestNodes(
@@ -98,19 +99,16 @@ describe("API Sync with Cache", () => {
 			const content1 = storedContent.find((n) => n.id === "api-root-1");
 			const content2 = storedContent.find((n) => n.id === "api-root-2");
 
-			// Delete dynamic systemFrom before deep equality comparison
 			const content1SystemFrom = content1!.systemFrom;
-			delete (content1 as {systemFrom?: string}).systemFrom;
-			delete (content2 as {systemFrom?: string}).systemFrom;
 
-			expect(content1).toStrictEqual({
+			expect(withoutSystemFrom(content1)).toStrictEqual({
 				id: "api-root-1",
 				name: "Root Node 1",
 				note: "Root note 1",
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expect(content2).toStrictEqual({
+			expect(withoutSystemFrom(content2)).toStrictEqual({
 				id: "api-root-2",
 				name: "Root Node 2",
 				note: null,
@@ -123,11 +121,7 @@ describe("API Sync with Cache", () => {
 			const metadata1 = storedMetadata.find((m) => m.nodeId === "api-root-1");
 			const metadata2 = storedMetadata.find((m) => m.nodeId === "api-root-2");
 
-			// Delete dynamic systemFrom before deep equality comparison
-			delete (metadata1 as {systemFrom?: string}).systemFrom;
-			delete (metadata2 as {systemFrom?: string}).systemFrom;
-
-			expect(metadata1).toStrictEqual({
+			expect(withoutSystemFrom(metadata1)).toStrictEqual({
 				nodeId: "api-root-1",
 				shortId: "apiroot1", // getShortId removes dashes and takes last 12 chars
 				priority: 100,
@@ -137,7 +131,7 @@ describe("API Sync with Cache", () => {
 				layoutMode: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expect(metadata2).toStrictEqual({
+			expect(withoutSystemFrom(metadata2)).toStrictEqual({
 				nodeId: "api-root-2",
 				shortId: "apiroot2",
 				priority: 200,
@@ -220,18 +214,14 @@ describe("API Sync with Cache", () => {
 			const child1 = children.find((c) => c.id === "child-1");
 			const child2 = children.find((c) => c.id === "child-2");
 
-			// Delete dynamic systemFrom before deep equality comparison
-			delete (child1 as {systemFrom?: string}).systemFrom;
-			delete (child2 as {systemFrom?: string}).systemFrom;
-
-			expect(child1).toStrictEqual({
+			expect(withoutSystemFrom(child1)).toStrictEqual({
 				id: "child-1",
 				name: "Child Node 1",
 				note: "Child note",
 				parentId,
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expect(child2).toStrictEqual({
+			expect(withoutSystemFrom(child2)).toStrictEqual({
 				id: "child-2",
 				name: "Child Node 2",
 				note: null,
@@ -250,11 +240,7 @@ describe("API Sync with Cache", () => {
 				.where(eq(nodeMetadata.nodeId, "child-2"))
 				.get();
 
-			// Delete dynamic systemFrom before deep equality comparison
-			delete (childMeta1 as {systemFrom?: string}).systemFrom;
-			delete (childMeta2 as {systemFrom?: string}).systemFrom;
-
-			expect(childMeta1).toStrictEqual({
+			expect(withoutSystemFrom(childMeta1)).toStrictEqual({
 				nodeId: "child-1",
 				shortId: "child1",
 				priority: 150,
@@ -264,7 +250,7 @@ describe("API Sync with Cache", () => {
 				layoutMode: null, // default empty data = null
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expect(childMeta2).toStrictEqual({
+			expect(withoutSystemFrom(childMeta2)).toStrictEqual({
 				nodeId: "child-2",
 				shortId: "child2",
 				priority: 250,
@@ -322,10 +308,7 @@ describe("API Sync with Cache", () => {
 				.where(and(eq(nodeContent.id, "existing-node"), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 				.get();
 
-			// Delete dynamic systemFrom before deep equality comparison
-			delete (updatedContent as {systemFrom?: string}).systemFrom;
-
-			expect(updatedContent).toStrictEqual({
+			expect(withoutSystemFrom(updatedContent)).toStrictEqual({
 				id: "existing-node",
 				name: "Updated Name",
 				note: "Updated Note",
@@ -339,10 +322,7 @@ describe("API Sync with Cache", () => {
 				.where(and(eq(nodeMetadata.nodeId, "existing-node"), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)))
 				.get();
 
-			// Delete dynamic systemFrom before deep equality comparison
-			delete (updatedMeta as {systemFrom?: string}).systemFrom;
-
-			expect(updatedMeta).toStrictEqual({
+			expect(withoutSystemFrom(updatedMeta)).toStrictEqual({
 				nodeId: "existing-node",
 				shortId: "existingnode",
 				priority: 150,
@@ -463,11 +443,9 @@ describe("API Sync with Cache", () => {
 
 			const cachedNode = await cacheService.getNode("cached-node");
 
-			// Delete dynamic systemFrom before deep equality comparison
 			const actualSystemFrom = cachedNode!.systemFrom;
-			delete (cachedNode as {systemFrom?: string}).systemFrom;
 
-			expect(cachedNode).toStrictEqual({
+			expect(withoutSystemFrom(cachedNode)).toStrictEqual({
 				id: "cached-node",
 				shortId: "cachednode",
 				name: "Cached Name",
@@ -531,9 +509,8 @@ describe("API Sync with Cache", () => {
 
 			// Spot-check node-0 (index 0: even, divisible by 3)
 			const content0 = storedContent.find((n) => n.id === "node-0");
-			delete (content0 as {systemFrom?: string}).systemFrom;
 
-			expect(content0).toStrictEqual({
+			expect(withoutSystemFrom(content0)).toStrictEqual({
 				id: "node-0",
 				name: "Node 0",
 				note: "Note 0",
@@ -542,9 +519,8 @@ describe("API Sync with Cache", () => {
 			});
 
 			const meta0 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, "node-0")).get();
-			delete (meta0 as {systemFrom?: string}).systemFrom;
 
-			expect(meta0).toStrictEqual({
+			expect(withoutSystemFrom(meta0)).toStrictEqual({
 				nodeId: "node-0",
 				shortId: "node0",
 				priority: 0,
@@ -557,9 +533,8 @@ describe("API Sync with Cache", () => {
 
 			// Spot-check node-50 (index 50: even, not divisible by 3)
 			const content50 = storedContent.find((n) => n.id === "node-50");
-			delete (content50 as {systemFrom?: string}).systemFrom;
 
-			expect(content50).toStrictEqual({
+			expect(withoutSystemFrom(content50)).toStrictEqual({
 				id: "node-50",
 				name: "Node 50",
 				note: "Note 50",
@@ -568,9 +543,8 @@ describe("API Sync with Cache", () => {
 			});
 
 			const meta50 = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, "node-50")).get();
-			delete (meta50 as {systemFrom?: string}).systemFrom;
 
-			expect(meta50).toStrictEqual({
+			expect(withoutSystemFrom(meta50)).toStrictEqual({
 				nodeId: "node-50",
 				shortId: "node50",
 				priority: 500,
@@ -617,7 +591,8 @@ describe("API Sync with Cache", () => {
 				null,
 				2,
 			);
-			const error = (await apiClient.getRootNodes().catch((caught: unknown) => caught)) as Error;
+			const error = await apiClient.getRootNodes().catch((caught: unknown) => caught);
+			assert(error instanceof Error);
 			expect({name: error.name, message: error.message}).toStrictEqual({
 				name: "ZodError",
 				message: expectedMessage,
@@ -626,10 +601,8 @@ describe("API Sync with Cache", () => {
 	});
 
 	describe("Rate limit handling (429)", () => {
-		const successResponse = {
-			ok: true,
-			status: 200,
-			json: async () => ({
+		function successResponse(): Response {
+			return Response.json({
 				nodes: [
 					{
 						id: "n1",
@@ -643,16 +616,15 @@ describe("API Sync with Cache", () => {
 						data: {},
 					},
 				],
-			}),
-		} as Response;
+			});
+		}
 
 		function tooManyRequests(retryAfter?: string): Response {
-			return {
-				ok: false,
+			return new Response(null, {
 				status: 429,
 				statusText: "Too Many Requests",
 				headers: new Headers(retryAfter === undefined ? {} : {"retry-after": retryAfter}),
-			} as Response;
+			});
 		}
 
 		it("retries on 429 and succeeds once a later attempt returns 200", async () => {
@@ -663,7 +635,7 @@ describe("API Sync with Cache", () => {
 
 			fetchStub.mockResolvedValueOnce(tooManyRequests());
 			fetchStub.mockResolvedValueOnce(tooManyRequests());
-			fetchStub.mockResolvedValueOnce(successResponse);
+			fetchStub.mockResolvedValueOnce(successResponse());
 
 			const nodes = await client.getChildNodes("parent-id");
 
@@ -707,7 +679,7 @@ describe("API Sync with Cache", () => {
 			});
 
 			fetchStub.mockResolvedValueOnce(tooManyRequests());
-			fetchStub.mockResolvedValueOnce(successResponse);
+			fetchStub.mockResolvedValueOnce(successResponse());
 
 			const nodes = await client.getChildNodes("parent-id");
 
@@ -734,7 +706,7 @@ describe("API Sync with Cache", () => {
 			});
 
 			fetchStub.mockResolvedValueOnce(tooManyRequests("0"));
-			fetchStub.mockResolvedValueOnce(successResponse);
+			fetchStub.mockResolvedValueOnce(successResponse());
 
 			const nodes = await client.getChildNodes("parent-id");
 

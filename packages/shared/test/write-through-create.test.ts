@@ -12,6 +12,10 @@ import * as schema from "../src/db/schema.js";
 import {nodeContent, nodeMetadata} from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
 import {resolveOrCreateNodePath} from "../src/utils/node-resolver.js";
+import {requestJson} from "./helpers/request-body.js";
+import {z} from "zod";
+
+const createBodySchema = z.looseObject({parent_id: z.string(), name: z.string(), position: z.string().optional()});
 
 const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "../src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
@@ -63,7 +67,7 @@ function setup() {
 			const path = url.replace("https://workflowy.test/api/v1", "");
 			calls.push(`${method} ${path}`);
 			if (method === "POST" && path === "/nodes/") {
-				const body = JSON.parse(init?.body as string) as {parent_id: string; name: string; position?: string};
+				const body = createBodySchema.parse(requestJson(init));
 				const siblings = [...server.values()]
 					.filter((node) => node.parentId === body.parent_id)
 					.map((node) => node.priority);

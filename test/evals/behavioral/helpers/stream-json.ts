@@ -51,10 +51,14 @@ function resultText(content: ContentBlock["content"]): string {
 	return (content ?? []).map((part) => part.text ?? "").join("");
 }
 
+function isStreamEvent(value: unknown): value is StreamEvent {
+	return typeof value === "object" && value !== null && "type" in value && typeof value.type === "string";
+}
+
 function parseLine(line: string): StreamEvent | undefined {
 	try {
 		const event: unknown = JSON.parse(line);
-		return typeof event === "object" && event !== null ? (event as StreamEvent) : undefined;
+		return isStreamEvent(event) ? event : undefined;
 	} catch {
 		return undefined;
 	}

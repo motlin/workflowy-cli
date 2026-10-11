@@ -31,8 +31,8 @@ describe("round-trip test infrastructure", () => {
 			const {sqlite} = buildTestDb();
 
 			const tableRows = sqlite
-				.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-				.all() as {name: string}[];
+				.prepare<[], {name: string}>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+				.all();
 			const tableNames = tableRows.map((row) => row.name);
 
 			expect(tableNames).toStrictEqual([

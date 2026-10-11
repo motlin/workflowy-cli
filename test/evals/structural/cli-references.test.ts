@@ -13,6 +13,20 @@ interface Manifest {
 	commands: Record<string, ManifestCommand>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isManifest(value: unknown): value is Manifest {
+	return (
+		isRecord(value) &&
+		isRecord(value.commands) &&
+		Object.values(value.commands).every(
+			(command) => isRecord(command) && typeof command.id === "string" && isRecord(command.flags),
+		)
+	);
+}
+
 /** Universal flags accepted by all oclif commands, even if not in the manifest. */
 const UNIVERSAL_FLAGS = new Set(["help", "json", "verbose", "version", "yes"]);
 
@@ -47,7 +61,11 @@ describe("CLI Reference Validation", () => {
 	let allInvocations: Array<{invocation: CliInvocation; filePath: string}>;
 
 	beforeAll(() => {
-		manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
+		const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+		if (!isManifest(parsed)) {
+			throw new Error(`${manifestPath} is not an oclif manifest with a commands map`);
+		}
+		manifest = parsed;
 
 		const markdownFiles = [
 			...collectComponentFiles("skills"),

@@ -80,6 +80,11 @@ export function createEvalContext(options?: {mockServerPort?: number}): EvalCont
 	};
 }
 
+/** A property of a thrown value, or undefined when it is not an object. */
+function errorField(error: unknown, key: string): unknown {
+	return typeof error === "object" && error !== null && key in error ? Reflect.get(error, key) : undefined;
+}
+
 /**
  * Runs a shell command in the eval context.
  *
@@ -114,15 +119,13 @@ export async function runInEvalContext(
 		});
 		return {exitCode: 0, stderr: "", stdout};
 	} catch (error: unknown) {
-		const execError = error as {
-			status?: number;
-			stdout?: string;
-			stderr?: string;
-		};
+		const status = errorField(error, "status");
+		const stderr = errorField(error, "stderr");
+		const stdout = errorField(error, "stdout");
 		return {
-			exitCode: execError.status ?? 1,
-			stderr: execError.stderr ?? "",
-			stdout: execError.stdout ?? "",
+			exitCode: typeof status === "number" ? status : 1,
+			stderr: typeof stderr === "string" ? stderr : "",
+			stdout: typeof stdout === "string" ? stdout : "",
 		};
 	}
 }

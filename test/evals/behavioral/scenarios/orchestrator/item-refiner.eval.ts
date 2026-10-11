@@ -16,6 +16,7 @@ import {
 	flattenSubagentExecutions,
 	runLlmEval,
 	claudeCliAvailable,
+	stringInput,
 } from "../../helpers/llm-eval-harness.js";
 import {createMockWorkflowyServer, type MockWorkflowyServer} from "../../helpers/mock-workflowy-server.js";
 
@@ -107,7 +108,7 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 
 		const readPaths = result.toolCalls
 			.filter((call) => call.name === "Read")
-			.map((call) => call.input.file_path as string);
+			.map((call) => stringInput(call, "file_path"));
 		const expectedTaggers = ["project-tagger", "people-tagger", "due-date-detector", "context-tagger"];
 		const readTaggers = expectedTaggers.filter((tagger) => readPaths.some((path) => path.includes(tagger)));
 

@@ -134,7 +134,7 @@ export async function runLlmEval(
  * Extract bash commands from captured tool calls.
  */
 export function extractBashCommands(toolCalls: CapturedToolCall[]): string[] {
-	return toolCalls.filter((tc) => tc.name === "Bash").map((tc) => tc.input.command as string);
+	return toolCalls.filter((tc) => tc.name === "Bash").map((tc) => stringInput(tc, "command"));
 }
 
 /**
@@ -156,4 +156,4 @@ export function extractSubagentLaunches(
 		});
 }
 
-export {flattenSubagentExecutions} from "./stream-json.js";
+export {flattenSubagentExecutions, stringInput} from "./stream-json.js";

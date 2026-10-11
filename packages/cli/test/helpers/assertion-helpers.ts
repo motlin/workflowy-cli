@@ -13,3 +13,14 @@ export function expectPhasedOut(node: TemporalRecord, expectedSystemTo?: string)
 		expect(node.systemTo, "Node.systemTo should match expected").toBe(expectedSystemTo);
 	}
 }
+
+/** A copy of a temporal row without its dynamic `systemFrom`, for deep equality. */
+export function withoutSystemFrom<T extends {systemFrom: string}>(
+	row: T | undefined,
+): Omit<T, "systemFrom"> | undefined {
+	if (row === undefined) {
+		return undefined;
+	}
+	const {systemFrom: _systemFrom, ...rest} = row;
+	return rest;
+}

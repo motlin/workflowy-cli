@@ -9,6 +9,7 @@ import type {MockInstance} from "vite-plus/test";
 import Delete from "../../../src/commands/node/delete.js";
 import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
 import {createApiNode, createTestNode} from "../../helpers/node-fixtures.js";
+import {requestBody} from "../../helpers/request-body.js";
 
 describe("node delete command", () => {
 	let originalEnv: typeof process.env;
@@ -237,7 +238,7 @@ describe("node delete command", () => {
 				const method = init?.method ?? "GET";
 				const href = url instanceof Request ? url.url : url.toString();
 				const call = `${method} ${href}`;
-				calls.push(init?.body === undefined ? call : `${call} ${init.body as string}`);
+				calls.push(init?.body === undefined ? call : `${call} ${requestBody(init)}`);
 				const parentId = new URL(href).searchParams.get("parent_id");
 				if (parentId !== null) {
 					const nodes = children[parentId].map((id, priority) =>

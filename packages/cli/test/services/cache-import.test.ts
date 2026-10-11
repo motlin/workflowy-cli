@@ -8,6 +8,7 @@ import {importBackup} from "../../src/services/cache-import.js";
 import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
 import {expectActiveRecord} from "../helpers/assertion-helpers.js";
 import {createNodeFromContent} from "../helpers/node-fixtures.js";
+import {assert} from "vite-plus/test";
 
 const T0 = new Date("2024-01-01T00:00:00Z");
 const T1 = new Date("2024-01-01T00:01:00Z");
@@ -807,9 +808,10 @@ describe("cache-import service", () => {
 			];
 			const filePath = writeBackupFile(backupContent);
 
-			const error = (await importBackup(testDatabase.db, filePath, "backup.json").catch(
+			const error = await importBackup(testDatabase.db, filePath, "backup.json").catch(
 				(caught: unknown) => caught,
-			)) as Error;
+			);
+			assert(error instanceof Error);
 			expect({name: error.name, message: error.message}).toStrictEqual({
 				name: "ZodError",
 				message: `[

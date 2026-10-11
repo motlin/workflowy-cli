@@ -1,20 +1,22 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
-import {createLadderRouter} from "../src/server/routes/ladder.js";
+import {createLadderRouter, type LadderOperations} from "../src/server/routes/ladder.js";
 import type {AppEnv} from "../src/server/context.js";
+import type {Ladder} from "../src/server/ladder-model.js";
 import type {LadderService} from "../src/server/ladder-service.js";
 
-function makeApp(service: unknown) {
+/** A router over a service that answers only the operations a test supplies. */
+function makeApp(operations: Partial<LadderOperations>) {
+	const unexpected = async (): Promise<never> => {
+		throw new Error("unexpected ladder service call");
+	};
+	const service: LadderOperations = {read: unexpected, move: unexpected, complete: unexpected, ...operations};
 	const app = new Hono<AppEnv>();
-	app.use("/*", async (c, next) => {
-		c.set("ctx", {} as never);
-		await next();
-	});
-	app.route("/api/v1/ladder", createLadderRouter({createService: () => service as never}));
+	app.route("/api/v1/ladder", createLadderRouter({createService: () => service}));
 	return app;
 }
 
-const ladders = {
+const ladders: Record<string, Ladder> = {
 	work: {
 		root: "work",
 		bucketId: "wb",

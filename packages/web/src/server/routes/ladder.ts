@@ -22,8 +22,11 @@ const BUCKET_PATHS: Record<string, string[]> = {
 	personal: ["Personal", "☑️ Next (Personal)", "✅ Tasks", "📌 Tasks (asap) (personal)"],
 };
 
+/** The part of {@link LadderService} the router calls. */
+export type LadderOperations = Pick<LadderService, "read" | "move" | "complete">;
+
 export interface LadderRouterOptions {
-	createService?: (ctx: ServerContext) => LadderService;
+	createService?: (ctx: ServerContext) => LadderOperations;
 }
 
 export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppEnv> {

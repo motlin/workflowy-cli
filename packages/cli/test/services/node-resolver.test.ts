@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type {WorkflowyApiClient} from "@workflowy/shared/api";
+import {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {MockInstance} from "vite-plus/test";
 import {CacheService} from "../../src/services/cache.js";
 import {
@@ -18,6 +18,7 @@ describe("node-resolver service", () => {
 	let tempDir: string;
 	let testDatabase: TestDatabase;
 	let cacheService: CacheService;
+	let apiClient: WorkflowyApiClient;
 	let mockApiClient: {
 		findNodeByPath: MockInstance<WorkflowyApiClient["findNodeByPath"]>;
 		createNode: MockInstance<WorkflowyApiClient["createNode"]>;
@@ -30,11 +31,16 @@ describe("node-resolver service", () => {
 		testDatabase = createTestDatabase(testDbPath);
 		cacheService = new CacheService(testDatabase.db);
 
+		apiClient = new WorkflowyApiClient("test-api-key");
 		mockApiClient = {
-			findNodeByPath: vi.fn<WorkflowyApiClient["findNodeByPath"]>(),
-			createNode: vi.fn<WorkflowyApiClient["createNode"]>(),
+			findNodeByPath: vi.spyOn(apiClient, "findNodeByPath").mockResolvedValue(null),
+			createNode: vi
+				.spyOn(apiClient, "createNode")
+				.mockRejectedValue(new Error("createNode was not stubbed for this test")),
 			// A created node is read back for the priority Workflowy gave it
-			getNode: vi.fn<WorkflowyApiClient["getNode"]>(async (id) => createApiNode({id, priority: 100})),
+			getNode: vi
+				.spyOn(apiClient, "getNode")
+				.mockImplementation(async (id) => createApiNode({id, priority: 100})),
 		};
 	});
 
@@ -47,7 +53,7 @@ describe("node-resolver service", () => {
 
 	describe("resolveNodeId", () => {
 		it("returns id directly when provided", async () => {
-			const result = await resolveNodeId({id: "direct-id"}, cacheService, mockApiClient as never);
+			const result = await resolveNodeId({id: "direct-id"}, cacheService, apiClient);
 
 			expect(result).toBe("direct-id");
 			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
@@ -59,14 +65,14 @@ describe("node-resolver service", () => {
 				nodes: [createTestNode({id: fullId, shortId: "eeeeeeeeeeee", name: "Test node", parentId: null})],
 			});
 
-			const result = await resolveNodeId({id: "eeeeeeeeeeee"}, cacheService, mockApiClient as never);
+			const result = await resolveNodeId({id: "eeeeeeeeeeee"}, cacheService, apiClient);
 
 			expect(result).toBe(fullId);
 			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
 		});
 
 		it("throws an error when a short ID is not in the cache", async () => {
-			await expect(resolveNodeId({id: "aaaaaaaaaaaa"}, cacheService, mockApiClient as never)).rejects.toThrow(
+			await expect(resolveNodeId({id: "aaaaaaaaaaaa"}, cacheService, apiClient)).rejects.toThrow(
 				"No node found for short ID: aaaaaaaaaaaa",
 			);
 		});
@@ -79,7 +85,7 @@ describe("node-resolver service", () => {
 				],
 			});
 
-			const result = await resolveNodeId({path: "Root,Child"}, cacheService, mockApiClient as never);
+			const result = await resolveNodeId({path: "Root,Child"}, cacheService, apiClient);
 
 			expect(result).toBe("child-id");
 			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
@@ -88,7 +94,7 @@ describe("node-resolver service", () => {
 		it("falls back to API when not in cache", async () => {
 			mockApiClient.findNodeByPath.mockResolvedValue(createApiNode({id: "api-resolved-id"}));
 
-			const result = await resolveNodeId({path: "Missing,Path"}, cacheService, mockApiClient as never);
+			const result = await resolveNodeId({path: "Missing,Path"}, cacheService, apiClient);
 
 			expect(result).toBe("api-resolved-id");
 			expect(mockApiClient.findNodeByPath).toHaveBeenCalledTimes(1);
@@ -98,7 +104,7 @@ describe("node-resolver service", () => {
 		it("throws error when node not found", async () => {
 			mockApiClient.findNodeByPath.mockResolvedValue(null);
 
-			await expect(resolveNodeId({path: "Missing,Path"}, cacheService, mockApiClient as never)).rejects.toThrow(
+			await expect(resolveNodeId({path: "Missing,Path"}, cacheService, apiClient)).rejects.toThrow(
 				"Node not found at path: Missing > Path",
 			);
 		});
@@ -108,7 +114,7 @@ describe("node-resolver service", () => {
 				nodes: [createTestNode({id: "target", name: "Target", parentId: null})],
 			});
 
-			const result = await resolveNodeId({path: "  Target  "}, cacheService, mockApiClient as never);
+			const result = await resolveNodeId({path: "  Target  "}, cacheService, apiClient);
 
 			expect(result).toBe("target");
 		});
@@ -116,12 +122,12 @@ describe("node-resolver service", () => {
 
 	describe("resolveOptionalNodeId", () => {
 		it("returns undefined when no id or path provided", async () => {
-			const result = await resolveOptionalNodeId({}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalNodeId({}, cacheService, apiClient);
 			expect(result).toBeUndefined();
 		});
 
 		it("resolves id when provided", async () => {
-			const result = await resolveOptionalNodeId({id: "my-id"}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalNodeId({id: "my-id"}, cacheService, apiClient);
 			expect(result).toBe("my-id");
 		});
 
@@ -130,19 +136,19 @@ describe("node-resolver service", () => {
 				nodes: [createTestNode({id: "resolved-id", name: "Target", parentId: null})],
 			});
 
-			const result = await resolveOptionalNodeId({path: "Target"}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalNodeId({path: "Target"}, cacheService, apiClient);
 			expect(result).toBe("resolved-id");
 		});
 	});
 
 	describe("resolveParent", () => {
 		it("returns id directly when provided", async () => {
-			const result = await resolveParent({id: "parent-id"}, cacheService, mockApiClient as never);
+			const result = await resolveParent({id: "parent-id"}, cacheService, apiClient);
 			expect(result).toBe("parent-id");
 		});
 
 		it("returns system target key directly when passed via id", async () => {
-			const result = await resolveParent({id: "inbox"}, cacheService, mockApiClient as never);
+			const result = await resolveParent({id: "inbox"}, cacheService, apiClient);
 			expect(result).toBe("inbox");
 		});
 
@@ -152,14 +158,14 @@ describe("node-resolver service", () => {
 				nodes: [createTestNode({id: fullId, shortId: "eeeeeeeeeeee", name: "Parent", parentId: null})],
 			});
 
-			const result = await resolveParent({id: "eeeeeeeeeeee"}, cacheService, mockApiClient as never);
+			const result = await resolveParent({id: "eeeeeeeeeeee"}, cacheService, apiClient);
 
 			expect(result).toBe(fullId);
 			expect(mockApiClient.findNodeByPath.mock.calls).toStrictEqual([]);
 		});
 
 		it("throws an error when a short ID is not in the cache", async () => {
-			await expect(resolveParent({id: "aaaaaaaaaaaa"}, cacheService, mockApiClient as never)).rejects.toThrow(
+			await expect(resolveParent({id: "aaaaaaaaaaaa"}, cacheService, apiClient)).rejects.toThrow(
 				"No node found for short ID: aaaaaaaaaaaa",
 			);
 		});
@@ -172,27 +178,27 @@ describe("node-resolver service", () => {
 				],
 			});
 
-			const result = await resolveParent({path: "Root,Parent"}, cacheService, mockApiClient as never);
+			const result = await resolveParent({path: "Root,Parent"}, cacheService, apiClient);
 			expect(result).toBe("parent-id");
 		});
 
 		it("falls back to API for path resolution", async () => {
 			mockApiClient.findNodeByPath.mockResolvedValue(createApiNode({id: "api-parent-id"}));
 
-			const result = await resolveParent({path: "Missing,Parent"}, cacheService, mockApiClient as never);
+			const result = await resolveParent({path: "Missing,Parent"}, cacheService, apiClient);
 
 			expect(result).toBe("api-parent-id");
 			expect(mockApiClient.findNodeByPath).toHaveBeenCalledTimes(1);
 		});
 
 		it("throws error when no flags provided", async () => {
-			await expect(resolveParent({}, cacheService, mockApiClient as never)).rejects.toThrow(
+			await expect(resolveParent({}, cacheService, apiClient)).rejects.toThrow(
 				"One of --parent-id or --parent-path is required",
 			);
 		});
 
 		it("throws error when multiple flags provided", async () => {
-			await expect(resolveParent({id: "id", path: "path"}, cacheService, mockApiClient as never)).rejects.toThrow(
+			await expect(resolveParent({id: "id", path: "path"}, cacheService, apiClient)).rejects.toThrow(
 				"Only one of --parent-id or --parent-path can be specified",
 			);
 		});
@@ -200,7 +206,7 @@ describe("node-resolver service", () => {
 		it("throws error when path not found", async () => {
 			mockApiClient.findNodeByPath.mockResolvedValue(null);
 
-			await expect(resolveParent({path: "Missing,Node"}, cacheService, mockApiClient as never)).rejects.toThrow(
+			await expect(resolveParent({path: "Missing,Node"}, cacheService, apiClient)).rejects.toThrow(
 				"Node not found at path: Missing > Node",
 			);
 		});
@@ -208,17 +214,17 @@ describe("node-resolver service", () => {
 
 	describe("resolveOptionalParent", () => {
 		it("returns undefined when no flags provided", async () => {
-			const result = await resolveOptionalParent({}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalParent({}, cacheService, apiClient);
 			expect(result).toBeUndefined();
 		});
 
 		it("resolves id when provided", async () => {
-			const result = await resolveOptionalParent({id: "parent-id"}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalParent({id: "parent-id"}, cacheService, apiClient);
 			expect(result).toBe("parent-id");
 		});
 
 		it("resolves system target when passed via id", async () => {
-			const result = await resolveOptionalParent({id: "inbox"}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalParent({id: "inbox"}, cacheService, apiClient);
 			expect(result).toBe("inbox");
 		});
 
@@ -227,7 +233,7 @@ describe("node-resolver service", () => {
 				nodes: [createTestNode({id: "target-id", name: "Target", parentId: null})],
 			});
 
-			const result = await resolveOptionalParent({path: "Target"}, cacheService, mockApiClient as never);
+			const result = await resolveOptionalParent({path: "Target"}, cacheService, apiClient);
 			expect(result).toBe("target-id");
 		});
 	});
@@ -241,7 +247,7 @@ describe("node-resolver service", () => {
 				],
 			});
 
-			const result = await resolveOrCreateNodePath("Root,Leaf", cacheService, mockApiClient as never);
+			const result = await resolveOrCreateNodePath("Root,Leaf", cacheService, apiClient);
 
 			expect(result).toBe("leaf-id");
 			expect(mockApiClient.createNode.mock.calls).toStrictEqual([]);
@@ -257,7 +263,7 @@ describe("node-resolver service", () => {
 				createApiNode({id: "new-child-id", name: "NewChild", parent_id: "root-id", createdAt: now}),
 			);
 
-			const result = await resolveOrCreateNodePath("Root,NewChild", cacheService, mockApiClient as never);
+			const result = await resolveOrCreateNodePath("Root,NewChild", cacheService, apiClient);
 
 			expect(result).toBe("new-child-id");
 			expect(mockApiClient.createNode).toHaveBeenCalledTimes(1);
@@ -280,7 +286,7 @@ describe("node-resolver service", () => {
 				createApiNode({id: "level3-id", name: "Level3", parent_id: "level2-id", createdAt: now}),
 			);
 
-			const result = await resolveOrCreateNodePath("Root,Level2,Level3", cacheService, mockApiClient as never);
+			const result = await resolveOrCreateNodePath("Root,Level2,Level3", cacheService, apiClient);
 
 			expect(result).toBe("level3-id");
 			expect(mockApiClient.createNode).toHaveBeenCalledTimes(2);
@@ -289,9 +295,7 @@ describe("node-resolver service", () => {
 		it("throws error for root-level creation", async () => {
 			mockApiClient.findNodeByPath.mockResolvedValue(null);
 
-			await expect(
-				resolveOrCreateNodePath("NewRoot,Child", cacheService, mockApiClient as never),
-			).rejects.toThrow(
+			await expect(resolveOrCreateNodePath("NewRoot,Child", cacheService, apiClient)).rejects.toThrow(
 				'Cannot create path "NewRoot,Child": first segment "NewRoot" does not exist. Root-level node creation is not supported.',
 			);
 		});
@@ -307,7 +311,7 @@ describe("node-resolver service", () => {
 			);
 
 			// This shouldn't happen in real usage, but tests the dedup logic
-			const result = await resolveOrCreateNodePath("Root,New", cacheService, mockApiClient as never);
+			const result = await resolveOrCreateNodePath("Root,New", cacheService, apiClient);
 
 			expect(result).toBe("new-id");
 			expect(mockApiClient.createNode).toHaveBeenCalledTimes(1);
@@ -323,7 +327,7 @@ describe("node-resolver service", () => {
 				createApiNode({id: "cached-id", name: "Cached", parent_id: "root-id", createdAt: now}),
 			);
 
-			await resolveOrCreateNodePath("Root,Cached", cacheService, mockApiClient as never);
+			await resolveOrCreateNodePath("Root,Cached", cacheService, apiClient);
 
 			// Verify node was cached
 			const cached = await cacheService.getNode("cached-id");

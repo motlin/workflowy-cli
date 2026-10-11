@@ -7,6 +7,7 @@ import type {MockInstance} from "vite-plus/test";
 import FixPhotoGroups from "../../../src/commands/calendar/fix-photo-groups.js";
 import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
+import {requestJson} from "../../helpers/request-body.js";
 
 interface RecordedRequest {
 	url: string;
@@ -76,7 +77,7 @@ describe("calendar:fix-photo-groups command", () => {
 			requests.push({
 				url: urlString,
 				method,
-				body: init?.body ? JSON.parse(init.body as string) : undefined,
+				body: requestJson(init),
 			});
 
 			if (method === "GET") {

@@ -3,13 +3,14 @@ import {fileURLToPath} from "node:url";
 
 import {Command, type Interfaces} from "@oclif/core";
 
-type Run = (this: unknown, argv?: string[], opts?: Interfaces.LoadOptions) => Promise<unknown>;
-
 // Under vitest, require.main is unset, so Command.run falls back to @oclif/core's own package.json,
 // whose oclif.devPlugins names @oclif/plugin-plugins and warns on every test that it cannot be found.
 const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const originalRun = Reflect.get(Command, "run") as Run;
+const originalRun: unknown = Reflect.get(Command, "run");
+if (typeof originalRun !== "function") {
+	throw new TypeError("@oclif/core Command.run is not a function");
+}
 
-Reflect.set(Command, "run", function (this: unknown, argv?: string[], opts?: Interfaces.LoadOptions) {
-	return originalRun.call(this, argv, opts ?? cliRoot);
-} satisfies Run);
+Reflect.set(Command, "run", function (this: unknown, argv?: string[], opts?: Interfaces.LoadOptions): unknown {
+	return Reflect.apply(originalRun, this, [argv, opts ?? cliRoot]);
+});

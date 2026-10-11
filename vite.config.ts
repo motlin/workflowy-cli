@@ -63,8 +63,7 @@ export default defineConfig({
 			"import/no-unassigned-import": ["error", {allow: ["**/*.css", "**/dist/index.js"]}],
 			// False positives on deps used inside a nested async IIFE; dropping them creates stale closures.
 			"react/memo-dependencies": "off",
-			// Temporarily off: 200+ violations, being fixed in follow-up tasks in .llm/todo.md.
-			"typescript/no-unsafe-type-assertion": "off",
+			"typescript/no-unsafe-type-assertion": "error",
 		},
 		overrides: [
 			{

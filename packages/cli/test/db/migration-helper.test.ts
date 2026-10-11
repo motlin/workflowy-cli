@@ -23,9 +23,9 @@ describe("migration-helper", () => {
 
 	function tableNames(database: ReturnType<typeof createTestDatabase>): string[] {
 		return database.sqlite
-			.prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'view') ORDER BY name")
+			.prepare<[], {name: string}>("SELECT name FROM sqlite_master WHERE type IN ('table', 'view') ORDER BY name")
 			.all()
-			.map((row) => (row as {name: string}).name);
+			.map((row) => row.name);
 	}
 
 	it("applies every migration to a file database", () => {

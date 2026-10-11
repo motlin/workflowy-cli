@@ -1,6 +1,8 @@
 import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {ReactElement, ReactNode} from "react";
+import {z} from "zod";
 import type {Ladders} from "../src/client/ladder-state.js";
+import type {LadderItem} from "../src/server/ladder-model.js";
 import {LadderView} from "../src/client/components/ladder-view.js";
 
 vi.mock("../src/client/components/ladder-tree.js", () => ({LadderTree: () => null}));
@@ -34,12 +36,33 @@ interface ElementProps {
 	[key: string]: unknown;
 }
 
+function isElement(node: ReactNode): node is ReactElement<ElementProps> {
+	return typeof node === "object" && node !== null && "props" in node && typeof node.props === "object";
+}
+
 function elements(node: ReactNode): ReactElement<ElementProps>[] {
 	if (Array.isArray(node)) return node.flatMap(elements);
-	if (!node || typeof node !== "object" || !("props" in node)) return [];
-	const element = node as ReactElement<ElementProps>;
-	return [element, ...elements(element.props.children)];
+	if (!isElement(node)) return [];
+	return [node, ...elements(node.props.children)];
 }
+
+/** Call the callback prop `key`, failing the test when the element has none. */
+function invoke(props: ElementProps, key: string, ...args: unknown[]): unknown {
+	const callback = props[key];
+	if (typeof callback !== "function") throw new Error(`${key} is not a callback prop`);
+	return Reflect.apply(callback, undefined, args);
+}
+
+/** Render a function component element one level down, the way React would. */
+function renderComponent(element: ReactElement<ElementProps>): ReactNode {
+	if (typeof element.type !== "function") throw new Error("not a function component");
+	return Reflect.apply(element.type, undefined, [element.props]);
+}
+
+const TierItemsSchema = z.object({personal: z.object({tiers: z.array(z.object({items: z.array(z.unknown())}))})});
+
+/** The items of each personal tier, as the page currently holds them. */
+const personalTierItems = () => TierItemsSchema.parse(hooks.values[0]).personal.tiers.map((tier) => tier.items);
 
 function render() {
 	hooks.cursor = 0;
@@ -47,22 +70,29 @@ function render() {
 }
 
 function tierProps() {
-	return render().find((element) => element.props.tier)?.props as {
-		onSelect: (id: string, range: boolean, additive?: boolean) => void;
-		selected: Set<string>;
-		onGripCancel: () => void;
-		onGripDown: (event: unknown, item: {id: string; name: string}) => void;
-		onGripMove: (event: unknown, name: string) => void;
-		onGripUp: (event: unknown) => void;
-		onStep: (id: string, label: string, beforeNodeId?: string) => void;
-		onComplete: (id: string) => void;
-		rowErrors: Record<string, string>;
-		pending: Set<string>;
+	const props = render().find((element) => element.props.tier)?.props;
+	if (!props) throw new Error("no tier is rendered");
+	const callback =
+		(key: string) =>
+		(...args: unknown[]): void => {
+			invoke(props, key, ...args);
+		};
+	return {
+		onSelect: callback("onSelect"),
+		selected: props.selected,
+		onGripCancel: callback("onGripCancel"),
+		onGripDown: callback("onGripDown"),
+		onGripMove: callback("onGripMove"),
+		onGripUp: callback("onGripUp"),
+		onStep: callback("onStep"),
+		onComplete: callback("onComplete"),
+		rowErrors: props.rowErrors,
+		pending: props.pending,
 	};
 }
 
-const item = (id: string) => ({id, name: id, children: [], descendantCount: 0});
-const ladders = () => ({
+const item = (id: string): LadderItem => ({id, name: id, children: [], descendantCount: 0});
+const ladders = (): Ladders => ({
 	personal: {
 		root: "personal",
 		bucketId: "personal-bucket",
@@ -180,10 +210,7 @@ describe("local ladder actions", () => {
 			}),
 		);
 		tierProps().onStep("alice", "2nd");
-		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
-			[item("bob")],
-			[item("alice")],
-		]);
+		expect(personalTierItems()).toStrictEqual([[item("bob")], [item("alice")]]);
 		respond({
 			ok: true,
 			json: async () => ({
@@ -198,10 +225,7 @@ describe("local ladder actions", () => {
 			}),
 		});
 		await settle();
-		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
-			[item("bob"), item("alice")],
-			[],
-		]);
+		expect(personalTierItems()).toStrictEqual([[item("bob"), item("alice")], []]);
 	});
 
 	it("restores a failed Done row without undoing another socket write and clears its error on retry", async () => {
@@ -236,18 +260,12 @@ describe("local ladder actions", () => {
 		});
 		respond({ok: false, json: async () => ({error: "Test write rejected"})});
 		await settle();
-		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
-			[item("alice")],
-			[item("bob")],
-		]);
+		expect(personalTierItems()).toStrictEqual([[item("alice")], [item("bob")]]);
 		expect(tierProps().rowErrors).toStrictEqual({alice: "Test write rejected"});
 		tierProps().onComplete("alice");
 		await settle();
 		expect(tierProps().rowErrors).toStrictEqual({});
-		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
-			[],
-			[item("bob")],
-		]);
+		expect(personalTierItems()).toStrictEqual([[], [item("bob")]]);
 	});
 
 	it("keeps a socket-confirmed completion when its HTTP response is lost", async () => {
@@ -282,10 +300,7 @@ describe("local ladder actions", () => {
 		});
 		reject(new Error("Test response lost"));
 		await settle();
-		expect((hooks.values[0] as Ladders).personal.tiers.map((tier) => tier.items)).toStrictEqual([
-			[item("bob")],
-			[],
-		]);
+		expect(personalTierItems()).toStrictEqual([[item("bob")], []]);
 		expect(tierProps().rowErrors).toStrictEqual({});
 	});
 
@@ -319,7 +334,7 @@ describe("local ladder actions", () => {
 			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: ladders()})});
 		const button = render().find((element) => element.props.children === "Add bottom tier");
 		if (!button) throw new Error("Add bottom tier button is missing");
-		(button.props.onClick as () => void)();
+		invoke(button.props, "onClick");
 		await settle();
 		expect(request.mock.calls).toStrictEqual([
 			[
@@ -339,7 +354,7 @@ describe("a row whose write is in flight", () => {
 	function rowButtons(nodeId: string) {
 		const rows = render()
 			.filter((element) => element.props.tier)
-			.flatMap((tier) => elements((tier.type as (props: ElementProps) => ReactNode)(tier.props)));
+			.flatMap((tier) => elements(renderComponent(tier)));
 		const row = rows.find((element) => element.props["data-node-id"] === nodeId);
 		if (!row) throw new Error(`no row ${nodeId}`);
 		return elements(row.props.children)
@@ -475,7 +490,7 @@ it("saves selected rows before the same anchor in display order", async () => {
 });
 
 describe("subtree preview", () => {
-	const parent = {
+	const parent: LadderItem = {
 		id: "alice",
 		name: "alice",
 		hasChildren: true,
@@ -495,14 +510,14 @@ describe("subtree preview", () => {
 
 	beforeEach(async () => {
 		const withParent = ladders();
-		withParent.personal.tiers[0].items = [parent, item("bob")] as never;
+		withParent.personal.tiers[0].items = [parent, item("bob")];
 		await load(withParent);
 	});
 
 	function rows() {
 		return render()
 			.filter((element) => element.props.tier)
-			.flatMap((tier) => elements((tier.type as (props: ElementProps) => ReactNode)(tier.props)))
+			.flatMap((tier) => elements(renderComponent(tier)))
 			.filter((element) => typeof element.props["data-node-id"] === "string");
 	}
 
@@ -511,7 +526,16 @@ describe("subtree preview", () => {
 			.flatMap((row) => elements(row.props.children))
 			.find((element) => element.props.className === "ladder-tree-button");
 		if (!found) throw new Error("no Tree button");
-		return found.props as Record<string, (event: unknown) => void>;
+		const handler = (key: string) => (event: unknown) => {
+			invoke(found.props, key, event);
+		};
+		return {
+			onMouseEnter: handler("onMouseEnter"),
+			onMouseLeave: handler("onMouseLeave"),
+			onFocus: handler("onFocus"),
+			onBlur: handler("onBlur"),
+			onKeyDown: handler("onKeyDown"),
+		};
 	}
 
 	const preview = () => render().filter((element) => element.props.className === "ladder-preview");

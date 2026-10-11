@@ -1,5 +1,4 @@
 import {createNodeTree, type TreeWriteClient} from "../src/cache/create-node-tree.js";
-import type {WorkflowyNode} from "../src/types/workflowy.js";
 
 /** A fake write-through client that records createNode calls and hands back ids. */
 function fakeClient() {
@@ -9,7 +8,7 @@ function fakeClient() {
 		async createNode(options) {
 			calls.push({parent_id: options.parent_id, name: options.name, position: options.position});
 			counter += 1;
-			return {id: `id-${counter}`, name: options.name, createdAt: 1000 + counter} as WorkflowyNode;
+			return {id: `id-${counter}`, name: options.name, priority: 0, createdAt: 1000 + counter, modifiedAt: null};
 		},
 	};
 	return {client, calls};

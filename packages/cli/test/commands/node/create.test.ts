@@ -6,13 +6,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
+import {z} from "zod";
 import Create from "../../../src/commands/node/create.js";
 import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
+import {requestBody, requestJson} from "../../helpers/request-body.js";
 
 describe("node create command", () => {
 	let originalEnv: typeof process.env;
-	let fetchStub: MockInstance;
+	let fetchStub: MockInstance<typeof fetch>;
 	let tempDir: string;
 	let testDatabase: TestDatabase;
 
@@ -42,10 +44,12 @@ describe("node create command", () => {
 		}
 	});
 
+	const createBodySchema = z.looseObject({name: z.string(), note: z.string().optional(), parent_id: z.string()});
+
 	/** Each fetch made, as `METHOD url`. */
 	const requests = () =>
 		fetchStub.mock.calls.map(
-			([url, init]) => `${(init as RequestInit | undefined)?.method ?? "GET"} ${String(url)}`,
+			([url, init]) => `${init?.method ?? "GET"} ${url instanceof Request ? url.url : String(url)}`,
 		);
 
 	/**
@@ -57,7 +61,7 @@ describe("node create command", () => {
 		const created = new Map<string, {name: string; note?: string; parent_id: string}>();
 		fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 			if (init?.method === "POST") {
-				const body = JSON.parse(init.body as string) as {name: string; note?: string; parent_id: string};
+				const body = createBodySchema.parse(requestJson(init));
 				const id = ids[bodies.length];
 				bodies.push(body);
 				created.set(id, body);
@@ -288,7 +292,7 @@ describe("node create command", () => {
 				capturedRequests.push(`${method} ${urlStr}`);
 
 				if (method === "POST" && urlStr.endsWith("/nodes/")) {
-					capturedBody = init?.body as string;
+					capturedBody = requestBody(init);
 					return new Response(JSON.stringify({item_id: "new-id"}), {status: 200});
 				}
 

@@ -1,32 +1,30 @@
-import type {UpdateNodeRequest, WorkflowyApiClient} from "../src/api/workflowy-client.js";
-import type {CacheService} from "../src/cache/cache-service.js";
+import {type UpdateNodeRequest, WorkflowyApiClient} from "../src/api/workflowy-client.js";
+import {CacheService} from "../src/cache/cache-service.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
-import type {WorkflowyNode} from "../src/types/workflowy.js";
+import {buildTestDb} from "./helpers/round-trip-helpers.js";
 
 const ORIGINAL_ID = "original-node";
 const MIRROR_ID = "mirror-node";
 const PLAIN_ID = "plain-node";
 
-/** Fakes that record which node id each API update targets. */
+/** An API that records which node id each update targets, over an empty cache that knows one mirror. */
 function fakes() {
 	const updates: Array<[string, UpdateNodeRequest]> = [];
-	const apiClient = {
-		async updateNode(id: string, request: UpdateNodeRequest) {
-			updates.push([id, request]);
-		},
-		async getNode(id: string) {
-			return {id, name: "fresh"} as WorkflowyNode;
-		},
-	} as unknown as WorkflowyApiClient;
-	const cacheService = {
-		async getMirrorOriginal(id: string) {
-			return id === MIRROR_ID ? ORIGINAL_ID : null;
-		},
-		async getNode(id: string) {
-			return {id, parentId: null};
-		},
-		async insertNode() {},
-	} as unknown as CacheService;
+	const apiClient = new WorkflowyApiClient("test-key");
+	vi.spyOn(apiClient, "updateNode").mockImplementation(async (id, request) => {
+		updates.push([id, request]);
+	});
+	vi.spyOn(apiClient, "getNode").mockImplementation(async (id) => ({
+		id,
+		name: "fresh",
+		priority: 0,
+		createdAt: 0,
+		modifiedAt: null,
+	}));
+	const cacheService = new CacheService(buildTestDb().database);
+	vi.spyOn(cacheService, "getMirrorOriginal").mockImplementation(async (id) =>
+		id === MIRROR_ID ? ORIGINAL_ID : null,
+	);
 	return {client: new WorkflowyWriteThroughClient(apiClient, cacheService), updates};
 }
 

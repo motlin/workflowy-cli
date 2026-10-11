@@ -9,6 +9,7 @@ import type {MockInstance} from "vite-plus/test";
 import Move from "../../../src/commands/node/move.js";
 import {cleanupTestDatabase, createTestDatabase, seedTestData, type TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
+import {requestBody} from "../../helpers/request-body.js";
 
 describe("node:move command", () => {
 	let originalEnv: typeof process.env;
@@ -135,7 +136,7 @@ describe("node:move command", () => {
 				const method = init?.method ?? "GET";
 
 				if (method === "POST") {
-					capturedBody = init?.body as string;
+					capturedBody = requestBody(init);
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
@@ -185,7 +186,7 @@ describe("node:move command", () => {
 				const method = init?.method ?? "GET";
 
 				if (method === "POST") {
-					capturedBody = init?.body as string;
+					capturedBody = requestBody(init);
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
@@ -234,7 +235,7 @@ describe("node:move command", () => {
 				const method = init?.method ?? "GET";
 
 				if (method === "POST") {
-					capturedBody = init?.body as string;
+					capturedBody = requestBody(init);
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
@@ -289,7 +290,7 @@ describe("node:move command", () => {
 				capturedUrl = urlStr;
 
 				if (method === "POST") {
-					capturedBody = init?.body as string;
+					capturedBody = requestBody(init);
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 
@@ -349,7 +350,7 @@ describe("node:move command", () => {
 				requests.push(`${method} ${urlStr}`);
 
 				if (method === "POST" && urlStr.endsWith("/nodes/source-id/move")) {
-					capturedBody = init?.body as string;
+					capturedBody = requestBody(init);
 					return new Response(JSON.stringify({}), {status: 200});
 				}
 

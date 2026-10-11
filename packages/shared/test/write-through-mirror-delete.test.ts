@@ -6,11 +6,15 @@ import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
-import {deletePlanCalls} from "../src/cache/delete-plan.js";
+import {type DeletePlan, deletePlanCalls} from "../src/cache/delete-plan.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
 import {mirrors, nodeContent, nodeMetadata} from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
+import {requestBody, requestJson} from "./helpers/request-body.js";
+import {z} from "zod";
+
+const moveBodySchema = z.looseObject({parent_id: z.string(), position: z.enum(["top", "bottom"])});
 
 const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "../src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
@@ -143,7 +147,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			const method = init?.method ?? "GET";
 			const path = url.replace("https://workflowy.test/api/v1", "");
 			const call = `${method} ${path}`;
-			calls.push(init?.body === undefined ? call : `${call} ${init.body as string}`);
+			calls.push(init?.body === undefined ? call : `${call} ${requestBody(init)}`);
 			if (call === failCall) {
 				return new Response('{"code":"server_error"}', {status: 500, statusText: "Internal Server Error"});
 			}
@@ -168,7 +172,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			if (method === "DELETE") {
 				detach(id);
 			} else if (method === "POST" && path.endsWith("/move")) {
-				const body = JSON.parse(init?.body as string) as {parent_id: string; position: "top" | "bottom"};
+				const body = moveBodySchema.parse(requestJson(init));
 				detach(id);
 				const siblings = server.get(body.parent_id) ?? [];
 				server.set(body.parent_id, body.position === "top" ? [id, ...siblings] : [...siblings, id]);
@@ -220,7 +224,7 @@ const PROJECTS_PLAN = {
 		{originalId: "task-y", mirrorId: "mirror-y", parentId: "task-a", position: "bottom", siblingIds: []},
 	],
 	nodeId: "projects",
-};
+} satisfies DeletePlan;
 
 describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 	afterEach(() => {
@@ -421,7 +425,7 @@ describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 	});
 
 	it("lists the API calls of a plan in the order they are made", () => {
-		expect(deletePlanCalls(PROJECTS_PLAN as Parameters<typeof deletePlanCalls>[0])).toStrictEqual([
+		expect(deletePlanCalls(PROJECTS_PLAN)).toStrictEqual([
 			{method: "DELETE", path: "/nodes/mirror-in/mirror"},
 			{method: "DELETE", path: "/nodes/mirror-nested/mirror"},
 			{method: "DELETE", path: "/nodes/mirror-b/mirror"},

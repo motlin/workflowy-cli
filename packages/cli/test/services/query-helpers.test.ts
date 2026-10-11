@@ -1,5 +1,4 @@
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
-import type {Node} from "@workflowy/shared/types";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
@@ -7,6 +6,7 @@ import path from "node:path";
 import {QueryHelpers} from "../../src/services/query-helpers.js";
 import {cleanupTestDatabase, createTestDatabase, type TestDatabase} from "../db/migration-helper.js";
 import {createTestNode, getShortId, splitNodeIntoContentAndMetadata} from "../helpers/node-fixtures.js";
+import {withoutSystemFrom} from "../helpers/assertion-helpers.js";
 
 function insertTestNodes(
 	db: ReturnType<typeof createTestDatabase>["db"],
@@ -51,11 +51,9 @@ describe("QueryHelpers", () => {
 
 			const node = await queryHelpers.getNodeById("test-node");
 
-			// Delete dynamic systemFrom field before deep equality comparison
 			const actualSystemFrom = node!.systemFrom;
-			delete (node as Partial<Node>).systemFrom;
 
-			expect(node).toStrictEqual({
+			expect(withoutSystemFrom(node)).toStrictEqual({
 				id: "test-node",
 				shortId: getShortId("test-node"),
 				name: "Test Node",
