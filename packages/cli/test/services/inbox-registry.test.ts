@@ -20,9 +20,9 @@ describe("inbox registry", () => {
 		cleanupTestDatabase(database);
 	});
 
-	it("resolves live links and reports links whose target is missing from the cache", async () => {
+	it("resolves live links and reports links whose target is missing from the cache", () => {
 		seedTestData(database, {nodes: [createTestNode({id: LIVE_INBOX_ID, name: "Inbox"})]});
-		const result = await resolveInboxLinks(database.db, [
+		const result = resolveInboxLinks(database.db, [
 			{id: "link-live", name: linkName("41bd95477fbc", "Personal 📥 Inbox")},
 			{id: "link-broken", name: linkName(DELETED_INBOX_SHORT_ID)},
 			{id: "plain", name: "Work 📥 Inbox"},

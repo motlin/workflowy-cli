@@ -56,7 +56,7 @@ export function useTagColors(): TagColors {
 export function useSetTagColor() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: ({name, color}: {name: string; color: string}) => setTagColor(name, color),
+		mutationFn: async ({name, color}: {name: string; color: string}) => setTagColor(name, color),
 		async onSettled() {
 			await queryClient.invalidateQueries({queryKey: tagColorKeys.all});
 		},
@@ -66,7 +66,7 @@ export function useSetTagColor() {
 export function useRemoveTagColor() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (name: string) => removeTagColor(name),
+		mutationFn: async (name: string) => removeTagColor(name),
 		async onSettled() {
 			await queryClient.invalidateQueries({queryKey: tagColorKeys.all});
 		},

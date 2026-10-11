@@ -121,7 +121,7 @@ function defaultService(ctx: ServerContext): LadderService {
 			const reader = new NodeTreeReader(ctx.cacheService);
 			const buckets: LadderBuckets = {};
 			for (const [root, path] of Object.entries(BUCKET_PATHS)) {
-				const bucket = await ctx.cacheService.findNodeByPath(path);
+				const bucket = ctx.cacheService.findNodeByPath(path);
 				if (!bucket) {
 					throw new Error(`no ${root} asap bucket at ${path.join(" > ")}`);
 				}
@@ -138,7 +138,7 @@ function defaultService(ctx: ServerContext): LadderService {
 		refreshTier: async (parentId) => {
 			const children = await apiClient(ctx).getChildNodes(parentId);
 			for (const child of children) {
-				await ctx.cacheService.insertNode(child, parentId);
+				ctx.cacheService.insertNode(child, parentId);
 			}
 		},
 		completeNode: async (nodeId) => writeClient(ctx).completeNode(nodeId),

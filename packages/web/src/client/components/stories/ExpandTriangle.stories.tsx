@@ -17,7 +17,7 @@ const meta: Meta<typeof ExpandTriangle> = {
 		},
 	},
 	args: {
-		onClick: fn(),
+		onClick: fn<() => void>(),
 	},
 };
 

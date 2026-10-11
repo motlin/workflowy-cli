@@ -24,7 +24,7 @@ const page = (body, status = 200, headers = {}) => ({
 	ok: status >= 200 && status < 300,
 	status,
 	headers: {get: (name) => headers[name.toLowerCase()] ?? null},
-	json: async () => body,
+	json: async () => Promise.resolve(body),
 });
 
 function fakeFetch(responses) {
@@ -33,9 +33,9 @@ function fakeFetch(responses) {
 		calls.push({url, authorization: init.headers.Authorization});
 		const next = responses.shift();
 		if (!next) {
-			throw new Error(`unexpected request ${url}`);
+			return Promise.reject(new Error(`unexpected request ${url}`));
 		}
-		return next;
+		return Promise.resolve(next);
 	};
 	return {fetchImpl, calls};
 }
@@ -106,7 +106,10 @@ test("fetchMessagesSince waits out a 429 and retries the same page", async () =>
 		afterId: "1000",
 		token: "tok",
 		fetchImpl,
-		sleep: async (ms) => waits.push(ms),
+		sleep: async (ms) => {
+			waits.push(ms);
+			return Promise.resolve();
+		},
 	});
 
 	assert.deepStrictEqual(

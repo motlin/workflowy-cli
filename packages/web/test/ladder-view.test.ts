@@ -121,13 +121,16 @@ interface FakeResponse {
 	json: () => Promise<unknown>;
 }
 const request = vi.fn<(path: string, options: {body: string}) => Promise<FakeResponse>>();
-const settle = () => new Promise((resolve) => setImmediate(resolve));
+const settle = async () =>
+	new Promise((resolve) => {
+		setImmediate(resolve);
+	});
 
 /** Mount the page and answer its initial ladder read, the way the browser would. */
 async function load(value: unknown) {
 	hooks.values = [];
 	hooks.effects = [];
-	request.mockResolvedValueOnce({ok: true, json: async () => ({ladders: value})});
+	request.mockResolvedValueOnce({ok: true, json: async () => Promise.resolve({ladders: value})});
 	render();
 	hooks.effects[0]();
 	await settle();
@@ -137,19 +140,20 @@ async function load(value: unknown) {
 beforeEach(async () => {
 	request.mockReset().mockImplementation(async (path: string, options: {body: string}) => {
 		const body = JSON.parse(options.body);
-		return {
+		return Promise.resolve({
 			ok: true,
-			json: async () => ({
-				event: {
-					nodeId: body.node_id,
-					verb: path.endsWith("complete") ? "complete" : "move",
-					name: body.node_id,
-					fromTier: "1st",
-					toTier: body.to_tier ?? null,
-					at: "2000-01-01T00:00:00.000Z",
-				},
-			}),
-		};
+			json: async () =>
+				Promise.resolve({
+					event: {
+						nodeId: body.node_id,
+						verb: path.endsWith("complete") ? "complete" : "move",
+						name: body.node_id,
+						fromTier: "1st",
+						toTier: body.to_tier ?? null,
+						at: "2000-01-01T00:00:00.000Z",
+					},
+				}),
+		});
 	});
 	vi.stubGlobal("fetch", request);
 	await load(ladders());
@@ -182,7 +186,7 @@ describe("local ladder actions", () => {
 	});
 
 	it("stops a group at the failed move without dispatching the rest", async () => {
-		request.mockResolvedValue({ok: false, json: async () => ({error: "Test write rejected"})});
+		request.mockResolvedValue({ok: false, json: async () => Promise.resolve({error: "Test write rejected"})});
 		tierProps().onSelect("alice", false);
 		tierProps().onSelect("bob", true);
 		tierProps().onStep("alice", "2nd");
@@ -227,16 +231,17 @@ describe("local ladder actions", () => {
 		expect(personalTierItems()).toStrictEqual([[item("bob")], [item("alice")]]);
 		respond({
 			ok: true,
-			json: async () => ({
-				event: {
-					nodeId: "alice",
-					verb: "move",
-					name: "alice",
-					fromTier: "2nd",
-					toTier: "1st",
-					at: "2000-01-01T00:00:00.000Z",
-				},
-			}),
+			json: async () =>
+				Promise.resolve({
+					event: {
+						nodeId: "alice",
+						verb: "move",
+						name: "alice",
+						fromTier: "2nd",
+						toTier: "1st",
+						at: "2000-01-01T00:00:00.000Z",
+					},
+				}),
 		});
 		await settle();
 		expect(personalTierItems()).toStrictEqual([[item("bob"), item("alice")], []]);
@@ -272,7 +277,7 @@ describe("local ladder actions", () => {
 				at: "2000-01-01T00:00:00.000Z",
 			}),
 		});
-		respond({ok: false, json: async () => ({error: "Test write rejected"})});
+		respond({ok: false, json: async () => Promise.resolve({error: "Test write rejected"})});
 		await settle();
 		expect(personalTierItems()).toStrictEqual([[item("alice")], [item("bob")]]);
 		expect(tierProps().rowErrors).toStrictEqual({alice: "Test write rejected"});
@@ -326,7 +331,7 @@ describe("local ladder actions", () => {
 		];
 		request
 			.mockRejectedValueOnce(new TypeError("Failed to fetch"))
-			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: landed})});
+			.mockResolvedValueOnce({ok: true, json: async () => Promise.resolve({ladders: landed})});
 		tierProps().onStep("alice", "2nd");
 		await settle();
 		expect({
@@ -344,8 +349,8 @@ describe("local ladder actions", () => {
 
 	it("creates the next ordinal under the displayed bucket and refreshes the page", async () => {
 		request
-			.mockResolvedValueOnce({ok: true, json: async () => ({})})
-			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: ladders()})});
+			.mockResolvedValueOnce({ok: true, json: async () => Promise.resolve({})})
+			.mockResolvedValueOnce({ok: true, json: async () => Promise.resolve({ladders: ladders()})});
 		const button = render().find((element) => element.props.children === "Add bottom tier");
 		if (!button) {
 			throw new Error("Add bottom tier button is missing");
@@ -485,8 +490,11 @@ describe("row selection and pointer cancellation", () => {
 
 	it("reloads authoritative order after a partially applied move fails", async () => {
 		request
-			.mockResolvedValueOnce({ok: false, json: async () => ({error: "Test suffix failed", reconcile: true})})
-			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: ladders()})});
+			.mockResolvedValueOnce({
+				ok: false,
+				json: async () => Promise.resolve({error: "Test suffix failed", reconcile: true}),
+			})
+			.mockResolvedValueOnce({ok: true, json: async () => Promise.resolve({ladders: ladders()})});
 		tierProps().onStep("alice", "2nd");
 		await settle();
 		expect({ladders: hooks.values[0], errors: tierProps().rowErrors}).toStrictEqual({

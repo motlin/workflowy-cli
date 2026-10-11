@@ -25,7 +25,7 @@ describe("workflowy:utils:path-to-id command", () => {
 	let tempDir: string;
 	let testDatabase: TestDatabase;
 
-	beforeEach(async () => {
+	beforeEach(() => {
 		originalEnv = process.env;
 		mockFetch = globalThis.fetch;
 
@@ -83,7 +83,7 @@ describe("workflowy:utils:path-to-id command", () => {
 	});
 
 	describe("path resolution from cache", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			delete process.env.WORKFLOWY_API_KEY;
 
 			insertTestNodes(testDatabase.db, [
@@ -124,7 +124,7 @@ describe("workflowy:utils:path-to-id command", () => {
 	});
 
 	describe("path resolution with root-id", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			delete process.env.WORKFLOWY_API_KEY;
 
 			insertTestNodes(testDatabase.db, [
@@ -152,7 +152,7 @@ describe("workflowy:utils:path-to-id command", () => {
 	});
 
 	describe("error handling", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			delete process.env.WORKFLOWY_API_KEY;
 		});
 
@@ -179,12 +179,33 @@ describe("workflowy:utils:path-to-id command", () => {
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
 				if (capturedUrl?.includes("parent_id")) {
-					return new Response(
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								nodes: [
+									{
+										id: "api-project-id",
+										name: "Projects",
+										priority: 0,
+										completed: false,
+										data: {},
+										createdAt: Date.now(),
+										modifiedAt: Date.now(),
+										completedAt: null,
+									},
+								],
+							}),
+							{status: 200},
+						),
+					);
+				}
+				return Promise.resolve(
+					new Response(
 						JSON.stringify({
 							nodes: [
 								{
-									id: "api-project-id",
-									name: "Projects",
+									id: "api-work-id",
+									name: "Work",
 									priority: 0,
 									completed: false,
 									data: {},
@@ -195,24 +216,7 @@ describe("workflowy:utils:path-to-id command", () => {
 							],
 						}),
 						{status: 200},
-					);
-				}
-				return new Response(
-					JSON.stringify({
-						nodes: [
-							{
-								id: "api-work-id",
-								name: "Work",
-								priority: 0,
-								completed: false,
-								data: {},
-								createdAt: Date.now(),
-								modifiedAt: Date.now(),
-								completedAt: null,
-							},
-						],
-					}),
-					{status: 200},
+					),
 				);
 			};
 
@@ -226,7 +230,7 @@ describe("workflowy:utils:path-to-id command", () => {
 	});
 
 	describe("data-source flag", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			process.env.WORKFLOWY_API_KEY = "test-api-key";
 
 			insertTestNodes(testDatabase.db, [

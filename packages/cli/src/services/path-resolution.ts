@@ -30,7 +30,7 @@ export class PathResolutionService {
 
 		const pathComponents = path.split(",").map((s) => s.trim());
 
-		const cachedNode = await this.cacheService.findNodeByPath(pathComponents, rootId);
+		const cachedNode = this.cacheService.findNodeByPath(pathComponents, rootId);
 
 		if (cachedNode) {
 			return {

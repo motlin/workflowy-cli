@@ -130,7 +130,7 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 export function useChildren(parentId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.children(parentId),
-		queryFn: () => fetchChildren(parentId),
+		queryFn: async () => fetchChildren(parentId),
 	});
 }
 
@@ -141,7 +141,7 @@ export function useChildren(parentId: string | null) {
 export function useNode(nodeId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.detail(nodeId ?? ""),
-		queryFn: () => fetchNode(nodeId!),
+		queryFn: async () => fetchNode(nodeId!),
 		enabled: nodeId !== null && nodeId !== "",
 	});
 }
@@ -153,7 +153,7 @@ export function useNode(nodeId: string | null) {
 export function useAncestors(nodeId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.ancestors(nodeId ?? ""),
-		queryFn: () => fetchAncestors(nodeId!),
+		queryFn: async () => fetchAncestors(nodeId!),
 		enabled: nodeId !== null && nodeId !== "",
 	});
 }
@@ -222,7 +222,7 @@ export function useUpdateNode() {
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
 
 	return useMutation({
-		mutationFn: ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) => updateNode(nodeId, request),
+		mutationFn: async ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) => updateNode(nodeId, request),
 		async onMutate({nodeId, ...updates}) {
 			// Cancel outgoing refetches
 			await queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
@@ -308,7 +308,7 @@ export function useMoveNode() {
 	const setMutating = useOutlineStore((state) => state.setMutating);
 
 	return useMutation({
-		mutationFn: ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
+		mutationFn: async ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
 		async onMutate({nodeId, parent_id: newParentId}) {
 			setMutating(true);
 			// Cancel outgoing refetches for all nodes
@@ -389,7 +389,7 @@ export function useReorderNode() {
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
 
 	return useMutation({
-		mutationFn: ({nodeId, parentId, position}: {nodeId: string; parentId: string | null; position: number}) =>
+		mutationFn: async ({nodeId, parentId, position}: {nodeId: string; parentId: string | null; position: number}) =>
 			moveNode(nodeId, {parent_id: parentId, position}),
 		async onMutate({nodeId, parentId, position}) {
 			// Cancel outgoing refetches for all nodes
@@ -455,7 +455,7 @@ export function useToggleComplete() {
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
 
 	return useMutation({
-		mutationFn: ({nodeId, isCurrentlyCompleted}: {nodeId: string; isCurrentlyCompleted: boolean}) =>
+		mutationFn: async ({nodeId, isCurrentlyCompleted}: {nodeId: string; isCurrentlyCompleted: boolean}) =>
 			isCurrentlyCompleted ? uncompleteNode(nodeId) : completeNode(nodeId),
 		async onMutate({nodeId, isCurrentlyCompleted}) {
 			// Cancel outgoing refetches

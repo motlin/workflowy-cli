@@ -139,29 +139,31 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return new Response(JSON.stringify({}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return new Response(
-						JSON.stringify({
-							node: {
-								id: "source-id",
-								name: "Source",
-								parent_id: "target-id",
-								priority: 0,
-								completed: false,
-								createdAt: now * 1000,
-								modifiedAt: now * 1000,
-								completedAt: null,
-								data: {},
-							},
-						}),
-						{status: 200},
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								node: {
+									id: "source-id",
+									name: "Source",
+									parent_id: "target-id",
+									priority: 0,
+									completed: false,
+									createdAt: now * 1000,
+									modifiedAt: now * 1000,
+									completedAt: null,
+									data: {},
+								},
+							}),
+							{status: 200},
+						),
 					);
 				}
 
-				return new Response(JSON.stringify({}), {status: 404});
+				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
 			});
 
 			const {stdout} = await captureOutput(async () => {
@@ -189,29 +191,31 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return new Response(JSON.stringify({}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return new Response(
-						JSON.stringify({
-							node: {
-								id: "source-id",
-								name: "Source",
-								parent_id: "target-id",
-								priority: -1,
-								completed: false,
-								createdAt: now * 1000,
-								modifiedAt: now * 1000,
-								completedAt: null,
-								data: {},
-							},
-						}),
-						{status: 200},
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								node: {
+									id: "source-id",
+									name: "Source",
+									parent_id: "target-id",
+									priority: -1,
+									completed: false,
+									createdAt: now * 1000,
+									modifiedAt: now * 1000,
+									completedAt: null,
+									data: {},
+								},
+							}),
+							{status: 200},
+						),
 					);
 				}
 
-				return new Response(JSON.stringify({}), {status: 404});
+				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
 			});
 
 			await captureOutput(async () => {
@@ -238,29 +242,31 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return new Response(JSON.stringify({}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return new Response(
-						JSON.stringify({
-							node: {
-								id: "source-id",
-								name: "Source",
-								parent_id: "target-id",
-								priority: 0,
-								completed: false,
-								createdAt: now * 1000,
-								modifiedAt: now * 1000,
-								completedAt: null,
-								data: {},
-							},
-						}),
-						{status: 200},
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								node: {
+									id: "source-id",
+									name: "Source",
+									parent_id: "target-id",
+									priority: 0,
+									completed: false,
+									createdAt: now * 1000,
+									modifiedAt: now * 1000,
+									completedAt: null,
+									data: {},
+								},
+							}),
+							{status: 200},
+						),
 					);
 				}
 
-				return new Response(JSON.stringify({}), {status: 404});
+				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
 			});
 
 			await captureOutput(async () => {
@@ -293,29 +299,31 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return new Response(JSON.stringify({}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return new Response(
-						JSON.stringify({
-							node: {
-								id: "source-id",
-								name: "My Task",
-								parent_id: "archive-id",
-								priority: 0,
-								completed: false,
-								createdAt: now * 1000,
-								modifiedAt: now * 1000,
-								completedAt: null,
-								data: {},
-							},
-						}),
-						{status: 200},
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								node: {
+									id: "source-id",
+									name: "My Task",
+									parent_id: "archive-id",
+									priority: 0,
+									completed: false,
+									createdAt: now * 1000,
+									modifiedAt: now * 1000,
+									completedAt: null,
+									data: {},
+								},
+							}),
+							{status: 200},
+						),
 					);
 				}
 
-				return new Response(JSON.stringify({}), {status: 404});
+				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
 			});
 
 			const {stdout} = await captureOutput(async () => {
@@ -353,30 +361,32 @@ describe("node:move command", () => {
 
 				if (method === "POST" && urlStr.endsWith("/nodes/source-id/move")) {
 					capturedBody = requestBody(init);
-					return new Response(JSON.stringify({}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.endsWith("/nodes/source-id")) {
-					return new Response(
-						JSON.stringify({
-							node: {
-								id: "source-id",
-								name: "Source",
-								note: null,
-								parent_id: "inbox-uuid",
-								priority: 0,
-								completed: false,
-								createdAt: now,
-								modifiedAt: now,
-								completedAt: null,
-								data: {layoutMode: "bullets"},
-							},
-						}),
-						{status: 200},
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								node: {
+									id: "source-id",
+									name: "Source",
+									note: null,
+									parent_id: "inbox-uuid",
+									priority: 0,
+									completed: false,
+									createdAt: now,
+									modifiedAt: now,
+									completedAt: null,
+									data: {layoutMode: "bullets"},
+								},
+							}),
+							{status: 200},
+						),
 					);
 				}
 
-				return new Response(JSON.stringify({error: "Not found"}), {status: 404});
+				return Promise.resolve(new Response(JSON.stringify({error: "Not found"}), {status: 404}));
 			});
 
 			const {error} = await captureOutput(async () => {

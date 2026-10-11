@@ -105,10 +105,10 @@ export default class Update extends Command {
 			layoutMode: flags["layout-mode"],
 		};
 		// Text on a mirror lives on its original, so guard and report against that node.
-		const nodeId = await client.resolveUpdateTarget(requestedId);
+		const nodeId = client.resolveUpdateTarget(requestedId);
 
 		if (flags["expect-name"] !== undefined && !flags["dry-run"]) {
-			const current = await cacheService.getNode(nodeId);
+			const current = cacheService.getNode(nodeId);
 			if (!current || current.name !== flags["expect-name"]) {
 				this.error(
 					`Refusing to update ${nodeId}: current name does not match --expect-name ` +
@@ -119,7 +119,7 @@ export default class Update extends Command {
 			}
 		}
 
-		const fullPath = await pathBuilder.buildFullPath(nodeId);
+		const fullPath = pathBuilder.buildFullPath(nodeId);
 
 		if (flags["dry-run"]) {
 			this.log("Would execute API call:");

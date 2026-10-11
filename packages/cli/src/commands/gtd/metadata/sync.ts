@@ -113,13 +113,13 @@ export default class Sync extends Command {
 		const timestamp = new Date().toISOString();
 
 		// Fetch all metadata sections
-		const projects = await this.fetchProjects();
-		const people = await this.fetchPeople();
-		const nextActions = await this.fetchNextActions();
-		const waitingFor = await this.fetchWaitingFor();
-		const calendar = await this.fetchCalendar();
-		const someday = await this.fetchSomeday();
-		const review = await this.fetchReview();
+		const projects = this.fetchProjects();
+		const people = this.fetchPeople();
+		const nextActions = this.fetchNextActions();
+		const waitingFor = this.fetchWaitingFor();
+		const calendar = this.fetchCalendar();
+		const someday = this.fetchSomeday();
+		const review = this.fetchReview();
 
 		const output: MetadataOutput = {
 			syncedAt: timestamp,
@@ -163,20 +163,20 @@ export default class Sync extends Command {
 	/**
 	 * Fetch projects from Metadata > Projects
 	 */
-	private async fetchProjects(): Promise<Project[]> {
+	private fetchProjects(): Project[] {
 		const projectsPath = ["Metadata", "\u{1F4C1} Projects"];
-		const projectsNode = await this.cacheService.findNodeByPath(projectsPath);
+		const projectsNode = this.cacheService.findNodeByPath(projectsPath);
 
 		if (!projectsNode) {
 			return [];
 		}
 
-		const children = await this.cacheService.getChildren(projectsNode.id);
+		const children = this.cacheService.getChildren(projectsNode.id);
 		const projects: Project[] = [];
 
 		for (const child of children) {
 			// Get link target if this is a link
-			const linkTarget = await this.getLinkTarget(child.id);
+			const linkTarget = this.getLinkTarget(child.id);
 			const target = linkTarget ?? child;
 
 			// Get name from target or extract from anchor text
@@ -189,7 +189,7 @@ export default class Sync extends Command {
 
 			// Get project items (children of target)
 			const items: ProjectItem[] = [];
-			const targetChildren = await this.cacheService.getChildren(target.id);
+			const targetChildren = this.cacheService.getChildren(target.id);
 			for (const item of targetChildren.slice(0, 20)) {
 				items.push({
 					id: item.id,
@@ -213,20 +213,20 @@ export default class Sync extends Command {
 	/**
 	 * Fetch people from Metadata > People
 	 */
-	private async fetchPeople(): Promise<Record<string, PersonMember[]>> {
+	private fetchPeople(): Record<string, PersonMember[]> {
 		const peoplePath = ["Metadata", "\u{1F465} People"];
-		const peopleNode = await this.cacheService.findNodeByPath(peoplePath);
+		const peopleNode = this.cacheService.findNodeByPath(peoplePath);
 
 		if (!peopleNode) {
 			return {};
 		}
 
-		const categories = await this.cacheService.getChildren(peopleNode.id);
+		const categories = this.cacheService.getChildren(peopleNode.id);
 		const people: Record<string, PersonMember[]> = {};
 
 		for (const category of categories) {
 			const categoryName = category.name ?? "Unknown";
-			const members = await this.cacheService.getChildren(category.id);
+			const members = this.cacheService.getChildren(category.id);
 
 			people[categoryName] = members.map((member) => ({
 				id: member.id,
@@ -241,20 +241,20 @@ export default class Sync extends Command {
 	/**
 	 * Fetch Next Actions destinations
 	 */
-	private async fetchNextActions(): Promise<NextActionsDestination[]> {
+	private fetchNextActions(): NextActionsDestination[] {
 		const naPath = ["Metadata", "\u{2611}\u{FE0F} Next Actions"];
-		const naNode = await this.cacheService.findNodeByPath(naPath);
+		const naNode = this.cacheService.findNodeByPath(naPath);
 
 		if (!naNode) {
 			return [];
 		}
 
-		const children = await this.cacheService.getChildren(naNode.id);
+		const children = this.cacheService.getChildren(naNode.id);
 		const destinations: NextActionsDestination[] = [];
 
 		for (const child of children) {
 			// Get link target
-			const linkTarget = await this.getLinkTarget(child.id);
+			const linkTarget = this.getLinkTarget(child.id);
 			const target = linkTarget ?? child;
 
 			// Get name
@@ -268,7 +268,7 @@ export default class Sync extends Command {
 			let asap: {id: string; name: string} | null = null;
 			let dueDate: {id: string; name: string} | null = null;
 
-			const targetChildren = await this.cacheService.getChildren(target.id);
+			const targetChildren = this.cacheService.getChildren(target.id);
 			for (const tc of targetChildren) {
 				const tcName = tc.name ?? "";
 				if (/asap/i.test(tcName)) {
@@ -293,61 +293,61 @@ export default class Sync extends Command {
 	/**
 	 * Fetch Waiting For destinations
 	 */
-	private async fetchWaitingFor(): Promise<SimpleDestination[]> {
+	private fetchWaitingFor(): SimpleDestination[] {
 		const wfPath = ["Metadata", "\u{1F4E4} Waiting For"];
-		const wfNode = await this.cacheService.findNodeByPath(wfPath);
+		const wfNode = this.cacheService.findNodeByPath(wfPath);
 
 		if (!wfNode) {
 			return [];
 		}
 
-		const children = await this.cacheService.getChildren(wfNode.id);
+		const children = this.cacheService.getChildren(wfNode.id);
 		return this.mapToSimpleDestinations(children);
 	}
 
 	/**
 	 * Fetch Calendar destinations
 	 */
-	private async fetchCalendar(): Promise<SimpleDestination[]> {
+	private fetchCalendar(): SimpleDestination[] {
 		const calPath = ["Metadata", "\u{1F4C5} Calendar"];
-		const calNode = await this.cacheService.findNodeByPath(calPath);
+		const calNode = this.cacheService.findNodeByPath(calPath);
 
 		if (!calNode) {
 			return [];
 		}
 
-		const children = await this.cacheService.getChildren(calNode.id);
+		const children = this.cacheService.getChildren(calNode.id);
 		return this.mapToSimpleDestinations(children);
 	}
 
 	/**
 	 * Fetch Someday destinations
 	 */
-	private async fetchSomeday(): Promise<SimpleDestination[]> {
+	private fetchSomeday(): SimpleDestination[] {
 		const sdPath = ["Metadata", "\u{1F331} Someday"];
-		const sdNode = await this.cacheService.findNodeByPath(sdPath);
+		const sdNode = this.cacheService.findNodeByPath(sdPath);
 
 		if (!sdNode) {
 			return [];
 		}
 
-		const children = await this.cacheService.getChildren(sdNode.id);
+		const children = this.cacheService.getChildren(sdNode.id);
 		return this.mapToSimpleDestinations(children);
 	}
 
 	/**
 	 * Fetch Review node
 	 */
-	private async fetchReview(): Promise<{id: string | null; name: string | null}> {
+	private fetchReview(): {id: string | null; name: string | null} {
 		const reviewPath = ["Metadata", "\u{1F504} Review"];
-		const reviewNode = await this.cacheService.findNodeByPath(reviewPath);
+		const reviewNode = this.cacheService.findNodeByPath(reviewPath);
 
 		if (!reviewNode) {
 			return {id: null, name: null};
 		}
 
 		// Check for link target
-		const linkTarget = await this.getLinkTarget(reviewNode.id);
+		const linkTarget = this.getLinkTarget(reviewNode.id);
 		const target = linkTarget ?? reviewNode;
 
 		return {
@@ -359,13 +359,11 @@ export default class Sync extends Command {
 	/**
 	 * Map children to simple destinations
 	 */
-	private async mapToSimpleDestinations(
-		children: {id: string; name?: string | null}[],
-	): Promise<SimpleDestination[]> {
+	private mapToSimpleDestinations(children: {id: string; name?: string | null}[]): SimpleDestination[] {
 		const destinations: SimpleDestination[] = [];
 
 		for (const child of children) {
-			const linkTarget = await this.getLinkTarget(child.id);
+			const linkTarget = this.getLinkTarget(child.id);
 			const target = linkTarget ?? child;
 
 			let name = target.name ?? child.name ?? "";
@@ -386,11 +384,11 @@ export default class Sync extends Command {
 	/**
 	 * Get the link target for a node if it's a link
 	 */
-	private async getLinkTarget(nodeId: string): Promise<{id: string; name?: string | null} | null> {
+	private getLinkTarget(nodeId: string): {id: string; name?: string | null} | null {
 		// Check if this node has any mirrors (is a mirror of another node)
-		const originalId = await this.cacheService.getMirrorOriginal(nodeId);
+		const originalId = this.cacheService.getMirrorOriginal(nodeId);
 		if (originalId) {
-			const original = await this.cacheService.getNode(originalId);
+			const original = this.cacheService.getNode(originalId);
 			if (original) {
 				return {id: original.id, name: original.name};
 			}

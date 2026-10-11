@@ -24,7 +24,7 @@ interface SearchResult {
 }
 
 // Get all descendant node IDs using a recursive CTE
-async function getDescendantIds(database: ReturnType<typeof getDatabase>, parentId: string): Promise<string[]> {
+function getDescendantIds(database: ReturnType<typeof getDatabase>, parentId: string): string[] {
 	const result = database.all<{id: string}>(sql`
 		WITH RECURSIVE descendants(id) AS (
 			SELECT id FROM node_content
@@ -55,7 +55,7 @@ searchRouter.post("/", async (c) => {
 
 	// If parentId is provided, limit search to descendants of that node
 	if (parentId) {
-		const descendantIds = await getDescendantIds(database, parentId);
+		const descendantIds = getDescendantIds(database, parentId);
 		if (descendantIds.length === 0) {
 			return c.json({results: [], totalCount: 0});
 		}
@@ -174,7 +174,7 @@ searchRouter.post("/", async (c) => {
 			.map((row) => [row.id, row.parentId]),
 	);
 	const parentIds = [...new Set([...parentIdOf.values()].filter((id): id is string => id !== null))];
-	const pathByParent = await new PathBuilder(database).buildFullPathsBatch(parentIds);
+	const pathByParent = new PathBuilder(database).buildFullPathsBatch(parentIds);
 
 	const results: SearchResult[] = paginatedResults.map(({id, name, note}) => {
 		const nodeParentId = parentIdOf.get(id) ?? null;

@@ -36,7 +36,7 @@ describe("QueryHelpers", () => {
 	});
 
 	describe("getNodeById", () => {
-		it("returns node when it exists", async () => {
+		it("returns node when it exists", () => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({
 					id: "test-node",
@@ -51,7 +51,7 @@ describe("QueryHelpers", () => {
 				}),
 			]);
 
-			const node = await queryHelpers.getNodeById("test-node");
+			const node = queryHelpers.getNodeById("test-node");
 
 			const actualSystemFrom = node!.systemFrom;
 
@@ -75,14 +75,14 @@ describe("QueryHelpers", () => {
 			expect(actualSystemFrom).toBeTypeOf("string");
 		});
 
-		it("returns undefined for non-existent ID", async () => {
-			const node = await queryHelpers.getNodeById("non-existent");
+		it("returns undefined for non-existent ID", () => {
+			const node = queryHelpers.getNodeById("non-existent");
 			expect(node).toBeUndefined();
 		});
 	});
 
 	describe("getChildren", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({id: "parent", name: "Parent", parentId: null}),
 				createTestNode({id: "child-1", name: "Child 1", parentId: "parent", priority: 300}),
@@ -91,8 +91,8 @@ describe("QueryHelpers", () => {
 			]);
 		});
 
-		it("returns children ordered by priority when available", async () => {
-			const children = await queryHelpers.getChildren("parent");
+		it("returns children ordered by priority when available", () => {
+			const children = queryHelpers.getChildren("parent");
 
 			expect(children.map(({id, priority}) => ({id, priority}))).toStrictEqual([
 				{id: "child-2", priority: 100},
@@ -101,25 +101,25 @@ describe("QueryHelpers", () => {
 			]);
 		});
 
-		it("returns root nodes when parentId is null", async () => {
-			const roots = await queryHelpers.getChildren(null);
+		it("returns root nodes when parentId is null", () => {
+			const roots = queryHelpers.getChildren(null);
 
 			expect(roots.map((r) => r.id)).toStrictEqual(["parent"]);
 		});
 
-		it("returns empty array for parent with no children", async () => {
-			const children = await queryHelpers.getChildren("child-1");
+		it("returns empty array for parent with no children", () => {
+			const children = queryHelpers.getChildren("child-1");
 			expect(children).toStrictEqual([]);
 		});
 
-		it("maintains order when priority not available", async () => {
+		it("maintains order when priority not available", () => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({id: "other-parent", name: "Other Parent", parentId: null, priority: null}),
 				createTestNode({id: "other-child-1", name: "Other Child 1", parentId: "other-parent", priority: null}),
 				createTestNode({id: "other-child-2", name: "Other Child 2", parentId: "other-parent", priority: null}),
 			]);
 
-			const children = await queryHelpers.getChildren("other-parent");
+			const children = queryHelpers.getChildren("other-parent");
 
 			// The canonical Node defaults a missing DB priority to 0.
 			expect(children.map(({id, priority}) => ({id, priority}))).toStrictEqual([
@@ -130,7 +130,7 @@ describe("QueryHelpers", () => {
 	});
 
 	describe("getCompletedTasks", () => {
-		it("returns only completed tasks ordered by completion time", async () => {
+		it("returns only completed tasks ordered by completion time", () => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({
 					id: "task-1",
@@ -158,13 +158,13 @@ describe("QueryHelpers", () => {
 				}),
 			]);
 
-			const completed = await queryHelpers.getCompletedTasks();
+			const completed = queryHelpers.getCompletedTasks();
 
 			// Verify ordering: task-3 completed earlier (1_700_001_500), task-1 completed later (1_700_002_000)
 			expect(completed.map((c) => c.id)).toStrictEqual(["task-3", "task-1"]);
 		});
 
-		it("returns empty array when no completed tasks exist", async () => {
+		it("returns empty array when no completed tasks exist", () => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({
 					id: "incomplete",
@@ -174,13 +174,13 @@ describe("QueryHelpers", () => {
 				}),
 			]);
 
-			const completed = await queryHelpers.getCompletedTasks();
+			const completed = queryHelpers.getCompletedTasks();
 			expect(completed).toStrictEqual([]);
 		});
 	});
 
 	describe("findNodeByPath", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({id: "work", name: "<span>Work</span>", parentId: null}),
 				createTestNode({id: "journal", name: "Journal", parentId: "work"}),
@@ -189,39 +189,39 @@ describe("QueryHelpers", () => {
 			]);
 		});
 
-		it("finds node by path from root", async () => {
-			const node = await queryHelpers.findNodeByPath(["Work", "Journal", "Archive"]);
+		it("finds node by path from root", () => {
+			const node = queryHelpers.findNodeByPath(["Work", "Journal", "Archive"]);
 
 			// Verify node identity and that name contains Archive with HTML tags
 			expect(node!.id).toBe("archive");
 			expect(node!.name).toBe('<span class="colored">Archive</span>');
 		});
 
-		it("finds node with HTML tags in name", async () => {
-			const node = await queryHelpers.findNodeByPath(["Work"]);
+		it("finds node with HTML tags in name", () => {
+			const node = queryHelpers.findNodeByPath(["Work"]);
 
 			expect(node!.id).toBe("work");
 			expect(node!.name).toBe("<span>Work</span>");
 		});
 
-		it("returns undefined for non-existent path", async () => {
-			const node = await queryHelpers.findNodeByPath(["Work", "NonExistent"]);
+		it("returns undefined for non-existent path", () => {
+			const node = queryHelpers.findNodeByPath(["Work", "NonExistent"]);
 			expect(node).toBeUndefined();
 		});
 
-		it("returns undefined for empty path", async () => {
-			const node = await queryHelpers.findNodeByPath([]);
+		it("returns undefined for empty path", () => {
+			const node = queryHelpers.findNodeByPath([]);
 			expect(node).toBeUndefined();
 		});
 
-		it("finds node from specified root", async () => {
-			const node = await queryHelpers.findNodeByPath(["Journal", "Archive"], "work");
+		it("finds node from specified root", () => {
+			const node = queryHelpers.findNodeByPath(["Journal", "Archive"], "work");
 
 			expect(node!.id).toBe("archive");
 		});
 
-		it("finds root-level node", async () => {
-			const node = await queryHelpers.findNodeByPath(["Personal"]);
+		it("finds root-level node", () => {
+			const node = queryHelpers.findNodeByPath(["Personal"]);
 
 			expect(node!.id).toBe("personal");
 		});

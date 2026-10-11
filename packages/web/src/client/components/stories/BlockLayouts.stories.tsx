@@ -26,7 +26,7 @@ const meta: Meta<typeof StaticNode> = {
 		isCompleted: {control: "boolean"},
 	},
 	args: {
-		onToggleExpand: fn(),
+		onToggleExpand: fn<() => void>(),
 		isExpanded: false,
 		isCompleted: false,
 		depth: 0,

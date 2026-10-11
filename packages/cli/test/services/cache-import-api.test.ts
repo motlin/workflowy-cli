@@ -70,10 +70,10 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("import into empty database", () => {
-		it("imports a single API node", async () => {
+		it("imports a single API node", () => {
 			const apiNodes: WorkflowyNode[] = [createApiNode({id: "node-1", name: "Test Node"})];
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 1,
@@ -99,14 +99,14 @@ describe("cache-import-api service", () => {
 			expectActiveRecord(createNodeFromContent(allNodes[0]));
 		});
 
-		it("imports multiple API nodes", async () => {
+		it("imports multiple API nodes", () => {
 			const apiNodes: WorkflowyNode[] = [
 				createApiNode({id: "node-1", name: "First Node", priority: 0}),
 				createApiNode({id: "node-2", name: "Second Node", priority: 1}),
 				createApiNode({id: "node-3", name: "Third Node", priority: 2}),
 			];
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 3,
@@ -128,14 +128,14 @@ describe("cache-import-api service", () => {
 			expect(allNodes.map((n) => n.id).toSorted()).toStrictEqual(["node-1", "node-2", "node-3"]);
 		});
 
-		it("imports nodes with parent relationships", async () => {
+		it("imports nodes with parent relationships", () => {
 			const apiNodes: WorkflowyNode[] = [
 				createApiNode({id: "parent-1", name: "Parent", parent_id: null, priority: 0}),
 				createApiNode({id: "child-1", name: "First Child", parent_id: "parent-1", priority: 0}),
 				createApiNode({id: "child-2", name: "Second Child", parent_id: "parent-1", priority: 1}),
 			];
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 3,
@@ -159,7 +159,7 @@ describe("cache-import-api service", () => {
 			]);
 		});
 
-		it("imports node with all metadata fields", async () => {
+		it("imports node with all metadata fields", () => {
 			const createdAt = 1_700_000_000;
 			const modifiedAt = 1_700_086_400;
 			const completedAt = 1_700_082_800;
@@ -176,7 +176,7 @@ describe("cache-import-api service", () => {
 				}),
 			];
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 1,
@@ -213,13 +213,13 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("re-import identical data", () => {
-		it("leaves unchanged nodes untouched", async () => {
+		it("leaves unchanged nodes untouched", () => {
 			const apiNodes: WorkflowyNode[] = [createApiNode({id: "node-1", name: "Test Node", priority: 0})];
 
 			const t0 = new Date("2024-01-01T00:00:00Z");
 			const t1 = new Date("2024-01-01T00:01:00Z");
 
-			await importFromApi(testDatabase.db, apiNodes, false, t0);
+			importFromApi(testDatabase.db, apiNodes, false, t0);
 
 			const firstImportNode = testDatabase.db
 				.select()
@@ -228,7 +228,7 @@ describe("cache-import-api service", () => {
 				.get()!;
 			const firstSystemFrom = firstImportNode.systemFrom;
 
-			const result = await importFromApi(testDatabase.db, apiNodes, false, t1);
+			const result = importFromApi(testDatabase.db, apiNodes, false, t1);
 
 			expectImportStats(result, {
 				totalNodes: 1,
@@ -250,10 +250,10 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("temporal timestamps", () => {
-		it("sets systemTo to FAR_FUTURE_DATE for active records", async () => {
+		it("sets systemTo to FAR_FUTURE_DATE for active records", () => {
 			const apiNodes: WorkflowyNode[] = [createApiNode({id: "node-1", name: "Test Node"})];
 
-			await importFromApi(testDatabase.db, apiNodes);
+			importFromApi(testDatabase.db, apiNodes);
 
 			const node = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			expect(node.systemTo).toBe(FAR_FUTURE_DATE);
@@ -261,7 +261,7 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("node_content and node_metadata tables", () => {
-		it("creates content records", async () => {
+		it("creates content records", () => {
 			const apiNodes: WorkflowyNode[] = [
 				createApiNode({
 					id: "node-1",
@@ -271,7 +271,7 @@ describe("cache-import-api service", () => {
 				}),
 			];
 
-			await importFromApi(testDatabase.db, apiNodes);
+			importFromApi(testDatabase.db, apiNodes);
 
 			const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).get()!;
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
@@ -285,7 +285,7 @@ describe("cache-import-api service", () => {
 			});
 		});
 
-		it("creates metadata records", async () => {
+		it("creates metadata records", () => {
 			const createdAtTimestamp = 1_700_000_000;
 			const modifiedAtTimestamp = 1_700_086_400;
 			const apiNodes: WorkflowyNode[] = [
@@ -299,7 +299,7 @@ describe("cache-import-api service", () => {
 				}),
 			];
 
-			await importFromApi(testDatabase.db, apiNodes);
+			importFromApi(testDatabase.db, apiNodes);
 
 			const metadata = testDatabase.db
 				.select()
@@ -322,10 +322,10 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("empty API response", () => {
-		it("handles empty node list", async () => {
+		it("handles empty node list", () => {
 			const apiNodes: WorkflowyNode[] = [];
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 0,
@@ -342,13 +342,13 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("batch processing", () => {
-		it("handles large number of nodes", async () => {
+		it("handles large number of nodes", () => {
 			const apiNodes: WorkflowyNode[] = [];
 			for (let i = 0; i < 2500; i++) {
 				apiNodes.push(createApiNode({id: `node-${i}`, name: `Node ${i}`, priority: i}));
 			}
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 2500,
@@ -372,13 +372,13 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("special characters", () => {
-		it("handles special characters in node names", async () => {
+		it("handles special characters in node names", () => {
 			const apiNodes: WorkflowyNode[] = [
 				createApiNode({id: "node-1", name: 'Hello <b>World</b> & "Quotes"'}),
 				createApiNode({id: "node-2", name: "Unicode: 日本語 🎉 émojis"}),
 			];
 
-			const result = await importFromApi(testDatabase.db, apiNodes);
+			const result = importFromApi(testDatabase.db, apiNodes);
 
 			expectImportStats(result, {
 				totalNodes: 2,
@@ -401,15 +401,15 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("node deletion detection", () => {
-		it("phases out nodes that no longer exist in incoming data", async () => {
+		it("phases out nodes that no longer exist in incoming data", () => {
 			const node1 = createApiNode({id: "node-1", name: "Node 1", priority: 0});
 			const node2 = createApiNode({id: "node-2", name: "Node 2", priority: 1});
 			const node3 = createApiNode({id: "node-3", name: "Node 3", priority: 2});
 
-			const result1 = await importFromApi(testDatabase.db, [node1, node2, node3]);
+			const result1 = importFromApi(testDatabase.db, [node1, node2, node3]);
 			expect(result1.nodesAdded).toBe(3);
 
-			const result2 = await importFromApi(testDatabase.db, [node1, node3]);
+			const result2 = importFromApi(testDatabase.db, [node1, node3]);
 			expectImportStats(result2, {
 				totalNodes: 2,
 				nodesAdded: 0,
@@ -459,8 +459,8 @@ describe("cache-import-api service", () => {
 				}));
 		}
 
-		async function seed(): Promise<void> {
-			await importFromApi(
+		function seed(): void {
+			importFromApi(
 				testDatabase.db,
 				[
 					createApiNode({id: "original", name: "Original"}),
@@ -489,10 +489,10 @@ describe("cache-import-api service", () => {
 				.run();
 		}
 
-		it("closes the mirror rows of a deleted original", async () => {
-			await seed();
+		it("closes the mirror rows of a deleted original", () => {
+			seed();
 
-			await importFromApi(
+			importFromApi(
 				testDatabase.db,
 				[createApiNode({id: "mirror-a", name: ""}), createApiNode({id: "mirror-b", name: ""})],
 				false,
@@ -515,10 +515,10 @@ describe("cache-import-api service", () => {
 			]);
 		});
 
-		it("closes only the mirror row of a deleted mirror", async () => {
-			await seed();
+		it("closes only the mirror row of a deleted mirror", () => {
+			seed();
 
-			await importFromApi(
+			importFromApi(
 				testDatabase.db,
 				[createApiNode({id: "original", name: "Original"}), createApiNode({id: "mirror-b", name: ""})],
 				false,
@@ -543,14 +543,14 @@ describe("cache-import-api service", () => {
 	});
 
 	describe("node update detection", () => {
-		it("creates new version when node content changes", async () => {
+		it("creates new version when node content changes", () => {
 			const firstImport: WorkflowyNode[] = [createApiNode({id: "node-1", name: "Original Name", priority: 0})];
 
-			await importFromApi(testDatabase.db, firstImport);
+			importFromApi(testDatabase.db, firstImport);
 
 			const secondImport: WorkflowyNode[] = [createApiNode({id: "node-1", name: "Updated Name", priority: 0})];
 
-			const result = await importFromApi(testDatabase.db, secondImport);
+			const result = importFromApi(testDatabase.db, secondImport);
 			expect(result.nodesUpdated).toBe(1);
 			expect(result.nodesUnchanged).toBe(0);
 
@@ -571,11 +571,11 @@ describe("cache-import-api service", () => {
 			vi.useRealTimers();
 		});
 
-		it("gives a node changed by two imports within one millisecond a distinct version for each", async () => {
+		it("gives a node changed by two imports within one millisecond a distinct version for each", () => {
 			vi.useFakeTimers({toFake: ["Date"], now: new Date("2026-02-01T00:00:00.000Z")});
 
-			await importFromApi(testDatabase.db, [createApiNode({id: "node-1", name: "Original Name", priority: 0})]);
-			await importFromApi(testDatabase.db, [createApiNode({id: "node-1", name: "Updated Name", priority: 0})]);
+			importFromApi(testDatabase.db, [createApiNode({id: "node-1", name: "Original Name", priority: 0})]);
+			importFromApi(testDatabase.db, [createApiNode({id: "node-1", name: "Updated Name", priority: 0})]);
 
 			expect(
 				testDatabase.db
@@ -599,19 +599,19 @@ describe("cache-import-api service", () => {
 		const T_EARLIER = Math.floor(DATE_EARLIER.getTime() / 1000);
 		const T_LATER = Math.floor(DATE_LATER.getTime() / 1000);
 
-		it("imports even when incoming timestamps predate the local cache", async () => {
+		it("imports even when incoming timestamps predate the local cache", () => {
 			// Seed the cache with a write timestamped at T_LATER.
 			const seedNodes: WorkflowyNode[] = [
 				createApiNode({id: "node-1", name: "Seed", createdAt: T_LATER, modifiedAt: T_LATER}),
 			];
-			await importFromApi(testDatabase.db, seedNodes, false, DATE_LATER);
+			importFromApi(testDatabase.db, seedNodes, false, DATE_LATER);
 
 			// A per-node REST response is authoritative regardless of relative
 			// timestamps: the watermark guard belongs to the bulk-export path only.
 			const staleNodes: WorkflowyNode[] = [
 				createApiNode({id: "node-2", name: "Stale", createdAt: T_EARLIER, modifiedAt: T_EARLIER}),
 			];
-			const result = await importFromApi(testDatabase.db, staleNodes, false, DATE_LATER);
+			const result = importFromApi(testDatabase.db, staleNodes, false, DATE_LATER);
 
 			expect(result.nodesAdded).toBe(1);
 			const node2 = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-2")).get()!;

@@ -37,7 +37,7 @@ export class ListByIdService {
 			await this.fetchAndStore(parentId, this.apiClient);
 			fromApi = true;
 		} else if (dataSource === "auto") {
-			const hasCachedData = (await this.cacheService.getChildrenWithMergedData(parentId)).length > 0;
+			const hasCachedData = this.cacheService.getChildrenWithMergedData(parentId).length > 0;
 			if ((forceRefresh || !hasCachedData) && this.apiClient) {
 				try {
 					await this.fetchAndStore(parentId, this.apiClient);
@@ -57,7 +57,7 @@ export class ListByIdService {
 
 	private async fetchAndStore(parentId: string | null, apiClient: WorkflowyApiClient): Promise<void> {
 		const apiNodes = parentId ? await apiClient.getChildNodes(parentId) : await apiClient.getRootNodes();
-		await this.cacheService.storeApiResponse(apiNodes, parentId);
+		this.cacheService.storeApiResponse(apiNodes, parentId);
 	}
 
 	/**

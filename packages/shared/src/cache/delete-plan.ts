@@ -83,7 +83,7 @@ export async function planSubtreeDelete(
 	nodeId: string,
 	childOrder: ChildOrder,
 ): Promise<DeletePlan> {
-	const subtree = await cacheService.getSubtreeMirrors(nodeId);
+	const subtree = cacheService.getSubtreeMirrors(nodeId);
 	const kept = findKeptOriginals(nodeId, subtree);
 	const deleted = (id: string) => isDeleted(id, nodeId, subtree.parents, kept);
 
@@ -99,7 +99,7 @@ export async function planSubtreeDelete(
 	const pendingMirrors = new Set(chosen.values());
 	const promotions: MirrorPromotion[] = [];
 	for (const [originalId, mirrorId] of chosen) {
-		const parentId = (await cacheService.getNode(mirrorId))?.parentId ?? null;
+		const parentId = cacheService.getNode(mirrorId)?.parentId ?? null;
 		const siblings = (await outline.children(parentId)).filter(
 			(id) => id === mirrorId || (id !== originalId && !deleted(id) && !pendingMirrors.has(id)),
 		);

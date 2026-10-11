@@ -17,7 +17,7 @@ const meta: Meta<typeof MenuButton> = {
 		},
 	},
 	args: {
-		onClick: fn(),
+		onClick: fn<() => void>(),
 	},
 };
 

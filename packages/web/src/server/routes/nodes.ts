@@ -13,7 +13,7 @@ import type {AppEnv, ServerContext} from "../context.js";
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
  * Returns the full UUID, or null if a short ID couldn't be resolved.
  */
-async function resolveNodeId(ctx: ServerContext, id: string): Promise<string | null> {
+function resolveNodeId(ctx: ServerContext, id: string): string | null {
 	if (!isShortId(id)) {
 		return id;
 	}
@@ -129,7 +129,7 @@ nodesRouter.get("/", async (c) => {
 
 	// Resolve short ID to full UUID if needed
 	if (parentId) {
-		const resolved = await resolveNodeId(ctx, parentId);
+		const resolved = resolveNodeId(ctx, parentId);
 		if (!resolved) {
 			return c.json({error: "Parent node not found"}, 404);
 		}
@@ -178,7 +178,7 @@ nodesRouter.get("/", async (c) => {
 nodesRouter.get("/:id", async (c) => {
 	const ctx = c.get("ctx");
 	const rawId = c.req.param("id");
-	const id = await resolveNodeId(ctx, rawId);
+	const id = resolveNodeId(ctx, rawId);
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -285,7 +285,7 @@ nodesRouter.post("/:id", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param("id"));
+	const id = resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -306,7 +306,7 @@ nodesRouter.post("/:id", async (c) => {
 	}
 
 	// Get current node to preserve parentId and verify existence
-	const existingNode = await cacheService.getNode(id);
+	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -341,7 +341,7 @@ nodesRouter.delete("/:id", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param("id"));
+	const id = resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -352,7 +352,7 @@ nodesRouter.delete("/:id", async (c) => {
 	}
 
 	// Verify the node exists before attempting to delete
-	const existingNode = await cacheService.getNode(id);
+	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -370,7 +370,7 @@ nodesRouter.post("/:id/complete", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param("id"));
+	const id = resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -381,7 +381,7 @@ nodesRouter.post("/:id/complete", async (c) => {
 	}
 
 	// Verify the node exists before attempting to complete
-	const existingNode = await cacheService.getNode(id);
+	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -409,9 +409,9 @@ nodesRouter.post("/:id/complete", async (c) => {
 });
 
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node
-nodesRouter.get("/:id/ancestors", async (c) => {
+nodesRouter.get("/:id/ancestors", (c) => {
 	const ctx = c.get("ctx");
-	const id = await resolveNodeId(ctx, c.req.param("id"));
+	const id = resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -442,10 +442,10 @@ nodesRouter.get("/:id/ancestors", async (c) => {
 });
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
-nodesRouter.get("/:id/mirrors", async (c) => {
+nodesRouter.get("/:id/mirrors", (c) => {
 	const ctx = c.get("ctx");
 	const rawId = c.req.param("id");
-	const id = await resolveNodeId(ctx, rawId);
+	const id = resolveNodeId(ctx, rawId);
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -510,7 +510,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param("id"));
+	const id = resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -521,7 +521,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 	}
 
 	// Verify the node exists before attempting to uncomplete
-	const existingNode = await cacheService.getNode(id);
+	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -556,7 +556,7 @@ nodesRouter.post("/:id/move", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const id = await resolveNodeId(ctx, c.req.param("id"));
+	const id = resolveNodeId(ctx, c.req.param("id"));
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
@@ -579,7 +579,7 @@ nodesRouter.post("/:id/move", async (c) => {
 	}
 
 	// Verify the node exists
-	const existingNode = await cacheService.getNode(id);
+	const existingNode = cacheService.getNode(id);
 	if (!existingNode) {
 		return c.json({error: "Node not found"}, 404);
 	}

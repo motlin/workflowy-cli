@@ -8,9 +8,7 @@ import type {LadderService} from "../src/server/ladder-service.js";
 
 /** A router over a service that answers only the operations a test supplies. */
 function makeApp(operations: Partial<LadderOperations>) {
-	const unexpected = async (): Promise<never> => {
-		throw new Error("unexpected ladder service call");
-	};
+	const unexpected = async (): Promise<never> => Promise.reject(new Error("unexpected ladder service call"));
 	const service: LadderOperations = {read: unexpected, move: unexpected, complete: unexpected, ...operations};
 	const app = new Hono<AppEnv>();
 	app.route("/api/v1/ladder", createLadderRouter({createService: () => service}));
@@ -27,7 +25,7 @@ const ladders: Record<string, Ladder> = {
 
 describe("GET /api/v1/ladder", () => {
 	it("returns both ladders as JSON", async () => {
-		const app = makeApp({read: async () => ladders});
+		const app = makeApp({read: async () => Promise.resolve(ladders)});
 		const res = await app.fetch(new Request("http://x/api/v1/ladder"));
 		expect(res.status).toBe(200);
 		await expect(res.json()).resolves.toStrictEqual({ladders});
@@ -36,14 +34,14 @@ describe("GET /api/v1/ladder", () => {
 
 describe("POST /api/v1/ladder/move", () => {
 	it("passes root, node and destination tier through to the service", async () => {
-		const move = vi.fn<LadderService["move"]>(async () => ({
+		const move = vi.fn<LadderService["move"]>().mockResolvedValue({
 			verb: "move",
 			nodeId: "a",
 			name: "A",
 			fromTier: "1st",
 			toTier: "2nd",
 			at: "T",
-		}));
+		});
 		const app = makeApp({move});
 		const res = await app.fetch(
 			new Request("http://x/api/v1/ladder/move", {
@@ -103,9 +101,7 @@ describe("POST /api/v1/ladder/move", () => {
 
 	it("reports a rejected move as 400 with the reason, not a 500", async () => {
 		const app = makeApp({
-			move: async () => {
-				throw new Error("no tier 9th on the work ladder");
-			},
+			move: async () => Promise.reject(new Error("no tier 9th on the work ladder")),
 		});
 		const res = await app.fetch(
 			new Request("http://x/api/v1/ladder/move", {
@@ -121,14 +117,14 @@ describe("POST /api/v1/ladder/move", () => {
 
 describe("POST /api/v1/ladder/complete", () => {
 	it("completes through the service", async () => {
-		const complete = vi.fn<LadderService["complete"]>(async () => ({
+		const complete = vi.fn<LadderService["complete"]>().mockResolvedValue({
 			verb: "complete",
 			nodeId: "a",
 			name: "A",
 			fromTier: "1st",
 			toTier: null,
 			at: "T",
-		}));
+		});
 		const app = makeApp({complete});
 		const res = await app.fetch(
 			new Request("http://x/api/v1/ladder/complete", {

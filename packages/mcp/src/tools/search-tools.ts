@@ -10,12 +10,12 @@ export function registerSearchTools(server: McpServer): void {
 			query: z.string().describe("Text to search for in node names and notes"),
 			limit: z.number().optional().default(20).describe("Maximum number of results to return"),
 		},
-		async ({query, limit}) => {
+		({query, limit}) => {
 			if (!query.trim()) {
 				return {content: [{type: "text", text: "Query cannot be empty"}], isError: true};
 			}
 
-			const rows = await getCacheService().searchText({query, limit});
+			const rows = getCacheService().searchText({query, limit});
 
 			if (rows.length === 0) {
 				return {content: [{type: "text", text: `No results found for: ${query}`}]};

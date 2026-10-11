@@ -13,12 +13,12 @@ import {isShortId} from "../workflowy/index.js";
  * @returns The full UUID
  * @throws Error if a short ID has no match in the cache
  */
-export async function resolveIdOrShortId(id: string, cacheService: CacheService): Promise<string> {
+export function resolveIdOrShortId(id: string, cacheService: CacheService): string {
 	if (!isShortId(id)) {
 		return id;
 	}
 
-	const nodeId = await cacheService.resolveShortIdToUuid(id);
+	const nodeId = cacheService.resolveShortIdToUuid(id);
 	if (!nodeId) {
 		throw new Error(`No node found for short ID: ${id}`);
 	}
@@ -47,7 +47,7 @@ export async function resolveNodeId(
 	}
 
 	const nodePath = flags.path!.split(",").map((s) => s.trim());
-	const cachedNode = await cacheService.findNodeByPath(nodePath);
+	const cachedNode = cacheService.findNodeByPath(nodePath);
 	if (cachedNode) {
 		return cachedNode.id;
 	}
@@ -111,7 +111,7 @@ export async function resolveOrCreateNodePath(
 			continue;
 		}
 
-		const cachedNode = await cacheService.findNodeByPath(subPath);
+		const cachedNode = cacheService.findNodeByPath(subPath);
 		const nodeId = cachedNode?.id ?? (await apiClient.findNodeByPath(subPath))?.id;
 
 		if (nodeId) {
@@ -199,7 +199,7 @@ export async function resolveParent(
 	}
 
 	const nodePath = flags.path!.split(",").map((s) => s.trim());
-	const cachedNode = await cacheService.findNodeByPath(nodePath);
+	const cachedNode = cacheService.findNodeByPath(nodePath);
 	if (cachedNode) {
 		return cachedNode.id;
 	}

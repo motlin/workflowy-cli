@@ -131,15 +131,15 @@ export class CacheService {
 		this.nodeReader = new NodeReader(database);
 	}
 
-	async getNode(nodeId: string): Promise<Node | undefined> {
+	getNode(nodeId: string): Node | undefined {
 		return this.nodeReader.getById(nodeId) ?? undefined;
 	}
 
-	async getMultipleNodes(nodeIds: string[]): Promise<Map<string, Node>> {
+	getMultipleNodes(nodeIds: string[]): Map<string, Node> {
 		return this.nodeReader.getMany(nodeIds);
 	}
 
-	async getChildren(parentId: string | null): Promise<Node[]> {
+	getChildren(parentId: string | null): Node[] {
 		return this.nodeReader.getChildren(parentId);
 	}
 
@@ -148,7 +148,7 @@ export class CacheService {
 	 * @param parentId The parent ID (null for root nodes)
 	 * @param name The exact name to match
 	 */
-	async getChildByName(parentId: string | null, name: string): Promise<Node | null> {
+	getChildByName(parentId: string | null, name: string): Node | null {
 		const children = this.nodeReader.getChildren(parentId);
 		// Names may carry inline HTML formatting (e.g. a colored <span> around
 		// "Personal"). Callers pass plain-text path segments, so fall back to a
@@ -159,12 +159,12 @@ export class CacheService {
 	/**
 	 * Get node with cache timestamp
 	 */
-	async getNodeWithMergedData(nodeId: string): Promise<{
+	getNodeWithMergedData(nodeId: string): {
 		node: Node | undefined;
 		source: "cache" | "none";
 		fetchedAt?: Date;
-	}> {
-		const node = await this.getNode(nodeId);
+	} {
+		const node = this.getNode(nodeId);
 		if (!node) {
 			return {node: undefined, source: "none"};
 		}
@@ -180,7 +180,7 @@ export class CacheService {
 	 * Get children with all related data from cache.
 	 * Returns raw Drizzle query results with joined relations.
 	 */
-	async getChildrenWithMergedData(parentId: string | null): Promise<NodeWithRelations[]> {
+	getChildrenWithMergedData(parentId: string | null): NodeWithRelations[] {
 		const whereClause =
 			parentId === null
 				? and(isNull(nodeContent.parentId), currentVersion(nodeContent))
@@ -268,7 +268,7 @@ export class CacheService {
 	 * search` command and the MCP `workflowy_search` tool; each adapter formats the
 	 * rows its own way (CLI adds a path, MCP a URL).
 	 */
-	async searchText(options: TextSearchOptions): Promise<TextSearchRow[]> {
+	searchText(options: TextSearchOptions): TextSearchRow[] {
 		const {query, limit = 20, incomplete = false} = options;
 		const pattern = `%${query}%`;
 
@@ -301,7 +301,7 @@ export class CacheService {
 	 * in the same shape as {@link getChildrenWithMergedData}. Used to seed a
 	 * subtree read from arbitrary root nodes rather than from a single parent.
 	 */
-	async getMergedDataForNodes(nodeIds: string[]): Promise<NodeWithRelations[]> {
+	getMergedDataForNodes(nodeIds: string[]): NodeWithRelations[] {
 		if (nodeIds.length === 0) {
 			return [];
 		}
@@ -364,7 +364,7 @@ export class CacheService {
 	 * @param apiNodes Array of nodes from the API
 	 * @param parentId The parent ID these nodes belong to (null for root)
 	 */
-	async storeApiResponse(apiNodes: WorkflowyNode[], parentId: string | null): Promise<void> {
+	storeApiResponse(apiNodes: WorkflowyNode[], parentId: string | null): void {
 		const fetchTimestamp = nextSystemTime(this.database);
 
 		if (parentId) {
@@ -581,7 +581,7 @@ export class CacheService {
 	 * @param node The newly created node from the API
 	 * @param parentId The parent ID this node belongs to (null for root)
 	 */
-	async insertNode(node: WorkflowyNode, parentId: string | null): Promise<void> {
+	insertNode(node: WorkflowyNode, parentId: string | null): void {
 		const fetchTimestamp = nextSystemTime(this.database);
 		const systemFromStr = formatTemporalTimestamp(fetchTimestamp);
 
@@ -700,7 +700,7 @@ export class CacheService {
 	 * This closes the records by setting systemTo to the current timestamp.
 	 * @param nodeId The node ID to delete
 	 */
-	async deleteNode(nodeId: string): Promise<void> {
+	deleteNode(nodeId: string): void {
 		const now = nextSystemTimestamp(this.database);
 
 		// Collect all descendant IDs iteratively (BFS)
@@ -759,10 +759,10 @@ export class CacheService {
 	 * @param path Array of exact node names to traverse
 	 * @param rootId Optional root node ID to start from
 	 */
-	async findNodeByPath(path: string[], rootId: string | null = null): Promise<Node | null> {
+	findNodeByPath(path: string[], rootId: string | null = null): Node | null {
 		if (path.length === 0) {
 			if (rootId) {
-				const node = await this.getNode(rootId);
+				const node = this.getNode(rootId);
 				return node ?? null;
 			}
 			return null;
@@ -771,7 +771,7 @@ export class CacheService {
 		let currentParentId = rootId;
 
 		for (const segment of path) {
-			const matchingChild = await this.getChildByName(currentParentId, segment);
+			const matchingChild = this.getChildByName(currentParentId, segment);
 
 			if (!matchingChild) {
 				return null;
@@ -793,7 +793,7 @@ export class CacheService {
 	 * Returns a Map from parentId to array of NodeWithRelations.
 	 * This is more efficient than calling getChildrenWithMergedData multiple times.
 	 */
-	async getChildrenForMultipleParents(parentIds: string[]): Promise<Map<string, NodeWithRelations[]>> {
+	getChildrenForMultipleParents(parentIds: string[]): Map<string, NodeWithRelations[]> {
 		if (parentIds.length === 0) {
 			return new Map();
 		}
@@ -896,7 +896,7 @@ export class CacheService {
 	 * Resolve a short_id (12 hex chars from Workflowy URL) to a full UUID.
 	 * Returns null if no matching node is found.
 	 */
-	async resolveShortIdToUuid(shortId: string): Promise<string | null> {
+	resolveShortIdToUuid(shortId: string): string | null {
 		const result = this.database.query.nodeMetadata
 			.findFirst({
 				where: and(eq(nodeMetadata.shortId, shortId), currentVersion(nodeMetadata)),
@@ -910,7 +910,7 @@ export class CacheService {
 	 * Resolve multiple short_ids to full UUIDs in a single query.
 	 * Returns a Map from short_id to full UUID.
 	 */
-	async resolveMultipleShortIds(shortIds: string[]): Promise<Map<string, string>> {
+	resolveMultipleShortIds(shortIds: string[]): Map<string, string> {
 		if (shortIds.length === 0) {
 			return new Map();
 		}
@@ -936,7 +936,7 @@ export class CacheService {
 	 * sourced only from backup imports; this is the write-through path for a
 	 * mirror the CLI just created.
 	 */
-	async insertMirror(originalId: string, mirrorId: string): Promise<void> {
+	insertMirror(originalId: string, mirrorId: string): void {
 		this.database
 			.insert(mirrors)
 			.values({
@@ -954,7 +954,7 @@ export class CacheService {
 	 * priority order then by id, and the walk stops at each mirror: a mirror's
 	 * own children live under its original.
 	 */
-	async getSubtreeMirrors(nodeId: string): Promise<SubtreeMirrors> {
+	getSubtreeMirrors(nodeId: string): SubtreeMirrors {
 		const chunkSize = 10_000;
 		const parents = new Map<string, string>();
 		const inside: string[] = [];
@@ -1018,7 +1018,7 @@ export class CacheService {
 	 * Get the original node ID for a mirror node.
 	 * Returns null if the node is not a mirror or not found.
 	 */
-	async getMirrorOriginal(mirrorId: string): Promise<string | null> {
+	getMirrorOriginal(mirrorId: string): string | null {
 		const result = this.database
 			.select({originalId: mirrors.originalId})
 			.from(mirrors)

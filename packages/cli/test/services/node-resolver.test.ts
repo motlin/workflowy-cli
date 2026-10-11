@@ -42,7 +42,7 @@ describe("node-resolver service", () => {
 			// A created node is read back for the priority Workflowy gave it
 			getNode: vi
 				.spyOn(apiClient, "getNode")
-				.mockImplementation(async (id) => createApiNode({id, priority: 100})),
+				.mockImplementation(async (id) => Promise.resolve(createApiNode({id, priority: 100}))),
 		};
 	});
 
@@ -332,7 +332,7 @@ describe("node-resolver service", () => {
 			await resolveOrCreateNodePath("Root,Cached", cacheService, apiClient);
 
 			// Verify node was cached
-			const cached = await cacheService.getNode("cached-id");
+			const cached = cacheService.getNode("cached-id");
 			expect(cached?.name).toBe("Cached");
 		});
 	});

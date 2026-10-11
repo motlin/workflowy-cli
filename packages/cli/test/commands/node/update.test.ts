@@ -167,7 +167,9 @@ describe("node update command", () => {
 				if (init?.body) {
 					capturedBody = requestBody(init);
 				}
-				return new Response(JSON.stringify({node: {id: "update-id", name: "New Name"}}), {status: 200});
+				return Promise.resolve(
+					new Response(JSON.stringify({node: {id: "update-id", name: "New Name"}}), {status: 200}),
+				);
 			});
 
 			await captureOutput(async () => {
@@ -192,9 +194,11 @@ describe("node update command", () => {
 				if (init?.body) {
 					capturedBody = requestBody(init);
 				}
-				return new Response(JSON.stringify({node: {id: "update-id", name: "Test", note: "New note"}}), {
-					status: 200,
-				});
+				return Promise.resolve(
+					new Response(JSON.stringify({node: {id: "update-id", name: "Test", note: "New note"}}), {
+						status: 200,
+					}),
+				);
 			});
 
 			await captureOutput(async () => {
@@ -219,7 +223,9 @@ describe("node update command", () => {
 				if (init?.body) {
 					capturedBody = requestBody(init);
 				}
-				return new Response(JSON.stringify({node: {id: "update-id", name: "Test", note: ""}}), {status: 200});
+				return Promise.resolve(
+					new Response(JSON.stringify({node: {id: "update-id", name: "Test", note: ""}}), {status: 200}),
+				);
 			});
 
 			await captureOutput(async () => {
@@ -245,7 +251,7 @@ describe("node update command", () => {
 				if (init?.body) {
 					capturedBody = requestBody(init);
 				}
-				return new Response(JSON.stringify({node: {id: "clear-id", name: ""}}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({node: {id: "clear-id", name: ""}}), {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -270,11 +276,13 @@ describe("node update command", () => {
 				if (init?.body) {
 					capturedBody = requestBody(init);
 				}
-				return new Response(
-					JSON.stringify({node: {id: "update-id", name: "Test", data: {layoutMode: "document"}}}),
-					{
-						status: 200,
-					},
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({node: {id: "update-id", name: "Test", data: {layoutMode: "document"}}}),
+						{
+							status: 200,
+						},
+					),
 				);
 			});
 
@@ -300,9 +308,11 @@ describe("node update command", () => {
 				if (init?.body) {
 					capturedBody = requestBody(init);
 				}
-				return new Response(JSON.stringify({node: {id: "update-id", name: "New Name", note: "New note"}}), {
-					status: 200,
-				});
+				return Promise.resolve(
+					new Response(JSON.stringify({node: {id: "update-id", name: "New Name", note: "New note"}}), {
+						status: 200,
+					}),
+				);
 			});
 
 			await captureOutput(async () => {
@@ -358,7 +368,9 @@ describe("node update command", () => {
 			let called = false;
 			fetchStub.mockImplementation(async (_url: RequestInfo | URL, _init?: RequestInit) => {
 				called = true;
-				return new Response(JSON.stringify({node: {id: "guard-id", name: "New Name"}}), {status: 200});
+				return Promise.resolve(
+					new Response(JSON.stringify({node: {id: "guard-id", name: "New Name"}}), {status: 200}),
+				);
 			});
 
 			await captureOutput(async () => {
@@ -398,7 +410,9 @@ describe("node update command", () => {
 			let capturedUrl: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return new Response(JSON.stringify({node: {id: "target-id", name: "Updated Task"}}), {status: 200});
+				return Promise.resolve(
+					new Response(JSON.stringify({node: {id: "target-id", name: "Updated Task"}}), {status: 200}),
+				);
 			});
 
 			await captureOutput(async () => {

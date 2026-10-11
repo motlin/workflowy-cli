@@ -56,7 +56,7 @@ export default class LoadDeclined extends Command {
 
 		// Find Session Memory node
 		const sessionMemoryPath = ["Metadata", "\u{1F9E0} Session Memory"];
-		const sessionMemoryNode = await cacheService.findNodeByPath(sessionMemoryPath);
+		const sessionMemoryNode = cacheService.findNodeByPath(sessionMemoryPath);
 
 		if (!sessionMemoryNode) {
 			const output: DeclinedOutput = {
@@ -72,7 +72,7 @@ export default class LoadDeclined extends Command {
 		}
 
 		// Get date nodes (children of Session Memory)
-		const dateNodes = await cacheService.getChildren(sessionMemoryNode.id);
+		const dateNodes = cacheService.getChildren(sessionMemoryNode.id);
 		const items: DeclinedItem[] = [];
 
 		for (const dateNode of dateNodes) {
@@ -84,7 +84,7 @@ export default class LoadDeclined extends Command {
 			}
 
 			// Get entries (children of date node)
-			const entries = await cacheService.getChildren(dateNode.id);
+			const entries = cacheService.getChildren(dateNode.id);
 
 			for (const entry of entries) {
 				const entryName = entry.name ?? "";

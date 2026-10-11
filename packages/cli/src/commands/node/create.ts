@@ -192,13 +192,13 @@ export default class Create extends Command {
 			this.log(`    ${JSON.stringify(requestBody, null, 2).split("\n").join("\n    ")}`);
 
 			const pathBuilder = new PathBuilder(database);
-			const parentPath = await pathBuilder.buildFullPath(parentId);
+			const parentPath = pathBuilder.buildFullPath(parentId);
 			this.log("");
 			this.log(`Parent: ${parentPath}`);
 		} else {
 			this.log(`Creating node: ${name}`);
 			const pathBuilder = new PathBuilder(database);
-			const parentPath = await pathBuilder.buildFullPath(parentId);
+			const parentPath = pathBuilder.buildFullPath(parentId);
 			this.log(`Parent: ${parentPath}`);
 
 			const newNode = await client.createNode({
@@ -263,14 +263,14 @@ export default class Create extends Command {
 		const nodeTree = parseResult.data;
 
 		if (flags["dry-run"]) {
-			await this.dryRunJsonMode(nodeTree, parentId, database);
+			this.dryRunJsonMode(nodeTree, parentId, database);
 			return;
 		}
 
 		// Create nodes recursively
 		this.log("Creating node tree...");
 		const pathBuilder = new PathBuilder(database);
-		const parentPath = await pathBuilder.buildFullPath(parentId);
+		const parentPath = pathBuilder.buildFullPath(parentId);
 		this.log(`Parent: ${parentPath}`);
 		this.log("");
 
@@ -326,16 +326,16 @@ export default class Create extends Command {
 	/**
 	 * Show dry-run output for JSON mode
 	 */
-	private async dryRunJsonMode(
+	private dryRunJsonMode(
 		nodeTree: NodeTreeSpec,
 		parentId: string,
 		database: ReturnType<typeof createDatabase>,
-	): Promise<void> {
+	): void {
 		this.log("Would create the following node tree:");
 		this.log("");
 
 		const pathBuilder = new PathBuilder(database);
-		const parentPath = await pathBuilder.buildFullPath(parentId);
+		const parentPath = pathBuilder.buildFullPath(parentId);
 		this.log(`Parent: ${parentPath}`);
 		this.log("");
 

@@ -21,7 +21,7 @@ const meta: Meta<typeof NoteDisplay> = {
 		},
 	},
 	args: {
-		onToggle: fn(),
+		onToggle: fn<() => void>(),
 	},
 	decorators: [
 		(Story) => (

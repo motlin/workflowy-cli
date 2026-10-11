@@ -31,21 +31,21 @@ interface RelatedResponse {
 }
 
 /** Fill each node's ancestor path in one batched PathBuilder query. */
-async function fillPaths(database: ReturnType<typeof getDatabase>, nodes: RelatedNode[]): Promise<void> {
-	const parts = await new PathBuilder(database).buildFullPathPartsBatch(nodes.map((n) => n.id));
+function fillPaths(database: ReturnType<typeof getDatabase>, nodes: RelatedNode[]): void {
+	const parts = new PathBuilder(database).buildFullPathPartsBatch(nodes.map((n) => n.id));
 	for (const node of nodes) {
 		node.path = parts.get(node.id) ?? [];
 	}
 }
 
-async function findSimilarNodes(
+function findSimilarNodes(
 	database: ReturnType<typeof getDatabase>,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
 	limit: number,
 	threshold: number,
-): Promise<RelatedNode[]> {
+): RelatedNode[] {
 	const results = database
 		.select({
 			nodeId: nodeEmbeddings.nodeId,
@@ -78,18 +78,18 @@ async function findSimilarNodes(
 		distance: result.distance,
 		path: [],
 	}));
-	await fillPaths(database, nodes);
+	fillPaths(database, nodes);
 	return nodes;
 }
 
-async function findParentCandidates(
+function findParentCandidates(
 	database: ReturnType<typeof getDatabase>,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
 	limit: number,
 	threshold: number,
-): Promise<RelatedNode[]> {
+): RelatedNode[] {
 	// Parent candidates are nodes that:
 	// 1. Are semantically similar to the source
 	// 2. Already have children (are likely container nodes)
@@ -163,18 +163,18 @@ async function findParentCandidates(
 		}
 	}
 
-	await fillPaths(database, candidates);
+	fillPaths(database, candidates);
 	return candidates;
 }
 
-async function findLinkTargets(
+function findLinkTargets(
 	database: ReturnType<typeof getDatabase>,
 	sourceEmbedding: Buffer,
 	sourceNodeId: string,
 	model: string,
 	limit: number,
 	threshold: number,
-): Promise<RelatedNode[]> {
+): RelatedNode[] {
 	// Link targets prioritize nodes with meaningful names (not just empty/bullet points)
 	// and are not the source node itself
 	const results = database
@@ -221,7 +221,7 @@ async function findLinkTargets(
 		}
 	}
 
-	await fillPaths(database, targets);
+	fillPaths(database, targets);
 	return targets;
 }
 
@@ -268,15 +268,15 @@ relatedRouter.post("/", async (c) => {
 
 	switch (type) {
 		case "similar": {
-			results = await findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
+			results = findSimilarNodes(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
 		case "parent-candidates": {
-			results = await findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
+			results = findParentCandidates(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
 		case "link-targets": {
-			results = await findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
+			results = findLinkTargets(database, embeddingBuffer, nodeId, model, limit, threshold);
 			break;
 		}
 	}

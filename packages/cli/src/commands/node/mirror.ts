@@ -95,8 +95,8 @@ export default class Mirror extends Command {
 
 		if (!flags.json) {
 			this.log("Mirroring:");
-			this.log(`  Origin: ${await pathBuilder.buildFullPath(nodeId)}`);
-			this.log(`  Into:   ${await pathBuilder.buildFullPath(parentId)}`);
+			this.log(`  Origin: ${pathBuilder.buildFullPath(nodeId)}`);
+			this.log(`  Into:   ${pathBuilder.buildFullPath(parentId)}`);
 		}
 
 		const result = await client.createMirror(nodeId, parentId, position);

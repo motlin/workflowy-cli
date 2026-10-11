@@ -50,7 +50,7 @@ export default class ImportApi extends Command {
 			}
 
 			const database = createDatabase();
-			const result: ImportApiResult = await importFromApi(database, nodes, flags.verbose);
+			const result: ImportApiResult = importFromApi(database, nodes, flags.verbose);
 
 			const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 

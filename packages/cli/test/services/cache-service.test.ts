@@ -40,22 +40,22 @@ describe("CacheService (shared)", () => {
 	});
 
 	describe("getNode", () => {
-		it("returns node by ID", async () => {
+		it("returns node by ID", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "node-1", name: "Test Node"})],
 			});
 
-			const node = await cacheService.getNode("node-1");
+			const node = cacheService.getNode("node-1");
 
 			expect({id: node?.id, name: node?.name}).toStrictEqual({id: "node-1", name: "Test Node"});
 		});
 
-		it("returns undefined for non-existent node", async () => {
-			const node = await cacheService.getNode("non-existent");
+		it("returns undefined for non-existent node", () => {
+			const node = cacheService.getNode("non-existent");
 			expect(node).toBeUndefined();
 		});
 
-		it("only returns active records (systemTo = FAR_FUTURE_DATE)", async () => {
+		it("only returns active records (systemTo = FAR_FUTURE_DATE)", () => {
 			const now = formatTemporalTimestamp(new Date());
 			const earlier = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
@@ -65,14 +65,14 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const node = await cacheService.getNode("node-1");
+			const node = cacheService.getNode("node-1");
 
 			expect(node?.name).toBe("Current");
 		});
 	});
 
 	describe("getChildren", () => {
-		it("returns children of a parent node", async () => {
+		it("returns children of a parent node", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
@@ -81,12 +81,12 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const children = await cacheService.getChildren("parent");
+			const children = cacheService.getChildren("parent");
 
 			expect(children.map((c) => c.name)).toStrictEqual(["Child 1", "Child 2"]);
 		});
 
-		it("returns root nodes when parentId is null", async () => {
+		it("returns root nodes when parentId is null", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "root-1", name: "Root 1", parentId: null, priority: 0}),
@@ -95,12 +95,12 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const roots = await cacheService.getChildren(null);
+			const roots = cacheService.getChildren(null);
 
 			expect(roots.map((r) => r.name)).toStrictEqual(["Root 1", "Root 2"]);
 		});
 
-		it("orders children by priority then createdAt", async () => {
+		it("orders children by priority then createdAt", () => {
 			const now = new Date();
 			const nowPlusOne = new Date(now.getTime() + 1000);
 			seedTestData(testDatabase, {
@@ -112,22 +112,22 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const children = await cacheService.getChildren("parent");
+			const children = cacheService.getChildren("parent");
 
 			expect(children.map((c) => c.name)).toStrictEqual(["B", "A", "C"]);
 		});
 
-		it("returns empty array for node with no children", async () => {
+		it("returns empty array for node with no children", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "parent", name: "Parent", parentId: null})],
 			});
 
-			const children = await cacheService.getChildren("parent");
+			const children = cacheService.getChildren("parent");
 
 			expect(children).toStrictEqual([]);
 		});
 
-		it("excludes historical records", async () => {
+		it("excludes historical records", () => {
 			const now = formatTemporalTimestamp(new Date());
 			seedTestData(testDatabase, {
 				nodes: [
@@ -137,14 +137,14 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const children = await cacheService.getChildren("parent");
+			const children = cacheService.getChildren("parent");
 
 			expect(children.map((child) => child.name)).toStrictEqual(["Active"]);
 		});
 	});
 
 	describe("getChildByName", () => {
-		it("finds child by exact name", async () => {
+		it("finds child by exact name", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
@@ -159,7 +159,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const child = await cacheService.getChildByName("parent", "Target");
+			const child = cacheService.getChildByName("parent", "Target");
 
 			expect(child).toStrictEqual({
 				id: "child",
@@ -179,7 +179,7 @@ describe("CacheService (shared)", () => {
 			});
 		});
 
-		it("returns null when name not found", async () => {
+		it("returns null when name not found", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
@@ -187,12 +187,12 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const child = await cacheService.getChildByName("parent", "Target");
+			const child = cacheService.getChildByName("parent", "Target");
 
 			expect(child).toBeNull();
 		});
 
-		it("finds root node by name when parentId is null", async () => {
+		it("finds root node by name when parentId is null", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({
@@ -206,7 +206,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const root = await cacheService.getChildByName(null, "Root Node");
+			const root = cacheService.getChildByName(null, "Root Node");
 
 			expect(root).toStrictEqual({
 				id: "root",
@@ -226,7 +226,7 @@ describe("CacheService (shared)", () => {
 			});
 		});
 
-		it("matches a plain segment against an HTML-formatted (colored) name", async () => {
+		it("matches a plain segment against an HTML-formatted (colored) name", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({
@@ -240,7 +240,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const child = await cacheService.getChildByName(null, "Personal");
+			const child = cacheService.getChildByName(null, "Personal");
 
 			expect(child).toStrictEqual({
 				id: "personal",
@@ -262,12 +262,12 @@ describe("CacheService (shared)", () => {
 	});
 
 	describe("getNodeWithMergedData", () => {
-		it("returns node with cache source", async () => {
+		it("returns node with cache source", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "node-1", name: "Test"})],
 			});
 
-			const result = await cacheService.getNodeWithMergedData("node-1");
+			const result = cacheService.getNodeWithMergedData("node-1");
 
 			expect({nodeName: result.node?.name, source: result.source}).toStrictEqual({
 				nodeName: "Test",
@@ -276,15 +276,15 @@ describe("CacheService (shared)", () => {
 			expect(result.fetchedAt).toBeInstanceOf(Date);
 		});
 
-		it("returns none source for missing node", async () => {
-			const result = await cacheService.getNodeWithMergedData("missing");
+		it("returns none source for missing node", () => {
+			const result = cacheService.getNodeWithMergedData("missing");
 
 			expect(result).toStrictEqual({node: undefined, source: "none"});
 		});
 	});
 
 	describe("findNodeByPath", () => {
-		it("finds node at simple path", async () => {
+		it("finds node at simple path", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({
@@ -298,7 +298,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const node = await cacheService.findNodeByPath(["Root"]);
+			const node = cacheService.findNodeByPath(["Root"]);
 
 			expect(node).toStrictEqual({
 				id: "root",
@@ -318,7 +318,7 @@ describe("CacheService (shared)", () => {
 			});
 		});
 
-		it("finds node at nested path", async () => {
+		it("finds node at nested path", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "l1", name: "Level1", parentId: null}),
@@ -334,7 +334,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const node = await cacheService.findNodeByPath(["Level1", "Level2", "Level3"]);
+			const node = cacheService.findNodeByPath(["Level1", "Level2", "Level3"]);
 
 			expect(node).toStrictEqual({
 				id: "l3",
@@ -354,22 +354,22 @@ describe("CacheService (shared)", () => {
 			});
 		});
 
-		it("returns null for non-existent path", async () => {
+		it("returns null for non-existent path", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "root", name: "Root", parentId: null})],
 			});
 
-			const node = await cacheService.findNodeByPath(["Root", "Missing"]);
+			const node = cacheService.findNodeByPath(["Root", "Missing"]);
 
 			expect(node).toBeNull();
 		});
 
-		it("returns null for empty path", async () => {
-			const node = await cacheService.findNodeByPath([]);
+		it("returns null for empty path", () => {
+			const node = cacheService.findNodeByPath([]);
 			expect(node).toBeNull();
 		});
 
-		it("returns root node for empty path with rootId", async () => {
+		it("returns root node for empty path with rootId", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({
@@ -383,7 +383,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const node = await cacheService.findNodeByPath([], "root");
+			const node = cacheService.findNodeByPath([], "root");
 
 			expect(node).toStrictEqual({
 				id: "root",
@@ -403,7 +403,7 @@ describe("CacheService (shared)", () => {
 			});
 		});
 
-		it("resolves a path through an HTML-formatted (colored) ancestor", async () => {
+		it("resolves a path through an HTML-formatted (colored) ancestor", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({
@@ -422,7 +422,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const node = await cacheService.findNodeByPath(["Personal", "🔄 Review"]);
+			const node = cacheService.findNodeByPath(["Personal", "🔄 Review"]);
 
 			expect(node).toStrictEqual({
 				id: "review",
@@ -442,20 +442,20 @@ describe("CacheService (shared)", () => {
 			});
 		});
 
-		it("matches exactly, never on a substring", async () => {
+		it("matches exactly, never on a substring", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "archive", name: "Review Archive", parentId: null})],
 			});
 
 			// 'Review' is a substring of 'Review Archive' but must not match: this API is exact-only.
-			const node = await cacheService.findNodeByPath(["Review"]);
+			const node = cacheService.findNodeByPath(["Review"]);
 
 			expect(node).toBeNull();
 		});
 	});
 
 	describe("storeApiResponse", () => {
-		it("preserves mirror, backlink, and virtualRootId rows on sync (#1712)", async () => {
+		it("preserves mirror, backlink, and virtualRootId rows on sync (#1712)", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
 				nodes: [
@@ -477,10 +477,7 @@ describe("CacheService (shared)", () => {
 			});
 
 			// Sync the child back under its parent (a routine cache refresh).
-			await cacheService.storeApiResponse(
-				[createApiNode({id: "child", name: "Child", parent_id: "parent"})],
-				"parent",
-			);
+			cacheService.storeApiResponse([createApiNode({id: "child", name: "Child", parent_id: "parent"})], "parent");
 
 			// These records come only from backup imports; the sync must leave them open.
 			expect(testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, "child")).get()!.systemTo).toBe(
@@ -494,7 +491,7 @@ describe("CacheService (shared)", () => {
 			).toBe(FAR_FUTURE_DATE);
 		});
 
-		it("scopes the sibling metadata phase-out to the synced parent", async () => {
+		it("scopes the sibling metadata phase-out to the synced parent", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parentA", name: "A", parentId: null}),
@@ -505,7 +502,7 @@ describe("CacheService (shared)", () => {
 			});
 
 			// Sync parentA's children (only childA). Nodes under parentB must be untouched.
-			await cacheService.storeApiResponse(
+			cacheService.storeApiResponse(
 				[createApiNode({id: "childA", name: "Child A", parent_id: "parentA"})],
 				"parentA",
 			);
@@ -518,13 +515,13 @@ describe("CacheService (shared)", () => {
 			expect(childBMeta.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 
-		it("inserts new nodes", async () => {
+		it("inserts new nodes", () => {
 			const apiNodes = [
 				createApiNode({id: "node-1", name: "Node 1", parent_id: null, priority: 0}),
 				createApiNode({id: "node-2", name: "Node 2", parent_id: null, priority: 1}),
 			];
 
-			await cacheService.storeApiResponse(apiNodes, null);
+			cacheService.storeApiResponse(apiNodes, null);
 
 			const stored = testDatabase.db
 				.select()
@@ -534,14 +531,14 @@ describe("CacheService (shared)", () => {
 			expect(stored.map((s) => s.id).toSorted()).toStrictEqual(["node-1", "node-2"]);
 		});
 
-		it("updates changed nodes with temporal versioning", async () => {
+		it("updates changed nodes with temporal versioning", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "node-1", name: "Old Name", parentId: null})],
 			});
 
 			const apiNodes = [createApiNode({id: "node-1", name: "New Name", parent_id: null})];
 
-			await cacheService.storeApiResponse(apiNodes, null);
+			cacheService.storeApiResponse(apiNodes, null);
 
 			const allRecords = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).all();
 			expect({
@@ -554,7 +551,7 @@ describe("CacheService (shared)", () => {
 			}).toStrictEqual({activeNames: ["New Name"], historicalNames: ["Old Name"]});
 		});
 
-		it("phases out cached children not in API response", async () => {
+		it("phases out cached children not in API response", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
@@ -565,7 +562,7 @@ describe("CacheService (shared)", () => {
 
 			const apiNodes = [createApiNode({id: "child-1", name: "Keep", parent_id: "parent"})];
 
-			await cacheService.storeApiResponse(apiNodes, "parent");
+			cacheService.storeApiResponse(apiNodes, "parent");
 
 			const child2Content = testDatabase.db
 				.select()
@@ -576,10 +573,10 @@ describe("CacheService (shared)", () => {
 			expectPhasedOut(child2);
 		});
 
-		it("creates placeholder parent if not exists", async () => {
+		it("creates placeholder parent if not exists", () => {
 			const apiNodes = [createApiNode({id: "child", name: "Child", parent_id: "parent"})];
 
-			await cacheService.storeApiResponse(apiNodes, "parent");
+			cacheService.storeApiResponse(apiNodes, "parent");
 
 			const parent = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "parent")).get()!;
 			expect(createNodeFromContent(parent)).toStrictEqual(
@@ -594,7 +591,7 @@ describe("CacheService (shared)", () => {
 			);
 		});
 
-		it("does not affect unchanged nodes", async () => {
+		it("does not affect unchanged nodes", () => {
 			const now = new Date();
 			const nowSeconds = Math.floor(now.getTime() / 1000);
 			seedTestData(testDatabase, {
@@ -629,7 +626,7 @@ describe("CacheService (shared)", () => {
 				}),
 			];
 
-			await cacheService.storeApiResponse(apiNodes, null);
+			cacheService.storeApiResponse(apiNodes, null);
 
 			const allRecords = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).all();
 			expect(allRecords.map((record) => record.systemFrom)).toStrictEqual([initialRecord.systemFrom]);
@@ -637,16 +634,16 @@ describe("CacheService (shared)", () => {
 	});
 
 	describe("insertNode", () => {
-		it("inserts new node", async () => {
+		it("inserts new node", () => {
 			const apiNode = createApiNode({id: "new-node", name: "New Node", parent_id: null});
 
-			await cacheService.insertNode(apiNode, null);
+			cacheService.insertNode(apiNode, null);
 
-			const stored = await cacheService.getNode("new-node");
+			const stored = cacheService.getNode("new-node");
 			expect(stored?.name).toBe("New Node");
 		});
 
-		it("does not phase out siblings", async () => {
+		it("does not phase out siblings", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
@@ -656,20 +653,20 @@ describe("CacheService (shared)", () => {
 
 			const apiNode = createApiNode({id: "new-node", name: "New Node", parent_id: "parent"});
 
-			await cacheService.insertNode(apiNode, "parent");
+			cacheService.insertNode(apiNode, "parent");
 
-			const sibling = await cacheService.getNode("sibling");
+			const sibling = cacheService.getNode("sibling");
 			expect(sibling?.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 
-		it("updates existing node with temporal versioning", async () => {
+		it("updates existing node with temporal versioning", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "node-1", name: "Old", parentId: null})],
 			});
 
 			const apiNode = createApiNode({id: "node-1", name: "Updated", parent_id: null});
 
-			await cacheService.insertNode(apiNode, null);
+			cacheService.insertNode(apiNode, null);
 
 			const allRecords = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, "node-1")).all();
 			expect({
@@ -682,7 +679,7 @@ describe("CacheService (shared)", () => {
 			}).toStrictEqual({activeNames: ["Updated"], historicalNames: ["Old"]});
 		});
 
-		it("normalizes layoutMode on a brand-new insert", async () => {
+		it("normalizes layoutMode on a brand-new insert", () => {
 			// 'bullets' is the default layout and normalizes to null (see normalizeLayoutMode).
 			const apiNode = createApiNode({
 				id: "new-node",
@@ -692,7 +689,7 @@ describe("CacheService (shared)", () => {
 				modifiedAt: FIXED_EPOCH_SECONDS,
 			});
 
-			await cacheService.insertNode(apiNode, null);
+			cacheService.insertNode(apiNode, null);
 
 			const meta = testDatabase.db.select().from(nodeMetadata).where(eq(nodeMetadata.nodeId, "new-node")).get()!;
 			expect(meta).toStrictEqual({
@@ -710,7 +707,7 @@ describe("CacheService (shared)", () => {
 	});
 
 	describe("deleteNode", () => {
-		it("phases out node and descendants", async () => {
+		it("phases out node and descendants", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent", name: "Parent", parentId: null}),
@@ -719,7 +716,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			await cacheService.deleteNode("parent");
+			cacheService.deleteNode("parent");
 
 			for (const id of ["parent", "child", "grandchild"]) {
 				const content = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.id, id)).get()!;
@@ -727,7 +724,7 @@ describe("CacheService (shared)", () => {
 			}
 		});
 
-		it("does not affect siblings", async () => {
+		it("does not affect siblings", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "root", name: "Root", parentId: null}),
@@ -736,13 +733,13 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			await cacheService.deleteNode("node-1");
+			cacheService.deleteNode("node-1");
 
-			const node2 = await cacheService.getNode("node-2");
+			const node2 = cacheService.getNode("node-2");
 			expect(node2?.systemTo).toBe(FAR_FUTURE_DATE);
 		});
 
-		it("closes backlinks and virtualRootIds for the deleted subtree", async () => {
+		it("closes backlinks and virtualRootIds for the deleted subtree", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
 				nodes: [
@@ -763,7 +760,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			await cacheService.deleteNode("parent");
+			cacheService.deleteNode("parent");
 
 			const bl = testDatabase.db.select().from(backlinks).where(eq(backlinks.nodeId, "child")).get()!;
 			expect(bl.systemTo).not.toBe(FAR_FUTURE_DATE);
@@ -771,7 +768,7 @@ describe("CacheService (shared)", () => {
 			expect(vr.systemTo).not.toBe(FAR_FUTURE_DATE);
 		});
 
-		it("closes mirror rows on both sides of a genuine deletion", async () => {
+		it("closes mirror rows on both sides of a genuine deletion", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
 				nodes: [
@@ -788,8 +785,8 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			await cacheService.deleteNode("copy");
-			await cacheService.deleteNode("orig2");
+			cacheService.deleteNode("copy");
+			cacheService.deleteNode("orig2");
 
 			const byCopy = testDatabase.db.select().from(mirrors).where(eq(mirrors.mirrorId, "copy")).get()!;
 			expect(byCopy.systemTo).not.toBe(FAR_FUTURE_DATE);
@@ -797,7 +794,7 @@ describe("CacheService (shared)", () => {
 			expect(byOriginal.systemTo).not.toBe(FAR_FUTURE_DATE);
 		});
 
-		it("leaves a surviving node backlink that merely targets the deleted node", async () => {
+		it("leaves a surviving node backlink that merely targets the deleted node", () => {
 			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
 			seedTestData(testDatabase, {
 				nodes: [
@@ -816,7 +813,7 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			await cacheService.deleteNode("target");
+			cacheService.deleteNode("target");
 
 			const bl = testDatabase.db.select().from(backlinks).where(eq(backlinks.nodeId, "survivor")).get()!;
 			expect(bl.systemTo).toBe(FAR_FUTURE_DATE);
@@ -824,7 +821,7 @@ describe("CacheService (shared)", () => {
 	});
 
 	describe("getChildrenWithMergedData", () => {
-		it("returns cache nodes with relations", async () => {
+		it("returns cache nodes with relations", () => {
 			const now = new Date();
 			const parentNode = createTestNode({id: "parent", name: "Parent", parentId: null});
 			const childNode = createTestNode({
@@ -846,14 +843,14 @@ describe("CacheService (shared)", () => {
 				nodeMetadata: [parentMetadata, childMetadata],
 			});
 
-			const result = await cacheService.getChildrenWithMergedData("parent");
+			const result = cacheService.getChildrenWithMergedData("parent");
 
 			expect(result.map(({id, name, note, layoutMode}) => ({id, name, note, layoutMode}))).toStrictEqual([
 				{id: "child", name: "Child", note: "A note", layoutMode: "document"},
 			]);
 		});
 
-		it("returns empty array for no children", async () => {
+		it("returns empty array for no children", () => {
 			const parentNode = createTestNode({id: "parent", name: "Parent", parentId: null});
 			const {content: parentContent, metadata: parentMetadata} = splitNodeIntoContentAndMetadata(parentNode);
 
@@ -862,14 +859,14 @@ describe("CacheService (shared)", () => {
 				nodeMetadata: [parentMetadata],
 			});
 
-			const result = await cacheService.getChildrenWithMergedData("parent");
+			const result = cacheService.getChildrenWithMergedData("parent");
 
 			expect(result).toStrictEqual([]);
 		});
 	});
 
 	describe("getChildrenForMultipleParents", () => {
-		it("returns children grouped by parent", async () => {
+		it("returns children grouped by parent", () => {
 			seedTestData(testDatabase, {
 				nodes: [
 					createTestNode({id: "parent-1", name: "Parent 1", parentId: null}),
@@ -880,50 +877,50 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const result = await cacheService.getChildrenForMultipleParents(["parent-1", "parent-2"]);
+			const result = cacheService.getChildrenForMultipleParents(["parent-1", "parent-2"]);
 
 			expect(result.get("parent-1")!).toHaveLength(2);
 			expect(result.get("parent-2")!).toHaveLength(1);
 		});
 
-		it("returns empty arrays for parents with no children", async () => {
+		it("returns empty arrays for parents with no children", () => {
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: "parent", name: "Parent", parentId: null})],
 			});
 
-			const result = await cacheService.getChildrenForMultipleParents(["parent", "missing"]);
+			const result = cacheService.getChildrenForMultipleParents(["parent", "missing"]);
 
 			expect(result.get("parent")).toStrictEqual([]);
 			expect(result.get("missing")).toStrictEqual([]);
 		});
 
-		it("returns empty map for empty input", async () => {
-			const result = await cacheService.getChildrenForMultipleParents([]);
+		it("returns empty map for empty input", () => {
+			const result = cacheService.getChildrenForMultipleParents([]);
 			expect(result.size).toBe(0);
 		});
 	});
 
 	describe("resolveShortIdToUuid", () => {
-		it("resolves short ID to full UUID", async () => {
+		it("resolves short ID to full UUID", () => {
 			const fullId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 			const shortId = "eeeeeeeeeeee";
 			seedTestData(testDatabase, {
 				nodes: [createTestNode({id: fullId, shortId, name: "Test", parentId: null})],
 			});
 
-			const result = await cacheService.resolveShortIdToUuid(shortId);
+			const result = cacheService.resolveShortIdToUuid(shortId);
 
 			expect(result).toBe(fullId);
 		});
 
-		it("returns null for non-existent short ID", async () => {
-			const result = await cacheService.resolveShortIdToUuid("nonexistent12");
+		it("returns null for non-existent short ID", () => {
+			const result = cacheService.resolveShortIdToUuid("nonexistent12");
 			expect(result).toBeNull();
 		});
 	});
 
 	describe("resolveMultipleShortIds", () => {
-		it("resolves multiple short IDs", async () => {
+		it("resolves multiple short IDs", () => {
 			const id1 = "aaaaaaaa-1111-2222-3333-444444444444";
 			const id2 = "bbbbbbbb-1111-2222-3333-555555555555";
 			seedTestData(testDatabase, {
@@ -933,14 +930,14 @@ describe("CacheService (shared)", () => {
 				],
 			});
 
-			const result = await cacheService.resolveMultipleShortIds(["444444444444", "555555555555"]);
+			const result = cacheService.resolveMultipleShortIds(["444444444444", "555555555555"]);
 
 			expect(result.get("444444444444")).toBe(id1);
 			expect(result.get("555555555555")).toBe(id2);
 		});
 
-		it("returns empty map for empty input", async () => {
-			const result = await cacheService.resolveMultipleShortIds([]);
+		it("returns empty map for empty input", () => {
+			const result = cacheService.resolveMultipleShortIds([]);
 			expect(result.size).toBe(0);
 		});
 	});

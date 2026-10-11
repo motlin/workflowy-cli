@@ -22,15 +22,15 @@ export class TextSearchService {
 		this.pathBuilder = new PathBuilder(database);
 	}
 
-	async search(options: TextSearchOptions): Promise<TextSearchResult[]> {
-		const rows = await this.cacheService.searchText(options);
+	search(options: TextSearchOptions): TextSearchResult[] {
+		const rows = this.cacheService.searchText(options);
 		logger.logSqlResult("textSearch", rows);
 
 		if (rows.length === 0) {
 			return [];
 		}
 
-		const pathMap = await this.pathBuilder.buildFullPathsBatch(rows.map((r) => r.id));
+		const pathMap = this.pathBuilder.buildFullPathsBatch(rows.map((r) => r.id));
 
 		return rows.map((row) => ({
 			shortId: row.shortId,

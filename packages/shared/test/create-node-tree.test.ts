@@ -10,7 +10,13 @@ function fakeClient() {
 		async createNode(options) {
 			calls.push({parent_id: options.parent_id, name: options.name, position: options.position});
 			counter += 1;
-			return {id: `id-${counter}`, name: options.name, priority: 0, createdAt: 1000 + counter, modifiedAt: null};
+			return Promise.resolve({
+				id: `id-${counter}`,
+				name: options.name,
+				priority: 0,
+				createdAt: 1000 + counter,
+				modifiedAt: null,
+			});
 		},
 	};
 	return {client, calls};

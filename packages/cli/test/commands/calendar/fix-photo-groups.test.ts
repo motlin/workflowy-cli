@@ -84,25 +84,27 @@ describe("calendar:fix-photo-groups command", () => {
 
 			if (method === "GET") {
 				const nodeId = urlString.split("/nodes/")[1];
-				return new Response(
-					JSON.stringify({
-						node: {
-							id: nodeId,
-							name: "",
-							parent_id: "entry",
-							priority: 0,
-							completed: false,
-							createdAt: 1_700_000_000_000,
-							modifiedAt: 1_700_000_000_000,
-							completedAt: null,
-							data: {},
-						},
-					}),
-					{status: 200},
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							node: {
+								id: nodeId,
+								name: "",
+								parent_id: "entry",
+								priority: 0,
+								completed: false,
+								createdAt: 1_700_000_000_000,
+								modifiedAt: 1_700_000_000_000,
+								completedAt: null,
+								data: {},
+							},
+						}),
+						{status: 200},
+					),
 				);
 			}
 
-			return new Response(JSON.stringify({}), {status: 200});
+			return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 		});
 	});
 

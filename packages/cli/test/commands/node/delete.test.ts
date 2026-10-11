@@ -106,7 +106,7 @@ describe("node delete command", () => {
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
 				capturedMethod = init?.method;
-				return new Response(JSON.stringify({}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -135,7 +135,7 @@ describe("node delete command", () => {
 			let capturedUrl: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return new Response(JSON.stringify({}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -246,13 +246,13 @@ describe("node delete command", () => {
 					const nodes = children[parentId].map((id, priority) =>
 						createApiNode({id, parent_id: parentId, priority}),
 					);
-					return new Response(JSON.stringify({nodes}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({nodes}), {status: 200}));
 				}
 				if (method === "GET") {
 					const node = createApiNode({id: "task-a-id", name: "Task A", parent_id: "agendas-id", priority: 0});
-					return new Response(JSON.stringify({node}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({node}), {status: 200}));
 				}
-				return new Response(JSON.stringify({status: "ok"}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({status: "ok"}), {status: 200}));
 			});
 			return calls;
 		}

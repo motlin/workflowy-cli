@@ -96,8 +96,8 @@ export default class Load extends Command {
 		const cutoffDateStr = cutoffDate.toISOString().slice(0, 10);
 
 		// Fetch all data
-		const nextActions = await this.fetchNextActionsTasks(metadata);
-		const projectTasks = await this.fetchProjectTasks(metadata);
+		const nextActions = this.fetchNextActionsTasks(metadata);
+		const projectTasks = this.fetchProjectTasks(metadata);
 		const recentMeetings = await this.fetchRecentMeetings(metadata, cutoffDateStr);
 
 		const output: TasksOutput = {
@@ -116,7 +116,7 @@ export default class Load extends Command {
 	/**
 	 * Fetch incomplete tasks from Next Actions lists.
 	 */
-	private async fetchNextActionsTasks(metadata: MetadataJson): Promise<Task[]> {
+	private fetchNextActionsTasks(metadata: MetadataJson): Task[] {
 		const allTasks: Task[] = [];
 		const seenIds = new Set<string>();
 
@@ -139,13 +139,13 @@ export default class Load extends Command {
 		const allIds = [...containerIds, ...targetIds].filter((id) => id && id !== "null");
 
 		for (const id of allIds) {
-			const node = await this.cacheService.getNode(id);
+			const node = this.cacheService.getNode(id);
 			if (!node) {
 				continue;
 			}
 
 			// Get children (depth 2 to get tasks inside containers)
-			const children = await this.cacheService.getChildren(id);
+			const children = this.cacheService.getChildren(id);
 
 			for (const child of children) {
 				// Skip the root node itself
@@ -181,7 +181,7 @@ export default class Load extends Command {
 				}
 
 				// Also check grandchildren (depth 2)
-				const grandchildren = await this.cacheService.getChildren(child.id);
+				const grandchildren = this.cacheService.getChildren(child.id);
 				for (const grandchild of grandchildren) {
 					if (grandchild.completedAt) {
 						continue;
@@ -215,14 +215,14 @@ export default class Load extends Command {
 	/**
 	 * Fetch tasks from active projects.
 	 */
-	private async fetchProjectTasks(metadata: MetadataJson): Promise<ProjectTask[]> {
+	private fetchProjectTasks(metadata: MetadataJson): ProjectTask[] {
 		const allTasks: ProjectTask[] = [];
 		const seenIds = new Set<string>();
 
 		const projectIds = metadata.projects.map((p) => p.linkId).filter((id) => id && id !== "null");
 
 		for (const id of projectIds) {
-			const node = await this.cacheService.getNode(id);
+			const node = this.cacheService.getNode(id);
 			if (!node) {
 				continue;
 			}
@@ -230,7 +230,7 @@ export default class Load extends Command {
 			const projectName = node.name ?? "";
 
 			// Get children (depth 2)
-			const children = await this.cacheService.getChildren(id);
+			const children = this.cacheService.getChildren(id);
 
 			for (const child of children) {
 				// Skip the root node
@@ -273,7 +273,7 @@ export default class Load extends Command {
 				}
 
 				// Also check grandchildren
-				const grandchildren = await this.cacheService.getChildren(child.id);
+				const grandchildren = this.cacheService.getChildren(child.id);
 				for (const grandchild of grandchildren) {
 					if (grandchild.completedAt) {
 						continue;
@@ -336,7 +336,7 @@ export default class Load extends Command {
 				}
 
 				// Get children of this date node (meetings)
-				const dateChildren = await this.cacheService.getChildren(child.id);
+				const dateChildren = this.cacheService.getChildren(child.id);
 				for (const meeting of dateChildren) {
 					if (!meeting.name || meeting.name.trim().length === 0) {
 						continue;
@@ -363,7 +363,7 @@ export default class Load extends Command {
 	private async fetchNodeWithDepth(nodeId: string, depth: number): Promise<EnhancedWorkflowyNode[]> {
 		const results: EnhancedWorkflowyNode[] = [];
 
-		const node = await this.cacheService.getNode(nodeId);
+		const node = this.cacheService.getNode(nodeId);
 		if (!node) {
 			return results;
 		}
@@ -380,7 +380,7 @@ export default class Load extends Command {
 		});
 
 		if (depth > 0) {
-			const children = await this.cacheService.getChildren(nodeId);
+			const children = this.cacheService.getChildren(nodeId);
 			for (const child of children) {
 				const childResults = await this.fetchNodeWithDepth(child.id, depth - 1);
 				results.push(...childResults);

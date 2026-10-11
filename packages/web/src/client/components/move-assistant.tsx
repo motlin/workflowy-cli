@@ -101,7 +101,7 @@ export function MoveAssistant() {
 			return undefined;
 		}
 
-		const searchTimeout = setTimeout(async () => {
+		const runSearch = async () => {
 			setIsSearching(true);
 			setError(null);
 			try {
@@ -125,6 +125,9 @@ export function MoveAssistant() {
 				setError("Search failed");
 			}
 			setIsSearching(false);
+		};
+		const searchTimeout = setTimeout(() => {
+			void runSearch();
 		}, 150);
 
 		return () => clearTimeout(searchTimeout);

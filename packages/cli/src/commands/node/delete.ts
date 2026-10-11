@@ -58,19 +58,15 @@ export default class Delete extends Command {
 
 		const nodeId = await resolveNodeId(flags, cacheService, apiClient);
 
-		const fullPath = await pathBuilder.buildFullPath(nodeId);
+		const fullPath = pathBuilder.buildFullPath(nodeId);
 		const plan = await client.planDelete(nodeId);
 		const removingMirror = plan.nodeId === null && plan.promotions.length === 0;
-		const innerMirrorPaths = removingMirror
-			? []
-			: await Promise.all(plan.mirrorIds.map((id) => pathBuilder.buildFullPath(id)));
-		const keptPaths = await Promise.all(
-			plan.promotions.map(async ({originalId, mirrorId}) => ({
-				originalId,
-				from: await pathBuilder.buildFullPath(originalId),
-				to: await pathBuilder.buildFullPath(mirrorId),
-			})),
-		);
+		const innerMirrorPaths = removingMirror ? [] : plan.mirrorIds.map((id) => pathBuilder.buildFullPath(id));
+		const keptPaths = plan.promotions.map(({originalId, mirrorId}) => ({
+			originalId,
+			from: pathBuilder.buildFullPath(originalId),
+			to: pathBuilder.buildFullPath(mirrorId),
+		}));
 		const warning = removingMirror
 			? "WARNING: This removes only this mirror; its original and the original's children are kept."
 			: plan.nodeId === null
@@ -120,7 +116,7 @@ export default class Delete extends Command {
 			this.log("Successfully deleted node");
 		}
 		for (const {originalId, from} of keptPaths) {
-			this.log(`Kept ${from}, now at ${await pathBuilder.buildFullPath(originalId)}`);
+			this.log(`Kept ${from}, now at ${pathBuilder.buildFullPath(originalId)}`);
 		}
 	}
 }

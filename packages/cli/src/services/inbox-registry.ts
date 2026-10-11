@@ -16,10 +16,10 @@ const WORKFLOWY_LINK = /<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{12})">/i
  * target is missing from the cache is reported as broken rather than silently
  * falling back, because a stale link leaves the real inbox untriaged.
  */
-export async function resolveInboxLinks(
+export function resolveInboxLinks(
 	database: BetterSQLite3Database<typeof schema>,
 	links: {id: string; name: string | null}[],
-): Promise<{targets: Map<string, string>; broken: BrokenInboxLink[]}> {
+): {targets: Map<string, string>; broken: BrokenInboxLink[]} {
 	const cache = new CacheService(database);
 	const linkShortIds = links.flatMap((link) => {
 		const shortId = link.name?.match(WORKFLOWY_LINK)?.[1];
@@ -27,14 +27,14 @@ export async function resolveInboxLinks(
 	});
 	const uuids =
 		linkShortIds.length > 0
-			? await cache.resolveMultipleShortIds(linkShortIds.map(({shortId}) => shortId))
+			? cache.resolveMultipleShortIds(linkShortIds.map(({shortId}) => shortId))
 			: new Map<string, string>();
 
 	const targets = new Map<string, string>();
 	const broken: BrokenInboxLink[] = [];
 	for (const {link, shortId} of linkShortIds) {
 		const uuid = uuids.get(shortId);
-		const target = uuid ? await cache.getNode(uuid) : null;
+		const target = uuid ? cache.getNode(uuid) : null;
 		if (target) {
 			targets.set(link.id, target.id);
 		} else {

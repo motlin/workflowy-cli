@@ -32,7 +32,7 @@ export class NodeSyncService {
 			const nodes: WorkflowyNode[] =
 				nodeId === null ? await this.apiClient.getRootNodes() : await this.apiClient.getChildNodes(nodeId);
 
-			await this.cacheService.storeApiResponse(nodes, nodeId);
+			this.cacheService.storeApiResponse(nodes, nodeId);
 			syncedCount += nodes.length;
 
 			options.onProgress?.({

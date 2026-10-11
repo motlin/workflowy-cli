@@ -714,7 +714,11 @@ function Tier({
 							<button
 								aria-label={`Move to ${previousTier ?? "the tier above"}`}
 								disabled={saving || pending.has(item.id) || !previousTier}
-								onClick={() => previousTier && onStep(item.id, previousTier, {step: "up"})}
+								onClick={() => {
+									if (previousTier) {
+										onStep(item.id, previousTier, {step: "up"});
+									}
+								}}
 								type="button"
 							>
 								&#9650;
@@ -722,7 +726,11 @@ function Tier({
 							<button
 								aria-label={`Move to ${nextTier ?? "the tier below"}`}
 								disabled={saving || pending.has(item.id) || !nextTier}
-								onClick={() => nextTier && onStep(item.id, nextTier, {step: "down"})}
+								onClick={() => {
+									if (nextTier) {
+										onStep(item.id, nextTier, {step: "down"});
+									}
+								}}
 								type="button"
 							>
 								&#9660;

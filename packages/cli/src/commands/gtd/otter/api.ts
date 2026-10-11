@@ -104,7 +104,7 @@ export default class Api extends Command {
 		return age < 3600; // 1 hour
 	}
 
-	private async login(): Promise<void> {
+	private login(): void {
 		this.logTiming("login: start");
 
 		if (this.cookieValid() && fs.existsSync(USERID_FILE)) {
@@ -165,12 +165,8 @@ export default class Api extends Command {
 		});
 	}
 
-	private async availableSpeeches(flags: {
-		"page-size": number;
-		cursor?: string;
-		"modified-after"?: string;
-	}): Promise<unknown> {
-		await this.login();
+	private availableSpeeches(flags: {"page-size": number; cursor?: string; "modified-after"?: string}): unknown {
+		this.login();
 
 		this.logTiming(`available_speeches: page_size=${flags["page-size"]}`);
 
@@ -191,8 +187,8 @@ export default class Api extends Command {
 		return data;
 	}
 
-	private async speech(otid: string): Promise<unknown> {
-		await this.login();
+	private speech(otid: string): unknown {
+		this.login();
 
 		this.logTiming(`speech: fetching ${otid}`);
 
@@ -205,8 +201,8 @@ export default class Api extends Command {
 		return data;
 	}
 
-	private async summary(otid: string): Promise<unknown> {
-		await this.login();
+	private summary(otid: string): unknown {
+		this.login();
 
 		this.logTiming(`summary: fetching ${otid}`);
 
@@ -219,8 +215,8 @@ export default class Api extends Command {
 		return data;
 	}
 
-	private async actionItems(otid: string): Promise<unknown> {
-		await this.login();
+	private actionItems(otid: string): unknown {
+		this.login();
 
 		this.logTiming(`action_items: fetching ${otid}`);
 

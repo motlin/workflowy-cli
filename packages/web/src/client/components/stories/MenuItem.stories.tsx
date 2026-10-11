@@ -25,7 +25,7 @@ const meta: Meta<typeof MenuItem> = {
 		},
 	},
 	args: {
-		onClick: fn(),
+		onClick: fn<() => void>(),
 	},
 	decorators: [
 		(Story) => (

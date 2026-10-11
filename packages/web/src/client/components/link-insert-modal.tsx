@@ -99,7 +99,7 @@ export function LinkInsertModal() {
 			return undefined;
 		}
 
-		const searchTimeout = setTimeout(async () => {
+		const runSearch = async () => {
 			setIsSearching(true);
 			const response = await fetch("/api/search", {
 				method: "POST",
@@ -112,6 +112,9 @@ export function LinkInsertModal() {
 				setSelectedIndex(0);
 			}
 			setIsSearching(false);
+		};
+		const searchTimeout = setTimeout(() => {
+			void runSearch();
 		}, 150);
 
 		return () => clearTimeout(searchTimeout);

@@ -59,7 +59,7 @@ export function RelatedNodesPanel() {
 		error: queryError,
 	} = useQuery({
 		queryKey: ["related", selectedId],
-		queryFn: () => fetchRelatedNodes(selectedId!),
+		queryFn: async () => fetchRelatedNodes(selectedId!),
 		enabled: relatedNodesPanelOpen && selectedId !== null,
 	});
 	const error = queryError?.message ?? null;

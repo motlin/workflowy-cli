@@ -19,7 +19,7 @@ export default class Status extends Command {
 
 		const database = createDatabase();
 		const cacheStatusService = new CacheStatusService(database);
-		const status = await cacheStatusService.getStatus();
+		const status = cacheStatusService.getStatus();
 
 		if (!this.jsonEnabled()) {
 			this.log("📊 Cache Status\n");

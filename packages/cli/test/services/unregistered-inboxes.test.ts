@@ -13,7 +13,7 @@ describe("unregistered inbox diagnostics", () => {
 		cleanupTestDatabase(database);
 	});
 
-	it("finds nested inboxes beyond the search default and excludes registered IDs and non-inbox names", async () => {
+	it("finds nested inboxes beyond the search default and excludes registered IDs and non-inbox names", () => {
 		seedTestData(database, {
 			nodes: [
 				...Array.from({length: 30}, (_, index) => createTestNode({id: `registered-${index}`, name: "Inbox"})),
@@ -29,15 +29,15 @@ describe("unregistered inbox diagnostics", () => {
 		});
 		const before = database.sqlite.serialize();
 		const registeredIds = new Set([...Array.from({length: 30}, (_, index) => `registered-${index}`), "link"]);
-		await expect(findUnregisteredInboxes(database.db, registeredIds)).resolves.toStrictEqual([
+		expect(findUnregisteredInboxes(database.db, registeredIds)).toStrictEqual([
 			{id: "nested", name: "📥 Inbox", path: "Work > Reference > 📥 Inbox"},
 			{id: "root", name: "Inbox", path: "Inbox"},
 		]);
 		expect(database.sqlite.serialize()).toStrictEqual(before);
 	});
 
-	it("returns no warnings when all inbox nodes are registered", async () => {
+	it("returns no warnings when all inbox nodes are registered", () => {
 		seedTestData(database, {nodes: [createTestNode({id: "registered", name: "📥 Inbox"})]});
-		await expect(findUnregisteredInboxes(database.db, new Set(["registered"]))).resolves.toStrictEqual([]);
+		expect(findUnregisteredInboxes(database.db, new Set(["registered"]))).toStrictEqual([]);
 	});
 });

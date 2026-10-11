@@ -25,7 +25,7 @@ const meta: Meta<typeof CompleteBullet> = {
 		},
 	},
 	args: {
-		onToggleExpand: fn(),
+		onToggleExpand: fn<() => void>(),
 	},
 	decorators: [
 		(Story) => (

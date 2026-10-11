@@ -205,7 +205,7 @@ export default class FixPhotoGroups extends Command {
 		let groups = buildPhotoGroups(rows);
 		if (flags["node-id"]) {
 			// Cache-only resolution keeps --dry-run usable without an API key.
-			const wanted = await resolveIdOrShortId(flags["node-id"], cacheService);
+			const wanted = resolveIdOrShortId(flags["node-id"], cacheService);
 			groups = groups.filter((group) => group.wrapperId === wanted || group.entryId === wanted);
 			if (groups.length === 0) {
 				this.error(`No photo group found for node ${wanted}`);
@@ -287,7 +287,7 @@ export default class FixPhotoGroups extends Command {
 				}
 
 				if (group.wrapperId) {
-					const remaining = await cacheService.getChildren(group.wrapperId);
+					const remaining = cacheService.getChildren(group.wrapperId);
 					if (remaining.length > 0) {
 						this.warn(`Wrapper ${group.wrapperId} still has ${remaining.length} children; not deleting it`);
 					} else {

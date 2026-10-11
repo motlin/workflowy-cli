@@ -334,7 +334,7 @@ export default class Import extends Command {
 		return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 	}
 
-	private sleep(seconds: number): Promise<void> {
+	private async sleep(seconds: number): Promise<void> {
 		return new Promise((resolve) => {
 			setTimeout(resolve, seconds * 1000);
 		});

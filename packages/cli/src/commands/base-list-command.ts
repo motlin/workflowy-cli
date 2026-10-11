@@ -119,14 +119,14 @@ export abstract class BaseListCommand extends Command {
 		let fetchedFromApi = false;
 
 		// Try API first if force-refresh or no cached data
-		const cachedNodes = await this.cacheService.getChildrenWithMergedData(parentId);
+		const cachedNodes = this.cacheService.getChildrenWithMergedData(parentId);
 		const hasCachedData = cachedNodes.length > 0;
 		const shouldRefresh = flags["force-refresh"] || !hasCachedData;
 
 		if (shouldRefresh && this.apiClient) {
 			try {
 				const apiNodes = await fetchFromApi();
-				await this.cacheService.storeApiResponse(apiNodes, parentId);
+				this.cacheService.storeApiResponse(apiNodes, parentId);
 				if (!flags.json) {
 					this.log(`Fetched fresh data from API`);
 				}

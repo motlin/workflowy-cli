@@ -332,7 +332,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	clearRecentSearches() {
 		localStorage.removeItem(RECENT_SEARCHES_STORAGE_KEY);
-		return set({recentSearches: []});
+		set({recentSearches: []});
 	},
 
 	toggleSearchPanel: () =>
@@ -420,7 +420,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	setTheme(theme) {
 		localStorage.setItem(THEME_STORAGE_KEY, theme);
 		applyTheme(theme);
-		return set({theme});
+		set({theme});
 	},
 
 	setOnline: (isOnline) => set({isOnline}),

@@ -154,7 +154,7 @@ export function useFlattenedTree(rootParentId: string | null) {
 	const childrenQueries = useQueries({
 		queries: expandedNodeIds.map((nodeId) => ({
 			queryKey: nodeKeys.children(nodeId),
-			queryFn: () => fetchChildren(nodeId),
+			queryFn: async () => fetchChildren(nodeId),
 		})),
 	});
 

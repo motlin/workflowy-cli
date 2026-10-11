@@ -74,11 +74,11 @@ describe("API Sync with Cache", () => {
 
 			fetchStub.mockResolvedValue({
 				ok: true,
-				json: async () => apiResponse,
+				json: async () => Promise.resolve(apiResponse),
 			});
 
 			const nodes = await apiClient.getRootNodes();
-			await cacheService.storeApiResponse(nodes, null);
+			cacheService.storeApiResponse(nodes, null);
 
 			const storedContent = testDatabase.db.select().from(nodeContent).all();
 			expect(storedContent.map(({systemFrom: _systemFrom, ...content}) => content)).toStrictEqual([
@@ -188,11 +188,11 @@ describe("API Sync with Cache", () => {
 
 			fetchStub.mockResolvedValue({
 				ok: true,
-				json: async () => apiResponse,
+				json: async () => Promise.resolve(apiResponse),
 			});
 
 			const nodes = await apiClient.getChildNodes(parentId);
-			await cacheService.storeApiResponse(nodes, parentId);
+			cacheService.storeApiResponse(nodes, parentId);
 
 			const children = testDatabase.db.select().from(nodeContent).where(eq(nodeContent.parentId, parentId)).all();
 
@@ -298,11 +298,11 @@ describe("API Sync with Cache", () => {
 
 			fetchStub.mockResolvedValue({
 				ok: true,
-				json: async () => apiResponse,
+				json: async () => Promise.resolve(apiResponse),
 			});
 
 			const nodes = await apiClient.getRootNodes();
-			await cacheService.storeApiResponse(nodes, null);
+			cacheService.storeApiResponse(nodes, null);
 
 			const updatedContent = testDatabase.db
 				.select()
@@ -394,10 +394,10 @@ describe("API Sync with Cache", () => {
 					},
 				],
 			};
-			fetchStub.mockResolvedValue({ok: true, json: async () => apiResponse});
+			fetchStub.mockResolvedValue({ok: true, json: async () => Promise.resolve(apiResponse)});
 
 			const nodes = await apiClient.getRootNodes();
-			await cacheService.storeApiResponse(nodes, null);
+			cacheService.storeApiResponse(nodes, null);
 
 			const liveMirrors = testDatabase.db
 				.select()
@@ -429,7 +429,7 @@ describe("API Sync with Cache", () => {
 	});
 
 	describe("Cache retrieval", () => {
-		it("retrieves cached nodes without API call", async () => {
+		it("retrieves cached nodes without API call", () => {
 			insertTestNodes(testDatabase.db, [
 				createTestNode({
 					id: "cached-node",
@@ -443,7 +443,7 @@ describe("API Sync with Cache", () => {
 				}),
 			]);
 
-			const cachedNode = await cacheService.getNode("cached-node");
+			const cachedNode = cacheService.getNode("cached-node");
 
 			const actualSystemFrom = cachedNode!.systemFrom;
 
@@ -467,8 +467,8 @@ describe("API Sync with Cache", () => {
 			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
 
-		it("returns undefined for non-existent nodes", async () => {
-			const node = await cacheService.getNode("non-existent");
+		it("returns undefined for non-existent nodes", () => {
+			const node = cacheService.getNode("non-existent");
 			expect(node).toBeUndefined();
 		});
 	});
@@ -491,13 +491,13 @@ describe("API Sync with Cache", () => {
 
 			fetchStub.mockResolvedValue({
 				ok: true,
-				json: async () => apiResponse,
+				json: async () => Promise.resolve(apiResponse),
 			});
 
 			const startTime = Date.now();
 
 			const nodes = await apiClient.getRootNodes();
-			await cacheService.storeApiResponse(nodes, null);
+			cacheService.storeApiResponse(nodes, null);
 
 			const endTime = Date.now();
 			const duration = endTime - startTime;
@@ -576,9 +576,10 @@ describe("API Sync with Cache", () => {
 		it("handles malformed API responses", async () => {
 			fetchStub.mockResolvedValue({
 				ok: true,
-				json: async () => ({
-					invalid: "response",
-				}),
+				json: async () =>
+					Promise.resolve({
+						invalid: "response",
+					}),
 			});
 
 			const expectedMessage = JSON.stringify(

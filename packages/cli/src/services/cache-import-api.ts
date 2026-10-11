@@ -80,12 +80,12 @@ function closeMirrorsOfDeletedNodes(database: BetterSQLite3Database<typeof schem
  * - Input is API response (flat list), not nested JSON file
  * - Nodes already have parent_id field (no tree traversal needed)
  */
-export async function importFromApi(
+export function importFromApi(
 	database: BetterSQLite3Database<typeof schema>,
 	apiNodes: WorkflowyNode[],
 	verbose = false,
 	timestamp?: Date,
-): Promise<ImportApiResult> {
+): ImportApiResult {
 	const startTime = Date.now();
 	let lastTime = startTime;
 

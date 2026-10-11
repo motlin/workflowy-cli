@@ -12,16 +12,16 @@ import {nextSystemTimestamp, notAMirror, PathBuilder} from "@workflowy/shared/ca
  * The current nodes worth indexing: those with children, excluding mirrors,
  * which have no text of their own (their original is indexed instead).
  */
-export async function loadEmbeddableNodes(
+export function loadEmbeddableNodes(
 	database: BetterSQLite3Database<typeof schema>,
 	pathBuilder = new PathBuilder(database),
-): Promise<NodeContentType[]> {
+): NodeContentType[] {
 	const currentNodes = database
 		.select()
 		.from(nodeContent)
 		.where(and(eq(nodeContent.systemTo, FAR_FUTURE_DATE), notAMirror(nodeContent.id)))
 		.all();
-	const nonLeafIds = await pathBuilder.getNonLeafNodeIds(currentNodes.map((n) => n.id));
+	const nonLeafIds = pathBuilder.getNonLeafNodeIds(currentNodes.map((n) => n.id));
 	return currentNodes.filter((node) => nonLeafIds.has(node.id));
 }
 
@@ -96,12 +96,12 @@ export class EmbeddingGeneratorService {
 			}
 		}
 
-		const nonLeafNodes = await loadEmbeddableNodes(this.database, this.pathBuilder);
+		const nonLeafNodes = loadEmbeddableNodes(this.database, this.pathBuilder);
 
 		// Populate FTS5 index with all non-leaf nodes (independent of model selection)
-		await this.populateFts(nonLeafNodes, onProgress);
+		this.populateFts(nonLeafNodes, onProgress);
 
-		const nodesToProcessByModel = await this.calculateNodesToProcess(modelsToProcess, nonLeafNodes);
+		const nodesToProcessByModel = this.calculateNodesToProcess(modelsToProcess, nonLeafNodes);
 		const totalToProcess = [...nodesToProcessByModel.values()].reduce((sum, nodeList) => sum + nodeList.length, 0);
 
 		const modelStats = new Map<EmbeddingModelKey, {needed: number; processed: number}>();
@@ -159,11 +159,9 @@ export class EmbeddingGeneratorService {
 
 			// Pre-fetch all paths, content, and children in batch (O(depth) queries instead of O(nodes × depth))
 			const nodeIds = nodesToProcess.map((n) => n.id);
-			const [pathMap, contentMap, childrenMap] = await Promise.all([
-				this.pathBuilder.buildFullPathsBatch(nodeIds),
-				this.pathBuilder.buildTextContentBatch(nodeIds),
-				this.pathBuilder.buildChildrenTextBatch(nodeIds),
-			]);
+			const pathMap = this.pathBuilder.buildFullPathsBatch(nodeIds);
+			const contentMap = this.pathBuilder.buildTextContentBatch(nodeIds);
+			const childrenMap = this.pathBuilder.buildChildrenTextBatch(nodeIds);
 
 			for (let index = 0; index < nodesToProcess.length; index += options.batchSize) {
 				const batch = nodesToProcess.slice(index, index + options.batchSize);
@@ -236,10 +234,10 @@ export class EmbeddingGeneratorService {
 		};
 	}
 
-	private async populateFts(
+	private populateFts(
 		nonLeafNodes: {id: string; name: string | null}[],
 		onProgress?: (progress: EmbeddingGeneratorProgress) => void,
-	): Promise<void> {
+	): void {
 		const nodeIds = nonLeafNodes.map((n) => n.id);
 
 		// Check if FTS5 table exists
@@ -250,11 +248,9 @@ export class EmbeddingGeneratorService {
 			return;
 		}
 
-		const [pathMap, contentMap, childrenMap] = await Promise.all([
-			this.pathBuilder.buildFullPathsBatch(nodeIds),
-			this.pathBuilder.buildTextContentBatch(nodeIds),
-			this.pathBuilder.buildChildrenTextBatch(nodeIds),
-		]);
+		const pathMap = this.pathBuilder.buildFullPathsBatch(nodeIds);
+		const contentMap = this.pathBuilder.buildTextContentBatch(nodeIds);
+		const childrenMap = this.pathBuilder.buildChildrenTextBatch(nodeIds);
 
 		// Clear and repopulate FTS index
 		this.database.run(sql`DELETE FROM node_fts`);
@@ -283,10 +279,10 @@ export class EmbeddingGeneratorService {
 		});
 	}
 
-	private async calculateNodesToProcess(
+	private calculateNodesToProcess(
 		models: EmbeddingModelKey[],
 		currentNodes: {id: string}[],
-	): Promise<Map<EmbeddingModelKey, {id: string}[]>> {
+	): Map<EmbeddingModelKey, {id: string}[]> {
 		const result = new Map<EmbeddingModelKey, {id: string}[]>();
 
 		for (const model of models) {

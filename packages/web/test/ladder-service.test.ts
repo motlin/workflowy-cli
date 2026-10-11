@@ -19,7 +19,7 @@ function makeService(overrides: Partial<ConstructorParameters<typeof LadderServi
 	const completeNode = vi.fn<LadderServiceOptions["completeNode"]>(async () => {});
 	const events = new LadderEventBus();
 	const service = new LadderService({
-		readBuckets: async () => buckets,
+		readBuckets: async () => Promise.resolve(buckets),
 		moveNode,
 		completeNode,
 		events,
@@ -48,7 +48,9 @@ describe("LadderService.move", () => {
 	it("publishes one event per write, so a watcher is woken per edit", async () => {
 		const {service, events} = makeService();
 		const seen: unknown[] = [];
-		events.subscribe((e) => seen.push(e));
+		events.subscribe((e) => {
+			seen.push(e);
+		});
 		await service.move({root: "work", nodeId: "a", toTier: "2nd"});
 		expect(seen).toHaveLength(1);
 		expect(seen[0]).toMatchObject({verb: "move", nodeId: "a", fromTier: "1st", toTier: "2nd", name: "A"});
@@ -56,22 +58,28 @@ describe("LadderService.move", () => {
 
 	it("does not publish an event when the write fails", async () => {
 		const {service, events} = makeService({
-			moveNode: vi.fn<LadderServiceOptions["moveNode"]>(async () => {
-				throw new Error("workflowy 500");
-			}),
+			moveNode: vi.fn<LadderServiceOptions["moveNode"]>(async () => Promise.reject(new Error("workflowy 500"))),
 		});
 		const seen: unknown[] = [];
-		events.subscribe((e) => seen.push(e));
+		events.subscribe((e) => {
+			seen.push(e);
+		});
 		await expect(service.move({root: "work", nodeId: "a", toTier: "2nd"})).rejects.toThrow("workflowy 500");
 		expect(seen).toStrictEqual([]);
 	});
 
 	it("answers once the move lands, without waiting for the tier refresh", async () => {
-		const refreshTier = vi.fn<NonNullable<LadderServiceOptions["refreshTier"]>>(() => new Promise<void>(() => {}));
+		const refreshTier = vi.fn<NonNullable<LadderServiceOptions["refreshTier"]>>(
+			async () => new Promise<void>(() => {}),
+		);
 		const {service} = makeService({refreshTier});
 		const answered = await Promise.race([
 			service.move({root: "work", nodeId: "a", toTier: "2nd"}).then(() => "answered"),
-			new Promise((resolve) => setImmediate(() => resolve("blocked"))),
+			new Promise((resolve) => {
+				setImmediate(() => {
+					resolve("blocked");
+				});
+			}),
 		]);
 		expect({answered, refreshed: refreshTier.mock.calls}).toStrictEqual({
 			answered: "answered",
@@ -82,12 +90,14 @@ describe("LadderService.move", () => {
 	it("keeps a landed move when the tier refresh fails", async () => {
 		const failure = vi.spyOn(console, "error").mockImplementation(() => {});
 		const {service} = makeService({
-			refreshTier: vi.fn<NonNullable<LadderServiceOptions["refreshTier"]>>(async () => {
-				throw new Error("Test refresh throttled");
-			}),
+			refreshTier: vi.fn<NonNullable<LadderServiceOptions["refreshTier"]>>(async () =>
+				Promise.reject(new Error("Test refresh throttled")),
+			),
 		});
 		await expect(service.move({root: "work", nodeId: "a", toTier: "2nd"})).resolves.toMatchObject({nodeId: "a"});
-		await new Promise((resolve) => setImmediate(resolve));
+		await new Promise((resolve) => {
+			setImmediate(resolve);
+		});
 		expect(failure.mock.calls.map(([message]) => message)).toStrictEqual([
 			"ladder: could not refresh tier w2 after a move: Test refresh throttled",
 		]);
@@ -111,7 +121,9 @@ describe("LadderService.complete", () => {
 	it("completes the node and publishes a complete event", async () => {
 		const {service, completeNode, events} = makeService();
 		const seen: unknown[] = [];
-		events.subscribe((e) => seen.push(e));
+		events.subscribe((e) => {
+			seen.push(e);
+		});
 		await service.complete({root: "work", nodeId: "a"});
 		expect(completeNode).toHaveBeenCalledWith("a");
 		expect(seen[0]).toMatchObject({verb: "complete", nodeId: "a", fromTier: "1st", name: "A"});
@@ -133,11 +145,13 @@ describe("exact placement using top/bottom writes", () => {
 			},
 		};
 		const {service, moveNode, events} = makeService({
-			readBuckets: async () => buckets,
+			readBuckets: async () => Promise.resolve(buckets),
 			now: () => new Date("2000-01-01T00:00:00.000Z"),
 		});
 		const seen: unknown[] = [];
-		events.subscribe((event) => seen.push(event));
+		events.subscribe((event) => {
+			seen.push(event);
+		});
 		await service.move({root: "work", nodeId: "alice", toTier: "1st", beforeNodeId: "charlie"});
 		expect(moveNode.mock.calls).toStrictEqual([
 			["alice", "first", 0],

@@ -98,7 +98,7 @@ export class NodeTreeReader {
 
 	/** Read the children of `parentId` as subtrees to the requested depth. */
 	async readChildren(parentId: string | null, options: ReadTreeOptions): Promise<NodeTree[]> {
-		const rootRows = await this.cache.getChildrenWithMergedData(parentId);
+		const rootRows = this.cache.getChildrenWithMergedData(parentId);
 		return this.buildTrees(rootRows, options);
 	}
 
@@ -107,7 +107,7 @@ export class NodeTreeReader {
 		if (nodeIds.length === 0) {
 			return [];
 		}
-		const rows = await this.cache.getMergedDataForNodes(nodeIds);
+		const rows = this.cache.getMergedDataForNodes(nodeIds);
 		const byId = new Map(rows.map((row) => [row.id, row]));
 		const ordered = nodeIds.map((id) => byId.get(id)).filter((row): row is NodeWithRelations => row !== undefined);
 		return this.buildTrees(ordered, options);
@@ -130,7 +130,7 @@ export class NodeTreeReader {
 		// tree node that should receive the fetched children.
 		const linkSites = new Map<string, {node: NodeTree; depthFound: number}[]>();
 
-		await this.resolveMirrorContent(roots);
+		this.resolveMirrorContent(roots);
 		this.collectLinkSites(roots, 0, linkSites);
 
 		let fetchIdToNode = new Map<string, NodeTree>();
@@ -147,7 +147,7 @@ export class NodeTreeReader {
 				break;
 			}
 
-			const childrenByParent = await this.cache.getChildrenForMultipleParents(currentLevelIds);
+			const childrenByParent = this.cache.getChildrenForMultipleParents(currentLevelIds);
 			const nextLevelIds: string[] = [];
 			const nextFetchIdToNode = new Map<string, NodeTree>();
 
@@ -159,7 +159,7 @@ export class NodeTreeReader {
 
 				const children = childRows.map((row) => rawToTree(row));
 				parentNode.children = children;
-				await this.resolveMirrorContent(children);
+				this.resolveMirrorContent(children);
 
 				for (const child of children) {
 					treeMap.set(child.id, child);
@@ -182,13 +182,13 @@ export class NodeTreeReader {
 	}
 
 	/** Assign originals' content to any mirrors in this level. */
-	private async resolveMirrorContent(nodes: NodeTree[]): Promise<void> {
+	private resolveMirrorContent(nodes: NodeTree[]): void {
 		const mirrors = nodes.filter((node) => node.mirror.originalNodeId !== null);
 		if (mirrors.length === 0) {
 			return;
 		}
 		const originalIds = mirrors.map((node) => node.mirror.originalNodeId!);
-		const originals = await this.cache.getMultipleNodes(originalIds);
+		const originals = this.cache.getMultipleNodes(originalIds);
 		for (const node of mirrors) {
 			assignMirrorContent(node, originals.get(node.mirror.originalNodeId!));
 		}
@@ -222,10 +222,10 @@ export class NodeTreeReader {
 			return;
 		}
 
-		const shortIdToUuid = await this.cache.resolveMultipleShortIds([...linkSites.keys()]);
+		const shortIdToUuid = this.cache.resolveMultipleShortIds([...linkSites.keys()]);
 		for (const [shortId, uuid] of shortIdToUuid) {
 			const sites = linkSites.get(shortId);
-			const targetNode = await this.cache.getNode(uuid);
+			const targetNode = this.cache.getNode(uuid);
 			if (!sites || !targetNode) {
 				continue;
 			}

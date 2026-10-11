@@ -29,12 +29,10 @@ export class CacheStatusService {
 		this.database = database;
 	}
 
-	async getStatus(): Promise<CacheStatus> {
-		const [nodeStats, lastSync, lastBackupImport] = await Promise.all([
-			this.getNodeStats(),
-			this.getLastSync(),
-			this.getLastImportDate(),
-		]);
+	getStatus(): CacheStatus {
+		const nodeStats = this.getNodeStats();
+		const lastSync = this.getLastSync();
+		const lastBackupImport = this.getLastImportDate();
 
 		const dbPath = path.resolve(process.env.WORKFLOWY_DB_PATH || "workflowy.sqlite");
 		const dbSize = this.getDatabaseSize(dbPath);
@@ -50,7 +48,7 @@ export class CacheStatusService {
 		};
 	}
 
-	private async getNodeStats(): Promise<{total: number; root: number; completed: number}> {
+	private getNodeStats(): {total: number; root: number; completed: number} {
 		const totalNodesResult = this.database
 			.select({count: count()})
 			.from(nodeContent)
@@ -82,7 +80,7 @@ export class CacheStatusService {
 		};
 	}
 
-	private async getLastSync(): Promise<Date | null> {
+	private getLastSync(): Date | null {
 		const result = this.database
 			.select({systemFrom: nodeContent.systemFrom})
 			.from(nodeContent)
@@ -107,7 +105,7 @@ export class CacheStatusService {
 		return formatBytes(fs.statSync(dbPath).size);
 	}
 
-	async getLastImportDate(): Promise<string | null> {
+	getLastImportDate(): string | null {
 		const lastImport = this.database
 			.select({backupDate: backupImports.backupDate})
 			.from(backupImports)

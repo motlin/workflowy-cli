@@ -80,7 +80,7 @@ function setup() {
 							: Math.max(...siblings) + 100;
 				const id = `${body.name}-id`;
 				server.set(id, {name: body.name, parentId: body.parent_id, priority});
-				return new Response(JSON.stringify({item_id: id}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({item_id: id}), {status: 200}));
 			}
 			const toApi = (id: string) => {
 				const node = server.get(id)!;
@@ -99,9 +99,9 @@ function setup() {
 			if (path.startsWith("/nodes?") || path === "/nodes") {
 				const parentId = new URLSearchParams(path.split("?")[1] ?? "").get("parent_id");
 				const nodes = [...server].filter(([, node]) => node.parentId === parentId).map(([id]) => toApi(id));
-				return new Response(JSON.stringify({nodes}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({nodes}), {status: 200}));
 			}
-			return new Response(JSON.stringify({node: toApi(path.split("/")[2])}), {status: 200});
+			return Promise.resolve(new Response(JSON.stringify({node: toApi(path.split("/")[2])}), {status: 200}));
 		}),
 	);
 	const apiClient = new WorkflowyApiClient("test-key", undefined, "https://workflowy.test", {

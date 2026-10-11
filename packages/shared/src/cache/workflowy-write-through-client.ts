@@ -35,7 +35,7 @@ export class WorkflowyWriteThroughClient {
 			return;
 		}
 
-		const existingParent = await this.cacheService.getNode(parentId);
+		const existingParent = this.cacheService.getNode(parentId);
 		if (existingParent) {
 			return;
 		}
@@ -46,14 +46,14 @@ export class WorkflowyWriteThroughClient {
 		// Check if grandparent exists (if parent has a parent)
 		const grandparentId = parent.parent_id ?? null;
 		if (grandparentId !== null) {
-			const existingGrandparent = await this.cacheService.getNode(grandparentId);
+			const existingGrandparent = this.cacheService.getNode(grandparentId);
 			if (!existingGrandparent) {
 				throw new Error(`Cache too stale: grandparent node ${grandparentId} not found`);
 			}
 		}
 
 		// Insert the fetched parent into cache
-		await this.cacheService.insertNode(parent, grandparentId);
+		this.cacheService.insertNode(parent, grandparentId);
 	}
 
 	/**
@@ -74,7 +74,7 @@ export class WorkflowyWriteThroughClient {
 		};
 		const parentId = node.parent_id ?? null;
 		await this.ensureParentInCache(parentId);
-		await this.cacheService.insertNode(node, parentId);
+		this.cacheService.insertNode(node, parentId);
 		return node;
 	}
 
@@ -84,8 +84,8 @@ export class WorkflowyWriteThroughClient {
 	 * mirror, which Workflowy ignores. So every update on a mirror, clears
 	 * included, goes to the original.
 	 */
-	async resolveUpdateTarget(nodeId: string): Promise<string> {
-		return (await this.cacheService.getMirrorOriginal(nodeId)) ?? nodeId;
+	resolveUpdateTarget(nodeId: string): string {
+		return this.cacheService.getMirrorOriginal(nodeId) ?? nodeId;
 	}
 
 	/**
@@ -96,14 +96,14 @@ export class WorkflowyWriteThroughClient {
 	 * @returns The node that was updated (the original, for a mirror)
 	 */
 	async updateNode(requestedId: string, options: UpdateNodeRequest): Promise<WorkflowyNode> {
-		const nodeId = await this.resolveUpdateTarget(requestedId);
+		const nodeId = this.resolveUpdateTarget(requestedId);
 		await this.apiClient.updateNode(nodeId, options);
 		// Fetch fresh node data from API to update cache correctly
 		const updatedNode = await this.apiClient.getNode(nodeId);
-		const cachedNode = await this.cacheService.getNode(nodeId);
+		const cachedNode = this.cacheService.getNode(nodeId);
 		const parentId = cachedNode?.parentId ?? null;
 		await this.ensureParentInCache(parentId);
-		await this.cacheService.insertNode(updatedNode, parentId);
+		this.cacheService.insertNode(updatedNode, parentId);
 		return updatedNode;
 	}
 
@@ -125,10 +125,10 @@ export class WorkflowyWriteThroughClient {
 	 * deleted part is kept that way (see {@link planSubtreeDelete}).
 	 */
 	async planDelete(nodeId: string): Promise<DeletePlan> {
-		if ((await this.cacheService.getMirrorOriginal(nodeId)) !== null) {
+		if (this.cacheService.getMirrorOriginal(nodeId) !== null) {
 			return {mirrorIds: [nodeId], promotions: [], nodeId: null};
 		}
-		return planSubtreeDelete(this.cacheService, nodeId, (parentId) => this.liveChildOrder(parentId));
+		return planSubtreeDelete(this.cacheService, nodeId, async (parentId) => this.liveChildOrder(parentId));
 	}
 
 	/** A parent's children ids in Workflowy's current order, read from the API. */
@@ -164,12 +164,12 @@ export class WorkflowyWriteThroughClient {
 			}
 			if (siblingIds.length > 0) {
 				// The sibling moves shifted the original, so refresh its cached priority.
-				await this.cacheService.insertNode(await this.apiClient.getNode(originalId), parentId);
+				this.cacheService.insertNode(await this.apiClient.getNode(originalId), parentId);
 			}
 		}
 		if (plan.nodeId !== null) {
 			await this.apiClient.deleteNode(plan.nodeId);
-			await this.cacheService.deleteNode(plan.nodeId);
+			this.cacheService.deleteNode(plan.nodeId);
 		}
 		return plan;
 	}
@@ -188,7 +188,7 @@ export class WorkflowyWriteThroughClient {
 		const parentId =
 			newParentId !== null && isSystemTarget(newParentId) ? (movedNode.parent_id ?? null) : newParentId;
 		await this.ensureParentInCache(parentId);
-		await this.cacheService.insertNode(movedNode, parentId);
+		this.cacheService.insertNode(movedNode, parentId);
 		return movedNode;
 	}
 
@@ -204,8 +204,8 @@ export class WorkflowyWriteThroughClient {
 		const mirrorNode = await this.apiClient.getNode(result.mirrorId);
 		const mirrorParentId = mirrorNode.parent_id ?? parentId;
 		await this.ensureParentInCache(mirrorParentId);
-		await this.cacheService.insertNode({...mirrorNode, name: "", note: null}, mirrorParentId);
-		await this.cacheService.insertMirror(result.originId, result.mirrorId);
+		this.cacheService.insertNode({...mirrorNode, name: "", note: null}, mirrorParentId);
+		this.cacheService.insertMirror(result.originId, result.mirrorId);
 		return result;
 	}
 
@@ -215,7 +215,7 @@ export class WorkflowyWriteThroughClient {
 	 */
 	async deleteMirror(mirrorId: string): Promise<void> {
 		await this.apiClient.deleteMirror(mirrorId);
-		await this.cacheService.deleteNode(mirrorId);
+		this.cacheService.deleteNode(mirrorId);
 	}
 
 	/**
@@ -227,10 +227,10 @@ export class WorkflowyWriteThroughClient {
 		await this.apiClient.completeNode(nodeId);
 		// Fetch fresh node data from API to update cache correctly
 		const completedNode = await this.apiClient.getNode(nodeId);
-		const cachedNode = await this.cacheService.getNode(nodeId);
+		const cachedNode = this.cacheService.getNode(nodeId);
 		const parentId = cachedNode?.parentId ?? null;
 		await this.ensureParentInCache(parentId);
-		await this.cacheService.insertNode(completedNode, parentId);
+		this.cacheService.insertNode(completedNode, parentId);
 		return completedNode;
 	}
 
@@ -243,10 +243,10 @@ export class WorkflowyWriteThroughClient {
 		await this.apiClient.uncompleteNode(nodeId);
 		// Fetch fresh node data from API to update cache correctly
 		const uncompletedNode = await this.apiClient.getNode(nodeId);
-		const cachedNode = await this.cacheService.getNode(nodeId);
+		const cachedNode = this.cacheService.getNode(nodeId);
 		const parentId = cachedNode?.parentId ?? null;
 		await this.ensureParentInCache(parentId);
-		await this.cacheService.insertNode(uncompletedNode, parentId);
+		this.cacheService.insertNode(uncompletedNode, parentId);
 		return uncompletedNode;
 	}
 }

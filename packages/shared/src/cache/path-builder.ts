@@ -29,8 +29,8 @@ export class PathBuilder {
 		this.database = database;
 	}
 
-	async buildFullPath(nodeId: string): Promise<string> {
-		const paths = await this.buildFullPathsBatch([nodeId]);
+	buildFullPath(nodeId: string): string {
+		const paths = this.buildFullPathsBatch([nodeId]);
 		return paths.get(nodeId) ?? "";
 	}
 
@@ -45,7 +45,7 @@ export class PathBuilder {
 	 * 4. Repeat until we've reached all roots (no more new parents)
 	 * 5. Reconstruct each path by walking the in-memory map
 	 */
-	async buildFullPathPartsBatch(nodeIds: string[]): Promise<Map<string, string[]>> {
+	buildFullPathPartsBatch(nodeIds: string[]): Map<string, string[]> {
 		if (nodeIds.length === 0) {
 			return new Map();
 		}
@@ -119,8 +119,8 @@ export class PathBuilder {
 	/**
 	 * Build full `' > '`-joined paths for multiple nodes.
 	 */
-	async buildFullPathsBatch(nodeIds: string[]): Promise<Map<string, string>> {
-		const partsMap = await this.buildFullPathPartsBatch(nodeIds);
+	buildFullPathsBatch(nodeIds: string[]): Map<string, string> {
+		const partsMap = this.buildFullPathPartsBatch(nodeIds);
 		const pathMap = new Map<string, string>();
 		for (const [id, parts] of partsMap) {
 			pathMap.set(id, parts.join(" > "));
@@ -128,15 +128,15 @@ export class PathBuilder {
 		return pathMap;
 	}
 
-	async buildTextContent(nodeId: string): Promise<string> {
-		const contents = await this.buildTextContentBatch([nodeId]);
+	buildTextContent(nodeId: string): string {
+		const contents = this.buildTextContentBatch([nodeId]);
 		return contents.get(nodeId) ?? "";
 	}
 
 	/**
 	 * Build text content for multiple nodes using chunked queries to avoid SQLite variable limit.
 	 */
-	async buildTextContentBatch(nodeIds: string[]): Promise<Map<string, string>> {
+	buildTextContentBatch(nodeIds: string[]): Map<string, string> {
 		if (nodeIds.length === 0) {
 			return new Map();
 		}
@@ -173,7 +173,7 @@ export class PathBuilder {
 	 * Identify which nodes have children (are non-leaf nodes).
 	 * Returns a Set of node IDs that have at least one child.
 	 */
-	async getNonLeafNodeIds(nodeIds: string[]): Promise<Set<string>> {
+	getNonLeafNodeIds(nodeIds: string[]): Set<string> {
 		if (nodeIds.length === 0) {
 			return new Set();
 		}
@@ -207,7 +207,7 @@ export class PathBuilder {
 	 * Returns a map of parent node ID to combined children text content.
 	 * Only includes direct children (one level deep).
 	 */
-	async buildChildrenTextBatch(parentIds: string[]): Promise<Map<string, string>> {
+	buildChildrenTextBatch(parentIds: string[]): Map<string, string> {
 		if (parentIds.length === 0) {
 			return new Map();
 		}

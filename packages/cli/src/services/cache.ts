@@ -26,36 +26,36 @@ export class CacheService extends BaseCacheService {
 		return importBackup(this.database, filePath, backupImportFilename, verbose, undefined, force);
 	}
 
-	async getNode(nodeId: string): Promise<Node | undefined> {
-		const result = await super.getNode(nodeId);
+	getNode(nodeId: string): Node | undefined {
+		const result = super.getNode(nodeId);
 		logger.logSqlResult("getNode", result);
 		return result;
 	}
 
-	async getChildren(parentId: string | null): Promise<Node[]> {
-		const results = await super.getChildren(parentId);
+	getChildren(parentId: string | null): Node[] {
+		const results = super.getChildren(parentId);
 		logger.logSqlResult("getChildren", results);
 		return results;
 	}
 
-	async getChildrenWithMergedData(
+	getChildrenWithMergedData(
 		parentId: string | null,
-	): Promise<Awaited<ReturnType<BaseCacheService["getChildrenWithMergedData"]>>> {
-		const result = await super.getChildrenWithMergedData(parentId);
+	): Awaited<ReturnType<BaseCacheService["getChildrenWithMergedData"]>> {
+		const result = super.getChildrenWithMergedData(parentId);
 		logger.logSqlResult("getChildrenWithMergedData", result);
 		return result;
 	}
 
-	async getChildrenForMultipleParents(
+	getChildrenForMultipleParents(
 		parentIds: string[],
-	): Promise<Awaited<ReturnType<BaseCacheService["getChildrenForMultipleParents"]>>> {
-		const result = await super.getChildrenForMultipleParents(parentIds);
+	): Awaited<ReturnType<BaseCacheService["getChildrenForMultipleParents"]>> {
+		const result = super.getChildrenForMultipleParents(parentIds);
 		logger.logSqlResult("getChildrenForMultipleParents", result);
 		return result;
 	}
 
-	async getMirrorOriginal(nodeId: string) {
-		const result = await super.getMirrorOriginal(nodeId);
+	getMirrorOriginal(nodeId: string) {
+		const result = super.getMirrorOriginal(nodeId);
 		logger.logSqlResult("getMirrorOriginal", result);
 		return result;
 	}

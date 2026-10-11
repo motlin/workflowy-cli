@@ -15,18 +15,19 @@ function fakes() {
 	const apiClient = new WorkflowyApiClient("test-key");
 	vi.spyOn(apiClient, "updateNode").mockImplementation(async (id, request) => {
 		updates.push([id, request]);
+		return Promise.resolve();
 	});
-	vi.spyOn(apiClient, "getNode").mockImplementation(async (id) => ({
-		id,
-		name: "fresh",
-		priority: 0,
-		createdAt: 0,
-		modifiedAt: null,
-	}));
-	const cacheService = new CacheService(buildTestDb().database);
-	vi.spyOn(cacheService, "getMirrorOriginal").mockImplementation(async (id) =>
-		id === MIRROR_ID ? ORIGINAL_ID : null,
+	vi.spyOn(apiClient, "getNode").mockImplementation(async (id) =>
+		Promise.resolve({
+			id,
+			name: "fresh",
+			priority: 0,
+			createdAt: 0,
+			modifiedAt: null,
+		}),
 	);
+	const cacheService = new CacheService(buildTestDb().database);
+	vi.spyOn(cacheService, "getMirrorOriginal").mockImplementation((id) => (id === MIRROR_ID ? ORIGINAL_ID : null));
 	return {client: new WorkflowyWriteThroughClient(apiClient, cacheService), updates};
 }
 
@@ -55,11 +56,12 @@ describe("WorkflowyWriteThroughClient.updateNode on mirrors", () => {
 		expect(updates).toStrictEqual([[PLAIN_ID, {note: "details"}]]);
 	});
 
-	it("resolves the update target the same way for callers that pre-check the current text", async () => {
+	it("resolves the update target the same way for callers that pre-check the current text", () => {
 		const {client} = fakes();
 
-		await expect(
-			Promise.all([client.resolveUpdateTarget(MIRROR_ID), client.resolveUpdateTarget(PLAIN_ID)]),
-		).resolves.toStrictEqual([ORIGINAL_ID, PLAIN_ID]);
+		expect([client.resolveUpdateTarget(MIRROR_ID), client.resolveUpdateTarget(PLAIN_ID)]).toStrictEqual([
+			ORIGINAL_ID,
+			PLAIN_ID,
+		]);
 	});
 });

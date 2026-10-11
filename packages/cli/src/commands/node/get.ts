@@ -79,7 +79,7 @@ export default class Get extends BaseListCommand {
 		if (typedFlags.id) {
 			const idInput = typedFlags.id;
 			if (isShortId(idInput)) {
-				const resolvedId = await this.cacheService.resolveShortIdToUuid(idInput);
+				const resolvedId = this.cacheService.resolveShortIdToUuid(idInput);
 				if (resolvedId) {
 					nodeId = resolvedId;
 					logger.debug(`Resolved short ID ${idInput} to full UUID ${resolvedId}`);
@@ -91,7 +91,7 @@ export default class Get extends BaseListCommand {
 			}
 		} else if (typedFlags.path) {
 			const nodePath = typedFlags.path.split(",").map((s) => s.trim());
-			const cachedNode = await this.cacheService.findNodeByPath(nodePath);
+			const cachedNode = this.cacheService.findNodeByPath(nodePath);
 			if (cachedNode) {
 				nodeId = cachedNode.id;
 			} else {
@@ -105,7 +105,7 @@ export default class Get extends BaseListCommand {
 
 		// Detect a mirror so we can report it (or follow it) before reading the tree.
 		let isMirror = false;
-		let originalId: string | null = await this.cacheService.getMirrorOriginal(nodeId);
+		let originalId: string | null = this.cacheService.getMirrorOriginal(nodeId);
 		if (originalId) {
 			isMirror = true;
 			if (typedFlags["follow-mirror"]) {
@@ -132,7 +132,7 @@ export default class Get extends BaseListCommand {
 		flags: GetFlags,
 		mirrorInfo: {isMirror: boolean; originalId: string | null},
 	): Promise<void> {
-		const fullPath = await this.pathBuilder.buildFullPath(node.id);
+		const fullPath = this.pathBuilder.buildFullPath(node.id);
 
 		if (flags.json) {
 			let outputNode: Record<string, unknown>;

@@ -492,9 +492,7 @@ test("static page persistence offers the same JSON when artifact storage is unav
 	for (const claude of [
 		undefined,
 		{
-			use: async () => {
-				throw new Error("offline");
-			},
+			use: async () => Promise.reject(new Error("offline")),
 		},
 	]) {
 		const elements = {fallback: {hidden: true}, "fallback-json": {value: ""}};
@@ -637,15 +635,16 @@ function runQueuePage(html) {
 		window: {innerHeight: 1000},
 		claude: {
 			async use() {
-				return {
+				return Promise.resolve({
 					doc(path) {
 						return {
 							async set(payload) {
 								writes.push({path, payload: JSON.parse(JSON.stringify(payload))});
+								return Promise.resolve();
 							},
 						};
 					},
-				};
+				});
 			},
 		},
 		document: {

@@ -43,7 +43,7 @@ export default class Search extends Command {
 		const database = createDatabase();
 		const searchService = new TextSearchService(database);
 
-		const results = await searchService.search({
+		const results = searchService.search({
 			query,
 			limit: flags.limit,
 			incomplete: flags.incomplete,

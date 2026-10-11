@@ -94,10 +94,10 @@ export default class Sync extends Command {
 			`sync: starting page_size=${flags["page-size"]} cursor=${flags.cursor} modified_after=${modifiedAfter}`,
 		);
 
-		await this.login();
+		this.login();
 
 		// Fetch available speeches
-		const rawResponse = await this.fetchAvailableSpeeches(flags["page-size"], flags.cursor, modifiedAfter);
+		const rawResponse = this.fetchAvailableSpeeches(flags["page-size"], flags.cursor, modifiedAfter);
 
 		// Extract pagination info and minimal meeting data
 		const speeches: ProcessedSpeech[] = [];
@@ -130,7 +130,7 @@ export default class Sync extends Command {
 			const actionMap = new Map<string, ActionItem[]>();
 
 			for (const meeting of meetingsNeedingActions) {
-				const items = await this.fetchActionItems(meeting.otid);
+				const items = this.fetchActionItems(meeting.otid);
 				actionMap.set(meeting.otid, items);
 			}
 
@@ -167,7 +167,7 @@ export default class Sync extends Command {
 		return age < 3600;
 	}
 
-	private async login(): Promise<void> {
+	private login(): void {
 		this.logTiming("login: start");
 
 		if (this.cookieValid() && fs.existsSync(USERID_FILE)) {
@@ -226,11 +226,11 @@ export default class Sync extends Command {
 		});
 	}
 
-	private async fetchAvailableSpeeches(
+	private fetchAvailableSpeeches(
 		pageSize: number,
 		cursor?: string,
 		modifiedAfter?: string,
-	): Promise<{speeches: OtterSpeech[]; last_load_ts: string; end_of_list: boolean}> {
+	): {speeches: OtterSpeech[]; last_load_ts: string; end_of_list: boolean} {
 		this.logTiming(`available_speeches: page_size=${pageSize}`);
 
 		let url = `${API_BASE}/available_speeches?page_size=${pageSize}&funnel=home_feed&source=home`;
@@ -249,7 +249,7 @@ export default class Sync extends Command {
 		return data;
 	}
 
-	private async fetchActionItems(otid: string): Promise<ActionItem[]> {
+	private fetchActionItems(otid: string): ActionItem[] {
 		this.logTiming(`action_items: fetching ${otid}`);
 
 		try {

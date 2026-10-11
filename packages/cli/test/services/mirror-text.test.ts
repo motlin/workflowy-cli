@@ -117,11 +117,11 @@ describe("mirror text comes from the original", () => {
 		]);
 	});
 
-	it("CacheService node reads use the original text", async () => {
+	it("CacheService node reads use the original text", () => {
 		expect({
-			node: await cacheService.getNode("mir"),
-			children: await cacheService.getChildren("p"),
-			many: [...(await cacheService.getMultipleNodes(["mir", "orphan"])).entries()],
+			node: cacheService.getNode("mir"),
+			children: cacheService.getChildren("p"),
+			many: [...cacheService.getMultipleNodes(["mir", "orphan"]).entries()],
 		}).toStrictEqual({
 			node: mirrorNode,
 			children: [mirrorNode, orphanNode],
@@ -132,19 +132,19 @@ describe("mirror text comes from the original", () => {
 		});
 	});
 
-	it("findNodeByPath matches a mirror by its original name and descends into the original", async () => {
-		const node = await cacheService.findNodeByPath(["Parent", "Original Name", "Original Child"]);
+	it("findNodeByPath matches a mirror by its original name and descends into the original", () => {
+		const node = cacheService.findNodeByPath(["Parent", "Original Name", "Original Child"]);
 
 		expect(node?.id).toBe("orig-child");
 	});
 
-	it("PathBuilder uses the original text for paths, content, and children", async () => {
+	it("PathBuilder uses the original text for paths, content, and children", () => {
 		const pathBuilder = new PathBuilder(testDatabase.db);
 
 		expect({
-			path: await pathBuilder.buildFullPath("mir"),
-			content: await pathBuilder.buildTextContentBatch(["mir", "orphan"]),
-			children: await pathBuilder.buildChildrenTextBatch(["p"]),
+			path: pathBuilder.buildFullPath("mir"),
+			content: pathBuilder.buildTextContentBatch(["mir", "orphan"]),
+			children: pathBuilder.buildChildrenTextBatch(["p"]),
 		}).toStrictEqual({
 			path: "Parent > Original Name",
 			content: new Map([
@@ -155,10 +155,10 @@ describe("mirror text comes from the original", () => {
 		});
 	});
 
-	it("text search never matches stale mirror text", async () => {
+	it("text search never matches stale mirror text", () => {
 		expect({
-			stale: await cacheService.searchText({query: "Stale"}),
-			original: await cacheService.searchText({query: "Original Name"}),
+			stale: cacheService.searchText({query: "Stale"}),
+			original: cacheService.searchText({query: "Original Name"}),
 		}).toStrictEqual({
 			stale: [],
 			original: [{id: "orig", name: "Original Name", note: "Original Note", shortId: "orig", completedAt: null}],

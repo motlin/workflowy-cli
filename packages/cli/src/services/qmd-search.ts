@@ -114,16 +114,14 @@ export class QmdSearchService {
 
 		// Mirror documents left by earlier syncs are no longer processed, so they
 		// are deactivated below.
-		const nonLeafNodes = await loadEmbeddableNodes(this.database, this.pathBuilder);
+		const nonLeafNodes = loadEmbeddableNodes(this.database, this.pathBuilder);
 
 		onProgress?.(`Found ${nonLeafNodes.length} non-leaf nodes (leaf nodes and mirrors skipped)`);
 
 		const nodeIds = nonLeafNodes.map((n) => n.id);
-		const [pathMap, contentMap, childrenMap] = await Promise.all([
-			this.pathBuilder.buildFullPathsBatch(nodeIds),
-			this.pathBuilder.buildTextContentBatch(nodeIds),
-			this.pathBuilder.buildChildrenTextBatch(nodeIds),
-		]);
+		const pathMap = this.pathBuilder.buildFullPathsBatch(nodeIds);
+		const contentMap = this.pathBuilder.buildTextContentBatch(nodeIds);
+		const childrenMap = this.pathBuilder.buildChildrenTextBatch(nodeIds);
 
 		let inserted = 0;
 		let updated = 0;
@@ -251,16 +249,14 @@ export class QmdSearchService {
 		}
 	}
 
-	private async enrichResults(rawResults: {nodeId: string; score: number}[]): Promise<QmdSearchResultItem[]> {
+	private enrichResults(rawResults: {nodeId: string; score: number}[]): QmdSearchResultItem[] {
 		const enriched: QmdSearchResultItem[] = [];
 
 		for (const raw of rawResults) {
 			const {nodeId} = raw;
 
-			const [fullPath, textContent] = await Promise.all([
-				this.pathBuilder.buildFullPath(nodeId),
-				this.pathBuilder.buildTextContent(nodeId),
-			]);
+			const fullPath = this.pathBuilder.buildFullPath(nodeId);
+			const textContent = this.pathBuilder.buildTextContent(nodeId);
 
 			const nodeWithRelations = this.database.query.nodeContent
 				.findFirst({

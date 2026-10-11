@@ -102,7 +102,7 @@ export default class ImportBackup extends Command {
 			const db = createDatabase();
 			if (parsedBackupInfo) {
 				await this.validateBackupOrder(db, parsedBackupInfo, flags.yes);
-				const alreadyImported = await this.checkIfAlreadyImported(db, parsedBackupInfo.filename);
+				const alreadyImported = this.checkIfAlreadyImported(db, parsedBackupInfo.filename);
 				if (alreadyImported) {
 					this.log(`✓ Backup already imported: ${parsedBackupInfo.filename}`);
 					return;
@@ -186,7 +186,7 @@ export default class ImportBackup extends Command {
 
 			const recordBackupInfo = parseBackupFilename(filePath);
 			if (recordBackupInfo) {
-				await this.recordBackupImport(db, recordBackupInfo);
+				this.recordBackupImport(db, recordBackupInfo);
 			}
 		} catch (error) {
 			if (error instanceof SyntaxError) {
@@ -196,7 +196,7 @@ export default class ImportBackup extends Command {
 		}
 	}
 
-	private async checkIfAlreadyImported(db: ReturnType<typeof createDatabase>, filename: string): Promise<boolean> {
+	private checkIfAlreadyImported(db: ReturnType<typeof createDatabase>, filename: string): boolean {
 		const existingImport = db
 			.select()
 			.from(backupImports)
@@ -257,10 +257,10 @@ export default class ImportBackup extends Command {
 		}
 	}
 
-	private async recordBackupImport(
+	private recordBackupImport(
 		db: ReturnType<typeof createDatabase>,
 		backupInfo: {filename: string; backupDate: Date},
-	): Promise<void> {
+	): void {
 		db.insert(backupImports)
 			.values({
 				filename: backupInfo.filename,

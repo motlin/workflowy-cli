@@ -94,7 +94,7 @@ export class SearchService {
 		return this.enrichResults(searchResults.map((r) => ({nodeId: r.nodeId, distance: r.distance})));
 	}
 
-	private async searchKeyword(query: string, limit: number): Promise<SearchResult[]> {
+	private searchKeyword(query: string, limit: number): SearchResult[] {
 		const ftsResults = this.database.all<{node_id: string; score: number}>(
 			sql`SELECT node_id, rank as score FROM node_fts WHERE node_fts MATCH ${query} ORDER BY rank LIMIT ${limit}`,
 		);
@@ -114,10 +114,8 @@ export class SearchService {
 		const k = 60; // RRF constant
 
 		// Run vector and FTS5 in parallel
-		const [vectorResults, ftsResults] = await Promise.all([
-			this.searchVector({...options, limit: limit * 3}),
-			this.searchKeyword(query, limit * 3),
-		]);
+		const vectorResults = await this.searchVector({...options, limit: limit * 3});
+		const ftsResults = this.searchKeyword(query, limit * 3);
 
 		// Build RRF scores
 		const rrfScores = new Map<string, {score: number; result: SearchResult}>();
@@ -151,68 +149,64 @@ export class SearchService {
 		}));
 	}
 
-	private async enrichResults(rawResults: {nodeId: string; distance: number}[]): Promise<SearchResult[]> {
-		return Promise.all(
-			rawResults.map(async (result) => {
-				const [fullPath, textContent] = await Promise.all([
-					this.pathBuilder.buildFullPath(result.nodeId),
-					this.pathBuilder.buildTextContent(result.nodeId),
-				]);
+	private enrichResults(rawResults: {nodeId: string; distance: number}[]): SearchResult[] {
+		return rawResults.map((result) => {
+			const fullPath = this.pathBuilder.buildFullPath(result.nodeId);
+			const textContent = this.pathBuilder.buildTextContent(result.nodeId);
 
-				const nodeWithRelations = this.database.query.nodeContent
-					.findFirst({
-						where: and(
-							eq(schema.nodeContent.id, result.nodeId),
-							eq(schema.nodeContent.systemTo, FAR_FUTURE_DATE),
-						),
-						with: {
-							metadata: true,
-							aiMetadata: true,
-							referencesRoot: true,
-						},
-					})
-					.sync();
-				logger.logSqlResult("nodeWithRelations", nodeWithRelations);
+			const nodeWithRelations = this.database.query.nodeContent
+				.findFirst({
+					where: and(
+						eq(schema.nodeContent.id, result.nodeId),
+						eq(schema.nodeContent.systemTo, FAR_FUTURE_DATE),
+					),
+					with: {
+						metadata: true,
+						aiMetadata: true,
+						referencesRoot: true,
+					},
+				})
+				.sync();
+			logger.logSqlResult("nodeWithRelations", nodeWithRelations);
 
-				const priority = nodeWithRelations?.metadata?.priority ?? 0;
-				const data: Record<string, unknown> = {};
+			const priority = nodeWithRelations?.metadata?.priority ?? 0;
+			const data: Record<string, unknown> = {};
 
-				if (nodeWithRelations?.metadata?.layoutMode) {
-					data.layoutMode = nodeWithRelations.metadata.layoutMode;
-				}
+			if (nodeWithRelations?.metadata?.layoutMode) {
+				data.layoutMode = nodeWithRelations.metadata.layoutMode;
+			}
 
-				if (nodeWithRelations?.referencesRoot) {
-					data.isReferencesRoot = true;
-				}
+			if (nodeWithRelations?.referencesRoot) {
+				data.isReferencesRoot = true;
+			}
 
-				if (nodeWithRelations?.aiMetadata) {
-					data.ai = {
-						inChat: Boolean(nodeWithRelations.aiMetadata.inChat),
-					};
-				}
-
-				return {
-					id: nodeWithRelations?.id || result.nodeId,
-					name: nodeWithRelations?.name || "",
-					note: nodeWithRelations?.note,
-					priority,
-					completed: nodeWithRelations?.metadata?.completedAt !== null,
-					createdAt: nodeWithRelations?.metadata?.createdAt
-						? Math.floor(nodeWithRelations.metadata.createdAt.getTime() / 1000)
-						: 0,
-					modifiedAt: nodeWithRelations?.metadata?.modifiedAt
-						? Math.floor(nodeWithRelations.metadata.modifiedAt.getTime() / 1000)
-						: 0,
-					completedAt: nodeWithRelations?.metadata?.completedAt
-						? Math.floor(nodeWithRelations.metadata.completedAt.getTime() / 1000)
-						: null,
-					data,
-					nodeId: result.nodeId,
-					fullPath,
-					textContent,
-					distance: result.distance,
+			if (nodeWithRelations?.aiMetadata) {
+				data.ai = {
+					inChat: Boolean(nodeWithRelations.aiMetadata.inChat),
 				};
-			}),
-		);
+			}
+
+			return {
+				id: nodeWithRelations?.id || result.nodeId,
+				name: nodeWithRelations?.name || "",
+				note: nodeWithRelations?.note,
+				priority,
+				completed: nodeWithRelations?.metadata?.completedAt !== null,
+				createdAt: nodeWithRelations?.metadata?.createdAt
+					? Math.floor(nodeWithRelations.metadata.createdAt.getTime() / 1000)
+					: 0,
+				modifiedAt: nodeWithRelations?.metadata?.modifiedAt
+					? Math.floor(nodeWithRelations.metadata.modifiedAt.getTime() / 1000)
+					: 0,
+				completedAt: nodeWithRelations?.metadata?.completedAt
+					? Math.floor(nodeWithRelations.metadata.completedAt.getTime() / 1000)
+					: null,
+				data,
+				nodeId: result.nodeId,
+				fullPath,
+				textContent,
+				distance: result.distance,
+			};
+		});
 	}
 }

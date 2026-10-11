@@ -45,7 +45,7 @@ export default class List extends BaseListCommand {
 			let parentId: string | null = flags["parent-id"] ?? null;
 			if (parentId) {
 				if (isShortId(parentId)) {
-					const resolvedId = await this.cacheService.resolveShortIdToUuid(parentId);
+					const resolvedId = this.cacheService.resolveShortIdToUuid(parentId);
 					if (resolvedId) {
 						logger.debug(`Resolved short ID ${parentId} to full UUID ${resolvedId}`);
 						parentId = resolvedId;

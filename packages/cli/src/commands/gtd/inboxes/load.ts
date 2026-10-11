@@ -74,7 +74,7 @@ export default class Load extends Command {
 
 		// Find inboxes node
 		const inboxesPath = ["Metadata", "\u{1F4E5} Inboxes"];
-		const inboxesNode = await cacheService.findNodeByPath(inboxesPath);
+		const inboxesNode = cacheService.findNodeByPath(inboxesPath);
 
 		if (!inboxesNode) {
 			this.error(`Inboxes node not found at path: ${inboxesPath.join(" > ")}`);
@@ -84,9 +84,9 @@ export default class Load extends Command {
 		const inboxes: Inbox[] = [];
 
 		// Get children of Inboxes node (these are links to actual inboxes)
-		const inboxLinks = await cacheService.getChildren(inboxesNode.id);
+		const inboxLinks = cacheService.getChildren(inboxesNode.id);
 
-		const {targets: childIdToTargetUuid, broken} = await resolveInboxLinks(database, inboxLinks);
+		const {targets: childIdToTargetUuid, broken} = resolveInboxLinks(database, inboxLinks);
 		if (broken.length > 0) {
 			const details = broken
 				.map((link) => `${link.name} (link ${link.linkId} -> missing ${link.shortId})`)
@@ -99,7 +99,7 @@ export default class Load extends Command {
 		for (const child of inboxLinks) {
 			// Resolve link target via short ID extracted from anchor href
 			const targetUuid = childIdToTargetUuid.get(child.id);
-			const target = targetUuid ? await cacheService.getNode(targetUuid) : null;
+			const target = targetUuid ? cacheService.getNode(targetUuid) : null;
 
 			// Extract inbox name from anchor tag or raw name
 			let inboxName = child.name ?? "";
@@ -110,7 +110,7 @@ export default class Load extends Command {
 
 			// Get items from the target inbox (or from the link itself if no target)
 			const itemsParentId = target?.id ?? child.id;
-			const inboxItems = await cacheService.getChildren(itemsParentId);
+			const inboxItems = cacheService.getChildren(itemsParentId);
 
 			for (const item of inboxItems) {
 				items.push(this.nodeToInboxItem(item));
@@ -118,7 +118,7 @@ export default class Load extends Command {
 
 			// Fetch children at requested depth using batch queries per level
 			if (depth > 0 && items.length > 0) {
-				await this.fetchChildrenByDepth(cacheService, items, depth);
+				this.fetchChildrenByDepth(cacheService, items, depth);
 			}
 
 			inboxes.push({
@@ -131,7 +131,7 @@ export default class Load extends Command {
 		}
 
 		const registeredIds = new Set(inboxes.flatMap((inbox) => [inbox.id, inbox.linkId]));
-		const unregisteredInboxes = await findUnregisteredInboxes(database, registeredIds);
+		const unregisteredInboxes = findUnregisteredInboxes(database, registeredIds);
 		for (const inbox of unregisteredInboxes) {
 			this.warn(
 				`Unregistered inbox: ${inbox.path} (${inbox.id}); absent from Metadata > 📥 Inboxes and excluded from triage.`,
@@ -180,11 +180,7 @@ export default class Load extends Command {
 		};
 	}
 
-	private async fetchChildrenByDepth(
-		cacheService: CacheService,
-		items: InboxItem[],
-		maxDepth: number,
-	): Promise<void> {
+	private fetchChildrenByDepth(cacheService: CacheService, items: InboxItem[], maxDepth: number): void {
 		const itemMap = new Map<string, InboxItem>();
 		for (const item of items) {
 			itemMap.set(item.id, item);
@@ -197,7 +193,7 @@ export default class Load extends Command {
 				break;
 			}
 
-			const childrenByParent = await cacheService.getChildrenForMultipleParents(currentLevelIds);
+			const childrenByParent = cacheService.getChildrenForMultipleParents(currentLevelIds);
 			const nextLevelIds: string[] = [];
 
 			for (const [parentId, children] of childrenByParent) {

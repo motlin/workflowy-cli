@@ -60,27 +60,31 @@ describe("node:mirror command", () => {
 			calls.push({method, url: urlStr, body: requestJson(init)});
 
 			if (method === "POST" && urlStr.endsWith(`/nodes/${ORIGIN_ID}/mirror`)) {
-				return new Response(JSON.stringify({item_id: MIRROR_ID, origin_id: ORIGIN_ID}), {status: 200});
-			}
-			if (method === "GET" && urlStr.endsWith(`/nodes/${MIRROR_ID}`)) {
-				return new Response(
-					JSON.stringify({
-						node: {
-							id: MIRROR_ID,
-							name: "Origin Task",
-							parent_id: PARENT_ID,
-							priority: 3,
-							completed: false,
-							createdAt: 1_760_000_000,
-							modifiedAt: 1_760_000_000,
-							completedAt: null,
-							data: {},
-						},
-					}),
-					{status: 200},
+				return Promise.resolve(
+					new Response(JSON.stringify({item_id: MIRROR_ID, origin_id: ORIGIN_ID}), {status: 200}),
 				);
 			}
-			return new Response("unexpected", {status: 500});
+			if (method === "GET" && urlStr.endsWith(`/nodes/${MIRROR_ID}`)) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							node: {
+								id: MIRROR_ID,
+								name: "Origin Task",
+								parent_id: PARENT_ID,
+								priority: 3,
+								completed: false,
+								createdAt: 1_760_000_000,
+								modifiedAt: 1_760_000_000,
+								completedAt: null,
+								data: {},
+							},
+						}),
+						{status: 200},
+					),
+				);
+			}
+			return Promise.resolve(new Response("unexpected", {status: 500}));
 		});
 		return calls;
 	}
@@ -208,7 +212,7 @@ describe("node:mirror command", () => {
 			const calls: {method: string; url: string}[] = [];
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				calls.push({method: init?.method ?? "GET", url: url instanceof Request ? url.url : String(url)});
-				return new Response(JSON.stringify({status: "ok"}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({status: "ok"}), {status: 200}));
 			});
 
 			const {stdout} = await captureOutput(async () => {

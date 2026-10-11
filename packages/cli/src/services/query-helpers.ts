@@ -19,7 +19,7 @@ export class QueryHelpers {
 	/**
 	 * Fetch a single node by ID
 	 */
-	async getNodeById(id: string): Promise<Node | undefined> {
+	getNodeById(id: string): Node | undefined {
 		const result = this.nodeReader.getById(id) ?? undefined;
 		logger.logSqlResult("getNodeById", result);
 		return result;
@@ -28,7 +28,7 @@ export class QueryHelpers {
 	/**
 	 * Fetch children of a node ordered by priority, then createdAt
 	 */
-	async getChildren(parentId: string | null): Promise<Node[]> {
+	getChildren(parentId: string | null): Node[] {
 		const results = this.nodeReader.getChildren(parentId);
 		logger.logSqlResult("getChildren", results);
 		return results;
@@ -37,7 +37,7 @@ export class QueryHelpers {
 	/**
 	 * Find all nodes that have been completed
 	 */
-	async getCompletedTasks(): Promise<Node[]> {
+	getCompletedTasks(): Node[] {
 		const completedRows = this.database
 			.select({id: nodeMetadata.nodeId})
 			.from(nodeContent)
@@ -61,7 +61,7 @@ export class QueryHelpers {
 	 * @param path Array of node names to traverse (e.g., ['Work', 'Journal', 'Archive'])
 	 * @param rootId Optional root node ID to start from (null for absolute root)
 	 */
-	async findNodeByPath(path: string[], rootId: string | null = null): Promise<Node | undefined> {
+	findNodeByPath(path: string[], rootId: string | null = null): Node | undefined {
 		if (path.length === 0) {
 			if (rootId) {
 				return this.getNodeById(rootId);
@@ -72,7 +72,7 @@ export class QueryHelpers {
 		let currentParentId = rootId;
 
 		for (const segment of path) {
-			const children = await this.getChildren(currentParentId);
+			const children = this.getChildren(currentParentId);
 			logger.logSqlResult("findNodeByPath.children", children);
 
 			// Using 'includes' because names might contain HTML tags

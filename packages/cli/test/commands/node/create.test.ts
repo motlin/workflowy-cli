@@ -67,7 +67,7 @@ describe("node create command", () => {
 				const id = ids[bodies.length];
 				bodies.push(body);
 				created.set(id, body);
-				return new Response(JSON.stringify({item_id: id}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({item_id: id}), {status: 200}));
 			}
 			const id = (url instanceof Request ? url.url : url.toString()).split("/").pop()!;
 			const body = created.get(id)!;
@@ -83,7 +83,7 @@ describe("node create command", () => {
 				modifiedAt: now,
 				completedAt: null,
 			};
-			return new Response(JSON.stringify({node}), {status: 200});
+			return Promise.resolve(new Response(JSON.stringify({node}), {status: 200}));
 		});
 		return bodies;
 	}
@@ -295,30 +295,32 @@ describe("node create command", () => {
 
 				if (method === "POST" && urlStr.endsWith("/nodes/")) {
 					capturedBody = requestBody(init);
-					return new Response(JSON.stringify({item_id: "new-id"}), {status: 200});
+					return Promise.resolve(new Response(JSON.stringify({item_id: "new-id"}), {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.endsWith("/nodes/new-id")) {
-					return new Response(
-						JSON.stringify({
-							node: {
-								id: "new-id",
-								name: "Test",
-								note: null,
-								parent_id: "inbox-uuid",
-								priority: 0,
-								completed: false,
-								createdAt: now,
-								modifiedAt: now,
-								completedAt: null,
-								data: {layoutMode: "bullets"},
-							},
-						}),
-						{status: 200},
+					return Promise.resolve(
+						new Response(
+							JSON.stringify({
+								node: {
+									id: "new-id",
+									name: "Test",
+									note: null,
+									parent_id: "inbox-uuid",
+									priority: 0,
+									completed: false,
+									createdAt: now,
+									modifiedAt: now,
+									completedAt: null,
+									data: {layoutMode: "bullets"},
+								},
+							}),
+							{status: 200},
+						),
 					);
 				}
 
-				return new Response(JSON.stringify({error: "Not found"}), {status: 404});
+				return Promise.resolve(new Response(JSON.stringify({error: "Not found"}), {status: 404}));
 			});
 
 			const {stdout} = await captureOutput(async () => {

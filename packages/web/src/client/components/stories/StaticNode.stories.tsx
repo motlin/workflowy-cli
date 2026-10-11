@@ -37,7 +37,7 @@ const meta: Meta<typeof StaticNode> = {
 		},
 	},
 	args: {
-		onToggleExpand: fn(),
+		onToggleExpand: fn<() => void>(),
 	},
 	decorators: [
 		(Story) => (

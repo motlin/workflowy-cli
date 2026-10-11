@@ -74,7 +74,7 @@ function JumpMenuDialog() {
 
 	const {data: recentNodes = [], isLoading: isLoadingRecent} = useQuery({
 		queryKey: ["recent-nodes", recentIds],
-		queryFn: () => fetchNodes(recentIds),
+		queryFn: async () => fetchNodes(recentIds),
 		enabled: recentIds.length > 0,
 		staleTime: 0,
 	});
@@ -95,7 +95,7 @@ function JumpMenuDialog() {
 			return undefined;
 		}
 
-		const searchTimeout = setTimeout(async () => {
+		const runSearch = async () => {
 			setIsSearching(true);
 			const response = await fetch("/api/search", {
 				method: "POST",
@@ -108,6 +108,9 @@ function JumpMenuDialog() {
 				setSelectedIndex(0);
 			}
 			setIsSearching(false);
+		};
+		const searchTimeout = setTimeout(() => {
+			void runSearch();
 		}, 150);
 
 		return () => clearTimeout(searchTimeout);

@@ -48,8 +48,8 @@ describe("EmbeddingGeneratorService on mirrors", () => {
 		cleanupTestDatabase(testDatabase);
 	});
 
-	it("selects only non-leaf nodes that are not mirrors", async () => {
-		const nodes = await loadEmbeddableNodes(testDatabase.db);
+	it("selects only non-leaf nodes that are not mirrors", () => {
+		const nodes = loadEmbeddableNodes(testDatabase.db);
 
 		expect(nodes.map((node) => node.id)).toStrictEqual(["orig"]);
 	});

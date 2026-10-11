@@ -28,7 +28,10 @@ export function maxSnowflake(ids) {
 
 const byId = (a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0);
 
-const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const defaultSleep = async (ms) =>
+	new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
 
 export async function fetchMessagesSince({
 	channelId,

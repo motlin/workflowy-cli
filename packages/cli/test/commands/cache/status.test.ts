@@ -19,7 +19,7 @@ describe("cache:status command", () => {
 	let testDatabase: TestDatabase;
 	let originalDbPath: string | undefined;
 
-	beforeEach(async () => {
+	beforeEach(() => {
 		vi.useFakeTimers({shouldAdvanceTime: true});
 		vi.setSystemTime(new Date("2026-01-01T12:00:00.000Z"));
 
@@ -79,7 +79,7 @@ describe("cache:status command", () => {
 	});
 
 	describe("with cached nodes", () => {
-		beforeEach(async () => {
+		beforeEach(() => {
 			const testNodeContent: NewNodeContent[] = [
 				{
 					id: "root-1",

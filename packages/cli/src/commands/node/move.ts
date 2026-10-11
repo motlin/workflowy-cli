@@ -87,8 +87,8 @@ export default class Move extends Command {
 			apiClient,
 		);
 
-		const sourcePath = await pathBuilder.buildFullPath(nodeId);
-		const destinationPath = await pathBuilder.buildFullPath(parentId);
+		const sourcePath = pathBuilder.buildFullPath(nodeId);
+		const destinationPath = pathBuilder.buildFullPath(parentId);
 
 		// Convert position string to number for API (-1 for top, 0 for bottom)
 		const positionValue = flags.position === "top" ? -1 : flags.position === "bottom" ? 0 : undefined;

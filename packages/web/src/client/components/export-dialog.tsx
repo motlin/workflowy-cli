@@ -125,7 +125,7 @@ async function fetchNodeTree(nodeId: string): Promise<NodeData | null> {
 	const {nodes: children} = await readJson<{nodes: NodeResponse[]}>(childrenResponse);
 
 	// Recursively fetch children's trees
-	const childTrees = await Promise.all(children.map((child) => fetchNodeTree(child.id)));
+	const childTrees = await Promise.all(children.map(async (child) => fetchNodeTree(child.id)));
 
 	return {
 		id: node.id,
@@ -151,7 +151,7 @@ export function ExportDialog() {
 	} = useQuery({
 		queryKey: ["export-trees", nodeIds],
 		queryFn: async () => {
-			const fetched = await Promise.all(nodeIds.map((id) => fetchNodeTree(id)));
+			const fetched = await Promise.all(nodeIds.map(async (id) => fetchNodeTree(id)));
 			return fetched.filter((t): t is NodeData => t !== null);
 		},
 		enabled: exportDialogOpen && nodeIds.length > 0,
@@ -295,7 +295,9 @@ export function ExportDialog() {
 					<button
 						className="export-dialog-button export-dialog-copy"
 						disabled={isLoading || !exportContent}
-						onClick={handleCopy}
+						onClick={() => {
+							void handleCopy();
+						}}
 						type="button"
 					>
 						{copied ? "Copied!" : "Copy to Clipboard"}

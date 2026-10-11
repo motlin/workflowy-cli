@@ -100,6 +100,11 @@ export default defineConfig({
 			"vitest/prefer-expect-resolves": "error",
 			"vitest/prefer-hooks-in-order": "error",
 			"vitest/prefer-expect-type-of": "error",
+			"typescript/require-await": "error",
+			"typescript/no-misused-promises": "error",
+			"typescript/strict-void-return": "error",
+			"typescript/no-confusing-void-expression": ["error", {ignoreArrowShorthand: true}],
+			"typescript/promise-function-async": "error",
 		},
 		overrides: [
 			{

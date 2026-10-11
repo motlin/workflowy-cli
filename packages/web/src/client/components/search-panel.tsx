@@ -181,7 +181,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 			return undefined;
 		}
 
-		const searchTimeout = setTimeout(async () => {
+		const runSearch = async () => {
 			setIsSearching(true);
 			const requestBody: {
 				query: string;
@@ -210,6 +210,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 				setSelectedIndex(0);
 			}
 			setIsSearching(false);
+		};
+		const searchTimeout = setTimeout(() => {
+			void runSearch();
 		}, 200);
 
 		return () => clearTimeout(searchTimeout);
@@ -436,7 +439,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 								<button
 									className="search-panel-load-more"
 									disabled={isLoadingMore}
-									onClick={handleLoadMore}
+									onClick={() => {
+										void handleLoadMore();
+									}}
 									type="button"
 								>
 									{isLoadingMore

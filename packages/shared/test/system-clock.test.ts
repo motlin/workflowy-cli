@@ -44,13 +44,13 @@ describe("system time shared across writers", () => {
 		return database;
 	}
 
-	it("gives two cache instances on separate connections distinct system times for one node within a millisecond", async () => {
+	it("gives two cache instances on separate connections distinct system times for one node within a millisecond", () => {
 		vi.useFakeTimers({toFake: ["Date"], now: new Date("2026-02-01T00:00:00.000Z")});
 		const first = openDatabase();
 		const second = openDatabase();
 
-		await new CacheService(first).insertNode(apiNode("Original"), null);
-		await new CacheService(second).insertNode(apiNode("Renamed"), null);
+		new CacheService(first).insertNode(apiNode("Original"), null);
+		new CacheService(second).insertNode(apiNode("Renamed"), null);
 
 		expect(first.select().from(nodeContent).all()).toStrictEqual([
 			{

@@ -53,7 +53,7 @@ export abstract class BaseCompletionCommand extends Command {
 
 		const nodeId = await resolveNodeId(flags, cacheService, apiClient);
 
-		const fullPath = await pathBuilder.buildFullPath(nodeId);
+		const fullPath = pathBuilder.buildFullPath(nodeId);
 
 		if (flags["dry-run"]) {
 			this.log("Would execute API call:");

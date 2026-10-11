@@ -3,7 +3,7 @@ import {sql} from "drizzle-orm";
 import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCacheTools(server: McpServer): void {
-	server.tool("workflowy_cache_status", "Get cache database status and statistics", {}, async () => {
+	server.tool("workflowy_cache_status", "Get cache database status and statistics", {}, () => {
 		const db = getDatabase();
 
 		const [result] = db.all<{

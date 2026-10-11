@@ -157,7 +157,9 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			const call = `${method} ${path}`;
 			calls.push(init?.body === undefined ? call : `${call} ${requestBody(init)}`);
 			if (call === failCall) {
-				return new Response('{"code":"server_error"}', {status: 500, statusText: "Internal Server Error"});
+				return Promise.resolve(
+					new Response('{"code":"server_error"}', {status: 500, statusText: "Internal Server Error"}),
+				);
 			}
 			const toApi = (id: string, parentId: string | null) => ({
 				id,
@@ -174,7 +176,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 				const parentId = path.slice("/nodes?parent_id=".length);
 				// Workflowy lists children in no particular order, so list them reversed.
 				const nodes = (server.get(parentId) ?? []).map((id) => toApi(id, parentId)).toReversed();
-				return new Response(JSON.stringify({nodes}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({nodes}), {status: 200}));
 			}
 			const id = path.split("/")[2];
 			if (method === "DELETE") {
@@ -185,9 +187,9 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 				const siblings = server.get(body.parent_id) ?? [];
 				server.set(body.parent_id, body.position === "top" ? [id, ...siblings] : [...siblings, id]);
 			} else if (method === "GET") {
-				return new Response(JSON.stringify({node: toApi(id, parentOf(id))}), {status: 200});
+				return Promise.resolve(new Response(JSON.stringify({node: toApi(id, parentOf(id))}), {status: 200}));
 			}
-			return new Response('{"status":"ok"}', {status: 200});
+			return Promise.resolve(new Response('{"status":"ok"}', {status: 200}));
 		}),
 	);
 	const apiClient = new WorkflowyApiClient("test-key", undefined, "https://workflowy.test", {
