@@ -18,10 +18,10 @@
 	"devDependencies": {
 		"vitest": "catalog:",
 		"@types/better-sqlite3": "^9.6.0",
-		"@types/node": "^26.6.3",
+		"@types/node": "^26.6.5",
 		"drizzle-kit": "^0.31.11",
 		"vite-plus": "catalog:",
-		"fallow": "^3.32.0",
+		"fallow": "^3.33.0",
 		"markdownlint-cli2": "^0.23.3",
 		"oclif": "^6",
 		"shx": "^0.4.0",
@@ -61,7 +61,7 @@
 		"oxlint:ci": "vp lint . --format github",
 		"fmt": "vp fmt",
 		"fmt:ci": "vp fmt --check",
-		"fallow": "fallow fix --yes",
+		"fallow": "fallow fix --yes --no-create-config",
 		"fallow:ci": "fallow dead-code",
 		"typecheck": "tsc --noEmit",
 		"postpack": "shx rm -f oclif.manifest.json",
@@ -76,7 +76,7 @@
 		"eval:e2e": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral/scenarios/e2e",
 		"eval:behavioral": "vp test run --config vitest.config.evals.ts --test-timeout 900000 test/evals/behavioral",
 		"version": "oclif readme && git add README.md",
-		"prepublishOnly": "npm run build && npm test && npm run oxlint",
+		"prepublishOnly": "pnpm run build && pnpm test && pnpm run oxlint",
 		"prepare": "VITE_GIT_HOOKS=0 vp config"
 	},
 	"types": "dist/index.d.ts"
