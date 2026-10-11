@@ -103,10 +103,10 @@ export default class Sync extends Command {
 		const speeches: ProcessedSpeech[] = [];
 		for (const speech of rawResponse.speeches || []) {
 			const outline: Array<{title: string; segments: string[]}> = [];
-			for (const item of speech.speech_outline || []) {
+			for (const item of speech.speech_outline ?? []) {
 				outline.push({
 					title: item.text,
-					segments: (item.segments || []).map((s) => s.text),
+					segments: (item.segments ?? []).map((s) => s.text),
 				});
 			}
 
@@ -136,7 +136,7 @@ export default class Sync extends Command {
 
 			// Merge action items into result
 			for (const speech of speeches) {
-				speech.action_items = actionMap.get(speech.otid) || [];
+				speech.action_items = actionMap.get(speech.otid) ?? [];
 			}
 		}
 

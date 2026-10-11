@@ -58,7 +58,7 @@ test("renderPage emits a single continuous list, not one box per tier", () => {
 		),
 	]);
 	assert.match(html, /class="ladder-list"/, "one continuous list container per ladder");
-	assert.ok(!/class="tier-box"/.test(html), "tiers must be dividers inside the list, not separate boxes");
+	assert.ok(!html.includes('class="tier-box"'), "tiers must be dividers inside the list, not separate boxes");
 	assert.match(html, /data-tier-boundary="2"/, "tier boundaries are rendered inside the list");
 });
 
@@ -202,7 +202,7 @@ test("every mutation autosaves, so there is no Submit button to forget", () => {
 		),
 	]);
 	assert.match(html, /autosave/i, "the page must save on each change");
-	assert.ok(!/id="submit"/.test(html), "an explicit Submit button must not gate saving");
+	assert.ok(!html.includes('id="submit"'), "an explicit Submit button must not gate saving");
 });
 
 test("each tier region is painted by capacity state, not just labelled with text", () => {

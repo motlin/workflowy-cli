@@ -63,7 +63,7 @@ function parseTierLabel(name: string | null | undefined): number | null {
 }
 
 function stripHtml(value: string): string {
-	return value.replace(/<[^>]+>/g, "").trim();
+	return value.replaceAll(/<[^>]+>/g, "").trim();
 }
 
 function stateFor(count: number, capacity: number): TierState {

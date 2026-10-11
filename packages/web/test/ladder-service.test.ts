@@ -14,8 +14,8 @@ function makeService(overrides: Partial<ConstructorParameters<typeof LadderServi
 		work: {id: "wb", name: "📌 work", children: [tier("w1", "1st", [{id: "a", name: "A"}]), tier("w2", "2nd", [])]},
 		personal: {id: "pb", name: "📌 personal", children: [tier("p1", "1st", [{id: "x", name: "X"}])]},
 	};
-	const moveNode = vi.fn<LadderServiceOptions["moveNode"]>(async () => undefined);
-	const completeNode = vi.fn<LadderServiceOptions["completeNode"]>(async () => undefined);
+	const moveNode = vi.fn<LadderServiceOptions["moveNode"]>(async () => {});
+	const completeNode = vi.fn<LadderServiceOptions["completeNode"]>(async () => {});
 	const events = new LadderEventBus();
 	const service = new LadderService({
 		readBuckets: async () => buckets,

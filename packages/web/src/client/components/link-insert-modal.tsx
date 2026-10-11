@@ -95,6 +95,7 @@ export function LinkInsertModal() {
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 			return undefined;
 		}
 

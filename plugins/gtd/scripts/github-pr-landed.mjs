@@ -54,8 +54,9 @@ export function landedText(pr, date) {
 function localDate(iso, timeZone) {
 	const parts = new Intl.DateTimeFormat("en-US", {timeZone, year: "numeric", month: "numeric", day: "numeric"})
 		.formatToParts(new Date(iso))
-		.reduce((acc, {type, value}) => ({...acc, [type]: Number(value)}), {});
-	return {year: parts.year, month: parts.month, day: parts.day};
+		.map(({type, value}) => [type, Number(value)]);
+	const {year, month, day} = Object.fromEntries(parts);
+	return {year, month, day};
 }
 
 export function classifyPr(pr, config, timeZone) {

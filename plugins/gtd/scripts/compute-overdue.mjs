@@ -48,9 +48,9 @@ export function parseTimeISO(name) {
 /** Node text as a human reads it: no <time> element, no tags, no other HTML. */
 export function stripMarkup(name) {
 	return String(name)
-		.replace(/<time[^>]*>.*?<\/time>/g, "")
-		.replace(/<[^>]+>/g, "")
-		.replace(/\s+/g, " ")
+		.replaceAll(/<time[^>]*>.*?<\/time>/g, "")
+		.replaceAll(/<[^>]+>/g, "")
+		.replaceAll(/\s+/g, " ")
 		.trim();
 }
 

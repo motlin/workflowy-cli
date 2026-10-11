@@ -818,14 +818,12 @@ export async function importBackup(
 		completedAt: timestampToDate(node.completedAt),
 		layoutMode: node.layoutMode,
 	}));
-	const calendarMetadataRows: NormalizedCalendarMetadataRow[] = calendarMetadataRecords.map((record) => ({
-		...record,
-	}));
-	const calendarLevelsRows: NormalizedCalendarLevelsRow[] = calendarLevelsRecords.map((record) => ({...record}));
-	const aiMetadataRows: NormalizedAiMetadataRow[] = aiMetadataRecords.map((record) => ({...record}));
-	const s3FileRows: NormalizedS3FileRow[] = s3FileRecords.map((record) => ({...record}));
-	const changesMetadataRows: NormalizedChangesMetadataRow[] = changesMetadataRecords.map((record) => ({...record}));
-	const referencesRootsRows: NormalizedReferencesRootsRow[] = referencesRootsRecords.map((record) => ({...record}));
+	const calendarMetadataRows: NormalizedCalendarMetadataRow[] = calendarMetadataRecords;
+	const calendarLevelsRows: NormalizedCalendarLevelsRow[] = calendarLevelsRecords;
+	const aiMetadataRows: NormalizedAiMetadataRow[] = aiMetadataRecords;
+	const s3FileRows: NormalizedS3FileRow[] = s3FileRecords;
+	const changesMetadataRows: NormalizedChangesMetadataRow[] = changesMetadataRecords;
+	const referencesRootsRows: NormalizedReferencesRootsRow[] = referencesRootsRecords;
 
 	const importTimestamp = timestamp ?? nextSystemTime(database);
 	const importTimestampStr = formatTemporalTimestamp(importTimestamp);

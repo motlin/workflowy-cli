@@ -259,8 +259,8 @@ export default class Dedup extends Command {
 		}
 
 		// Proper noun matching
-		const proper1 = new Set(s1.match(/\b[A-Z][A-Z]+\b|\b[A-Z][a-z]{2,}\b/g) || []);
-		const proper2 = new Set(s2.match(/\b[A-Z][A-Z]+\b|\b[A-Z][a-z]{2,}\b/g) || []);
+		const proper1 = new Set(s1.match(/\b[A-Z][A-Z]+\b|\b[A-Z][a-z]{2,}\b/g) ?? []);
+		const proper2 = new Set(s2.match(/\b[A-Z][A-Z]+\b|\b[A-Z][a-z]{2,}\b/g) ?? []);
 		const properMatch = new Set([...proper1].filter((x) => proper2.has(x)));
 
 		if (properMatch.size > 0) {

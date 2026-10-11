@@ -96,7 +96,7 @@ function StarredPageItem({nodeId}: {nodeId: string}) {
 		toggleStarPage(nodeId);
 	};
 
-	const displayName = node?.name?.replace(/<[^>]*>/g, "") || "Loading...";
+	const displayName = node?.name?.replaceAll(/<[^>]*>/g, "") || "Loading...";
 
 	return (
 		<li>
@@ -173,7 +173,7 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 		setIsExpanded(!isExpanded);
 	};
 
-	const displayName = name?.replace(/<[^>]*>/g, "") || "Untitled";
+	const displayName = name?.replaceAll(/<[^>]*>/g, "") || "Untitled";
 
 	return (
 		<li className="home-tree-item">

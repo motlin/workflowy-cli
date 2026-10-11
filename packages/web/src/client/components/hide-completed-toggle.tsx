@@ -16,6 +16,7 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
+		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 		if (!isOpen) return undefined;
 
 		function handleClickOutside(event: MouseEvent) {

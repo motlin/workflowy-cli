@@ -761,7 +761,7 @@ export class CacheService {
 		if (path.length === 0) {
 			if (rootId) {
 				const node = await this.getNode(rootId);
-				return node || null;
+				return node ?? null;
 			}
 			return null;
 		}

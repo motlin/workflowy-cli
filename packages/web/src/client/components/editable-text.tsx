@@ -505,6 +505,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	// Close the open picker on a click/escape outside of it.
 	useEffect(() => {
 		if (!colorPicker) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 			return undefined;
 		}
 		const onPointerDown = (event: PointerEvent) => {

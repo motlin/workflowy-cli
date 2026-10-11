@@ -107,6 +107,8 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 								>
 									<span className="mirrors-modal-location-number">{index + 1}.</span>
 									{breadcrumbs.map((crumb, i) => (
+										// Breadcrumb names can repeat; a path segment is identified by its depth.
+										// oxlint-disable-next-line react/no-array-index-key
 										<span key={i}>
 											{i > 0 && <span className="mirrors-modal-breadcrumb-sep"> &gt; </span>}
 											<span>{crumb}</span>

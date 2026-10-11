@@ -83,7 +83,7 @@ export class LadderEventBus {
 	 * notification, so an embedded newline would split one write across two.
 	 */
 	format(event: LadderEvent): string {
-		return JSON.stringify({...event, name: event.name?.replace(/\s+/g, " ").trim() ?? null});
+		return JSON.stringify({...event, name: event.name?.replaceAll(/\s+/g, " ").trim() ?? null});
 	}
 
 	/** A listener writing to a socket that just closed must not take the rest down. */

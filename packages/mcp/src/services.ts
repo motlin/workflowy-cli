@@ -44,15 +44,9 @@ export function getApiClient(): WorkflowyApiClient {
 }
 
 export function getCacheService(): CacheService {
-	if (!cacheService) {
-		cacheService = new CacheService(getDatabase());
-	}
-	return cacheService;
+	return (cacheService ??= new CacheService(getDatabase()));
 }
 
 export function getWriteThroughClient(): WorkflowyWriteThroughClient {
-	if (!writeThroughClient) {
-		writeThroughClient = new WorkflowyWriteThroughClient(getApiClient(), getCacheService());
-	}
-	return writeThroughClient;
+	return (writeThroughClient ??= new WorkflowyWriteThroughClient(getApiClient(), getCacheService()));
 }

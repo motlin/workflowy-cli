@@ -28,17 +28,11 @@ export abstract class BaseListCommand extends Command {
 	#pathBuilder?: PathBuilder;
 
 	protected get cacheService(): CacheService {
-		if (!this.#cacheService) {
-			this.#cacheService = new CacheService(createDatabase());
-		}
-		return this.#cacheService;
+		return (this.#cacheService ??= new CacheService(createDatabase()));
 	}
 
 	protected get pathBuilder(): PathBuilder {
-		if (!this.#pathBuilder) {
-			this.#pathBuilder = new PathBuilder(createDatabase());
-		}
-		return this.#pathBuilder;
+		return (this.#pathBuilder ??= new PathBuilder(createDatabase()));
 	}
 
 	static baseFlags = {
@@ -250,9 +244,7 @@ export abstract class BaseListCommand extends Command {
 	}
 
 	private hasBacklinks(node: NodeTree): boolean {
-		const backlinkPattern = /<a href="https:\/\/workflowy\.com\/#\//;
-		const hasBacklinkInName = Boolean(node.name && backlinkPattern.test(node.name));
-		const hasBacklinkInNote = Boolean(node.note && backlinkPattern.test(node.note));
-		return hasBacklinkInName || hasBacklinkInNote;
+		const backlinkPrefix = '<a href="https://workflowy.com/#/';
+		return Boolean(node.name?.includes(backlinkPrefix) || node.note?.includes(backlinkPrefix));
 	}
 }

@@ -123,11 +123,5 @@ export class LadderService {
 }
 
 function findItem(ladder: Ladder, nodeId: string) {
-	for (const tier of ladder.tiers) {
-		const item = tier.items.find((candidate) => candidate.id === nodeId);
-		if (item) {
-			return item;
-		}
-	}
-	return undefined;
+	return ladder.tiers.flatMap((tier) => tier.items).find((candidate) => candidate.id === nodeId);
 }

@@ -130,6 +130,7 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 
 	// Handle click outside to close
 	useEffect(() => {
+		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 		if (!isOpen) return undefined;
 
 		function handleClickOutside(event: MouseEvent) {
@@ -211,12 +212,12 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 
 				{/* Calendar grid */}
 				<div className="calendar-grid">
-					{weeks.map((week, weekIndex) => (
-						<div className="calendar-week" key={weekIndex}>
-							{week.map((day, dayIndex) => (
+					{weeks.map((week) => (
+						<div className="calendar-week" key={week[0]?.date.toISOString()}>
+							{week.map((day) => (
 								<button
 									className={`calendar-day ${day.isCurrentMonth ? "" : "other-month"} ${day.isToday ? "today" : ""}`}
-									key={`${weekIndex}-${dayIndex}`}
+									key={day.date.toISOString()}
 									onClick={() => handleDateClick(day)}
 									type="button"
 								>

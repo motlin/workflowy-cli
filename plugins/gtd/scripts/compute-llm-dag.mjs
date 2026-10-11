@@ -41,7 +41,7 @@ function instructions(node, context) {
 
 function taskDisplayName(name) {
 	return String(name)
-		.replace(/<time[^>]*>.*?<\/time>\s*/g, "")
+		.replaceAll(/<time[^>]*>.*?<\/time>\s*/g, "")
 		.trim();
 }
 

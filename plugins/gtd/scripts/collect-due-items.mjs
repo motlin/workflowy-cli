@@ -39,7 +39,7 @@ const TASKS_WRAPPER_PREFIX = "✅";
 const ASAP_BUCKET_PREFIX = "📌";
 // Legacy containers from before due dates lived on the nodes themselves. Tasks nest one level
 // deeper inside these, so the collector descends through them until the data is migrated.
-const TIMEFRAME_NAMES = ["Today", "This week", "This month"];
+const TIMEFRAME_NAMES = new Set(["Today", "This week", "This month"]);
 // Only Workflowy tasks have a subtree. A Things or Reminders task is its title plus its note, and
 // it still fills the same context shape so the walk prints one block without branching on source.
 function noteOnlyContext(title, notes) {
@@ -138,8 +138,8 @@ function workflowyOps(node, due, asapTargetId) {
 	// bucket is the real fix, and the date has to come off because that bucket holds none.
 	if (asapTargetId) {
 		const undatedName = String(node.name)
-			.replace(/<time[^>]*>.*?<\/time>/g, "")
-			.replace(/\s+/g, " ")
+			.replaceAll(/<time[^>]*>.*?<\/time>/g, "")
+			.replaceAll(/\s+/g, " ")
 			.trim();
 		ops.moveToAsap = `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(undatedName)} && ./bin/run.js node move --node-id ${node.id} --parent-id ${asapTargetId} -p bottom`;
 	}
@@ -165,7 +165,7 @@ export function fromWorkflowy(roots, todayISO) {
 		// A task's children are sub-steps, notes, and provenance -- never tasks in their own right.
 		const taskGroups = [];
 		for (const child of bucket.children ?? []) {
-			if (TIMEFRAME_NAMES.includes(String(child.name).trim())) {
+			if (TIMEFRAME_NAMES.has(String(child.name).trim())) {
 				taskGroups.push({group: String(child.name).trim(), nodes: child.children ?? []});
 			} else {
 				taskGroups.push({group: null, nodes: [child]});
@@ -290,7 +290,7 @@ export function skipKey(item) {
 	return `${item.source}:${item.id}`;
 }
 
-const titleKey = (row) => stripMarkup(row.title).normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+const titleKey = (row) => stripMarkup(row.title).normalize("NFKC").toLowerCase().replaceAll(/\s+/g, " ").trim();
 
 export function attachRecurringCounterparts(rows, tree) {
 	const byTitle = new Map();

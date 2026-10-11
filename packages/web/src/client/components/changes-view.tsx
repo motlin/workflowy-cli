@@ -58,23 +58,13 @@ function InlineDiff({oldText, newText}: {oldText: string; newText: string}) {
 	const parts = diffChars(oldText, newText);
 	return (
 		<span>
-			{parts.map((part, i) => {
-				if (part.added) {
-					return (
-						<span className="diff-added" key={i}>
-							{part.value}
-						</span>
-					);
-				}
-				if (part.removed) {
-					return (
-						<span className="diff-removed" key={i}>
-							{part.value}
-						</span>
-					);
-				}
-				return <span key={i}>{part.value}</span>;
-			})}
+			{parts.map((part, i) => (
+				// A diff is a fixed sequence of parts with no identity beyond its position.
+				// oxlint-disable-next-line react/no-array-index-key
+				<span className={part.added ? "diff-added" : part.removed ? "diff-removed" : undefined} key={i}>
+					{part.value}
+				</span>
+			))}
 		</span>
 	);
 }

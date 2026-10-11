@@ -168,7 +168,11 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 	// --- Strong consumer signals ---
 
 	// cat/jq/wc reading the path (but NOT cat > which is a redirect/write)
-	if (/\b(cat|jq|wc)\s/.test(lineLower) && !/>/.test(line.split(llmPath.path)[0]) && line.includes(llmPath.path)) {
+	if (
+		/\b(cat|jq|wc)\s/.test(lineLower) &&
+		!line.split(llmPath.path)[0].includes(">") &&
+		line.includes(llmPath.path)
+	) {
 		return "consumer";
 	}
 

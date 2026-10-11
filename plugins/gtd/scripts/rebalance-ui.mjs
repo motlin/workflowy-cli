@@ -21,11 +21,11 @@ const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates"
 /** Strip Workflowy HTML down to display text, keeping links as their anchor text. */
 export function displayText(name) {
 	return String(name ?? "")
-		.replace(/<a[^>]*>(.*?)<\/a>/g, "$1")
-		.replace(/<[^>]+>/g, "")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/&amp;/g, "&")
+		.replaceAll(/<a[^>]*>(.*?)<\/a>/g, "$1")
+		.replaceAll(/<[^>]+>/g, "")
+		.replaceAll("&quot;", '"')
+		.replaceAll("&#39;", "'")
+		.replaceAll("&amp;", "&")
 		.trim();
 }
 
@@ -140,7 +140,8 @@ export function validateSubmission(models, submission) {
 	}
 }
 
-const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = (s) =>
+	String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 function renderLadder(model) {
 	// One running index across every tier: a shift-click range is a slice of this
@@ -236,7 +237,7 @@ export function renderFromTemplate(models, templatePath = TEMPLATE) {
 	const template = readFileSync(templatePath, "utf8");
 	// `</script>` anywhere in a task name would close the tag early; \u003c keeps
 	// the payload inert while staying valid JSON.
-	const payload = JSON.stringify(toQueueLadders(models)).replace(/</g, "\\u003c");
+	const payload = JSON.stringify(toQueueLadders(models)).replaceAll("<", "\\u003c");
 	return template.replace("__LADDERS__", () => payload);
 }
 

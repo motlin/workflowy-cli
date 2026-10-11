@@ -83,15 +83,15 @@ export function facesSummary({named, unnamed}) {
 // day's entry text rather than describing the image.
 export function captionSeed(name) {
 	return name
-		.replace(/<[^>]*>/g, "")
-		.replace(/&(amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity])
+		.replaceAll(/<[^>]*>/g, "")
+		.replaceAll(/&(amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity])
 		.replace(EMOJI_RE, "")
-		.replace(/[\u2018\u2019]/g, "'")
-		.replace(/[\u201C\u201D]/g, '"')
+		.replaceAll(/[\u2018\u2019]/g, "'")
+		.replaceAll(/[\u201C\u201D]/g, '"')
 		.replace(/(\s*#[\w-]+)+\s*$/u, "")
-		.replace(/[@#](?=\w)/g, "")
-		.replace(/\s+'s\b/g, "'s")
-		.replace(/\s+/g, " ")
+		.replaceAll(/[@#](?=\w)/g, "")
+		.replaceAll(/\s+'s\b/g, "'s")
+		.replaceAll(/\s+/g, " ")
 		.trim();
 }
 

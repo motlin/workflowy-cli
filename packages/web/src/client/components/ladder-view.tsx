@@ -244,6 +244,7 @@ export function LadderView() {
 	}, []);
 
 	useEffect(() => {
+		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 		if (!dragging) return undefined;
 		let frame: number;
 		const scroll = () => {

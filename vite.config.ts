@@ -53,6 +53,7 @@ export default defineConfig({
 		categories: {
 			correctness: "error",
 			suspicious: "error",
+			perf: "error",
 		},
 		rules: {
 			"vite-plus/prefer-vite-plus-imports": "error",
@@ -70,6 +71,18 @@ export default defineConfig({
 			"typescript/prefer-promise-reject-errors": "error",
 			"typescript/no-mixed-enums": "error",
 			"typescript/related-getter-setter-pairs": "error",
+			// `||` on a primitive also defaults "" and 0, which most of these call sites rely on.
+			"typescript/prefer-nullish-coalescing": ["error", {ignorePrimitives: true}],
+			"typescript/prefer-includes": "error",
+			"typescript/no-unnecessary-type-assertion": "error",
+			"unicorn/prefer-string-replace-all": "error",
+			// React 19's useRef<T>(initial) requires its argument, so `useRef<T>(undefined)` must stay.
+			"unicorn/no-useless-undefined": ["error", {checkArguments: false}],
+			eqeqeq: ["error", "smart"],
+			// `{...row, key}` inside map is how this codebase updates data without aliasing the caller's objects.
+			"oxc/no-map-spread": "off",
+			// ~77 hits are deliberately sequential: rate-limited Workflowy writes, ordered moves, retries, and path walks.
+			"no-await-in-loop": "off",
 		},
 		overrides: [
 			{

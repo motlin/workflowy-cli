@@ -7,7 +7,7 @@
 import {readFileSync} from "node:fs";
 
 const REQUIRED_TOP_LEVEL = ["task", "generatedAt", "status"];
-const KNOWN_STATUSES = ["ready", "needs-interactive", "empty", "error"];
+const KNOWN_STATUSES = new Set(["ready", "needs-interactive", "empty", "error"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A proposal stages exactly one node id: `nodeId`, the node its applyOps mutate. Every other id
@@ -133,7 +133,7 @@ export const validateProposal = (staged) => {
 		}
 	}
 
-	if (staged.status !== undefined && !KNOWN_STATUSES.includes(staged.status)) {
+	if (staged.status !== undefined && !KNOWN_STATUSES.has(staged.status)) {
 		errors.push(`unknown status "${staged.status}"`);
 		return {valid: false, errors};
 	}
