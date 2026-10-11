@@ -1,3 +1,4 @@
+import {text} from "node:stream/consumers";
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {createNodeTree, NodeTreeSpecSchema, PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {CreatedNodeTree, NodeTreeSpec} from "@workflowy/shared/cache";
@@ -18,11 +19,7 @@ async function readStdin(): Promise<string> {
 		throw new Error("No input provided on stdin. Use --name with a value or pipe content to stdin.");
 	}
 
-	const chunks: Buffer[] = [];
-	for await (const chunk of stdin) {
-		chunks.push(Buffer.from(chunk));
-	}
-	return Buffer.concat(chunks).toString("utf8");
+	return text(stdin);
 }
 
 export default class Create extends Command {

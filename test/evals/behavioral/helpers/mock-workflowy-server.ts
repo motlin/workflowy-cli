@@ -1,3 +1,4 @@
+import {text} from "node:stream/consumers";
 /**
  * Lightweight mock Workflowy HTTP server for behavioral evals.
  *
@@ -35,11 +36,7 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 		// Read request body
 		let body: unknown = null;
 		if (method === "POST" || method === "PUT") {
-			const chunks: Buffer[] = [];
-			for await (const chunk of req) {
-				chunks.push(Buffer.from(chunk));
-			}
-			const raw = Buffer.concat(chunks).toString("utf8");
+			const raw = await text(req);
 			try {
 				body = JSON.parse(raw);
 			} catch {

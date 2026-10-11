@@ -110,6 +110,7 @@ export default defineConfig({
 			"typescript/no-unsafe-assignment": "error",
 			"typescript/no-unsafe-call": "error",
 			"typescript/no-unsafe-return": "error",
+			"typescript/no-unsafe-argument": "error",
 		},
 		overrides: [
 			{
@@ -120,6 +121,7 @@ export default defineConfig({
 					"typescript/no-unsafe-assignment": "off",
 					"typescript/no-unsafe-call": "off",
 					"typescript/no-unsafe-return": "off",
+					"typescript/no-unsafe-argument": "off",
 				},
 			},
 			{

@@ -1,3 +1,4 @@
+import {text} from "node:stream/consumers";
 import {getWorkflowyUrl} from "@workflowy/shared/workflowy";
 import {Command} from "@oclif/core";
 import {z} from "zod";
@@ -20,11 +21,7 @@ async function readStdin(): Promise<string> {
 		throw new Error("No input provided on stdin. Pipe a JSON node object to this command.");
 	}
 
-	const chunks: Buffer[] = [];
-	for await (const chunk of stdin) {
-		chunks.push(Buffer.from(chunk));
-	}
-	return Buffer.concat(chunks).toString("utf8");
+	return text(stdin);
 }
 
 export default class FormatNode extends Command {

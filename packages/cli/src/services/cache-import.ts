@@ -98,10 +98,7 @@ function setWorkflowyEpoch(tx: TemporalTransaction, epoch: number): void {
  * @returns The epoch value
  * @throws Error if epoch is not configured and cannot be fetched
  */
-async function getOrFetchWorkflowyEpoch(
-	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	tx: any,
-): Promise<number> {
+async function getOrFetchWorkflowyEpoch(tx: TemporalTransaction): Promise<number> {
 	// Check existing configuration first
 	const existingEpoch = getWorkflowyEpoch(tx);
 	if (existingEpoch !== null) {
