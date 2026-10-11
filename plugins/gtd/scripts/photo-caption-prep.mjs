@@ -15,10 +15,14 @@
 // Workflowy cache with emoji, @ signs, and trailing tags stripped, so proposed
 // captions start from the user's own wording.
 //
+// A favorite with a Workflowy entry whose <time> matches its exact minute is
+// already journaled, so it counts as captioned: it is left out of the manifest
+// and of remaining. This is checked against the cache per photo every run.
+//
 // Full run writes <out>/manifest.json and prints
-//   total=<n> viewable=<n> unviewable=<n> manifest=<path>
-// --count-only re-reads a fresh DB copy and prints remaining=<n>: the number of
-// favorites in the window that still have no caption.
+//   total=<n> viewable=<n> unviewable=<n> journaled=<n> manifest=<path>
+// --count-only re-reads a fresh DB copy and prints remaining=<n> journaled=<n>:
+// favorites in the window with neither a Photos caption nor a journal entry.
 
 import {spawnSync} from 'node:child_process';
 import {copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
@@ -27,6 +31,9 @@ import {join, resolve} from 'node:path';
 
 const UUID_RE = /^[0-9A-Fa-f-]+$/;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIMESTAMP_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/;
+const MINUTE_TIME_RE =
+	/<time startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)" startHour="(\d+)" startMinute="(\d+)">/g;
 const CURRENT = "system_to='9999-12-31 23:59:59'";
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D/gu;
 const ENTITIES = {'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"};
@@ -115,6 +122,33 @@ export function groupJournal(rows) {
 		if (seed && !seeds.includes(seed)) seeds.push(seed);
 	}
 	return byDate;
+}
+
+function minuteTime(created) {
+	const match = TIMESTAMP_RE.exec(created);
+	if (!match) throw new Error(`Invalid timestamp: ${created}`);
+	const [, year, month, day, hour, minute] = match.map(Number);
+	return `<time startYear="${year}" startMonth="${month}" startDay="${day}" startHour="${hour}" startMinute="${minute}">`;
+}
+
+// A favorite already journaled in Workflowy (an entry whose <time> matches the
+// photo's minute) counts as captioned, so the review never asks about it again.
+export function journaledQuery(favorites) {
+	const times = favorites.map((favorite) => `name LIKE '%${minuteTime(favorite.created)}%'`).join(' OR ');
+	return `SELECT name FROM node_content WHERE ${CURRENT} AND (${times});`;
+}
+
+export function splitJournaled(favorites, rows) {
+	const times = new Set();
+	for (const {name} of rows) {
+		for (const match of (name ?? '').matchAll(MINUTE_TIME_RE)) times.add(match[0]);
+	}
+	const journaled = [];
+	const remaining = [];
+	for (const favorite of favorites) {
+		(times.has(minuteTime(favorite.created)) ? journaled : remaining).push(favorite);
+	}
+	return {journaled, remaining};
 }
 
 export function planSources(favorites, libraryPath, exists) {
@@ -226,9 +260,15 @@ function main() {
 	mkdirSync(outDir, {recursive: true});
 
 	const dbPath = copyDatabase(libraryPath, outDir);
-	const favorites = sqliteJson(dbPath, favoritesQuery(args.days));
+	const workflowyDb = resolve(args.workflowyDb);
+	if (!existsSync(workflowyDb)) throw new Error(`Workflowy cache not found: ${workflowyDb}`);
+	const candidates = sqliteJson(dbPath, favoritesQuery(args.days));
+	const {journaled, remaining: favorites} =
+		candidates.length > 0
+			? splitJournaled(candidates, sqliteJson(workflowyDb, journaledQuery(candidates)))
+			: {journaled: [], remaining: []};
 	if (args.countOnly) {
-		process.stdout.write(`remaining=${favorites.length}\n`);
+		process.stdout.write(`remaining=${favorites.length} journaled=${journaled.length}\n`);
 		return;
 	}
 
@@ -262,15 +302,13 @@ function main() {
 	}
 
 	const faces = favorites.length > 0 ? groupFaces(sqliteJson(dbPath, facesQuery(favorites.map((f) => f.uuid)))) : {};
-	const workflowyDb = resolve(args.workflowyDb);
 	const dates = [...new Set(favorites.map((f) => f.created.slice(0, 10)))];
-	const journal =
-		dates.length > 0 && existsSync(workflowyDb) ? groupJournal(sqliteJson(workflowyDb, journalQuery(dates))) : {};
+	const journal = dates.length > 0 ? groupJournal(sqliteJson(workflowyDb, journalQuery(dates))) : {};
 	const manifest = buildManifest({local, icloud, views, faces, journal});
 	const manifestPath = join(outDir, 'manifest.json');
 	writeFileSync(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
 	process.stdout.write(
-		`total=${manifest.total} viewable=${manifest.viewable} unviewable=${manifest.unviewable} manifest=${manifestPath}\n`,
+		`total=${manifest.total} viewable=${manifest.viewable} unviewable=${manifest.unviewable} journaled=${journaled.length} manifest=${manifestPath}\n`,
 	);
 }
 

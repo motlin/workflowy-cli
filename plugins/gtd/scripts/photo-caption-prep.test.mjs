@@ -11,8 +11,10 @@ import {
 	favoritesQuery,
 	groupFaces,
 	groupJournal,
+	journaledQuery,
 	journalQuery,
 	planSources,
+	splitJournaled,
 } from './photo-caption-prep.mjs';
 
 test('favoritesQuery selects uncaptioned, untrashed, visible favorite photos within the window', () => {
@@ -240,5 +242,41 @@ test("buildManifest records source, view path, faces, and that day's journal see
 				facesSummary: 'No faces detected.',
 			},
 		],
+	});
+});
+
+test('journaledQuery finds current nodes carrying a minute-precision <time> at any favorite timestamp', () => {
+	assert.strictEqual(
+		journaledQuery([
+			{uuid: 'AAA', created: '2026-10-06 19:37:42'},
+			{uuid: 'BBB', created: '2026-09-05 08:04:00'},
+		]),
+		'SELECT name FROM node_content WHERE system_to=\'9999-12-31 23:59:59\' AND (name LIKE \'%<time startYear="2026" startMonth="10" startDay="6" startHour="19" startMinute="37">%\' OR name LIKE \'%<time startYear="2026" startMonth="9" startDay="5" startHour="8" startMinute="4">%\');',
+	);
+});
+
+test('journaledQuery rejects timestamps that are not YYYY-MM-DD HH:MM', () => {
+	assert.throws(() => journaledQuery([{uuid: 'AAA', created: "2026-10-06' OR 1=1 --"}]), /Invalid timestamp/);
+});
+
+test('splitJournaled separates favorites with a journal entry at their exact minute from the rest', () => {
+	const favorites = [
+		{uuid: 'AAA', created: '2026-10-06 19:37:42'},
+		{uuid: 'BBB', created: '2026-10-06 19:38:00'},
+		{uuid: 'CCC', created: '2026-10-03 15:06:10'},
+		{uuid: 'DDD', created: '2026-10-03 09:00:00'},
+	];
+	const rows = [
+		{
+			name: '📷 <time startYear="2026" startMonth="10" startDay="6" startHour="19" startMinute="37">Tue, Oct 6, 2026 at 7:37 PM</time> @Alice playing in the yard',
+		},
+		{
+			name: '<time startYear="2026" startMonth="10" startDay="3" startHour="15" startMinute="6">Sat, Oct 3, 2026 at 3:06 PM</time> @Bob at the park',
+		},
+		{name: '<time startYear="2026" startMonth="10" startDay="3">Sat, Oct 3, 2026</time>'},
+	];
+	assert.deepStrictEqual(splitJournaled(favorites, rows), {
+		journaled: [favorites[0], favorites[2]],
+		remaining: [favorites[1], favorites[3]],
 	});
 });
