@@ -43,15 +43,13 @@ export default class List extends BaseListCommand {
 		try {
 			// Resolve parent ID, supporting short IDs (12 hex chars from Workflowy URLs)
 			let parentId: string | null = flags["parent-id"] ?? null;
-			if (parentId) {
-				if (isShortId(parentId)) {
-					const resolvedId = this.cacheService.resolveShortIdToUuid(parentId);
-					if (resolvedId) {
-						logger.debug(`Resolved short ID ${parentId} to full UUID ${resolvedId}`);
-						parentId = resolvedId;
-					} else {
-						this.error(`No node found for short ID: ${parentId}`);
-					}
+			if (parentId && isShortId(parentId)) {
+				const resolvedId = this.cacheService.resolveShortIdToUuid(parentId);
+				if (resolvedId) {
+					logger.debug(`Resolved short ID ${parentId} to full UUID ${resolvedId}`);
+					parentId = resolvedId;
+				} else {
+					this.error(`No node found for short ID: ${parentId}`);
 				}
 			}
 

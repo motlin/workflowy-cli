@@ -177,20 +177,17 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return;
 			}
 
-			// If we have a click position, place the cursor there
-			if (clickPosition) {
-				// Use caretPositionFromPoint to find the correct cursor position
-				if (document.caretPositionFromPoint) {
-					const position = document.caretPositionFromPoint(clickPosition.x, clickPosition.y);
-					if (position && contentRef.current.contains(position.offsetNode)) {
-						const range = document.createRange();
-						range.setStart(position.offsetNode, position.offset);
-						range.collapse(true);
-						const selection = globalThis.getSelection();
-						selection?.removeAllRanges();
-						selection?.addRange(range);
-						return;
-					}
+			// If we have a click position, use caretPositionFromPoint to place the cursor there
+			if (clickPosition && document.caretPositionFromPoint) {
+				const position = document.caretPositionFromPoint(clickPosition.x, clickPosition.y);
+				if (position && contentRef.current.contains(position.offsetNode)) {
+					const range = document.createRange();
+					range.setStart(position.offsetNode, position.offset);
+					range.collapse(true);
+					const selection = globalThis.getSelection();
+					selection?.removeAllRanges();
+					selection?.addRange(range);
+					return;
 				}
 			}
 
