@@ -30,6 +30,13 @@ export default defineConfig({
 			check: {
 				command: 'vp check',
 			},
+			'test:run': {
+				command: 'node node_modules/vitest/dist/cli.js run',
+				cache: {
+					input: [{auto: true}, '!node_modules/.experimental-vitest-cache/**'],
+					output: [],
+				},
+			},
 		},
 	},
 	lint: {

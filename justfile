@@ -5,10 +5,12 @@ default:
 
 ci := env("CI", "")
 
+export PATH := justfile_directory() / "node_modules/.bin" + ":" + env("PATH")
+
 # Install dependencies and rebuild native modules
 [group('setup')]
 install:
-    vp install
+    pnpm install
     just ensure-sqlite-native
     vp fmt CLAUDE.md
 
@@ -53,7 +55,7 @@ check *args: install
 # Run tests
 [group('test')]
 test *args: build-shared
-    CHAI_TRUNCATE_THRESHOLD=0 vp test run {{ args }}
+    CHAI_TRUNCATE_THRESHOLD=0 vp run --cache test:run {{ args }}
 
 # Run the plugin script tests, which vitest does not glob
 [group('test')]
@@ -144,11 +146,6 @@ eval-behavioral: build
 [group('lint')]
 pre-commit: build-shared
     pre-commit run --all-files
-
-# Audit public singular recipe parameters for documented options
-[group('lint')]
-audit-just-options:
-    python3 scripts/audit-just-options.py
 
 # Run all pre-commit checks
 [arg("quick", long, value="true", help="Skip tests")]
