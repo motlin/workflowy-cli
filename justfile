@@ -12,7 +12,7 @@ export PATH := justfile_directory() / "node_modules/.bin" + ":" + env("PATH")
 install:
     pnpm install
     just ensure-sqlite-native
-    vp fmt CLAUDE.md
+    vp fmt CLAUDE.md AGENTS.md
 
 # Verify better-sqlite3 native modules match the active Node runtime
 [group('setup')]
