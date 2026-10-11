@@ -1,5 +1,5 @@
 import {afterEach, beforeAll, describe, expect, it, vi} from "vite-plus/test";
-import {punctuationHotkeys} from "../src/client/hotkey-bindings.js";
+import {navigationShortcut, punctuationHotkeys} from "../src/client/hotkey-bindings.js";
 
 type IsHotkeyPressed = (key: string | readonly string[], delimiter?: string) => boolean;
 
@@ -40,5 +40,15 @@ describe("punctuationHotkeys", () => {
 
 	it("contains no comma, which the library treats as a separator between alternatives", () => {
 		expect(Object.values(punctuationHotkeys).filter((binding) => binding.includes(","))).toStrictEqual([]);
+	});
+});
+
+describe("navigationShortcut", () => {
+	it("fires while a node's text is being edited, but not from form fields", () => {
+		expect(navigationShortcut).toStrictEqual({
+			preventDefault: true,
+			enableOnFormTags: false,
+			enableOnContentEditable: true,
+		});
 	});
 });

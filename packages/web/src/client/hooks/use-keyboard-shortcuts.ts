@@ -23,7 +23,7 @@ import {
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
 import {readJson} from "../read-json.js";
-import {punctuationHotkeys} from "../hotkey-bindings.js";
+import {navigationShortcut, punctuationHotkeys} from "../hotkey-bindings.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -41,6 +41,8 @@ import {punctuationHotkeys} from "../hotkey-bindings.js";
  * - Cmd+LeftBracket (Cmd+[): Browser history back
  * - Cmd+RightBracket (Cmd+]): Browser history forward
  * - Cmd+Down / Cmd+Up: Expand / collapse the edited node
+ *
+ * Navigation shortcuts fire while editing and commit the edited text before leaving.
  *
  * Editing (Enter, Backspace, Escape and Up/Down are handled by EditableText):
  * - Shift+Enter: Edit the note of the edited node
@@ -203,7 +205,7 @@ export function useKeyboardShortcuts() {
 		[editingId, commitEdit, navigate],
 	);
 
-	// Cmd+, (Cmd+Comma): Zoom out to parent node, also while editing
+	// Cmd+, (Cmd+Comma): Zoom out to parent node
 	useHotkeys(
 		punctuationHotkeys.zoomOut,
 		() => {
@@ -221,11 +223,7 @@ export function useKeyboardShortcuts() {
 				void navigate("/");
 			}
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-			enableOnContentEditable: true,
-		},
+		navigationShortcut,
 		[zoomedNodeId, zoomedNode, commitEdit, navigate],
 	);
 
@@ -233,36 +231,33 @@ export function useKeyboardShortcuts() {
 	useHotkeys(
 		punctuationHotkeys.historyBack,
 		() => {
+			commitEdit();
 			globalThis.history.back();
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
+		navigationShortcut,
+		[commitEdit],
 	);
 
 	// Cmd+] (Cmd+RightBracket): Browser history forward
 	useHotkeys(
 		punctuationHotkeys.historyForward,
 		() => {
+			commitEdit();
 			globalThis.history.forward();
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
+		navigationShortcut,
+		[commitEdit],
 	);
 
 	// Cmd+' (Cmd+Quote): Navigate home to root view
 	useHotkeys(
 		punctuationHotkeys.home,
 		() => {
+			commitEdit();
 			void navigate("/");
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
+		navigationShortcut,
+		[commitEdit, navigate],
 	);
 
 	// Cmd+Down (⌘↓): Expand the edited node
@@ -543,6 +538,7 @@ export function useKeyboardShortcuts() {
 		{
 			preventDefault: true,
 			enableOnFormTags: true,
+			enableOnContentEditable: true,
 		},
 		[toggleRightSidebar],
 	);

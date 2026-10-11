@@ -1,3 +1,5 @@
+import type {Options} from "react-hotkeys-hook";
+
 /**
  * Hotkey bindings for punctuation keys.
  *
@@ -13,3 +15,13 @@ export const punctuationHotkeys = {
 	home: "meta+quote",
 	toggleHelp: "meta+shift+slash",
 } as const;
+
+/**
+ * Options for navigation shortcuts. Almost every keypress happens while a node is being
+ * edited, so navigation fires from inside the edited text, as on workflowy.com.
+ */
+export const navigationShortcut = {
+	preventDefault: true,
+	enableOnFormTags: false,
+	enableOnContentEditable: true,
+} as const satisfies Options;
