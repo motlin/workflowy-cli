@@ -1,6 +1,5 @@
 import {readdirSync, readFileSync, statSync} from "node:fs";
-import {dirname, extname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import {extname, join} from "node:path";
 import {describe, expect, it} from "vite-plus/test";
 
 /**
@@ -20,7 +19,7 @@ import {describe, expect, it} from "vite-plus/test";
  * (`"column"` or `'column'`).
  */
 
-const currentDirectory = dirname(fileURLToPath(import.meta.url));
+const currentDirectory = import.meta.dirname;
 const repoRoot = join(currentDirectory, "../../..");
 const packagesDirectory = join(repoRoot, "packages");
 const schemaPath = join(packagesDirectory, "shared/src/db/schema.ts");

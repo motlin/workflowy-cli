@@ -4,15 +4,14 @@ import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import fs from "node:fs";
 import os from "node:os";
-import {dirname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import {join} from "node:path";
 import {CacheService} from "../src/cache/cache-service.js";
 import * as schema from "../src/db/schema.js";
 import {nodeContent} from "../src/db/schema.js";
 import type {WorkflowyNode} from "../src/types/workflowy.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
 
-const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "../src/db/migrations");
+const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
 
 function apiNode(name: string): WorkflowyNode {
 	return {id: "node-1", name, priority: 0, createdAt: 1_767_225_600, modifiedAt: 1_767_225_600};

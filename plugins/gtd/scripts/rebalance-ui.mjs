@@ -12,11 +12,10 @@
 
 import {readFileSync, writeFileSync} from "node:fs";
 import assert from "node:assert/strict";
-import {dirname, join, resolve} from "node:path";
-import {fileURLToPath} from "node:url";
+import {join, resolve} from "node:path";
 import {readLadder, tierLabel} from "./asap-tiers.mjs";
 
-const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates", "ladder-queue.html");
+const TEMPLATE = join(import.meta.dirname, "..", "templates", "ladder-queue.html");
 
 /** Strip Workflowy HTML down to display text, keeping links as their anchor text. */
 export function displayText(name) {

@@ -1,10 +1,9 @@
 import {describe, expect, it} from "vite-plus/test";
-import {dirname, resolve} from "node:path";
-import {fileURLToPath} from "node:url";
+import {resolve} from "node:path";
 
 import {Command} from "@oclif/core";
 
-const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const cliRoot = resolve(import.meta.dirname, "../..");
 
 class ProbeRoot extends Command {
 	async run(): Promise<string> {

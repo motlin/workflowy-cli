@@ -5,8 +5,7 @@ import {drizzle} from "drizzle-orm/better-sqlite3";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {readFileSync} from "node:fs";
-import {dirname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import {join} from "node:path";
 import * as schema from "@workflowy/shared/db";
 import {mirrors, nodeContent} from "@workflowy/shared/db";
 import {applyRows, normalizeLayoutMode} from "@workflowy/shared/cache";
@@ -19,7 +18,7 @@ import {uuidToShortId} from "@workflowy/shared/workflowy";
 import {BackupFileSchema} from "@workflowy/shared/schemas";
 import type {BackupNode} from "@workflowy/shared/schemas";
 
-const currentDirectory = dirname(fileURLToPath(import.meta.url));
+const currentDirectory = import.meta.dirname;
 const migrationsFolder = join(currentDirectory, "../../src/db/migrations");
 const fixturesFolder = join(currentDirectory, "../fixtures");
 

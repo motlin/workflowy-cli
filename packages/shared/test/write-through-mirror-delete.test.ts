@@ -3,8 +3,7 @@ import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {and, eq} from "drizzle-orm";
-import {dirname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import {join} from "node:path";
 import {WorkflowyApiClient} from "../src/api/workflowy-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
 import {deletePlanCalls} from "../src/cache/delete-plan.js";
@@ -18,7 +17,7 @@ import {z} from "zod";
 
 const moveBodySchema = z.looseObject({parent_id: z.string(), position: z.enum(["top", "bottom"])});
 
-const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "../src/db/migrations");
+const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
 
 /*
