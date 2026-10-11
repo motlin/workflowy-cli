@@ -62,7 +62,7 @@ function elements(node: ReactNode): ReactElement<ElementProps>[] {
 function invoke(props: ElementProps, key: string, ...args: unknown[]): unknown {
 	const callback = props[key];
 	if (typeof callback !== "function") {
-		throw new Error(`${key} is not a callback prop`);
+		throw new TypeError(`${key} is not a callback prop`);
 	}
 	return Reflect.apply(callback, undefined, args);
 }
@@ -70,7 +70,7 @@ function invoke(props: ElementProps, key: string, ...args: unknown[]): unknown {
 /** Render a function component element one level down, the way React would. */
 function renderComponent(element: ReactElement<ElementProps>): ReactNode {
 	if (typeof element.type !== "function") {
-		throw new Error("not a function component");
+		throw new TypeError("not a function component");
 	}
 	const rendered: unknown = Reflect.apply(element.type, undefined, [element.props]);
 	return isElement(rendered) ? rendered : null;
