@@ -2,6 +2,7 @@ import {describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
 import {createLadderRouter} from "../src/server/routes/ladder.js";
 import type {AppEnv} from "../src/server/context.js";
+import type {LadderService} from "../src/server/ladder-service.js";
 
 function makeApp(service: unknown) {
 	const app = new Hono<AppEnv>();
@@ -32,7 +33,7 @@ describe("GET /api/v1/ladder", () => {
 
 describe("POST /api/v1/ladder/move", () => {
 	it("passes root, node and destination tier through to the service", async () => {
-		const move = vi.fn(async () => ({
+		const move = vi.fn<LadderService["move"]>(async () => ({
 			verb: "move",
 			nodeId: "a",
 			name: "A",
@@ -54,7 +55,7 @@ describe("POST /api/v1/ladder/move", () => {
 	});
 
 	it("rejects a body missing to_tier instead of guessing a destination", async () => {
-		const move = vi.fn();
+		const move = vi.fn<LadderService["move"]>();
 		const app = makeApp({move});
 		const res = await app.fetch(
 			new Request("http://x/api/v1/ladder/move", {
@@ -87,7 +88,7 @@ describe("POST /api/v1/ladder/move", () => {
 
 describe("POST /api/v1/ladder/complete", () => {
 	it("completes through the service", async () => {
-		const complete = vi.fn(async () => ({
+		const complete = vi.fn<LadderService["complete"]>(async () => ({
 			verb: "complete",
 			nodeId: "a",
 			name: "A",

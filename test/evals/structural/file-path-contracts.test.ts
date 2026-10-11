@@ -326,21 +326,19 @@ describe("Structural Eval: File Path Contracts", () => {
 			orphanedConsumers.push(ref);
 		}
 
-		if (orphanedConsumers.length > 0) {
-			const details = orphanedConsumers
-				.map(
-					(c) =>
-						`  - ${c.raw} (consumed in ${c.sourceFile}:${c.line})\n    normalized: ${c.pattern}\n    contract: ${contractKey(c.pattern)}`,
-				)
-				.join("\n");
+		const details = orphanedConsumers
+			.map(
+				(c) =>
+					`  - ${c.raw} (consumed in ${c.sourceFile}:${c.line})\n    normalized: ${c.pattern}\n    contract: ${contractKey(c.pattern)}`,
+			)
+			.join("\n");
+		const producerList = [...producerContracts].sort().join("\n  - ");
 
-			const producerList = [...producerContracts].sort().join("\n  - ");
-
-			expect.unreachable(
-				`Found ${orphanedConsumers.length} consumed path(s) with no matching producer:\n${details}\n\n` +
-					`Known producer contracts:\n  - ${producerList}`,
-			);
-		}
+		expect(
+			orphanedConsumers,
+			`Found ${orphanedConsumers.length} consumed path(s) with no matching producer:\n${details}\n\n` +
+				`Known producer contracts:\n  - ${producerList}`,
+		).toStrictEqual([]);
 	});
 
 	it("known contracts should have matching producers and consumers", () => {
@@ -397,9 +395,10 @@ describe("Structural Eval: File Path Contracts", () => {
 	it("should not have .llm/ paths outside the .llm/ directory convention", () => {
 		const suspiciousPaths = allClassified.filter((c) => !c.pattern.startsWith(".llm/"));
 
-		if (suspiciousPaths.length > 0) {
-			const details = suspiciousPaths.map((c) => `  - "${c.raw}" in ${c.sourceFile}:${c.line}`).join("\n");
-			expect.unreachable(`Found suspicious .llm paths not following .llm/ convention:\n${details}`);
-		}
+		const details = suspiciousPaths.map((c) => `  - "${c.raw}" in ${c.sourceFile}:${c.line}`).join("\n");
+		expect(
+			suspiciousPaths,
+			`Found suspicious .llm paths not following .llm/ convention:\n${details}`,
+		).toStrictEqual([]);
 	});
 });

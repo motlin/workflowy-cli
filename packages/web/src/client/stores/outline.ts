@@ -110,6 +110,8 @@ interface OutlineState {
 	rightSidebarOpen: boolean;
 	searchPanelOpen: boolean;
 	searchInitialQuery: string | null;
+	/** Bumped on every open request; the panel remounts per session so each request starts fresh. */
+	searchPanelSession: number;
 	jumpMenuOpen: boolean;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
@@ -155,7 +157,6 @@ interface OutlineActions {
 	clearRecentSearches: () => void;
 	toggleSearchPanel: () => void;
 	openSearchWithQuery: (query: string) => void;
-	clearSearchInitialQuery: () => void;
 	toggleJumpMenu: () => void;
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
@@ -193,6 +194,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	rightSidebarOpen: false,
 	searchPanelOpen: false,
 	searchInitialQuery: null,
+	searchPanelSession: 0,
 	jumpMenuOpen: false,
 	linkInsertOpen: false,
 	linkInsertContext: null,
@@ -333,11 +335,19 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		return set({recentSearches: []});
 	},
 
-	toggleSearchPanel: () => set((state) => ({searchPanelOpen: !state.searchPanelOpen})),
+	toggleSearchPanel: () =>
+		set((state) => ({
+			searchPanelOpen: !state.searchPanelOpen,
+			searchInitialQuery: null,
+			searchPanelSession: state.searchPanelSession + 1,
+		})),
 
-	openSearchWithQuery: (query) => set({searchPanelOpen: true, searchInitialQuery: query}),
-
-	clearSearchInitialQuery: () => set({searchInitialQuery: null}),
+	openSearchWithQuery: (query) =>
+		set((state) => ({
+			searchPanelOpen: true,
+			searchInitialQuery: query,
+			searchPanelSession: state.searchPanelSession + 1,
+		})),
 
 	toggleJumpMenu: () => set((state) => ({jumpMenuOpen: !state.jumpMenuOpen})),
 

@@ -1,4 +1,5 @@
-import {useCallback, useEffect, useState} from "react";
+import {useQuery} from "@tanstack/react-query";
+import {useCallback} from "react";
 import {nodeRoute} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
@@ -23,6 +24,25 @@ function formatSimilarityScore(distance: number): string {
 	return `${similarity.toFixed(0)}%`;
 }
 
+async function fetchRelatedNodes(nodeId: string): Promise<RelatedNode[]> {
+	const response = await fetch("/api/related", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify({
+			nodeId,
+			type: "similar",
+			limit: 10,
+			threshold: 0.7,
+		}),
+	});
+	if (!response.ok) {
+		const data = (await response.json()) as {error?: string};
+		throw new Error(data.error ?? "Failed to fetch related nodes");
+	}
+	const data = (await response.json()) as RelatedResponse;
+	return data.results;
+}
+
 /**
  * Sidebar panel showing nodes semantically related to the currently selected node.
  * Updates automatically when the selected node changes.
@@ -30,50 +50,18 @@ function formatSimilarityScore(distance: number): string {
  */
 export function RelatedNodesPanel() {
 	const {selectedId, relatedNodesPanelOpen, toggleRelatedNodesPanel} = useOutlineStore();
-	const [relatedNodes, setRelatedNodes] = useState<RelatedNode[]>([]);
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 	const navigate = useNavigate();
 
-	// Fetch related nodes when selected node changes
-	useEffect(() => {
-		if (!relatedNodesPanelOpen || !selectedId) {
-			setRelatedNodes([]);
-			setError(null);
-			return;
-		}
-
-		setIsLoading(true);
-		setError(null);
-
-		fetch("/api/related", {
-			method: "POST",
-			headers: {"Content-Type": "application/json"},
-			body: JSON.stringify({
-				nodeId: selectedId,
-				type: "similar",
-				limit: 10,
-				threshold: 0.7,
-			}),
-		})
-			.then(async (response) => {
-				if (!response.ok) {
-					const data = (await response.json()) as {error?: string};
-					throw new Error(data.error ?? "Failed to fetch related nodes");
-				}
-				return response.json() as Promise<RelatedResponse>;
-			})
-			.then((data) => {
-				setRelatedNodes(data.results);
-			})
-			.catch((error_: Error) => {
-				setError(error_.message);
-				setRelatedNodes([]);
-			})
-			.finally(() => {
-				setIsLoading(false);
-			});
-	}, [relatedNodesPanelOpen, selectedId]);
+	const {
+		data: relatedNodes = [],
+		isLoading,
+		error: queryError,
+	} = useQuery({
+		queryKey: ["related", selectedId],
+		queryFn: () => fetchRelatedNodes(selectedId!),
+		enabled: relatedNodesPanelOpen && selectedId !== null,
+	});
+	const error = queryError?.message ?? null;
 
 	const handleNavigateToNode = useCallback(
 		(nodeId: string) => {

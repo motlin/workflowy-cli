@@ -4,7 +4,7 @@ const ORIGIN_ID = "10e2d6c2-d165-b390-9484-d4fdbf4c4afa";
 const PARENT_ID = "a71aed23-b0cc-0000-0000-000000000000";
 const MIRROR_ID = "b82bfe34-c1dd-0000-0000-000000000000";
 
-function clientWith(fetchMock: ReturnType<typeof vi.fn>) {
+function clientWith(fetchMock: typeof fetch) {
 	vi.stubGlobal("fetch", fetchMock);
 	return new WorkflowyApiClient("test-key", undefined, "https://workflowy.test", {
 		maxRetries: 0,
@@ -20,7 +20,7 @@ describe("WorkflowyApiClient mirrors", () => {
 
 	it("creates a mirror via POST /nodes/:id/mirror and returns the new mirror and true origin", async () => {
 		const fetchMock = vi
-			.fn()
+			.fn<typeof fetch>()
 			.mockResolvedValue(new Response(JSON.stringify({item_id: MIRROR_ID, origin_id: ORIGIN_ID}), {status: 200}));
 		const client = clientWith(fetchMock);
 
@@ -40,7 +40,9 @@ describe("WorkflowyApiClient mirrors", () => {
 	});
 
 	it("deletes a mirror via DELETE /nodes/:id/mirror", async () => {
-		const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({status: "ok"}), {status: 200}));
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify({status: "ok"}), {status: 200}));
 		const client = clientWith(fetchMock);
 
 		await client.deleteMirror(MIRROR_ID);
@@ -58,7 +60,7 @@ describe("WorkflowyApiClient mirrors", () => {
 
 	it("reports the server body when creating a mirror fails", async () => {
 		const client = clientWith(
-			vi.fn().mockResolvedValue(
+			vi.fn<typeof fetch>().mockResolvedValue(
 				new Response('{"code":"not_found","message":"Item not found"}', {
 					status: 404,
 					statusText: "Not Found",
@@ -73,7 +75,7 @@ describe("WorkflowyApiClient mirrors", () => {
 
 	it("reports the server body when deleting a mirror fails", async () => {
 		const client = clientWith(
-			vi.fn().mockResolvedValue(
+			vi.fn<typeof fetch>().mockResolvedValue(
 				new Response('{"code":"not_found","message":"Item not found"}', {
 					status: 404,
 					statusText: "Not Found",

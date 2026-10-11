@@ -43,7 +43,7 @@ export default defineConfig({
 		},
 	},
 	lint: {
-		plugins: [],
+		plugins: ["typescript", "unicorn", "oxc", "import", "react", "vitest", "promise", "node"],
 		jsPlugins: [
 			{
 				name: "vite-plus",
@@ -51,10 +51,13 @@ export default defineConfig({
 			},
 		],
 		categories: {
-			correctness: "off",
+			correctness: "error",
 		},
 		rules: {
 			"vite-plus/prefer-vite-plus-imports": "error",
+			"react/react-in-jsx-scope": "off",
+			"vitest/expect-expect": ["error", {assertFunctionNames: ["expect", "expect*"]}],
+			"vitest/valid-expect": ["error", {maxArgs: 2}],
 		},
 		env: {
 			builtin: true,

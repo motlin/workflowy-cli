@@ -105,29 +105,20 @@ interface CalendarPanelProps {
  */
 export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: CalendarPanelProps) {
 	const panelRef = useRef<HTMLDivElement>(null);
-	const today = new Date();
-	const [viewMonth, setViewMonth] = useState(today.getMonth());
-	const [viewYear, setViewYear] = useState(today.getFullYear());
+	const [{month: viewMonth, year: viewYear}, setView] = useState(() => {
+		const today = new Date();
+		return {month: today.getMonth(), year: today.getFullYear()};
+	});
 
 	const calendarDays = useMemo(() => getCalendarDays(viewYear, viewMonth), [viewYear, viewMonth]);
 
 	const handlePreviousMonth = useCallback(() => {
-		if (viewMonth === 0) {
-			setViewMonth(11);
-			setViewYear((y) => y - 1);
-		} else {
-			setViewMonth((m) => m - 1);
-		}
-	}, [viewMonth]);
+		setView(({month, year}) => (month === 0 ? {month: 11, year: year - 1} : {month: month - 1, year}));
+	}, []);
 
 	const handleNextMonth = useCallback(() => {
-		if (viewMonth === 11) {
-			setViewMonth(0);
-			setViewYear((y) => y + 1);
-		} else {
-			setViewMonth((m) => m + 1);
-		}
-	}, [viewMonth]);
+		setView(({month, year}) => (month === 11 ? {month: 0, year: year + 1} : {month: month + 1, year}));
+	}, []);
 
 	const handleDateClick = useCallback(
 		(day: CalendarDay) => {

@@ -172,10 +172,13 @@ describe("calendar level/levels invariant", () => {
 			const hasLevelsRow = nodeIdsWithLevels.has(row.nodeId);
 			expect(hasLevel && hasLevelsRow).toBe(false);
 			expect(hasLevel || hasLevelsRow).toBe(true);
-			if (hasLevelsRow) {
-				expect(row.root).toBe(1);
-			}
 		}
+
+		expect(
+			metadataRows
+				.filter((row) => nodeIdsWithLevels.has(row.nodeId))
+				.map((row) => ({nodeId: row.nodeId, root: row.root})),
+		).toStrictEqual([{nodeId: "calendar-root", root: 1}]);
 
 		expect(levelsRows.map((row) => row.nodeId)).toStrictEqual(["calendar-root"]);
 		expect(

@@ -94,6 +94,9 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 		return el;
 	};
 
+	// TanStack Virtual returns fresh functions each render, so React Compiler cannot memoize this component.
+	// The app does not run React Compiler, and the virtualizer has no compiler-compatible replacement.
+	// oxlint-disable-next-line react/incompatible-library
 	const virtualizer = useVirtualizer({
 		count: flattenedNodes.length,
 		getScrollElement,

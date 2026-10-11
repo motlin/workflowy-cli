@@ -4,7 +4,15 @@ import {renderToStaticMarkup} from "react-dom/server";
 import type {NodeResponse} from "../src/node-types.js";
 import {LadderTree} from "../src/client/components/ladder-tree.js";
 
-const queries = vi.hoisted(() => ({children: vi.fn(), node: vi.fn()}));
+interface QueryResult<T> {
+	data?: T;
+	isLoading?: boolean;
+	error: Error | null;
+}
+const queries = vi.hoisted(() => ({
+	children: vi.fn<(id: string) => QueryResult<NodeResponse[]>>(),
+	node: vi.fn<(id: string) => QueryResult<NodeResponse>>(),
+}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({useChildren: queries.children, useNode: queries.node}));
 const node = (id: string, extra: Partial<NodeResponse> = {}): NodeResponse => ({
 	id,

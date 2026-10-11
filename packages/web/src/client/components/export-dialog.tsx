@@ -1,4 +1,5 @@
-import {useCallback, useEffect, useState} from "react";
+import {useQuery} from "@tanstack/react-query";
+import {useCallback, useMemo, useState} from "react";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useHotkeys} from "react-hotkeys-hook";
 import {useOutlineStore} from "../stores/outline.js";
@@ -138,63 +139,42 @@ export function ExportDialog() {
 	const closeExportDialog = useOutlineStore((state) => state.closeExportDialog);
 
 	const [format, setFormat] = useState<ExportFormat>("plain-text");
-	const [exportContent, setExportContent] = useState("");
-	const [isLoading, setIsLoading] = useState(false);
 	const [copied, setCopied] = useState(false);
 
-	// Fetch and format export content when dialog opens or format changes
-	useEffect(() => {
-		if (!exportDialogOpen || !exportContext || exportContext.nodeIds.length === 0) {
-			setExportContent("");
-			return;
+	const nodeIds = exportContext?.nodeIds ?? [];
+	const {
+		data: trees,
+		isLoading,
+		isError,
+	} = useQuery({
+		queryKey: ["export-trees", nodeIds],
+		queryFn: async () => {
+			const fetched = await Promise.all(nodeIds.map((id) => fetchNodeTree(id)));
+			return fetched.filter((t): t is NodeData => t !== null);
+		},
+		enabled: exportDialogOpen && nodeIds.length > 0,
+		staleTime: 0,
+	});
+
+	const exportContent = useMemo(() => {
+		if (isError) {
+			return "Error loading export content";
 		}
-
-		let cancelled = false;
-
-		async function loadExportContent() {
-			setIsLoading(true);
-			try {
-				const trees = await Promise.all(exportContext!.nodeIds.map((id) => fetchNodeTree(id)));
-				const validTrees = trees.filter((t): t is NodeData => t !== null);
-
-				if (cancelled) {
-					return;
-				}
-
-				let content: string;
-				switch (format) {
-					case "plain-text": {
-						content = formatPlainText(validTrees);
-						break;
-					}
-					case "markdown": {
-						content = formatMarkdown(validTrees);
-						break;
-					}
-					case "opml": {
-						content = formatOpml(validTrees);
-						break;
-					}
-				}
-
-				setExportContent(content);
-			} catch {
-				if (!cancelled) {
-					setExportContent("Error loading export content");
-				}
-			} finally {
-				if (!cancelled) {
-					setIsLoading(false);
-				}
+		if (!trees) {
+			return "";
+		}
+		switch (format) {
+			case "plain-text": {
+				return formatPlainText(trees);
+			}
+			case "markdown": {
+				return formatMarkdown(trees);
+			}
+			case "opml": {
+				return formatOpml(trees);
 			}
 		}
-
-		void loadExportContent();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [exportDialogOpen, exportContext, format]);
+	}, [format, isError, trees]);
 
 	const handleCopy = useCallback(async () => {
 		await navigator.clipboard.writeText(exportContent);

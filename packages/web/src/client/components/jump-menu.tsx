@@ -1,4 +1,5 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useQuery} from "@tanstack/react-query";
+import {useCallback, useEffect, useState} from "react";
 import {nodeRoute} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
@@ -42,56 +43,53 @@ function addRecentNode(nodeId: string): void {
  * Shows recent nodes by default, or search results when typing.
  */
 export function JumpMenu() {
-	const {jumpMenuOpen, toggleJumpMenu} = useOutlineStore();
+	const jumpMenuOpen = useOutlineStore((state) => state.jumpMenuOpen);
+	// Mounting the dialog only while open gives every opening fresh state.
+	return jumpMenuOpen ? <JumpMenuDialog /> : null;
+}
+
+async function fetchNodes(ids: string[]): Promise<NodeResult[]> {
+	const nodes = await Promise.all(
+		ids.map(async (id) => {
+			const response = await fetch(`/api/v1/nodes/${encodeURIComponent(id)}`);
+			if (response.ok) {
+				const data = (await response.json()) as {node: NodeResult};
+				return data.node;
+			}
+			return null;
+		}),
+	);
+	return nodes.filter((node): node is NodeResult => node !== null);
+}
+
+function JumpMenuDialog() {
+	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
 	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<NodeResult[]>([]);
-	const [recentNodes, setRecentNodes] = useState<NodeResult[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
-	const [isLoadingRecent, setIsLoadingRecent] = useState(false);
 	const [selectedIndex, setSelectedIndex] = useState(0);
-	const inputRef = useRef<HTMLInputElement>(null);
+	const [recentIds] = useState(getRecentNodeIds);
 	const navigate = useNavigate();
 
-	// Load recent nodes when menu opens
-	useEffect(() => {
-		if (jumpMenuOpen && inputRef.current) {
-			inputRef.current.focus();
-			setQuery("");
+	const {data: recentNodes = [], isLoading: isLoadingRecent} = useQuery({
+		queryKey: ["recent-nodes", recentIds],
+		queryFn: () => fetchNodes(recentIds),
+		enabled: recentIds.length > 0,
+		staleTime: 0,
+	});
+
+	// An empty query shows the default list, so clear stale results here rather than in the search effect
+	const handleQueryChange = useCallback((value: string) => {
+		setQuery(value);
+		if (!value.trim()) {
 			setResults([]);
 			setSelectedIndex(0);
-
-			// Fetch recent nodes
-			const recentIds = getRecentNodeIds();
-			if (recentIds.length > 0) {
-				setIsLoadingRecent(true);
-				void Promise.all(
-					recentIds.map(async (id) => {
-						const response = await fetch(`/api/v1/nodes/${encodeURIComponent(id)}`);
-						if (response.ok) {
-							const data = (await response.json()) as {node: NodeResult};
-							return data.node;
-						}
-						return null;
-					}),
-				)
-					.then((nodes) => {
-						const validNodes = nodes.filter((node): node is NodeResult => node !== null);
-						setRecentNodes(validNodes);
-					})
-					.finally(() => {
-						setIsLoadingRecent(false);
-					});
-			} else {
-				setRecentNodes([]);
-			}
 		}
-	}, [jumpMenuOpen]);
+	}, []);
 
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
-			setResults([]);
-			setSelectedIndex(0);
 			return;
 		}
 
@@ -164,10 +162,6 @@ export function JumpMenu() {
 		[toggleJumpMenu],
 	);
 
-	if (!jumpMenuOpen) {
-		return null;
-	}
-
 	const showingRecent = !query.trim() && recentNodes.length > 0;
 	const showingResults = query.trim() && results.length > 0;
 	const showNoResults = query.trim() && !isSearching && results.length === 0;
@@ -179,10 +173,10 @@ export function JumpMenu() {
 				<div className="jump-menu-header">
 					<input
 						className="jump-menu-input"
-						onChange={(event) => setQuery(event.target.value)}
+						onChange={(event) => handleQueryChange(event.target.value)}
 						onKeyDown={handleKeyDown}
+						autoFocus
 						placeholder="Jump to node..."
-						ref={inputRef}
 						type="text"
 						value={query}
 					/>

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {nodeRoute} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
@@ -98,11 +98,18 @@ function setStoredScope(scope: SearchScope): void {
 }
 
 export function SearchPanel() {
+	const searchPanelOpen = useOutlineStore((state) => state.searchPanelOpen);
+	const searchInitialQuery = useOutlineStore((state) => state.searchInitialQuery);
+	const searchPanelSession = useOutlineStore((state) => state.searchPanelSession);
+	// Keying on the session remounts the panel per open request, so each one starts from fresh state.
+	return searchPanelOpen ? (
+		<SearchPanelContent initialQuery={searchInitialQuery ?? ""} key={searchPanelSession} />
+	) : null;
+}
+
+function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 	const {
-		searchPanelOpen,
-		searchInitialQuery,
 		toggleSearchPanel,
-		clearSearchInitialQuery,
 		savedSearches,
 		saveSearch,
 		removeSavedSearch,
@@ -111,7 +118,7 @@ export function SearchPanel() {
 		clearRecentSearches,
 		zoomedNodeId,
 	} = useOutlineStore();
-	const [query, setQuery] = useState("");
+	const [query, setQuery] = useState(initialQuery);
 	const [results, setResults] = useState<SearchResult[]>([]);
 	const [totalCount, setTotalCount] = useState(0);
 	const [isSearching, setIsSearching] = useState(false);
@@ -120,7 +127,6 @@ export function SearchPanel() {
 	const [selectedModel, setSelectedModel] = useState<EmbeddingModelKey>(getStoredModel);
 	const [showModelInfo, setShowModelInfo] = useState(false);
 	const [searchScope, setSearchScope] = useState<SearchScope>(getStoredScope);
-	const inputRef = useRef<HTMLInputElement>(null);
 	const navigate = useNavigate();
 
 	// Determine if we should search within branch (only when zoomed and scope is 'branch')
@@ -142,39 +148,22 @@ export function SearchPanel() {
 		}
 	}, [query, saveSearch]);
 
-	const handleSavedSearchClick = useCallback((savedQuery: string) => {
-		setQuery(savedQuery);
-	}, []);
-
-	const handleRecentSearchClick = useCallback((recentQuery: string) => {
-		setQuery(recentQuery);
+	// An empty query shows no results, so clear stale ones here rather than in the search effect
+	const changeQuery = useCallback((value: string) => {
+		setQuery(value);
+		if (!value.trim()) {
+			setResults([]);
+			setTotalCount(0);
+		}
 	}, []);
 
 	const isQuerySaved = savedSearches.includes(query.trim());
-
-	// Focus input when panel opens, use initial query if provided
-	useEffect(() => {
-		if (searchPanelOpen && inputRef.current) {
-			inputRef.current.focus();
-			if (searchInitialQuery) {
-				setQuery(searchInitialQuery);
-				clearSearchInitialQuery();
-			} else {
-				setQuery("");
-			}
-			setResults([]);
-			setTotalCount(0);
-			setSelectedIndex(0);
-		}
-	}, [searchPanelOpen, searchInitialQuery, clearSearchInitialQuery]);
 
 	const PAGE_SIZE = 20;
 
 	// Perform search when query, model, or scope changes
 	useEffect(() => {
 		if (!query.trim()) {
-			setResults([]);
-			setTotalCount(0);
 			return;
 		}
 
@@ -286,21 +275,17 @@ export function SearchPanel() {
 		[toggleSearchPanel],
 	);
 
-	if (!searchPanelOpen) {
-		return null;
-	}
-
 	return (
 		<div className="search-panel-overlay" onClick={handleBackdropClick}>
 			<div className="search-panel">
 				<div className="search-panel-header">
 					<div className="search-panel-input-row">
 						<input
+							autoFocus
 							className="search-panel-input"
-							onChange={(event) => setQuery(event.target.value)}
+							onChange={(event) => changeQuery(event.target.value)}
 							onKeyDown={handleKeyDown}
 							placeholder="Search nodes..."
-							ref={inputRef}
 							type="text"
 							value={query}
 						/>
@@ -455,7 +440,7 @@ export function SearchPanel() {
 											<li className="search-panel-saved-search-item" key={savedQuery}>
 												<button
 													className="search-panel-saved-search"
-													onClick={() => handleSavedSearchClick(savedQuery)}
+													onClick={() => changeQuery(savedQuery)}
 													type="button"
 												>
 													<span className="search-panel-saved-search-icon">{"\u2605"}</span>
@@ -492,7 +477,7 @@ export function SearchPanel() {
 											<li className="search-panel-saved-search-item" key={recentQuery}>
 												<button
 													className="search-panel-saved-search"
-													onClick={() => handleRecentSearchClick(recentQuery)}
+													onClick={() => changeQuery(recentQuery)}
 													type="button"
 												>
 													<span className="search-panel-saved-search-icon">

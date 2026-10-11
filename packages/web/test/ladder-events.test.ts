@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {LadderEventBus, type LadderEvent} from "../src/server/ladder-events.js";
+import {LadderEventBus, type LadderEvent, type LadderListener} from "../src/server/ladder-events.js";
 
 function evt(partial: Partial<LadderEvent> = {}): LadderEvent {
 	return {
@@ -16,8 +16,8 @@ function evt(partial: Partial<LadderEvent> = {}): LadderEvent {
 describe("LadderEventBus", () => {
 	it("delivers an event to every subscriber", () => {
 		const bus = new LadderEventBus();
-		const a = vi.fn();
-		const b = vi.fn();
+		const a = vi.fn<LadderListener>();
+		const b = vi.fn<LadderListener>();
 		bus.subscribe(a);
 		bus.subscribe(b);
 		bus.publish(evt());
@@ -27,7 +27,7 @@ describe("LadderEventBus", () => {
 
 	it("stops delivering after unsubscribe, so a closed socket is not written to", () => {
 		const bus = new LadderEventBus();
-		const listener = vi.fn();
+		const listener = vi.fn<LadderListener>();
 		const off = bus.subscribe(listener);
 		off();
 		bus.publish(evt());
@@ -36,7 +36,7 @@ describe("LadderEventBus", () => {
 
 	it("one throwing subscriber does not stop the others", () => {
 		const bus = new LadderEventBus();
-		const good = vi.fn();
+		const good = vi.fn<LadderListener>();
 		bus.subscribe(() => {
 			throw new Error("socket already closed");
 		});
@@ -49,18 +49,18 @@ describe("LadderEventBus", () => {
 		const bus = new LadderEventBus();
 		bus.publish(evt({nodeId: "n1"}));
 		bus.publish(evt({nodeId: "n2"}));
-		const late = vi.fn();
+		const late = vi.fn<LadderListener>();
 		bus.subscribe(late, {replay: true});
 		expect(late).toHaveBeenCalledTimes(2);
-		expect(late.mock.calls.map((c) => (c[0] as LadderEvent).nodeId)).toEqual(["n1", "n2"]);
+		expect(late.mock.calls.map((c) => c[0].nodeId)).toEqual(["n1", "n2"]);
 	});
 
 	it("caps the replay buffer so a long session does not grow without bound", () => {
 		const bus = new LadderEventBus({bufferSize: 3});
 		for (const nodeId of ["n1", "n2", "n3", "n4"]) bus.publish(evt({nodeId}));
-		const late = vi.fn();
+		const late = vi.fn<LadderListener>();
 		bus.subscribe(late, {replay: true});
-		expect(late.mock.calls.map((c) => (c[0] as LadderEvent).nodeId)).toEqual(["n2", "n3", "n4"]);
+		expect(late.mock.calls.map((c) => c[0].nodeId)).toEqual(["n2", "n3", "n4"]);
 	});
 
 	it("serialises an event as one line, because Monitor treats each frame as one notification", () => {

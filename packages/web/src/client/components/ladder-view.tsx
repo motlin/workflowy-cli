@@ -84,8 +84,8 @@ export function LadderView() {
 		setPending(new Set(inFlight.current));
 	}, []);
 	const receivedWrites = useRef(new Map<string, LadderEvent>());
+	// Callbacks read the latest ladder here; every setLadders call writes it first.
 	const laddersRef = useRef<Ladders | undefined>(undefined);
-	laddersRef.current = ladders;
 	const updateLadders = useCallback((update: (current: Ladders) => Ladders) => {
 		if (!laddersRef.current) return;
 		laddersRef.current = update(laddersRef.current);
@@ -100,6 +100,7 @@ export function LadderView() {
 					throw new Error(`ladder request failed: ${response.status}`);
 				}
 				const body = (await response.json()) as {ladders: Ladders};
+				laddersRef.current = body.ladders;
 				setLadders(body.ladders);
 			} catch (cause) {
 				setError(cause instanceof Error ? cause.message : String(cause));
@@ -326,9 +327,15 @@ export function LadderView() {
 		(nodeId: string) => {
 			if (busy.current || inFlight.current.has(nodeId)) return;
 			claim([nodeId]);
-			void write("/api/v1/ladder/complete", {root, node_id: nodeId}, (current) =>
-				removeRow(current, nodeId),
-			).finally(() => release([nodeId]));
+			void (async () => {
+				try {
+					await write("/api/v1/ladder/complete", {root, node_id: nodeId}, (current) =>
+						removeRow(current, nodeId),
+					);
+				} finally {
+					release([nodeId]);
+				}
+			})();
 		},
 		[root, write, claim, release],
 	);

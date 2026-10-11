@@ -224,7 +224,9 @@ describe("node:mirror command", () => {
 		});
 
 		it("rejects --delete combined with a parent", async () => {
-			await expect(Mirror.run(["--node-id", MIRROR_ID, "--delete", "--parent-id", PARENT_ID])).rejects.toThrow();
+			await expect(Mirror.run(["--node-id", MIRROR_ID, "--delete", "--parent-id", PARENT_ID])).rejects.toThrow(
+				"--delete=true cannot also be provided when using --parent-id",
+			);
 		});
 	});
 });

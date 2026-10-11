@@ -84,11 +84,18 @@ export function MoveAssistant() {
 		}
 	}, [moveAssistantOpen, moveAssistantContext]);
 
+	// An empty query shows the default list, so clear stale results here rather than in the search effect
+	const handleQueryChange = useCallback((value: string) => {
+		setQuery(value);
+		if (!value.trim()) {
+			setSearchResults([]);
+			setSelectedIndex(0);
+		}
+	}, []);
+
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
-			setSearchResults([]);
-			setSelectedIndex(0);
 			return;
 		}
 
@@ -258,7 +265,7 @@ export function MoveAssistant() {
 					</div>
 					<input
 						className="move-assistant-input"
-						onChange={(event) => setQuery(event.target.value)}
+						onChange={(event) => handleQueryChange(event.target.value)}
 						onKeyDown={handleKeyDown}
 						placeholder="Search for a destination..."
 						ref={inputRef}

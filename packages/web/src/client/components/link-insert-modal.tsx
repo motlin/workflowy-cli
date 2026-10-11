@@ -80,11 +80,18 @@ export function LinkInsertModal() {
 		}
 	}, [linkInsertOpen, linkInsertContext]);
 
+	// An empty query shows the default list, so clear stale results here rather than in the search effect
+	const handleQueryChange = useCallback((value: string) => {
+		setQuery(value);
+		if (!value.trim()) {
+			setResults([]);
+			setSelectedIndex(0);
+		}
+	}, []);
+
 	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
-			setResults([]);
-			setSelectedIndex(0);
 			return;
 		}
 
@@ -210,7 +217,7 @@ export function LinkInsertModal() {
 					</div>
 					<input
 						className="link-insert-input"
-						onChange={(event) => setQuery(event.target.value)}
+						onChange={(event) => handleQueryChange(event.target.value)}
 						onKeyDown={handleKeyDown}
 						placeholder="Search for a node to link..."
 						ref={inputRef}

@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {LadderEventBus} from "../src/server/ladder-events.js";
-import {LadderService} from "../src/server/ladder-service.js";
+import {LadderService, type LadderServiceOptions} from "../src/server/ladder-service.js";
 
 const tier = (id: string, label: string, items: {id: string; name: string}[]) => ({
 	id,
@@ -14,8 +14,8 @@ function makeService(overrides: Partial<ConstructorParameters<typeof LadderServi
 		work: {id: "wb", name: "📌 work", children: [tier("w1", "1st", [{id: "a", name: "A"}]), tier("w2", "2nd", [])]},
 		personal: {id: "pb", name: "📌 personal", children: [tier("p1", "1st", [{id: "x", name: "X"}])]},
 	};
-	const moveNode = vi.fn(async () => undefined);
-	const completeNode = vi.fn(async () => undefined);
+	const moveNode = vi.fn<LadderServiceOptions["moveNode"]>(async () => undefined);
+	const completeNode = vi.fn<LadderServiceOptions["completeNode"]>(async () => undefined);
 	const events = new LadderEventBus();
 	const service = new LadderService({
 		readBuckets: async () => buckets,
@@ -55,7 +55,7 @@ describe("LadderService.move", () => {
 
 	it("does not publish an event when the write fails", async () => {
 		const {service, events} = makeService({
-			moveNode: vi.fn(async () => {
+			moveNode: vi.fn<LadderServiceOptions["moveNode"]>(async () => {
 				throw new Error("workflowy 500");
 			}),
 		});
@@ -66,7 +66,7 @@ describe("LadderService.move", () => {
 	});
 
 	it("answers once the move lands, without waiting for the tier refresh", async () => {
-		const refreshTier = vi.fn(() => new Promise<void>(() => {}));
+		const refreshTier = vi.fn<NonNullable<LadderServiceOptions["refreshTier"]>>(() => new Promise<void>(() => {}));
 		const {service} = makeService({refreshTier});
 		const answered = await Promise.race([
 			service.move({root: "work", nodeId: "a", toTier: "2nd"}).then(() => "answered"),
@@ -81,7 +81,7 @@ describe("LadderService.move", () => {
 	it("keeps a landed move when the tier refresh fails", async () => {
 		const failure = vi.spyOn(console, "error").mockImplementation(() => {});
 		const {service} = makeService({
-			refreshTier: vi.fn(async () => {
+			refreshTier: vi.fn<NonNullable<LadderServiceOptions["refreshTier"]>>(async () => {
 				throw new Error("Test refresh throttled");
 			}),
 		});

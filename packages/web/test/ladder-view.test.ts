@@ -72,12 +72,25 @@ const ladders = () => ({
 		],
 	},
 });
-const request = vi.fn();
+interface FakeResponse {
+	ok: boolean;
+	json: () => Promise<unknown>;
+}
+const request = vi.fn<(path: string, options: {body: string}) => Promise<FakeResponse>>();
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-beforeEach(() => {
-	hooks.values = [ladders()];
+/** Mount the page and answer its initial ladder read, the way the browser would. */
+async function load(value: unknown) {
+	hooks.values = [];
 	hooks.effects = [];
+	request.mockResolvedValueOnce({ok: true, json: async () => ({ladders: value})});
+	render();
+	hooks.effects[0]();
+	await settle();
+	request.mockClear();
+}
+
+beforeEach(async () => {
 	request.mockReset().mockImplementation(async (path: string, options: {body: string}) => {
 		const body = JSON.parse(options.body);
 		return {
@@ -95,6 +108,7 @@ beforeEach(() => {
 		};
 	});
 	vi.stubGlobal("fetch", request);
+	await load(ladders());
 });
 
 describe("local ladder actions", () => {
@@ -159,7 +173,7 @@ describe("local ladder actions", () => {
 	});
 
 	it("reconciles an optimistic move with the returned event", async () => {
-		let respond!: (value: unknown) => void;
+		let respond!: (value: FakeResponse) => void;
 		request.mockReturnValue(
 			new Promise((resolve) => {
 				respond = resolve;
@@ -191,7 +205,7 @@ describe("local ladder actions", () => {
 	});
 
 	it("restores a failed Done row without undoing another socket write and clears its error on retry", async () => {
-		let respond!: (value: unknown) => void;
+		let respond!: (value: FakeResponse) => void;
 		request.mockReturnValueOnce(
 			new Promise((resolve) => {
 				respond = resolve;
@@ -301,7 +315,7 @@ describe("local ladder actions", () => {
 
 	it("creates the next ordinal under the displayed bucket and refreshes the page", async () => {
 		request
-			.mockResolvedValueOnce({ok: true})
+			.mockResolvedValueOnce({ok: true, json: async () => ({})})
 			.mockResolvedValueOnce({ok: true, json: async () => ({ladders: ladders()})});
 		const button = render().find((element) => element.props.children === "Add bottom tier");
 		if (!button) throw new Error("Add bottom tier button is missing");
@@ -336,25 +350,23 @@ describe("a row whose write is in flight", () => {
 			}));
 	}
 
-	beforeEach(() => {
-		hooks.values = [
-			{
-				personal: {
-					...ladders().personal,
-					tiers: [
-						{
-							tier: 1,
-							id: "first",
-							label: "1st",
-							capacity: 2,
-							state: "exact",
-							items: [item("alice"), item("bob")],
-						},
-						{tier: 2, id: "second", label: "2nd", capacity: 4, state: "room", items: [item("carol")]},
-					],
-				},
+	beforeEach(async () => {
+		await load({
+			personal: {
+				...ladders().personal,
+				tiers: [
+					{
+						tier: 1,
+						id: "first",
+						label: "1st",
+						capacity: 2,
+						state: "exact",
+						items: [item("alice"), item("bob")],
+					},
+					{tier: 2, id: "second", label: "2nd", capacity: 4, state: "room", items: [item("carol")]},
+				],
 			},
-		];
+		});
 		request.mockReturnValue(new Promise(() => {}));
 	});
 
@@ -423,7 +435,7 @@ describe("row selection and pointer cancellation", () => {
 			clientX: 100,
 			clientY: 100,
 			target: {closest: () => null},
-			currentTarget: {setPointerCapture: vi.fn()},
+			currentTarget: {setPointerCapture: vi.fn<(pointerId: number) => void>()},
 		};
 		tierProps().onGripDown(event, {id: "alice", name: "Alice"});
 		tierProps().onGripMove({...event, clientY: 140}, "Alice");
@@ -475,10 +487,10 @@ describe("subtree preview", () => {
 	};
 	const button = {getBoundingClientRect: () => ({left: 40, right: 90, top: 100, bottom: 120})};
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		const withParent = ladders();
 		withParent.personal.tiers[0].items = [parent, item("bob")] as never;
-		hooks.values = [withParent];
+		await load(withParent);
 	});
 
 	function rows() {

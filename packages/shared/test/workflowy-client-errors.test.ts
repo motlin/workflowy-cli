@@ -12,7 +12,7 @@ const ABUSE_BODY =
 	"and include your IP address (100.8.164.75) and code WFB(3) so we can help resolve this.";
 
 function clientRespondingWith(status: number, statusText: string, body: string) {
-	const fetchMock = vi.fn().mockResolvedValue(
+	const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
 		new Response(body, {
 			status,
 			statusText,

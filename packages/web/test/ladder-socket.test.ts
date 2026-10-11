@@ -12,7 +12,7 @@ const event = (nodeId: string) => ({
 });
 
 function connect(bus: LadderEventBus, options?: {replay?: boolean}) {
-	const ws = {send: vi.fn(), close: vi.fn()};
+	const ws = {send: vi.fn<(data: string) => void>(), close: vi.fn<() => void>()};
 	const handlers = ladderSocketHandlers(bus, options);
 	handlers.onOpen?.({} as never, ws as never);
 	return {ws, handlers};
@@ -25,14 +25,14 @@ describe("ladderSocketHandlers", () => {
 		bus.publish(event("a"));
 		bus.publish(event("b"));
 		expect(ws.send).toHaveBeenCalledTimes(2);
-		expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({nodeId: "a", verb: "move"});
+		expect(JSON.parse(ws.send.mock.calls[0][0])).toMatchObject({nodeId: "a", verb: "move"});
 	});
 
 	it("replays buffered writes to a watcher that connects late", () => {
 		const bus = new LadderEventBus();
 		bus.publish(event("earlier"));
 		const {ws} = connect(bus, {replay: true});
-		expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({nodeId: "earlier"});
+		expect(JSON.parse(ws.send.mock.calls[0][0])).toMatchObject({nodeId: "earlier"});
 	});
 
 	it("stops sending after the socket closes", () => {
