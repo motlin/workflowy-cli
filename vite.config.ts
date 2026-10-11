@@ -102,6 +102,7 @@ export default defineConfig({
 			"unicorn/no-immediate-mutation": "error",
 			"unicorn/prefer-import-meta-properties": "error",
 			"unicorn/prefer-math-trunc": "error",
+			"unicorn/prefer-code-point": "error",
 			"oxc/branches-sharing-code": "error",
 			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
 			"vitest/prefer-importing-vitest-globals": "error",

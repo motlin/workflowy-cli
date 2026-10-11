@@ -210,7 +210,7 @@ export function pageSignature(models) {
 		.join(";");
 	let h = 0;
 	for (let i = 0; i < shape.length; i++) {
-		// oxlint-disable-next-line unicorn/prefer-math-trunc -- `| 0` wraps to int32; Math.trunc would let the hash grow past 2^53 and lose precision
+		// oxlint-disable-next-line unicorn/prefer-math-trunc, unicorn/prefer-code-point -- `| 0` wraps to int32 (Math.trunc would lose precision past 2^53); codePointAt would change the hash for emoji and orphan saved localStorage drafts keyed by it
 		h = (Math.imul(31, h) + shape.charCodeAt(i)) | 0;
 	}
 	return (h >>> 0).toString(36);
