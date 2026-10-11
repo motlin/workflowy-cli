@@ -598,6 +598,9 @@ function runQueuePage(html) {
 			get nextSibling() {
 				return this.parentNode.children[this.parentNode.children.indexOf(this) + 1];
 			},
+			get innerHTML() {
+				return this.html;
+			},
 			set innerHTML(value) {
 				this.children = [];
 				this.html = value;
