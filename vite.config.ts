@@ -64,6 +64,12 @@ export default defineConfig({
 			// False positives on deps used inside a nested async IIFE; dropping them creates stale closures.
 			"react/memo-dependencies": "off",
 			"typescript/no-unsafe-type-assertion": "error",
+			"typescript/switch-exhaustiveness-check": "error",
+			"typescript/return-await": "error",
+			"typescript/only-throw-error": "error",
+			"typescript/prefer-promise-reject-errors": "error",
+			"typescript/no-mixed-enums": "error",
+			"typescript/related-getter-setter-pairs": "error",
 		},
 		overrides: [
 			{
