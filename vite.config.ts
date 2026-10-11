@@ -111,17 +111,37 @@ export default defineConfig({
 			"typescript/no-unsafe-call": "error",
 			"typescript/no-unsafe-return": "error",
 			"typescript/no-unsafe-argument": "error",
+			"typescript/restrict-plus-operands": [
+				"error",
+				{
+					allowAny: false,
+					allowBoolean: false,
+					allowNullish: false,
+					allowNumberAndString: false,
+					allowRegExp: false,
+				},
+			],
 		},
 		overrides: [
 			{
 				files: ["plugins/**/*.mjs"],
 				rules: {
-					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules only add noise.
+					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules and restrict-plus-operands any-checks only add noise.
 					"typescript/no-unsafe-member-access": "off",
 					"typescript/no-unsafe-assignment": "off",
 					"typescript/no-unsafe-call": "off",
 					"typescript/no-unsafe-return": "off",
 					"typescript/no-unsafe-argument": "off",
+					"typescript/restrict-plus-operands": [
+						"error",
+						{
+							allowAny: true,
+							allowBoolean: false,
+							allowNullish: false,
+							allowNumberAndString: false,
+							allowRegExp: false,
+						},
+					],
 				},
 			},
 			{

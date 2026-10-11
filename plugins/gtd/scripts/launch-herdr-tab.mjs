@@ -50,7 +50,7 @@ export async function socketRequest(
 		});
 		socket.on("error", reject);
 		socket.on("data", (chunk) => {
-			buffer += chunk;
+			buffer += chunk.toString();
 			const newline = buffer.indexOf("\n");
 			if (newline === -1) {
 				return;
