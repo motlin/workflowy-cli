@@ -88,7 +88,7 @@ export function IndentGuideLines({depth}: IndentGuideLinesProps) {
 	for (let i = 0; i < depth; i++) {
 		lines.push(<div className="indent-guide-line" key={i} style={{left: `${i * INDENT_PER_LEVEL + 9}px`}} />);
 	}
-	return <>{lines}</>;
+	return lines;
 }
 
 interface CompleteBulletProps {

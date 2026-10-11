@@ -59,6 +59,7 @@ export default defineConfig({
 			"vite-plus/prefer-vite-plus-imports": "error",
 			"react/react-in-jsx-scope": "off",
 			"react/no-unescaped-entities": "error",
+			"react/jsx-no-useless-fragment": "error",
 			"vitest/expect-expect": ["error", {assertFunctionNames: ["expect", "expect*"]}],
 			"vitest/valid-expect": ["error", {maxArgs: 2}],
 			// Stylesheets and the MCP bin entrypoint are imported for their side effects.
