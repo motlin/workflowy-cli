@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import {type HTMLElement, type Node, NodeType, parse} from "node-html-parser";
+import {HTMLElement, type Node, NodeType, parse} from "node-html-parser";
 
 type ChalkColor = (text: string) => string;
 
@@ -67,11 +67,11 @@ function processNode(node: Node): string {
 		return node.rawText;
 	}
 
-	if (node.nodeType !== NodeType.ELEMENT_NODE) {
+	if (!(node instanceof HTMLElement)) {
 		return "";
 	}
 
-	const element = node as HTMLElement;
+	const element = node;
 	const tagName = element.tagName?.toLowerCase();
 	const childText = element.childNodes.map((child) => processNode(child)).join("");
 

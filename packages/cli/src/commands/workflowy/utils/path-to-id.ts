@@ -32,12 +32,12 @@ export default class PathToId extends Command {
 			char: "r",
 			description: "Root node ID to start path from (omit for root level)",
 		}),
-		"data-source": Flags.string({
+		"data-source": Flags.option({
 			char: "d",
 			description: "Data source to use: auto (default), api, or cache",
-			options: ["auto", "api", "cache"],
+			options: ["auto", "api", "cache"] as const,
 			default: "auto",
-		}),
+		})(),
 	};
 
 	public async run(): Promise<void> {
@@ -55,7 +55,7 @@ export default class PathToId extends Command {
 		const pathResolutionService = new PathResolutionService(cacheService, apiClient);
 
 		const rootId = flags["root-id"] ?? null;
-		const dataSource = flags["data-source"] as "auto" | "api" | "cache";
+		const dataSource = flags["data-source"];
 
 		try {
 			const result = await pathResolutionService.resolveTargetNodeId({

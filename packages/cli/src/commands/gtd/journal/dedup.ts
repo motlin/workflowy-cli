@@ -380,7 +380,7 @@ export default class Dedup extends Command {
 				  AND (${dateConditions.join(" OR ")})
 			`;
 
-			const rows = db.prepare(query).all() as Array<{date_name: string; entry: string | null}>;
+			const rows = db.prepare<[], {date_name: string; entry: string | null}>(query).all();
 
 			for (const row of rows) {
 				if (!row.entry) continue;

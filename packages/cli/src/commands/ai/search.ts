@@ -49,11 +49,11 @@ export default class Search extends Command {
 			description: "Output results in JSON format",
 			default: false,
 		}),
-		mode: Flags.string({
+		mode: Flags.option({
 			description: "Search mode: vector (default), keyword (FTS5), or hybrid (BM25 + vector RRF fusion)",
-			options: ["vector", "keyword", "hybrid"],
+			options: ["vector", "keyword", "hybrid"] as const,
 			default: "vector",
-		}),
+		})(),
 	};
 
 	public async run(): Promise<
@@ -87,7 +87,7 @@ export default class Search extends Command {
 
 		const modelsToSearch: EmbeddingModelKey[] = flags.model ? [flags.model] : DEFAULT_MODELS;
 
-		const searchMode = flags.mode as SearchMode;
+		const searchMode: SearchMode = flags.mode;
 
 		const searchPromises = modelsToSearch.map(async (model) => {
 			const results = await searchService.search({

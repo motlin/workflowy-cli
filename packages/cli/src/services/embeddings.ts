@@ -1,4 +1,5 @@
 import {type FeatureExtractionPipeline, pipeline} from "@xenova/transformers";
+import {z} from "zod";
 
 type LocalModel = {
 	type: "local";
@@ -19,6 +20,10 @@ type OpenAIModel = {
 };
 
 type EmbeddingModel = LocalModel | OpenAIModel;
+
+const OpenAIEmbeddingResponseSchema = z.object({
+	data: z.array(z.object({embedding: z.array(z.number())})).min(1),
+});
 
 export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
 	minilm: {type: "local", name: "Xenova/all-MiniLM-L6-v2", dimensions: 384, defaultThreshold: 0.7},
@@ -83,7 +88,10 @@ class EmbeddingService {
 			normalize: true,
 		});
 
-		return new Float32Array(output.data as ArrayLike<number>);
+		if (!(output.data instanceof Float32Array)) {
+			throw new TypeError(`Unexpected embedding tensor type: ${output.type}`);
+		}
+		return new Float32Array(output.data);
 	}
 
 	private async generateOpenAIEmbedding(text: string, model: string): Promise<Float32Array> {
@@ -109,8 +117,11 @@ class EmbeddingService {
 			throw new Error(`OpenAI API error: ${response.status} ${error}`);
 		}
 
-		const data = (await response.json()) as {data: Array<{embedding: number[]}>};
-		return new Float32Array(data.data[0].embedding);
+		const parsed = OpenAIEmbeddingResponseSchema.safeParse(await response.json());
+		if (!parsed.success) {
+			throw new Error(`Unexpected OpenAI embeddings response: ${parsed.error.message}`);
+		}
+		return new Float32Array(parsed.data.data[0].embedding);
 	}
 }
 

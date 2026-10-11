@@ -20,12 +20,12 @@ export default class List extends BaseListCommand {
 			char: "p",
 			description: "Parent node ID (omit for root nodes)",
 		}),
-		"data-source": Flags.string({
+		"data-source": Flags.option({
 			char: "d",
 			description: "Data source to use: auto (default), api, or cache",
-			options: ["auto", "api", "cache"],
+			options: ["auto", "api", "cache"] as const,
 			default: "auto",
-		}),
+		})(),
 		incomplete: Flags.boolean({
 			description: "Only show incomplete (not completed) nodes",
 			default: false,
@@ -57,7 +57,7 @@ export default class List extends BaseListCommand {
 
 			const result = await service.listNodes({
 				parentId,
-				dataSource: flags["data-source"] as "auto" | "api" | "cache",
+				dataSource: flags["data-source"],
 				forceRefresh: flags["force-refresh"],
 				depth: flags.depth,
 			});

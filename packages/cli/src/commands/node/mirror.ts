@@ -38,12 +38,12 @@ export default class Mirror extends Command {
 			description: "Comma-separated path to the parent to place the mirror under",
 			exclusive: ["parent-id", "delete"],
 		}),
-		position: Flags.string({
+		position: Flags.option({
 			char: "p",
 			description: "Position within the parent",
-			options: ["top", "bottom"],
+			options: ["top", "bottom"] as const,
 			default: "top",
-		}),
+		})(),
 		delete: Flags.boolean({
 			description: "Remove the mirror given by --node-id/--node-path; the origin is untouched",
 			default: false,
@@ -91,7 +91,7 @@ export default class Mirror extends Command {
 			cacheService,
 			apiClient,
 		);
-		const position = flags.position as "top" | "bottom";
+		const {position} = flags;
 
 		if (!flags.json) {
 			this.log("Mirroring:");

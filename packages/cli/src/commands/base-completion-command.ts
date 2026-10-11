@@ -34,7 +34,7 @@ export abstract class BaseCompletionCommand extends Command {
 	protected abstract executeAction(client: WorkflowyWriteThroughClient, nodeId: string): Promise<void>;
 
 	public async run(): Promise<void> {
-		const {flags} = await this.parse(this.constructor as typeof BaseCompletionCommand);
+		const {flags} = await this.parse(BaseCompletionCommand);
 
 		if (!flags.id && !flags.path) {
 			this.error("Either --id or --path is required");

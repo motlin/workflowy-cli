@@ -1,7 +1,7 @@
 import {Command, Flags} from "@oclif/core";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {createDatabase} from "../../db/index.js";
-import {type QmdSearchMode, type QmdSearchResultItem, QmdSearchService} from "../../services/qmd-search.js";
+import {type QmdSearchResultItem, QmdSearchService} from "../../services/qmd-search.js";
 
 export default class QmdSearch extends Command {
 	static override enableJsonFlag = true;
@@ -40,12 +40,12 @@ export default class QmdSearch extends Command {
 			description: "Output results in JSON format",
 			default: false,
 		}),
-		mode: Flags.string({
+		mode: Flags.option({
 			char: "m",
 			description: "Search mode",
-			options: ["hybrid", "vector", "keyword"],
+			options: ["hybrid", "vector", "keyword"] as const,
 			default: "hybrid",
-		}),
+		})(),
 	};
 
 	public async run(): Promise<
@@ -81,7 +81,7 @@ export default class QmdSearch extends Command {
 				query,
 				limit: flags.limit,
 				minScore,
-				mode: flags.mode as QmdSearchMode,
+				mode: flags.mode,
 			});
 
 			const transformedResults = results.map((result) => ({

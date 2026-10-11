@@ -7,34 +7,6 @@ const COOKIE_FILE = "/tmp/otter-session-cache";
 const USERID_FILE = "/tmp/otter-userid-cache";
 const CREDS_FILE = "/tmp/otter-creds-cache";
 
-interface OtterSpeech {
-	otid: string;
-	title: string;
-	start_time: number;
-	short_abstract_summary?: string;
-	action_item_count?: number;
-	speech_outline?: Array<{
-		text: string;
-		segments?: Array<{text: string}>;
-	}>;
-}
-
-interface OtterActionItem {
-	text: string;
-	assignee?: {name: string};
-	completed: boolean;
-}
-
-interface AvailableSpeechesResponse {
-	speeches: OtterSpeech[];
-	last_load_ts: string;
-	end_of_list: boolean;
-}
-
-interface ActionItemsResponse {
-	speech_action_items: OtterActionItem[];
-}
-
 /**
  * Otter.ai API wrapper - fetches meetings with authentication.
  *
@@ -197,7 +169,7 @@ export default class Api extends Command {
 		"page-size": number;
 		cursor?: string;
 		"modified-after"?: string;
-	}): Promise<AvailableSpeechesResponse> {
+	}): Promise<unknown> {
 		await this.login();
 
 		this.logTiming(`available_speeches: page_size=${flags["page-size"]}`);
@@ -212,7 +184,7 @@ export default class Api extends Command {
 		}
 
 		const response = this.curlGet(url, "https://otter.ai/all-notes");
-		const data = JSON.parse(response) as AvailableSpeechesResponse;
+		const data = JSON.parse(response);
 
 		this.logTiming("available_speeches: done");
 		this.log(JSON.stringify(data, null, 2));
@@ -247,14 +219,14 @@ export default class Api extends Command {
 		return data;
 	}
 
-	private async actionItems(otid: string): Promise<ActionItemsResponse> {
+	private async actionItems(otid: string): Promise<unknown> {
 		await this.login();
 
 		this.logTiming(`action_items: fetching ${otid}`);
 
 		const url = `${API_BASE}/speech_action_items?otid=${otid}`;
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
-		const data = JSON.parse(response) as ActionItemsResponse;
+		const data = JSON.parse(response);
 
 		this.logTiming("action_items: done");
 		this.log(JSON.stringify(data, null, 2));

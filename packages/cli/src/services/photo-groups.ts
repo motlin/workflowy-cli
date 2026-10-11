@@ -126,18 +126,19 @@ function collectCandidateGroups(rows: CachedNodeRow[]): PhotoGroup[] {
 
 	for (const row of rows) {
 		const children = childrenByParent.get(row.id) ?? [];
+		const {parentId} = row;
 
 		const isWrapper =
 			isBlank(row.name) &&
 			isBlank(row.note) &&
-			row.parentId !== null &&
+			parentId !== null &&
 			children.length >= MINIMUM_GROUP_SIZE &&
 			children.every((child) => isBlankLeaf(child));
 
 		if (isWrapper) {
 			groups.push({
 				kind: "wrapped",
-				entryId: row.parentId as string,
+				entryId: parentId,
 				wrapperId: row.id,
 				members: children.map((child) => toMember(child)),
 			});

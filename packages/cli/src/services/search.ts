@@ -94,9 +94,9 @@ export class SearchService {
 	}
 
 	private async searchKeyword(query: string, limit: number): Promise<SearchResult[]> {
-		const ftsResults = this.database.all(
+		const ftsResults = this.database.all<{node_id: string; score: number}>(
 			sql`SELECT node_id, rank as score FROM node_fts WHERE node_fts MATCH ${query} ORDER BY rank LIMIT ${limit}`,
-		) as Array<{node_id: string; score: number}>;
+		);
 		logger.logSqlResult("ftsSearch", ftsResults);
 
 		// FTS5 rank is negative (lower = better), convert to distance-like metric

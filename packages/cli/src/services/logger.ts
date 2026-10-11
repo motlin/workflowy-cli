@@ -107,6 +107,10 @@ function formatParams(params: unknown[], colorize: boolean): string {
  */
 const level = process.env.WORKFLOWY_LOG_LEVEL ?? (anyLoggingEnabled ? "debug" : "silent");
 
+function optionalString(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
+
 /**
  * Synchronous pino-pretty stream that writes to stderr.
  * Using sync mode ensures logs are written immediately, not buffered.
@@ -119,10 +123,10 @@ const prettyStream = pinoPretty({
 	destination: 2, // stderr
 	sync: true, // Synchronous writes - critical for correct output ordering
 	messageFormat(log, messageKey) {
-		const msg = log[messageKey] as string;
-		const category = log.category as string | undefined;
-		const subcategory = log.subcategory as string | undefined;
-		const params = log.params as unknown[] | undefined;
+		const msg = String(log[messageKey]);
+		const category = optionalString(log.category);
+		const subcategory = optionalString(log.subcategory);
+		const params: unknown[] | undefined = Array.isArray(log.params) ? log.params : undefined;
 
 		// Skip if category filtering doesn't pass
 		if (!isEnabled(category, subcategory)) {
@@ -428,9 +432,9 @@ class Logger implements ApiLogger {
 	/**
 	 * Log an API error (ApiLogger interface)
 	 */
-	logError(url: string, method: string, error: Error, duration: number): void {
+	logError(url: string, method: string, error: unknown, duration: number): void {
 		restErrorLogger.error(
-			{method, url, error: error.message, duration},
+			{method, url, error: error instanceof Error ? error.message : String(error), duration},
 			`X ${method} ${url} failed after ${duration.toFixed(0)}ms`,
 		);
 	}

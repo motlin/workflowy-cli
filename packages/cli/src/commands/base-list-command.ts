@@ -16,6 +16,10 @@ export interface ListCommandFlags {
 	fields?: string[];
 }
 
+function isKeyOf<T extends object>(object: T, key: PropertyKey): key is keyof T {
+	return key in object;
+}
+
 export abstract class BaseListCommand extends Command {
 	static hidden = true;
 
@@ -94,8 +98,8 @@ export abstract class BaseListCommand extends Command {
 					name: target.name,
 					shortId: target.shortId,
 				}));
-			} else if (field in node) {
-				result[field] = node[field as keyof NodeTree];
+			} else if (isKeyOf(node, field)) {
+				result[field] = node[field];
 			}
 		}
 		// Always include mirror metadata for mirrors.

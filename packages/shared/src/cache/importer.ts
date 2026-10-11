@@ -139,7 +139,7 @@ function mergeNodeKeyedTable<TIncoming, TCurrent extends {systemTo: string}>(
 	importedAt: string,
 	preserveKeys?: ReadonlySet<string>,
 ): TemporalMergeResult {
-	const currentRows = tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all() as TCurrent[];
+	const currentRows: TCurrent[] = tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all();
 	return temporalMerge(
 		tx,
 		{

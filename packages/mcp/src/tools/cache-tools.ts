@@ -6,20 +6,18 @@ export function registerCacheTools(server: McpServer): void {
 	server.tool("workflowy_cache_status", "Get cache database status and statistics", {}, async () => {
 		const db = getDatabase();
 
-		const stats = db.all(sql`
+		const [result] = db.all<{
+			total_nodes: number;
+			completed_nodes: number;
+			metadata_count: number;
+			last_sync: number | null;
+		}>(sql`
 			SELECT
 				(SELECT COUNT(*) FROM node_content WHERE system_to = 253402300799) as total_nodes,
 				(SELECT COUNT(*) FROM node_content WHERE system_to = 253402300799 AND is_completed = 1) as completed_nodes,
 				(SELECT COUNT(*) FROM node_metadata) as metadata_count,
 				(SELECT MAX(last_updated) FROM cache_state) as last_sync
 		`);
-
-		const result = stats[0] as {
-			total_nodes: number;
-			completed_nodes: number;
-			metadata_count: number;
-			last_sync: number | null;
-		};
 
 		return {
 			content: [

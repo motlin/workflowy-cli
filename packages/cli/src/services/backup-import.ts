@@ -24,7 +24,7 @@ export type BackupImportStats = {
 };
 
 export type BackupFileNode = {
-	ch?: Array<unknown>;
+	ch?: BackupFileNode[];
 };
 
 export type BackupImportProgress = {
@@ -84,8 +84,8 @@ export class BackupImportService {
 	countNodes(rootNodes: BackupFileNode[]): number {
 		let count = rootNodes.length;
 		for (const node of rootNodes) {
-			if (node.ch && Array.isArray(node.ch)) {
-				count += this.countNodes(node.ch as BackupFileNode[]);
+			if (node.ch) {
+				count += this.countNodes(node.ch);
 			}
 		}
 		return count;

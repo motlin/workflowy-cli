@@ -91,7 +91,8 @@ function formatType(
 	}
 
 	if (schema.anyOf) {
-		const types = (schema.anyOf as SchemaObject[])
+		const types = schema.anyOf
+			.filter((s) => typeof s !== "boolean")
 			.map((s) => formatType(s, definitions, nestedInterfaces, nameMap))
 			.filter((t) => t !== "unknown");
 		return types.length === 1 ? types[0] : types.join(" | ");
@@ -99,8 +100,8 @@ function formatType(
 
 	if (schema.type === "array") {
 		const {items} = schema;
-		if (items && typeof items !== "boolean") {
-			const itemType = formatType(items as SchemaObject, definitions, nestedInterfaces, nameMap);
+		if (items && typeof items !== "boolean" && !Array.isArray(items)) {
+			const itemType = formatType(items, definitions, nestedInterfaces, nameMap);
 			return itemType.includes("|") ? `(${itemType})[]` : `${itemType}[]`;
 		}
 		return "unknown[]";

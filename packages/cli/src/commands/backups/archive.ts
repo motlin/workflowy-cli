@@ -30,10 +30,10 @@ export default class BackupsArchive extends Command {
 				"Days of backups to keep as individually compressed files before folding into monthly archives",
 			default: 30,
 		}),
-		source: Flags.string({
+		source: Flags.option({
 			description: "Limit to a single backup source",
-			options: [...BACKUP_SOURCES],
-		}),
+			options: BACKUP_SOURCES,
+		})(),
 	};
 
 	public async run(): Promise<void> {
@@ -47,7 +47,7 @@ export default class BackupsArchive extends Command {
 		const cutoff = new Date();
 		cutoff.setDate(cutoff.getDate() - flags["keep-days"]);
 
-		const sources = flags.source ? [flags.source as BackupSource] : [...BACKUP_SOURCES];
+		const sources = flags.source ? [flags.source] : [...BACKUP_SOURCES];
 		const sizeBefore = directorySize(backupsDirectory);
 
 		for (const source of sources) {

@@ -94,10 +94,10 @@ export default class Create extends Command {
 		"layout-mode": Flags.string({
 			description: 'Layout mode for the node (e.g., "document", "list", "board")',
 		}),
-		position: Flags.string({
+		position: Flags.option({
 			description: 'Position among siblings: "top" (first) or "bottom" (last, default)',
-			options: ["top", "bottom"],
-		}),
+			options: ["top", "bottom"] as const,
+		})(),
 		"dry-run": Flags.boolean({
 			char: "d",
 			description: "Show the API call that would be made without executing",
@@ -167,7 +167,7 @@ export default class Create extends Command {
 			name?: string;
 			note?: string;
 			"layout-mode"?: string;
-			position?: string;
+			position?: "top" | "bottom";
 			"dry-run": boolean;
 		},
 		parentId: string,
@@ -212,7 +212,7 @@ export default class Create extends Command {
 				name,
 				note: flags.note,
 				layoutMode: flags["layout-mode"],
-				position: flags.position as "top" | "bottom" | undefined,
+				position: flags.position,
 			});
 
 			this.log("");
@@ -232,7 +232,7 @@ export default class Create extends Command {
 			json?: string;
 			"json-file"?: string;
 			"dry-run": boolean;
-			position?: string;
+			position?: "top" | "bottom";
 		},
 		parentId: string,
 		apiClient: WorkflowyApiClient,
@@ -281,7 +281,7 @@ export default class Create extends Command {
 		this.log("");
 
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
-		const result = await createNodeTree(nodeTree, parentId, client, flags.position as "top" | "bottom" | undefined);
+		const result = await createNodeTree(nodeTree, parentId, client, flags.position);
 
 		// Output results
 		this.log("Successfully created node tree:");

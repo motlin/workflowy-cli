@@ -46,11 +46,11 @@ export default class DownloadBackup extends Command {
 	static override description = "Download all Workflowy backups from Dropbox that are not already downloaded locally";
 
 	static override flags = {
-		folder: Flags.string({
+		folder: Flags.option({
 			char: "f",
 			description: "Which Dropbox folder to download from (default: downloads from both Data and History)",
-			options: ["Data", "History"],
-		}),
+			options: ["Data", "History"] as const,
+		})(),
 		date: Flags.string({
 			char: "d",
 			description: "Download backup from specific date only (YYYY-MM-DD format)",
@@ -67,7 +67,7 @@ export default class DownloadBackup extends Command {
 
 		const dropbox = this.initializeDropbox();
 
-		const folders: DropboxFolder[] = flags.folder ? [flags.folder as DropboxFolder] : ["Data", "History"];
+		const folders: DropboxFolder[] = flags.folder ? [flags.folder] : ["Data", "History"];
 
 		const allResults: DownloadAllResult = {
 			downloaded: [],

@@ -14,7 +14,7 @@ import type {WorkflowyNode} from "../types/workflowy.js";
 export interface ApiLogger {
 	logRequest(url: string, method: string, body?: unknown): void;
 	logResponse(url: string, method: string, status: number, statusText: string, data: unknown, duration: number): void;
-	logError(url: string, method: string, error: Error, duration: number): void;
+	logError(url: string, method: string, error: unknown, duration: number): void;
 }
 
 /**
@@ -192,7 +192,7 @@ export class WorkflowyApiClient {
 			return validatedResponse.nodes ?? [];
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "GET", error as Error, duration);
+			this.logger?.logError(url, "GET", error, duration);
 			throw error;
 		}
 	}
@@ -251,7 +251,7 @@ export class WorkflowyApiClient {
 			return getResponse.node;
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "GET", error as Error, duration);
+			this.logger?.logError(url, "GET", error, duration);
 			throw error;
 		}
 	}
@@ -306,7 +306,7 @@ export class WorkflowyApiClient {
 			};
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "POST", error as Error, duration);
+			this.logger?.logError(url, "POST", error, duration);
 			throw error;
 		}
 	}
@@ -340,7 +340,7 @@ export class WorkflowyApiClient {
 			CompletionStatusResponseSchema.parse(data);
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "POST", error as Error, duration);
+			this.logger?.logError(url, "POST", error, duration);
 			throw error;
 		}
 	}
@@ -369,7 +369,7 @@ export class WorkflowyApiClient {
 			this.logger?.logResponse(url, "DELETE", response.status, response.statusText, null, duration);
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "DELETE", error as Error, duration);
+			this.logger?.logError(url, "DELETE", error, duration);
 			throw error;
 		}
 	}
@@ -401,7 +401,7 @@ export class WorkflowyApiClient {
 			CompletionStatusResponseSchema.parse(data);
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "POST", error as Error, duration);
+			this.logger?.logError(url, "POST", error, duration);
 			throw error;
 		}
 	}
@@ -433,7 +433,7 @@ export class WorkflowyApiClient {
 			CompletionStatusResponseSchema.parse(data);
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "POST", error as Error, duration);
+			this.logger?.logError(url, "POST", error, duration);
 			throw error;
 		}
 	}
@@ -473,7 +473,7 @@ export class WorkflowyApiClient {
 			this.logger?.logResponse(url, "POST", response.status, response.statusText, data, duration);
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "POST", error as Error, duration);
+			this.logger?.logError(url, "POST", error, duration);
 			throw error;
 		}
 	}
@@ -510,7 +510,7 @@ export class WorkflowyApiClient {
 			return {mirrorId: parsed.item_id, originId: parsed.origin_id};
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "POST", error as Error, duration);
+			this.logger?.logError(url, "POST", error, duration);
 			throw error;
 		}
 	}
@@ -540,7 +540,7 @@ export class WorkflowyApiClient {
 			this.logger?.logResponse(url, "DELETE", response.status, response.statusText, data, duration);
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "DELETE", error as Error, duration);
+			this.logger?.logError(url, "DELETE", error, duration);
 			throw error;
 		}
 	}
@@ -575,7 +575,7 @@ export class WorkflowyApiClient {
 			return validatedResponse.nodes ?? [];
 		} catch (error) {
 			const duration = performance.now() - startTime;
-			this.logger?.logError(url, "GET", error as Error, duration);
+			this.logger?.logError(url, "GET", error, duration);
 			throw error;
 		}
 	}

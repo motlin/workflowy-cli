@@ -21,8 +21,6 @@ const TEMPORAL_TABLES = [
 	"api_import_timestamp",
 ] as const;
 
-type TemporalTable = (typeof TEMPORAL_TABLES)[number];
-
 interface RollbackCounts {
 	table: string;
 	purged: number;
@@ -44,11 +42,12 @@ export default class TemporalRollback extends Command {
 			description: 'Target timestamp to roll back to (e.g., "2026-01-23 00:00:00")',
 			required: true,
 		}),
-		exclude: Flags.string({
+		exclude: Flags.option({
 			description: "Table to exclude from rollback (repeatable)",
+			options: TEMPORAL_TABLES,
 			multiple: true,
 			default: [],
-		}),
+		})(),
 		"dry-run": Flags.boolean({
 			description: "Show row counts without executing",
 			default: false,
@@ -67,13 +66,6 @@ export default class TemporalRollback extends Command {
 		// Validate timestamp format
 		if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(target)) {
 			this.error('Invalid timestamp format. Expected: "YYYY-MM-DD HH:MM:SS"');
-		}
-
-		// Validate excluded tables
-		for (const table of flags.exclude) {
-			if (!TEMPORAL_TABLES.includes(table as TemporalTable)) {
-				this.error(`Unknown table: ${table}\nValid tables: ${TEMPORAL_TABLES.join(", ")}`);
-			}
 		}
 
 		const excludeSet = new Set(flags.exclude);
