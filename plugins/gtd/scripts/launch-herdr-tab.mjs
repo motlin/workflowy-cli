@@ -36,10 +36,14 @@ export function insertIndexRightOf(tabs, workspaceId, callerTabId) {
 
 const herdr = (...args) => JSON.parse(execFileSync("herdr", args, {encoding: "utf8"})).result;
 
-async function socketRequest(method, params) {
-	const socketPath = process.env.HERDR_SOCKET_PATH ?? `${homedir()}/.config/herdr/herdr.sock`;
+export async function socketRequest(
+	method,
+	params,
+	socketPath = process.env.HERDR_SOCKET_PATH ?? `${homedir()}/.config/herdr/herdr.sock`,
+) {
 	return new Promise((resolve, reject) => {
 		const socket = createConnection(socketPath);
+		socket.setEncoding("utf8");
 		let buffer = "";
 		socket.setTimeout(5000, () => {
 			socket.destroy(new Error(`${method} timed out`));
