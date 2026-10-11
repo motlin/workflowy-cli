@@ -209,7 +209,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "json-node-id", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output: unknown = JSON.parse(stdout);
 			expect(output).toStrictEqual({
 				id: "json-node-id",
 				shortId: "jsonnodeid",
@@ -248,7 +248,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "filter-node-id", "--json", "--fields", "id,name"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output: unknown = JSON.parse(stdout);
 			expect(output).toStrictEqual({id: "filter-node-id", name: "Filter Node"});
 		});
 	});

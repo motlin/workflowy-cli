@@ -175,7 +175,7 @@ describe("node update command", () => {
 				}
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({name: "New Name"});
 		});
 
@@ -202,7 +202,7 @@ describe("node update command", () => {
 				}
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({note: "New note"});
 		});
 
@@ -230,7 +230,7 @@ describe("node update command", () => {
 				}
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({note: ""});
 		});
 
@@ -257,7 +257,7 @@ describe("node update command", () => {
 				}
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({name: ""});
 		});
 
@@ -287,7 +287,7 @@ describe("node update command", () => {
 				}
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({layoutMode: "document"});
 		});
 
@@ -326,7 +326,7 @@ describe("node update command", () => {
 				}
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({
 				name: "New Name",
 				note: "New note",

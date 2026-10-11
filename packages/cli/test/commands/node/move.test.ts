@@ -176,7 +176,7 @@ describe("node:move command", () => {
 			});
 
 			expect(stdout).toBe("Moving:\n  From: Source\n  To:   Target\nSuccessfully moved node\n");
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({parent_id: "target-id"});
 		});
 
@@ -228,7 +228,7 @@ describe("node:move command", () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--position", "top"]);
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({parent_id: "target-id", position: "top"});
 		});
 
@@ -280,7 +280,7 @@ describe("node:move command", () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--position", "bottom"]);
 			});
 
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({parent_id: "target-id", position: "bottom"});
 		});
 	});
@@ -342,7 +342,7 @@ describe("node:move command", () => {
 				"Moving:\n  From: Work > Tasks > My Task\n  To:   Work > Archive\nSuccessfully moved node\n",
 			);
 			expect(capturedUrl).toBe("https://workflowy.com/api/v1/nodes/source-id");
-			const body = JSON.parse(capturedBody!);
+			const body: unknown = JSON.parse(capturedBody!);
 			expect(body).toStrictEqual({parent_id: "archive-id"});
 		});
 	});

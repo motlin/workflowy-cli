@@ -2,6 +2,7 @@ import type {EnhancedWorkflowyNode} from "@workflowy/shared/types";
 import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createDatabase} from "../../../db/index.js";
 import {CacheService} from "../../../services/cache.js";
 
@@ -29,20 +30,28 @@ interface TasksOutput {
 	recentMeetings: Meeting[];
 }
 
-interface MetadataJson {
-	destinations: {
-		nextActions: {
-			id: string;
-			targetId?: string;
-			containers?: {
-				asap?: {id: string; name: string} | null;
-				dueDate?: {id: string; name: string} | null;
-			};
-		}[];
-		calendar: {id: string}[];
-	};
-	projects: {linkId: string}[];
-}
+const ContainerSchema = z.object({id: z.string(), name: z.string()});
+
+const MetadataJsonSchema = z.object({
+	destinations: z.object({
+		nextActions: z.array(
+			z.object({
+				id: z.string(),
+				targetId: z.string().optional(),
+				containers: z
+					.object({
+						asap: ContainerSchema.nullish(),
+						dueDate: ContainerSchema.nullish(),
+					})
+					.optional(),
+			}),
+		),
+		calendar: z.array(z.object({id: z.string()})),
+	}),
+	projects: z.array(z.object({linkId: z.string()})),
+});
+
+type MetadataJson = z.infer<typeof MetadataJsonSchema>;
 
 /**
  * Load existing tasks for duplicate detection during GTD capture.
@@ -84,7 +93,7 @@ export default class Load extends Command {
 			this.error("metadata.json not found. Run gtd:metadata:sync first.");
 		}
 
-		const metadata: MetadataJson = JSON.parse(fs.readFileSync(metadataFile, "utf8"));
+		const metadata = MetadataJsonSchema.parse(JSON.parse(fs.readFileSync(metadataFile, "utf8")));
 
 		// Initialize cache service
 		const database = createDatabase();

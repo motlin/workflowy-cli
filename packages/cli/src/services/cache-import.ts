@@ -355,7 +355,7 @@ export async function importBackup(
 	const fileContent = readBackupFile(filePath);
 	logTiming("Read file");
 
-	const parsedJson = JSON.parse(fileContent);
+	const parsedJson: unknown = JSON.parse(fileContent);
 	const rootNodes = BackupFileSchema.parse(parsedJson);
 	logTiming(`Parse and validate JSON (${rootNodes.length} root nodes)`);
 

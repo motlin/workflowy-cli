@@ -186,7 +186,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("API request failed", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "GET", response.status, response.statusText, data, duration);
 
@@ -245,7 +245,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("Failed to get node", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "GET", response.status, response.statusText, data, duration);
 
@@ -283,7 +283,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("Failed to create node", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "POST", response.status, response.statusText, data, duration);
 
@@ -335,7 +335,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("Failed to update node", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "POST", response.status, response.statusText, data, duration);
 
@@ -396,7 +396,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("Failed to complete node", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "POST", response.status, response.statusText, data, duration);
 
@@ -428,7 +428,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("Failed to uncomplete node", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "POST", response.status, response.statusText, data, duration);
 
@@ -504,7 +504,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("Failed to create mirror", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "POST", response.status, response.statusText, data, duration);
 
@@ -569,7 +569,7 @@ export class WorkflowyApiClient {
 				throw await this.describeFailure("API request failed", response);
 			}
 
-			const data = await response.json();
+			const data: unknown = await response.json();
 			const duration = performance.now() - startTime;
 			this.logger?.logResponse(url, "GET", response.status, response.statusText, data, duration);
 

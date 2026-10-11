@@ -10,17 +10,29 @@ const LoginResponseSchema = z.object({userid: z.union([z.string(), z.number()])}
 
 const CREDS_FILE = "/tmp/otter-creds-cache";
 
-interface OtterSpeech {
-	otid: string;
-	title: string;
-	start_time: number;
-	short_abstract_summary?: string;
-	action_item_count?: number;
-	speech_outline?: {
-		text: string;
-		segments?: {text: string}[];
-	}[];
-}
+const AvailableSpeechesResponseSchema = z.object({
+	speeches: z
+		.array(
+			z.object({
+				otid: z.string(),
+				title: z.string().nullable(),
+				start_time: z.number(),
+				short_abstract_summary: z.string().nullish(),
+				action_item_count: z.number().nullish(),
+				speech_outline: z
+					.array(
+						z.object({
+							text: z.string(),
+							segments: z.array(z.object({text: z.string()})).nullish(),
+						}),
+					)
+					.nullish(),
+			}),
+		)
+		.nullish(),
+	last_load_ts: z.number(),
+	end_of_list: z.boolean(),
+});
 
 interface ActionItem {
 	text: string;
@@ -42,7 +54,7 @@ const ActionItemsResponseSchema = z.object({
 
 interface ProcessedSpeech {
 	otid: string;
-	title: string;
+	title: string | null;
 	start_time: number;
 	summary: string | null;
 	action_item_count: number | null;
@@ -54,7 +66,7 @@ interface ProcessedSpeech {
 }
 
 interface SyncOutput {
-	last_load_ts: string;
+	last_load_ts: number;
 	end_of_list: boolean;
 	speeches: ProcessedSpeech[];
 }
@@ -116,7 +128,7 @@ export default class Sync extends Command {
 
 		// Extract pagination info and minimal meeting data
 		const speeches: ProcessedSpeech[] = [];
-		for (const speech of rawResponse.speeches || []) {
+		for (const speech of rawResponse.speeches ?? []) {
 			const outline: {title: string; segments: string[]}[] = [];
 			for (const item of speech.speech_outline ?? []) {
 				outline.push({
@@ -245,7 +257,7 @@ export default class Sync extends Command {
 		pageSize: number,
 		cursor?: string,
 		modifiedAfter?: string,
-	): {speeches: OtterSpeech[]; last_load_ts: string; end_of_list: boolean} {
+	): z.infer<typeof AvailableSpeechesResponseSchema> {
 		this.logTiming(`available_speeches: page_size=${pageSize}`);
 
 		let url = `${API_BASE}/available_speeches?page_size=${pageSize}&funnel=home_feed&source=home`;
@@ -258,7 +270,7 @@ export default class Sync extends Command {
 		}
 
 		const response = this.curlGet(url, "https://otter.ai/all-notes");
-		const data = JSON.parse(response);
+		const data = AvailableSpeechesResponseSchema.parse(JSON.parse(response));
 
 		this.logTiming("available_speeches: done");
 		return data;

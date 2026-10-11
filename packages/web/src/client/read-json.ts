@@ -6,6 +6,7 @@
  * somewhere we do not control.
  */
 export async function readJson<T>(response: Response): Promise<T> {
+	// oxlint-disable-next-line typescript/no-unsafe-assignment -- T is a compile-time contract with our own API route, as documented above
 	const body: T = await response.json();
 	return body;
 }

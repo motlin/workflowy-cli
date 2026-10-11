@@ -50,6 +50,11 @@ export function formatConflicts(conflicts) {
 		.join("\n\n");
 }
 
+/**
+ * @param {string} dir
+ * @param {(name: string) => boolean} accept
+ * @returns {string[]}
+ */
 function listFiles(dir, accept) {
 	let entries;
 	try {

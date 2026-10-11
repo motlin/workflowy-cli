@@ -3,6 +3,7 @@ import {WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createDatabase} from "../../../db/index.js";
 import {CacheService} from "../../../services/cache.js";
 import {logger} from "../../../services/logger.js";
@@ -27,10 +28,12 @@ interface Meeting {
 	action_items?: ActionItem[];
 }
 
-interface ImportState {
-	imported_otids: string[];
-	imported_count: number;
-}
+const ImportStateSchema = z.object({
+	imported_otids: z.array(z.string()),
+	imported_count: z.number(),
+});
+
+type ImportState = z.infer<typeof ImportStateSchema>;
 
 const DEFAULT_CALENDAR_ID = "8111d11c-b80e-f219-8ac3-08567aa37346";
 const STATE_FILE = "/tmp/otter_import_state.json";
@@ -114,7 +117,7 @@ export default class Import extends Command {
 			fs.unlinkSync(STATE_FILE);
 			this.log("State reset");
 		} else if (fs.existsSync(STATE_FILE)) {
-			state = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+			state = ImportStateSchema.parse(JSON.parse(fs.readFileSync(STATE_FILE, "utf8")));
 			this.log(`Resuming: ${state.imported_count} meetings already imported`);
 		}
 

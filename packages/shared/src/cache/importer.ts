@@ -15,6 +15,7 @@
 
 import {eq} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
+import type {SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
 import type * as schema from "../db/schema.js";
 import {
 	aiMetadata,
@@ -26,16 +27,7 @@ import {
 	referencesRoots,
 	s3Files,
 } from "../db/schema.js";
-import type {
-	AiMetadata,
-	CalendarLevels,
-	CalendarMetadata,
-	ChangesMetadata,
-	NodeContentType,
-	NodeMetadataType,
-	ReferencesRoot,
-	S3File,
-} from "../db/schema.js";
+import type {CalendarLevels, CalendarMetadata, S3File} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/index.js";
 import {contentMatches, metadataMatches} from "./cache-temporal.js";
 import type {
@@ -125,24 +117,25 @@ function calendarLevelsMatches(current: CalendarLevels, incoming: NormalizedCale
  * temporal merge, and returns the result. The `nodeId` accessor and a
  * `contentMatches` predicate are the only per-table specifics.
  */
-function mergeNodeKeyedTable<TIncoming, TCurrent extends {systemTo: string}>(
+function mergeNodeKeyedTable<TIncoming, TTable extends SQLiteTable>(
 	tx: TemporalTransaction,
-	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	table: any,
-	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	keyColumn: any,
-	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	systemToColumn: any,
+	table: TTable,
+	keyColumn: SQLiteColumn,
+	systemToColumn: SQLiteColumn,
 	incoming: TIncoming[],
 	incomingKey: (row: TIncoming) => string,
-	currentKey: (row: TCurrent) => string,
-	contentEquals: (current: TCurrent, incoming: TIncoming) => boolean,
+	currentKey: (row: TTable["$inferSelect"]) => string,
+	contentEquals: (current: TTable["$inferSelect"], incoming: TIncoming) => boolean,
 	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 	buildInsertRow: (incoming: TIncoming) => Record<string, any>,
 	importedAt: string,
 	preserveKeys?: ReadonlySet<string>,
 ): TemporalMergeResult {
-	const currentRows: TCurrent[] = tx.select().from(table).where(eq(systemToColumn, FAR_FUTURE_DATE)).all();
+	const currentRows: TTable["$inferSelect"][] = tx
+		.select()
+		.from(table)
+		.where(eq(systemToColumn, FAR_FUTURE_DATE))
+		.all();
 	return temporalMerge(
 		tx,
 		{
@@ -187,7 +180,7 @@ export function applyRows(
 	database.transaction((tx) => {
 		// node_content / node_metadata describe the nodes themselves; merge first.
 		if (rowsByTable.nodeContent !== undefined) {
-			result.nodeContent = mergeNodeKeyedTable<NormalizedNodeContentRow, NodeContentType>(
+			result.nodeContent = mergeNodeKeyedTable(
 				tx,
 				nodeContent,
 				nodeContent.id,
@@ -208,7 +201,7 @@ export function applyRows(
 		}
 
 		if (rowsByTable.nodeMetadata !== undefined) {
-			result.nodeMetadata = mergeNodeKeyedTable<NormalizedNodeMetadataRow, NodeMetadataType>(
+			result.nodeMetadata = mergeNodeKeyedTable(
 				tx,
 				nodeMetadata,
 				nodeMetadata.nodeId,
@@ -232,7 +225,7 @@ export function applyRows(
 
 		// Node-attribute tables reference a node; merge after the node rows.
 		if (rowsByTable.calendarMetadata !== undefined) {
-			result.calendarMetadata = mergeNodeKeyedTable<NormalizedCalendarMetadataRow, CalendarMetadata>(
+			result.calendarMetadata = mergeNodeKeyedTable(
 				tx,
 				calendarMetadata,
 				calendarMetadata.nodeId,
@@ -248,7 +241,7 @@ export function applyRows(
 		}
 
 		if (rowsByTable.calendarLevels !== undefined) {
-			result.calendarLevels = mergeNodeKeyedTable<NormalizedCalendarLevelsRow, CalendarLevels>(
+			result.calendarLevels = mergeNodeKeyedTable(
 				tx,
 				calendarLevels,
 				calendarLevels.nodeId,
@@ -264,7 +257,7 @@ export function applyRows(
 		}
 
 		if (rowsByTable.aiMetadata !== undefined) {
-			result.aiMetadata = mergeNodeKeyedTable<NormalizedAiMetadataRow, AiMetadata>(
+			result.aiMetadata = mergeNodeKeyedTable(
 				tx,
 				aiMetadata,
 				aiMetadata.nodeId,
@@ -280,7 +273,7 @@ export function applyRows(
 		}
 
 		if (rowsByTable.s3Files !== undefined) {
-			result.s3Files = mergeNodeKeyedTable<NormalizedS3FileRow, S3File>(
+			result.s3Files = mergeNodeKeyedTable(
 				tx,
 				s3Files,
 				s3Files.nodeId,
@@ -296,7 +289,7 @@ export function applyRows(
 		}
 
 		if (rowsByTable.changesMetadata !== undefined) {
-			result.changesMetadata = mergeNodeKeyedTable<NormalizedChangesMetadataRow, ChangesMetadata>(
+			result.changesMetadata = mergeNodeKeyedTable(
 				tx,
 				changesMetadata,
 				changesMetadata.nodeId,
@@ -312,7 +305,7 @@ export function applyRows(
 		}
 
 		if (rowsByTable.referencesRoots !== undefined) {
-			result.referencesRoots = mergeNodeKeyedTable<NormalizedReferencesRootsRow, ReferencesRoot>(
+			result.referencesRoots = mergeNodeKeyedTable(
 				tx,
 				referencesRoots,
 				referencesRoots.nodeId,

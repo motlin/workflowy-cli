@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Vacuum from "../../../src/commands/cache/vacuum.js";
+import type {VacuumResult} from "../../../src/services/cache-vacuum.js";
 import {cleanupTestDatabase, createTestDatabase} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 
@@ -75,7 +76,7 @@ describe("cache:vacuum command", () => {
 	});
 
 	it("prints a human-readable summary without --json", async () => {
-		const {stdout, result} = await captureOutput<VacuumRunResult>(async () => {
+		const {stdout, result} = await captureOutput<VacuumResult>(async () => {
 			return Vacuum.run([]);
 		});
 
@@ -93,5 +94,3 @@ describe("cache:vacuum command", () => {
 		});
 	});
 });
-
-type VacuumRunResult = Awaited<ReturnType<typeof Vacuum.run>>;

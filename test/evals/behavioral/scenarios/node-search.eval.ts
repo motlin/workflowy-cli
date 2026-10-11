@@ -38,7 +38,7 @@ describe("Behavioral Eval: node search", () => {
 
 		expect(result.exitCode).toBe(0);
 
-		const parsed = JSON.parse(result.stdout);
+		const parsed: unknown = JSON.parse(result.stdout);
 		expect(Array.isArray(parsed)).toBe(true);
 		expect(parsed).toHaveLength(0);
 	});

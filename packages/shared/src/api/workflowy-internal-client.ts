@@ -91,7 +91,7 @@ export class WorkflowyInternalClient {
 			const text = await response.text();
 			if (text) {
 				try {
-					const data = JSON.parse(text);
+					const data: unknown = JSON.parse(text);
 					const parsed = LoginResponseSchema.safeParse(data);
 					if (parsed.success && parsed.data.errors) {
 						const errorMessages = Object.values(parsed.data.errors).flat().join(", ");
@@ -129,7 +129,7 @@ export class WorkflowyInternalClient {
 			throw new Error(`Failed to get initialization data: ${response.status} ${response.statusText}`);
 		}
 
-		const data = await response.json();
+		const data: unknown = await response.json();
 		const parsed = InitializationDataSchema.parse(data);
 
 		return {

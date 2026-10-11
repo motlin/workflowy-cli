@@ -46,10 +46,10 @@ export default class ImportBackups extends Command {
 		logger.logSqlResult("import-backups.mostRecentImport", mostRecentImport);
 
 		this.log("📥 Downloading any missing backups from Dropbox...");
-		await this.executeCommand("dropbox", ["download-backup"]);
+		await this.runCommand(import("../dropbox/download-backup.js"), []);
 
 		this.log("🗜️  Compressing and archiving local backups...");
-		await this.executeCommand("backups", ["archive"]);
+		await this.runCommand(import("../backups/archive.js"), []);
 
 		const localBackups = listBackups(backupsDirectory);
 
@@ -71,7 +71,7 @@ export default class ImportBackups extends Command {
 			this.log("✅ Already up to date!");
 			if (flags.embeddings) {
 				this.log("\n🤖 Generating embeddings for any nodes without them...");
-				await this.executeCommand("ai", ["embed", "--batch-size", flags["batch-size"].toString()]);
+				await this.runCommand(import("../ai/embed.js"), ["--batch-size", flags["batch-size"].toString()]);
 			}
 			return;
 		}
@@ -102,25 +102,18 @@ export default class ImportBackups extends Command {
 		const {filePath, cleanup} = materializeBackup(backup.location);
 
 		try {
-			const importArgs = [
-				"import-backup",
-				"--file",
-				filePath,
-				"--yes",
-				"--batch-size",
-				flags["batch-size"].toString(),
-			];
+			const importArgs = ["--file", filePath, "--yes", "--batch-size", flags["batch-size"].toString()];
 			if (!flags.embeddings) {
 				importArgs.push("--no-embeddings");
 			}
-			await this.executeCommand("cache", importArgs);
+			await this.runCommand(import("./import-backup.js"), importArgs);
 		} finally {
 			cleanup();
 		}
 	}
 
-	private async executeCommand(topic: string, args: string[]): Promise<void> {
-		const {default: SubCommand}: {default: Command.Class} = await import(`../${topic}/${args[0]}.js`);
-		await SubCommand.run(args.slice(1));
+	private async runCommand(module: Promise<{default: Command.Class}>, args: string[]): Promise<void> {
+		const {default: SubCommand} = await module;
+		await SubCommand.run(args);
 	}
 }

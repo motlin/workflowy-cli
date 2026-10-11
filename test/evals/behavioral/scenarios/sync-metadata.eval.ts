@@ -75,7 +75,7 @@ describe("Behavioral Eval: sync-metadata.sh", () => {
 			if (content.length === 0) {
 				continue;
 			}
-			const parsed = JSON.parse(content);
+			const parsed = z.record(z.string(), z.unknown()).parse(JSON.parse(content));
 
 			if (file === TAG_FREQUENCY_FILE) {
 				expect(Object.keys(parsed), `${file} should be a tag-frequency aggregate`).toStrictEqual([

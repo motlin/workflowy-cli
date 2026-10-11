@@ -183,7 +183,7 @@ export default class Api extends Command {
 		}
 
 		const response = this.curlGet(url, "https://otter.ai/all-notes");
-		const data = JSON.parse(response);
+		const data: unknown = JSON.parse(response);
 
 		this.logTiming("available_speeches: done");
 		this.log(JSON.stringify(data, null, 2));
@@ -197,7 +197,7 @@ export default class Api extends Command {
 
 		const url = `${API_BASE}/speech?otid=${otid}`;
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
-		const data = JSON.parse(response);
+		const data: unknown = JSON.parse(response);
 
 		this.logTiming("speech: done");
 		this.log(JSON.stringify(data, null, 2));
@@ -211,7 +211,7 @@ export default class Api extends Command {
 
 		const url = `${API_BASE}/abstract_summary?otid=${otid}`;
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
-		const data = JSON.parse(response);
+		const data: unknown = JSON.parse(response);
 
 		this.logTiming("summary: done");
 		this.log(JSON.stringify(data, null, 2));
@@ -225,7 +225,7 @@ export default class Api extends Command {
 
 		const url = `${API_BASE}/speech_action_items?otid=${otid}`;
 		const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
-		const data = JSON.parse(response);
+		const data: unknown = JSON.parse(response);
 
 		this.logTiming("action_items: done");
 		this.log(JSON.stringify(data, null, 2));

@@ -107,6 +107,7 @@ export default defineConfig({
 			"typescript/promise-function-async": "error",
 			"typescript/no-deprecated": "error",
 			"typescript/no-unsafe-member-access": "error",
+			"typescript/no-unsafe-assignment": "error",
 		},
 		overrides: [
 			{
@@ -114,6 +115,7 @@ export default defineConfig({
 				rules: {
 					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules only add noise.
 					"typescript/no-unsafe-member-access": "off",
+					"typescript/no-unsafe-assignment": "off",
 				},
 			},
 			{
