@@ -19,8 +19,8 @@ import {execFileSync} from "node:child_process";
 
 // ASCII unit/record separators: a task title or note can contain any punctuation -- including
 // newlines and pipes -- but never these.
-export const FIELD_SEP = "\x1f";
-export const RECORD_SEP = "\x1e";
+export const FIELD_SEP = "\x1F";
+export const RECORD_SEP = "\x1E";
 
 const pad = (n) => String(n).padStart(2, "0");
 

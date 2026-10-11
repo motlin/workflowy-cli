@@ -84,7 +84,7 @@ test("captionSeed keeps the journal wording but drops emoji, @ signs, markup, an
 			captionSeed("✡️ Holiday. Didn't go to temple."),
 			captionSeed('👨‍👩‍👧 Dinner at <a href="https://example.com">Tom &amp; Jerry\'s</a> with @Alice'),
 			captionSeed("💪 #exercise"),
-			captionSeed("Rain all weekend. \u2018It\u2019s wet\u2019 said the \u201cnews\u201d."),
+			captionSeed("Rain all weekend. \u2018It\u2019s wet\u2019 said the \u201Cnews\u201D."),
 		],
 		[
 			"Meeting with the MC for Alice's party, with Bob and Carol.",
