@@ -3,6 +3,9 @@ import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {useOutlineStore} from "../stores/outline.js";
 import {planInsertSiblingAfter} from "../tree-ops.js";
+import {adjacentVisibleNode, isCaretOnBoundaryLine} from "../caret-navigation.js";
+import type {VerticalDirection} from "../caret-navigation.js";
+import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {useCreateNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
@@ -72,6 +75,41 @@ function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): n
 /**
  * Toggle inline formatting on the current selection.
  */
+/**
+ * The caret's client rect at the edge of the current selection that the arrow key
+ * moves from, or null when it cannot be measured (e.g. a caret in an empty node).
+ */
+function caretRect(direction: VerticalDirection): DOMRect | null {
+	const selection = globalThis.getSelection();
+	if (!selection || selection.rangeCount === 0) {
+		return null;
+	}
+	const range = selection.getRangeAt(0).cloneRange();
+	range.collapse(direction === "up");
+	const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+	return rect.height > 0 ? rect : null;
+}
+
+/**
+ * Where to place the caret when entering `targetId` from a vertical move: the
+ * target's last line going up or first line going down, at the horizontal
+ * position closest to `caretX`. Null when the target is not rendered or empty.
+ */
+function verticalEntryPoint(
+	targetId: string,
+	direction: VerticalDirection,
+	caretX: number | null,
+): {x: number; y: number} | null {
+	const target = document.querySelector(`.innerContentContainer[data-node-id="${CSS.escape(targetId)}"]`);
+	const lines = target ? [...target.getClientRects()] : [];
+	const line = direction === "up" ? lines.at(-1) : lines[0];
+	if (!line || line.width === 0) {
+		return null;
+	}
+	const x = Math.min(Math.max(caretX ?? line.left, line.left), line.right - 1);
+	return {x, y: line.top + line.height / 2};
+}
+
 function execFormatCommand(command: "bold" | "italic" | "underline"): void {
 	// oxlint-disable-next-line typescript/no-deprecated -- no standard replacement applies inline formatting to a contenteditable with native undo
 	document.execCommand(command);
@@ -132,7 +170,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				// Use caretPositionFromPoint to find the correct cursor position
 				if (document.caretPositionFromPoint) {
 					const position = document.caretPositionFromPoint(clickPosition.x, clickPosition.y);
-					if (position) {
+					if (position && contentRef.current.contains(position.offsetNode)) {
 						const range = document.createRange();
 						range.setStart(position.offsetNode, position.offset);
 						range.collapse(true);
@@ -166,10 +204,43 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				nodeId,
 				name: newValue,
 			});
+			initialValueRef.current = newValue;
 		}
 
-		stopEditing();
+		// A vertical move may already have handed editing to another node.
+		if (useOutlineStore.getState().editingId === nodeId) {
+			stopEditing();
+		}
 	}, [nodeId, updateNodeMutation, stopEditing]);
+
+	/**
+	 * Up on the first line / Down on the last line: commit this edit and start
+	 * editing the neighboring visible node, keeping the caret's horizontal position.
+	 * Returns false when the caret should move within this node's text instead.
+	 */
+	const moveToAdjacentNode = useCallback(
+		(direction: VerticalDirection): boolean => {
+			const content = contentRef.current;
+			if (!content) {
+				return false;
+			}
+			const caret = caretRect(direction);
+			if (!isCaretOnBoundaryLine(direction, caret, content.getBoundingClientRect())) {
+				return false;
+			}
+			const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore.getState();
+			const visibleIds = collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted);
+			const targetId = adjacentVisibleNode(visibleIds, nodeId, direction);
+			if (targetId === null) {
+				return true;
+			}
+			const entryPoint = verticalEntryPoint(targetId, direction, caret?.left ?? null);
+			saveChanges();
+			startEditing(targetId, entryPoint ?? undefined);
+			return true;
+		},
+		[nodeId, queryClient, saveChanges, startEditing],
+	);
 
 	const createSiblingBelow = useCallback(() => {
 		// Save current changes first
@@ -340,7 +411,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
-			if (event.key === "Enter" && !event.shiftKey) {
+			const plainKey = !event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey;
+			if ((event.key === "ArrowUp" || event.key === "ArrowDown") && plainKey && !event.nativeEvent.isComposing) {
+				if (moveToAdjacentNode(event.key === "ArrowUp" ? "up" : "down")) {
+					event.preventDefault();
+				}
+			} else if (event.key === "Enter" && !event.shiftKey) {
 				event.preventDefault();
 				createSiblingBelow();
 			} else if (event.key === "Escape") {
@@ -373,7 +449,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				toggleQuote();
 			}
 		},
-		[createSiblingBelow, stopEditing, toggleStrikethrough, toggleCode, toggleCodeBlock, toggleQuote],
+		[
+			createSiblingBelow,
+			moveToAdjacentNode,
+			stopEditing,
+			toggleStrikethrough,
+			toggleCode,
+			toggleCodeBlock,
+			toggleQuote,
+		],
 	);
 
 	/**
@@ -515,6 +599,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				{/* Pointer entry point: a click places the caret for editing, and clicks on rendered .tag-link spans are delegated here. */}
 				<span
 					className="innerContentContainer"
+					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{__html: wrapTagsInSpans(initialValue, tagColors)}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}
@@ -557,6 +642,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model
 		<span
 			className="innerContentContainer editing"
+			data-node-id={nodeId}
 			contentEditable
 			dangerouslySetInnerHTML={{__html: initialValue}}
 			onBlur={handleBlur}

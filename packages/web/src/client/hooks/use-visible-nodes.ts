@@ -1,4 +1,5 @@
 import {useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useMemo} from "react";
@@ -13,33 +14,42 @@ import {useOutlineStore} from "../stores/outline.js";
  *
  * Uses TanStack Query's cached data to traverse the tree.
  */
+export function collectVisibleNodeIds(
+	queryClient: QueryClient,
+	zoomedNodeId: string | null,
+	expandedIds: ReadonlySet<string>,
+	showCompleted: boolean,
+): string[] {
+	const visibleIds: string[] = [];
+
+	const collectVisibleNodes = (parentId: string | null) => {
+		const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
+
+		if (!children) {
+			return;
+		}
+
+		const filteredChildren = showCompleted ? children : children.filter((node) => node.completedAt === null);
+
+		for (const node of filteredChildren) {
+			visibleIds.push(node.id);
+
+			if (expandedIds.has(node.id)) {
+				collectVisibleNodes(node.id);
+			}
+		}
+	};
+
+	collectVisibleNodes(zoomedNodeId);
+	return visibleIds;
+}
+
 export function useVisibleNodes(): string[] {
 	const queryClient = useQueryClient();
 	const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore();
 
-	return useMemo(() => {
-		const visibleIds: string[] = [];
-
-		const collectVisibleNodes = (parentId: string | null) => {
-			const queryKey = nodeKeys.children(parentId);
-			const children = queryClient.getQueryData<NodeResponse[]>(queryKey);
-
-			if (!children) {
-				return;
-			}
-
-			const filteredChildren = showCompleted ? children : children.filter((node) => node.completedAt === null);
-
-			for (const node of filteredChildren) {
-				visibleIds.push(node.id);
-
-				if (expandedIds.has(node.id)) {
-					collectVisibleNodes(node.id);
-				}
-			}
-		};
-
-		collectVisibleNodes(zoomedNodeId);
-		return visibleIds;
-	}, [queryClient, zoomedNodeId, expandedIds, showCompleted]);
+	return useMemo(
+		() => collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted),
+		[queryClient, zoomedNodeId, expandedIds, showCompleted],
+	);
 }
