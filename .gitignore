@@ -11,6 +11,7 @@ packages/*/node_modules
 /dist
 /dist-test
 packages/*/dist
+/storybook-static
 
 # misc
 .DS_Store
@@ -38,7 +39,11 @@ eslint_report.json
 # Local documentation and context
 .llm/
 
-# Claude Code local files (keep commands/ tracked)
+# Claude Code local files (keep commands/, includes/, skills/ tracked)
+/.claude/*
+!/.claude/commands/
+!/.claude/includes/
+!/.claude/skills/
 /.claude/settings.json
 /.claude/*.local.json
 /.claude/*.local.md
@@ -77,3 +82,4 @@ storybook-static
 firebase-debug.log
 __pycache__/
 artifacts/
+.fallow/
