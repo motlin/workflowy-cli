@@ -101,6 +101,7 @@ export default defineConfig({
 			"vitest/prefer-hooks-in-order": "error",
 			"vitest/prefer-expect-type-of": "error",
 			"eslint/max-lines": ["error", {max: 800, skipBlankLines: true, skipComments: true}],
+			"eslint/max-depth": ["error", 5],
 			"typescript/require-await": "error",
 			"typescript/no-misused-promises": "error",
 			"typescript/strict-void-return": "error",
