@@ -78,7 +78,7 @@ export default class LoadDeclined extends Command {
 		for (const dateNode of dateNodes) {
 			// Filter date nodes >= cutoff date
 			// Date node names are in format YYYY-MM-DD
-			const dateStr = dateNode.name?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+			const dateStr = dateNode.name?.match(/^\d{4}-\d{2}-\d{2}/u)?.[0];
 			if (!dateStr || dateStr < cutoffDateStr) {
 				continue;
 			}

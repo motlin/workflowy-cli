@@ -286,7 +286,7 @@ describe("round-trip equivalence", () => {
 
 			const renamed = new NodeReader(database).getById("11111111-1111-1111-1111-111111111111");
 			expect(renamed?.name).toBe("Projects (renamed)");
-			expect(renamed?.systemFrom).toMatch(/^2026-05-21/);
+			expect(renamed?.systemFrom).toMatch(/^2026-05-21/u);
 
 			sqlite.close();
 		});

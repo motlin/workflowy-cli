@@ -121,7 +121,7 @@ function processNode(node: Node): string {
 
 function processSpan(element: HTMLElement, childText: string): string {
 	const className = element.getAttribute("class") ?? "";
-	const classes = className.split(/\s+/);
+	const classes = className.split(/\s+/u);
 
 	let styledText = childText;
 	let hasStyle = false;

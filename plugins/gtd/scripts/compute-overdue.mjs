@@ -36,7 +36,7 @@ const SECTION_INTERVALS = [
 	["Annual Review", {amount: 1, unit: "y"}],
 ];
 
-const TIME_RE = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"[^>]*>.*?<\/time>/;
+const TIME_RE = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"[^>]*>.*?<\/time>/u;
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -48,9 +48,9 @@ export function parseTimeISO(name) {
 /** Node text as a human reads it: no <time> element, no tags, no other HTML. */
 export function stripMarkup(name) {
 	return String(name)
-		.replaceAll(/<time[^>]*>.*?<\/time>/g, "")
-		.replaceAll(/<[^>]+>/g, "")
-		.replaceAll(/\s+/g, " ")
+		.replaceAll(/<time[^>]*>.*?<\/time>/gu, "")
+		.replaceAll(/<[^>]+>/gu, "")
+		.replaceAll(/\s+/gu, " ")
 		.trim();
 }
 
@@ -58,10 +58,10 @@ export function workflowyUrl(shortId) {
 	return shortId ? `https://workflowy.com/#/${shortId}` : null;
 }
 
-const HREF_RE = /href="([^"]+)"/g;
-const BARE_URL_RE = /https?:\/\/[^\s"'<>)]+/g;
+const HREF_RE = /href="([^"]+)"/gu;
+const BARE_URL_RE = /https?:\/\/[^\s"'<>)]+/gu;
 
-const WORKFLOWY_HOST_RE = /^https?:\/\/([^/?#]*\.)?workflowy\.com(?=[/?#]|$)/i;
+const WORKFLOWY_HOST_RE = /^https?:\/\/([^/?#]*\.)?workflowy\.com(?=[/?#]|$)/iu;
 
 /**
  * Every external http(s) URL reachable from a node's own text, in the order a reader meets them.
@@ -82,10 +82,10 @@ export function extractLinks(...texts) {
 			urls.push(m[1]);
 		}
 		for (const m of str.matchAll(BARE_URL_RE)) {
-			urls.push(m[0].replace(/[.,;:]+$/, ""));
+			urls.push(m[0].replace(/[.,;:]+$/u, ""));
 		}
 	}
-	return [...new Set(urls.filter((u) => /^https?:\/\//.test(u) && !WORKFLOWY_HOST_RE.test(u)))];
+	return [...new Set(urls.filter((u) => /^https?:\/\//u.test(u) && !WORKFLOWY_HOST_RE.test(u)))];
 }
 
 /**
@@ -131,7 +131,7 @@ function hardDeadlineFor(node, date) {
 	if (markers.length !== 1) {
 		throw new Error(`Multiple hard deadline markers on ${node.id}`);
 	}
-	const match = stripMarkup(markers[0].name).match(/^Hard deadline: (0|[1-9]\d*)d$/);
+	const match = stripMarkup(markers[0].name).match(/^Hard deadline: (0|[1-9]\d*)d$/u);
 	if (!match || !Number.isSafeInteger(Number(match[1]))) {
 		throw new Error(`Expected Hard deadline: <nonnegative days>d on ${node.id}`);
 	}
@@ -152,7 +152,7 @@ function weekdayAnchorFor(node) {
 	if (markers.length !== 1) {
 		throw new Error(`Multiple Next: <weekday> markers on ${node.id}`);
 	}
-	const match = stripMarkup(markers[0].name).match(/^Next: (\w+)$/);
+	const match = stripMarkup(markers[0].name).match(/^Next: (\w+)$/u);
 	const weekday = WEEKDAYS.find((day) => day.toLowerCase() === match?.[1].toLowerCase());
 	if (!weekday) {
 		throw new Error(`Expected Next: <weekday> on ${node.id}`);
@@ -213,7 +213,7 @@ export function buildTimeElement(iso) {
 
 export function swapTimeElement(name, newTimeElement) {
 	// Replace the existing element and collapse any duplicated trailing space.
-	return `${String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/, "")} `;
+	return `${String(name).replace(TIME_RE, newTimeElement.trimEnd()).replace(/\s+$/u, "")} `;
 }
 
 // The skip log is an append-only JSONL record of what happened to each item on each run. It is
@@ -410,7 +410,7 @@ export function computeOverdue(tree, todayISO, {skipStreaks = new Map()} = {}) {
 						hardDeadline: hardDeadline ? {...hardDeadline, nextDate: nextStoredDate} : null,
 						weekday,
 						overdueByDays: daysBetween(due, todayISO),
-						isLlmTask: /#llm-task/.test(child.name),
+						isLlmTask: /#llm-task/u.test(child.name),
 						url: workflowyUrl(child.shortId),
 						...nodeContext(child),
 						interval,

@@ -17,8 +17,8 @@ import {PROJECT_ROOT, trackedFiles} from "./helpers/scan-roots.js";
  * Only tracked files are scanned, matching no-personal-paths.
  */
 
-const MUTATING_INVOCATION = /\.\/bin\/run\.js node (?:complete|create|delete|move|uncomplete|update)\b/;
-const DEV_NULL_REDIRECT = /(?:[12&]?>|>&)\s*\/dev\/null/;
+const MUTATING_INVOCATION = /\.\/bin\/run\.js node (?:complete|create|delete|move|uncomplete|update)\b/u;
+const DEV_NULL_REDIRECT = /(?:[12&]?>|>&)\s*\/dev\/null/u;
 
 describe("Structural Eval: No Suppressed Mutations", () => {
 	it("no tracked file under plugins/ redirects a mutating node command to /dev/null", () => {

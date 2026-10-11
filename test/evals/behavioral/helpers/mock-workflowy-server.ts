@@ -58,23 +58,23 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 			// Delete node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/complete$/)) {
+		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/complete$/u)) {
 			// Complete node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/uncomplete$/)) {
+		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/uncomplete$/u)) {
 			// Uncomplete node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/move$/)) {
+		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/move$/u)) {
 			// Move node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/)) {
+		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/u)) {
 			// Update node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "GET" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/)) {
+		} else if (method === "GET" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/u)) {
 			// Get node - return a plausible node response
 			const nodeId = url.split("/").pop()!;
 			const now = Math.floor(Date.now() / 1000);

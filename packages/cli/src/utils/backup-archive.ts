@@ -89,7 +89,7 @@ export function buildMonthArchive(archivePath: string, looseFiles: string[]): vo
 		}
 
 		for (const looseFile of looseFiles) {
-			const rawName = path.basename(looseFile).replace(/\.zst$/, "");
+			const rawName = path.basename(looseFile).replace(/\.zst$/u, "");
 			fs.writeFileSync(path.join(staging, rawName), readBackupBytes(looseFile));
 		}
 

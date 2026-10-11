@@ -47,7 +47,7 @@ interface SchemaColumn {
  */
 function extractSchemaColumns(source: string): SchemaColumn[] {
 	const columns: SchemaColumn[] = [];
-	const tablePattern = /export const (\w+) = sqliteTable\(\s*(["'])[^"']+\2,/g;
+	const tablePattern = /export const (\w+) = sqliteTable\(\s*(["'])[^"']+\2,/gu;
 
 	let match: RegExpExecArray | null;
 	while ((match = tablePattern.exec(source)) !== null) {
@@ -71,7 +71,7 @@ function extractSchemaColumns(source: string): SchemaColumn[] {
 		}
 
 		const block = source.slice(blockStart + 1, blockEnd);
-		const columnPattern = /(?:^|\n)\s*(\w+):\s*(?:text|integer|blob)\(/g;
+		const columnPattern = /(?:^|\n)\s*(\w+):\s*(?:text|integer|blob)\(/gu;
 		let columnMatch: RegExpExecArray | null;
 		while ((columnMatch = columnPattern.exec(block)) !== null) {
 			columns.push({table: tableConstant, column: columnMatch[1]});
@@ -124,7 +124,7 @@ describe("column coverage", () => {
 			if (allowlistedColumns.has(column)) {
 				return false;
 			}
-			const referencePattern = new RegExp(`[.'"]${column}\\b|\\b${column}:`);
+			const referencePattern = new RegExp(`[.'"]${column}\\b|\\b${column}:`, "u");
 			return !referencePattern.test(sourceText);
 		});
 

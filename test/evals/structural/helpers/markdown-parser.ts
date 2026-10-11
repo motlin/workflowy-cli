@@ -122,7 +122,7 @@ function extractFlags(tokens: string[]): string[] {
 		if (token.startsWith("--")) {
 			const rawFlagName = token.includes("=") ? token.slice(2, token.indexOf("=")) : token.slice(2);
 			// Strip trailing markdown artifacts (backticks, quotes, brackets)
-			const flagName = rawFlagName.replace(/[`"')\]]+$/, "");
+			const flagName = rawFlagName.replace(/[`"')\]]+$/u, "");
 
 			const normalizedFlag = flagName.startsWith("no-") ? flagName.slice(3) : flagName;
 
@@ -213,7 +213,7 @@ function parseCliInvocation(text: string, lineNumber: number): CliInvocation | n
 
 		// Strip trailing markdown artifacts (closing code-span backtick, prose
 		// punctuation) so `via `./bin/run.js node create`:` resolves to `node:create`.
-		const cleanToken = token.replace(/[`"':,.)\]]+$/, "");
+		const cleanToken = token.replace(/[`"':,.)\]]+$/u, "");
 		if (cleanToken) {
 			commandTokens.push(cleanToken);
 		}
@@ -261,8 +261,8 @@ function extractCliInvocations(joinedLines: {text: string; lineNumber: number}[]
 			const segment = nextRunJs === -1 ? afterRunJs : afterRunJs.slice(0, nextRunJs);
 
 			const cleanSegment = segment
-				.replace(/\|\s*xargs\s.*$/, "")
-				.replace(/\|\s*$/, "")
+				.replace(/\|\s*xargs\s.*$/u, "")
+				.replace(/\|\s*$/u, "")
 				.trim();
 
 			const invocation = parseCliInvocation(`./bin/run.js ${cleanSegment}`, lineNumber);
@@ -284,7 +284,7 @@ function extractCliInvocations(joinedLines: {text: string; lineNumber: number}[]
  */
 function extractSubagentRefs(lines: string[]): SubagentRef[] {
 	const results: SubagentRef[] = [];
-	const pattern = /subagent_type:\s*["']([^"']+)["']/;
+	const pattern = /subagent_type:\s*["']([^"']+)["']/u;
 
 	for (const [i, line] of lines.entries()) {
 		const match = pattern.exec(line);
@@ -304,7 +304,7 @@ function extractLlmPaths(lines: string[]): LlmPath[] {
 	// Require at least one path segment after `.llm/` so bare directory-root
 	// mentions (e.g. "track progress through `.llm/` files") aren't treated as
 	// intermediate-file contracts.
-	const pattern = /(?:^|[\s"'`(])(\.?\/?\.llm\/[^\s"'`),;#]+)/g;
+	const pattern = /(?:^|[\s"'`(])(\.?\/?\.llm\/[^\s"'`),;#]+)/gu;
 
 	for (const [i, line] of lines.entries()) {
 		pattern.lastIndex = 0;
@@ -315,7 +315,7 @@ function extractLlmPaths(lines: string[]): LlmPath[] {
 				path = path.slice(2);
 			}
 
-			path = path.replace(/[.)]+$/, "");
+			path = path.replace(/[.)]+$/u, "");
 			if (path) {
 				results.push({path, line: i + 1});
 			}
@@ -330,12 +330,12 @@ function extractLlmPaths(lines: string[]): LlmPath[] {
  */
 function extractCommandRefs(lines: string[]): CommandRef[] {
 	const results: CommandRef[] = [];
-	const pattern = /(?:^|[\s`"'(])(\/([\w-]+:[\w-]+(?::[\w-]+)*))/;
+	const pattern = /(?:^|[\s`"'(])(\/([\w-]+:[\w-]+(?::[\w-]+)*))/u;
 
 	for (const [i, line] of lines.entries()) {
 		if (line.includes("http://") || line.includes("https://")) {
 			const match = pattern.exec(line);
-			if (match && !/https?:$/.test(line.slice(0, line.indexOf(match[0])))) {
+			if (match && !/https?:$/u.test(line.slice(0, line.indexOf(match[0])))) {
 				results.push({ref: match[1], line: i + 1});
 			}
 		} else {
@@ -355,7 +355,7 @@ function extractCommandRefs(lines: string[]): CommandRef[] {
  */
 function extractScriptRefs(lines: string[]): ScriptRef[] {
 	const results: ScriptRef[] = [];
-	const pattern = /(?:^|[\s"'`(])((?:\.?\/?\.claude|\$\{CLAUDE_PLUGIN_ROOT\})\/scripts\/[^\s"'`),;#]+)/g;
+	const pattern = /(?:^|[\s"'`(])((?:\.?\/?\.claude|\$\{CLAUDE_PLUGIN_ROOT\})\/scripts\/[^\s"'`),;#]+)/gu;
 
 	for (const [i, line] of lines.entries()) {
 		pattern.lastIndex = 0;
@@ -366,7 +366,7 @@ function extractScriptRefs(lines: string[]): ScriptRef[] {
 				path = path.slice(2);
 			}
 
-			path = path.replace(/[.)]+$/, "");
+			path = path.replace(/[.)]+$/u, "");
 			if (path) {
 				results.push({path, line: i + 1});
 			}
@@ -381,7 +381,7 @@ function extractScriptRefs(lines: string[]): ScriptRef[] {
  */
 function extractThresholds(lines: string[]): ThresholdRef[] {
 	const results: ThresholdRef[] = [];
-	const pattern = />=?\s*(0\.\d+)/g;
+	const pattern = />=?\s*(0\.\d+)/gu;
 
 	for (const [i, line] of lines.entries()) {
 		pattern.lastIndex = 0;

@@ -350,7 +350,7 @@ describe("node update command", () => {
 
 			await expect(
 				Update.run(["--id", "guard-id", "--name", "Short stub", "--expect-name", "Stale original text"]),
-			).rejects.toThrow(/does not match --expect-name/);
+			).rejects.toThrow(/does not match --expect-name/u);
 
 			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});
@@ -385,7 +385,7 @@ describe("node update command", () => {
 
 			await expect(
 				Update.run(["--id", "missing-id", "--name", "New Name", "--expect-name", "Anything"]),
-			).rejects.toThrow(/does not match --expect-name/);
+			).rejects.toThrow(/does not match --expect-name/u);
 
 			expect(fetchStub.mock.calls).toStrictEqual([]);
 		});

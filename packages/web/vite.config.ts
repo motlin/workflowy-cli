@@ -29,8 +29,8 @@ export default defineConfig({
 				// Keep third-party code out of the app chunk so neither crosses the 500 kB warning limit.
 				codeSplitting: {
 					groups: [
-						{name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/},
-						{name: "vendor", test: /node_modules/},
+						{name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/u},
+						{name: "vendor", test: /node_modules/u},
 					],
 				},
 			},

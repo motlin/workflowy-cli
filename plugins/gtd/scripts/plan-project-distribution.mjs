@@ -12,7 +12,7 @@ export function expandHome(path, home) {
 	return path.startsWith("~/") ? `${home}${path.slice(1)}` : path;
 }
 
-const LINK = /<a href="https:\/\/workflowy\.com\/#\/([0-9a-f]+)">(.*?)<\/a>/;
+const LINK = /<a href="https:\/\/workflowy\.com\/#\/([0-9a-f]+)">(.*?)<\/a>/u;
 
 export function parseProjectDirectories(exported, home) {
 	return (exported.children ?? []).flatMap((project) => {
@@ -28,7 +28,7 @@ export function parseProjectDirectories(exported, home) {
 				path: expandHome(pathChild.name.trim(), home),
 				tasksShortId: link ? link[1] : null,
 				tasksName,
-				tags: tasksName ? (tasksName.match(/#[\w-]+/g) ?? []) : [],
+				tags: tasksName ? (tasksName.match(/#[\w-]+/gu) ?? []) : [],
 			},
 		];
 	});

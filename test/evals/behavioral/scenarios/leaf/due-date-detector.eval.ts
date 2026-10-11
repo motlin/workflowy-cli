@@ -54,11 +54,11 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 		);
 
 		const response = result.finalResponse;
-		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		const jsonMatch = response.match(/\{[\s\S]*\}/u);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch![0]));
-		expect(parsed.due).toMatch(/^\d{4}-04-15$/);
+		expect(parsed.due).toMatch(/^\d{4}-04-15$/u);
 	});
 
 	it("should detect urgency keywords", async (context) => {
@@ -74,7 +74,7 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 		);
 
 		const response = result.finalResponse;
-		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		const jsonMatch = response.match(/\{[\s\S]*\}/u);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch![0]));

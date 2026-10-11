@@ -42,7 +42,7 @@ const MONTHS = {
 
 // `ps -o lstart=` renders e.g. "Sat Jun 27 14:02:14 2026", sometimes with trailing
 // spaces. Parse it to epoch seconds in local time, matching how ps prints it.
-const LSTART_RE = /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/;
+const LSTART_RE = /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/u;
 
 export function parseLstartToEpochSeconds(lstart) {
 	const m = String(lstart).trim().match(LSTART_RE);
@@ -68,7 +68,7 @@ const HELPER_COMMAND = "iMCP.app/Contents/MacOS/imcp-server";
 export function parsePsTable(output) {
 	const processes = [];
 	for (const line of String(output).split("\n")) {
-		const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+		const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/u);
 		if (m) {
 			processes.push({pid: Number(m[1]), ppid: Number(m[2]), command: m[3].trim()});
 		}
@@ -80,7 +80,7 @@ export function parsePsTable(output) {
 // ancestors, preferring the nearest ancestor; null when there is none.
 export function findSessionHelperPid(processes, startPid) {
 	const parentOf = new Map(processes.map((p) => [p.pid, p.ppid]));
-	const helpers = processes.filter((p) => p.command.split(/\s+/)[0].endsWith(HELPER_COMMAND));
+	const helpers = processes.filter((p) => p.command.split(/\s+/u)[0].endsWith(HELPER_COMMAND));
 	const seen = new Set();
 	for (let pid = startPid; pid > 0 && !seen.has(pid); pid = parentOf.get(pid) ?? 0) {
 		seen.add(pid);

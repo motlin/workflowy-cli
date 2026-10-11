@@ -21,8 +21,8 @@ const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates"
 /** Strip Workflowy HTML down to display text, keeping links as their anchor text. */
 export function displayText(name) {
 	return String(name ?? "")
-		.replaceAll(/<a[^>]*>(.*?)<\/a>/g, "$1")
-		.replaceAll(/<[^>]+>/g, "")
+		.replaceAll(/<a[^>]*>(.*?)<\/a>/gu, "$1")
+		.replaceAll(/<[^>]+>/gu, "")
 		.replaceAll("&quot;", '"')
 		.replaceAll("&#39;", "'")
 		.replaceAll("&amp;", "&")

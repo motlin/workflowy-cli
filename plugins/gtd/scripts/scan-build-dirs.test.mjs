@@ -93,7 +93,7 @@ test("an unknown status for a path that still exists is a real tmutil failure", 
 	const runTmutil = () => "[UNKNOWN]   /projects/app/dist\n";
 	assert.throws(
 		() => classifyExclusions(["/projects/app/dist"], {runTmutil, exists: () => true}),
-		/tmutil could not classify \/projects\/app\/dist/,
+		/tmutil could not classify \/projects\/app\/dist/u,
 	);
 });
 
@@ -101,7 +101,7 @@ test("a tmutil reply with the wrong number of lines is a real failure", () => {
 	const runTmutil = () => "[Included]  /projects/app/dist\n";
 	assert.throws(
 		() => classifyExclusions(["/projects/app/dist", "/projects/app/build"], {runTmutil, exists: () => true}),
-		/tmutil returned 1 lines for 2 paths/,
+		/tmutil returned 1 lines for 2 paths/u,
 	);
 });
 
@@ -109,7 +109,10 @@ test("a tmutil crash propagates", () => {
 	const runTmutil = () => {
 		throw new Error("tmutil exited 1");
 	};
-	assert.throws(() => classifyExclusions(["/projects/app/dist"], {runTmutil, exists: () => true}), /tmutil exited 1/);
+	assert.throws(
+		() => classifyExclusions(["/projects/app/dist"], {runTmutil, exists: () => true}),
+		/tmutil exited 1/u,
+	);
 });
 
 test("paths are sent to tmutil in batches", () => {

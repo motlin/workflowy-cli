@@ -15,9 +15,9 @@ import {PROJECT_ROOT, trackedFiles} from "./helpers/scan-roots.js";
  */
 
 const HOLIDAY_NAMES =
-	/\b(christmas|easter|good friday|lent|yom kippur|rosh hashanah|passover|pesach|hanukkah|chanukah|shabbat|sukkot|purim|bar mitzvah|bat mitzvah|hebrew school|ramadan|eid|diwali|holi|vesak|lunar new year)\b/i;
+	/\b(christmas|easter|good friday|lent|yom kippur|rosh hashanah|passover|pesach|hanukkah|chanukah|shabbat|sukkot|purim|bar mitzvah|bat mitzvah|hebrew school|ramadan|eid|diwali|holi|vesak|lunar new year)\b/iu;
 const EXERCISE_PROGRAMS =
-	/\b(digin|insanity|shaun t|p90x|t25|21 day fix|beachbody|body ?pump|couch to 5k|stronglifts|crossfit)\b/i;
+	/\b(digin|insanity|shaun t|p90x|t25|21 day fix|beachbody|body ?pump|couch to 5k|stronglifts|crossfit)\b/iu;
 const SCAN_ROOTS = ["plugins", ".claude"];
 
 function scanTracked(pattern: RegExp): string[] {
@@ -54,24 +54,24 @@ describe("Structural Eval: No Personal Vocabulary", () => {
 	it("refine-journal-prep reads holiday emoji from the private journal vocabulary", () => {
 		const prep = readFileSync(join(PROJECT_ROOT, "plugins/gtd/commands/refine-journal-prep.md"), "utf8");
 
-		expect(prep).toMatch(/holiday[^\n]*journal-vocabulary\.md|journal-vocabulary\.md[^\n]*holiday/i);
+		expect(prep).toMatch(/holiday[^\n]*journal-vocabulary\.md|journal-vocabulary\.md[^\n]*holiday/iu);
 	});
 
 	it("refine-journal-prep looks up community events and places in the vocabulary emoji table, not only holidays", () => {
 		const prep = readFileSync(join(PROJECT_ROOT, "plugins/gtd/commands/refine-journal-prep.md"), "utf8");
 
-		expect(prep).toMatch(/religious or community event[^\n]*place[^\n]*journal-vocabulary\.md/i);
+		expect(prep).toMatch(/religious or community event[^\n]*place[^\n]*journal-vocabulary\.md/iu);
 	});
 
 	it("refine-journal-prep leads emoji options with the occasion rather than the means", () => {
 		const prep = readFileSync(join(PROJECT_ROOT, "plugins/gtd/commands/refine-journal-prep.md"), "utf8");
 
-		expect(prep).toMatch(/occasion over the means/i);
+		expect(prep).toMatch(/occasion over the means/iu);
 	});
 
 	it("refine-journal-apply offers to record a vocabulary-matched emoji pick in journal-vocabulary.md", () => {
 		const apply = readFileSync(join(PROJECT_ROOT, "plugins/gtd/commands/refine-journal-apply.md"), "utf8");
 
-		expect(apply).toMatch(/emoji pick[^\n]*journal-vocabulary\.md/i);
+		expect(apply).toMatch(/emoji pick[^\n]*journal-vocabulary\.md/iu);
 	});
 });

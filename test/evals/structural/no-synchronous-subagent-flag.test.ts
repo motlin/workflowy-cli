@@ -14,7 +14,7 @@ describe("Structural Eval: No synchronous subagent flag", () => {
 		]) {
 			const lines = readFileSync(filePath, "utf8").split("\n");
 			for (const [index, line] of lines.entries()) {
-				if (/run_in_background:\s*false/.test(line)) {
+				if (/run_in_background:\s*false/u.test(line)) {
 					offenders.push(`${filePath.replace(`${PROJECT_ROOT}/`, "")}:${index + 1}`);
 				}
 			}

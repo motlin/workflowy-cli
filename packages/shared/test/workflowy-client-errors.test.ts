@@ -40,7 +40,7 @@ describe("WorkflowyApiClient error reporting", () => {
 
 		await expect(
 			client.createNode({parent_id: "10e2d6c2-d165-b390-9484-d4fdbf4c4afa", name: "probe"}),
-		).rejects.toThrow(/help@workflowy\.com/);
+		).rejects.toThrow(/help@workflowy\.com/u);
 	});
 
 	it("names the blocked IP and support code so the block is actionable", async () => {
@@ -48,7 +48,7 @@ describe("WorkflowyApiClient error reporting", () => {
 
 		await expect(
 			client.createNode({parent_id: "10e2d6c2-d165-b390-9484-d4fdbf4c4afa", name: "probe"}),
-		).rejects.toThrow(/100\.8\.164\.75.*WFB\(3\)/s);
+		).rejects.toThrow(/100\.8\.164\.75.*WFB\(3\)/su);
 	});
 
 	it("still reports the status code alongside the body", async () => {
@@ -56,7 +56,7 @@ describe("WorkflowyApiClient error reporting", () => {
 
 		await expect(
 			client.createNode({parent_id: "10e2d6c2-d165-b390-9484-d4fdbf4c4afa", name: "probe"}),
-		).rejects.toThrow(/403/);
+		).rejects.toThrow(/403/u);
 	});
 
 	it("falls back to the status line when the body is empty", async () => {
@@ -64,7 +64,7 @@ describe("WorkflowyApiClient error reporting", () => {
 
 		await expect(
 			client.createNode({parent_id: "10e2d6c2-d165-b390-9484-d4fdbf4c4afa", name: "probe"}),
-		).rejects.toThrow(/Failed to create node: 500 Internal Server Error/);
+		).rejects.toThrow(/Failed to create node: 500 Internal Server Error/u);
 	});
 
 	it("reports the body on a refused move, not only on create", async () => {
@@ -72,14 +72,14 @@ describe("WorkflowyApiClient error reporting", () => {
 
 		await expect(
 			client.moveNode("10e2d6c2-d165-b390-9484-d4fdbf4c4afa", "a71aed23-b0cc-0000-0000-000000000000"),
-		).rejects.toThrow(/help@workflowy\.com/);
+		).rejects.toThrow(/help@workflowy\.com/u);
 	});
 
 	it("reports the body on a refused update", async () => {
 		const client = clientRespondingWith(403, "Forbidden", ABUSE_BODY);
 
 		await expect(client.updateNode("10e2d6c2-d165-b390-9484-d4fdbf4c4afa", {name: "x"})).rejects.toThrow(
-			/help@workflowy\.com/,
+			/help@workflowy\.com/u,
 		);
 	});
 });

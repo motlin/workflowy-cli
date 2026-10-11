@@ -14,7 +14,7 @@ describe("Structural Eval: item-refiner runs taggers inline", () => {
 		const offenders = refiner
 			.split("\n")
 			.map((line, index) => ({line, at: index + 1}))
-			.filter(({line}) => /Agent tool|subagent_type|run_in_background|in parallel/i.test(line))
+			.filter(({line}) => /Agent tool|subagent_type|run_in_background|in parallel/iu.test(line))
 			.map(({line, at}) => `${at}: ${line.trim()}`);
 		expect(offenders).toStrictEqual([]);
 	});
@@ -36,6 +36,6 @@ describe("Structural Eval: item-refiner runs taggers inline", () => {
 	});
 
 	it("serializes lock-holding CLI calls", () => {
-		expect(refiner).toMatch(/run one CLI call at a time/);
+		expect(refiner).toMatch(/run one CLI call at a time/u);
 	});
 });

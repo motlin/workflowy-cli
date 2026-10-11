@@ -21,7 +21,7 @@
 
 import {readFileSync} from "node:fs";
 
-const PR_REPAIR = /^pr-.+-repair$/;
+const PR_REPAIR = /^pr-.+-repair$/u;
 
 /**
  * Each kind of collapsible location: the segments that mark it under the repo, a test for the

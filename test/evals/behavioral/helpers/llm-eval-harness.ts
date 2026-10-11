@@ -49,7 +49,7 @@ export function claudeCliAvailable(): boolean {
  * - `plugins/<plugin>/commands/<a>/<b>.md` becomes the slash command `/<plugin>:<a>:<b>`
  */
 function launchMessage(projectRoot: string, agentFile: string, task: string): string {
-	const [, plugin, kind, ...rest] = agentFile.replace(/\.md$/, "").split("/");
+	const [, plugin, kind, ...rest] = agentFile.replace(/\.md$/u, "").split("/");
 	const pluginRoot = path.join(projectRoot, "plugins", plugin);
 	if (kind === "prompts") {
 		return `CLAUDE_PLUGIN_ROOT=${pluginRoot}. Read ${pluginRoot}/prompts/${rest.join("/")}.md and follow it. ${task}`;
@@ -151,7 +151,7 @@ export function extractSubagentLaunches(
 			return {
 				subagentType: stringInput(tc, "subagent_type") || "general-purpose",
 				prompt,
-				promptFile: /prompts\/([\w/-]+)\.md/.exec(prompt)?.[1],
+				promptFile: /prompts\/([\w/-]+)\.md/u.exec(prompt)?.[1],
 			};
 		});
 }

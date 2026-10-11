@@ -51,7 +51,7 @@ export function uuidToShortId(uuid: string): string {
  * UUID; full UUIDs (with hyphens) are not short IDs.
  */
 export function isShortId(value: string): boolean {
-	return /^[\da-f]{12}$/i.test(value);
+	return /^[\da-f]{12}$/iu.test(value);
 }
 
 /**

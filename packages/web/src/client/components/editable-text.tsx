@@ -16,7 +16,7 @@ import type {TagColorName} from "./tag-color-picker.js";
 
 // Regex to match #tags and @mentions
 // Matches: #tag, #tag-name, #tag_name, @mention, @user-name, @user_name
-const TAG_PATTERN = /[#@][\w-]+/g;
+const TAG_PATTERN = /[#@][\w-]+/gu;
 
 /**
  * Wrap hashtags and mentions in styled spans for visual highlighting.

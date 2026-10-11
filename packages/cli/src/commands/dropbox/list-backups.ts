@@ -42,7 +42,7 @@ export default class ListBackups extends Command {
 					});
 
 				for (const file of backupFiles) {
-					const dateMatch = file.name.match(/\.(\d{4}-\d{2}-\d{2})\.(workflowy\.backup|txt)$/);
+					const dateMatch = file.name.match(/\.(\d{4}-\d{2}-\d{2})\.(workflowy\.backup|txt)$/u);
 					const date = dateMatch ? dateMatch[1] : "unknown";
 					const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
 

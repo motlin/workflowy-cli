@@ -38,7 +38,7 @@ export function tierLabel(tier) {
 }
 
 export function parseTierLabel(name) {
-	const match = /^(\d+)(st|nd|rd|th)$/.exec(String(name ?? "").trim());
+	const match = /^(\d+)(st|nd|rd|th)$/u.exec(String(name ?? "").trim());
 	if (!match) {
 		return null;
 	}

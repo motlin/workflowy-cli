@@ -292,7 +292,7 @@ export class WorkflowyApiClient {
 
 			// Construct node from request data (no GET needed)
 			// For multiline input, API creates parent + children; we return the parent info
-			const nodeName = request.name.split("\n")[0].replace(/^- /, "");
+			const nodeName = request.name.split("\n")[0].replace(/^- /u, "");
 
 			return {
 				id: createResponse.item_id,

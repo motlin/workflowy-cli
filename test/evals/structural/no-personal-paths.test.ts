@@ -13,7 +13,7 @@ import {PROJECT_ROOT, trackedFiles} from "./helpers/scan-roots.js";
  * machine-specific paths are supposed to live.
  */
 
-const HOME_PATH = /\/Users\/[A-Za-z0-9._-]+/;
+const HOME_PATH = /\/Users\/[A-Za-z0-9._-]+/u;
 const SCAN_ROOTS = ["plugins", ".claude"];
 
 describe("Structural Eval: No Personal Paths", () => {

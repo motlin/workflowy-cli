@@ -86,7 +86,7 @@ export function toScanRecord(message, guildId) {
 function parseArgs(argv) {
 	const args = {};
 	for (let index = 0; index < argv.length; index += 2) {
-		args[argv[index].replace(/^--/, "")] = argv[index + 1];
+		args[argv[index].replace(/^--/u, "")] = argv[index + 1];
 	}
 	return args;
 }

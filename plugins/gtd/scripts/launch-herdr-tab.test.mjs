@@ -27,7 +27,7 @@ test("a caller tab that is already last yields the end position", () => {
 });
 
 test("a caller tab missing from the workspace is an error", () => {
-	assert.throws(() => insertIndexRightOf([tab("w8", "w8:t8")], "w8", "w8:t99"), /w8:t99/);
+	assert.throws(() => insertIndexRightOf([tab("w8", "w8:t8")], "w8", "w8:t99"), /w8:t99/u);
 });
 
 test("parseArgs splits the label, cwd, and command after --", () => {
@@ -44,8 +44,8 @@ test("parseArgs honours --no-focus", () => {
 });
 
 test("parseArgs requires a label and a command", () => {
-	assert.throws(() => parseArgs(["--", "echo"]), /--label/);
-	assert.throws(() => parseArgs(["--label", "x"]), /command/);
+	assert.throws(() => parseArgs(["--", "echo"]), /--label/u);
+	assert.throws(() => parseArgs(["--label", "x"]), /command/u);
 });
 
 test("socketRequest decodes a multibyte character split across two chunks", async () => {

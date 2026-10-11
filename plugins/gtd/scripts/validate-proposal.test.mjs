@@ -312,7 +312,7 @@ test("every name-update op documented in a staging command carries --expect-name
 	const unguarded = commands.flatMap((relative) =>
 		readFileSync(new URL(relative, import.meta.url), "utf8")
 			.split("\n")
-			.filter((line) => /node update --id \S+ --name /.test(line) && !line.includes("--expect-name"))
+			.filter((line) => /node update --id \S+ --name /u.test(line) && !line.includes("--expect-name"))
 			.map((line) => `${relative}: ${line.trim()}`),
 	);
 

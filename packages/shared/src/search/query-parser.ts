@@ -36,7 +36,7 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 	let remaining = queryString.trim();
 
 	// Extract exact phrases (quoted strings)
-	const exactPhraseRegex = /"([^"]+)"/g;
+	const exactPhraseRegex = /"([^"]+)"/gu;
 	let match;
 	while ((match = exactPhraseRegex.exec(remaining)) !== null) {
 		result.exactPhrases.push(match[1]);
@@ -44,26 +44,26 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 	remaining = remaining.replaceAll(exactPhraseRegex, " ");
 
 	// Extract completion filter: is:complete or is:incomplete
-	const completeMatch = /\bis:complete\b/i.exec(remaining);
+	const completeMatch = /\bis:complete\b/iu.exec(remaining);
 	if (completeMatch) {
 		result.isComplete = true;
 		remaining = remaining.replace(completeMatch[0], " ");
 	}
-	const incompleteMatch = /\bis:incomplete\b/i.exec(remaining);
+	const incompleteMatch = /\bis:incomplete\b/iu.exec(remaining);
 	if (incompleteMatch) {
 		result.isComplete = false;
 		remaining = remaining.replace(incompleteMatch[0], " ");
 	}
 
 	// Extract date filter: last-changed:7d
-	const dateMatch = /\blast-changed:(\d+)d\b/i.exec(remaining);
+	const dateMatch = /\blast-changed:(\d+)d\b/iu.exec(remaining);
 	if (dateMatch) {
 		result.lastChangedDays = Number.parseInt(dateMatch[1], 10);
 		remaining = remaining.replace(dateMatch[0], " ");
 	}
 
 	// Extract negated terms: -word
-	const negationRegex = /-(\S+)/g;
+	const negationRegex = /-(\S+)/gu;
 	while ((match = negationRegex.exec(remaining)) !== null) {
 		result.excludedTerms.push(match[1]);
 	}
@@ -71,13 +71,13 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 
 	// Process remaining terms for OR groups and required terms
 	// Split by OR (case-insensitive) to find OR groups
-	const orSplit = remaining.split(/\s+OR\s+/);
+	const orSplit = remaining.split(/\s+OR\s+/u);
 	if (orSplit.length > 1) {
 		// Multiple parts separated by OR
 		for (const part of orSplit) {
 			const terms = part
 				.trim()
-				.split(/\s+/)
+				.split(/\s+/u)
 				.filter((term) => term.length > 0);
 			if (terms.length > 0) {
 				result.orTerms.push(terms);
@@ -87,7 +87,7 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 		// No OR operators, all terms are AND (required)
 		const terms = remaining
 			.trim()
-			.split(/\s+/)
+			.split(/\s+/u)
 			.filter((term) => term.length > 0);
 		result.requiredTerms = terms;
 	}

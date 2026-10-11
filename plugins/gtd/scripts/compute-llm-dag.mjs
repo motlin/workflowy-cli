@@ -3,10 +3,10 @@ import {readFileSync} from "node:fs";
 import {addInterval, buildTimeElement, localTodayISO, parseTimeISO, swapTimeElement} from "./compute-overdue.mjs";
 
 const ROOT_NAMES = ["Import", "Prep", "Presentation"];
-const PLAN_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const PLAN_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const INTERVAL_PREFIX = "Interval: ";
-const INTERVAL_PATTERN = /^(\d+)([dmy])$/;
-const TASK_COMMAND_PATTERN = /^\/[a-z0-9-]+:([a-z0-9-]+)(?:\s|$)/;
+const INTERVAL_PATTERN = /^(\d+)([dmy])$/u;
+const TASK_COMMAND_PATTERN = /^\/[a-z0-9-]+:([a-z0-9-]+)(?:\s|$)/u;
 
 const shellSingleQuote = (value) => `'${String(value).replaceAll("'", `'"'"'`)}'`;
 
@@ -51,7 +51,7 @@ function instructions(node, context) {
 
 function taskDisplayName(name) {
 	return String(name)
-		.replaceAll(/<time[^>]*>.*?<\/time>\s*/g, "")
+		.replaceAll(/<time[^>]*>.*?<\/time>\s*/gu, "")
 		.trim();
 }
 
@@ -62,7 +62,7 @@ function taskSlug(taskInstructions, context) {
 	if (commandSlugs.length !== 1) {
 		throw new Error(`${context} must have exactly one plugin command`);
 	}
-	return commandSlugs[0].replace(/-(?:prep|auto)$/, "");
+	return commandSlugs[0].replace(/-(?:prep|auto)$/u, "");
 }
 
 function parsePrepTask(node, today) {

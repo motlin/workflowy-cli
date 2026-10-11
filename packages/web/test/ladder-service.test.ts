@@ -106,13 +106,13 @@ describe("LadderService.move", () => {
 
 	it("rejects an unknown root instead of writing somewhere plausible", async () => {
 		const {service, moveNode} = makeService();
-		await expect(service.move({root: "nope", nodeId: "a", toTier: "2nd"})).rejects.toThrow(/nope/);
+		await expect(service.move({root: "nope", nodeId: "a", toTier: "2nd"})).rejects.toThrow(/nope/u);
 		expect(moveNode).not.toHaveBeenCalled();
 	});
 
 	it("rejects a node from the other ladder rather than moving it across roots", async () => {
 		const {service, moveNode} = makeService();
-		await expect(service.move({root: "work", nodeId: "x", toTier: "2nd"})).rejects.toThrow(/x/);
+		await expect(service.move({root: "work", nodeId: "x", toTier: "2nd"})).rejects.toThrow(/x/u);
 		expect(moveNode).not.toHaveBeenCalled();
 	});
 });

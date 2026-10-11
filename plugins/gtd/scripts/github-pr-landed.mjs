@@ -12,7 +12,7 @@
 
 import {readFileSync} from "node:fs";
 
-const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/|$)/;
+const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/|$)/u;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -39,7 +39,7 @@ export function parsePrUrl(raw) {
 const escapeHtml = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
 export function formatTitle(title) {
-	return escapeHtml(title).replaceAll(/`([^`]+)`/g, "<code>$1</code>");
+	return escapeHtml(title).replaceAll(/`([^`]+)`/gu, "<code>$1</code>");
 }
 
 export function timeElement({year, month, day}) {

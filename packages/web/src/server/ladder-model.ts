@@ -54,7 +54,7 @@ export function tierLabel(tier: number): string {
 }
 
 function parseTierLabel(name: string | null | undefined): number | null {
-	const match = /^\s*(\d+)(st|nd|rd|th)\s*$/i.exec(stripHtml(name ?? ""));
+	const match = /^\s*(\d+)(st|nd|rd|th)\s*$/iu.exec(stripHtml(name ?? ""));
 	if (!match) {
 		return null;
 	}
@@ -63,7 +63,7 @@ function parseTierLabel(name: string | null | undefined): number | null {
 }
 
 function stripHtml(value: string): string {
-	return value.replaceAll(/<[^>]+>/g, "").trim();
+	return value.replaceAll(/<[^>]+>/gu, "").trim();
 }
 
 function stateFor(count: number, capacity: number): TierState {

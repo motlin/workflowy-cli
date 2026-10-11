@@ -234,23 +234,23 @@ type SqlCategory = "read" | "write" | "schema" | "bulk";
  */
 function classifyQuery(query: string): SqlCategory {
 	// Normalize: strip leading whitespace and comments
-	const normalized = query.replaceAll(/^\s*(--[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*/g, "").trim();
+	const normalized = query.replaceAll(/^\s*(--[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*/gu, "").trim();
 
 	// Read: SELECT or WITH...SELECT (CTEs)
-	if (/^(SELECT|WITH\b)/i.test(normalized)) {
+	if (/^(SELECT|WITH\b)/iu.test(normalized)) {
 		return "read";
 	}
 
 	// Schema (DDL): CREATE, ALTER, DROP statements for tables, indexes, triggers, views
-	if (/^(CREATE|ALTER|DROP)\s+(TABLE|INDEX|TRIGGER|VIEW|VIRTUAL TABLE)/i.test(normalized)) {
+	if (/^(CREATE|ALTER|DROP)\s+(TABLE|INDEX|TRIGGER|VIEW|VIRTUAL TABLE)/iu.test(normalized)) {
 		return "schema";
 	}
 
 	// Bulk: multiple VALUES tuples or INSERT...SELECT
-	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*VALUES\s*\([^)]*\)\s*,/i.test(normalized)) {
+	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*VALUES\s*\([^)]*\)\s*,/iu.test(normalized)) {
 		return "bulk";
 	}
-	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*\bSELECT\b/i.test(normalized)) {
+	if (/INSERT\s+(OR\s+\w+\s+)?INTO\s+.*\bSELECT\b/iu.test(normalized)) {
 		return "bulk";
 	}
 
@@ -339,7 +339,7 @@ function formatSql(query: string): string {
 	// Short queries stay on a single line, long queries get pretty-printed
 	const formatted =
 		query.length <= SHORT_QUERY_THRESHOLD
-			? query.trim().replaceAll(/\s+/g, " ")
+			? query.trim().replaceAll(/\s+/gu, " ")
 			: format(query, {
 					language: "sqlite",
 					tabWidth: 2,

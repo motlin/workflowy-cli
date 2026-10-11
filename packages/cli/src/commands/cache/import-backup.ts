@@ -141,7 +141,7 @@ export default class ImportBackup extends Command {
 							const rate = (progress.current / (Date.now() - startTime)) * 1000;
 							const remaining = Math.ceil((progress.total - progress.current) / rate);
 							this.log(
-								`  [${progress.message?.match(/\[(.*?)\]/)?.[1] ?? "embedding"}] ${progress.current}/${progress.total} (${elapsed}s elapsed, ~${remaining}s remaining)`,
+								`  [${progress.message?.match(/\[(.*?)\]/u)?.[1] ?? "embedding"}] ${progress.current}/${progress.total} (${elapsed}s elapsed, ~${remaining}s remaining)`,
 							);
 						}
 

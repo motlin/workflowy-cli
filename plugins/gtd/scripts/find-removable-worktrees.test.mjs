@@ -94,9 +94,9 @@ test("removal runs git worktree remove without --force and reports refusals", ()
 				{path: dirty, removed: false},
 			],
 		);
-		assert.match(results[1].error, /contains modified or untracked files/);
+		assert.match(results[1].error, /contains modified or untracked files/u);
 		assert.deepStrictEqual([existsSync(clean), existsSync(dirty)], [false, true]);
-		assert.match(git(repo, "branch", "--list", "clean"), /clean/);
+		assert.match(git(repo, "branch", "--list", "clean"), /clean/u);
 	} finally {
 		rmSync(root, {recursive: true});
 	}

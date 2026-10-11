@@ -8,7 +8,7 @@ describe("Structural Eval: Lean agent descriptions", () => {
 	it("no agent frontmatter carries <example> blocks", () => {
 		const offenders: string[] = [];
 		for (const filePath of collectComponentFiles("agents")) {
-			const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(filePath, "utf8"))?.[1] ?? "";
+			const frontmatter = /^---\n([\s\S]*?)\n---/u.exec(readFileSync(filePath, "utf8"))?.[1] ?? "";
 			if (frontmatter.includes("<example>")) {
 				offenders.push(filePath.replace(`${PROJECT_ROOT}/`, ""));
 			}

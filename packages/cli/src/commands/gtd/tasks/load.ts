@@ -263,7 +263,7 @@ export default class Load extends Command {
 				}
 
 				// Skip nodes that are just hashtags
-				if (child.name && /^#[a-z-]+$/i.test(child.name)) {
+				if (child.name && /^#[a-z-]+$/iu.test(child.name)) {
 					continue;
 				}
 
@@ -321,7 +321,7 @@ export default class Load extends Command {
 		const calendarIds = metadata.destinations.calendar.map((c) => c.id).filter((id) => id && id !== "null");
 
 		// Date pattern to extract from <time> elements
-		const timePattern = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"/;
+		const timePattern = /<time[^>]*startYear="(\d+)"[^>]*startMonth="(\d+)"[^>]*startDay="(\d+)"/u;
 
 		for (const id of calendarIds) {
 			// Fetch calendar with depth to get date nodes and children

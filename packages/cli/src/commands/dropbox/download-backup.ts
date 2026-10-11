@@ -163,7 +163,7 @@ export default class DownloadBackup extends Command {
 
 			if (dateFilter) {
 				backupFiles = backupFiles.filter((entry) => {
-					const dateMatch = entry.name.match(/\.(\d{4}-\d{2}-\d{2})\.(workflowy\.backup|txt)$/);
+					const dateMatch = entry.name.match(/\.(\d{4}-\d{2}-\d{2})\.(workflowy\.backup|txt)$/u);
 					return dateMatch && dateMatch[1] === dateFilter;
 				});
 			}

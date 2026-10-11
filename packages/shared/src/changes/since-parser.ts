@@ -1,4 +1,4 @@
-const DURATION_REGEX = /^(\d+)([smhdw])$/;
+const DURATION_REGEX = /^(\d+)([smhdw])$/u;
 
 const UNIT_MS: Record<string, number> = {
 	s: 1000,

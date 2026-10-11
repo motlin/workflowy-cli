@@ -12,8 +12,8 @@ export function parseBackupFilename(filePath: string): BackupFileInfo | null {
 	const dirname = path.basename(path.dirname(filePath));
 	const compressed = filename.endsWith(".zst");
 
-	const dataPattern = /\(.*?\)\.(\d{4}-\d{2}-\d{2})\.workflowy\.backup(?:\.zst)?$/;
-	const legacyPattern = /^workflowy-backup-(\d{4}-\d{2}-\d{2})\.json(?:\.zst)?$/;
+	const dataPattern = /\(.*?\)\.(\d{4}-\d{2}-\d{2})\.workflowy\.backup(?:\.zst)?$/u;
+	const legacyPattern = /^workflowy-backup-(\d{4}-\d{2}-\d{2})\.json(?:\.zst)?$/u;
 
 	let match = filename.match(dataPattern);
 	if (match && dirname === "Data") {

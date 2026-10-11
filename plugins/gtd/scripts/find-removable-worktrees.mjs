@@ -21,7 +21,7 @@ import {execFileSync} from "node:child_process";
 import {existsSync, lstatSync, readFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 
-const LINKED_GITDIR = /^gitdir: (.*\/\.git\/worktrees\/[^/]+)\s*$/;
+const LINKED_GITDIR = /^gitdir: (.*\/\.git\/worktrees\/[^/]+)\s*$/u;
 
 function git(cwd, ...args) {
 	return execFileSync("git", ["-C", cwd, ...args], {encoding: "utf8", stdio: ["ignore", "pipe", "pipe"]}).trim();

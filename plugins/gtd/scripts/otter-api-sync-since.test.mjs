@@ -192,7 +192,7 @@ test("sync-since fails instead of scanning unbounded when the boundary is never 
 	});
 	assert.notEqual(result.status, 0);
 	assert.equal(result.stdout, "");
-	assert.match(result.stderr, /missing.*not found within 3 pages/);
+	assert.match(result.stderr, /missing.*not found within 3 pages/u);
 	const urls = readFileSync(sb.calls, "utf8").trim().split("\n");
 	assert.equal(listCalls(urls).length, 3);
 	assert.deepStrictEqual(actionOtids(urls), []);
@@ -202,6 +202,6 @@ test("sync-since requires the boundary otid", () => {
 	const sb = sandbox({});
 	const {status, stderr, urls} = syncSince(sb);
 	assert.notEqual(status, 0);
-	assert.match(stderr, /sync-since requires/);
+	assert.match(stderr, /sync-since requires/u);
 	assert.deepStrictEqual(urls, []);
 });

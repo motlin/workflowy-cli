@@ -8,13 +8,13 @@ import {readFileSync} from "node:fs";
 
 const REQUIRED_TOP_LEVEL = ["task", "generatedAt", "status"];
 const KNOWN_STATUSES = new Set(["ready", "needs-interactive", "empty", "error"]);
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 // A proposal stages exactly one node id: `nodeId`, the node its applyOps mutate. Every other id
 // belongs inside an applyOps command string, already bound to its flag. A second bare id field is
 // the bug this guards: a consumer reads it as a write target and moves the item under the wrong
 // parent. Inert fields (counts, labels, fingerprints) are free to vary per task.
-const ID_FIELD = /(?:^|[a-z])(?:Id|ID)$/;
+const ID_FIELD = /(?:^|[a-z])(?:Id|ID)$/u;
 const DEFAULT_ID_HINT = "a proposal carries only nodeId; put every other id inside an applyOps command";
 const ID_HINTS = {
 	moveToNodeId:
@@ -79,7 +79,7 @@ const validateSourceMessage = (task, entry, index, errors) => {
 // sign-up/RSVP links in its body, so the user can act without hunting for the message.
 // messageId is an RFC 822 Message-ID, not a Workflowy node id, so it is exempt from the stray-id check.
 const NON_NODE_ID_FIELDS = {"email-calendar": new Set(["messageId"])};
-const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\/\S+$/.test(value);
+const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\/\S+$/u.test(value);
 
 const validateSourceLinks = (task, entry, index, errors) => {
 	if (!LEDGER_KEY_TASKS.has(task)) {

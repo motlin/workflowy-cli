@@ -54,7 +54,7 @@ function parseTextDate(name: string): ParsedDate | null {
 	const trimmed = name.trim();
 
 	// "[YYYY-MM-DD]" bracket format (from previous failed migration)
-	const bracketFormat = /^\[(\d{4})-(\d{2})-(\d{2})\]$/;
+	const bracketFormat = /^\[(\d{4})-(\d{2})-(\d{2})\]$/u;
 	let match = bracketFormat.exec(trimmed);
 	if (match) {
 		return {
@@ -65,7 +65,7 @@ function parseTextDate(name: string): ParsedDate | null {
 	}
 
 	// "Weekday M/D/YY" or "Weekday M/D/YYYY"
-	const weekdaySlash = /^\w+ (\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
+	const weekdaySlash = /^\w+ (\d{1,2})\/(\d{1,2})\/(\d{2,4})$/u;
 	match = weekdaySlash.exec(trimmed);
 	if (match) {
 		const month = Number.parseInt(match[1], 10);
@@ -78,7 +78,7 @@ function parseTextDate(name: string): ParsedDate | null {
 	}
 
 	// "Ddd, Mmm D, YYYY" (e.g., "Tue, Nov 17, 2020")
-	const abbrevFormat = /^\w{3}, (\w{3}) (\d{1,2}), (\d{4})$/;
+	const abbrevFormat = /^\w{3}, (\w{3}) (\d{1,2}), (\d{4})$/u;
 	match = abbrevFormat.exec(trimmed);
 	if (match) {
 		const monthNum = MONTH_ABBREVS[match[1]];
@@ -91,7 +91,7 @@ function parseTextDate(name: string): ParsedDate | null {
 	}
 
 	// "M/D/YY" bare format
-	const bareSlash = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
+	const bareSlash = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/u;
 	match = bareSlash.exec(trimmed);
 	if (match) {
 		const month = Number.parseInt(match[1], 10);

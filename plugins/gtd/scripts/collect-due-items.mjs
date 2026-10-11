@@ -72,25 +72,25 @@ function lastDayOfMonth(year, month1) {
 // and it is the only place that mapping lives.
 export function resolveTimeframe(label, todayISO) {
 	const [y, m, d] = todayISO.split("-").map(Number);
-	if (/^today$/i.test(label)) {
+	if (/^today$/iu.test(label)) {
 		return todayISO;
 	}
-	if (/^this week$/i.test(label)) {
+	if (/^this week$/iu.test(label)) {
 		// End of the working week: the upcoming Friday, or today when today already is Friday.
 		const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 		const until = (5 - dow + 7) % 7;
 		const dt = new Date(Date.UTC(y, m - 1, d + until));
 		return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 	}
-	if (/^this month$/i.test(label)) {
+	if (/^this month$/iu.test(label)) {
 		return `${y}-${pad(m)}-${pad(lastDayOfMonth(y, m))}`;
 	}
 	// The long horizons exist for tasks the walk keeps re-asking about: pushing one out by a
 	// quarter is the honest alternative to nudging it a week at a time forever.
-	if (/^next month$/i.test(label)) {
+	if (/^next month$/iu.test(label)) {
 		return addInterval(todayISO, {amount: 1, unit: "m"});
 	}
-	if (/^next quarter$/i.test(label)) {
+	if (/^next quarter$/iu.test(label)) {
 		return addInterval(todayISO, {amount: 3, unit: "m"});
 	}
 	throw new Error(`unknown timeframe: ${label}`);
@@ -134,7 +134,7 @@ function workflowyOps(node, due, asapTargetId) {
 	// computed, never typed.
 	const rescheduledName = due
 		? swapTimeElement(node.name, "{{date}}")
-		: `${String(node.name).replace(/\s+$/, "")} {{date}}`;
+		: `${String(node.name).replace(/\s+$/u, "")} {{date}}`;
 	const ops = {
 		complete: `./bin/run.js node complete --id ${node.id}`,
 		reschedule: `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(rescheduledName)}`,
@@ -146,8 +146,8 @@ function workflowyOps(node, due, asapTargetId) {
 	// bucket is the real fix, and the date has to come off because that bucket holds none.
 	if (asapTargetId) {
 		const undatedName = String(node.name)
-			.replaceAll(/<time[^>]*>.*?<\/time>/g, "")
-			.replaceAll(/\s+/g, " ")
+			.replaceAll(/<time[^>]*>.*?<\/time>/gu, "")
+			.replaceAll(/\s+/gu, " ")
 			.trim();
 		ops.moveToAsap = `./bin/run.js node update --id ${node.id} --name ${shellSingleQuote(undatedName)} && ./bin/run.js node move --node-id ${node.id} --parent-id ${asapTargetId} -p bottom`;
 	}
@@ -308,7 +308,7 @@ export function skipKey(item) {
 	return `${item.source}:${item.id}`;
 }
 
-const titleKey = (row) => stripMarkup(row.title).normalize("NFKC").toLowerCase().replaceAll(/\s+/g, " ").trim();
+const titleKey = (row) => stripMarkup(row.title).normalize("NFKC").toLowerCase().replaceAll(/\s+/gu, " ").trim();
 
 export function attachRecurringCounterparts(rows, tree) {
 	const byTitle = new Map();

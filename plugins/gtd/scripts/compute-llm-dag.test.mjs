@@ -98,8 +98,8 @@ test("computeLlmDag defaults to daily and honors explicit weekly intervals", () 
 	assert.strictEqual(daily.advance.nextDate, "2000-01-02");
 	assert.deepStrictEqual(weekly.interval, {amount: 7, unit: "d"});
 	assert.strictEqual(weekly.advance.nextDate, "2000-01-08");
-	assert.match(weekly.advance.applyOp, /--id weekly/);
-	assert.match(weekly.advance.applyOp, /--expect-name/);
+	assert.match(weekly.advance.applyOp, /--id weekly/u);
+	assert.match(weekly.advance.applyOp, /--expect-name/u);
 });
 
 test("computeLlmDag records the plan date that every next date is computed from", () => {
@@ -112,21 +112,21 @@ test("computeLlmDag records the plan date that every next date is computed from"
 test("computeLlmDag rejects a plan date that is not a padded ISO date", () => {
 	// The executor compares planDate to the local date, so an unpadded or empty date never
 	// matches and would restart the import barrier forever instead of failing loudly here.
-	assert.throws(() => computeLlmDag(fixture(), "2000-1-1"), /plan date must be YYYY-MM-DD, got "2000-1-1"/);
+	assert.throws(() => computeLlmDag(fixture(), "2000-1-1"), /plan date must be YYYY-MM-DD, got "2000-1-1"/u);
 });
 
 test("computeLlmDag rejects unexpected root children", () => {
 	const tree = fixture();
 	tree.children.push(task({name: "Orphan", id: "orphan", date: "2000-01-01", command: "orphan-prep"}));
 
-	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /unexpected child "Orphan/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /unexpected child "Orphan/u);
 });
 
 test("computeLlmDag rejects unmatched task names", () => {
 	const tree = fixture();
 	tree.children.find((child) => child.name === "Presentation").children.pop();
 
-	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /prep task "Daily task" has no matching presentation task/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /prep task "Daily task" has no matching presentation task/u);
 });
 
 test("computeLlmDag rejects dates on presentation tasks", () => {
@@ -134,7 +134,7 @@ test("computeLlmDag rejects dates on presentation tasks", () => {
 	const item = tree.children.find((child) => child.name === "Presentation").children[0];
 	item.name += ` ${time("2000-01-01", "Sat, Jan 1, 2000")}`;
 
-	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /presentation task "Weekly task" must inherit its date/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /presentation task "Weekly task" must inherit its date/u);
 });
 
 test("computeLlmDag rejects invalid intervals", () => {
@@ -142,7 +142,7 @@ test("computeLlmDag rejects invalid intervals", () => {
 	const item = tree.children.find((child) => child.name === "Prep").children[0];
 	item.children.push(instruction("Interval: weekly"));
 
-	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /invalid interval "weekly"/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /invalid interval "weekly"/u);
 });
 
 test("computeLlmDag rejects a presentation task for an auto prep task", () => {
@@ -153,7 +153,7 @@ test("computeLlmDag rejects a presentation task for an auto prep task", () => {
 
 	assert.throws(
 		() => computeLlmDag(tree, "2000-01-01"),
-		/auto prep task "Future auto task" must not have a presentation task/,
+		/auto prep task "Future auto task" must not have a presentation task/u,
 	);
 });
 
@@ -192,7 +192,7 @@ test("computeLlmDag rejects duplicate inferred slugs", () => {
 		task({name: "Another daily task", id: "another-daily", date: "2000-01-01", command: "daily-auto", auto: true}),
 	);
 
-	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /Prep has duplicate slug "daily"/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /Prep has duplicate slug "daily"/u);
 });
 
 test("computeLlmDag rejects obsolete Key markers", () => {
@@ -200,5 +200,5 @@ test("computeLlmDag rejects obsolete Key markers", () => {
 	const item = tree.children.find((child) => child.name === "Prep").children[0];
 	item.children.push(instruction("Key: daily"));
 
-	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /obsolete Key marker/);
+	assert.throws(() => computeLlmDag(tree, "2000-01-01"), /obsolete Key marker/u);
 });

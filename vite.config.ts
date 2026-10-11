@@ -111,6 +111,8 @@ export default defineConfig({
 			"typescript/no-unsafe-call": "error",
 			"typescript/no-unsafe-return": "error",
 			"typescript/no-unsafe-argument": "error",
+			// Target is es2023, so the `v` flag is unavailable; `u` makes regex parsing strict and astral-aware.
+			"require-unicode-regexp": "error",
 			"typescript/restrict-plus-operands": [
 				"error",
 				{

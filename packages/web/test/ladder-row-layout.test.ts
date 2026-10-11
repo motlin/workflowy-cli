@@ -6,16 +6,16 @@ const css = readFileSync(fileURLToPath(new URL("../src/client/ladder.css", impor
 const tsx = readFileSync(fileURLToPath(new URL("../src/client/components/ladder-view.tsx", import.meta.url)), "utf8");
 
 function rowTracks(): string[] {
-	const rule = /\.ladder-row \{([^}]*)\}/.exec(css);
+	const rule = /\.ladder-row \{([^}]*)\}/u.exec(css);
 	if (!rule) {
 		throw new Error("no .ladder-row rule");
 	}
-	const declaration = /grid-template-columns:\s*([^;]+);/.exec(rule[1]);
+	const declaration = /grid-template-columns:\s*([^;]+);/u.exec(rule[1]);
 	if (!declaration) {
 		throw new Error("no grid-template-columns on .ladder-row");
 	}
 	// Split on spaces that are not inside minmax(...).
-	return declaration[1].trim().split(/\s+(?![^(]*\))/);
+	return declaration[1].trim().split(/\s+(?![^(]*\))/u);
 }
 
 describe("ladder row layout", () => {
@@ -33,18 +33,18 @@ describe("ladder row layout", () => {
 	});
 
 	it("renders the row children in the order the columns assume", () => {
-		const row = /className=\{\[\s*["']ladder-row["'][\s\S]*?\n\t\t\t\t\t<\/div>/.exec(tsx);
+		const row = /className=\{\[\s*["']ladder-row["'][\s\S]*?\n\t\t\t\t\t<\/div>/u.exec(tsx);
 		expect(row).not.toBeNull();
-		const order = [...row![0].matchAll(/className="(grip|rank|txt|step|done)"/g)].map((match) => match[1]);
+		const order = [...row![0].matchAll(/className="(grip|rank|txt|step|done)"/gu)].map((match) => match[1]);
 		expect(order).toStrictEqual(["grip", "rank", "txt", "step", "done"]);
 	});
 
 	// The subtree preview floats in its own layer, so it never changes a row's height or moves its buttons.
 	it("layers the subtree preview above the list instead of expanding rows", () => {
-		const rule = /\.ladder-preview \{([^}]*)\}/.exec(css);
+		const rule = /\.ladder-preview \{([^}]*)\}/u.exec(css);
 		expect({
-			position: /position:\s*([^;]+);/.exec(rule?.[1] ?? "")?.[1],
-			layered: /z-index:\s*\d+;/.test(rule?.[1] ?? ""),
+			position: /position:\s*([^;]+);/u.exec(rule?.[1] ?? "")?.[1],
+			layered: /z-index:\s*\d+;/u.test(rule?.[1] ?? ""),
 			inlineChildren: css.includes(".ladder-children"),
 		}).toStrictEqual({position: "fixed", layered: true, inlineChildren: false});
 	});

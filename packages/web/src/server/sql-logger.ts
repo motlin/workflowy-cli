@@ -13,7 +13,7 @@ export const sqlLogger: DrizzleLogger = {
 			return;
 		}
 
-		const isWrite = /^\s*(INSERT|UPDATE|DELETE)/i.test(query);
+		const isWrite = /^\s*(INSERT|UPDATE|DELETE)/iu.test(query);
 
 		if (isWrite) {
 			console.info("[SQL]", query, params);

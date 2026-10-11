@@ -8,8 +8,8 @@ import {readdirSync, readFileSync} from "node:fs";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 
-const USES = /^\s*(?:-\s+)?uses:\s*["']?([^\s"'#]+)["']?\s*(?:#\s*(.*?))?\s*$/;
-const REMOTE = /^([^/@]+\/[^/@]+)(?:\/[^@]*)?@(.+)$/;
+const USES = /^\s*(?:-\s+)?uses:\s*["']?([^\s"'#]+)["']?\s*(?:#\s*(.*?))?\s*$/u;
+const REMOTE = /^([^/@]+\/[^/@]+)(?:\/[^@]*)?@(.+)$/u;
 
 /**
  * @param {{path: string, content: string}[]} files
@@ -73,8 +73,8 @@ function listFiles(dir, accept) {
 
 function main() {
 	const paths = [
-		...listFiles(".github/workflows", (name) => /\.ya?ml$/.test(name)),
-		...listFiles(".github/actions", (name) => /^action\.ya?ml$/.test(name)),
+		...listFiles(".github/workflows", (name) => /\.ya?ml$/u.test(name)),
+		...listFiles(".github/actions", (name) => /^action\.ya?ml$/u.test(name)),
 	];
 	const files = paths.map((path) => ({path, content: readFileSync(path, "utf8")}));
 	const conflicts = findPinConflicts(files);

@@ -201,7 +201,7 @@ export default class Sync extends Command {
 				id: child.id,
 				name: projectName,
 				linkId: target.id,
-				tag: `#${projectName.replaceAll(/\s+/g, "-").toLowerCase()}`,
+				tag: `#${projectName.replaceAll(/\s+/gu, "-").toLowerCase()}`,
 				context,
 				items,
 			});
@@ -231,7 +231,7 @@ export default class Sync extends Command {
 			people[categoryName] = members.map((member) => ({
 				id: member.id,
 				name: member.name ?? "",
-				tag: `@${(member.name ?? "").replaceAll(/\s+/g, "")}`,
+				tag: `@${(member.name ?? "").replaceAll(/\s+/gu, "")}`,
 			}));
 		}
 
@@ -271,9 +271,9 @@ export default class Sync extends Command {
 			const targetChildren = this.cacheService.getChildren(target.id);
 			for (const tc of targetChildren) {
 				const tcName = tc.name ?? "";
-				if (/asap/i.test(tcName)) {
+				if (/asap/iu.test(tcName)) {
 					asap = {id: tc.id, name: tcName};
-				} else if (/due/i.test(tcName)) {
+				} else if (/due/iu.test(tcName)) {
 					dueDate = {id: tc.id, name: tcName};
 				}
 			}
@@ -401,7 +401,7 @@ export default class Sync extends Command {
 	 * Extract text from anchor tag: <a href="...">Text</a> -> Text
 	 */
 	private extractAnchorText(html: string): string {
-		const match = html.match(/<a[^>]*>([^<]*)<\/a>/);
+		const match = html.match(/<a[^>]*>([^<]*)<\/a>/u);
 		return match ? match[1] : html;
 	}
 

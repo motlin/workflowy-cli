@@ -104,7 +104,7 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 		const result = await runLlmEval(agentFile, `Determine destination for item ${itemId}`, ctx, {maxTurns: 25});
 
 		const response = result.finalResponse;
-		const jsonMatch = response.match(/\{[\s\S]*"(?:path|targetId|confidence)"[\s\S]*\}/);
+		const jsonMatch = response.match(/\{[\s\S]*"(?:path|targetId|confidence)"[\s\S]*\}/u);
 		expect(jsonMatch, "Response should contain JSON with destination fields").not.toBeNull();
 
 		const parsed = DestinationResponseSchema.parse(JSON.parse(jsonMatch![0]));

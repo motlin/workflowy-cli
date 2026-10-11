@@ -77,8 +77,8 @@ function highlightMatches(text: string, query: string): string {
 	if (!query.trim()) {
 		return text;
 	}
-	const escaped = query.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-	const regex = new RegExp(`(${escaped})`, "gi");
+	const escaped = query.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+	const regex = new RegExp(`(${escaped})`, "giu");
 	return text.replaceAll(regex, "<mark>$1</mark>");
 }
 

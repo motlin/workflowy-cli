@@ -57,9 +57,9 @@ test("renderPage emits a single continuous list, not one box per tier", () => {
 			]),
 		),
 	]);
-	assert.match(html, /class="ladder-list"/, "one continuous list container per ladder");
+	assert.match(html, /class="ladder-list"/u, "one continuous list container per ladder");
 	assert.ok(!html.includes('class="tier-box"'), "tiers must be dividers inside the list, not separate boxes");
-	assert.match(html, /data-tier-boundary="2"/, "tier boundaries are rendered inside the list");
+	assert.match(html, /data-tier-boundary="2"/u, "tier boundaries are rendered inside the list");
 });
 
 test("every tier band is a drop target with a minimum height, empty ones included", () => {
@@ -72,10 +72,10 @@ test("every tier band is a drop target with a minimum height, empty ones include
 			]),
 		),
 	]);
-	assert.match(html, /--tier-min-drop-height/, "a minimum drop-zone height must be defined");
-	assert.match(html, /empty — drop here/, "an empty tier renders explicit empty-state text");
+	assert.match(html, /--tier-min-drop-height/u, "a minimum drop-zone height must be defined");
+	assert.match(html, /empty — drop here/u, "an empty tier renders explicit empty-state text");
 	const span = html.slice(html.indexOf('data-tier-span="2"'));
-	assert.match(span.slice(0, 400), /data-drop-target="true"/, "the empty tier span is still a drop target");
+	assert.match(span.slice(0, 400), /data-drop-target="true"/u, "the empty tier span is still a drop target");
 });
 
 test("diffSubmission emits creates for new tiers before the moves into them", () => {
@@ -144,8 +144,8 @@ test("each ladder carries its own tier ids, so two ladders never share a destina
 		]),
 	);
 	const html = renderPage([work, personal]);
-	assert.match(html, /data-tier-id="w-1st"/, "work's 1st tier id must be in the markup");
-	assert.match(html, /data-tier-id="p-1st"/, "personal's 1st tier id must be in the markup");
+	assert.match(html, /data-tier-id="w-1st"/u, "work's 1st tier id must be in the markup");
+	assert.match(html, /data-tier-id="p-1st"/u, "personal's 1st tier id must be in the markup");
 	const personalSection = html.slice(html.indexOf('data-root="personal"'));
 	assert.ok(!personalSection.includes('data-tier-id="w-'), "the personal ladder must not carry work tier ids");
 });
@@ -160,8 +160,8 @@ test("rows carry a stable index so a shift-click range can be computed", () => {
 			]),
 		),
 	]);
-	assert.match(html, /data-row-index="0"/, "rows must be indexed for range selection");
-	assert.match(html, /data-row-index="2"/, "indices run across tier boundaries, not per tier");
+	assert.match(html, /data-row-index="0"/u, "rows must be indexed for range selection");
+	assert.match(html, /data-row-index="2"/u, "indices run across tier boundaries, not per tier");
 });
 
 test("the page selects with click and extends with shift-click, not with checkboxes", () => {
@@ -174,8 +174,8 @@ test("the page selects with click and extends with shift-click, not with checkbo
 			]),
 		),
 	]);
-	assert.match(html, /shiftKey/, "shift-click range selection must be wired");
-	assert.ok(!/type="checkbox"|type="radio"/.test(html), "no per-row checkbox or radio circles");
+	assert.match(html, /shiftKey/u, "shift-click range selection must be wired");
+	assert.ok(!/type="checkbox"|type="radio"/u.test(html), "no per-row checkbox or radio circles");
 });
 
 test("dragging a selected row carries every selected row as one block", () => {
@@ -188,7 +188,7 @@ test("dragging a selected row carries every selected row as one block", () => {
 			]),
 		),
 	]);
-	assert.match(html, /selectedRows|carrySelection/, "drag must move the whole selection, not just the grabbed row");
+	assert.match(html, /selectedRows|carrySelection/u, "drag must move the whole selection, not just the grabbed row");
 });
 
 test("every mutation autosaves, so there is no Submit button to forget", () => {
@@ -201,7 +201,7 @@ test("every mutation autosaves, so there is no Submit button to forget", () => {
 			]),
 		),
 	]);
-	assert.match(html, /autosave/i, "the page must save on each change");
+	assert.match(html, /autosave/iu, "the page must save on each change");
 	assert.ok(!html.includes('id="submit"'), "an explicit Submit button must not gate saving");
 });
 
@@ -215,12 +215,12 @@ test("each tier region is painted by capacity state, not just labelled with text
 			]),
 		),
 	]);
-	assert.match(html, /--over-bg/, "an over-cap state colour must be defined");
-	assert.match(html, /--room-bg/, "an under-cap state colour must be defined");
-	assert.match(html, /--exact-bg/, "an at-cap state colour must be defined");
+	assert.match(html, /--over-bg/u, "an over-cap state colour must be defined");
+	assert.match(html, /--room-bg/u, "an under-cap state colour must be defined");
+	assert.match(html, /--exact-bg/u, "an at-cap state colour must be defined");
 	assert.match(
 		html,
-		/class="span [a-z]+"|data-state="(room|exact|over)"/,
+		/class="span [a-z]+"|data-state="(room|exact|over)"/u,
 		"the span itself carries its capacity state",
 	);
 });
@@ -239,8 +239,8 @@ test("an over-cap tier is marked over and an under-cap tier is marked room", () 
 	// slice from each tier's BOUNDARY, since data-state precedes data-tier-span on the span
 	const first = html.slice(html.indexOf('data-tier-boundary="1"'), html.indexOf('data-tier-boundary="2"'));
 	const second = html.slice(html.indexOf('data-tier-boundary="2"'));
-	assert.match(first, /data-state="room"/, "1st is under cap");
-	assert.match(second, /data-state="over"/, "2nd is over cap");
+	assert.match(first, /data-state="room"/u, "1st is under cap");
+	assert.match(second, /data-state="over"/u, "2nd is over cap");
 });
 
 test("a tier with room shows its free slots so the gap is visible, not inferred", () => {
@@ -253,7 +253,7 @@ test("a tier with room shows its free slots so the gap is visible, not inferred"
 			]),
 		),
 	]);
-	assert.match(html, /class="slot"/, "free capacity renders as empty slots");
+	assert.match(html, /class="slot"/u, "free capacity renders as empty slots");
 });
 
 test("rows past the cap are marked so you can see which ones must leave", () => {
@@ -266,12 +266,12 @@ test("rows past the cap are marked so you can see which ones must leave", () => 
 			]),
 		),
 	]);
-	assert.match(html, /row excess|class="row[^"]*excess/, "the overflowing rows carry an excess marker");
+	assert.match(html, /row excess|class="row[^"]*excess/u, "the overflowing rows carry an excess marker");
 });
 
 test("a legend explains the three capacity states", () => {
 	const html = renderPage([buildLadderModel("w5", bucket("w", [["1st", ["a"]]]))]);
-	assert.match(html, /class="legend"/, "the page carries a legend");
+	assert.match(html, /class="legend"/u, "the page carries a legend");
 });
 
 test("the draft key is bound to the ladder shape, so a stale draft cannot rearrange a new page", () => {
@@ -299,7 +299,7 @@ test("the draft key is bound to the ladder shape, so a stale draft cannot rearra
 		]),
 	);
 	// the key is derived at runtime from PAGE_SIGNATURE, so compare that
-	const keyOf = (html) => html.match(/const PAGE_SIGNATURE = "([^"]+)"/)[1];
+	const keyOf = (html) => html.match(/const PAGE_SIGNATURE = "([^"]+)"/u)[1];
 	const six = keyOf(renderPage([sixTiers]));
 	const seven = keyOf(renderPage([sevenTiers]));
 	assert.notEqual(six, seven, "adding a tier must invalidate the previous draft, not silently replay it");
@@ -317,7 +317,7 @@ test("a draft whose rows no longer match the page is ignored rather than applied
 	]);
 	assert.match(
 		html,
-		/draftMatchesPage|draft\.signature/,
+		/draftMatchesPage|draft\.signature/u,
 		"the restore path must validate the draft before applying it",
 	);
 });
@@ -350,15 +350,15 @@ test("toQueueLadders emits the shape the Queue template expects", () => {
 test("renderFromTemplate injects the data and keeps the Queue UI intact", () => {
 	const html = renderFromTemplate([buildLadderModel("work", bucket("w", [["1st", ["a"]]]))]);
 	assert.ok(!html.includes("__LADDERS__"), "the placeholder must be substituted");
-	assert.match(html, /shiftKey/, "the Queue shift-click behaviour survives");
-	assert.match(html, /rootnav/, "the Queue root tabs survive");
-	assert.match(html, /Newsreader/, "the Queue typography survives");
-	assert.match(html, /var LADDERS = \{/, "data is injected as the LADDERS object");
+	assert.match(html, /shiftKey/u, "the Queue shift-click behaviour survives");
+	assert.match(html, /rootnav/u, "the Queue root tabs survive");
+	assert.match(html, /Newsreader/u, "the Queue typography survives");
+	assert.match(html, /var LADDERS = \{/u, "data is injected as the LADDERS object");
 });
 
 test("injected ladder data is valid JSON the page can parse", () => {
 	const html = renderFromTemplate([buildLadderModel("work", bucket("w", [["1st", ['a "quoted" item']]]))]);
-	const json = html.match(/var LADDERS = (\{[\s\S]*?\});\n/)[1];
+	const json = html.match(/var LADDERS = (\{[\s\S]*?\});\n/u)[1];
 	const parsed = JSON.parse(json);
 	assert.equal(parsed.work.tiers[0].items[0].name, 'a "quoted" item');
 });
@@ -427,7 +427,7 @@ test("CLI generates a static page and emits creates before moves across both roo
 			`${page}\n`,
 		);
 		const html = readFileSync(page, "utf8");
-		const ladders = JSON.parse(html.match(/var LADDERS = (\{[\s\S]*?\});\n/)[1]);
+		const ladders = JSON.parse(html.match(/var LADDERS = (\{[\s\S]*?\});\n/u)[1]);
 		const roots = Object.fromEntries(
 			Object.entries(ladders).map(([root, ladder]) => [
 				root,
@@ -516,7 +516,7 @@ test("static page persistence offers the same JSON when artifact storage is unav
 test("Queue collects and restores a draft with a ninth tier and resets to the source ladder", () => {
 	const model = buildLadderModel("work", bucket("w", [["8th", ["a"]]]));
 	const html = renderFromTemplate([model]);
-	const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]).join("\n");
+	const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/gu)].map((match) => match[1]).join("\n");
 	const draft = {
 		seq: {
 			work: [
@@ -540,7 +540,7 @@ test("Queue collects and restores a draft with a ninth tier and resets to the so
 		},
 	};
 	const instrumented = script.replace(
-		/\n\s*render\(\);\n\s*\}\)\(\);/,
+		/\n\s*render\(\);\n\s*\}\)\(\);/u,
 		"\n globalThis.queue = {collect, build};\n})();",
 	);
 	runInNewContext(instrumented, context);
@@ -665,9 +665,9 @@ function runQueuePage(html) {
 				),
 		},
 	};
-	const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]).join("\n");
+	const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/gu)].map((match) => match[1]).join("\n");
 	runInNewContext(
-		script.replace(/\n\s*render\(\);\n\s*\}\)\(\);/, "\nrender(); globalThis.queue = {collect};\n})();"),
+		script.replace(/\n\s*render\(\);\n\s*\}\)\(\);/u, "\nrender(); globalThis.queue = {collect};\n})();"),
 		context,
 	);
 	return {
@@ -692,8 +692,8 @@ test("generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 		]),
 	);
 	const html = renderFromTemplate([model]);
-	assert.match(html, /\.zone\s*\{\s*min-height: 44px;/);
-	assert.match(html, /\.zone\.drag-over\s*\{\s*background: var\(--accent-soft\);/);
+	assert.match(html, /\.zone\s*\{\s*min-height: 44px;/u);
+	assert.match(html, /\.zone\.drag-over\s*\{\s*background: var\(--accent-soft\);/u);
 	const {elements, context, setTarget} = runQueuePage(html);
 	const queue = elements.get("app").children[0];
 	assert.deepStrictEqual(

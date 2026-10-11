@@ -73,11 +73,11 @@ describe("planTierMove", () => {
 	});
 
 	it("refuses a tier that does not exist rather than guessing", () => {
-		expect(() => planTierMove(ladder, "a", "9th")).toThrow(/9th/);
+		expect(() => planTierMove(ladder, "a", "9th")).toThrow(/9th/u);
 	});
 
 	it("refuses a node that is not on this ladder", () => {
-		expect(() => planTierMove(ladder, "nope", "2nd")).toThrow(/nope/);
+		expect(() => planTierMove(ladder, "nope", "2nd")).toThrow(/nope/u);
 	});
 });
 

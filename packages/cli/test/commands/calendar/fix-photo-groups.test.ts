@@ -138,7 +138,7 @@ describe("calendar:fix-photo-groups command", () => {
 
 		const writes = requests
 			.filter((request) => request.method === "POST" || request.method === "DELETE")
-			.map((request) => [request.method, request.url.replace(/^.*\/api\/v1/, ""), request.body]);
+			.map((request) => [request.method, request.url.replace(/^.*\/api\/v1/u, ""), request.body]);
 
 		expect(writes).toStrictEqual([
 			["POST", "/nodes/photo-3/move", {parent_id: "entry", position: "bottom"}],
@@ -165,7 +165,7 @@ describe("calendar:fix-photo-groups command", () => {
 
 		const writes = requests
 			.filter((request) => request.method === "POST" || request.method === "DELETE")
-			.map((request) => [request.method, request.url.replace(/^.*\/api\/v1/, ""), request.body]);
+			.map((request) => [request.method, request.url.replace(/^.*\/api\/v1/u, ""), request.body]);
 
 		expect(writes).toStrictEqual([
 			["POST", "/nodes/photo-2/move", {parent_id: "entry", position: "bottom"}],

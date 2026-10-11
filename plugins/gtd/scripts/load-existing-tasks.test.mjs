@@ -55,7 +55,7 @@ test("nextActions includes open tasks on the asap ladder tiers and skips tiers a
 
 test("next-actions link targets sync deep enough to reach tasks inside asap tiers", () => {
 	const script = readFileSync(syncScript, "utf8");
-	const fn = script.match(/^link_target_depth\(\) \{[\s\S]*?^\}/m);
+	const fn = script.match(/^link_target_depth\(\) \{[\s\S]*?^\}/mu);
 	assert.ok(fn, "sync-metadata.sh defines link_target_depth()");
 
 	const depthFor = (section) =>

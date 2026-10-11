@@ -45,7 +45,7 @@ describe("ladder task tree", () => {
 		queries.children.mockImplementation((id: string) => ({data: children[id], isLoading: false, error: null}));
 		const html = render();
 		expect(queries.children.mock.calls).toStrictEqual([["alice"], ["bob"], ["charlie"]]);
-		expect([...html.matchAll(/<span[^>]*>(.*?)<\/span>/g)].map((match) => match[1])).toStrictEqual([
+		expect([...html.matchAll(/<span[^>]*>(.*?)<\/span>/gu)].map((match) => match[1])).toStrictEqual([
 			"bob",
 			"charlie",
 			"mirror",
@@ -56,7 +56,7 @@ describe("ladder task tree", () => {
 	it("renders note text safely without interpreting markup as executable HTML", () => {
 		queries.node.mockReturnValue({data: node("alice", {note: "<b>Alice &amp; Bob</b>"}), error: null});
 		queries.children.mockReturnValue({data: [], isLoading: false, error: null});
-		expect([...render().matchAll(/<p[^>]*>(.*?)<\/p>/g)].map((match) => match[1])).toStrictEqual([
+		expect([...render().matchAll(/<p[^>]*>(.*?)<\/p>/gu)].map((match) => match[1])).toStrictEqual([
 			"Alice &amp; Bob",
 			"No subtasks.",
 		]);
@@ -64,7 +64,7 @@ describe("ladder task tree", () => {
 
 	it("shows failed branches with a retry instead of silently hiding descendants", () => {
 		queries.children.mockReturnValue({error: new Error("Test request failed"), isLoading: false});
-		expect([...render().matchAll(/<p[^>]*>(.*?)<\/p>/g)].map((match) => match[1])).toStrictEqual([
+		expect([...render().matchAll(/<p[^>]*>(.*?)<\/p>/gu)].map((match) => match[1])).toStrictEqual([
 			'Could not load subtasks. <button type="button">Retry</button>',
 		]);
 	});

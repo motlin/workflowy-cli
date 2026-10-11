@@ -8,7 +8,7 @@ import {PLUGINS_DIR, PROJECT_ROOT, collectMarkdownFiles} from "./helpers/scan-ro
 // Orchestrators launch `general-purpose` and point it at `${CLAUDE_PLUGIN_ROOT}/prompts/<path>.md`.
 const GTD_DIR = join(PLUGINS_DIR, "gtd");
 const PROMPTS_DIR = join(GTD_DIR, "prompts");
-const PROMPT_REF = /\bprompts\/([\w/-]+\.md)/g;
+const PROMPT_REF = /\bprompts\/([\w/-]+\.md)/gu;
 
 function promptRefs(): {path: string; at: string}[] {
 	const refs: {path: string; at: string}[] = [];
@@ -52,7 +52,7 @@ describe("Structural Eval: gtd prompt agents", () => {
 			const lines = readFileSync(filePath, "utf8").split("\n");
 			for (const [index, line] of lines.entries()) {
 				if (
-					/subagent_type:\s*["']gtd:|`gtd:(capture|journal|refinement|shared|legacy:fetchers)(:[\w-]+)+`/.test(
+					/subagent_type:\s*["']gtd:|`gtd:(capture|journal|refinement|shared|legacy:fetchers)(:[\w-]+)+`/u.test(
 						line,
 					)
 				) {

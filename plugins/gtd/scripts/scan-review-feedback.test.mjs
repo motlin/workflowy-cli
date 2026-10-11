@@ -111,8 +111,8 @@ test("userText pulls a clean string from either content shape", () => {
 
 test("assistantSummary names the tools/commands the assistant just ran", () => {
 	const s = assistantSummary(assistantToolUse);
-	assert.match(s, /Bash/);
-	assert.match(s, /osascript/);
+	assert.match(s, /Bash/u);
+	assert.match(s, /osascript/u);
 });
 
 test("extractFeedback returns human turns with the preceding assistant action, in order", () => {
@@ -120,7 +120,7 @@ test("extractFeedback returns human turns with the preceding assistant action, i
 	const {turns} = extractFeedback(objs);
 	assert.strictEqual(turns.length, 2);
 	assert.strictEqual(turns[0].text, "you didn't complete the reminders");
-	assert.match(turns[0].prevAssistant, /Bash/);
+	assert.match(turns[0].prevAssistant, /Bash/u);
 	assert.strictEqual(turns[1].text, "we ALWAYS work on the skill first");
 	assert.strictEqual(turns[0].ts, "2026-06-23T22:15:18.000Z");
 });
@@ -220,8 +220,8 @@ test("isAskUserQuestionAnswer rejects tool output that merely quotes the phrase"
 });
 
 test("askAnswerText returns the raw answer payload", () => {
-	assert.match(askAnswerText(askAnswer), /figure out why it's broken/);
-	assert.match(askAnswerText(askAnswerMulti), /Run all three/);
+	assert.match(askAnswerText(askAnswer), /figure out why it's broken/u);
+	assert.match(askAnswerText(askAnswerMulti), /Run all three/u);
 	assert.strictEqual(askAnswerText(bashEcho), null);
 });
 
@@ -230,7 +230,7 @@ test("extractFeedback captures AskUserQuestion answers as turns, marked by sourc
 	assert.strictEqual(turns.length, 2);
 	assert.strictEqual(turns[0].source, "typed");
 	assert.strictEqual(turns[1].source, "ask");
-	assert.match(turns[1].text, /figure out why it's broken/);
+	assert.match(turns[1].text, /figure out why it's broken/u);
 	assert.strictEqual(turns[1].ts, "2026-07-26T17:15:33.000Z");
 });
 
@@ -242,5 +242,5 @@ test("extractFeedback caps very long turn text so the extract stays compact", ()
 	};
 	const {turns} = extractFeedback([long]);
 	assert.ok(turns[0].text.length <= 2050);
-	assert.match(turns[0].text, /…$/);
+	assert.match(turns[0].text, /…$/u);
 });

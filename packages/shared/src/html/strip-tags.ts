@@ -3,7 +3,7 @@ export function stripHtmlTags(html: string | null): string {
 		return "";
 	}
 	return html
-		.replaceAll(/<[^>]*>/g, "")
+		.replaceAll(/<[^>]*>/gu, "")
 		.replaceAll("&nbsp;", " ")
 		.replaceAll("&amp;", "&")
 		.replaceAll("&lt;", "<")

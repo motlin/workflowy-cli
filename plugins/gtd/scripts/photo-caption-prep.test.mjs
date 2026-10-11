@@ -25,8 +25,8 @@ test("favoritesQuery selects uncaptioned, untrashed, visible favorite photos wit
 });
 
 test("favoritesQuery rejects a non-integer window so nothing is interpolated into SQL", () => {
-	assert.throws(() => favoritesQuery("14; DROP TABLE ZASSET"), /positive integer/);
-	assert.throws(() => favoritesQuery(0), /positive integer/);
+	assert.throws(() => favoritesQuery("14; DROP TABLE ZASSET"), /positive integer/u);
+	assert.throws(() => favoritesQuery(0), /positive integer/u);
 });
 
 test("facesQuery lists every detected face for the given uuids with its person name", () => {
@@ -37,7 +37,7 @@ test("facesQuery lists every detected face for the given uuids with its person n
 });
 
 test("facesQuery rejects uuids that are not uuid-shaped", () => {
-	assert.throws(() => facesQuery(["x') OR 1=1 --"]), /Invalid uuid/);
+	assert.throws(() => facesQuery(["x') OR 1=1 --"]), /Invalid uuid/u);
 });
 
 test("groupFaces splits named people from the unnamed face count per uuid", () => {
@@ -106,7 +106,7 @@ test("journalQuery selects the entries under each date-only day node for the giv
 });
 
 test("journalQuery rejects dates that are not YYYY-MM-DD", () => {
-	assert.throws(() => journalQuery(["2026-09-21' OR 1=1 --"]), /Invalid date/);
+	assert.throws(() => journalQuery(["2026-09-21' OR 1=1 --"]), /Invalid date/u);
 });
 
 test("groupJournal maps each day node back to its date and keeps non-empty, distinct caption seeds", () => {
@@ -256,7 +256,7 @@ test("journaledQuery finds current nodes carrying a minute-precision <time> at a
 });
 
 test("journaledQuery rejects timestamps that are not YYYY-MM-DD HH:MM", () => {
-	assert.throws(() => journaledQuery([{uuid: "AAA", created: "2026-10-06' OR 1=1 --"}]), /Invalid timestamp/);
+	assert.throws(() => journaledQuery([{uuid: "AAA", created: "2026-10-06' OR 1=1 --"}]), /Invalid timestamp/u);
 });
 
 test("splitJournaled separates favorites with a journal entry at their exact minute from the rest", () => {

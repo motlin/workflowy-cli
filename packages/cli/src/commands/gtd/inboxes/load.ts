@@ -214,7 +214,7 @@ export default class Load extends Command {
 	}
 
 	private extractAnchorText(html: string): string {
-		const match = html.match(/<a[^>]*>([^<]*)<\/a>/);
+		const match = html.match(/<a[^>]*>([^<]*)<\/a>/u);
 		return match ? match[1] : html;
 	}
 

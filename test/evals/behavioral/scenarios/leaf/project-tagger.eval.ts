@@ -96,7 +96,7 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 		);
 
 		const response = result.finalResponse;
-		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		const jsonMatch = response.match(/\{[\s\S]*\}/u);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
 		expect(() => ProjectTaggerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();

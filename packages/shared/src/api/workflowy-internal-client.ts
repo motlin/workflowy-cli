@@ -80,7 +80,7 @@ export class WorkflowyInternalClient {
 		const setCookie = response.headers.get("set-cookie");
 		if (setCookie) {
 			// Parse the session cookie (sessionid=...)
-			const sessionMatch = setCookie.match(/sessionid=([^;]+)/);
+			const sessionMatch = setCookie.match(/sessionid=([^;]+)/u);
 			if (sessionMatch) {
 				this.sessionCookie = `sessionid=${sessionMatch[1]}`;
 			}

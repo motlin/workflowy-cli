@@ -42,27 +42,27 @@ function normalizePath(rawPath: string): string {
 	}
 
 	// Strip trailing punctuation artifacts from regex extraction: ], ), etc.
-	p = p.replace(/[\])+,;]+$/, "");
+	p = p.replace(/[\])+,;]+$/u, "");
 
 	// Replace shell variables: $VAR, ${VAR}, $(...)
-	p = p.replaceAll(/\$\{[^}]+\}/g, "*");
-	p = p.replaceAll(/\$\([^)]+\)/g, "*");
-	p = p.replaceAll(/\$[A-Z_][A-Z_0-9]*/gi, "*");
+	p = p.replaceAll(/\$\{[^}]+\}/gu, "*");
+	p = p.replaceAll(/\$\([^)]+\)/gu, "*");
+	p = p.replaceAll(/\$[A-Z_][A-Z_0-9]*/giu, "*");
 
 	// Replace curly-brace template placeholders: {itemId}, {source}, etc.
-	p = p.replaceAll(/\{[^}]+\}/g, "*");
+	p = p.replaceAll(/\{[^}]+\}/gu, "*");
 
 	// Replace angle-bracket placeholders: <source>, <itemId>, etc.
-	p = p.replaceAll(/<[^>]+>/g, "*");
+	p = p.replaceAll(/<[^>]+>/gu, "*");
 
 	// Collapse glob wildcard extensions: *.json -> *
-	p = p.replaceAll(/\*\.[a-z]+/g, "*");
+	p = p.replaceAll(/\*\.[a-z]+/gu, "*");
 
 	// Collapse consecutive wildcards with hyphens: *-*-* -> *
-	p = p.replaceAll(/(\*[-_])+\*/g, "*");
+	p = p.replaceAll(/(\*[-_])+\*/gu, "*");
 
 	// Strip trailing slash
-	p = p.replace(/\/+$/, "");
+	p = p.replace(/\/+$/u, "");
 
 	return p;
 }
@@ -102,22 +102,22 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 	const lineLower = line.toLowerCase();
 
 	// Escape the path for use in regex
-	const pathEscaped = llmPath.path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+	const pathEscaped = llmPath.path.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
 
 	// --- Strong producer signals ---
 
 	// Redirect into the path: > .llm/... or > ".llm/..." (with optional quotes)
-	if (new RegExp(`>+\\s*"?\\.?\\/?${pathEscaped}`).test(line)) {
+	if (new RegExp(`>+\\s*"?\\.?\\/?${pathEscaped}`, "u").test(line)) {
 		return "producer";
 	}
 
 	// jq ... > "path" or command > "path" (redirect with quoted path)
-	if (new RegExp(`>\\s*"[^"]*${pathEscaped}`).test(line)) {
+	if (new RegExp(`>\\s*"[^"]*${pathEscaped}`, "u").test(line)) {
 		return "producer";
 	}
 
 	// cat > "path" << (heredoc write pattern)
-	if (/\bcat\s+>/.test(lineLower) && line.includes(llmPath.path)) {
+	if (/\bcat\s+>/u.test(lineLower) && line.includes(llmPath.path)) {
 		return "producer";
 	}
 
@@ -127,13 +127,13 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 	}
 
 	// mv destination (second argument of mv)
-	if (/\bmv\s+/.test(lineLower) && new RegExp(`mv\\s+\\S+\\s+.*${pathEscaped}`).test(line)) {
+	if (/\bmv\s+/u.test(lineLower) && new RegExp(`mv\\s+\\S+\\s+.*${pathEscaped}`, "u").test(line)) {
 		return "producer";
 	}
 
 	// "writes to", "write X to", "cache to", "save to", "writing to"
 	if (
-		/writ(es?|ing)\s+.{0,40}\b(to|into)\b|cache[sd]?\s+.{0,20}\b(to|them|it)\b|sav(es?|ing)\s+to|output\s+to/i.test(
+		/writ(es?|ing)\s+.{0,40}\b(to|into)\b|cache[sd]?\s+.{0,20}\b(to|them|it)\b|sav(es?|ing)\s+to|output\s+to/iu.test(
 			contextLower,
 		)
 	) {
@@ -142,28 +142,28 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 
 	// "creates <path>" — the word "creates" must be on the SAME line as the path
 	// (not just anywhere in context, to avoid false positives like "create inbox nodes")
-	if (/creates?\s/i.test(lineLower) && line.includes(llmPath.path)) {
+	if (/creates?\s/iu.test(lineLower) && line.includes(llmPath.path)) {
 		return "producer";
 	}
 
 	// "And creates <path>" pattern (path on an adjacent line from "creates")
-	const pathEscapedForCreates = llmPath.path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-	if (new RegExp(`creates?\\s+[\`"']?${pathEscapedForCreates}`, "i").test(context)) {
+	const pathEscapedForCreates = llmPath.path.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+	if (new RegExp(`creates?\\s+[\`"']?${pathEscapedForCreates}`, "iu").test(context)) {
 		return "producer";
 	}
 
 	// "outputFile", "outputDir" (but NOT "Output Format" or "Output:" as section headers)
-	if (/\boutput(file|dir)\b/i.test(contextLower)) {
+	if (/\boutput(file|dir)\b/iu.test(contextLower)) {
 		return "producer";
 	}
 
 	// "downloads .* into" pattern
-	if (/downloads?\s+.*\s+into/i.test(contextLower)) {
+	if (/downloads?\s+.*\s+into/iu.test(contextLower)) {
 		return "producer";
 	}
 
 	// Descriptions that say the script/agent "produces" or "generates" or "syncs to"
-	if (/produc(es?|ing)|generat(es?|ing)|sync(s|ed|ing)?\s+(metadata\s+)?to/i.test(contextLower)) {
+	if (/produc(es?|ing)|generat(es?|ing)|sync(s|ed|ing)?\s+(metadata\s+)?to/iu.test(contextLower)) {
 		return "producer";
 	}
 
@@ -171,7 +171,7 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 
 	// cat/jq/wc reading the path (but NOT cat > which is a redirect/write)
 	if (
-		/\b(cat|jq|wc)\s/.test(lineLower) &&
+		/\b(cat|jq|wc)\s/u.test(lineLower) &&
 		!line.split(llmPath.path)[0].includes(">") &&
 		line.includes(llmPath.path)
 	) {
@@ -179,34 +179,34 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 	}
 
 	// wc -l < path (stdin redirect)
-	if (new RegExp(`<\\s*\\.?\\/?${pathEscaped}`).test(line)) {
+	if (new RegExp(`<\\s*\\.?\\/?${pathEscaped}`, "u").test(line)) {
 		return "consumer";
 	}
 
 	// "read from", "reads from", "load from"
-	if (/read(s|ing)?\s+(from|the)|load(s|ing)?\s+(from|the)/i.test(contextLower)) {
+	if (/read(s|ing)?\s+(from|the)|load(s|ing)?\s+(from|the)/iu.test(contextLower)) {
 		return "consumer";
 	}
 
 	// "collect results from"
-	if (/collect\s+(results?|data)\s+from/i.test(contextLower)) {
+	if (/collect\s+(results?|data)\s+from/iu.test(contextLower)) {
 		return "consumer";
 	}
 
 	// "Read the" or "Read events from" patterns
-	if (/\bread\s+(the|events|items|data)\s+(from|in)/i.test(contextLower)) {
+	if (/\bread\s+(the|events|items|data)\s+(from|in)/iu.test(contextLower)) {
 		return "consumer";
 	}
 
 	// "from <path>" (consumer reads from)
-	if (new RegExp(`from\\s+[\`"']?${pathEscaped}`, "i").test(context)) {
+	if (new RegExp(`from\\s+[\`"']?${pathEscaped}`, "iu").test(context)) {
 		return "consumer";
 	}
 
 	// --- Directional defaults ---
 
 	// "to <path>" generally means producing/writing
-	if (new RegExp(`to\\s+[\`"']?${pathEscaped}`, "i").test(context)) {
+	if (new RegExp(`to\\s+[\`"']?${pathEscaped}`, "iu").test(context)) {
 		return "producer";
 	}
 

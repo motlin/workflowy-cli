@@ -60,19 +60,19 @@ test("addInterval clamps a month rollover to the last day rather than skipping a
 
 test("buildTimeElement computes the weekday and keeps the trailing space", () => {
 	const el = buildTimeElement("2026-06-24");
-	assert.match(el, /startYear="2026"/);
-	assert.match(el, /startMonth="6"/);
-	assert.match(el, /startDay="24"/);
-	assert.match(el, />Wed, Jun 24, 2026<\/time> $/);
+	assert.match(el, /startYear="2026"/u);
+	assert.match(el, /startMonth="6"/u);
+	assert.match(el, /startDay="24"/u);
+	assert.match(el, />Wed, Jun 24, 2026<\/time> $/u);
 });
 
 test("swapTimeElement replaces an existing time element in place", () => {
 	const name = 'Reminders <time startYear="2026" startMonth="6" startDay="24">Wed, Jun 24, 2026</time> ';
 	const next = buildTimeElement("2026-06-25");
 	const swapped = swapTimeElement(name, next);
-	assert.match(swapped, /^Reminders /);
-	assert.match(swapped, /startDay="25"/);
-	assert.doesNotMatch(swapped, /startDay="24"/);
+	assert.match(swapped, /^Reminders /u);
+	assert.match(swapped, /startDay="25"/u);
+	assert.doesNotMatch(swapped, /startDay="24"/u);
 });
 
 const FIXTURE = {
@@ -192,9 +192,9 @@ test("computeOverdue stages the next date and a verbatim node update applyOp", (
 	const reminders = rows.find((r) => r.id === "id-reminders");
 	// Daily Review = +1 day from today (the review date advances to today + interval).
 	assert.strictEqual(reminders.nextDate, "2026-06-27");
-	assert.match(reminders.newName, /^Reminders /);
-	assert.match(reminders.newName, /startDay="27"/);
-	assert.match(reminders.applyOp, /^\.\/bin\/run\.js node update --id id-reminders --name /);
+	assert.match(reminders.newName, /^Reminders /u);
+	assert.match(reminders.newName, /startDay="27"/u);
+	assert.match(reminders.applyOp, /^\.\/bin\/run\.js node update --id id-reminders --name /u);
 	// The new <time> element must be embedded in the applyOp verbatim.
 	assert.ok(reminders.applyOp.includes(reminders.newName));
 });
@@ -371,8 +371,8 @@ test("computeOverdue stages a lengthen op that moves the item up one cadence run
 	assert.strictEqual(lengthen.sectionId, "sec-weekly");
 	assert.deepStrictEqual(lengthen.interval, {amount: 7, unit: "d"});
 	assert.strictEqual(lengthen.nextDate, "2026-07-03");
-	assert.match(lengthen.newName, /startDay="3"/);
-	assert.match(lengthen.newName, /startMonth="7"/);
+	assert.match(lengthen.newName, /startDay="3"/u);
+	assert.match(lengthen.newName, /startMonth="7"/u);
 	assert.ok(lengthen.applyOp.includes(`node update --id id-batteries --name `));
 	assert.ok(lengthen.applyOp.includes(lengthen.newName));
 	assert.ok(lengthen.applyOp.includes("node move --node-id id-batteries --parent-id sec-weekly"));

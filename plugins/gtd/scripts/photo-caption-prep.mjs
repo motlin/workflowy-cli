@@ -29,11 +29,11 @@ import {copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync}
 import {homedir} from "node:os";
 import {join, resolve} from "node:path";
 
-const UUID_RE = /^[0-9A-Fa-f-]+$/;
-const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const TIMESTAMP_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/;
+const UUID_RE = /^[0-9A-Fa-f-]+$/u;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/u;
+const TIMESTAMP_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/u;
 const MINUTE_TIME_RE =
-	/<time startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)" startHour="(\d+)" startMinute="(\d+)">/g;
+	/<time startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)" startHour="(\d+)" startMinute="(\d+)">/gu;
 const CURRENT = "system_to='9999-12-31 23:59:59'";
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D/gu;
 const ENTITIES = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'"};
@@ -94,15 +94,15 @@ export function facesSummary({named, unnamed}) {
 // day's entry text rather than describing the image.
 export function captionSeed(name) {
 	return name
-		.replaceAll(/<[^>]*>/g, "")
-		.replaceAll(/&(amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity])
+		.replaceAll(/<[^>]*>/gu, "")
+		.replaceAll(/&(amp|lt|gt|quot|#39);/gu, (entity) => ENTITIES[entity])
 		.replace(EMOJI_RE, "")
-		.replaceAll(/[\u2018\u2019]/g, "'")
-		.replaceAll(/[\u201C\u201D]/g, '"')
+		.replaceAll(/[\u2018\u2019]/gu, "'")
+		.replaceAll(/[\u201C\u201D]/gu, '"')
 		.replace(/(\s*#[\w-]+)+\s*$/u, "")
-		.replaceAll(/[@#](?=\w)/g, "")
-		.replaceAll(/\s+'s\b/g, "'s")
-		.replaceAll(/\s+/g, " ")
+		.replaceAll(/[@#](?=\w)/gu, "")
+		.replaceAll(/\s+'s\b/gu, "'s")
+		.replaceAll(/\s+/gu, " ")
 		.trim();
 }
 
@@ -127,7 +127,7 @@ export function journalQuery(dates) {
 export function groupJournal(rows) {
 	const byDate = {};
 	for (const {day, entry} of rows) {
-		const match = /startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)"/.exec(day);
+		const match = /startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)"/u.exec(day);
 		if (!match) {
 			continue;
 		}

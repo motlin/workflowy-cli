@@ -128,7 +128,7 @@ function loadEntryTitles(database: ReturnType<typeof createDatabase>, entryIds: 
 	return new Map(
 		database
 			.all<{id: string; name: string | null}>(query)
-			.map((row) => [row.id, (row.name ?? "").replaceAll(/<[^>]*>/g, "").trim()]),
+			.map((row) => [row.id, (row.name ?? "").replaceAll(/<[^>]*>/gu, "").trim()]),
 	);
 }
 

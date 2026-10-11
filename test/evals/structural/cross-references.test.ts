@@ -27,14 +27,14 @@ function buildCommandRegistry(): Set<string> {
 		const commandsDir = join(PLUGINS_DIR, plugin, "commands");
 		for (const filePath of collectMarkdownFiles(commandsDir)) {
 			const relative = filePath.slice(commandsDir.length + 1);
-			const withoutExt = relative.replace(/\.md$/, "");
+			const withoutExt = relative.replace(/\.md$/u, "");
 			registry.add(`${plugin}:${withoutExt.replaceAll("/", ":")}`);
 		}
 	}
 
 	for (const filePath of collectMarkdownFiles(LOCAL_COMMANDS_DIR)) {
 		const relative = filePath.slice(LOCAL_COMMANDS_DIR.length + 1);
-		const withoutExt = relative.replace(/\.md$/, "");
+		const withoutExt = relative.replace(/\.md$/u, "");
 		registry.add(withoutExt.replaceAll("/", ":"));
 	}
 
@@ -48,7 +48,7 @@ function buildCommandRegistry(): Set<string> {
  */
 function resolveScriptRef(refPath: string, referencingFile: string): string | undefined {
 	if (refPath.startsWith("${CLAUDE_PLUGIN_ROOT}/")) {
-		const match = referencingFile.match(/^plugins\/([^/]+)\//);
+		const match = referencingFile.match(/^plugins\/([^/]+)\//u);
 		if (!match) {
 			return undefined;
 		}

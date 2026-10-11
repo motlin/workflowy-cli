@@ -160,8 +160,8 @@ test("planInsertion creates every missing tier down to the target", () => {
 
 test("planInsertion rejects a target that is not a positive tier rank", () => {
 	const ladder = readLadder({id: "a", children: [fill(1, 0)]});
-	assert.throws(() => planInsertion(ladder, 0), /tier rank/);
-	assert.throws(() => planInsertion(ladder, 1.5), /tier rank/);
+	assert.throws(() => planInsertion(ladder, 0), /tier rank/u);
+	assert.throws(() => planInsertion(ladder, 1.5), /tier rank/u);
 });
 
 /**

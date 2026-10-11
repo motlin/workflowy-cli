@@ -61,7 +61,7 @@ const MINIMUM_GROUP_SIZE = 2;
  */
 const PASTE_WINDOW_SECONDS = 300;
 
-const IMAGE_SEQUENCE_PATTERN = /^IMG_(\d+)\./i;
+const IMAGE_SEQUENCE_PATTERN = /^IMG_(\d+)\./iu;
 
 /**
  * Extract the sequence number from an iPhone-style `IMG_3695.jpeg` filename.

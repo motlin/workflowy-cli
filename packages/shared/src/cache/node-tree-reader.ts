@@ -30,7 +30,7 @@ export type NodeTree = Node & {
 	hasReferencesRoot: boolean;
 };
 
-const WORKFLOWY_LINK_PATTERN = /<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{12})">/gi;
+const WORKFLOWY_LINK_PATTERN = /<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{12})">/giu;
 
 /** Extract Workflowy link short IDs from a node's name. */
 function extractWorkflowyLinkShortIds(name: string): string[] {

@@ -256,8 +256,8 @@ test("fromWorkflowy stages complete and reschedule ops carrying the full uuid", 
 	);
 
 	assert.strictEqual(item.ops.complete, "./bin/run.js node complete --id eeeeeeeeeeee5555");
-	assert.match(item.ops.reschedule, /^\.\/bin\/run\.js node update --id eeeeeeeeeeee5555 --name /);
-	assert.match(item.ops.reschedule, /\{\{date\}\}/);
+	assert.match(item.ops.reschedule, /^\.\/bin\/run\.js node update --id eeeeeeeeeeee5555 --name /u);
+	assert.match(item.ops.reschedule, /\{\{date\}\}/u);
 });
 
 test("fromThings maps due-dated and Today-list tasks, deduping by id", () => {
@@ -339,9 +339,9 @@ test("fromThings leaves an undated task outside the Today list undated", () => {
 test("fromThings stages an AppleScript completion keyed on the stable id", () => {
 	const [item] = fromThings({due: [{id: "JMwVZ", title: "Craig's task", due: "2026-08-01"}], today: []}, TODAY);
 
-	assert.match(item.ops.complete, /Things3/);
-	assert.match(item.ops.complete, /JMwVZ/);
-	assert.match(item.ops.complete, /completed/);
+	assert.match(item.ops.complete, /Things3/u);
+	assert.match(item.ops.complete, /JMwVZ/u);
+	assert.match(item.ops.complete, /completed/u);
 });
 
 test("fromReminders flattens overdue and dueToday, ignoring dueTomorrow", () => {
@@ -370,8 +370,8 @@ test("fromReminders keys its completion op on the title, since iMCP exposes no i
 	);
 
 	assert.strictEqual(item.id, "O'Brien follow-up");
-	assert.match(item.ops.complete, /Reminders/);
-	assert.match(item.ops.complete, /O'"'"'Brien follow-up/);
+	assert.match(item.ops.complete, /Reminders/u);
+	assert.match(item.ops.complete, /O'"'"'Brien follow-up/u);
 });
 
 test("collectDueItems merges all three sources sorted by due date, undated last", () => {
@@ -475,16 +475,16 @@ test("applyReschedule substitutes a <time> element for Workflowy items", () => {
 		TODAY,
 	);
 	const cmd = applyReschedule(item, "2026-08-31");
-	assert.match(cmd, /startYear="2026" startMonth="8" startDay="31"/);
-	assert.doesNotMatch(cmd, /\{\{date\}\}/);
+	assert.match(cmd, /startYear="2026" startMonth="8" startDay="31"/u);
+	assert.doesNotMatch(cmd, /\{\{date\}\}/u);
 });
 
 test("applyReschedule substitutes an AppleScript date string for Things items", () => {
 	const [item] = fromThings({due: [{id: "things-1", title: "Refill the propane tank", due: "2026-04-25"}]}, TODAY);
 	const cmd = applyReschedule(item, "2026-08-31");
-	assert.doesNotMatch(cmd, /<time/);
-	assert.doesNotMatch(cmd, /\{\{date\}\}/);
-	assert.match(cmd, /date "August 31, 2026"/);
+	assert.doesNotMatch(cmd, /<time/u);
+	assert.doesNotMatch(cmd, /\{\{date\}\}/u);
+	assert.match(cmd, /date "August 31, 2026"/u);
 });
 
 test("applyReschedule substitutes an AppleScript date string for Reminders items", () => {
@@ -493,8 +493,8 @@ test("applyReschedule substitutes an AppleScript date string for Reminders items
 		TODAY,
 	);
 	const cmd = applyReschedule(item, "2026-08-31");
-	assert.doesNotMatch(cmd, /<time/);
-	assert.match(cmd, /date "August 31, 2026"/);
+	assert.doesNotMatch(cmd, /<time/u);
+	assert.match(cmd, /date "August 31, 2026"/u);
 });
 
 /**
@@ -510,9 +510,9 @@ test("fromWorkflowy falls back to the asap bucket root when it has no tier ladde
 	);
 
 	assert.ok(item.ops.moveToAsap, "expected a moveToAsap op");
-	assert.match(item.ops.moveToAsap, /node update --id ffffffffffff6666 --name /);
-	assert.doesNotMatch(item.ops.moveToAsap, /<time/);
-	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid/);
+	assert.match(item.ops.moveToAsap, /node update --id ffffffffffff6666 --name /u);
+	assert.doesNotMatch(item.ops.moveToAsap, /<time/u);
+	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid/u);
 });
 
 /**
@@ -535,7 +535,7 @@ test("moveToAsap targets the bottom tier when the asap bucket has a ladder", () 
 		TODAY,
 	);
 
-	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id tier-3-uuid -p bottom/);
+	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id tier-3-uuid -p bottom/u);
 });
 
 test("moveToAsap ignores category containers left over from before the tier migration", () => {
@@ -549,7 +549,7 @@ test("moveToAsap ignores category containers left over from before the tier migr
 		TODAY,
 	);
 
-	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid -p bottom/);
+	assert.match(item.ops.moveToAsap, /node move --node-id ffffffffffff6666 --parent-id asap-uuid -p bottom/u);
 });
 
 test("moveToAsap is absent when the root has no asap bucket", () => {
@@ -565,7 +565,7 @@ test("resolveTimeframe reaches the longer horizons offered to repeatedly skipped
 });
 
 test("resolveTimeframe still rejects a timeframe it does not know", () => {
-	assert.throws(() => resolveTimeframe("Someday", TODAY), /unknown timeframe/);
+	assert.throws(() => resolveTimeframe("Someday", TODAY), /unknown timeframe/u);
 });
 
 test("skipKey namespaces an item id by source so two systems cannot collide", () => {

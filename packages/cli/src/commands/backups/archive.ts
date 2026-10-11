@@ -108,8 +108,8 @@ export default class BackupsArchive extends Command {
 
 /** Extract the backup date from a Data, History, or legacy filename (ignoring a `.zst` suffix). */
 function parseDate(filename: string): Date | null {
-	const base = filename.replace(/\.zst$/, "");
-	const match = base.match(/(\d{4}-\d{2}-\d{2})\.(?:workflowy\.backup|txt|json)$/);
+	const base = filename.replace(/\.zst$/u, "");
+	const match = base.match(/(\d{4}-\d{2}-\d{2})\.(?:workflowy\.backup|txt|json)$/u);
 	if (!match) {
 		return null;
 	}

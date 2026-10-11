@@ -135,19 +135,19 @@ test("the AppleScript resolves each to-do by id, never by list index", () => {
 	const src = script("Today");
 	assert.doesNotMatch(
 		src,
-		/repeat\s+with\s+\w+\s+in\s+\(to dos of list/,
+		/repeat\s+with\s+\w+\s+in\s+\(to dos of list/u,
 		"must not iterate list references directly -- indices go stale mid-loop",
 	);
-	assert.match(src, /id of every to do of list "Today"/, "must snapshot the ids up front");
-	assert.match(src, /to do id /, "must resolve each to-do by its stable id");
+	assert.match(src, /id of every to do of list "Today"/u, "must snapshot the ids up front");
+	assert.match(src, /to do id /u, "must resolve each to-do by its stable id");
 });
 
 test("the AppleScript tolerates a to-do that disappears between the snapshot and the lookup", () => {
 	// Completing or deleting a to-do in the window between the id snapshot and its lookup is a
 	// real race, not a bug to crash on -- but it must not vanish silently either.
 	const src = script("Anytime");
-	assert.match(src, /\btry\b/, "must guard the per-id lookup");
-	assert.match(src, /\bon error\b/, "must handle the vanished-to-do case explicitly");
+	assert.match(src, /\btry\b/u, "must guard the per-id lookup");
+	assert.match(src, /\bon error\b/u, "must handle the vanished-to-do case explicitly");
 });
 
 test("a failed per-id lookup is retried and then reported, never silently dropped", () => {
@@ -160,9 +160,9 @@ test("a failed per-id lookup is retried and then reported, never silently droppe
 	// A lookup that fails must be retried once, and a lookup that still fails must be COUNTED and
 	// surfaced, so a dropped item is visible instead of silently changing the answer.
 	const src = script("Anytime");
-	assert.match(src, /repeat with attempt from 1 to 2/, "must retry a failed lookup once");
-	assert.match(src, /set skipped to skipped \+ 1/, "must count a lookup that failed both attempts");
-	assert.match(src, /"SKIPPED"/, "must emit the skip count so the caller can see dropped items");
+	assert.match(src, /repeat with attempt from 1 to 2/u, "must retry a failed lookup once");
+	assert.match(src, /set skipped to skipped \+ 1/u, "must count a lookup that failed both attempts");
+	assert.match(src, /"SKIPPED"/u, "must emit the skip count so the caller can see dropped items");
 });
 
 test("the parsed row count is reconciled against the id snapshot", () => {
@@ -181,5 +181,5 @@ test("the AppleScript emits each to-do's activation date", () => {
 	// A repeating Today task with no deadline (take out the garbage) is only meaningful on the day
 	// Things activated it. Without the activation date the review can only guess "today", and a
 	// task left over from Tuesday shows up as Wednesday's chore.
-	assert.match(script("Today"), /activation date of t/);
+	assert.match(script("Today"), /activation date of t/u);
 });

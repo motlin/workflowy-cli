@@ -64,7 +64,7 @@ export function isHumanUserMessage(obj) {
 		return false;
 	}
 	// Slash-command stubs, local command echoes, and the interrupt marker are metadata.
-	if (/^<command-(name|message|args)/.test(text)) {
+	if (/^<command-(name|message|args)/u.test(text)) {
 		return false;
 	}
 	if (text.startsWith("<local-command-stdout>")) {

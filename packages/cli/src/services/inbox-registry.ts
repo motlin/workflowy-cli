@@ -9,7 +9,7 @@ export interface BrokenInboxLink {
 	shortId: string;
 }
 
-const WORKFLOWY_LINK = /<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{12})">/i;
+const WORKFLOWY_LINK = /<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{12})">/iu;
 
 /**
  * Resolve each Metadata > 📥 Inboxes link to its target node. A link whose
@@ -45,7 +45,7 @@ export function resolveInboxLinks(
 }
 
 function normalizeTitle(name: string): string {
-	return stripHtmlTags(name).trim().replaceAll(/\s+/g, " ").toLowerCase();
+	return stripHtmlTags(name).trim().replaceAll(/\s+/gu, " ").toLowerCase();
 }
 
 /** Group open sibling items whose visible titles match; each group is a probable duplicate. */
