@@ -8,25 +8,23 @@ import {createDatabase} from "../../../db/index.js";
 import {CacheService} from "../../../services/cache.js";
 import {logger} from "../../../services/logger.js";
 
-interface ActionItem {
-	text: string;
-	assignee: string | null;
-	completed: boolean;
-}
+const MeetingSchema = z.object({
+	otid: z.string(),
+	title: z
+		.string()
+		.nullable()
+		.transform((title) => title ?? "Untitled meeting"),
+	start_time: z.number(),
+	summary: z.string().nullable(),
+	outline: z.array(z.object({title: z.string(), segments: z.array(z.string())})),
+	action_items: z
+		.array(z.object({text: z.string(), assignee: z.string().nullable(), completed: z.boolean()}))
+		.optional(),
+});
 
-interface OutlineSection {
-	title: string;
-	segments: string[];
-}
+type Meeting = z.infer<typeof MeetingSchema>;
 
-interface Meeting {
-	otid: string;
-	title: string;
-	start_time: number;
-	summary: string | null;
-	outline: OutlineSection[];
-	action_items?: ActionItem[];
-}
+const SyncOutputSchema = z.object({speeches: z.array(MeetingSchema)});
 
 const ImportStateSchema = z.object({
 	imported_otids: z.array(z.string()),
@@ -193,7 +191,7 @@ export default class Import extends Command {
 				env: process.env,
 				cwd: projectRoot,
 			});
-			return JSON.parse(result);
+			return SyncOutputSchema.parse(JSON.parse(result));
 		} catch (error) {
 			// Try running the bash script as fallback
 			const scriptPath = path.join(projectRoot, ".claude", "scripts", "gtd", "otter-api.sh");
@@ -203,7 +201,7 @@ export default class Import extends Command {
 					env: process.env,
 					cwd: projectRoot,
 				});
-				return JSON.parse(result);
+				return SyncOutputSchema.parse(JSON.parse(result));
 			}
 			throw error;
 		}

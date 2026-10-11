@@ -109,6 +109,7 @@ export default defineConfig({
 			"typescript/no-unsafe-member-access": "error",
 			"typescript/no-unsafe-assignment": "error",
 			"typescript/no-unsafe-call": "error",
+			"typescript/no-unsafe-return": "error",
 		},
 		overrides: [
 			{
@@ -118,6 +119,7 @@ export default defineConfig({
 					"typescript/no-unsafe-member-access": "off",
 					"typescript/no-unsafe-assignment": "off",
 					"typescript/no-unsafe-call": "off",
+					"typescript/no-unsafe-return": "off",
 				},
 			},
 			{

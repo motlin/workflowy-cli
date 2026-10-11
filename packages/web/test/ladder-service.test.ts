@@ -98,7 +98,7 @@ describe("LadderService.move", () => {
 		await new Promise((resolve) => {
 			setImmediate(resolve);
 		});
-		expect(failure.mock.calls.map(([message]) => message)).toStrictEqual([
+		expect(failure.mock.calls.map(([message]): unknown => message)).toStrictEqual([
 			"ladder: could not refresh tier w2 after a move: Test refresh throttled",
 		]);
 		failure.mockRestore();

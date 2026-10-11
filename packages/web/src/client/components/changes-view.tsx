@@ -4,6 +4,7 @@ import {useState} from "react";
 import {useSearchParams} from "react-router-dom";
 import type {ChangeSummary, ChangeTreeNode, NodeChange} from "@workflowy/shared/changes";
 import {diffChars} from "diff";
+import {readJson} from "../read-json.js";
 
 interface ChangesResponse {
 	changes: NodeChange[];
@@ -182,7 +183,7 @@ export function ChangesView() {
 			if (!response.ok) {
 				throw new Error(`Failed to fetch changes: ${response.statusText}`);
 			}
-			return response.json();
+			return readJson<ChangesResponse>(response);
 		},
 	});
 

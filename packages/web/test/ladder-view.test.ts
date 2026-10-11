@@ -44,7 +44,7 @@ interface ElementProps {
 	[key: string]: unknown;
 }
 
-function isElement(node: ReactNode): node is ReactElement<ElementProps> {
+function isElement(node: unknown): node is ReactElement<ElementProps> {
 	return typeof node === "object" && node !== null && "props" in node && typeof node.props === "object";
 }
 
@@ -72,7 +72,8 @@ function renderComponent(element: ReactElement<ElementProps>): ReactNode {
 	if (typeof element.type !== "function") {
 		throw new Error("not a function component");
 	}
-	return Reflect.apply(element.type, undefined, [element.props]);
+	const rendered: unknown = Reflect.apply(element.type, undefined, [element.props]);
+	return isElement(rendered) ? rendered : null;
 }
 
 const RequestBodySchema = z.object({node_id: z.string(), to_tier: z.string().nullish()});
@@ -432,7 +433,7 @@ describe("a row whose write is in flight", () => {
 	it("still dispatches a move for another row", () => {
 		tierProps().onStep("alice", "2nd");
 		tierProps().onStep("bob", "2nd");
-		expect(request.mock.calls.map(([, options]) => JSON.parse(options.body))).toStrictEqual([
+		expect(request.mock.calls.map(([, options]): unknown => JSON.parse(options.body))).toStrictEqual([
 			{root: "personal", node_id: "alice", to_tier: "2nd"},
 			{root: "personal", node_id: "bob", to_tier: "2nd"},
 		]);
@@ -441,7 +442,7 @@ describe("a row whose write is in flight", () => {
 	it("ignores a second move of the same row until the first lands", () => {
 		tierProps().onStep("alice", "2nd");
 		tierProps().onStep("alice", "1st");
-		expect(request.mock.calls.map(([, options]) => JSON.parse(options.body))).toStrictEqual([
+		expect(request.mock.calls.map(([, options]): unknown => JSON.parse(options.body))).toStrictEqual([
 			{root: "personal", node_id: "alice", to_tier: "2nd"},
 		]);
 	});
@@ -514,7 +515,7 @@ it("saves selected rows before the same anchor in display order", async () => {
 	tierProps().onSelect("bob", true);
 	tierProps().onStep("bob", "2nd", "charlie");
 	await settle();
-	expect(request.mock.calls.map(([, options]) => JSON.parse(options.body))).toStrictEqual([
+	expect(request.mock.calls.map(([, options]): unknown => JSON.parse(options.body))).toStrictEqual([
 		{root: "personal", node_id: "alice", to_tier: "2nd", before_id: "charlie"},
 		{root: "personal", node_id: "bob", to_tier: "2nd", before_id: "charlie"},
 	]);

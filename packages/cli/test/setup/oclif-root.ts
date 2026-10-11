@@ -13,5 +13,6 @@ if (typeof originalRun !== "function") {
 }
 
 Reflect.set(Command, "run", function (this: unknown, argv?: string[], opts?: Interfaces.LoadOptions): unknown {
-	return Reflect.apply(originalRun, this, [argv, opts ?? cliRoot]);
+	const result: unknown = Reflect.apply(originalRun, this, [argv, opts ?? cliRoot]);
+	return result;
 });
