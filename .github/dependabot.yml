@@ -8,14 +8,13 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 25
     cooldown:
-      default-days: 1
+      default-days: 7
     labels:
       - "dependencies"
+    # Only group dependencies that must move in lockstep. typescript was a
+    # single-package group, so it gets its own PR either way -- dropped so a
+    # breaking bump is labelled by name rather than hidden behind a group.
     groups:
-      typescript-ecosystem:
-        patterns:
-          - "typescript"
-          - "@typescript-eslint/*"
       vite-ecosystem:
         patterns:
           - "vite"
@@ -26,19 +25,24 @@ updates:
           - "@vitest/*"
           - "@testing-library/*"
           - "playwright"
+      # Storybook ships its core, addons and eslint plugin on one release train,
+      # so they have to move together. @chromatic-com/storybook is deliberately
+      # excluded: different vendor, independent versioning.
+      storybook:
+        patterns:
+          - "storybook"
+          - "@storybook/*"
+          - "eslint-plugin-storybook"
+      # Listed explicitly rather than as "react-*", which matches unrelated
+      # packages that merely share the prefix.
       react-ecosystem:
         patterns:
           - "react"
+          - "react-dom"
           - "@types/react*"
-          - "react-*"
       tanstack:
         patterns:
           - "@tanstack/*"
-      firebase:
-        patterns:
-          - "firebase"
-          - "firebase-*"
-          - "react-firebase-*"
     commit-message:
       prefix: "dependabot"
       include: "scope"
@@ -51,11 +55,9 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 25
     cooldown:
-      default-days: 1
+      default-days: 7
     labels:
       - "dependencies"
-    ignore:
-      - dependency-name: "ataylorme/eslint-annotate-action"
     commit-message:
       prefix: "dependabot"
       include: "scope"
