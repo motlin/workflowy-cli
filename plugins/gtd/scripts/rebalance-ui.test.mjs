@@ -582,15 +582,15 @@ function runQueuePage(html) {
 				this.insertBefore(child, null);
 			},
 			insertBefore(child, before) {
-				if (child.parentNode) {
-					child.parentNode.removeChild(child);
-				}
+				child.remove();
 				this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, child);
 				child.parentNode = this;
 			},
-			removeChild(child) {
-				this.children.splice(this.children.indexOf(child), 1);
-				child.parentNode = null;
+			remove() {
+				if (this.parentNode) {
+					this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1);
+					this.parentNode = null;
+				}
 			},
 			get firstChild() {
 				return this.children[0];

@@ -996,7 +996,7 @@
 		var line = null;
 
 		function clearLine() {
-			if (line && line.parentNode) line.parentNode.removeChild(line);
+			if (line) line.remove();
 			line = null;
 			var highlighted = document.querySelector('.zone.drag-over');
 			if (highlighted) highlighted.classList.remove('drag-over');
