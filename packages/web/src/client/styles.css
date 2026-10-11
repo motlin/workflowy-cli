@@ -903,6 +903,9 @@ body {
 	justify-content: center;
 	width: 20px;
 	height: 24px;
+	padding: 0;
+	border: none;
+	background: none;
 	cursor: default;
 	color: var(--wf-icon-tertiary);
 	text-decoration: none;
@@ -1576,6 +1579,33 @@ span.breadcrumb-home-icon {
 	background-color: var(--color-bg-hover);
 }
 
+.left-sidebar-row {
+	display: flex;
+	align-items: center;
+	transition: background-color 0.15s ease;
+}
+
+.left-sidebar-row:hover {
+	background-color: var(--color-bg-hover);
+}
+
+.left-sidebar-row > .left-sidebar-item {
+	flex: 1;
+	min-width: 0;
+}
+
+.left-sidebar-row > .left-sidebar-item:hover {
+	background-color: transparent;
+}
+
+.home-tree-row {
+	padding-left: 12px;
+}
+
+.home-tree-row > .left-sidebar-item {
+	padding-left: 0;
+}
+
 .left-sidebar-item:focus {
 	outline: none;
 	background-color: var(--color-bg-selected);
@@ -1599,8 +1629,11 @@ span.breadcrumb-home-icon {
 }
 
 .left-sidebar-unstar {
-	margin-left: 8px;
+	margin-right: 8px;
 	padding: 2px 6px;
+	background: transparent;
+	border: none;
+	font-family: inherit;
 	font-size: 14px;
 	color: var(--color-text-faint);
 	border-radius: 4px;
@@ -1611,7 +1644,8 @@ span.breadcrumb-home-icon {
 		color 0.15s ease;
 }
 
-.left-sidebar-item:hover .left-sidebar-unstar {
+.left-sidebar-row:hover .left-sidebar-unstar,
+.left-sidebar-unstar:focus-visible {
 	opacity: 1;
 }
 
@@ -1677,10 +1711,15 @@ span.breadcrumb-home-icon {
 }
 
 /* Left Sidebar - Section toggles */
-.left-sidebar-section-title {
+.left-sidebar-section-button {
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	color: inherit;
+	font: inherit;
 	cursor: pointer;
 }
 
@@ -1723,6 +1762,9 @@ span.breadcrumb-home-icon {
 	width: 16px;
 	height: 16px;
 	margin-right: 4px;
+	padding: 0;
+	background: transparent;
+	border: none;
 	color: var(--color-text-muted);
 	cursor: pointer;
 	flex-shrink: 0;
@@ -4045,7 +4087,8 @@ span.breadcrumb-home-icon {
 		color 0.15s ease;
 }
 
-.node-context-menu-button.visible {
+.node-context-menu-button.visible,
+.outline-node:hover > .name > .nameButtons > .node-context-menu-button {
 	opacity: 1;
 }
 
@@ -4440,6 +4483,14 @@ span.breadcrumb-home-icon {
 	z-index: 10000;
 	display: flex;
 	flex-direction: column;
+	width: auto;
+	height: auto;
+	max-width: none;
+	max-height: none;
+	margin: 0;
+	padding: 0;
+	border: none;
+	color: inherit;
 	background: var(--color-bg);
 }
 

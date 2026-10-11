@@ -32,8 +32,14 @@ export function Settings() {
 	};
 
 	return (
-		<div className="settings-overlay" onClick={closeSettings}>
-			<div className="settings-modal" onClick={(event) => event.stopPropagation()}>
+		<div
+			className="settings-overlay"
+			onClick={(event) => {
+				if (event.target === event.currentTarget) closeSettings();
+			}}
+			role="presentation"
+		>
+			<div className="settings-modal">
 				<div className="settings-header">
 					<h2 className="settings-title">Settings</h2>
 					<button className="settings-close" onClick={closeSettings} type="button">
@@ -46,7 +52,7 @@ export function Settings() {
 						<h3 className="settings-section-title">Appearance</h3>
 
 						<div className="settings-row">
-							<label className="settings-label">Theme</label>
+							<span className="settings-label">Theme</span>
 							<div className="settings-theme-buttons">
 								<button
 									className={`settings-theme-button ${theme === "light" ? "selected" : ""}`}

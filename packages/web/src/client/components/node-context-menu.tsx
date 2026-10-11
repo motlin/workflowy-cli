@@ -392,6 +392,7 @@ export function NodeContextMenuButton({
 	return (
 		<div className="nameButtons">
 			<button
+				aria-label="More actions"
 				className={`node-context-menu-button ${isVisible || isMenuOpen ? "visible" : ""}`}
 				onClick={handleClick}
 				ref={buttonRef}

@@ -27,7 +27,7 @@ export function BulletDot({isCompleted = false, isDragging = false}: BulletDotPr
 			aria-label={isCompleted ? "Completed, click to zoom" : "Click to zoom"}
 			className={classes}
 			draggable
-			href="#"
+			href="/node/story-node"
 			onClick={(event) => event.preventDefault()}
 			title="Drag to move"
 		>
@@ -49,13 +49,16 @@ interface ExpandTriangleProps {
  */
 export function ExpandTriangle({isExpanded = false, onClick}: ExpandTriangleProps) {
 	return (
-		<a
+		<button
+			aria-expanded={isExpanded}
+			aria-label={isExpanded ? "Collapse" : "Expand"}
 			className={`expand${isExpanded ? " expanded" : ""}`}
 			onClick={(event) => {
 				event.preventDefault();
 				event.stopPropagation();
 				onClick?.();
 			}}
+			type="button"
 		>
 			<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
 				<path
@@ -64,7 +67,7 @@ export function ExpandTriangle({isExpanded = false, onClick}: ExpandTriangleProp
 					stroke="none"
 				/>
 			</svg>
-		</a>
+		</button>
 	);
 }
 
@@ -146,6 +149,7 @@ export function MenuButton({isVisible = true, onClick}: MenuButtonProps) {
 	return (
 		<div className="nameButtons">
 			<button
+				aria-label="More actions"
 				className={`node-context-menu-button ${isVisible ? "visible" : ""}`}
 				onClick={onClick}
 				title="More actions"
@@ -198,6 +202,7 @@ export function NoteDisplay({content, isExpanded = false, onToggle}: NoteDisplay
 			className={`outline-node-note ${isExpanded ? "expanded" : "collapsed"}`}
 			dangerouslySetInnerHTML={{__html: content}}
 			onClick={onToggle}
+			role="presentation"
 		/>
 	);
 }
@@ -243,8 +248,8 @@ export function StaticNode({
 				<BulletDot isCompleted={isCompleted} />
 				{layout.isTodo ? (
 					<button
-						aria-checked={isCompleted}
-						aria-label={isCompleted ? "Completed" : "Not completed"}
+						aria-label="Complete"
+						aria-pressed={isCompleted}
 						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
 						type="button"
 					>

@@ -239,8 +239,14 @@ export function ExportDialog() {
 	}
 
 	return (
-		<div className="export-dialog-overlay" onClick={closeExportDialog}>
-			<div className="export-dialog" onClick={(e) => e.stopPropagation()}>
+		<div
+			className="export-dialog-overlay"
+			onClick={(event) => {
+				if (event.target === event.currentTarget) closeExportDialog();
+			}}
+			role="presentation"
+		>
+			<div className="export-dialog">
 				<div className="export-dialog-header">
 					<h2 className="export-dialog-title">Export</h2>
 					<button className="export-dialog-close" onClick={closeExportDialog} type="button">

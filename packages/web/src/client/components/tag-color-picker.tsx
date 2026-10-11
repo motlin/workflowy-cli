@@ -29,6 +29,7 @@ export function TagColorPicker({top, left, currentColor, onSelect, onRemove}: Ta
 			className="tag-color-picker"
 			// Keep the editor's selection/focus when interacting with the picker.
 			onMouseDown={(event) => event.preventDefault()}
+			role="presentation"
 			style={{top: `${top}px`, left: `${left}px`}}
 		>
 			<button

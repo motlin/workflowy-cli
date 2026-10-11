@@ -43,7 +43,7 @@ export default defineConfig({
 		},
 	},
 	lint: {
-		plugins: ["typescript", "unicorn", "oxc", "import", "react", "vitest", "promise", "node"],
+		plugins: ["typescript", "unicorn", "oxc", "import", "react", "vitest", "promise", "node", "jsx-a11y"],
 		jsPlugins: [
 			{
 				name: "vite-plus",

@@ -91,29 +91,22 @@ function StarredPageItem({nodeId}: {nodeId: string}) {
 		void navigate(nodeRoute(nodeId));
 	};
 
-	const handleRemove = (event: React.MouseEvent) => {
-		event.stopPropagation();
+	const handleRemove = () => {
 		toggleStarPage(nodeId);
 	};
 
 	const displayName = node?.name?.replaceAll(/<[^>]*>/g, "") || "Loading...";
 
 	return (
-		<li>
+		<li className="left-sidebar-row">
 			<button className="left-sidebar-item" onClick={handleClick} type="button">
 				<span className="left-sidebar-icon starred-icon">
 					<StarIcon />
 				</span>
 				<span className="left-sidebar-label">{displayName}</span>
-				<span
-					aria-label="Unstar this page"
-					className="left-sidebar-unstar"
-					onClick={handleRemove}
-					role="button"
-					tabIndex={0}
-				>
-					&times;
-				</span>
+			</button>
+			<button aria-label="Unstar this page" className="left-sidebar-unstar" onClick={handleRemove} type="button">
+				&times;
 			</button>
 		</li>
 	);
@@ -130,27 +123,25 @@ function SavedSearchItem({query}: {query: string}) {
 		openSearchWithQuery(query);
 	};
 
-	const handleRemove = (event: React.MouseEvent) => {
-		event.stopPropagation();
+	const handleRemove = () => {
 		removeSavedSearch(query);
 	};
 
 	return (
-		<li>
+		<li className="left-sidebar-row">
 			<button className="left-sidebar-item" onClick={handleClick} type="button">
 				<span className="left-sidebar-icon">
 					<SearchIcon />
 				</span>
 				<span className="left-sidebar-label">{query}</span>
-				<span
-					aria-label="Remove saved search"
-					className="left-sidebar-unstar"
-					onClick={handleRemove}
-					role="button"
-					tabIndex={0}
-				>
-					&times;
-				</span>
+			</button>
+			<button
+				aria-label="Remove saved search"
+				className="left-sidebar-unstar"
+				onClick={handleRemove}
+				type="button"
+			>
+				&times;
 			</button>
 		</li>
 	);
@@ -168,8 +159,7 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 		void navigate(nodeRoute(nodeId));
 	};
 
-	const handleToggle = (event: React.MouseEvent) => {
-		event.stopPropagation();
+	const handleToggle = () => {
 		setIsExpanded(!isExpanded);
 	};
 
@@ -177,15 +167,24 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 
 	return (
 		<li className="home-tree-item">
-			<button className="left-sidebar-item" onClick={handleClick} type="button">
-				{hasChildren && (
-					<span className="home-tree-toggle" onClick={handleToggle} role="button" tabIndex={0}>
+			<div className="left-sidebar-row home-tree-row">
+				{hasChildren ? (
+					<button
+						aria-expanded={isExpanded}
+						aria-label={isExpanded ? `Collapse ${displayName}` : `Expand ${displayName}`}
+						className="home-tree-toggle"
+						onClick={handleToggle}
+						type="button"
+					>
 						<ExpandToggleIcon expanded={isExpanded} />
-					</span>
+					</button>
+				) : (
+					<span className="home-tree-toggle-placeholder" />
 				)}
-				{!hasChildren && <span className="home-tree-toggle-placeholder" />}
-				<span className="left-sidebar-label">{displayName}</span>
-			</button>
+				<button className="left-sidebar-item" onClick={handleClick} type="button">
+					<span className="left-sidebar-label">{displayName}</span>
+				</button>
+			</div>
 			{isExpanded && children && children.length > 0 && (
 				<ul className="home-tree-children">
 					{children.map((child) => (
@@ -261,11 +260,18 @@ export function LeftSidebar() {
 
 				{/* Starred Section */}
 				<section className="left-sidebar-section">
-					<h3 className="left-sidebar-section-title" onClick={() => setStarredExpanded(!starredExpanded)}>
-						<span className="left-sidebar-section-toggle">
-							<ChevronIcon expanded={starredExpanded} />
-						</span>
-						Starred
+					<h3 className="left-sidebar-section-title">
+						<button
+							aria-expanded={starredExpanded}
+							className="left-sidebar-section-button"
+							onClick={() => setStarredExpanded(!starredExpanded)}
+							type="button"
+						>
+							<span className="left-sidebar-section-toggle">
+								<ChevronIcon expanded={starredExpanded} />
+							</span>
+							Starred
+						</button>
 					</h3>
 					{starredExpanded && (
 						<ul className="left-sidebar-list">
@@ -287,11 +293,18 @@ export function LeftSidebar() {
 
 				{/* Home Section */}
 				<section className="left-sidebar-section">
-					<h3 className="left-sidebar-section-title" onClick={() => setHomeExpanded(!homeExpanded)}>
-						<span className="left-sidebar-section-toggle">
-							<ChevronIcon expanded={homeExpanded} />
-						</span>
-						Home
+					<h3 className="left-sidebar-section-title">
+						<button
+							aria-expanded={homeExpanded}
+							className="left-sidebar-section-button"
+							onClick={() => setHomeExpanded(!homeExpanded)}
+							type="button"
+						>
+							<span className="left-sidebar-section-toggle">
+								<ChevronIcon expanded={homeExpanded} />
+							</span>
+							Home
+						</button>
 					</h3>
 					{homeExpanded && (
 						<ul className="left-sidebar-list home-tree">

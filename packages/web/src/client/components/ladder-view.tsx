@@ -430,7 +430,7 @@ export function LadderView() {
 				<nav className="ladder-rootnav">
 					{roots.map((name) => (
 						<button
-							aria-selected={name === root}
+							aria-pressed={name === root}
 							key={name}
 							disabled={saving}
 							onClick={() => {
@@ -574,6 +574,7 @@ function Tier({
 				data-tier={tier.label}
 			>
 				{tier.items.map((item, index) => (
+					// oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a row is a labelled group of controls with a Space-to-select focus stop; option/row roles cannot hold its buttons
 					<div
 						className={[
 							"ladder-row",
@@ -589,6 +590,7 @@ function Tier({
 							.join(" ")}
 						key={item.id}
 						data-node-id={item.id}
+						// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a fieldset would bring form semantics and UA styling to a list row
 						role="group"
 						aria-label={`${item.name}${selected.has(item.id) ? ", selected" : ""}`}
 						tabIndex={saving ? -1 : 0}

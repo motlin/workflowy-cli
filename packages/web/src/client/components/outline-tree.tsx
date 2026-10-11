@@ -43,14 +43,7 @@ function AddButton({parentId, depth = 0}: AddButtonProps) {
 				onClick={handleClick}
 				type="button"
 			>
-				<svg
-					aria-hidden="true"
-					className="fa-plus"
-					fill="currentColor"
-					focusable="false"
-					role="img"
-					viewBox="0 0 448 512"
-				>
+				<svg aria-hidden="true" className="fa-plus" fill="currentColor" focusable="false" viewBox="0 0 448 512">
 					<path d="M240 80c0-8.8-7.2-16-16-16s-16 7.2-16 16V224H64c-8.8 0-16 7.2-16 16s7.2 16 16 16H208V400c0 8.8 7.2 16 16 16s16-7.2 16-16V256H384c8.8 0 16-7.2 16-16s-7.2-16-16-16H240V80z" />
 				</svg>
 			</button>

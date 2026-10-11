@@ -93,16 +93,19 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 	}
 
 	if (!isEditing) {
+		// Expanding only lifts the visual clamp; the full note text is already exposed to assistive tech.
 		return (
 			<div
 				className={`outline-node-note ${isExpanded ? "expanded" : "collapsed"}`}
 				dangerouslySetInnerHTML={{__html: initialValue}}
 				onClick={toggleExpand}
+				role="presentation"
 			/>
 		);
 	}
 
 	return (
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model
 		<div
 			className="outline-node-note editing"
 			contentEditable

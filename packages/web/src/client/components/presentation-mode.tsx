@@ -191,7 +191,7 @@ export function PresentationMode() {
 	const parentName = currentIndex > 0 ? (rootNode?.name ?? null) : null;
 
 	return (
-		<div aria-label="Presentation mode" aria-modal="true" className="presentation-overlay" role="dialog">
+		<dialog aria-label="Presentation mode" aria-modal="true" className="presentation-overlay" open>
 			<PresentationHeader onClose={closePresentation} parentName={parentName} />
 
 			<div className="presentation-content">
@@ -208,6 +208,6 @@ export function PresentationMode() {
 			/>
 
 			<div className="presentation-footer">Made with Workflowy</div>
-		</div>
+		</dialog>
 	);
 }

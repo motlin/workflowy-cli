@@ -212,7 +212,7 @@ export function LinkInsertModal() {
 	const showEmpty = !query.trim() && !isLoadingRelated && relatedNodes.length === 0;
 
 	return (
-		<div className="link-insert-overlay" onClick={handleBackdropClick}>
+		<div className="link-insert-overlay" onClick={handleBackdropClick} role="presentation">
 			<div className="link-insert-modal">
 				<div className="link-insert-header">
 					<div className="link-insert-title">

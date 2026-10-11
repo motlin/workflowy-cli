@@ -187,12 +187,14 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 			style={indentStyle}
 		>
 			<IndentGuideLines depth={depth} />
+			{/* Mouse shortcut for selection; keyboard users select through the outline's arrow-key navigation. */}
 			<div
 				className={nameClasses}
 				onClick={handleSelect}
 				onDragLeave={handleDragLeave}
 				onDragOver={handleDragOver}
 				onDrop={handleDrop}
+				role="presentation"
 			>
 				<NodeContextMenuButton
 					isVisible={isHovered || isSelected}
@@ -202,13 +204,16 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 					onDelete={handleDelete}
 					onExpandAll={handleExpandAll}
 				/>
-				<a
+				<button
+					aria-expanded={isExpanded}
+					aria-label={isExpanded ? "Collapse" : "Expand"}
 					className={`expand${isExpanded ? " expanded" : ""}`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
 						handleToggleExpand();
 					}}
+					type="button"
 				>
 					<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
 						<path
@@ -217,7 +222,7 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 							stroke="none"
 						/>
 					</svg>
-				</a>
+				</button>
 				<a
 					aria-label={
 						isMirror ? "Mirror, click to zoom" : isCompleted ? "Completed, click to zoom" : "Click to zoom"
@@ -255,17 +260,14 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 				</a>
 				{layout.isTodo ? (
 					<button
-						aria-checked={isCompleted}
-						aria-label={
-							isCompleted ? "Completed, click to un-complete" : "Not completed, click to complete"
-						}
+						aria-label="Complete"
+						aria-pressed={isCompleted}
 						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
 						onClick={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
 							handleComplete();
 						}}
-						role="checkbox"
 						type="button"
 					>
 						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
@@ -347,7 +349,6 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 		handleDragLeave,
 		handleDrop,
 	} = useNodeDragDrop({nodeId: node.id, parentId: node.parent_id, priority: node.priority});
-	const [isHovered, setIsHovered] = useState(false);
 
 	const handleToggleExpand = () => {
 		toggleExpand(node.id);
@@ -399,29 +400,34 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 	const liClasses = ["outline-node", !nodeHasChildren && "leaf", layout.projectClass].filter(Boolean).join(" ");
 
 	return (
-		<li className={liClasses} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+		<li className={liClasses}>
+			{/* Mouse shortcut for selection; keyboard users select through the outline's arrow-key navigation. */}
 			<div
 				className={nameClasses}
 				onClick={handleSelect}
 				onDragLeave={handleDragLeave}
 				onDragOver={handleDragOver}
 				onDrop={handleDrop}
+				role="presentation"
 			>
 				<NodeContextMenuButton
-					isVisible={isHovered || isSelected}
+					isVisible={isSelected}
 					node={node}
 					onCollapseAll={handleCollapseAll}
 					onComplete={handleComplete}
 					onDelete={handleDelete}
 					onExpandAll={handleExpandAll}
 				/>
-				<a
+				<button
+					aria-expanded={isExpanded}
+					aria-label={isExpanded ? "Collapse" : "Expand"}
 					className={`expand${isExpanded ? " expanded" : ""}`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
 						handleToggleExpand();
 					}}
+					type="button"
 				>
 					<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
 						<path
@@ -430,7 +436,7 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 							stroke="none"
 						/>
 					</svg>
-				</a>
+				</button>
 				<a
 					aria-label={
 						isMirrorLegacy
@@ -464,17 +470,14 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 				</a>
 				{layout.isTodo ? (
 					<button
-						aria-checked={isCompleted}
-						aria-label={
-							isCompleted ? "Completed, click to un-complete" : "Not completed, click to complete"
-						}
+						aria-label="Complete"
+						aria-pressed={isCompleted}
 						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
 						onClick={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
 							handleComplete();
 						}}
-						role="checkbox"
 						type="button"
 					>
 						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">

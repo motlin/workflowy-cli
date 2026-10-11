@@ -170,13 +170,14 @@ function JumpMenuDialog() {
 	const showEmpty = !query.trim() && !isLoadingRecent && recentNodes.length === 0;
 
 	return (
-		<div className="jump-menu-overlay" onClick={handleBackdropClick}>
+		<div className="jump-menu-overlay" onClick={handleBackdropClick} role="presentation">
 			<div className="jump-menu">
 				<div className="jump-menu-header">
 					<input
 						className="jump-menu-input"
 						onChange={(event) => handleQueryChange(event.target.value)}
 						onKeyDown={handleKeyDown}
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- opening the jump menu is a request to type a query
 						autoFocus
 						placeholder="Jump to node..."
 						type="text"

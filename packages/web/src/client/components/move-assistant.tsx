@@ -252,7 +252,7 @@ export function MoveAssistant() {
 	const actionVerbLower = moveAssistantContext.mode === "move" ? "move" : "copy";
 
 	return (
-		<div className="move-assistant-overlay" onClick={handleBackdropClick}>
+		<div className="move-assistant-overlay" onClick={handleBackdropClick} role="presentation">
 			<div className="move-assistant-modal">
 				<div className="move-assistant-header">
 					<div className="move-assistant-title">

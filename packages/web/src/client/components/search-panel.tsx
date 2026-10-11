@@ -284,11 +284,12 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 	);
 
 	return (
-		<div className="search-panel-overlay" onClick={handleBackdropClick}>
+		<div className="search-panel-overlay" onClick={handleBackdropClick} role="presentation">
 			<div className="search-panel">
 				<div className="search-panel-header">
 					<div className="search-panel-input-row">
 						<input
+							// oxlint-disable-next-line jsx-a11y/no-autofocus -- opening the search panel is a request to type a query
 							autoFocus
 							className="search-panel-input"
 							onChange={(event) => changeQuery(event.target.value)}
@@ -318,7 +319,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 					</div>
 					<div className="search-panel-model-row">
 						<div className="search-panel-model-selector">
-							<label className="search-panel-model-label">Model:</label>
+							<span className="search-panel-model-label">Model:</span>
 							<div className="search-panel-model-buttons">
 								{EMBEDDING_MODEL_KEYS.map((modelKey) => (
 									<button
@@ -361,7 +362,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 					</div>
 					{zoomedNodeId && (
 						<div className="search-panel-scope-row">
-							<label className="search-panel-scope-label">Scope:</label>
+							<span className="search-panel-scope-label">Scope:</span>
 							<div className="search-panel-scope-buttons">
 								<button
 									className={`search-panel-scope-button ${searchScope === "branch" ? "selected" : ""}`}

@@ -529,12 +529,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	if (!isEditing) {
 		return (
 			<>
+				{/* Pointer entry point: a click places the caret for editing, and clicks on rendered .tag-link spans are delegated here. */}
 				<span
 					className="innerContentContainer"
 					dangerouslySetInnerHTML={{__html: wrapTagsInSpans(initialValue, tagColors)}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}
+					// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance; the span is not focusable
 					onMouseOver={handleTagHover}
+					role="presentation"
 				/>
 				{tagHover &&
 					!colorPicker &&
@@ -568,6 +571,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}
 
 	return (
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model
 		<span
 			className="innerContentContainer editing"
 			contentEditable

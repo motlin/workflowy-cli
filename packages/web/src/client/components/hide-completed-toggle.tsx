@@ -1,4 +1,4 @@
-import {type RefObject, useEffect, useRef} from "react";
+import {type RefObject, useEffect, useId, useRef} from "react";
 
 interface HideCompletedToggleProps {
 	anchorRef: RefObject<HTMLButtonElement | null>;
@@ -14,6 +14,7 @@ interface HideCompletedToggleProps {
  */
 export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showCompleted}: HideCompletedToggleProps) {
 	const panelRef = useRef<HTMLDivElement>(null);
+	const switchId = useId();
 
 	useEffect(() => {
 		// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
@@ -54,10 +55,12 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 
 	return (
 		<div className="hide-completed-popup" ref={panelRef}>
-			<label className={`toggle-switch-label ${showCompleted ? "on" : "off"}`}>
+			<label className={`toggle-switch-label ${showCompleted ? "on" : "off"}`} htmlFor={switchId}>
 				<button
 					aria-checked={showCompleted}
+					aria-label="Show completed"
 					className="toggle-switch-track"
+					id={switchId}
 					onClick={handleToggleClick}
 					role="switch"
 					type="button"

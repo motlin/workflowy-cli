@@ -50,7 +50,12 @@ export function LadderTree({item, onClose}: {item: {id: string; name: string}; o
 
 function LadderTreeChildren({parentId, ancestors}: {parentId: string; ancestors: string[]}) {
 	const {data: children, isLoading, error, refetch} = useChildren(parentId);
-	if (isLoading) return <p role="status">Loading subtasks…</p>;
+	if (isLoading)
+		return (
+			<p>
+				<output>Loading subtasks…</output>
+			</p>
+		);
 	if (error)
 		return (
 			<p role="alert">
