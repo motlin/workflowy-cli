@@ -95,6 +95,7 @@ export default defineConfig({
 			"unicorn/explicit-length-check": "error",
 			"unicorn/no-lonely-if": "error",
 			"unicorn/prefer-type-error": "error",
+			"unicorn/prefer-top-level-await": "error",
 			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
 			"vitest/prefer-importing-vitest-globals": "error",
 			"vitest/prefer-strict-equal": "error",

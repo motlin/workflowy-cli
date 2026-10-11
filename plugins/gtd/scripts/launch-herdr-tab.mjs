@@ -94,8 +94,10 @@ async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-	main().catch((error) => {
+	try {
+		await main();
+	} catch (error) {
 		process.stderr.write(`${error.message}\n`);
 		process.exit(1);
-	});
+	}
 }
