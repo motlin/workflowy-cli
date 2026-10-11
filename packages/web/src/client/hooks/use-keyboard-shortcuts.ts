@@ -23,6 +23,7 @@ import {
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
 import {readJson} from "../read-json.js";
+import {punctuationHotkeys} from "../hotkey-bindings.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -188,9 +189,8 @@ export function useKeyboardShortcuts() {
 	);
 
 	// Cmd+. (Cmd+Period): Zoom in to the edited node
-	// Hotkeys match KeyboardEvent.code, so punctuation is spelled by code name ("period", not ".")
 	useHotkeys(
-		"meta+period",
+		punctuationHotkeys.zoomIn,
 		() => {
 			if (editingId === null) {
 				return;
@@ -204,9 +204,8 @@ export function useKeyboardShortcuts() {
 	);
 
 	// Cmd+, (Cmd+Comma): Zoom out to parent node, also while editing
-	// "comma", not ",": a comma separates alternative hotkeys
 	useHotkeys(
-		"meta+comma",
+		punctuationHotkeys.zoomOut,
 		() => {
 			if (!zoomedNodeId) {
 				// Already at root level, nothing to do
@@ -232,7 +231,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+[ (Cmd+LeftBracket): Browser history back
 	useHotkeys(
-		"meta+[",
+		punctuationHotkeys.historyBack,
 		() => {
 			globalThis.history.back();
 		},
@@ -244,7 +243,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+] (Cmd+RightBracket): Browser history forward
 	useHotkeys(
-		"meta+]",
+		punctuationHotkeys.historyForward,
 		() => {
 			globalThis.history.forward();
 		},
@@ -256,7 +255,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+' (Cmd+Quote): Navigate home to root view
 	useHotkeys(
-		"meta+'",
+		punctuationHotkeys.home,
 		() => {
 			void navigate("/");
 		},
@@ -537,7 +536,7 @@ export function useKeyboardShortcuts() {
 
 	// Cmd+? (Cmd+Shift+/): Toggle right sidebar (keyboard shortcuts help)
 	useHotkeys(
-		"meta+shift+/",
+		punctuationHotkeys.toggleHelp,
 		() => {
 			toggleRightSidebar();
 		},
