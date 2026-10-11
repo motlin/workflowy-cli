@@ -8,9 +8,16 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// Both fields are optional; suggestedText must be a string and tagsAdded an array when present.
+const TextComposerResponseSchema = z.looseObject({
+	suggestedText: z.string().nullish(),
+	tagsAdded: z.array(z.unknown()).nullish(),
+});
 
 describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -59,13 +66,6 @@ describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
-		if (parsed.suggestedText) {
-			expect(parsed.suggestedText).toBeTypeOf("string");
-			expect(parsed.suggestedText.length).toBeGreaterThan(0);
-		}
-		if (parsed.tagsAdded) {
-			expect(Array.isArray(parsed.tagsAdded)).toBe(true);
-		}
+		expect(() => TextComposerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
 	});
 });

@@ -8,9 +8,17 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// suggestions is optional; each entry is a tag string, or an object naming it by `tag` or `context`.
+const ContextTaggerResponseSchema = z.looseObject({
+	suggestions: z
+		.array(z.union([z.string(), z.looseObject({tag: z.string()}), z.looseObject({context: z.string()})]))
+		.nullish(),
+});
 
 describe("Leaf Eval: context-tagger", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -49,12 +57,6 @@ describe("Leaf Eval: context-tagger", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
-		if (parsed.suggestions) {
-			expect(Array.isArray(parsed.suggestions)).toBe(true);
-			const tags = parsed.suggestions.map((s: {tag?: string; context?: string}) => s.tag ?? s.context ?? s);
-			const allStrings = tags.every((t: unknown) => typeof t === "string");
-			expect(allStrings, "All suggestions should be strings").toBe(true);
-		}
+		expect(() => ContextTaggerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
 	});
 });

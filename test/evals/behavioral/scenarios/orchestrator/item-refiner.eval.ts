@@ -11,6 +11,7 @@
 import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
+import {parseNodeJson} from "../../helpers/eval-schemas.js";
 import {
 	extractBashCommands,
 	extractSubagentLaunches,
@@ -53,7 +54,7 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 		}
 
 		try {
-			const inboxData = JSON.parse(result.stdout);
+			const inboxData = parseNodeJson(result.stdout);
 			const firstInboxId = inboxData.children?.[0]?.linkTargets?.[0]?.id;
 			if (!firstInboxId) {
 				skipSuite = true;
@@ -70,8 +71,8 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 				return;
 			}
 
-			const inboxNode = JSON.parse(itemResult.stdout);
-			itemId = inboxNode.children?.[0]?.id;
+			const inboxNode = parseNodeJson(itemResult.stdout);
+			itemId = inboxNode.children?.[0]?.id ?? "";
 			if (!itemId) {
 				skipSuite = true;
 			}

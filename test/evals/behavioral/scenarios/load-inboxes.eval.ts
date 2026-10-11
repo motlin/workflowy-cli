@@ -13,8 +13,24 @@
 import {beforeAll, expect, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
 import type {EvalContext} from "../helpers/eval-types.js";
+
+// Items carry an optional children array.
+const InboxesFileSchema = z.looseObject({
+	loadedAt: z.string(),
+	itemCount: z.number(),
+	inboxes: z.array(
+		z.looseObject({
+			id: z.string(),
+			name: z.string(),
+			items: z.array(
+				z.looseObject({id: z.string(), name: z.string(), children: z.array(z.unknown()).optional()}),
+			),
+		}),
+	),
+});
 
 describe("Behavioral Eval: gtd inboxes load", () => {
 	let ctx: EvalContext;
@@ -42,40 +58,10 @@ describe("Behavioral Eval: gtd inboxes load", () => {
 		expect(fs.existsSync(outputFile), `Expected ${outputFile} to exist`).toBe(true);
 
 		const content = fs.readFileSync(outputFile, "utf8");
-		const data = JSON.parse(content);
+		const data = InboxesFileSchema.parse(JSON.parse(content));
 
-		// Validate top-level structure
-		expect(data).toHaveProperty("loadedAt");
-		expect(data.loadedAt).toBeTypeOf("string");
-		expect(data).toHaveProperty("inboxes");
-		expect(Array.isArray(data.inboxes)).toBe(true);
-		expect(data).toHaveProperty("itemCount");
-		expect(data.itemCount).toBeTypeOf("number");
-
-		// Validate inbox structure
 		expect(data.inboxes.length).toBeGreaterThan(0);
-		for (const inbox of data.inboxes) {
-			expect(inbox).toHaveProperty("id");
-			expect(inbox.id).toBeTypeOf("string");
-			expect(inbox).toHaveProperty("name");
-			expect(inbox.name).toBeTypeOf("string");
-			expect(inbox).toHaveProperty("items");
-			expect(Array.isArray(inbox.items)).toBe(true);
-		}
-
-		// Validate item structure (items should have optional children)
-		const allItems = data.inboxes.flatMap((inbox: {items: unknown[]}) => inbox.items);
-		expect(allItems.length).toBeGreaterThan(0);
-		for (const item of allItems) {
-			expect(item).toHaveProperty("id");
-			expect(item.id).toBeTypeOf("string");
-			expect(item).toHaveProperty("name");
-			expect(item.name).toBeTypeOf("string");
-			// children is optional — if present, it should be an array
-			if (item.children !== undefined) {
-				expect(Array.isArray(item.children)).toBe(true);
-			}
-		}
+		expect(data.inboxes.flatMap((inbox) => inbox.items).length).toBeGreaterThan(0);
 	});
 
 	it("should use cache data (not require API key)", {timeout: 60_000}, async () => {

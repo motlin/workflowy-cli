@@ -7,6 +7,9 @@ import path from "node:path";
 import List from "../../../src/commands/node/list.js";
 import {cleanupTestDatabase, createTestDatabase} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
+import {z} from "zod";
+
+const ListOutputSchema = z.array(z.looseObject({systemFrom: z.string().optional()}));
 
 describe("node:list command", () => {
 	let originalEnv: typeof process.env;
@@ -846,7 +849,7 @@ describe("node:list command", () => {
 			const jsonStart = lines.indexOf("[");
 			const jsonLines = lines.slice(jsonStart);
 			const jsonOutput = jsonLines.join("\n");
-			const parsed = JSON.parse(jsonOutput);
+			const parsed = ListOutputSchema.parse(JSON.parse(jsonOutput));
 
 			// Delete dynamic systemFrom field before deep equality comparison
 			for (const node of parsed) {
@@ -922,7 +925,7 @@ describe("node:list command", () => {
 			const jsonStart = lines.indexOf("[");
 			const jsonLines = lines.slice(jsonStart);
 			const jsonOutput = jsonLines.join("\n");
-			const parsed = JSON.parse(jsonOutput);
+			const parsed = ListOutputSchema.parse(JSON.parse(jsonOutput));
 
 			// Delete dynamic systemFrom field before deep equality comparison
 			for (const node of parsed) {
@@ -981,7 +984,7 @@ describe("node:list command", () => {
 			const jsonStart = lines.indexOf("[");
 			const jsonLines = lines.slice(jsonStart);
 			const jsonOutput = jsonLines.join("\n");
-			const parsed = JSON.parse(jsonOutput);
+			const parsed = ListOutputSchema.parse(JSON.parse(jsonOutput));
 
 			// Delete dynamic systemFrom field before deep equality comparison
 			for (const node of parsed) {

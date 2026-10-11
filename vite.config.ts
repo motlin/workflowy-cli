@@ -106,8 +106,16 @@ export default defineConfig({
 			"typescript/no-confusing-void-expression": ["error", {ignoreArrowShorthand: true}],
 			"typescript/promise-function-async": "error",
 			"typescript/no-deprecated": "error",
+			"typescript/no-unsafe-member-access": "error",
 		},
 		overrides: [
+			{
+				files: ["plugins/**/*.mjs"],
+				rules: {
+					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules only add noise.
+					"typescript/no-unsafe-member-access": "off",
+				},
+			},
 			{
 				files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"],
 				rules: {

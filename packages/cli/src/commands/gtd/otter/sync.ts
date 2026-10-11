@@ -1,10 +1,13 @@
 import {Command, Flags} from "@oclif/core";
 import {execSync} from "node:child_process";
 import fs from "node:fs";
+import {z} from "zod";
 
 const API_BASE = "https://otter.ai/forward/api/v1";
 const COOKIE_FILE = "/tmp/otter-session-cache";
 const USERID_FILE = "/tmp/otter-userid-cache";
+const LoginResponseSchema = z.object({userid: z.union([z.string(), z.number()])});
+
 const CREDS_FILE = "/tmp/otter-creds-cache";
 
 interface OtterSpeech {
@@ -24,6 +27,18 @@ interface ActionItem {
 	assignee: string | null;
 	completed: boolean;
 }
+
+const ActionItemsResponseSchema = z.object({
+	speech_action_items: z
+		.array(
+			z.object({
+				text: z.string(),
+				assignee: z.object({name: z.string().nullish()}).nullish(),
+				completed: z.boolean().nullish(),
+			}),
+		)
+		.nullish(),
+});
 
 interface ProcessedSpeech {
 	otid: string;
@@ -215,7 +230,7 @@ export default class Sync extends Command {
 			this.error(`Login failed with status ${httpCode}: ${body}`);
 		}
 
-		const data = JSON.parse(body);
+		const data = LoginResponseSchema.parse(JSON.parse(body));
 		fs.writeFileSync(USERID_FILE, String(data.userid));
 		this.logTiming("login: complete");
 	}
@@ -255,10 +270,10 @@ export default class Sync extends Command {
 		try {
 			const url = `${API_BASE}/speech_action_items?otid=${otid}`;
 			const response = this.curlGet(url, `https://otter.ai/u/${otid}`);
-			const data = JSON.parse(response);
+			const data = ActionItemsResponseSchema.parse(JSON.parse(response));
 
 			const items: ActionItem[] = [];
-			for (const item of data.speech_action_items || []) {
+			for (const item of data.speech_action_items ?? []) {
 				items.push({
 					text: item.text,
 					assignee: item.assignee?.name ?? null,

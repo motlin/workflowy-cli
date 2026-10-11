@@ -8,9 +8,17 @@
 import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
+import {parseNodeJson} from "../../helpers/eval-schemas.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// Both tag lists are optional, but must be arrays when present.
+const PeopleTaggerResponseSchema = z.looseObject({
+	existingTags: z.array(z.unknown()).nullish(),
+	suggestedTags: z.array(z.unknown()).nullish(),
+});
 
 describe("Leaf Eval: people-tagger", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -44,7 +52,7 @@ describe("Leaf Eval: people-tagger", {timeout: 300_000}, () => {
 		}
 
 		try {
-			const inboxData = JSON.parse(result.stdout);
+			const inboxData = parseNodeJson(result.stdout);
 			const firstInboxId = inboxData.children?.[0]?.linkTargets?.[0]?.id;
 			if (!firstInboxId) {
 				skipSuite = true;
@@ -61,9 +69,9 @@ describe("Leaf Eval: people-tagger", {timeout: 300_000}, () => {
 				return;
 			}
 
-			const inboxNode = JSON.parse(itemResult.stdout);
+			const inboxNode = parseNodeJson(itemResult.stdout);
 			const firstItem = inboxNode.children?.[0];
-			itemId = firstItem?.id;
+			itemId = firstItem?.id ?? "";
 			itemName = firstItem?.name ?? "Unknown item";
 
 			if (!itemId) {
@@ -92,12 +100,6 @@ describe("Leaf Eval: people-tagger", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
-		if (parsed.existingTags) {
-			expect(Array.isArray(parsed.existingTags)).toBe(true);
-		}
-		if (parsed.suggestedTags) {
-			expect(Array.isArray(parsed.suggestedTags)).toBe(true);
-		}
+		expect(() => PeopleTaggerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
 	});
 });

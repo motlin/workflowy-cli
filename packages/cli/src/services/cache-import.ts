@@ -11,6 +11,7 @@ import {
 import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
 import {applyRows, joinKey, nextSystemTime, temporalMerge} from "@workflowy/shared/cache";
+import type {TemporalTransaction} from "@workflowy/shared/cache";
 import type {
 	NormalizedAiMetadataRow,
 	NormalizedCalendarLevelsRow,
@@ -41,10 +42,7 @@ const WORKFLOWY_EPOCH_CONFIG_KEY = "workflowy_epoch";
  *
  * Priority: WORKFLOWY_EPOCH env var > config table
  */
-function getWorkflowyEpoch(
-	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	tx: any,
-): number | null {
+function getWorkflowyEpoch(tx: TemporalTransaction): number | null {
 	// Check environment variable first
 	const envEpoch = process.env.WORKFLOWY_EPOCH;
 	if (envEpoch) {
@@ -73,11 +71,7 @@ function getWorkflowyEpoch(
 /**
  * Store the Workflowy epoch in the config table.
  */
-function setWorkflowyEpoch(
-	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
-	tx: any,
-	epoch: number,
-): void {
+function setWorkflowyEpoch(tx: TemporalTransaction, epoch: number): void {
 	const now = formatTemporalTimestamp(new Date());
 	tx.insert(config)
 		.values({

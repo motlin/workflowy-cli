@@ -8,9 +8,16 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// Both tag lists are optional, but must be arrays when present.
+const TagCleanerResponseSchema = z.looseObject({
+	validTags: z.array(z.unknown()).nullish(),
+	invalidTags: z.array(z.unknown()).nullish(),
+});
 
 describe("Leaf Eval: tag-cleaner", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -49,12 +56,6 @@ describe("Leaf Eval: tag-cleaner", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
-		if (parsed.validTags) {
-			expect(Array.isArray(parsed.validTags)).toBe(true);
-		}
-		if (parsed.invalidTags) {
-			expect(Array.isArray(parsed.invalidTags)).toBe(true);
-		}
+		expect(() => TagCleanerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
 	});
 });

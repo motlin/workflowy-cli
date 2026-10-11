@@ -2,6 +2,7 @@ import {Command, Flags} from "@oclif/core";
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 
 interface ScannedItem {
 	title: string;
@@ -9,6 +10,10 @@ interface ScannedItem {
 	source: string;
 	[key: string]: unknown;
 }
+
+const ScanFileSchema = z.object({
+	items: z.array(z.looseObject({title: z.string().optional(), eventDate: z.string().optional()})).optional(),
+});
 
 interface DuplicateMatch {
 	scanned_title: string;
@@ -327,10 +332,10 @@ export default class Dedup extends Command {
 		for (const file of files) {
 			try {
 				const filePath = path.join(scansDir, file);
-				const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+				const data = ScanFileSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf8")));
 				const source = path.basename(file, ".json");
 
-				for (const item of data.items || []) {
+				for (const item of data.items ?? []) {
 					scanned.push({
 						title: item.title || "",
 						date: item.eventDate || "",

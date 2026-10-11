@@ -11,8 +11,17 @@
 import {beforeAll, expect, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
 import type {EvalContext} from "../helpers/eval-types.js";
+
+const MetadataRootSchema = z.looseObject({id: z.unknown(), children: z.array(z.unknown())});
+const TagFrequencySchema = z.object({
+	generatedFrom: z.string(),
+	distinctTags: z.number(),
+	taggedRowsScanned: z.number(),
+	tags: z.record(z.string(), z.unknown()),
+});
 
 // Phase 3 of sync-metadata.sh emits this aggregate rather than a node dump.
 const TAG_FREQUENCY_FILE = "tag-frequency.json";
@@ -45,11 +54,8 @@ describe("Behavioral Eval: sync-metadata.sh", () => {
 		expect(fs.existsSync(rootFile), `Expected ${rootFile} to exist`).toBe(true);
 
 		const content = fs.readFileSync(rootFile, "utf8");
-		const parsed = JSON.parse(content);
+		const parsed = MetadataRootSchema.parse(JSON.parse(content));
 
-		expect(parsed).toHaveProperty("id");
-		expect(parsed).toHaveProperty("children");
-		expect(Array.isArray(parsed.children)).toBe(true);
 		expect(parsed.children.length).toBeGreaterThan(0);
 	});
 
@@ -78,8 +84,9 @@ describe("Behavioral Eval: sync-metadata.sh", () => {
 					"taggedRowsScanned",
 					"tags",
 				]);
-				expect(parsed.generatedFrom).toBe("workflowy.sqlite");
-				expect(parsed.distinctTags).toBe(Object.keys(parsed.tags).length);
+				const tagFrequency = TagFrequencySchema.parse(parsed);
+				expect(tagFrequency.generatedFrom).toBe("workflowy.sqlite");
+				expect(tagFrequency.distinctTags).toBe(Object.keys(tagFrequency.tags).length);
 				continue;
 			}
 

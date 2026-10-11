@@ -71,6 +71,7 @@ function renderComponent(element: ReactElement<ElementProps>): ReactNode {
 	return Reflect.apply(element.type, undefined, [element.props]);
 }
 
+const RequestBodySchema = z.object({node_id: z.string(), to_tier: z.string().nullish()});
 const TierItemsSchema = z.object({personal: z.object({tiers: z.array(z.object({items: z.array(z.unknown())}))})});
 
 /** The items of each personal tier, as the page currently holds them. */
@@ -139,7 +140,7 @@ async function load(value: unknown) {
 
 beforeEach(async () => {
 	request.mockReset().mockImplementation(async (path: string, options: {body: string}) => {
-		const body = JSON.parse(options.body);
+		const body = RequestBodySchema.parse(JSON.parse(options.body));
 		return Promise.resolve({
 			ok: true,
 			json: async () =>

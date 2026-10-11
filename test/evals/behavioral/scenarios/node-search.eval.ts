@@ -6,8 +6,11 @@
  */
 
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
+import {z} from "zod";
 import {collectCreatedFiles, createEvalContext, runInEvalContext} from "../helpers/eval-db-setup.js";
 import type {EvalContext, EvalResult} from "../helpers/eval-types.js";
+
+const SearchResultsSchema = z.array(z.looseObject({shortId: z.string().nullable(), path: z.string()}));
 
 describe("Behavioral Eval: node search", () => {
 	let ctx: EvalContext;
@@ -25,15 +28,9 @@ describe("Behavioral Eval: node search", () => {
 
 		expect(result.exitCode, `Command failed with stderr: ${result.stderr}`).toBe(0);
 
-		const parsed = JSON.parse(result.stdout);
-		expect(Array.isArray(parsed)).toBe(true);
+		// Every result should have the required fields.
+		const parsed = SearchResultsSchema.parse(JSON.parse(result.stdout));
 		expect(parsed.length).toBeGreaterThan(0);
-
-		// Every result should have required fields
-		for (const item of parsed) {
-			expect(item).toHaveProperty("shortId");
-			expect(item).toHaveProperty("path");
-		}
 	});
 
 	it("should return empty array for nonsense query", {timeout: 30_000}, async () => {
@@ -51,8 +48,7 @@ describe("Behavioral Eval: node search", () => {
 
 		expect(result.exitCode, `Command failed with stderr: ${result.stderr}`).toBe(0);
 
-		const parsed = JSON.parse(result.stdout);
-		expect(Array.isArray(parsed)).toBe(true);
+		const parsed = SearchResultsSchema.parse(JSON.parse(result.stdout));
 		expect(parsed.length).toBeLessThanOrEqual(3);
 	});
 

@@ -8,9 +8,17 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// isAsap and urgencyLevel are optional; urgencyLevel must be a string when present.
+const DueDateResponseSchema = z.looseObject({
+	due: z.unknown(),
+	isAsap: z.unknown(),
+	urgencyLevel: z.string().optional(),
+});
 
 describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -49,7 +57,7 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
+		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch![0]));
 		expect(parsed.due).toMatch(/^\d{4}-04-15$/);
 	});
 
@@ -69,12 +77,9 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
+		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch![0]));
 		if (parsed.isAsap !== undefined) {
 			expect(parsed.isAsap).toBe(true);
-		}
-		if (parsed.urgencyLevel !== undefined) {
-			expect(parsed.urgencyLevel).toBeTypeOf("string");
 		}
 	});
 });

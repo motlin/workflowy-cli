@@ -1,5 +1,9 @@
 import {useEffect, useRef, useState} from "react";
 import {useLocation} from "react-router-dom";
+import {z} from "zod";
+
+// React Router stores the history stack position in `history.state.idx`.
+const HistoryStateSchema = z.object({idx: z.number()});
 
 /**
  * Track whether forward navigation is possible.
@@ -50,9 +54,9 @@ export function useNavigationHistory() {
 			} else {
 				// Path not found in stack, or same position
 				// Try to determine direction from history.state if available
-				const {state} = history;
-				if (state?.idx !== undefined) {
-					const newIndex = state.idx;
+				const state = HistoryStateSchema.safeParse(history.state);
+				if (state.success) {
+					const newIndex = state.data.idx;
 					if (newIndex < previousIndex) {
 						setCanGoForward(true);
 					} else if (newIndex >= historyStackRef.current.length - 1) {

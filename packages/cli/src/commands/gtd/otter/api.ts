@@ -1,10 +1,13 @@
 import {Args, Command, Flags} from "@oclif/core";
 import {execSync} from "node:child_process";
 import fs from "node:fs";
+import {z} from "zod";
 
 const API_BASE = "https://otter.ai/forward/api/v1";
 const COOKIE_FILE = "/tmp/otter-session-cache";
 const USERID_FILE = "/tmp/otter-userid-cache";
+const LoginResponseSchema = z.object({userid: z.union([z.string(), z.number()])});
+
 const CREDS_FILE = "/tmp/otter-creds-cache";
 
 /**
@@ -154,7 +157,7 @@ export default class Api extends Command {
 			this.error(`Login failed with status ${httpCode}: ${body}`);
 		}
 
-		const data = JSON.parse(body);
+		const data = LoginResponseSchema.parse(JSON.parse(body));
 		fs.writeFileSync(USERID_FILE, String(data.userid));
 		this.logTiming("login: complete");
 	}

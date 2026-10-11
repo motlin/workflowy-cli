@@ -65,7 +65,8 @@
 		"typescript": "^7.0.2",
 		"vite": "catalog:",
 		"vite-plus": "catalog:",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"zod": "^4.6.5"
 	},
 	"oclif": {
 		"bin": "workflowy",

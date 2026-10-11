@@ -3,6 +3,7 @@ import pino from "pino";
 import pinoPretty from "pino-pretty";
 import {format} from "sql-formatter";
 import {highlight} from "sql-highlight";
+import {z} from "zod";
 
 /**
  * Category filter definition.
@@ -165,10 +166,12 @@ const prettyStream = pinoPretty({
  * Filtering wrapper stream that only passes through enabled log categories.
  * This prevents pino-pretty from outputting anything for filtered logs.
  */
+const LogLineCategorySchema = z.object({category: z.string().optional(), subcategory: z.string().optional()});
+
 const filteringStream = {
 	write(chunk: string): void {
 		try {
-			const log = JSON.parse(chunk);
+			const log = LogLineCategorySchema.parse(JSON.parse(chunk));
 			if (isEnabled(log.category, log.subcategory)) {
 				prettyStream.write(chunk);
 			}

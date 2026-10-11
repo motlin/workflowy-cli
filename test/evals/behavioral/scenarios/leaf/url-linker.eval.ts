@@ -8,9 +8,13 @@
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// urls is optional, but must be a non-empty array when present.
+const UrlLinkerResponseSchema = z.looseObject({urls: z.array(z.unknown()).nonempty().nullish()});
 
 describe("Leaf Eval: url-linker", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -49,10 +53,6 @@ describe("Leaf Eval: url-linker", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
-		if (parsed.urls) {
-			expect(Array.isArray(parsed.urls)).toBe(true);
-			expect(parsed.urls.length).toBeGreaterThan(0);
-		}
+		expect(() => UrlLinkerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
 	});
 });

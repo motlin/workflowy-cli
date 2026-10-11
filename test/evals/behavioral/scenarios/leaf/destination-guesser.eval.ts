@@ -9,9 +9,13 @@
 import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
+import {parseNodeJson} from "../../helpers/eval-schemas.js";
 import {extractBashCommands, runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+const DestinationResponseSchema = z.looseObject({confidence: z.unknown()});
 
 describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -44,7 +48,7 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 		}
 
 		try {
-			const inboxData = JSON.parse(result.stdout);
+			const inboxData = parseNodeJson(result.stdout);
 			const firstInboxId = inboxData.children?.[0]?.linkTargets?.[0]?.id;
 			if (!firstInboxId) {
 				skipSuite = true;
@@ -61,9 +65,9 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 				return;
 			}
 
-			const inboxNode = JSON.parse(itemResult.stdout);
+			const inboxNode = parseNodeJson(itemResult.stdout);
 			const firstItem = inboxNode.children?.[0];
-			itemId = firstItem?.id;
+			itemId = firstItem?.id ?? "";
 
 			if (!itemId) {
 				skipSuite = true;
@@ -73,7 +77,7 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 			// Write simulated tagger results
 			const taggerResults = {
 				itemId,
-				itemName: firstItem.name ?? "Test item",
+				itemName: firstItem?.name ?? "Test item",
 				projectTagger: {project: null, confidence: 0},
 				peopleTagger: {people: [], confidence: 0},
 				dueDateDetector: {date: null, confidence: 0},
@@ -103,7 +107,7 @@ describe("Leaf Eval: destination-guesser", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*"(?:path|targetId|confidence)"[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON with destination fields").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
+		const parsed = DestinationResponseSchema.parse(JSON.parse(jsonMatch![0]));
 		expect(["high", "medium", "low"]).toContain(parsed.confidence);
 	});
 

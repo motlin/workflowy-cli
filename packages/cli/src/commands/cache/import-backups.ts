@@ -120,7 +120,7 @@ export default class ImportBackups extends Command {
 	}
 
 	private async executeCommand(topic: string, args: string[]): Promise<void> {
-		const {default: SubCommand} = await import(`../${topic}/${args[0]}.js`);
+		const {default: SubCommand}: {default: Command.Class} = await import(`../${topic}/${args[0]}.js`);
 		await SubCommand.run(args.slice(1));
 	}
 }

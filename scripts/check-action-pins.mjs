@@ -16,6 +16,7 @@ const REMOTE = /^([^/@]+\/[^/@]+)(?:\/[^@]*)?@(.+)$/;
  * @returns {{action: string, occurrences: {file: string, line: number, ref: string, comment: string | undefined}[]}[]}
  */
 export function findPinConflicts(files) {
+	/** @type {Map<string, {file: string, line: number, ref: string, comment: string | undefined}[]>} */
 	const byAction = new Map();
 	for (const {path, content} of files) {
 		content.split("\n").forEach((text, index) => {

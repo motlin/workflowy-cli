@@ -9,6 +9,19 @@ import Get from "../../src/commands/node/get.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
 import type {TestDatabase} from "../db/migration-helper.js";
 import {createTestNode} from "../helpers/node-fixtures.js";
+import {z} from "zod";
+
+const NodeOutputSchema = z.looseObject({
+	id: z.string().optional(),
+	name: z.string().optional(),
+	note: z.string().nullish(),
+	mirror: z.unknown().optional(),
+	get children() {
+		return z.array(NodeOutputSchema).optional();
+	},
+});
+
+const parseNodeOutput = (stdout: string) => NodeOutputSchema.parse(JSON.parse(stdout));
 
 describe("node get command", () => {
 	let originalEnv: typeof process.env;
@@ -67,7 +80,7 @@ describe("node get command", () => {
 				await Get.run(["--id", nodeId, "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect(output.id).toBe(nodeId);
 			expect(output.name).toBe("Test Node");
 			expect(output.note).toBe("A test note");
@@ -105,7 +118,7 @@ describe("node get command", () => {
 				await Get.run(["--path", "Work,Projects,My Project", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect(output.id).toBe("target-id");
 			expect(output.name).toBe("My Project");
 			expect(output.note).toBe("Project notes");
@@ -141,11 +154,11 @@ describe("node get command", () => {
 				await Get.run(["--id", "parent-id", "--depth", "1", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect({
 				id: output.id,
 				name: output.name,
-				children: output.children.map(({id, name}: {id: string; name: string}) => ({id, name})),
+				children: output.children?.map(({id, name}) => ({id, name})),
 			}).toStrictEqual({
 				id: "parent-id",
 				name: "Parent",
@@ -166,7 +179,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "leaf-id", "--depth", "1", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect({id: output.id, name: output.name, children: output.children}).toStrictEqual({
 				id: "leaf-id",
 				name: "Leaf Node",
@@ -274,7 +287,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "mirror-id", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect(output.id).toBe("mirror-id");
 			expect(output.name).toBe("Original Node");
 			expect(output.mirror).toStrictEqual({
@@ -345,7 +358,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "mirror-id", "--follow-mirror", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect(output.id).toBe("original-id");
 			expect(output.name).toBe("Original Node");
 			expect(output.note).toBe("Original note");
@@ -393,9 +406,9 @@ describe("node get command", () => {
 				await Get.run(["--id", "parent-id", "--depth", "1", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 			expect(
-				output.children.map(({name, note, mirror}: {name: string; note: string; mirror: unknown}) => ({
+				output.children?.map(({name, note, mirror}) => ({
 					name,
 					note,
 					mirror,
@@ -448,10 +461,8 @@ describe("node get command", () => {
 				await Get.run(["--id", "parent-id", "--depth", "1", "--json", "--fields", "id,name,children"]);
 			});
 
-			const output = JSON.parse(stdout);
-			expect(
-				output.children.map(({name, mirror}: {name: string; mirror: unknown}) => ({name, mirror})),
-			).toStrictEqual([
+			const output = parseNodeOutput(stdout);
+			expect(output.children?.map(({name, mirror}) => ({name, mirror}))).toStrictEqual([
 				{
 					name: "Original Content",
 					mirror: {isMirror: true, originalNodeId: "original-node-id"},
@@ -512,12 +523,12 @@ describe("node get command", () => {
 				await Get.run(["--id", "parent-id", "--depth", "2", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
-			const mirrorChild = output.children[0];
+			const output = parseNodeOutput(stdout);
+			const mirrorChild = output.children?.[0];
 			expect({
-				name: mirrorChild.name,
-				mirror: mirrorChild.mirror,
-				children: mirrorChild.children.map(({name}: {name: string}) => name),
+				name: mirrorChild?.name,
+				mirror: mirrorChild?.mirror,
+				children: mirrorChild?.children?.map(({name}) => name),
 			}).toStrictEqual({
 				name: "Original Content",
 				mirror: {isMirror: true, originalNodeId: "original-node-id"},
@@ -561,7 +572,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "parent-id", "--depth", "1", "--json", "--fields", "id,name,note,children"]);
 			});
 
-			expect(JSON.parse(stdout).children).toStrictEqual([
+			expect(parseNodeOutput(stdout).children).toStrictEqual([
 				{
 					id: "mirror-child-id",
 					name: "Original text",
@@ -597,7 +608,7 @@ describe("node get command", () => {
 				await Get.run(["--id", "completed-node", "--json"]);
 			});
 
-			const output = JSON.parse(stdout);
+			const output = parseNodeOutput(stdout);
 
 			// Delete dynamic fields before deep equality comparison
 			delete output.systemFrom;

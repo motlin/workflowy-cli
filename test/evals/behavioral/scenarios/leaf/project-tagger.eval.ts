@@ -8,9 +8,16 @@
 import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
+import {z} from "zod";
 import {createEvalContext, runInEvalContext} from "../../helpers/eval-db-setup.js";
 import type {EvalContext} from "../../helpers/eval-types.js";
+import {parseNodeJson} from "../../helpers/eval-schemas.js";
 import {runLlmEval, claudeCliAvailable} from "../../helpers/llm-eval-harness.js";
+
+// suggestedProjects is optional, but every entry must carry a string tag when present.
+const ProjectTaggerResponseSchema = z.looseObject({
+	suggestedProjects: z.array(z.looseObject({tag: z.string()})).nullish(),
+});
 
 describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 	let ctx: EvalContext;
@@ -44,7 +51,7 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 		}
 
 		try {
-			const inboxData = JSON.parse(result.stdout);
+			const inboxData = parseNodeJson(result.stdout);
 			const firstInboxId = inboxData.children?.[0]?.linkTargets?.[0]?.id;
 			if (!firstInboxId) {
 				skipSuite = true;
@@ -61,9 +68,9 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 				return;
 			}
 
-			const inboxNode = JSON.parse(itemResult.stdout);
+			const inboxNode = parseNodeJson(itemResult.stdout);
 			const firstItem = inboxNode.children?.[0];
-			itemId = firstItem?.id;
+			itemId = firstItem?.id ?? "";
 			itemName = firstItem?.name ?? "Unknown item";
 
 			if (!itemId) {
@@ -92,13 +99,6 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 		const jsonMatch = response.match(/\{[\s\S]*\}/);
 		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
 
-		const parsed = JSON.parse(jsonMatch![0]);
-		if (parsed.suggestedProjects) {
-			expect(Array.isArray(parsed.suggestedProjects)).toBe(true);
-			for (const proj of parsed.suggestedProjects) {
-				expect(proj).toHaveProperty("tag");
-				expect(proj.tag).toBeTypeOf("string");
-			}
-		}
+		expect(() => ProjectTaggerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
 	});
 });
