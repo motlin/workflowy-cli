@@ -2,7 +2,7 @@
 	"name": "workflowy-cli",
 	"description": "CLI for managing Workflowy nodes via API",
 	"version": "0.1.0",
-	"packageManager": "pnpm@12.7.0",
+	"packageManager": "pnpm@12.11.2",
 	"author": "Craig P. Motlin",
 	"type": "module",
 	"bin": {
