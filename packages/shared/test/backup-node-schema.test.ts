@@ -1,5 +1,5 @@
 import {BackupNodeSchema, MetadataSchema} from '@workflowy/shared/schemas';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 
 /**
  * Regression test for Workflowy's "tables" feature. A node rendered as a table

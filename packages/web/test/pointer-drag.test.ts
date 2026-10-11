@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 import {DRAG_THRESHOLD_PX, autoScrollBy, isDragGesture} from '../src/client/pointer-drag.js';
 
 describe('isDragGesture', () => {

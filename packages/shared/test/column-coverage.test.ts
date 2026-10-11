@@ -1,7 +1,7 @@
 import {readdirSync, readFileSync, statSync} from 'node:fs';
 import {dirname, extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 
 /**
  * Phase 4c: column-coverage test — the dead-column tripwire.

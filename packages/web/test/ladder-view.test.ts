@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vite-plus/test';
 import type {ReactElement, ReactNode} from 'react';
 import type {Ladders} from '../src/client/ladder-state.js';
 import {LadderView} from '../src/client/components/ladder-view.js';

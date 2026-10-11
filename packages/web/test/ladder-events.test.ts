@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it, vi} from 'vite-plus/test';
 import {LadderEventBus, type LadderEvent} from '../src/server/ladder-events.js';
 
 function evt(partial: Partial<LadderEvent> = {}): LadderEvent {

@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 import type {Ladder} from '../src/server/ladder-model.js';
 import {
 	applyLadderEvent,

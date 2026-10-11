@@ -1,5 +1,5 @@
 import {QueryClient} from '@tanstack/react-query';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 import type {NodeResponse} from '../src/node-types.js';
 import {nodeKeys} from '../src/client/node-cache.js';
 import {

@@ -1,5 +1,5 @@
 import {NodeReader} from '@workflowy/shared/cache';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 import {buildTestDb, bulkImportWithWatermarkGuard, loadFixtureBackup} from './helpers/round-trip-helpers.js';
 
 /**

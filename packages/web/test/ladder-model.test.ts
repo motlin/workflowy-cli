@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 import {type RawNode, tierCapacity, toLadder, planTierMove} from '../src/server/ladder-model.js';
 
 const node = (id: string, name: string, children: RawNode[] = []): RawNode => ({id, name, children, completedAt: null});

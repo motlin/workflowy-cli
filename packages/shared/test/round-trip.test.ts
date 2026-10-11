@@ -2,7 +2,7 @@ import {applyRows, NodeReader} from '@workflowy/shared/cache';
 import {eq, sql} from 'drizzle-orm';
 import {nodeContent, nodeMetadata} from '@workflowy/shared/db';
 import {FAR_FUTURE_DATE} from '@workflowy/shared/temporal';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vite-plus/test';
 import {
 	buildTestDb,
 	bulkImportWithWatermarkGuard,

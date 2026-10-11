@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it, vi} from 'vite-plus/test';
 import {LadderEventBus} from '../src/server/ladder-events.js';
 import {LadderService} from '../src/server/ladder-service.js';
 

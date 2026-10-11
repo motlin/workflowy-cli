@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it, vi} from 'vite-plus/test';
 import {Hono} from 'hono';
 import {createLadderRouter} from '../src/server/routes/ladder.js';
 import type {AppEnv} from '../src/server/context.js';

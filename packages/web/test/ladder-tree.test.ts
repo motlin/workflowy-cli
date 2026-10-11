@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vite-plus/test';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import type {NodeResponse} from '../src/node-types.js';
