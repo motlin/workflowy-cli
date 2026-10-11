@@ -5,6 +5,7 @@ import {
 	ladderMoveSelection,
 	moveWithin,
 	selectLadderRange,
+	stepBeforeId,
 	tierOf,
 } from '../src/client/ladder-state.js';
 
@@ -139,5 +140,69 @@ describe('precise row placement', () => {
 	it('appends within the same tier when dropped after its last row', () => {
 		const moved = moveWithin(ladder(), 'work', 'a', '1st', '');
 		expect(moved.work.tiers.map((tier) => tier.items.map((item) => item.id))).toStrictEqual([['b', 'a'], []]);
+	});
+});
+
+describe('stepBeforeId', () => {
+	const three = (): Record<string, Ladder> => ({
+		work: {
+			root: 'work',
+			bucketId: 'wb',
+			tiers: [
+				{
+					tier: 1,
+					label: '1st',
+					id: 'w1',
+					capacity: 2,
+					state: 'exact',
+					items: [
+						{id: 'a', name: 'A', children: [], descendantCount: 0},
+						{id: 'b', name: 'B', children: [], descendantCount: 0},
+					],
+				},
+				{
+					tier: 2,
+					label: '2nd',
+					id: 'w2',
+					capacity: 4,
+					state: 'room',
+					items: [
+						{id: 'c', name: 'C', children: [], descendantCount: 0},
+						{id: 'd', name: 'D', children: [], descendantCount: 0},
+					],
+				},
+				{tier: 3, label: '3rd', id: 'w3', capacity: 8, state: 'room', items: []},
+			],
+		},
+	});
+	const step = (ladders: Record<string, Ladder>, ids: string[], toTier: string, direction: 'up' | 'down') => {
+		const before = stepBeforeId(ladders.work, toTier, direction, ids);
+		return ids.reduce((current, id) => moveWithin(current, 'work', id, toTier, before), ladders);
+	};
+	const order = (ladders: Record<string, Ladder>) =>
+		ladders.work.tiers.map((tier) => tier.items.map((item) => item.id));
+
+	it('lands a row stepped down at the top of the next tier', () => {
+		expect(stepBeforeId(three().work, '2nd', 'down', ['b'])).toBe('c');
+		expect(order(step(three(), ['b'], '2nd', 'down'))).toStrictEqual([['a'], ['b', 'c', 'd'], []]);
+	});
+
+	it('lands a row stepped up at the bottom of the previous tier', () => {
+		expect(stepBeforeId(three().work, '1st', 'up', ['c'])).toBeUndefined();
+		expect(order(step(three(), ['c'], '1st', 'up'))).toStrictEqual([['a', 'b', 'c'], ['d'], []]);
+	});
+
+	it('appends when stepping down into an empty tier', () => {
+		expect(stepBeforeId(three().work, '3rd', 'down', ['c'])).toBeUndefined();
+		expect(order(step(three(), ['c'], '3rd', 'down'))).toStrictEqual([['a', 'b'], ['d'], ['c']]);
+	});
+
+	it('keeps a multi-row selection in display order in both directions', () => {
+		expect(order(step(three(), ['a', 'b'], '2nd', 'down'))).toStrictEqual([[], ['a', 'b', 'c', 'd'], []]);
+		expect(order(step(three(), ['c', 'd'], '1st', 'up'))).toStrictEqual([['a', 'b', 'c', 'd'], [], []]);
+	});
+
+	it('skips selected rows already in the destination when picking the anchor', () => {
+		expect(stepBeforeId(three().work, '2nd', 'down', ['b', 'c'])).toBe('d');
 	});
 });

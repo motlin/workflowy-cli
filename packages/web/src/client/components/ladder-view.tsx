@@ -20,6 +20,7 @@ import {
 	removeRow,
 	restoreRow,
 	selectLadderRange,
+	stepBeforeId,
 	tierOf,
 } from '../ladder-state.js';
 import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from '../pointer-drag.js';
@@ -191,17 +192,20 @@ export function LadderView() {
 	);
 
 	const move = useCallback(
-		(nodeId: string, toTier: string, beforeNodeId?: string) => {
+		(nodeId: string, toTier: string, placement?: string | {step: 'up' | 'down'}) => {
 			const ladder = laddersRef.current?.[root];
 			if (busy.current || needsReload || !ladder) return;
 			const ids = ladderMoveSelection(ladder, selected, nodeId).filter((id) => !inFlight.current.has(id));
 			if (ids.length === 0) return;
+			const stepping = typeof placement === 'object';
+			const beforeNodeId = stepping ? stepBeforeId(ladder, toTier, placement.step, ids) : placement;
 			claim(ids);
 			void (async () => {
 				try {
 					for (const id of ids) {
 						const current = laddersRef.current;
-						if (!current || (beforeNodeId === undefined && tierOf(current, root, id) === toTier)) continue;
+						const alreadyThere = current && tierOf(current, root, id) === toTier;
+						if (!current || (alreadyThere && (stepping || beforeNodeId === undefined))) continue;
 						const saved = await write(
 							'/api/v1/ladder/move',
 							{
@@ -530,7 +534,7 @@ interface TierProps {
 	onPreview: (item: LadderItem, anchor: {left: number; bottom: number}) => void;
 	onPreviewEnd: () => void;
 	onComplete: (nodeId: string) => void;
-	onStep: (nodeId: string, toTier: string) => void;
+	onStep: (nodeId: string, toTier: string, placement: {step: 'up' | 'down'}) => void;
 	onGripDown: (event: React.PointerEvent, item: {id: string; name: string}) => void;
 	onGripMove: (event: React.PointerEvent, name: string) => void;
 	onGripUp: (event: React.PointerEvent) => void;
@@ -663,7 +667,7 @@ function Tier({
 							<button
 								aria-label={`Move to ${previousTier ?? 'the tier above'}`}
 								disabled={saving || pending.has(item.id) || !previousTier}
-								onClick={() => previousTier && onStep(item.id, previousTier)}
+								onClick={() => previousTier && onStep(item.id, previousTier, {step: 'up'})}
 								type="button"
 							>
 								&#9650;
@@ -671,7 +675,7 @@ function Tier({
 							<button
 								aria-label={`Move to ${nextTier ?? 'the tier below'}`}
 								disabled={saving || pending.has(item.id) || !nextTier}
-								onClick={() => nextTier && onStep(item.id, nextTier)}
+								onClick={() => nextTier && onStep(item.id, nextTier, {step: 'down'})}
 								type="button"
 							>
 								&#9660;

@@ -125,6 +125,22 @@ export function ladderMoveSelection(ladder: Ladder, selected: Set<string>, nodeI
 		: [nodeId];
 }
 
+/**
+ * Where a step arrow lands its rows: stepping down puts them at the top of the
+ * next tier, stepping up at the bottom of the previous one. Returns the row to
+ * insert before, or undefined to append.
+ */
+export function stepBeforeId(
+	ladder: Ladder,
+	toTier: string,
+	direction: 'up' | 'down',
+	moving: readonly string[],
+): string | undefined {
+	if (direction === 'up') return undefined;
+	const destination = ladder.tiers.find((tier) => tier.label === toTier);
+	return destination?.items.find((item) => !moving.includes(item.id))?.id;
+}
+
 /** Restore only the failed row, preserving writes received for other rows. */
 export function restoreRow(current: Ladders, before: Ladders, nodeId: string): Ladders {
 	const root = Object.keys(before).find((name) => tierOf(before, name, nodeId));
