@@ -218,20 +218,19 @@ nodesRouter.post("/", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const body = await c.req.json();
 	const {
 		parent_id: parentId,
 		name,
 		note,
 		layoutMode,
 		position,
-	} = body as {
+	} = await c.req.json<{
 		parent_id?: string;
 		name: string;
 		note?: string;
 		layoutMode?: string;
 		position?: number;
-	};
+	}>();
 
 	if (!name) {
 		return c.json({error: "name is required"}, 400);
@@ -288,12 +287,11 @@ nodesRouter.post("/:id", async (c) => {
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
-	const body = await c.req.json();
-	const {name, note, layoutMode} = body as {
+	const {name, note, layoutMode} = await c.req.json<{
 		name?: string;
 		note?: string;
 		layoutMode?: string;
-	};
+	}>();
 
 	// Validate that at least one field is provided
 	if (name === undefined && note === undefined && layoutMode === undefined) {
@@ -558,11 +556,10 @@ nodesRouter.post("/:id/move", async (c) => {
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
-	const body = await c.req.json();
-	const {parent_id: newParentId, position} = body as {
+	const {parent_id: newParentId, position} = await c.req.json<{
 		parent_id: string | null;
 		position?: number;
-	};
+	}>();
 
 	// parent_id is required but can be null (for root level) or a string (for a parent node)
 	// Empty string means root level as well

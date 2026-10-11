@@ -10,7 +10,7 @@
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import type {LadderEvent} from "../../server/ladder-events.js";
+import {type LadderEvent, parseLadderEvent} from "../../server/ladder-events.js";
 import {type LadderItem, type LadderTier, tierLabel} from "../../server/ladder-model.js";
 import {
 	type Ladders,
@@ -26,6 +26,7 @@ import {
 import {type Point, type DropTarget, autoScrollBy, isDragGesture, dropAtPoint} from "../pointer-drag.js";
 import {LadderTree} from "./ladder-tree.js";
 import "../ladder.css";
+import {readJson} from "../read-json.js";
 
 const VERDICT: Record<LadderTier["state"], (tier: LadderTier) => string> = {
 	room: (tier) => `room for ${tier.capacity - tier.items.length}`,
@@ -99,7 +100,7 @@ export function LadderView() {
 				if (!response.ok) {
 					throw new Error(`ladder request failed: ${response.status}`);
 				}
-				const body = (await response.json()) as {ladders: Ladders};
+				const body = await readJson<{ladders: Ladders}>(response);
 				laddersRef.current = body.ladders;
 				setLadders(body.ladders);
 			} catch (cause) {
@@ -115,7 +116,8 @@ export function LadderView() {
 		socket.addEventListener("open", () => setLive(true));
 		socket.addEventListener("close", () => setLive(false));
 		socket.addEventListener("message", (message: MessageEvent<string>) => {
-			const event = JSON.parse(message.data) as LadderEvent;
+			const event = parseLadderEvent(message.data);
+			if (!event) return;
 			receivedWrites.current.set(event.nodeId, event);
 			updateLadders((current) => applyLadderEvent(current, event));
 		});
@@ -127,7 +129,7 @@ export function LadderView() {
 		try {
 			const refreshed = await fetch("/api/v1/ladder");
 			if (refreshed.ok) {
-				const body = (await refreshed.json()) as {ladders: Ladders};
+				const body = await readJson<{ladders: Ladders}>(refreshed);
 				updateLadders(() => body.ladders);
 				return true;
 			}
@@ -160,7 +162,7 @@ export function LadderView() {
 					body: JSON.stringify(body),
 				});
 				if (!response.ok) {
-					const failure = (await response.json()) as {error?: string; reconcile?: boolean};
+					const failure = await readJson<{error?: string; reconcile?: boolean}>(response);
 					if (failure.reconcile) {
 						setRowErrors((current) => ({...current, [nodeId]: failure.error ?? "Move failed"}));
 						await reread();
@@ -168,7 +170,7 @@ export function LadderView() {
 					}
 					throw new WriteRejected(failure.error ?? `write failed: ${response.status}`);
 				}
-				const {event} = (await response.json()) as {event: LadderEvent};
+				const {event} = await readJson<{event: LadderEvent}>(response);
 				if (receivedWrites.current.get(nodeId) === lastReceived) {
 					updateLadders((current) => applyLadderEvent(current, event));
 				}
@@ -261,8 +263,8 @@ export function LadderView() {
 	const onGripDown = useCallback(
 		(event: React.PointerEvent, item: {id: string; name: string}) => {
 			if (busy.current || event.button !== 0 || !event.isPrimary) return;
-			const target = event.target as HTMLElement;
-			if (target.closest("button, a, input, select")) return;
+			const target = event.target;
+			if (!(target instanceof Element) || target.closest("button, a, input, select")) return;
 			suppressClick.current = false;
 			if (target.closest(".ladder-text")) {
 				if (event.shiftKey) event.preventDefault();
@@ -270,7 +272,7 @@ export function LadderView() {
 			}
 			// Touch scrolling remains available outside the grip.
 			if (event.pointerType === "touch" && !target.closest(".grip")) return;
-			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+			event.currentTarget.setPointerCapture(event.pointerId);
 			const ladder = laddersRef.current?.[root];
 			if (!ladder) return;
 			gesture.current = {
@@ -309,16 +311,12 @@ export function LadderView() {
 	);
 
 	const onRowClick = (event: React.MouseEvent, nodeId: string) => {
-		if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+		if (!(event.target instanceof Element) || event.target.closest("button, a, input, select")) return;
 		if (suppressClick.current) {
 			suppressClick.current = false;
 			return;
 		}
-		if (
-			!event.shiftKey &&
-			(event.target as HTMLElement).closest(".ladder-text") &&
-			globalThis.getSelection()?.isCollapsed === false
-		)
+		if (!event.shiftKey && event.target.closest(".ladder-text") && globalThis.getSelection()?.isCollapsed === false)
 			return;
 		select(nodeId, event.shiftKey, event.metaKey || event.ctrlKey);
 	};
@@ -381,7 +379,7 @@ export function LadderView() {
 				throw new Error(
 					`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`,
 				);
-			const body = (await refreshed.json()) as {ladders: Ladders};
+			const body = await readJson<{ladders: Ladders}>(refreshed);
 			laddersRef.current = body.ladders;
 			setLadders(body.ladders);
 			setNeedsReload(false);

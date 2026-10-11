@@ -426,6 +426,12 @@ describe("row selection and pointer cancellation", () => {
 	it("never saves a cancelled drag", () => {
 		const row = {dataset: {nodeId: "bob"}, getBoundingClientRect: () => ({top: 100, height: 40})};
 		const zone = {dataset: {tier: "1st"}, classList: {contains: () => true}, querySelectorAll: () => [row]};
+		class FakeElement {
+			closest(): null {
+				return null;
+			}
+		}
+		vi.stubGlobal("Element", FakeElement);
 		vi.stubGlobal("document", {elementFromPoint: () => ({closest: () => zone})});
 		const event = {
 			button: 0,
@@ -434,7 +440,7 @@ describe("row selection and pointer cancellation", () => {
 			pointerId: 1,
 			clientX: 100,
 			clientY: 100,
-			target: {closest: () => null},
+			target: new FakeElement(),
 			currentTarget: {setPointerCapture: vi.fn<(pointerId: number) => void>()},
 		};
 		tierProps().onGripDown(event, {id: "alice", name: "Alice"});

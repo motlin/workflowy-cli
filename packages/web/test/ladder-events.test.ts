@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {LadderEventBus, type LadderEvent, type LadderListener} from "../src/server/ladder-events.js";
+import {LadderEventBus, type LadderEvent, type LadderListener, parseLadderEvent} from "../src/server/ladder-events.js";
 
 function evt(partial: Partial<LadderEvent> = {}): LadderEvent {
 	return {
@@ -68,5 +68,21 @@ describe("LadderEventBus", () => {
 		const line = bus.format(evt({name: "A task\nwith a newline"}));
 		expect(line).not.toContain("\n");
 		expect(JSON.parse(line)).toMatchObject({verb: "move", nodeId: "n1", toTier: "5th"});
+	});
+});
+
+describe("parseLadderEvent", () => {
+	it("reads back a frame the bus formatted", () => {
+		const event = evt({beforeNodeId: "n2"});
+
+		expect(parseLadderEvent(new LadderEventBus().format(event))).toStrictEqual(event);
+	});
+
+	it("drops a frame that is not a ladder event", () => {
+		expect(parseLadderEvent(JSON.stringify({verb: "explode", nodeId: "n1"}))).toBeNull();
+	});
+
+	it("drops a frame that is not JSON", () => {
+		expect(parseLadderEvent("not json")).toBeNull();
 	});
 });

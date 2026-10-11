@@ -71,7 +71,7 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 	};
 
 	const handleDragLeave = (event: React.DragEvent) => {
-		const relatedTarget = event.relatedTarget as Node | null;
+		const relatedTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
 		if (!event.currentTarget.contains(relatedTarget)) {
 			setIsDragOver(false);
 			setDragOverPosition(null);

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useOutlineStore} from "../stores/outline.js";
+import {readJson} from "../read-json.js";
 
 interface NodeResult {
 	id: string;
@@ -72,7 +73,7 @@ export function LinkInsertModal() {
 						}),
 					});
 					if (response.ok) {
-						const data = (await response.json()) as RelatedResponse;
+						const data = await readJson<RelatedResponse>(response);
 						setRelatedNodes(data.results);
 					}
 				} finally {
@@ -105,7 +106,7 @@ export function LinkInsertModal() {
 				body: JSON.stringify({query, limit: 10}),
 			});
 			if (response.ok) {
-				const data = (await response.json()) as SearchResponse;
+				const data = await readJson<SearchResponse>(response);
 				setResults(data.results);
 				setSelectedIndex(0);
 			}

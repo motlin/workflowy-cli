@@ -68,6 +68,36 @@ describe("POST /api/v1/ladder/move", () => {
 		expect(move).not.toHaveBeenCalled();
 	});
 
+	it("rejects a non-string node_id instead of passing it to the service", async () => {
+		const move = vi.fn<LadderService["move"]>();
+		const app = makeApp({move});
+		const res = await app.fetch(
+			new Request("http://x/api/v1/ladder/move", {
+				method: "POST",
+				headers: {"content-type": "application/json"},
+				body: JSON.stringify({root: "work", node_id: 42, to_tier: "2nd"}),
+			}),
+		);
+		expect(res.status).toBe(400);
+		await expect(res.json()).resolves.toStrictEqual({error: "root, node_id and to_tier are required"});
+		expect(move).not.toHaveBeenCalled();
+	});
+
+	it("rejects a non-string before_id instead of guessing an insertion point", async () => {
+		const move = vi.fn<LadderService["move"]>();
+		const app = makeApp({move});
+		const res = await app.fetch(
+			new Request("http://x/api/v1/ladder/move", {
+				method: "POST",
+				headers: {"content-type": "application/json"},
+				body: JSON.stringify({root: "work", node_id: "a", to_tier: "2nd", before_id: 7}),
+			}),
+		);
+		expect(res.status).toBe(400);
+		await expect(res.json()).resolves.toStrictEqual({error: "before_id must be a string"});
+		expect(move).not.toHaveBeenCalled();
+	});
+
 	it("reports a rejected move as 400 with the reason, not a 500", async () => {
 		const app = makeApp({
 			move: async () => {

@@ -235,8 +235,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		let parentS: HTMLElement | null = null;
 		let node: Node | null = range.commonAncestorContainer;
 		while (node && node !== contentRef.current) {
-			if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === "S") {
-				parentS = node as HTMLElement;
+			if (node instanceof HTMLElement && node.tagName === "S") {
+				parentS = node;
 				break;
 			}
 			node = node.parentNode;
@@ -277,8 +277,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		let parentCode: HTMLElement | null = null;
 		let node: Node | null = range.commonAncestorContainer;
 		while (node && node !== contentRef.current) {
-			if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === "CODE") {
-				parentCode = node as HTMLElement;
+			if (node instanceof HTMLElement && node.tagName === "CODE") {
+				parentCode = node;
 				break;
 			}
 			node = node.parentNode;
@@ -318,8 +318,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		if (isCodeBlock) {
 			// Remove code block: extract content from <pre><code>
-			const codeElement = firstChild.firstElementChild as HTMLElement;
-			contentRef.current.innerHTML = codeElement.innerHTML;
+			contentRef.current.innerHTML = firstChild.firstElementChild?.innerHTML ?? "";
 		} else {
 			// Add code block: wrap entire content in <pre><code>
 			const preElement = document.createElement("pre");
@@ -402,10 +401,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	 */
 	const handleTextClick = useCallback(
 		(event: React.MouseEvent<HTMLSpanElement>) => {
-			const target = event.target as HTMLElement;
+			const target = event.target;
 
 			// Plain click on a .tag-link span opens search directly
-			if (target.classList.contains("tag-link")) {
+			if (target instanceof Element && target.classList.contains("tag-link")) {
 				const tagText = target.textContent;
 				if (tagText) {
 					event.preventDefault();
@@ -460,7 +459,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (colorPicker) {
 				return;
 			}
-			const tagEl = (event.target as HTMLElement).closest?.(".tag-link");
+			const tagEl = event.target instanceof Element ? event.target.closest(".tag-link") : null;
 			if (!tagEl) {
 				return;
 			}
@@ -509,7 +508,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return undefined;
 		}
 		const onPointerDown = (event: PointerEvent) => {
-			if (!(event.target as HTMLElement).closest(".tag-color-picker")) {
+			if (!(event.target instanceof Element && event.target.closest(".tag-color-picker"))) {
 				setColorPicker(null);
 			}
 		};

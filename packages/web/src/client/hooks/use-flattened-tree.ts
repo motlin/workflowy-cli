@@ -4,6 +4,7 @@ import type {NodeResponse} from "../../node-types.js";
 import {useMemo} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import {useChildren} from "./use-nodes.js";
+import {readJson} from "../read-json.js";
 
 /**
  * A flattened node includes the original node data plus its depth in the tree.
@@ -22,7 +23,7 @@ async function fetchChildren(parentId: string): Promise<NodeResponse[]> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch children: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {nodes: NodeResponse[]};
+	const data = await readJson<{nodes: NodeResponse[]}>(response);
 	return data.nodes;
 }
 

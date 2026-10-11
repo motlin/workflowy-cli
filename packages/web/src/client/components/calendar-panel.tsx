@@ -133,7 +133,7 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 		if (!isOpen) return undefined;
 
 		function handleClickOutside(event: MouseEvent) {
-			const target = event.target as Node;
+			const target = event.target instanceof Node ? event.target : null;
 			if (
 				panelRef.current &&
 				!panelRef.current.contains(target) &&

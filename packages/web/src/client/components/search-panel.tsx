@@ -3,6 +3,7 @@ import {nodeRoute} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
+import {readJson} from "../read-json.js";
 
 interface SearchResult {
 	id: string;
@@ -17,7 +18,13 @@ interface SearchResponse {
 	totalCount: number;
 }
 
-type EmbeddingModelKey = "minilm" | "mpnet" | "bge";
+const EMBEDDING_MODEL_KEYS = ["minilm", "mpnet", "bge"] as const;
+
+type EmbeddingModelKey = (typeof EMBEDDING_MODEL_KEYS)[number];
+
+function isEmbeddingModelKey(value: string): value is EmbeddingModelKey {
+	return EMBEDDING_MODEL_KEYS.some((key) => key === value);
+}
 
 interface ModelInfo {
 	label: string;
@@ -52,8 +59,8 @@ const STORAGE_KEY = "workflowy-search-model";
 function getStoredModel(): EmbeddingModelKey {
 	if (typeof globalThis === "undefined") return "minilm";
 	const stored = localStorage.getItem(STORAGE_KEY);
-	if (stored && stored in EMBEDDING_MODELS) {
-		return stored as EmbeddingModelKey;
+	if (stored !== null && isEmbeddingModelKey(stored)) {
+		return stored;
 	}
 	return "minilm";
 }
@@ -190,7 +197,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 				body: JSON.stringify(requestBody),
 			});
 			if (response.ok) {
-				const data = (await response.json()) as SearchResponse;
+				const data = await readJson<SearchResponse>(response);
 				setResults(data.results);
 				setTotalCount(data.totalCount);
 				setSelectedIndex(0);
@@ -230,7 +237,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 			body: JSON.stringify(requestBody),
 		});
 		if (response.ok) {
-			const data = (await response.json()) as SearchResponse;
+			const data = await readJson<SearchResponse>(response);
 			setResults((prev) => [...prev, ...data.results]);
 		}
 		setIsLoadingMore(false);
@@ -312,7 +319,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 						<div className="search-panel-model-selector">
 							<label className="search-panel-model-label">Model:</label>
 							<div className="search-panel-model-buttons">
-								{(Object.keys(EMBEDDING_MODELS) as EmbeddingModelKey[]).map((modelKey) => (
+								{EMBEDDING_MODEL_KEYS.map((modelKey) => (
 									<button
 										className={`search-panel-model-button ${selectedModel === modelKey ? "selected" : ""}`}
 										key={modelKey}

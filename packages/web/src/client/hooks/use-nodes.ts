@@ -2,6 +2,7 @@ import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../../node-types.js";
 import {nodeKeys} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {readJson} from "../read-json.js";
 
 interface CreateNodeRequest {
 	parent_id?: string;
@@ -23,7 +24,7 @@ async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch children: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {nodes: NodeResponse[]};
+	const data = await readJson<{nodes: NodeResponse[]}>(response);
 	return data.nodes;
 }
 
@@ -32,7 +33,7 @@ async function fetchNode(nodeId: string): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch node: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {node: NodeResponse};
+	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
 }
 
@@ -41,7 +42,7 @@ async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch ancestors: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {ancestors: NodeResponse[]};
+	const data = await readJson<{ancestors: NodeResponse[]}>(response);
 	return data.ancestors;
 }
 
@@ -54,7 +55,7 @@ async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw new Error(`Failed to create node: ${response.statusText}`);
 	}
-	return response.json() as Promise<NodeResponse>;
+	return readJson<NodeResponse>(response);
 }
 
 async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<NodeResponse> {
@@ -66,7 +67,7 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<N
 	if (!response.ok) {
 		throw new Error(`Failed to update node: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {node: NodeResponse};
+	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
 }
 
@@ -98,7 +99,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 	if (!response.ok) {
 		throw new Error(`Failed to move node: ${response.statusText}`);
 	}
-	return response.json() as Promise<MoveNodeResponse>;
+	return readJson<MoveNodeResponse>(response);
 }
 
 async function completeNode(nodeId: string): Promise<NodeResponse> {
@@ -108,7 +109,7 @@ async function completeNode(nodeId: string): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw new Error(`Failed to complete node: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {node: NodeResponse};
+	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
 }
 
@@ -119,7 +120,7 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw new Error(`Failed to uncomplete node: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {node: NodeResponse};
+	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
 }
 

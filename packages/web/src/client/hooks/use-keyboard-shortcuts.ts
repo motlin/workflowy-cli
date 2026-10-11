@@ -25,6 +25,7 @@ import {
 	useUpdateNode,
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
+import {readJson} from "../read-json.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -1043,7 +1044,7 @@ export function useKeyboardShortcuts() {
 				});
 
 				if (response.ok) {
-					const data = (await response.json()) as {results: Array<{id: string; name: string | null}>};
+					const data = await readJson<{results: Array<{id: string; name: string | null}>}>(response);
 					if (data.results.length > 0) {
 						void navigate(nodeRoute(data.results[0].id));
 						return;

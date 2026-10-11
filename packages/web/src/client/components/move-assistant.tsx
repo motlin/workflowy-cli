@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useOutlineStore} from "../stores/outline.js";
+import type {NodeResponse} from "../../node-types.js";
+import {readJson} from "../read-json.js";
 
 interface RelatedNode {
 	id: string;
@@ -69,10 +71,10 @@ export function MoveAssistant() {
 						}),
 					});
 					if (!response.ok) {
-						const data = (await response.json()) as {error?: string};
+						const data = await readJson<{error?: string}>(response);
 						throw new Error(data.error ?? "Failed to fetch parent candidates");
 					}
-					const data = (await response.json()) as RelatedResponse;
+					const data = await readJson<RelatedResponse>(response);
 					setParentCandidates(data.results);
 				} catch (error_) {
 					setError(error_ instanceof Error ? error_.message : String(error_));
@@ -108,7 +110,7 @@ export function MoveAssistant() {
 					body: JSON.stringify({query, limit: 10}),
 				});
 				if (response.ok) {
-					const data = (await response.json()) as SearchResponse;
+					const data = await readJson<SearchResponse>(response);
 					// Convert search results to RelatedNode format for consistent display
 					const results: RelatedNode[] = data.results.map((result) => ({
 						...result,
@@ -146,7 +148,7 @@ export function MoveAssistant() {
 					});
 
 					if (!response.ok) {
-						const data = (await response.json()) as {error?: string};
+						const data = await readJson<{error?: string}>(response);
 						throw new Error(data.error ?? "Failed to move node");
 					}
 				} else {
@@ -156,11 +158,7 @@ export function MoveAssistant() {
 					if (!sourceResponse.ok) {
 						throw new Error("Failed to fetch source node");
 					}
-					const sourceNode = (await sourceResponse.json()) as {
-						name: string;
-						note?: string;
-						data?: {layoutMode?: string};
-					};
+					const {node: sourceNode} = await readJson<{node: NodeResponse}>(sourceResponse);
 
 					// Create a copy under the target parent
 					const createResponse = await fetch("/api/v1/nodes", {
@@ -170,12 +168,12 @@ export function MoveAssistant() {
 							parent_id: targetNode.id,
 							name: sourceNode.name,
 							note: sourceNode.note,
-							layoutMode: sourceNode.data?.layoutMode,
+							layoutMode: sourceNode.data.layoutMode ?? undefined,
 						}),
 					});
 
 					if (!createResponse.ok) {
-						const data = (await createResponse.json()) as {error?: string};
+						const data = await readJson<{error?: string}>(createResponse);
 						throw new Error(data.error ?? "Failed to copy node");
 					}
 				}

@@ -3,6 +3,8 @@ import {useCallback, useMemo, useState} from "react";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useHotkeys} from "react-hotkeys-hook";
 import {useOutlineStore} from "../stores/outline.js";
+import type {NodeResponse} from "../../node-types.js";
+import {readJson} from "../read-json.js";
 
 type ExportFormat = "plain-text" | "markdown" | "opml";
 
@@ -112,7 +114,7 @@ async function fetchNodeTree(nodeId: string): Promise<NodeData | null> {
 		return null;
 	}
 
-	const node = (await response.json()) as {id: string; name: string | null; note: string | null};
+	const {node} = await readJson<{node: NodeResponse}>(response);
 
 	// Fetch children
 	const childrenResponse = await fetch(`/api/v1/nodes?parent_id=${nodeId}`);
@@ -120,7 +122,7 @@ async function fetchNodeTree(nodeId: string): Promise<NodeData | null> {
 		return {id: node.id, name: node.name, note: node.note};
 	}
 
-	const children = (await childrenResponse.json()) as Array<{id: string; name: string | null; note: string | null}>;
+	const {nodes: children} = await readJson<{nodes: NodeResponse[]}>(childrenResponse);
 
 	// Recursively fetch children's trees
 	const childTrees = await Promise.all(children.map((child) => fetchNodeTree(child.id)));

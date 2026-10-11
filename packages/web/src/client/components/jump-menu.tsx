@@ -5,6 +5,7 @@ import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
 import {z} from "zod";
 import {useOutlineStore} from "../stores/outline.js";
+import {readJson} from "../read-json.js";
 
 const StringArraySchema = z.array(z.string());
 
@@ -53,7 +54,7 @@ async function fetchNodes(ids: string[]): Promise<NodeResult[]> {
 		ids.map(async (id) => {
 			const response = await fetch(`/api/v1/nodes/${encodeURIComponent(id)}`);
 			if (response.ok) {
-				const data = (await response.json()) as {node: NodeResult};
+				const data = await readJson<{node: NodeResult}>(response);
 				return data.node;
 			}
 			return null;
@@ -101,7 +102,7 @@ function JumpMenuDialog() {
 				body: JSON.stringify({query, limit: 10}),
 			});
 			if (response.ok) {
-				const data = (await response.json()) as SearchResponse;
+				const data = await readJson<SearchResponse>(response);
 				setResults(data.results);
 				setSelectedIndex(0);
 			}

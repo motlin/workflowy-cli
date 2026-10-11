@@ -3,6 +3,7 @@ import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {createPortal} from "react-dom";
 import {nodeRoute, useNodeNavigation} from "../navigation.js";
 import type {NodeResponse} from "../../node-types.js";
+import {readJson} from "../read-json.js";
 
 interface MirrorLocationPath {
 	id: string;
@@ -59,7 +60,7 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 
 	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
-			if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+			if (modalRef.current && !modalRef.current.contains(event.target instanceof Node ? event.target : null)) {
 				onClose();
 			}
 		}
@@ -140,7 +141,7 @@ function MirrorBanner({
 			try {
 				const response = await fetch(`/api/v1/nodes/${encodeURIComponent(originalNodeId)}/mirrors`);
 				if (response.ok) {
-					const data = (await response.json()) as MirrorsResponse;
+					const data = await readJson<MirrorsResponse>(response);
 					setMirrorsData(data);
 				}
 			} catch {
@@ -185,7 +186,7 @@ function NodeContextMenu({
 
 	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+			if (menuRef.current && !menuRef.current.contains(event.target instanceof Node ? event.target : null)) {
 				onClose();
 			}
 		}

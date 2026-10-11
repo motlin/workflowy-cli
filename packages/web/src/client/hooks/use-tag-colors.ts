@@ -1,4 +1,5 @@
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {readJson} from "../read-json.js";
 
 /**
  * Per-tag color assignments, as a map of tag text (incl. leading #/@) to a
@@ -16,7 +17,7 @@ async function fetchTagColors(): Promise<TagColors> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch tag colors: ${response.statusText}`);
 	}
-	const data = (await response.json()) as {colors: TagColors};
+	const data = await readJson<{colors: TagColors}>(response);
 	return data.colors;
 }
 

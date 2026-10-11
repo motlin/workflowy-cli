@@ -9,18 +9,30 @@
  * sat unnoticed until somebody thought to look.
  */
 
-export type LadderVerb = "move" | "complete" | "uncomplete";
+import {z} from "zod";
 
-export interface LadderEvent {
-	verb: LadderVerb;
-	nodeId: string;
+const LadderEventSchema = z.object({
+	verb: z.enum(["move", "complete", "uncomplete"]),
+	nodeId: z.string(),
 	/** Task text at the time of the write, for a human-readable notification. */
-	name: string | null;
-	fromTier: string | null;
-	toTier: string | null;
+	name: z.string().nullable(),
+	fromTier: z.string().nullable(),
+	toTier: z.string().nullable(),
 	/** Empty string appends; otherwise insert before this row. */
-	beforeNodeId?: string;
-	at: string;
+	beforeNodeId: z.string().optional(),
+	at: z.string(),
+});
+
+export type LadderEvent = z.infer<typeof LadderEventSchema>;
+
+/** Read one bus frame back into an event, or null when the frame is not one. */
+export function parseLadderEvent(frame: string): LadderEvent | null {
+	try {
+		const result = LadderEventSchema.safeParse(JSON.parse(frame));
+		return result.success ? result.data : null;
+	} catch {
+		return null;
+	}
 }
 
 export type LadderListener = (event: LadderEvent) => void;

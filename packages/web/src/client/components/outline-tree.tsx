@@ -89,8 +89,9 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 	// This ensures the scrollbar appears at the viewport's right edge
 	const getScrollElement = () => {
 		if (scrollRef.current) return scrollRef.current;
-		const el = containerRef.current?.closest(".outline-container") as HTMLElement | null;
-		if (el) scrollRef.current = el;
+		const el = containerRef.current?.closest(".outline-container");
+		if (!(el instanceof HTMLElement)) return null;
+		scrollRef.current = el;
 		return el;
 	};
 

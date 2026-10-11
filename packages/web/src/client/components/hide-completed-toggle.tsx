@@ -19,7 +19,7 @@ export function HideCompletedToggle({anchorRef, isOpen, onClose, onToggle, showC
 		if (!isOpen) return undefined;
 
 		function handleClickOutside(event: MouseEvent) {
-			const target = event.target as Node;
+			const target = event.target instanceof Node ? event.target : null;
 			if (
 				panelRef.current &&
 				!panelRef.current.contains(target) &&

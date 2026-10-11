@@ -4,6 +4,7 @@ import {nodeRoute} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
+import {readJson} from "../read-json.js";
 
 interface RelatedNode {
 	id: string;
@@ -36,10 +37,10 @@ async function fetchRelatedNodes(nodeId: string): Promise<RelatedNode[]> {
 		}),
 	});
 	if (!response.ok) {
-		const data = (await response.json()) as {error?: string};
+		const data = await readJson<{error?: string}>(response);
 		throw new Error(data.error ?? "Failed to fetch related nodes");
 	}
-	const data = (await response.json()) as RelatedResponse;
+	const data = await readJson<RelatedResponse>(response);
 	return data.results;
 }
 

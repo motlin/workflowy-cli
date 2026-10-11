@@ -189,7 +189,7 @@ export function GearMenu({isOpen, onClose, onOpenSettings, onExpandAll, onCollap
 
 	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+			if (menuRef.current && !menuRef.current.contains(event.target instanceof Node ? event.target : null)) {
 				onClose();
 			}
 		}

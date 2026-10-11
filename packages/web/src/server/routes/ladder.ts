@@ -8,11 +8,13 @@
  */
 
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import {NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {type NodeTree, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import {Hono} from "hono";
+import {z} from "zod";
 import {type AppEnv, type ServerContext} from "../context.js";
 import {ladderEvents} from "../ladder-events.js";
-import {LadderService} from "../ladder-service.js";
+import {type LadderBuckets, LadderService} from "../ladder-service.js";
+import type {RawNode} from "../ladder-model.js";
 
 /** Where each ladder lives. Both buckets sit four levels down, under their root. */
 const BUCKET_PATHS: Record<string, string[]> = {
@@ -34,12 +36,16 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 	});
 
 	router.post("/move", async (c) => {
-		const {root, node_id: nodeId, to_tier: toTier, before_id: beforeNodeId} = await readBody(c.req.raw);
+		const body = await readBody(c.req.raw);
+		const root = text(body.root);
+		const nodeId = text(body.node_id);
+		const toTier = text(body.to_tier);
 		if (!root || !nodeId || !toTier) {
 			return c.json({error: "root, node_id and to_tier are required"}, 400);
 		}
-		if (beforeNodeId !== undefined && typeof beforeNodeId !== "string")
+		if (body.before_id !== undefined && typeof body.before_id !== "string")
 			return c.json({error: "before_id must be a string"}, 400);
+		const beforeNodeId = text(body.before_id);
 		try {
 			const event = await createService(c.get("ctx")).move({
 				root,
@@ -54,7 +60,9 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 	});
 
 	router.post("/complete", async (c) => {
-		const {root, node_id: nodeId} = await readBody(c.req.raw);
+		const body = await readBody(c.req.raw);
+		const root = text(body.root);
+		const nodeId = text(body.node_id);
 		if (!root || !nodeId) {
 			return c.json({error: "root and node_id are required"}, 400);
 		}
@@ -69,13 +77,28 @@ export function createLadderRouter(options: LadderRouterOptions = {}): Hono<AppE
 	return router;
 }
 
-async function readBody(request: Request): Promise<Record<string, string | undefined>> {
+const JsonObjectSchema = z.record(z.string(), z.unknown());
+
+async function readBody(request: Request): Promise<Record<string, unknown>> {
 	try {
-		const body: unknown = await request.json();
-		return typeof body === "object" && body !== null ? (body as Record<string, string | undefined>) : {};
+		const result = JsonObjectSchema.safeParse(await request.json());
+		return result.success ? result.data : {};
 	} catch {
 		return {};
 	}
+}
+
+function text(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
+
+function toRawNode(tree: NodeTree): RawNode {
+	return {
+		id: tree.id,
+		name: tree.name,
+		completedAt: tree.completedAt?.toISOString() ?? null,
+		children: tree.children?.map(toRawNode),
+	};
 }
 
 function messageOf(error: unknown): string {
@@ -90,7 +113,7 @@ function defaultService(ctx: ServerContext): LadderService {
 	return new LadderService({
 		readBuckets: async () => {
 			const reader = new NodeTreeReader(ctx.cacheService);
-			const buckets: Record<string, {id: string; name?: string | null; children?: never[]}> = {};
+			const buckets: LadderBuckets = {};
 			for (const [root, path] of Object.entries(BUCKET_PATHS)) {
 				const bucket = await ctx.cacheService.findNodeByPath(path);
 				if (!bucket) {
@@ -100,7 +123,7 @@ function defaultService(ctx: ServerContext): LadderService {
 				if (!tree) {
 					throw new Error(`could not read the ${root} asap bucket`);
 				}
-				buckets[root] = tree as never;
+				buckets[root] = toRawNode(tree);
 			}
 			return buckets;
 		},
