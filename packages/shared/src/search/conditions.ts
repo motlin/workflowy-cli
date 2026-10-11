@@ -88,8 +88,7 @@ export function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 
 /** Extract the terms used for relevance scoring from a parsed query. */
 export function getScoringTerms(parsed: ParsedQuery): string[] {
-	const terms: string[] = [];
-	terms.push(...parsed.exactPhrases, ...parsed.requiredTerms);
+	const terms: string[] = [...parsed.exactPhrases, ...parsed.requiredTerms];
 	for (const group of parsed.orTerms) {
 		terms.push(...group);
 	}

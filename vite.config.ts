@@ -97,6 +97,7 @@ export default defineConfig({
 			"unicorn/prefer-type-error": "error",
 			"unicorn/prefer-top-level-await": "error",
 			"unicorn/prefer-dom-node-remove": "error",
+			"unicorn/no-immediate-mutation": "error",
 			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
 			"vitest/prefer-importing-vitest-globals": "error",
 			"vitest/prefer-strict-equal": "error",

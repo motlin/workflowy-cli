@@ -79,9 +79,8 @@ export abstract class BaseListCommand extends Command {
 	 * The 'children' and 'linkTargets' fields are recursively filtered if requested.
 	 */
 	protected filterNodeFields(node: NodeTree, fields: string[]): Record<string, unknown> {
-		const fieldsSet = new Set(fields);
 		// Always include 'id' for identification
-		fieldsSet.add("id");
+		const fieldsSet = new Set([...fields, "id"]);
 
 		const result: Record<string, unknown> = {};
 		for (const field of fieldsSet) {

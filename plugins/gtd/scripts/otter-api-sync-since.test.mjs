@@ -178,8 +178,10 @@ test("sync-since returns everything with boundary_found false when the list ends
 });
 
 test("sync-since fails instead of scanning unbounded when the boundary is never found", () => {
-	const pages = {first: {last_load_ts: 1, end_of_list: false, speeches: [speech("a", 1100)]}};
-	pages[1] = {last_load_ts: 1, end_of_list: false, speeches: [speech("b", 1000)]};
+	const pages = {
+		first: {last_load_ts: 1, end_of_list: false, speeches: [speech("a", 1100)]},
+		1: {last_load_ts: 1, end_of_list: false, speeches: [speech("b", 1000)]},
+	};
 	const sb = sandbox(pages);
 	const result = spawnSync("bash", [SCRIPT, "sync-since", "missing", "1"], {
 		env: {

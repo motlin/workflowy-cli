@@ -258,8 +258,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	expand: (id) =>
 		set((state) => {
-			const newExpandedIds = new Set(state.expandedIds);
-			newExpandedIds.add(id);
+			const newExpandedIds = new Set([...state.expandedIds, id]);
 			return {expandedIds: newExpandedIds};
 		}),
 
