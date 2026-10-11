@@ -1,15 +1,28 @@
 {
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": ["config:recommended"],
-	"enabledManagers": ["npm"],
+	"enabledManagers": ["npm", "mise"],
 	"minimumReleaseAge": "1 day",
 	"internalChecksFilter": "strict",
-	"automerge": true,
-	"platformAutomerge": true,
 	"packageRules": [
 		{
-			"matchUpdateTypes": ["major"],
-			"automerge": false
+			"matchManagers": ["npm"],
+			"enabled": false
+		},
+		{
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["packageManager"],
+			"enabled": true
+		},
+		{
+			"matchManagers": ["npm"],
+			"matchPackageNames": ["vite-plus", "@voidzero-dev/vite-plus-core"],
+			"enabled": true,
+			"groupName": "vite-plus"
+		},
+		{
+			"matchDepNames": ["pnpm"],
+			"groupName": "pnpm"
 		}
 	]
 }
