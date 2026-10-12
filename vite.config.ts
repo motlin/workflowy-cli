@@ -91,6 +91,7 @@ export default defineConfig({
 			"typescript/array-type": "error",
 			"typescript/consistent-type-imports": "error",
 			"import/consistent-type-specifier-style": "error",
+			"import/no-duplicates": "error",
 			"unicorn/numeric-separators-style": "error",
 			"unicorn/escape-case": "error",
 			"unicorn/no-negated-condition": "error",

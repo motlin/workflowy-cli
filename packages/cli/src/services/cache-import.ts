@@ -11,8 +11,8 @@ import {
 import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
 import {applyRows, joinKey, nextSystemTime, temporalMerge} from "@workflowy/shared/cache";
-import type {TemporalTransaction} from "@workflowy/shared/cache";
 import type {
+	TemporalTransaction,
 	NormalizedAiMetadataRow,
 	NormalizedCalendarLevelsRow,
 	NormalizedCalendarMetadataRow,

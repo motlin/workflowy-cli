@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {buildLadderModel, diffSubmission, renderPage} from "./rebalance-ui.mjs";
+import {buildLadderModel, diffSubmission, renderFromTemplate, renderPage, toQueueLadders} from "./rebalance-ui.mjs";
 
 const bucket = (id, tiers) => ({
 	id,
@@ -323,7 +323,6 @@ test("a draft whose rows no longer match the page is ignored rather than applied
 });
 
 // --- the Queue template is the page we ship; the generator only injects data ---
-import {renderFromTemplate, toQueueLadders} from "./rebalance-ui.mjs";
 
 test("toQueueLadders emits the shape the Queue template expects", () => {
 	const model = buildLadderModel(
