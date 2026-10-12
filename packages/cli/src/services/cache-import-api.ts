@@ -154,7 +154,7 @@ export function importFromApi(
 	let nodesUpdated = 0;
 	let nodesUnchanged = 0;
 	let nodesDeleted = 0;
-	let nodesPhasedOut = 0;
+	let nodesPhasedOut: number;
 	let contentUpdated = 0;
 	let metadataUpdated = 0;
 	const priorityUpdated = 0; // API import doesn't recalculate priorities

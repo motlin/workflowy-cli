@@ -104,7 +104,7 @@ function main() {
 		return;
 	}
 
-	let lstart = "";
+	let lstart;
 	try {
 		lstart = execSync(`ps -o lstart= -p ${pid}`, {encoding: "utf8"}).trim();
 	} catch {

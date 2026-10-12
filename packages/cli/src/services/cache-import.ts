@@ -604,7 +604,7 @@ export async function importBackup(
 
 	// The local watermark and the protected id set are computed once
 	// existingMetadataMap is loaded, below.
-	let localWatermark: string | null = null;
+	let localWatermark: string | null;
 	let protectedIds = new Set<string>();
 
 	// Reset diagnostic counters before comparison phase
