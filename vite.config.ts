@@ -109,6 +109,7 @@ export default defineConfig({
 			"unicorn/prefer-dom-node-remove": "error",
 			"unicorn/no-immediate-mutation": "error",
 			"unicorn/no-unreadable-array-destructuring": "error",
+			"unicorn/no-useless-collection-argument": "error",
 			"unicorn/prefer-import-meta-properties": "error",
 			"unicorn/prefer-math-trunc": "error",
 			"unicorn/prefer-code-point": "error",

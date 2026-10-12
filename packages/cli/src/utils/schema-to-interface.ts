@@ -45,7 +45,7 @@ function formatObject(
 
 	lines.push(`interface ${name} {`);
 	if (schema.properties) {
-		const required = new Set(schema.required ?? []);
+		const required = new Set(schema.required);
 		for (const [key, prop] of Object.entries(schema.properties)) {
 			if (typeof prop === "boolean") {
 				continue;
@@ -114,7 +114,7 @@ function formatType(
 
 	if (schema.type === "object" && schema.properties) {
 		const parts: string[] = [];
-		const required = new Set(schema.required ?? []);
+		const required = new Set(schema.required);
 		for (const [key, prop] of Object.entries(schema.properties)) {
 			if (typeof prop === "boolean") {
 				continue;
