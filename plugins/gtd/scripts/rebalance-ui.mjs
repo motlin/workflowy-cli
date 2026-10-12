@@ -252,7 +252,7 @@ export function renderFromTemplate(models, templatePath = TEMPLATE) {
 	const template = readFileSync(templatePath, "utf8");
 	// `</script>` anywhere in a task name would close the tag early; \u003c keeps
 	// the payload inert while staying valid JSON.
-	const payload = JSON.stringify(toQueueLadders(models)).replaceAll("<", "\\u003c");
+	const payload = JSON.stringify(toQueueLadders(models)).replaceAll("<", String.raw`\u003c`);
 	return template.replace("__LADDERS__", () => payload);
 }
 

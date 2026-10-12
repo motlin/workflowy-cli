@@ -57,7 +57,7 @@ function sandbox(pages) {
 			'    otid="${url##*otid=}"',
 			'    printf \'{"speech_action_items":[{"text":"do %s","assignee":{"name":"Alice"},"completed":false}]}\' "$otid" ;;',
 			"esac",
-			'[[ -n "$meta" ]] && printf \'\\n{"http_code":"200","time_total":"0.01"}\'',
+			String.raw`[[ -n "$meta" ]] && printf '\n{"http_code":"200","time_total":"0.01"}'`,
 			"exit 0",
 			"",
 		].join("\n"),

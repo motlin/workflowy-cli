@@ -30,7 +30,7 @@ function sandbox(speechBody) {
 			'meta=""',
 			'for a in "$@"; do case "$a" in *http_code*) meta=1 ;; esac; done',
 			`cat ${JSON.stringify(fixture)}`,
-			'[[ -n "$meta" ]] && printf \'\\n{"http_code":"200","time_total":"0.01"}\'',
+			String.raw`[[ -n "$meta" ]] && printf '\n{"http_code":"200","time_total":"0.01"}'`,
 			"exit 0",
 			"",
 		].join("\n"),
