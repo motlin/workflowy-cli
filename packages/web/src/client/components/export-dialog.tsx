@@ -15,7 +15,7 @@ interface NodeData {
 	children?: NodeData[];
 }
 
-function formatPlainText(nodes: NodeData[], depth: number = 0): string {
+function formatPlainText(nodes: NodeData[], depth = 0): string {
 	const lines: string[] = [];
 	const indent = "  ".repeat(depth);
 
@@ -36,7 +36,7 @@ function formatPlainText(nodes: NodeData[], depth: number = 0): string {
 	return lines.join("\n");
 }
 
-function formatMarkdown(nodes: NodeData[], depth: number = 0): string {
+function formatMarkdown(nodes: NodeData[], depth = 0): string {
 	const lines: string[] = [];
 	const indent = "  ".repeat(depth);
 
@@ -67,7 +67,7 @@ function escapeXml(text: string): string {
 		.replaceAll("'", "&apos;");
 }
 
-function formatOpmlOutline(nodes: NodeData[], depth: number = 0): string {
+function formatOpmlOutline(nodes: NodeData[], depth = 0): string {
 	const lines: string[] = [];
 	const indent = "\t".repeat(depth + 2);
 
@@ -92,7 +92,7 @@ function formatOpmlOutline(nodes: NodeData[], depth: number = 0): string {
 	return lines.join("\n");
 }
 
-function formatOpml(nodes: NodeData[], title: string = "Workflowy Export"): string {
+function formatOpml(nodes: NodeData[], title = "Workflowy Export"): string {
 	const now = new Date().toISOString();
 	const outlines = formatOpmlOutline(nodes);
 

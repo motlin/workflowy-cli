@@ -69,7 +69,7 @@ function migratedTemplate(): string {
 /**
  * Create a test database with migrations applied
  */
-export function createTestDatabase(dbPath: string = ":memory:"): TestDatabase {
+export function createTestDatabase(dbPath = ":memory:"): TestDatabase {
 	// An in-memory database has no file to copy onto, so it pays the full cost.
 	if (dbPath !== ":memory:") {
 		fs.copyFileSync(migratedTemplate(), dbPath);

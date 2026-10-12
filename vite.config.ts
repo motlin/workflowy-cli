@@ -94,6 +94,7 @@ export default defineConfig({
 			"typescript/consistent-generic-constructors": "error",
 			"typescript/consistent-type-definitions": "error",
 			"typescript/dot-notation": "error",
+			"typescript/no-inferrable-types": "error",
 			"import/consistent-type-specifier-style": "error",
 			"import/no-duplicates": "error",
 			"unicorn/numeric-separators-style": "error",
