@@ -12,7 +12,7 @@ export default defineConfig({
 		host: "127.0.0.1",
 		allowedHosts: [
 			"workflowy.m4.notlin.com",
-			...(process.env["VITE_ALLOWED_HOSTS"]?.split(",").filter(Boolean) ?? []),
+			...(process.env.VITE_ALLOWED_HOSTS?.split(",").filter(Boolean) ?? []),
 		],
 		proxy: {
 			// ws so the ladder's write stream survives the dev proxy. The port

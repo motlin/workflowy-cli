@@ -93,6 +93,7 @@ export default defineConfig({
 			"typescript/consistent-type-exports": "error",
 			"typescript/consistent-generic-constructors": "error",
 			"typescript/consistent-type-definitions": "error",
+			"typescript/dot-notation": "error",
 			"import/consistent-type-specifier-style": "error",
 			"import/no-duplicates": "error",
 			"unicorn/numeric-separators-style": "error",
