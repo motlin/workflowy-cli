@@ -52,7 +52,7 @@ export function dropAtPoint(x: number, y: number, moving: Set<string>): DropTarg
 		return undefined;
 	}
 	const zone = target.classList.contains("ladder-zone") ? target : target.nextElementSibling;
-	const rows = Array.from(zone?.querySelectorAll<HTMLElement>("[data-node-id]") ?? []);
+	const rows = [...(zone?.querySelectorAll<HTMLElement>("[data-node-id]") ?? [])];
 	const before = rows.find((row) => {
 		if (moving.has(row.dataset.nodeId!)) {
 			return false;

@@ -118,6 +118,7 @@ export default defineConfig({
 			"unicorn/prefer-logical-operator-over-ternary": "error",
 			"unicorn/consistent-existence-index-check": "error",
 			"unicorn/prefer-response-static-json": "error",
+			"unicorn/prefer-spread": "error",
 			"oxc/branches-sharing-code": "error",
 			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
 			"vitest/prefer-importing-vitest-globals": "error",
