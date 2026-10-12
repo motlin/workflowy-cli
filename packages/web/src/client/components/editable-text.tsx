@@ -340,10 +340,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		if (parentS) {
 			// Remove strikethrough: unwrap the <s> tag
-			const parent = parentS.parentNode;
-			if (parent) {
+			if (parentS.parentNode) {
 				while (parentS.firstChild) {
-					parent.insertBefore(parentS.firstChild, parentS);
+					parentS.before(parentS.firstChild);
 				}
 				parentS.remove();
 			}
@@ -382,10 +381,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		if (parentCode) {
 			// Remove code: unwrap the <code> tag
-			const parent = parentCode.parentNode;
-			if (parent) {
+			if (parentCode.parentNode) {
 				while (parentCode.firstChild) {
-					parent.insertBefore(parentCode.firstChild, parentCode);
+					parentCode.before(parentCode.firstChild);
 				}
 				parentCode.remove();
 			}

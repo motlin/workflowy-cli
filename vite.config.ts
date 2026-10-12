@@ -107,6 +107,7 @@ export default defineConfig({
 			"unicorn/prefer-type-error": "error",
 			"unicorn/prefer-top-level-await": "error",
 			"unicorn/prefer-dom-node-remove": "error",
+			"unicorn/prefer-modern-dom-apis": "error",
 			"unicorn/no-immediate-mutation": "error",
 			"unicorn/no-unreadable-array-destructuring": "error",
 			"unicorn/no-useless-collection-argument": "error",
