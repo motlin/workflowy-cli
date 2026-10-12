@@ -8,7 +8,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const SCRIPT = fileURLToPath(new URL("./otter-api.sh", import.meta.url));
+const SCRIPT = fileURLToPath(new URL("otter-api.sh", import.meta.url));
 
 /** Build a sandbox with a fake `op` that records every invocation. */
 function sandbox() {

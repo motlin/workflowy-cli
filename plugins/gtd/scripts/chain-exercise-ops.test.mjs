@@ -6,7 +6,7 @@ import {readFileSync} from "node:fs";
 import {resolveExerciseProposals, validateExerciseChain} from "./chain-exercise-ops.mjs";
 
 const fixture = (name) =>
-	JSON.parse(readFileSync(new URL(`./fixtures/exercise-chain/${name}.json`, import.meta.url), "utf8"));
+	JSON.parse(readFileSync(new URL(`fixtures/exercise-chain/${name}.json`, import.meta.url), "utf8"));
 
 const OVERLAP_ID = "aaaaaaaa-1111-2222-3333-444444444444";
 const SOLO_ID = "bbbbbbbb-1111-2222-3333-444444444444";

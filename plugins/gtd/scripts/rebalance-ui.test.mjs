@@ -420,7 +420,7 @@ test("CLI generates a static page and emits creates before moves across both roo
 		writeFileSync(paths[0], JSON.stringify(work));
 		writeFileSync(paths[1], JSON.stringify(personal));
 		const page = join(directory, "page.html");
-		const script = new URL("./rebalance-ui.mjs", import.meta.url).pathname;
+		const script = new URL("rebalance-ui.mjs", import.meta.url).pathname;
 		assert.equal(
 			execFileSync(process.execPath, [script, "--html", ...paths, "--output", page], {encoding: "utf8"}),
 			`${page}\n`,
@@ -807,7 +807,7 @@ test("generated Queue keeps the range anchor and autosaves ordered group drag, n
 });
 
 test("CLI defaults to the local web app without exporting task data", () => {
-	const script = new URL("./rebalance-ui.mjs", import.meta.url).pathname;
+	const script = new URL("rebalance-ui.mjs", import.meta.url).pathname;
 	assert.equal(
 		execFileSync(process.execPath, [script], {
 			encoding: "utf8",

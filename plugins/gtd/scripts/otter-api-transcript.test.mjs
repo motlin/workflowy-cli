@@ -8,7 +8,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const SCRIPT = fileURLToPath(new URL("./otter-api.sh", import.meta.url));
+const SCRIPT = fileURLToPath(new URL("otter-api.sh", import.meta.url));
 
 /** Otter offsets count 16 kHz audio samples. Sandbox with a fake `curl` that serves one speech body for any speech?otid= request. */
 function sandbox(speechBody) {
