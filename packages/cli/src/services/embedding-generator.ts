@@ -38,27 +38,27 @@ function pruneMirrorEmbeddings(database: BetterSQLite3Database<typeof schema>): 
 		.run().changes;
 }
 
-export type EmbeddingGeneratorOptions = {
+export interface EmbeddingGeneratorOptions {
 	batchSize: number;
 	force: boolean;
 	model?: EmbeddingModelKey;
-};
+}
 
-export type EmbeddingGeneratorProgress = {
+export interface EmbeddingGeneratorProgress {
 	processed: number;
 	total: number;
 	elapsed: number;
 	estimatedRemaining: number;
 	currentModel: EmbeddingModelKey;
 	message?: string;
-};
+}
 
-export type EmbeddingGeneratorResult = {
+export interface EmbeddingGeneratorResult {
 	totalProcessed: number;
 	totalTime: number;
 	alreadyComplete: boolean;
 	modelStats: Map<EmbeddingModelKey, {needed: number; processed: number}>;
-};
+}
 
 export class EmbeddingGeneratorService {
 	private database: BetterSQLite3Database<typeof schema>;

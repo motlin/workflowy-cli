@@ -6,13 +6,13 @@ import {buildMonthArchive, compressFileInPlace, resolveBackupsDirectory} from ".
 const BACKUP_SOURCES = ["Data", "History"] as const;
 type BackupSource = (typeof BACKUP_SOURCES)[number];
 
-type LooseBackup = {
+interface LooseBackup {
 	filename: string;
 	filePath: string;
 	backupDate: Date;
 	month: string;
 	compressed: boolean;
-};
+}
 
 export default class BackupsArchive extends Command {
 	static override description =

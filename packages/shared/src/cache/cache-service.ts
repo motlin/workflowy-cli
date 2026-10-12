@@ -37,7 +37,7 @@ import type {TemporalTransaction} from "./temporal-merge.js";
  * tables (mirrors, backlinks, calendar, etc.) that the canonical type
  * deliberately excludes, and keeps `priority` nullable as stored in the DB.
  */
-export type NodeWithRelations = {
+export interface NodeWithRelations {
 	id: string;
 	shortId: string | null;
 	name: string | null;
@@ -83,23 +83,23 @@ export type NodeWithRelations = {
 			year: number | null;
 		} | null;
 	} | null;
-};
+}
 
 /** Options for {@link CacheService.searchText}. */
-export type TextSearchOptions = {
+export interface TextSearchOptions {
 	query: string;
 	limit?: number;
 	incomplete?: boolean;
-};
+}
 
 /** A single text-search hit: the matched node's identity and content. */
-export type TextSearchRow = {
+export interface TextSearchRow {
 	id: string;
 	shortId: string | null;
 	name: string | null;
 	note: string | null;
 	completedAt: Date | null;
-};
+}
 
 /** Convert Unix seconds to a Date, passing null and undefined through as null. */
 function timestampToDate(timestamp: number | null | undefined): Date | null {

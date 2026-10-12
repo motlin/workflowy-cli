@@ -27,22 +27,22 @@ const QMD_DB_FILE = "workflowy.sqlite";
 
 export type QmdSearchMode = "hybrid" | "vector" | "keyword";
 
-export type QmdSearchOptions = {
+export interface QmdSearchOptions {
 	query: string;
 	limit?: number;
 	minScore?: number;
 	mode?: QmdSearchMode;
-};
+}
 
-export type QmdSyncResult = {
+export interface QmdSyncResult {
 	inserted: number;
 	updated: number;
 	unchanged: number;
 	deactivated: number;
 	totalTime: number;
-};
+}
 
-export type QmdSearchResultItem = {
+export interface QmdSearchResultItem {
 	id: string;
 	name: string;
 	note: string | null | undefined;
@@ -56,7 +56,7 @@ export type QmdSearchResultItem = {
 	fullPath: string;
 	textContent: string;
 	score: number;
-};
+}
 
 function extractNodeId(virtualPath: string): string {
 	// qmd virtual paths are like: qmd://workflowy/node-uuid

@@ -6,12 +6,12 @@ import {logger} from "./logger.js";
 
 export type {TextSearchOptions};
 
-export type TextSearchResult = {
+export interface TextSearchResult {
 	shortId: string | null;
 	name: string | null;
 	note: string | null;
 	path: string;
-};
+}
 
 export class TextSearchService {
 	private cacheService: CacheService;

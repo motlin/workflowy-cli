@@ -11,13 +11,13 @@ import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
 export type SearchMode = "vector" | "keyword" | "hybrid";
 
-export type SearchOptions = {
+export interface SearchOptions {
 	query: string;
 	limit?: number;
 	threshold?: number;
 	model?: EmbeddingModelKey;
 	mode?: SearchMode;
-};
+}
 
 export type SearchResult = WorkflowyNode & {
 	completed: boolean;

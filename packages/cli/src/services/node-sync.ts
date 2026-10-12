@@ -2,22 +2,22 @@ import type {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {CacheService} from "./cache.js";
 
-export type NodeSyncStats = {
+export interface NodeSyncStats {
 	syncedCount: number;
-};
+}
 
-export type NodeSyncProgress = {
+export interface NodeSyncProgress {
 	phase: "syncing";
 	nodeId: string | null;
 	childCount: number;
 	message?: string;
-};
+}
 
-export type NodeSyncOptions = {
+export interface NodeSyncOptions {
 	nodeId: string | null;
 	recursive: boolean;
 	onProgress?: (progress: NodeSyncProgress) => void;
-};
+}
 
 export class NodeSyncService {
 	constructor(

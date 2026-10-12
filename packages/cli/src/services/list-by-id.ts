@@ -4,21 +4,21 @@ import type {NodeTree} from "@workflowy/shared/cache";
 import type {CacheService} from "./cache.js";
 import {logger} from "./logger.js";
 
-export type ListByIdOptions = {
+export interface ListByIdOptions {
 	parentId: string | null;
 	dataSource: "auto" | "api" | "cache";
 	forceRefresh: boolean;
 	depth?: number;
-};
+}
 
-export type ListByIdResult = {
+export interface ListByIdResult {
 	nodes: NodeTree[];
 	fromApi: boolean;
 	cacheInfo?: {
 		age: number;
 		sources: string[];
 	};
-};
+}
 
 export class ListByIdService {
 	constructor(

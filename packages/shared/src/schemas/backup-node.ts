@@ -160,7 +160,7 @@ const BackupNodeSchema: z.ZodType<BackupNode> = z.object({
 	ch: z.lazy(() => z.array(BackupNodeSchema)).optional(),
 });
 
-export type BackupNode = {
+export interface BackupNode {
 	id: string;
 	nm?: string;
 	ct?: number;
@@ -169,7 +169,7 @@ export type BackupNode = {
 	no?: string;
 	metadata: z.infer<typeof MetadataSchema>;
 	ch?: BackupNode[];
-};
+}
 
 export type NodeMetadata = z.infer<typeof MetadataSchema>;
 

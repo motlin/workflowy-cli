@@ -1,7 +1,9 @@
 import {expect} from "vite-plus/test";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 
-type TemporalRecord = {systemTo: string};
+interface TemporalRecord {
+	systemTo: string;
+}
 
 export function expectActiveRecord(node: TemporalRecord): void {
 	expect(node.systemTo, "Node should be active (systemTo = FAR_FUTURE_DATE)").toBe(FAR_FUTURE_DATE);

@@ -2,23 +2,23 @@ import {pipeline} from "@xenova/transformers";
 import type {FeatureExtractionPipeline} from "@xenova/transformers";
 import {z} from "zod";
 
-type LocalModel = {
+interface LocalModel {
 	type: "local";
 	name: string;
 	dimensions: number;
 	defaultThreshold: number;
 	queryPrefix?: string;
 	passagePrefix?: string;
-};
+}
 
-type OpenAIModel = {
+interface OpenAIModel {
 	type: "openai";
 	name: string;
 	dimensions: number;
 	defaultThreshold: number;
 	queryPrefix?: string;
 	passagePrefix?: string;
-};
+}
 
 type EmbeddingModel = LocalModel | OpenAIModel;
 

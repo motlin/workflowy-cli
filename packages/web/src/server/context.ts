@@ -17,7 +17,9 @@ export interface ServerContext {
 }
 
 /** Hono environment: routers read the {@link ServerContext} via `c.get('ctx')`. */
-export type AppEnv = {Variables: {ctx: ServerContext}};
+export interface AppEnv {
+	Variables: {ctx: ServerContext};
+}
 
 /**
  * Build a {@link ServerContext} from the process database singleton and

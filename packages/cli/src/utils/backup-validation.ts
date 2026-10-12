@@ -1,11 +1,11 @@
 import path from "node:path";
 
-export type BackupFileInfo = {
+export interface BackupFileInfo {
 	filename: string;
 	backupDate: Date;
 	source: "Data";
 	compressed: boolean;
-};
+}
 
 export function parseBackupFilename(filePath: string): BackupFileInfo | null {
 	const filename = path.basename(filePath);

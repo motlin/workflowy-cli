@@ -4,13 +4,13 @@ import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 
-export type VacuumResult = {
+export interface VacuumResult {
 	path: string;
 	sizeBeforeBytes: number;
 	sizeAfterBytes: number;
 	freelistBefore: number;
 	freelistAfter: number;
-};
+}
 
 export class CacheVacuumService {
 	private database: BetterSQLite3Database<typeof schema>;

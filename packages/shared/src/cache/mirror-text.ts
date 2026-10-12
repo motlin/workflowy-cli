@@ -18,7 +18,11 @@ const SQL_CHUNK_SIZE = 10_000;
 
 type Database = BetterSQLite3Database<typeof schema>;
 
-type TextRow = {id: string; name: string | null; note: string | null};
+interface TextRow {
+	id: string;
+	name: string | null;
+	note: string | null;
+}
 
 /** Map each current mirror among `nodeIds` to its original's id. */
 export function loadMirrorOriginals(database: Database, nodeIds: string[]): Map<string, string> {

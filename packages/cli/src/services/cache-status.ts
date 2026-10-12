@@ -8,7 +8,7 @@ import path from "node:path";
 import {formatBytes} from "./cache-vacuum.js";
 import {logger} from "./logger.js";
 
-export type CacheStatus = {
+export interface CacheStatus {
 	nodes: {
 		total: number;
 		root: number;
@@ -20,7 +20,7 @@ export type CacheStatus = {
 		path: string;
 		size: string;
 	};
-};
+}
 
 export class CacheStatusService {
 	private database: BetterSQLite3Database<typeof schema>;

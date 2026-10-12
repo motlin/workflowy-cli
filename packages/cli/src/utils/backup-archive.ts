@@ -19,11 +19,11 @@ export type BackupLocation =
 	| {kind: "loose"; filePath: string}
 	| {kind: "archive"; archivePath: string; entryName: string};
 
-export type BackupEntry = {
+export interface BackupEntry {
 	filename: string;
 	backupDate: Date;
 	location: BackupLocation;
-};
+}
 
 export function compressBuffer(data: Buffer): Buffer {
 	return zstdCompressSync(data, {
@@ -126,10 +126,10 @@ export function readBackupContent(location: BackupLocation): string {
 	return readArchiveEntry(location.archivePath, location.entryName).toString("utf8");
 }
 
-export type MaterializedBackup = {
+export interface MaterializedBackup {
 	filePath: string;
 	cleanup: () => void;
-};
+}
 
 /**
  * Materialize a backup into a real file path so path-based importers can consume it.

@@ -5,7 +5,7 @@ import {EmbeddingGeneratorService} from "./embedding-generator.js";
 import {readBackupFile} from "../utils/backup-archive.js";
 import path from "node:path";
 
-export type BackupImportStats = {
+export interface BackupImportStats {
 	totalNodes: number;
 	nodesAdded: number;
 	nodesUpdated: number;
@@ -21,26 +21,26 @@ export type BackupImportStats = {
 	skipReason?: string;
 	localWatermark?: string | null;
 	incomingWatermark?: string | null;
-};
+}
 
-export type BackupFileNode = {
+export interface BackupFileNode {
 	ch?: BackupFileNode[];
-};
+}
 
-export type BackupImportProgress = {
+export interface BackupImportProgress {
 	phase: "parsing" | "importing" | "embeddings";
 	current: number;
 	total: number;
 	message?: string;
-};
+}
 
-export type BackupImportOptions = {
+export interface BackupImportOptions {
 	filePath: string;
 	generateEmbeddings?: boolean;
 	embeddingBatchSize?: number;
 	force?: boolean;
 	onProgress?: (progress: BackupImportProgress) => void;
-};
+}
 
 export class BackupImportService {
 	private database: ReturnType<typeof createDatabase>;

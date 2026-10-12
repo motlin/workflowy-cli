@@ -49,7 +49,10 @@ export interface ChangeDetectionResult {
 	cutoffDate: Date;
 }
 
-type Text = {name: string | null; note: string | null};
+interface Text {
+	name: string | null;
+	note: string | null;
+}
 
 const NO_TEXT: Text = {name: null, note: null};
 

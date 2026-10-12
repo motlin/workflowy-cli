@@ -1,16 +1,16 @@
 import type {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {CacheService} from "./cache.js";
 
-export type PathResolutionResult = {
+export interface PathResolutionResult {
 	nodeId: string;
 	foundInCache: boolean;
-};
+}
 
-export type PathResolutionOptions = {
+export interface PathResolutionOptions {
 	rootId: string | null;
 	path: string | undefined;
 	dataSource: "auto" | "api" | "cache";
-};
+}
 
 export class PathResolutionService {
 	constructor(
