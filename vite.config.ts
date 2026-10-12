@@ -118,6 +118,7 @@ export default defineConfig({
 			"eslint/accessor-pairs": "error",
 			"eslint/arrow-body-style": "error",
 			"eslint/no-useless-assignment": "error",
+			"eslint/prefer-const": "error",
 			"typescript/require-await": "error",
 			"typescript/no-misused-promises": "error",
 			"typescript/strict-void-return": "error",

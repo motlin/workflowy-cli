@@ -602,10 +602,8 @@ export async function importBackup(
 	const incomingWatermark: string | null =
 		incomingWatermarkMs === null ? null : formatTemporalTimestamp(new Date(incomingWatermarkMs));
 
-	// The local watermark and the protected id set are computed once
-	// existingMetadataMap is loaded, below.
-	let localWatermark: string | null;
-	let protectedIds = new Set<string>();
+	// The protected id set is filled once existingMetadataMap is loaded, below.
+	const protectedIds = new Set<string>();
 
 	// Reset diagnostic counters before comparison phase
 	metadataComparisonStats.reset();
@@ -651,7 +649,8 @@ export async function importBackup(
 			}
 		}
 	}
-	localWatermark = localMaxUnix === 0 ? null : formatTemporalTimestamp(new Date(localMaxUnix * 1000));
+	const localWatermark: string | null =
+		localMaxUnix === 0 ? null : formatTemporalTimestamp(new Date(localMaxUnix * 1000));
 
 	if (!force && incomingMaxUnix > 0) {
 		const backupNodeIds = new Set(nodesToProcess.map((n) => n.id));

@@ -154,7 +154,6 @@ export function importFromApi(
 	let nodesUpdated = 0;
 	let nodesUnchanged = 0;
 	let nodesDeleted = 0;
-	let nodesPhasedOut: number;
 	let contentUpdated = 0;
 	let metadataUpdated = 0;
 	const priorityUpdated = 0; // API import doesn't recalculate priorities
@@ -210,7 +209,7 @@ export function importFromApi(
 			nodesDeleted++;
 		}
 	}
-	nodesPhasedOut = nodesDeleted;
+	const nodesPhasedOut = nodesDeleted;
 
 	logTiming(`Classified: ${nodesAdded} new, ${nodesUpdated} changed, ${nodesUnchanged} unchanged`);
 
