@@ -53,7 +53,7 @@ export function parseLstartToEpochSeconds(lstart) {
 	if (month === undefined) {
 		return null;
 	}
-	const [, , day, hh, mm, ss, year] = m;
+	const [day, hh, mm, ss, year] = m.slice(2);
 	return Math.floor(new Date(Number(year), month, Number(day), Number(hh), Number(mm), Number(ss)).getTime() / 1000);
 }
 
