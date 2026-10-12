@@ -162,7 +162,7 @@ export function materializeBackup(location: BackupLocation): MaterializedBackup 
  */
 export function resolveBackupsDirectory(): string {
 	const override = process.env.WORKFLOWY_BACKUPS_DIR;
-	return override ? override : path.join(process.cwd(), "backups");
+	return override || path.join(process.cwd(), "backups");
 }
 
 /**

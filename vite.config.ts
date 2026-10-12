@@ -114,6 +114,7 @@ export default defineConfig({
 			"unicorn/prefer-math-trunc": "error",
 			"unicorn/prefer-code-point": "error",
 			"unicorn/prefer-number-coercion": "error",
+			"unicorn/prefer-logical-operator-over-ternary": "error",
 			"unicorn/consistent-existence-index-check": "error",
 			"oxc/branches-sharing-code": "error",
 			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
