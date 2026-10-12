@@ -90,6 +90,7 @@ export default defineConfig({
 			"no-implicit-coercion": "error",
 			"typescript/array-type": "error",
 			"typescript/consistent-type-imports": "error",
+			"typescript/consistent-type-exports": "error",
 			"typescript/consistent-generic-constructors": "error",
 			"typescript/consistent-type-definitions": "error",
 			"import/consistent-type-specifier-style": "error",
