@@ -21,7 +21,7 @@ Removing a fully-committed worktree deletes its build output outright, which bea
 - Remove the accepted worktrees with the script, which runs `git worktree remove` **without `--force`**:
 
     ```bash
-    node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mjs --remove <worktree>...
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mts --remove <worktree>...
     ```
 
     It prints `[{path, removed, error?}]`. Report each refusal (git's own message, such as modified or untracked files or a locked worktree) and leave that worktree in place. Never retry with `--force`, never `rm -rf` a worktree, and never delete its branch.
@@ -34,7 +34,7 @@ Removing a fully-committed worktree deletes its build output outright, which bea
 Do not tell the user to copy the command into another terminal. Start it for them in a new herdr tab, which is a real terminal, so `sudo` can prompt for the password there:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/launch-herdr-tab.mjs --label time-machine -- <staged sweep command>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/launch-herdr-tab.mts --label time-machine -- <staged sweep command>
 ```
 
 Pass the resolved absolute sweep path from the proposal. The script resolves this session's own pane with `herdr pane current`, creates a focused tab labelled `time-machine` in that workspace, moves it to sit **immediately right of the review's tab** (`herdr tab create` alone appends it last, and the CLI has no move command, so the script uses the socket API's `tab.move`), and runs the command there. It prints `{label, number, tabId, paneId, workspaceId, rightOfTabId}`.

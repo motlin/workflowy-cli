@@ -60,7 +60,7 @@ test *args: build-shared
 # Run the plugin script tests, which vitest does not glob
 [group('test')]
 test-plugins:
-    node --test plugins/gtd/scripts/*.test.mjs
+    node --test plugins/gtd/scripts/*.test.mts
 
 # No --cache on tsc: vp's cache tracking cannot see the native tsc 7 binary's reads or writes, so every run was a hit that never rebuilt
 # Type-check the project

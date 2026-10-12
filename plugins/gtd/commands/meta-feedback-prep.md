@@ -35,7 +35,7 @@ The child name looks like `{"last_reviewed_iso":"2026-06-25T18:00:00-07:00"}`. P
 Run the scanner — it does the heavy JSONL filtering and emits a compact extract (human-typed turns plus the assistant action each reacted to), keeping the giant transcripts out of this subagent's context:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-review-feedback.mjs --since "<last_reviewed_iso>" > .llm/gtd/review/meta-feedback-scan.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-review-feedback.mts --since "<last_reviewed_iso>" > .llm/gtd/review/meta-feedback-scan.json
 ```
 
 `meta-feedback-scan.json` is `[{sessionId, file, startTs, turns: [{ts, source, text, prevAssistant}]}]`, covering only sessions that ran `/gtd:review:daily`. Read it from disk; do not re-parse the raw `.jsonl`.

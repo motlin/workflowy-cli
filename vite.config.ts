@@ -174,39 +174,7 @@ export default defineConfig({
 		},
 		overrides: [
 			{
-				files: ["plugins/**/*.mjs"],
-				rules: {
-					// Untyped plain-JS plugin scripts: every value is `any`, so no-unsafe-* rules and the any-checks in restrict-plus-operands and strict-boolean-expressions only add noise.
-					"typescript/no-unsafe-member-access": "off",
-					"typescript/no-unsafe-assignment": "off",
-					"typescript/no-unsafe-call": "off",
-					"typescript/no-unsafe-return": "off",
-					"typescript/no-unsafe-argument": "off",
-					"typescript/restrict-plus-operands": [
-						"error",
-						{
-							allowAny: true,
-							allowBoolean: false,
-							allowNullish: false,
-							allowNumberAndString: false,
-							allowRegExp: false,
-						},
-					],
-					"typescript/strict-boolean-expressions": [
-						"error",
-						{
-							allowString: true,
-							allowNumber: true,
-							allowNullableObject: true,
-							allowNullableBoolean: true,
-							allowNullableString: true,
-							allowAny: true,
-						},
-					],
-				},
-			},
-			{
-				files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"],
+				files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mts"],
 				rules: {
 					// Per-test fakes read better next to the assertion that uses them than hoisted to module scope.
 					"unicorn/consistent-function-scoping": "off",
@@ -220,7 +188,7 @@ export default defineConfig({
 				},
 			},
 			{
-				files: ["plugins/**/*.test.mjs"],
+				files: ["plugins/**/*.test.mts"],
 				rules: {
 					// These run under node:test; the rule mistakes its `test` import for a Vitest global.
 					"vitest/prefer-importing-vitest-globals": "off",

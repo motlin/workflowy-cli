@@ -46,7 +46,7 @@ The schema is strict:
 - `Serial: <name>` groups prep tasks that must run top-to-bottom. Other direct children of `Prep` are independent parallel branches.
 - Do not add `Key:`, `#llm-task`, `prep`, `apply`, or marker emoji to task names or children; names, commands, placement, and optional markers already carry that information.
 
-Run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs` before execution. Its output is the authoritative `.llm/gtd/review/phase0-plan.json`; validation failure halts the review.
+Run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mts` before execution. Its output is the authoritative `.llm/gtd/review/phase0-plan.json`; validation failure halts the review.
 
 ## Scheduling
 

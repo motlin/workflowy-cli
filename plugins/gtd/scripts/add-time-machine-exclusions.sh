@@ -39,7 +39,7 @@ echo "Scanning $ROOT for node_modules / target / build / dist ..."
 # Writing to a file (not process substitution) lets a scanner failure stop the script.
 SCAN_OUT="$(mktemp)"
 trap 'rm -f "$SCAN_OUT"' EXIT
-node "$(dirname -- "$SCRIPT_PATH")/scan-build-dirs.mjs" "$ROOT" >"$SCAN_OUT"
+node "$(dirname -- "$SCRIPT_PATH")/scan-build-dirs.mts" "$ROOT" >"$SCAN_OUT"
 mapfile -d '' DIRS <"$SCAN_OUT"
 
 if [ "${#DIRS[@]}" -eq 0 ]; then

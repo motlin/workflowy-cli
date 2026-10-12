@@ -21,13 +21,13 @@ The GTD lists this overview reads are fixed paths, given in each section's `node
 **iMCP self-heal preflight:** Before invoking `calendar-fetcher` / `reminders-fetcher`, proactively restart a stale iMCP so the fetchers don't trip the halt rule. iMCP stops responding after days of uptime (the app is still running but answers nothing). Check the helper's age:
 
 ```bash
-IMCP_AGE=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs)
+IMCP_AGE=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mts)
 ```
 
 The script prints one token; branch on it:
 
 - `none` — no helper running → launch a fresh one: `open -a iMCP`, `sleep 5`.
-- a number **> 86400** — stale (older than ~1 day) → restart per the `imcp-recovery.md` recipe: `kill` this session's helper PID from `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs --pid` (`kill -9` if it survives; never a `pgrep` match, which includes other sessions' helpers), `open -a iMCP`, `sleep 5`. Restart even if the helper still answers a probe; age alone decides (see `imcp-recovery.md`).
+- a number **> 86400** — stale (older than ~1 day) → restart per the `imcp-recovery.md` recipe: `kill` this session's helper PID from `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mts --pid` (`kill -9` if it survives; never a `pgrep` match, which includes other sessions' helpers), `open -a iMCP`, `sleep 5`. Restart even if the helper still answers a probe; age alone decides (see `imcp-recovery.md`).
 - a number **≤ 86400** — fresh → proceed without restarting.
 - `unknown` — helper running but start time unparseable → proceed; never kill a live helper on a parse glitch (a failed probe still restarts it — see below).
 
@@ -189,7 +189,7 @@ osascript -e 'tell application "Fantastical" to parse sentence "Meeting with Joh
 
 ## Completing Apple Reminders
 
-Completion happens in the Recurring Review's due-items segment, not here — `collect-due-items.mjs` stages the exact `osascript` per reminder, because **iMCP exposes no complete/update tool** (only `reminders_create` / `reminders_fetch` / `reminders_lists`).
+Completion happens in the Recurring Review's due-items segment, not here — `collect-due-items.mts` stages the exact `osascript` per reminder, because **iMCP exposes no complete/update tool** (only `reminders_create` / `reminders_fetch` / `reminders_lists`).
 
 Two gotchas that apply wherever that op runs:
 

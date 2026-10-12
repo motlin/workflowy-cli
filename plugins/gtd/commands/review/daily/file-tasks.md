@@ -74,7 +74,7 @@ Loose tasks may sit **directly under the root**, **directly under `✅ Tasks`**,
 
 ## Read the per-root tier ladder
 
-Pass each root's `📌 Tasks (asap)` bucket through `readLadder` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` to get its tiers (rank, label, full UUID, capacity, current occupants) and its `unfiled` children. Never eyeball the occupancy or the cap — the option labels show it as a plain fact.
+Pass each root's `📌 Tasks (asap)` bucket through `readLadder` from `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts` to get its tiers (rank, label, full UUID, capacity, current occupants) and its `unfiled` children. Never eyeball the occupancy or the cap — the option labels show it as a plain fact.
 
 The `⏰ Tasks (due dates)` bucket has **no sub-buckets**. A due-dated task goes directly into the bucket carrying a `<time>` element on the node itself; the timeframe is expressed as a date, not as a container. Capture only the bucket's own full UUID.
 
@@ -96,7 +96,7 @@ Match on the distinctive nouns rather than the phrasing, and prefer reporting a 
 
 For each loose task, pick a recommended destination from signals already on the node — no external calls. The due-vs-asap split is a **judgment call**, so the recommendation is a starting point the user confirms or overrides, not a hard rule.
 
-- **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`. **Resolve the timeframe to a concrete date** with `resolveTimeframe` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs` (`Today` → today, `This week` → the upcoming Friday, `This month` → the last day of the month) and build its `<time>` element with `buildTimeElement`. Never compute the date or its weekday by hand.
+- **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`. **Resolve the timeframe to a concrete date** with `resolveTimeframe` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mts` (`Today` → today, `This week` → the upcoming Friday, `This month` → the last day of the month) and build its `<time>` element with `buildTimeElement`. Never compute the date or its weekday by hand.
 - **Lean `📌 asap` + a tier** otherwise. The tier is a **rank against what is already on the ladder**, not a topic: recommend `1st` or `2nd` only for a task the user would trade against the items already sitting there, and the **bottom tier** for everything else. Default to the bottom tier when the signal is weak — promotion is cheap, and the user reranks during rebalance. Run `planInsertion(ladder, tier)` for the recommended tier and carry its `createTiers` into the proposal. Filing into a tier only inserts the task; it never moves any other item, even when the tier is full.
 - **Topic goes on the text, not in a container.** An asap proposal also carries any missing category `#tag` implied by the task — `#code` for build / PR work, `#drafts` for a draft to write, `#document` for a doc review, `#meeting` for 1:1 setup, `#jira` for admin, `#home`, `#personal`, `#read`, `#llm-task`. Append only tags the task does not already carry, and only ones already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry — except `#drafts`, which every draft gets, and always every task collected from `📄 Drafts`.
 
@@ -171,7 +171,7 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 
 A tier in `createTiers` has no UUID yet, so it cannot be staged as a shell string. Create those tiers during normalization — before staging — and stage against the resulting UUIDs.
 
-Compute `due` from `timeframe` with `resolveTimeframe`, and the `<time>` element with `buildTimeElement`, both from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs`. A task whose text already carries a `<time>` keeps it — stamp nothing and emit the move alone.
+Compute `due` from `timeframe` with `resolveTimeframe`, and the `<time>` element with `buildTimeElement`, both from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mts`. A task whose text already carries a `<time>` keeps it — stamp nothing and emit the move alone.
 
 `status` is `empty` when no loose tasks remain (idempotent re-run) and `error` if prep failed.
 
@@ -208,7 +208,7 @@ Anything filed into `⏰ due-dates` with a date of today reaches the Recurring R
 Undated personal work accumulates invisibly in the Things "Anytime" list — nothing surfaces it, because nothing is due. The personal asap ladder is meant to be its single home, so after the Workflowy sweep, walk the Anytime backlog into it.
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-things-due.mjs > .llm/gtd/review/anytime-things.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-things-due.mts > .llm/gtd/review/anytime-things.json
 ```
 
 The `anytime` array holds undated Anytime tasks with the Today list already deduped out. Each one is a **create-and-complete pair**, not a move: Workflowy and Things are separate stores, so filing means creating the task under the chosen tier and then closing the Things original.
@@ -224,7 +224,7 @@ Default every one of these to the **bottom tier** — a task that has sat undate
 
 ## Sweep Things "Someday" into the Workflowy Someday lists
 
-Someday is the third Things backlog nothing prunes, and it is the one the user is least likely to open on their own. The goal is a single database: work that lives in Things is work the daily review never sees, so it drifts until it is either stale or forgotten. `fetch-things-due.mjs` returns it as `someday`, already deduped against Today and Anytime.
+Someday is the third Things backlog nothing prunes, and it is the one the user is least likely to open on their own. The goal is a single database: work that lives in Things is work the daily review never sees, so it drifts until it is either stale or forgotten. `fetch-things-due.mts` returns it as `someday`, already deduped against Today and Anytime.
 
 Unlike the Anytime sweep, these do **not** go on the asap ladder — a someday item is explicitly not a next action. They go to the matching Workflowy `🌱 Someday` node: `Personal > 🌱 Someday` or `Work > 🌱 Someday`. Resolve both ids from `.llm/gtd/metadata/someday/personal-someday.json` and `work-someday.json`.
 

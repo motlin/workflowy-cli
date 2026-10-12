@@ -119,7 +119,7 @@ Compute the exercise fix independently on each text, so tags and @mentions the j
 After writing the file, check the chain against the journal staging. It exits non-zero when an overlapping entry lacks `chained`, when `chained.before` differs from the journal `after`, or when a chained name update lacks `--expect-name`:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/chain-exercise-ops.mjs validate \
+node ${CLAUDE_PLUGIN_ROOT}/scripts/chain-exercise-ops.mts validate \
   .llm/gtd/review/proposals/refine-exercise.json .llm/gtd/review/proposals/refine-journal.json
 ```
 

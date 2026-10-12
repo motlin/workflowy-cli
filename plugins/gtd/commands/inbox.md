@@ -164,7 +164,7 @@ Options:
 ```bash
 ./bin/run.js node get --id <asap-bucket-uuid> --depth 2 --json \
   --fields name,id,shortId,children,completedAt > .llm/gtd/inbox-ladder-<work|personal>.json
-node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs choices .llm/gtd/inbox-ladder-<work|personal>.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts choices .llm/gtd/inbox-ladder-<work|personal>.json
 ```
 
 `choices` prints `filingChoices(readLadder(bucket))`: `bottom` (the Accept tier), `promote` (the tier directly above the bottom, or null on a one-tier ladder), and `summary`, a one-line occupancy readout such as `1st 2/2 · 2nd 3/4 · 3rd 8/8 · 4th 12 (bottom)`. Re-read after each batch executes, since the batch changed the occupancy.

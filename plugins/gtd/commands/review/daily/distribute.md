@@ -25,7 +25,7 @@ Build every input from a fresh read.
     ./bin/run.js node get --path "Metadata,📂 Project Directories" --depth 3 --json \
       --fields name,shortId,id,children > .llm/gtd/review/distribute-project-dirs.json
     herdr pane list > .llm/gtd/review/distribute-panes.json
-    node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-project-distribution.mjs \
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-project-distribution.mts \
       --projects .llm/gtd/review/distribute-project-dirs.json \
       --panes .llm/gtd/review/distribute-panes.json \
       > .llm/gtd/review/distribute-projects.json

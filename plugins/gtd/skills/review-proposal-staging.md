@@ -15,7 +15,7 @@ For interactive reviews, prefer an existing local web app, then an Artifact, the
 
 When no web app is available, use an Artifact only where claude.ai is reachable and both the page's `db` capability and the agent's `read_db` tool work. An Artifact uploads its content to claude.ai; privacy is the tie-breaker, especially for full work and personal task lists. Fall back to self-contained static HTML when neither two-way surface is available. Read-only reports and dashboards should prefer static HTML: local, offline, and nothing shared. Copyable JSON is a fallback transport for choices made in a page, not a reason to prefer it over a working two-way app.
 
-Every UI a review depends on must have checked-in source, a reproducible generator/build, and tests. Never hand-build a replacement in a published Artifact. For the ladder, `rebalance-ui.mjs` generates the local app link or launcher by default; `vp run --filter @workflowy/web build` builds the React route. Explicit `--html` generates the tested Queue template for the fallback.
+Every UI a review depends on must have checked-in source, a reproducible generator/build, and tests. Never hand-build a replacement in a published Artifact. For the ladder, `rebalance-ui.mts` generates the local app link or launcher by default; `vp run --filter @workflowy/web build` builds the React route. Explicit `--html` generates the tested Queue template for the fallback.
 
 ## Directory Layout
 
@@ -236,7 +236,7 @@ A re-run after a completed apply reads `status: "empty"` (prep found nothing new
 - **Schema shape-check:** run the validator on each staged file before the walk consumes it. It exits non-zero and names the offending proposals on a stray id, a short-id `nodeId`, a `--name` op missing `--expect-name`, a non-`ready` status carrying proposals, a missing required field, or an `email-calendar` proposal without a non-null ledger `key` or its source message fields (`account`, `mailbox`, `messageUid`) (see `${CLAUDE_PLUGIN_ROOT}/commands/email-calendar-prep.md`):
 
     ```bash
-    node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/<slug>.json
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mts .llm/gtd/review/proposals/<slug>.json
     ```
 
     A file that fails validation is a prep bug: fix the prep command rather than hand-editing the artifact.

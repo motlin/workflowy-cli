@@ -7,13 +7,13 @@ globs: ${CLAUDE_PLUGIN_ROOT}/commands/review/**
 
 ## Keyed DAG intervals
 
-Phase 0 tasks take cadence from an optional `Interval: <amount><unit>` child on the prep node; the default is `1d`. Presentation nodes inherit the prep schedule and carry no date or interval. `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs` validates the pair and writes the exact next-date operation to `.llm/gtd/review/phase0-plan.json`.
+Phase 0 tasks take cadence from an optional `Interval: <amount><unit>` child on the prep node; the default is `1d`. Presentation nodes inherit the prep schedule and carry no date or interval. `${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mts` validates the pair and writes the exact next-date operation to `.llm/gtd/review/phase0-plan.json`.
 
 The DAG executor runs that operation only after verified success or an empty result. Task commands never update their own Phase 0 schedule.
 
 ## Recurring-review section intervals
 
-The executable source of truth for this table is `${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs`, which the Recurring Review (`due.md`) runs to compute overdue items and stage each one's `node update`. Keep the two in sync when adding a section. The table below mirrors it for reference.
+The executable source of truth for this table is `${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mts`, which the Recurring Review (`due.md`) runs to compute overdue items and stage each one's `node update`. Keep the two in sync when adding a section. The table below mirrors it for reference.
 
 Each section name determines the interval used when advancing an item's date:
 
@@ -33,7 +33,7 @@ Each section name determines the interval used when advancing an item's date:
 
 Match by substring in the section name. If a section doesn't match any pattern, ask the user for the interval.
 
-This table is also a ladder, ordered shortest interval to longest. Making a repeatedly skipped item less frequent means moving it to the next row down and dating it by that row's interval — `compute-overdue.mjs` stages that move on every row as `lengthen`. `Every few years` is never an automatic target because it has no interval to compute a date from.
+This table is also a ladder, ordered shortest interval to longest. Making a repeatedly skipped item less frequent means moving it to the next row down and dating it by that row's interval — `compute-overdue.mts` stages that move on every row as `lengthen`. `Every few years` is never an automatic target because it has no interval to compute a date from.
 
 ## Hard external deadlines
 
@@ -41,7 +41,7 @@ Place a direct child named `Hard deadline: 3d` under a recurring item to review 
 
 Use the `Every 4 weeks` section for a fixed 28-day cycle. For example, an invented deadline of January 1, 2000 is reviewed December 29, 1999; completing that occurrence advances the deadline to January 29 and the review date to January 26. Completion timing never shifts the external cycle: advance from the recorded deadline, not today. Each completion advances one occurrence; if another cycle is already overdue, it stays visible for explicit handling.
 
-`compute-overdue.mjs` returns `hardDeadline: {date, leadDays, nextDate}` alongside `due` (the early review date) and `nextDate` (the next early review date). `newName`, `nextTimeElement`, and `applyOp` store the **next actual deadline**. Ordinary rows have `hardDeadline: null` and retain today-plus-interval behavior. Hard rows have `lengthen: null`; do not interpret this as permission to invent a longer cadence. Run the staged operation verbatim on verified completion and confirm both next dates.
+`compute-overdue.mts` returns `hardDeadline: {date, leadDays, nextDate}` alongside `due` (the early review date) and `nextDate` (the next early review date). `newName`, `nextTimeElement`, and `applyOp` store the **next actual deadline**. Ordinary rows have `hardDeadline: null` and retain today-plus-interval behavior. Hard rows have `lengthen: null`; do not interpret this as permission to invent a longer cadence. Run the staged operation verbatim on verified completion and confirm both next dates.
 
 Warn before any requested postponement: show the actual deadline, early review date, proposed date, and lost lead time or missed-deadline consequence. Require explicit confirmation of that consequence before changing the schedule; a reminder or decision to defer does not move the external deadline. Do not promote Skip, Push it out, or Less often for these rows. See `due.md` for the walk rules.
 

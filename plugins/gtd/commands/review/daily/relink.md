@@ -53,7 +53,7 @@ For each orphan, before touching it:
 
 Then correlate. Ask what could have written to a link node rather than its target at that timestamp:
 
-- Does `createdAt` line up with a capture run, an Otter ingest, an item-mover batch, or a journal scanner in a recent session? This project's Claude transcript directory (under `~/.claude/projects/`) is searchable, and `plugins/gtd/scripts/scan-review-feedback.mjs` shows the read pattern.
+- Does `createdAt` line up with a capture run, an Otter ingest, an item-mover batch, or a journal scanner in a recent session? This project's Claude transcript directory (under `~/.claude/projects/`) is searchable, and `plugins/gtd/scripts/scan-review-feedback.mts` shows the read pattern.
 - Does the provenance name a specific agent or command? That command resolved a destination to the link node instead of its target — the bug is in how it resolves destinations.
 - Do several orphans share a timestamp or a source? One buggy writer, not several.
 - Is there no provenance and an odd hour? Likely filed by hand in the Workflowy app, which is a UI slip and not a code bug — say so rather than inventing a culprit.

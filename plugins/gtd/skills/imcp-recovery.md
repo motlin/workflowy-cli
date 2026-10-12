@@ -12,14 +12,14 @@ When a step requires an `mcp__imcp__*` tool:
 
 - Call the required iMCP tool. Empty results are valid data, not failures — only connection/availability errors trigger recovery.
 - On failure (tool unavailable, connection error, error response indicating iMCP not connected), **quit any unresponsive server before relaunching** — iMCP commonly stops responding after days of uptime (the app is still running but answers nothing), and `open -a iMCP` alone only focuses the stale app without restarting the stuck helper:
-    - Find **this session's** helper: `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs --pid`. Every Claude session spawns its own `imcp-server`, so `pgrep -f` matches dozens; the script walks this process's ancestors and returns only the helper parented by this session's `claude` (or `none`). Never kill helpers found by `pgrep` / `ps aux` — they belong to other sessions.
+    - Find **this session's** helper: `node ${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mts --pid`. Every Claude session spawns its own `imcp-server`, so `pgrep -f` matches dozens; the script walks this process's ancestors and returns only the helper parented by this session's `claude` (or `none`). Never kill helpers found by `pgrep` / `ps aux` — they belong to other sessions.
     - If it printed a pid, `kill <pid>` (then `kill -9 <pid>` if it survives). Report and kill only that pid.
     - Relaunch a fresh server: `open -a iMCP` (installed at `/Applications/iMCP.app`), `sleep 5`, retry the call **once**.
 - If the retry still fails, stop and return the unavailable result below instead of empty data. Claude cannot run `/mcp` itself: killing and relaunching makes the app fresh so the user's `/mcp` reconnect succeeds quickly, but only that user action re-establishes the in-session MCP connection.
 
 ## Proactive restart before a long run
 
-Long-running commands (the daily review) restart a stale helper **before** the first iMCP call, so a mid-run death does not trip the halt rule halfway through. `${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mjs` prints this session's helper's age in seconds (or `none` / `unknown`); a helper older than **86400** seconds (~1 day) is restarted with the kill + `open -a iMCP` + `sleep 5` recipe above.
+Long-running commands (the daily review) restart a stale helper **before** the first iMCP call, so a mid-run death does not trip the halt rule halfway through. `${CLAUDE_PLUGIN_ROOT}/scripts/imcp-helper-age.mts` prints this session's helper's age in seconds (or `none` / `unknown`); a helper older than **86400** seconds (~1 day) is restarted with the kill + `open -a iMCP` + `sleep 5` recipe above.
 
 - The age-based restart applies even if the helper still answers. Do not probe a stale helper and skip the restart because the probe succeeded — an old-but-currently-responsive helper is exactly the one that dies partway through a long review. Age alone decides; a passing probe is not an escape hatch.
 - A liveness probe is an **additional** restart trigger, never a substitute for the age rule: a failing probe restarts the helper regardless of age, a fresh or `unknown`-age helper included. The two rules only ever add restarts; neither one cancels the other's.

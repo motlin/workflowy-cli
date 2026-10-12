@@ -12,7 +12,7 @@ Check build directories under `~/projects` without prompting or changing Time Ma
 Find build directories and print only paths that are not excluded:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-build-dirs.mjs
+node ${CLAUDE_PLUGIN_ROOT}/scripts/scan-build-dirs.mts
 ```
 
 It walks `~/projects` for `node_modules`, `target`, `build`, and `dist` directories, pruning below each match, asks `tmutil isexcluded` about them in batches, and prints the unexcluded paths null-delimited on stdout.
@@ -29,7 +29,7 @@ Run the script once. Do not substitute a hand-rolled `find` pipeline: `find` exi
 Pipe the null-delimited paths through the grouping script:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/group-build-dirs.mjs
+node ${CLAUDE_PLUGIN_ROOT}/scripts/group-build-dirs.mts
 ```
 
 It prints `{durable, worktrees, conflicts, repairs, unplugged, report}`. Paths under `<repo>/.worktrees/<worktree>/` collapse into one `worktrees` entry per repo (`{repo, worktreeCount, dirCount}`). Paths under a `<repo>/.llm/conflicts-*/` scratch checkout collapse the same way into one `conflicts` entry per repo (`{repo, checkoutCount, dirCount}`), and paths under a `<repo>/.llm/pr-*-repair/` scratch checkout into one `repairs` entry per repo (`{repo, checkoutCount, dirCount}`). Yarn PnP `node_modules` under `<repo>/.yarn/unplugged/<package>/` collapse into one `unplugged` entry per repo (`{repo, packageCount, dirCount}`). The outermost match wins, so unplugged packages inside a worktree or scratch checkout count toward that checkout. Everything else is `durable`. `report` is the human-readable list: each durable path on its own line, then one aggregate line per repo per kind -- `N build dirs across M worktrees under <repo>`, `... M conflicts checkouts under <repo>/.llm`, `... M PR repair checkouts under <repo>/.llm`, `... M unplugged packages under <repo>/.yarn/unplugged`.
@@ -43,7 +43,7 @@ Worktree, scratch-checkout, and unplugged-package build output is still regenera
 Pipe the same null-delimited paths through the worktree finder:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mjs
+node ${CLAUDE_PLUGIN_ROOT}/scripts/find-removable-worktrees.mts
 ```
 
 It prints `[{path, repo, branch, dirCount, clean}]`: every linked git worktree that holds at least one of the unexcluded build dirs, whether it lives under `<repo>/.worktrees/` or in a peer directory such as `~/projects/<repo>-<branch>`. It identifies a linked worktree by its `.git` file pointing into `<repo>/.git/worktrees/`, so the main checkout and submodules never appear. `clean` is true when `git status --porcelain` is empty. Prep only detects; it never removes anything.
@@ -62,7 +62,7 @@ Use this sweep command in the ready proposal:
 ${CLAUDE_PLUGIN_ROOT}/scripts/add-time-machine-exclusions.sh
 ```
 
-The script runs the same `scan-build-dirs.mjs` scan (so tracked-source directories named `build`/`dist` are never excluded), pipes the result through `sudo xargs tmutil addexclusion -p`, then verifies every path with `tmutil isexcluded` and exits non-zero if any remain. Stage the resolved absolute path so the user can run it without expanding the variable.
+The script runs the same `scan-build-dirs.mts` scan (so tracked-source directories named `build`/`dist` are never excluded), pipes the result through `sudo xargs tmutil addexclusion -p`, then verifies every path with `tmutil isexcluded` and exits non-zero if any remain. Stage the resolved absolute path so the user can run it without expanding the variable.
 
 `sudo` requires the user, so prep never runs the sweep. Return a one-line count and stop.
 

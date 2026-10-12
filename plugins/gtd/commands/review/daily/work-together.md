@@ -23,7 +23,7 @@ Build every category from a **fresh** read. The earlier phases moved, completed,
 - **Due now or soon.** Re-run the Workflowy Next-Actions and Things fetches from `${CLAUDE_PLUGIN_ROOT}/commands/review/daily/due.md` under **Fetch every source before the first question**, overwriting `due-workflowy.json` and `due-things.json`. Reuse the staged `due-reminders.json`; do not launch `reminders-fetcher` again. Then collect with a one-week horizon:
 
     ```bash
-    node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs \
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mts \
       --workflowy .llm/gtd/review/due-workflowy.json \
       --things .llm/gtd/review/due-things.json \
       --reminders .llm/gtd/review/due-reminders.json \

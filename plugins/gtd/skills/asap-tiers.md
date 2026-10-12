@@ -7,7 +7,7 @@ description: The ordinal priority ladder inside a 📌 Tasks (asap) bucket — t
 
 Each `📌 Tasks (asap)` bucket holds an **ordinal ladder**: children named `1st`, `2nd`, `3rd`, `4th`, `5th`, … Each tier is a rank, not a topic. A task's rank is the only thing its position encodes.
 
-Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs` (`readLadder`, `planInsertion`, `planRebalance`, `planGroup`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
+Do the tier arithmetic with `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts` (`readLadder`, `planInsertion`, `planRebalance`, `planGroup`, `tierLabel`, `tierCapacity`, `tiersNeededFor`), never by hand.
 
 ## Rank by position, describe by tag
 
@@ -41,7 +41,7 @@ Occupancy such as `3rd 8/8` may be shown as a plain fact. Never describe a filin
 
 ## Rebalancing a ladder that has drifted
 
-A ladder that is already over cap -- a tier that grew while it was the bottom and then got a tier below it, or one the user filed into while it was full -- stays that way until the `/gtd:review:daily:rebalance` phase reads it. `planRebalance(ladder)` (`asap-tiers.mjs rebalance <bucket.json>` from the shell) reports the day plan (tiers `1st` and `2nd`), every capped tier over `2^k` with all of its occupants, the run of empty tiers starting at `2nd` with the candidates to pull up from below, and the bottom tier once it passes `2^k` with the new tier to create. It picks nothing: which items leave a tier is the user's judgment, so the report carries occupants, never victims, and the phase applies only what the user names.
+A ladder that is already over cap -- a tier that grew while it was the bottom and then got a tier below it, or one the user filed into while it was full -- stays that way until the `/gtd:review:daily:rebalance` phase reads it. `planRebalance(ladder)` (`asap-tiers.mts rebalance <bucket.json>` from the shell) reports the day plan (tiers `1st` and `2nd`), every capped tier over `2^k` with all of its occupants, the run of empty tiers starting at `2nd` with the candidates to pull up from below, and the bottom tier once it passes `2^k` with the new tier to create. It picks nothing: which items leave a tier is the user's judgment, so the report carries occupants, never victims, and the phase applies only what the user names.
 
 ## Choosing a tier
 
@@ -51,7 +51,7 @@ Rank against what is already on the ladder, not in the abstract — the question
 - `2nd` / `3rd` — real intent to do it soon.
 - Bottom tier — everything else, including anything arriving from an automated sweep. A task that showed up on its own has not earned a rank yet.
 
-Default to the bottom tier when the signal is weak. Promotion is cheap, and the user reranks during rebalance. Keep promotion cheap in every walk that files onto the ladder: `filingChoices(ladder)` (`asap-tiers.mjs choices <bucket.json>`) returns the bottom tier, the tier directly above it as a one-click promotion, and a one-line occupancy summary for the question text.
+Default to the bottom tier when the signal is weak. Promotion is cheap, and the user reranks during rebalance. Keep promotion cheap in every walk that files onto the ladder: `filingChoices(ladder)` (`asap-tiers.mts choices <bucket.json>`) returns the bottom tier, the tier directly above it as a one-click promotion, and a one-line occupancy summary for the question text.
 
 ## Migrating a bucket that still has categories
 

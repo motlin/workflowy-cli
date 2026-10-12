@@ -26,7 +26,7 @@ Resolve the roots from the metadata anchor, then each root's `📌` bucket, exac
 mkdir -p .llm/gtd/review
 ./bin/run.js node get --id <asap-bucket-uuid> --depth 2 --json \
   --fields name,id,shortId,children,completedAt > .llm/gtd/review/ladder-<work|personal>.json
-node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs rebalance .llm/gtd/review/ladder-<work|personal>.json \
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts rebalance .llm/gtd/review/ladder-<work|personal>.json \
   > .llm/gtd/review/rebalance-<work|personal>.json
 ```
 
@@ -58,7 +58,7 @@ Strip HTML for display and render embedded links as markdown. Do not ask whether
 Follow **Choose the presentation surface** in `${CLAUDE_PLUGIN_ROOT}/skills/review-proposal-staging.md`. Use the existing local web app first:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mjs
+node ${CLAUDE_PLUGIN_ROOT}/scripts/rebalance-ui.mts
 ```
 
 Open the printed `/ladder` URL. `REBALANCE_WEB_APP_URL=http://localhost:5175` selects a local dev server; `--output .llm/gtd/review/rebalance.html` generates a small launcher without exporting task names. The route is built from checked-in React source with `vp run --filter @workflowy/web build`. Preserve its root tabs, range selection, touch handles, tier buttons, per-row Done and immediate persistence.

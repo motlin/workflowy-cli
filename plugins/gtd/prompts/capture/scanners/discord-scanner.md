@@ -45,10 +45,10 @@ If the node is missing, or its child lacks `guild_id` or `channel_id`, write a `
 The bot token comes from `DISCORD_BOT_TOKEN` in the gitignored `.envrc`. Run with `--after` when `last_message_id` is set; on the first run (null cursor) look back 14 days instead of pulling the whole channel history:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-discord-messages.mjs --channel <channel_id> --guild <guild_id> --after <last_message_id> \
+node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-discord-messages.mts --channel <channel_id> --guild <guild_id> --after <last_message_id> \
   > .llm/gtd/capture/discord-raw.json
 # first run:
-node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-discord-messages.mjs --channel <channel_id> --guild <guild_id> --since-days 14 \
+node ${CLAUDE_PLUGIN_ROOT}/scripts/fetch-discord-messages.mts --channel <channel_id> --guild <guild_id> --since-days 14 \
   > .llm/gtd/capture/discord-raw.json
 ```
 

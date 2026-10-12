@@ -7,7 +7,7 @@ description: The one-item-at-a-time walk protocol shared by every dated-item rev
 
 The daily review walks several ordered sets of dated items — recurring review items, one-shot due tasks from Workflowy, Things, and Reminders. They differ in what "done" writes back, but the presentation and the failure modes are identical. This is that shared protocol.
 
-Every walk begins from a **precomputed ordered working set** produced by a script (`compute-overdue.mjs`, `collect-due-items.mjs`). The script has already done the date math, filtering, and ordering. Nothing is left to scope.
+Every walk begins from a **precomputed ordered working set** produced by a script (`compute-overdue.mts`, `collect-due-items.mts`). The script has already done the date math, filtering, and ordering. Nothing is left to scope.
 
 ## Never ask how to scope the walk
 
@@ -141,7 +141,7 @@ Showing an item's children to the user is not reading them. Skipping this step p
 
 A long review crosses midnight, and every staged `applyOp` baked in the local date at the moment prep ran. Running a stale op verbatim writes yesterday's arithmetic — the wrong next date, the wrong weekday label.
 
-Before each segment, compare the prep date staged in `overdue.json` against the current local date. When they differ, re-run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --today YYYY-MM-DD` with today's date and walk the fresh rows. This is the same guard `birthdays-prep.md` / `birthdays-apply.md` apply through `generatedFor`.
+Before each segment, compare the prep date staged in `overdue.json` against the current local date. When they differ, re-run `${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mts --today YYYY-MM-DD` with today's date and walk the fresh rows. This is the same guard `birthdays-prep.md` / `birthdays-apply.md` apply through `generatedFor`.
 
 ## Run staged ops verbatim
 
@@ -187,7 +187,7 @@ Verify Things reports `canceled` or `reminders_fetch` no longer lists the approv
 
 Offer **Waiting on someone else** on every one-shot due row, including Workflowy, Things, and Reminders. Use it when the user has finished their part but the outcome depends on an external party: a submitted claim, a filed request, or a sent question. Say plainly that handing work to an external party is **Waiting on someone else**, not **Done**; the follow-up stays incomplete.
 
-Ask when to check back. If the item or its fetched subtree records a typical turnaround, show that evidence and recommend that horizon; otherwise ask for the horizon without inventing a default. Resolve the chosen date with the date helpers in `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mjs`, and build its `<time>` with `buildTimeElement(iso)` from that module. Replace the previous due `<time>` with the check-back stamp appended to the title, preserving the rest of the title, notes, and children. Preserve any genuine external deadline in the item's context so the check-back date cannot erase that obligation.
+Ask when to check back. If the item or its fetched subtree records a typical turnaround, show that evidence and recommend that horizon; otherwise ask for the horizon without inventing a default. Resolve the chosen date with the date helpers in `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mts`, and build its `<time>` with `buildTimeElement(iso)` from that module. Replace the previous due `<time>` with the check-back stamp appended to the title, preserving the rest of the title, notes, and children. Preserve any genuine external deadline in the item's context so the check-back date cannot erase that obligation.
 
 Resolve the matching root's direct **📤 Delegate** child from the staged `root-<work|personal>.json`; it is a sibling of `✅ Tasks`, not a bucket inside it. Confirm the destination is a real node, not a mirror. Workflowy rows keep their `rootKey`; external rows default to Personal, offering Work when the item concerns work. If the destination is absent or ambiguous, resolve it before writing rather than guessing an ID or creating a second Delegate node.
 
@@ -241,7 +241,7 @@ The `reminder` keyword is what makes Fantastical file a reminder instead of a ca
 Once the alarm is verified, apply the row's normal handled outcome and record it:
 
 - **Recurring item** — the reminder covers today's occurrence, so run the row's staged `applyOp` verbatim, exactly as **Done** would, and record `remind`.
-- **One-shot due item** — the task stays until it is actually done, so reschedule it to today with `resolveTimeframe` + `applyReschedule` from `collect-due-items.mjs` (a no-op rewrite for a row already dated today, and an honest date for an overdue one), and record `remind`. Tomorrow's walk asks about it again if it never got done, which is correct. An Apple Reminders row already is a reminder, so do not create a second one through Fantastical: set the requested time on the existing reminder inside the batched Reminders write the segment's command file describes, and verify it the same way.
+- **One-shot due item** — the task stays until it is actually done, so reschedule it to today with `resolveTimeframe` + `applyReschedule` from `collect-due-items.mts` (a no-op rewrite for a row already dated today, and an honest date for an overdue one), and record `remind`. Tomorrow's walk asks about it again if it never got done, which is correct. An Apple Reminders row already is a reminder, so do not create a second one through Fantastical: set the requested time on the existing reminder inside the batched Reminders write the segment's command file describes, and verify it the same way.
 
 `remind` is a handled outcome: it resets the skip streak like any other non-skip record.
 
@@ -274,7 +274,7 @@ On skip, write nothing. The item keeps its date and resurfaces on the next run. 
 Skipping writes nothing to the item, but it does write to the walk's own memory. After each item, dispatch one record command in the background alongside the outcome write:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mjs --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|waiting|dropDuplicate|drop>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-overdue.mts --record <key> --outcome <skip|done|lengthen|retire|reschedule|moveToWorkflowy|clearDate|remind|waiting|dropDuplicate|drop>
 ```
 
 The key is the recurring row's `id`, or `<source>:<id>` for a one-shot due row (`things:ABC123`, `workflowy:<uuid>`). The log is append-only JSONL at `.llm/gtd/review/skip-log.jsonl`, so concurrent background jobs cannot clobber each other, and repeats within one day collapse instead of inflating a streak.

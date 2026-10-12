@@ -73,7 +73,7 @@ The asap bucket's children are ordinal priority tiers (`1st`, `2nd`, `3rd`, …)
 ```bash
 ./bin/run.js node get --id <asap-bucket-uuid> --depth 2 --json \
   --fields name,id,shortId,children,completedAt > .llm/gtd/refinement/$ITEM_ID-ladder.json
-node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs choices .llm/gtd/refinement/$ITEM_ID-ladder.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts choices .llm/gtd/refinement/$ITEM_ID-ladder.json
 ```
 
 Return `bottom.id` as `targetId` and end `path` with `bottom.label` (`Work > ☑️ Next (Work) > 📌 Tasks (asap) > 4th`). Never guess a tier name or id from memory or from the synced metadata. When `bottom` is null the bucket has no ladder yet: create its first tier with `./bin/run.js node create --parent-id <bucket-uuid> --name "1st"` and return that new node. Never return a leftover category container (`💻 Coding`, `Administrative`, `🏠 Home`, …) either — those are pre-migration data that File Loose Tasks removes, and what the task _is_ belongs on its text as a `#tag`. See `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`.

@@ -24,7 +24,7 @@ Track progress through `.llm/` files, Workflowy nodes, and inline status updates
 Prep stages two ops for any entry `refine-journal` also staged (see `${CLAUDE_PLUGIN_ROOT}/commands/refine-exercise-prep.md` → Chain on staged refine-journal proposals): the proposal's own `applyOps` keyed on the pre-journal text, and `chained.applyOps` keyed on the journal proposal's `after`. After the journal walk finishes and before presenting anything, resolve them against each entry's current name:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/chain-exercise-ops.mjs resolve .llm/gtd/review/proposals/refine-exercise.json \
+node ${CLAUDE_PLUGIN_ROOT}/scripts/chain-exercise-ops.mts resolve .llm/gtd/review/proposals/refine-exercise.json \
   > .llm/gtd/review/proposals/refine-exercise.resolved.json
 ```
 

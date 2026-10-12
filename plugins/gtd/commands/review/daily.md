@@ -92,7 +92,7 @@ Run the mandatory import barrier, then execute due tasks from `Personal > 🔄 R
 ```bash
 mkdir -p .llm/gtd/review
 ./bin/run.js node get --path "Personal,🔄 Review,🔄 Daily Review,LLM Tasks:" --depth 6 --json --fields name,shortId,id,children,completedAt > .llm/gtd/review/phase0-llm-tasks.json
-node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mjs .llm/gtd/review/phase0-llm-tasks.json > .llm/gtd/review/phase0-plan.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/compute-llm-dag.mts .llm/gtd/review/phase0-llm-tasks.json > .llm/gtd/review/phase0-plan.json
 ```
 
 The planner validates this plain structure before anything fans out:

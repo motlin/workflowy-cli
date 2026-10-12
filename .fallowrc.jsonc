@@ -8,7 +8,7 @@
 		"packages/web/src/client/app.tsx",
 		"packages/web/src/client/main.tsx",
 		"bin/**/*.js",
-		"plugins/gtd/scripts/**/*.mjs",
+		"plugins/gtd/scripts/**/*.mts",
 		"test/evals/**/*.eval.ts",
 		"test/evals/**/*.test.ts",
 	],

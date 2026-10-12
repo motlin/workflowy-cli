@@ -66,5 +66,5 @@ Stage the links apply shows in each question, so the user can open the email or 
 Derive `key` from the source message (`<account>-imap-uid-<uid>`, suffixed with the event date when one email yields several events). `altKeys` carry the title-and-date and subject-and-sender forms so a forwarded or re-sent copy still matches. After writing the file, run the validator; it rejects any `email-calendar` proposal whose `key` is missing, null, blank, or staged under another name, that lacks `account`, `mailbox`, an integer `messageUid`, or `messageId`, or whose `actionLinks` is not an array of `http(s)` URLs:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mjs .llm/gtd/review/proposals/email-calendar.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-proposal.mts .llm/gtd/review/proposals/email-calendar.json
 ```

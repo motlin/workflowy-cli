@@ -11,9 +11,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/refinement-tagger.md` and follow it for fetch
 **GitHub pull requests.** Resolve every URL whose path is `/<owner>/<repo>/pull/<N>` (a captured notification link usually carries `?notification_referrer_id=…` or `#event-…`; the script strips them). The title in a notification capture is often missing or truncated, and the routing below needs the author and merge state, so read them from GitHub rather than guessing:
 
 ```bash
-PR_URL=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/github-pr-landed.mjs parse "<url>" | jq -r '.url // empty')
+PR_URL=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/github-pr-landed.mts parse "<url>" | jq -r '.url // empty')
 gh pr view "$PR_URL" --json number,title,url,author,state,mergedAt > .llm/gtd/refinement/$ITEM_ID-pr.json
-node ${CLAUDE_PLUGIN_ROOT}/scripts/github-pr-landed.mjs classify .llm/gtd/refinement/$ITEM_ID-pr.json
+node ${CLAUDE_PLUGIN_ROOT}/scripts/github-pr-landed.mts classify .llm/gtd/refinement/$ITEM_ID-pr.json
 ```
 
 `classify` reads the user's own logins from the gitignored `.llm/gtd/performance-notes.json` (`githubLogins`). Return its output verbatim as `githubPr`. When the item has several PR URLs, resolve the first one. When `parse` prints `null`, or `gh` fails (auth, a private host, a deleted PR), set `githubPr` to `null` and say why in `reasoning`; never fabricate `ownMerged`.

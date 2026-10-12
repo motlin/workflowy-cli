@@ -65,7 +65,7 @@ For each cluster, pick the anchor:
 Children of the anchor keep the rank they had: order them by the tier they were on (`1st` members first), then ladder order within a tier. Compute it, and the insertion for a new group, with `planGroup` — never by hand:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs group .llm/gtd/review/ladder-<work|personal>.json <memberUuid>,<memberUuid>,... [tier]
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts group .llm/gtd/review/ladder-<work|personal>.json <memberUuid>,<memberUuid>,... [tier]
 ```
 
 `members` is the move order, each with `fromTier` (`null` when it is not on this ladder). `insertion` is the plan for filing a new group in the highest tier its members came from — or in `[tier]` when given — computed **after** the members have left their tiers: a member leaving a tier frees the slot the group takes. Filing the group never moves any other item, even into a full tier. Ignore `insertion` when the anchor already exists.
@@ -83,7 +83,7 @@ Projects in flight live off the ladder, so their open tasks never get ranked aga
 Skip any project listed under **Declined** as a rescue. Each survivor is a **rescue**: move the whole project node, with every task under it, onto a low tier of the ladder. Plan the landing — the bottom tier by default, or `[tier]` when the user names one — with `planRescue`:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mjs rescue .llm/gtd/review/ladder-<work|personal>.json [tier]
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts rescue .llm/gtd/review/ladder-<work|personal>.json [tier]
 ```
 
 The output has the same shape as a group's `insertion` (`targetTier`, `targetId`, `createTiers`). The bottom tier is the default because nothing says a forgotten project outranks what is already filed; the project climbs the ladder through the rebalance walk like any other item.
