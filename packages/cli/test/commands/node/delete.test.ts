@@ -107,7 +107,7 @@ describe("node delete command", () => {
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
 				capturedMethod = init?.method;
-				return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+				return Promise.resolve(Response.json({}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -137,7 +137,7 @@ describe("node delete command", () => {
 			let capturedUrl: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+				return Promise.resolve(Response.json({}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -153,7 +153,7 @@ describe("node delete command", () => {
 
 		it("errors when path not found", async () => {
 			// Cache is empty, API returns empty children for root (path not found)
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({nodes: []}), {status: 200}));
+			fetchStub.mockResolvedValue(Response.json({nodes: []}, {status: 200}));
 
 			await expect(Delete.run(["--path", "Missing,Path"])).rejects.toThrow(
 				"Node not found at path: Missing > Path",
@@ -171,7 +171,7 @@ describe("node delete command", () => {
 				]),
 			);
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
+			fetchStub.mockResolvedValue(Response.json({}, {status: 200}));
 
 			const {stdout} = await captureOutput(async () => {
 				try {
@@ -249,13 +249,13 @@ describe("node delete command", () => {
 					const nodes = children[parentId].map((id, priority) =>
 						createApiNode({id, parent_id: parentId, priority}),
 					);
-					return Promise.resolve(new Response(JSON.stringify({nodes}), {status: 200}));
+					return Promise.resolve(Response.json({nodes}, {status: 200}));
 				}
 				if (method === "GET") {
 					const node = createApiNode({id: "task-a-id", name: "Task A", parent_id: "agendas-id", priority: 0});
-					return Promise.resolve(new Response(JSON.stringify({node}), {status: 200}));
+					return Promise.resolve(Response.json({node}, {status: 200}));
 				}
-				return Promise.resolve(new Response(JSON.stringify({status: "ok"}), {status: 200}));
+				return Promise.resolve(Response.json({status: "ok"}, {status: 200}));
 			});
 			return calls;
 		}

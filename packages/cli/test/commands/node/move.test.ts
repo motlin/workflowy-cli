@@ -144,13 +144,13 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+					return Promise.resolve(Response.json({}, {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								node: {
 									id: "source-id",
 									name: "Source",
@@ -162,13 +162,13 @@ describe("node:move command", () => {
 									completedAt: null,
 									data: {},
 								},
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 
-				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
+				return Promise.resolve(Response.json({}, {status: 404}));
 			});
 
 			const {stdout} = await captureOutput(async () => {
@@ -197,13 +197,13 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+					return Promise.resolve(Response.json({}, {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								node: {
 									id: "source-id",
 									name: "Source",
@@ -215,13 +215,13 @@ describe("node:move command", () => {
 									completedAt: null,
 									data: {},
 								},
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 
-				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
+				return Promise.resolve(Response.json({}, {status: 404}));
 			});
 
 			await captureOutput(async () => {
@@ -249,13 +249,13 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+					return Promise.resolve(Response.json({}, {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								node: {
 									id: "source-id",
 									name: "Source",
@@ -267,13 +267,13 @@ describe("node:move command", () => {
 									completedAt: null,
 									data: {},
 								},
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 
-				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
+				return Promise.resolve(Response.json({}, {status: 404}));
 			});
 
 			await captureOutput(async () => {
@@ -307,13 +307,13 @@ describe("node:move command", () => {
 
 				if (method === "POST") {
 					capturedBody = requestBody(init);
-					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+					return Promise.resolve(Response.json({}, {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								node: {
 									id: "source-id",
 									name: "My Task",
@@ -325,13 +325,13 @@ describe("node:move command", () => {
 									completedAt: null,
 									data: {},
 								},
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 
-				return Promise.resolve(new Response(JSON.stringify({}), {status: 404}));
+				return Promise.resolve(Response.json({}, {status: 404}));
 			});
 
 			const {stdout} = await captureOutput(async () => {
@@ -370,13 +370,13 @@ describe("node:move command", () => {
 
 				if (method === "POST" && urlStr.endsWith("/nodes/source-id/move")) {
 					capturedBody = requestBody(init);
-					return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+					return Promise.resolve(Response.json({}, {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.endsWith("/nodes/source-id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								node: {
 									id: "source-id",
 									name: "Source",
@@ -389,13 +389,13 @@ describe("node:move command", () => {
 									completedAt: null,
 									data: {layoutMode: "bullets"},
 								},
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 
-				return Promise.resolve(new Response(JSON.stringify({error: "Not found"}), {status: 404}));
+				return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
 			});
 
 			const {error} = await captureOutput(async () => {
@@ -429,7 +429,7 @@ describe("node:move command", () => {
 				]),
 			);
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
+			fetchStub.mockResolvedValue(Response.json({}, {status: 200}));
 
 			const {stdout} = await captureOutput(async () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id"]);

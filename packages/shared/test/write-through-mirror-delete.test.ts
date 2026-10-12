@@ -175,7 +175,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 				const parentId = path.slice("/nodes?parent_id=".length);
 				// Workflowy lists children in no particular order, so list them reversed.
 				const nodes = (server.get(parentId) ?? []).map((id) => toApi(id, parentId)).toReversed();
-				return Promise.resolve(new Response(JSON.stringify({nodes}), {status: 200}));
+				return Promise.resolve(Response.json({nodes}, {status: 200}));
 			}
 			const id = path.split("/")[2];
 			if (method === "DELETE") {
@@ -186,7 +186,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 				const siblings = server.get(body.parent_id) ?? [];
 				server.set(body.parent_id, body.position === "top" ? [id, ...siblings] : [...siblings, id]);
 			} else if (method === "GET") {
-				return Promise.resolve(new Response(JSON.stringify({node: toApi(id, parentOf(id))}), {status: 200}));
+				return Promise.resolve(Response.json({node: toApi(id, parentOf(id))}, {status: 200}));
 			}
 			return Promise.resolve(new Response('{"status":"ok"}', {status: 200}));
 		}),

@@ -3,7 +3,7 @@ import {readJson} from "../src/client/read-json.js";
 
 describe("readJson", () => {
 	it("returns the parsed response body", async () => {
-		const response = new Response(JSON.stringify({nodes: [{id: "a"}]}));
+		const response = Response.json({nodes: [{id: "a"}]});
 
 		const body = await readJson<{nodes: {id: string}[]}>(response);
 

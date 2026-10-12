@@ -61,14 +61,12 @@ describe("node:mirror command", () => {
 			calls.push({method, url: urlStr, body: requestJson(init)});
 
 			if (method === "POST" && urlStr.endsWith(`/nodes/${ORIGIN_ID}/mirror`)) {
-				return Promise.resolve(
-					new Response(JSON.stringify({item_id: MIRROR_ID, origin_id: ORIGIN_ID}), {status: 200}),
-				);
+				return Promise.resolve(Response.json({item_id: MIRROR_ID, origin_id: ORIGIN_ID}, {status: 200}));
 			}
 			if (method === "GET" && urlStr.endsWith(`/nodes/${MIRROR_ID}`)) {
 				return Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							node: {
 								id: MIRROR_ID,
 								name: "Origin Task",
@@ -80,7 +78,7 @@ describe("node:mirror command", () => {
 								completedAt: null,
 								data: {},
 							},
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -213,7 +211,7 @@ describe("node:mirror command", () => {
 			const calls: {method: string; url: string}[] = [];
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				calls.push({method: init?.method ?? "GET", url: url instanceof Request ? url.url : String(url)});
-				return Promise.resolve(new Response(JSON.stringify({status: "ok"}), {status: 200}));
+				return Promise.resolve(Response.json({status: "ok"}, {status: 200}));
 			});
 
 			const {stdout} = await captureOutput(async () => {

@@ -82,8 +82,8 @@ describe("node:list command", () => {
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
 				return Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -106,7 +106,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -124,8 +124,8 @@ describe("node:list command", () => {
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
 				return Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "child1",
@@ -148,7 +148,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -168,7 +168,7 @@ describe("node:list command", () => {
 				for (const [key, value] of headers.entries()) {
 					capturedHeaders[key] = value;
 				}
-				return Promise.resolve(new Response(JSON.stringify({nodes: []}), {status: 200}));
+				return Promise.resolve(Response.json({nodes: []}, {status: 200}));
 			};
 
 			await captureOutput(async () => {
@@ -190,8 +190,8 @@ describe("node:list command", () => {
 		it("displays nodes correctly when API returns array", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -214,7 +214,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -229,7 +229,7 @@ describe("node:list command", () => {
 		});
 
 		it("displays empty list when API returns empty array", async () => {
-			globalThis.fetch = async () => Promise.resolve(new Response(JSON.stringify({nodes: []}), {status: 200}));
+			globalThis.fetch = async () => Promise.resolve(Response.json({nodes: []}, {status: 200}));
 
 			const {stdout} = await captureOutput(async () => {
 				await List.run(["--force-refresh"]);
@@ -241,8 +241,8 @@ describe("node:list command", () => {
 		it("handles nodes with empty name property", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -265,7 +265,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -282,8 +282,8 @@ describe("node:list command", () => {
 		it("displays emoji indicators for nodes with notes", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -308,7 +308,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -325,8 +325,8 @@ describe("node:list command", () => {
 		it("displays emoji indicators for nodes with non-default layoutMode", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -359,7 +359,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -376,8 +376,8 @@ describe("node:list command", () => {
 		it("displays multiple emoji indicators when node has note and non-default layoutMode", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -391,7 +391,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -408,8 +408,8 @@ describe("node:list command", () => {
 		it("displays completion indicator along with note and layoutMode indicators", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -423,7 +423,7 @@ describe("node:list command", () => {
 									completedAt: Date.now(),
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -440,8 +440,8 @@ describe("node:list command", () => {
 		it("displays backlinks indicator when node contains links to other nodes in name", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -464,7 +464,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -481,8 +481,8 @@ describe("node:list command", () => {
 		it("displays backlinks indicator when node contains links to other nodes in note", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -496,7 +496,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -513,8 +513,8 @@ describe("node:list command", () => {
 		it("displays backlinks indicator along with other indicators", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -528,7 +528,7 @@ describe("node:list command", () => {
 									completedAt: Date.now(),
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -623,14 +623,14 @@ describe("node:list command", () => {
 	describe("flag parsing", () => {
 		beforeEach(() => {
 			process.env.WORKFLOWY_API_KEY = "test-api-key";
-			globalThis.fetch = async () => Promise.resolve(new Response(JSON.stringify({nodes: []}), {status: 200}));
+			globalThis.fetch = async () => Promise.resolve(Response.json({nodes: []}, {status: 200}));
 		});
 
 		it("accepts short flag -p for parent-id", async () => {
 			let capturedUrl: string | undefined;
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return Promise.resolve(new Response(JSON.stringify({nodes: []}), {status: 200}));
+				return Promise.resolve(Response.json({nodes: []}, {status: 200}));
 			};
 
 			await captureOutput(async () => {
@@ -644,7 +644,7 @@ describe("node:list command", () => {
 			let capturedUrl: string | undefined;
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return Promise.resolve(new Response(JSON.stringify({nodes: []}), {status: 200}));
+				return Promise.resolve(Response.json({nodes: []}, {status: 200}));
 			};
 
 			const specialParentId = "parent-with-dashes_and_underscores.and.dots";
@@ -660,7 +660,7 @@ describe("node:list command", () => {
 			let capturedUrl: string | undefined;
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return Promise.resolve(new Response(JSON.stringify({nodes: []}), {status: 200}));
+				return Promise.resolve(Response.json({nodes: []}, {status: 200}));
 			};
 
 			const uuidParentId = "61111c3a-e939-d4dc-1a8c-6bf42551caa3";
@@ -722,8 +722,8 @@ describe("node:list command", () => {
 		it("filters out completed nodes when --incomplete is set", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -746,7 +746,7 @@ describe("node:list command", () => {
 									completedAt: Date.now(),
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -763,8 +763,8 @@ describe("node:list command", () => {
 		it("shows all nodes when --incomplete is not set", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -787,7 +787,7 @@ describe("node:list command", () => {
 									completedAt: Date.now(),
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -810,8 +810,8 @@ describe("node:list command", () => {
 		it("outputs nodes as JSON when --json flag is set", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -836,7 +836,7 @@ describe("node:list command", () => {
 									completedAt: 1_234_567_860,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -897,8 +897,8 @@ describe("node:list command", () => {
 		it("accepts short flag -j for JSON output", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -912,7 +912,7 @@ describe("node:list command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);
@@ -956,8 +956,8 @@ describe("node:list command", () => {
 		it("does not include emoji indicators in JSON output", async () => {
 			globalThis.fetch = async () =>
 				Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "node1",
@@ -971,7 +971,7 @@ describe("node:list command", () => {
 									completedAt: 1_234_567_910,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);

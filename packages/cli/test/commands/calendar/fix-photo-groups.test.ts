@@ -85,8 +85,8 @@ describe("calendar:fix-photo-groups command", () => {
 			if (method === "GET") {
 				const nodeId = urlString.split("/nodes/")[1];
 				return Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							node: {
 								id: nodeId,
 								name: "",
@@ -98,13 +98,13 @@ describe("calendar:fix-photo-groups command", () => {
 								completedAt: null,
 								data: {},
 							},
-						}),
+						},
 						{status: 200},
 					),
 				);
 			}
 
-			return Promise.resolve(new Response(JSON.stringify({}), {status: 200}));
+			return Promise.resolve(Response.json({}, {status: 200}));
 		});
 	});
 

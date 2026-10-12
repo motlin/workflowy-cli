@@ -67,7 +67,7 @@ describe("node create command", () => {
 				const id = ids[bodies.length];
 				bodies.push(body);
 				created.set(id, body);
-				return Promise.resolve(new Response(JSON.stringify({item_id: id}), {status: 200}));
+				return Promise.resolve(Response.json({item_id: id}, {status: 200}));
 			}
 			const id = (url instanceof Request ? url.url : url.toString()).split("/").pop()!;
 			const body = created.get(id)!;
@@ -83,7 +83,7 @@ describe("node create command", () => {
 				modifiedAt: now,
 				completedAt: null,
 			};
-			return Promise.resolve(new Response(JSON.stringify({node}), {status: 200}));
+			return Promise.resolve(Response.json({node}, {status: 200}));
 		});
 		return bodies;
 	}
@@ -305,13 +305,13 @@ describe("node create command", () => {
 
 				if (method === "POST" && urlStr.endsWith("/nodes/")) {
 					capturedBody = requestBody(init);
-					return Promise.resolve(new Response(JSON.stringify({item_id: "new-id"}), {status: 200}));
+					return Promise.resolve(Response.json({item_id: "new-id"}, {status: 200}));
 				}
 
 				if (method === "GET" && urlStr.endsWith("/nodes/new-id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								node: {
 									id: "new-id",
 									name: "Test",
@@ -324,13 +324,13 @@ describe("node create command", () => {
 									completedAt: null,
 									data: {layoutMode: "bullets"},
 								},
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 
-				return Promise.resolve(new Response(JSON.stringify({error: "Not found"}), {status: 404}));
+				return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
 			});
 
 			const {stdout} = await captureOutput(async () => {

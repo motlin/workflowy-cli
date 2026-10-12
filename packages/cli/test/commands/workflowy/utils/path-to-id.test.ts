@@ -180,8 +180,8 @@ describe("workflowy:utils:path-to-id command", () => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
 				if (capturedUrl?.includes("parent_id")) {
 					return Promise.resolve(
-						new Response(
-							JSON.stringify({
+						Response.json(
+							{
 								nodes: [
 									{
 										id: "api-project-id",
@@ -194,14 +194,14 @@ describe("workflowy:utils:path-to-id command", () => {
 										completedAt: null,
 									},
 								],
-							}),
+							},
 							{status: 200},
 						),
 					);
 				}
 				return Promise.resolve(
-					new Response(
-						JSON.stringify({
+					Response.json(
+						{
 							nodes: [
 								{
 									id: "api-work-id",
@@ -214,7 +214,7 @@ describe("workflowy:utils:path-to-id command", () => {
 									completedAt: null,
 								},
 							],
-						}),
+						},
 						{status: 200},
 					),
 				);

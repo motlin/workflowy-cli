@@ -162,9 +162,7 @@ describe("node update command", () => {
 				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
-				return Promise.resolve(
-					new Response(JSON.stringify({node: {id: "update-id", name: "New Name"}}), {status: 200}),
-				);
+				return Promise.resolve(Response.json({node: {id: "update-id", name: "New Name"}}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -188,9 +186,12 @@ describe("node update command", () => {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
-					new Response(JSON.stringify({node: {id: "update-id", name: "Test", note: "New note"}}), {
-						status: 200,
-					}),
+					Response.json(
+						{node: {id: "update-id", name: "Test", note: "New note"}},
+						{
+							status: 200,
+						},
+					),
 				);
 			});
 
@@ -217,9 +218,7 @@ describe("node update command", () => {
 				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
-				return Promise.resolve(
-					new Response(JSON.stringify({node: {id: "update-id", name: "Test", note: ""}}), {status: 200}),
-				);
+				return Promise.resolve(Response.json({node: {id: "update-id", name: "Test", note: ""}}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -246,7 +245,7 @@ describe("node update command", () => {
 				if (init?.body != null) {
 					capturedBody = requestBody(init);
 				}
-				return Promise.resolve(new Response(JSON.stringify({node: {id: "clear-id", name: ""}}), {status: 200}));
+				return Promise.resolve(Response.json({node: {id: "clear-id", name: ""}}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -270,8 +269,8 @@ describe("node update command", () => {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
-					new Response(
-						JSON.stringify({node: {id: "update-id", name: "Test", data: {layoutMode: "document"}}}),
+					Response.json(
+						{node: {id: "update-id", name: "Test", data: {layoutMode: "document"}}},
 						{
 							status: 200,
 						},
@@ -303,9 +302,12 @@ describe("node update command", () => {
 					capturedBody = requestBody(init);
 				}
 				return Promise.resolve(
-					new Response(JSON.stringify({node: {id: "update-id", name: "New Name", note: "New note"}}), {
-						status: 200,
-					}),
+					Response.json(
+						{node: {id: "update-id", name: "New Name", note: "New note"}},
+						{
+							status: 200,
+						},
+					),
 				);
 			});
 
@@ -364,9 +366,7 @@ describe("node update command", () => {
 			let called = false;
 			fetchStub.mockImplementation(async (_url: RequestInfo | URL, _init?: RequestInit) => {
 				called = true;
-				return Promise.resolve(
-					new Response(JSON.stringify({node: {id: "guard-id", name: "New Name"}}), {status: 200}),
-				);
+				return Promise.resolve(Response.json({node: {id: "guard-id", name: "New Name"}}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -405,9 +405,7 @@ describe("node update command", () => {
 			let capturedUrl: string | undefined;
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, _init?: RequestInit) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				return Promise.resolve(
-					new Response(JSON.stringify({node: {id: "target-id", name: "Updated Task"}}), {status: 200}),
-				);
+				return Promise.resolve(Response.json({node: {id: "target-id", name: "Updated Task"}}, {status: 200}));
 			});
 
 			await captureOutput(async () => {
@@ -423,7 +421,7 @@ describe("node update command", () => {
 
 		it("errors when path not found", async () => {
 			// Cache is empty, API returns empty children for root (path not found)
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({nodes: []}), {status: 200}));
+			fetchStub.mockResolvedValue(Response.json({nodes: []}, {status: 200}));
 
 			await expect(Update.run(["--path", "Missing,Path", "--name", "New Name"])).rejects.toThrow(
 				"Node not found at path: Missing > Path",
@@ -445,7 +443,7 @@ describe("node update command", () => {
 				]),
 			);
 
-			fetchStub.mockResolvedValue(new Response(JSON.stringify({}), {status: 200}));
+			fetchStub.mockResolvedValue(Response.json({}, {status: 200}));
 
 			const {stdout} = await captureOutput(async () => {
 				try {

@@ -22,7 +22,7 @@ describe("WorkflowyApiClient mirrors", () => {
 	it("creates a mirror via POST /nodes/:id/mirror and returns the new mirror and true origin", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify({item_id: MIRROR_ID, origin_id: ORIGIN_ID}), {status: 200}));
+			.mockResolvedValue(Response.json({item_id: MIRROR_ID, origin_id: ORIGIN_ID}, {status: 200}));
 		const client = clientWith(fetchMock);
 
 		const result = await client.createMirror(ORIGIN_ID, PARENT_ID, "bottom");
@@ -41,9 +41,7 @@ describe("WorkflowyApiClient mirrors", () => {
 	});
 
 	it("deletes a mirror via DELETE /nodes/:id/mirror", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify({status: "ok"}), {status: 200}));
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json({status: "ok"}, {status: 200}));
 		const client = clientWith(fetchMock);
 
 		await client.deleteMirror(MIRROR_ID);
