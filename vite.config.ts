@@ -116,6 +116,7 @@ export default defineConfig({
 			"vitest/prefer-hooks-in-order": "error",
 			"vitest/prefer-expect-type-of": "error",
 			"eslint/accessor-pairs": "error",
+			"eslint/arrow-body-style": "error",
 			"typescript/require-await": "error",
 			"typescript/no-misused-promises": "error",
 			"typescript/strict-void-return": "error",

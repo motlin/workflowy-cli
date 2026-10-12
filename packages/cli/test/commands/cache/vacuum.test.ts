@@ -76,9 +76,7 @@ describe("cache:vacuum command", () => {
 	});
 
 	it("prints a human-readable summary without --json", async () => {
-		const {stdout, result} = await captureOutput<VacuumResult>(async () => {
-			return Vacuum.run([]);
-		});
+		const {stdout, result} = await captureOutput<VacuumResult>(async () => Vacuum.run([]));
 
 		expect(stdout).toBe(
 			`🧹 Vacuuming cache database...\n  File: ${
