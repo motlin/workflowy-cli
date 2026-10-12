@@ -613,13 +613,13 @@ export function renderWebAppLauncher(url) {
 function main() {
 	const args = process.argv.slice(2);
 	const htmlIndex = args.indexOf("--html");
-	const html = htmlIndex >= 0;
+	const html = htmlIndex !== -1;
 	if (html) {
 		args.splice(htmlIndex, 1);
 	}
 	if (!html && args[0] !== "--apply") {
 		const outputIndex = args.indexOf("--output");
-		const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
+		const output = outputIndex === -1 ? null : args.splice(outputIndex, 2)[1];
 		assert.ok(args.length === 0, "Use --html work.json personal.json for an offline or Artifact page");
 		const url = new URL("/ladder", process.env.REBALANCE_WEB_APP_URL ?? "https://workflowy.m4.notlin.com");
 		const page = renderWebAppLauncher(url);
@@ -634,7 +634,7 @@ function main() {
 	const apply = args[0] === "--apply";
 	const submissionPath = apply ? args.splice(0, 2)[1] : null;
 	const outputIndex = args.indexOf("--output");
-	const output = outputIndex < 0 ? null : args.splice(outputIndex, 2)[1];
+	const output = outputIndex === -1 ? null : args.splice(outputIndex, 2)[1];
 	assert.equal(
 		args.length,
 		2,

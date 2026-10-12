@@ -117,7 +117,7 @@ export function selectLadderRange(ladder: Ladder, anchor: string, target: string
 	const ids = ladder.tiers.flatMap((tier) => tier.items.map((item) => item.id));
 	const from = ids.indexOf(anchor);
 	const to = ids.indexOf(target);
-	if (from < 0 || to < 0) {
+	if (from === -1 || to === -1) {
 		return new Set([target]);
 	}
 	return new Set(ids.slice(Math.min(from, to), Math.max(from, to) + 1));
