@@ -160,11 +160,7 @@ export function LadderView() {
 			}
 			const nodeId = body.node_id;
 			const lastReceived = receivedWrites.current.get(nodeId);
-			setRowErrors((current) => {
-				const next = {...current};
-				delete next[nodeId];
-				return next;
-			});
+			setRowErrors((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== nodeId)));
 			updateLadders(optimistic);
 			try {
 				const response = await fetch(path, {
