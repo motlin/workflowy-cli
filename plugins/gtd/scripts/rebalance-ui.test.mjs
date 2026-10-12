@@ -543,7 +543,7 @@ test("Queue collects and restores a draft with a ninth tier and resets to the so
 		"\n globalThis.queue = {collect, build};\n})();",
 	);
 	runInNewContext(instrumented, context);
-	const collected = JSON.parse(JSON.stringify(context.queue.collect()));
+	const collected = structuredClone(context.queue.collect());
 	delete collected.submittedAt;
 	assert.deepStrictEqual(collected, {
 		roots: {
@@ -558,7 +558,7 @@ test("Queue collects and restores a draft with a ninth tier and resets to the so
 		completed: [],
 	});
 	context.queue.build();
-	const reset = JSON.parse(JSON.stringify(context.queue.collect()));
+	const reset = structuredClone(context.queue.collect());
 	delete reset.submittedAt;
 	assert.deepStrictEqual(reset, {roots: {work: arrangement(model)}, completed: []});
 });
@@ -641,7 +641,7 @@ function runQueuePage(html) {
 					doc(path) {
 						return {
 							async set(payload) {
-								writes.push({path, payload: JSON.parse(JSON.stringify(payload))});
+								writes.push({path, payload: structuredClone(payload)});
 								return Promise.resolve();
 							},
 						};
@@ -720,7 +720,7 @@ test("generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 	grip.handlers.pointermove(event);
 	assert.deepStrictEqual([fifth.className, sixth.className], ["zone room", "zone room drag-over"]);
 	grip.handlers.pointerup(event);
-	const submission = JSON.parse(JSON.stringify(context.queue.collect()));
+	const submission = structuredClone(context.queue.collect());
 	delete submission.submittedAt;
 	assert.deepStrictEqual(submission, {
 		roots: {

@@ -120,6 +120,7 @@ export default defineConfig({
 			"unicorn/prefer-response-static-json": "error",
 			"unicorn/prefer-spread": "error",
 			"unicorn/prefer-string-raw": "error",
+			"unicorn/prefer-structured-clone": "error",
 			"oxc/branches-sharing-code": "error",
 			// Explicit imports from vite-plus/test satisfy this rule and prefer-vite-plus-imports together.
 			"vitest/prefer-importing-vitest-globals": "error",
