@@ -13,7 +13,7 @@ export interface VacuumResult {
 }
 
 export class CacheVacuumService {
-	private database: BetterSQLite3Database<typeof schema>;
+	private readonly database: BetterSQLite3Database<typeof schema>;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
 		this.database = database;

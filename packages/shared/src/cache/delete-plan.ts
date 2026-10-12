@@ -172,10 +172,10 @@ function isDeleted(id: string, nodeId: string, parents: Map<string, string>, kep
  * the siblings as they will be by then.
  */
 class OutlineSimulation {
-	private lists = new Map<string | null, string[]>();
-	private touched = new Set<string>();
+	private readonly lists = new Map<string | null, string[]>();
+	private readonly touched = new Set<string>();
 
-	constructor(private childOrder: ChildOrder) {}
+	constructor(private readonly childOrder: ChildOrder) {}
 
 	async children(parentId: string | null): Promise<string[]> {
 		let list = this.lists.get(parentId);

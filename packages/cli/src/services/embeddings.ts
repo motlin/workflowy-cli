@@ -48,7 +48,7 @@ export const DEFAULT_MODELS = Object.entries(EMBEDDING_MODELS)
 	.map(([key]) => key);
 
 class EmbeddingService {
-	private extractors = new Map<string, FeatureExtractionPipeline>();
+	private readonly extractors = new Map<string, FeatureExtractionPipeline>();
 
 	async getExtractor(modelKey: string): Promise<FeatureExtractionPipeline> {
 		const existing = this.extractors.get(modelKey);

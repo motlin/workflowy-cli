@@ -23,7 +23,7 @@ interface NodeInfo {
  * walking lives in one place.
  */
 export class PathBuilder {
-	private database: BetterSQLite3Database<typeof schema>;
+	private readonly database: BetterSQLite3Database<typeof schema>;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
 		this.database = database;

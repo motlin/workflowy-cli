@@ -43,8 +43,8 @@ export interface BackupImportOptions {
 }
 
 export class BackupImportService {
-	private database: ReturnType<typeof createDatabase>;
-	private cacheService: CacheService;
+	private readonly database: ReturnType<typeof createDatabase>;
+	private readonly cacheService: CacheService;
 
 	constructor(database: ReturnType<typeof createDatabase>) {
 		this.database = database;

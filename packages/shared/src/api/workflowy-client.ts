@@ -88,14 +88,14 @@ export interface CreateMirrorResult {
  * Supports optional logging via dependency injection.
  */
 export class WorkflowyApiClient {
-	private logger?: ApiLogger;
-	private baseUrl: string;
-	private maxRetries: number;
-	private baseDelayMs: number;
-	private maxDelayMs: number;
+	private readonly logger?: ApiLogger;
+	private readonly baseUrl: string;
+	private readonly maxRetries: number;
+	private readonly baseDelayMs: number;
+	private readonly maxDelayMs: number;
 
 	constructor(
-		private apiKey: string,
+		private readonly apiKey: string,
 		logger?: ApiLogger,
 		baseUrl?: string,
 		retryOptions?: RetryOptions,

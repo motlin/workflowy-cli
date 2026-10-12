@@ -50,7 +50,7 @@ export interface WorkflowyInternalClientOptions {
  */
 export class WorkflowyInternalClient {
 	private sessionCookie: string | null = null;
-	private credentials: WorkflowyCredentials;
+	private readonly credentials: WorkflowyCredentials;
 
 	constructor(options: WorkflowyInternalClientOptions) {
 		this.credentials = options.credentials;

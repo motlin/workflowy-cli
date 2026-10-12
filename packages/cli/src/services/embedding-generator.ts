@@ -61,8 +61,8 @@ export interface EmbeddingGeneratorResult {
 }
 
 export class EmbeddingGeneratorService {
-	private database: BetterSQLite3Database<typeof schema>;
-	private pathBuilder: PathBuilder;
+	private readonly database: BetterSQLite3Database<typeof schema>;
+	private readonly pathBuilder: PathBuilder;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
 		this.database = database;

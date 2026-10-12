@@ -22,8 +22,8 @@ export interface ListByIdResult {
 
 export class ListByIdService {
 	constructor(
-		private cacheService: CacheService,
-		private apiClient: WorkflowyApiClient | null,
+		private readonly cacheService: CacheService,
+		private readonly apiClient: WorkflowyApiClient | null,
 	) {}
 
 	async listNodes(options: ListByIdOptions): Promise<ListByIdResult> {

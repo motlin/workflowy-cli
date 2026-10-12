@@ -14,8 +14,8 @@ export interface TextSearchResult {
 }
 
 export class TextSearchService {
-	private cacheService: CacheService;
-	private pathBuilder: PathBuilder;
+	private readonly cacheService: CacheService;
+	private readonly pathBuilder: PathBuilder;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
 		this.cacheService = new CacheService(database);

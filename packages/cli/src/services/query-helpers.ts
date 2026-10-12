@@ -8,8 +8,8 @@ import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {logger} from "./logger.js";
 
 export class QueryHelpers {
-	private database: BetterSQLite3Database<typeof schema>;
-	private nodeReader: NodeReader;
+	private readonly database: BetterSQLite3Database<typeof schema>;
+	private readonly nodeReader: NodeReader;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {
 		this.database = database;

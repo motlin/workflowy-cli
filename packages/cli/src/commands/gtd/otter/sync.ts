@@ -105,8 +105,8 @@ export default class Sync extends Command {
 		}),
 	};
 
-	private verbose = process.env.OTTER_VERBOSE === "1";
-	private startTime = Date.now();
+	private readonly verbose = process.env.OTTER_VERBOSE === "1";
+	private readonly startTime = Date.now();
 
 	public async run(): Promise<SyncOutput> {
 		const {flags} = await this.parse(Sync);

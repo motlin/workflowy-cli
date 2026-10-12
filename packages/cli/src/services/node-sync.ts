@@ -21,8 +21,8 @@ export interface NodeSyncOptions {
 
 export class NodeSyncService {
 	constructor(
-		private apiClient: WorkflowyApiClient,
-		private cacheService: CacheService,
+		private readonly apiClient: WorkflowyApiClient,
+		private readonly cacheService: CacheService,
 	) {}
 
 	async syncNode(options: NodeSyncOptions): Promise<NodeSyncStats> {

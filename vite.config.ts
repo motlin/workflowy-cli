@@ -77,6 +77,7 @@ export default defineConfig({
 			"typescript/prefer-nullish-coalescing": ["error", {ignorePrimitives: true}],
 			"typescript/prefer-includes": "error",
 			"typescript/prefer-optional-chain": "error",
+			"typescript/prefer-readonly": "error",
 			"typescript/no-unnecessary-type-assertion": "error",
 			"unicorn/prefer-string-replace-all": "error",
 			// React 19's useRef<T>(initial) requires its argument, so `useRef<T>(undefined)` must stay.

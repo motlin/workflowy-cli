@@ -14,8 +14,8 @@ export interface PathResolutionOptions {
 
 export class PathResolutionService {
 	constructor(
-		private cacheService: CacheService,
-		private apiClient: WorkflowyApiClient | null,
+		private readonly cacheService: CacheService,
+		private readonly apiClient: WorkflowyApiClient | null,
 	) {}
 
 	async resolveTargetNodeId(options: PathResolutionOptions): Promise<PathResolutionResult> {

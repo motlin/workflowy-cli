@@ -55,8 +55,8 @@ export default class Api extends Command {
 		}),
 	};
 
-	private verbose = process.env.OTTER_VERBOSE === "1";
-	private startTime = Date.now();
+	private readonly verbose = process.env.OTTER_VERBOSE === "1";
+	private readonly startTime = Date.now();
 
 	public async run(): Promise<unknown> {
 		const {args, flags} = await this.parse(Api);

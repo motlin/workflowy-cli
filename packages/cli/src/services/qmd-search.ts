@@ -68,8 +68,8 @@ function extractNodeId(virtualPath: string): string {
 }
 
 export class QmdSearchService {
-	private database: BetterSQLite3Database<typeof schema>;
-	private pathBuilder: PathBuilder;
+	private readonly database: BetterSQLite3Database<typeof schema>;
+	private readonly pathBuilder: PathBuilder;
 	private store: QMDStore | null = null;
 
 	constructor(database: BetterSQLite3Database<typeof schema>) {

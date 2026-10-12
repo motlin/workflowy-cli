@@ -19,8 +19,8 @@ import type {DeletePlan} from "./delete-plan.js";
  */
 export class WorkflowyWriteThroughClient {
 	constructor(
-		private apiClient: WorkflowyApiClient,
-		private cacheService: CacheService,
+		private readonly apiClient: WorkflowyApiClient,
+		private readonly cacheService: CacheService,
 	) {}
 
 	/**
