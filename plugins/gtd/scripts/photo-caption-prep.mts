@@ -25,7 +25,7 @@
 // favorites in the window with neither a Photos caption nor a journal entry.
 
 import {spawnSync} from "node:child_process";
-import {copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from "node:fs";
+import {constants, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from "node:fs";
 import {homedir} from "node:os";
 import {join, resolve} from "node:path";
 import {expectArray, expectObject, parseJson, stringField} from "./json.mts";
@@ -362,19 +362,35 @@ const toJournalRow = (row: JsonObject): JournalRow => ({
 
 const toNameRow = (row: JsonObject): NameRow => ({name: stringField(row, "name") ?? null});
 
-function copyDatabase(libraryPath: string, outDir: string): string {
-	const target = join(outDir, "photos-ro.sqlite");
-	for (const suffix of ["-wal", "-shm"]) {
+const DB_SUFFIXES = ["", "-wal", "-shm"];
+
+function removeDatabaseCopy(target: string): void {
+	for (const suffix of DB_SUFFIXES) {
 		rmSync(target + suffix, {force: true});
 	}
+}
+
+// COPYFILE_FICLONE makes APFS clone the multi-GB DB (copy-on-write, near-zero space),
+// falling back to a real copy where cloning is unsupported.
+function copyDatabase(libraryPath: string, outDir: string): string {
+	const target = join(outDir, "photos-ro.sqlite");
+	removeDatabaseCopy(target);
 	const source = join(libraryPath, "database", "Photos.sqlite");
-	copyFileSync(source, target);
-	for (const suffix of ["-wal", "-shm"]) {
-		if (existsSync(source + suffix)) {
-			copyFileSync(source + suffix, target + suffix);
+	for (const suffix of DB_SUFFIXES) {
+		if (suffix === "" || existsSync(source + suffix)) {
+			copyFileSync(source + suffix, target + suffix, constants.COPYFILE_FICLONE);
 		}
 	}
 	return target;
+}
+
+export function withDatabaseCopy<T>(libraryPath: string, outDir: string, fn: (dbPath: string) => T): T {
+	const dbPath = copyDatabase(libraryPath, outDir);
+	try {
+		return fn(dbPath);
+	} finally {
+		removeDatabaseCopy(dbPath);
+	}
 }
 
 function sqliteJson(dbPath: string, sql: string): JsonObject[] {
@@ -399,8 +415,10 @@ function main(): void {
 	const libraryPath = join(homedir(), "Pictures", "Photos Library.photoslibrary");
 	const outDir = resolve(args.out);
 	mkdirSync(outDir, {recursive: true});
+	withDatabaseCopy(libraryPath, outDir, (dbPath) => run(args, libraryPath, outDir, dbPath));
+}
 
-	const dbPath = copyDatabase(libraryPath, outDir);
+function run(args: Args, libraryPath: string, outDir: string, dbPath: string): void {
 	const workflowyDb = resolve(args.workflowyDb);
 	if (!existsSync(workflowyDb)) {
 		throw new Error(`Workflowy cache not found: ${workflowyDb}`);

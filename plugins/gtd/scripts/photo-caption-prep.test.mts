@@ -2,6 +2,9 @@
 /* eslint-disable @typescript-eslint/no-floating-promises -- node:test test() calls are fire-and-forget by design */
 import {test} from "node:test";
 import assert from "node:assert/strict";
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
 import {
 	buildExportAppleScript,
 	buildManifest,
@@ -15,6 +18,7 @@ import {
 	journalQuery,
 	planSources,
 	splitJournaled,
+	withDatabaseCopy,
 } from "./photo-caption-prep.mts";
 
 test("favoritesQuery selects uncaptioned, untrashed, visible favorite photos within the window", () => {
@@ -279,4 +283,52 @@ test("splitJournaled separates favorites with a journal entry at their exact min
 		journaled: [favorites[0], favorites[2]],
 		remaining: [favorites[1], favorites[3]],
 	});
+});
+
+function fakeLibrary(): {root: string; library: string; out: string} {
+	const root = mkdtempSync(join(tmpdir(), "photo-caption-prep-"));
+	const library = join(root, "Photos Library.photoslibrary");
+	mkdirSync(join(library, "database"), {recursive: true});
+	writeFileSync(join(library, "database", "Photos.sqlite"), "db");
+	writeFileSync(join(library, "database", "Photos.sqlite-wal"), "wal");
+	const out = join(root, "out");
+	mkdirSync(out);
+	return {root, library, out};
+}
+
+test("withDatabaseCopy hands the callback a copy of the Photos DB and deletes it afterwards", () => {
+	const {root, library, out} = fakeLibrary();
+	try {
+		const seen = withDatabaseCopy(library, out, (dbPath) => ({
+			db: readFileSync(dbPath, "utf8"),
+			wal: readFileSync(`${dbPath}-wal`, "utf8"),
+			shm: existsSync(`${dbPath}-shm`),
+		}));
+		assert.deepStrictEqual(seen, {db: "db", wal: "wal", shm: false});
+		assert.deepStrictEqual(
+			["photos-ro.sqlite", "photos-ro.sqlite-wal", "photos-ro.sqlite-shm"].map((f) => existsSync(join(out, f))),
+			[false, false, false],
+		);
+	} finally {
+		rmSync(root, {recursive: true, force: true});
+	}
+});
+
+test("withDatabaseCopy deletes the Photos DB copy even when the callback throws", () => {
+	const {root, library, out} = fakeLibrary();
+	try {
+		assert.throws(
+			() =>
+				withDatabaseCopy(library, out, () => {
+					throw new Error("query failed");
+				}),
+			/query failed/u,
+		);
+		assert.deepStrictEqual(
+			["photos-ro.sqlite", "photos-ro.sqlite-wal"].map((f) => existsSync(join(out, f))),
+			[false, false],
+		);
+	} finally {
+		rmSync(root, {recursive: true, force: true});
+	}
 });
