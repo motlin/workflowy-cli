@@ -283,7 +283,7 @@ importers:
     devDependencies:
       '@oclif/test':
         specifier: ^5
-        version: 5.0.1(@oclif/core@5.1.2)(supports-color@10.2.2)
+        version: 5.0.2(@oclif/core@5.1.2)(supports-color@10.2.2)
       oclif:
         specifier: ^6
         version: 6.0.2(@types/node@26.6.5)(supports-color@10.2.2)
@@ -1473,8 +1473,8 @@ packages:
     resolution: {integrity: sha512-zX0iNZT5JiHXdzQ7ORQCRAqwydG119LZDf6Pet+5HEeONHJu/byWAA99n2HLTOZmWMwJ65bLSp3ZajOHtJaSkw==}
     engines: {node: '>=22.0.0'}
 
-  '@oclif/test@5.0.1':
-    resolution: {integrity: sha512-BjHZZvkEo8udP1rLSeP8QpdMwqzwbiF4bW248CJgvaPE0lHewzXjmtwh+OvMFwRlwE4t5sAhCfQ1JBFQP4Mnpw==}
+  '@oclif/test@5.0.2':
+    resolution: {integrity: sha512-2UAb4/sywysFSPfNNZzCxCi95b+YnFPWfxfzbw4vhdrCzJ38ZxCBP5p8IEdBM42sbdDl2k0KjOe7vGPOYYkNHg==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@oclif/core': ^5.0.0
@@ -6428,7 +6428,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@oclif/test@5.0.1(@oclif/core@5.1.2)(supports-color@10.2.2)':
+  '@oclif/test@5.0.2(@oclif/core@5.1.2)(supports-color@10.2.2)':
     dependencies:
       '@oclif/core': 5.1.2
       ansis: 3.17.0
@@ -7175,7 +7175,7 @@ snapshots:
       '@vitest/mocker': 5.0.3(@voidzero-dev/vite-plus-core@1.2.0(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0))
       '@vitest/ui': 5.0.3(vitest@5.0.3)
       '@vitest/utils': 5.0.3
-      magic-string: 1.4.2
+      magic-string: 1.4.3
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.2.0
