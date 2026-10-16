@@ -210,7 +210,7 @@ importers:
         version: 0.23.3(supports-color@8.1.1)
       oclif:
         specifier: ^6
-        version: 6.0.2(@types/node@26.6.5)(supports-color@8.1.1)
+        version: 6.0.5(@types/node@26.6.5)(supports-color@8.1.1)
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -286,7 +286,7 @@ importers:
         version: 5.0.2(@oclif/core@5.1.2)(supports-color@10.2.2)
       oclif:
         specifier: ^6
-        version: 6.0.2(@types/node@26.6.5)(supports-color@10.2.2)
+        version: 6.0.5(@types/node@26.6.5)(supports-color@10.2.2)
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
@@ -4332,8 +4332,8 @@ packages:
     resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
     engines: {node: '>=12.20.0'}
 
-  oclif@6.0.2:
-    resolution: {integrity: sha512-y0UuI6AEb8yjms2TPBHBInCDXoFwOiZ2EitGxv5pascylvowQbZSRd3ViOs2ZBXAJD9X5DlnHP8gppc0umkb/Q==}
+  oclif@6.0.5:
+    resolution: {integrity: sha512-zlC14gnBmwHvLzquGI4zPU7WW4a1AhUTHzwPqxV+zRIUTrcYJbqQIEljjkh5A55E84Lm7Ix8u9KSsAaIJCvfLA==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
@@ -7040,7 +7040,7 @@ snapshots:
 
   '@types/mute-stream@0.0.4':
     dependencies:
-      '@types/node': 26.6.5
+      '@types/node': 26.6.4
 
   '@types/node@22.20.4':
     dependencies:
@@ -9078,7 +9078,7 @@ snapshots:
 
   obug@2.2.1: {}
 
-  oclif@6.0.2(@types/node@26.6.5)(supports-color@10.2.2):
+  oclif@6.0.5(@types/node@26.6.5)(supports-color@10.2.2):
     dependencies:
       '@aws-sdk/client-cloudfront': 3.1141.0
       '@aws-sdk/client-s3': 3.1141.0
@@ -9107,7 +9107,7 @@ snapshots:
       - '@types/node'
       - supports-color
 
-  oclif@6.0.2(@types/node@26.6.5)(supports-color@8.1.1):
+  oclif@6.0.5(@types/node@26.6.5)(supports-color@8.1.1):
     dependencies:
       '@aws-sdk/client-cloudfront': 3.1141.0
       '@aws-sdk/client-s3': 3.1141.0
