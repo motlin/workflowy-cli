@@ -22,6 +22,7 @@ import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
 import {useKeyboardShortcuts} from "./hooks/use-keyboard-shortcuts.js";
 import {useOutlineStore} from "./stores/outline.js";
+import "./wf-tailwind.css";
 import "./styles.css";
 
 /**
