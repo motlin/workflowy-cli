@@ -4,6 +4,7 @@ export * from "./changes/index.js";
 export * from "./db/index.js";
 export * from "./html/index.js";
 export * from "./schemas/index.js";
+export * from "./starring.js";
 export * from "./temporal/index.js";
 export * from "./types/index.js";
 export * from "./workflowy/index.js";
