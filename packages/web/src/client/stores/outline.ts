@@ -1,5 +1,6 @@
 import {create} from "zustand";
 import {z} from "zod";
+import {themeBodyClass} from "../theme-body-class.js";
 
 const StringArraySchema = z.array(z.string());
 
@@ -30,6 +31,9 @@ function getInitialTheme(): Theme {
 function applyTheme(theme: Theme): void {
 	const effectiveTheme = theme === "system" ? getSystemTheme() : theme;
 	document.documentElement.dataset.theme = effectiveTheme;
+	const bodyClass = themeBodyClass(effectiveTheme);
+	document.body.classList.toggle("_theme-dark", bodyClass === "_theme-dark");
+	document.body.classList.toggle("_theme-default", bodyClass === "_theme-default");
 }
 
 function getInitialShowCompleted(): boolean {
