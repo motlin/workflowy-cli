@@ -19,6 +19,8 @@ const storeState = {
 	toggleStarPage: () => {},
 	openSearchWithQuery: () => {},
 	removeSavedSearch: () => {},
+	leftBarSectionExpansions: {} as Record<string, boolean>,
+	setLeftBarSectionExpanded: vi.fn<(key: string, value: boolean) => void>(),
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -32,7 +34,9 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useNode: () => ({data: undefined}),
 }));
 
-const {LeftBar, applyBodyOffset, resizeWidth} = await import("../src/client/components/left-sidebar.js");
+const {LeftBar, LeftBarSection, applyBodyOffset, resizeWidth} =
+	await import("../src/client/components/left-sidebar.js");
+const {TRIANGLE_PATH} = await import("../src/client/components/fa-icons.js");
 
 function render(mode: LeftBarMode, hovered = false): string {
 	storeState.leftBarMode = mode;
@@ -122,6 +126,43 @@ describe("LeftBar shell", () => {
 
 	it("renders the arrow-left icon inside the pin", () => {
 		expect(render("alwaysOpen")).toContain('data-icon="arrow-left"');
+	});
+});
+
+describe("LeftBarSection", () => {
+	const header = (open: boolean) =>
+		'<div class="relative pl-xl flex items-center font-normal text-secondary mb-m hover:cursor-pointer left-bar-section-header group ">' +
+		`<div class="absolute -top-[3px] left-2xs flex items-center justify-center ${open ? "opacity-25" : "opacity-50"} hover:opacity-100 group-hover:opacity-100 sectionArrow ${open ? "expanded" : ""}">` +
+		'<div><svg width="20" height="20" viewBox="0 0 20 20" class="block transition-transform duration-200 ease-base [.expanded_&amp;]:rotate-90">' +
+		`<path d="${TRIANGLE_PATH}" stroke="none" fill="currentColor"></path></svg></div></div>Home</div>`;
+
+	function renderSection(expansions: Record<string, boolean>): string {
+		storeState.leftBarSectionExpansions = expansions;
+		return renderToStaticMarkup(
+			createElement(
+				LeftBarSection,
+				{name: "Home", contextKey: "leftbar__home__"},
+				createElement("p", null, "kids"),
+			),
+		);
+	}
+
+	it("renders an open section by default with children and a 24px spacer", () => {
+		expect(renderSection({})).toBe(`${header(true)}<p>kids</p><div style="margin-bottom:24px"></div>`);
+	});
+
+	it("renders a collapsed section without children and a 16px spacer", () => {
+		expect(renderSection({leftbar__home__: false})).toBe(`${header(false)}<div style="margin-bottom:16px"></div>`);
+	});
+
+	it("persists the toggled state under its context key", () => {
+		storeState.leftBarSectionExpansions = {};
+		storeState.setLeftBarSectionExpanded.mockClear();
+		const fragment = LeftBarSection({name: "Home", contextKey: "leftbar__home__"}) as {
+			props: {children: [{props: {onClick: () => void}}]};
+		};
+		fragment.props.children[0].props.onClick();
+		expect(storeState.setLeftBarSectionExpanded.mock.calls).toStrictEqual([["leftbar__home__", false]]);
 	});
 });
 

@@ -1,10 +1,10 @@
 import {useEffect, useRef, useState} from "react";
-import type {PointerEvent as ReactPointerEvent} from "react";
+import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
 import {nodeRoute} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {FaIcon} from "./fa-icons.js";
+import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 
 /**
@@ -22,20 +22,6 @@ function SearchIcon() {
 	return (
 		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
 			<path d="M384 208A176 176 0 1 0 32 208a176 176 0 1 0 352 0zM343.3 366C307 397.2 259.7 416 208 416C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208c0 51.7-18.8 99-50 135.3L507.3 484.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L343.3 366z" />
-		</svg>
-	);
-}
-
-function ChevronIcon({expanded}: {expanded: boolean}) {
-	return (
-		<svg
-			className={`section-chevron ${expanded ? "expanded" : ""}`}
-			fill="currentColor"
-			height="10"
-			viewBox="0 0 320 512"
-			width="10"
-		>
-			<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
 		</svg>
 	);
 }
@@ -230,14 +216,44 @@ function ResizeTarget({width, onWidthChange}: {width: number; onWidthChange: (wi
 	);
 }
 
+/**
+ * Upstream's collapsible left-bar section: a clickable header with a rotating triangle, the children
+ * while open, and a spacer. Open state persists per `contextKey` and defaults to open.
+ */
+export function LeftBarSection({name, contextKey, children}: {name: string; contextKey: string; children?: ReactNode}) {
+	const expansions = useOutlineStore((state) => state.leftBarSectionExpansions);
+	const setExpanded = useOutlineStore((state) => state.setLeftBarSectionExpanded);
+	const open = expansions[contextKey] ?? true;
+	return (
+		<>
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div header */}
+			<div
+				className="relative pl-xl flex items-center font-normal text-secondary mb-m hover:cursor-pointer left-bar-section-header group "
+				onClick={() => {
+					setExpanded(contextKey, !open);
+				}}
+			>
+				<div
+					className={`absolute -top-[3px] left-2xs flex items-center justify-center ${open ? "opacity-25" : "opacity-50"} hover:opacity-100 group-hover:opacity-100 sectionArrow ${open ? "expanded" : ""}`}
+				>
+					<div>
+						<TriangleSvg className="block transition-transform duration-200 ease-base [.expanded_&]:rotate-90" />
+					</div>
+				</div>
+				{name}
+			</div>
+			{open ? children : null}
+			<div style={{marginBottom: open ? 24 : 16}} />
+		</>
+	);
+}
+
 /** Today, Starred and Home sections plus the New node footer; replaced section by section by upstream ports. */
 function LeftBarSections() {
 	const {savedSearches, starredPages, zoomedNodeId} = useOutlineStore();
 	const navigate = useNavigate();
 	const createNode = useCreateNode();
 	const {data: rootNodes} = useChildren(null);
-	const [starredExpanded, setStarredExpanded] = useState(true);
-	const [homeExpanded, setHomeExpanded] = useState(true);
 	const starredPagesArray = [...starredPages];
 
 	const handleTodayClick = () => {
@@ -272,71 +288,30 @@ function LeftBarSections() {
 					</ul>
 				</section>
 
-				{/* Starred Section */}
-				<section className="left-sidebar-section">
-					<h3 className="left-sidebar-section-title">
-						<button
-							aria-expanded={starredExpanded}
-							className="left-sidebar-section-button"
-							onClick={() => {
-								setStarredExpanded(!starredExpanded);
-							}}
-							type="button"
-						>
-							<span className="left-sidebar-section-toggle">
-								<ChevronIcon expanded={starredExpanded} />
-							</span>
-							Starred
-						</button>
-					</h3>
-					{starredExpanded && (
-						<ul className="left-sidebar-list">
-							{starredPagesArray.length === 0 && savedSearches.length === 0 ? (
-								<li className="left-sidebar-empty">No starred items</li>
-							) : (
-								<>
-									{starredPagesArray.map((nodeId) => (
-										<StarredPageItem key={nodeId} nodeId={nodeId} />
-									))}
-									{savedSearches.map((query) => (
-										<SavedSearchItem key={query} query={query} />
-									))}
-								</>
-							)}
-						</ul>
-					)}
-				</section>
+				<LeftBarSection contextKey="leftbar__starred__" name="Starred">
+					<ul className="left-sidebar-list">
+						{starredPagesArray.length === 0 && savedSearches.length === 0 ? (
+							<li className="left-sidebar-empty">No starred items</li>
+						) : (
+							<>
+								{starredPagesArray.map((nodeId) => (
+									<StarredPageItem key={nodeId} nodeId={nodeId} />
+								))}
+								{savedSearches.map((query) => (
+									<SavedSearchItem key={query} query={query} />
+								))}
+							</>
+						)}
+					</ul>
+				</LeftBarSection>
 
-				{/* Home Section */}
-				<section className="left-sidebar-section">
-					<h3 className="left-sidebar-section-title">
-						<button
-							aria-expanded={homeExpanded}
-							className="left-sidebar-section-button"
-							onClick={() => {
-								setHomeExpanded(!homeExpanded);
-							}}
-							type="button"
-						>
-							<span className="left-sidebar-section-toggle">
-								<ChevronIcon expanded={homeExpanded} />
-							</span>
-							Home
-						</button>
-					</h3>
-					{homeExpanded && (
-						<ul className="left-sidebar-list home-tree">
-							{rootNodes?.map((node) => (
-								<HomeTreeItem
-									hasChildren={true}
-									key={node.id}
-									name={node.name ?? ""}
-									nodeId={node.id}
-								/>
-							))}
-						</ul>
-					)}
-				</section>
+				<LeftBarSection contextKey="leftbar__home__" name="Home">
+					<ul className="left-sidebar-list home-tree">
+						{rootNodes?.map((node) => (
+							<HomeTreeItem hasChildren={true} key={node.id} name={node.name ?? ""} nodeId={node.id} />
+						))}
+					</ul>
+				</LeftBarSection>
 			</nav>
 
 			<div className="left-sidebar-footer">
