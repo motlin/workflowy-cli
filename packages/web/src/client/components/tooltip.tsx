@@ -1,123 +1,215 @@
-import {useEffect, useLayoutEffect, useRef, useState} from "react";
-import type {ReactNode} from "react";
+import {cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import type {ReactElement, ReactNode, Ref, RefCallback, SyntheticEvent} from "react";
 import {createPortal} from "react-dom";
 
-interface TooltipProps {
-	/** The content to show in the tooltip */
+/** Gap between trigger bottom and tooltip top (tippy offset [0, 10]). */
+const OFFSET = 10;
+/** Minimum distance kept from the viewport edges. */
+const VIEWPORT_PADDING = 8;
+
+type TooltipState = "hidden" | "visible";
+
+interface TooltipBoxProps {
 	content: ReactNode;
-	/** The element that triggers the tooltip */
-	children: ReactNode;
-	/** Optional keyboard shortcut to display */
 	shortcut?: string;
-	/** Placement of the tooltip relative to the trigger */
-	placement?: "top" | "bottom";
-	/** Delay before showing tooltip in ms */
+	state: TooltipState;
+}
+
+function tooltipText(content: ReactNode, shortcut: string | undefined): ReactNode {
+	if (shortcut === undefined || shortcut === "") {
+		return content;
+	}
+	if (typeof content === "string" || typeof content === "number") {
+		return `${content} ${shortcut}`;
+	}
+	return (
+		<>
+			{content} {shortcut}
+		</>
+	);
+}
+
+/** Upstream's tippy box markup (`.tippy-box.wf-helper.tooltip`), rendered without positioning. */
+export function TooltipBox({content, shortcut, state}: TooltipBoxProps) {
+	return (
+		<div
+			className="tippy-box wf-helper tooltip text-xs shadow-md"
+			data-placement="bottom"
+			data-state={state}
+			role="tooltip"
+			style={{maxWidth: 350, transitionDuration: "300ms"}}
+		>
+			<div className="tippy-content">
+				<div>{tooltipText(content, shortcut)}</div>
+			</div>
+		</div>
+	);
+}
+
+interface TriggerRect {
+	left: number;
+	width: number;
+	bottom: number;
+}
+
+/** Centered-below placement clamped inside the viewport; `left` is the box center (translateX(-50%)). */
+export function tooltipPosition(trigger: TriggerRect, boxWidth: number, viewportWidth: number) {
+	const half = boxWidth / 2;
+	const center = trigger.left + trigger.width / 2;
+	const min = VIEWPORT_PADDING + half;
+	const max = viewportWidth - VIEWPORT_PADDING - half;
+	return {top: trigger.bottom + OFFSET, left: Math.max(min, Math.min(center, max))};
+}
+
+function canHover(): boolean {
+	return globalThis.matchMedia("(any-hover: hover) and (pointer: fine)").matches;
+}
+
+interface UseTooltipOptions {
+	content: ReactNode;
+	shortcut?: string;
+	/** Delay before showing, in ms. Hiding is immediate. */
 	delay?: number;
+	disabled?: boolean;
+}
+
+interface TooltipTriggerProps {
+	onMouseEnter: () => void;
+	onMouseLeave: () => void;
+	onMouseDown: () => void;
+	ref: RefCallback<HTMLElement>;
 }
 
 /**
- * Custom tooltip component matching Workflowy's Tippy.js styled tooltips.
- * Features:
- * - Dark background with light text
- * - Arrow pointing to trigger element
- * - Optional keyboard shortcut display
- * - Fade animation
- * - Positioned below element by default
- * - Viewport-aware positioning (stays within bounds)
+ * Tippy-style tooltip without a wrapper element: spread `triggerProps` onto the trigger
+ * and render `tooltip` anywhere (it portals to document.body).
  */
-export function Tooltip({content, children, shortcut, placement = "bottom", delay = 200}: TooltipProps) {
-	const [isVisible, setIsVisible] = useState(false);
-	const [isPositioned, setIsPositioned] = useState(false);
-	const [position, setPosition] = useState({top: 0, left: 0, arrowLeft: 0});
-	const triggerRef = useRef<HTMLDivElement>(null);
-	const tooltipRef = useRef<HTMLDivElement>(null);
+function useTooltip({content, shortcut, delay = 300, disabled = false}: UseTooltipOptions) {
+	const [requested, setRequested] = useState(false);
+	const shown = requested && !disabled;
+	const [state, setState] = useState<TooltipState>("hidden");
+	const [position, setPosition] = useState({top: 0, left: 0});
+	const triggerRef = useRef<HTMLElement | null>(null);
+	const rootRef = useRef<HTMLDivElement>(null);
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const showTooltip = () => {
-		timeoutRef.current = globalThis.setTimeout(() => {
-			setIsVisible(true);
-			setIsPositioned(false);
-		}, delay);
-	};
-
-	const hideTooltip = () => {
+	const clearTimer = useCallback(() => {
 		if (timeoutRef.current !== null) {
 			clearTimeout(timeoutRef.current);
 			timeoutRef.current = null;
 		}
-		setIsVisible(false);
-		setIsPositioned(false);
-	};
+	}, []);
 
-	// Use useLayoutEffect to measure and position before paint
-	useLayoutEffect(() => {
-		if (isVisible && triggerRef.current && tooltipRef.current) {
-			const triggerRect = triggerRef.current.getBoundingClientRect();
-			const tooltipEl = tooltipRef.current;
-			const tooltipWidth = tooltipEl.offsetWidth;
-			const tooltipHeight = tooltipEl.offsetHeight;
-			const viewportWidth = window.innerWidth;
-			const padding = 8;
+	const hide = useCallback(() => {
+		clearTimer();
+		setRequested(false);
+		setState("hidden");
+	}, [clearTimer]);
 
-			// Calculate ideal center position
-			const idealLeft = triggerRect.left + triggerRect.width / 2;
-
-			// Calculate tooltip bounds if centered
-			const tooltipHalfWidth = tooltipWidth / 2;
-			let left = idealLeft;
-			let arrowLeft = tooltipHalfWidth;
-
-			// Adjust if tooltip would go off left edge
-			if (idealLeft - tooltipHalfWidth < padding) {
-				left = padding + tooltipHalfWidth;
-				arrowLeft = idealLeft - padding;
-			}
-
-			// Adjust if tooltip would go off right edge
-			if (idealLeft + tooltipHalfWidth > viewportWidth - padding) {
-				left = viewportWidth - padding - tooltipHalfWidth;
-				arrowLeft = tooltipWidth - (viewportWidth - idealLeft - padding);
-			}
-
-			// Calculate top position
-			const top = placement === "bottom" ? triggerRect.bottom + 8 : triggerRect.top - tooltipHeight - 8;
-
-			setPosition({top, left, arrowLeft});
-			setIsPositioned(true);
+	const show = useCallback(() => {
+		if (disabled || !canHover()) {
+			return;
 		}
-	}, [isVisible, placement]);
+		clearTimer();
+		timeoutRef.current = globalThis.setTimeout(() => {
+			timeoutRef.current = null;
+			setRequested(true);
+		}, delay);
+	}, [clearTimer, delay, disabled]);
 
-	useEffect(
-		() => () => {
-			if (timeoutRef.current !== null) {
-				clearTimeout(timeoutRef.current);
-			}
+	const ref = useCallback((element: HTMLElement | null) => {
+		triggerRef.current = element;
+	}, []);
+
+	useLayoutEffect(() => {
+		if (!shown || triggerRef.current === null || rootRef.current === null) {
+			return;
+		}
+		const rect = triggerRef.current.getBoundingClientRect();
+		setPosition(tooltipPosition(rect, rootRef.current.offsetWidth, window.innerWidth));
+		setState("visible");
+	}, [shown]);
+
+	useEffect(() => clearTimer, [clearTimer]);
+
+	const tooltip = shown
+		? createPortal(
+				<div
+					data-tippy-root=""
+					ref={rootRef}
+					style={{
+						position: "fixed",
+						top: position.top,
+						left: position.left,
+						zIndex: 9999,
+						pointerEvents: "none",
+						transform: "translateX(-50%)",
+					}}
+				>
+					<TooltipBox content={content} shortcut={shortcut} state={state} />
+				</div>,
+				document.body,
+			)
+		: null;
+
+	return {
+		triggerProps: {onMouseEnter: show, onMouseLeave: hide, onMouseDown: hide, ref} satisfies TooltipTriggerProps,
+		tooltip,
+	};
+}
+
+interface TooltipProps extends UseTooltipOptions {
+	/** A single element; it receives the trigger handlers and ref directly (no wrapper). */
+	children: ReactElement<ChildProps>;
+}
+
+interface ChildProps {
+	onMouseEnter?: (event: SyntheticEvent) => void;
+	onMouseLeave?: (event: SyntheticEvent) => void;
+	onMouseDown?: (event: SyntheticEvent) => void;
+	ref?: Ref<HTMLElement>;
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+	if (typeof ref === "function") {
+		ref(value);
+	} else if (ref !== null && ref !== undefined) {
+		(ref as {current: T | null}).current = value;
+	}
+}
+
+/** Clones its single child with the tooltip trigger props, chaining any existing handlers and ref. */
+export function Tooltip({children, ...options}: TooltipProps) {
+	const {triggerProps, tooltip} = useTooltip(options);
+	const childProps = children.props;
+	const childRef = childProps.ref;
+	const triggerRef = triggerProps.ref;
+	const mergedRef = useCallback(
+		(element: HTMLElement | null) => {
+			triggerRef(element);
+			assignRef(childRef, element);
 		},
-		[],
-	);
-
-	const tooltipContent = (
-		<div
-			className={`tooltip ${isPositioned ? "tooltip-visible" : ""} tooltip-${placement}`}
-			ref={tooltipRef}
-			role="tooltip"
-			style={{
-				top: position.top,
-				left: position.left,
-			}}
-		>
-			<div className="tooltip-content">
-				<span>{content}</span>
-				{shortcut && <span className="tooltip-shortcut">{shortcut}</span>}
-			</div>
-			<div className="tooltip-arrow" style={{left: position.arrowLeft}} />
-		</div>
+		[triggerRef, childRef],
 	);
 
 	return (
-		<div className="tooltip-trigger" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} ref={triggerRef}>
-			{children}
-			{isVisible && createPortal(tooltipContent, document.body)}
-		</div>
+		<>
+			{cloneElement(children, {
+				onMouseEnter: (event: SyntheticEvent) => {
+					childProps.onMouseEnter?.(event);
+					triggerProps.onMouseEnter();
+				},
+				onMouseLeave: (event: SyntheticEvent) => {
+					childProps.onMouseLeave?.(event);
+					triggerProps.onMouseLeave();
+				},
+				onMouseDown: (event: SyntheticEvent) => {
+					childProps.onMouseDown?.(event);
+					triggerProps.onMouseDown();
+				},
+				ref: mergedRef,
+			})}
+			{tooltip}
+		</>
 	);
 }

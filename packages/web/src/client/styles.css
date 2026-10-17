@@ -641,67 +641,26 @@ body {
 /* ================================
    Tooltip Styles
    ================================
-   Custom tooltips matching Workflowy's Tippy.js implementation.
-   - Dark background (--wf-gray-800) with light text (--wf-gray-300)
-   - Small padding, rounded corners
-   - Arrow pointing to trigger element
-   - Fade animation with 300ms duration
+   Upstream Tippy.js tooltip: `.tippy-box.wf-helper.tooltip.text-xs.shadow-md`,
+   light helper box below the trigger, no arrow, 300ms fade.
 */
 
-.tooltip-trigger {
-	display: inline-flex;
+.tippy-box {
+	position: relative;
+	color: var(--wf-text-primary);
+	line-height: 1;
+	white-space: nowrap;
+	transition-property: opacity;
+}
+
+.tippy-box[data-state="hidden"] {
+	opacity: 0;
 }
 
 .tooltip {
-	position: fixed;
-	z-index: 9999;
-	pointer-events: none;
-	transform: translateX(-50%);
-	opacity: 0;
-	transition: opacity 0.15s ease;
-}
-
-.tooltip-visible {
-	opacity: 1;
-}
-
-.tooltip-content {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 4px 8px;
-	background-color: var(--wf-gray-800);
-	color: var(--wf-gray-300);
-	font-size: var(--wf-font-size-xs);
+	padding: var(--wf-space-s) var(--wf-space-m);
 	border-radius: var(--wf-radius-s);
-	white-space: nowrap;
-}
-
-.tooltip-shortcut {
-	opacity: 0.7;
-}
-
-.tooltip-arrow {
-	position: absolute;
-	width: 0;
-	height: 0;
-	border-style: solid;
-}
-
-/* Bottom placement - arrow points up */
-.tooltip-bottom .tooltip-arrow {
-	top: -6px;
-	transform: translateX(-50%);
-	border-width: 0 6px 6px 6px;
-	border-color: transparent transparent var(--wf-gray-800) transparent;
-}
-
-/* Top placement - arrow points down */
-.tooltip-top .tooltip-arrow {
-	bottom: -6px;
-	transform: translateX(-50%);
-	border-width: 6px 6px 0 6px;
-	border-color: var(--wf-gray-800) transparent transparent transparent;
+	background: var(--wf-background-primary);
 }
 
 /* ================================
