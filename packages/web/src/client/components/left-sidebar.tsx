@@ -95,7 +95,7 @@ function StarredPageItem({nodeId}: {nodeId: string}) {
 		toggleStarPage(nodeId);
 	};
 
-	const displayName = node?.name?.replaceAll(/<[^>]*>/gu, "") || "Loading...";
+	const displayName = (node?.name?.replaceAll(/<[^>]*>/gu, "") ?? "") || "Loading...";
 
 	return (
 		<li className="left-sidebar-row">
@@ -163,7 +163,7 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 		setIsExpanded(!isExpanded);
 	};
 
-	const displayName = name?.replaceAll(/<[^>]*>/gu, "") || "Untitled";
+	const displayName = name.replaceAll(/<[^>]*>/gu, "") || "Untitled";
 
 	return (
 		<li className="home-tree-item">
@@ -264,7 +264,9 @@ export function LeftSidebar() {
 						<button
 							aria-expanded={starredExpanded}
 							className="left-sidebar-section-button"
-							onClick={() => setStarredExpanded(!starredExpanded)}
+							onClick={() => {
+								setStarredExpanded(!starredExpanded);
+							}}
 							type="button"
 						>
 							<span className="left-sidebar-section-toggle">
@@ -297,7 +299,9 @@ export function LeftSidebar() {
 						<button
 							aria-expanded={homeExpanded}
 							className="left-sidebar-section-button"
-							onClick={() => setHomeExpanded(!homeExpanded)}
+							onClick={() => {
+								setHomeExpanded(!homeExpanded);
+							}}
 							type="button"
 						>
 							<span className="left-sidebar-section-toggle">

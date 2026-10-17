@@ -117,6 +117,7 @@ export function diffSubmission(models: readonly LadderModel[], input: unknown): 
 	for (const model of models) {
 		// validateSubmission narrowed a root for every model, so this lookup always hits.
 		const submitted = submission.roots[model.root];
+		assert.ok(submitted, `Submission is missing root ${model.root}`);
 
 		const wasIn = new Map<string, string>();
 		for (const tier of model.tiers) {

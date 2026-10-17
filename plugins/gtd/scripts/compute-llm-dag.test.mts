@@ -4,6 +4,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {computeLlmDag} from "./compute-llm-dag.mts";
 import type {TreeNode} from "./compute-overdue.mts";
+import {at} from "./test-helpers.mts";
 
 interface TaskSpec {
 	name: string;
@@ -52,7 +53,7 @@ function childrenOf(tree: TreeNode, name: string): TreeNode[] {
 function firstChildOf(tree: TreeNode, name: string): TreeNode {
 	const children = childrenOf(tree, name);
 	assert.ok(children.length > 0, `expected ${name} to have a child`);
-	return children[0];
+	return at(children, 0);
 }
 
 /** The node's children array, created when absent so a test can append to it. */
@@ -137,7 +138,7 @@ test("computeLlmDag records the plan date that every next date is computed from"
 	const plan = computeLlmDag(fixture(), "2000-01-01");
 
 	assert.strictEqual(plan.planDate, "2000-01-01");
-	assert.strictEqual(plan.prepBranches[0].tasks[0].advance.nextDate, "2000-01-02");
+	assert.strictEqual(at(at(plan.prepBranches, 0).tasks, 0).advance.nextDate, "2000-01-02");
 });
 
 test("computeLlmDag rejects a plan date that is not a padded ISO date", () => {
@@ -198,7 +199,7 @@ test("computeLlmDag infers the artifact slug from the prep command", () => {
 	);
 
 	const plan = computeLlmDag(tree, "2000-01-01");
-	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, "refine-exercise");
+	assert.strictEqual(at(at(plan.prepBranches, 0).tasks, 0).slug, "refine-exercise");
 	assert.strictEqual(plan.presentation.at(-1)?.slug, "refine-exercise");
 });
 
@@ -210,7 +211,7 @@ test("computeLlmDag pairs different commands through the shared task name", () =
 	presentations.push(presentation({name: "Process inbox", id: "inbox-presentation", command: "inbox"}));
 
 	const plan = computeLlmDag(tree, "2000-01-01");
-	assert.strictEqual(plan.prepBranches[0].tasks[0].slug, "refine-inbox");
+	assert.strictEqual(at(at(plan.prepBranches, 0).tasks, 0).slug, "refine-inbox");
 	assert.strictEqual(plan.presentation.at(-1)?.slug, "refine-inbox");
 });
 

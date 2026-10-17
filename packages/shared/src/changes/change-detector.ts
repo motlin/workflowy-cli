@@ -367,10 +367,12 @@ export class ChangeDetector {
 		const childrenMap = new Map<string | null, string[]>();
 		for (const [id, info] of nodeInfoMap) {
 			const pid = info.parentId;
-			if (!childrenMap.has(pid)) {
-				childrenMap.set(pid, []);
+			let siblings = childrenMap.get(pid);
+			if (siblings === undefined) {
+				siblings = [];
+				childrenMap.set(pid, siblings);
 			}
-			childrenMap.get(pid)!.push(id);
+			siblings.push(id);
 		}
 
 		const buildNode = (id: string): ChangeTreeNode | null => {

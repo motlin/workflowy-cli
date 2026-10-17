@@ -130,7 +130,9 @@ export function MoveAssistant() {
 			void runSearch();
 		}, 150);
 
-		return () => clearTimeout(searchTimeout);
+		return () => {
+			clearTimeout(searchTimeout);
+		};
 	}, [query]);
 
 	const selectParentAsync = useCallback(
@@ -267,7 +269,9 @@ export function MoveAssistant() {
 					</div>
 					<input
 						className="move-assistant-input"
-						onChange={(event) => handleQueryChange(event.target.value)}
+						onChange={(event) => {
+							handleQueryChange(event.target.value);
+						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search for a destination..."
 						ref={inputRef}
@@ -305,7 +309,9 @@ export function MoveAssistant() {
 									<li key={node.id}>
 										<button
 											className={`move-assistant-result ${index === selectedIndex ? "selected" : ""}`}
-											onClick={() => handleSelectParent(node)}
+											onClick={() => {
+												handleSelectParent(node);
+											}}
 											type="button"
 										>
 											<div className="move-assistant-result-header">
@@ -339,7 +345,9 @@ export function MoveAssistant() {
 								<li key={node.id}>
 									<button
 										className={`move-assistant-result ${index === selectedIndex ? "selected" : ""}`}
-										onClick={() => handleSelectParent(node)}
+										onClick={() => {
+											handleSelectParent(node);
+										}}
 										type="button"
 									>
 										<span className="move-assistant-result-name">

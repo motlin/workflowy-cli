@@ -29,7 +29,9 @@ export function useNavigationHistory() {
 		}
 
 		globalThis.addEventListener("popstate", handlePopState);
-		return () => globalThis.removeEventListener("popstate", handlePopState);
+		return () => {
+			globalThis.removeEventListener("popstate", handlePopState);
+		};
 	}, []);
 
 	useEffect(() => {

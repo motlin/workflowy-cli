@@ -20,6 +20,7 @@ import {
 	swapTimeElement,
 } from "./compute-overdue.mts";
 import type {OverdueRow, TreeNode, TreeRoot} from "./compute-overdue.mts";
+import {at} from "./test-helpers.mts";
 
 function rowFor(rows: OverdueRow[], id: string): OverdueRow {
 	const row = rows.find((r) => r.id === id);
@@ -184,8 +185,8 @@ test("computeOverdue skips the Phase 0 LLM Tasks: container and its subtree", ()
 
 test("computeOverdue orders by section priority then due date", () => {
 	const rows = computeOverdue(FIXTURE, "2026-06-26");
-	assert.strictEqual(rows[0].section, "🔄 Daily Review");
-	assert.strictEqual(rows[1].section, "🗓️ Weekly Review");
+	assert.strictEqual(at(rows, 0).section, "🔄 Daily Review");
+	assert.strictEqual(at(rows, 1).section, "🗓️ Weekly Review");
 });
 
 test("computeOverdue annotates overdue days, llm-task, and child count", () => {
@@ -233,9 +234,9 @@ test("computeOverdue flags sections that need a user-chosen interval", () => {
 	};
 	const rows = computeOverdue(tree, "2026-06-26");
 	assert.strictEqual(rows.length, 1);
-	assert.strictEqual(rows[0].needsInterval, true);
-	assert.strictEqual(rows[0].nextDate, null);
-	assert.strictEqual(rows[0].applyOp, null);
+	assert.strictEqual(at(rows, 0).needsInterval, true);
+	assert.strictEqual(at(rows, 0).nextDate, null);
+	assert.strictEqual(at(rows, 0).applyOp, null);
 });
 
 test("intervalDays orders every cadence from daily to annual", () => {
@@ -344,8 +345,8 @@ test("loadSkipStreaks treats a missing log as no history", () => {
 
 test("computeOverdue reports a zero skip streak when there is no history", () => {
 	const rows = computeOverdue(FIXTURE, "2026-06-26");
-	assert.strictEqual(rows[0].skipStreak, 0);
-	assert.strictEqual(rows[0].skippedSince, null);
+	assert.strictEqual(at(rows, 0).skipStreak, 0);
+	assert.strictEqual(at(rows, 0).skippedSince, null);
 });
 
 test("computeOverdue carries each item skip streak onto its row", () => {
@@ -381,7 +382,7 @@ const LADDER_TREE = {
 
 test("computeOverdue stages a lengthen op that moves the item up one cadence rung", () => {
 	const rows = computeOverdue(LADDER_TREE, "2026-06-26");
-	const {lengthen} = rows[0];
+	const {lengthen} = at(rows, 0);
 	assert.ok(lengthen);
 	assert.strictEqual(lengthen.section, "🗓️ Weekly Review");
 	assert.strictEqual(lengthen.sectionId, "sec-weekly");
@@ -412,7 +413,7 @@ test("computeOverdue leaves lengthen null at the top of the ladder", () => {
 			},
 		],
 	};
-	assert.strictEqual(computeOverdue(tree, "2026-06-26")[0].lengthen, null);
+	assert.strictEqual(at(computeOverdue(tree, "2026-06-26"), 0).lengthen, null);
 });
 
 test("computeOverdue leaves lengthen null when the section interval is unknown", () => {
@@ -434,7 +435,7 @@ test("computeOverdue leaves lengthen null when the section interval is unknown",
 			{name: "🎆 Annual Review", id: "sec-annual", priority: 8, children: []},
 		],
 	};
-	assert.strictEqual(computeOverdue(tree, "2026-06-26")[0].lengthen, null);
+	assert.strictEqual(at(computeOverdue(tree, "2026-06-26"), 0).lengthen, null);
 });
 
 test("computeOverdue leaves lengthen null when the target section has no id to move into", () => {
@@ -456,7 +457,7 @@ test("computeOverdue leaves lengthen null when the target section has no id to m
 			{name: "🗓️ Weekly Review", priority: 5, children: []},
 		],
 	};
-	assert.strictEqual(computeOverdue(tree, "2026-06-26")[0].lengthen, null);
+	assert.strictEqual(at(computeOverdue(tree, "2026-06-26"), 0).lengthen, null);
 });
 
 test("nodeContext gathers the context the walk shows before asking", () => {
@@ -581,7 +582,7 @@ test("computeOverdue carries the item context so the walk can show it before ask
 			},
 		],
 	};
-	const [row] = computeOverdue(tree, "2026-06-26");
+	const row = at(computeOverdue(tree, "2026-06-26"), 0);
 	assert.strictEqual(row.url, "https://workflowy.com/#/sid-drives");
 	assert.strictEqual(row.note, "started last week");
 	assert.strictEqual(row.modifiedAt, "2026-06-20T11:02:00Z");
@@ -674,7 +675,7 @@ const HARD_DEADLINE_TREE = {
 
 test("hard deadlines become due three days early and retain the external cycle after late completion", () => {
 	assert.deepStrictEqual(computeOverdue(HARD_DEADLINE_TREE, "1999-12-28"), []);
-	const [row] = computeOverdue(HARD_DEADLINE_TREE, "2000-01-02");
+	const row = at(computeOverdue(HARD_DEADLINE_TREE, "2000-01-02"), 0);
 	assert.deepStrictEqual(row, {
 		section: "Every 4 weeks",
 		sectionIndex: 0,
@@ -707,12 +708,12 @@ test("hard deadlines become due three days early and retain the external cycle a
 });
 
 test("hard deadline completion advances exactly one 28-day occurrence even after missed cycles", () => {
-	const [row] = computeOverdue(HARD_DEADLINE_TREE, "2000-03-01");
+	const row = at(computeOverdue(HARD_DEADLINE_TREE, "2000-03-01"), 0);
 	assert.deepStrictEqual(row.hardDeadline, {date: "2000-01-01", leadDays: 3, nextDate: "2000-01-29"});
 	const nextTree = structuredClone(HARD_DEADLINE_TREE);
 	assert.ok(row.newName);
 	firstItem(nextTree).name = row.newName;
-	const [next] = computeOverdue(nextTree, "2000-03-01");
+	const next = at(computeOverdue(nextTree, "2000-03-01"), 0);
 	assert.deepStrictEqual(next.hardDeadline, {date: "2000-01-29", leadDays: 3, nextDate: "2000-02-26"});
 });
 
@@ -808,7 +809,7 @@ test("a Next: <weekday> marker lands the advanced date on the next matching week
 
 test("a weekday-anchored item completed on its weekday advances a full week, not zero days", () => {
 	// 2000-01-08 is a Saturday.
-	const [row] = computeOverdue(WEEKDAY_TREE, "2000-01-08");
+	const row = at(computeOverdue(WEEKDAY_TREE, "2000-01-08"), 0);
 	assert.deepStrictEqual(
 		{nextDate: row.nextDate, weekday: row.weekday},
 		{nextDate: "2000-01-15", weekday: "Saturday"},
@@ -816,7 +817,7 @@ test("a weekday-anchored item completed on its weekday advances a full week, not
 });
 
 test("an unanchored row reports weekday null", () => {
-	const [row] = computeOverdue(HARD_DEADLINE_TREE, "2000-01-02");
+	const row = at(computeOverdue(HARD_DEADLINE_TREE, "2000-01-02"), 0);
 	assert.strictEqual(row.weekday, null);
 });
 
@@ -842,8 +843,8 @@ test("weekday markers reject malformed, duplicate, and hard-deadline combination
 
 test("lengthening a weekday-anchored item keeps the weekday", () => {
 	const tree = structuredClone(WEEKDAY_TREE);
-	tree.children[0].id = "test-weekly";
-	const [row] = computeOverdue(tree, "2000-01-05");
+	at(tree.children, 0).id = "test-weekly";
+	const row = at(computeOverdue(tree, "2000-01-05"), 0);
 	// Next rung above Weekly is Monthly: last Saturday on or before Feb 5 is Feb 5 itself.
 	assert.strictEqual(row.lengthen?.nextDate, "2000-02-05");
 });

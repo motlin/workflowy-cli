@@ -39,7 +39,9 @@ export function ErrorNotifications() {
 						)}
 						<button
 							className="error-notification-dismiss"
-							onClick={() => removeErrorNotification(notification.id)}
+							onClick={() => {
+								removeErrorNotification(notification.id);
+							}}
 							type="button"
 						>
 							Dismiss

@@ -95,6 +95,9 @@ export function classifyExclusions(
 		// tmutil prints one status line per argument, in argument order.
 		for (const [index, path] of batch.entries()) {
 			const line = lines[index];
+			if (line === undefined) {
+				throw new Error(`tmutil returned no line for ${path}`);
+			}
 			if (line.startsWith("[Excluded]")) {
 				continue;
 			}

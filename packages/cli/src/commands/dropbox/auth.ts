@@ -2,6 +2,7 @@ import {Command} from "@oclif/core";
 import {DropboxAuth} from "dropbox";
 import {createServer} from "node:http";
 import {log} from "../../services/logger.js";
+import {nonEmpty} from "../../utils/non-empty.js";
 
 export default class DropboxAuthCommand extends Command {
 	static override description = "Authenticate with Dropbox to get a refresh token";
@@ -11,8 +12,8 @@ export default class DropboxAuthCommand extends Command {
 	public async run(): Promise<void> {
 		await this.parse(DropboxAuthCommand);
 
-		const clientId = process.env.DROPBOX_ACCESS_KEY || process.env.DROPBOX_APP_KEY;
-		const clientSecret = process.env.DROPBOX_ACCESS_SECRET || process.env.DROPBOX_APP_SECRET;
+		const clientId = nonEmpty(process.env.DROPBOX_ACCESS_KEY) ?? process.env.DROPBOX_APP_KEY;
+		const clientSecret = nonEmpty(process.env.DROPBOX_ACCESS_SECRET) ?? process.env.DROPBOX_APP_SECRET;
 
 		if (!clientId || !clientSecret) {
 			this.error(
@@ -55,9 +56,9 @@ export default class DropboxAuthCommand extends Command {
 
 		let authCode = "";
 		const server = createServer((req, res) => {
-			const url = new URL(req.url || "", `http://localhost:8912`);
+			const url = new URL(req.url ?? "", `http://localhost:8912`);
 			if (url.pathname === "/callback") {
-				authCode = url.searchParams.get("code") || "";
+				authCode = url.searchParams.get("code") ?? "";
 				res.writeHead(200, {"Content-Type": "text/html"});
 				res.end(
 					"<html><body><h1>✅ Authentication successful!</h1><p>You can close this window and return to the terminal.</p></body></html>",
@@ -74,7 +75,9 @@ export default class DropboxAuthCommand extends Command {
 		});
 
 		await new Promise<void>((resolve) => {
-			server.on("close", () => resolve());
+			server.on("close", () => {
+				resolve();
+			});
 		});
 
 		if (!authCode) {

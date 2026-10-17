@@ -113,9 +113,10 @@ describe("cache-import service", () => {
 				priorityUpdated: 0,
 			});
 
-			const allNodes = testDatabase.db.select().from(nodeContent).all();
+			const [node] = testDatabase.db.select().from(nodeContent).all();
+			assert(node);
 			// oxlint-disable-next-line @typescript-eslint/no-unused-vars
-			const {systemFrom, ...contentRest} = allNodes[0];
+			const {systemFrom, ...contentRest} = node;
 			expect(contentRest).toStrictEqual({
 				id: "node-1",
 				name: "Test Node",
@@ -123,7 +124,7 @@ describe("cache-import service", () => {
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expectActiveRecord(createNodeFromContent(allNodes[0]));
+			expectActiveRecord(createNodeFromContent(node));
 		});
 
 		it("imports multiple root nodes", async () => {

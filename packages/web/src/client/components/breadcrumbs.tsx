@@ -87,7 +87,9 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 			<button
 				aria-label="Home"
 				className="breadcrumb-home-icon"
-				onClick={() => navigateToNode(null)}
+				onClick={() => {
+					navigateToNode(null);
+				}}
 				title="Home"
 				type="button"
 			>
@@ -103,7 +105,13 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 					{index === path.length - 1 ? (
 						<span className="breadcrumb-item breadcrumb-current">{item.name}</span>
 					) : (
-						<button className="breadcrumb-item" onClick={() => navigateToNode(item.id)} type="button">
+						<button
+							className="breadcrumb-item"
+							onClick={() => {
+								navigateToNode(item.id);
+							}}
+							type="button"
+						>
 							{item.name}
 						</button>
 					)}

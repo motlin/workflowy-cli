@@ -64,10 +64,7 @@ export class ListByIdService {
 	 * Calculate cache age in seconds from the oldest systemFrom timestamp.
 	 */
 	private calculateCacheAge(nodes: {systemFrom: string}[]): number {
-		const fetchTimes = nodes
-			.map((n) => systemFromToDate(n.systemFrom))
-			.filter((d): d is Date => d !== undefined)
-			.map((d) => d.getTime());
+		const fetchTimes = nodes.map((n) => systemFromToDate(n.systemFrom).getTime());
 		const oldestFetch = fetchTimes.length > 0 ? Math.min(...fetchTimes) : undefined;
 		return oldestFetch !== undefined && oldestFetch !== 0 ? Math.floor((Date.now() - oldestFetch) / 1000) : 0;
 	}

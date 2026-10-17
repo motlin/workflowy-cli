@@ -28,7 +28,9 @@ export function BulletDot({isCompleted = false, isDragging = false}: BulletDotPr
 			className={classes}
 			draggable
 			href="/node/story-node"
-			onClick={(event) => event.preventDefault()}
+			onClick={(event) => {
+				event.preventDefault();
+			}}
 			title="Drag to move"
 		>
 			<svg className="bullet-svg" fill="currentColor" height="100%" viewBox="0 0 18 18" width="100%">

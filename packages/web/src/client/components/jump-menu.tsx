@@ -113,7 +113,9 @@ function JumpMenuDialog() {
 			void runSearch();
 		}, 150);
 
-		return () => clearTimeout(searchTimeout);
+		return () => {
+			clearTimeout(searchTimeout);
+		};
 	}, [query]);
 
 	const handleNavigateToNode = useCallback(
@@ -179,7 +181,9 @@ function JumpMenuDialog() {
 				<div className="jump-menu-header">
 					<input
 						className="jump-menu-input"
-						onChange={(event) => handleQueryChange(event.target.value)}
+						onChange={(event) => {
+							handleQueryChange(event.target.value);
+						}}
 						onKeyDown={handleKeyDown}
 						// oxlint-disable-next-line jsx-a11y/no-autofocus -- opening the jump menu is a request to type a query
 						autoFocus
@@ -214,7 +218,9 @@ function JumpMenuDialog() {
 									<li key={node.id}>
 										<button
 											className={`jump-menu-result ${index === selectedIndex ? "selected" : ""}`}
-											onClick={() => handleNavigateToNode(node)}
+											onClick={() => {
+												handleNavigateToNode(node);
+											}}
 											type="button"
 										>
 											<span className="jump-menu-result-name">
@@ -236,7 +242,9 @@ function JumpMenuDialog() {
 								<li key={node.id}>
 									<button
 										className={`jump-menu-result ${index === selectedIndex ? "selected" : ""}`}
-										onClick={() => handleNavigateToNode(node)}
+										onClick={() => {
+											handleNavigateToNode(node);
+										}}
 										type="button"
 									>
 										<span className="jump-menu-result-name">

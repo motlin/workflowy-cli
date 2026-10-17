@@ -82,8 +82,8 @@ describe("Orchestrator Eval: item-refiner", {timeout: 600_000}, () => {
 	});
 
 	afterAll(async () => {
-		ctx?.cleanup();
-		await mockServer?.stop();
+		await mockServer.stop();
+		ctx.cleanup();
 	});
 
 	it("should fetch item data as first action", async (context) => {

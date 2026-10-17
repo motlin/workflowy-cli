@@ -5,7 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
+import {assert, beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {z} from "zod";
@@ -39,7 +39,9 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 		}
 	});
 
-	afterAll(() => ctx?.cleanup());
+	afterAll(() => {
+		ctx.cleanup();
+	});
 
 	it("should detect date from item text with explicit deadline", async (context) => {
 		if (skipSuite) {
@@ -55,9 +57,9 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/u);
-		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
+		assert(jsonMatch, "Response should contain JSON");
 
-		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch![0]));
+		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch[0]));
 		expect(parsed.due).toMatch(/^\d{4}-04-15$/u);
 	});
 
@@ -75,9 +77,9 @@ describe("Leaf Eval: due-date-detector", {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/u);
-		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
+		assert(jsonMatch, "Response should contain JSON");
 
-		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch![0]));
+		const parsed = DueDateResponseSchema.parse(JSON.parse(jsonMatch[0]));
 		if (parsed.isAsap !== undefined) {
 			expect(parsed.isAsap).toBe(true);
 		}

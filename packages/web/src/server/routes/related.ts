@@ -227,7 +227,8 @@ function findLinkTargets(
 
 // POST /api/related - Find related nodes using semantic similarity
 relatedRouter.post("/", async (c) => {
-	const body = await c.req.json<RelatedBody>();
+	// The body is client JSON, so the required fields are validated below.
+	const body = await c.req.json<Partial<RelatedBody>>();
 	const {nodeId, type, limit = 10, threshold = 0.5, model = "minilm"} = body;
 
 	if (!nodeId) {

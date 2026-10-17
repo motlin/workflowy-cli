@@ -69,7 +69,7 @@ describe("round-trip test infrastructure", () => {
 
 			const result = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM __drizzle_migrations`);
 
-			expect(result?.count).toBe(30);
+			expect(result.count).toBe(30);
 
 			sqlite.close();
 		});
@@ -79,7 +79,7 @@ describe("round-trip test infrastructure", () => {
 
 			const result = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM node_content`);
 
-			expect(result?.count).toBe(0);
+			expect(result.count).toBe(0);
 
 			sqlite.close();
 		});
@@ -195,8 +195,8 @@ describe("round-trip equivalence", () => {
 
 			const contentVersions = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM node_content`);
 			const metadataVersions = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM node_metadata`);
-			expect(contentVersions?.count).toBe(4);
-			expect(metadataVersions?.count).toBe(4);
+			expect(contentVersions.count).toBe(4);
+			expect(metadataVersions.count).toBe(4);
 
 			sqlite.close();
 		});

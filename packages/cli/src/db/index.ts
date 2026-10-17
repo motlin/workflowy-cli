@@ -5,9 +5,10 @@ import * as sqliteVec from "sqlite-vec";
 import * as schema from "@workflowy/shared/db";
 import {join} from "node:path";
 import {sqlLogger} from "../services/sql-logger.js";
+import {nonEmpty} from "../utils/non-empty.js";
 
 export function createDatabase(dbPath?: string) {
-	const actualPath = dbPath || process.env.WORKFLOWY_DB_PATH || "workflowy.sqlite";
+	const actualPath = nonEmpty(dbPath) ?? nonEmpty(process.env.WORKFLOWY_DB_PATH) ?? "workflowy.sqlite";
 	const sqlite = new DatabaseConstructor(actualPath);
 
 	sqliteVec.load(sqlite);

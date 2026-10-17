@@ -143,8 +143,10 @@ function findKeptOriginals(nodeId: string, subtree: SubtreeMirrors): Map<string,
 			}
 		}
 	}
-	for (const originalId of kept.keys()) {
-		const mirrorIds = subtree.mirrorsOf.get(originalId)!;
+	for (const [originalId, mirrorIds] of subtree.mirrorsOf) {
+		if (!kept.has(originalId)) {
+			continue;
+		}
 		kept.set(
 			originalId,
 			mirrorIds.filter((id) => !isDeleted(id, nodeId, subtree.parents, kept)),

@@ -216,7 +216,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 			void runSearch();
 		}, 200);
 
-		return () => clearTimeout(searchTimeout);
+		return () => {
+			clearTimeout(searchTimeout);
+		};
 	}, [query, selectedModel, effectiveParentId]);
 
 	const handleNavigateToResult = useCallback(
@@ -305,7 +307,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 							// oxlint-disable-next-line jsx-a11y/no-autofocus -- opening the search panel is a request to type a query
 							autoFocus
 							className="search-panel-input"
-							onChange={(event) => changeQuery(event.target.value)}
+							onChange={(event) => {
+								changeQuery(event.target.value);
+							}}
 							onKeyDown={handleKeyDown}
 							placeholder="Search nodes..."
 							type="text"
@@ -338,7 +342,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 									<button
 										className={`search-panel-model-button ${selectedModel === modelKey ? "selected" : ""}`}
 										key={modelKey}
-										onClick={() => handleModelChange(modelKey)}
+										onClick={() => {
+											handleModelChange(modelKey);
+										}}
 										type="button"
 									>
 										{EMBEDDING_MODELS[modelKey].label}
@@ -348,7 +354,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 							<button
 								aria-label="Toggle model info"
 								className="search-panel-info-toggle"
-								onClick={() => setShowModelInfo(!showModelInfo)}
+								onClick={() => {
+									setShowModelInfo(!showModelInfo);
+								}}
 								type="button"
 							>
 								?
@@ -379,14 +387,18 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 							<div className="search-panel-scope-buttons">
 								<button
 									className={`search-panel-scope-button ${searchScope === "branch" ? "selected" : ""}`}
-									onClick={() => handleScopeChange("branch")}
+									onClick={() => {
+										handleScopeChange("branch");
+									}}
 									type="button"
 								>
 									Current branch
 								</button>
 								<button
 									className={`search-panel-scope-button ${searchScope === "all" ? "selected" : ""}`}
-									onClick={() => handleScopeChange("all")}
+									onClick={() => {
+										handleScopeChange("all");
+									}}
 									type="button"
 								>
 									All nodes
@@ -413,7 +425,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 									<li key={result.id}>
 										<button
 											className={`search-panel-result ${index === selectedIndex ? "selected" : ""}`}
-											onClick={() => handleNavigateToResult(result)}
+											onClick={() => {
+												handleNavigateToResult(result);
+											}}
 											type="button"
 										>
 											{result.parentPath && (
@@ -464,7 +478,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 											<li className="search-panel-saved-search-item" key={savedQuery}>
 												<button
 													className="search-panel-saved-search"
-													onClick={() => changeQuery(savedQuery)}
+													onClick={() => {
+														changeQuery(savedQuery);
+													}}
 													type="button"
 												>
 													<span className="search-panel-saved-search-icon">{"\u2605"}</span>
@@ -473,7 +489,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 												<button
 													aria-label="Remove saved search"
 													className="search-panel-saved-search-delete"
-													onClick={() => removeSavedSearch(savedQuery)}
+													onClick={() => {
+														removeSavedSearch(savedQuery);
+													}}
 													type="button"
 												>
 													&times;
@@ -501,7 +519,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 											<li className="search-panel-saved-search-item" key={recentQuery}>
 												<button
 													className="search-panel-saved-search"
-													onClick={() => changeQuery(recentQuery)}
+													onClick={() => {
+														changeQuery(recentQuery);
+													}}
 													type="button"
 												>
 													<span className="search-panel-saved-search-icon">

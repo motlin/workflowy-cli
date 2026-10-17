@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {formatBytes} from "./cache-vacuum.js";
 import {logger} from "./logger.js";
+import {nonEmpty} from "../utils/non-empty.js";
 
 export interface CacheStatus {
 	nodes: {
@@ -34,7 +35,7 @@ export class CacheStatusService {
 		const lastSync = this.getLastSync();
 		const lastBackupImport = this.getLastImportDate();
 
-		const dbPath = path.resolve(process.env.WORKFLOWY_DB_PATH || "workflowy.sqlite");
+		const dbPath = path.resolve(nonEmpty(process.env.WORKFLOWY_DB_PATH) ?? "workflowy.sqlite");
 		const dbSize = this.getDatabaseSize(dbPath);
 
 		return {

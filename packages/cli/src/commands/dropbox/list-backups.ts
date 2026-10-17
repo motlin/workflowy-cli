@@ -1,6 +1,7 @@
 import {Command, Flags} from "@oclif/core";
 import {Dropbox} from "dropbox";
 import type {files} from "dropbox";
+import {nonEmpty} from "../../utils/non-empty.js";
 
 export default class ListBackups extends Command {
 	static override description =
@@ -43,7 +44,7 @@ export default class ListBackups extends Command {
 
 				for (const file of backupFiles) {
 					const dateMatch = file.name.match(/\.(\d{4}-\d{2}-\d{2})\.(workflowy\.backup|txt)$/u);
-					const date = dateMatch ? dateMatch[1] : "unknown";
+					const date = dateMatch?.[1] ?? "unknown";
 					const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
 
 					allBackups.push({date, filename: file.name, sizeMB, source: folder});
@@ -86,8 +87,8 @@ export default class ListBackups extends Command {
 	private initializeDropbox(): Dropbox {
 		const accessToken = process.env.DROPBOX_ACCESS_TOKEN;
 		const refreshToken = process.env.DROPBOX_REFRESH_TOKEN;
-		const clientId = process.env.DROPBOX_ACCESS_KEY || process.env.DROPBOX_APP_KEY;
-		const clientSecret = process.env.DROPBOX_ACCESS_SECRET || process.env.DROPBOX_APP_SECRET;
+		const clientId = nonEmpty(process.env.DROPBOX_ACCESS_KEY) ?? process.env.DROPBOX_APP_KEY;
+		const clientSecret = nonEmpty(process.env.DROPBOX_ACCESS_SECRET) ?? process.env.DROPBOX_APP_SECRET;
 
 		if (refreshToken && clientId && clientSecret) {
 			return new Dropbox({refreshToken, clientId, clientSecret});

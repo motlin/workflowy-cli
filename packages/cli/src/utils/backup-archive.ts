@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import {constants as zlibConstants, zstdCompressSync, zstdDecompressSync} from "node:zlib";
 import {parseBackupFilename} from "./backup-validation.js";
+import {nonEmpty} from "./non-empty.js";
 
 const ZSTD_LEVEL = 19;
 const ZSTD_WINDOW_LOG = 27;
@@ -161,8 +162,7 @@ export function materializeBackup(location: BackupLocation): MaterializedBackup 
  * instead of decompressing the developer's real monthly archives.
  */
 export function resolveBackupsDirectory(): string {
-	const override = process.env.WORKFLOWY_BACKUPS_DIR;
-	return override || path.join(process.cwd(), "backups");
+	return nonEmpty(process.env.WORKFLOWY_BACKUPS_DIR) ?? path.join(process.cwd(), "backups");
 }
 
 /**

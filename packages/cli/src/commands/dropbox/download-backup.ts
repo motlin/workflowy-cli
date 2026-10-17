@@ -4,6 +4,7 @@ import type {files} from "dropbox";
 import fs from "node:fs";
 import path from "node:path";
 import {compressBuffer, resolveBackupsDirectory} from "../../utils/backup-archive.js";
+import {nonEmpty} from "../../utils/non-empty.js";
 
 function formatTimestamp(): string {
 	return new Date().toISOString();
@@ -104,8 +105,8 @@ export default class DownloadBackup extends Command {
 	private initializeDropbox(): Dropbox {
 		const accessToken = process.env.DROPBOX_ACCESS_TOKEN;
 		const refreshToken = process.env.DROPBOX_REFRESH_TOKEN;
-		const clientId = process.env.DROPBOX_ACCESS_KEY || process.env.DROPBOX_APP_KEY;
-		const clientSecret = process.env.DROPBOX_ACCESS_SECRET || process.env.DROPBOX_APP_SECRET;
+		const clientId = nonEmpty(process.env.DROPBOX_ACCESS_KEY) ?? process.env.DROPBOX_APP_KEY;
+		const clientSecret = nonEmpty(process.env.DROPBOX_ACCESS_SECRET) ?? process.env.DROPBOX_APP_SECRET;
 
 		if (refreshToken && clientId && clientSecret) {
 			return new Dropbox({refreshToken, clientId, clientSecret});
@@ -195,7 +196,7 @@ export default class DownloadBackup extends Command {
 				const sizeMB = (backupFile.size / (1024 * 1024)).toFixed(2);
 				conditionalLog(`Downloading: ${backupFile.name} (${sizeMB} MB)`);
 
-				const downloadResponse = await dropbox.filesDownload({path: backupFile.path_lower || ""});
+				const downloadResponse = await dropbox.filesDownload({path: backupFile.path_lower ?? ""});
 				const {fileBinary} = downloadResponse.result;
 
 				if (fileBinary === undefined) {

@@ -54,7 +54,7 @@ export function dropAtPoint(x: number, y: number, moving: Set<string>): DropTarg
 	const zone = target.classList.contains("ladder-zone") ? target : target.nextElementSibling;
 	const rows = [...(zone?.querySelectorAll<HTMLElement>("[data-node-id]") ?? [])];
 	const before = rows.find((row) => {
-		if (moving.has(row.dataset.nodeId!)) {
+		if (row.dataset.nodeId === undefined || moving.has(row.dataset.nodeId)) {
 			return false;
 		}
 		const bounds = row.getBoundingClientRect();

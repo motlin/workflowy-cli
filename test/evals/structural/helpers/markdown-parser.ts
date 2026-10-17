@@ -56,7 +56,7 @@ export function resolveCommandId(words: string[]): {command: string; remaining: 
 			return {command, remaining};
 		}
 	}
-	return {command: words[0], remaining: words.slice(1)};
+	return {command: words[0] ?? "", remaining: words.slice(1)};
 }
 
 /**
@@ -115,7 +115,7 @@ function extractFlags(tokens: string[]): string[] {
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
 
-		if (isStopToken(token)) {
+		if (token === undefined || isStopToken(token)) {
 			break;
 		}
 
@@ -288,8 +288,9 @@ function extractSubagentRefs(lines: string[]): SubagentRef[] {
 
 	for (const [i, line] of lines.entries()) {
 		const match = pattern.exec(line);
-		if (match) {
-			results.push({name: match[1], line: i + 1});
+		const name = match?.[1];
+		if (name !== undefined) {
+			results.push({name, line: i + 1});
 		}
 	}
 
@@ -311,6 +312,9 @@ function extractLlmPaths(lines: string[]): LlmPath[] {
 		let match;
 		while ((match = pattern.exec(line)) !== null) {
 			let path = match[1];
+			if (path === undefined) {
+				continue;
+			}
 			if (path.startsWith("./")) {
 				path = path.slice(2);
 			}
@@ -334,12 +338,13 @@ function extractCommandRefs(lines: string[]): CommandRef[] {
 
 	for (const [i, line] of lines.entries()) {
 		const match = pattern.exec(line);
-		if (!match) {
+		const ref = match?.[1];
+		if (!match || ref === undefined) {
 			continue;
 		}
 		const hasUrl = line.includes("http://") || line.includes("https://");
 		if (!hasUrl || !/https?:$/u.test(line.slice(0, line.indexOf(match[0])))) {
-			results.push({ref: match[1], line: i + 1});
+			results.push({ref, line: i + 1});
 		}
 	}
 
@@ -359,6 +364,9 @@ function extractScriptRefs(lines: string[]): ScriptRef[] {
 		let match;
 		while ((match = pattern.exec(line)) !== null) {
 			let path = match[1];
+			if (path === undefined) {
+				continue;
+			}
 			if (path.startsWith("./")) {
 				path = path.slice(2);
 			}

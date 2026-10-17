@@ -11,6 +11,7 @@ import {
 	isHumanUserMessage,
 	userText,
 } from "./scan-review-feedback.mts";
+import {at} from "./test-helpers.mts";
 
 const humanTyped = {
 	type: "user",
@@ -119,10 +120,10 @@ test("extractFeedback returns human turns with the preceding assistant action, i
 	const objs = [commandStub, assistantToolUse, humanTyped, toolResultEcho, humanTypedBlockArray];
 	const {turns} = extractFeedback(objs);
 	assert.strictEqual(turns.length, 2);
-	assert.strictEqual(turns[0].text, "you didn't complete the reminders");
-	assert.match(turns[0].prevAssistant, /Bash/u);
-	assert.strictEqual(turns[1].text, "we ALWAYS work on the skill first");
-	assert.strictEqual(turns[0].ts, "2026-06-23T22:15:18.000Z");
+	assert.strictEqual(at(turns, 0).text, "you didn't complete the reminders");
+	assert.match(at(turns, 0).prevAssistant, /Bash/u);
+	assert.strictEqual(at(turns, 1).text, "we ALWAYS work on the skill first");
+	assert.strictEqual(at(turns, 0).ts, "2026-06-23T22:15:18.000Z");
 });
 
 test("extractFeedback keeps only turns at or after the cutoff, not whole sessions", () => {
@@ -228,10 +229,10 @@ test("askAnswerText returns the raw answer payload", () => {
 test("extractFeedback captures AskUserQuestion answers as turns, marked by source", () => {
 	const {turns} = extractFeedback([assistantToolUse, humanTyped, askAnswer]);
 	assert.strictEqual(turns.length, 2);
-	assert.strictEqual(turns[0].source, "typed");
-	assert.strictEqual(turns[1].source, "ask");
-	assert.match(turns[1].text, /figure out why it's broken/u);
-	assert.strictEqual(turns[1].ts, "2026-07-26T17:15:33.000Z");
+	assert.strictEqual(at(turns, 0).source, "typed");
+	assert.strictEqual(at(turns, 1).source, "ask");
+	assert.match(at(turns, 1).text, /figure out why it's broken/u);
+	assert.strictEqual(at(turns, 1).ts, "2026-07-26T17:15:33.000Z");
 });
 
 test("extractFeedback caps very long turn text so the extract stays compact", () => {
@@ -241,6 +242,6 @@ test("extractFeedback caps very long turn text so the extract stays compact", ()
 		message: {role: "user", content: "x".repeat(5000)},
 	};
 	const {turns} = extractFeedback([long]);
-	assert.ok(turns[0].text.length <= 2050);
-	assert.match(turns[0].text, /…$/u);
+	assert.ok(at(turns, 0).text.length <= 2050);
+	assert.match(at(turns, 0).text, /…$/u);
 });

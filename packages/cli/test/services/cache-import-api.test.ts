@@ -1,4 +1,4 @@
-import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
+import {assert, beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
@@ -87,8 +87,9 @@ describe("cache-import-api service", () => {
 				priorityUpdated: 0,
 			});
 
-			const allNodes = testDatabase.db.select().from(nodeContent).all();
-			const {id, name, note, parentId, systemTo} = allNodes[0];
+			const [node] = testDatabase.db.select().from(nodeContent).all();
+			assert(node);
+			const {id, name, note, parentId, systemTo} = node;
 			expect({id, name, note, parentId, systemTo}).toStrictEqual({
 				id: "node-1",
 				name: "Test Node",
@@ -96,7 +97,7 @@ describe("cache-import-api service", () => {
 				parentId: null,
 				systemTo: FAR_FUTURE_DATE,
 			});
-			expectActiveRecord(createNodeFromContent(allNodes[0]));
+			expectActiveRecord(createNodeFromContent(node));
 		});
 
 		it("imports multiple API nodes", () => {

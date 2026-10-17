@@ -306,17 +306,21 @@ export default class Dedup extends Command {
 	 * Longest common subsequence length.
 	 */
 	private longestCommonSubsequence(s1: string, s2: string): number {
-		const m = s1.length;
-		const n = s2.length;
-		const dp: number[][] = Array.from({length: m + 1}, () => Array.from({length: n + 1}, () => 0));
-
-		for (let i = 1; i <= m; i++) {
-			for (let j = 1; j <= n; j++) {
-				dp[i][j] = s1[i - 1] === s2[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+		// Rolling single-row DP over UTF-16 code units: previous[j] is the LCS of s1[..i) and s2[..j).
+		let previous: number[] = Array.from({length: s2.length + 1}, () => 0);
+		for (let i = 0; i < s1.length; i++) {
+			const current: number[] = [0];
+			let left = 0;
+			for (let j = 0; j < s2.length; j++) {
+				const value =
+					s1.charAt(i) === s2.charAt(j) ? (previous[j] ?? 0) + 1 : Math.max(previous[j + 1] ?? 0, left);
+				current.push(value);
+				left = value;
 			}
+			previous = current;
 		}
 
-		return dp[m][n];
+		return previous[s2.length] ?? 0;
 	}
 
 	/**
@@ -339,8 +343,8 @@ export default class Dedup extends Command {
 
 				for (const item of data.items ?? []) {
 					scanned.push({
-						title: item.title || "",
-						date: item.eventDate || "",
+						title: item.title ?? "",
+						date: item.eventDate ?? "",
 						source,
 						...item,
 					});

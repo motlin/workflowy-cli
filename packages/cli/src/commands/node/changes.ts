@@ -78,8 +78,7 @@ export default class Changes extends Command {
 	}
 
 	private renderTree(nodes: ChangeTreeNode[], ancestors: boolean[]): void {
-		for (let i = 0; i < nodes.length; i++) {
-			const node = nodes[i];
+		for (const [i, node] of nodes.entries()) {
 			const isLast = i === nodes.length - 1;
 
 			const indent = ancestors.map((hasMore) => (hasMore ? "│   " : "    ")).join("");

@@ -329,7 +329,7 @@ export default class Load extends Command {
 
 			for (const child of children) {
 				// Try to extract date from <time> element in name
-				const match = child.name?.match(timePattern);
+				const match = child.name.match(timePattern);
 				if (!match) {
 					continue;
 				}

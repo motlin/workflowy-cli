@@ -110,11 +110,12 @@ export default class BackupsArchive extends Command {
 function parseDate(filename: string): Date | null {
 	const base = filename.replace(/\.zst$/u, "");
 	const match = base.match(/(\d{4}-\d{2}-\d{2})\.(?:workflowy\.backup|txt|json)$/u);
-	if (!match) {
+	const dateText = match?.[1];
+	if (dateText === undefined) {
 		return null;
 	}
 
-	const date = new Date(match[1]);
+	const date = new Date(dateText);
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 

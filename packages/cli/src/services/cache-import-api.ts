@@ -13,6 +13,7 @@ import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
 import {formatError, ZodError} from "zod";
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
 import {logger} from "./logger.js";
+import {nonEmpty} from "../utils/non-empty.js";
 
 /**
  * Convert a Unix timestamp (seconds) to a Date object.
@@ -108,7 +109,7 @@ export function importFromApi(
 	const nodesToProcess: ProcessedNode[] = [];
 	let validationErrors = 0;
 
-	for (const [index, node] of apiNodes.entries()) {
+	for (const node of apiNodes) {
 		try {
 			const validatedNode = WorkflowyNodeSchema.parse(node);
 
@@ -116,10 +117,10 @@ export function importFromApi(
 				id: validatedNode.id,
 				shortId: uuidToShortId(validatedNode.id),
 				name: validatedNode.name,
-				note: validatedNode.note || null,
+				note: nonEmpty(validatedNode.note) ?? null,
 				parentId: validatedNode.parent_id ?? null,
-				priority: validatedNode.priority ?? index,
-				createdAt: validatedNode.createdAt ?? null,
+				priority: validatedNode.priority,
+				createdAt: validatedNode.createdAt,
 				modifiedAt: validatedNode.modifiedAt ?? null,
 				completedAt: validatedNode.completedAt ?? null,
 				layoutMode: normalizeLayoutMode(validatedNode.data?.layoutMode),

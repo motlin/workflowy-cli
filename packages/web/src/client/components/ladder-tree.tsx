@@ -8,9 +8,12 @@ export function LadderTree({item, onClose}: {item: {id: string; name: string}; o
 	const dialog = useRef<HTMLDialogElement>(null);
 	const {data: node, error, refetch} = useNode(item.id);
 	useEffect(() => {
-		const element = dialog.current!;
-		element.showModal();
-		return () => element.close();
+		// The ref is attached before effects run, so the dialog is always present here.
+		const element = dialog.current;
+		element?.showModal();
+		return () => {
+			element?.close();
+		};
 	}, []);
 	return (
 		<dialog

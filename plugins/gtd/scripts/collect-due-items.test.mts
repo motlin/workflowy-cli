@@ -16,6 +16,7 @@ import {
 import type {WorkflowyRootInput} from "./collect-due-items.mts";
 import {foldSkipLog} from "./compute-overdue.mts";
 import type {TreeNode} from "./compute-overdue.mts";
+import {at} from "./test-helpers.mts";
 
 interface WorkflowyRootSpec {
 	rootKey?: string;
@@ -248,8 +249,8 @@ test("fromWorkflowy flags undated tasks sitting in the ⏰ bucket as needing a d
 	);
 
 	assert.strictEqual(items.length, 1);
-	assert.strictEqual(items[0].due, null);
-	assert.strictEqual(items[0].needsDate, true);
+	assert.strictEqual(at(items, 0).due, null);
+	assert.strictEqual(at(items, 0).needsDate, true);
 });
 
 test("fromWorkflowy skips completed tasks", () => {
@@ -259,9 +260,9 @@ test("fromWorkflowy skips completed tasks", () => {
 });
 
 test("fromWorkflowy stages complete and reschedule ops carrying the full uuid", () => {
-	const [item] = fromWorkflowy(
-		[workflowyRoot({tasks: [dated("Pay dues", "2026-07-31", "eeeeeeeeeeee5555")]})],
-		TODAY,
+	const item = at(
+		fromWorkflowy([workflowyRoot({tasks: [dated("Pay dues", "2026-07-31", "eeeeeeeeeeee5555")]})], TODAY),
+		0,
 	);
 
 	assert.strictEqual(item.ops.complete, "./bin/run.js node complete --id eeeeeeeeeeee5555");
@@ -338,15 +339,14 @@ test("fromThings dates a deadline-less Today task by its activation date when ea
 });
 
 test("fromThings leaves an undated task outside the Today list undated", () => {
-	const [item] = fromThings(
-		{due: [], today: [], anytime: [{id: "c", title: "Someday", due: null, list: "Anytime"}]},
-		TODAY,
+	assert.deepStrictEqual(
+		fromThings({due: [], today: [], anytime: [{id: "c", title: "Someday", due: null, list: "Anytime"}]}, TODAY),
+		[],
 	);
-	assert.strictEqual(item, undefined);
 });
 
 test("fromThings stages an AppleScript completion keyed on the stable id", () => {
-	const [item] = fromThings({due: [{id: "JMwVZ", title: "Craig's task", due: "2026-08-01"}], today: []}, TODAY);
+	const item = at(fromThings({due: [{id: "JMwVZ", title: "Craig's task", due: "2026-08-01"}], today: []}, TODAY), 0);
 
 	assert.match(item.ops.complete, /Things3/u);
 	assert.match(item.ops.complete, /JMwVZ/u);
@@ -373,9 +373,12 @@ test("fromReminders flattens overdue and dueToday, ignoring dueTomorrow", () => 
 });
 
 test("fromReminders keys its completion op on the title, since iMCP exposes no id", () => {
-	const [item] = fromReminders(
-		{overdue: [{title: "O'Brien follow-up", dueDate: "2026-08-01T09:00:00", list: "Personal"}]},
-		TODAY,
+	const item = at(
+		fromReminders(
+			{overdue: [{title: "O'Brien follow-up", dueDate: "2026-08-01T09:00:00", list: "Personal"}]},
+			TODAY,
+		),
+		0,
 	);
 
 	assert.strictEqual(item.id, "O'Brien follow-up");
@@ -470,18 +473,21 @@ test("resolveTimeframe picks the upcoming Friday mid-week", () => {
  * the substitution source-aware so the caller never picks the format.
  */
 test("applyReschedule substitutes a <time> element for Workflowy items", () => {
-	const [item] = fromWorkflowy(
-		[
-			workflowyRoot({
-				tasks: [
-					{
-						name: 'Ship the thing <time startYear="2026" startMonth="6" startDay="1">Mon, Jun 1, 2026</time>',
-						id: "wf-uuid",
-					},
-				],
-			}),
-		],
-		TODAY,
+	const item = at(
+		fromWorkflowy(
+			[
+				workflowyRoot({
+					tasks: [
+						{
+							name: 'Ship the thing <time startYear="2026" startMonth="6" startDay="1">Mon, Jun 1, 2026</time>',
+							id: "wf-uuid",
+						},
+					],
+				}),
+			],
+			TODAY,
+		),
+		0,
 	);
 	const cmd = applyReschedule(item, "2026-08-31");
 	assert.match(cmd, /startYear="2026" startMonth="8" startDay="31"/u);
@@ -489,7 +495,10 @@ test("applyReschedule substitutes a <time> element for Workflowy items", () => {
 });
 
 test("applyReschedule substitutes an AppleScript date string for Things items", () => {
-	const [item] = fromThings({due: [{id: "things-1", title: "Refill the propane tank", due: "2026-04-25"}]}, TODAY);
+	const item = at(
+		fromThings({due: [{id: "things-1", title: "Refill the propane tank", due: "2026-04-25"}]}, TODAY),
+		0,
+	);
 	const cmd = applyReschedule(item, "2026-08-31");
 	assert.doesNotMatch(cmd, /<time/u);
 	assert.doesNotMatch(cmd, /\{\{date\}\}/u);
@@ -497,9 +506,9 @@ test("applyReschedule substitutes an AppleScript date string for Things items", 
 });
 
 test("applyReschedule substitutes an AppleScript date string for Reminders items", () => {
-	const [item] = fromReminders(
-		{overdue: [{title: "Replace the HEPA filters", dueDate: "2026-08-07T00:00:00-04:00"}]},
-		TODAY,
+	const item = at(
+		fromReminders({overdue: [{title: "Replace the HEPA filters", dueDate: "2026-08-07T00:00:00-04:00"}]}, TODAY),
+		0,
 	);
 	const cmd = applyReschedule(item, "2026-08-31");
 	assert.doesNotMatch(cmd, /<time/u);
@@ -513,9 +522,16 @@ test("applyReschedule substitutes an AppleScript date string for Reminders items
  * it under `📌 Tasks (asap)` and strips the `<time>` element, since that bucket carries no dates.
  */
 test("fromWorkflowy falls back to the asap bucket root when it has no tier ladder", () => {
-	const [item] = fromWorkflowy(
-		[workflowyRoot({tasks: [dated("Turn rollups into a shared marketplace", "2026-08-07", "ffffffffffff6666")]})],
-		TODAY,
+	const item = at(
+		fromWorkflowy(
+			[
+				workflowyRoot({
+					tasks: [dated("Turn rollups into a shared marketplace", "2026-08-07", "ffffffffffff6666")],
+				}),
+			],
+			TODAY,
+		),
+		0,
 	);
 
 	assert.ok(item.ops.moveToAsap, "expected a moveToAsap op");
@@ -530,32 +546,38 @@ test("fromWorkflowy falls back to the asap bucket root when it has no tier ladde
  * the user deliberately promoted.
  */
 test("moveToAsap targets the bottom tier when the asap bucket has a ladder", () => {
-	const [item] = fromWorkflowy(
-		[
-			workflowyRoot({
-				tasks: [dated("Turn rollups into a shared marketplace", "2026-08-07", "ffffffffffff6666")],
-				asapChildren: [
-					{name: "1st", id: "tier-1-uuid", children: []},
-					{name: "2nd", id: "tier-2-uuid", children: []},
-					{name: "3rd", id: "tier-3-uuid", children: []},
-				],
-			}),
-		],
-		TODAY,
+	const item = at(
+		fromWorkflowy(
+			[
+				workflowyRoot({
+					tasks: [dated("Turn rollups into a shared marketplace", "2026-08-07", "ffffffffffff6666")],
+					asapChildren: [
+						{name: "1st", id: "tier-1-uuid", children: []},
+						{name: "2nd", id: "tier-2-uuid", children: []},
+						{name: "3rd", id: "tier-3-uuid", children: []},
+					],
+				}),
+			],
+			TODAY,
+		),
+		0,
 	);
 
 	assert.match(item.ops.moveToAsap ?? "", /node move --node-id ffffffffffff6666 --parent-id tier-3-uuid -p bottom/u);
 });
 
 test("moveToAsap ignores category containers left over from before the tier migration", () => {
-	const [item] = fromWorkflowy(
-		[
-			workflowyRoot({
-				tasks: [dated("Turn rollups into a shared marketplace", "2026-08-07", "ffffffffffff6666")],
-				asapChildren: [{name: "💻 Coding", id: "cat-coding-uuid", children: []}],
-			}),
-		],
-		TODAY,
+	const item = at(
+		fromWorkflowy(
+			[
+				workflowyRoot({
+					tasks: [dated("Turn rollups into a shared marketplace", "2026-08-07", "ffffffffffff6666")],
+					asapChildren: [{name: "💻 Coding", id: "cat-coding-uuid", children: []}],
+				}),
+			],
+			TODAY,
+		),
+		0,
 	);
 
 	assert.match(item.ops.moveToAsap ?? "", /node move --node-id ffffffffffff6666 --parent-id asap-uuid -p bottom/u);
@@ -565,8 +587,8 @@ test("moveToAsap is absent when the root has no asap bucket", () => {
 	const root = workflowyRoot({tasks: [dated("Orphan", "2026-08-07", "aaaaaaaaaaaa7777")]});
 	const wrapper = root.root.children?.[1];
 	assert.ok(wrapper?.children);
-	wrapper.children = [wrapper.children[0]]; // drop the asap bucket
-	const [item] = fromWorkflowy([root], TODAY);
+	wrapper.children = [at(wrapper.children, 0)]; // drop the asap bucket
+	const item = at(fromWorkflowy([root], TODAY), 0);
 	assert.strictEqual(item.ops.moveToAsap, undefined);
 });
 
@@ -589,8 +611,8 @@ test("collectDueItems reports a zero skip streak when there is no history", () =
 		{things: {due: [{id: "things-1", title: "Renew the passport", due: "2026-07-01"}]}},
 		TODAY,
 	);
-	assert.strictEqual(rows[0].skipStreak, 0);
-	assert.strictEqual(rows[0].skippedSince, null);
+	assert.strictEqual(at(rows, 0).skipStreak, 0);
+	assert.strictEqual(at(rows, 0).skippedSince, null);
 });
 
 test("collectDueItems carries each item skip streak onto its row", () => {
@@ -603,8 +625,8 @@ test("collectDueItems carries each item skip streak onto its row", () => {
 		TODAY,
 		{skipStreaks},
 	);
-	assert.strictEqual(rows[0].skipStreak, 2);
-	assert.strictEqual(rows[0].skippedSince, "2026-08-05");
+	assert.strictEqual(at(rows, 0).skipStreak, 2);
+	assert.strictEqual(at(rows, 0).skippedSince, "2026-08-05");
 });
 
 test("fromWorkflowy carries the subtree context the walk shows before asking", () => {
@@ -619,7 +641,7 @@ test("fromWorkflowy carries the subtree context the walk shows before asking", (
 		},
 		{name: "Drive B", shortId: null, note: "spare", children: []},
 	];
-	const [item] = fromWorkflowy([workflowyRoot({tasks: [task]})], TODAY);
+	const item = at(fromWorkflowy([workflowyRoot({tasks: [task]})], TODAY), 0);
 	assert.strictEqual(item.note, "started at https://example.com/notes");
 	assert.strictEqual(item.modifiedAt, "2026-07-30T09:15:00Z");
 	assert.strictEqual(item.childCount, 2);
@@ -631,9 +653,12 @@ test("fromWorkflowy carries the subtree context the walk shows before asking", (
 });
 
 test("fromThings carries the task note so the walk can show it", () => {
-	const [item] = fromThings(
-		{due: [{id: "T1", title: "Renew passport", due: "2026-08-01", list: "Today", notes: "form DS-82"}]},
-		TODAY,
+	const item = at(
+		fromThings(
+			{due: [{id: "T1", title: "Renew passport", due: "2026-08-01", list: "Today", notes: "form DS-82"}]},
+			TODAY,
+		),
+		0,
 	);
 	assert.strictEqual(item.note, "form DS-82");
 	assert.strictEqual(item.modifiedAt, null);
@@ -642,9 +667,16 @@ test("fromThings carries the task note so the walk can show it", () => {
 });
 
 test("fromReminders carries the reminder note so the walk can show it", () => {
-	const [item] = fromReminders(
-		{overdue: [{title: "Pay the tolls", dueDate: "2026-08-05T09:00:00", list: "Reminders", notes: "account 4821"}]},
-		TODAY,
+	const item = at(
+		fromReminders(
+			{
+				overdue: [
+					{title: "Pay the tolls", dueDate: "2026-08-05T09:00:00", list: "Reminders", notes: "account 4821"},
+				],
+			},
+			TODAY,
+		),
+		0,
 	);
 	assert.strictEqual(item.note, "account 4821");
 	assert.deepStrictEqual(item.children, []);
@@ -652,19 +684,22 @@ test("fromReminders carries the reminder note so the walk can show it", () => {
 });
 
 test("a URL in a Things note becomes a link the walk opens", () => {
-	const [item] = fromThings(
-		{
-			due: [
-				{
-					id: "T2",
-					title: "Watch the Factorio talk",
-					due: "2026-08-01",
-					list: "Today",
-					notes: "https://youtube.com/watch?v=abc",
-				},
-			],
-		},
-		TODAY,
+	const item = at(
+		fromThings(
+			{
+				due: [
+					{
+						id: "T2",
+						title: "Watch the Factorio talk",
+						due: "2026-08-01",
+						list: "Today",
+						notes: "https://youtube.com/watch?v=abc",
+					},
+				],
+			},
+			TODAY,
+		),
+		0,
 	);
 	assert.deepStrictEqual(item.links, ["https://youtube.com/watch?v=abc"]);
 });

@@ -9,7 +9,7 @@ export function registerCacheTools(server: McpServer): void {
 		() => {
 			const db = getDatabase();
 
-			const [result] = db.all<{
+			const result = db.get<{
 				total_nodes: number;
 				completed_nodes: number;
 				metadata_count: number;

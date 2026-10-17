@@ -71,8 +71,10 @@ export default class ImportBackup extends Command {
 		if (flags.latest) {
 			filePath = this.findLatestBackupFile();
 			this.log(`Found latest backup: ${filePath}`);
+		} else if (flags.file) {
+			filePath = path.resolve(flags.file);
 		} else {
-			filePath = path.resolve(flags.file!);
+			this.error("Either --file or --latest flag is required");
 		}
 
 		if (!fs.existsSync(filePath)) {
@@ -299,12 +301,12 @@ export default class ImportBackup extends Command {
 			}
 		}
 
-		if (allBackupFiles.length === 0) {
-			this.error("No backup files found in backups/ directory");
-		}
-
 		allBackupFiles.sort((a, b) => b.date.getTime() - a.date.getTime());
 
-		return allBackupFiles[0].path;
+		const [latest] = allBackupFiles;
+		if (!latest) {
+			this.error("No backup files found in backups/ directory");
+		}
+		return latest.path;
 	}
 }

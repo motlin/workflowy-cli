@@ -4,9 +4,10 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {and, eq, sql} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import {EMBEDDING_MODELS, embeddingService} from "./embeddings.js";
+import {embeddingService, getEmbeddingModel} from "./embeddings.js";
 import type {EmbeddingModelKey} from "./embeddings.js";
 import {logger} from "./logger.js";
+import {nullable} from "../utils/nullable.js";
 import {notAMirror, PathBuilder} from "@workflowy/shared/cache";
 
 export type SearchMode = "vector" | "keyword" | "hybrid";
@@ -59,7 +60,7 @@ export class SearchService {
 
 	private async searchVector(options: SearchOptions): Promise<SearchResult[]> {
 		const {query, limit = 5, model = "minilm"} = options;
-		const modelConfig = EMBEDDING_MODELS[model];
+		const modelConfig = getEmbeddingModel(model);
 		const threshold = options.threshold ?? modelConfig.defaultThreshold;
 
 		const queryEmbedding = await embeddingService.generateEmbedding(query, model, {isQuery: true});
@@ -169,11 +170,13 @@ export class SearchService {
 				.sync();
 			logger.logSqlResult("nodeWithRelations", nodeWithRelations);
 
-			const priority = nodeWithRelations?.metadata?.priority ?? 0;
+			// Drizzle types these one() relations as always present, but a node can lack any of these rows.
+			const metadata = nodeWithRelations ? nullable(nodeWithRelations.metadata) : null;
+			const priority = metadata?.priority ?? 0;
 			const data: Record<string, unknown> = {};
 
-			if (nodeWithRelations?.metadata?.layoutMode) {
-				data.layoutMode = nodeWithRelations.metadata.layoutMode;
+			if (metadata?.layoutMode) {
+				data.layoutMode = metadata.layoutMode;
 			}
 
 			if (nodeWithRelations?.referencesRoot) {
@@ -187,20 +190,14 @@ export class SearchService {
 			}
 
 			return {
-				id: nodeWithRelations?.id || result.nodeId,
-				name: nodeWithRelations?.name || "",
+				id: nodeWithRelations?.id ?? result.nodeId,
+				name: nodeWithRelations?.name ?? "",
 				note: nodeWithRelations?.note,
 				priority,
-				completed: nodeWithRelations?.metadata?.completedAt !== null,
-				createdAt: nodeWithRelations?.metadata?.createdAt
-					? Math.floor(nodeWithRelations.metadata.createdAt.getTime() / 1000)
-					: 0,
-				modifiedAt: nodeWithRelations?.metadata?.modifiedAt
-					? Math.floor(nodeWithRelations.metadata.modifiedAt.getTime() / 1000)
-					: 0,
-				completedAt: nodeWithRelations?.metadata?.completedAt
-					? Math.floor(nodeWithRelations.metadata.completedAt.getTime() / 1000)
-					: null,
+				completed: metadata?.completedAt !== null,
+				createdAt: metadata?.createdAt ? Math.floor(metadata.createdAt.getTime() / 1000) : 0,
+				modifiedAt: metadata?.modifiedAt ? Math.floor(metadata.modifiedAt.getTime() / 1000) : 0,
+				completedAt: metadata?.completedAt ? Math.floor(metadata.completedAt.getTime() / 1000) : null,
 				data,
 				nodeId: result.nodeId,
 				fullPath,

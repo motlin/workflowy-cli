@@ -74,6 +74,10 @@ export class EmbeddingGeneratorService {
 		onProgress?: (progress: EmbeddingGeneratorProgress) => void,
 	): Promise<EmbeddingGeneratorResult> {
 		const modelsToProcess: EmbeddingModelKey[] = options.model ? [options.model] : DEFAULT_MODELS;
+		const [firstModel] = modelsToProcess;
+		if (firstModel === undefined) {
+			throw new Error("No embedding models to process");
+		}
 
 		const pruned = pruneMirrorEmbeddings(this.database);
 		if (pruned > 0) {
@@ -82,7 +86,7 @@ export class EmbeddingGeneratorService {
 				total: 0,
 				elapsed: 0,
 				estimatedRemaining: 0,
-				currentModel: modelsToProcess[0],
+				currentModel: firstModel,
 				message: `🧹 Pruned ${pruned} embeddings of mirror nodes`,
 			});
 		}
@@ -115,7 +119,7 @@ export class EmbeddingGeneratorService {
 			total: totalToProcess,
 			elapsed: 0,
 			estimatedRemaining: 0,
-			currentModel: modelsToProcess[0],
+			currentModel: firstModel,
 			message: `📊 ${nonLeafNodes.length} nodes (leaf nodes and mirrors skipped), ${modelsToProcess.length} models. Need embeddings: ${[...modelStats.entries()].map(([m, s]) => `${m}=${s.needed}`).join(", ")}`,
 		});
 
@@ -133,8 +137,8 @@ export class EmbeddingGeneratorService {
 			total: totalToProcess,
 			elapsed: 0,
 			estimatedRemaining: 0,
-			currentModel: modelsToProcess[0],
-			message: `🤖 Initializing ${modelsToProcess.length === 1 ? `model "${modelsToProcess[0]}"` : "default models"}...`,
+			currentModel: firstModel,
+			message: `🤖 Initializing ${modelsToProcess.length === 1 ? `model "${firstModel}"` : "default models"}...`,
 		});
 
 		const startTime = Date.now();
@@ -142,9 +146,9 @@ export class EmbeddingGeneratorService {
 
 		for (const model of modelsToProcess) {
 			const nodesToProcess = nodesToProcessByModel.get(model) ?? [];
-			const stats = modelStats.get(model)!;
+			const stats = modelStats.get(model);
 
-			if (nodesToProcess.length === 0) {
+			if (!stats || nodesToProcess.length === 0) {
 				continue;
 			}
 

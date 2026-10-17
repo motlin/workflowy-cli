@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import {HTMLElement, NodeType, parse} from "node-html-parser";
 import type {Node} from "node-html-parser";
+import {nullable} from "./nullable.js";
 
 type ChalkColor = (text: string) => string;
 
@@ -73,7 +74,8 @@ function processNode(node: Node): string {
 	}
 
 	const element = node;
-	const tagName = element.tagName?.toLowerCase();
+	// node-html-parser types tagName as string, but it is null on the parse root.
+	const tagName = nullable(element.tagName)?.toLowerCase() ?? "";
 	const childText = element.childNodes.map((child) => processNode(child)).join("");
 
 	switch (tagName) {

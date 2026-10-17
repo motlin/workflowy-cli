@@ -80,8 +80,9 @@ function kindAt(segments: string[], index: number): {kind: KindName; name: strin
 		if (!marker.every((segment, offset) => segments[index + offset] === segment)) {
 			continue;
 		}
-		if (matches(segments[nameIndex])) {
-			return {kind, name: segments[nameIndex]};
+		const name = segments[nameIndex];
+		if (name !== undefined && matches(name)) {
+			return {kind, name};
 		}
 	}
 	return null;

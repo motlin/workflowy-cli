@@ -240,7 +240,7 @@ describe("calendar:fix-photo-groups command", () => {
 
 		const movedIds = requests
 			.filter((request) => request.url.includes("/move"))
-			.map((request) => request.url.split("/nodes/")[1].replace("/move", ""));
+			.map((request) => request.url.split("/nodes/")[1]?.replace("/move", ""));
 
 		expect(movedIds).toStrictEqual(["photo-2", "photo-1"]);
 	});

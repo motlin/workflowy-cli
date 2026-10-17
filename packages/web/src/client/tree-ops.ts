@@ -56,10 +56,11 @@ export function planIndent(queryClient: QueryClient, node: PlanNode): MoveNodePa
 	}
 	const sorted = sortByPriority(siblings);
 	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	if (index <= 0) {
+	const previous = sorted[index - 1];
+	if (index <= 0 || previous === undefined) {
 		return null;
 	}
-	return {nodeId: node.id, parent_id: sorted[index - 1].id};
+	return {nodeId: node.id, parent_id: previous.id};
 }
 
 /** Outdent `node` to sit after its parent among the grandparent's children, or null if at root. */
@@ -89,10 +90,10 @@ export function planMoveUp(queryClient: QueryClient, node: PlanNode): MoveNodePa
 	}
 	const sorted = sortByPriority(siblings);
 	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	if (index <= 0) {
+	const previous = sorted[index - 1];
+	if (index <= 0 || previous === undefined) {
 		return null;
 	}
-	const previous = sorted[index - 1];
 	return {
 		nodeId: node.id,
 		parent_id: node.parent_id,
@@ -108,9 +109,9 @@ export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNode
 	}
 	const sorted = sortByPriority(siblings);
 	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	if (index === -1 || index >= sorted.length - 1) {
+	const next = sorted[index + 1];
+	if (index === -1 || next === undefined) {
 		return null;
 	}
-	const next = sorted[index + 1];
 	return {nodeId: node.id, parent_id: node.parent_id, position: insertAfterPriority(sorted, next.id, next.priority)};
 }

@@ -16,6 +16,7 @@ import type {
 import {PathBuilder} from "@workflowy/shared/cache";
 import {loadEmbeddableNodes} from "./embedding-generator.js";
 import {logger} from "./logger.js";
+import {nullable} from "../utils/nullable.js";
 
 function hashContent(content: string): string {
 	return createHash("sha256").update(content).digest("hex");
@@ -129,8 +130,7 @@ export class QmdSearchService {
 		const now = new Date().toISOString();
 		const processedPaths = new Set<string>();
 
-		for (let i = 0; i < nonLeafNodes.length; i++) {
-			const node = nonLeafNodes[i];
+		for (const [i, node] of nonLeafNodes.entries()) {
 			const fullPath = pathMap.get(node.id) ?? "";
 			const textContent = contentMap.get(node.id) ?? "";
 			const childrenText = childrenMap.get(node.id) ?? "";
@@ -273,38 +273,37 @@ export class QmdSearchService {
 				continue;
 			}
 
-			const priority = nodeWithRelations.metadata?.priority ?? 0;
+			// Drizzle types these one() relations as always present, but a node can lack any of these rows.
+			const metadata = nullable(nodeWithRelations.metadata);
+			const referencesRoot = nullable(nodeWithRelations.referencesRoot);
+			const aiMetadata = nullable(nodeWithRelations.aiMetadata);
+
+			const priority = metadata?.priority ?? 0;
 			const data: Record<string, unknown> = {};
 
-			if (nodeWithRelations.metadata?.layoutMode) {
-				data.layoutMode = nodeWithRelations.metadata.layoutMode;
+			if (metadata?.layoutMode) {
+				data.layoutMode = metadata.layoutMode;
 			}
 
-			if (nodeWithRelations.referencesRoot != null) {
+			if (referencesRoot != null) {
 				data.isReferencesRoot = true;
 			}
 
-			if (nodeWithRelations.aiMetadata != null) {
+			if (aiMetadata != null) {
 				data.ai = {
-					inChat: Boolean(nodeWithRelations.aiMetadata.inChat),
+					inChat: Boolean(aiMetadata.inChat),
 				};
 			}
 
 			enriched.push({
 				id: nodeWithRelations.id,
-				name: nodeWithRelations.name || "",
+				name: nodeWithRelations.name ?? "",
 				note: nodeWithRelations.note,
 				priority,
-				completed: nodeWithRelations.metadata?.completedAt !== null,
-				createdAt: nodeWithRelations.metadata?.createdAt
-					? Math.floor(nodeWithRelations.metadata.createdAt.getTime() / 1000)
-					: 0,
-				modifiedAt: nodeWithRelations.metadata?.modifiedAt
-					? Math.floor(nodeWithRelations.metadata.modifiedAt.getTime() / 1000)
-					: 0,
-				completedAt: nodeWithRelations.metadata?.completedAt
-					? Math.floor(nodeWithRelations.metadata.completedAt.getTime() / 1000)
-					: null,
+				completed: metadata?.completedAt !== null,
+				createdAt: metadata?.createdAt ? Math.floor(metadata.createdAt.getTime() / 1000) : 0,
+				modifiedAt: metadata?.modifiedAt ? Math.floor(metadata.modifiedAt.getTime() / 1000) : 0,
+				completedAt: metadata?.completedAt ? Math.floor(metadata.completedAt.getTime() / 1000) : null,
 				data,
 				nodeId,
 				fullPath,

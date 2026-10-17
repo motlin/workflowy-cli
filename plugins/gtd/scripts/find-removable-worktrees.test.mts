@@ -7,6 +7,7 @@ import {existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync}
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {findWorktrees, removeWorktrees} from "./find-removable-worktrees.mts";
+import {at} from "./test-helpers.mts";
 
 function git(cwd: string, ...args: string[]): string {
 	return execFileSync("git", ["-C", cwd, ...args], {encoding: "utf8", stdio: ["ignore", "pipe", "pipe"]});
@@ -94,7 +95,7 @@ test("removal runs git worktree remove without --force and reports refusals", ()
 				{path: dirty, removed: false},
 			],
 		);
-		assert.match(results[1].error ?? "", /contains modified or untracked files/u);
+		assert.match(at(results, 1).error ?? "", /contains modified or untracked files/u);
 		assert.deepStrictEqual([existsSync(clean), existsSync(dirty)], [false, true]);
 		assert.match(git(repo, "branch", "--list", "clean"), /clean/u);
 	} finally {

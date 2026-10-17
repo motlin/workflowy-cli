@@ -100,7 +100,7 @@ function formatType(
 			.filter((s) => typeof s !== "boolean")
 			.map((s) => formatType(s, definitions, nestedInterfaces, nameMap))
 			.filter((t) => t !== "unknown");
-		return types.length === 1 ? types[0] : types.join(" | ");
+		return types.join(" | ");
 	}
 
 	if (schema.type === "array") {

@@ -54,29 +54,29 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 			const id = randomUUID();
 			res.writeHead(200);
 			res.end(JSON.stringify({item_id: id}));
-		} else if (method === "DELETE" && url?.startsWith("/api/v1/nodes/")) {
+		} else if (method === "DELETE" && url.startsWith("/api/v1/nodes/")) {
 			// Delete node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/complete$/u)) {
+		} else if (method === "POST" && url.match(/^\/api\/v1\/nodes\/[^/]+\/complete$/u)) {
 			// Complete node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/uncomplete$/u)) {
+		} else if (method === "POST" && url.match(/^\/api\/v1\/nodes\/[^/]+\/uncomplete$/u)) {
 			// Uncomplete node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+\/move$/u)) {
+		} else if (method === "POST" && url.match(/^\/api\/v1\/nodes\/[^/]+\/move$/u)) {
 			// Move node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "POST" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/u)) {
+		} else if (method === "POST" && url.match(/^\/api\/v1\/nodes\/[^/]+$/u)) {
 			// Update node
 			res.writeHead(200);
 			res.end(JSON.stringify({status: "ok"}));
-		} else if (method === "GET" && url?.match(/^\/api\/v1\/nodes\/[^/]+$/u)) {
+		} else if (method === "GET" && url.match(/^\/api\/v1\/nodes\/[^/]+$/u)) {
 			// Get node - return a plausible node response
-			const nodeId = url.split("/").pop()!;
+			const nodeId = url.slice(url.lastIndexOf("/") + 1);
 			const now = Math.floor(Date.now() / 1000);
 			res.writeHead(200);
 			res.end(
@@ -98,7 +98,7 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 			// Get targets
 			res.writeHead(200);
 			res.end(JSON.stringify({targets: [{name: "inbox", id: randomUUID()}]}));
-		} else if (method === "GET" && url?.startsWith("/api/v1/nodes")) {
+		} else if (method === "GET" && url.startsWith("/api/v1/nodes")) {
 			// List nodes
 			res.writeHead(200);
 			res.end(JSON.stringify({nodes: []}));
@@ -110,15 +110,16 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 
 	async function start(): Promise<void> {
 		return new Promise((resolve, reject) => {
-			server = http.createServer((req, res) => {
+			const created = http.createServer((req, res) => {
 				void handle(req, res);
 			});
 
-			server.on("error", reject);
+			server = created;
+			created.on("error", reject);
 
 			// Listen on port 0 to get a random available port
-			server.listen(0, "127.0.0.1", () => {
-				const addr = server!.address();
+			created.listen(0, "127.0.0.1", () => {
+				const addr = created.address();
 				if (typeof addr === "object" && addr !== null) {
 					port = addr.port;
 				}
@@ -130,7 +131,9 @@ export function createMockWorkflowyServer(): MockWorkflowyServer {
 	async function stop(): Promise<void> {
 		return new Promise((resolve) => {
 			if (server) {
-				server.close(() => resolve());
+				server.close(() => {
+					resolve();
+				});
 			} else {
 				resolve();
 			}

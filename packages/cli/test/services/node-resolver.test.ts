@@ -104,7 +104,7 @@ describe("node-resolver service", () => {
 
 			expect(result).toBe("api-resolved-id");
 			expect(mockApiClient.findNodeByPath).toHaveBeenCalledOnce();
-			expect(mockApiClient.findNodeByPath.mock.calls[0][0]).toStrictEqual(["Missing", "Path"]);
+			expect(mockApiClient.findNodeByPath.mock.calls[0]?.[0]).toStrictEqual(["Missing", "Path"]);
 		});
 
 		it("throws error when node not found", async () => {
@@ -274,7 +274,7 @@ describe("node-resolver service", () => {
 
 			expect(result).toBe("new-child-id");
 			expect(mockApiClient.createNode).toHaveBeenCalledOnce();
-			expect(mockApiClient.createNode.mock.calls[0][0]).toStrictEqual({
+			expect(mockApiClient.createNode.mock.calls[0]?.[0]).toStrictEqual({
 				parent_id: "root-id",
 				name: "NewChild",
 			});

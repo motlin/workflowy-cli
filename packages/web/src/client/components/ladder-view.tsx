@@ -122,8 +122,12 @@ export function LadderView() {
 	useEffect(() => {
 		const protocol = globalThis.location.protocol === "https:" ? "wss" : "ws";
 		const socket = new WebSocket(`${protocol}://${globalThis.location.host}/api/v1/ladder/events`);
-		socket.addEventListener("open", () => setLive(true));
-		socket.addEventListener("close", () => setLive(false));
+		socket.addEventListener("open", () => {
+			setLive(true);
+		});
+		socket.addEventListener("close", () => {
+			setLive(false);
+		});
 		socket.addEventListener("message", (message: MessageEvent<string>) => {
 			const event = parseLadderEvent(message.data);
 			if (!event) {
@@ -132,7 +136,9 @@ export function LadderView() {
 			receivedWrites.current.set(event.nodeId, event);
 			updateLadders((current) => applyLadderEvent(current, event));
 		});
-		return () => socket.close();
+		return () => {
+			socket.close();
+		};
 	}, [updateLadders]);
 
 	/** Replace the page with the server's ladder; false when even that fails. */
@@ -153,7 +159,11 @@ export function LadderView() {
 	}, [updateLadders]);
 
 	const write = useCallback(
-		async (path: string, body: Record<string, string>, optimistic: (current: Ladders) => Ladders) => {
+		async (
+			path: string,
+			body: Record<string, string> & {node_id: string},
+			optimistic: (current: Ladders) => Ladders,
+		) => {
 			const before = laddersRef.current;
 			if (!before) {
 				return false;
@@ -277,7 +287,9 @@ export function LadderView() {
 			frame = requestAnimationFrame(scroll);
 		};
 		frame = requestAnimationFrame(scroll);
-		return () => cancelAnimationFrame(frame);
+		return () => {
+			cancelAnimationFrame(frame);
+		};
 	}, [dragging]);
 
 	const onGripDown = useCallback(
@@ -455,7 +467,9 @@ export function LadderView() {
 	const showPreview = useCallback((item: LadderItem, position: {left: number; bottom: number}) => {
 		setPreview({item, left: position.left, top: position.bottom + 4});
 	}, []);
-	const hidePreview = useCallback(() => setPreview(undefined), []);
+	const hidePreview = useCallback(() => {
+		setPreview(undefined);
+	}, []);
 
 	return (
 		<div
@@ -540,7 +554,15 @@ export function LadderView() {
 					<p className="ladder-dek">{error ? "Could not load the ladder." : "Loading…"}</p>
 				)}
 			</div>
-			{treeItem ? <LadderTree key={treeItem.id} item={treeItem} onClose={() => setTreeItem(undefined)} /> : null}
+			{treeItem ? (
+				<LadderTree
+					key={treeItem.id}
+					item={treeItem}
+					onClose={() => {
+						setTreeItem(undefined);
+					}}
+				/>
+			) : null}
 			{preview && !dragging ? (
 				<div
 					className="ladder-preview"
@@ -657,11 +679,17 @@ function Tier({
 							event.preventDefault();
 							onSelect(item.id, event.shiftKey, event.metaKey || event.ctrlKey);
 						}}
-						onClick={(event) => onRowClick(event, item.id)}
+						onClick={(event) => {
+							onRowClick(event, item.id);
+						}}
 						onPointerCancel={onGripCancel}
 						onLostPointerCapture={onGripCancel}
-						onPointerDown={(event) => onGripDown(event, item)}
-						onPointerMove={(event) => onGripMove(event, item.name)}
+						onPointerDown={(event) => {
+							onGripDown(event, item);
+						}}
+						onPointerMove={(event) => {
+							onGripMove(event, item.name);
+						}}
 						onPointerUp={onGripUp}
 					>
 						<span className="grip" role="presentation">
@@ -684,11 +712,15 @@ function Tier({
 									type="button"
 									aria-label={`View tree for ${item.name}`}
 									aria-haspopup="dialog"
-									onClick={() => onOpenTree(item)}
-									onMouseEnter={(event) =>
-										onPreview(item, event.currentTarget.getBoundingClientRect())
-									}
-									onFocus={(event) => onPreview(item, event.currentTarget.getBoundingClientRect())}
+									onClick={() => {
+										onOpenTree(item);
+									}}
+									onMouseEnter={(event) => {
+										onPreview(item, event.currentTarget.getBoundingClientRect());
+									}}
+									onFocus={(event) => {
+										onPreview(item, event.currentTarget.getBoundingClientRect());
+									}}
 									onMouseLeave={onPreviewEnd}
 									onBlur={onPreviewEnd}
 									onKeyDown={(event) => {
@@ -735,7 +767,9 @@ function Tier({
 						<button
 							className="done"
 							disabled={saving || pending.has(item.id)}
-							onClick={() => onComplete(item.id)}
+							onClick={() => {
+								onComplete(item.id);
+							}}
 							type="button"
 						>
 							Done

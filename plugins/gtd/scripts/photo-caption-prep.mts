@@ -156,7 +156,7 @@ export function facesSummary({named, unnamed}: PhotoFaces): string {
 export function captionSeed(name: string): string {
 	return name
 		.replaceAll(/<[^>]*>/gu, "")
-		.replaceAll(/&(amp|lt|gt|quot|#39);/gu, (entity) => ENTITIES[entity])
+		.replaceAll(/&(amp|lt|gt|quot|#39);/gu, (entity) => ENTITIES[entity] ?? entity)
 		.replace(EMOJI_RE, "")
 		.replaceAll(/[\u2018\u2019]/gu, "'")
 		.replaceAll(/[\u201C\u201D]/gu, '"')
@@ -188,11 +188,10 @@ export function journalQuery(dates: string[]): string {
 export function groupJournal(rows: JournalRow[]): Record<string, string[]> {
 	const byDate: Record<string, string[]> = {};
 	for (const {day, entry} of rows) {
-		const match = /startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)"/u.exec(day);
-		if (!match) {
+		const [, year, month, day2] = /startYear="(\d+)" startMonth="(\d+)" startDay="(\d+)"/u.exec(day) ?? [];
+		if (year === undefined || month === undefined || day2 === undefined) {
 			continue;
 		}
-		const [, year, month, day2] = match;
 		const date = `${year}-${month.padStart(2, "0")}-${day2.padStart(2, "0")}`;
 		const seed = captionSeed(entry ?? "");
 		const seeds = (byDate[date] ??= []);

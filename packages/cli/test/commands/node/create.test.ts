@@ -65,6 +65,9 @@ describe("node create command", () => {
 			if (init?.method === "POST") {
 				const body = createBodySchema.parse(requestJson(init));
 				const id = ids[bodies.length];
+				if (id === undefined) {
+					throw new Error("fakeCreates ran out of ids");
+				}
 				bodies.push(body);
 				created.set(id, body);
 				return Promise.resolve(Response.json({item_id: id}, {status: 200}));

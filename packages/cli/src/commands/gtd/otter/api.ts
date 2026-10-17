@@ -122,9 +122,12 @@ export default class Api extends Command {
 		if (username.startsWith("op://")) {
 			if (fs.existsSync(CREDS_FILE)) {
 				this.logTiming("login: using cached credentials");
-				const lines = fs.readFileSync(CREDS_FILE, "utf8").trim().split("\n");
-				username = lines[0];
-				password = lines[1];
+				const [cachedUsername = "", cachedPassword = ""] = fs
+					.readFileSync(CREDS_FILE, "utf8")
+					.trim()
+					.split("\n");
+				username = cachedUsername;
+				password = cachedPassword;
 			} else {
 				this.logTiming("login: resolving op:// credentials");
 				const origUsername = username;

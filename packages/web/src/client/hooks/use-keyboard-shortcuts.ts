@@ -446,11 +446,11 @@ export function useKeyboardShortcuts() {
 			const currentIndex = sortedSiblings.findIndex((sibling) => sibling.id === zoomedNodeId);
 
 			// Can't focus previous if already at the first sibling
-			if (currentIndex <= 0) {
+			const previousSibling = sortedSiblings[currentIndex - 1];
+			if (currentIndex <= 0 || previousSibling === undefined) {
 				return;
 			}
 
-			const previousSibling = sortedSiblings[currentIndex - 1];
 			void navigate(nodeRoute(previousSibling.id));
 		},
 		{
@@ -479,11 +479,11 @@ export function useKeyboardShortcuts() {
 			const currentIndex = sortedSiblings.findIndex((sibling) => sibling.id === zoomedNodeId);
 
 			// Can't focus next if already at the last sibling
-			if (currentIndex === -1 || currentIndex >= sortedSiblings.length - 1) {
+			const nextSibling = sortedSiblings[currentIndex + 1];
+			if (currentIndex === -1 || nextSibling === undefined) {
 				return;
 			}
 
-			const nextSibling = sortedSiblings[currentIndex + 1];
 			void navigate(nodeRoute(nextSibling.id));
 		},
 		{
@@ -509,12 +509,54 @@ export function useKeyboardShortcuts() {
 	);
 
 	// Option+Cmd+8/9/1/2/3/4: Set the edited node's layout mode
-	useHotkeys("alt+meta+8", () => setLayoutMode("bullets"), editingShortcut, [setLayoutMode]);
-	useHotkeys("alt+meta+9", () => setLayoutMode("todo"), editingShortcut, [setLayoutMode]);
-	useHotkeys("alt+meta+1", () => setLayoutMode("h1"), editingShortcut, [setLayoutMode]);
-	useHotkeys("alt+meta+2", () => setLayoutMode("h2"), editingShortcut, [setLayoutMode]);
-	useHotkeys("alt+meta+3", () => setLayoutMode("h3"), editingShortcut, [setLayoutMode]);
-	useHotkeys("alt+meta+4", () => setLayoutMode("paragraph"), editingShortcut, [setLayoutMode]);
+	useHotkeys(
+		"alt+meta+8",
+		() => {
+			setLayoutMode("bullets");
+		},
+		editingShortcut,
+		[setLayoutMode],
+	);
+	useHotkeys(
+		"alt+meta+9",
+		() => {
+			setLayoutMode("todo");
+		},
+		editingShortcut,
+		[setLayoutMode],
+	);
+	useHotkeys(
+		"alt+meta+1",
+		() => {
+			setLayoutMode("h1");
+		},
+		editingShortcut,
+		[setLayoutMode],
+	);
+	useHotkeys(
+		"alt+meta+2",
+		() => {
+			setLayoutMode("h2");
+		},
+		editingShortcut,
+		[setLayoutMode],
+	);
+	useHotkeys(
+		"alt+meta+3",
+		() => {
+			setLayoutMode("h3");
+		},
+		editingShortcut,
+		[setLayoutMode],
+	);
+	useHotkeys(
+		"alt+meta+4",
+		() => {
+			setLayoutMode("paragraph");
+		},
+		editingShortcut,
+		[setLayoutMode],
+	);
 
 	// Ctrl+L: Toggle left sidebar
 	useHotkeys(
@@ -660,8 +702,9 @@ export function useKeyboardShortcuts() {
 
 			if (response.ok) {
 				const data = await readJson<{results: {id: string; name: string | null}[]}>(response);
-				if (data.results.length > 0) {
-					void navigate(nodeRoute(data.results[0].id));
+				const [first] = data.results;
+				if (first !== undefined) {
+					void navigate(nodeRoute(first.id));
 					return;
 				}
 			}

@@ -87,7 +87,7 @@ function InlineDiff({oldText, newText}: {oldText: string; newText: string}) {
 function ChangeTreeNodeView({node, depth}: {node: ChangeTreeNode; depth: number}) {
 	const name = node.name ? stripHtml(node.name) : "(unnamed)";
 
-	if (node.isContext) {
+	if (node.isContext || node.change === null) {
 		return (
 			<div>
 				<div className="change-node change-context" style={{paddingLeft: `${depth * 24}px`}}>
@@ -101,7 +101,7 @@ function ChangeTreeNodeView({node, depth}: {node: ChangeTreeNode; depth: number}
 		);
 	}
 
-	const change = node.change!;
+	const {change} = node;
 	const labels = getChangeLabels(change);
 	const bulletColor = getBulletColor(change);
 
@@ -200,7 +200,9 @@ export function ChangesView() {
 					<label htmlFor="since-input">Since:</label>
 					<input
 						id="since-input"
-						onChange={(e) => setSinceInput(e.target.value)}
+						onChange={(e) => {
+							setSinceInput(e.target.value);
+						}}
 						placeholder="1d, 12h, 1w, or ISO date"
 						type="text"
 						value={sinceInput}

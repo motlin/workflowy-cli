@@ -16,7 +16,10 @@ function promptRefs(): {path: string; at: string}[] {
 		const lines = readFileSync(filePath, "utf8").split("\n");
 		for (const [index, line] of lines.entries()) {
 			for (const match of line.matchAll(PROMPT_REF)) {
-				refs.push({path: match[1], at: `${relative(PROJECT_ROOT, filePath)}:${index + 1}`});
+				const [, refPath] = match;
+				if (refPath !== undefined) {
+					refs.push({path: refPath, at: `${relative(PROJECT_ROOT, filePath)}:${index + 1}`});
+				}
 			}
 		}
 	}

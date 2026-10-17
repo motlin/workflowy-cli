@@ -36,7 +36,7 @@ describe("Behavioral Eval: sync-metadata.sh", () => {
 	});
 
 	afterAll(() => {
-		ctx?.cleanup();
+		ctx.cleanup();
 	});
 
 	it("should run without errors against the eval database", {timeout: 120_000}, async () => {

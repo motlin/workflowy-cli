@@ -117,7 +117,9 @@ export function LinkInsertModal() {
 			void runSearch();
 		}, 150);
 
-		return () => clearTimeout(searchTimeout);
+		return () => {
+			clearTimeout(searchTimeout);
+		};
 	}, [query]);
 
 	const insertLink = useCallback(
@@ -225,7 +227,9 @@ export function LinkInsertModal() {
 					</div>
 					<input
 						className="link-insert-input"
-						onChange={(event) => handleQueryChange(event.target.value)}
+						onChange={(event) => {
+							handleQueryChange(event.target.value);
+						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search for a node to link..."
 						ref={inputRef}
@@ -261,7 +265,9 @@ export function LinkInsertModal() {
 									<li key={node.id}>
 										<button
 											className={`link-insert-result ${index === selectedIndex ? "selected" : ""}`}
-											onClick={() => insertLink(node)}
+											onClick={() => {
+												insertLink(node);
+											}}
 											type="button"
 										>
 											<div className="link-insert-result-header">
@@ -291,7 +297,9 @@ export function LinkInsertModal() {
 								<li key={node.id}>
 									<button
 										className={`link-insert-result ${index === selectedIndex ? "selected" : ""}`}
-										onClick={() => insertLink(node)}
+										onClick={() => {
+											insertLink(node);
+										}}
 										type="button"
 									>
 										<span className="link-insert-result-name">

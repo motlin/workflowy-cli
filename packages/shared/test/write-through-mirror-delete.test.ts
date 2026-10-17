@@ -178,6 +178,9 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 				return Promise.resolve(Response.json({nodes}, {status: 200}));
 			}
 			const id = path.split("/")[2];
+			if (id === undefined) {
+				throw new Error(`Unexpected request path: ${path}`);
+			}
 			if (method === "DELETE") {
 				detach(id);
 			} else if (method === "POST" && path.endsWith("/move")) {

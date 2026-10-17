@@ -153,19 +153,15 @@ export abstract class BaseListCommand extends Command {
 	 * Calculate cache age in seconds from the oldest systemFrom timestamp.
 	 */
 	private calculateCacheAge(nodes: {systemFrom: string}[]): number {
-		const fetchTimes = nodes
-			.map((n) => systemFromToDate(n.systemFrom))
-			.filter((d): d is Date => d !== undefined)
-			.map((d) => d.getTime());
+		const fetchTimes = nodes.map((n) => systemFromToDate(n.systemFrom).getTime());
 		const oldestFetch = fetchTimes.length > 0 ? Math.min(...fetchTimes) : undefined;
 		return oldestFetch !== undefined && oldestFetch !== 0 ? Math.floor((Date.now() - oldestFetch) / 1000) : 0;
 	}
 
 	protected async displayNodes(nodes: NodeTree[], flags: ListCommandFlags): Promise<void> {
 		if (flags.json) {
-			const output = flags.fields
-				? nodes.map((node) => this.filterNodeFields(node, this.parseFields(flags.fields!)))
-				: nodes;
+			const {fields} = flags;
+			const output = fields ? nodes.map((node) => this.filterNodeFields(node, this.parseFields(fields))) : nodes;
 			this.log(JSON.stringify(output, null, 2));
 		} else if (nodes.length === 0) {
 			this.log("No nodes found");
@@ -176,8 +172,7 @@ export abstract class BaseListCommand extends Command {
 	}
 
 	private async displayNodesRecursive(nodes: NodeTree[], depth: number, showTreeStructure: boolean): Promise<void> {
-		for (let i = 0; i < nodes.length; i++) {
-			const node = nodes[i];
+		for (const [i, node] of nodes.entries()) {
 			const isLast = i === nodes.length - 1;
 
 			const completedIndicator = node.completedAt ? "✓ " : "";
@@ -245,6 +240,6 @@ export abstract class BaseListCommand extends Command {
 
 	private hasBacklinks(node: NodeTree): boolean {
 		const backlinkPrefix = '<a href="https://workflowy.com/#/';
-		return Boolean(node.name?.includes(backlinkPrefix) || node.note?.includes(backlinkPrefix));
+		return (node.name ?? "").includes(backlinkPrefix) || (node.note ?? "").includes(backlinkPrefix);
 	}
 }

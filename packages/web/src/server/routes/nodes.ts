@@ -256,7 +256,7 @@ nodesRouter.post("/", async (c) => {
 	// Return in Workflowy response format
 	const nodeResponse: NodeResponse = {
 		id: createdNode.id,
-		parent_id: parentId ?? null,
+		parent_id: parentId,
 		name: createdNode.name,
 		note: createdNode.note ?? null,
 		priority: createdNode.priority,
@@ -451,7 +451,7 @@ nodesRouter.get("/:id/mirrors", (c) => {
 	const allIds = [originalId, ...mirrorRows.map((r) => r.mirrorId)];
 
 	// A mirror's text always comes from its original.
-	const nodeName = reader.getById(originalId)?.name || "Untitled";
+	const nodeName = (reader.getById(originalId)?.name ?? "") || "Untitled";
 
 	// Helper to build ancestor breadcrumb path for a node
 	function getAncestorPath(nodeId: string): {id: string; name: string}[] {
@@ -541,7 +541,8 @@ nodesRouter.post("/:id/move", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 	const {parent_id: newParentId, position} = await c.req.json<{
-		parent_id: string | null;
+		// Client JSON may omit it, which the check below rejects.
+		parent_id?: string | null;
 		position?: number;
 	}>();
 

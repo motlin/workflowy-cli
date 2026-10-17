@@ -143,8 +143,8 @@ export class WorkflowyApiClient {
 	 * otherwise exponential backoff from baseDelayMs, capped at maxDelayMs.
 	 */
 	private retryDelayMs(response: Response, attempt: number): number {
-		const retryAfter = response.headers?.get("retry-after");
-		if (retryAfter !== null && retryAfter !== undefined) {
+		const retryAfter = response.headers.get("retry-after");
+		if (retryAfter !== null) {
 			const seconds = Number(retryAfter);
 			if (Number.isFinite(seconds)) {
 				return seconds * 1000;
@@ -292,7 +292,7 @@ export class WorkflowyApiClient {
 
 			// Construct node from request data (no GET needed)
 			// For multiline input, API creates parent + children; we return the parent info
-			const nodeName = request.name.split("\n")[0].replace(/^- /u, "");
+			const nodeName = (request.name.split("\n")[0] ?? "").replace(/^- /u, "");
 
 			return {
 				id: createResponse.item_id,

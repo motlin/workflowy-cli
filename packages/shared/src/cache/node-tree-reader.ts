@@ -35,11 +35,11 @@ const WORKFLOWY_LINK_PATTERN = /<a href="https:\/\/workflowy\.com\/#\/([a-f0-9]{
 /** Extract Workflowy link short IDs from a node's name. */
 function extractWorkflowyLinkShortIds(name: string): string[] {
 	const shortIds: string[] = [];
-	let match: RegExpExecArray | null;
-	// Reset lastIndex per call: the regex is module-level and stateful with /g.
-	WORKFLOWY_LINK_PATTERN.lastIndex = 0;
-	while ((match = WORKFLOWY_LINK_PATTERN.exec(name)) !== null) {
-		shortIds.push(match[1]);
+	// matchAll clones the module-level /g regex, so its lastIndex never leaks between calls.
+	for (const [, shortId] of name.matchAll(WORKFLOWY_LINK_PATTERN)) {
+		if (shortId !== undefined) {
+			shortIds.push(shortId);
+		}
 	}
 	return shortIds;
 }
@@ -183,14 +183,16 @@ export class NodeTreeReader {
 
 	/** Assign originals' content to any mirrors in this level. */
 	private resolveMirrorContent(nodes: NodeTree[]): void {
-		const mirrors = nodes.filter((node) => node.mirror.originalNodeId !== null);
+		const mirrors = nodes.flatMap((node) => {
+			const {originalNodeId} = node.mirror;
+			return originalNodeId === null ? [] : [{node, originalNodeId}];
+		});
 		if (mirrors.length === 0) {
 			return;
 		}
-		const originalIds = mirrors.map((node) => node.mirror.originalNodeId!);
-		const originals = this.cache.getMultipleNodes(originalIds);
-		for (const node of mirrors) {
-			assignMirrorContent(node, originals.get(node.mirror.originalNodeId!));
+		const originals = this.cache.getMultipleNodes(mirrors.map(({originalNodeId}) => originalNodeId));
+		for (const {node, originalNodeId} of mirrors) {
+			assignMirrorContent(node, originals.get(originalNodeId));
 		}
 	}
 

@@ -1,6 +1,7 @@
 import type {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {CacheService} from "./cache.js";
+import {nonEmpty} from "../utils/non-empty.js";
 
 export interface NodeSyncStats {
 	syncedCount: number;
@@ -39,7 +40,7 @@ export class NodeSyncService {
 				phase: "syncing",
 				nodeId,
 				childCount: nodes.length,
-				message: `Synced ${nodes.length} children of ${nodeId || "root"}`,
+				message: `Synced ${nodes.length} children of ${nonEmpty(nodeId) ?? "root"}`,
 			});
 
 			if (recursive) {

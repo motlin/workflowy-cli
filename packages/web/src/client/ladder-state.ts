@@ -154,19 +154,24 @@ export function restoreRow(current: Ladders, before: Ladders, nodeId: string): L
 	if (!root || current[root] === undefined) {
 		return current;
 	}
-	const origin = before[root].tiers.find((tier) => tier.items.some((item) => item.id === nodeId))!;
-	const index = origin.items.findIndex((item) => item.id === nodeId);
+	const origin = before[root]?.tiers.find((tier) => tier.items.some((item) => item.id === nodeId));
+	const index = origin?.items.findIndex((item) => item.id === nodeId) ?? -1;
+	const row = origin?.items[index];
 	const without = removeRow(current, nodeId);
+	const ladder = without[root];
+	if (origin === undefined || row === undefined || ladder === undefined) {
+		return current;
+	}
 	return {
 		...without,
 		[root]: {
-			...without[root],
-			tiers: without[root].tiers.map((tier) => {
+			...ladder,
+			tiers: ladder.tiers.map((tier) => {
 				if (tier.id !== origin.id) {
 					return tier;
 				}
 				const items = [...tier.items];
-				items.splice(index, 0, origin.items[index]);
+				items.splice(index, 0, row);
 				return withItems(tier, items);
 			}),
 		},

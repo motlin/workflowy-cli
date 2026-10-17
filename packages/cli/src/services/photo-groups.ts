@@ -238,13 +238,12 @@ export function planPhotoGroup(group: PhotoGroup): PhotoGroupPlan {
 
 	const sequences = members.map((member) => parseImageSequence(member.fileName));
 	if (sequences.every((sequence) => sequence !== null)) {
-		const numbers = sequences;
-		const descending = numbers.every((value, index) => index === 0 || numbers[index - 1] > value);
+		const descending = isStrictlyOrdered(sequences, (previous, next) => previous > next);
 		if (descending) {
 			return {decision: "reverse", reason: "filenames descend", orderedIds: reversedIds};
 		}
 
-		const ascending = numbers.every((value, index) => index === 0 || numbers[index - 1] < value);
+		const ascending = isStrictlyOrdered(sequences, (previous, next) => previous < next);
 		if (ascending) {
 			return {decision: "already-ordered", reason: "filenames ascend", orderedIds: currentIds};
 		}
@@ -261,4 +260,16 @@ export function planPhotoGroup(group: PhotoGroup): PhotoGroupPlan {
 	}
 
 	return {decision: "unverifiable", reason: "loose group without filename evidence", orderedIds: currentIds};
+}
+
+/** Whether every adjacent pair of values satisfies `ordered(previous, next)`. */
+function isStrictlyOrdered(values: number[], ordered: (previous: number, next: number) => boolean): boolean {
+	let previous: number | undefined;
+	for (const value of values) {
+		if (previous !== undefined && !ordered(previous, value)) {
+			return false;
+		}
+		previous = value;
+	}
+	return true;
 }

@@ -92,7 +92,7 @@ function contractKey(normalizedPath: string): string {
 function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "consumer" {
 	const lines = fileContent.split("\n");
 	const lineIdx = llmPath.line - 1; // 0-based
-	const line = lines[lineIdx] || "";
+	const line = lines[lineIdx] ?? "";
 
 	// Check the line and nearby lines for context
 	const contextStart = Math.max(0, lineIdx - 3);
@@ -172,7 +172,7 @@ function classifyRole(llmPath: LlmPath, fileContent: string): "producer" | "cons
 	// cat/jq/wc reading the path (but NOT cat > which is a redirect/write)
 	if (
 		/\b(cat|jq|wc)\s/u.test(lineLower) &&
-		!line.split(llmPath.path)[0].includes(">") &&
+		!(line.split(llmPath.path)[0] ?? "").includes(">") &&
 		line.includes(llmPath.path)
 	) {
 		return "consumer";

@@ -53,8 +53,8 @@ describe("E2E Eval: refine-inbox", {timeout: 900_000}, () => {
 	});
 
 	afterAll(async () => {
-		ctx?.cleanup();
-		await mockServer?.stop();
+		await mockServer.stop();
+		ctx.cleanup();
 	});
 
 	it("should launch Phase 1 loaders (inbox-loader and metadata-sync)", async (context) => {

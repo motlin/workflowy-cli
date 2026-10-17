@@ -29,6 +29,47 @@ import {NodeReader} from "./node-reader.js";
 import {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
 import type {TemporalTransaction} from "./temporal-merge.js";
 
+type NodeMetadataRow = typeof schema.nodeMetadata.$inferSelect;
+
+/**
+ * Drizzle types a `one()` relation on non-null columns as always present, but a
+ * node can lack a current metadata row, so the relation is really nullable.
+ */
+function metadataOf(row: {metadata: NodeMetadataRow}): NodeMetadataRow | null {
+	return row.metadata;
+}
+
+/** Sort siblings by priority, then createdAt, treating missing metadata as 0. */
+function compareByMetadata(a: {metadata: NodeMetadataRow}, b: {metadata: NodeMetadataRow}): number {
+	const metadataA = metadataOf(a);
+	const metadataB = metadataOf(b);
+	const priorityA = metadataA?.priority ?? 0;
+	const priorityB = metadataB?.priority ?? 0;
+	if (priorityA !== priorityB) {
+		return priorityA - priorityB;
+	}
+	const createdAtA = metadataA?.createdAt?.getTime() ?? 0;
+	const createdAtB = metadataB?.createdAt?.getTime() ?? 0;
+	return createdAtA - createdAtB;
+}
+
+/** The cached note: Workflowy sends an empty note as "", which the cache stores as null. */
+function noteOrNull(note: string | null | undefined): string | null {
+	return note === undefined || note === null || note === "" ? null : note;
+}
+
+/** The Node metadata fields, each null when the node has no metadata row. */
+function metadataFields(metadata: NodeMetadataRow | null) {
+	return {
+		shortId: metadata?.shortId ?? null,
+		priority: metadata?.priority ?? null,
+		createdAt: metadata?.createdAt ?? null,
+		modifiedAt: metadata?.modifiedAt ?? null,
+		completedAt: metadata?.completedAt ?? null,
+		layoutMode: metadata?.layoutMode ?? null,
+	};
+}
+
 /**
  * Type for a node with all related data from a Drizzle query with relations.
  * This is the raw result type returned by getChildrenWithMergedData.
@@ -116,7 +157,7 @@ function insertContent(
 		.values({
 			id: node.id,
 			name: node.name,
-			note: node.note || null,
+			note: noteOrNull(node.note),
 			parentId,
 			systemFrom,
 			systemTo: FAR_FUTURE_DATE,
@@ -165,7 +206,7 @@ function upsertNodeVersion(
 		return;
 	}
 
-	if (!contentMatches(existingContent, {name: node.name, note: node.note || null, parentId})) {
+	if (!contentMatches(existingContent, {name: node.name, note: noteOrNull(node.note), parentId})) {
 		db.update(nodeContent)
 			.set({systemTo: systemTime})
 			.where(and(eq(nodeContent.id, node.id), currentVersion(nodeContent)))
@@ -311,29 +352,15 @@ export class CacheService {
 			.sync();
 
 		// Sort by priority and createdAt (metadata fields)
-		results.sort((a, b) => {
-			const priorityA = a.metadata?.priority ?? 0;
-			const priorityB = b.metadata?.priority ?? 0;
-			if (priorityA !== priorityB) {
-				return priorityA - priorityB;
-			}
-			const createdAtA = a.metadata?.createdAt?.getTime() ?? 0;
-			const createdAtB = b.metadata?.createdAt?.getTime() ?? 0;
-			return createdAtA - createdAtB;
-		});
+		results.sort(compareByMetadata);
 
 		// Transform nodeContent results to Node format
 		return results.map((result) => ({
 			id: result.id,
-			shortId: result.metadata?.shortId ?? null,
 			name: result.name,
 			note: result.note,
 			parentId: result.parentId,
-			priority: result.metadata?.priority ?? null,
-			createdAt: result.metadata?.createdAt ?? null,
-			modifiedAt: result.metadata?.modifiedAt ?? null,
-			completedAt: result.metadata?.completedAt ?? null,
-			layoutMode: result.metadata?.layoutMode ?? null,
+			...metadataFields(metadataOf(result)),
 			systemFrom: result.systemFrom,
 			systemTo: result.systemTo,
 			mirrorsAsOriginal: result.mirrorsAsOriginal,
@@ -422,15 +449,10 @@ export class CacheService {
 
 		return results.map((result) => ({
 			id: result.id,
-			shortId: result.metadata?.shortId ?? null,
 			name: result.name,
 			note: result.note,
 			parentId: result.parentId,
-			priority: result.metadata?.priority ?? null,
-			createdAt: result.metadata?.createdAt ?? null,
-			modifiedAt: result.metadata?.modifiedAt ?? null,
-			completedAt: result.metadata?.completedAt ?? null,
-			layoutMode: result.metadata?.layoutMode ?? null,
+			...metadataFields(metadataOf(result)),
 			systemFrom: result.systemFrom,
 			systemTo: result.systemTo,
 			mirrorsAsOriginal: result.mirrorsAsOriginal,
@@ -593,9 +615,8 @@ export class CacheService {
 
 		// Collect all descendant IDs iteratively (BFS)
 		const descendantIds: string[] = [nodeId];
-		let currentIndex = 0;
-		while (currentIndex < descendantIds.length) {
-			const parentId = descendantIds[currentIndex];
+		// for-of over an array visits elements pushed during the loop, so this walks every level.
+		for (const parentId of descendantIds) {
 			const children = this.database
 				.select({id: nodeContent.id})
 				.from(nodeContent)
@@ -604,7 +625,6 @@ export class CacheService {
 			for (const child of children) {
 				descendantIds.push(child.id);
 			}
-			currentIndex++;
 		}
 
 		// Close all node records (set systemTo to now). A genuine deletion also closes the
@@ -725,16 +745,7 @@ export class CacheService {
 			.sync();
 
 		// Sort in-memory since orderBy can't reference joined relation columns
-		children.sort((a, b) => {
-			const priorityA = a.metadata?.priority ?? 0;
-			const priorityB = b.metadata?.priority ?? 0;
-			if (priorityA !== priorityB) {
-				return priorityA - priorityB;
-			}
-			const createdAtA = a.metadata?.createdAt?.getTime() ?? 0;
-			const createdAtB = b.metadata?.createdAt?.getTime() ?? 0;
-			return createdAtA - createdAtB;
-		});
+		children.sort(compareByMetadata);
 
 		const resultMap = new Map<string, NodeWithRelations[]>();
 
@@ -753,15 +764,10 @@ export class CacheService {
 				// Transform to NodeWithRelations format
 				existingList.push({
 					id: child.id,
-					shortId: child.metadata?.shortId ?? null,
 					name: child.name,
 					note: child.note,
 					parentId: child.parentId,
-					priority: child.metadata?.priority ?? null,
-					createdAt: child.metadata?.createdAt ?? null,
-					modifiedAt: child.metadata?.modifiedAt ?? null,
-					completedAt: child.metadata?.completedAt ?? null,
-					layoutMode: child.metadata?.layoutMode ?? null,
+					...metadataFields(metadataOf(child)),
 					systemFrom: child.systemFrom,
 					systemTo: child.systemTo,
 					mirrorsAsOriginal: child.mirrorsAsOriginal,
@@ -850,7 +856,7 @@ export class CacheService {
 		let level = [nodeId];
 		while (level.length > 0) {
 			const levelIndex = new Map(level.map((id, index) => [id, index]));
-			const rows: {id: string; parentId: string; priority: number}[] = [];
+			const rows: {id: string; parentId: string; levelIndex: number; priority: number}[] = [];
 			for (let i = 0; i < level.length; i += chunkSize) {
 				const chunk = this.database
 					.select({id: nodeContent.id, parentId: nodeContent.parentId, priority: nodeMetadata.priority})
@@ -861,15 +867,20 @@ export class CacheService {
 					)
 					.all();
 				for (const row of chunk) {
-					rows.push({id: row.id, parentId: row.parentId!, priority: row.priority ?? 0});
+					// The WHERE clause matched parentId against this level, so both lookups succeed.
+					const parentIndex = row.parentId === null ? undefined : levelIndex.get(row.parentId);
+					if (row.parentId === null || parentIndex === undefined) {
+						throw new Error(`Subtree row ${row.id} has a parent outside the current level`);
+					}
+					rows.push({
+						id: row.id,
+						parentId: row.parentId,
+						levelIndex: parentIndex,
+						priority: row.priority ?? 0,
+					});
 				}
 			}
-			rows.sort(
-				(a, b) =>
-					levelIndex.get(a.parentId)! - levelIndex.get(b.parentId)! ||
-					a.priority - b.priority ||
-					a.id.localeCompare(b.id),
-			);
+			rows.sort((a, b) => a.levelIndex - b.levelIndex || a.priority - b.priority || a.id.localeCompare(b.id));
 			for (const row of rows) {
 				parents.set(row.id, row.parentId);
 			}

@@ -77,6 +77,9 @@ export function formatWorkflowyDate(date: Date | string = new Date()): string {
 	if (typeof date === "string") {
 		// Parse YYYY-MM-DD string as local date (not UTC)
 		const [year, month, day] = date.split("-").map(Number);
+		if (year === undefined || month === undefined || day === undefined) {
+			throw new Error(`Invalid date "${date}": expected YYYY-MM-DD`);
+		}
 		dateObj = new Date(year, month - 1, day);
 	} else {
 		dateObj = date;

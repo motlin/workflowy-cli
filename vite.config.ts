@@ -372,17 +372,9 @@ export default defineConfig({
 				},
 			},
 			{
-				// Restores project settings that the template's **/*.{ts,tsx} override would replace.
+				// Restores project settings where the template's **/*.{ts,tsx} override is looser.
 				files: ["**/*.{ts,tsx}"],
 				rules: {
-					// Without noUncheckedIndexedAccess, Map.get, array indexing, and better-sqlite3 rows type as non-nullish,
-					// so the rule flags guards that do run at runtime.
-					"typescript/no-unnecessary-condition": "off",
-					// ~50 assertions follow Map.has checks, enabled-gated react-query fetches, and sorted-filtered rows.
-					"typescript/no-non-null-assertion": "off",
-					"typescript/no-confusing-void-expression": ["error", {ignoreArrowShorthand: true}],
-					// `||` on a primitive also defaults "" and 0, which most of these call sites rely on.
-					"typescript/prefer-nullish-coalescing": ["error", {ignorePrimitives: true}],
 					"typescript/return-await": "error",
 					"typescript/dot-notation": "error",
 					"typescript/strict-boolean-expressions": [

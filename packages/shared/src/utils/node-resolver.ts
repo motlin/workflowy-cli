@@ -46,7 +46,10 @@ export async function resolveNodeId(
 		return resolveIdOrShortId(flags.id, cacheService);
 	}
 
-	const nodePath = flags.path!.split(",").map((s) => s.trim());
+	if (flags.path === undefined) {
+		throw new Error("Either --id or --path is required");
+	}
+	const nodePath = flags.path.split(",").map((s) => s.trim());
 	const cachedNode = cacheService.findNodeByPath(nodePath);
 	if (cachedNode) {
 		return cachedNode.id;
@@ -102,7 +105,7 @@ export async function resolveOrCreateNodePath(
 
 	let currentParentId: string | undefined;
 
-	for (let i = 0; i < pathParts.length; i++) {
+	for (const [i, part] of pathParts.entries()) {
 		const subPath = pathParts.slice(0, i + 1);
 		const subKey = subPath.join("/");
 
@@ -126,7 +129,7 @@ export async function resolveOrCreateNodePath(
 
 			const newNode = await new WorkflowyWriteThroughClient(apiClient, cacheService).createNode({
 				parent_id: currentParentId,
-				name: pathParts[i],
+				name: part,
 			});
 
 			currentParentId = newNode.id;
@@ -198,7 +201,10 @@ export async function resolveParent(
 		return resolveIdOrShortId(flags.id, cacheService);
 	}
 
-	const nodePath = flags.path!.split(",").map((s) => s.trim());
+	if (flags.path === undefined) {
+		throw new Error("Either --id or --path is required");
+	}
+	const nodePath = flags.path.split(",").map((s) => s.trim());
 	const cachedNode = cacheService.findNodeByPath(nodePath);
 	if (cachedNode) {
 		return cachedNode.id;

@@ -129,8 +129,11 @@ export function parseStreamJson(output: string): LlmEvalResult {
 	}
 
 	const executionsOf = (scope: Scope): SubagentExecution[] =>
-		scope.children.map((id) => {
-			const call = agentCalls.get(id)!;
+		scope.children.flatMap((id) => {
+			const call = agentCalls.get(id);
+			if (call === undefined) {
+				return [];
+			}
 			const child = scopeFor(id);
 			return {
 				agentName: stringInput(call, "subagent_type") || "general-purpose",
@@ -144,7 +147,7 @@ export function parseStreamJson(output: string): LlmEvalResult {
 					stopReason: call.result ? "success" : "incomplete",
 					subagentExecutions: executionsOf(child),
 				},
-			};
+			} satisfies SubagentExecution;
 		});
 
 	const top = scopeFor(null);

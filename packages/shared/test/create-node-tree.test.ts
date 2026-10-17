@@ -47,6 +47,6 @@ describe("createNodeTree", () => {
 			{parent_id: "id-1", name: "B", position: "bottom"},
 		]);
 		expect(result.children.map((c) => c.name)).toStrictEqual(["A", "B"]);
-		expect(result.children[0].children[0].name).toBe("A1");
+		expect(result.children[0]?.children[0]?.name).toBe("A1");
 	});
 });

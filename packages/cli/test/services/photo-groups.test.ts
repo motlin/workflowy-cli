@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vite-plus/test";
+import {assert, describe, expect, it} from "vite-plus/test";
 import {
 	buildPhotoGroups,
 	countGroupsWithoutEvidence,
@@ -280,7 +280,9 @@ describe("planPhotoGroup", () => {
 	});
 
 	it("sorts members by priority before deciding", () => {
-		const shuffled = [members[2], members[0], members[1]];
+		const [first, second, third] = members;
+		assert(first && second && third);
+		const shuffled = [third, first, second];
 
 		expect(
 			planPhotoGroup({kind: "loose", entryId: "entry", wrapperId: null, members: shuffled}).orderedIds,

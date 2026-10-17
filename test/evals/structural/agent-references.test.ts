@@ -16,16 +16,17 @@ import {
 function extractAgentName(filePath: string): string | null {
 	const content = readFileSync(filePath, "utf8");
 	const frontmatterMatch = /^---\n([\s\S]*?)\n---/u.exec(content);
-	if (!frontmatterMatch) {
+	const frontmatter = frontmatterMatch?.[1];
+	if (frontmatter === undefined) {
 		return null;
 	}
 
-	const nameMatch = /^name:\s*(.+)$/mu.exec(frontmatterMatch[1]);
-	if (!nameMatch) {
+	const name = /^name:\s*(.+)$/mu.exec(frontmatter)?.[1];
+	if (name === undefined) {
 		return null;
 	}
 
-	return nameMatch[1].trim().replaceAll(/^["']|["']$/gu, "");
+	return name.trim().replaceAll(/^["']|["']$/gu, "");
 }
 
 // Agent types Claude Code provides without an agent file.

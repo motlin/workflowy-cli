@@ -102,7 +102,7 @@ export class PathBuilder {
 					break;
 				}
 
-				const name = stripHtmlTags(info.name || "");
+				const name = stripHtmlTags(info.name ?? "");
 				if (name) {
 					pathParts.unshift(name);
 				}
@@ -160,7 +160,7 @@ export class PathBuilder {
 			);
 
 			for (const node of results) {
-				const name = stripHtmlTags(node.name || "");
+				const name = stripHtmlTags(node.name ?? "");
 				const note = node.note ? stripHtmlTags(node.note) : "";
 				contentMap.set(node.id, note ? `${name}\n\n${note}` : name);
 			}
@@ -236,14 +236,16 @@ export class PathBuilder {
 					continue;
 				}
 
-				const name = stripHtmlTags(row.name || "");
+				const name = stripHtmlTags(row.name ?? "");
 				const note = row.note ? stripHtmlTags(row.note) : "";
 				const childText = note ? `${name}: ${note}` : name;
 
-				if (!childrenMap.has(row.parentId)) {
-					childrenMap.set(row.parentId, []);
+				let siblings = childrenMap.get(row.parentId);
+				if (siblings === undefined) {
+					siblings = [];
+					childrenMap.set(row.parentId, siblings);
 				}
-				childrenMap.get(row.parentId)!.push(childText);
+				siblings.push(childText);
 			}
 		}
 

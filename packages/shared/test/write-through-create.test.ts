@@ -100,7 +100,11 @@ function setup() {
 				const nodes = [...server].filter(([, node]) => node.parentId === parentId).map(([id]) => toApi(id));
 				return Promise.resolve(Response.json({nodes}, {status: 200}));
 			}
-			return Promise.resolve(Response.json({node: toApi(path.split("/")[2])}, {status: 200}));
+			const id = path.split("/")[2];
+			if (id === undefined) {
+				throw new Error(`Unexpected request path: ${path}`);
+			}
+			return Promise.resolve(Response.json({node: toApi(id)}, {status: 200}));
 		}),
 	);
 	const apiClient = new WorkflowyApiClient("test-key", undefined, "https://workflowy.test", {

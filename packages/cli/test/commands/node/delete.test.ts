@@ -246,7 +246,7 @@ describe("node delete command", () => {
 				calls.push(init?.body === undefined ? call : `${call} ${requestBody(init)}`);
 				const parentId = new URL(href).searchParams.get("parent_id");
 				if (parentId !== null) {
-					const nodes = children[parentId].map((id, priority) =>
+					const nodes = (children[parentId] ?? []).map((id, priority) =>
 						createApiNode({id, parent_id: parentId, priority}),
 					);
 					return Promise.resolve(Response.json({nodes}, {status: 200}));

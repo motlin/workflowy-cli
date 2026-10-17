@@ -42,7 +42,9 @@ describe("LadderEventBus", () => {
 			throw new Error("socket already closed");
 		});
 		bus.subscribe(good);
-		expect(() => bus.publish(evt())).not.toThrow();
+		expect(() => {
+			bus.publish(evt());
+		}).not.toThrow();
 		expect(good).toHaveBeenCalledOnce();
 	});
 

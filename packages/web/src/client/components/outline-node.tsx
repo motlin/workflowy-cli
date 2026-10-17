@@ -186,8 +186,12 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 	return (
 		<div
 			className={projectClasses}
-			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}
+			onMouseEnter={() => {
+				setIsHovered(true);
+			}}
+			onMouseLeave={() => {
+				setIsHovered(false);
+			}}
 			style={indentStyle}
 		>
 			<IndentGuideLines depth={depth} />

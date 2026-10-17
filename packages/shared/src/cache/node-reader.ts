@@ -47,7 +47,7 @@ export class NodeReader {
 		if (!result) {
 			return null;
 		}
-		return this.toNodes([result])[0];
+		return this.toNodes([result])[0] ?? null;
 	}
 
 	/**

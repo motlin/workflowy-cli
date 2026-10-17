@@ -222,7 +222,9 @@ export function CalendarPanel({isOpen, onClose, onDateSelect, anchorRef}: Calend
 								<button
 									className={`calendar-day ${day.isCurrentMonth ? "" : "other-month"} ${day.isToday ? "today" : ""}`}
 									key={day.date.toISOString()}
-									onClick={() => handleDateClick(day)}
+									onClick={() => {
+										handleDateClick(day);
+									}}
 									type="button"
 								>
 									<div className="calendar-day-inner">{day.day}</div>

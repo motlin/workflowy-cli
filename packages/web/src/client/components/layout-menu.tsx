@@ -206,7 +206,9 @@ export function LayoutMenu({position, onSelect, onClose, currentLayout}: LayoutM
 				<button
 					className={`layout-menu-item ${currentLayout === option.id ? "active" : ""}`}
 					key={option.id}
-					onClick={() => handleSelect(option.id)}
+					onClick={() => {
+						handleSelect(option.id);
+					}}
 					type="button"
 				>
 					<span className="layout-menu-item-icon">{option.icon}</span>

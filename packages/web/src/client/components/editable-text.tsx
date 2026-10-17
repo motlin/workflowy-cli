@@ -412,7 +412,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		if (isCodeBlock) {
 			// Remove code block: extract content from <pre><code>
-			contentRef.current.innerHTML = firstChild.firstElementChild?.innerHTML ?? "";
+			contentRef.current.innerHTML = firstChild.firstElementChild.innerHTML;
 		} else {
 			// Add code block: wrap entire content in <pre><code>
 			const preElement = document.createElement("pre");
@@ -531,7 +531,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			// Cmd+click: detect tag at cursor position
 			if (event.metaKey) {
 				const element = event.currentTarget;
-				const textContent = element.textContent ?? "";
+				const {textContent} = element;
 				const offset = getCharacterOffsetFromClick(element, event.nativeEvent);
 
 				if (offset !== null) {
@@ -580,7 +580,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			cancelHide();
 			const rect = tagEl.getBoundingClientRect();
 			setTagHover({
-				tag: tagEl.textContent ?? "",
+				tag: tagEl.textContent,
 				top: rect.top,
 				right: rect.right,
 				bottom: rect.bottom,

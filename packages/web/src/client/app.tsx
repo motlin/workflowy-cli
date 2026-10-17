@@ -35,9 +35,9 @@ function shouldRetry(failureCount: number, error: Error): boolean {
 	}
 
 	// Check for HTTP status in error message
-	const statusMatch = error.message.match(/(\d{3})/);
-	if (statusMatch) {
-		const status = Number.parseInt(statusMatch[1], 10);
+	const statusDigits = error.message.match(/(\d{3})/)?.[1];
+	if (statusDigits !== undefined) {
+		const status = Number.parseInt(statusDigits, 10);
 		// Don't retry client errors except timeout (408) and rate limit (429)
 		if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
 			return false;

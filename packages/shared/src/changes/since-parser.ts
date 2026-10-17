@@ -10,11 +10,10 @@ const UNIT_MS: Record<string, number> = {
 
 export function parseSince(since: string): Date {
 	const match = DURATION_REGEX.exec(since);
-	if (match) {
-		const value = Number(match[1]);
-		const unit = match[2];
-		const ms = value * UNIT_MS[unit];
-		return new Date(Date.now() - ms);
+	const [, digits, unit] = match ?? [];
+	const unitMs = unit === undefined ? undefined : UNIT_MS[unit];
+	if (digits !== undefined && unitMs !== undefined) {
+		return new Date(Date.now() - Number(digits) * unitMs);
 	}
 
 	const parsed = new Date(since);

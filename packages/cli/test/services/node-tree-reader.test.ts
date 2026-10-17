@@ -1,4 +1,4 @@
-import {beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
+import {assert, beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
 import {CacheService, NodeTreeReader} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import fs from "node:fs";
@@ -150,6 +150,7 @@ describe("NodeTreeReader", () => {
 		});
 
 		const [chat, ref, plain] = await reader.readChildren("p", {depth: 0});
+		assert(chat && ref && plain);
 
 		expect({inChat: chat.inChat, ref: chat.hasReferencesRoot}).toStrictEqual({inChat: true, ref: false});
 		expect({inChat: ref.inChat, ref: ref.hasReferencesRoot}).toStrictEqual({inChat: false, ref: true});
@@ -169,6 +170,7 @@ describe("NodeTreeReader", () => {
 		});
 
 		const [mirror] = await reader.readChildren("p", {depth: 1});
+		assert(mirror);
 
 		expect(mirror.mirror.isMirror).toBe(true);
 		expect({name: mirror.name, note: mirror.note}).toStrictEqual({name: "Original Name", note: "Original Note"});
@@ -187,8 +189,9 @@ describe("NodeTreeReader", () => {
 		);
 
 		const [source] = await reader.readChildren("p", {depth: 1, followLinks: true});
+		assert(source);
 
 		expect(source.linkTargets?.map((t) => t.name)).toStrictEqual(["Target Node"]);
-		expect(source.linkTargets?.[0].shortId).toBe("abcdef012345");
+		expect(source.linkTargets?.[0]?.shortId).toBe("abcdef012345");
 	});
 });

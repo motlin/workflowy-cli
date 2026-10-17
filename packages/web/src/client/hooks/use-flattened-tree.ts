@@ -165,7 +165,7 @@ export function useFlattenedTree(rootParentId: string | null) {
 		// Add data from queries
 		for (const [i, expandedNodeId] of expandedNodeIds.entries()) {
 			const query = childrenQueries[i];
-			if (query.data) {
+			if (query?.data) {
 				map.set(expandedNodeId, query.data);
 			}
 		}

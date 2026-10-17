@@ -59,7 +59,9 @@ export function Settings() {
 							<div className="settings-theme-buttons">
 								<button
 									className={`settings-theme-button ${theme === "light" ? "selected" : ""}`}
-									onClick={() => handleThemeChange("light")}
+									onClick={() => {
+										handleThemeChange("light");
+									}}
 									type="button"
 								>
 									<svg fill="currentColor" height="18" viewBox="0 0 512 512" width="18">
@@ -69,7 +71,9 @@ export function Settings() {
 								</button>
 								<button
 									className={`settings-theme-button ${theme === "dark" ? "selected" : ""}`}
-									onClick={() => handleThemeChange("dark")}
+									onClick={() => {
+										handleThemeChange("dark");
+									}}
 									type="button"
 								>
 									<svg fill="currentColor" height="18" viewBox="0 0 384 512" width="18">
@@ -79,7 +83,9 @@ export function Settings() {
 								</button>
 								<button
 									className={`settings-theme-button ${theme === "system" ? "selected" : ""}`}
-									onClick={() => handleThemeChange("system")}
+									onClick={() => {
+										handleThemeChange("system");
+									}}
 									type="button"
 								>
 									<svg fill="currentColor" height="18" viewBox="0 0 576 512" width="18">

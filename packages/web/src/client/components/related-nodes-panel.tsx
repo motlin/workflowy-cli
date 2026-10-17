@@ -1,4 +1,4 @@
-import {useQuery} from "@tanstack/react-query";
+import {skipToken, useQuery} from "@tanstack/react-query";
 import {useCallback} from "react";
 import {nodeRoute} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
@@ -59,8 +59,8 @@ export function RelatedNodesPanel() {
 		error: queryError,
 	} = useQuery({
 		queryKey: ["related", lastEditedId],
-		queryFn: async () => fetchRelatedNodes(lastEditedId!),
-		enabled: relatedNodesPanelOpen && lastEditedId !== null,
+		queryFn:
+			relatedNodesPanelOpen && lastEditedId !== null ? async () => fetchRelatedNodes(lastEditedId) : skipToken,
 	});
 	const error = queryError?.message ?? null;
 
@@ -106,7 +106,9 @@ export function RelatedNodesPanel() {
 							<li key={node.id}>
 								<button
 									className="related-nodes-panel-item"
-									onClick={() => handleNavigateToNode(node.id)}
+									onClick={() => {
+										handleNavigateToNode(node.id);
+									}}
 									type="button"
 								>
 									<div className="related-nodes-panel-item-header">

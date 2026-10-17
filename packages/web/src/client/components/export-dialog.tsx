@@ -185,7 +185,9 @@ export function ExportDialog() {
 	const handleCopy = useCallback(async () => {
 		await navigator.clipboard.writeText(exportContent);
 		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
+		setTimeout(() => {
+			setCopied(false);
+		}, 2000);
 	}, [exportContent]);
 
 	const handleDownload = useCallback(() => {
@@ -261,21 +263,27 @@ export function ExportDialog() {
 					<div className="export-dialog-format-buttons">
 						<button
 							className={`export-dialog-format-button ${format === "plain-text" ? "selected" : ""}`}
-							onClick={() => setFormat("plain-text")}
+							onClick={() => {
+								setFormat("plain-text");
+							}}
 							type="button"
 						>
 							Plain Text
 						</button>
 						<button
 							className={`export-dialog-format-button ${format === "markdown" ? "selected" : ""}`}
-							onClick={() => setFormat("markdown")}
+							onClick={() => {
+								setFormat("markdown");
+							}}
 							type="button"
 						>
 							Markdown
 						</button>
 						<button
 							className={`export-dialog-format-button ${format === "opml" ? "selected" : ""}`}
-							onClick={() => setFormat("opml")}
+							onClick={() => {
+								setFormat("opml");
+							}}
 							type="button"
 						>
 							OPML

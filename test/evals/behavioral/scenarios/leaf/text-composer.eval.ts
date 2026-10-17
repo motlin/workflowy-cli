@@ -5,7 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
+import {assert, beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {z} from "zod";
@@ -38,7 +38,9 @@ describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 		}
 	});
 
-	afterAll(() => ctx?.cleanup());
+	afterAll(() => {
+		ctx.cleanup();
+	});
 
 	it("should compose text with integrated tags", async (context) => {
 		if (skipSuite) {
@@ -64,8 +66,8 @@ describe("Leaf Eval: text-composer", {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/u);
-		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
+		assert(jsonMatch, "Response should contain JSON");
 
-		expect(() => TextComposerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
+		expect(() => TextComposerResponseSchema.parse(JSON.parse(jsonMatch[0]))).not.toThrow();
 	});
 });

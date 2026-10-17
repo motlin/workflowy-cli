@@ -33,6 +33,7 @@ import {readBackupFile} from "../utils/backup-archive.js";
 import {parseStrictInteger} from "../utils/parse-strict-number.js";
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
 import {logger} from "./logger.js";
+import {nonEmpty} from "../utils/non-empty.js";
 
 // Config key for storing the user's Workflowy epoch
 const WORKFLOWY_EPOCH_CONFIG_KEY = "workflowy_epoch";
@@ -140,25 +141,32 @@ function timestampToDate(timestamp: number | null | undefined): Date | null {
 	return timestamp === null || timestamp === undefined ? null : new Date(timestamp * 1000);
 }
 
+interface KnownPriority {
+	index: number;
+	priority: number;
+}
+
 /**
- * Find the index of the previous element with a non-null priority.
+ * Find the previous element with a non-null priority.
  */
-function findPrevWithPriority(arr: (number | null)[], start: number): number | null {
+function findPrevWithPriority(arr: (number | null)[], start: number): KnownPriority | null {
 	for (let i = start - 1; i >= 0; i--) {
-		if (arr[i] !== null) {
-			return i;
+		const priority = arr[i];
+		if (priority !== null && priority !== undefined) {
+			return {index: i, priority};
 		}
 	}
 	return null;
 }
 
 /**
- * Find the index of the next element with a non-null priority.
+ * Find the next element with a non-null priority.
  */
-function findNextWithPriority(arr: (number | null)[], start: number): number | null {
+function findNextWithPriority(arr: (number | null)[], start: number): KnownPriority | null {
 	for (let i = start + 1; i < arr.length; i++) {
-		if (arr[i] !== null) {
-			return i;
+		const priority = arr[i];
+		if (priority !== null && priority !== undefined) {
+			return {index: i, priority};
 		}
 	}
 	return null;
@@ -180,7 +188,9 @@ function calculatePriorities(
 	const result = new Map<string, number>();
 
 	// Separate new nodes from existing nodes
-	const existingNodes = siblings.filter((s) => s.existingPriority !== null);
+	const existingNodes = siblings.flatMap((s) =>
+		s.existingPriority === null ? [] : [{id: s.id, existingPriority: s.existingPriority}],
+	);
 	const newNodes = siblings.filter((s) => s.existingPriority === null);
 
 	// If all nodes are new, assign priorities based on backup position
@@ -193,11 +203,9 @@ function calculatePriorities(
 
 	// Check if order changed for existing nodes
 	// Existing order: sort by priority, extract IDs
-	const existingOrder = [...existingNodes]
-		.toSorted((a, b) => a.existingPriority! - b.existingPriority!)
-		.map((s) => s.id);
+	const existingOrder = existingNodes.toSorted((a, b) => a.existingPriority - b.existingPriority).map((s) => s.id);
 	// Backup order: already sorted by backupPosition, just extract IDs of existing nodes
-	const backupOrderOfExisting = siblings.filter((s) => s.existingPriority !== null).map((s) => s.id);
+	const backupOrderOfExisting = existingNodes.map((s) => s.id);
 
 	const orderChanged = existingOrder.some((id, i) => id !== backupOrderOfExisting[i]);
 
@@ -206,79 +214,58 @@ function calculatePriorities(
 		return result;
 	}
 
-	// Build working array of priorities (null means needs calculation)
-	const priorities: (number | null)[] = siblings.map((s) => (orderChanged ? null : s.existingPriority));
+	// If order changed, anchor on the existing node furthest right in backup order
+	// and space every sibling 100 apart from it.
+	if (orderChanged) {
+		const anchorIdx = siblings.findLastIndex((s) => s.existingPriority !== null);
+		const anchorPriority = siblings[anchorIdx]?.existingPriority;
 
-	// If order changed, find an anchor: rightmost existing node to use as reference
-	// We'll propagate backwards from it
-	if (orderChanged && existingNodes.length > 0) {
-		// Find the existing node that's furthest right in backup order
-		let anchorIdx = -1;
-		let anchorPriority = 0;
-		for (let i = siblings.length - 1; i >= 0; i--) {
-			if (siblings[i].existingPriority !== null) {
-				anchorIdx = i;
-				anchorPriority = siblings[i].existingPriority!;
-				break;
-			}
-		}
-
-		if (anchorIdx >= 0) {
-			// Set anchor
-			priorities[anchorIdx] = anchorPriority;
-
-			// Propagate backwards (subtract 100 per position)
-			for (let i = anchorIdx - 1; i >= 0; i--) {
-				priorities[i] = priorities[i + 1]! - 100;
-			}
-
-			// Propagate forwards (add 100 per position)
-			for (let i = anchorIdx + 1; i < siblings.length; i++) {
-				priorities[i] = priorities[i - 1]! + 100;
-			}
-
-			// Record all updated priorities
+		if (anchorPriority !== null && anchorPriority !== undefined) {
 			for (const [i, sibling] of siblings.entries()) {
-				if (sibling.existingPriority !== priorities[i]) {
-					result.set(sibling.id, priorities[i]!);
+				const priority = anchorPriority + (i - anchorIdx) * 100;
+				if (sibling.existingPriority !== priority) {
+					result.set(sibling.id, priority);
 				}
 			}
 			return result;
 		}
 	}
 
+	// Build working array of priorities (null means needs calculation)
+	const priorities: (number | null)[] = siblings.map((s) => s.existingPriority);
+
 	// Handle new nodes using middle-out algorithm (expand from known priorities)
 	let changed = true;
 	while (changed) {
 		changed = false;
-		for (let i = 0; i < priorities.length; i++) {
+		for (const [i, sibling] of siblings.entries()) {
 			if (priorities[i] !== null) {
 				continue;
 			}
 
-			const prevIdx = findPrevWithPriority(priorities, i);
-			const nextIdx = findNextWithPriority(priorities, i);
+			const prev = findPrevWithPriority(priorities, i);
+			const next = findNextWithPriority(priorities, i);
 
-			const adjacentToPrev = prevIdx !== null && prevIdx === i - 1;
-			const adjacentToNext = nextIdx !== null && nextIdx === i + 1;
+			const adjacentToPrev = prev?.index === i - 1;
+			const adjacentToNext = next?.index === i + 1;
 
 			if (!adjacentToPrev && !adjacentToNext) {
 				continue;
 			}
 
 			let newPriority: number;
-			if (prevIdx !== null && nextIdx !== null) {
-				newPriority = Math.floor((priorities[prevIdx]! + priorities[nextIdx]!) / 2);
-			} else if (prevIdx !== null) {
-				newPriority = priorities[prevIdx]! + 100;
-			} else if (nextIdx === null) {
-				continue;
+			if (prev && next) {
+				newPriority = Math.floor((prev.priority + next.priority) / 2);
+			} else if (prev) {
+				newPriority = prev.priority + 100;
+			} else if (next) {
+				newPriority = next.priority - 100;
 			} else {
-				newPriority = priorities[nextIdx]! - 100;
+				continue;
 			}
 
 			priorities[i] = newPriority;
-			result.set(siblings[i].id, newPriority);
+			result.set(sibling.id, newPriority);
 			changed = true;
 		}
 	}
@@ -366,9 +353,9 @@ export async function importBackup(
 	const collectNodes = (node: BackupNode, parentId: string | null, priority: number) => {
 		allNodes.push({node, parentId, priority});
 		if (node.ch && Array.isArray(node.ch)) {
-			for (let childIndex = 0; childIndex < node.ch.length; childIndex++) {
+			for (const [childIndex, child] of node.ch.entries()) {
 				// Use raw index as backup position; actual priority is inferred later
-				collectNodes(node.ch[childIndex], node.id, childIndex);
+				collectNodes(child, node.id, childIndex);
 			}
 		}
 	};
@@ -441,7 +428,7 @@ export async function importBackup(
 				id: validatedNode.id,
 				shortId: uuidToShortId(validatedNode.id),
 				name: validatedNode.nm ?? "",
-				note: validatedNode.no || null,
+				note: nonEmpty(validatedNode.no) ?? null,
 				parentId,
 				priority,
 				createdAt: backupTimeOrNull(validatedNode.ct, workflowyEpoch),
@@ -512,7 +499,7 @@ export async function importBackup(
 					nodeId: validatedNode.id,
 					fileName: validatedNode.metadata.s3File.fileName,
 					fileType: validatedNode.metadata.s3File.fileType,
-					objectFolder: validatedNode.metadata.s3File.objectFolder || null,
+					objectFolder: nonEmpty(validatedNode.metadata.s3File.objectFolder) ?? null,
 					isAnimatedGif: validatedNode.metadata.s3File.isAnimatedGIF ? 1 : 0,
 					imageOriginalWidth: nonZeroOrNull(validatedNode.metadata.s3File.imageOriginalWidth),
 					imageOriginalHeight: nonZeroOrNull(validatedNode.metadata.s3File.imageOriginalHeight),

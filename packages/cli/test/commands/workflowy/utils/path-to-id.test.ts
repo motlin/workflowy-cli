@@ -178,7 +178,7 @@ describe("workflowy:utils:path-to-id command", () => {
 			let capturedUrl: string | undefined;
 			globalThis.fetch = async (url: RequestInfo | URL) => {
 				capturedUrl = url instanceof Request ? url.url : String(url);
-				if (capturedUrl?.includes("parent_id")) {
+				if (capturedUrl.includes("parent_id")) {
 					return Promise.resolve(
 						Response.json(
 							{

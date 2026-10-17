@@ -15,18 +15,18 @@ export function parseBackupFilename(filePath: string): BackupFileInfo | null {
 	const dataPattern = /\(.*?\)\.(\d{4}-\d{2}-\d{2})\.workflowy\.backup(?:\.zst)?$/u;
 	const legacyPattern = /^workflowy-backup-(\d{4}-\d{2}-\d{2})\.json(?:\.zst)?$/u;
 
-	let match = filename.match(dataPattern);
-	if (match && dirname === "Data") {
-		const backupDate = new Date(match[1]);
+	const dataDate = filename.match(dataPattern)?.[1];
+	if (dataDate !== undefined && dirname === "Data") {
+		const backupDate = new Date(dataDate);
 		if (Number.isNaN(backupDate.getTime())) {
 			return null;
 		}
 		return {filename, backupDate, source: "Data", compressed};
 	}
 
-	match = filename.match(legacyPattern);
-	if (match) {
-		const backupDate = new Date(match[1]);
+	const legacyDate = filename.match(legacyPattern)?.[1];
+	if (legacyDate !== undefined) {
+		const backupDate = new Date(legacyDate);
 		if (Number.isNaN(backupDate.getTime())) {
 			return null;
 		}
@@ -44,5 +44,5 @@ export function getDateDifference(date1: Date, date2: Date): number {
 }
 
 export function formatDate(date: Date): string {
-	return date.toISOString().split("T")[0];
+	return date.toISOString().slice(0, "YYYY-MM-DD".length);
 }

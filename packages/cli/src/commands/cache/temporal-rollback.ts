@@ -99,8 +99,8 @@ export default class TemporalRollback extends Command {
 
 			counts.push({
 				table,
-				purged: purgeResult?.count ?? 0,
-				restored: restoreResult?.count ?? 0,
+				purged: purgeResult.count,
+				restored: restoreResult.count,
 			});
 		}
 
@@ -168,15 +168,17 @@ export default class TemporalRollback extends Command {
 	}
 
 	private formatTable(counts: RollbackCounts[]): string {
-		const header = ["Table", "Purge", "Restore"];
-		const rows = counts.map((c) => [c.table, c.purged.toLocaleString(), c.restored.toLocaleString()]);
+		type Row = [string, string, string];
+		const header: Row = ["Table", "Purge", "Restore"];
+		const rows = counts.map((c): Row => [c.table, c.purged.toLocaleString(), c.restored.toLocaleString()]);
 
 		// Calculate column widths
-		const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
+		const columnWidth = (column: 0 | 1 | 2) => Math.max(...[header, ...rows].map((r) => r[column].length));
+		const widths: [number, number, number] = [columnWidth(0), columnWidth(1), columnWidth(2)];
 
 		const separator = widths.map((w) => "-".repeat(w)).join("  ");
-		const formatRow = (row: string[]) =>
-			row.map((cell, i) => (i === 0 ? cell.padEnd(widths[i]) : cell.padStart(widths[i]))).join("  ");
+		const formatRow = ([table, purged, restored]: Row) =>
+			[table.padEnd(widths[0]), purged.padStart(widths[1]), restored.padStart(widths[2])].join("  ");
 
 		return [formatRow(header), separator, ...rows.map((row) => formatRow(row))].join("\n");
 	}

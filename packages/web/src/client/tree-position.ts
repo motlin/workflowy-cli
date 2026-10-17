@@ -25,8 +25,10 @@ export function sortByPriority<T extends SiblingLike>(siblings: T[]): T[] {
  */
 export function insertAfterPriority(sorted: SiblingLike[], nodeId: string, fallbackPriority: number): number {
 	const index = sorted.findIndex((sibling) => sibling.id === nodeId);
-	if (index !== -1 && index < sorted.length - 1) {
-		return Math.floor((sorted[index].priority + sorted[index + 1].priority) / 2);
+	const current = sorted[index];
+	const next = sorted[index + 1];
+	if (index !== -1 && current !== undefined && next !== undefined) {
+		return Math.floor((current.priority + next.priority) / 2);
 	}
 	return fallbackPriority + 100;
 }
@@ -38,8 +40,10 @@ export function insertAfterPriority(sorted: SiblingLike[], nodeId: string, fallb
  */
 export function insertBeforePriority(sorted: SiblingLike[], nodeId: string, fallbackPriority: number): number {
 	const index = sorted.findIndex((sibling) => sibling.id === nodeId);
-	if (index > 0) {
-		return Math.floor((sorted[index - 1].priority + sorted[index].priority) / 2);
+	const previous = sorted[index - 1];
+	const current = sorted[index];
+	if (index > 0 && previous !== undefined && current !== undefined) {
+		return Math.floor((previous.priority + current.priority) / 2);
 	}
 	return fallbackPriority - 100;
 }

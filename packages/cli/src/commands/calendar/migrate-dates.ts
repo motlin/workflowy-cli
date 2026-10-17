@@ -81,8 +81,8 @@ function parseTextDate(name: string): ParsedDate | null {
 	const abbrevFormat = /^\w{3}, (\w{3}) (\d{1,2}), (\d{4})$/u;
 	match = abbrevFormat.exec(trimmed);
 	if (match) {
-		const monthNum = MONTH_ABBREVS[match[1]];
-		if (!monthNum) {
+		const monthNum = MONTH_ABBREVS[match[1] ?? ""];
+		if (monthNum === undefined) {
 			return null;
 		}
 		const day = Number(match[2]);
@@ -178,10 +178,11 @@ export default class MigrateDates extends Command {
 			LIMIT 1
 		`;
 		const archiveResult = database.all<{id: string}>(archiveQuery);
-		if (archiveResult.length === 0) {
+		const [archiveRow] = archiveResult;
+		if (!archiveRow) {
 			this.error(`Archive node with short ID "${archiveShortId}" not found`);
 		}
-		const archiveId = archiveResult[0].id;
+		const archiveId = archiveRow.id;
 		this.log(`Archive root: ${archiveId}`);
 
 		// Query candidate day nodes:
@@ -238,7 +239,7 @@ export default class MigrateDates extends Command {
 			if (expectedYear && date.year !== expectedYear) {
 				this.warn(`Year mismatch: "${node.name}" parsed as ${date.year} but parent year is ${node.yearName}`);
 			}
-			if (expectedMonth && date.month !== expectedMonth) {
+			if (expectedMonth !== undefined && date.month !== expectedMonth) {
 				this.warn(
 					`Month mismatch: "${node.name}" parsed as month ${date.month} but parent is ${node.monthName}`,
 				);

@@ -29,6 +29,9 @@ function normalizeDate(due: string | undefined): string | null {
 		return null;
 	}
 	const [y, m, d] = due.split("-").map(Number);
+	if (y === undefined || m === undefined || d === undefined) {
+		throw new Error(`Expected a Y-M-D Things due date, got: ${due}`);
+	}
 	return `${y}-${pad(m)}-${pad(d)}`;
 }
 

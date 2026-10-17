@@ -5,7 +5,7 @@
  * Requires the claude CLI (runs on the subscription login) and the prompt file to exist.
  */
 
-import {expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
+import {assert, expect, beforeAll, describe, afterAll, it} from "vite-plus/test";
 import fs from "node:fs";
 import path from "node:path";
 import {z} from "zod";
@@ -81,7 +81,9 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 		}
 	});
 
-	afterAll(() => ctx?.cleanup());
+	afterAll(() => {
+		ctx.cleanup();
+	});
 
 	it("should return valid JSON with project tag suggestions", async (context) => {
 		if (skipSuite) {
@@ -97,8 +99,8 @@ describe("Leaf Eval: project-tagger", {timeout: 300_000}, () => {
 
 		const response = result.finalResponse;
 		const jsonMatch = response.match(/\{[\s\S]*\}/u);
-		expect(jsonMatch, "Response should contain JSON").not.toBeNull();
+		assert(jsonMatch, "Response should contain JSON");
 
-		expect(() => ProjectTaggerResponseSchema.parse(JSON.parse(jsonMatch![0]))).not.toThrow();
+		expect(() => ProjectTaggerResponseSchema.parse(JSON.parse(jsonMatch[0]))).not.toThrow();
 	});
 });

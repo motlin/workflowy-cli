@@ -141,6 +141,9 @@ describe("CLI Reference Validation", () => {
 			}
 
 			const manifestCmd = manifest.commands[command];
+			if (manifestCmd === undefined) {
+				continue;
+			}
 			const validFlags = new Set(Object.keys(manifestCmd.flags));
 			const charMap = buildCharMap(manifestCmd.flags);
 

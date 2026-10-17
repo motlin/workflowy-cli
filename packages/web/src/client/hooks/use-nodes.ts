@@ -1,4 +1,4 @@
-import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../../node-types.js";
 import {nodeKeys} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -141,8 +141,7 @@ export function useChildren(parentId: string | null) {
 export function useNode(nodeId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.detail(nodeId ?? ""),
-		queryFn: async () => fetchNode(nodeId!),
-		enabled: nodeId !== null && nodeId !== "",
+		queryFn: nodeId === null || nodeId === "" ? skipToken : async () => fetchNode(nodeId),
 	});
 }
 
@@ -153,8 +152,7 @@ export function useNode(nodeId: string | null) {
 export function useAncestors(nodeId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.ancestors(nodeId ?? ""),
-		queryFn: async () => fetchAncestors(nodeId!),
-		enabled: nodeId !== null && nodeId !== "",
+		queryFn: nodeId === null || nodeId === "" ? skipToken : async () => fetchAncestors(nodeId),
 	});
 }
 

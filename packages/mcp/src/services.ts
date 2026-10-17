@@ -13,7 +13,7 @@ let writeThroughClient: WorkflowyWriteThroughClient | null = null;
 
 export function getDatabase(): ReturnType<typeof drizzle<typeof schema>> {
 	if (!database) {
-		const dbPath = process.env.WORKFLOWY_DB_PATH || "workflowy.sqlite";
+		const dbPath = (process.env.WORKFLOWY_DB_PATH ?? "") || "workflowy.sqlite";
 		const sqlite = new DatabaseConstructor(dbPath);
 
 		if (!process.env.WORKFLOWY_DB_PATH) {

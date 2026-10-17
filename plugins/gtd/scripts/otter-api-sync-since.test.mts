@@ -8,6 +8,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {arrayField, expectObject, parseJson, stringField} from "./json.mts";
+import {at} from "./test-helpers.mts";
 
 const SCRIPT = fileURLToPath(new URL("otter-api.sh", import.meta.url));
 
@@ -125,7 +126,10 @@ test("sync-since returns only meetings newer than the boundary and fetches actio
 	});
 	assert.deepStrictEqual(actionOtids(urls), ["new2", "new1"]);
 	assert.equal(listCalls(urls).length, 1);
-	assert.ok(listCalls(urls)[0].includes("page_size=10"), `default page size should be small: ${listCalls(urls)[0]}`);
+	assert.ok(
+		at(listCalls(urls), 0).includes("page_size=10"),
+		`default page size should be small: ${at(listCalls(urls), 0)}`,
+	);
 });
 
 test("sync-since pages with the cursor until it reaches the boundary", () => {
@@ -137,8 +141,8 @@ test("sync-since pages with the cursor until it reaches the boundary", () => {
 	assert.equal(status, 0);
 	assert.deepStrictEqual(outputOtids(stdout), ["new3", "new2", "new1"]);
 	assert.equal(listCalls(urls).length, 2);
-	assert.ok(listCalls(urls)[1].includes("last_load_ts=1100"), listCalls(urls)[1]);
-	assert.ok(listCalls(urls)[1].includes("modified_after="), listCalls(urls)[1]);
+	assert.ok(at(listCalls(urls), 1).includes("last_load_ts=1100"), at(listCalls(urls), 1));
+	assert.ok(at(listCalls(urls), 1).includes("modified_after="), at(listCalls(urls), 1));
 	assert.deepStrictEqual(actionOtids(urls), ["new3", "new2", "new1"]);
 });
 

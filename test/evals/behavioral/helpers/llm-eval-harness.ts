@@ -50,6 +50,9 @@ export function claudeCliAvailable(): boolean {
  */
 function launchMessage(projectRoot: string, agentFile: string, task: string): string {
 	const [, plugin, kind, ...rest] = agentFile.replace(/\.md$/u, "").split("/");
+	if (plugin === undefined) {
+		throw new Error(`Agent file path has no plugin segment: ${agentFile}`);
+	}
 	const pluginRoot = path.join(projectRoot, "plugins", plugin);
 	if (kind === "prompts") {
 		return `CLAUDE_PLUGIN_ROOT=${pluginRoot}. Read ${pluginRoot}/prompts/${rest.join("/")}.md and follow it. ${task}`;

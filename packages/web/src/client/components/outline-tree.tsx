@@ -65,7 +65,7 @@ function ZoomedNodeTitle({nodeId}: {nodeId: string}) {
 		return null;
 	}
 
-	return <div className="zoomed-node-title" dangerouslySetInnerHTML={{__html: node.name || ""}} />;
+	return <div className="zoomed-node-title" dangerouslySetInnerHTML={{__html: node.name ?? ""}} />;
 }
 
 /**
@@ -100,7 +100,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 		getScrollElement,
 		estimateSize: () => ESTIMATED_ROW_HEIGHT,
 		overscan: OVERSCAN_COUNT,
-		getItemKey: (index) => flattenedNodes[index].node.id,
+		getItemKey: (index) => flattenedNodes[index]?.node.id ?? index,
 		scrollMargin: containerRef.current?.offsetTop ?? 0,
 	});
 
@@ -139,6 +139,9 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 				>
 					{virtualItems.map((virtualItem) => {
 						const flattenedNode = flattenedNodes[virtualItem.index];
+						if (flattenedNode === undefined) {
+							return null;
+						}
 						return (
 							<div
 								data-index={virtualItem.index}

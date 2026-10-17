@@ -16,6 +16,14 @@ export interface SearchConditions {
 	needsMetadataJoin: boolean;
 }
 
+/** Drizzle's and/or return undefined only for an empty argument list; every call here passes at least one. */
+function defined(condition: SQL | undefined): SQL {
+	if (condition === undefined) {
+		throw new Error("Expected a non-empty SQL condition list");
+	}
+	return condition;
+}
+
 /** Build SQL WHERE conditions for a parsed search query. */
 export function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 	const contentConditions: SQL[] = [];
@@ -28,13 +36,13 @@ export function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 	// Exact phrases - must appear in name or note
 	for (const phrase of parsed.exactPhrases) {
 		const pattern = `%${phrase}%`;
-		contentConditions.push(or(like(nodeContent.name, pattern), like(nodeContent.note, pattern))!);
+		contentConditions.push(defined(or(like(nodeContent.name, pattern), like(nodeContent.note, pattern))));
 	}
 
 	// Required terms (AND) - all must appear in name or note
 	for (const term of parsed.requiredTerms) {
 		const pattern = `%${term}%`;
-		contentConditions.push(or(like(nodeContent.name, pattern), like(nodeContent.note, pattern))!);
+		contentConditions.push(defined(or(like(nodeContent.name, pattern), like(nodeContent.note, pattern))));
 	}
 
 	// OR terms - at least one group must match, within each group all terms must match
@@ -44,14 +52,14 @@ export function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 			const groupConditions: SQL[] = [];
 			for (const term of termGroup) {
 				const pattern = `%${term}%`;
-				groupConditions.push(or(like(nodeContent.name, pattern), like(nodeContent.note, pattern))!);
+				groupConditions.push(defined(or(like(nodeContent.name, pattern), like(nodeContent.note, pattern))));
 			}
 			if (groupConditions.length > 0) {
-				orConditions.push(and(...groupConditions)!);
+				orConditions.push(defined(and(...groupConditions)));
 			}
 		}
 		if (orConditions.length > 0) {
-			contentConditions.push(or(...orConditions)!);
+			contentConditions.push(defined(or(...orConditions)));
 		}
 	}
 
@@ -59,10 +67,12 @@ export function buildSearchConditions(parsed: ParsedQuery): SearchConditions {
 	for (const term of parsed.excludedTerms) {
 		const pattern = `%${term}%`;
 		contentConditions.push(
-			and(
-				or(isNull(nodeContent.name), not(like(nodeContent.name, pattern))),
-				or(isNull(nodeContent.note), not(like(nodeContent.note, pattern))),
-			)!,
+			defined(
+				and(
+					or(isNull(nodeContent.name), not(like(nodeContent.name, pattern))),
+					or(isNull(nodeContent.note), not(like(nodeContent.note, pattern))),
+				),
+			),
 		);
 	}
 

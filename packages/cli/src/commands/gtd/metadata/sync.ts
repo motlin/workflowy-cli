@@ -402,7 +402,7 @@ export default class Sync extends Command {
 	 */
 	private extractAnchorText(html: string): string {
 		const match = html.match(/<a[^>]*>([^<]*)<\/a>/u);
-		return match ? match[1] : html;
+		return match?.[1] ?? html;
 	}
 
 	/**

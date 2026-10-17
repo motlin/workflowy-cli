@@ -37,9 +37,10 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 
 	// Extract exact phrases (quoted strings)
 	const exactPhraseRegex = /"([^"]+)"/gu;
-	let match;
-	while ((match = exactPhraseRegex.exec(remaining)) !== null) {
-		result.exactPhrases.push(match[1]);
+	for (const [, phrase] of remaining.matchAll(exactPhraseRegex)) {
+		if (phrase !== undefined) {
+			result.exactPhrases.push(phrase);
+		}
 	}
 	remaining = remaining.replaceAll(exactPhraseRegex, " ");
 
@@ -64,8 +65,10 @@ export function parseSearchQuery(queryString: string): ParsedQuery {
 
 	// Extract negated terms: -word
 	const negationRegex = /-(\S+)/gu;
-	while ((match = negationRegex.exec(remaining)) !== null) {
-		result.excludedTerms.push(match[1]);
+	for (const [, term] of remaining.matchAll(negationRegex)) {
+		if (term !== undefined) {
+			result.excludedTerms.push(term);
+		}
 	}
 	remaining = remaining.replaceAll(negationRegex, " ");
 

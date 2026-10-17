@@ -4,7 +4,7 @@ import {createDatabase} from "../../db/index.js";
 import {parseStrictNumber} from "../../utils/parse-strict-number.js";
 import {SearchService} from "../../services/search.js";
 import type {SearchMode, SearchResult} from "../../services/search.js";
-import {DEFAULT_MODELS, EMBEDDING_MODELS} from "../../services/embeddings.js";
+import {DEFAULT_MODELS, EMBEDDING_MODELS, getEmbeddingModel} from "../../services/embeddings.js";
 import type {EmbeddingModelKey} from "../../services/embeddings.js";
 
 export default class Search extends Command {
@@ -147,7 +147,7 @@ export default class Search extends Command {
 		if (!this.jsonEnabled()) {
 			for (const {model, results} of allSearchResults) {
 				if (!flags.model) {
-					const modelConfig = EMBEDDING_MODELS[model];
+					const modelConfig = getEmbeddingModel(model);
 					this.log(`═══ ${model} (${modelConfig.name.replace("Xenova/", "")}) ═══\n`);
 				}
 

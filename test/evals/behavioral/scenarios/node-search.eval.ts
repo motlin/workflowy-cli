@@ -20,7 +20,7 @@ describe("Behavioral Eval: node search", () => {
 	});
 
 	afterAll(() => {
-		ctx?.cleanup();
+		ctx.cleanup();
 	});
 
 	it("should find results for a common term", {timeout: 30_000}, async () => {

@@ -94,6 +94,9 @@ export default class Schema extends Command {
 			}
 
 			const mapping = COMMAND_TYPE_MAP[cmd];
+			if (!mapping) {
+				this.error(`Unknown command: ${cmd}`);
+			}
 
 			const generatorKey = `${mapping.sourceFile} ${mapping.typeName}`;
 			let generator = generators.get(generatorKey);

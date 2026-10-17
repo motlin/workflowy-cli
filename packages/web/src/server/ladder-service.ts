@@ -62,7 +62,10 @@ export class LadderService {
 	}): Promise<LadderEvent> {
 		const ladder = await this.#ladder(root);
 		const plan = planTierMove(ladder, nodeId, toTier);
-		const destination = ladder.tiers.find((tier) => tier.id === plan.parentId)!;
+		const destination = ladder.tiers.find((tier) => tier.id === plan.parentId);
+		if (destination === undefined) {
+			throw new Error(`tier ${plan.parentId} is not in ladder ${root}`);
+		}
 		const remaining = destination.items.filter((item) => item.id !== nodeId);
 		const index = beforeNodeId ? remaining.findIndex((item) => item.id === beforeNodeId) : remaining.length;
 		if (index < 0) {

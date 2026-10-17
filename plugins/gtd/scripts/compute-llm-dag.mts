@@ -8,8 +8,9 @@ import {
 	swapTimeElement,
 } from "./compute-overdue.mts";
 import type {Interval, TreeNode, TreeRoot} from "./compute-overdue.mts";
+import {takeValue} from "./cli-args.mts";
 
-const ROOT_NAMES = ["Import", "Prep", "Presentation"];
+const ROOT_NAMES = new Set(["Import", "Prep", "Presentation"]);
 const PLAN_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const INTERVAL_PREFIX = "Interval: ";
 const INTERVAL_PATTERN = /^(\d+)([dmy])$/u;
@@ -178,18 +179,19 @@ interface RootGroups {
 
 function rootGroups(tree: TreeRoot): RootGroups {
 	const children = tree.children ?? [];
-	const unexpected = children.filter((child) => !ROOT_NAMES.includes(child.name));
-	if (unexpected.length > 0) {
-		throw new Error(`LLM Tasks has unexpected child "${taskDisplayName(unexpected[0].name)}"`);
+	const firstUnexpected = children.find((child) => !ROOT_NAMES.has(child.name));
+	if (firstUnexpected) {
+		throw new Error(`LLM Tasks has unexpected child "${taskDisplayName(firstUnexpected.name)}"`);
 	}
-	const [importNode, prepNode, presentationNode] = ROOT_NAMES.map((name) => {
+	const rootNamed = (name: string): TreeNode => {
 		const matches = children.filter((child) => child.name === name);
-		if (matches.length !== 1) {
+		const [match] = matches;
+		if (matches.length !== 1 || !match) {
 			throw new Error(`LLM Tasks must contain exactly one ${name} node`);
 		}
-		return matches[0];
-	});
-	return {importNode, prepNode, presentationNode};
+		return match;
+	};
+	return {importNode: rootNamed("Import"), prepNode: rootNamed("Prep"), presentationNode: rootNamed("Presentation")};
 }
 
 export function computeLlmDag(tree: TreeRoot, today: string) {
@@ -264,13 +266,14 @@ function main(arguments_: string[]): void {
 	const argumentsList = arguments_.slice(2);
 	let inputPath = ".llm/gtd/review/phase0-llm-tasks.json";
 	let today = localTodayISO();
-	for (let index = 0; index < argumentsList.length; index++) {
-		if (argumentsList[index] === "--today") {
-			today = argumentsList[++index];
-		} else if (argumentsList[index].startsWith("--")) {
-			throw new Error(`unknown option: ${argumentsList[index]}`);
+	const argumentIterator = argumentsList[Symbol.iterator]();
+	for (const argument of argumentIterator) {
+		if (argument === "--today") {
+			today = takeValue(argumentIterator, argument);
+		} else if (argument.startsWith("--")) {
+			throw new Error(`unknown option: ${argument}`);
 		} else {
-			inputPath = argumentsList[index];
+			inputPath = argument;
 		}
 	}
 	const tree = readTreeFile(inputPath);

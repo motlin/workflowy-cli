@@ -109,7 +109,9 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 								<a
 									className="mirrors-modal-location-path"
 									href={nodeRoute(loc.id)}
-									onClick={(event) => handleNavigate(loc.id, event)}
+									onClick={(event) => {
+										handleNavigate(loc.id, event);
+									}}
 								>
 									<span className="mirrors-modal-location-number">{index + 1}.</span>
 									{breadcrumbs.map((crumb, i) => (
@@ -236,7 +238,13 @@ function NodeContextMenu({
 				<button className="node-context-menu-item disabled" disabled type="button">
 					<span>Turn into...</span>
 				</button>
-				<button className="node-context-menu-item" onClick={() => handleAction(onComplete)} type="button">
+				<button
+					className="node-context-menu-item"
+					onClick={() => {
+						handleAction(onComplete);
+					}}
+					type="button"
+				>
 					<span>{isCompleted ? "Uncomplete" : "Complete"}</span>
 					<span className="node-context-menu-shortcut">⌘↵</span>
 				</button>
@@ -320,7 +328,13 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button className="node-context-menu-item danger" onClick={() => handleAction(onDelete)} type="button">
+				<button
+					className="node-context-menu-item danger"
+					onClick={() => {
+						handleAction(onDelete);
+					}}
+					type="button"
+				>
 					<span>Delete</span>
 					<span className="node-context-menu-shortcut">⇧⌘⌫</span>
 				</button>
@@ -329,10 +343,22 @@ function NodeContextMenu({
 			<div className="node-context-menu-divider" />
 
 			<div className="node-context-menu-section">
-				<button className="node-context-menu-item" onClick={() => handleAction(onExpandAll)} type="button">
+				<button
+					className="node-context-menu-item"
+					onClick={() => {
+						handleAction(onExpandAll);
+					}}
+					type="button"
+				>
 					Expand all
 				</button>
-				<button className="node-context-menu-item" onClick={() => handleAction(onCollapseAll)} type="button">
+				<button
+					className="node-context-menu-item"
+					onClick={() => {
+						handleAction(onCollapseAll);
+					}}
+					type="button"
+				>
 					Collapse all
 				</button>
 			</div>
@@ -421,11 +447,20 @@ export function NodeContextMenuButton({
 					onComplete={onComplete}
 					onDelete={onDelete}
 					onExpandAll={onExpandAll}
-					onShowMirrors={(data) => setMirrorsModalData(data)}
+					onShowMirrors={(data) => {
+						setMirrorsModalData(data);
+					}}
 					position={menuPosition}
 				/>
 			)}
-			{mirrorsModalData && <MirrorsModal data={mirrorsModalData} onClose={() => setMirrorsModalData(null)} />}
+			{mirrorsModalData && (
+				<MirrorsModal
+					data={mirrorsModalData}
+					onClose={() => {
+						setMirrorsModalData(null);
+					}}
+				/>
+			)}
 		</div>
 	);
 }

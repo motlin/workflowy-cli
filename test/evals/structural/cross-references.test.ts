@@ -48,11 +48,11 @@ function buildCommandRegistry(): Set<string> {
  */
 function resolveScriptRef(refPath: string, referencingFile: string): string | undefined {
 	if (refPath.startsWith("${CLAUDE_PLUGIN_ROOT}/")) {
-		const match = referencingFile.match(/^plugins\/([^/]+)\//u);
-		if (!match) {
+		const pluginName = referencingFile.match(/^plugins\/([^/]+)\//u)?.[1];
+		if (pluginName === undefined) {
 			return undefined;
 		}
-		return join(PLUGINS_DIR, match[1], refPath.slice("${CLAUDE_PLUGIN_ROOT}/".length));
+		return join(PLUGINS_DIR, pluginName, refPath.slice("${CLAUDE_PLUGIN_ROOT}/".length));
 	}
 	return join(PROJECT_ROOT, refPath);
 }

@@ -1,6 +1,6 @@
 import {readdirSync, readFileSync, statSync} from "node:fs";
 import {extname, join} from "node:path";
-import {describe, expect, it} from "vite-plus/test";
+import {assert, describe, expect, it} from "vite-plus/test";
 
 /**
  * Phase 4c: column-coverage test — the dead-column tripwire.
@@ -51,6 +51,7 @@ function extractSchemaColumns(source: string): SchemaColumn[] {
 	let match: RegExpExecArray | null;
 	while ((match = tablePattern.exec(source)) !== null) {
 		const tableConstant = match[1];
+		assert(tableConstant !== undefined);
 		const blockStart = source.indexOf("{", match.index + match[0].length);
 		expect(blockStart, `column-definition block for ${tableConstant}`).toBeGreaterThan(-1);
 
@@ -73,7 +74,10 @@ function extractSchemaColumns(source: string): SchemaColumn[] {
 		const columnPattern = /(?:^|\n)\s*(\w+):\s*(?:text|integer|blob)\(/gu;
 		let columnMatch: RegExpExecArray | null;
 		while ((columnMatch = columnPattern.exec(block)) !== null) {
-			columns.push({table: tableConstant, column: columnMatch[1]});
+			const [, column] = columnMatch;
+			if (column !== undefined) {
+				columns.push({table: tableConstant, column});
+			}
 		}
 	}
 

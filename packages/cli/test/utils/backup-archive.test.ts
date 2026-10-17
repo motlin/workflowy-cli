@@ -1,4 +1,4 @@
-import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
+import {assert, beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -220,17 +220,19 @@ describe("backup-archive", () => {
 				`${dataName("2026-05-16")}.zst`,
 				dataName("2026-05-17"),
 			]);
-			expect(entries[0].location).toStrictEqual({
+			const [archivedEntry, compressedEntry, looseEntry] = entries;
+			assert(archivedEntry && compressedEntry && looseEntry);
+			expect(archivedEntry.location).toStrictEqual({
 				kind: "archive",
 				archivePath: path.join(archiveDir, "2025-09.tar.zst"),
 				entryName: dataName("2025-09-04"),
 			});
-			expect(entries[2].location).toStrictEqual({
+			expect(looseEntry.location).toStrictEqual({
 				kind: "loose",
 				filePath: path.join(dataDir, dataName("2026-05-17")),
 			});
-			expect(readBackupContent(entries[0].location)).toBe('{"d":"04"}');
-			expect(readBackupContent(entries[1].location)).toBe('{"d":"16"}');
+			expect(readBackupContent(archivedEntry.location)).toBe('{"d":"04"}');
+			expect(readBackupContent(compressedEntry.location)).toBe('{"d":"16"}');
 		});
 
 		it("returns an empty list when no backups directory exists", () => {

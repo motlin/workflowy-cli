@@ -24,6 +24,8 @@ import {appendFileSync, mkdirSync, readFileSync} from "node:fs";
 import {dirname} from "node:path";
 import {isObject, parseJson, stringField} from "./json.mts";
 import type {JsonObject} from "./json.mts";
+import {takeValue} from "./cli-args.mts";
+import {parseIsoDate} from "./iso-date.mts";
 
 export type IntervalUnit = "d" | "m" | "y";
 
@@ -158,8 +160,10 @@ export function extractLinks(...texts: (string | null | undefined)[]): string[] 
 			continue;
 		}
 		const str = text;
-		for (const m of str.matchAll(HREF_RE)) {
-			urls.push(m[1]);
+		for (const [, href] of str.matchAll(HREF_RE)) {
+			if (href !== undefined) {
+				urls.push(href);
+			}
 		}
 		for (const m of str.matchAll(BARE_URL_RE)) {
 			urls.push(m[0].replace(/[.,;:]+$/u, ""));
@@ -228,10 +232,11 @@ function hardDeadlineFor(node: TreeNode, date: string | null): HardDeadline | nu
 	if (markers.length === 0) {
 		return null;
 	}
-	if (markers.length !== 1) {
+	const [marker] = markers;
+	if (markers.length !== 1 || !marker) {
 		throw new Error(`Multiple hard deadline markers on ${node.id}`);
 	}
-	const match = stripMarkup(markers[0].name).match(/^Hard deadline: (0|[1-9]\d*)d$/u);
+	const match = stripMarkup(marker.name).match(/^Hard deadline: (0|[1-9]\d*)d$/u);
 	if (!match || !Number.isSafeInteger(Number(match[1]))) {
 		throw new Error(`Expected Hard deadline: <nonnegative days>d on ${node.id}`);
 	}
@@ -249,11 +254,12 @@ function weekdayAnchorFor(node: TreeNode): string | null {
 	if (markers.length === 0) {
 		return null;
 	}
-	if (markers.length !== 1) {
+	const [marker] = markers;
+	if (markers.length !== 1 || !marker) {
 		throw new Error(`Multiple Next: <weekday> markers on ${node.id}`);
 	}
-	const match = stripMarkup(markers[0].name).match(/^Next: (\w+)$/u);
-	const weekday = WEEKDAYS.find((day) => day.toLowerCase() === match?.[1].toLowerCase());
+	const match = stripMarkup(marker.name).match(/^Next: (\w+)$/u);
+	const weekday = WEEKDAYS.find((day) => day.toLowerCase() === match?.[1]?.toLowerCase());
 	if (!weekday) {
 		throw new Error(`Expected Next: <weekday> on ${node.id}`);
 	}
@@ -282,7 +288,7 @@ function lastDayOfMonth(year: number, month1: number): number {
 }
 
 export function addInterval(iso: string, {amount, unit}: Interval): string {
-	const [y, m, d] = iso.split("-").map(Number);
+	const {year: y, month: m, day: d} = parseIsoDate(iso);
 	if (unit === "d") {
 		const dt = new Date(Date.UTC(y, m - 1, d + amount));
 		return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
@@ -299,7 +305,7 @@ export function addInterval(iso: string, {amount, unit}: Interval): string {
 }
 
 export function buildTimeElement(iso: string): string {
-	const [y, m, d] = iso.split("-").map(Number);
+	const {year: y, month: m, day: d} = parseIsoDate(iso);
 	const label = new Intl.DateTimeFormat("en-US", {
 		weekday: "short",
 		month: "short",
@@ -379,12 +385,12 @@ export function foldSkipLog(entries: readonly SkipEntry[] | null | undefined): M
 		const dates = [...byDate.keys()].toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 		let skipStreak = 0;
 		let skippedSince: string | null = null;
-		for (let i = dates.length - 1; i >= 0; i--) {
-			if (byDate.get(dates[i]) !== "skip") {
+		for (const date of dates.toReversed()) {
+			if (byDate.get(date) !== "skip") {
 				break;
 			}
 			skipStreak++;
-			skippedSince = dates[i];
+			skippedSince = date;
 		}
 		streaks.set(key, {skipStreak, skippedSince});
 	}
@@ -635,19 +641,20 @@ function main(argv: string[]): void {
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
 	let recordKey: string | null = null;
 	let outcome: string | null = null;
-	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "--today") {
-			today = args[++i];
-		} else if (args[i] === "--print") {
+	const argIterator = args[Symbol.iterator]();
+	for (const arg of argIterator) {
+		if (arg === "--today") {
+			today = takeValue(argIterator, arg);
+		} else if (arg === "--print") {
 			print = true;
-		} else if (args[i] === "--skip-log") {
-			skipLogPath = args[++i];
-		} else if (args[i] === "--record") {
-			recordKey = args[++i];
-		} else if (args[i] === "--outcome") {
-			outcome = args[++i];
-		} else if (!args[i].startsWith("--")) {
-			treePath = args[i];
+		} else if (arg === "--skip-log") {
+			skipLogPath = takeValue(argIterator, arg);
+		} else if (arg === "--record") {
+			recordKey = takeValue(argIterator, arg);
+		} else if (arg === "--outcome") {
+			outcome = takeValue(argIterator, arg);
+		} else if (!arg.startsWith("--")) {
+			treePath = arg;
 		}
 	}
 

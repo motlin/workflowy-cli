@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {buildLadderModel, diffSubmission, renderFromTemplate, renderPage, toQueueLadders} from "./rebalance-ui.mts";
 import type {LadderModel} from "./rebalance-ui.mts";
 import {parseJson} from "./json.mts";
+import {at, entry} from "./test-helpers.mts";
 
 const bucket = (id: string, tiers: readonly (readonly [string, readonly string[]])[]) => ({
 	id,
@@ -100,8 +101,9 @@ test("diffSubmission emits creates for new tiers before the moves into them", ()
 			},
 		},
 	});
-	assert.equal(ops[0].op, "create");
-	assert.equal(ops[0].label, "3rd");
+	const firstOp = at(ops, 0);
+	assert.ok(firstOp.op === "create", "tier creates come first");
+	assert.equal(firstOp.label, "3rd");
 	assert.deepStrictEqual(
 		ops.slice(1).map((o) => (o.op === "move" ? [o.op, o.nodeId, o.toLabel] : [o.op])),
 		[["move", "c-id", "3rd"]],
@@ -336,16 +338,17 @@ test("toQueueLadders emits the shape the Queue template expects", () => {
 	);
 	const out = toQueueLadders([model]);
 	assert.deepStrictEqual(Object.keys(out), ["work"]);
-	assert.equal(out.work.bucketId, "w");
+	const work = entry(out, "work");
+	assert.equal(work.bucketId, "w");
 	assert.deepStrictEqual(
-		out.work.tiers.map((t) => [t.label, t.id, t.items.length]),
+		work.tiers.map((t) => [t.label, t.id, t.items.length]),
 		[
 			["1st", "w-1st", 1],
 			["2nd", "w-2nd", 2],
 		],
 	);
 	// the template reads item.name, not item.text
-	assert.ok("name" in out.work.tiers[0].items[0], "items must carry name");
+	assert.ok("name" in at(at(work.tiers, 0).items, 0), "items must carry name");
 });
 
 test("renderFromTemplate injects the data and keeps the Queue UI intact", () => {
@@ -364,7 +367,7 @@ test("injected ladder data is valid JSON the page can parse", () => {
 	assert.ok(json !== undefined, "the page must carry a LADDERS object");
 	const parsed = parseJson(json);
 	assert.deepStrictEqual(parsed, toQueueLadders([model]));
-	assert.equal(toQueueLadders([model]).work.tiers[0].items[0].name, 'a "quoted" item');
+	assert.equal(at(at(entry(toQueueLadders([model]), "work").tiers, 0).items, 0).name, 'a "quoted" item');
 });
 
 test("the injected payload cannot break out of the script tag", () => {
@@ -398,16 +401,16 @@ test("apply rejects stale destinations, missing rows and duplicate rows before e
 			root.bucketId = "other-bucket";
 		},
 		(root) => {
-			root.tiers[0].id = "other-tier";
+			at(root.tiers, 0).id = "other-tier";
 		},
 		(root) => {
-			root.tiers[0].items.pop();
+			at(root.tiers, 0).items.pop();
 		},
 		(root) => {
-			root.tiers[0].items[1] = "a-id";
+			at(root.tiers, 0).items[1] = "a-id";
 		},
 		(root) => {
-			root.tiers[0].items[1] = "unknown-id";
+			at(root.tiers, 0).items[1] = "unknown-id";
 		},
 	];
 	for (const mutate of mutations) {
@@ -423,8 +426,8 @@ test("CLI generates a static page and emits creates before moves across both roo
 		const work = bucket("w", [["1st", ["a"]]]);
 		const personal = bucket("p", [["1st", ["b"]]]);
 		const paths = ["work.json", "personal.json"].map((file) => join(directory, file));
-		writeFileSync(paths[0], JSON.stringify(work));
-		writeFileSync(paths[1], JSON.stringify(personal));
+		writeFileSync(at(paths, 0), JSON.stringify(work));
+		writeFileSync(at(paths, 1), JSON.stringify(personal));
 		const page = join(directory, "page.html");
 		const script = new URL("rebalance-ui.mts", import.meta.url).pathname;
 		assert.equal(
@@ -442,13 +445,13 @@ test("CLI generates a static page and emits creates before moves across both roo
 				{
 					bucketId: ladder.bucketId,
 					tiers: [
-						{tier: 1, label: "1st", id: ladder.tiers[0].id, isNew: false, items: []},
+						{tier: 1, label: "1st", id: at(ladder.tiers, 0).id, isNew: false, items: []},
 						{
 							tier: 2,
 							label: "2nd",
 							id: null,
 							isNew: true,
-							items: ladder.tiers[0].items.map((item) => item.id),
+							items: at(ladder.tiers, 0).items.map((item) => item.id),
 						},
 					],
 				},
@@ -619,6 +622,13 @@ interface FakeElement {
 	closest(selector: string): FakeElement | null;
 }
 
+/** Dispatch `event` to the handler the page registered for `type`, failing when it never did. */
+function fire(target: FakeElement, type: string, event: Readonly<Record<string, unknown>>): unknown {
+	const handler = target.handlers[type];
+	assert.ok(handler, `no ${type} handler registered`);
+	return handler(event);
+}
+
 interface SavedWrite {
 	path: string;
 	payload: Collected;
@@ -768,7 +778,7 @@ test("generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 	const {elements, context, setTarget} = runQueuePage(html);
 	const app = elements.get("app");
 	assert.ok(app);
-	const queue = app.children[0];
+	const queue = at(app.children, 0);
 	assert.deepStrictEqual(
 		queue.children.map((node) => [node.className, node.dataset.label ?? null]),
 		[
@@ -778,20 +788,20 @@ test("generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 			["zone room", "6th"],
 		],
 	);
-	const fifth = queue.children[1];
-	const sixth = queue.children[3];
+	const fifth = at(queue.children, 1);
+	const sixth = at(queue.children, 3);
 	assert.equal(sixth.firstChild?.textContent, "empty -- drop here");
 	const grip = fifth.firstChild?.firstChild;
 	assert.ok(grip);
 	const event = {button: 0, pointerId: 1, clientX: 100, clientY: 200, preventDefault() {}};
-	grip.handlers.pointerdown(event);
+	fire(grip, "pointerdown", event);
 	setTarget(fifth);
-	grip.handlers.pointermove(event);
+	fire(grip, "pointermove", event);
 	assert.equal(fifth.className, "zone room drag-over");
 	setTarget(sixth);
-	grip.handlers.pointermove(event);
+	fire(grip, "pointermove", event);
 	assert.deepStrictEqual([fifth.className, sixth.className], ["zone room", "zone room drag-over"]);
-	grip.handlers.pointerup(event);
+	fire(grip, "pointerup", event);
 	assert.ok(context.queue);
 	const submission = structuredClone(context.queue.collect());
 	delete submission.submittedAt;
@@ -807,7 +817,7 @@ test("generated Queue highlights empty tier 6 and accepts a pointer drag from ti
 		},
 		completed: [],
 	});
-	assert.equal(app.children[0].children[1].firstChild?.textContent, "empty -- drop here");
+	assert.equal(at(at(app.children, 0).children, 1).firstChild?.textContent, "empty -- drop here");
 });
 
 test("generated Queue keeps the range anchor and autosaves ordered group drag, nudge, and Done", async () => {
@@ -822,13 +832,16 @@ test("generated Queue keeps the range anchor and autosaves ordered group drag, n
 	const page = runQueuePage(renderFromTemplate([model]));
 	const app = page.elements.get("app");
 	assert.ok(app);
-	const rows = () => app.children[0].children.flatMap((zone) => zone.children).filter((row) => row.dataset.id);
+	const rows = () =>
+		at(app.children, 0)
+			.children.flatMap((zone) => zone.children)
+			.filter((row) => row.dataset.id);
 	const row = (id: string) => {
 		const found = rows().find((candidate) => candidate.dataset.id === `${id}-id`);
 		assert.ok(found, `row ${id} must be rendered`);
 		return found;
 	};
-	const click = (id: string, modifiers = {}) => row(id).handlers.click({target: row(id), ...modifiers});
+	const click = (id: string, modifiers = {}) => fire(row(id), "click", {target: row(id), ...modifiers});
 	const selection = () =>
 		rows()
 			.filter((candidate) => candidate.classList.contains("sel"))
@@ -844,9 +857,9 @@ test("generated Queue keeps the range anchor and autosaves ordered group drag, n
 	const grip = row("b").firstChild;
 	assert.ok(grip);
 	const event = {button: 0, pointerId: 1, clientX: 100, clientY: 200, preventDefault() {}, stopPropagation() {}};
-	grip.handlers.pointerdown(event);
-	page.setTarget(app.children[0].children.find((zone) => zone.dataset.label === "3rd"));
-	grip.handlers.pointerup(event);
+	fire(grip, "pointerdown", event);
+	page.setTarget(at(app.children, 0).children.find((zone) => zone.dataset.label === "3rd"));
+	fire(grip, "pointerup", event);
 	await page.flushSave();
 	const saved = () => {
 		const write = page.writes.at(-1);
@@ -872,12 +885,12 @@ test("generated Queue keeps the range anchor and autosaves ordered group drag, n
 		},
 	};
 	assert.deepStrictEqual(saved(), expected);
-	row("d").children[3].children[1].handlers.click(event);
+	fire(at(at(row("d").children, 3).children, 1), "click", event);
 	await page.flushSave();
-	expected.payload.roots.work.tiers[1].items = [];
-	expected.payload.roots.work.tiers[2].items = ["d-id", "e-id", "a-id", "b-id", "c-id"];
+	at(expected.payload.roots.work.tiers, 1).items = [];
+	at(expected.payload.roots.work.tiers, 2).items = ["d-id", "e-id", "a-id", "b-id", "c-id"];
 	assert.deepStrictEqual(saved(), expected);
-	row("d").children[4].handlers.click(event);
+	fire(at(row("d").children, 4), "click", event);
 	await page.flushSave();
 	expected.payload.completed = ["d-id"];
 	assert.deepStrictEqual(saved(), expected);

@@ -16,6 +16,7 @@ import {
 	tierLabel,
 	tiersNeededFor,
 } from "./asap-tiers.mts";
+import {at} from "./test-helpers.mts";
 
 const item = (id: string) => ({id, name: `task ${id}`});
 const fill = (tier: number, n: number) => ({
@@ -209,10 +210,10 @@ test("planRebalance lists every occupant of an over-cap tier and the minimum to 
 		],
 	);
 	assert.deepStrictEqual(
-		plan.pushDowns[0].items.map((i) => i.id),
+		at(plan.pushDowns, 0).items.map((i) => i.id),
 		["t1-0", "t1-1", "t1-2"],
 	);
-	assert.ok(!("nodeId" in plan.pushDowns[0]), "no default victim");
+	assert.ok(!("nodeId" in at(plan.pushDowns, 0)), "no default victim");
 	assert.strictEqual(plan.extend, null);
 });
 

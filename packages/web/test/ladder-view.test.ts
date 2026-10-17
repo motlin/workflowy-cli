@@ -637,9 +637,15 @@ describe("subtree preview", () => {
 			return preview().length;
 		};
 		expect([
-			closed(() => treeButton().onMouseLeave({})),
-			closed(() => treeButton().onBlur({})),
-			closed(() => treeButton().onKeyDown({key: "Escape"})),
+			closed(() => {
+				treeButton().onMouseLeave({});
+			}),
+			closed(() => {
+				treeButton().onBlur({});
+			}),
+			closed(() => {
+				treeButton().onKeyDown({key: "Escape"});
+			}),
 		]).toStrictEqual([0, 0, 0]);
 	});
 });

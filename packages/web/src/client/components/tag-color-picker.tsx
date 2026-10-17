@@ -29,7 +29,9 @@ export function TagColorPicker({top, left, currentColor, onSelect, onRemove}: Ta
 		<div
 			className="tag-color-picker"
 			// Keep the editor's selection/focus when interacting with the picker.
-			onMouseDown={(event) => event.preventDefault()}
+			onMouseDown={(event) => {
+				event.preventDefault();
+			}}
 			role="presentation"
 			style={{top: `${top}px`, left: `${left}px`}}
 		>
@@ -49,8 +51,10 @@ export function TagColorPicker({top, left, currentColor, onSelect, onRemove}: Ta
 					aria-label={color}
 					className={`tag-color-swatch bc-${color}${currentColor === color ? " selected" : ""}`}
 					key={color}
-					onClick={() => onSelect(color)}
-					title={color[0].toUpperCase() + color.slice(1)}
+					onClick={() => {
+						onSelect(color);
+					}}
+					title={color.slice(0, 1).toUpperCase() + color.slice(1)}
 					type="button"
 				>
 					A

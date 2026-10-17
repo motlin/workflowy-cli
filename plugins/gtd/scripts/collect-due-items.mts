@@ -37,6 +37,8 @@ import type {NodeContext, SkipStreak, TreeNode, TreeRoot} from "./compute-overdu
 import {bottomTier, readLadder} from "./asap-tiers.mts";
 import {expectArray, expectObject, parseJson, stringField} from "./json.mts";
 import type {JsonObject} from "./json.mts";
+import {takeValue} from "./cli-args.mts";
+import {parseIsoDate} from "./iso-date.mts";
 
 export type DueSource = "workflowy" | "things" | "reminders";
 
@@ -148,7 +150,7 @@ function lastDayOfMonth(year: number, month1: number): number {
 // file-tasks proposes a timeframe; the node stores a date. This is the conversion between them,
 // and it is the only place that mapping lives.
 export function resolveTimeframe(label: string, todayISO: string): string {
-	const [y, m, d] = todayISO.split("-").map(Number);
+	const {year: y, month: m, day: d} = parseIsoDate(todayISO);
 	if (/^today$/iu.test(label)) {
 		return todayISO;
 	}
@@ -191,8 +193,12 @@ const MONTH_NAMES = [
 // AppleScript's `date "..."` parses a plain human date. Workflowy's `<time>` element is HTML and
 // means nothing to it, so the two sources need different substitutions for the same placeholder.
 function appleScriptDate(iso: string): string {
-	const [y, m, d] = iso.split("-").map(Number);
-	return `${MONTH_NAMES[m - 1]} ${d}, ${y}`;
+	const {year: y, month: m, day: d} = parseIsoDate(iso);
+	const monthName = MONTH_NAMES[m - 1];
+	if (monthName === undefined) {
+		throw new Error(`Invalid month in date: ${iso}`);
+	}
+	return `${monthName} ${d}, ${y}`;
 }
 
 /**
@@ -450,10 +456,10 @@ export function groupCrossSourceDuplicates<Row extends {source: string; title: s
 		const key = titleKey(row);
 		const matches = workflowyByTitle.get(key) ?? [];
 		// A title shared by multiple Workflowy tasks cannot identify a survivor.
-		if (!key || matches.length !== 1) {
+		const [survivor] = matches;
+		if (!key || matches.length !== 1 || !survivor) {
 			continue;
 		}
-		const survivor = matches[0];
 		copiesBySurvivor.set(survivor, [...(copiesBySurvivor.get(survivor) ?? []), row]);
 		groupedCopies.add(row);
 	}
@@ -618,23 +624,24 @@ function main(argv: string[]): void {
 	let print = false;
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
 	let horizonDays = 0;
-	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "--today") {
-			today = args[++i];
-		} else if (args[i] === "--print") {
+	const argIterator = args[Symbol.iterator]();
+	for (const arg of argIterator) {
+		if (arg === "--today") {
+			today = takeValue(argIterator, arg);
+		} else if (arg === "--print") {
 			print = true;
-		} else if (args[i] === "--skip-log") {
-			skipLogPath = args[++i];
-		} else if (args[i] === "--horizon-days") {
-			horizonDays = Number(args[++i]);
-		} else if (args[i] === "--workflowy") {
-			paths.workflowy = args[++i];
-		} else if (args[i] === "--things") {
-			paths.things = args[++i];
-		} else if (args[i] === "--reminders") {
-			paths.reminders = args[++i];
-		} else if (args[i] === "--recurring") {
-			paths.recurring = args[++i];
+		} else if (arg === "--skip-log") {
+			skipLogPath = takeValue(argIterator, arg);
+		} else if (arg === "--horizon-days") {
+			horizonDays = Number(takeValue(argIterator, arg));
+		} else if (arg === "--workflowy") {
+			paths.workflowy = takeValue(argIterator, arg);
+		} else if (arg === "--things") {
+			paths.things = takeValue(argIterator, arg);
+		} else if (arg === "--reminders") {
+			paths.reminders = takeValue(argIterator, arg);
+		} else if (arg === "--recurring") {
+			paths.recurring = takeValue(argIterator, arg);
 		}
 	}
 

@@ -22,8 +22,10 @@ interface OpenAIModel {
 
 type EmbeddingModel = LocalModel | OpenAIModel;
 
+const OpenAIEmbeddingSchema = z.object({embedding: z.array(z.number())});
+
 const OpenAIEmbeddingResponseSchema = z.object({
-	data: z.array(z.object({embedding: z.array(z.number())})).min(1),
+	data: z.tuple([OpenAIEmbeddingSchema]).rest(OpenAIEmbeddingSchema),
 });
 
 export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
@@ -42,6 +44,15 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
 } as const;
 
 export type EmbeddingModelKey = keyof typeof EMBEDDING_MODELS;
+
+/** Look up an embedding model's config, throwing on an unknown key. */
+export function getEmbeddingModel(modelKey: string): EmbeddingModel {
+	const modelConfig = EMBEDDING_MODELS[modelKey];
+	if (!modelConfig) {
+		throw new Error(`Unknown embedding model: ${modelKey}`);
+	}
+	return modelConfig;
+}
 
 export const DEFAULT_MODELS = Object.entries(EMBEDDING_MODELS)
 	.filter(([, config]) => config.type === "local")

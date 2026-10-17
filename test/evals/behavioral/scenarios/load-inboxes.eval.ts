@@ -42,7 +42,7 @@ describe("Behavioral Eval: gtd inboxes load", () => {
 	});
 
 	afterAll(() => {
-		ctx?.cleanup();
+		ctx.cleanup();
 	});
 
 	it("should run without errors against the eval database", {timeout: 60_000}, async () => {

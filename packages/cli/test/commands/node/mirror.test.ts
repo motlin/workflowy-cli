@@ -155,7 +155,7 @@ describe("node:mirror command", () => {
 				await Mirror.run(["--node-id", ORIGIN_ID, "--parent-id", PARENT_ID, "--position", "bottom"]);
 			});
 
-			expect(calls[0].body).toStrictEqual({parent_id: PARENT_ID, position: "bottom"});
+			expect(calls[0]?.body).toStrictEqual({parent_id: PARENT_ID, position: "bottom"});
 		});
 
 		it("writes the empty mirror node and mirror relationship through to the cache", async () => {

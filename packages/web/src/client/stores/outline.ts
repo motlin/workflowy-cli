@@ -243,9 +243,11 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	errorNotifications: [],
 	isMutating: false,
 
-	zoom: (id) => set({zoomedNodeId: id}),
+	zoom: (id) => {
+		set({zoomedNodeId: id});
+	},
 
-	toggleExpand: (id) =>
+	toggleExpand: (id) => {
 		set((state) => {
 			const newExpandedIds = new Set(state.expandedIds);
 			if (newExpandedIds.has(id)) {
@@ -254,69 +256,93 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 				newExpandedIds.add(id);
 			}
 			return {expandedIds: newExpandedIds};
-		}),
+		});
+	},
 
-	expand: (id) =>
+	expand: (id) => {
 		set((state) => {
 			const newExpandedIds = new Set([...state.expandedIds, id]);
 			return {expandedIds: newExpandedIds};
-		}),
+		});
+	},
 
-	collapse: (id) =>
+	collapse: (id) => {
 		set((state) => {
 			const newExpandedIds = new Set(state.expandedIds);
 			newExpandedIds.delete(id);
 			return {expandedIds: newExpandedIds};
-		}),
+		});
+	},
 
-	expandAll: (ids) =>
+	expandAll: (ids) => {
 		set((state) => {
 			const newExpandedIds = new Set(state.expandedIds);
 			for (const id of ids) {
 				newExpandedIds.add(id);
 			}
 			return {expandedIds: newExpandedIds};
-		}),
+		});
+	},
 
-	collapseAll: () => set({expandedIds: new Set<string>()}),
+	collapseAll: () => {
+		set({expandedIds: new Set<string>()});
+	},
 
-	collapseDescendants: (ids) =>
+	collapseDescendants: (ids) => {
 		set((state) => {
 			const newExpandedIds = new Set(state.expandedIds);
 			for (const id of ids) {
 				newExpandedIds.delete(id);
 			}
 			return {expandedIds: newExpandedIds};
-		}),
+		});
+	},
 
-	startEditing: (id, clickPosition) =>
-		set({editingId: id, editingClickPosition: clickPosition ?? null, editingCaretOffset: null, lastEditedId: id}),
+	startEditing: (id, clickPosition) => {
+		set({editingId: id, editingClickPosition: clickPosition ?? null, editingCaretOffset: null, lastEditedId: id});
+	},
 
-	stopEditing: () => set({editingId: null, editingClickPosition: null, editingCaretOffset: null}),
+	stopEditing: () => {
+		set({editingId: null, editingClickPosition: null, editingCaretOffset: null});
+	},
 
-	startEditingNote: (id) => set({editingNoteId: id, lastEditedId: id}),
+	startEditingNote: (id) => {
+		set({editingNoteId: id, lastEditedId: id});
+	},
 
-	stopEditingNote: () => set({editingNoteId: null}),
+	stopEditingNote: () => {
+		set({editingNoteId: null});
+	},
 
-	resumeEditing: (id, caretOffset) =>
-		set({editingId: id, editingClickPosition: null, editingCaretOffset: caretOffset, lastEditedId: id}),
+	resumeEditing: (id, caretOffset) => {
+		set({editingId: id, editingClickPosition: null, editingCaretOffset: caretOffset, lastEditedId: id});
+	},
 
-	holdEditing: (caretOffset) => set({editingHeld: true, editingCaretOffset: caretOffset}),
+	holdEditing: (caretOffset) => {
+		set({editingHeld: true, editingCaretOffset: caretOffset});
+	},
 
-	releaseEditing: () => set({editingHeld: false}),
+	releaseEditing: () => {
+		set({editingHeld: false});
+	},
 
-	toggleCompleted: () =>
+	toggleCompleted: () => {
 		set((state) => {
 			const newShowCompleted = !state.showCompleted;
 			localStorage.setItem(SHOW_COMPLETED_STORAGE_KEY, String(newShowCompleted));
 			return {showCompleted: newShowCompleted};
-		}),
+		});
+	},
 
-	toggleLeftSidebar: () => set((state) => ({leftSidebarOpen: !state.leftSidebarOpen})),
+	toggleLeftSidebar: () => {
+		set((state) => ({leftSidebarOpen: !state.leftSidebarOpen}));
+	},
 
-	toggleRightSidebar: () => set((state) => ({rightSidebarOpen: !state.rightSidebarOpen})),
+	toggleRightSidebar: () => {
+		set((state) => ({rightSidebarOpen: !state.rightSidebarOpen}));
+	},
 
-	toggleStarPage: (id) =>
+	toggleStarPage: (id) => {
 		set((state) => {
 			const newStarredPages = new Set(state.starredPages);
 			if (newStarredPages.has(id)) {
@@ -326,11 +352,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			}
 			localStorage.setItem(STARRED_PAGES_STORAGE_KEY, JSON.stringify([...newStarredPages]));
 			return {starredPages: newStarredPages};
-		}),
+		});
+	},
 
 	isPageStarred: (id) => get().starredPages.has(id),
 
-	saveSearch: (query) =>
+	saveSearch: (query) => {
 		set((state) => {
 			const trimmedQuery = query.trim();
 			if (!trimmedQuery || state.savedSearches.includes(trimmedQuery)) {
@@ -339,18 +366,20 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			const newSavedSearches = [trimmedQuery, ...state.savedSearches];
 			localStorage.setItem(SAVED_SEARCHES_STORAGE_KEY, JSON.stringify(newSavedSearches));
 			return {savedSearches: newSavedSearches};
-		}),
+		});
+	},
 
-	removeSavedSearch: (query) =>
+	removeSavedSearch: (query) => {
 		set((state) => {
 			const newSavedSearches = state.savedSearches.filter((s) => s !== query);
 			localStorage.setItem(SAVED_SEARCHES_STORAGE_KEY, JSON.stringify(newSavedSearches));
 			return {savedSearches: newSavedSearches};
-		}),
+		});
+	},
 
 	getSavedSearches: () => get().savedSearches,
 
-	addRecentSearch: (query) =>
+	addRecentSearch: (query) => {
 		set((state) => {
 			const trimmedQuery = query.trim();
 			if (!trimmedQuery) {
@@ -361,22 +390,24 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			const newRecentSearches = [trimmedQuery, ...filtered].slice(0, RECENT_SEARCHES_LIMIT);
 			localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(newRecentSearches));
 			return {recentSearches: newRecentSearches};
-		}),
+		});
+	},
 
 	clearRecentSearches() {
 		localStorage.removeItem(RECENT_SEARCHES_STORAGE_KEY);
 		set({recentSearches: []});
 	},
 
-	toggleSearchPanel: () =>
+	toggleSearchPanel: () => {
 		set((state) => ({
 			searchPanelOpen: !state.searchPanelOpen,
 			searchInitialQuery: null,
 			searchPanelSession: state.searchPanelSession + 1,
 			searchReturn: null,
-		})),
+		}));
+	},
 
-	openSearchFromEditing: (nodeId, caretOffset) =>
+	openSearchFromEditing: (nodeId, caretOffset) => {
 		set((state) => ({
 			editingId: null,
 			editingClickPosition: null,
@@ -386,9 +417,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			searchInitialQuery: null,
 			searchPanelSession: state.searchPanelSession + 1,
 			searchReturn: {nodeId, caretOffset},
-		})),
+		}));
+	},
 
-	dismissSearchPanel: () =>
+	dismissSearchPanel: () => {
 		set((state) => {
 			const closed = {searchPanelOpen: false, searchInitialQuery: null, searchReturn: null};
 			if (state.searchReturn === null) {
@@ -402,41 +434,62 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 				editingCaretOffset: caretOffset,
 				lastEditedId: nodeId,
 			};
-		}),
+		});
+	},
 
-	openSearchWithQuery: (query) =>
+	openSearchWithQuery: (query) => {
 		set((state) => ({
 			searchPanelOpen: true,
 			searchInitialQuery: query,
 			searchPanelSession: state.searchPanelSession + 1,
 			searchReturn: null,
-		})),
+		}));
+	},
 
-	toggleJumpMenu: () => set((state) => ({jumpMenuOpen: !state.jumpMenuOpen})),
+	toggleJumpMenu: () => {
+		set((state) => ({jumpMenuOpen: !state.jumpMenuOpen}));
+	},
 
-	openLinkInsert: (context) => set({linkInsertOpen: true, linkInsertContext: context}),
+	openLinkInsert: (context) => {
+		set({linkInsertOpen: true, linkInsertContext: context});
+	},
 
-	closeLinkInsert: () => set({linkInsertOpen: false, linkInsertContext: null}),
+	closeLinkInsert: () => {
+		set({linkInsertOpen: false, linkInsertContext: null});
+	},
 
-	toggleRelatedNodesPanel: () => set((state) => ({relatedNodesPanelOpen: !state.relatedNodesPanelOpen})),
+	toggleRelatedNodesPanel: () => {
+		set((state) => ({relatedNodesPanelOpen: !state.relatedNodesPanelOpen}));
+	},
 
-	openMoveAssistant: (context) => set({moveAssistantOpen: true, moveAssistantContext: context}),
+	openMoveAssistant: (context) => {
+		set({moveAssistantOpen: true, moveAssistantContext: context});
+	},
 
-	closeMoveAssistant: () => set({moveAssistantOpen: false, moveAssistantContext: null}),
+	closeMoveAssistant: () => {
+		set({moveAssistantOpen: false, moveAssistantContext: null});
+	},
 
-	openExportDialog: (context) => set({exportDialogOpen: true, exportContext: context}),
+	openExportDialog: (context) => {
+		set({exportDialogOpen: true, exportContext: context});
+	},
 
-	closeExportDialog: () => set({exportDialogOpen: false, exportContext: null}),
+	closeExportDialog: () => {
+		set({exportDialogOpen: false, exportContext: null});
+	},
 
-	openPresentation: (nodeId) =>
+	openPresentation: (nodeId) => {
 		set({
 			presentationOpen: true,
 			presentationContext: {nodeId, currentSlideIndex: 0},
-		}),
+		});
+	},
 
-	closePresentation: () => set({presentationOpen: false, presentationContext: null}),
+	closePresentation: () => {
+		set({presentationOpen: false, presentationContext: null});
+	},
 
-	nextSlide: () =>
+	nextSlide: () => {
 		set((state) => {
 			if (!state.presentationContext) {
 				return state;
@@ -447,9 +500,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					currentSlideIndex: state.presentationContext.currentSlideIndex + 1,
 				},
 			};
-		}),
+		});
+	},
 
-	previousSlide: () =>
+	previousSlide: () => {
 		set((state) => {
 			if (!state.presentationContext) {
 				return state;
@@ -461,9 +515,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					currentSlideIndex: newIndex,
 				},
 			};
-		}),
+		});
+	},
 
-	goToSlide: (index) =>
+	goToSlide: (index) => {
 		set((state) => {
 			if (!state.presentationContext) {
 				return state;
@@ -474,11 +529,16 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					currentSlideIndex: Math.max(0, index),
 				},
 			};
-		}),
+		});
+	},
 
-	openSettings: () => set({settingsOpen: true}),
+	openSettings: () => {
+		set({settingsOpen: true});
+	},
 
-	closeSettings: () => set({settingsOpen: false}),
+	closeSettings: () => {
+		set({settingsOpen: false});
+	},
 
 	setTheme(theme) {
 		localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -486,7 +546,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({theme});
 	},
 
-	setOnline: (isOnline) => set({isOnline}),
+	setOnline: (isOnline) => {
+		set({isOnline});
+	},
 
 	addErrorNotification(message, type = "error", retryAction) {
 		const id = `error-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -509,14 +571,19 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		return id;
 	},
 
-	removeErrorNotification: (id) =>
+	removeErrorNotification: (id) => {
 		set((state) => ({
 			errorNotifications: state.errorNotifications.filter((n) => n.id !== id),
-		})),
+		}));
+	},
 
-	clearAllErrorNotifications: () => set({errorNotifications: []}),
+	clearAllErrorNotifications: () => {
+		set({errorNotifications: []});
+	},
 
-	setMutating: (isMutating) => set({isMutating}),
+	setMutating: (isMutating) => {
+		set({isMutating});
+	},
 }));
 
 // Apply initial theme on load and set up event listeners

@@ -26,7 +26,7 @@ const PROJECT_ROOT = path.resolve(import.meta.dirname, "../../../..");
  * @param options.mockServerPort - Port for the mock Workflowy HTTP server
  */
 export function createEvalContext(options?: {mockServerPort?: number}): EvalContext {
-	const sourceDb = process.env.WORKFLOWY_EVAL_SOURCE_DB || path.join(PROJECT_ROOT, "workflowy.sqlite");
+	const sourceDb = (process.env.WORKFLOWY_EVAL_SOURCE_DB ?? "") || path.join(PROJECT_ROOT, "workflowy.sqlite");
 
 	if (!fs.existsSync(sourceDb)) {
 		throw new Error(

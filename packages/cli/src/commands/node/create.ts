@@ -139,7 +139,10 @@ export default class Create extends Command {
 		}
 
 		// Handle stdin input when --name is "-"
-		let name = flags.name!;
+		if (flags.name === undefined) {
+			this.error("Either --name, --json, or --json-file is required");
+		}
+		let {name} = flags;
 		if (name === "-") {
 			try {
 				name = await readStdin();
@@ -157,7 +160,7 @@ export default class Create extends Command {
 	 */
 	private async runSingleNodeMode(
 		flags: {
-			name?: string;
+			name: string;
 			note?: string;
 			"layout-mode"?: string;
 			position?: "top" | "bottom";
@@ -167,7 +170,7 @@ export default class Create extends Command {
 		client: WorkflowyWriteThroughClient,
 		database: ReturnType<typeof createDatabase>,
 	): Promise<void> {
-		const name = flags.name!;
+		const {name} = flags;
 
 		if (flags["dry-run"]) {
 			const requestBody: {parent_id: string; name: string; note?: string; layoutMode?: string} = {

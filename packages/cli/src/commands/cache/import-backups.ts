@@ -76,8 +76,8 @@ export default class ImportBackups extends Command {
 			return;
 		}
 
-		if (lastImportDate && unimportedBackups.length > 0) {
-			const firstUnimported = unimportedBackups[0];
+		const [firstUnimported] = unimportedBackups;
+		if (lastImportDate && firstUnimported) {
 			const daysDiff = getDateDifference(lastImportDate, firstUnimported.backupDate);
 			if (daysDiff > 1) {
 				this.log(
