@@ -200,8 +200,8 @@
 
 	/* Font families */
 	--wf-font-family:
-		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
-		"Segoe UI Emoji", "Segoe UI Symbol";
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
+		var(--emoji-font, "Apple Color Emoji"), "Segoe UI Emoji", "Segoe UI Symbol";
 	--wf-font-family-brand: "Open Sans", sans-serif;
 	--wf-font-family-mono: "Andale Mono", Menlo, monospace;
 
@@ -482,14 +482,155 @@ body {
 	margin: 0;
 	padding: 0;
 	font-family:
-		-apple-system, "system-ui", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
-		"Segoe UI Emoji", "Segoe UI Symbol";
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
+		var(--emoji-font, "Apple Color Emoji"), "Segoe UI Emoji", "Segoe UI Symbol";
 	font-size: 16px;
 	line-height: 1.5;
 	color: var(--color-text);
 	background-color: var(--color-bg);
 	-webkit-font-smoothing: auto;
 	-moz-osx-font-smoothing: auto;
+}
+
+/* ================================
+   Base (upstream wf-base)
+   ================================ */
+
+/* Upstream's "system" account font scope; rows and left-bar rows opt in with the font-custom class. */
+.font-system .font-custom,
+.font-default .font-custom {
+	--font-default-line-height: 24px;
+	--font-descendant-padding-top: 4px;
+	--expand-collapse--top: 6px;
+	--bullet--top: 7px;
+	--item-menu--top: 4px;
+	--item-menu-root--top: 7px;
+	--font-ui-font-size: 13px;
+	--font-default-font-size: 16px;
+	--font-descendant-note-font-size: 13px;
+	--font-selected-name-font-size: 27px;
+	--font-selected-name-line-height: 34px;
+	--font-minimal-document-height: 27px;
+	--font-help-text-font-size: 12px;
+}
+
+/* Upstream resets every anchor; scoped to chrome until row anatomy ports .contentLink. */
+.wf-header a,
+.leftBar a,
+.wf-menu a,
+.wf-helper a {
+	text-decoration: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.wf-header a:hover,
+.leftBar a:hover,
+.wf-menu a:hover,
+.wf-helper a:hover {
+	text-decoration: underline;
+}
+
+/* FontAwesome 6 svg-core sizing (injected at runtime upstream) */
+.svg-inline--fa {
+	display: inline-block;
+	height: 1em;
+	overflow: visible;
+	vertical-align: -0.125em;
+}
+
+.fa-1x {
+	font-size: 1em;
+}
+
+.fa-lg {
+	font-size: 1.25em;
+	line-height: 0.05em;
+	vertical-align: -0.075em;
+}
+
+.fa-xs {
+	font-size: 0.75em;
+	line-height: 0.0833333337em;
+	vertical-align: 0.125em;
+}
+
+.fa-sm {
+	font-size: 0.875em;
+	line-height: 0.0714285718em;
+	vertical-align: 0.0535714295em;
+}
+
+.svg-inline--fa.fa-lg {
+	vertical-align: -0.2em;
+}
+
+.svg-inline--fa.fa-xs {
+	vertical-align: 0;
+}
+
+.svg-inline--fa.fa-sm {
+	vertical-align: -0.0714285705em;
+}
+
+.fa-fw {
+	text-align: center;
+	width: 1.25em;
+}
+
+.svg-inline--fa.fa-fw {
+	width: 1.25em;
+}
+
+/* Upstream styles `button, .button`; only .button here so local <button>s keep their styles. */
+.button {
+	display: inline-block;
+	position: relative;
+	-webkit-appearance: none;
+	appearance: none;
+	border: none;
+	outline: none;
+	box-sizing: border-box;
+	border-radius: var(--wf-radius-pill);
+	padding: var(--wf-space-s) var(--wf-space-l);
+	font-weight: var(--wf-font-weight-regular);
+	line-height: var(--wf-line-height-s);
+	font-family: inherit;
+	font-size: var(--wf-font-size-s);
+	background: var(--wf-background-tertiary);
+	text-align: center;
+	text-decoration: none;
+	color: var(--wf-text-primary);
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.button:focus,
+.button:hover,
+.button:active {
+	text-decoration: none;
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+/* Scrollbars (upstream themes_design) */
+::-webkit-scrollbar {
+	width: 7px;
+	height: 7px;
+}
+
+::-webkit-scrollbar-track {
+	background-color: unset;
+}
+
+::-webkit-scrollbar-thumb {
+	background-color: var(--wf-border-primary);
+	background-color: color-mix(in srgb, currentColor 20%, transparent);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background-color: var(--wf-border-secondary);
+	background-color: color-mix(in srgb, currentColor 30%, transparent);
 }
 
 /* App container */
