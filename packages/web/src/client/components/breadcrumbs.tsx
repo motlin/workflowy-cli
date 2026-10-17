@@ -1,43 +1,99 @@
-import {useNodeNavigation} from "../navigation.js";
+import type {MouseEvent} from "react";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {useAncestors} from "../hooks/use-nodes.js";
+import {nodeRoute, useNodeNavigation} from "../navigation.js";
+import {FaIcon} from "./fa-icons.js";
+import {IconButton} from "./icon-button.js";
 
-interface BreadcrumbItem {
+export interface Crumb {
 	id: string;
-	name: string;
+	isRoot: boolean;
+	name?: string | null;
 }
 
-/**
- * Strips HTML tags from node names for display.
- * Matches the stripHtmlTags method from PathBuilder service.
- */
+const ROOT_CRUMB: Crumb = {id: "None", isRoot: true};
 
-/**
- * Breadcrumb separator using production Workflowy SVG.
- */
+interface CrumbClickEvent {
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	shiftKey: boolean;
+	button: number;
+	preventDefault: () => void;
+}
+
+interface CrumbClickDeps {
+	navigateToNode: (nodeId: string | null) => void;
+}
+
+/** Plain clicks navigate in-app; modified and middle clicks fall through to the anchor's href. */
+// oxlint-disable-next-line react/only-export-components -- pure click handler exported for tests and reuse by other crumb renderers
+export function handleCrumbClick(event: CrumbClickEvent, crumb: Crumb, {navigateToNode}: CrumbClickDeps): void {
+	if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
+		return;
+	}
+	event.preventDefault();
+	navigateToNode(crumb.isRoot ? null : crumb.id);
+}
+
 function BreadcrumbSeparator() {
 	return (
-		<svg
-			aria-hidden="true"
-			className="breadcrumb-separator-icon"
-			fill="none"
-			height="8"
-			viewBox="0 0 5 8"
-			width="5"
-		>
+		<svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="flex-shrink-0">
 			<path d="M0 0 L4 4 L0 8" stroke="currentColor" strokeLinecap="round" />
 		</svg>
 	);
 }
 
-/**
- * Home icon for root navigation.
- */
-function HomeIcon() {
+function crumbLabel(name: string | null | undefined): string {
+	const label = stripHtmlTags(name ?? "");
+	return label === "" ? "Untitled" : label;
+}
+
+interface CrumbProps {
+	crumb: Crumb;
+	current: boolean;
+	truncateWidth?: number;
+	onNavigate: (nodeId: string | null) => void;
+}
+
+/** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
+function BreadcrumbItem({crumb, current, truncateWidth, onNavigate}: CrumbProps) {
+	const disabled = crumb.isRoot && current;
+	const className = `breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate ${current ? "current opacity-100" : "opacity-70"}
+    data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`;
+	const content = crumb.isRoot ? (
+		<IconButton
+			className={`homeButton ${disabled ? "disabled" : ""}`}
+			disabled={disabled}
+			tooltip="Home"
+			data-handbook="nav.home"
+		>
+			<FaIcon icon="fal:house" size="lg" />
+		</IconButton>
+	) : (
+		crumbLabel(crumb.name)
+	);
+	const style = {maxWidth: truncateWidth};
+
+	if (disabled) {
+		return (
+			<div className={className} style={style}>
+				{content}
+			</div>
+		);
+	}
 	return (
-		<svg aria-hidden="true" fill="currentColor" height="18" viewBox="0 0 576 512" width="20">
-			<path d="M298.6 4c-6-5.3-15.1-5.3-21.2 0L5.4 244c-6.6 5.8-7.3 16-1.4 22.6s16 7.3 22.6 1.4L64 235.1 64 432c0 44.2 35.8 80 80 80l288 0c44.2 0 80-35.8 80-80l0-196.9 37.4 32.9c6.6 5.8 16.7 5.2 22.6-1.4s5.2-16.7-1.4-22.6L298.6 4zM96 432l0-225.3L288 37.3 480 206.7 480 432c0 26.5-21.5 48-48 48l-64 0 0-160c0-17.7-14.3-32-32-32l-96 0c-17.7 0-32 14.3-32 32l0 160-64 0c-26.5 0-48-21.5-48-48zm144 48l0-160 96 0 0 160-96 0z" />
-		</svg>
+		<a
+			className={className}
+			style={style}
+			href={crumb.isRoot ? "/" : nodeRoute(crumb.id)}
+			data-item-id={crumb.isRoot ? "None" : crumb.id}
+			onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+				handleCrumbClick(event, crumb, {navigateToNode: onNavigate});
+			}}
+		>
+			{content}
+		</a>
 	);
 }
 
@@ -45,78 +101,25 @@ interface BreadcrumbsProps {
 	nodeId: string | null;
 }
 
-/**
- * Displays a breadcrumb trail from root to the current zoomed node.
- * Each segment is clickable to navigate to that level.
- * Matches Workflowy's breadcrumb navigation with < > arrows and home icon.
- */
+/** Upstream's header breadcrumbs: flat crumbs from Home to the zoomed node, a chevron after each non-current one. */
 export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 	const {navigateToNode} = useNodeNavigation();
 	const {data: ancestors, isLoading} = useAncestors(nodeId);
 
-	// If at root level, show just the home icon
-	if (nodeId === null) {
-		return (
-			<nav aria-label="Breadcrumb navigation" className="breadcrumbs">
-				<span aria-label="Home" className="breadcrumb-home-icon">
-					<HomeIcon />
-				</span>
-			</nav>
-		);
-	}
-
-	if (isLoading) {
-		return (
-			<nav aria-label="Breadcrumb navigation" className="breadcrumbs breadcrumbs-loading">
-				<span className="breadcrumb-home-icon">
-					<HomeIcon />
-				</span>
-			</nav>
-		);
-	}
-
-	// Transform ancestors to breadcrumb items
-	const path: BreadcrumbItem[] = (ancestors ?? []).map((node) => ({
-		id: node.id,
-		name: stripHtmlTags(node.name ?? "Untitled"),
-	}));
+	const crumbs: Crumb[] =
+		nodeId === null || isLoading || ancestors === undefined
+			? [ROOT_CRUMB]
+			: [ROOT_CRUMB, ...ancestors.map((node) => ({id: node.id, isRoot: false, name: node.name}))];
 
 	return (
-		<nav aria-label="Breadcrumb navigation" className="breadcrumbs">
-			{/* Home icon - navigates to root */}
-			<button
-				aria-label="Home"
-				className="breadcrumb-home-icon"
-				onClick={() => {
-					navigateToNode(null);
-				}}
-				title="Home"
-				type="button"
-			>
-				<HomeIcon />
-			</button>
-
-			{/* Path items with separators */}
-			{path.map((item, index) => (
-				<span className="breadcrumb-path-segment" key={item.id}>
-					<span className="breadcrumb-separator">
-						<BreadcrumbSeparator />
-					</span>
-					{index === path.length - 1 ? (
-						<span className="breadcrumb-item breadcrumb-current">{item.name}</span>
-					) : (
-						<button
-							className="breadcrumb-item"
-							onClick={() => {
-								navigateToNode(item.id);
-							}}
-							type="button"
-						>
-							{item.name}
-						</button>
-					)}
-				</span>
-			))}
-		</nav>
+		<div className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden">
+			{crumbs.flatMap((crumb, index) => {
+				const current = index === crumbs.length - 1;
+				const item = (
+					<BreadcrumbItem key={crumb.id} crumb={crumb} current={current} onNavigate={navigateToNode} />
+				);
+				return current ? [item] : [item, <BreadcrumbSeparator key={`${crumb.id}-separator`} />];
+			})}
+		</div>
 	);
 }
