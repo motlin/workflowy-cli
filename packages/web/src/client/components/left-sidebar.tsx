@@ -1,4 +1,4 @@
-import {useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import type {PointerEvent as ReactPointerEvent} from "react";
 import {nodeRoute} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
@@ -199,6 +199,13 @@ export function resizeWidth(startWidth: number, startX: number, x: number): numb
 	return Math.max(MIN_LEFT_BAR_WIDTH, startWidth + x - startX);
 }
 
+/** Upstream pads the page body by the pinned left bar width so the outline shifts right; drawers overlay. */
+// oxlint-disable-next-line react/only-export-components -- pure helper exported for unit tests; it never changes at runtime
+export function applyBodyOffset(style: Pick<CSSStyleDeclaration, "transition" | "paddingLeft">, offset: number): void {
+	style.transition = "padding-left .25s";
+	style.paddingLeft = `${offset}px`;
+}
+
 /** Pinned-mode resize handle: pointer drag on the right edge updates the stored width. */
 function ResizeTarget({width, onWidthChange}: {width: number; onWidthChange: (width: number) => void}) {
 	const drag = useRef<{startWidth: number; startX: number} | null>(null);
@@ -363,6 +370,10 @@ export function LeftBar() {
 	const drawerOpen = mode === "drawerOpen";
 	const closed = mode === "drawerClosed";
 	const borderRadius = pinned ? "0 0px 0px 0" : "0 6px 6px 0";
+
+	useEffect(() => {
+		applyBodyOffset(document.body.style, pinned ? width : 0);
+	}, [pinned, width]);
 
 	return (
 		<div

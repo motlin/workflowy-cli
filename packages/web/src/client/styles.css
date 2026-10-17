@@ -1946,14 +1946,16 @@ button.iconButton {
 	font-weight: 300;
 }
 
-/* Outline container handles sidebar offset */
+/* Outline container; the pinned left bar offset is body padding set by LeftBar */
 .outline-container {
 	height: 100vh;
 	overflow-y: auto;
 }
 
-.outline-container.with-sidebar .outline-view {
-	margin-left: 296px;
+@media print {
+	body {
+		padding-left: 0 !important;
+	}
 }
 
 /* Right Sidebar - Keyboard shortcuts help */

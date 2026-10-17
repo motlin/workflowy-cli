@@ -32,7 +32,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useNode: () => ({data: undefined}),
 }));
 
-const {LeftBar, resizeWidth} = await import("../src/client/components/left-sidebar.js");
+const {LeftBar, applyBodyOffset, resizeWidth} = await import("../src/client/components/left-sidebar.js");
 
 function render(mode: LeftBarMode, hovered = false): string {
 	storeState.leftBarMode = mode;
@@ -133,6 +133,19 @@ describe("resizeWidth", () => {
 	});
 });
 
+describe("applyBodyOffset", () => {
+	it("pads the body by the offset with upstream's transition", () => {
+		const pinned = {transition: "", paddingLeft: ""};
+		const drawer = {transition: "", paddingLeft: ""};
+		applyBodyOffset(pinned, 296);
+		applyBodyOffset(drawer, 0);
+		expect([pinned, drawer]).toStrictEqual([
+			{transition: "padding-left .25s", paddingLeft: "296px"},
+			{transition: "padding-left .25s", paddingLeft: "0px"},
+		]);
+	});
+});
+
 describe("left bar styles", () => {
 	const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8").replaceAll(
 		/\/\*[\s\S]*?\*\//gu,
@@ -145,5 +158,13 @@ describe("left bar styles", () => {
 
 	it("hides the left bar when printing", () => {
 		expect(/@media print\s*\{\s*\.leftBar\s*\{\s*display:\s*none;\s*\}\s*\}/u.test(styles)).toBe(true);
+	});
+
+	it("drops the with-sidebar margin rule", () => {
+		expect(styles.includes("with-sidebar")).toBe(false);
+	});
+
+	it("removes the body padding when printing", () => {
+		expect(/@media print\s*\{\s*body\s*\{\s*padding-left:\s*0\s*!important;?\s*\}\s*\}/u.test(styles)).toBe(true);
 	});
 });

@@ -18,6 +18,7 @@ const storeState = {
 	openPresentation: () => {},
 	expandAll: () => {},
 	collapseAll: () => {},
+	leftBarOffset: () => 0,
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -77,6 +78,15 @@ describe("TopBar markup", () => {
 	it("renders upstream's wf-header root", () => {
 		expect(html.slice(0, html.indexOf(">") + 1)).toBe(
 			'<div class="wf-header header bg-primary border-b border-solid border-primary" style="left:0;z-index:200">',
+		);
+	});
+
+	it("offsets the header by the pinned left bar width", () => {
+		storeState.leftBarOffset = () => 296;
+		const pinned = renderToStaticMarkup(createElement(TopBar));
+		storeState.leftBarOffset = () => 0;
+		expect(pinned.slice(0, pinned.indexOf(">") + 1)).toBe(
+			'<div class="wf-header header bg-primary border-b border-solid border-primary" style="left:296px;z-index:200">',
 		);
 	});
 

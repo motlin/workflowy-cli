@@ -52,6 +52,7 @@ export function TopBar() {
 		toggleStarPage,
 		isPageStarred,
 		openPresentation,
+		leftBarOffset,
 	} = useOutlineStore();
 	const navigate = useNavigate();
 	const {canGoBack, canGoForward} = useNavigationHistory();
@@ -69,8 +70,6 @@ export function TopBar() {
 	const expandAll = useOutlineStore((state) => state.expandAll);
 	const collapseAll = useOutlineStore((state) => state.collapseAll);
 	const {flattenedNodes} = useFlattenedTree(zoomedNodeId);
-	// Upstream offsets the header by the left bar width; 0 until the left bar reports it.
-	const leftBarOffset = 0;
 
 	const handleStarToggle = () => {
 		if (zoomedNodeId !== null) {
@@ -163,7 +162,7 @@ export function TopBar() {
 	return (
 		<div
 			className="wf-header header bg-primary border-b border-solid border-primary"
-			style={{left: leftBarOffset, zIndex: 200}}
+			style={{left: leftBarOffset(), zIndex: 200}}
 		>
 			<div style={{position: "relative"}}>
 				<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
