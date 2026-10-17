@@ -42,7 +42,13 @@
 	"resolve": {
 		"conditions": ["source"],
 	},
-	"ignoreDependencies": ["@oclif/plugin-help", "@voidzero-dev/vite-plus-test", "better-sqlite3"],
+	// eslint-plugin-storybook is loaded by name from the vite.config.ts lint jsPlugins, which fallow does not trace.
+	"ignoreDependencies": [
+		"@oclif/plugin-help",
+		"@voidzero-dev/vite-plus-test",
+		"better-sqlite3",
+		"eslint-plugin-storybook",
+	],
 	"ignoreExports": [
 		{
 			"file": "packages/cli/src/commands/base-list-command.ts",
