@@ -947,27 +947,70 @@ body {
 /* ================================
    Icon Button Styles
    ================================
-   Generic icon button component with size and shape modifiers.
-   Based on production Workflowy's .iconButton pattern.
+   Upstream `.iconButton` rules verbatim from js_wf-base.css.
 */
 
 .iconButton {
+	border-radius: var(--wf-radius-circle);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0;
-	background: transparent;
-	border: none;
+	color: var(--wf-text-tertiary);
+	pointer-events: auto;
+	flex-shrink: 0;
 	cursor: pointer;
-	color: var(--color-text-secondary);
-	transition:
-		background-color 0.15s ease,
-		color 0.15s ease;
 }
 
-.iconButton:hover:not(:disabled) {
-	background-color: var(--color-bg-hover);
-	color: var(--color-text);
+.iconButton.sm {
+	width: 18px;
+	height: 18px;
+}
+
+.iconButton.ms {
+	width: 20px;
+	height: 20px;
+}
+
+.iconButton.md {
+	width: 24px;
+	height: 24px;
+}
+
+.iconButton.ml {
+	width: 30px;
+	height: 30px;
+}
+
+.iconButton.lg {
+	width: 36px;
+	height: 36px;
+}
+
+.iconButton.xl {
+	width: 42px;
+	height: 42px;
+}
+
+.iconButton.shape-circle {
+	border-radius: var(--wf-radius-circle);
+}
+
+.iconButton.shape-square {
+	border-radius: var(--wf-radius-s);
+}
+
+.iconButton.shape-none,
+.iconButton.shape-none:hover {
+	border-radius: none;
+	background: none;
+}
+
+@media (any-hover: hover) and (pointer: fine) {
+	.iconButton:hover,
+	.iconButton:active,
+	.iconButton.active {
+		background-color: var(--wf-background-tertiary);
+	}
 }
 
 .iconButton:focus {
@@ -975,31 +1018,38 @@ body {
 }
 
 .iconButton:focus-visible {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
+	background-color: var(--wf-background-secondary);
 }
 
-.iconButton:disabled,
+.iconButton.primary {
+	background: var(--wf-background-tint);
+	color: var(--wf-text-on-color);
+}
+
+.iconButton.primary:focus-visible,
+.iconButton.primary:hover,
+.iconButton.primary:active {
+	background-color: color-mix(in srgb, var(--wf-background-tint) 85%, black);
+}
+
 .iconButton.disabled {
-	color: var(--color-text-faint);
-	cursor: not-allowed;
+	pointer-events: none;
+	opacity: 0.7;
 }
 
-/* Size: lg (large) - Standard header icon size */
-.iconButton.lg {
-	width: 36px;
-	height: 36px;
+@media (any-hover: hover) and (pointer: fine) {
+	.iconButton.disabled:hover {
+		background: none;
+		opacity: 1;
+	}
 }
 
-/* Size: ms (medium-small) - Used for add child button */
-.iconButton.ms {
-	width: 20px;
-	height: 20px;
-}
-
-/* Shape: circle - Fully rounded button */
-.iconButton.shape-circle {
-	border-radius: 50%;
+/* Local reset until node-row-anatomy converts AddButton to IconButton. */
+button.iconButton {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
 }
 
 /* Search box in top bar - 36x36px circular icon button */

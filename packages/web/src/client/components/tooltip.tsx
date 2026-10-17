@@ -84,7 +84,7 @@ interface TooltipTriggerProps {
  * Tippy-style tooltip without a wrapper element: spread `triggerProps` onto the trigger
  * and render `tooltip` anywhere (it portals to document.body).
  */
-function useTooltip({content, shortcut, delay = 300, disabled = false}: UseTooltipOptions) {
+export function useTooltip({content, shortcut, delay = 300, disabled = false}: UseTooltipOptions) {
 	const [requested, setRequested] = useState(false);
 	const shown = requested && !disabled;
 	const [state, setState] = useState<TooltipState>("hidden");
