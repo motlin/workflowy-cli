@@ -73,14 +73,14 @@ const queryClient = new QueryClient({
 });
 
 function OutlineView() {
-	const {zoomedNodeId, leftSidebarOpen, rightSidebarOpen, relatedNodesPanelOpen, isMutating} = useOutlineStore();
+	const {zoomedNodeId, leftBarMode, rightSidebarOpen, relatedNodesPanelOpen, isMutating} = useOutlineStore();
 
 	// Register keyboard shortcuts
 	useKeyboardShortcuts();
 
 	const containerClasses = [
 		"outline-container",
-		leftSidebarOpen && "with-sidebar",
+		leftBarMode === "alwaysOpen" && "with-sidebar",
 		rightSidebarOpen && "with-right-sidebar",
 		relatedNodesPanelOpen && "with-related-panel",
 	]

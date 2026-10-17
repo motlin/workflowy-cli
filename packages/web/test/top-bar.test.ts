@@ -7,7 +7,7 @@ import {cssBlock, cssBlockText} from "./helpers/css-block.js";
 
 const storeState = {
 	zoomedNodeId: "alice",
-	toggleLeftSidebar: () => {},
+	toggleLeftBar: () => {},
 	toggleSearchPanel: () => {},
 	openSearchWithQuery: () => {},
 	toggleCompleted: () => {},

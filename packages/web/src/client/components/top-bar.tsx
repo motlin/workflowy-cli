@@ -43,7 +43,7 @@ function StarFilledIcon() {
 export function TopBar() {
 	const {
 		zoomedNodeId,
-		toggleLeftSidebar,
+		toggleLeftBar,
 		toggleSearchPanel,
 		openSearchWithQuery,
 		toggleCompleted,
@@ -166,7 +166,7 @@ export function TopBar() {
 			style={{left: leftBarOffset, zIndex: 200}}
 		>
 			<div style={{position: "relative"}}>
-				<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftSidebar}>
+				<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
 					<FaIcon icon="fal:bars" />
 				</IconButton>
 			</div>

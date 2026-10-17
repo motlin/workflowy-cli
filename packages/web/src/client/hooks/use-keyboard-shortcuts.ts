@@ -106,7 +106,7 @@ export function useKeyboardShortcuts() {
 	const holdEditing = useOutlineStore((state) => state.holdEditing);
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const startEditingNote = useOutlineStore((state) => state.startEditingNote);
-	const toggleLeftSidebar = useOutlineStore((state) => state.toggleLeftSidebar);
+	const toggleLeftBar = useOutlineStore((state) => state.toggleLeftBar);
 	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
 	const toggleCompleted = useOutlineStore((state) => state.toggleCompleted);
 	const toggleStarPage = useOutlineStore((state) => state.toggleStarPage);
@@ -559,17 +559,17 @@ export function useKeyboardShortcuts() {
 		[setLayoutMode],
 	);
 
-	// Ctrl+L: Toggle left sidebar
+	// Ctrl+L: Pin or unpin the left bar
 	useHotkeys(
 		"ctrl+l",
 		() => {
-			toggleLeftSidebar();
+			toggleLeftBar();
 		},
 		{
 			preventDefault: true,
 			enableOnFormTags: true,
 		},
-		[toggleLeftSidebar],
+		[toggleLeftBar],
 	);
 
 	// Cmd+? (Cmd+Shift+/): Toggle right sidebar (keyboard shortcuts help)

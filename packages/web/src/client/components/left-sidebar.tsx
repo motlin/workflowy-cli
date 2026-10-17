@@ -199,11 +199,12 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 /**
  * Left sidebar component for the outline view.
  * Contains Today, Starred searches, and Home tree.
- * Toggled open/closed with Ctrl+L keyboard shortcut.
+ * Pinned or unpinned with the Ctrl+L keyboard shortcut and the hamburger.
  * Styled to match Workflowy's left sidebar layout.
  */
 export function LeftSidebar() {
-	const {leftSidebarOpen, toggleLeftSidebar, savedSearches, starredPages, zoomedNodeId} = useOutlineStore();
+	const {leftBarMode, toggleLeftBar, closeLeftBarDrawer, savedSearches, starredPages, zoomedNodeId} =
+		useOutlineStore();
 	const navigate = useNavigate();
 	const createNode = useCreateNode();
 	const {data: rootNodes} = useChildren(null);
@@ -222,7 +223,7 @@ export function LeftSidebar() {
 		});
 	};
 
-	if (!leftSidebarOpen) {
+	if (leftBarMode === "drawerClosed") {
 		return null;
 	}
 
@@ -232,7 +233,7 @@ export function LeftSidebar() {
 				<button
 					aria-label="Close sidebar"
 					className="left-sidebar-close"
-					onClick={toggleLeftSidebar}
+					onClick={leftBarMode === "alwaysOpen" ? toggleLeftBar : closeLeftBarDrawer}
 					type="button"
 				>
 					<ArrowLeftIcon />

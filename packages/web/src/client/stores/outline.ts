@@ -13,6 +13,76 @@ const RECENT_SEARCHES_LIMIT = 10;
 
 export type Theme = "light" | "dark" | "system";
 
+const LeftBarModeSchema = z.enum(["drawerClosed", "drawerOpen", "alwaysOpen"]);
+export type LeftBarMode = z.infer<typeof LeftBarModeSchema>;
+
+const LEFT_BAR_MODE_STORAGE_KEY = "stateStorage::leftBarMode";
+const LEFT_BAR_WIDTH_STORAGE_KEY = "stateStorage::leftBarWidth";
+const LEFT_BAR_SECTION_EXPANSIONS_STORAGE_KEY = "stateStorage::leftBarSectionExpansions";
+const DEFAULT_LEFT_BAR_WIDTH = 296;
+const MIN_LEFT_BAR_WIDTH = 160;
+/** Below this viewport width the left bar always starts as a closed drawer. */
+const LEFT_BAR_PIN_MIN_VIEWPORT = 800;
+
+export interface LeftBarPersistedState {
+	leftBarMode: LeftBarMode;
+	leftBarWidth: number;
+	leftBarSectionExpansions: Record<string, boolean>;
+}
+
+function readStored<T>(storage: Pick<Storage, "getItem">, key: string, schema: z.ZodType<T>, fallback: T): T {
+	try {
+		const raw = storage.getItem(key);
+		if (raw === null) {
+			return fallback;
+		}
+		const result = schema.safeParse(JSON.parse(raw));
+		return result.success ? result.data : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+function writeStored(key: string, value: unknown): void {
+	try {
+		localStorage.setItem(key, JSON.stringify(value));
+	} catch {
+		// Storage can be unavailable (private mode, blocked site data); state stays in memory.
+	}
+}
+
+export function initialLeftBarState(storage: Pick<Storage, "getItem">, innerWidth: number): LeftBarPersistedState {
+	const storedMode = readStored(storage, LEFT_BAR_MODE_STORAGE_KEY, LeftBarModeSchema, "drawerClosed");
+	return {
+		leftBarMode: innerWidth < LEFT_BAR_PIN_MIN_VIEWPORT ? "drawerClosed" : storedMode,
+		leftBarWidth: readStored(
+			storage,
+			LEFT_BAR_WIDTH_STORAGE_KEY,
+			z.number().min(MIN_LEFT_BAR_WIDTH),
+			DEFAULT_LEFT_BAR_WIDTH,
+		),
+		leftBarSectionExpansions: readStored(
+			storage,
+			LEFT_BAR_SECTION_EXPANSIONS_STORAGE_KEY,
+			z.record(z.string(), z.boolean()),
+			{},
+		),
+	};
+}
+
+/** The hamburger and ctrl+l: unpin a pinned bar, otherwise pin it. */
+export function nextLeftBarMode(mode: LeftBarMode): LeftBarMode {
+	return mode === "alwaysOpen" ? "drawerClosed" : "alwaysOpen";
+}
+
+function getInitialLeftBarState(): LeftBarPersistedState {
+	try {
+		return initialLeftBarState(localStorage, globalThis.innerWidth);
+	} catch {
+		return initialLeftBarState({getItem: () => null}, globalThis.innerWidth);
+	}
+}
+
 function getSystemTheme(): "light" | "dark" {
 	if (typeof globalThis === "undefined") {
 		return "light";
@@ -120,7 +190,10 @@ interface OutlineState {
 	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
 	lastEditedId: string | null;
 	showCompleted: boolean;
-	leftSidebarOpen: boolean;
+	leftBarMode: LeftBarMode;
+	leftBarWidth: number;
+	leftBarSectionExpansions: Record<string, boolean>;
+	leftBarHovered: boolean;
 	rightSidebarOpen: boolean;
 	searchPanelOpen: boolean;
 	searchInitialQuery: string | null;
@@ -165,7 +238,14 @@ interface OutlineActions {
 	holdEditing: (caretOffset: number) => void;
 	releaseEditing: () => void;
 	toggleCompleted: () => void;
-	toggleLeftSidebar: () => void;
+	toggleLeftBar: () => void;
+	openLeftBarDrawer: () => void;
+	closeLeftBarDrawer: () => void;
+	setLeftBarWidth: (width: number) => void;
+	setLeftBarSectionExpanded: (key: string, value: boolean) => void;
+	setLeftBarHovered: (hovered: boolean) => void;
+	/** Horizontal space the pinned bar takes from the page; 0 for the drawer. */
+	leftBarOffset: () => number;
 	toggleRightSidebar: () => void;
 	toggleStarPage: (id: string) => void;
 	isPageStarred: (id: string) => boolean;
@@ -222,7 +302,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingHeld: false,
 	lastEditedId: null,
 	showCompleted: getInitialShowCompleted(),
-	leftSidebarOpen: false,
+	...getInitialLeftBarState(),
+	leftBarHovered: false,
 	rightSidebarOpen: false,
 	searchPanelOpen: false,
 	searchInitialQuery: null,
@@ -338,8 +419,50 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		});
 	},
 
-	toggleLeftSidebar: () => {
-		set((state) => ({leftSidebarOpen: !state.leftSidebarOpen}));
+	toggleLeftBar: () => {
+		const leftBarMode = nextLeftBarMode(get().leftBarMode);
+		set({leftBarMode});
+		writeStored(LEFT_BAR_MODE_STORAGE_KEY, leftBarMode);
+		setTimeout(() => {
+			globalThis.dispatchEvent(new Event("resize"));
+		}, 500);
+	},
+
+	openLeftBarDrawer: () => {
+		if (get().leftBarMode === "alwaysOpen") {
+			return;
+		}
+		set({leftBarMode: "drawerOpen"});
+		writeStored(LEFT_BAR_MODE_STORAGE_KEY, "drawerOpen");
+	},
+
+	closeLeftBarDrawer: () => {
+		if (get().leftBarMode === "alwaysOpen") {
+			return;
+		}
+		set({leftBarMode: "drawerClosed"});
+		writeStored(LEFT_BAR_MODE_STORAGE_KEY, "drawerClosed");
+	},
+
+	setLeftBarWidth: (width) => {
+		const leftBarWidth = Math.max(MIN_LEFT_BAR_WIDTH, width);
+		set({leftBarWidth});
+		writeStored(LEFT_BAR_WIDTH_STORAGE_KEY, leftBarWidth);
+	},
+
+	setLeftBarSectionExpanded: (key, value) => {
+		const leftBarSectionExpansions = {...get().leftBarSectionExpansions, [key]: value};
+		set({leftBarSectionExpansions});
+		writeStored(LEFT_BAR_SECTION_EXPANSIONS_STORAGE_KEY, leftBarSectionExpansions);
+	},
+
+	setLeftBarHovered: (leftBarHovered) => {
+		set({leftBarHovered});
+	},
+
+	leftBarOffset: () => {
+		const {leftBarMode, leftBarWidth} = get();
+		return leftBarMode === "alwaysOpen" ? leftBarWidth : 0;
 	},
 
 	toggleRightSidebar: () => {
