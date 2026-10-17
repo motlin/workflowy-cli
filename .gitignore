@@ -64,7 +64,6 @@ oclif.manifest.json
 # SQLite database
 *.db
 workflowy.db*
-workflowy.sqlite
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
@@ -73,7 +72,6 @@ tsconfig.tsbuildinfo
 
 *storybook.log
 storybook-static
-firebase-debug.log
 __pycache__/
 artifacts/
 .fallow/
