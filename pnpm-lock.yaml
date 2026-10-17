@@ -286,7 +286,7 @@ importers:
     devDependencies:
       '@oclif/test':
         specifier: ^5
-        version: 5.0.2(@oclif/core@5.1.7)(supports-color@10.2.2)
+        version: 5.0.3(@oclif/core@5.1.7)(supports-color@10.2.2)
       oclif:
         specifier: ^6
         version: 6.0.5(@types/node@26.6.5)(supports-color@10.2.2)
@@ -1541,11 +1541,11 @@ packages:
     resolution: {integrity: sha512-zX0iNZT5JiHXdzQ7ORQCRAqwydG119LZDf6Pet+5HEeONHJu/byWAA99n2HLTOZmWMwJ65bLSp3ZajOHtJaSkw==}
     engines: {node: '>=22.0.0'}
 
-  '@oclif/test@5.0.2':
-    resolution: {integrity: sha512-2UAb4/sywysFSPfNNZzCxCi95b+YnFPWfxfzbw4vhdrCzJ38ZxCBP5p8IEdBM42sbdDl2k0KjOe7vGPOYYkNHg==}
+  '@oclif/test@5.0.3':
+    resolution: {integrity: sha512-bM5pi7vLy/8WRWzQluqHfwuSckVJnkd07JEURqKWQYxENnN6nrBc3KZEU+uzb/ENMNV13rT86VvRhdsZ5cZAOA==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
-      '@oclif/core': ^5.0.0
+      '@oclif/core': ^5.0.1
 
   '@oxc-parser/binding-android-arm-eabi@0.127.0':
     resolution: {integrity: sha512-0LC7ye4hvqbIKxAzThzvswgHLFu2AURKzYLeSVvLdu2TBOYWQDmHnTqPLeA597BcUCxiLqLsS4CJ5uoI5WYWCQ==}
@@ -6762,7 +6762,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@oclif/test@5.0.2(@oclif/core@5.1.7)(supports-color@10.2.2)':
+  '@oclif/test@5.0.3(@oclif/core@5.1.7)(supports-color@10.2.2)':
     dependencies:
       '@oclif/core': 5.1.7
       ansis: 3.17.0
