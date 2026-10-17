@@ -6,23 +6,21 @@
 	"internalChecksFilter": "strict",
 	"packageRules": [
 		{
-			"matchManagers": ["npm"],
+			"description": "Default off: Dependabot owns ordinary npm deps and github-actions.",
+			"matchManagers": ["npm", "mise"],
 			"enabled": false
 		},
 		{
-			"matchManagers": ["npm"],
-			"matchDepTypes": ["packageManager"],
-			"enabled": true
-		},
-		{
-			"matchManagers": ["npm"],
-			"matchPackageNames": ["vite-plus", "@voidzero-dev/vite-plus-core"],
+			"description": "Gap 1: pnpm in package.json#packageManager plus the .mise/config.toml pin, in one PR.",
+			"matchPackageNames": ["pnpm"],
 			"enabled": true,
-			"groupName": "vite-plus"
+			"groupName": "pnpm"
 		},
 		{
-			"matchDepNames": ["pnpm"],
-			"groupName": "pnpm"
+			"description": "Gap 2: vite-plus, its npm: alias (shows up as `vite`) and the vite-plus-core override move together.",
+			"matchPackageNames": ["vite-plus", "@voidzero-dev/vite-plus-core", "vite"],
+			"enabled": true,
+			"groupName": "vite-plus monorepo"
 		}
 	]
 }
