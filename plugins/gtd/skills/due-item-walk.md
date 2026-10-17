@@ -120,6 +120,17 @@ An explicit external handoff ("I submitted the claim; now we wait for their resp
 
 When continued work is in progress, only an explicit outcome from the user ends the item. Silence, a completed sub-task, or your own sense that the work looks finished never earns the write. When the answer is genuinely ambiguous, treat it as continued work — resuming a finished item is cheap; recording completion on unfinished work hides it for a whole interval.
 
+## Help me do it now
+
+Some items are a procedure, not a reminder: the notes or children list steps this session can carry out — verify a charge on a statement, research a policy, find a request form, draft a message, or type it into a web form in the browser. Handing the user a script of those steps leaves them to do work Claude could have done. When the subtree you already read describes steps like these, offer **Help me do it now** right after the row's first option, and describe the concrete help in the option's description, e.g. `Check the statement for the fee, then draft the waiver request`.
+
+Apply the concrete-help test from `${CLAUDE_PLUGIN_ROOT}/commands/review/daily/work-together.md` under **Keep only items Claude can help with**. Skip the option when the steps need the user's body or presence, when the item is only a decision, or when the next step is waiting on someone else. "I can help you think about it" does not count.
+
+On pick, the item becomes **Continued work** (see above): stay on it and perform the steps yourself — read the account page, run the search, fill in the draft — and report what each step found. Do **not** reply with instructions for the user to follow. Two guards apply:
+
+- **Confirm before anything leaves.** Show the drafted message or filled form and get an explicit yes through `AskUserQuestion` before sending, submitting, paying, or posting. Drafting and typing into a field are fine; the final click is the user's call.
+- **End only on an explicit outcome.** When the work stops, ask for the row's ordinary outcome. A submitted request is **Waiting on someone else**, not Done. Unfinished work keeps the item open with a child node recording where it stopped, and the draft saved as a child when one exists, so the next run resumes from that point.
+
 ## Read the subtree before writing
 
 Before writing into any item, fetch and read its full subtree — the same fetch the context block already required, so it is usually still on screen:

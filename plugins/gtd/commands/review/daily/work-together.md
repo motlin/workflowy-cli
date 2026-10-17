@@ -31,7 +31,7 @@ Build every category from a **fresh** read. The earlier phases moved, completed,
       > .llm/gtd/review/work-together-due.json
     ```
 
-    A negative `overdueByDays` means the item is due that many days from now. Drop every row that already has a handled (non-`skip`) record dated today in `.llm/gtd/review/skip-log.jsonl` under its `<source>:<id>` key; the user just dealt with it.
+    A negative `overdueByDays` means the item is due that many days from now. Drop every row that already has a handled (non-`skip`) record dated today in `.llm/gtd/review/skip-log.jsonl` under its `<source>:<id>` key; the user just dealt with it. An item the due walk already worked through **Help me do it now** in `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md` but left open keeps its child node recording where the work stopped; offer to resume from that point rather than starting over.
 
 - **`1st` tier.** Export each root's `📌 Tasks (asap)` bucket and read `dayPlan` from the `rebalance` report exactly as `${CLAUDE_PLUGIN_ROOT}/commands/review/daily/rebalance.md` does under **Read both ladders**. Take the `1st` tier's items only. **Never read a ladder off a mirror**: confirm `mirror.isMirror` is false on each bucket.
 
