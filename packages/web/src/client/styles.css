@@ -667,36 +667,36 @@ body {
    Top Bar (Header) Styles
    ================================ */
 
-.top-bar {
+/* Upstream .header (js_wf-base); box-sizing restores upstream's 48px + 1px border under the local border-box reset. */
+.header {
 	position: fixed;
 	top: 0;
-	left: 0;
 	right: 0;
-	height: 48px;
-	z-index: 200;
+	height: var(--wf-header-height);
 	display: flex;
+	min-width: 320px;
+	padding: 0 var(--wf-space-m) 0 var(--wf-space-s);
 	align-items: center;
-	justify-content: space-between;
-	padding: 0 8px 0 4px;
-	background-color: var(--color-bg);
-	border-bottom: 1px solid var(--color-border);
+	user-select: none;
+	color: var(--wf-text-primary) !important;
+	box-sizing: content-box;
 }
 
-.top-bar-left {
+.header .pagination {
 	display: flex;
-	align-items: center;
-	gap: 0;
+	flex-direction: row;
 }
 
-.top-bar-nav-buttons {
-	display: flex;
-	align-items: center;
+.header :is(.iconButton),
+.header :is(.breadcrumbs),
+.header :is(.breadcrumb-item) {
+	color: var(--wf-text-primary) !important;
 }
 
-.top-bar-right {
-	display: flex;
-	align-items: center;
-	gap: 0;
+@media print {
+	.header {
+		display: none !important;
+	}
 }
 
 .top-bar-button {
@@ -1519,8 +1519,8 @@ button.iconButton {
 	line-height: 1;
 }
 
-/* Reset padding/margin when breadcrumbs are in the top-bar */
-.top-bar .breadcrumbs {
+/* Reset padding/margin when breadcrumbs are in the header */
+.header .breadcrumbs {
 	padding: 0;
 	margin-bottom: 0;
 }
@@ -4296,7 +4296,7 @@ span.breadcrumb-home-icon {
 	height: calc(100vh - 88px);
 }
 
-.outline-container:has(.offline-banner) .top-bar {
+.outline-container:has(.offline-banner) .wf-header {
 	top: 40px; /* Below offline banner */
 }
 

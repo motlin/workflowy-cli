@@ -35,9 +35,8 @@ function StarFilledIcon() {
 }
 
 /**
- * Top toolbar component matching Workflowy's header design.
- * Contains navigation controls and action buttons.
- * Height: 48px, fixed position at top.
+ * Top toolbar matching upstream's div.wf-header.header: flat children (hamburger,
+ * pagination, breadcrumbs, right cluster), 48px tall, fixed at the top.
  */
 export function TopBar() {
 	const {
@@ -68,6 +67,8 @@ export function TopBar() {
 	const expandAll = useOutlineStore((state) => state.expandAll);
 	const collapseAll = useOutlineStore((state) => state.collapseAll);
 	const {flattenedNodes} = useFlattenedTree(zoomedNodeId);
+	// Upstream offsets the header by the left bar width; 0 until the left bar reports it.
+	const leftBarOffset = 0;
 
 	const handleStarToggle = () => {
 		if (zoomedNodeId !== null) {
@@ -162,8 +163,11 @@ export function TopBar() {
 	};
 
 	return (
-		<header className="top-bar">
-			<div className="top-bar-left">
+		<div
+			className="wf-header header bg-primary border-b border-solid border-primary"
+			style={{left: leftBarOffset, zIndex: 200}}
+		>
+			<div style={{position: "relative"}}>
 				<Tooltip content="Toggle sidebar" shortcut="^L">
 					<button
 						aria-label="Toggle sidebar"
@@ -176,54 +180,35 @@ export function TopBar() {
 						</svg>
 					</button>
 				</Tooltip>
-
-				<div className="top-bar-nav-buttons">
-					<Tooltip content="History back" shortcut="⌘[">
-						<button
-							aria-label="Go back"
-							className="top-bar-button"
-							onClick={handleNavigateBack}
-							type="button"
-						>
-							<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
-								<path d="M20.7 267.3c-6.2-6.2-6.2-16.4 0-22.6l192-192c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6L54.6 256 235.3 436.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0l-192-192z" />
-							</svg>
-						</button>
-					</Tooltip>
-
-					<Tooltip content="History forward" shortcut="⌘]">
-						<button
-							aria-disabled={!canGoForward}
-							aria-label="Go forward"
-							className={`top-bar-button${canGoForward ? "" : " disabled"}`}
-							onClick={handleNavigateForward}
-							type="button"
-						>
-							<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
-								<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
-							</svg>
-						</button>
-					</Tooltip>
-				</div>
-
-				<Breadcrumbs nodeId={zoomedNodeId} />
-
-				{/* Star button - only shown when zoomed into a node */}
-				{zoomedNodeId !== null && (
-					<Tooltip content={isCurrentPageStarred ? "Unstar" : "Star"} shortcut="⇧⌘8">
-						<button
-							aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
-							className={`top-bar-button top-bar-star ${isCurrentPageStarred ? "starred" : ""}`}
-							onClick={handleStarToggle}
-							type="button"
-						>
-							{isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />}
-						</button>
-					</Tooltip>
-				)}
 			</div>
 
-			<div className="top-bar-right">
+			<div className="pagination">
+				<Tooltip content="History back" shortcut="⌘[">
+					<button aria-label="Go back" className="top-bar-button" onClick={handleNavigateBack} type="button">
+						<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
+							<path d="M20.7 267.3c-6.2-6.2-6.2-16.4 0-22.6l192-192c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6L54.6 256 235.3 436.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0l-192-192z" />
+						</svg>
+					</button>
+				</Tooltip>
+
+				<Tooltip content="History forward" shortcut="⌘]">
+					<button
+						aria-disabled={!canGoForward}
+						aria-label="Go forward"
+						className={`top-bar-button${canGoForward ? "" : " disabled"}`}
+						onClick={handleNavigateForward}
+						type="button"
+					>
+						<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
+							<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
+						</svg>
+					</button>
+				</Tooltip>
+			</div>
+
+			<Breadcrumbs nodeId={zoomedNodeId} />
+
+			<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
 				{/* Search icon */}
 				<Tooltip content="Search" shortcut="Esc">
 					<button
@@ -238,6 +223,20 @@ export function TopBar() {
 						<span className="top-bar-search-placeholder">Search</span>
 					</button>
 				</Tooltip>
+
+				{/* Star button - only shown when zoomed into a node */}
+				{zoomedNodeId !== null && (
+					<Tooltip content={isCurrentPageStarred ? "Unstar" : "Star"} shortcut="⇧⌘8">
+						<button
+							aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
+							className={`top-bar-button top-bar-star ${isCurrentPageStarred ? "starred" : ""}`}
+							onClick={handleStarToggle}
+							type="button"
+						>
+							{isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />}
+						</button>
+					</Tooltip>
+				)}
 
 				{/* Play/Present icon */}
 				<Tooltip content="Present">
@@ -359,6 +358,6 @@ export function TopBar() {
 					/>
 				</div>
 			</div>
-		</header>
+		</div>
 	);
 }
