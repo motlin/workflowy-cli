@@ -1,8 +1,11 @@
-import {useState} from "react";
+import {useRef, useState} from "react";
+import type {PointerEvent as ReactPointerEvent} from "react";
 import {nodeRoute} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {FaIcon} from "./fa-icons.js";
+import {IconButton} from "./icon-button.js";
 
 /**
  * SVG icon components matching Font Awesome style.
@@ -47,14 +50,6 @@ function ExpandToggleIcon({expanded}: {expanded: boolean}) {
 			width="10"
 		>
 			<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
-		</svg>
-	);
-}
-
-function ArrowLeftIcon() {
-	return (
-		<svg fill="currentColor" height="14" viewBox="0 0 320 512" width="14">
-			<path d="M20.7 267.3c-6.2-6.2-6.2-16.4 0-22.6l192-192c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6L54.6 256 235.3 436.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0l-192-192z" />
 		</svg>
 	);
 }
@@ -196,15 +191,41 @@ function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string
 	);
 }
 
-/**
- * Left sidebar component for the outline view.
- * Contains Today, Starred searches, and Home tree.
- * Pinned or unpinned with the Ctrl+L keyboard shortcut and the hamburger.
- * Styled to match Workflowy's left sidebar layout.
- */
-export function LeftSidebar() {
-	const {leftBarMode, toggleLeftBar, closeLeftBarDrawer, savedSearches, starredPages, zoomedNodeId} =
-		useOutlineStore();
+const MIN_LEFT_BAR_WIDTH = 160;
+
+/** Width after dragging the resize handle from `startX` to `x`, clamped to upstream's 160px minimum. */
+// oxlint-disable-next-line react/only-export-components -- pure helper exported for unit tests; it never changes at runtime
+export function resizeWidth(startWidth: number, startX: number, x: number): number {
+	return Math.max(MIN_LEFT_BAR_WIDTH, startWidth + x - startX);
+}
+
+/** Pinned-mode resize handle: pointer drag on the right edge updates the stored width. */
+function ResizeTarget({width, onWidthChange}: {width: number; onWidthChange: (width: number) => void}) {
+	const drag = useRef<{startWidth: number; startX: number} | null>(null);
+	return (
+		<div
+			className="resizeTarget absolute top-0 bottom-0 right-0 w-[4px] cursor-ew-resize"
+			onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
+				event.preventDefault();
+				event.currentTarget.setPointerCapture(event.pointerId);
+				drag.current = {startWidth: width, startX: event.clientX};
+			}}
+			onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+				if (drag.current !== null) {
+					onWidthChange(resizeWidth(drag.current.startWidth, drag.current.startX, event.clientX));
+				}
+			}}
+			onPointerUp={(event: ReactPointerEvent<HTMLDivElement>) => {
+				drag.current = null;
+				event.currentTarget.releasePointerCapture(event.pointerId);
+			}}
+		/>
+	);
+}
+
+/** Today, Starred and Home sections plus the New node footer; replaced section by section by upstream ports. */
+function LeftBarSections() {
+	const {savedSearches, starredPages, zoomedNodeId} = useOutlineStore();
 	const navigate = useNavigate();
 	const createNode = useCreateNode();
 	const {data: rootNodes} = useChildren(null);
@@ -223,23 +244,8 @@ export function LeftSidebar() {
 		});
 	};
 
-	if (leftBarMode === "drawerClosed") {
-		return null;
-	}
-
 	return (
-		<aside className="left-sidebar">
-			<div className="left-sidebar-header">
-				<button
-					aria-label="Close sidebar"
-					className="left-sidebar-close"
-					onClick={leftBarMode === "alwaysOpen" ? toggleLeftBar : closeLeftBarDrawer}
-					type="button"
-				>
-					<ArrowLeftIcon />
-				</button>
-			</div>
-
+		<>
 			<nav className="left-sidebar-nav">
 				{/* Today Section */}
 				<section className="left-sidebar-section">
@@ -334,6 +340,87 @@ export function LeftSidebar() {
 					<span>New node</span>
 				</button>
 			</div>
-		</aside>
+		</>
+	);
+}
+
+/**
+ * Upstream's always-mounted `.leftBar` shell: an offscreen drawer below the header (drawerClosed),
+ * the same drawer slid in with a shadow (drawerOpen), or a full-height pinned column with a
+ * resize handle (alwaysOpen). The arrow pin toggles modes; it points left when pinned.
+ */
+export function LeftBar() {
+	const {
+		leftBarMode: mode,
+		leftBarWidth: width,
+		leftBarHovered: hovered,
+		toggleLeftBar,
+		closeLeftBarDrawer,
+		setLeftBarHovered,
+		setLeftBarWidth,
+	} = useOutlineStore();
+	const pinned = mode === "alwaysOpen";
+	const drawerOpen = mode === "drawerOpen";
+	const closed = mode === "drawerClosed";
+	const borderRadius = pinned ? "0 0px 0px 0" : "0 6px 6px 0";
+
+	return (
+		<div
+			className="fixed left-0 bottom-0 transition-[top] duration-250 ease-base leftBar"
+			onMouseEnter={() => {
+				setLeftBarHovered(true);
+			}}
+			onMouseLeave={() => {
+				setLeftBarHovered(false);
+				if (drawerOpen) {
+					closeLeftBarDrawer();
+				}
+			}}
+			style={{zIndex: 200, top: pinned ? 0 : 49, width: "var(--safe-area-inset-right)"}}
+		>
+			<div
+				className={`wf-left-bar absolute z-[2] box-border ${pinned ? "bg-secondary" : "bg-primary "} text-tertiary`}
+				style={{
+					top: pinned ? 0 : 12,
+					bottom: pinned ? 0 : 12,
+					left: pinned || drawerOpen ? 0 : -width,
+					width,
+					borderRadius,
+					overflowX: pinned ? "hidden" : undefined,
+					transition: "left 0.25s, bottom 0.25s",
+				}}
+			>
+				<div
+					className="absolute top-0 left-0 bottom-0 right-0 transition-[opacity] duration-250 ease-base"
+					style={{borderRadius, boxShadow: "var(--wf-box-shadow-m)", opacity: drawerOpen ? 1 : 0}}
+				/>
+				{pinned ? null : (
+					<div className="absolute -top-5 -left-px -right-px h-[19px] leftBarTopHiddenHoverTarget" />
+				)}
+				<div
+					className="absolute top-0 left-0 right-0 bottom-0 mr-1 pt-3xl pb-m overflow-x-hidden scroller vertical-scrollable-container"
+					style={{
+						paddingLeft: "var(--safe-area-inset-left)",
+						overflowY: closed && !hovered ? "hidden" : "auto",
+						scrollbarGutter: "stable",
+					}}
+				>
+					<LeftBarSections />
+				</div>
+				{pinned ? (
+					<>
+						<div className="absolute top-0 bottom-0 -right-px w-px shadow-[0_2px_10px_rgba(0,0,0,0.5)]" />
+						<ResizeTarget onWidthChange={setLeftBarWidth} width={width} />
+					</>
+				) : null}
+				<IconButton
+					className="absolute top-m right-m transition-[transform] duration-250 ease-base"
+					onClick={toggleLeftBar}
+					style={{transform: `rotate(${pinned ? 0 : 135}deg)`}}
+				>
+					<FaIcon icon="fal:arrow-left" />
+				</IconButton>
+			</div>
+		</div>
 	);
 }

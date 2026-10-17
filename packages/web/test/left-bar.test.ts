@@ -1,0 +1,149 @@
+import {describe, expect, it, vi} from "vite-plus/test";
+import {readFileSync} from "node:fs";
+import {fileURLToPath} from "node:url";
+import {createElement} from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import type {LeftBarMode} from "../src/client/stores/outline.js";
+
+const storeState = {
+	leftBarMode: "drawerClosed" as LeftBarMode,
+	leftBarWidth: 296,
+	leftBarHovered: false,
+	toggleLeftBar: () => {},
+	closeLeftBarDrawer: () => {},
+	setLeftBarHovered: () => {},
+	setLeftBarWidth: () => {},
+	savedSearches: [] as string[],
+	starredPages: new Set<string>(),
+	zoomedNodeId: null,
+	toggleStarPage: () => {},
+	openSearchWithQuery: () => {},
+	removeSavedSearch: () => {},
+};
+
+vi.mock("../src/client/stores/outline.js", () => ({
+	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
+		selector === undefined ? storeState : selector(storeState),
+}));
+vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
+vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useChildren: () => ({data: []}),
+	useCreateNode: () => ({mutate: () => {}}),
+	useNode: () => ({data: undefined}),
+}));
+
+const {LeftBar, resizeWidth} = await import("../src/client/components/left-sidebar.js");
+
+function render(mode: LeftBarMode, hovered = false): string {
+	storeState.leftBarMode = mode;
+	storeState.leftBarHovered = hovered;
+	return renderToStaticMarkup(createElement(LeftBar));
+}
+
+function openTag(html: string, classPrefix: string): string {
+	const classAt = html.indexOf(` class="${classPrefix}`);
+	if (classAt === -1) {
+		throw new Error(`no element with class prefix ${classPrefix}`);
+	}
+	return html.slice(html.lastIndexOf("<div", classAt), html.indexOf(">", classAt) + 1);
+}
+
+const SHADOW = "absolute top-0 left-0 bottom-0 right-0 transition-[opacity]";
+const SCROLLER = "absolute top-0 left-0 right-0 bottom-0 mr-1";
+const PIN = "absolute top-m right-m";
+
+describe("LeftBar shell", () => {
+	it("renders the closed drawer offscreen below the header", () => {
+		const html = render("drawerClosed");
+		expect({
+			outer: openTag(html, "fixed left-0"),
+			inner: openTag(html, "wf-left-bar"),
+			shadow: openTag(html, SHADOW),
+			scroller: openTag(html, SCROLLER),
+			pin: openTag(html, PIN),
+			hoverTarget: html.includes("leftBarTopHiddenHoverTarget"),
+			resizeTarget: html.includes("resizeTarget"),
+		}).toStrictEqual({
+			outer: '<div class="fixed left-0 bottom-0 transition-[top] duration-250 ease-base leftBar" style="z-index:200;top:49px;width:var(--safe-area-inset-right)">',
+			inner: '<div class="wf-left-bar absolute z-[2] box-border bg-primary  text-tertiary" style="top:12px;bottom:12px;left:-296px;width:296px;border-radius:0 6px 6px 0;transition:left 0.25s, bottom 0.25s">',
+			shadow: `<div class="${SHADOW} duration-250 ease-base" style="border-radius:0 6px 6px 0;box-shadow:var(--wf-box-shadow-m);opacity:0">`,
+			scroller: `<div class="${SCROLLER} pt-3xl pb-m overflow-x-hidden scroller vertical-scrollable-container" style="padding-left:var(--safe-area-inset-left);overflow-y:hidden;scrollbar-gutter:stable">`,
+			pin: `<div role="button" tabindex="0" style="transform:rotate(135deg)" class="${PIN} transition-[transform] duration-250 ease-base iconButton lg shape-circle">`,
+			hoverTarget: true,
+			resizeTarget: false,
+		});
+	});
+
+	it("lets a hovered closed drawer scroll", () => {
+		expect(openTag(render("drawerClosed", true), SCROLLER)).toContain("overflow-y:auto");
+	});
+
+	it("renders the open drawer onscreen with its shadow", () => {
+		const html = render("drawerOpen");
+		expect({
+			outer: openTag(html, "fixed left-0"),
+			inner: openTag(html, "wf-left-bar"),
+			shadow: openTag(html, SHADOW),
+			scroller: openTag(html, SCROLLER),
+			pin: openTag(html, PIN),
+			hoverTarget: html.includes("leftBarTopHiddenHoverTarget"),
+			resizeTarget: html.includes("resizeTarget"),
+		}).toStrictEqual({
+			outer: '<div class="fixed left-0 bottom-0 transition-[top] duration-250 ease-base leftBar" style="z-index:200;top:49px;width:var(--safe-area-inset-right)">',
+			inner: '<div class="wf-left-bar absolute z-[2] box-border bg-primary  text-tertiary" style="top:12px;bottom:12px;left:0;width:296px;border-radius:0 6px 6px 0;transition:left 0.25s, bottom 0.25s">',
+			shadow: `<div class="${SHADOW} duration-250 ease-base" style="border-radius:0 6px 6px 0;box-shadow:var(--wf-box-shadow-m);opacity:1">`,
+			scroller: `<div class="${SCROLLER} pt-3xl pb-m overflow-x-hidden scroller vertical-scrollable-container" style="padding-left:var(--safe-area-inset-left);overflow-y:auto;scrollbar-gutter:stable">`,
+			pin: `<div role="button" tabindex="0" style="transform:rotate(135deg)" class="${PIN} transition-[transform] duration-250 ease-base iconButton lg shape-circle">`,
+			hoverTarget: true,
+			resizeTarget: false,
+		});
+	});
+
+	it("renders the pinned bar full height with edge and resize target", () => {
+		const html = render("alwaysOpen");
+		expect({
+			outer: openTag(html, "fixed left-0"),
+			inner: openTag(html, "wf-left-bar"),
+			shadow: openTag(html, SHADOW),
+			edge: openTag(html, "absolute top-0 bottom-0 -right-px"),
+			resize: openTag(html, "resizeTarget"),
+			pin: openTag(html, PIN),
+			hoverTarget: html.includes("leftBarTopHiddenHoverTarget"),
+		}).toStrictEqual({
+			outer: '<div class="fixed left-0 bottom-0 transition-[top] duration-250 ease-base leftBar" style="z-index:200;top:0;width:var(--safe-area-inset-right)">',
+			inner: '<div class="wf-left-bar absolute z-[2] box-border bg-secondary text-tertiary" style="top:0;bottom:0;left:0;width:296px;border-radius:0 0px 0px 0;overflow-x:hidden;transition:left 0.25s, bottom 0.25s">',
+			shadow: `<div class="${SHADOW} duration-250 ease-base" style="border-radius:0 0px 0px 0;box-shadow:var(--wf-box-shadow-m);opacity:0">`,
+			edge: '<div class="absolute top-0 bottom-0 -right-px w-px shadow-[0_2px_10px_rgba(0,0,0,0.5)]">',
+			resize: '<div class="resizeTarget absolute top-0 bottom-0 right-0 w-[4px] cursor-ew-resize">',
+			pin: `<div role="button" tabindex="0" style="transform:rotate(0deg)" class="${PIN} transition-[transform] duration-250 ease-base iconButton lg shape-circle">`,
+			hoverTarget: false,
+		});
+	});
+
+	it("renders the arrow-left icon inside the pin", () => {
+		expect(render("alwaysOpen")).toContain('data-icon="arrow-left"');
+	});
+});
+
+describe("resizeWidth", () => {
+	it("follows the pointer and clamps to 160", () => {
+		expect([resizeWidth(296, 296, 350), resizeWidth(296, 296, 200), resizeWidth(296, 296, 10)]).toStrictEqual([
+			350, 200, 160,
+		]);
+	});
+});
+
+describe("left bar styles", () => {
+	const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8").replaceAll(
+		/\/\*[\s\S]*?\*\//gu,
+		"",
+	);
+
+	it("compensates the body line-height on .wf-left-bar", () => {
+		expect(/\.wf-left-bar\s*\{\s*line-height:\s*1;\s*font-size:\s*16px;\s*\}/u.test(styles)).toBe(true);
+	});
+
+	it("hides the left bar when printing", () => {
+		expect(/@media print\s*\{\s*\.leftBar\s*\{\s*display:\s*none;\s*\}\s*\}/u.test(styles)).toBe(true);
+	});
+});

@@ -8,7 +8,7 @@ import {ErrorNotifications} from "./components/error-notification.js";
 import {ExportDialog} from "./components/export-dialog.js";
 import {JumpMenu} from "./components/jump-menu.js";
 import {LadderView} from "./components/ladder-view.js";
-import {LeftSidebar} from "./components/left-sidebar.js";
+import {LeftBar} from "./components/left-sidebar.js";
 import {LinkInsertModal} from "./components/link-insert-modal.js";
 import {LoadingOverlay} from "./components/loading-spinner.js";
 import {MoveAssistant} from "./components/move-assistant.js";
@@ -91,7 +91,7 @@ function OutlineView() {
 		<div className={containerClasses}>
 			<OfflineBanner />
 			<TopBar />
-			<LeftSidebar />
+			<LeftBar />
 			<div className="outline-view">
 				<OutlineTree parentId={zoomedNodeId} />
 			</div>
