@@ -1768,11 +1768,6 @@ button.iconButton {
 	font-style: italic;
 }
 
-.left-sidebar-footer {
-	padding: 12px 16px;
-	border-top: 1px solid var(--color-border);
-}
-
 .left-sidebar-hint {
 	margin: 0;
 	font-size: 11px;
@@ -1852,44 +1847,6 @@ button.iconButton {
 	font-size: 16px;
 	font-weight: 400;
 	color: var(--color-text-secondary);
-}
-
-/* Left Sidebar - New node button */
-.left-sidebar-new-node {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: calc(100% - 32px);
-	margin: 0 16px;
-	padding: 10px 16px;
-	background-color: var(--color-bg);
-	border: 1px solid var(--color-border-light);
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 13px;
-	font-family: inherit;
-	color: var(--color-text-secondary);
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.left-sidebar-new-node:hover {
-	background-color: var(--color-bg-hover);
-	border-color: var(--color-border);
-	color: var(--color-text);
-}
-
-.left-sidebar-new-node:focus {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
-.left-sidebar-new-node-icon {
-	margin-right: 8px;
-	font-size: 16px;
-	font-weight: 300;
 }
 
 /* Outline container; the pinned left bar offset is body padding set by LeftBar */

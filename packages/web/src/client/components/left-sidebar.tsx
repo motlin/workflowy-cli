@@ -2,7 +2,7 @@ import {useEffect, useRef} from "react";
 import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
 import {nodeRoute} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
-import {useCreateNode, useNode} from "../hooks/use-nodes.js";
+import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -23,14 +23,6 @@ function SearchIcon() {
 	return (
 		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
 			<path d="M384 208A176 176 0 1 0 32 208a176 176 0 1 0 352 0zM343.3 366C307 397.2 259.7 416 208 416C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208c0 51.7-18.8 99-50 135.3L507.3 484.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L343.3 366z" />
-		</svg>
-	);
-}
-
-function PlusIcon() {
-	return (
-		<svg fill="currentColor" height="14" viewBox="0 0 448 512" width="14">
-			<path d="M240 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L32 208c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z" />
 		</svg>
 	);
 }
@@ -158,7 +150,15 @@ function ResizeTarget({width, onWidthChange}: {width: number; onWidthChange: (wi
  * Upstream's collapsible left-bar section: a clickable header with a rotating triangle, the children
  * while open, and a spacer. Open state persists per `contextKey` and defaults to open.
  */
-export function LeftBarSection({name, contextKey, children}: {name: string; contextKey: string; children?: ReactNode}) {
+export function LeftBarSection({
+	name,
+	contextKey,
+	children,
+}: {
+	name: ReactNode;
+	contextKey: string;
+	children?: ReactNode;
+}) {
 	const expansions = useOutlineStore((state) => state.leftBarSectionExpansions);
 	const setExpanded = useOutlineStore((state) => state.setLeftBarSectionExpanded);
 	const open = expansions[contextKey] ?? true;
@@ -186,76 +186,104 @@ export function LeftBarSection({name, contextKey, children}: {name: string; cont
 	);
 }
 
-/** Today, Starred and Home sections plus the New node footer; replaced section by section by upstream ports. */
-function LeftBarSections() {
-	const {savedSearches, starredPages, zoomedNodeId} = useOutlineStore();
+/** Upstream's Home section label: a root link that does not toggle the section. */
+export function HomeSectionName() {
 	const navigate = useNavigate();
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable span
+		<span
+			className="hover:underline"
+			onClick={(event) => {
+				event.stopPropagation();
+				void navigate("/");
+			}}
+		>
+			Home
+		</span>
+	);
+}
+
+/** Upstream's "New node" pill: appends an empty node to the end of the root and edits it. */
+export function NewNodeButton() {
 	const createNode = useCreateNode();
+	const rootChildren = useChildren(null).data ?? [];
+	const startEditing = useOutlineStore((state) => state.startEditing);
+	return (
+		<div className="mt-ml mx-xl">
+			<button
+				className="w-full cursor-pointer button"
+				onClick={() => {
+					createNode.mutate(
+						{name: "", position: rootChildren.length},
+						{
+							onSuccess(createdNode) {
+								startEditing(createdNode.id);
+							},
+						},
+					);
+				}}
+				type="button"
+			>
+				<span className="">
+					<FaIcon className="mr-xs opacity-50" icon="fal:plus" /> New node
+				</span>
+			</button>
+		</div>
+	);
+}
+
+/** Today, Starred and Home sections plus the New node button; replaced section by section by upstream ports. */
+function LeftBarSections() {
+	const {savedSearches, starredPages} = useOutlineStore();
+	const navigate = useNavigate();
 	const starredPagesArray = [...starredPages];
 
 	const handleTodayClick = () => {
 		void navigate("/");
 	};
 
-	const handleNewNode = () => {
-		createNode.mutate({
-			parent_id: zoomedNodeId ?? undefined,
-			name: "",
-		});
-	};
-
 	return (
-		<>
-			<nav className="left-sidebar-nav">
-				{/* Today Section */}
-				<section className="left-sidebar-section">
-					<ul className="left-sidebar-list">
-						<li>
-							<button
-								className="left-sidebar-item left-sidebar-today"
-								onClick={handleTodayClick}
-								type="button"
-							>
-								<span className="left-sidebar-icon">
-									<CalendarDayIcon />
-								</span>
-								<span className="left-sidebar-label">Today</span>
-							</button>
-						</li>
-					</ul>
-				</section>
+		<nav className="left-sidebar-nav">
+			{/* Today Section */}
+			<section className="left-sidebar-section">
+				<ul className="left-sidebar-list">
+					<li>
+						<button
+							className="left-sidebar-item left-sidebar-today"
+							onClick={handleTodayClick}
+							type="button"
+						>
+							<span className="left-sidebar-icon">
+								<CalendarDayIcon />
+							</span>
+							<span className="left-sidebar-label">Today</span>
+						</button>
+					</li>
+				</ul>
+			</section>
 
-				<LeftBarSection contextKey="leftbar__starred__" name="Starred">
-					<ul className="left-sidebar-list">
-						{starredPagesArray.length === 0 && savedSearches.length === 0 ? (
-							<li className="left-sidebar-empty">No starred items</li>
-						) : (
-							<>
-								{starredPagesArray.map((nodeId) => (
-									<StarredPageItem key={nodeId} nodeId={nodeId} />
-								))}
-								{savedSearches.map((query) => (
-									<SavedSearchItem key={query} query={query} />
-								))}
-							</>
-						)}
-					</ul>
-				</LeftBarSection>
+			<LeftBarSection contextKey="leftbar__starred__" name="Starred">
+				<ul className="left-sidebar-list">
+					{starredPagesArray.length === 0 && savedSearches.length === 0 ? (
+						<li className="left-sidebar-empty">No starred items</li>
+					) : (
+						<>
+							{starredPagesArray.map((nodeId) => (
+								<StarredPageItem key={nodeId} nodeId={nodeId} />
+							))}
+							{savedSearches.map((query) => (
+								<SavedSearchItem key={query} query={query} />
+							))}
+						</>
+					)}
+				</ul>
+			</LeftBarSection>
 
-				<LeftBarSection contextKey="leftbar__home__" name="Home">
-					<FilesListRows contextKey="leftbar__home__" depth={0} parentId={null} />
-				</LeftBarSection>
-			</nav>
-
-			<div className="left-sidebar-footer">
-				<button className="left-sidebar-new-node" onClick={handleNewNode} type="button">
-					<span className="left-sidebar-new-node-icon">
-						<PlusIcon />
-					</span>
-					<span>New node</span>
-				</button>
-			</div>
-		</>
+			<LeftBarSection contextKey="leftbar__home__" name={<HomeSectionName />}>
+				<FilesListRows contextKey="leftbar__home__" depth={0} parentId={null} />
+			</LeftBarSection>
+			<NewNodeButton />
+		</nav>
 	);
 }
 

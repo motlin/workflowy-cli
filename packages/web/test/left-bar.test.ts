@@ -15,7 +15,8 @@ const storeState = {
 	setLeftBarWidth: () => {},
 	savedSearches: [] as string[],
 	starredPages: new Set<string>(),
-	zoomedNodeId: null,
+	zoomedNodeId: null as string | null,
+	startEditing: vi.fn<(id: string) => void>(),
 	toggleStarPage: () => {},
 	openSearchWithQuery: () => {},
 	removeSavedSearch: () => {},
@@ -27,14 +28,18 @@ vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
 		selector === undefined ? storeState : selector(storeState),
 }));
-vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
+const navigateMock = vi.fn<(path: string) => void>();
+const mutateMock = vi.fn<(payload: unknown, options?: {onSuccess?: (node: {id: string}) => void}) => void>();
+let rootChildren: {id: string}[] = [];
+
+vi.mock("react-router-dom", () => ({useNavigate: () => navigateMock}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useChildren: () => ({data: []}),
-	useCreateNode: () => ({mutate: () => {}}),
+	useChildren: () => ({data: rootChildren}),
+	useCreateNode: () => ({mutate: mutateMock}),
 	useNode: () => ({data: undefined}),
 }));
 
-const {LeftBar, LeftBarSection, applyBodyOffset, resizeWidth} =
+const {HomeSectionName, LeftBar, LeftBarSection, NewNodeButton, applyBodyOffset, resizeWidth} =
 	await import("../src/client/components/left-sidebar.js");
 const {TRIANGLE_PATH} = await import("../src/client/components/fa-icons.js");
 
@@ -163,6 +168,61 @@ describe("LeftBarSection", () => {
 		};
 		fragment.props.children[0].props.onClick();
 		expect(storeState.setLeftBarSectionExpanded.mock.calls).toStrictEqual([["leftbar__home__", false]]);
+	});
+});
+
+describe("Home section name", () => {
+	it("navigates to the root without toggling the section", () => {
+		navigateMock.mockClear();
+		storeState.setLeftBarSectionExpanded.mockClear();
+		const span = HomeSectionName() as {
+			props: {className: string; children: string; onClick: (event: unknown) => void};
+		};
+		const stopPropagation = vi.fn<() => void>();
+		span.props.onClick({stopPropagation});
+		expect({
+			className: span.props.className,
+			children: span.props.children,
+			navigate: navigateMock.mock.calls,
+			stopped: stopPropagation.mock.calls.length,
+			toggled: storeState.setLeftBarSectionExpanded.mock.calls,
+		}).toStrictEqual({
+			className: "hover:underline",
+			children: "Home",
+			navigate: [["/"]],
+			stopped: 1,
+			toggled: [],
+		});
+	});
+});
+
+describe("NewNodeButton", () => {
+	it("renders upstream's pill button markup", () => {
+		const html = renderToStaticMarkup(createElement(NewNodeButton)).replace(/ d="[^"]*"/u, "");
+		expect(html).toBe(
+			'<div class="mt-ml mx-xl"><button class="w-full cursor-pointer button" type="button"><span class="">' +
+				'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="plus" class="svg-inline--fa fa-plus fa-1x mr-xs opacity-50" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor"></path></svg>' +
+				" New node</span></button></div>",
+		);
+	});
+
+	it("creates an empty node at the end of the root, ignoring the zoomed node, and edits it", () => {
+		mutateMock.mockClear();
+		storeState.startEditing.mockClear();
+		storeState.zoomedNodeId = "abc";
+		rootChildren = [{id: "a"}, {id: "b"}, {id: "c"}];
+		const wrapper = NewNodeButton() as {props: {children: {props: {onClick: () => void}}}};
+		wrapper.props.children.props.onClick();
+		mutateMock.mock.calls[0]?.[1]?.onSuccess?.({id: "new-id"});
+		expect({
+			payloads: mutateMock.mock.calls.map((call) => call[0]),
+			editing: storeState.startEditing.mock.calls,
+		}).toStrictEqual({
+			payloads: [{name: "", position: 3}],
+			editing: [["new-id"]],
+		});
+		storeState.zoomedNodeId = null;
+		rootChildren = [];
 	});
 });
 
