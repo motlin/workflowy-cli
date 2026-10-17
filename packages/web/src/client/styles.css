@@ -1651,6 +1651,15 @@ button.iconButton {
 	height: 30px;
 }
 
+/* Row labels reuse .innerContentContainer for name HTML; inherit the row's type instead of the outline's 16px/400/24px. */
+.left-bar-section-item .innerContentContainer {
+	font-size: inherit;
+	font-weight: inherit;
+	line-height: inherit;
+	min-height: 0;
+	flex: none;
+}
+
 .left-sidebar-section-title {
 	margin: 0 0 8px;
 	padding: 0 24px;
@@ -1703,14 +1712,6 @@ button.iconButton {
 
 .left-sidebar-row > .left-sidebar-item:hover {
 	background-color: transparent;
-}
-
-.home-tree-row {
-	padding-left: 12px;
-}
-
-.home-tree-row > .left-sidebar-item {
-	padding-left: 0;
 }
 
 .left-sidebar-item:focus {
@@ -1851,61 +1852,6 @@ button.iconButton {
 	font-size: 16px;
 	font-weight: 400;
 	color: var(--color-text-secondary);
-}
-
-/* Left Sidebar - Home tree */
-.home-tree {
-	padding-left: 0;
-}
-
-.home-tree-item {
-	list-style: none;
-}
-
-.home-tree-toggle {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	height: 16px;
-	margin-right: 4px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	color: var(--color-text-muted);
-	cursor: pointer;
-	flex-shrink: 0;
-}
-
-.home-tree-toggle .tree-toggle-icon {
-	transition: transform 0.15s ease;
-}
-
-.home-tree-toggle .tree-toggle-icon.expanded {
-	transform: rotate(90deg);
-}
-
-.home-tree-toggle:hover {
-	color: var(--color-text);
-}
-
-.home-tree-toggle-placeholder {
-	display: inline-block;
-	width: 16px;
-	height: 16px;
-	margin-right: 4px;
-	flex-shrink: 0;
-}
-
-.home-tree-children {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	padding-left: 20px;
-}
-
-.home-tree-children .left-sidebar-item {
-	padding-left: 8px;
 }
 
 /* Left Sidebar - New node button */

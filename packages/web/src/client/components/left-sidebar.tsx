@@ -1,11 +1,12 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useRef} from "react";
 import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
 import {nodeRoute} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
-import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
+import {useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {FilesListRows} from "./left-bar-files-list.js";
 
 /**
  * SVG icon components matching Font Awesome style.
@@ -22,20 +23,6 @@ function SearchIcon() {
 	return (
 		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
 			<path d="M384 208A176 176 0 1 0 32 208a176 176 0 1 0 352 0zM343.3 366C307 397.2 259.7 416 208 416C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208c0 51.7-18.8 99-50 135.3L507.3 484.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L343.3 366z" />
-		</svg>
-	);
-}
-
-function ExpandToggleIcon({expanded}: {expanded: boolean}) {
-	return (
-		<svg
-			className={`tree-toggle-icon ${expanded ? "expanded" : ""}`}
-			fill="currentColor"
-			height="10"
-			viewBox="0 0 320 512"
-			width="10"
-		>
-			<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
 		</svg>
 	);
 }
@@ -128,55 +115,6 @@ function SavedSearchItem({query}: {query: string}) {
 	);
 }
 
-/**
- * Renders a collapsible tree item for root nodes.
- */
-function HomeTreeItem({nodeId, name, hasChildren}: {nodeId: string; name: string; hasChildren: boolean}) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	const navigate = useNavigate();
-	const {data: children} = useChildren(isExpanded ? nodeId : null);
-
-	const handleClick = () => {
-		void navigate(nodeRoute(nodeId));
-	};
-
-	const handleToggle = () => {
-		setIsExpanded(!isExpanded);
-	};
-
-	const displayName = name.replaceAll(/<[^>]*>/gu, "") || "Untitled";
-
-	return (
-		<li className="home-tree-item">
-			<div className="left-sidebar-row home-tree-row">
-				{hasChildren ? (
-					<button
-						aria-expanded={isExpanded}
-						aria-label={isExpanded ? `Collapse ${displayName}` : `Expand ${displayName}`}
-						className="home-tree-toggle"
-						onClick={handleToggle}
-						type="button"
-					>
-						<ExpandToggleIcon expanded={isExpanded} />
-					</button>
-				) : (
-					<span className="home-tree-toggle-placeholder" />
-				)}
-				<button className="left-sidebar-item" onClick={handleClick} type="button">
-					<span className="left-sidebar-label">{displayName}</span>
-				</button>
-			</div>
-			{isExpanded && children && children.length > 0 && (
-				<ul className="home-tree-children">
-					{children.map((child) => (
-						<HomeTreeItem hasChildren={true} key={child.id} name={child.name ?? ""} nodeId={child.id} />
-					))}
-				</ul>
-			)}
-		</li>
-	);
-}
-
 const MIN_LEFT_BAR_WIDTH = 160;
 
 /** Width after dragging the resize handle from `startX` to `x`, clamped to upstream's 160px minimum. */
@@ -253,7 +191,6 @@ function LeftBarSections() {
 	const {savedSearches, starredPages, zoomedNodeId} = useOutlineStore();
 	const navigate = useNavigate();
 	const createNode = useCreateNode();
-	const {data: rootNodes} = useChildren(null);
 	const starredPagesArray = [...starredPages];
 
 	const handleTodayClick = () => {
@@ -306,11 +243,7 @@ function LeftBarSections() {
 				</LeftBarSection>
 
 				<LeftBarSection contextKey="leftbar__home__" name="Home">
-					<ul className="left-sidebar-list home-tree">
-						{rootNodes?.map((node) => (
-							<HomeTreeItem hasChildren={true} key={node.id} name={node.name ?? ""} nodeId={node.id} />
-						))}
-					</ul>
+					<FilesListRows contextKey="leftbar__home__" depth={0} parentId={null} />
 				</LeftBarSection>
 			</nav>
 
