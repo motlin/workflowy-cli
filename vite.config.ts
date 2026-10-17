@@ -26,6 +26,13 @@ export default defineConfig({
 					printWidth: 320,
 				},
 			},
+			{
+				// `vp config` (the prepare hook) regenerates these with hard-wrapped prose; keep its wrapping so installs stop dirtying the tree.
+				files: ["AGENTS.md", "CLAUDE.md"],
+				options: {
+					proseWrap: "preserve",
+				},
+			},
 		],
 	},
 	run: {
