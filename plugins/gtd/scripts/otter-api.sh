@@ -12,6 +12,7 @@
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync [page_size] [cursor] [modified_after]  # one page, with action items
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speech <otid>
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh transcript <otid>  # full transcript as plain text
+#   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speaker-blocks <otid> [count]  # each non-self speaker's longest blocks, for tagging
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh summary <otid>
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh action_items <otid>
 #
@@ -295,6 +296,50 @@ transcript() {
             | "[\($sec / 60 | floor | tostring | if length < 2 then "0" + . else . end):\($sec % 60 | tostring | if length < 2 then "0" + . else . end)] \($names[.speaker_id | tostring] // "Speaker \(.speaker_id)"): \(.transcript)")' <<< "$body"
 }
 
+# The longest transcript blocks per speaker, as JSON, so the user can tag a speaker in the
+# Otter UI from a few big blocks and Otter learns the voice for future recordings. Skips the
+# user's own speaker; undiarized segments (speaker_id null) group under "unattributed".
+# Each speaker keeps its `count` longest blocks (default 3), listed in time order.
+speaker_blocks() {
+    local otid="$1"
+    local count="${2:-3}"
+    local body
+    body=$(speech "$otid")
+    if ! jq -e '.speech | type == "object"' <<< "$body" >/dev/null 2>&1; then
+        echo "{\"error\": \"no speech found for otid $otid\"}" >&2
+        return 1
+    fi
+    jq --argjson count "$count" '
+        def pad: tostring | if length < 2 then "0" + . else . end;
+        .speech as $s
+        | ($s.speakers // [] | map({key: (.id | tostring), value: .}) | from_entries) as $who
+        | {
+            otid: $s.otid,
+            title: $s.title,
+            url: "https://otter.ai/u/\($s.otid)",
+            speakers: [
+                $s.transcripts // []
+                | map(select($who[.speaker_id | tostring].self_speaker != true))
+                | group_by(.speaker_id // -1)[]
+                | sort_by(-(.transcript | length))[:$count]
+                | sort_by(.start_offset)
+                | .[0].speaker_id as $id
+                | {
+                    speaker_id: $id,
+                    label: (if $id == null then "unattributed" else ($who[$id | tostring].speaker_name // "Speaker \($id)") end),
+                    first: .[0].start_offset,
+                    blocks: map(
+                        (.start_offset / 16000 | floor) as $sec
+                        | {
+                            time: "\($sec / 60 | floor | pad):\($sec % 60 | pad)",
+                            chars: (.transcript | length),
+                            text: (if (.transcript | length) > 120 then .transcript[:120] + "..." else .transcript end)
+                        })
+                }
+            ] | sort_by(.first) | map(del(.first))
+        }' <<< "$body"
+}
+
 summary() {
     local otid="$1"
     local url="$API_BASE/abstract_summary?otid=$otid"
@@ -532,6 +577,14 @@ main() {
             login
             transcript "$2"
             ;;
+        speaker-blocks)
+            if [[ -z "${2:-}" ]]; then
+                echo '{"error": "speaker-blocks command requires otid argument"}' >&2
+                exit 1
+            fi
+            login
+            speaker_blocks "$2" "${3:-3}"
+            ;;
         summary)
             if [[ -z "${2:-}" ]]; then
                 echo '{"error": "summary command requires otid argument"}' >&2
@@ -549,7 +602,7 @@ main() {
             action_items "$2"
             ;;
         *)
-            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|transcript|summary|action_items} <args>" >&2
+            echo "Usage: $0 {warm-credentials|available_speeches|sync|sync-since|speech|transcript|speaker-blocks|summary|action_items} <args>" >&2
             exit 1
             ;;
     esac

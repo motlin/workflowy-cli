@@ -49,6 +49,22 @@ On a mismatch or uncertainty, **flag the entry for review and create no node for
 
 Preflight the whole page before writes. If any candidate is flagged, stop without creating that page's entries or updating its scanner state. Keep the cursor, session start, and last-synced boundary at the last successfully saved page so the held recordings resurface. Return any earlier pages' verified creates alongside the flags. Review flags are unresolved work, not a successful empty scan; use `status: "error"` so the prep date does not advance. Resolving a flag requires a later explicit user decision; this run does not alter or delete existing journal entries.
 
+## Resolve a title flag
+
+The auto run never resolves a flag. The daily review does it with the user, one flag per `AskUserQuestion`, when it surfaces this task's error. Put the title, date, Otter URL, and the reason inside the question. Options: keep the title as recorded, retitle it, or skip the recording. A resolved recording is created under `📆 Calendar` with the chosen title. Once every flag is resolved, rerun this command so the held page and its cursor advance; URL dedup skips the entries already created.
+
+When the user confirms a flagged attendee was in the meeting, offer in a follow-up question to tag that person as a speaker in Otter. Otter learns a voice from tagged blocks and then labels that person in future recordings by itself, which stops the same flag from coming back. A few big blocks are enough:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speaker-blocks <otid> [count]
+```
+
+- Prints JSON: `{otid, title, url, speakers: [{speaker_id, label, blocks: [{time, chars, text}]}]}`. Each speaker other than the user gets its `count` longest blocks (default 3), in time order. Segments with no speaker go under `unattributed`, and `text` is cut to a 120-character preview so the block is easy to find.
+- Choose the speaker whose blocks match the confirmed attendee. Often that is a generic `Speaker N` or `unattributed`.
+- Put the URL plus each block's `[mm:ss]` time and preview inside the question. Do not put them in text around the question.
+- Tagging happens in the Otter web app: open the URL, go to each listed block, click its speaker label, and choose or type the attendee's name. When Otter asks, apply the tag to every block from that speaker.
+- The user tags the blocks. Drive the Otter page through the browser tools only if the user asks you to, and confirm afterward that the blocks show the attendee's name.
+
 ## Scan Otter and create (create mode)
 
 Run the `otter-journal-scanner` agent in its default **`create`** mode — it scans meetings newer than `last_synced_otid`, builds the entry JSON, calendar-dedups each against `📆 Calendar` (`node search --query "otter.ai/u/<otid>"`), preflights calendar-derived titles against Overview/transcript evidence, **creates** each verified surviving meeting as a direct child of `📆 Calendar`, and advances the live `otter-journal-scanner` state after each page:

@@ -156,6 +156,8 @@ Do not create Claude Code built-in tasks (`TaskCreate`, `TaskUpdate`, or `TodoWr
 
 Never silently skip a task. If a command, MCP, network call, validation, or verification fails, stop and surface the failure. Retry once or twice when reasonable, then ask the user whether to fix it or explicitly skip it. A skipped or failed task keeps its date.
 
+An `otter-journal` error carrying `⚠️ Otter title needs review` flags is resolved with the user one flag at a time, per [Resolve a title flag](otter-journal-auto.md#resolve-a-title-flag). When the user confirms a flagged attendee was there, that step also offers to tag them as an Otter speaker.
+
 Drain every background date write before a cache import, before leaving this phase, and before relinking. Follow `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md` for dispatch and verification.
 
 ### Summarize
