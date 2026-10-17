@@ -2,6 +2,7 @@ import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {nodeRoute} from "../navigation.js";
 import {nodeKeys} from "../node-cache.js";
+import {historyStep} from "../nav-history.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useHotkeys} from "react-hotkeys-hook";
 import type {Options} from "react-hotkeys-hook";
@@ -227,23 +228,23 @@ export function useKeyboardShortcuts() {
 		[zoomedNodeId, zoomedNode, commitEdit, navigate],
 	);
 
-	// Cmd+[ (Cmd+LeftBracket): Browser history back
+	// Cmd+[ (Cmd+LeftBracket): history back, no-op on an empty back stack
 	useHotkeys(
 		punctuationHotkeys.historyBack,
 		() => {
 			commitEdit();
-			globalThis.history.back();
+			historyStep(-1);
 		},
 		navigationShortcut,
 		[commitEdit],
 	);
 
-	// Cmd+] (Cmd+RightBracket): Browser history forward
+	// Cmd+] (Cmd+RightBracket): history forward, no-op on an empty forward stack
 	useHotkeys(
 		punctuationHotkeys.historyForward,
 		() => {
 			commitEdit();
-			globalThis.history.forward();
+			historyStep(1);
 		},
 		navigationShortcut,
 		[commitEdit],

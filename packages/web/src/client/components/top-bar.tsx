@@ -6,8 +6,10 @@ import {useUpdateNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {CalendarPanel} from "./calendar-panel.js";
+import {FaIcon} from "./fa-icons.js";
 import {GearMenu} from "./gear-menu.js";
 import {HideCompletedToggle} from "./hide-completed-toggle.js";
+import {IconButton} from "./icon-button.js";
 import {LayoutMenu} from "./layout-menu.js";
 import type {LayoutMode} from "./layout-menu.js";
 import {Tooltip} from "./tooltip.js";
@@ -52,7 +54,7 @@ export function TopBar() {
 		openPresentation,
 	} = useOutlineStore();
 	const navigate = useNavigate();
-	const {canGoForward} = useNavigationHistory();
+	const {canGoBack, canGoForward} = useNavigationHistory();
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [calendarOpen, setCalendarOpen] = useState(false);
 	const [completedToggleOpen, setCompletedToggleOpen] = useState(false);
@@ -77,11 +79,7 @@ export function TopBar() {
 	};
 
 	const handleNavigateBack = () => void navigate(-1);
-	const handleNavigateForward = () => {
-		if (canGoForward) {
-			void navigate(1);
-		}
-	};
+	const handleNavigateForward = () => void navigate(1);
 
 	const handleMenuToggle = () => {
 		setMenuOpen((prev) => !prev);
@@ -168,42 +166,25 @@ export function TopBar() {
 			style={{left: leftBarOffset, zIndex: 200}}
 		>
 			<div style={{position: "relative"}}>
-				<Tooltip content="Toggle sidebar" shortcut="^L">
-					<button
-						aria-label="Toggle sidebar"
-						className="top-bar-button"
-						onClick={toggleLeftSidebar}
-						type="button"
-					>
-						<svg fill="currentColor" height="16" viewBox="0 0 448 512" width="16">
-							<path d="M0 80c0-8.8 7.2-16 16-16l416 0c8.8 0 16 7.2 16 16s-7.2 16-16 16L16 96C7.2 96 0 88.8 0 80zM0 256c0-8.8 7.2-16 16-16l416 0c8.8 0 16 7.2 16 16s-7.2 16-16 16L16 272c-8.8 0-16-7.2-16-16zM432 432c0 8.8-7.2 16-16 16L16 448c-8.8 0-16-7.2-16-16s7.2-16 16-16l400 0c8.8 0 16 7.2 16 16z" />
-						</svg>
-					</button>
-				</Tooltip>
+				<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftSidebar}>
+					<FaIcon icon="fal:bars" />
+				</IconButton>
 			</div>
 
 			<div className="pagination">
-				<Tooltip content="History back" shortcut="⌘[">
-					<button aria-label="Go back" className="top-bar-button" onClick={handleNavigateBack} type="button">
-						<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
-							<path d="M20.7 267.3c-6.2-6.2-6.2-16.4 0-22.6l192-192c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6L54.6 256 235.3 436.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0l-192-192z" />
-						</svg>
-					</button>
-				</Tooltip>
-
-				<Tooltip content="History forward" shortcut="⌘]">
-					<button
-						aria-disabled={!canGoForward}
-						aria-label="Go forward"
-						className={`top-bar-button${canGoForward ? "" : " disabled"}`}
+				<IconButton data-handbook="nav.back" disabled={!canGoBack} onClick={handleNavigateBack} tooltip="Back">
+					<FaIcon icon="fal:chevron-left" />
+				</IconButton>
+				{canGoForward && (
+					<IconButton
+						className="sm:flex hidden"
+						data-handbook="nav.forward"
 						onClick={handleNavigateForward}
-						type="button"
+						tooltip="Forward"
 					>
-						<svg fill="currentColor" height="16" viewBox="0 0 320 512" width="16">
-							<path d="M299.3 244.7c6.2 6.2 6.2 16.4 0 22.6l-192 192c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L265.4 256 84.7 75.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0l192 192z" />
-						</svg>
-					</button>
-				</Tooltip>
+						<FaIcon icon="fal:chevron-right" />
+					</IconButton>
+				)}
 			</div>
 
 			<Breadcrumbs nodeId={zoomedNodeId} />

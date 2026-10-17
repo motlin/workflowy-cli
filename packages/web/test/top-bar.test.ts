@@ -25,8 +25,10 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		selector === undefined ? storeState : selector(storeState),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
+const navState = {canGoBack: false, canGoForward: false};
+
 vi.mock("../src/client/hooks/use-navigation-history.js", () => ({
-	useNavigationHistory: () => ({canGoForward: false}),
+	useNavigationHistory: () => navState,
 }));
 vi.mock("../src/client/hooks/use-flattened-tree.js", () => ({
 	useFlattenedTree: () => ({flattenedNodes: []}),
@@ -85,6 +87,49 @@ describe("TopBar markup", () => {
 			"breadcrumbs-mock",
 			"ml-auto flex self-stretch items-center gap-xs flex-shrink-0",
 		]);
+	});
+});
+
+function renderWithNav(canGoBack: boolean, canGoForward: boolean): string {
+	navState.canGoBack = canGoBack;
+	navState.canGoForward = canGoForward;
+	return renderToStaticMarkup(createElement(TopBar));
+}
+
+/** Inner HTML of the `.pagination` element with svg path data stripped. */
+function paginationInner(html: string): string {
+	const start = html.indexOf('<div class="pagination">') + '<div class="pagination">'.length;
+	const end = html.indexOf('<div class="breadcrumbs-mock">');
+	return html
+		.slice(start, end)
+		.replace(/<\/div>$/u, "")
+		.replaceAll(/ d="[^"]*"/gu, "");
+}
+
+function svg(name: string, width: number): string {
+	return `<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="${name}" class="svg-inline--fa fa-${name} fa-1x " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 512"><path fill="currentColor"></path></svg>`;
+}
+
+describe("TopBar left controls", () => {
+	it("renders a disabled Back and no Forward on an empty stack", () => {
+		expect(paginationInner(renderWithNav(false, false))).toBe(
+			`<div role="button" tabindex="-1" aria-disabled="true" data-handbook="nav.back" class="iconButton lg shape-circle disabled">${svg("chevron-left", 320)}</div>`,
+		);
+	});
+
+	it("renders enabled Back and a sm:flex Forward when both stacks are non-empty", () => {
+		expect(paginationInner(renderWithNav(true, true))).toBe(
+			`<div role="button" tabindex="0" data-handbook="nav.back" class="iconButton lg shape-circle">${svg("chevron-left", 320)}</div>` +
+				`<div role="button" tabindex="0" data-handbook="nav.forward" class="sm:flex hidden iconButton lg shape-circle">${svg("chevron-right", 320)}</div>`,
+		);
+	});
+
+	it("renders the hamburger as a toggle_leftbar IconButton without a tooltip", () => {
+		const html = renderWithNav(false, false);
+		const wrapper = html.slice(html.indexOf(">") + 1, html.indexOf('<div class="pagination">'));
+		expect(wrapper.replaceAll(/ d="[^"]*"/gu, "")).toBe(
+			`<div style="position:relative"><div role="button" tabindex="0" data-handbook="toggle_leftbar" class="iconButton lg shape-circle">${svg("bars", 448)}</div></div>`,
+		);
 	});
 });
 
