@@ -51,7 +51,21 @@ Preflight the whole page before writes. If any candidate is flagged, stop withou
 
 ## Resolve a title flag
 
-The auto run never resolves a flag. The daily review does it with the user, one flag per `AskUserQuestion`, when it surfaces this task's error. Put the title, date, Otter URL, and the reason inside the question. Options: keep the title as recorded, retitle it, or skip the recording. A resolved recording is created under `📆 Calendar` with the chosen title. Once every flag is resolved, rerun this command so the held page and its cursor advance; URL dedup skips the entries already created.
+The auto run never resolves a flag on its own. The daily review does it with the user, one flag per `AskUserQuestion`, when it surfaces this task's error. Put the title, date, Otter URL, and the reason inside the question. Options: keep the title as recorded, retitle it, or skip the recording.
+
+The main thread records each answer and creates nothing itself. Creation stays in the scanner. Merge each decision into `.llm/gtd/review/otter-confirmed-titles.json`, keyed by otid. Keep existing keys and overwrite only the otid just answered:
+
+```json
+{
+	"abc123": { "title": "Work lunch with @Alice", "decidedAt": "2026-10-10" },
+	"def456": { "skip": true, "decidedAt": "2026-10-10" }
+}
+```
+
+- Keep or retitle: write `title` as the plain approved title text. The scanner wraps it in the `<time>` tag, Otter link, and `#meeting`.
+- Skip: write `"skip": true` and no title. The scanner then passes over that recording without creating an entry.
+
+Once every flag on the held page has a decision, rerun this command right away. If the user wants to wait, the next daily review's Auto run picks the decisions up instead. The scanner reads the file during title preflight, so a decided otid no longer holds the page. It creates the approved entries, skips the skipped ones, and advances the cursor. URL dedup still prevents duplicates. A recording with no decision still flags as before.
 
 When the user confirms a flagged attendee was in the meeting, offer in a follow-up question to tag that person as a speaker in Otter. Otter learns a voice from tagged blocks and then labels that person in future recordings by itself, which stops the same flag from coming back. A few big blocks are enough:
 
@@ -72,7 +86,7 @@ Run the `otter-journal-scanner` agent in its default **`create`** mode — it sc
 ```text
 Agent tool:
 - subagent_type: "general-purpose"
-  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/otter-journal-scanner.md and follow it. Create mode for otter-journal-auto: scan Otter for meetings newer than last_synced_otid, calendar-dedup against 📆 Calendar. Before any page writes, validate every new meeting title and named attendees against its Overview and available transcript evidence. On mismatch or uncertainty, flag for review, never create untitled or retitle, hold the whole page and its scanner state, and stop. Otherwise CREATE each verified new meeting under 📆 Calendar and advance the live scanner state. Return created meetings (date + title + otid), review flags (original title + date + otid/URL + concise reason), and the newest otid actually recorded. Run every Workflowy write as a bare CLI Bash call with no variable prefix, $(...), pipe, redirect, or chain: --json-file for entries, a literal --name for state."
+  prompt: "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT}. Read ${CLAUDE_PLUGIN_ROOT}/prompts/journal/scanners/otter-journal-scanner.md and follow it. Create mode for otter-journal-auto: scan Otter for meetings newer than last_synced_otid, calendar-dedup against 📆 Calendar. Before any page writes, validate every new meeting title and named attendees against its Overview and available transcript evidence, applying any user decisions in .llm/gtd/review/otter-confirmed-titles.json first. On mismatch or uncertainty, flag for review, never create untitled or retitle, hold the whole page and its scanner state, and stop. Otherwise CREATE each verified new meeting under 📆 Calendar and advance the live scanner state. Return created meetings (date + title + otid), review flags (original title + date + otid/URL + concise reason), and the newest otid actually recorded. Run every Workflowy write as a bare CLI Bash call with no variable prefix, $(...), pipe, redirect, or chain: --json-file for entries, a literal --name for state."
 ```
 
 (The scanner fetches with `${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh sync-since <last_synced_otid>`, which lists small pages only until the boundary and fetches action items only for new meetings; `OTTER_USERNAME` / `OTTER_PASSWORD` must be set. If the scan fails — auth, network, API — create nothing, stage a briefing with `status: "error"` carrying the error, and stop; the review surfaces it and the cursor is untouched, so the meetings resurface next run.)

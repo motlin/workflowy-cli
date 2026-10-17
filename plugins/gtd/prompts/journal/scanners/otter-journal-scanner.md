@@ -137,6 +137,13 @@ Parse `speeches[]`, `last_load_ts` (cursor for the next page), and `end_of_list`
 
 Before any create or state write for a page, deduplicate its candidates using the cursor, in-session guard, and URL checks below, then compare every ready candidate's calendar-derived title with its Overview (`summary`) and available transcript-derived outline. Calendar overlap is not attendance evidence: a skipped event can lend its title to a different recording.
 
+**Apply user decisions first.** Read `.llm/gtd/review/otter-confirmed-titles.json` if it exists. It maps otid to a decision the user made about an earlier flag, per the auto command's **Resolve a title flag**. A missing file means no decisions. For each ready candidate whose otid is a key:
+
+- `title` set: the user approved this title, so skip the evidence check. Build the entry with this title in place of the calendar-derived one, and create it like any verified candidate.
+- `skip: true`: create nothing for this recording, and do not add it to the session guard. It no longer holds the page, so the page can still save state.
+
+Only candidates without a decision go through the evidence check below. Never write to this file. The main thread owns it.
+
 Check both the subject and named attendees against the recording. Names mentioned in passing do not establish attendance, and missing names in a short summary do not establish absence. Use transcript/speaker evidence when available; flag missing or ambiguous evidence as uncertain. Do not accept a title solely because it matches the calendar.
 
 If any candidate mismatches or remains uncertain, stop before creating any entries on that page. Return review flags containing the original title, date, Otter URL/otid, and a concise evidence-based reason. **Never create the flagged entry untitled or automatically retitle it.** Keep full transcript content out of logs and the review summary. Preserve any verified creates and saved state from earlier pages, but make no state update for this held page: do not move its cursor, session start, or last-synced boundary past unresolved recordings. On a rerun, the held page must be reconsidered rather than silently treated as synced.
