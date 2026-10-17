@@ -197,13 +197,13 @@ importers:
         specifier: ^9.6.0
         version: 9.6.0
       '@types/node':
-        specifier: ^26.6.4
+        specifier: ^26.6.5
         version: 26.6.5
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
       fallow:
-        specifier: ^3.33.0
+        specifier: ^3.33.1
         version: 3.33.1
       markdownlint-cli2:
         specifier: ^0.23.3
