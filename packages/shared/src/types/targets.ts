@@ -35,6 +35,13 @@ export function isSystemTarget(value: string): value is SystemTargetKey {
 }
 
 /**
+ * The parent id that names Home, the top level. The public API has no key for
+ * it: a Home parent is sent by omitting `parent_id`, and the cache stores it as
+ * a `null` parent.
+ */
+export const HOME_TARGET = "home";
+
+/**
  * Zod schema for a single target in the /api/v1/targets response.
  */
 export const WorkflowyTargetSchema = z

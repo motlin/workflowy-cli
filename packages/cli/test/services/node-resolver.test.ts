@@ -168,6 +168,11 @@ describe("node-resolver service", () => {
 			expect(result).toBe("inbox");
 		});
 
+		it("resolves home to null, the top level", async () => {
+			const result = await resolveParent({id: "home"}, cacheService, apiClient);
+			expect(result).toBeNull();
+		});
+
 		it("resolves a short ID from the cache", async () => {
 			const fullId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 			seedTestData(

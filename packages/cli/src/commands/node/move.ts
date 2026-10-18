@@ -1,5 +1,6 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {HOME_TARGET} from "@workflowy/shared/types";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
@@ -12,6 +13,9 @@ export default class Move extends Command {
 	static override examples = [
 		"# Move node to inbox (system target)",
 		"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox",
+		"",
+		"# Move node to the top level (Home)",
+		"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id home",
 		"",
 		"# Move node by ID to parent ID",
 		"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456",
@@ -39,7 +43,8 @@ export default class Move extends Command {
 			exclusive: ["node-id"],
 		}),
 		"parent-id": Flags.string({
-			description: 'ID of the destination parent node or system target (e.g., "inbox")',
+			description:
+				'ID of the destination parent node, a system target (e.g., "inbox"), or "home" for the top level',
 			exclusive: ["parent-path"],
 		}),
 		"parent-path": Flags.string({
@@ -94,7 +99,7 @@ export default class Move extends Command {
 		const positionValue = flags.position === "top" ? -1 : flags.position === "bottom" ? 0 : undefined;
 
 		if (flags["dry-run"]) {
-			let command = `${this.config.bin} node:move --node-id ${nodeId} --parent-id ${parentId}`;
+			let command = `${this.config.bin} node:move --node-id ${nodeId} --parent-id ${parentId ?? HOME_TARGET}`;
 			if (flags.position) {
 				command += ` --position ${flags.position}`;
 			}

@@ -1,7 +1,7 @@
 import type {WorkflowyApiClient} from "../api/index.js";
 import {WorkflowyWriteThroughClient} from "../cache/index.js";
 import type {CacheService} from "../cache/index.js";
-import {isSystemTarget} from "../types/index.js";
+import {HOME_TARGET, isSystemTarget} from "../types/index.js";
 import {isShortId} from "../workflowy/index.js";
 
 /**
@@ -147,7 +147,7 @@ export async function resolveOrCreateNodePath(
 /**
  * Flags for resolving a parent node.
  * Exactly one of id or path must be provided.
- * The id field accepts both UUIDs and system targets (e.g., "inbox").
+ * The id field accepts UUIDs, system targets (e.g., "inbox"), and "home".
  */
 export interface ResolveParentFlags {
 	id?: string;
@@ -158,6 +158,7 @@ export interface ResolveParentFlags {
  * Resolves a parent node ID from id or path.
  *
  * This is the unified resolution function for parent nodes. It handles:
+ * - "home" (the top level), returned as `null`
  * - System target keys like "inbox" (detected and returned as-is)
  * - Direct UUIDs (returned as-is)
  * - Paths (resolved via cache then API)
@@ -165,7 +166,7 @@ export interface ResolveParentFlags {
  * @param flags - Object containing exactly one of: id or path
  * @param cacheService - The cache service for local lookup
  * @param apiClient - The API client for remote lookup
- * @returns The resolved parent ID or system target key
+ * @returns The resolved parent ID or system target key, or `null` for Home
  * @throws Error if the flag combination is invalid or the node cannot be found
  *
  * @example
@@ -183,7 +184,7 @@ export async function resolveParent(
 	flags: ResolveParentFlags,
 	cacheService: CacheService,
 	apiClient: WorkflowyApiClient,
-): Promise<string> {
+): Promise<string | null> {
 	const providedCount = [flags.id, flags.path].filter(Boolean).length;
 
 	if (providedCount === 0) {
@@ -195,6 +196,9 @@ export async function resolveParent(
 	}
 
 	if (flags.id) {
+		if (flags.id === HOME_TARGET) {
+			return null;
+		}
 		if (isSystemTarget(flags.id)) {
 			return flags.id;
 		}
@@ -224,14 +228,14 @@ export async function resolveParent(
  * @param flags - Object containing optional id or path
  * @param cacheService - The cache service for local lookup
  * @param apiClient - The API client for remote lookup
- * @returns The resolved parent ID, system target key, or undefined
+ * @returns The resolved parent ID, system target key, `null` for Home, or undefined
  * @throws Error if the node cannot be found
  */
 export async function resolveOptionalParent(
 	flags: ResolveParentFlags,
 	cacheService: CacheService,
 	apiClient: WorkflowyApiClient,
-): Promise<string | undefined> {
+): Promise<string | null | undefined> {
 	if (!flags.id && !flags.path) {
 		return undefined;
 	}

@@ -29,6 +29,9 @@ export default class Create extends Command {
 		"# Create node in inbox (system target)",
 		'<%= config.bin %> <%= command.id %> --parent-id inbox --name "New Task"',
 		"",
+		"# Create a top-level node (Home)",
+		'<%= config.bin %> <%= command.id %> --parent-id home --name "Area"',
+		"",
 		"# Create node under a parent by ID",
 		'<%= config.bin %> <%= command.id %> --parent-id abc123 --name "Subtask"',
 		"",
@@ -72,7 +75,7 @@ export default class Create extends Command {
 			exclusive: ["name", "note", "layout-mode", "json"],
 		}),
 		"parent-id": Flags.string({
-			description: 'ID of parent node or system target (e.g., "inbox")',
+			description: 'ID of parent node, a system target (e.g., "inbox"), or "home" for the top level',
 			exclusive: ["parent-path"],
 		}),
 		"parent-path": Flags.string({
@@ -166,17 +169,16 @@ export default class Create extends Command {
 			position?: "top" | "bottom";
 			"dry-run": boolean;
 		},
-		parentId: string,
+		parentId: string | null,
 		client: WorkflowyWriteThroughClient,
 		database: ReturnType<typeof createDatabase>,
 	): Promise<void> {
 		const {name} = flags;
 
 		if (flags["dry-run"]) {
-			const requestBody: {parent_id: string; name: string; note?: string; layoutMode?: string} = {
-				parent_id: parentId,
-				name,
-			};
+			// Home has no API key: a top-level create omits parent_id.
+			const requestBody: {parent_id?: string; name: string; note?: string; layoutMode?: string} =
+				parentId === null ? {name} : {parent_id: parentId, name};
 			if (flags.note) {
 				requestBody.note = flags.note;
 			}
@@ -230,7 +232,7 @@ export default class Create extends Command {
 			"dry-run": boolean;
 			position?: "top" | "bottom";
 		},
-		parentId: string,
+		parentId: string | null,
 		apiClient: WorkflowyApiClient,
 		cacheService: CacheService,
 		database: ReturnType<typeof createDatabase>,
@@ -330,7 +332,7 @@ export default class Create extends Command {
 	 */
 	private dryRunJsonMode(
 		nodeTree: NodeTreeSpec,
-		parentId: string,
+		parentId: string | null,
 		database: ReturnType<typeof createDatabase>,
 	): void {
 		this.log("Would create the following node tree:");

@@ -193,6 +193,15 @@ describe("node:mirror command", () => {
 		});
 	});
 
+	describe("mirroring to home (top level)", () => {
+		it("rejects home before calling the API, which requires a string parent_id", async () => {
+			await expect(Mirror.run(["--node-id", ORIGIN_ID, "--parent-id", "home"])).rejects.toThrow(
+				"Mirroring to Home (the top level) is not supported by the Workflowy API",
+			);
+			expect(fetchStub.mock.calls).toStrictEqual([]);
+		});
+	});
+
 	describe("deleting a mirror", () => {
 		beforeEach(() => {
 			seedTestData(testDatabase, {

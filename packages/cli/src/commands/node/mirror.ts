@@ -91,6 +91,10 @@ export default class Mirror extends Command {
 			cacheService,
 			apiClient,
 		);
+		if (parentId === null) {
+			// POST /nodes/:id/mirror requires a string parent_id; it rejects null and 404s "home".
+			this.error("Mirroring to Home (the top level) is not supported by the Workflowy API");
+		}
 		const {position} = flags;
 
 		if (!flags.json) {

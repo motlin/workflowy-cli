@@ -29,7 +29,11 @@ export class PathBuilder {
 		this.database = database;
 	}
 
-	buildFullPath(nodeId: string): string {
+	/** A node's ancestor path, or "Home" for `null` (the top level). */
+	buildFullPath(nodeId: string | null): string {
+		if (nodeId === null) {
+			return "Home";
+		}
 		const paths = this.buildFullPathsBatch([nodeId]);
 		return paths.get(nodeId) ?? "";
 	}

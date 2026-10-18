@@ -54,10 +54,11 @@ export interface CreateNodeRequest {
 	 * The parent node ID. Can be either:
 	 * - A UUID (e.g., "a5408f02-03aa-4735-a886-4ccd128d1ad7")
 	 * - A system target key (e.g., "inbox")
+	 * - `null` for Home (the top level), sent by omitting `parent_id`
 	 *
 	 * Use isSystemTarget() to check if a string is a valid target key.
 	 */
-	parent_id: string;
+	parent_id: string | null;
 	name: string;
 	note?: string;
 	layoutMode?: string;
@@ -269,14 +270,17 @@ export class WorkflowyApiClient {
 	 */
 	async createNode(request: CreateNodeRequest): Promise<WorkflowyNode> {
 		const url = `${this.baseUrl}/api/v1/nodes/`;
+		const {parent_id: parentId, ...rest} = request;
+		// The API has no key for Home: a top-level create omits parent_id.
+		const body = parentId === null ? rest : request;
 		const startTime = performance.now();
-		this.logger?.logRequest(url, "POST", request);
+		this.logger?.logRequest(url, "POST", body);
 
 		try {
 			const response = await fetch(url, {
 				method: "POST",
 				headers: this.getHeaders(),
-				body: JSON.stringify(request),
+				body: JSON.stringify(body),
 			});
 
 			if (!response.ok) {
@@ -444,14 +448,12 @@ export class WorkflowyApiClient {
 	 * Move a node to a new parent.
 	 *
 	 * @param id - The node ID to move
-	 * @param newParentId - The target parent ID (null for root level)
+	 * @param newParentId - The target parent ID (null for Home, sent by omitting parent_id)
 	 * @param position - Optional position ('top' for -1, 'bottom' for >= 0)
 	 */
 	async moveNode(id: string, newParentId: string | null, position?: number): Promise<void> {
 		const url = `${this.baseUrl}/api/v1/nodes/${id}/move`;
-		const body: {parent_id: string | null; position?: string} = {
-			parent_id: newParentId,
-		};
+		const body: {parent_id?: string; position?: string} = newParentId === null ? {} : {parent_id: newParentId};
 		if (position !== undefined) {
 			body.position = position < 0 ? "top" : "bottom";
 		}
@@ -484,7 +486,8 @@ export class WorkflowyApiClient {
 	 * Create a live mirror of a node under a new parent.
 	 *
 	 * @param originId - The node to mirror (a mirror resolves to its true origin)
-	 * @param parentId - The parent to place the mirror under
+	 * @param parentId - The parent to place the mirror under. The endpoint requires one,
+	 *   so a mirror cannot be placed at Home (the top level)
 	 * @param position - Where among the parent's children to place the mirror
 	 */
 	async createMirror(originId: string, parentId: string, position: "top" | "bottom"): Promise<CreateMirrorResult> {

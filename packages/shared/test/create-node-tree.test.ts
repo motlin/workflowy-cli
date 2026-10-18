@@ -4,7 +4,7 @@ import type {TreeWriteClient} from "../src/cache/create-node-tree.js";
 
 /** A fake write-through client that records createNode calls and hands back ids. */
 function fakeClient() {
-	const calls: {parent_id: string; name: string; position?: string}[] = [];
+	const calls: {parent_id: string | null; name: string; position?: string}[] = [];
 	let counter = 0;
 	const client: TreeWriteClient = {
 		async createNode(options) {

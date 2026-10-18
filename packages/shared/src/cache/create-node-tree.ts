@@ -36,7 +36,7 @@ export type TreeWriteClient = Pick<WorkflowyWriteThroughClient, "createNode">;
  */
 export async function createNodeTree(
 	spec: NodeTreeSpec,
-	parentId: string,
+	parentId: string | null,
 	client: TreeWriteClient,
 	position?: "top" | "bottom",
 ): Promise<CreatedNodeTree> {

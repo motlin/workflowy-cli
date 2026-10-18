@@ -364,6 +364,72 @@ describe("node create command", () => {
 		});
 	});
 
+	describe("home (top level)", () => {
+		it("dry run omits parent_id and shows Home as the parent", async () => {
+			const {stdout} = await captureOutput(async () => {
+				await Create.run(["--parent-id", "home", "--name", "Top", "--dry-run"]);
+			});
+
+			expect(fetchStub.mock.calls).toStrictEqual([]);
+			expect(stdout).toBe(
+				'Would execute API call:\n  Method: POST\n  URL: https://workflowy.com/api/v1/nodes/\n  Headers:\n    Authorization: Bearer <WORKFLOWY_API_KEY>\n    Content-Type: application/json\n  Body:\n    {\n      "name": "Top"\n    }\n\nParent: Home\n',
+			);
+		});
+
+		it("creates a top-level node by omitting parent_id, and caches it with a null parent", async () => {
+			const now = Math.floor(Date.now() / 1000);
+			const node = {
+				id: "new-id",
+				name: "Top",
+				note: null,
+				parent_id: null,
+				priority: 0,
+				completed: false,
+				createdAt: now,
+				modifiedAt: now,
+				completedAt: null,
+				data: {layoutMode: "bullets"},
+			};
+			const bodies: unknown[] = [];
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				const urlStr = url instanceof Request ? url.url : String(url);
+				const method = init?.method ?? "GET";
+				if (method === "POST" && urlStr === "https://workflowy.com/api/v1/nodes/") {
+					bodies.push(requestJson(init));
+					return Promise.resolve(Response.json({item_id: "new-id"}, {status: 200}));
+				}
+				if (method === "GET" && urlStr === "https://workflowy.com/api/v1/nodes/new-id") {
+					return Promise.resolve(Response.json({node}, {status: 200}));
+				}
+				if (method === "GET" && urlStr === "https://workflowy.com/api/v1/nodes") {
+					return Promise.resolve(Response.json({nodes: [node]}, {status: 200}));
+				}
+				return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
+			});
+
+			const {stdout} = await captureOutput(async () => {
+				await Create.run(["--parent-id", "home", "--name", "Top"]);
+			});
+
+			expect({stdout, bodies, requests: requests()}).toStrictEqual({
+				stdout: "Creating node: Top\nParent: Home\n\nSuccessfully created node\n  ID: new-id\n  Name: Top\n  Created: 2026-01-01T00:00:00.000Z\n  URL: https://workflowy.com/#/newid\n",
+				bodies: [{name: "Top"}],
+				requests: [
+					"POST https://workflowy.com/api/v1/nodes/",
+					"GET https://workflowy.com/api/v1/nodes/new-id",
+					"GET https://workflowy.com/api/v1/nodes",
+				],
+			});
+			expect(
+				testDatabase.db
+					.select({id: nodeContent.id, name: nodeContent.name, parentId: nodeContent.parentId})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.id, "new-id"), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.all(),
+			).toStrictEqual([{id: "new-id", name: "Top", parentId: null}]);
+		});
+	});
+
 	describe("JSON mode", () => {
 		it("creates single node from JSON", async () => {
 			seedTestData(
@@ -542,6 +608,9 @@ describe("node create command", () => {
 			expect(Create.examples).toStrictEqual([
 				"# Create node in inbox (system target)",
 				'<%= config.bin %> <%= command.id %> --parent-id inbox --name "New Task"',
+				"",
+				"# Create a top-level node (Home)",
+				'<%= config.bin %> <%= command.id %> --parent-id home --name "Area"',
 				"",
 				"# Create node under a parent by ID",
 				'<%= config.bin %> <%= command.id %> --parent-id abc123 --name "Subtask"',

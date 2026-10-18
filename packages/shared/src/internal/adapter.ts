@@ -5,6 +5,7 @@ import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-in
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
 import {accountState, nodeInternalMetadata} from "../db/schema.js";
+import {HOME_TARGET} from "../types/targets.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataPatches} from "./metadata-patch.js";
 import {bulkCreateOp, bulkMoveOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
@@ -44,7 +45,7 @@ interface AccountSnapshot {
 const KEYS = {account: "account", rootMetadata: "root_metadata", settings: "settings"} as const;
 
 /** The id callers pass for Home (the root) in tree writes. */
-export const HOME = "home";
+export const HOME = HOME_TARGET;
 
 /** Home is `null` to the public API and the cache. */
 type PublicParent = string | null;

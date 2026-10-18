@@ -131,7 +131,7 @@ describe("node:move command", () => {
 	 * re-read of its new parent's children with `moved` alone. Returns each
 	 * request as `METHOD url` and each request body, in order.
 	 */
-	function fakeMove(moved: {id: string; name: string; parent_id: string; priority: number}): {
+	function fakeMove(moved: {id: string; name: string; parent_id: string | null; priority: number}): {
 		requests: string[];
 		bodies: unknown[];
 	} {
@@ -158,7 +158,11 @@ describe("node:move command", () => {
 			if (method === "GET" && urlStr.endsWith(`/nodes/${moved.id}`)) {
 				return Promise.resolve(Response.json({node}, {status: 200}));
 			}
-			if (method === "GET" && urlStr.endsWith(`/nodes?parent_id=${moved.parent_id}`)) {
+			const childrenUrl =
+				moved.parent_id === null
+					? "https://workflowy.com/api/v1/nodes"
+					: `https://workflowy.com/api/v1/nodes?parent_id=${moved.parent_id}`;
+			if (method === "GET" && urlStr === childrenUrl) {
 				return Promise.resolve(Response.json({nodes: [node]}, {status: 200}));
 			}
 			return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
@@ -302,6 +306,59 @@ describe("node:move command", () => {
 		});
 	});
 
+	describe("home (top level)", () => {
+		it("dry run shows Home as the destination", async () => {
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
+					createTestNode({id: "work-id", name: "Work", parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: "work-id"}),
+				]),
+			);
+
+			const {stdout} = await captureOutput(async () => {
+				await Move.run(["--node-id", "source-id", "--parent-id", "home", "--dry-run"]);
+			});
+
+			expect(stdout).toBe(
+				"Would move:\n  From: Work > Source\n  To:   Home\n\nExecute with:\n  workflowy node:move --node-id source-id --parent-id home\n",
+			);
+			expect(fetchStub.mock.calls).toStrictEqual([]);
+		});
+
+		it("moves to the top level by omitting parent_id, and caches a null parent", async () => {
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
+					createTestNode({id: "work-id", name: "Work", parentId: null}),
+					createTestNode({id: "source-id", name: "Source", parentId: "work-id"}),
+				]),
+			);
+			const {requests, bodies} = fakeMove({id: "source-id", name: "Source", parent_id: null, priority: 0});
+
+			const {stdout} = await captureOutput(async () => {
+				await Move.run(["--node-id", "source-id", "--parent-id", "home", "--position", "top"]);
+			});
+
+			expect({stdout, requests, bodies}).toStrictEqual({
+				stdout: "Moving:\n  From: Work > Source\n  To:   Home\n  Position: top\nSuccessfully moved node\n",
+				requests: [
+					"POST https://workflowy.com/api/v1/nodes/source-id/move",
+					"GET https://workflowy.com/api/v1/nodes/source-id",
+					"GET https://workflowy.com/api/v1/nodes",
+				],
+				bodies: [{position: "top"}],
+			});
+			expect(
+				testDatabase.db
+					.select({id: nodeContent.id, parentId: nodeContent.parentId})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.id, "source-id"), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.all(),
+			).toStrictEqual([{id: "source-id", parentId: null}]);
+		});
+	});
+
 	describe("output", () => {
 		it("displays from and to paths", async () => {
 			seedTestData(
@@ -332,6 +389,9 @@ describe("node:move command", () => {
 			expect(Move.examples).toStrictEqual([
 				"# Move node to inbox (system target)",
 				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id inbox",
+				"",
+				"# Move node to the top level (Home)",
+				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id home",
 				"",
 				"# Move node by ID to parent ID",
 				"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456",

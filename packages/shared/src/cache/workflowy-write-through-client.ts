@@ -203,7 +203,7 @@ export class WorkflowyWriteThroughClient {
 	/**
 	 * Move a node to a new parent and update the cache.
 	 * @param nodeId The node ID to move
-	 * @param newParentId The target parent ID (null for root level)
+	 * @param newParentId The target parent ID (null for Home)
 	 * @param position Optional position ('top' for -1, 'bottom' for >= 0)
 	 * @returns The moved node
 	 */
