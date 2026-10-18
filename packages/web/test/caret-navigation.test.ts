@@ -8,6 +8,7 @@ import {
 	isCaretOnBoundaryLine,
 	navigableIds,
 	planCompleteFocus,
+	planHideCompletedFocus,
 	planNoteBoundary,
 } from "../src/client/caret-navigation.js";
 
@@ -311,5 +312,33 @@ describe("firstLastNavigable", () => {
 
 	it("returns null with nothing to focus", () => {
 		expect(firstLastNavigable([], {titleEditable: false})).toBeNull();
+	});
+});
+
+describe("planHideCompletedFocus", () => {
+	it("moves the caret to the previous visible row at offset 0 when the edited row hides", () => {
+		expect(planHideCompletedFocus(["a", "b", "c"], new Set(["b"]), "b")).toStrictEqual({
+			nodeId: "a",
+			caretOffset: 0,
+		});
+	});
+
+	it("keeps the caret when the edited row stays visible", () => {
+		expect(planHideCompletedFocus(["a", "b", "c"], new Set(["b"]), "c")).toBeNull();
+	});
+
+	it("falls back to the zoom title when the first row hides", () => {
+		expect(planHideCompletedFocus(["zoom", "a", "b"], new Set(["a"]), "a")).toStrictEqual({
+			nodeId: "zoom",
+			caretOffset: 0,
+		});
+	});
+
+	it("skips hidden rows above and keeps the caret with nothing visible before it", () => {
+		expect([
+			planHideCompletedFocus(["a", "b", "c"], new Set(["b", "c"]), "c"),
+			planHideCompletedFocus(["a", "b"], new Set(["a"]), "a"),
+			planHideCompletedFocus(["a"], new Set(), null),
+		]).toStrictEqual([{nodeId: "a", caretOffset: 0}, null, null]);
 	});
 });

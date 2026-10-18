@@ -4,6 +4,7 @@ import {useNavigate} from "react-router-dom";
 import {useFlattenedTree} from "../hooks/use-flattened-tree.js";
 import {useChildren, useNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useStarActions, useStars} from "../hooks/use-starred.js";
+import {useShowCompletedToggle} from "../hooks/use-show-completed-toggle.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
@@ -28,17 +29,10 @@ export function shareUrl(id: string): string {
 }
 
 export function TopBar() {
-	const {
-		zoomedNodeId,
-		toggleLeftBar,
-		toggleCompleted,
-		showCompleted,
-		openSettings,
-		openPresentation,
-		leftBarOffset,
-		leftBarMode,
-	} = useOutlineStore();
+	const {zoomedNodeId, toggleLeftBar, showCompleted, openSettings, openPresentation, leftBarOffset, leftBarMode} =
+		useOutlineStore();
 	const navigate = useNavigate();
+	const toggleCompleted = useShowCompletedToggle();
 	useNavStackSync();
 	const canGoBack = useOutlineStore((state) => state.nav.back.length > 0);
 	const canGoForward = useOutlineStore((state) => state.nav.forward.length > 0);

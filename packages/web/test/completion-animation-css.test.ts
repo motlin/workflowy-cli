@@ -16,3 +16,18 @@ describe("completion slideUp CSS", () => {
 		});
 	});
 });
+
+describe("show completed slideDown CSS", () => {
+	it("animates .project.completed-slide-down from the top-left corner for 120ms", () => {
+		expect(cssBlock(styles, ".project.completed-slide-down")).toStrictEqual({
+			"transform-origin": "0 0",
+			animation: "completed-slide-down 120ms",
+		});
+	});
+
+	it("defines the completed-slide-down keyframes", () => {
+		expect(styles).toContain(
+			"@keyframes completed-slide-down {\n\tfrom {\n\t\topacity: 0;\n\t\ttransform: scale(0.2, 0);\n\t}\n\tto {\n\t\topacity: 1;\n\t\ttransform: scale(1, 1);\n\t}\n}",
+		);
+	});
+});

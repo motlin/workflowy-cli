@@ -10,6 +10,7 @@ const outlineState = {
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
+	slidingDownCompletedIds: new Set<string>(),
 	endCompletionAnimation: () => {},
 	toggleExpand: () => {},
 	expandAll: () => {},

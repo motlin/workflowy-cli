@@ -190,3 +190,21 @@ export function planNoteBoundary(input: NoteBoundaryInput): {focus: "rootNote"; 
 	}
 	return input.caret === 0 && (input.key === "Up" || input.key === "Left") ? {focus: "rootNote", caret: "end"} : null;
 }
+
+/**
+ * Where the caret goes when hiding completed rows hides the edited row, matching
+ * workflowy.com: the nearest row above it that stays visible (the zoom title when
+ * `rows` starts with it), at offset 0. Null keeps the caret where it is.
+ * `rows` is the navigable order before hiding.
+ */
+export function planHideCompletedFocus(
+	rows: readonly string[],
+	hidden: ReadonlySet<string>,
+	focusedId: string | null,
+): {nodeId: string; caretOffset: 0} | null {
+	if (focusedId === null || !hidden.has(focusedId)) {
+		return null;
+	}
+	const previous = rows.slice(0, Math.max(rows.indexOf(focusedId), 0)).findLast((id) => !hidden.has(id));
+	return previous === undefined ? null : {nodeId: previous, caretOffset: 0};
+}

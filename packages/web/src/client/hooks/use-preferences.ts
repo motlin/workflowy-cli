@@ -102,3 +102,8 @@ export function usePreferences(): UsePreferences {
 export function useDateSettings(): DateSettings {
 	return usePreferences().dateSettings;
 }
+
+/** The account's `showCompleted` once preferences load; null while loading or when the internal API is unavailable. */
+export function serverShowCompleted(state: PreferencesState | undefined): boolean | null {
+	return state?.available === true ? state.preferences.showCompleted : null;
+}

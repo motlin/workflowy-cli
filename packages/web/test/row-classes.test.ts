@@ -82,6 +82,25 @@ describe("projectClassName completion slideUp", () => {
 	});
 });
 
+describe("projectClassName completed slideDown", () => {
+	it("adds completed-slide-down while a revealed completed row slides down", () => {
+		expect(
+			projectClassName({
+				hasChildren: false,
+				expanded: false,
+				completed: true,
+				hasNote: false,
+				noteFocused: false,
+				isZoomRoot: false,
+				hasMirrors: false,
+				highlighted: false,
+				addedToSelection: false,
+				slidingDown: true,
+			}),
+		).toBe("font-custom project task done completed-slide-down");
+	});
+});
+
 describe("nameClassName", () => {
 	it("returns the bare name class by default", () => {
 		expect(nameClassName({})).toBe("name");

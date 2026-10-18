@@ -42,6 +42,7 @@ import {applyOps, captureOutlineView, whenUndoSettled} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
 import {editPatches, queueUndo} from "../undo-view-state.js";
 import {useStarActions} from "./use-starred.js";
+import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
@@ -81,7 +82,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const flashMoving = useOutlineStore((state) => state.flashMoving);
 	const toggleLeftBar = useOutlineStore((state) => state.toggleLeftBar);
 	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
-	const toggleCompleted = useOutlineStore((state) => state.toggleCompleted);
+	const toggleShowCompleted = useShowCompletedToggle();
 	const {toggleStar} = useStarActions();
 	const searchPanelOpen = useOutlineStore((state) => state.searchPanelOpen);
 	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
@@ -557,7 +558,7 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightSidebar},
-		show_or_hide_completed: {execute: toggleCompleted},
+		show_or_hide_completed: {execute: toggleShowCompleted},
 		star_current_item: {
 			execute(ctx) {
 				if (ctx.zoomedId !== null) {

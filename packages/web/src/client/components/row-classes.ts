@@ -13,6 +13,8 @@ export interface ProjectClassState {
 	references?: boolean;
 	/** The completed row is playing upstream's slideUp before it hides. */
 	slidingUp?: boolean;
+	/** The completed row was just revealed by showing completed and plays the slideDown. */
+	slidingDown?: boolean;
 	/** Shift+Cmd+Up/Down just moved this row; upstream flashes it for 500ms. */
 	moving?: boolean;
 }
@@ -44,6 +46,7 @@ export function projectClassName(state: ProjectClassState): string {
 		state.moving && "moving",
 		state.layoutClass,
 		state.slidingUp && "completing-slide-up",
+		state.slidingDown && "completed-slide-down",
 	]
 		.filter(Boolean)
 		.join(" ");

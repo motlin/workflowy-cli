@@ -1160,6 +1160,23 @@ body {
 	transform: scale(0.2, 0);
 }
 
+/* Upstream's slideDown(120): completed rows revealed by showing completed grow in. */
+@keyframes completed-slide-down {
+	from {
+		opacity: 0;
+		transform: scale(0.2, 0);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1, 1);
+	}
+}
+
+.project.completed-slide-down {
+	transform-origin: 0 0;
+	animation: completed-slide-down 120ms;
+}
+
 .done > .name > .content {
 	text-decoration: line-through;
 }

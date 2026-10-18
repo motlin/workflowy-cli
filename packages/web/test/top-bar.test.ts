@@ -16,7 +16,6 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	setSearchInput: () => {},
 	searchFocused: false,
 	setSearchFocused: () => {},
-	toggleCompleted: () => {},
 	showCompleted: false,
 	openSettings: () => {},
 	openPresentation: () => {},
@@ -39,6 +38,10 @@ vi.mock("../src/client/hooks/use-starred.js", () => ({
 	useStars: () => ({stars: [], unavailable: false}),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
+const toggleState = {toggleCompleted: (): void => {}};
+vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
+	useShowCompletedToggle: () => toggleState.toggleCompleted,
+}));
 vi.mock("../src/client/navigation.js", () => ({stepNav: () => {}, useNavStackSync: () => {}}));
 vi.mock("../src/client/hooks/use-flattened-tree.js", () => ({
 	useFlattenedTree: () => ({flattenedNodes: []}),
@@ -324,9 +327,9 @@ describe("TopBar compact mode under 701px", () => {
 
 	it("runs the same actions from the more menu", () => {
 		const toggleCompleted = vi.fn<() => void>();
-		storeState.toggleCompleted = toggleCompleted;
+		toggleState.toggleCompleted = toggleCompleted;
 		renderCompact("alice");
-		storeState.toggleCompleted = () => {};
+		toggleState.toggleCompleted = () => {};
 		gearMenuProps.headerItems?.find((item) => item.label === "Show completed")?.onSelect();
 		expect(toggleCompleted).toHaveBeenCalledOnce();
 	});
@@ -374,9 +377,9 @@ describe("TopBar share button", () => {
 describe("TopBar show completed toggle", () => {
 	it("toggles completed directly on click, with no popup", () => {
 		const toggleCompleted = vi.fn<() => void>();
-		storeState.toggleCompleted = toggleCompleted;
+		toggleState.toggleCompleted = toggleCompleted;
 		const html = renderToStaticMarkup(createElement(TopBar));
-		storeState.toggleCompleted = () => {};
+		toggleState.toggleCompleted = () => {};
 		const onClick = iconButtonProps.get("complete.toggle")?.onClick as () => void;
 		onClick();
 		expect(toggleCompleted).toHaveBeenCalledOnce();

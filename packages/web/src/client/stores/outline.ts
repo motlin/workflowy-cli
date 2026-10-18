@@ -6,7 +6,9 @@ import type {NavAction, NavState} from "../nav-stack.js";
 
 const StringArraySchema = z.array(z.string());
 
-const SHOW_COMPLETED_STORAGE_KEY = "workflowy-show-completed";
+/** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
+const COMPLETED_MODE_STORAGE_KEY = "completedMode";
+const LEGACY_SHOW_COMPLETED_STORAGE_KEY = "workflowy-show-completed";
 const THEME_STORAGE_KEY = "workflowy-theme";
 const RECENT_SEARCHES_STORAGE_KEY = "workflowy-recent-searches";
 const RECENT_SEARCHES_LIMIT = 10;
@@ -108,9 +110,48 @@ function applyTheme(theme: Theme): void {
 	document.body.classList.toggle("_theme-default", bodyClass === "_theme-default");
 }
 
+function writeCompletedMode(showCompleted: boolean): void {
+	try {
+		localStorage.setItem(COMPLETED_MODE_STORAGE_KEY, showCompleted ? "show" : "hide");
+	} catch {
+		// Storage can be unavailable; the account setting still holds the value.
+	}
+}
+
+/** `completedMode` (default show), migrating the old `workflowy-show-completed` key once. */
 function getInitialShowCompleted(): boolean {
-	const stored = localStorage.getItem(SHOW_COMPLETED_STORAGE_KEY);
-	return stored === null ? true : stored === "true";
+	try {
+		const mode = localStorage.getItem(COMPLETED_MODE_STORAGE_KEY);
+		if (mode === "show" || mode === "hide") {
+			return mode === "show";
+		}
+		const legacy = localStorage.getItem(LEGACY_SHOW_COMPLETED_STORAGE_KEY);
+		if (legacy === null) {
+			return true;
+		}
+		const showCompleted = legacy !== "false";
+		writeCompletedMode(showCompleted);
+		localStorage.removeItem(LEGACY_SHOW_COMPLETED_STORAGE_KEY);
+		return showCompleted;
+	} catch {
+		return true;
+	}
+}
+
+/** Save the account's `show_completed`; failures keep the local value, and 503 (no internal API) stays local-only. */
+async function patchShowCompleted(showCompleted: boolean): Promise<void> {
+	try {
+		const response = await fetch("/api/v1/preferences", {
+			method: "PATCH",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify({showCompleted}),
+		});
+		if (!response.ok && response.status !== 503) {
+			console.error(`Failed to save show completed: ${response.status}`);
+		}
+	} catch (error) {
+		console.error("Failed to save show completed", error);
+	}
 }
 
 function getInitialRecentSearches(): string[] {
@@ -180,6 +221,8 @@ interface OutlineState {
 	animatingCompletionIds: Set<string>;
 	/** Animating rows currently playing the slideUp. */
 	slidingUpCompletionIds: Set<string>;
+	/** Completed rows just revealed by showing completed, playing the slideDown. */
+	slidingDownCompletedIds: Set<string>;
 	/** The row a single-row Shift+Cmd+Up/Down just moved; it carries upstream's `.moving` flash. */
 	movingId: string | null;
 	leftBarMode: LeftBarMode;
@@ -244,7 +287,13 @@ interface OutlineActions {
 	resumeEditing: (id: string, caretOffset: number) => void;
 	holdEditing: (caretOffset: number) => void;
 	releaseEditing: () => void;
-	toggleCompleted: () => void;
+	/** Show or hide completed rows: updates `completedMode` and PATCHes the account setting. */
+	setShowCompleted: (showCompleted: boolean) => void;
+	toggleShowCompleted: () => void;
+	/** Take the account's value from `/api/v1/preferences` without writing it back. */
+	adoptShowCompleted: (showCompleted: boolean) => void;
+	startCompletedSlideDown: (ids: string[]) => void;
+	endCompletedSlideDown: (ids: string[]) => void;
 	beginCompletionAnimation: (ids: string[]) => void;
 	startCompletionSlideUp: (ids: string[]) => void;
 	endCompletionAnimation: (ids: string[]) => void;
@@ -343,6 +392,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	showCompleted: getInitialShowCompleted(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
+	slidingDownCompletedIds: new Set<string>(),
 	movingId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
@@ -483,12 +533,30 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({editingHeld: false});
 	},
 
-	toggleCompleted: () => {
-		set((state) => {
-			const newShowCompleted = !state.showCompleted;
-			localStorage.setItem(SHOW_COMPLETED_STORAGE_KEY, String(newShowCompleted));
-			return {showCompleted: newShowCompleted};
-		});
+	setShowCompleted: (showCompleted) => {
+		set({showCompleted});
+		writeCompletedMode(showCompleted);
+		void patchShowCompleted(showCompleted);
+	},
+
+	toggleShowCompleted: () => {
+		get().setShowCompleted(!get().showCompleted);
+	},
+
+	adoptShowCompleted: (showCompleted) => {
+		set({showCompleted});
+		writeCompletedMode(showCompleted);
+	},
+
+	startCompletedSlideDown: (ids) => {
+		set((state) => ({slidingDownCompletedIds: new Set([...state.slidingDownCompletedIds, ...ids])}));
+	},
+
+	endCompletedSlideDown: (ids) => {
+		const ended = new Set(ids);
+		set((state) => ({
+			slidingDownCompletedIds: new Set([...state.slidingDownCompletedIds].filter((id) => !ended.has(id))),
+		}));
 	},
 
 	beginCompletionAnimation: (ids) => {
