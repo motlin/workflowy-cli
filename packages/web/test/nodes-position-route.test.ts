@@ -51,6 +51,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
+		defaultToBottom: false,
 	};
 }
 

@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {insertAfterPriority, insertBeforePriority, sortByPriority} from "../src/client/tree-position.js";
+import {priorityAtIndex, sortByPriority} from "../src/client/tree-position.js";
 
 const siblings = [
 	{id: "a", priority: 0},
@@ -20,33 +20,26 @@ describe("sortByPriority", () => {
 	});
 });
 
-describe("insertAfterPriority", () => {
-	it("takes the midpoint to the next sibling", () => {
-		expect(insertAfterPriority(siblings, "a", 0)).toBe(50);
-		expect(insertAfterPriority(siblings, "b", 100)).toBe(150);
+describe("priorityAtIndex", () => {
+	const unsorted = [siblings[2], siblings[0], siblings[1]];
+
+	it("sits between the neighbors around the slot", () => {
+		expect([priorityAtIndex(unsorted, 1), priorityAtIndex(unsorted, 2)]).toStrictEqual([50, 150]);
 	});
 
-	it("steps +100 past the last sibling", () => {
-		expect(insertAfterPriority(siblings, "c", 200)).toBe(300);
+	it("sits above the first sibling at index 0", () => {
+		expect(priorityAtIndex(unsorted, 0)).toBe(-1);
 	});
 
-	it("steps +100 past the fallback when the node is absent", () => {
-		expect(insertAfterPriority(siblings, "missing", 500)).toBe(600);
-		expect(insertAfterPriority([], "x", 7)).toBe(107);
-	});
-});
-
-describe("insertBeforePriority", () => {
-	it("takes the midpoint to the previous sibling", () => {
-		expect(insertBeforePriority(siblings, "b", 100)).toBe(50);
-		expect(insertBeforePriority(siblings, "c", 200)).toBe(150);
+	it("sits below the last sibling past the end or with no index", () => {
+		expect([
+			priorityAtIndex(unsorted, 3),
+			priorityAtIndex(unsorted, 9),
+			priorityAtIndex(unsorted, undefined),
+		]).toStrictEqual([201, 201, 201]);
 	});
 
-	it("steps -100 before the first sibling", () => {
-		expect(insertBeforePriority(siblings, "a", 0)).toBe(-100);
-	});
-
-	it("steps -100 before the fallback when the node is absent", () => {
-		expect(insertBeforePriority(siblings, "missing", 500)).toBe(400);
+	it("is 0 among no siblings", () => {
+		expect(priorityAtIndex([], 0)).toBe(0);
 	});
 });

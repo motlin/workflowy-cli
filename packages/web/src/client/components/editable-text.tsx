@@ -339,7 +339,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		// Enter in the zoom title creates its first child rather than an off-screen sibling.
 		const payload =
 			useOutlineStore.getState().zoomedNodeId === nodeId
-				? planInsertFirstChild(queryClient, nodeId)
+				? planInsertFirstChild(nodeId)
 				: planInsertSiblingAfter(queryClient, {id: nodeId, parent_id: parentId, priority});
 
 		stopEditing();

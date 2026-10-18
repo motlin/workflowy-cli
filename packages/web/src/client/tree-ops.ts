@@ -2,13 +2,16 @@ import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
 import {readChildren, readDetail} from "./node-cache.js";
 import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "./rich-text.js";
-import {insertAfterPriority, insertBeforePriority, sortByPriority} from "./tree-position.js";
+import {sortByPriority} from "./tree-position.js";
 
 /**
  * Tree-mutation planning: given the React Query cache and a node, compute the
  * payload for the corresponding create/move mutation (or null when the mutation
- * is a no-op). Each function hides the sibling-cache read + fractional-priority
- * arithmetic that the keyboard handlers and the editor would otherwise inline.
+ * is a no-op). Each function hides the sibling-cache read and the index arithmetic
+ * that the keyboard handlers and the editor would otherwise inline.
+ *
+ * An `index` is a slot among ALL of the target parent's children sorted by priority,
+ * completed rows included (hiding them is render-time only); omitted means bottom.
  *
  * These are pure over `(queryClient, node)`, so they unit-test by seeding a
  * QueryClient and asserting the emitted payload — no DOM, no key events.
@@ -19,33 +22,42 @@ export interface CreateNodePayload {
 	parent_id?: string;
 	name: string;
 	note?: string;
-	position?: number;
+	index?: number;
 }
 
 /** Payload accepted by the move-node mutation. */
 export interface MoveNodePayload {
 	nodeId: string;
 	parent_id: string | null;
-	position?: number;
+	index?: number;
 }
 
 /** The minimal node fields the planners read. */
 type PlanNode = Pick<NodeResponse, "id" | "parent_id" | "priority">;
 
-/** Create an empty sibling positioned immediately after `node` (Enter / new-sibling). */
-export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode): CreateNodePayload {
-	const siblings = readChildren(queryClient, node.parent_id);
-	const position = insertAfterPriority(siblings ? sortByPriority(siblings) : [], node.id, node.priority);
-	return {parent_id: node.parent_id ?? undefined, name: "", position};
+/** `{index}` for the slot right after `id` among `parentId`'s cached children, or `{}` (bottom) when uncached. */
+function indexAfter(queryClient: QueryClient, parentId: string | null, id: string): {index?: number} {
+	const siblings = readChildren(queryClient, parentId);
+	const index = siblings ? sortByPriority(siblings).findIndex((sibling) => sibling.id === id) : -1;
+	return index === -1 ? {} : {index: index + 1};
 }
 
 /**
- * Create an empty first child of `parentId` (Enter in the zoom title). The position
- * stays negative so the server prepends it, and below the current first child.
+ * Upstream `WF.Priority.defaultIn`: where a node dropped or moved "into" `target`
+ * lands — the bottom when its metadata says `defaultToBottom`, else the top.
  */
-export function planInsertFirstChild(queryClient: QueryClient, parentId: string): CreateNodePayload {
-	const first = sortByPriority(readChildren(queryClient, parentId) ?? [])[0];
-	return {parent_id: parentId, name: "", position: Math.min(first?.priority ?? 0, 0) - 100};
+export function defaultIndexIn(target: Pick<NodeResponse, "defaultToBottom">, childCount: number): number {
+	return target.defaultToBottom === true ? childCount : 0;
+}
+
+/** Create an empty sibling immediately after `node` (Enter / new-sibling). */
+export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode): CreateNodePayload {
+	return {parent_id: node.parent_id ?? undefined, name: "", ...indexAfter(queryClient, node.parent_id, node.id)};
+}
+
+/** Create an empty first child of `parentId` (Enter in the zoom title). */
+export function planInsertFirstChild(parentId: string): CreateNodePayload {
+	return {parent_id: parentId, name: "", index: 0};
 }
 
 /** Payload for the add-child button: an empty last child of the zoomed item. */
@@ -212,17 +224,24 @@ export function planDeleteAtEnd({current, nextSibling}: {current: MergeRow; next
 	return nextSibling === null ? {kind: "none"} : planMerge(current, nextSibling, current, nextSibling);
 }
 
-/** Duplicate `node`'s name/note as a sibling positioned immediately after it. */
+/** Duplicate `node`'s name/note as a sibling immediately after it. */
 export function planDuplicate(
 	queryClient: QueryClient,
 	node: PlanNode & Pick<NodeResponse, "name" | "note">,
 ): CreateNodePayload {
-	const siblings = readChildren(queryClient, node.parent_id);
-	const position = insertAfterPriority(siblings ? sortByPriority(siblings) : [], node.id, node.priority);
-	return {parent_id: node.parent_id ?? undefined, name: node.name ?? "", note: node.note ?? undefined, position};
+	return {
+		parent_id: node.parent_id ?? undefined,
+		name: node.name ?? "",
+		note: node.note ?? undefined,
+		...indexAfter(queryClient, node.parent_id, node.id),
+	};
 }
 
-/** Indent `node` under its previous sibling, or null if it has no previous sibling. */
+/**
+ * Indent `node` as the LAST child of its previous sibling (upstream `Gs1`), or null if
+ * it has no previous sibling. Without the sibling's children cached the index is
+ * omitted, since the server's bottom is the same slot.
+ */
 export function planIndent(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
 	const siblings = readChildren(queryClient, node.parent_id);
 	if (!siblings) {
@@ -234,7 +253,13 @@ export function planIndent(queryClient: QueryClient, node: PlanNode): MoveNodePa
 	if (index <= 0 || previous === undefined) {
 		return null;
 	}
-	return {nodeId: node.id, parent_id: previous.id};
+	const previousChildren = readChildren(queryClient, previous.id);
+	if (previousChildren !== undefined) {
+		return {nodeId: node.id, parent_id: previous.id, index: previousChildren.length};
+	}
+	return previous.hasChildren === false
+		? {nodeId: node.id, parent_id: previous.id, index: 0}
+		: {nodeId: node.id, parent_id: previous.id};
 }
 
 /** Outdent `node` to sit after its parent among the grandparent's children, or null if at root. */
@@ -247,13 +272,7 @@ export function planOutdent(queryClient: QueryClient, node: PlanNode): MoveNodeP
 		return null;
 	}
 	const grandparentId = parent.parent_id;
-	const parentSiblings = readChildren(queryClient, grandparentId);
-	const position = insertAfterPriority(
-		parentSiblings ? sortByPriority(parentSiblings) : [],
-		node.parent_id,
-		parent.priority,
-	);
-	return {nodeId: node.id, parent_id: grandparentId, position};
+	return {nodeId: node.id, parent_id: grandparentId, ...indexAfter(queryClient, grandparentId, node.parent_id)};
 }
 
 /** Move `node` up among its siblings (before the previous one), or null if already first. */
@@ -268,14 +287,10 @@ export function planMoveUp(queryClient: QueryClient, node: PlanNode): MoveNodePa
 	if (index <= 0 || previous === undefined) {
 		return null;
 	}
-	return {
-		nodeId: node.id,
-		parent_id: node.parent_id,
-		position: insertBeforePriority(sorted, previous.id, previous.priority),
-	};
+	return {nodeId: node.id, parent_id: node.parent_id, index: index - 1};
 }
 
-/** Move `node` down among its siblings (after the next one), or null if already last. */
+/** Move `node` down among its siblings (after the next one), or null if already last. The index is after removal. */
 export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
 	const siblings = readChildren(queryClient, node.parent_id);
 	if (!siblings || siblings.length < 2) {
@@ -287,7 +302,7 @@ export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNode
 	if (index === -1 || next === undefined) {
 		return null;
 	}
-	return {nodeId: node.id, parent_id: node.parent_id, position: insertAfterPriority(sorted, next.id, next.priority)};
+	return {nodeId: node.id, parent_id: node.parent_id, index: index + 1};
 }
 
 export interface ToggleCompletePlan {

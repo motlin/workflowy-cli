@@ -59,7 +59,7 @@ function nodeToRestDto(
 		name: string | null;
 		note: string | null;
 		attachment?: NodeAttachment | null;
-		numberedStart?: number | null;
+		metadata?: InternalMetadataFields;
 	},
 ): NodeResponse {
 	return {
@@ -69,7 +69,7 @@ function nodeToRestDto(
 		note: derived.note,
 		priority: node.priority,
 		data: {layoutMode: node.layoutMode},
-		numberedStart: derived.numberedStart ?? null,
+		numberedStart: derived.metadata?.numberedStart ?? null,
 		createdAt: toUnixSeconds(node.createdAt),
 		modifiedAt: toUnixSeconds(node.modifiedAt),
 		completedAt: toUnixSeconds(node.completedAt),
@@ -77,6 +77,7 @@ function nodeToRestDto(
 		isMirror: node.mirror.isMirror,
 		originalNodeId: node.mirror.originalNodeId,
 		attachment: derived.attachment ?? null,
+		defaultToBottom: derived.metadata?.defaultToBottom ?? false,
 	};
 }
 
@@ -117,12 +118,19 @@ function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, Nod
 	return map;
 }
 
+/** The node DTO fields read from the cached internal metadata. */
+interface InternalMetadataFields {
+	numberedStart: number | null;
+	defaultToBottom: boolean;
+}
+
 /**
- * Load each node's `numbered_start` (the first number of a numbered list) from
- * the cached internal metadata; nodes without one are absent from the map.
+ * Load each node's `numbered_start` (the first number of a numbered list) and
+ * `priority.defaultToBottom` from the cached internal metadata; nodes without
+ * metadata are absent from the map.
  */
-function loadNumberedStarts(ctx: ServerContext, nodeIds: string[]): Map<string, number> {
-	const map = new Map<string, number>();
+function loadInternalMetadataFields(ctx: ServerContext, nodeIds: string[]): Map<string, InternalMetadataFields> {
+	const map = new Map<string, InternalMetadataFields>();
 	if (nodeIds.length === 0) {
 		return map;
 	}
@@ -130,14 +138,17 @@ function loadNumberedStarts(ctx: ServerContext, nodeIds: string[]): Map<string, 
 		.select({
 			nodeId: nodeInternalMetadata.nodeId,
 			numberedStart: sql<unknown>`json_extract(${nodeInternalMetadata.metadataJson}, '$.numbered_start')`,
+			defaultToBottom: sql<unknown>`json_extract(${nodeInternalMetadata.metadataJson}, '$.priority.defaultToBottom')`,
 		})
 		.from(nodeInternalMetadata)
 		.where(inArray(nodeInternalMetadata.nodeId, nodeIds))
 		.all();
 	for (const row of rows) {
-		if (typeof row.numberedStart === "number") {
-			map.set(row.nodeId, row.numberedStart);
-		}
+		map.set(row.nodeId, {
+			numberedStart: typeof row.numberedStart === "number" ? row.numberedStart : null,
+			// SQLite's json_extract returns a JSON true as 1.
+			defaultToBottom: row.defaultToBottom === 1,
+		});
 	}
 	return map;
 }
@@ -177,8 +188,8 @@ async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse
 	}
 	const hasChildren = parentIdsWithVisibleChildren(ctx.db, [node.mirror.originalNodeId ?? id]).size > 0;
 	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
-	const numberedStart = loadNumberedStarts(ctx, [id]).get(id) ?? null;
-	return nodeToRestDto(node, {hasChildren, name: node.name, note: node.note, attachment, numberedStart});
+	const metadata = loadInternalMetadataFields(ctx, [id]).get(id);
+	return nodeToRestDto(node, {hasChildren, name: node.name, note: node.note, attachment, metadata});
 }
 
 /** A parent's children (Home's for `null`) as the REST API returns them, read from the cache. */
@@ -198,7 +209,7 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 		ctx,
 		nodes.map((node) => node.id),
 	);
-	const numberedStarts = loadNumberedStarts(
+	const metadata = loadInternalMetadataFields(
 		ctx,
 		nodes.map((node) => node.id),
 	);
@@ -208,7 +219,7 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 			name: node.name,
 			note: node.note,
 			attachment: attachments.get(node.id) ?? null,
-			numberedStart: numberedStarts.get(node.id) ?? null,
+			metadata: metadata.get(node.id),
 		}),
 	);
 }
@@ -402,6 +413,7 @@ nodesRouter.post("/", async (c) => {
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
+		defaultToBottom: false,
 	};
 
 	return c.json({node: nodeResponse}, 201);
@@ -544,6 +556,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
+		defaultToBottom: false,
 	};
 
 	return c.json({node: nodeResponse});
@@ -612,6 +625,7 @@ nodesRouter.post("/:id/complete", async (c) => {
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
+		defaultToBottom: false,
 	};
 
 	return c.json({node: nodeResponse});
@@ -821,6 +835,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
+		defaultToBottom: false,
 	};
 
 	return c.json({node: nodeResponse});

@@ -309,7 +309,7 @@ describe("OutlineTree add-child button", () => {
 			calls: createMutate.mock.calls.length,
 			resumed: outlineState.resumeEditing.mock.calls,
 		}).toStrictEqual({
-			payload: {parent_id: "alice", name: "", position: 1},
+			payload: {parent_id: "alice", name: "", index: 1},
 			calls: 1,
 			resumed: [["carol", 0]],
 		});

@@ -56,7 +56,7 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 			{
 				parent_id: plan.parent_id,
 				name: plan.name,
-				position: plan.index,
+				index: plan.index,
 				...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
 			},
 			{

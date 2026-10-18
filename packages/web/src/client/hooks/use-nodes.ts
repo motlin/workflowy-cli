@@ -3,12 +3,16 @@ import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {nodeKeys} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
+import {priorityAtIndex} from "../tree-position.js";
 
 interface CreateNodeRequest {
 	parent_id?: string;
 	name: string;
 	note?: string;
 	layoutMode?: string;
+	/** Exact slot among all siblings (completed included); omitted = bottom. */
+	index?: number;
+	/** Legacy priority hint: negative = top, else bottom. */
 	position?: number;
 }
 
@@ -83,6 +87,9 @@ async function deleteNode(nodeId: string): Promise<void> {
 
 interface MoveNodeRequest {
 	parent_id: string | null;
+	/** Exact slot among the new parent's children (completed included, moved node excluded); omitted = bottom. */
+	index?: number;
+	/** Legacy priority hint: negative = top, else bottom. */
 	position?: number;
 }
 
@@ -200,7 +207,7 @@ export function useCreateNode() {
 				parent_id: parentId,
 				name: newNode.name,
 				note: newNode.note ?? null,
-				priority: newNode.position ?? 0,
+				priority: newNode.position ?? priorityAtIndex(previousChildren ?? [], newNode.index),
 				data: {layoutMode: newNode.layoutMode ?? null},
 				createdAt: Math.floor(Date.now() / 1000),
 				modifiedAt: Math.floor(Date.now() / 1000),

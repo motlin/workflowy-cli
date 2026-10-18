@@ -42,7 +42,7 @@ function apiNode(id: string, layoutMode?: string): WorkflowyNode {
 	};
 }
 
-function dto(id: string, layoutMode: string | null, numberedStart: number | null) {
+function dto(id: string, layoutMode: string | null, numberedStart: number | null, defaultToBottom = false) {
 	return {
 		id,
 		parent_id: null,
@@ -58,6 +58,7 @@ function dto(id: string, layoutMode: string | null, numberedStart: number | null
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
+		defaultToBottom,
 	};
 }
 
@@ -292,6 +293,27 @@ describe("node DTO numberedStart", () => {
 		await expect(request("GET", "/nodes?parent_id=None")).resolves.toStrictEqual({
 			status: 200,
 			body: {nodes: [dto("n1", null, null)]},
+		});
+	});
+});
+
+describe("node DTO defaultToBottom", () => {
+	it("comes from the cached internal metadata's priority.defaultToBottom", async () => {
+		const {request, writeMetadata} = setup(false);
+		writeMetadata("n1", {priority: {defaultToBottom: true}});
+
+		await expect(request("GET", "/nodes/n1")).resolves.toStrictEqual({
+			status: 200,
+			body: {node: dto("n1", null, null, true)},
+		});
+	});
+
+	it("is false without cached metadata", async () => {
+		const {request} = setup(false);
+
+		await expect(request("GET", "/nodes/n1")).resolves.toStrictEqual({
+			status: 200,
+			body: {node: dto("n1", null, null)},
 		});
 	});
 });

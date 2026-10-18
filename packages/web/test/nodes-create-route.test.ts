@@ -76,6 +76,7 @@ describe("POST /api/v1/nodes", () => {
 				isMirror: false,
 				originalNodeId: null,
 				attachment: null,
+				defaultToBottom: false,
 			},
 		});
 	});

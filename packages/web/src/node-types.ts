@@ -33,6 +33,8 @@ export interface NodeResponse {
 	isMirror?: boolean;
 	originalNodeId?: string | null;
 	attachment?: NodeAttachment | null;
+	/** Upstream `metadata.priority.defaultToBottom`: nodes dropped or moved into this one land at the bottom. */
+	defaultToBottom?: boolean;
 }
 
 /** One crumb in a backlink source's ancestor path, root first. */

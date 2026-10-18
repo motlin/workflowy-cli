@@ -3,6 +3,7 @@ import {describe, expect, it} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {
+	defaultIndexIn,
 	planAddChild,
 	planBackspaceAtStart,
 	planDeleteAtEnd,
@@ -44,50 +45,55 @@ function seed(children: Record<string, NodeResponse[]>, details: NodeResponse[] 
 }
 
 const siblings = [
-	node({id: "a", parent_id: "p", priority: 0}),
-	node({id: "b", parent_id: "p", priority: 100}),
-	node({id: "c", parent_id: "p", priority: 200}),
+	node({id: "a", parent_id: "p", priority: 100}),
+	node({id: "b", parent_id: "p", priority: 200}),
+	node({id: "c", parent_id: "p", priority: 300}),
 ];
 
 describe("planInsertSiblingAfter / planDuplicate", () => {
-	it("inserts an empty sibling at the midpoint after the node", () => {
+	it("inserts an empty sibling at the index after the node", () => {
 		const qc = seed({p: siblings});
-		expect(planInsertSiblingAfter(qc, siblings[0])).toStrictEqual({parent_id: "p", name: "", position: 50});
+		expect(planInsertSiblingAfter(qc, siblings[1])).toStrictEqual({parent_id: "p", name: "", index: 2});
 	});
 
-	it("steps +100 past the last sibling", () => {
-		const qc = seed({p: siblings});
-		expect(planInsertSiblingAfter(qc, siblings[2])).toStrictEqual({parent_id: "p", name: "", position: 300});
+	it("counts a completed sibling in the index", () => {
+		const done = node({id: "x", parent_id: "p", priority: 150, completedAt: 1});
+		const qc = seed({p: [siblings[2], done, siblings[0], siblings[1]]});
+		expect(planInsertSiblingAfter(qc, siblings[1])).toStrictEqual({parent_id: "p", name: "", index: 3});
+	});
+
+	it("omits the index (bottom) when the siblings are not cached", () => {
+		expect(planInsertSiblingAfter(seed({}), siblings[1])).toStrictEqual({parent_id: "p", name: ""});
 	});
 
 	it("carries name and note when duplicating", () => {
 		const qc = seed({p: siblings});
-		const src = node({id: "a", parent_id: "p", priority: 0, name: "Hi", note: "yo"});
-		expect(planDuplicate(qc, src)).toStrictEqual({parent_id: "p", name: "Hi", note: "yo", position: 50});
+		const src = node({id: "a", parent_id: "p", priority: 100, name: "Hi", note: "yo"});
+		expect(planDuplicate(qc, src)).toStrictEqual({parent_id: "p", name: "Hi", note: "yo", index: 1});
 	});
 });
 
 describe("planInsertFirstChild", () => {
-	it("prepends an empty child below the first child's priority (Enter in the zoom title)", () => {
-		const qc = seed({p: siblings});
-		expect(planInsertFirstChild(qc, "p")).toStrictEqual({parent_id: "p", name: "", position: -100});
-	});
-
-	it("stays negative so the server places it at the top when the first child sits above zero", () => {
-		const qc = seed({p: [node({id: "a", parent_id: "p", priority: 150})]});
-		expect(planInsertFirstChild(qc, "p")).toStrictEqual({parent_id: "p", name: "", position: -100});
-	});
-
-	it("goes below a negative first child", () => {
-		const qc = seed({p: [node({id: "a", parent_id: "p", priority: -300})]});
-		expect(planInsertFirstChild(qc, "p")).toStrictEqual({parent_id: "p", name: "", position: -400});
+	it("creates an empty child at index 0 (Enter in the zoom title)", () => {
+		expect(planInsertFirstChild("p")).toStrictEqual({parent_id: "p", name: "", index: 0});
 	});
 });
 
 describe("planIndent", () => {
-	it("moves the node under its previous sibling", () => {
-		const qc = seed({p: siblings});
-		expect(planIndent(qc, siblings[1])).toStrictEqual({nodeId: "b", parent_id: "a"});
+	it("appends the node last under its previous sibling's cached children", () => {
+		const bKids = [node({id: "b1", parent_id: "b", priority: 0}), node({id: "b2", parent_id: "b", priority: 1})];
+		const qc = seed({p: siblings, b: bKids});
+		expect(planIndent(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "b", index: 2});
+	});
+
+	it("uses index 0 when the previous sibling has no children", () => {
+		const qc = seed({p: [siblings[0], {...siblings[1], hasChildren: false}, siblings[2]]});
+		expect(planIndent(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "b", index: 0});
+	});
+
+	it("omits the index (bottom = last) when the previous sibling's children are not cached", () => {
+		const qc = seed({p: [siblings[0], {...siblings[1], hasChildren: true}, siblings[2]]});
+		expect(planIndent(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "b"});
 	});
 
 	it("returns null for the first sibling", () => {
@@ -97,14 +103,17 @@ describe("planIndent", () => {
 });
 
 describe("planOutdent", () => {
-	it("positions the node after its parent among the grandparent children", () => {
-		const parent = node({id: "p", parent_id: "gp", priority: 100});
+	it("moves the node to the slot after its parent among the grandparent's children", () => {
+		const parent = node({id: "p", parent_id: "gp", priority: 400});
 		const parentSiblings = [
-			node({id: "p", parent_id: "gp", priority: 100}),
-			node({id: "q", parent_id: "gp", priority: 200}),
+			node({id: "q0", parent_id: "gp", priority: 100}),
+			node({id: "q1", parent_id: "gp", priority: 200}),
+			node({id: "q2", parent_id: "gp", priority: 300, completedAt: 1}),
+			parent,
+			node({id: "q4", parent_id: "gp", priority: 500}),
 		];
 		const qc = seed({gp: parentSiblings, p: siblings}, [parent]);
-		expect(planOutdent(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "gp", position: 150});
+		expect(planOutdent(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "gp", index: 4});
 	});
 
 	it("returns null for a root-level node", () => {
@@ -114,19 +123,29 @@ describe("planOutdent", () => {
 });
 
 describe("planMoveUp / planMoveDown", () => {
-	it("moves up before the previous sibling", () => {
+	it("moves up to the previous sibling's index", () => {
 		const qc = seed({p: siblings});
-		expect(planMoveUp(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "p", position: 50});
+		expect(planMoveUp(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "p", index: 1});
 	});
 	it("returns null moving up the first sibling", () => {
 		expect(planMoveUp(seed({p: siblings}), siblings[0])).toBeNull();
 	});
-	it("moves down after the next sibling", () => {
+	it("moves down past the next sibling", () => {
 		const qc = seed({p: siblings});
-		expect(planMoveDown(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "p", position: 150});
+		expect(planMoveDown(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "p", index: 1});
 	});
 	it("returns null moving down the last sibling", () => {
 		expect(planMoveDown(seed({p: siblings}), siblings[2])).toBeNull();
+	});
+});
+
+describe("defaultIndexIn", () => {
+	it("is the top without defaultToBottom", () => {
+		expect([defaultIndexIn({defaultToBottom: false}, 3), defaultIndexIn({}, 3)]).toStrictEqual([0, 0]);
+	});
+
+	it("is the child count with defaultToBottom", () => {
+		expect(defaultIndexIn({defaultToBottom: true}, 3)).toBe(3);
 	});
 });
 

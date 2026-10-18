@@ -1,11 +1,7 @@
 /**
- * Fractional-priority arithmetic for positioning a node among its siblings.
- *
- * Workflowy orders siblings by an integer `priority`; inserting between two
- * siblings uses the midpoint of their priorities, and inserting past either end
- * steps 100 beyond the edge sibling. This logic was previously inlined ~10 times
- * across the keyboard-shortcut handlers; centralizing it here makes it pure and
- * unit-testable, independent of React and the query cache.
+ * Priority helpers for sibling order. Workflowy orders siblings by `priority`;
+ * writes target an exact sibling index, so priorities here only order the
+ * client cache.
  */
 
 export interface SiblingLike {
@@ -19,31 +15,18 @@ export function sortByPriority<T extends SiblingLike>(siblings: T[]): T[] {
 }
 
 /**
- * Priority for a node inserted immediately AFTER `nodeId` among `sorted`
- * (ascending). Midpoint between the node and its next sibling, or
- * `fallbackPriority + 100` if the node is last or absent.
+ * A client-cache priority that sorts a new row into slot `index` (omitted = bottom)
+ * among `siblings`, for optimistic rows before the server's real priorities arrive.
  */
-export function insertAfterPriority(sorted: SiblingLike[], nodeId: string, fallbackPriority: number): number {
-	const index = sorted.findIndex((sibling) => sibling.id === nodeId);
-	const current = sorted[index];
-	const next = sorted[index + 1];
-	if (index !== -1 && current !== undefined && next !== undefined) {
-		return Math.floor((current.priority + next.priority) / 2);
+export function priorityAtIndex(siblings: SiblingLike[], index: number | undefined): number {
+	const sorted = sortByPriority(siblings);
+	const before = sorted[Math.min(index ?? sorted.length, sorted.length) - 1];
+	const after = index === undefined ? undefined : sorted[index];
+	if (before !== undefined && after !== undefined) {
+		return (before.priority + after.priority) / 2;
 	}
-	return fallbackPriority + 100;
-}
-
-/**
- * Priority for a node inserted immediately BEFORE `nodeId` among `sorted`
- * (ascending). Midpoint between the node and its previous sibling, or
- * `fallbackPriority - 100` if the node is first or absent.
- */
-export function insertBeforePriority(sorted: SiblingLike[], nodeId: string, fallbackPriority: number): number {
-	const index = sorted.findIndex((sibling) => sibling.id === nodeId);
-	const previous = sorted[index - 1];
-	const current = sorted[index];
-	if (index > 0 && previous !== undefined && current !== undefined) {
-		return Math.floor((previous.priority + current.priority) / 2);
+	if (after !== undefined) {
+		return after.priority - 1;
 	}
-	return fallbackPriority - 100;
+	return before === undefined ? 0 : before.priority + 1;
 }
