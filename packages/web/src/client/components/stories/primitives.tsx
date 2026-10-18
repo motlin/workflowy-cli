@@ -147,24 +147,24 @@ export function MenuButton({isVisible = true, onClick}: MenuButtonProps) {
 
 interface NoteDisplayProps {
 	content: string;
-	isExpanded?: boolean;
-	onToggle?: () => void;
+	/** The note is focused: upstream's `active` unclamps it. */
+	isActive?: boolean;
 }
 
 /**
- * Note display component (non-editing state).
+ * Note display component: upstream's always-contenteditable `.notes > .content`.
  */
-export function NoteDisplay({content, isExpanded = false, onToggle}: NoteDisplayProps) {
+export function NoteDisplay({content, isActive = false}: NoteDisplayProps) {
 	if (!content.trim()) {
 		return null;
 	}
 
 	return (
 		<div className="notes">
-			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- mouse-only clamp toggle; upstream's markup carries no role */}
 			<div
-				className={`notranslate content text-tertiary whitespace-pre-wrap overflow-hidden${isExpanded ? " expanded" : ""}`}
-				onClick={onToggle}
+				className={`notranslate content text-tertiary whitespace-pre-wrap overflow-hidden${isActive ? " active" : ""}`}
+				contentEditable
+				suppressContentEditableWarning
 			>
 				<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: content}} />
 			</div>
@@ -242,7 +242,7 @@ export function StaticNode({
 				<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
 				<MenuButton isVisible={isEditing} />
 			</div>
-			{note && <NoteDisplay content={note} isExpanded={false} />}
+			{note && <NoteDisplay content={note} />}
 			<DropLine isVisible={false} />
 			{children === undefined ? null : <ChildrenContainer>{children}</ChildrenContainer>}
 		</div>

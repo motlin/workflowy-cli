@@ -320,9 +320,17 @@ function rowProjectClassName(
 export function OutlineRow({node, depth = 1}: {node: NodeResponse; depth?: number}) {
 	const isExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
+	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
 	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
 	const hasChildren = node.hasChildren !== false;
+
+	// Upstream mounts `.notes` once the note is non-empty, has had focus, or the name was edited, and never unmounts it.
+	const [noteMounted, setNoteMounted] = useState(false);
+	const shouldMountNote = Boolean(node.note) || isEditingNote || isEditingName;
+	if (shouldMountNote && !noteMounted) {
+		setNoteMounted(true);
+	}
 
 	// The slideUp's own transition ending hides the row; a child's transition does not.
 	const handleTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
@@ -337,7 +345,9 @@ export function OutlineRow({node, depth = 1}: {node: NodeResponse; depth?: numbe
 			onTransitionEnd={handleTransitionEnd}
 		>
 			<NodeName depth={depth} hasChildren={hasChildren} isExpanded={isExpanded} node={node} />
-			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
+			{noteMounted || shouldMountNote ? (
+				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} nodeId={node.id} />
+			) : null}
 			<div className="drop-line">
 				<div className="line" />
 			</div>

@@ -15,8 +15,10 @@ const outlineState = {
 	expandAll: () => {},
 	collapseDescendants: () => {},
 	resumeEditing: () => {},
+	startEditingNote: () => {},
 	stopEditingNote: () => {},
-	editingId: null,
+	openSearchFromEditing: () => {},
+	editingId: null as string | null,
 	editingClickPosition: null,
 	editingNoteId: null as string | null,
 };
@@ -91,7 +93,7 @@ describe("note placement", () => {
 		const html = render(makeNode({note: "Bob"}));
 		expect({
 			placed: html.includes(
-				'</button></div><div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden"><span class="innerContentContainer">Bob</span></div></div><div class="drop-line">',
+				'</button></div><div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden" contentEditable="true"><span class="innerContentContainer">Bob</span></div></div><div class="drop-line">',
 			),
 			projectClass: projectClass(html),
 		}).toStrictEqual({placed: true, projectClass: "font-custom project task noted"});
@@ -115,6 +117,19 @@ describe("note placement", () => {
 			});
 		} finally {
 			outlineState.editingNoteId = null;
+		}
+	});
+
+	it("mounts an empty, unnoted .notes while the name is being edited", () => {
+		outlineState.editingId = "alice";
+		try {
+			const html = render(makeNode({note: ""}));
+			expect({hasNotes: html.includes('<div class="notes">'), projectClass: projectClass(html)}).toStrictEqual({
+				hasNotes: true,
+				projectClass: "font-custom project task",
+			});
+		} finally {
+			outlineState.editingId = null;
 		}
 	});
 });

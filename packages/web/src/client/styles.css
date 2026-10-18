@@ -1637,14 +1637,32 @@ body.moving .expand {
 	max-height: 30px;
 }
 
-/* Clicking a clamped note lifts the clamp until clicked again. */
-.notes > .content.expanded {
+/* Note behavior, verbatim from js_wf-base.css (without the .is-desktop prefix): a focused note is unclamped. */
+.noted > .notes > .content.active,
+.root > .notes > .content {
+	overflow: visible;
 	display: block;
-	-webkit-line-clamp: unset;
 	max-height: none;
+	height: auto;
 }
 
-.notes .innerContentContainer[contenteditable]:focus {
+.content:empty:before {
+	content: " ";
+	width: 0;
+	display: block;
+}
+
+.notes > .content > .innerContentContainer::selection,
+.notes > .content > .innerContentContainer > *::selection {
+	color: var(--wf-text-secondary);
+	background: var(--wf-background-selected);
+}
+
+.noted > .name > .content {
+	padding-bottom: 0;
+}
+
+.notes > .content {
 	outline: none;
 }
 

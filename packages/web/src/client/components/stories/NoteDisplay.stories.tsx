@@ -1,6 +1,4 @@
 import type {Meta, StoryObj} from "@storybook/react-vite";
-import {fn} from "storybook/test";
-
 import {NoteDisplay} from "./primitives.js";
 
 const meta: Meta<typeof NoteDisplay> = {
@@ -15,13 +13,10 @@ const meta: Meta<typeof NoteDisplay> = {
 			control: "text",
 			description: "HTML content of the note",
 		},
-		isExpanded: {
+		isActive: {
 			control: "boolean",
-			description: "Whether the note is expanded to show full content",
+			description: "Whether the note is focused, which unclamps it",
 		},
-	},
-	args: {
-		onToggle: fn<() => void>(),
 	},
 	decorators: [
 		(Story) => (
@@ -35,53 +30,53 @@ const meta: Meta<typeof NoteDisplay> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const CollapsedShort: Story = {
+export const UnfocusedShort: Story = {
 	args: {
 		content: "A brief note about this item.",
-		isExpanded: false,
+		isActive: false,
 	},
 };
 
-export const CollapsedLong: Story = {
+export const UnfocusedLong: Story = {
 	args: {
 		content:
 			"This is a much longer note that contains multiple lines of text. It demonstrates how notes are truncated when collapsed. The note continues with more details about the item, including background information, context, and additional considerations that might be relevant.",
-		isExpanded: false,
+		isActive: false,
 	},
 };
 
-export const ExpandedShort: Story = {
+export const ActiveShort: Story = {
 	args: {
 		content: "A brief note about this item.",
-		isExpanded: true,
+		isActive: true,
 	},
 };
 
-export const ExpandedLong: Story = {
+export const ActiveLong: Story = {
 	args: {
 		content:
 			"This is a much longer note that contains multiple lines of text. It demonstrates how notes are truncated when collapsed. The note continues with more details about the item, including background information, context, and additional considerations that might be relevant.",
-		isExpanded: true,
+		isActive: true,
 	},
 };
 
 export const WithHTML: Story = {
 	args: {
 		content: '<b>Important:</b> This note contains <em>formatted text</em> and a <a href="#">link</a>.',
-		isExpanded: true,
+		isActive: true,
 	},
 };
 
 export const WithLineBreaks: Story = {
 	args: {
 		content: "First line of the note.<br/>Second line with more details.<br/>Third line concluding the thought.",
-		isExpanded: true,
+		isActive: true,
 	},
 };
 
 export const Empty: Story = {
 	args: {
 		content: "",
-		isExpanded: false,
+		isActive: false,
 	},
 };
