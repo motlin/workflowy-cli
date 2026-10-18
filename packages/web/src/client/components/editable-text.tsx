@@ -12,26 +12,9 @@ import {useCreateNode, useDeleteNode, useUpdateNode} from "../hooks/use-nodes.js
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
+import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
+import {TAG_PATTERN, wrapTagsInSpans} from "../tag-spans.js";
 import type {TagColorName} from "./tag-color-picker.js";
-
-// Regex to match #tags and @mentions
-// Matches: #tag, #tag-name, #tag_name, @mention, @user-name, @user_name
-const TAG_PATTERN = /[#@][\w-]+/gu;
-
-/**
- * Wrap hashtags and mentions in styled spans for visual highlighting.
- * Uncolored tags are gray underlined links (Cmd+click opens search); tags with
- * an assigned color render as a colored pill (matching production workflowy.com).
- */
-function wrapTagsInSpans(html: string, tagColors: TagColors): string {
-	// Reset lastIndex since we're reusing the pattern
-	TAG_PATTERN.lastIndex = 0;
-	return html.replaceAll(TAG_PATTERN, (match) => {
-		const color = tagColors[match];
-		const className = color ? `tag-link tag-colored bc-${color}` : "tag-link";
-		return `<span class="${className}">${match}</span>`;
-	});
-}
 
 /**
  * Extract the tag at a given character offset in the text.
@@ -647,7 +630,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				<span
 					className="innerContentContainer"
 					data-node-id={nodeId}
-					dangerouslySetInnerHTML={{__html: wrapTagsInSpans(initialValue, tagColors)}}
+					dangerouslySetInnerHTML={{
+						__html: wrapTagsInSpans(renderDatePills(initialValue, DEFAULT_DATE_SETTINGS), tagColors),
+					}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}
 					// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance; the span is not focusable

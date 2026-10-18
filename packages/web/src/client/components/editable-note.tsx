@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
+import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -100,7 +101,10 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 			<div className="notes">
 				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- mouse-only clamp toggle; upstream's markup carries no role */}
 				<div className={contentClassName} onClick={toggleExpand}>
-					<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: initialValue}} />
+					<span
+						className="innerContentContainer"
+						dangerouslySetInnerHTML={{__html: renderDatePills(initialValue, DEFAULT_DATE_SETTINGS)}}
+					/>
 				</div>
 			</div>
 		);

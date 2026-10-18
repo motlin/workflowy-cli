@@ -1446,14 +1446,41 @@ body.moving .expand {
 	color: var(--wf-tag-text-gray);
 }
 
-/* Workflowy-style date/time pill badges */
-.innerContentContainer time {
-	display: inline-block;
-	background-color: var(--wf-background-tertiary);
-	border-radius: 4px;
-	padding: 1px 6px;
+/* Upstream date pills (wf-base): stored <time> rendered as .monolith-pill in display mode */
+.monolith-pill {
+	cursor: pointer;
 	font-size: inherit;
-	line-height: inherit;
+	position: relative;
+	white-space: nowrap;
+	display: inline;
+	margin-right: 1px;
+	margin-left: 1px;
+}
+
+.monolith-pill .content-wrapper {
+	font-size: 0.8em;
+	line-height: 1.5;
+	display: inline-block;
+	color: var(--wf-text-primary);
+	border-radius: 16px;
+	background: var(--wf-background-tertiary);
+	padding: 0 var(--wf-space-m);
+}
+
+.monolith-pill:hover .content-wrapper {
+	text-decoration: underline;
+}
+
+.notes .monolith-pill .content-wrapper {
+	line-height: 15px;
+}
+
+.done > .name > .content .monolith-pill .content-wrapper {
+	text-decoration: line-through;
+}
+
+.content time {
+	cursor: pointer;
 }
 
 /* Root-level nodes use same font size as other nodes to match Workflowy */
