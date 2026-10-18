@@ -5,7 +5,7 @@ vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}})
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
 
-const {nodeUrl, planZoomFocus} = await import("../src/client/navigation.js");
+const {bulletClickAction, nodeUrl, planZoomFocus} = await import("../src/client/navigation.js");
 
 const ZOOMED = "11111111-1111-4111-8111-111111111111";
 const TARGET = "22222222-2222-4222-8222-222222222222";
@@ -82,5 +82,25 @@ describe("planZoomFocus last_selected", () => {
 
 	it("does nothing at the root", () => {
 		expect(planZoomFocus("last_selected", {...base, zoomedId: null, parentOfZoomed: null})).toBeNull();
+	});
+});
+
+describe("bulletClickAction", () => {
+	const plain = {metaKey: false, ctrlKey: false, button: 0};
+
+	it("zooms on a plain left click", () => {
+		expect(bulletClickAction(plain)).toBe("zoom");
+	});
+
+	it("leaves a meta click to the browser", () => {
+		expect(bulletClickAction({...plain, metaKey: true})).toBe("browser");
+	});
+
+	it("leaves a ctrl click to the browser", () => {
+		expect(bulletClickAction({...plain, ctrlKey: true})).toBe("browser");
+	});
+
+	it("leaves a middle click to the browser", () => {
+		expect(bulletClickAction({...plain, button: 1})).toBe("browser");
 	});
 });

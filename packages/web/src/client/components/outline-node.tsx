@@ -3,8 +3,9 @@
 import {useQueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
-import {Fragment, useState} from "react";
-import {nodeUrl, useNodeNavigation} from "../navigation.js";
+import {Fragment, useRef, useState} from "react";
+import {caretTextOffset, editorElement} from "../caret-dom.js";
+import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useDeleteNode, useToggleComplete} from "../hooks/use-nodes.js";
@@ -52,6 +53,7 @@ interface NodeBulletProps {
  */
 function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBulletProps) {
 	const zoomTo = useZoomTo();
+	const pressed = useRef(false);
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
 		.filter(Boolean)
 		.join(" ");
@@ -63,9 +65,41 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 			className={className}
 			style={{left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}}
 			draggable
+			onFocus={(event) => {
+				// A press or drag focuses the link, which would end the edit; hand focus back to the
+				// held editor so the caret stays. Preventing mousedown, or refocusing synchronously,
+				// suppresses the native dragstart, so the refocus waits a task.
+				const editor = event.relatedTarget;
+				if (pressed.current && editor instanceof HTMLElement) {
+					setTimeout(() => {
+						editor.focus({preventScroll: true});
+					}, 0);
+				}
+			}}
+			onMouseDown={() => {
+				const {editingId, holdEditing, releaseEditing} = useOutlineStore.getState();
+				const editor = editingId === null ? null : editorElement(editingId);
+				if (editor === null) {
+					return;
+				}
+				holdEditing(caretTextOffset(editor));
+				pressed.current = true;
+				// mouseup precedes click, so zoomTo sees a released edit; a drag ends with dragend instead.
+				const release = () => {
+					globalThis.removeEventListener("mouseup", release, true);
+					globalThis.removeEventListener("dragend", release, true);
+					pressed.current = false;
+					releaseEditing();
+				};
+				globalThis.addEventListener("mouseup", release, true);
+				globalThis.addEventListener("dragend", release, true);
+			}}
 			onClick={(event) => {
-				event.preventDefault();
 				event.stopPropagation();
+				if (bulletClickAction(event) === "browser") {
+					return;
+				}
+				event.preventDefault();
 				void zoomTo(nodeId, "first_child");
 			}}
 			onDragEnd={onDragEnd}

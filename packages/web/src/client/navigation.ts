@@ -22,6 +22,14 @@ export function nodeUrl(nodeId: string): string {
  * Resolve a location id to a zoom target: `"home"` for no id, a full uuid as is,
  * and a 12-hex short id through `lookup` (null when it is unknown).
  */
+/**
+ * What a bullet click does: a plain left click zooms in-app; a Cmd/Ctrl click or
+ * a non-left button is left to the browser so it opens the bullet's href in a new tab.
+ */
+export function bulletClickAction(event: {metaKey: boolean; ctrlKey: boolean; button: number}): "zoom" | "browser" {
+	return event.metaKey || event.ctrlKey || event.button !== 0 ? "browser" : "zoom";
+}
+
 export function resolveZoomTarget(param: string | null, lookup: (id: string) => string | null) {
 	if (param === null) {
 		return "home";
