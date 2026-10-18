@@ -1,6 +1,8 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
+import {useCallback, useEffect, useRef, useState} from "react";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
+import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {OutlineRow} from "./outline-node.js";
 
@@ -61,6 +63,30 @@ function ZoomedNodeTitle({nodeId}: {nodeId: string}) {
 }
 
 /**
+ * Zero-height marker after the last rendered row; scrolling it into view raises the
+ * container's render limit. Local adaptation with no upstream class equivalent.
+ */
+function RenderSentinel({onReached}: {onReached: () => void}) {
+	const ref = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const observer = new IntersectionObserver((entries) => {
+			if (entries.some((entry) => entry.isIntersecting)) {
+				onReached();
+			}
+		});
+		if (ref.current) {
+			observer.observe(ref.current);
+		}
+		return () => {
+			observer.disconnect();
+		};
+	}, [onReached]);
+
+	return <div className="render-sentinel" ref={ref} />;
+}
+
+/**
  * Upstream's `div.children`: the visible children of `parentId`, each a recursive
  * `OutlineRow`. Renders nothing when no child is visible, so a collapsed or empty
  * parent has no `.children` in the DOM.
@@ -69,16 +95,22 @@ export function OutlineChildren({parentId, isRoot = false}: {parentId: string | 
 	const {data: nodes} = useChildren(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const visibleNodes = showCompleted ? nodes : nodes?.filter((node) => node.completedAt === null);
+	const [maxToRender, setMaxToRender] = useState(initialMaxToRender);
+	const total = visibleNodes?.length ?? 0;
+	const growWindow = useCallback(() => {
+		setMaxToRender((current) => nextMaxToRender(current, total));
+	}, [total]);
 
-	if (!visibleNodes || visibleNodes.length === 0) {
+	if (!visibleNodes || total === 0) {
 		return null;
 	}
 
 	return (
 		<div className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
-			{visibleNodes.map((node) => (
+			{visibleNodes.slice(0, maxToRender).map((node) => (
 				<OutlineRow key={node.id} node={node} />
 			))}
+			{total > maxToRender && <RenderSentinel onReached={growWindow} />}
 		</div>
 	);
 }

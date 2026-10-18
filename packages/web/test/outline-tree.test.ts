@@ -147,6 +147,27 @@ describe("OutlineTree nested .children rendering", () => {
 	});
 });
 
+describe("OutlineTree chunked child rendering", () => {
+	it("renders the first 200 of 250 children plus a growth sentinel", () => {
+		const original = childrenByParent.get(null);
+		childrenByParent.set(
+			null,
+			Array.from({length: 250}, (_, index) =>
+				makeNode({id: `n${index}`, name: `Node ${index}`, hasChildren: false}),
+			),
+		);
+		try {
+			const html = render();
+			expect({
+				projects: html.split('class="font-custom project').length - 1,
+				sentinels: html.split('<div class="render-sentinel"').length - 1,
+			}).toStrictEqual({projects: 200, sentinels: 1});
+		} finally {
+			childrenByParent.set(null, original ?? []);
+		}
+	});
+});
+
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8").replaceAll(
 	/\/\*[\s\S]*?\*\//gu,
 	"",
