@@ -283,6 +283,33 @@ export class WorkflowyInternalClient {
 	}
 
 	/**
+	 * An authenticated form POST, returning the raw response (redirects are not
+	 * followed). Like upstream's HTTP layer, it appends `crosscheck_user_id` once
+	 * a bootstrap has learned the user id.
+	 */
+	async postForm(pathAndQuery: string, form: URLSearchParams): Promise<Response> {
+		if (!this.sessionCookie) {
+			throw new Error("Not authenticated. Call login() first.");
+		}
+		const body = new URLSearchParams(form);
+		if (this.currentSession) {
+			body.append("crosscheck_user_id", String(this.currentSession.userId));
+		}
+		return this.fetchImpl(`${this.baseUrl}${pathAndQuery}`, {
+			method: "POST",
+			headers: {
+				Cookie: this.sessionCookie,
+				Accept: "application/json",
+				"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+				"X-Requested-With": "XMLHttpRequest",
+				"WF-TRANSIENT-ID": this.transientId,
+			},
+			body: body.toString(),
+			redirect: "manual",
+		});
+	}
+
+	/**
 	 * Fetch the initialization data which contains the user's epoch timestamp.
 	 * Requires authentication via login() first.
 	 */

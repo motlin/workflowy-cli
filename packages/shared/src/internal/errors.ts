@@ -1,0 +1,49 @@
+/**
+ * Failures of Workflowy's internal `/push_and_poll` write path. Each subclass
+ * maps to one retry rule in `PushAndPoll`; callers outside `internal/` should
+ * only ever need `instanceof InternalApiError` plus `message`.
+ */
+export class InternalApiError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = new.target.name;
+	}
+}
+
+/** The server answered with its bot challenge. A Node client cannot solve it, so this is never retried. */
+export class CaptchaRequired extends InternalApiError {
+	constructor() {
+		super("Workflowy demanded a captcha; stop pushing and use the web app");
+	}
+}
+
+/** The session cookie was rejected (a `logged_out` body or a login redirect). */
+export class LoggedOut extends InternalApiError {
+	constructor(reason: string) {
+		super(`Workflowy session rejected (${reason})`);
+	}
+}
+
+/** The result reported `account_is_busy`; the batch was not run and may be pushed again. */
+export class AccountBusy extends InternalApiError {
+	constructor() {
+		super("Workflowy account is busy");
+	}
+}
+
+/** The response carried `push_lock_timeout`; the batch was not run and may be pushed again. */
+export class PushLockTimeout extends InternalApiError {
+	constructor() {
+		super("Workflowy push lock timed out");
+	}
+}
+
+/** The server refused the pushed operations. Never retried: upstream drops the batch too. */
+export class OperationRejected extends InternalApiError {
+	constructor(readonly serverError: string) {
+		super(`Workflowy rejected the operations: ${serverError}`);
+	}
+}
+
+/** The request never produced a usable response (network failure, non-2xx status, unparseable body). */
+export class TransportError extends InternalApiError {}
