@@ -39,3 +39,14 @@ export const navigationShortcut = {
 	enableOnFormTags: false,
 	enableOnContentEditable: true,
 } as const satisfies Options;
+
+/**
+ * Options for app-wide shortcuts (left bar, completed toggle, star, jump menu, help).
+ * Upstream dispatches every bound command from a window keydown listener, so these fire
+ * whether the caret is in a node, a form field, or nowhere.
+ */
+export const globalShortcut = {
+	preventDefault: true,
+	enableOnFormTags: true,
+	enableOnContentEditable: true,
+} as const satisfies Options;

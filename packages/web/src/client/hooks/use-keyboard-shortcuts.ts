@@ -31,7 +31,13 @@ import {
 import {useVisibleNodes} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
-import {completeHotkey, navigationShortcut, punctuationHotkeys, structureHotkeys} from "../hotkey-bindings.js";
+import {
+	completeHotkey,
+	globalShortcut,
+	navigationShortcut,
+	punctuationHotkeys,
+	structureHotkeys,
+} from "../hotkey-bindings.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -107,7 +113,6 @@ export function useKeyboardShortcuts() {
 	const queryClient = useQueryClient();
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const editingId = useOutlineStore((state) => state.editingId);
-	const editingNoteId = useOutlineStore((state) => state.editingNoteId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 	const stopEditing = useOutlineStore((state) => state.stopEditing);
@@ -535,13 +540,11 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
+			commitEdit();
 			void navigate(nodeUrl(previousSibling.id));
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[zoomedNodeId, zoomedNode, zoomedNodeSiblings, navigate],
+		navigationShortcut,
+		[zoomedNodeId, zoomedNode, zoomedNodeSiblings, commitEdit, navigate],
 	);
 
 	// Option+Cmd+Down: Focus next sibling (zoom to next sibling of current zoomed node)
@@ -568,13 +571,11 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
+			commitEdit();
 			void navigate(nodeUrl(nextSibling.id));
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[zoomedNodeId, zoomedNode, zoomedNodeSiblings, navigate],
+		navigationShortcut,
+		[zoomedNodeId, zoomedNode, zoomedNodeSiblings, commitEdit, navigate],
 	);
 
 	// Shift+Cmd+Backspace: Delete the edited node and all descendants
@@ -648,10 +649,7 @@ export function useKeyboardShortcuts() {
 		() => {
 			toggleLeftBar();
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
+		globalShortcut,
 		[toggleLeftBar],
 	);
 
@@ -661,11 +659,7 @@ export function useKeyboardShortcuts() {
 		() => {
 			toggleRightSidebar();
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-			enableOnContentEditable: true,
-		},
+		globalShortcut,
 		[toggleRightSidebar],
 	);
 
@@ -675,10 +669,7 @@ export function useKeyboardShortcuts() {
 		() => {
 			toggleCompleted();
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
+		globalShortcut,
 		[toggleCompleted],
 	);
 
@@ -693,10 +684,7 @@ export function useKeyboardShortcuts() {
 
 			toggleStarPage(zoomedNodeId);
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
+		globalShortcut,
 		[zoomedNodeId, toggleStarPage],
 	);
 
@@ -731,32 +719,20 @@ export function useKeyboardShortcuts() {
 
 			toggleJumpMenu();
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: true,
-		},
+		globalShortcut,
 		[searchPanelOpen, editingId, toggleJumpMenu, openLinkInsert],
 	);
 
 	// Ctrl+T (^T): Zoom to Today
 	// Searches for a node containing today's date and navigates to it
-	const handleZoomToToday = async () => {
-		// Don't zoom if editing
-		if (editingId !== null || editingNoteId !== null) {
-			return;
-		}
-		await zoomToToday({navigate});
-	};
 	useHotkeys(
 		"ctrl+t",
 		() => {
-			void handleZoomToToday();
+			commitEdit();
+			void zoomToToday({navigate});
 		},
-		{
-			preventDefault: true,
-			enableOnFormTags: false,
-		},
-		[editingId, editingNoteId, navigate],
+		navigationShortcut,
+		[commitEdit, navigate],
 	);
 
 	// Shift+Cmd+E (⇧⌘E): Export the edited node

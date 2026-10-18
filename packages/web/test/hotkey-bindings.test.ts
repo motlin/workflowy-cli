@@ -1,6 +1,7 @@
 import {afterEach, beforeAll, describe, expect, it, vi} from "vite-plus/test";
 import {
 	completeHotkey,
+	globalShortcut,
 	navigationShortcut,
 	punctuationHotkeys,
 	structureHotkeys,
@@ -53,6 +54,16 @@ describe("navigationShortcut", () => {
 		expect(navigationShortcut).toStrictEqual({
 			preventDefault: true,
 			enableOnFormTags: false,
+			enableOnContentEditable: true,
+		});
+	});
+});
+
+describe("globalShortcut", () => {
+	it("fires everywhere, while editing a node's text and from form fields, as upstream's window dispatcher does", () => {
+		expect(globalShortcut).toStrictEqual({
+			preventDefault: true,
+			enableOnFormTags: true,
 			enableOnContentEditable: true,
 		});
 	});
