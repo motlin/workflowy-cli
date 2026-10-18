@@ -55,6 +55,7 @@ function dto(id: string, layoutMode: string | null, numberedStart: number | null
 		modifiedAt: 200,
 		completedAt: null,
 		hasChildren: false,
+		hasUncompletedChildren: false,
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,

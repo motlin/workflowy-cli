@@ -48,6 +48,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 		modifiedAt: 200,
 		completedAt: null,
 		hasChildren,
+		hasUncompletedChildren: hasChildren,
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,

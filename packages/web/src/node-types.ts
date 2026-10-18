@@ -30,6 +30,8 @@ export interface NodeResponse {
 	modifiedAt: number | null;
 	completedAt: number | null;
 	hasChildren?: boolean;
+	/** At least one child is uncompleted; with completed items hidden, this decides whether the row is a parent. */
+	hasUncompletedChildren?: boolean;
 	isMirror?: boolean;
 	originalNodeId?: string | null;
 	attachment?: NodeAttachment | null;

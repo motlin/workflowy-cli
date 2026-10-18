@@ -73,6 +73,7 @@ describe("POST /api/v1/nodes", () => {
 				modifiedAt: 100,
 				completedAt: null,
 				hasChildren: true,
+				hasUncompletedChildren: true,
 				isMirror: false,
 				originalNodeId: null,
 				attachment: null,

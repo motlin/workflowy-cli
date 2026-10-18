@@ -626,3 +626,17 @@ export function toUndoOps(mutation: UndoableMutation, queryClient: QueryClient):
 			return [{kind: mutation.kind, nodeId: mutation.nodeId}];
 	}
 }
+
+/**
+ * Whether a row is a parent (triangle, `.children`, collapsed halo): upstream
+ * counts only potentially visible children, so with completed items hidden a
+ * parent whose children are all completed is a plain task. A node built
+ * optimistically without the server flags counts as a parent.
+ */
+export function rowHasChildren(
+	node: Pick<NodeResponse, "hasChildren" | "hasUncompletedChildren">,
+	showCompleted: boolean,
+): boolean {
+	const flag = showCompleted ? node.hasChildren : (node.hasUncompletedChildren ?? node.hasChildren);
+	return flag !== false;
+}

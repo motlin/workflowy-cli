@@ -1,4 +1,4 @@
-import {backlinks, nodeContent, referencesRoots} from "@workflowy/shared/db";
+import {backlinks, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
@@ -17,14 +17,43 @@ export function notReferencesContent(): SQL {
 	return sql`(${nodeContent.id} NOT IN ${currentReferencesRootIds} AND (${nodeContent.parentId} IS NULL OR ${nodeContent.parentId} NOT IN ${currentReferencesRootIds}))`;
 }
 
-/** The subset of `parentIds` with at least one current child that is not a references root. */
-export function parentIdsWithChildren(db: ServerDatabase, parentIds: string[]): Set<string> {
+/** Which parents have any child, and which have at least one uncompleted child. */
+export interface ChildFlags {
+	withChildren: Set<string>;
+	withUncompletedChildren: Set<string>;
+}
+
+/** The child flags over `{parentId, completedAt}` rows, one row per child. */
+export function childFlagsFromRows(rows: {parentId: string | null; completedAt: Date | null}[]): ChildFlags {
+	const flags: ChildFlags = {withChildren: new Set(), withUncompletedChildren: new Set()};
+	for (const {parentId, completedAt} of rows) {
+		if (parentId === null) {
+			continue;
+		}
+		flags.withChildren.add(parentId);
+		if (completedAt === null) {
+			flags.withUncompletedChildren.add(parentId);
+		}
+	}
+	return flags;
+}
+
+/**
+ * The child flags of `parentIds`, counting only current children that are not
+ * references roots. Upstream hides the triangle of a parent whose children are
+ * all completed while completed items are hidden, so both flags are needed.
+ */
+export function childFlags(db: ServerDatabase, parentIds: string[]): ChildFlags {
 	if (parentIds.length === 0) {
-		return new Set();
+		return childFlagsFromRows([]);
 	}
 	const rows = db
-		.selectDistinct({parentId: nodeContent.parentId})
+		.select({parentId: nodeContent.parentId, completedAt: nodeMetadata.completedAt})
 		.from(nodeContent)
+		.leftJoin(
+			nodeMetadata,
+			and(eq(nodeMetadata.nodeId, nodeContent.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+		)
 		.where(
 			and(
 				inArray(nodeContent.parentId, parentIds),
@@ -33,7 +62,7 @@ export function parentIdsWithChildren(db: ServerDatabase, parentIds: string[]): 
 			),
 		)
 		.all();
-	return new Set(rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])));
+	return childFlagsFromRows(rows);
 }
 
 /** The current references root under `targetId`, or null. */

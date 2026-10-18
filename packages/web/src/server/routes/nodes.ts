@@ -11,11 +11,7 @@ import {isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import type {Context} from "hono";
-import {
-	currentBacklinkSources,
-	findReferencesRoot,
-	parentIdsWithChildren as parentIdsWithVisibleChildren,
-} from "../backlinks.js";
+import {childFlags, currentBacklinkSources, findReferencesRoot} from "../backlinks.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
@@ -49,13 +45,14 @@ function toUnixSeconds(date: Date | null): number | null {
 
 /**
  * Serialize a canonical `Node` into the snake_case Workflowy-compatible
- * REST response. The `hasChildren` flag and the mirror name/note fallback
+ * REST response. The child flags and the mirror name/note fallback
  * are derived per-request and supplied by the caller.
  */
 function nodeToRestDto(
 	node: Node,
 	derived: {
 		hasChildren: boolean;
+		hasUncompletedChildren: boolean;
 		name: string | null;
 		note: string | null;
 		attachment?: NodeAttachment | null;
@@ -74,6 +71,7 @@ function nodeToRestDto(
 		modifiedAt: toUnixSeconds(node.modifiedAt),
 		completedAt: toUnixSeconds(node.completedAt),
 		hasChildren: derived.hasChildren,
+		hasUncompletedChildren: derived.hasUncompletedChildren,
 		isMirror: node.mirror.isMirror,
 		originalNodeId: node.mirror.originalNodeId,
 		attachment: derived.attachment ?? null,
@@ -186,10 +184,17 @@ async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse
 	if (node === undefined) {
 		return undefined;
 	}
-	const hasChildren = parentIdsWithVisibleChildren(ctx.db, [node.mirror.originalNodeId ?? id]).size > 0;
+	const flags = childFlags(ctx.db, [node.mirror.originalNodeId ?? id]);
 	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
 	const metadata = loadInternalMetadataFields(ctx, [id]).get(id);
-	return nodeToRestDto(node, {hasChildren, name: node.name, note: node.note, attachment, metadata});
+	return nodeToRestDto(node, {
+		hasChildren: flags.withChildren.size > 0,
+		hasUncompletedChildren: flags.withUncompletedChildren.size > 0,
+		name: node.name,
+		note: node.note,
+		attachment,
+		metadata,
+	});
 }
 
 /** A parent's children (Home's for `null`) as the REST API returns them, read from the cache. */
@@ -200,7 +205,7 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 		(node) => !node.hasReferencesRoot,
 	);
 	// Determine which nodes have children (single query for efficiency)
-	const parentIdsWithChildren = parentIdsWithVisibleChildren(
+	const flags = childFlags(
 		ctx.db,
 		nodes.map((node) => node.mirror.originalNodeId ?? node.id),
 	);
@@ -215,7 +220,8 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 	);
 	return nodes.map((node) =>
 		nodeToRestDto(node, {
-			hasChildren: parentIdsWithChildren.has(node.mirror.originalNodeId ?? node.id),
+			hasChildren: flags.withChildren.has(node.mirror.originalNodeId ?? node.id),
+			hasUncompletedChildren: flags.withUncompletedChildren.has(node.mirror.originalNodeId ?? node.id),
 			name: node.name,
 			note: node.note,
 			attachment: attachments.get(node.id) ?? null,
@@ -426,6 +432,7 @@ nodesRouter.post("/", async (c) => {
 		modifiedAt: createdNode.modifiedAt,
 		completedAt: createdNode.completedAt ?? null,
 		hasChildren: true,
+		hasUncompletedChildren: true,
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
@@ -572,6 +579,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		modifiedAt: updatedNode.modifiedAt,
 		completedAt: updatedNode.completedAt ?? null,
 		hasChildren: true,
+		hasUncompletedChildren: true,
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
@@ -671,7 +679,7 @@ nodesRouter.get("/:id/ancestors", (c) => {
 		}
 
 		const nodeResponse: NodeResponse = {
-			...nodeToRestDto(node, {hasChildren: true, name: node.name, note: node.note}),
+			...nodeToRestDto(node, {hasChildren: true, hasUncompletedChildren: true, name: node.name, note: node.note}),
 			isMirror: false,
 			originalNodeId: null,
 		};
@@ -710,7 +718,7 @@ nodesRouter.get("/:id/backlinks", async (c) => {
 			source,
 		]),
 	);
-	const withChildren = parentIdsWithVisibleChildren(db, sourceIds);
+	const flags = childFlags(db, sourceIds);
 	const reader = new NodeReader(db);
 
 	const crumbsOf = (sourceId: string): BacklinkCrumb[] => {
@@ -738,7 +746,8 @@ nodesRouter.get("/:id/backlinks", async (c) => {
 				{
 					node: {
 						...nodeToRestDto(item, {
-							hasChildren: withChildren.has(sourceId),
+							hasChildren: flags.withChildren.has(sourceId),
+							hasUncompletedChildren: flags.withUncompletedChildren.has(sourceId),
 							name: source.name,
 							note: source.note,
 						}),
@@ -851,6 +860,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 		modifiedAt: uncompletedNode.modifiedAt,
 		completedAt: uncompletedNode.completedAt ?? null,
 		hasChildren: true,
+		hasUncompletedChildren: true,
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,

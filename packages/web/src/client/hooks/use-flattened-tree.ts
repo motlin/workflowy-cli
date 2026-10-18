@@ -5,7 +5,7 @@ import {useMemo} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import {useChildren} from "./use-nodes.js";
 import {readJson} from "../read-json.js";
-import {isPotentiallyVisible} from "../tree-ops.js";
+import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
 
 /**
  * A flattened node includes the original node data plus its depth in the tree.
@@ -51,8 +51,11 @@ export function flattenTree(
 	for (const node of visibleNodes) {
 		const isExpanded = expandedIds.has(node.id);
 		const children = childrenMap.get(node.id);
-		// Use server-provided hasChildren when available, otherwise fall back to checking fetched children
-		const hasChildren = node.hasChildren ?? (children === undefined || children.length > 0);
+		// Use the server-provided child flags when available, otherwise fall back to checking fetched children
+		const hasChildren =
+			node.hasChildren === undefined
+				? children === undefined || children.length > 0
+				: rowHasChildren(node, showCompleted);
 
 		result.push({
 			node,

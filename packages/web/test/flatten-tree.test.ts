@@ -9,7 +9,11 @@ vi.stubGlobal("addEventListener", () => {});
 
 const {flattenTree} = await import("../src/client/hooks/use-flattened-tree.js");
 
-function node(id: string, completedAt: number | null): NodeResponse {
+function node(
+	id: string,
+	completedAt: number | null,
+	children = {hasChildren: false, hasUncompletedChildren: false},
+): NodeResponse {
 	return {
 		id,
 		parent_id: null,
@@ -20,7 +24,7 @@ function node(id: string, completedAt: number | null): NodeResponse {
 		createdAt: null,
 		modifiedAt: null,
 		completedAt,
-		hasChildren: false,
+		...children,
 	};
 }
 
@@ -44,5 +48,14 @@ describe("flattenTree", () => {
 				(row) => row.node.id,
 			),
 		).toStrictEqual(["c", "d"]);
+	});
+
+	it("shows no children on a parent whose children are all completed while completed rows are hidden", () => {
+		const parent = node("p", null, {hasChildren: true, hasUncompletedChildren: false});
+		expect(
+			[false, true].map((showCompleted) =>
+				flattenTree([parent], new Set(), showCompleted, 0, new Map(), new Set()).map((row) => row.hasChildren),
+			),
+		).toStrictEqual([[false], [true]]);
 	});
 });

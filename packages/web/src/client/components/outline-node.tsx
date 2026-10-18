@@ -20,6 +20,7 @@ import {ItemMenuTrigger} from "./node-context-menu.js";
 import {OutlineChildren} from "./outline-tree.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
+import {rowHasChildren} from "../tree-ops.js";
 
 /**
  * Renders a file-attachment indicator beneath a node's text. Live attachments
@@ -414,7 +415,8 @@ export function OutlineRow({
 	const isMoving = useOutlineStore((state) => state.movingId === node.id);
 	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));
 	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
-	const hasChildren = node.hasChildren !== false;
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const hasChildren = rowHasChildren(node, showCompleted);
 
 	// Upstream mounts `.notes` once the note is non-empty, has had focus, or the name was edited, and never unmounts it.
 	const [noteMounted, setNoteMounted] = useState(false);
