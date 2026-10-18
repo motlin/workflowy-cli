@@ -3,11 +3,28 @@ import fs from "node:fs";
 import path from "node:path";
 import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
 import type {InternalSession} from "@workflowy/shared/api";
-import {editOp, moveOp} from "@workflowy/shared/internal";
+import {WorkflowyInternalAdapter, editOp, moveOp} from "@workflowy/shared/internal";
 import {readInternalAuth} from "@workflowy/shared/node";
+import {isDeepStrictEqual} from "node:util";
+import {createDatabase} from "../../db/index.js";
 
 const DEFAULT_OUT = ".llm/upstream-sync/internal-api-probes.md";
-const STEPS = ["bootstrap", "poll", "error-shape"] as const;
+const STEPS = ["bootstrap", "poll", "error-shape", "root-meta", "root-meta-set", "root-meta-unset"] as const;
+const ROOT_META_WRITES = new Set<string>(["root-meta-set", "root-meta-unset"]);
+/** Account-global root metadata paths whose shapes `root-meta` records (read only). */
+const ROOT_META_PATHS = [
+	["starring", "locations"],
+	["starring", "order"],
+	["color", "tags"],
+	["dateFormat"],
+	["timeFormat"],
+	["weekStartDay"],
+	["slash", "discovered"],
+	["notesRootId"],
+];
+/** The throwaway root metadata key the write steps set and remove; nothing else is ever written. */
+const PROBE_KEY = "probe";
+const PROBE_VALUE = {x: "1"};
 const RENAMED = "probe error-shape: renamed";
 
 /** The only subtree a live probe may write to. */
@@ -34,6 +51,48 @@ async function readAncestors(api: WorkflowyApiClient, firstParentId: string | nu
 	return ancestors;
 }
 const BODY_PREVIEW_CHARS = 200;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function union(values: unknown[]): string {
+	return [...new Set(values.map((value) => typeShape(value, false)))].toSorted().join(" | ");
+}
+
+/**
+ * A value redacted to its type. The top-level object becomes a `Record` (its keys are
+ * user data such as tag names or ids); nested objects keep their structural keys.
+ */
+export function typeShape(value: unknown, topLevel = true): string {
+	if (value === undefined) {
+		return "absent";
+	}
+	if (value === null) {
+		return "null";
+	}
+	if (Array.isArray(value)) {
+		return `Array<${value.length === 0 ? "never" : union(value)}>`;
+	}
+	if (isRecord(value)) {
+		const entries = Object.entries(value);
+		if (entries.length === 0) {
+			return "{}";
+		}
+		if (topLevel) {
+			return `Record<string, ${union(entries.map(([, inner]) => inner))}>`;
+		}
+		return `{${entries
+			.toSorted(([a], [b]) => a.localeCompare(b))
+			.map(([key, inner]) => `${key}: ${typeShape(inner, false)}`)
+			.join("; ")}}`;
+	}
+	return typeof value;
+}
+
+function getPath(value: unknown, keys: string[]): unknown {
+	return keys.reduce<unknown>((current, key) => (isRecord(current) ? current[key] : undefined), value);
+}
 
 interface RecordedRequest {
 	method: string;
@@ -138,6 +197,9 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe poll --yes-live",
 		"<%= config.bin %> internal probe poll --no-crosscheck --yes-live",
 		"<%= config.bin %> internal probe error-shape --yes-live",
+		"<%= config.bin %> internal probe root-meta --yes-live",
+		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
+		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
 	];
 
 	static override args = {
@@ -151,6 +213,10 @@ export default class Probe extends Command {
 			default: true,
 			allowNo: true,
 		}),
+		"yes-account-global": Flags.boolean({
+			description: "Confirm the user approved writing the throwaway account-global root metadata key `probe`",
+			default: false,
+		}),
 		out: Flags.string({description: "Markdown file the findings are appended to", default: DEFAULT_OUT}),
 	};
 
@@ -158,6 +224,11 @@ export default class Probe extends Command {
 		const {args, flags} = await this.parse(Probe);
 		if (!flags["yes-live"]) {
 			this.error("Live probe against workflowy.com: pass --yes-live to run it");
+		}
+		if (ROOT_META_WRITES.has(args.step) && !flags["yes-account-global"]) {
+			this.error(
+				"Root metadata is account-global and cannot be sandboxed: pass --yes-account-global (with the user's approval) to write it",
+			);
 		}
 		const apiKey = args.step === "error-shape" ? process.env.WORKFLOWY_API_KEY : undefined;
 		if (args.step === "error-shape" && !apiKey) {
@@ -175,21 +246,89 @@ export default class Probe extends Command {
 			fetch: recordingFetch(recorded, !flags.crosscheck),
 		});
 		const startedAt = new Date().toISOString();
-		const lines =
-			args.step === "bootstrap"
-				? await this.bootstrap(client, recorded)
-				: apiKey === undefined
-					? await this.poll(client, recorded, flags.crosscheck)
-					: await this.errorShape(
-							client,
-							recorded,
-							new WorkflowyApiClient(apiKey, undefined, process.env.WORKFLOWY_API_URL),
-						);
+		const lines = await this.runStep(args.step, client, recorded, flags.crosscheck, apiKey);
 		const title = args.step === "poll" && !flags.crosscheck ? "poll --no-crosscheck" : args.step;
 		const section = ["", `## ${title} (${startedAt})`, "", ...lines, ""].join("\n");
 		fs.mkdirSync(path.dirname(flags.out), {recursive: true});
 		fs.appendFileSync(flags.out, section);
 		this.log(section);
+	}
+
+	private async runStep(
+		step: string,
+		client: WorkflowyInternalClient,
+		recorded: RecordedRequest[],
+		crosscheck: boolean,
+		apiKey: string | undefined,
+	): Promise<string[]> {
+		if (step === "bootstrap") {
+			return this.bootstrap(client, recorded);
+		}
+		if (step === "poll") {
+			return this.poll(client, recorded, crosscheck);
+		}
+		if (step === "error-shape") {
+			return this.errorShape(
+				client,
+				recorded,
+				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
+			);
+		}
+		if (step === "root-meta") {
+			return this.rootMeta(client);
+		}
+		return step === "root-meta-set" ? this.rootMetaSet(client) : this.rootMetaUnset(client);
+	}
+
+	/** Read-only: the shapes of the account-global root metadata keys, values redacted to types. */
+	private async rootMeta(client: WorkflowyInternalClient): Promise<string[]> {
+		const {rootMetadata} = await client.bootstrap();
+		return [
+			`- Top-level root metadata keys: ${codeList(objectKeys(rootMetadata))}`,
+			...ROOT_META_PATHS.map((keys) => `- \`${keys.join(".")}\`: \`${typeShape(getPath(rootMetadata, keys))}\``),
+		];
+	}
+
+	/** An adapter over an in-memory cache, so the probe exercises `setRootMeta` without touching the real cache. */
+	private adapter(client: WorkflowyInternalClient): WorkflowyInternalAdapter {
+		return new WorkflowyInternalAdapter({client, db: createDatabase(":memory:")});
+	}
+
+	/** ACCOUNT-GLOBAL write: set the throwaway `probe.x`, then confirm it from a fresh bootstrap. */
+	private async rootMetaSet(client: WorkflowyInternalClient): Promise<string[]> {
+		const before = (await client.bootstrap()).rootMetadata[PROBE_KEY];
+		if (before !== undefined) {
+			this.error(`Refusing to write: root metadata already has a \`${PROBE_KEY}\` key`);
+		}
+		await this.adapter(client).setRootMeta([PROBE_KEY, "x"], PROBE_VALUE.x);
+		const after = getPath((await client.bootstrap()).rootMetadata, [PROBE_KEY, "x"]);
+		return [
+			`- \`${PROBE_KEY}\` before: absent`,
+			`- Pushed: \`setRootMeta(["${PROBE_KEY}", "x"], "${PROBE_VALUE.x}")\``,
+			`- \`${PROBE_KEY}.x\` after a fresh bootstrap: ${
+				after === undefined ? "absent" : `\`${JSON.stringify(after)}\``
+			} (round trip ${after === PROBE_VALUE.x ? "CONFIRMED" : "FAILED"})`,
+			"- Next: reload workflowy.com once and confirm it still loads, then run `internal probe root-meta-unset --yes-live --yes-account-global`",
+		];
+	}
+
+	/** ACCOUNT-GLOBAL write: remove `probe` (only when it is exactly the throwaway value), then confirm it is gone. */
+	private async rootMetaUnset(client: WorkflowyInternalClient): Promise<string[]> {
+		const before = (await client.bootstrap()).rootMetadata[PROBE_KEY];
+		if (!isDeepStrictEqual(before, PROBE_VALUE)) {
+			this.error(
+				`Refusing to remove: root metadata \`${PROBE_KEY}\` is not exactly ${JSON.stringify(PROBE_VALUE)}`,
+			);
+		}
+		await this.adapter(client).setRootMeta([PROBE_KEY], undefined);
+		const after = (await client.bootstrap()).rootMetadata[PROBE_KEY];
+		return [
+			`- \`${PROBE_KEY}\` before: \`${JSON.stringify(before)}\``,
+			`- Pushed: \`setRootMeta(["${PROBE_KEY}"], undefined)\``,
+			`- \`${PROBE_KEY}\` after a fresh bootstrap: ${
+				after === undefined ? "absent (removal CONFIRMED)" : `\`${JSON.stringify(after)}\` (removal FAILED)`
+			}`,
+		];
 	}
 
 	private async bootstrap(client: WorkflowyInternalClient, recorded: RecordedRequest[]): Promise<string[]> {

@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import Probe, {SANDBOX_ID, assertUnderSandbox} from "../../../src/commands/internal/probe.js";
+import Probe, {SANDBOX_ID, assertUnderSandbox, typeShape} from "../../../src/commands/internal/probe.js";
 
 const INIT_BODY = {
 	projectTreeData: {
@@ -91,7 +91,7 @@ describe("internal probe command", () => {
 
 	it("rejects an unknown step", async () => {
 		await expect(Probe.run(["delete-everything", "--yes-live", "--out", outPath])).rejects.toThrow(
-			"Expected delete-everything to be one of: bootstrap, poll, error-shape",
+			"Expected delete-everything to be one of: bootstrap, poll, error-shape, root-meta, root-meta-set, root-meta-unset",
 		);
 	});
 
@@ -378,5 +378,234 @@ describe("internal probe error-shape", () => {
 		await expect(Probe.run(["error-shape", "--yes-live", "--out", outPath])).rejects.toThrow(
 			"WORKFLOWY_API_KEY environment variable is required",
 		);
+	});
+});
+
+describe("typeShape", () => {
+	it("collapses the top-level object to a record and keeps nested keys", () => {
+		expect(
+			typeShape({
+				"secret-tag": {color: "red", order: 1},
+				other: {color: "blue"},
+			}),
+		).toBe("Record<string, {color: string; order: number} | {color: string}>");
+	});
+
+	it("redacts scalars and arrays to their types", () => {
+		expect(typeShape("MM/DD/YYYY")).toBe("string");
+		expect(typeShape(1)).toBe("number");
+		expect(typeShape(true)).toBe("boolean");
+		expect(typeShape(null)).toBe("null");
+		expect(typeShape(["a", "b", 3])).toBe("Array<number | string>");
+		expect(typeShape([])).toBe("Array<never>");
+		expect(typeShape({})).toBe("{}");
+		expect(typeShape(undefined)).toBe("absent");
+	});
+});
+
+type Meta = Record<string, unknown>;
+
+/** Internal API fake whose root metadata changes when a pushed `edit` on `None` carries patches. */
+function rootMetaFetch(recorded: Recorded[], metadata: Meta) {
+	const state = {metadata: structuredClone(metadata)};
+	const apply = (patch: {op: string; path: string[]; value?: unknown}) => {
+		const parentPath = patch.path.slice(0, -1);
+		const key = patch.path.at(-1) ?? "";
+		const parent = parentPath.reduce<Meta>((node, part) => node[part] as Meta, state.metadata);
+		if (patch.op === "remove") {
+			Reflect.deleteProperty(parent, key);
+		} else {
+			parent[key] = patch.value;
+		}
+	};
+	const route = (input: string | URL | Request, init: RequestInit | undefined): Response => {
+		const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+		const body = typeof init?.body === "string" ? init.body : undefined;
+		recorded.push({path: url.pathname, body});
+		if (url.pathname === "/get_initialization_data") {
+			const initBody = structuredClone(INIT_BODY);
+			initBody.projectTreeData.rootProjectMetadata = structuredClone(state.metadata);
+			return Response.json(initBody, {headers: {wfclientid: "2026-10-18 12:00:00.123456"}});
+		}
+		if (url.pathname === "/push_and_poll") {
+			const trees = JSON.parse(new URLSearchParams(body).get("push_poll_data") ?? "[]") as {
+				operations?: {
+					type: string;
+					data: {projectid: string; metadataPatches?: {op: string; path: string[]}[]};
+				}[];
+			}[];
+			for (const op of trees[0]?.operations ?? []) {
+				for (const patch of op.data.metadataPatches ?? []) {
+					apply(patch);
+				}
+			}
+			return Response.json({
+				results: [
+					{
+						new_most_recent_operation_transaction_id: "1234568",
+						server_run_operation_transaction_json: JSON.stringify({ops: trees[0]?.operations ?? []}),
+						concurrent_remote_operation_transactions: [],
+					},
+				],
+			});
+		}
+		return respond(url.pathname, 200);
+	};
+	return vi.fn<typeof fetch>(async (input, init) => Promise.resolve(route(input, init)));
+}
+
+/** The `operations` of the first tree of every recorded `/push_and_poll`. */
+function pushedOperations(recorded: Recorded[]): unknown[] {
+	return recorded
+		.filter((request) => request.path === "/push_and_poll")
+		.map((push) => {
+			const trees = JSON.parse(new URLSearchParams(push.body).get("push_poll_data") ?? "[]") as {
+				operations?: unknown[];
+			}[];
+			return trees[0]?.operations;
+		});
+}
+
+describe("internal probe root-meta", () => {
+	let tempDir: string;
+	let outPath: string;
+	const savedEnv = {...process.env};
+
+	beforeEach(() => {
+		vi.useFakeTimers({toFake: ["Date"]});
+		vi.setSystemTime(new Date("2026-10-18T12:00:00.000Z"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-probe-"));
+		outPath = path.join(tempDir, "probes.md");
+		process.env.WORKFLOWY_USERNAME = "alice@example.com";
+		process.env.WORKFLOWY_PASSWORD = "hunter2";
+		process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+		process.env = {...savedEnv};
+		fs.rmSync(tempDir, {recursive: true, force: true});
+	});
+
+	const ACCOUNT_META: Meta = {
+		starring: {
+			locations: {"loc-1": {zoomedProjectId: "abc", searchQuery: "#secret"}},
+			order: ["loc-1"],
+		},
+		color: {tags: {"private-tag": "red"}},
+		dateFormat: "MM/DD/YYYY",
+		weekStartDay: 1,
+		notesRootId: "def",
+	};
+
+	it("root-meta reads the account keys as redacted types and pushes nothing", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", rootMetaFetch(recorded, ACCOUNT_META));
+		await Probe.run(["root-meta", "--yes-live", "--out", outPath]);
+		expect(recorded.map((request) => request.path)).toStrictEqual(["/ajax_login", "/get_initialization_data"]);
+		expect(fs.readFileSync(outPath, "utf8")).toBe(
+			[
+				"",
+				"## root-meta (2026-10-18T12:00:00.000Z)",
+				"",
+				"- Top-level root metadata keys: `color`, `dateFormat`, `notesRootId`, `starring`, `weekStartDay`",
+				"- `starring.locations`: `Record<string, {searchQuery: string; zoomedProjectId: string}>`",
+				"- `starring.order`: `Array<string>`",
+				"- `color.tags`: `Record<string, string>`",
+				"- `dateFormat`: `string`",
+				"- `timeFormat`: `absent`",
+				"- `weekStartDay`: `number`",
+				"- `slash.discovered`: `absent`",
+				"- `notesRootId`: `string`",
+				"",
+			].join("\n"),
+		);
+	});
+
+	it("refuses the root-metadata write steps without --yes-account-global and makes no request", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", rootMetaFetch(recorded, ACCOUNT_META));
+		for (const step of ["root-meta-set", "root-meta-unset"]) {
+			await expect(Probe.run([step, "--yes-live", "--out", outPath])).rejects.toThrow(
+				"Root metadata is account-global and cannot be sandboxed: pass --yes-account-global (with the user's approval) to write it",
+			);
+		}
+		expect(recorded).toStrictEqual([]);
+	});
+
+	it("root-meta-set writes probe.x through setRootMeta and confirms it after a fresh bootstrap", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", rootMetaFetch(recorded, ACCOUNT_META));
+		await Probe.run(["root-meta-set", "--yes-live", "--yes-account-global", "--out", outPath]);
+		expect(pushedOperations(recorded)).toStrictEqual([
+			[
+				expect.objectContaining({
+					type: "edit",
+					data: expect.objectContaining({
+						projectid: "None",
+						metadataPatches: [{op: "add", path: ["probe"], value: {x: "1"}}],
+					}),
+				}),
+			],
+		]);
+		expect(fs.readFileSync(outPath, "utf8")).toBe(
+			[
+				"",
+				"## root-meta-set (2026-10-18T12:00:00.000Z)",
+				"",
+				"- `probe` before: absent",
+				'- Pushed: `setRootMeta(["probe", "x"], "1")`',
+				'- `probe.x` after a fresh bootstrap: `"1"` (round trip CONFIRMED)',
+				"- Next: reload workflowy.com once and confirm it still loads, then run `internal probe root-meta-unset --yes-live --yes-account-global`",
+				"",
+			].join("\n"),
+		);
+	});
+
+	it("root-meta-set refuses to touch an existing probe key", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", rootMetaFetch(recorded, {...ACCOUNT_META, probe: {other: 1}}));
+		await expect(
+			Probe.run(["root-meta-set", "--yes-live", "--yes-account-global", "--out", outPath]),
+		).rejects.toThrow("Refusing to write: root metadata already has a `probe` key");
+		expect(recorded.some((request) => request.path === "/push_and_poll")).toBe(false);
+	});
+
+	it("root-meta-unset removes probe and confirms it is gone after a fresh bootstrap", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", rootMetaFetch(recorded, {...ACCOUNT_META, probe: {x: "1"}}));
+		await Probe.run(["root-meta-unset", "--yes-live", "--yes-account-global", "--out", outPath]);
+		expect(pushedOperations(recorded)).toStrictEqual([
+			[
+				expect.objectContaining({
+					type: "edit",
+					data: expect.objectContaining({
+						projectid: "None",
+						metadataPatches: [{op: "remove", path: ["probe"]}],
+					}),
+				}),
+			],
+		]);
+		expect(fs.readFileSync(outPath, "utf8")).toBe(
+			[
+				"",
+				"## root-meta-unset (2026-10-18T12:00:00.000Z)",
+				"",
+				'- `probe` before: `{"x":"1"}`',
+				'- Pushed: `setRootMeta(["probe"], undefined)`',
+				"- `probe` after a fresh bootstrap: absent (removal CONFIRMED)",
+				"",
+			].join("\n"),
+		);
+	});
+
+	it("root-meta-unset refuses unless probe is exactly the throwaway value", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", rootMetaFetch(recorded, {...ACCOUNT_META, probe: {x: "1", y: 2}}));
+		await expect(
+			Probe.run(["root-meta-unset", "--yes-live", "--yes-account-global", "--out", outPath]),
+		).rejects.toThrow('Refusing to remove: root metadata `probe` is not exactly {"x":"1"}');
+		expect(recorded.some((request) => request.path === "/push_and_poll")).toBe(false);
 	});
 });
