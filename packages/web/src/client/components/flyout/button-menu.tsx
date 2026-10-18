@@ -181,11 +181,14 @@ export function ButtonMenu({
 			onMouseLeave={() => {
 				controller.mouseLeave();
 			}}
-			onClick={() => {
+			onClick={(event) => {
 				const active = document.activeElement;
 				const activeElement = active instanceof HTMLElement ? active : null;
+				// A menu item's click bubbles here through the portal; it must not reopen the menu it just closed.
+				const fromFlyout = event.target instanceof Node && (flyoutRef.current?.contains(event.target) ?? false);
 				const action = controller.click(
 					activeElement ? (triggerRef.current?.contains(activeElement) ?? false) : null,
+					fromFlyout,
 				);
 				if (action === "blur") {
 					activeElement?.blur();

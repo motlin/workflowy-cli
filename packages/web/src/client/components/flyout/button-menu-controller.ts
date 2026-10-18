@@ -25,8 +25,12 @@ export interface ButtonMenuController {
 	mouseEnter(): void;
 	mouseLeave(): void;
 	flyoutPointerDown(): void;
-	/** `activeInsideTrigger` is null when document.activeElement is not an HTMLElement. */
-	click(activeInsideTrigger: boolean | null): ButtonMenuClickAction;
+	/**
+	 * `activeInsideTrigger` is null when document.activeElement is not an HTMLElement.
+	 * `fromFlyout`: the click started inside the flyout and only reached the trigger by
+	 * bubbling through the React portal (upstream's flyout is not inside the trigger).
+	 */
+	click(activeInsideTrigger: boolean | null, fromFlyout?: boolean): ButtonMenuClickAction;
 	escape(): ButtonMenuEscapeAction;
 	isOpen(): boolean;
 }
@@ -99,7 +103,10 @@ export function createButtonMenuController(options: ButtonMenuControllerOptions)
 		flyoutPointerDown() {
 			pointerDownInFlyout = true;
 		},
-		click(activeInsideTrigger) {
+		click(activeInsideTrigger, fromFlyout = false) {
+			if (fromFlyout) {
+				return "none";
+			}
 			if (!open) {
 				if (actOnHover) {
 					return "none";

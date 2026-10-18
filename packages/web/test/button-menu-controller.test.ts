@@ -121,6 +121,18 @@ describe("createButtonMenuController", () => {
 		}
 	});
 
+	it("ignores a click bubbling up from the flyout, so an item that closed the menu does not reopen it", () => {
+		const h = createHarness();
+		h.controller.focus();
+		h.advance(400);
+		// The item's handler blurs the trigger (Complete), then its click bubbles through the React portal.
+		h.controller.blur();
+		expect({action: h.controller.click(null, true), state: h.state()}).toStrictEqual({
+			action: "none",
+			state: {open: false, bodyClasses: [], onShowCalls: 1, onHideCalls: 1},
+		});
+	});
+
 	it("opens on click when closed", () => {
 		const h = createHarness();
 		expect(h.controller.click(null)).toBe("open");
