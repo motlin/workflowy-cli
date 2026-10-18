@@ -1,6 +1,7 @@
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it, vi} from "vite-plus/test";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {projectClassName} from "../src/client/components/row-classes.js";
@@ -23,7 +24,13 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 const {EditableNote} = await import("../src/client/components/editable-note.js");
 
 function render(props: {initialValue: string; isFocused?: boolean; isMain?: boolean}): string {
-	return renderToStaticMarkup(createElement(EditableNote, {nodeId: "alice", isFocused: false, ...props}));
+	return renderToStaticMarkup(
+		createElement(
+			QueryClientProvider,
+			{client: new QueryClient()},
+			createElement(EditableNote, {nodeId: "alice", isFocused: false, ...props}),
+		),
+	);
 }
 
 describe("EditableNote markup", () => {

@@ -82,3 +82,64 @@ export function planNoteSave(initial: string, html: string): {save: boolean; not
 	const note = converted.trim() === "" ? "" : converted;
 	return {save: note !== initial, note};
 }
+
+export interface NoteKeyInput {
+	key: string;
+	shift: boolean;
+	/** The note's plain text. */
+	text: string;
+	/** Selection offsets into `text`. */
+	start: number;
+	end: number;
+	/** The caret is on the note's first / last line. */
+	onFirstLine: boolean;
+	onLastLine: boolean;
+}
+
+export type NoteKeyPlan =
+	| {kind: "native"}
+	| {kind: "noop"}
+	| {kind: "insert"; text: string; caret: number}
+	| {kind: "focusName"; caret: 0 | "end"}
+	| {kind: "focusNextRowName"}
+	| {kind: "clearAndFocusName"};
+
+/**
+ * Upstream's in-note key handling: Enter and Tab insert text (never split or indent rows),
+ * Backspace in a blank note returns to the name, and arrows leave the note at its edges.
+ */
+export function planNoteKey({key, shift, text, start, end, onFirstLine, onLastLine}: NoteKeyInput): NoteKeyPlan {
+	const collapsed = start === end;
+	const atStart = collapsed && start === 0;
+	const atEnd = collapsed && end === text.length;
+	switch (key) {
+		case "Enter": {
+			if (shift) {
+				return {kind: "focusName", caret: "end"};
+			}
+			// A trailing newline renders no line, so a second one holds the new empty line open.
+			return {kind: "insert", text: end === text.length ? "\n\n" : "\n", caret: start + 1};
+		}
+		case "Tab": {
+			return shift ? {kind: "noop"} : {kind: "insert", text: "\t", caret: start + 1};
+		}
+		case "Backspace": {
+			return text.trim() === "" ? {kind: "clearAndFocusName"} : {kind: "native"};
+		}
+		case "ArrowUp": {
+			return !shift && atStart && onFirstLine ? {kind: "focusName", caret: 0} : {kind: "native"};
+		}
+		case "ArrowDown": {
+			return !shift && atEnd && onLastLine ? {kind: "focusNextRowName"} : {kind: "native"};
+		}
+		case "ArrowLeft": {
+			return !shift && atStart ? {kind: "focusName", caret: "end"} : {kind: "native"};
+		}
+		case "ArrowRight": {
+			return !shift && atEnd ? {kind: "focusNextRowName"} : {kind: "native"};
+		}
+		default: {
+			return {kind: "native"};
+		}
+	}
+}

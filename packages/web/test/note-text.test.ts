@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {editorHtmlToNote, noteToEditorHtml, planNoteSave} from "../src/client/note-text.js";
+import {editorHtmlToNote, noteToEditorHtml, planNoteKey, planNoteSave} from "../src/client/note-text.js";
 
 describe("editorHtmlToNote", () => {
 	it("turns <br> into a newline", () => {
@@ -78,5 +78,92 @@ describe("planNoteSave", () => {
 
 	it("skips saving a blank note that was already empty", () => {
 		expect(planNoteSave("", "<br>")).toStrictEqual({save: false, note: ""});
+	});
+});
+
+describe("planNoteKey", () => {
+	const seventy = "a".repeat(70);
+	const twoLines = "first line ok\nsecond";
+	const base = {shift: false, onFirstLine: true, onLastLine: true};
+
+	it("inserts a newline plus a sentinel newline for Enter at the very end", () => {
+		expect(planNoteKey({...base, key: "Enter", text: seventy, start: 70, end: 70})).toStrictEqual({
+			kind: "insert",
+			text: "\n\n",
+			caret: 71,
+		});
+	});
+
+	it("inserts one newline for Enter mid-text", () => {
+		expect(planNoteKey({...base, key: "Enter", text: seventy, start: 4, end: 4})).toStrictEqual({
+			kind: "insert",
+			text: "\n",
+			caret: 5,
+		});
+	});
+
+	it("moves to the end of the name for Shift+Enter", () => {
+		expect(planNoteKey({...base, key: "Enter", shift: true, text: seventy, start: 4, end: 4})).toStrictEqual({
+			kind: "focusName",
+			caret: "end",
+		});
+	});
+
+	it("inserts a tab for Tab and does nothing for Shift+Tab", () => {
+		expect(planNoteKey({...base, key: "Tab", text: seventy, start: 4, end: 4})).toStrictEqual({
+			kind: "insert",
+			text: "\t",
+			caret: 5,
+		});
+		expect(planNoteKey({...base, key: "Tab", shift: true, text: seventy, start: 4, end: 4})).toStrictEqual({
+			kind: "noop",
+		});
+	});
+
+	it("clears a blank note and focuses the name on Backspace", () => {
+		expect(planNoteKey({...base, key: "Backspace", text: "\n", start: 1, end: 1})).toStrictEqual({
+			kind: "clearAndFocusName",
+		});
+	});
+
+	it("leaves Backspace native in a note with text", () => {
+		expect(planNoteKey({...base, key: "Backspace", text: "hi", start: 2, end: 2})).toStrictEqual({kind: "native"});
+	});
+
+	it("moves Up to the start of the name only from offset 0", () => {
+		expect(
+			planNoteKey({...base, key: "ArrowUp", text: twoLines, start: 13, end: 13, onLastLine: false}),
+		).toStrictEqual({kind: "native"});
+		expect(
+			planNoteKey({...base, key: "ArrowUp", text: twoLines, start: 0, end: 0, onLastLine: false}),
+		).toStrictEqual({kind: "focusName", caret: 0});
+		expect(
+			planNoteKey({...base, key: "ArrowUp", shift: true, text: twoLines, start: 0, end: 0, onLastLine: false}),
+		).toStrictEqual({kind: "native"});
+	});
+
+	it("moves Down at the very end of the last line to the next row's name", () => {
+		expect(
+			planNoteKey({...base, key: "ArrowDown", text: twoLines, start: 20, end: 20, onFirstLine: false}),
+		).toStrictEqual({kind: "focusNextRowName"});
+		expect(
+			planNoteKey({...base, key: "ArrowDown", text: twoLines, start: 3, end: 3, onLastLine: false}),
+		).toStrictEqual({kind: "native"});
+	});
+
+	it("moves Left at 0 to the end of the name and Right at the end to the next row's name", () => {
+		expect(planNoteKey({...base, key: "ArrowLeft", text: "hi", start: 0, end: 0})).toStrictEqual({
+			kind: "focusName",
+			caret: "end",
+		});
+		expect(planNoteKey({...base, key: "ArrowLeft", text: "hi", start: 1, end: 1})).toStrictEqual({kind: "native"});
+		expect(planNoteKey({...base, key: "ArrowRight", text: "hi", start: 2, end: 2})).toStrictEqual({
+			kind: "focusNextRowName",
+		});
+		expect(planNoteKey({...base, key: "ArrowRight", text: "hi", start: 0, end: 2})).toStrictEqual({kind: "native"});
+	});
+
+	it("leaves Delete native", () => {
+		expect(planNoteKey({...base, key: "Delete", text: "", start: 0, end: 0})).toStrictEqual({kind: "native"});
 	});
 });
