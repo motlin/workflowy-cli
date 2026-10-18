@@ -209,17 +209,17 @@ export function TopBar() {
 
 				{/* Star slot: M1-29 replaces this with <StarButton nodeId={zoomedNodeId} handbook="starring.star" size="lg"/> */}
 				{zoomedNodeId !== null && (
-					<Tooltip content={isCurrentPageStarred ? "Unstar" : "Star"} shortcut="⇧⌘8">
-						<button
-							aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
-							className={`top-bar-button top-bar-star ${isCurrentPageStarred ? "starred" : ""}`}
-							data-handbook="starring.star"
-							onClick={handleStarToggle}
-							type="button"
-						>
+					<IconButton
+						aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
+						data-handbook="starring.star"
+						onClick={handleStarToggle}
+						shortcut="⇧⌘8"
+						tooltip={isCurrentPageStarred ? "Unstar" : "Star"}
+					>
+						<span style={isCurrentPageStarred ? {color: "var(--color-warning)"} : undefined}>
 							{isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />}
-						</button>
-					</Tooltip>
+						</span>
+					</IconButton>
 				)}
 
 				<IconButton
@@ -232,7 +232,7 @@ export function TopBar() {
 				</IconButton>
 
 				{/* Change layout */}
-				<div className="top-bar-layout-container" ref={layoutButtonRef}>
+				<div className="relative" ref={layoutButtonRef}>
 					<IconButton
 						aria-expanded={layoutMenuOpen}
 						aria-haspopup="true"

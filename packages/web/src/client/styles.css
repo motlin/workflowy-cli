@@ -699,119 +699,6 @@ body {
 	}
 }
 
-.top-bar-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 36px;
-	height: 36px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: 50%;
-	cursor: pointer;
-	color: var(--wf-icon-button);
-	transition:
-		background-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.top-bar-button:hover:not(:disabled):not(.disabled) {
-	background-color: var(--color-bg-hover);
-	color: var(--color-text);
-}
-
-.top-bar-button:focus {
-	outline: none;
-	background-color: var(--color-bg-hover);
-}
-
-.top-bar-button:focus-visible {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
-}
-
-.top-bar-button.disabled,
-.top-bar-button:disabled {
-	opacity: 0.7;
-	cursor: default;
-}
-
-.top-bar-button.active {
-	color: var(--wf-accent-cyan);
-}
-
-.top-bar-button.active:hover {
-	color: var(--wf-accent-cyan);
-}
-
-/* Star button in top bar */
-.top-bar-star {
-	margin-left: 8px;
-}
-
-.top-bar-star.starred {
-	color: var(--color-warning);
-}
-
-.top-bar-star.starred:hover {
-	color: var(--color-warning);
-}
-
-.top-bar-separator {
-	width: 1px;
-	height: 20px;
-	background-color: var(--color-border);
-	margin: 0 4px;
-}
-
-.top-bar-avatar {
-	border-radius: 50%;
-}
-
-.top-bar-dropdown {
-	position: absolute;
-	top: 100%;
-	right: 0;
-	z-index: 1000;
-	min-width: 160px;
-	background-color: var(--color-bg);
-	border: 1px solid var(--color-border);
-	border-radius: 6px;
-	box-shadow: var(--shadow-modal);
-	padding: 4px 0;
-	margin-top: 4px;
-}
-
-.top-bar-dropdown-item {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	width: 100%;
-	padding: 8px 12px;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-	font-size: 13px;
-	font-family: inherit;
-	color: var(--color-text);
-	text-align: left;
-	transition: background-color 0.1s ease;
-}
-
-.top-bar-dropdown-item:hover {
-	background-color: var(--color-bg-hover);
-}
-
-.top-bar-dropdown-item:focus {
-	outline: none;
-	background-color: var(--color-bg-selected);
-}
-
-.top-bar-dropdown-item svg {
-	color: var(--color-icon);
-}
-
 /* ================================
    Gear Menu Styles
    ================================
@@ -4678,10 +4565,6 @@ button.iconButton {
 	font-size: 12px;
 	color: var(--color-text-muted);
 	z-index: 500;
-}
-
-.top-bar-layout-container {
-	position: relative;
 }
 
 /* ================================

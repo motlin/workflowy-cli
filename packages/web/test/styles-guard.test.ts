@@ -43,3 +43,18 @@ describe("breadcrumb styles guard", () => {
 		]);
 	});
 });
+
+describe("top bar styles guard", () => {
+	it("drops the leftover local-only top-bar rules", () => {
+		expect(
+			hasSelector(
+				styles,
+				/\.top-bar-(button|star|menu|separator|avatar|dropdown|calendar-container|completed-container|layout-container|left|right|nav-buttons)\b/u,
+			),
+		).toBe(false);
+	});
+
+	it("keeps the search box rules until search filtering replaces them", () => {
+		expect(hasSelector(styles, /\.top-bar-search-box\b/u)).toBe(true);
+	});
+});
