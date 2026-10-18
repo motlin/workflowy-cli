@@ -1,5 +1,5 @@
 import {afterEach, beforeAll, describe, expect, it, vi} from "vite-plus/test";
-import {navigationShortcut, punctuationHotkeys} from "../src/client/hotkey-bindings.js";
+import {navigationShortcut, punctuationHotkeys, structureHotkeys} from "../src/client/hotkey-bindings.js";
 
 type IsHotkeyPressed = (key: string | readonly string[], delimiter?: string) => boolean;
 
@@ -49,6 +49,17 @@ describe("navigationShortcut", () => {
 			preventDefault: true,
 			enableOnFormTags: false,
 			enableOnContentEditable: true,
+		});
+	});
+});
+
+describe("structureHotkeys", () => {
+	it("binds the upstream ctrl+shift arrow aliases beside tab and shift+meta arrows", () => {
+		expect(structureHotkeys).toStrictEqual({
+			indent: "tab, ctrl+shift+right",
+			outdent: "shift+tab, ctrl+shift+left",
+			moveUp: "shift+meta+up, ctrl+shift+up",
+			moveDown: "shift+meta+down, ctrl+shift+down",
 		});
 	});
 });

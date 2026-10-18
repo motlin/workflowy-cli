@@ -24,7 +24,7 @@ import {
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
-import {navigationShortcut, punctuationHotkeys} from "../hotkey-bindings.js";
+import {navigationShortcut, punctuationHotkeys, structureHotkeys} from "../hotkey-bindings.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -297,9 +297,9 @@ export function useKeyboardShortcuts() {
 		[editingId, editingNoteId, startEditingNote],
 	);
 
-	// Tab: Indent the edited node (make it a child of its previous sibling)
+	// Tab or Ctrl+Shift+Right: Indent the edited node (make it a child of its previous sibling)
 	useHotkeys(
-		"tab",
+		structureHotkeys.indent,
 		() => {
 			if (editedNode !== undefined) {
 				moveEditedNode(planIndent(queryClient, editedNode));
@@ -309,9 +309,9 @@ export function useKeyboardShortcuts() {
 		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Shift+Tab: Outdent the edited node (make it a sibling of its parent)
+	// Shift+Tab or Ctrl+Shift+Left: Outdent the edited node (make it a sibling of its parent)
 	useHotkeys(
-		"shift+tab",
+		structureHotkeys.outdent,
 		() => {
 			if (editedNode !== undefined) {
 				moveEditedNode(planOutdent(queryClient, editedNode));
@@ -341,9 +341,9 @@ export function useKeyboardShortcuts() {
 		[editedNode, showCompleted, commitEdit, editBesideRemovedNode, toggleCompleteMutation],
 	);
 
-	// Shift+Cmd+Up: Move the edited node up among siblings
+	// Shift+Cmd+Up or Ctrl+Shift+Up: Move the edited node up among siblings
 	useHotkeys(
-		"shift+meta+up",
+		structureHotkeys.moveUp,
 		() => {
 			if (editedNode !== undefined) {
 				moveEditedNode(planMoveUp(queryClient, editedNode));
@@ -353,9 +353,9 @@ export function useKeyboardShortcuts() {
 		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Shift+Cmd+Down: Move the edited node down among siblings
+	// Shift+Cmd+Down or Ctrl+Shift+Down: Move the edited node down among siblings
 	useHotkeys(
-		"shift+meta+down",
+		structureHotkeys.moveDown,
 		() => {
 			if (editedNode !== undefined) {
 				moveEditedNode(planMoveDown(queryClient, editedNode));

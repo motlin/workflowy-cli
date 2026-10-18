@@ -17,6 +17,17 @@ export const punctuationHotkeys = {
 } as const;
 
 /**
+ * Hotkey bindings for structural moves, each a comma-separated list of alternatives.
+ * The ctrl+shift arrow aliases match workflowy.com.
+ */
+export const structureHotkeys = {
+	indent: "tab, ctrl+shift+right",
+	outdent: "shift+tab, ctrl+shift+left",
+	moveUp: "shift+meta+up, ctrl+shift+up",
+	moveDown: "shift+meta+down, ctrl+shift+down",
+} as const;
+
+/**
  * Options for navigation shortcuts. Almost every keypress happens while a node is being
  * edited, so navigation fires from inside the edited text, as on workflowy.com.
  */
