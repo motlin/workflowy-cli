@@ -64,7 +64,14 @@ interface AccountSnapshot {
 	settings: Metadata;
 }
 
-const KEYS = {account: "account", rootMetadata: "root_metadata", settings: "settings"} as const;
+const KEYS = {
+	account: "account",
+	rootMetadata: "root_metadata",
+	settings: "settings",
+	expandedKeys: "expanded_keys",
+} as const;
+
+const ExpandedKeysSchema = z.array(z.string());
 
 /** The id callers pass for Home (the root) in tree writes. */
 export const HOME = HOME_TARGET;
@@ -142,6 +149,18 @@ export interface WorkflowyInternalAdapterOptions {
 	generateId?: () => string;
 }
 
+function applyExpansionsDelta(keys: Set<string>, delta: Record<string, boolean>): Set<string> {
+	const next = new Set(keys);
+	for (const [key, expanded] of Object.entries(delta)) {
+		if (expanded) {
+			next.add(key);
+		} else {
+			next.delete(key);
+		}
+	}
+	return next;
+}
+
 function getPath(value: unknown, path: string[]): unknown {
 	let current = value;
 	for (const key of path) {
@@ -174,6 +193,8 @@ export class WorkflowyInternalAdapter {
 	private readonly pusher: PushAndPoll;
 	private readonly writeThrough: WorkflowyWriteThroughClient | undefined;
 	private readonly generateId: () => string;
+	private expandedKeysRefresh: Promise<Set<string>> | undefined;
+	private pushedDuringRefresh: Record<string, boolean>[] | undefined;
 
 	constructor(options: WorkflowyInternalAdapterOptions) {
 		this.client = options.client;
@@ -485,9 +506,24 @@ export class WorkflowyInternalAdapter {
 	 * expansion by the first 8 chars of the id, so a key resolves to every
 	 * cached id it prefixes (twins expand together, as upstream) and keys with
 	 * no cached node are dropped.
+	 *
+	 * The keys are cached in `account_state`: only the first read ever waits
+	 * on `/get_tree_data/`; a read of keys older than 30s answers from the
+	 * cache and refreshes them in the background (see {@link expandedKeysRefreshed}).
 	 */
 	async getExpandedIds(): Promise<string[]> {
-		const keys = new Set(await this.client.getExpandedKeys());
+		const cached = this.loadExpandedKeys();
+		let keys: Set<string>;
+		if (cached) {
+			keys = cached.keys;
+			if (cached.fetchedAt < this.now() - FRESHNESS_MS) {
+				void this.refreshExpandedKeys().catch((error: unknown) => {
+					console.error("Failed to refresh expanded keys", error);
+				});
+			}
+		} else {
+			keys = await this.refreshExpandedKeys();
+		}
 		return this.db
 			.select({id: nodeContent.id})
 			.from(nodeContent)
@@ -496,6 +532,11 @@ export class WorkflowyInternalAdapter {
 			.all()
 			.map(({id}) => id)
 			.filter((id) => keys.has(expansionKey(id)));
+	}
+
+	/** Settles once the in-flight expanded-keys refresh, if any, has finished. */
+	async expandedKeysRefreshed(): Promise<void> {
+		await this.expandedKeysRefresh?.catch(() => {});
 	}
 
 	/** Expand (`true`) or collapse (`false`) nodes with one push carrying only `project_expansions_delta`. */
@@ -507,6 +548,47 @@ export class WorkflowyInternalAdapter {
 		await this.session();
 		const expansionsDelta = Object.fromEntries(entries.map(([id, expanded]) => [expansionKey(id), expanded]));
 		await this.pusher.pushAndPoll({expansionsDelta});
+		this.pushedDuringRefresh?.push(expansionsDelta);
+		const cached = this.loadExpandedKeys();
+		if (cached) {
+			this.storeExpandedKeys(applyExpansionsDelta(cached.keys, expansionsDelta), cached.fetchedAt);
+		}
+	}
+
+	/** One `/get_tree_data/` at a time; deltas pushed while it runs are replayed onto its snapshot. */
+	private async refreshExpandedKeys(): Promise<Set<string>> {
+		this.expandedKeysRefresh ??= (async () => {
+			const pushed: Record<string, boolean>[] = [];
+			this.pushedDuringRefresh = pushed;
+			try {
+				const fetchedAt = this.now();
+				let keys = new Set(await this.client.getExpandedKeys());
+				for (const delta of pushed) {
+					keys = applyExpansionsDelta(keys, delta);
+				}
+				this.storeExpandedKeys(keys, fetchedAt);
+				return keys;
+			} finally {
+				this.pushedDuringRefresh = undefined;
+				this.expandedKeysRefresh = undefined;
+			}
+		})();
+		return this.expandedKeysRefresh;
+	}
+
+	private loadExpandedKeys(): {keys: Set<string>; fetchedAt: number} | undefined {
+		const row = this.db.select().from(accountState).where(eq(accountState.key, KEYS.expandedKeys)).get();
+		const keys = row && ExpandedKeysSchema.safeParse(JSON.parse(row.json)).data;
+		return row && keys ? {keys: new Set(keys), fetchedAt: row.fetchedAt} : undefined;
+	}
+
+	private storeExpandedKeys(keys: Set<string>, fetchedAt: number): void {
+		const json = JSON.stringify([...keys].toSorted());
+		this.db
+			.insert(accountState)
+			.values({key: KEYS.expandedKeys, json, fetchedAt})
+			.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt}})
+			.run();
 	}
 
 	async getAccount(): Promise<Account> {

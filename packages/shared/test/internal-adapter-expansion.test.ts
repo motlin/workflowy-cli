@@ -24,6 +24,15 @@ function cachedNode(id: string): WorkflowyNode {
 	return {id, name: id, note: null, parent_id: null, priority: 0, createdAt: 0, modifiedAt: 0};
 }
 
+function treeData(expandedKeys: string[]): Response {
+	return json({
+		items: [],
+		shared_projects: {},
+		most_recent_operation_transaction_id: "9999",
+		server_expanded_projects_list: expandedKeys,
+	});
+}
+
 function setup() {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
@@ -33,19 +42,20 @@ function setup() {
 		cacheService.insertNode(cachedNode(id), null);
 	}
 	const api = createFakeInternalApi();
-	const client = new WorkflowyInternalClient({
-		credentials: {username: "alice@example.com", password: "hunter2"},
-		fetch: api.fetch,
-		baseUrl: "https://workflowy.test",
-		transientId: "6f1c1d1e-0000-4000-8000-000000000001",
-	});
-	const adapter = new WorkflowyInternalAdapter({
-		client,
-		db,
-		now: () => START_MS,
-		pushAndPoll: {randomId: () => "pollid01", timezone: "America/New_York", sleep: async () => {}},
-	});
-	return {sqlite, api, adapter};
+	const clock = {ms: START_MS};
+	const newAdapter = () =>
+		new WorkflowyInternalAdapter({
+			client: new WorkflowyInternalClient({
+				credentials: {username: "alice@example.com", password: "hunter2"},
+				fetch: api.fetch,
+				baseUrl: "https://workflowy.test",
+				transientId: "6f1c1d1e-0000-4000-8000-000000000001",
+			}),
+			db,
+			now: () => clock.ms,
+			pushAndPoll: {randomId: () => "pollid01", timezone: "America/New_York", sleep: async () => {}},
+		});
+	return {sqlite, api, adapter: newAdapter(), newAdapter, clock};
 }
 
 function network(requests: RecordedRequest[]) {
@@ -87,6 +97,79 @@ describe("WorkflowyInternalAdapter expansion", () => {
 			["POST", "/ajax_login"],
 			["GET", "/get_tree_data/"],
 		]);
+	});
+
+	it("serves later reads from the cached keys, sharing one fetch between concurrent reads", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+
+		const concurrent = await Promise.all([adapter.getExpandedIds(), adapter.getExpandedIds()]);
+		const later = await adapter.getExpandedIds();
+
+		expect({concurrent, later, network: network(api.requests)}).toStrictEqual({
+			concurrent: [
+				[ALPHA, ALPHA_TWIN],
+				[ALPHA, ALPHA_TWIN],
+			],
+			later: [ALPHA, ALPHA_TWIN],
+			network: [
+				["POST", "/ajax_login"],
+				["GET", "/get_tree_data/"],
+			],
+		});
+	});
+
+	it("keeps the cached keys across adapters over the same database", async () => {
+		const {api, adapter, newAdapter} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["5e6f7a8b"]));
+		await adapter.getExpandedIds();
+		api.requests.length = 0;
+
+		await expect(newAdapter().getExpandedIds()).resolves.toStrictEqual([BRAVO]);
+		expect(api.requests).toStrictEqual([]);
+	});
+
+	it("answers a stale read from the cache and refreshes it in the background", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		api.respond("/get_tree_data/", () => treeData(["9c9c9c9c"]));
+		await adapter.getExpandedIds();
+		clock.ms += 60_000;
+
+		const stale = await adapter.getExpandedIds();
+		await adapter.expandedKeysRefreshed();
+		const refreshed = await adapter.getExpandedIds();
+
+		expect({stale, refreshed, network: network(api.requests)}).toStrictEqual({
+			stale: [ALPHA, ALPHA_TWIN],
+			refreshed: [CHARLIE],
+			network: [
+				["POST", "/ajax_login"],
+				["GET", "/get_tree_data/"],
+				["GET", "/get_tree_data/"],
+			],
+		});
+	});
+
+	it("applies pushed changes to the cached keys, including ones pushed during a refresh", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		await adapter.getExpandedIds();
+		await adapter.setExpanded({[CHARLIE]: true, [ALPHA]: false});
+		const afterPush = await adapter.getExpandedIds();
+
+		// The refresh's snapshot predates the next push, so the push must survive it.
+		api.respondOnce("/get_tree_data/", () => treeData(["9c9c9c9c"]));
+		clock.ms += 60_000;
+		await adapter.getExpandedIds();
+		await adapter.setExpanded({[BRAVO]: true});
+		await adapter.expandedKeysRefreshed();
+		const afterRefresh = await adapter.getExpandedIds();
+
+		expect({afterPush, afterRefresh}).toStrictEqual({
+			afterPush: [CHARLIE],
+			afterRefresh: [BRAVO, CHARLIE],
+		});
 	});
 
 	it("pushes expansion changes as project_expansions_delta keyed by the first 8 chars, with no operations", async () => {

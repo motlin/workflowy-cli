@@ -95,6 +95,17 @@ describe("loadExpansion", () => {
 		});
 	});
 
+	it("shares one GET between repeated loads, as StrictMode's double effect does", async () => {
+		const {store, loadExpansion} = await loadModules();
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
+		await Promise.all([loadExpansion(), loadExpansion()]);
+		await loadExpansion();
+		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
+			expandedIds: new Set(["a"]),
+			calls: [{url: "/api/v1/expansion", method: undefined, body: undefined}],
+		});
+	});
+
 	it("leaves an empty set on 503 and keeps later changes in memory", async () => {
 		const {store, loadExpansion} = await loadModules();
 		fetchMock.mockImplementation(async () =>
