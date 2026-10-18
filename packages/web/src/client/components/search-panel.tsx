@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from "react";
 import {nodeUrl} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
+import {useStarActions, useStarredLocations} from "../hooks/use-starred.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 
@@ -121,18 +122,13 @@ export function SearchPanel() {
 }
 
 function SearchPanelContent({initialQuery}: {initialQuery: string}) {
-	const {
-		toggleSearchPanel,
-		dismissSearchPanel,
-		savedSearches,
-		saveSearch,
-		removeSavedSearch,
-		recentSearches,
-		addRecentSearch,
-		clearRecentSearches,
-		zoomedNodeId,
-	} = useOutlineStore();
+	const {toggleSearchPanel, dismissSearchPanel, recentSearches, addRecentSearch, clearRecentSearches, zoomedNodeId} =
+		useOutlineStore();
 	const [query, setQuery] = useState(initialQuery);
+	const {toggleStar} = useStarActions();
+	const savedSearches = useStarredLocations().flatMap((star) =>
+		star.nodeId === null && star.query !== null ? [star.query] : [],
+	);
 	const [results, setResults] = useState<SearchResult[]>([]);
 	const [totalCount, setTotalCount] = useState(0);
 	const [isSearching, setIsSearching] = useState(false);
@@ -158,9 +154,9 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 
 	const handleSaveSearch = useCallback(() => {
 		if (query.trim()) {
-			saveSearch(query.trim());
+			void toggleStar({nodeId: null, query: query.trim()}, true);
 		}
-	}, [query, saveSearch]);
+	}, [query, toggleStar]);
 
 	// An empty query shows no results, so clear stale ones here rather than in the search effect
 	const changeQuery = useCallback((value: string) => {
@@ -490,7 +486,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 													aria-label="Remove saved search"
 													className="search-panel-saved-search-delete"
 													onClick={() => {
-														removeSavedSearch(savedQuery);
+														void toggleStar({nodeId: null, query: savedQuery}, false);
 													}}
 													type="button"
 												>

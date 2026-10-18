@@ -7,9 +7,7 @@ import type {NavAction, NavState} from "../nav-stack.js";
 const StringArraySchema = z.array(z.string());
 
 const SHOW_COMPLETED_STORAGE_KEY = "workflowy-show-completed";
-const STARRED_PAGES_STORAGE_KEY = "workflowy-starred-pages";
 const THEME_STORAGE_KEY = "workflowy-theme";
-const SAVED_SEARCHES_STORAGE_KEY = "workflowy-saved-searches";
 const RECENT_SEARCHES_STORAGE_KEY = "workflowy-recent-searches";
 const RECENT_SEARCHES_LIMIT = 10;
 
@@ -113,24 +111,6 @@ function getInitialShowCompleted(): boolean {
 	return stored === null ? true : stored === "true";
 }
 
-function getInitialStarredPages(): Set<string> {
-	const stored = localStorage.getItem(STARRED_PAGES_STORAGE_KEY);
-	if (stored === null) {
-		return new Set();
-	}
-	const result = StringArraySchema.safeParse(JSON.parse(stored));
-	return new Set(result.success ? result.data : []);
-}
-
-function getInitialSavedSearches(): string[] {
-	const stored = localStorage.getItem(SAVED_SEARCHES_STORAGE_KEY);
-	if (stored === null) {
-		return [];
-	}
-	const result = StringArraySchema.safeParse(JSON.parse(stored));
-	return result.success ? result.data : [];
-}
-
 function getInitialRecentSearches(): string[] {
 	const stored = localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY);
 	if (stored === null) {
@@ -218,8 +198,6 @@ interface OutlineState {
 	jumpMenuOpen: boolean;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
-	starredPages: Set<string>;
-	savedSearches: string[];
 	recentSearches: string[];
 	relatedNodesPanelOpen: boolean;
 	moveAssistantOpen: boolean;
@@ -277,11 +255,6 @@ interface OutlineActions {
 	/** Horizontal space the pinned bar takes from the page; 0 for the drawer. */
 	leftBarOffset: () => number;
 	toggleRightSidebar: () => void;
-	toggleStarPage: (id: string) => void;
-	isPageStarred: (id: string) => boolean;
-	saveSearch: (query: string) => void;
-	removeSavedSearch: (query: string) => void;
-	getSavedSearches: () => string[];
 	addRecentSearch: (query: string) => void;
 	clearRecentSearches: () => void;
 	toggleSearchPanel: () => void;
@@ -379,8 +352,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	jumpMenuOpen: false,
 	linkInsertOpen: false,
 	linkInsertContext: null,
-	starredPages: getInitialStarredPages(),
-	savedSearches: getInitialSavedSearches(),
 	recentSearches: getInitialRecentSearches(),
 	relatedNodesPanelOpen: false,
 	moveAssistantOpen: false,
@@ -592,43 +563,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	toggleRightSidebar: () => {
 		set((state) => ({rightSidebarOpen: !state.rightSidebarOpen}));
 	},
-
-	toggleStarPage: (id) => {
-		set((state) => {
-			const newStarredPages = new Set(state.starredPages);
-			if (newStarredPages.has(id)) {
-				newStarredPages.delete(id);
-			} else {
-				newStarredPages.add(id);
-			}
-			localStorage.setItem(STARRED_PAGES_STORAGE_KEY, JSON.stringify([...newStarredPages]));
-			return {starredPages: newStarredPages};
-		});
-	},
-
-	isPageStarred: (id) => get().starredPages.has(id),
-
-	saveSearch: (query) => {
-		set((state) => {
-			const trimmedQuery = query.trim();
-			if (!trimmedQuery || state.savedSearches.includes(trimmedQuery)) {
-				return state;
-			}
-			const newSavedSearches = [trimmedQuery, ...state.savedSearches];
-			localStorage.setItem(SAVED_SEARCHES_STORAGE_KEY, JSON.stringify(newSavedSearches));
-			return {savedSearches: newSavedSearches};
-		});
-	},
-
-	removeSavedSearch: (query) => {
-		set((state) => {
-			const newSavedSearches = state.savedSearches.filter((s) => s !== query);
-			localStorage.setItem(SAVED_SEARCHES_STORAGE_KEY, JSON.stringify(newSavedSearches));
-			return {savedSearches: newSavedSearches};
-		});
-	},
-
-	getSavedSearches: () => get().savedSearches,
 
 	addRecentSearch: (query) => {
 		set((state) => {

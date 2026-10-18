@@ -14,13 +14,9 @@ const storeState = {
 	closeLeftBarDrawer: () => {},
 	setLeftBarHovered: () => {},
 	setLeftBarWidth: () => {},
-	savedSearches: [] as string[],
-	starredPages: new Set<string>(),
 	zoomedNodeId: null as string | null,
 	startEditing: vi.fn<(id: string) => void>(),
-	toggleStarPage: () => {},
 	openSearchWithQuery: () => {},
-	removeSavedSearch: () => {},
 	leftBarSectionExpansions: {} as Record<string, boolean>,
 	setLeftBarSectionExpanded: vi.fn<(key: string, value: boolean) => void>(),
 };
@@ -33,6 +29,13 @@ const navigateMock = vi.fn<(path: string) => void>();
 const mutateMock = vi.fn<(payload: unknown, options?: {onSuccess?: (node: {id: string}) => void}) => void>();
 let rootChildren: {id: string}[] = [];
 
+vi.mock("../src/client/hooks/use-starred.js", () => ({
+	STARS_UNAVAILABLE_TOOLTIP: "Stars need Workflowy login",
+	useRecordStarViews: () => {},
+	useStarActions: () => ({toggleStar: async () => Promise.resolve(true)}),
+	useStarredLocations: () => [],
+	useStars: () => ({stars: [], unavailable: false}),
+}));
 vi.mock("react-router-dom", () => ({useNavigate: () => navigateMock}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: () => ({data: rootChildren}),

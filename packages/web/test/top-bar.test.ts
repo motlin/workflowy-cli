@@ -19,8 +19,6 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	toggleCompleted: () => {},
 	showCompleted: false,
 	openSettings: () => {},
-	toggleStarPage: () => {},
-	isPageStarred: () => false,
 	openPresentation: () => {},
 	expandAll: () => {},
 	collapseAll: () => {},
@@ -32,6 +30,13 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
 		selector === undefined ? storeState : selector(storeState),
+}));
+vi.mock("../src/client/hooks/use-starred.js", () => ({
+	STARS_UNAVAILABLE_TOOLTIP: "Stars need Workflowy login",
+	useRecordStarViews: () => {},
+	useStarActions: () => ({toggleStar: async () => Promise.resolve(true)}),
+	useStarredLocations: () => [],
+	useStars: () => ({stars: [], unavailable: false}),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
 vi.mock("../src/client/navigation.js", () => ({stepNav: () => {}, useNavStackSync: () => {}}));

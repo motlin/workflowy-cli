@@ -41,6 +41,7 @@ import {plainLength} from "../rich-text.js";
 import {applyOps, captureOutlineView, whenUndoSettled} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
 import {editPatches, queueUndo} from "../undo-view-state.js";
+import {useStarActions} from "./use-starred.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
@@ -81,7 +82,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleLeftBar = useOutlineStore((state) => state.toggleLeftBar);
 	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
 	const toggleCompleted = useOutlineStore((state) => state.toggleCompleted);
-	const toggleStarPage = useOutlineStore((state) => state.toggleStarPage);
+	const {toggleStar} = useStarActions();
 	const searchPanelOpen = useOutlineStore((state) => state.searchPanelOpen);
 	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
 	const expand = useOutlineStore((state) => state.expand);
@@ -560,7 +561,7 @@ export function useCommandRegistry(): CommandRegistry {
 		star_current_item: {
 			execute(ctx) {
 				if (ctx.zoomedId !== null) {
-					toggleStarPage(ctx.zoomedId);
+					void toggleStar({nodeId: ctx.zoomedId, query: null});
 				}
 			},
 		},

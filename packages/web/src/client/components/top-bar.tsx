@@ -1,7 +1,9 @@
 import {useRef, useState} from "react";
+import {locationKey} from "@workflowy/shared";
 import {useNavigate} from "react-router-dom";
 import {useFlattenedTree} from "../hooks/use-flattened-tree.js";
 import {useChildren, useNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useStarActions, useStars, STARS_UNAVAILABLE_TOOLTIP} from "../hooks/use-starred.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
@@ -53,8 +55,6 @@ export function TopBar() {
 		toggleCompleted,
 		showCompleted,
 		openSettings,
-		toggleStarPage,
-		isPageStarred,
 		openPresentation,
 		leftBarOffset,
 		leftBarMode,
@@ -69,7 +69,10 @@ export function TopBar() {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const layoutButtonRef = useRef<HTMLDivElement>(null);
 	const updateNodeMutation = useUpdateNode();
-	const isCurrentPageStarred = zoomedNodeId !== null && isPageStarred(zoomedNodeId);
+	const {stars, unavailable: starsUnavailable} = useStars();
+	const {toggleStar} = useStarActions();
+	const currentPageKey = zoomedNodeId === null ? null : locationKey({nodeId: zoomedNodeId, query: null});
+	const isCurrentPageStarred = stars.some((star) => star.key === currentPageKey);
 	const expandAll = useOutlineStore((state) => state.expandAll);
 	const collapseAll = useOutlineStore((state) => state.collapseAll);
 	const {flattenedNodes} = useFlattenedTree(zoomedNodeId);
@@ -81,8 +84,8 @@ export function TopBar() {
 	const compact = !useMediaQuery("(min-width: 701px)");
 
 	const handleStarToggle = () => {
-		if (zoomedNodeId !== null) {
-			toggleStarPage(zoomedNodeId);
+		if (zoomedNodeId !== null && !starsUnavailable) {
+			void toggleStar({nodeId: zoomedNodeId, query: null});
 		}
 	};
 
@@ -263,7 +266,13 @@ export function TopBar() {
 								data-handbook="starring.star"
 								onClick={handleStarToggle}
 								shortcut="⇧⌘8"
-								tooltip={isCurrentPageStarred ? "Unstar" : "Star"}
+								tooltip={
+									starsUnavailable
+										? STARS_UNAVAILABLE_TOOLTIP
+										: isCurrentPageStarred
+											? "Unstar"
+											: "Star"
+								}
 							>
 								<span style={isCurrentPageStarred ? {color: "var(--color-warning)"} : undefined}>
 									{isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />}

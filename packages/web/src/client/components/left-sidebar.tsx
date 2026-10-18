@@ -1,8 +1,12 @@
 import {useEffect, useRef} from "react";
 import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
+import {label} from "@workflowy/shared";
+import type {Star} from "@workflowy/shared";
+import {locationUrl} from "../location.js";
 import {nodeUrl} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
+import {useRecordStarViews, useStarActions, useStarredLocations} from "../hooks/use-starred.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -29,65 +33,49 @@ function StarIcon() {
 	);
 }
 
-/**
- * Renders a single starred page item with navigation to that node.
- * Fetches the node name from the API.
- */
-function StarredPageItem({nodeId}: {nodeId: string}) {
-	const navigate = useNavigate();
-	const toggleStarPage = useOutlineStore((state) => state.toggleStarPage);
-	const {data: node} = useNode(nodeId);
-
-	const handleClick = () => {
-		void navigate(nodeUrl(nodeId));
-	};
-
-	const handleRemove = () => {
-		toggleStarPage(nodeId);
-	};
-
-	const displayName = (node?.name?.replaceAll(/<[^>]*>/gu, "") ?? "") || "Loading...";
-
-	return (
-		<li className="left-sidebar-row">
-			<button className="left-sidebar-item" onClick={handleClick} type="button">
-				<span className="left-sidebar-icon starred-icon">
-					<StarIcon />
-				</span>
-				<span className="left-sidebar-label">{displayName}</span>
-			</button>
-			<button aria-label="Unstar this page" className="left-sidebar-unstar" onClick={handleRemove} type="button">
-				&times;
-			</button>
-		</li>
-	);
+/** Display name of a star: custom name, then query, then the node's plain-text name. */
+function useStarLabel(star: Star): string {
+	const {data: node} = useNode(star.query === null ? star.nodeId : null);
+	return label(star, () => (node?.name?.replaceAll(/<[^>]*>/gu, "") ?? "") || "Loading...");
 }
 
-/**
- * Renders a single saved search item with navigation to search panel.
- */
-function SavedSearchItem({query}: {query: string}) {
+/** One star: a page opens its node, a search opens the search (scoped to its node when it has one). */
+function StarItem({star}: {star: Star}) {
+	const navigate = useNavigate();
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
-	const removeSavedSearch = useOutlineStore((state) => state.removeSavedSearch);
+	const {toggleStar} = useStarActions();
+	const displayName = useStarLabel(star);
 
 	const handleClick = () => {
-		openSearchWithQuery(query);
+		if (star.query === null) {
+			void navigate(star.nodeId === null ? "/" : nodeUrl(star.nodeId));
+		} else if (star.nodeId === null) {
+			openSearchWithQuery(star.query);
+		} else {
+			void navigate(locationUrl({id: star.nodeId, query: star.query}));
+		}
 	};
 
 	const handleRemove = () => {
-		removeSavedSearch(query);
+		void toggleStar({nodeId: star.nodeId, query: star.query}, false);
 	};
 
 	return (
 		<li className="left-sidebar-row">
 			<button className="left-sidebar-item" onClick={handleClick} type="button">
-				<span className="left-sidebar-icon">
-					<SearchIcon />
-				</span>
-				<span className="left-sidebar-label">{query}</span>
+				{star.query === null ? (
+					<span className="left-sidebar-icon starred-icon">
+						<StarIcon />
+					</span>
+				) : (
+					<span className="left-sidebar-icon">
+						<SearchIcon />
+					</span>
+				)}
+				<span className="left-sidebar-label">{displayName}</span>
 			</button>
 			<button
-				aria-label="Remove saved search"
+				aria-label={star.query === null ? "Unstar this page" : "Remove saved search"}
 				className="left-sidebar-unstar"
 				onClick={handleRemove}
 				type="button"
@@ -242,8 +230,8 @@ export function NewNodeButton() {
 
 /** Today, Starred and Home sections plus the New node button; replaced section by section by upstream ports. */
 function LeftBarSections() {
-	const {savedSearches, starredPages} = useOutlineStore();
-	const starredPagesArray = [...starredPages];
+	const stars = useStarredLocations();
+	useRecordStarViews();
 
 	return (
 		<nav className="left-sidebar-nav">
@@ -251,17 +239,10 @@ function LeftBarSections() {
 
 			<LeftBarSection contextKey="leftbar__starred__" name="Starred">
 				<ul className="left-sidebar-list">
-					{starredPagesArray.length === 0 && savedSearches.length === 0 ? (
+					{stars.length === 0 ? (
 						<li className="left-sidebar-empty">No starred items</li>
 					) : (
-						<>
-							{starredPagesArray.map((nodeId) => (
-								<StarredPageItem key={nodeId} nodeId={nodeId} />
-							))}
-							{savedSearches.map((query) => (
-								<SavedSearchItem key={query} query={query} />
-							))}
-						</>
+						stars.map((star) => <StarItem key={star.key} star={star} />)
 					)}
 				</ul>
 			</LeftBarSection>
