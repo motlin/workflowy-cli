@@ -1,0 +1,92 @@
+import {describe, expect, it} from "vite-plus/test";
+import {nameClassName, projectClassName} from "../src/client/components/row-classes.js";
+import type {ProjectClassState} from "../src/client/components/row-classes.js";
+
+const LEAF: ProjectClassState = {
+	hasChildren: false,
+	expanded: false,
+	completed: false,
+	hasNote: false,
+	noteFocused: false,
+	isZoomRoot: false,
+	hasMirrors: false,
+	highlighted: false,
+	addedToSelection: false,
+};
+
+describe("projectClassName", () => {
+	it("marks a plain leaf as a task", () => {
+		expect(projectClassName(LEAF)).toBe("font-custom project task");
+	});
+
+	it("marks an expanded parent as open", () => {
+		expect(projectClassName({...LEAF, hasChildren: true, expanded: true})).toBe("font-custom project open");
+	});
+
+	it("marks a collapsed parent as collapsed", () => {
+		expect(projectClassName({...LEAF, hasChildren: true})).toBe("font-custom project collapsed");
+	});
+
+	it("marks a completed leaf with a note as done and noted", () => {
+		expect(projectClassName({...LEAF, completed: true, hasNote: true})).toBe("font-custom project task done noted");
+	});
+
+	it("marks a leaf with a focused note as noted", () => {
+		expect(projectClassName({...LEAF, noteFocused: true})).toBe("font-custom project task noted");
+	});
+
+	it("marks the expanded zoom root as selected root without open", () => {
+		expect(projectClassName({...LEAF, hasChildren: true, expanded: true, isZoomRoot: true})).toBe(
+			"font-custom project selected root",
+		);
+	});
+
+	it("appends the layout class last", () => {
+		expect(projectClassName({...LEAF, layoutClass: "checkmark"})).toBe("font-custom project task checkmark");
+	});
+
+	it("emits every state class in upstream order", () => {
+		expect(
+			projectClassName({
+				hasChildren: true,
+				expanded: false,
+				completed: true,
+				hasNote: true,
+				noteFocused: false,
+				isZoomRoot: false,
+				hasMirrors: true,
+				highlighted: true,
+				addedToSelection: true,
+				layoutClass: "board",
+			}),
+		).toBe("font-custom project hasMirrors done noted collapsed highlighted addedToSelection board");
+	});
+});
+
+describe("nameClassName", () => {
+	it("returns the bare name class by default", () => {
+		expect(nameClassName({})).toBe("name");
+	});
+
+	it("adds name--focused when focused", () => {
+		expect(nameClassName({focused: true})).toBe("name name--focused");
+	});
+
+	it("adds name--main for the zoom root", () => {
+		expect(nameClassName({isZoomRoot: true})).toBe("name name--main");
+	});
+
+	it("adds name--root for the main-tree root", () => {
+		expect(nameClassName({isMainRoot: true})).toBe("name name--root");
+	});
+
+	it("adds empty for an empty name", () => {
+		expect(nameClassName({empty: true})).toBe("name empty");
+	});
+
+	it("emits every name class in upstream order", () => {
+		expect(nameClassName({focused: true, isZoomRoot: true, isMainRoot: true, empty: true})).toBe(
+			"name name--focused name--main name--root empty",
+		);
+	});
+});
