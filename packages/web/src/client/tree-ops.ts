@@ -38,6 +38,35 @@ export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode)
 	return {parent_id: node.parent_id ?? undefined, name: "", position};
 }
 
+/** Payload for the add-child button: an empty last child of the zoomed item. */
+export interface AddChildPlan {
+	parent_id: string | undefined;
+	index: number;
+	name: string;
+	layoutMode: "todo" | null;
+}
+
+/**
+ * Plan the "+" add-child button: the new node goes in the bottom slot (`index` =
+ * child count) and is shaped like the previous visible row, inheriting `todo`.
+ */
+export function planAddChild({
+	childCount,
+	zoomedId,
+	prevVisibleLayout,
+}: {
+	childCount: number;
+	zoomedId: string | null;
+	prevVisibleLayout: string | null | undefined;
+}): AddChildPlan {
+	return {
+		parent_id: zoomedId ?? undefined,
+		index: childCount,
+		name: "",
+		layoutMode: prevVisibleLayout === "todo" ? "todo" : null,
+	};
+}
+
 /** Duplicate `node`'s name/note as a sibling positioned immediately after it. */
 export function planDuplicate(
 	queryClient: QueryClient,

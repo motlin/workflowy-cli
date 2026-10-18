@@ -3,6 +3,7 @@ import {describe, expect, it} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {
+	planAddChild,
 	planDuplicate,
 	planIndent,
 	planInsertSiblingAfter,
@@ -103,5 +104,25 @@ describe("planMoveUp / planMoveDown", () => {
 	});
 	it("returns null moving down the last sibling", () => {
 		expect(planMoveDown(seed({p: siblings}), siblings[2])).toBeNull();
+	});
+});
+
+describe("planAddChild", () => {
+	it("appends an empty last child that inherits a todo layout from the previous visible row", () => {
+		expect(planAddChild({childCount: 3, zoomedId: "z", prevVisibleLayout: "todo"})).toStrictEqual({
+			parent_id: "z",
+			index: 3,
+			name: "",
+			layoutMode: "todo",
+		});
+	});
+
+	it("leaves the layout unset after a bullets row", () => {
+		expect(planAddChild({childCount: 3, zoomedId: "z", prevVisibleLayout: "bullets"})).toStrictEqual({
+			parent_id: "z",
+			index: 3,
+			name: "",
+			layoutMode: null,
+		});
 	});
 });

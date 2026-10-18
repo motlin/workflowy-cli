@@ -5,6 +5,9 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {planAddChild} from "../tree-ops.js";
+import {FaIcon} from "./fa-icons.js";
+import {IconButton} from "./icon-button.js";
 import {NodeItemMenu, OutlineRow} from "./outline-node.js";
 
 interface OutlineTreeProps {
@@ -19,32 +22,54 @@ const ROOT_CHILDREN_CLASS =
 const NESTED_CHILDREN_CLASS =
 	"children relative ml-[10px] pl-[25px] border-l-[length:var(--wf-border-width-s)] border-solid border-l-secondary [.addedToSelection_&]:border-l-transparent [.item--zooming-in-progress_&]:border-l-transparent";
 
+/** Upstream's add-child button wrapper, rendered once after the zoomed page's root `.children`. */
+const ADD_CHILD_CONTAINER_CLASS = "mt-m mobile:ml-[-6px] [.item--zooming-in-progress_&]:hidden print:hidden";
+
 /**
- * Button to add a new sibling node at the end of the top-level list.
- * Uses Workflowy's iconButton styling pattern.
+ * Upstream's "+" add-child button: appends an empty last child to the zoomed item,
+ * shaped like the previous visible row, and puts the caret in it. Uses no React
+ * built-in hooks so tests can invoke its click handler directly.
  */
-function AddButton({parentId}: {parentId: string | null}) {
+export function AddChildButton({parentId}: {parentId: string | null}) {
 	const createNode = useCreateNode();
+	const {data: nodes} = useChildren(parentId);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 
 	const handleClick = () => {
-		createNode.mutate({
-			parent_id: parentId ?? undefined,
-			name: "",
+		const children = nodes ?? [];
+		const visible = showCompleted ? children : children.filter((node) => node.completedAt === null);
+		const plan = planAddChild({
+			childCount: children.length,
+			zoomedId: parentId,
+			prevVisibleLayout: visible.at(-1)?.data.layoutMode,
 		});
+		createNode.mutate(
+			{
+				parent_id: plan.parent_id,
+				name: plan.name,
+				position: plan.index,
+				...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
+			},
+			{
+				onSuccess(createdNode) {
+					resumeEditing(createdNode.id, 0);
+				},
+			},
+		);
 	};
 
 	return (
-		<div className="add-button-container">
-			<button
+		<div className={ADD_CHILD_CONTAINER_CLASS}>
+			<IconButton
 				aria-label="Add new item"
-				className="addChildButton iconButton ms shape-circle"
+				className="addChildButton cursor-pointer desktop:hover:!bg-tertiary"
 				onClick={handleClick}
-				type="button"
+				shape="circle"
+				size="ms"
 			>
-				<svg aria-hidden="true" className="fa-plus" fill="currentColor" focusable="false" viewBox="0 0 448 512">
-					<path d="M240 80c0-8.8-7.2-16-16-16s-16 7.2-16 16V224H64c-8.8 0-16 7.2-16 16s7.2 16 16 16H208V400c0 8.8 7.2 16 16 16s16-7.2 16-16V256H384c8.8 0 16-7.2 16-16s-7.2-16-16-16H240V80z" />
-				</svg>
-			</button>
+				<FaIcon icon="fal:plus" />
+			</IconButton>
 		</div>
 	);
 }
@@ -184,7 +209,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 			<div className="scroller">
 				<ZoomRootRow nodeId={parentId}>
 					<OutlineChildren isRoot parentId={parentId} />
-					<AddButton parentId={parentId} />
+					<AddChildButton parentId={parentId} />
 				</ZoomRootRow>
 			</div>
 		</div>

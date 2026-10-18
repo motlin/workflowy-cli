@@ -972,14 +972,6 @@ body {
 	}
 }
 
-/* Local reset until node-row-anatomy converts AddButton to IconButton. */
-button.iconButton {
-	padding: 0;
-	border: 0;
-	background: transparent;
-	font: inherit;
-}
-
 /* Search box in top bar - 36x36px circular icon button */
 /* Search box - pill input look matching production workflowy.com (208x34) */
 .top-bar-search-box {
@@ -1268,23 +1260,10 @@ body.moving .expand {
 
 /* Completed nodes - bullet keeps normal color per production Workflowy */
 
-/* Add child button - appears below node lists to create new items */
-.add-button-container {
-	display: flex;
-	align-items: center;
-	padding: 3px 4px 3px 0;
-	margin-left: 20px;
-}
-
-.addChildButton {
-	border: none;
-	background: transparent;
-	cursor: pointer;
-}
-
+/* Upstream's add-child button icon; the button itself is a plain .iconButton.ms */
 .addChildButton svg {
-	width: 12px;
-	height: 12px;
+	width: 14px;
+	height: 16px;
 }
 
 /* Node text; font-size and line-height come from .name and .content */

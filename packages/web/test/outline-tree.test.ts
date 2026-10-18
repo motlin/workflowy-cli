@@ -13,7 +13,7 @@ const outlineState = {
 	toggleExpand: () => {},
 	expandAll: () => {},
 	collapseDescendants: () => {},
-	resumeEditing: () => {},
+	resumeEditing: vi.fn<(id: string, caretOffset: number) => void>(),
 	editingId: null,
 	editingClickPosition: null,
 	editingNoteId: null,
@@ -40,6 +40,7 @@ const childrenByParent = new Map<string | null, NodeResponse[]>([
 ]);
 
 const nodesById = new Map<string, NodeResponse>();
+const createMutate = vi.fn<(payload: unknown, options?: {onSuccess?: (node: {id: string}) => void}) => void>();
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
@@ -56,7 +57,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 		error: null,
 	}),
 	useNode: (nodeId: string) => ({data: nodesById.get(nodeId)}),
-	useCreateNode: () => ({mutate: () => {}}),
+	useCreateNode: () => ({mutate: createMutate}),
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
 }));
@@ -82,7 +83,7 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
-const {OutlineTree} = await import("../src/client/components/outline-tree.js");
+const {AddChildButton, OutlineTree} = await import("../src/client/components/outline-tree.js");
 
 function render(parentId: string | null = null): string {
 	return renderToStaticMarkup(
@@ -184,6 +185,53 @@ describe("OutlineTree zoom root row", () => {
 			'<div class="font-custom project selected root mainTreeRoot"><div tabindex="-1" class="name name--root"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"></div>';
 		const start = html.indexOf('<div class="font-custom project selected root mainTreeRoot">');
 		expect(html.slice(start, start + expected.length)).toBe(expected);
+	});
+});
+
+const ADD_BUTTON_MARKUP =
+	'<div class="mt-m mobile:ml-[-6px] [.item--zooming-in-progress_&amp;]:hidden print:hidden"><div role="button" tabindex="0" aria-label="Add new item" class="addChildButton cursor-pointer desktop:hover:!bg-tertiary iconButton ms shape-circle"><svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="plus" class="svg-inline--fa fa-plus fa-1x " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor" d="M240 64c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 176L32 240c-8.8 0-16 7.2-16 16s7.2 16 16 16l176 0 0 176c0 8.8 7.2 16 16 16s16-7.2 16-16l0-176 176 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-176 0 0-176z"></path></svg></div></div>';
+
+describe("OutlineTree add-child button", () => {
+	beforeEach(() => {
+		outlineState.expandedIds = new Set(["alice"]);
+		createMutate.mockClear();
+		outlineState.resumeEditing.mockClear();
+	});
+
+	it("renders upstream's markup once, as the root project's last child after the root .children", () => {
+		const html = render();
+		const stack = stackAt(html, 'class="mt-m ');
+		expect({
+			count: html.split("addChildButton").length - 1,
+			parent: classOf(stack[stack.length - 2]),
+			markup: html.slice(
+				html.indexOf('<div class="mt-m '),
+				html.indexOf('<div class="mt-m ') + ADD_BUTTON_MARKUP.length,
+			),
+			endsRoot: html.endsWith(`${ADD_BUTTON_MARKUP}</div></div></div>`),
+		}).toStrictEqual({
+			count: 1,
+			parent: "font-custom project selected root mainTreeRoot",
+			markup: ADD_BUTTON_MARKUP,
+			endsRoot: true,
+		});
+	});
+
+	it("creates an empty bottom child of the zoomed node and resumes editing it at offset 0", () => {
+		const element = AddChildButton({parentId: "alice"});
+		const button = (element.props as {children: {props: {onClick: () => void}}}).children;
+		button.props.onClick();
+		const [payload, options] = createMutate.mock.calls[0];
+		options?.onSuccess?.({id: "carol"});
+		expect({
+			payload,
+			calls: createMutate.mock.calls.length,
+			resumed: outlineState.resumeEditing.mock.calls,
+		}).toStrictEqual({
+			payload: {parent_id: "alice", name: "", position: 1},
+			calls: 1,
+			resumed: [["carol", 0]],
+		});
 	});
 });
 
