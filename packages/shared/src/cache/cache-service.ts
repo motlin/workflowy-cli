@@ -1,15 +1,5 @@
 import type * as schema from "../db/schema.js";
-import {
-	aiMetadata,
-	backlinks,
-	changesMetadata,
-	mirrors,
-	nodeContent,
-	nodeMetadata,
-	referencesRoots,
-	s3Files,
-	virtualRootIds,
-} from "../db/schema.js";
+import {backlinks, mirrors, nodeContent, nodeMetadata, virtualRootIds} from "../db/schema.js";
 import {stripHtmlTags} from "../html/strip-tags.js";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
 import type {Node} from "../types/node.js";
@@ -520,27 +510,10 @@ export class CacheService {
 
 				upsertNodeVersion(tx, apiNode, parentId, systemTimestampStr);
 
-				// Mirrors, backlinks, and virtual-root rows are sourced ONLY from backup imports — the API
-				// response never carries them, so expiring them here would be permanent data loss, not a
-				// refresh (#1712). Leave them untouched; backup imports own their lifecycle and genuine
-				// deletions are handled by deleteNode(). The attribute tables below are refreshed per node
-				// because the API sync is authoritative for them.
-				tx.update(aiMetadata)
-					.set({systemTo: systemTimestampStr})
-					.where(and(eq(aiMetadata.nodeId, apiNode.id), currentVersion(aiMetadata)))
-					.run();
-				tx.update(s3Files)
-					.set({systemTo: systemTimestampStr})
-					.where(and(eq(s3Files.nodeId, apiNode.id), currentVersion(s3Files)))
-					.run();
-				tx.update(changesMetadata)
-					.set({systemTo: systemTimestampStr})
-					.where(and(eq(changesMetadata.nodeId, apiNode.id), currentVersion(changesMetadata)))
-					.run();
-				tx.update(referencesRoots)
-					.set({systemTo: systemTimestampStr})
-					.where(and(eq(referencesRoots.nodeId, apiNode.id), currentVersion(referencesRoots)))
-					.run();
+				// The public API carries none of the node's attribute tables (mirrors, backlinks,
+				// virtual roots, references roots, ai, s3, changes), so closing them here would be
+				// permanent data loss, not a refresh (#1712). import-api's /get_tree_data/ merge,
+				// backup imports and deleteNode() own their lifecycle.
 			}
 
 			// Phase out cached children that are no longer in API response (deleted nodes)

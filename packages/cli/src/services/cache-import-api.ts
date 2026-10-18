@@ -1,7 +1,16 @@
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
-import {applyRows, endOrphanedParts, nextSystemTime, runUnitOfWork} from "@workflowy/shared/cache";
+import type {InternalTreeItem} from "@workflowy/shared/api";
+import {
+	applyRows,
+	collectItemRelationships,
+	emptyItemRelationships,
+	endOrphanedParts,
+	mergeItemRelationships,
+	nextSystemTime,
+	runUnitOfWork,
+} from "@workflowy/shared/cache";
 import type {NormalizedNodeContentRow, NormalizedNodeMetadataRow, NormalizedRowsByTable} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {WorkflowyNodeSchema} from "@workflowy/shared/types";
@@ -54,12 +63,18 @@ interface ProcessedNode {
  * Key differences from backup import:
  * - Input is API response (flat list), not nested JSON file
  * - Nodes already have parent_id field (no tree traversal needed)
+ *
+ * The public API carries no mirrors, backlinks, virtual roots or references
+ * roots. When `treeItems` (a full `/get_tree_data/` read) is given, those are
+ * merged from its item metadata in the same unit of work; without it, their
+ * rows are left untouched (only nodes absent from the export end them).
  */
 export function importFromApi(
 	database: BetterSQLite3Database<typeof schema>,
 	apiNodes: WorkflowyNode[],
 	verbose = false,
 	timestamp?: Date,
+	treeItems?: InternalTreeItem[],
 ): ImportApiResult {
 	const startTime = Date.now();
 	let lastTime = startTime;
@@ -210,6 +225,13 @@ export function importFromApi(
 		layoutMode: node.layoutMode,
 	}));
 	const rowsByTable: NormalizedRowsByTable = {nodeContent: contentRows, nodeMetadata: metadataRows};
+	const relationships = emptyItemRelationships();
+	if (treeItems !== undefined) {
+		for (const item of treeItems) {
+			collectItemRelationships(relationships, item.id, item.metadata);
+		}
+		rowsByTable.referencesRoots = relationships.referencesRoots.filter((row) => incomingIds.has(row.nodeId));
+	}
 	const importTimestamp = timestamp ?? nextSystemTime(database);
 	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
 	// One unit of work: the node merge and the end of every deleted node's
@@ -219,6 +241,9 @@ export function importFromApi(
 		database,
 		(unitOfWork) => {
 			const merged = applyRows(unitOfWork, rowsByTable);
+			if (treeItems !== undefined) {
+				mergeItemRelationships(unitOfWork, relationships, incomingIds);
+			}
 			endOrphanedParts(unitOfWork);
 			return merged;
 		},

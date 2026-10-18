@@ -511,6 +511,45 @@ describe("CacheService (shared)", () => {
 			).toBe(FAR_FUTURE_DATE);
 		});
 
+		it("leaves the attribute rows the public API does not carry current", () => {
+			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
+			const temporal = {systemFrom: from, systemTo: FAR_FUTURE_DATE};
+			seedTestData(testDatabase, {
+				...nodeFixtures([
+					createTestNode({id: "parent", name: "Parent", parentId: null}),
+					createTestNode({id: "refs", name: "", parentId: "parent"}),
+				]),
+				aiMetadata: [{nodeId: "refs", inChat: 1, ...temporal}],
+				s3Files: [{nodeId: "refs", fileName: "f", fileType: "image/png", ...temporal}],
+				changesMetadata: [{nodeId: "refs", ctBy: 1, ...temporal}],
+				referencesRoots: [{nodeId: "refs", ...temporal}],
+			});
+
+			cacheService.storeApiResponse([createApiNode({id: "refs", name: "", parent_id: "parent"})], "parent");
+
+			const {db} = testDatabase;
+			expect({
+				aiMetadata: db
+					.select({nodeId: aiMetadata.nodeId, systemTo: aiMetadata.systemTo})
+					.from(aiMetadata)
+					.all(),
+				s3Files: db.select({nodeId: s3Files.nodeId, systemTo: s3Files.systemTo}).from(s3Files).all(),
+				changesMetadata: db
+					.select({nodeId: changesMetadata.nodeId, systemTo: changesMetadata.systemTo})
+					.from(changesMetadata)
+					.all(),
+				referencesRoots: db
+					.select({nodeId: referencesRoots.nodeId, systemTo: referencesRoots.systemTo})
+					.from(referencesRoots)
+					.all(),
+			}).toStrictEqual({
+				aiMetadata: [{nodeId: "refs", systemTo: FAR_FUTURE_DATE}],
+				s3Files: [{nodeId: "refs", systemTo: FAR_FUTURE_DATE}],
+				changesMetadata: [{nodeId: "refs", systemTo: FAR_FUTURE_DATE}],
+				referencesRoots: [{nodeId: "refs", systemTo: FAR_FUTURE_DATE}],
+			});
+		});
+
 		it("scopes the sibling metadata phase-out to the synced parent", () => {
 			seedTestData(
 				testDatabase,

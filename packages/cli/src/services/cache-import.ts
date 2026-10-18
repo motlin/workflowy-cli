@@ -1,14 +1,15 @@
 import {fetchWorkflowyEpoch} from "@workflowy/shared/api";
-import {backlinks, config, mirrors, nodeContent, nodeMetadata, virtualRootIds} from "@workflowy/shared/db";
+import {config, nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
 import {
 	applyRows,
+	collectItemRelationships,
+	emptyItemRelationships,
 	endOrphanedParts,
-	joinKey,
+	mergeItemRelationships,
 	nextSystemTime,
 	runUnitOfWork,
-	temporalMerge,
 } from "@workflowy/shared/cache";
 import type {
 	TemporalTransaction,
@@ -379,10 +380,8 @@ export async function importBackup(
 		completedAt: number | null;
 		layoutMode: string | null;
 	}[] = [];
-	// Consolidated mirror relationships: mirrorId is the mirror, originalId is what it mirrors
-	const mirrorRecords: {originalId: string; mirrorId: string}[] = [];
-	const backlinkRecords: {nodeId: string; sourceId: string; targetId: string}[] = [];
-	const virtualRootIdRecords: {nodeId: string; virtualRootIds: string[]}[] = [];
+	// Mirrors, backlinks, virtual roots and references roots, parsed by the shared item-metadata normalizer.
+	const relationships = emptyItemRelationships();
 	const aiMetadataRecords: {nodeId: string; inChat: number}[] = [];
 	const s3FileRecords: {
 		nodeId: string;
@@ -396,7 +395,6 @@ export async function importBackup(
 		isDeleted: number | null;
 	}[] = [];
 	const changesMetadataRecords: {nodeId: string; ctBy: number}[] = [];
-	const referencesRootsRecords: {nodeId: string}[] = [];
 	const calendarMetadataRecords: {
 		nodeId: string;
 		root: number | null;
@@ -433,55 +431,7 @@ export async function importBackup(
 				layoutMode: normalizeLayoutMode(validatedNode.metadata.layoutMode),
 			});
 
-			if (validatedNode.metadata.isReferencesRoot) {
-				referencesRootsRecords.push({
-					nodeId: validatedNode.id,
-				});
-			}
-
-			// Collect all mirror relationships into unified mirrorRecords
-			if (validatedNode.metadata.mirror) {
-				// originalId means this node is a mirror of that ID
-				if ("originalId" in validatedNode.metadata.mirror && validatedNode.metadata.mirror.originalId) {
-					mirrorRecords.push({
-						originalId: validatedNode.metadata.mirror.originalId,
-						mirrorId: validatedNode.id,
-					});
-				}
-				// mirrorRootIds: this node is the original; each of those IDs mirrors it
-				if ("mirrorRootIds" in validatedNode.metadata.mirror) {
-					for (const rootId of Object.keys(validatedNode.metadata.mirror.mirrorRootIds)) {
-						mirrorRecords.push({
-							originalId: validatedNode.id,
-							mirrorId: rootId,
-						});
-					}
-				}
-				// backlinkMirrorRootIds: each of those IDs mirrors this node
-				if ("backlinkMirrorRootIds" in validatedNode.metadata.mirror) {
-					for (const backlinkId of Object.keys(validatedNode.metadata.mirror.backlinkMirrorRootIds)) {
-						mirrorRecords.push({
-							originalId: validatedNode.id,
-							mirrorId: backlinkId,
-						});
-					}
-				}
-			}
-
-			if (validatedNode.metadata.backlink) {
-				backlinkRecords.push({
-					nodeId: validatedNode.id,
-					sourceId: validatedNode.metadata.backlink.sourceID,
-					targetId: validatedNode.metadata.backlink.targetID,
-				});
-			}
-
-			if (validatedNode.metadata.virtualRootIds) {
-				virtualRootIdRecords.push({
-					nodeId: validatedNode.id,
-					virtualRootIds: Object.keys(validatedNode.metadata.virtualRootIds),
-				});
-			}
+			collectItemRelationships(relationships, validatedNode.id, validatedNode.metadata);
 
 			if (validatedNode.metadata.ai) {
 				aiMetadataRecords.push({
@@ -549,7 +499,7 @@ export async function importBackup(
 	}
 
 	logTiming(
-		`Prepare data (${nodesToProcess.length} nodes, ${mirrorRecords.length} mirrors, ${backlinkRecords.length} backlinks)`,
+		`Prepare data (${nodesToProcess.length} nodes, ${relationships.mirrors.length} mirrors, ${relationships.backlinks.length} backlinks)`,
 	);
 
 	// Guard against stale-snapshot data loss from the bulk-export endpoint.
@@ -818,7 +768,7 @@ export async function importBackup(
 	const aiMetadataRows: NormalizedAiMetadataRow[] = aiMetadataRecords;
 	const s3FileRows: NormalizedS3FileRow[] = s3FileRecords;
 	const changesMetadataRows: NormalizedChangesMetadataRow[] = changesMetadataRecords;
-	const referencesRootsRows: NormalizedReferencesRootsRow[] = referencesRootsRecords;
+	const referencesRootsRows: NormalizedReferencesRootsRow[] = relationships.referencesRoots;
 
 	const importTimestamp = timestamp ?? nextSystemTime(database);
 	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
@@ -827,7 +777,6 @@ export async function importBackup(
 	runUnitOfWork(
 		database,
 		(unitOfWork) => {
-			const {tx} = unitOfWork;
 			const merged = applyRows(
 				unitOfWork,
 				{
@@ -848,117 +797,14 @@ export async function importBackup(
 			);
 			logTiming(`Content updates: ${contentUpdated}, Metadata updates: ${metadataUpdated}`);
 
-			// Merge mirror relationships through the shared engine (composite key:
-			// originalId + mirrorId). Dedupe incoming first, since temporalMerge treats
-			// each incoming row as a desired-state row and would otherwise double-insert
-			// a repeated pair. Workflowy keeps a mirror's `originalId` after deleting its
-			// original (and an original's `mirrorRootIds` after deleting a mirror), so
-			// only pairs whose two nodes both survive this import are live.
+			// Merge mirrors, backlinks and virtual root ids globally: a full backup is the
+			// complete desired state. Mirror pairs need both nodes live in this import.
 			const liveNodeIds = new Set([...nodesToProcess.map((n) => n.id), ...protectedIds]);
-			const dedupedMirrors = [
-				...new Map(
-					mirrorRecords
-						.filter((m) => liveNodeIds.has(m.originalId) && liveNodeIds.has(m.mirrorId))
-						.map((m) => [joinKey(m.originalId, m.mirrorId), m]),
-				).values(),
-			];
-			const currentMirrorRows = tx.select().from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)).all();
-			const mirrorResult = temporalMerge(
-				tx,
-				{
-					table: mirrors,
-					keyColumns: [mirrors.originalId, mirrors.mirrorId],
-					systemToColumn: mirrors.systemTo,
-					incomingKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
-					currentKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
-					contentMatches: () => true, // mirror rows carry no content beyond their key
-					buildInsertRow: (m: {originalId: string; mirrorId: string}) => ({
-						originalId: m.originalId,
-						mirrorId: m.mirrorId,
-					}),
-				},
-				dedupedMirrors,
-				currentMirrorRows,
-				importTimestampStr,
-			);
-			logTiming(`Processed mirrors: ${mirrorResult.inserted} inserted, ${mirrorResult.phasedOut} closed`);
-
-			// Merge backlinks through the shared engine (composite key: nodeId +
-			// sourceId + targetId). A full backup is the complete desired state, so this
-			// is a GLOBAL merge: any current backlink whose key is absent from the backup
-			// is closed — including every backlink of a node that lost all of them. The
-			// former per-node loop only scanned nodes that still had incoming backlinks,
-			// so it silently leaked the backlinks of a node that dropped to zero.
-			const dedupedBacklinks = [
-				...new Map(backlinkRecords.map((b) => [joinKey(b.nodeId, b.sourceId, b.targetId), b])).values(),
-			];
-			const currentBacklinkRows = tx
-				.select()
-				.from(backlinks)
-				.where(eq(backlinks.systemTo, FAR_FUTURE_DATE))
-				.all();
-			const backlinkResult = temporalMerge(
-				tx,
-				{
-					table: backlinks,
-					keyColumns: [backlinks.nodeId, backlinks.sourceId, backlinks.targetId],
-					systemToColumn: backlinks.systemTo,
-					incomingKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
-						joinKey(b.nodeId, b.sourceId, b.targetId),
-					currentKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
-						joinKey(b.nodeId, b.sourceId, b.targetId),
-					contentMatches: () => true, // backlink rows carry no content beyond their key
-					buildInsertRow: (b: {nodeId: string; sourceId: string; targetId: string}) => ({
-						nodeId: b.nodeId,
-						sourceId: b.sourceId,
-						targetId: b.targetId,
-					}),
-				},
-				dedupedBacklinks,
-				currentBacklinkRows,
-				importTimestampStr,
-			);
-			logTiming(`Processed backlinks: ${backlinkResult.inserted} inserted, ${backlinkResult.phasedOut} closed`);
-
-			// Merge virtual root IDs through the shared engine (composite key: nodeId +
-			// virtualRootId). Also a GLOBAL merge — a node that lost all of its virtual
-			// roots has them closed, which the former per-node loop could not do. The
-			// backup carries these as one record per node with a list of ids, so flatten
-			// to one desired-state row per (nodeId, virtualRootId) pair first.
-			const dedupedVirtualRootIds = [
-				...new Map(
-					virtualRootIdRecords.flatMap((r) =>
-						r.virtualRootIds.map(
-							(v) => [joinKey(r.nodeId, v), {nodeId: r.nodeId, virtualRootId: v}] as const,
-						),
-					),
-				).values(),
-			];
-			const currentVirtualRootIdRows = tx
-				.select()
-				.from(virtualRootIds)
-				.where(eq(virtualRootIds.systemTo, FAR_FUTURE_DATE))
-				.all();
-			const virtualRootIdResult = temporalMerge(
-				tx,
-				{
-					table: virtualRootIds,
-					keyColumns: [virtualRootIds.nodeId, virtualRootIds.virtualRootId],
-					systemToColumn: virtualRootIds.systemTo,
-					incomingKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
-					currentKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
-					contentMatches: () => true, // virtual-root rows carry no content beyond their key
-					buildInsertRow: (r: {nodeId: string; virtualRootId: string}) => ({
-						nodeId: r.nodeId,
-						virtualRootId: r.virtualRootId,
-					}),
-				},
-				dedupedVirtualRootIds,
-				currentVirtualRootIdRows,
-				importTimestampStr,
-			);
+			const relationshipResult = mergeItemRelationships(unitOfWork, relationships, liveNodeIds);
 			logTiming(
-				`Processed virtual root IDs: ${virtualRootIdResult.inserted} inserted, ${virtualRootIdResult.phasedOut} closed`,
+				`Processed relationships: mirrors +${relationshipResult.mirrors.inserted}/-${relationshipResult.mirrors.phasedOut}, ` +
+					`backlinks +${relationshipResult.backlinks.inserted}/-${relationshipResult.backlinks.phasedOut}, ` +
+					`virtual root ids +${relationshipResult.virtualRootIds.inserted}/-${relationshipResult.virtualRootIds.phasedOut}`,
 			);
 
 			// End every owned row whose node is no longer current: the nodes deleted in

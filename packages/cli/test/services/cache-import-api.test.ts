@@ -1,5 +1,14 @@
 import {assert, beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
-import {backlinks, mirrors, nodeContent, nodeEmbeddings, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
+import {
+	backlinks,
+	mirrors,
+	nodeContent,
+	nodeEmbeddings,
+	nodeMetadata,
+	referencesRoots,
+	virtualRootIds,
+} from "@workflowy/shared/db";
+import type {InternalTreeItem} from "@workflowy/shared/api";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {eq} from "drizzle-orm";
@@ -630,6 +639,138 @@ describe("cache-import-api service", () => {
 			).toThrow('Failed to run the query \'UPDATE "references_roots"');
 
 			expect(ownedRows()).toStrictEqual(before);
+		});
+	});
+
+	describe("relationships from /get_tree_data/", () => {
+		const T0 = new Date("2024-01-01T00:00:00Z");
+		const T1 = new Date("2024-01-01T00:01:00Z");
+		const AT_T0 = "2024-01-01 00:00:00.000";
+		const AT_T1 = "2024-01-01 00:01:00.000";
+
+		const apiNodes: WorkflowyNode[] = [
+			createApiNode({id: "target", name: "Target"}),
+			createApiNode({id: "refs", name: "", parent_id: "target"}),
+			createApiNode({id: "item", name: "", parent_id: "refs"}),
+			createApiNode({id: "source", name: "Links to Target"}),
+			createApiNode({id: "original", name: "Original"}),
+			createApiNode({id: "mirror", name: ""}),
+			createApiNode({id: "virtual", name: "Virtual"}),
+		];
+
+		const treeItems: InternalTreeItem[] = [
+			{id: "target", metadata: {mirror: {backlinkMirrorRootIds: {item: true}}}},
+			{id: "refs", metadata: {isReferencesRoot: true}},
+			{
+				id: "item",
+				metadata: {
+					mirror: {originalId: "target", isMirrorRoot: true},
+					backlink: {sourceID: "source", targetID: "target"},
+				},
+			},
+			{id: "original", metadata: {mirror: {mirrorRootIds: {mirror: true}}}},
+			{id: "mirror", metadata: {mirror: {originalId: "original", isMirrorRoot: true}}},
+			{id: "virtual", metadata: {virtualRootIds: {source: true}}},
+			// Items the export does not carry get no rows.
+			{id: "ghost", metadata: {isReferencesRoot: true, backlink: {sourceID: "source", targetID: "target"}}},
+		];
+
+		function relationshipRows() {
+			const {db} = testDatabase;
+			return {
+				mirrors: db
+					.select({
+						mirrorId: mirrors.mirrorId,
+						originalId: mirrors.originalId,
+						systemFrom: mirrors.systemFrom,
+						systemTo: mirrors.systemTo,
+					})
+					.from(mirrors)
+					.orderBy(mirrors.mirrorId)
+					.all(),
+				backlinks: db
+					.select({
+						nodeId: backlinks.nodeId,
+						sourceId: backlinks.sourceId,
+						targetId: backlinks.targetId,
+						systemFrom: backlinks.systemFrom,
+						systemTo: backlinks.systemTo,
+					})
+					.from(backlinks)
+					.all(),
+				referencesRoots: db
+					.select({
+						nodeId: referencesRoots.nodeId,
+						systemFrom: referencesRoots.systemFrom,
+						systemTo: referencesRoots.systemTo,
+					})
+					.from(referencesRoots)
+					.all(),
+				virtualRootIds: db
+					.select({
+						nodeId: virtualRootIds.nodeId,
+						virtualRootId: virtualRootIds.virtualRootId,
+						systemFrom: virtualRootIds.systemFrom,
+						systemTo: virtualRootIds.systemTo,
+					})
+					.from(virtualRootIds)
+					.all(),
+			};
+		}
+
+		it("inserts mirrors, backlinks, references roots and virtual roots from the tree data", () => {
+			importFromApi(testDatabase.db, apiNodes, false, T0, treeItems);
+
+			expect(relationshipRows()).toStrictEqual({
+				mirrors: [
+					{mirrorId: "item", originalId: "target", systemFrom: AT_T0, systemTo: FAR_FUTURE_DATE},
+					{mirrorId: "mirror", originalId: "original", systemFrom: AT_T0, systemTo: FAR_FUTURE_DATE},
+				],
+				backlinks: [
+					{
+						nodeId: "item",
+						sourceId: "source",
+						targetId: "target",
+						systemFrom: AT_T0,
+						systemTo: FAR_FUTURE_DATE,
+					},
+				],
+				referencesRoots: [{nodeId: "refs", systemFrom: AT_T0, systemTo: FAR_FUTURE_DATE}],
+				virtualRootIds: [
+					{nodeId: "virtual", virtualRootId: "source", systemFrom: AT_T0, systemTo: FAR_FUTURE_DATE},
+				],
+			});
+		});
+
+		it("closes the relationships a later tree data no longer carries", () => {
+			importFromApi(testDatabase.db, apiNodes, false, T0, treeItems);
+
+			const laterItems: InternalTreeItem[] = [
+				{id: "item", metadata: {mirror: {originalId: "target", isMirrorRoot: true}}},
+				{id: "mirror", metadata: {mirror: {originalId: "original", isMirrorRoot: true}}},
+			];
+			importFromApi(testDatabase.db, apiNodes, false, T1, laterItems);
+
+			expect(relationshipRows()).toStrictEqual({
+				mirrors: [
+					{mirrorId: "item", originalId: "target", systemFrom: AT_T0, systemTo: FAR_FUTURE_DATE},
+					{mirrorId: "mirror", originalId: "original", systemFrom: AT_T0, systemTo: FAR_FUTURE_DATE},
+				],
+				backlinks: [
+					{nodeId: "item", sourceId: "source", targetId: "target", systemFrom: AT_T0, systemTo: AT_T1},
+				],
+				referencesRoots: [{nodeId: "refs", systemFrom: AT_T0, systemTo: AT_T1}],
+				virtualRootIds: [{nodeId: "virtual", virtualRootId: "source", systemFrom: AT_T0, systemTo: AT_T1}],
+			});
+		});
+
+		it("leaves the relationship rows untouched without tree data", () => {
+			importFromApi(testDatabase.db, apiNodes, false, T0, treeItems);
+			const before = relationshipRows();
+
+			importFromApi(testDatabase.db, apiNodes, false, T1);
+
+			expect(relationshipRows()).toStrictEqual(before);
 		});
 	});
 

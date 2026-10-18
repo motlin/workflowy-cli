@@ -22,6 +22,13 @@ export {
 	keptInternalMetadata,
 	type NormalizedRowsByTable,
 } from "./importer.js";
+export {
+	collectItemRelationships,
+	emptyItemRelationships,
+	type ItemRelationships,
+	mergeItemRelationships,
+	type MergeItemRelationshipsResult,
+} from "./item-relationships.js";
 export {applyMirrorText, loadMirrorOriginals, notAMirror, withMirrorText} from "./mirror-text.js";
 export {NodeReader} from "./node-reader.js";
 export {PathBuilder} from "./path-builder.js";

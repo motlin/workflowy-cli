@@ -1,4 +1,5 @@
 import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
+import type {InternalTreeItem} from "@workflowy/shared/api";
 import {importInternalMetadata} from "@workflowy/shared/cache";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {Command, Flags} from "@oclif/core";
@@ -40,6 +41,7 @@ export default class ImportApi extends Command {
 
 			const apiClient = new WorkflowyApiClient(apiKey, logger, process.env.WORKFLOWY_API_URL);
 			const nodes = await apiClient.exportAllNodes();
+			const treeItems = await this.fetchTreeData();
 
 			const fetchElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 			this.log(`Fetched ${nodes.length.toLocaleString()} nodes in ${fetchElapsed}s`);
@@ -47,12 +49,15 @@ export default class ImportApi extends Command {
 			if (flags["dry-run"]) {
 				this.log("\n[DRY RUN] Would import to cache:");
 				this.log(`  Total nodes: ${nodes.length.toLocaleString()}`);
+				if (treeItems !== undefined) {
+					this.log(`  Tree data items: ${treeItems.length.toLocaleString()}`);
+				}
 				this.log("  No changes made.");
 				return;
 			}
 
 			const database = createDatabase();
-			const result: ImportApiResult = importFromApi(database, nodes, flags.verbose);
+			const result: ImportApiResult = importFromApi(database, nodes, flags.verbose, undefined, treeItems);
 
 			const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -72,7 +77,10 @@ export default class ImportApi extends Command {
 					`(${result.nodesAdded} + ${result.nodesUpdated} + ${result.nodesUnchanged} + ${result.nodesDeleted} = ${result.totalNodes.toLocaleString()} nodes in ${totalElapsed}s)`,
 				);
 			}
-			await this.importItemMetadata(database);
+			if (treeItems !== undefined) {
+				const {written, skipped} = importInternalMetadata(database, treeItems, Date.now());
+				this.log(`Item metadata: ${written.toLocaleString()} nodes (${skipped.toLocaleString()} not in cache)`);
+			}
 		} catch (error) {
 			if (error instanceof Error && error.message.includes("429")) {
 				this.error("Rate limit exceeded. Please wait 1 minute before trying again.");
@@ -82,18 +90,16 @@ export default class ImportApi extends Command {
 	}
 
 	/**
-	 * Import item metadata the public API omits (numbered_start, calendar,
-	 * priority.defaultToBottom) from the internal API's `/get_tree_data/`, when
-	 * WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD are set or a session cookie is saved.
+	 * Read `/get_tree_data/` from the internal API, when WORKFLOWY_USERNAME and
+	 * WORKFLOWY_PASSWORD are set or a session cookie is saved. Its item metadata
+	 * carries what the public API omits: mirrors, backlinks, virtual roots,
+	 * references roots, numbered_start, calendar and priority.defaultToBottom.
 	 */
-	private async importItemMetadata(database: ReturnType<typeof createDatabase>): Promise<void> {
+	private async fetchTreeData(): Promise<InternalTreeItem[] | undefined> {
 		const auth = readInternalAuth();
 		if (!auth) {
-			return;
+			return undefined;
 		}
-		const client = new WorkflowyInternalClient(auth);
-		const items = await client.getTreeData();
-		const {written, skipped} = importInternalMetadata(database, items, Date.now());
-		this.log(`Item metadata: ${written.toLocaleString()} nodes (${skipped.toLocaleString()} not in cache)`);
+		return new WorkflowyInternalClient(auth).getTreeData();
 	}
 }
