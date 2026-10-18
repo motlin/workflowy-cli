@@ -26,6 +26,7 @@ import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
 import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
 import {renderTags, tagAtOffset} from "../tag-render.js";
+import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 
 /**
@@ -816,7 +817,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					className="innerContentContainer"
 					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{
-						__html: renderTags(renderDatePills(initialValue, DEFAULT_DATE_SETTINGS), tagColors),
+						__html: renderTags(
+							renderDatePills(renderLinks(initialValue), DEFAULT_DATE_SETTINGS),
+							tagColors,
+						),
 					}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}

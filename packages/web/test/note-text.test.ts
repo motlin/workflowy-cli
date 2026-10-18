@@ -82,6 +82,14 @@ describe("noteContentHtml", () => {
 		expect(html).toBe(`<span class="innerContentContainer">${renderTags("a\n@bob", {"@bob": "red"})}</span>`);
 		expect(editorHtmlToNote(html)).toBe("a\n@bob");
 	});
+
+	it("renders links with upstream's contentLink markup and stores them back as bare href links", () => {
+		const html = noteContentHtml('see <a href="https://example.com/">site</a>');
+		expect(html).toBe(
+			'<span class="innerContentContainer">see <a class="contentLink" target="_blank" rel="noreferrer" href="https://example.com/">site</a></span>',
+		);
+		expect(editorHtmlToNote(html)).toBe('see <a href="https://example.com/">site</a>');
+	});
 });
 
 describe("planNoteSave", () => {

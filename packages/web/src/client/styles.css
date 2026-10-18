@@ -1587,8 +1587,8 @@ body.moving .expand {
 	min-width: 0;
 }
 
-/* Upstream .contentLink (wf-base) plus its inline color rule. The local renderer
-   does not add the contentLink class to stored anchors yet, so .content a matches them too. */
+/* Upstream .contentLink (wf-base) plus its inline color rule. .content a also matches
+   anchors typed in the editor, which carry no class until they are stored and re-rendered. */
 .contentLink,
 .content a {
 	color: var(--wf-text-tint);

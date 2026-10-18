@@ -4,6 +4,7 @@
  * `<br>`/`<div>`/`<p>` structure must never reach the API.
  */
 
+import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderTags} from "./tag-render.js";
 import type {TagColorMap} from "./tag-render.js";
 
@@ -61,7 +62,7 @@ export function editorHtmlToNote(html: string): string {
 		} else {
 			const kept = isKept(name, attributes ?? "");
 			if (kept) {
-				note += tag;
+				note += name === "a" ? storedAnchorTag(anchorHref(tag)) : tag;
 			}
 			if (!tag.endsWith("/>")) {
 				openElements.push({name, kept});
@@ -78,13 +79,13 @@ export function noteToEditorHtml(note: string): string {
 
 /**
  * The note `.content` element's inner HTML: `.innerContentContainer` around the note with its
- * #tags and @mentions decorated like a name's, or nothing for an empty note. The decoration
- * spans are dropped again by `editorHtmlToNote`, so the stored note never carries them.
+ * #tags, @mentions, and links decorated like a name's, or nothing for an empty note. The
+ * decoration is dropped again by `editorHtmlToNote`, so the stored note never carries it.
  */
 export function noteContentHtml(note: string, tagColors: TagColorMap = {}): string {
 	return note === ""
 		? ""
-		: `<span class="innerContentContainer">${renderTags(noteToEditorHtml(note), tagColors)}</span>`;
+		: `<span class="innerContentContainer">${renderTags(renderLinks(noteToEditorHtml(note)), tagColors)}</span>`;
 }
 
 /**
