@@ -9,7 +9,7 @@ import {pendingCreates} from "../pending-creates.js";
 import {toUndoOps} from "../tree-ops.js";
 import type {UndoableMutation} from "../tree-ops.js";
 import {RequestStatusError, holdUndoSlot} from "../undo-batch.js";
-import type {UndoSlot} from "../undo-batch.js";
+import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
 
 interface CreateNodeRequest {
@@ -170,6 +170,16 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
 }
+
+/** The raw server calls `applyOps` replays an undo step through (no optimistic cache writes). */
+export const undoAdapter: UndoAdapter = {
+	updateNode,
+	deleteNode,
+	restoreNode,
+	moveNode,
+	completeNode,
+	uncompleteNode,
+};
 
 /**
  * Fetches children of a parent node (or root nodes if parentId is null).

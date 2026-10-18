@@ -139,11 +139,10 @@ describe("keymapCombo", () => {
 
 	it("skips combos whose commands the browser or the editor still own", () => {
 		expect({
-			undo: keymapCombo({...event, which: 90, metaKey: true}, true),
 			escape: keymapCombo({...event, which: 27}, true),
 			selectUp: keymapCombo({...event, which: 38, shiftKey: true}, true),
 			zoomIn: keymapCombo({...event, which: 190, metaKey: true}, true),
-		}).toStrictEqual({undo: null, escape: null, selectUp: null, zoomIn: "meta+."});
+		}).toStrictEqual({escape: null, selectUp: null, zoomIn: "meta+."});
 	});
 
 	it("dispatches ⌘Home / ⌘End to focus_first / focus_last", () => {
@@ -153,10 +152,42 @@ describe("keymapCombo", () => {
 		}).toStrictEqual({home: "meta+home", end: "meta+end"});
 	});
 
+	it("dispatches undo and redo combos from the outline", () => {
+		expect({
+			undo: keymapCombo({...event, which: 90, metaKey: true}, true),
+			redo: keymapCombo({...event, which: 90, metaKey: true, shiftKey: true}, true),
+			redoY: keymapCombo({...event, which: 89, metaKey: true}, true),
+			undoCtrl: keymapCombo({...event, which: 90, ctrlKey: true}, false),
+			redoCtrl: keymapCombo({...event, which: 90, ctrlKey: true, shiftKey: true}, false),
+		}).toStrictEqual({
+			undo: "meta+z",
+			redo: "meta+shift+z",
+			redoY: "meta+y",
+			undoCtrl: "ctrl+z",
+			redoCtrl: "ctrl+shift+z",
+		});
+	});
+
+	it("leaves undo and redo to a focused form field but dispatches its other combos", () => {
+		expect({
+			undo: keymapCombo({...event, which: 90, metaKey: true}, true, true),
+			redo: keymapCombo({...event, which: 90, metaKey: true, shiftKey: true}, true, true),
+			zoomIn: keymapCombo({...event, which: 190, metaKey: true}, true, true),
+		}).toStrictEqual({undo: null, redo: null, zoomIn: "meta+."});
+	});
+
+	it("executes undo on meta+z and redo on meta+shift+z", () => {
+		const undo = vi.fn<(ctx: CommandContext) => void>();
+		const redo = vi.fn<(ctx: CommandContext) => void>();
+		const registry = {undo: {execute: undo}, redo: {execute: redo}};
+		expect({
+			results: ["meta+z", "meta+shift+z", "meta+y"].map((combo) => processCombo(combo, registry, ctx, true)),
+			calls: [undo.mock.calls.length, redo.mock.calls.length],
+		}).toStrictEqual({results: ["claimed", "claimed", "claimed"], calls: [1, 2]});
+	});
+
 	it("lists the commands the local app leaves to the browser", () => {
 		expect([...BROWSER_NATIVE_COMMANDS]).toStrictEqual([
-			"undo",
-			"redo",
 			"select_all",
 			"expand_selection_up",
 			"expand_selection_down",

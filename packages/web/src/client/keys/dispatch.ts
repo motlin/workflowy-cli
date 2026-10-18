@@ -97,22 +97,27 @@ export function deferToFocusedControl(combo: string, active: FocusedElement | nu
 }
 
 /**
- * Upstream commands the local app still leaves to the browser or another owner: native undo/redo, select-all and
- * shift-arrow selection inside the editor, and Escape (EditableText and search own it).
+ * Upstream commands the local app still leaves to the browser or another owner: select-all and shift-arrow
+ * selection inside the editor, and Escape (EditableText and search own it).
  * Their combos are not dispatched at all, so they keep their default behavior.
  */
 export const BROWSER_NATIVE_COMMANDS: ReadonlySet<string> = new Set([
-	"undo",
-	"redo",
 	"select_all",
 	"expand_selection_up",
 	"expand_selection_down",
 	"focus_or_unfocus_search",
 ]);
 
+/** Commands a focused form field (search box, dialog input) keeps native: upstream binds undo with `enableOnFormTags: false`. */
+const FORM_FIELD_NATIVE_COMMANDS: ReadonlySet<string> = new Set(["undo", "redo"]);
+
 /** The combo to dispatch for a keydown, or null when its command is left to the browser. */
-export function keymapCombo(event: KeyComboEvent, isMac: boolean): string | null {
+export function keymapCombo(event: KeyComboEvent, isMac: boolean, inFormField = false): string | null {
 	const combo = comboFromEvent(event);
 	const commandId = hotkeyTable(isMac).get(combo);
-	return commandId !== undefined && BROWSER_NATIVE_COMMANDS.has(commandId) ? null : combo;
+	if (commandId === undefined) {
+		return combo;
+	}
+	const native = BROWSER_NATIVE_COMMANDS.has(commandId) || (inFormField && FORM_FIELD_NATIVE_COMMANDS.has(commandId));
+	return native ? null : combo;
 }

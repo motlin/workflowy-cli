@@ -1,3 +1,4 @@
+import {editorElement, selectionTextOffsets} from "./caret-dom.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {undoHistory} from "./undo-history.js";
 import type {UndoOp, ViewState} from "./undo-history.js";
@@ -50,6 +51,9 @@ function enqueue(before: ViewState): PendingBatch {
 	return batch;
 }
 
+/** Callers of `whenUndoSettled` waiting for the queue to drain. */
+let settledWaiters: (() => void)[] = [];
+
 /** Pushes every finished batch at the head of the queue as ONE undo step each. */
 function flush(): void {
 	let head = queue[0];
@@ -58,14 +62,49 @@ function flush(): void {
 		undoHistory.push({ops: head.entries.flat(), before: head.before, after: head.after ?? captureOutlineView()});
 		head = queue[0];
 	}
+	if (queue.length === 0 && settledWaiters.length > 0) {
+		const waiters = settledWaiters;
+		settledWaiters = [];
+		for (const resolve of waiters) {
+			resolve();
+		}
+	}
 }
 
-/** The outline's zoom and caret as the store holds them. */
-export function captureOutlineView(): ViewState {
+/**
+ * Resolves once every command and mutation issued so far has pushed its undo step, so an undo
+ * right after a flushed text save pops that save rather than the step before it.
+ */
+export async function whenUndoSettled(): Promise<void> {
+	if (queue.length === 0) {
+		return;
+	}
+	await new Promise<void>((resolve) => {
+		settledWaiters.push(resolve);
+	});
+}
+
+type ReadSelection = (nodeId: string) => {start: number; end: number} | null;
+
+/** The live selection in `nodeId`'s rendered name editor; null without one (or without a DOM). */
+function liveNameSelection(nodeId: string): {start: number; end: number} | null {
+	if (typeof document === "undefined") {
+		return null;
+	}
+	const editor = editorElement(nodeId);
+	return editor === null ? null : selectionTextOffsets(editor);
+}
+
+/**
+ * The outline's zoom and caret: the name editor's live selection when it is rendered (the store's
+ * caret is only where editing started), else the stored caret.
+ */
+export function captureOutlineView(readSelection: ReadSelection = liveNameSelection): ViewState {
 	const {zoomedNodeId, editingId, editingCaretOffset, editingNoteId} = useOutlineStore.getState();
-	const caret = editingCaretOffset ?? 0;
 	if (editingId !== null) {
-		return {zoomedNodeId, editing: {nodeId: editingId, field: "name", start: caret, end: caret}};
+		const caret = editingCaretOffset ?? 0;
+		const {start, end} = readSelection(editingId) ?? {start: caret, end: caret};
+		return {zoomedNodeId, editing: {nodeId: editingId, field: "name", start, end}};
 	}
 	return {
 		zoomedNodeId,

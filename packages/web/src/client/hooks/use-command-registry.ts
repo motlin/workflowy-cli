@@ -1,10 +1,10 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {nodeUrl, stepNav} from "../navigation.js";
-import {nodeKeys, readChildren, readNode} from "../node-cache.js";
+import {goToNode, nodeUrl, stepNav} from "../navigation.js";
+import {nodeKeys, patchCachedNode, readChildren, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
-import {useOutlineStore} from "../stores/outline.js";
+import {flushEditing, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement, placeCaretAtTextOffset} from "../caret-dom.js";
 import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../caret-navigation.js";
@@ -28,6 +28,7 @@ import {
 	useMoveNode,
 	useNode,
 	useToggleComplete,
+	undoAdapter,
 	useUpdateNode,
 } from "./use-nodes.js";
 import {collectVisibleNodeIds, currentNavigableIds} from "./use-visible-nodes.js";
@@ -36,6 +37,11 @@ import {useZoomTo} from "./use-zoom-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
+import {plainLength} from "../rich-text.js";
+import {applyOps, captureOutlineView, whenUndoSettled} from "../undo-batch.js";
+import {undoHistory} from "../undo-history.js";
+import {editPatches, queueUndo} from "../undo-view-state.js";
+import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
 
@@ -324,7 +330,57 @@ export function useCommandRegistry(): CommandRegistry {
 		toggleJumpMenu();
 	};
 
+	const undoRunner: UndoRunner = {
+		flush: flushEditing,
+		settled: whenUndoSettled,
+		pop: (direction) => (direction === "undo" ? undoHistory.popUndo() : undoHistory.popRedo()),
+		blur() {
+			const editedId = useOutlineStore.getState().editingId;
+			if (editedId !== null) {
+				editorElement(editedId)?.blur();
+			}
+			stopEditing();
+		},
+		async apply(ops) {
+			await applyOps(ops, undoAdapter);
+			for (const {nodeId, field, value} of editPatches(ops)) {
+				patchCachedNode(queryClient, nodeId, (node) => ({...node, [field]: value}));
+			}
+			await queryClient.invalidateQueries();
+		},
+		current: captureOutlineView,
+		textLength(nodeId, field) {
+			const node = readNode(queryClient, nodeId);
+			return plainLength((field === "name" ? node?.name : node?.note) ?? "");
+		},
+		zoomTo(nodeId) {
+			goToNode(navigate, nodeId);
+		},
+		focus({nodeId, field, start}) {
+			if (field === "name") {
+				resumeEditing(nodeId, start);
+			} else {
+				useOutlineStore.getState().focusNote(nodeId, start === 0 ? 0 : "end");
+			}
+		},
+	};
+
+	/** Upstream ⌘Z / ⇧⌘Z: claimed even with an empty stack, so the browser's native undo never runs. */
+	const undoCommand = (direction: UndoDirection) => ({
+		execute() {
+			queueUndo(direction, undoRunner).catch((error: unknown) => {
+				useOutlineStore
+					.getState()
+					.addErrorNotification(
+						`Couldn't ${direction}: ${error instanceof Error ? error.message : String(error)}`,
+					);
+			});
+		},
+	});
+
 	return {
+		undo: undoCommand("undo"),
+		redo: undoCommand("redo"),
 		save_and_sync: saveAndSyncCommand(() => {
 			void queryClient.invalidateQueries();
 		}),

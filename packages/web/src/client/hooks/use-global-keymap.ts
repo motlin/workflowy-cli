@@ -33,7 +33,7 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 			if (event.isComposing) {
 				return;
 			}
-			const combo = keymapCombo(event, isMac);
+			const combo = keymapCombo(event, isMac, isFormField(event.target));
 			if (combo === null || deferToFocusedControl(combo, focusedElement())) {
 				return;
 			}

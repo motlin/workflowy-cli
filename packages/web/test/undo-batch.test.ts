@@ -1,16 +1,24 @@
 import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
-import {RequestStatusError, applyOps, holdUndoSlot, recordOp, runInUndoBatch} from "../src/client/undo-batch.js";
+import {
+	RequestStatusError,
+	applyOps,
+	captureOutlineView,
+	holdUndoSlot,
+	recordOp,
+	runInUndoBatch,
+	whenUndoSettled,
+} from "../src/client/undo-batch.js";
 import type {UndoAdapter} from "../src/client/undo-batch.js";
 import {undoHistory} from "../src/client/undo-history.js";
 import type {UndoBatch, UndoOp, ViewState} from "../src/client/undo-history.js";
 
 const notifications = vi.hoisted((): string[][] => []);
+const editingState = vi.hoisted(() => ({editingId: null as string | null, editingCaretOffset: null as number | null}));
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: {
 		getState: () => ({
 			zoomedNodeId: "zoom",
-			editingId: null,
-			editingCaretOffset: null,
+			...editingState,
 			editingNoteId: null,
 			addErrorNotification(message: string, type = "error") {
 				notifications.push([message, type]);
@@ -67,6 +75,28 @@ async function recordAndUndo(...ops: UndoOp[]): Promise<UndoBatch> {
 beforeEach(() => {
 	undoHistory.clear();
 	notifications.length = 0;
+	editingState.editingId = null;
+	editingState.editingCaretOffset = null;
+});
+
+describe("captureOutlineView", () => {
+	it("reads the live selection of the focused name editor, not the caret it was opened with", () => {
+		editingState.editingId = "a";
+		editingState.editingCaretOffset = 0;
+		expect(captureOutlineView((nodeId) => (nodeId === "a" ? {start: 7, end: 9} : null))).toStrictEqual({
+			zoomedNodeId: "zoom",
+			editing: {nodeId: "a", field: "name", start: 7, end: 9},
+		});
+	});
+
+	it("falls back to the stored caret when the editor is not rendered", () => {
+		editingState.editingId = "a";
+		editingState.editingCaretOffset = 3;
+		expect(captureOutlineView(() => null)).toStrictEqual({
+			zoomedNodeId: "zoom",
+			editing: {nodeId: "a", field: "name", start: 3, end: 3},
+		});
+	});
 });
 
 describe("runInUndoBatch", () => {
@@ -191,6 +221,24 @@ describe("holdUndoSlot", () => {
 			[{kind: "uncomplete", nodeId: "later"}],
 			[{kind: "uncomplete", nodeId: "first"}],
 		]);
+	});
+
+	it("resolves whenUndoSettled only once the held mutation's step is pushed", async () => {
+		const slot = holdUndoSlot();
+		const order: string[] = [];
+		const settled = (async () => {
+			await whenUndoSettled();
+			order.push(`settled canUndo=${String(undoHistory.canUndo)}`);
+		})();
+		await Promise.resolve();
+		order.push("before settle");
+		slot.settle([{kind: "complete", nodeId: "a"}]);
+		await settled;
+		expect(order).toStrictEqual(["before settle", "settled canUndo=true"]);
+	});
+
+	it("resolves whenUndoSettled at once when nothing is pending", async () => {
+		await expect(whenUndoSettled()).resolves.toBeUndefined();
 	});
 
 	it("records nothing for a failed mutation settled with no ops", () => {
