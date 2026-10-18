@@ -588,6 +588,15 @@ export class CacheService {
 		});
 	}
 
+	/** {@link storeApiResponse} for several parents, all in one transaction. */
+	storeApiResponses(batches: {nodes: WorkflowyNode[]; parentId: string | null}[]): void {
+		this.database.transaction(() => {
+			for (const {nodes, parentId} of batches) {
+				this.storeApiResponse(nodes, parentId);
+			}
+		});
+	}
+
 	/**
 	 * Insert a newly created node into the cache without affecting siblings.
 	 * Use this for node creation operations where we're adding a single node

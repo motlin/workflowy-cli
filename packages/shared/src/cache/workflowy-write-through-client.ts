@@ -133,9 +133,32 @@ export class WorkflowyWriteThroughClient {
 
 	/** A parent's children ids in Workflowy's current order, read from the API. */
 	private async liveChildOrder(parentId: string | null): Promise<string[]> {
+		return (await this.liveChildren(parentId)).map((node) => node.id);
+	}
+
+	/** A parent's children (Home's for `null`) in Workflowy's current order, read from the API. */
+	async liveChildren(parentId: string | null): Promise<WorkflowyNode[]> {
 		const children =
 			parentId === null ? await this.apiClient.getRootNodes() : await this.apiClient.getChildNodes(parentId);
-		return children.toSorted((a, b) => a.priority - b.priority).map((node) => node.id);
+		return children.toSorted((a, b) => a.priority - b.priority);
+	}
+
+	/** One node as Workflowy has it now, read from the API. */
+	async liveNode(nodeId: string): Promise<WorkflowyNode> {
+		return this.apiClient.getNode(nodeId);
+	}
+
+	/**
+	 * Re-read each parent's children (Home's for `null`) through the API, then
+	 * replace the cached children of all of them in one transaction. Use after a
+	 * write made outside this client, such as an internal-API push.
+	 */
+	async refreshChildren(parentIds: (string | null)[]): Promise<void> {
+		const unique = [...new Set(parentIds)];
+		const batches = await Promise.all(
+			unique.map(async (parentId) => ({parentId, nodes: await this.liveChildren(parentId)})),
+		);
+		this.cacheService.storeApiResponses(batches);
 	}
 
 	/**
