@@ -1,7 +1,6 @@
 import {useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useFlattenedTree} from "../hooks/use-flattened-tree.js";
-import {useNavigationHistory} from "../hooks/use-navigation-history.js";
 import {useChildren, useNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
@@ -12,6 +11,7 @@ import {LayoutMenu} from "./layout-menu.js";
 import {SearchBox} from "./search-box.js";
 import type {LayoutMode} from "./layout-menu.js";
 import {zoomToToday} from "../zoom-to-today.js";
+import {stepNav, useNavStackSync} from "../navigation.js";
 
 /**
  * Star icon (outline) for unstarred state.
@@ -58,7 +58,9 @@ export function TopBar() {
 		leftBarMode,
 	} = useOutlineStore();
 	const navigate = useNavigate();
-	const {canGoBack, canGoForward} = useNavigationHistory();
+	useNavStackSync();
+	const canGoBack = useOutlineStore((state) => state.nav.back.length > 0);
+	const canGoForward = useOutlineStore((state) => state.nav.forward.length > 0);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
 	const [layoutMenuPosition, setLayoutMenuPosition] = useState({top: 0, right: 0});
@@ -80,8 +82,12 @@ export function TopBar() {
 		}
 	};
 
-	const handleNavigateBack = () => void navigate(-1);
-	const handleNavigateForward = () => void navigate(1);
+	const handleNavigateBack = () => {
+		stepNav(navigate, "back");
+	};
+	const handleNavigateForward = () => {
+		stepNav(navigate, "forward");
+	};
 
 	const handleMenuToggle = () => {
 		setMenuOpen((prev) => !prev);

@@ -1,8 +1,7 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {nodeUrl} from "../navigation.js";
+import {nodeUrl, stepNav} from "../navigation.js";
 import {nodeKeys} from "../node-cache.js";
-import {historyStep} from "../nav-history.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useHotkeys} from "react-hotkeys-hook";
 import type {Options} from "react-hotkeys-hook";
@@ -228,26 +227,26 @@ export function useKeyboardShortcuts() {
 		[zoomedNodeId, zoomedNode, commitEdit, navigate],
 	);
 
-	// Cmd+[ (Cmd+LeftBracket): history back, no-op on an empty back stack
+	// Cmd+[ (Cmd+LeftBracket): in-app Back, no-op on an empty back stack (upstream binds it in Electron only)
 	useHotkeys(
 		punctuationHotkeys.historyBack,
 		() => {
 			commitEdit();
-			historyStep(-1);
+			stepNav(navigate, "back");
 		},
 		navigationShortcut,
-		[commitEdit],
+		[commitEdit, navigate],
 	);
 
-	// Cmd+] (Cmd+RightBracket): history forward, no-op on an empty forward stack
+	// Cmd+] (Cmd+RightBracket): in-app Forward, no-op on an empty forward stack
 	useHotkeys(
 		punctuationHotkeys.historyForward,
 		() => {
 			commitEdit();
-			historyStep(1);
+			stepNav(navigate, "forward");
 		},
 		navigationShortcut,
-		[commitEdit],
+		[commitEdit, navigate],
 	);
 
 	// Cmd+' (Cmd+Quote): Navigate home to root view

@@ -25,6 +25,7 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	collapseAll: () => {},
 	leftBarOffset: () => 0,
 	leftBarMode: "drawerClosed",
+	nav: {current: null, back: [], forward: []},
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -32,11 +33,7 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		selector === undefined ? storeState : selector(storeState),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
-const navState = {canGoBack: false, canGoForward: false};
-
-vi.mock("../src/client/hooks/use-navigation-history.js", () => ({
-	useNavigationHistory: () => navState,
-}));
+vi.mock("../src/client/navigation.js", () => ({stepNav: () => {}, useNavStackSync: () => {}}));
 vi.mock("../src/client/hooks/use-flattened-tree.js", () => ({
 	useFlattenedTree: () => ({flattenedNodes: []}),
 }));
@@ -137,8 +134,8 @@ describe("TopBar markup", () => {
 });
 
 function renderWithNav(canGoBack: boolean, canGoForward: boolean): string {
-	navState.canGoBack = canGoBack;
-	navState.canGoForward = canGoForward;
+	const home = {id: null, query: null};
+	storeState.nav = {current: home, back: canGoBack ? [home] : [], forward: canGoForward ? [home] : []};
 	return renderToStaticMarkup(createElement(TopBar));
 }
 

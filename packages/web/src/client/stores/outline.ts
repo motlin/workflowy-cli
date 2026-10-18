@@ -1,6 +1,8 @@
 import {create} from "zustand";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
+import {initialNavState, navReducer} from "../nav-stack.js";
+import type {NavAction, NavState} from "../nav-stack.js";
 
 const StringArraySchema = z.array(z.string());
 
@@ -223,9 +225,12 @@ interface OutlineState {
 	isOnline: boolean;
 	errorNotifications: ErrorNotification[];
 	isMutating: boolean;
+	/** In-app Back/Forward stacks (see nav-stack.ts). */
+	nav: NavState;
 }
 
 interface OutlineActions {
+	dispatchNav: (action: NavAction) => void;
 	zoom: (id: string | null) => void;
 	toggleExpand: (id: string) => void;
 	expand: (id: string) => void;
@@ -335,6 +340,11 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
 	isMutating: false,
+	nav: initialNavState,
+
+	dispatchNav: (action) => {
+		set((state) => ({nav: navReducer(state.nav, action)}));
+	},
 
 	zoom: (id) => {
 		set({zoomedNodeId: id});
