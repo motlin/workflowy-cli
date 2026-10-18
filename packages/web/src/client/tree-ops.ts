@@ -290,34 +290,92 @@ export function planOutdent(queryClient: QueryClient, node: PlanNode): MoveNodeP
 	return {nodeId: node.id, parent_id: grandparentId, ...indexAfter(queryClient, grandparentId, node.parent_id)};
 }
 
-/** Move `node` up among its siblings (before the previous one), or null if already first. */
-export function planMoveUp(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
-	const siblings = readChildren(queryClient, node.parent_id);
-	if (!siblings || siblings.length < 2) {
-		return null;
-	}
-	const sorted = sortByPriority(siblings);
-	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	const previous = sorted[index - 1];
-	if (index <= 0 || previous === undefined) {
-		return null;
-	}
-	return {nodeId: node.id, parent_id: node.parent_id, index: index - 1};
+/** The outline as `planVerticalMove` sees it. `childrenOf` lists ALL children in priority order. */
+export interface VerticalMoveTree {
+	parentOf(id: string): string | null;
+	childrenOf(id: string | null): string[];
+	isExpanded(id: string): boolean;
+	/** False for a completed row hidden while completed rows are hidden. */
+	isVisible(id: string): boolean;
 }
 
-/** Move `node` down among its siblings (after the next one), or null if already last. The index counts `node`. */
-export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
-	const siblings = readChildren(queryClient, node.parent_id);
-	if (!siblings || siblings.length < 2) {
+/** Move up/down plan: an exact move-endpoint `index`, plus the new parent to expand (or null). */
+export interface VerticalMovePlan {
+	nodeId: string;
+	parentId: string | null;
+	index: number;
+	expandParentId: string | null;
+}
+
+/** The nearest visible sibling of `id` in `direction`, or undefined. */
+function visibleSibling(tree: VerticalMoveTree, id: string, direction: "up" | "down"): string | undefined {
+	const siblings = tree.childrenOf(tree.parentOf(id));
+	const at = siblings.indexOf(id);
+	const candidates = direction === "up" ? siblings.slice(0, at).toReversed() : siblings.slice(at + 1);
+	return candidates.find((sibling) => tree.isVisible(sibling));
+}
+
+/**
+ * Upstream Shift+Cmd+Up/Down. Swap with the nearest visible sibling; at the edge, leave the
+ * parent for the parent's visible sibling in that direction (the "uncle"): moving up lands
+ * after the uncle's last rendered child when it is open, else at its top; moving down lands
+ * at its top. The uncle is expanded when it is not already. Null when there is nowhere to go,
+ * and the move never leaves the zoomed page. `index` follows the move endpoint: a slot among
+ * ALL of the target's children (hidden completed ones included), counted before removal.
+ */
+export function planVerticalMove({
+	nodeId,
+	direction,
+	zoomRootId,
+	tree,
+}: {
+	nodeId: string;
+	direction: "up" | "down";
+	zoomRootId: string | null;
+	tree: VerticalMoveTree;
+}): VerticalMovePlan | null {
+	if (nodeId === zoomRootId) {
 		return null;
 	}
-	const sorted = sortByPriority(siblings);
-	const index = sorted.findIndex((sibling) => sibling.id === node.id);
-	const next = sorted[index + 1];
-	if (index === -1 || next === undefined) {
+	const parentId = tree.parentOf(nodeId);
+	const sibling = visibleSibling(tree, nodeId, direction);
+	if (sibling !== undefined) {
+		const siblingIndex = tree.childrenOf(parentId).indexOf(sibling);
+		const index = direction === "up" ? siblingIndex : siblingIndex + 1;
+		return {nodeId, parentId, index, expandParentId: null};
+	}
+	if (parentId === null || parentId === zoomRootId) {
 		return null;
 	}
-	return {nodeId: node.id, parent_id: node.parent_id, index: index + 2};
+	const uncle = visibleSibling(tree, parentId, direction);
+	if (uncle === undefined) {
+		return null;
+	}
+	const cousins = tree.childrenOf(uncle);
+	const open = tree.isExpanded(uncle) && cousins.length > 0;
+	const lastRendered = cousins.findLastIndex((cousin) => tree.isVisible(cousin));
+	const index = direction === "up" && open ? lastRendered + 1 : 0;
+	return {nodeId, parentId: uncle, index, expandParentId: open ? null : uncle};
+}
+
+/** A `VerticalMoveTree` over the React Query cache and the outline's expansion/visibility state. */
+export function cacheMoveTree(
+	queryClient: QueryClient,
+	{
+		expandedIds,
+		showCompleted,
+		animatingCompletionIds,
+	}: {expandedIds: ReadonlySet<string>; showCompleted: boolean; animatingCompletionIds: ReadonlySet<string>},
+): VerticalMoveTree {
+	return {
+		parentOf: (id) => readNode(queryClient, id)?.parent_id ?? null,
+		childrenOf: (id) => sortByPriority(readChildren(queryClient, id) ?? []).map((child) => child.id),
+		isExpanded: (id) => expandedIds.has(id),
+		isVisible: (id) => {
+			const found = readNode(queryClient, id);
+			return found === undefined || isPotentiallyVisible(found, showCompleted, animatingCompletionIds);
+		},
+	};
 }
 
 export interface ToggleCompletePlan {

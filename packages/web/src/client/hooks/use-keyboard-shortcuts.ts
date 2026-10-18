@@ -10,7 +10,14 @@ import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {editingAfterRemoval, navigableIds, planCompleteFocus} from "../caret-navigation.js";
-import {planDuplicate, planIndent, planMoveDown, planMoveUp, planOutdent, planToggleComplete} from "../tree-ops.js";
+import {
+	cacheMoveTree,
+	planDuplicate,
+	planIndent,
+	planOutdent,
+	planToggleComplete,
+	planVerticalMove,
+} from "../tree-ops.js";
 import type {MoveNodePayload} from "../tree-ops.js";
 import {
 	useChildren,
@@ -56,8 +63,8 @@ import {completeHotkey, navigationShortcut, punctuationHotkeys, structureHotkeys
  * across the re-render so the edited row keeps (or regains) focus.
  *
  * Movement:
- * - Shift+Cmd+Up: Move the edited node up among siblings
- * - Shift+Cmd+Down: Move the edited node down among siblings
+ * - Shift+Cmd+Up: Move the edited node up (into the previous uncle at the top)
+ * - Shift+Cmd+Down: Move the edited node down (into the next uncle at the bottom)
  *
  * Duplication:
  * - Shift+Cmd+D: Duplicate the edited node (shallow copy, placed below) and edit the copy
@@ -158,6 +165,26 @@ export function useKeyboardShortcuts() {
 			moveNodeMutation.mutate(payload, {onSettled: releaseEditing});
 		},
 		[holdEditing, releaseEditing, moveNodeMutation],
+	);
+
+	/** Shift+Cmd+Up/Down: swap with a sibling or cross into the parent's sibling, expanding it. */
+	const moveEditedNodeVertically = useCallback(
+		(nodeId: string, direction: "up" | "down") => {
+			const plan = planVerticalMove({
+				nodeId,
+				direction,
+				zoomRootId: zoomedNodeId,
+				tree: cacheMoveTree(queryClient, useOutlineStore.getState()),
+			});
+			if (plan === null) {
+				return;
+			}
+			if (plan.expandParentId !== null) {
+				expand(plan.expandParentId);
+			}
+			moveEditedNode({nodeId: plan.nodeId, parent_id: plan.parentId, index: plan.index});
+		},
+		[queryClient, zoomedNodeId, expand, moveEditedNode],
 	);
 
 	/** Continue editing beside the edited node, which is about to leave the view. */
@@ -386,28 +413,28 @@ export function useKeyboardShortcuts() {
 		],
 	);
 
-	// Shift+Cmd+Up or Ctrl+Shift+Up: Move the edited node up among siblings
+	// Shift+Cmd+Up or Ctrl+Shift+Up: Move the edited node up (into the previous uncle at the top)
 	useHotkeys(
 		structureHotkeys.moveUp,
 		() => {
 			if (editedNode !== undefined) {
-				moveEditedNode(planMoveUp(queryClient, editedNode));
+				moveEditedNodeVertically(editedNode.id, "up");
 			}
 		},
 		editingShortcut,
-		[editedNode, queryClient, moveEditedNode],
+		[editedNode, moveEditedNodeVertically],
 	);
 
-	// Shift+Cmd+Down or Ctrl+Shift+Down: Move the edited node down among siblings
+	// Shift+Cmd+Down or Ctrl+Shift+Down: Move the edited node down (into the next uncle at the bottom)
 	useHotkeys(
 		structureHotkeys.moveDown,
 		() => {
 			if (editedNode !== undefined) {
-				moveEditedNode(planMoveDown(queryClient, editedNode));
+				moveEditedNodeVertically(editedNode.id, "down");
 			}
 		},
 		editingShortcut,
-		[editedNode, queryClient, moveEditedNode],
+		[editedNode, moveEditedNodeVertically],
 	);
 
 	// Shift+Cmd+D: Duplicate the edited node (shallow copy, including unsaved text) and edit the copy

@@ -13,12 +13,13 @@ import {
 	planInsertFirstChild,
 	isPotentiallyVisible,
 	planInsertSiblingAfter,
-	planMoveDown,
-	planMoveUp,
 	planOutdent,
 	planSplit,
 	planToggleComplete,
+	planVerticalMove,
+	cacheMoveTree,
 } from "../src/client/tree-ops.js";
+import type {VerticalMoveTree} from "../src/client/tree-ops.js";
 
 function node(partial: Partial<NodeResponse> & {id: string}): NodeResponse {
 	return {
@@ -129,32 +130,196 @@ describe("planOutdent", () => {
 	});
 });
 
-describe("planMoveUp / planMoveDown", () => {
-	it("moves up to the previous sibling's index", () => {
-		const qc = seed({p: siblings});
-		expect(planMoveUp(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "p", index: 1});
+interface Row {
+	id: string;
+	children?: Row[];
+	expanded?: boolean;
+	hidden?: boolean;
+}
+
+/** A `VerticalMoveTree` over nested rows under an implicit root (`null`). */
+function rowTree(rows: Row[]): VerticalMoveTree {
+	const parents = new Map<string, string | null>();
+	const children = new Map<string | null, string[]>();
+	const expanded = new Set<string>();
+	const hidden = new Set<string>();
+	const walk = (parentId: string | null, list: Row[]): void => {
+		children.set(
+			parentId,
+			list.map((row) => row.id),
+		);
+		for (const row of list) {
+			parents.set(row.id, parentId);
+			if (row.expanded === true) {
+				expanded.add(row.id);
+			}
+			if (row.hidden === true) {
+				hidden.add(row.id);
+			}
+			walk(row.id, row.children ?? []);
+		}
+	};
+	walk(null, rows);
+	return {
+		parentOf: (id) => parents.get(id) ?? null,
+		childrenOf: (id) => children.get(id) ?? [],
+		isExpanded: (id) => expanded.has(id),
+		isVisible: (id) => !hidden.has(id),
+	};
+}
+
+describe("planVerticalMove", () => {
+	const delta = (expanded = false): Row => ({id: "delta", expanded, children: [{id: "d1"}]});
+	const bravo: Row = {id: "bravo", expanded: true, children: [{id: "b1"}, {id: "b2"}]};
+	const alpha = (expanded: boolean): Row => ({id: "alpha", expanded, children: [{id: "a1"}, {id: "a2"}]});
+
+	it("moves the first child up to the end of an open uncle", () => {
+		const tree = rowTree([delta(), {id: "charlie"}, bravo, alpha(true)]);
+		expect(planVerticalMove({nodeId: "a1", direction: "up", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "a1",
+			parentId: "bravo",
+			index: 2,
+			expandParentId: null,
+		});
 	});
-	it("returns null moving up the first sibling", () => {
-		expect(planMoveUp(seed({p: siblings}), siblings[0])).toBeNull();
+	it("moves the first child up to the top of a collapsed uncle and expands it", () => {
+		const tree = rowTree([delta(), {id: "charlie", expanded: true, children: [{id: "c1"}]}]);
+		expect(planVerticalMove({nodeId: "c1", direction: "up", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "c1",
+			parentId: "delta",
+			index: 0,
+			expandParentId: "delta",
+		});
+	});
+	it("moves the first child up into a leaf uncle and expands it", () => {
+		const tree = rowTree([delta(), {id: "charlie"}, bravo, alpha(true)]);
+		expect(planVerticalMove({nodeId: "b1", direction: "up", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "b1",
+			parentId: "charlie",
+			index: 0,
+			expandParentId: "charlie",
+		});
+	});
+	it("moves the last child down to the top of a leaf uncle", () => {
+		const tree = rowTree([delta(true), {id: "charlie"}, bravo, alpha(false)]);
+		expect(planVerticalMove({nodeId: "d1", direction: "down", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "d1",
+			parentId: "charlie",
+			index: 0,
+			expandParentId: "charlie",
+		});
+	});
+	it("moves the last child down to the top of a collapsed uncle", () => {
+		const tree = rowTree([delta(), {id: "charlie"}, bravo, alpha(false)]);
+		expect(planVerticalMove({nodeId: "b2", direction: "down", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "b2",
+			parentId: "alpha",
+			index: 0,
+			expandParentId: "alpha",
+		});
+	});
+	it("moves the last child down to the top of an open uncle without expanding it", () => {
+		const tree = rowTree([delta(), {id: "charlie"}, bravo, alpha(true)]);
+		expect(planVerticalMove({nodeId: "b2", direction: "down", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "b2",
+			parentId: "alpha",
+			index: 0,
+			expandParentId: null,
+		});
+	});
+	it("returns null with no uncle in that direction", () => {
+		const tree = rowTree([delta(true), {id: "charlie"}, bravo, alpha(true)]);
+		expect([
+			planVerticalMove({nodeId: "d1", direction: "up", zoomRootId: null, tree}),
+			planVerticalMove({nodeId: "a2", direction: "down", zoomRootId: null, tree}),
+			planVerticalMove({nodeId: "delta", direction: "up", zoomRootId: null, tree}),
+			planVerticalMove({nodeId: "alpha", direction: "down", zoomRootId: null, tree}),
+		]).toStrictEqual([null, null, null, null]);
+	});
+	it("never leaves the zoomed page", () => {
+		const tree = rowTree([delta(), {id: "charlie"}, bravo, alpha(true)]);
+		expect([
+			planVerticalMove({nodeId: "b1", direction: "up", zoomRootId: "bravo", tree}),
+			planVerticalMove({nodeId: "b2", direction: "down", zoomRootId: "bravo", tree}),
+			planVerticalMove({nodeId: "bravo", direction: "up", zoomRootId: "bravo", tree}),
+		]).toStrictEqual([null, null, null]);
+	});
+	it("swaps with the previous sibling", () => {
+		const tree = rowTree([{id: "p", expanded: true, children: [{id: "a"}, {id: "b"}, {id: "c"}]}]);
+		expect(planVerticalMove({nodeId: "c", direction: "up", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "c",
+			parentId: "p",
+			index: 1,
+			expandParentId: null,
+		});
 	});
 	it("moves down past the next sibling (slot counted before removal, like the move endpoint)", () => {
-		const qc = seed({p: siblings});
-		expect(planMoveDown(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "p", index: 2});
+		const tree = rowTree([{id: "p", expanded: true, children: [{id: "a"}, {id: "b"}, {id: "c"}]}]);
+		expect(planVerticalMove({nodeId: "a", direction: "down", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "a",
+			parentId: "p",
+			index: 2,
+			expandParentId: null,
+		});
 	});
-	it("swaps with the neighbour when the plan is spliced into the cache", () => {
-		const qc = seed({p: siblings});
-		const down = planMoveDown(qc, siblings[1]);
-		const up = planMoveUp(qc, siblings[1]);
+	it("skips a hidden completed sibling, counting it in the index", () => {
+		const tree = rowTree([
+			{id: "p", expanded: true, children: [{id: "a"}, {id: "b"}, {id: "x", hidden: true}, {id: "c"}]},
+		]);
 		expect([
-			spliceChildren(siblings, siblings[1], down?.index ?? -1).map((child) => child.id),
-			spliceChildren(siblings, siblings[1], up?.index ?? -1).map((child) => child.id),
+			planVerticalMove({nodeId: "c", direction: "up", zoomRootId: null, tree}),
+			planVerticalMove({nodeId: "b", direction: "down", zoomRootId: null, tree}),
 		]).toStrictEqual([
-			["a", "c", "b"],
-			["b", "a", "c"],
+			{nodeId: "c", parentId: "p", index: 1, expandParentId: null},
+			{nodeId: "b", parentId: "p", index: 4, expandParentId: null},
 		]);
 	});
-	it("returns null moving down the last sibling", () => {
-		expect(planMoveDown(seed({p: siblings}), siblings[2])).toBeNull();
+	it("lands after the open uncle's last rendered child, before its hidden completed ones", () => {
+		const tree = rowTree([
+			{id: "u", expanded: true, children: [{id: "u1"}, {id: "u2", hidden: true}]},
+			{id: "p", expanded: true, children: [{id: "a"}]},
+		]);
+		expect(planVerticalMove({nodeId: "a", direction: "up", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "a",
+			parentId: "u",
+			index: 1,
+			expandParentId: null,
+		});
+	});
+	it("skips a hidden completed uncle", () => {
+		const tree = rowTree([
+			{id: "u", expanded: true, children: [{id: "u1"}]},
+			{id: "h", hidden: true},
+			{id: "p", expanded: true, children: [{id: "a"}]},
+		]);
+		expect(planVerticalMove({nodeId: "a", direction: "up", zoomRootId: null, tree})).toStrictEqual({
+			nodeId: "a",
+			parentId: "u",
+			index: 1,
+			expandParentId: null,
+		});
+	});
+});
+
+describe("cacheMoveTree", () => {
+	it("reads parents and priority-ordered children from the cache, visibility from completion", () => {
+		const done = node({id: "d", parent_id: "p", priority: 50, completedAt: 1});
+		const qc = seed({root: [node({id: "p", priority: 1})], p: [siblings[1], done, siblings[0]]});
+		const tree = cacheMoveTree(qc, {
+			expandedIds: new Set(["p"]),
+			showCompleted: false,
+			animatingCompletionIds: new Set(),
+		});
+		expect([
+			tree.parentOf("a"),
+			tree.parentOf("p"),
+			tree.childrenOf("p"),
+			tree.childrenOf("a"),
+			tree.isExpanded("p"),
+			tree.isExpanded("a"),
+			tree.isVisible("d"),
+			tree.isVisible("a"),
+		]).toStrictEqual(["p", null, ["d", "a", "b"], [], true, false, false, true]);
 	});
 });
 
