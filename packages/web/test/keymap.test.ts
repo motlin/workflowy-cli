@@ -215,6 +215,14 @@ describe("buildHotkeys", () => {
 		expect(buildHotkeys({...CHROME, windows: true})).toStrictEqual(WINDOWS_CHROME_TABLE);
 	});
 
+	it("binds zoom_in to all six mac Chrome combos in table order", () => {
+		expect(
+			buildHotkeys({...CHROME, mac: true})
+				.filter(([, command]) => command === "zoom_in")
+				.map(([combo]) => combo),
+		).toStrictEqual(["meta+.", "ctrl+right", "ctrl+.", "meta+shift+.", "ctrl+meta+shift+.", "ctrl+shift+."]);
+	});
+
 	it("puts Safari's shifted zoom combos first and moves show_or_hide_completed to meta+shift+o", () => {
 		const table = buildHotkeys({...CHROME, mac: true, safari: true});
 		expect({

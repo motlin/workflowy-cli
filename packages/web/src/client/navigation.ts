@@ -29,6 +29,37 @@ export function resolveZoomTarget(param: string | null, lookup: (id: string) => 
 	return isShortId(param) ? lookup(param) : param;
 }
 
+export interface ZoomFocusInput {
+	zoomedId: string | null;
+	/** The edited row, or null when nothing is edited. */
+	currentId: string | null;
+	/** The edited row's first potentially visible child. */
+	firstChildId: string | null;
+	parentOfZoomed: string | null;
+}
+
+/**
+ * Upstream `zoom_in` / `zoom_out` targets: the route to navigate to and the node to edit there at offset 0.
+ * Zooming in on the edited row edits its first visible child (nothing when it has none); zooming out edits the node
+ * zoomed out of. Null when there is nothing to do: zooming in on the zoomed title or with no edited row, or zooming
+ * out at the root.
+ */
+export function planZoomFocus(
+	direction: "in" | "out",
+	{zoomedId, currentId, firstChildId, parentOfZoomed}: ZoomFocusInput,
+): {route: string; editId: string | null} | null {
+	if (direction === "in") {
+		if (currentId === null || currentId === zoomedId) {
+			return null;
+		}
+		return {route: nodeUrl(currentId), editId: firstChildId};
+	}
+	if (zoomedId === null) {
+		return null;
+	}
+	return {route: parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed), editId: zoomedId};
+}
+
 /** Record a move to `nodeId` (null for home) on the in-app stacks, then push its URL. */
 export function goToNode(navigate: NavigateFn, nodeId: string | null): void {
 	useOutlineStore

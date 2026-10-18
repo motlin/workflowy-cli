@@ -5,7 +5,7 @@ vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}})
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
 
-const {goToNode, navigateToSearch, nodeUrl, resolveZoomTarget, stepNav, syncNavLocation} =
+const {goToNode, navigateToSearch, nodeUrl, planZoomFocus, resolveZoomTarget, stepNav, syncNavLocation} =
 	await import("../src/client/navigation.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
@@ -35,6 +35,58 @@ describe("resolveZoomTarget", () => {
 describe("nodeUrl", () => {
 	it("routes to the upstream short-id hash URL", () => {
 		expect(nodeUrl(FULL_ID)).toBe("/#/35035d443bf1");
+	});
+});
+
+describe("planZoomFocus", () => {
+	const ZOOMED = "11111111-1111-4111-8111-111111111111";
+	const CURRENT = "22222222-2222-4222-8222-222222222222";
+	const CHILD = "33333333-3333-4333-8333-333333333333";
+	const PARENT = "44444444-4444-4444-8444-444444444444";
+
+	it("zooms into the edited row and edits its first visible child", () => {
+		expect(
+			planZoomFocus("in", {zoomedId: ZOOMED, currentId: CURRENT, firstChildId: CHILD, parentOfZoomed: PARENT}),
+		).toStrictEqual({route: nodeUrl(CURRENT), editId: CHILD});
+	});
+
+	it("zooms into a childless edited row and edits nothing", () => {
+		expect(
+			planZoomFocus("in", {zoomedId: ZOOMED, currentId: CURRENT, firstChildId: null, parentOfZoomed: PARENT}),
+		).toStrictEqual({route: nodeUrl(CURRENT), editId: null});
+	});
+
+	it("does nothing when zooming in on the zoomed title or with no edited row", () => {
+		expect({
+			title: planZoomFocus("in", {
+				zoomedId: ZOOMED,
+				currentId: ZOOMED,
+				firstChildId: CHILD,
+				parentOfZoomed: PARENT,
+			}),
+			none: planZoomFocus("in", {zoomedId: ZOOMED, currentId: null, firstChildId: null, parentOfZoomed: PARENT}),
+		}).toStrictEqual({title: null, none: null});
+	});
+
+	it("zooms out to the parent and edits the node it zoomed out of", () => {
+		expect({
+			parent: planZoomFocus("out", {
+				zoomedId: ZOOMED,
+				currentId: CURRENT,
+				firstChildId: null,
+				parentOfZoomed: PARENT,
+			}),
+			home: planZoomFocus("out", {zoomedId: ZOOMED, currentId: null, firstChildId: null, parentOfZoomed: null}),
+		}).toStrictEqual({
+			parent: {route: nodeUrl(PARENT), editId: ZOOMED},
+			home: {route: "/", editId: ZOOMED},
+		});
+	});
+
+	it("does nothing when zooming out at the root", () => {
+		expect(
+			planZoomFocus("out", {zoomedId: null, currentId: CURRENT, firstChildId: null, parentOfZoomed: null}),
+		).toBeNull();
 	});
 });
 
