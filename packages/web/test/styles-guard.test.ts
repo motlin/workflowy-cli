@@ -214,3 +214,46 @@ describe("item menu trigger styles guard", () => {
 		expect(rules.filter((rule) => !normalized.includes(rule))).toStrictEqual([]);
 	});
 });
+
+describe("page layout styles guard", () => {
+	const normalized = uncommented
+		.replaceAll(/\s*([{}:;,>()])\s*/gu, "$1")
+		.replaceAll(/\s+/gu, " ")
+		.replaceAll(";}", "}");
+
+	it("sizes .outline-view like upstream's full-width .page (no max-width, 80px/136px padding)", () => {
+		expect(declarationsFor(/^\s*\.outline-view\s*$/u)).toStrictEqual([
+			"padding: 24px 136px 24px 80px;\n\tmargin: 72px 0 0;",
+			"padding-left: 56px;\n\t\tpadding-right: 56px;",
+		]);
+	});
+
+	it("drops to upstream's 56px side padding below 720px", () => {
+		expect(
+			normalized.includes("@media(max-width:719px){.outline-view{padding-left:56px;padding-right:56px}}"),
+		).toBe(true);
+	});
+
+	it("keeps upstream's 30px unzoomed root title row", () => {
+		expect(normalized.includes(".mainTreeRoot>.name>.content{opacity:0;height:30px;")).toBe(true);
+	});
+
+	it("starts the left bar Today row at the scroller padding with no extra nav padding", () => {
+		expect(declarationsFor(/^\s*\.left-sidebar-nav\s*$/u)).toStrictEqual([
+			"flex: 1;\n\toverflow-y: auto;\n\tpadding: 0 0 8px;",
+		]);
+	});
+
+	it("pads the search input's right side only when it carries pr-[72px]", () => {
+		expect(normalized.includes("padding:7px 0 7px 30px;")).toBe(true);
+		expect(normalized.includes(String.raw`.searchBoxInput.pr-\[72px\]{padding-right:72px}`)).toBe(true);
+	});
+
+	it("leaves the compact search magnifier at its 1em fa-1x size", () => {
+		expect(
+			normalized.includes(
+				String.raw`.searchBox .fa-magnifying-glass.left-\[10px\]{left:10px;width:1em;height:1em}`,
+			),
+		).toBe(true);
+	});
+});

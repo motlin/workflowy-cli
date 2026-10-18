@@ -82,6 +82,30 @@ describe("SearchBox", () => {
 		expect(html).toContain("opacity-0 cursor-pointer");
 	});
 
+	it("draws no border in the collapsed compact state, like upstream", () => {
+		const html = render({}, false);
+		expect(innerDivStyle(html)).toBe("border-radius:20px");
+	});
+
+	it("uses the default-size magnifier and drops the clear-button padding when compact", () => {
+		const html = render({}, false);
+		expect(html).toContain(
+			'class="svg-inline--fa fa-magnifying-glass fa-1x absolute left-[10px] pt-xs pointer-events-none"',
+		);
+		expect(html).not.toContain("pr-[72px]");
+	});
+
+	it("keeps the small magnifier when wide", () => {
+		expect(render({})).toContain(
+			'class="svg-inline--fa fa-magnifying-glass fa-sm absolute left-ml pointer-events-none"',
+		);
+	});
+
+	it("draws the clear icon with upstream's evenodd fill rule", () => {
+		expect(render({searchInput: "apple"})).toContain('<path clip-rule="evenodd" d=');
+		expect(render({searchInput: "apple"})).toContain('fill="currentColor" fill-rule="evenodd"');
+	});
+
 	it("stays 210px in compact mode while it has text", () => {
 		expect(labelStyle(render({searchInput: "apple"}, false))).toBe("margin-right:6px;width:210px");
 	});

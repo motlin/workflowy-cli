@@ -5,8 +5,10 @@ import {useOutlineStore} from "../stores/outline.js";
 import {Tooltip} from "./tooltip.js";
 
 const LABEL_CLASS = "relative shrink-0 max-w-[60vw] transition-[width] duration-300 ease-base searchBox";
-const INPUT_CLASS =
-	"m-0 w-full py-[7px] pl-[30px] box-border font-[inherit] leading-[16px] border-transparent rounded-[16px] bg-transparent placeholder:text-primary pr-[72px] searchBoxInput";
+const INPUT_BASE_CLASS =
+	"m-0 w-full py-[7px] pl-[30px] box-border font-[inherit] leading-[16px] border-transparent rounded-[16px] bg-transparent placeholder:text-primary";
+const INPUT_CLASS = `${INPUT_BASE_CLASS} pr-[72px] searchBoxInput`;
+const COMPACT_INPUT_CLASS = `${INPUT_BASE_CLASS} transition-opacity duration-[400ms] ease-base searchBoxInput`;
 const FOCUSED_INNER_CLASS =
 	"flex items-center after:content-[''] after:absolute after:z-1 after:top-full after:left-[5%] after:right-[5%] after:bottom-0 after:-mt-px after:h-px";
 
@@ -22,7 +24,7 @@ function borderStyle(color: string): CSSProperties {
 
 /**
  * Upstream header search box (label.searchBox): a 210px pill that widens to 320px on focus and
- * collapses to a 36px circle below 1000px while empty and unfocused.
+ * collapses to a borderless 36px circle with a plain magnifier below 1000px while empty and unfocused.
  */
 export function SearchBox() {
 	const searchInput = useOutlineStore((state) => state.searchInput);
@@ -40,7 +42,9 @@ export function SearchBox() {
 		? {width: 36, height: 36, borderRadius: 18}
 		: {marginRight: 6, width: focused ? 320 : 210};
 	const innerStyle: CSSProperties = {
-		...borderStyle(hasText ? "var(--wf-border-tint)" : "var(--wf-border-primary)"),
+		...(collapsed
+			? {borderRadius: 20}
+			: borderStyle(hasText ? "var(--wf-border-tint)" : "var(--wf-border-primary)")),
 		...(focused
 			? {
 					borderRadius: "20px 20px 0 0",
@@ -64,7 +68,13 @@ export function SearchBox() {
 				<input
 					autoComplete="off"
 					autoCorrect="off"
-					className={collapsed ? `${INPUT_CLASS} opacity-0 cursor-pointer` : INPUT_CLASS}
+					className={
+						wide
+							? INPUT_CLASS
+							: collapsed
+								? `${COMPACT_INPUT_CLASS} opacity-0 cursor-pointer`
+								: COMPACT_INPUT_CLASS
+					}
 					data-handbook="search.search"
 					id="srch-input"
 					onBlur={() => {
@@ -84,7 +94,7 @@ export function SearchBox() {
 					value={searchInput}
 				/>
 				<svg
-					className={`svg-inline--fa fa-magnifying-glass fa-sm absolute ${collapsed ? "left-[10px] pt-xs" : "left-ml"} pointer-events-none`}
+					className={`svg-inline--fa fa-magnifying-glass ${collapsed ? "fa-1x absolute left-[10px] pt-xs" : "fa-sm absolute left-ml"} pointer-events-none`}
 					data-icon="magnifying-glass"
 					viewBox="0 0 512 512"
 				>

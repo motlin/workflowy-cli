@@ -990,13 +990,18 @@ body {
 	margin: 0;
 	width: 100%;
 	box-sizing: border-box;
-	padding: 7px 72px 7px 30px;
+	padding: 7px 0 7px 30px;
 	font-family: inherit;
 	line-height: 16px;
 	border: 2px inset transparent;
 	border-radius: 16px;
 	background: transparent;
 	color: var(--wf-text-primary);
+}
+
+/* Upstream reserves room for the clear/star controls only outside compact mode. */
+.searchBoxInput.pr-\[72px\] {
+	padding-right: 72px;
 }
 
 .searchBoxInput::placeholder {
@@ -1017,8 +1022,11 @@ body {
 	color: var(--wf-text-primary);
 }
 
+/* Compact (collapsed) magnifier: upstream's default fa-1x icon, not the 14px fa-sm one. */
 .searchBox .fa-magnifying-glass.left-\[10px\] {
 	left: 10px;
+	width: 1em;
+	height: 1em;
 }
 
 .searchBox .right-\[11px\] {
@@ -1036,11 +1044,18 @@ body {
 	cursor: pointer;
 }
 
-/* Outline view container - matches production Workflowy .page layout */
+/* Outline view container - upstream's .page with full_width_page on: no max-width, 72px top
+   margin, and tl2()'s side padding (80px/136px, or 56px/56px below 720px). */
 .outline-view {
-	max-width: 900px;
-	padding: 24px 56px;
-	margin: 72px 40px 0px 24px;
+	padding: 24px 136px 24px 80px;
+	margin: 72px 0 0;
+}
+
+@media (max-width: 719px) {
+	.outline-view {
+		padding-left: 56px;
+		padding-right: 56px;
+	}
 }
 
 /* Upstream's `.children` wrapper; its indent and guide border come from the
@@ -1176,10 +1191,10 @@ body {
 	pointer-events: none;
 }
 
-/* Upstream sizes this via an inline --root-content-height (30px); 0 keeps the local layout. */
+/* Upstream sizes this via an inline --root-content-height of 30px. */
 .mainTreeRoot > .name > .content {
 	opacity: 0;
-	height: var(--root-content-height, 0);
+	height: 30px;
 	min-height: 0;
 	padding-bottom: 0;
 	cursor: default;
@@ -1753,7 +1768,7 @@ body.moving .expand {
 .left-sidebar-nav {
 	flex: 1;
 	overflow-y: auto;
-	padding: 8px 0;
+	padding: 0 0 8px;
 }
 
 .left-sidebar-section {
