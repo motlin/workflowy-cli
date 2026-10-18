@@ -9,8 +9,8 @@ import {FaIcon} from "./fa-icons.js";
 import {GearMenu} from "./gear-menu.js";
 import {IconButton} from "./icon-button.js";
 import {LayoutMenu} from "./layout-menu.js";
+import {SearchBox} from "./search-box.js";
 import type {LayoutMode} from "./layout-menu.js";
-import {Tooltip} from "./tooltip.js";
 import {zoomToToday} from "../zoom-to-today.js";
 
 /**
@@ -48,7 +48,6 @@ export function TopBar() {
 	const {
 		zoomedNodeId,
 		toggleLeftBar,
-		toggleSearchPanel,
 		toggleCompleted,
 		showCompleted,
 		openSettings,
@@ -169,20 +168,7 @@ export function TopBar() {
 			<Breadcrumbs nodeId={zoomedNodeId} />
 
 			<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
-				{/* Search icon */}
-				<Tooltip content="Search" shortcut="Esc">
-					<button
-						aria-label="Search"
-						className="top-bar-search-box"
-						onClick={toggleSearchPanel}
-						type="button"
-					>
-						<svg fill="currentColor" height="16" viewBox="0 0 512 512" width="16">
-							<path d="M384 208A176 176 0 1 0 32 208a176 176 0 1 0 352 0zM343.3 366C307 397.2 259.7 416 208 416C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208c0 51.7-18.8 99-50 135.3L507.3 484.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L343.3 366z" />
-						</svg>
-						<span className="top-bar-search-placeholder">Search</span>
-					</button>
-				</Tooltip>
+				<SearchBox />
 
 				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
 				<div onClick={() => void zoomToToday({navigate})}>

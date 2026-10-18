@@ -201,6 +201,10 @@ interface OutlineState {
 	searchPanelSession: number;
 	/** The node being edited when Escape opened search; dismissing search resumes editing it. */
 	searchReturn: SearchReturn | null;
+	/** Live text of the header search box (uncommitted). */
+	searchInput: string;
+	/** Whether the header search box has focus. */
+	searchFocused: boolean;
 	jumpMenuOpen: boolean;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
@@ -258,6 +262,8 @@ interface OutlineActions {
 	openSearchFromEditing: (nodeId: string, caretOffset: number) => void;
 	dismissSearchPanel: () => void;
 	openSearchWithQuery: (query: string) => void;
+	setSearchInput: (value: string) => void;
+	setSearchFocused: (focused: boolean) => void;
 	toggleJumpMenu: () => void;
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
@@ -309,6 +315,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchInitialQuery: null,
 	searchPanelSession: 0,
 	searchReturn: null,
+	searchInput: "",
+	searchFocused: false,
 	jumpMenuOpen: false,
 	linkInsertOpen: false,
 	linkInsertContext: null,
@@ -571,6 +579,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			searchPanelSession: state.searchPanelSession + 1,
 			searchReturn: null,
 		}));
+	},
+
+	setSearchInput: (value) => {
+		set({searchInput: value});
+	},
+
+	setSearchFocused: (focused) => {
+		set({searchFocused: focused});
 	},
 
 	toggleJumpMenu: () => {

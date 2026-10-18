@@ -55,8 +55,12 @@ describe("top bar styles guard", () => {
 		).toBe(false);
 	});
 
-	it("keeps the search box rules until search filtering replaces them", () => {
-		expect(hasSelector(styles, /\.top-bar-search-box\b/u)).toBe(true);
+	it("drops the old top-bar search box rules", () => {
+		expect(hasSelector(styles, /\.top-bar-search-/u)).toBe(false);
+	});
+
+	it("styles the upstream .searchBox", () => {
+		expect(hasSelector(styles, /\.searchBoxInput\b/u)).toBe(true);
 	});
 });
 

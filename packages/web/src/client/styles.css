@@ -972,46 +972,68 @@ body {
 	}
 }
 
-/* Search box in top bar - 36x36px circular icon button */
-/* Search box - pill input look matching production workflowy.com (208x34) */
-.top-bar-search-box {
+/* Upstream header search box (label.searchBox); the upstream utility classes on it are not all in
+   the wf-tailwind subset, so the computed values are pinned here. */
+.searchBox {
+	position: relative;
+	flex-shrink: 0;
+	max-width: 60vw;
+	transition: width 0.3s var(--wf-ease-base, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.searchBox > div {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	width: 208px;
-	height: 34px;
-	padding: 0 12px;
-	background-color: var(--color-bg-secondary);
-	border: none;
-	border-radius: 16px;
-	cursor: pointer;
-	color: var(--color-text-muted);
-	font-size: 13px;
-	transition: background-color 0.15s ease;
 }
 
-.top-bar-search-box svg {
-	flex-shrink: 0;
+.searchBoxInput {
+	margin: 0;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 7px 72px 7px 30px;
+	font-family: inherit;
+	line-height: 16px;
+	border: 2px inset transparent;
+	border-radius: 16px;
+	background: transparent;
+	color: var(--wf-text-primary);
+}
+
+.searchBoxInput::placeholder {
+	color: var(--wf-text-primary);
+}
+
+.searchBoxInput.opacity-0 {
+	opacity: 0;
+	cursor: pointer;
+}
+
+.searchBox .fa-magnifying-glass {
+	position: absolute;
+	left: 12px;
 	width: 14px;
 	height: 14px;
+	pointer-events: none;
+	color: var(--wf-text-primary);
 }
 
-.top-bar-search-placeholder {
-	flex: 1;
-	text-align: left;
+.searchBox .fa-magnifying-glass.left-\[10px\] {
+	left: 10px;
 }
 
-.top-bar-search-box:hover {
-	background-color: var(--color-bg-hover);
+.searchBox .right-\[11px\] {
+	position: absolute;
+	top: 0;
+	right: 11px;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.top-bar-search-box:focus {
-	outline: none;
-}
-
-.top-bar-search-box:focus-visible {
-	outline: 2px solid var(--color-border-focus);
-	outline-offset: 1px;
+.searchBox .text-secondary {
+	color: var(--wf-text-secondary);
+	cursor: pointer;
 }
 
 /* Outline view container - matches production Workflowy .page layout */

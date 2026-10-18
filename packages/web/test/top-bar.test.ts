@@ -11,6 +11,10 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	toggleLeftBar: () => {},
 	toggleSearchPanel: () => {},
 	openSearchWithQuery: () => {},
+	searchInput: "",
+	setSearchInput: () => {},
+	searchFocused: false,
+	setSearchFocused: () => {},
 	toggleCompleted: () => {},
 	showCompleted: false,
 	openSettings: () => {},
@@ -193,14 +197,11 @@ function clusterHtml(html: string): string {
 /** Ordered identifiers of the right-cluster controls. */
 function clusterSequence(html: string): string[] {
 	const tokens = clusterHtml(html).matchAll(
-		/top-bar-search-box|fa-calendar-day|fa-user-plus|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
+		/fa-calendar-day|fa-user-plus|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
 	);
 	return [...tokens].map((match) => {
 		if (match[0].startsWith("data-handbook")) {
-			return match[1];
-		}
-		if (match[0] === "top-bar-search-box") {
-			return "search";
+			return match[1] === "search.search" ? "search" : match[1];
 		}
 		if (match[0] === "fa-user-plus") {
 			return "share";
@@ -274,7 +275,7 @@ describe("TopBar right cluster", () => {
 
 	it("renders no New pane separator and no Calendar popover", () => {
 		const html = renderCluster("alice", true, []);
-		expect(html).not.toContain("border-l");
+		expect(html).not.toMatch(/class="[^"]*\bborder-l\b/u);
 		expect(html).not.toContain("top-bar-calendar-container");
 		expect(html).not.toContain("calendar-panel");
 	});
