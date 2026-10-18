@@ -91,7 +91,7 @@ describe("internal probe command", () => {
 
 	it("rejects an unknown step", async () => {
 		await expect(Probe.run(["delete-everything", "--yes-live", "--out", outPath])).rejects.toThrow(
-			"Expected delete-everything to be one of: bootstrap, poll, error-shape, index, root-meta, root-meta-set, root-meta-unset",
+			"Expected delete-everything to be one of: bootstrap, poll, error-shape, index, restore, root-meta, root-meta-set, root-meta-unset",
 		);
 	});
 
@@ -423,6 +423,53 @@ describe("internal probe index", () => {
 	it("requires WORKFLOWY_API_KEY", async () => {
 		delete process.env.WORKFLOWY_API_KEY;
 		await expect(Probe.run(["index", "--yes-live", "--out", outPath])).rejects.toThrow(
+			"WORKFLOWY_API_KEY environment variable is required",
+		);
+	});
+});
+
+describe("internal probe restore", () => {
+	let tempDir: string;
+	let outPath: string;
+	const savedEnv = {...process.env};
+
+	beforeEach(() => {
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-probe-"));
+		outPath = path.join(tempDir, "probes.md");
+		process.env.WORKFLOWY_USERNAME = "alice@example.com";
+		process.env.WORKFLOWY_PASSWORD = "hunter2";
+		process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+		process.env.WORKFLOWY_API_KEY = "test-key";
+		process.env.WORKFLOWY_DB_PATH = path.join(tempDir, "cache.sqlite");
+		delete process.env.WORKFLOWY_API_URL;
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		process.env = {...savedEnv};
+		fs.rmSync(tempDir, {recursive: true, force: true});
+	});
+
+	it("refuses to write when the fixture parent is not under the sandbox, and writes nothing else", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal(
+			"fetch",
+			errorShapeFetch(recorded, {childParent: "0ther000-0000-4000-8000-000000000000", editApplies: false}),
+		);
+		await expect(Probe.run(["restore", "--yes-live", "--out", outPath])).rejects.toThrow(
+			`Refusing to write outside the sandbox: ${SANDBOX_ID} is not an ancestor`,
+		);
+		expect(recorded.map((request) => request.path)).toStrictEqual([
+			"POST /api/v1/nodes/",
+			`GET /api/v1/nodes/${CHILD_ID}`,
+			"GET /api/v1/nodes/0ther000-0000-4000-8000-000000000000",
+		]);
+		expect(fs.existsSync(outPath)).toBe(false);
+	});
+
+	it("requires WORKFLOWY_API_KEY", async () => {
+		delete process.env.WORKFLOWY_API_KEY;
+		await expect(Probe.run(["restore", "--yes-live", "--out", outPath])).rejects.toThrow(
 			"WORKFLOWY_API_KEY environment variable is required",
 		);
 	});

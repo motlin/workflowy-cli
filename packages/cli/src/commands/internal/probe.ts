@@ -11,7 +11,16 @@ import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
 
 const DEFAULT_OUT = ".llm/upstream-sync/internal-api-probes.md";
-const STEPS = ["bootstrap", "poll", "error-shape", "index", "root-meta", "root-meta-set", "root-meta-unset"] as const;
+const STEPS = [
+	"bootstrap",
+	"poll",
+	"error-shape",
+	"index",
+	"restore",
+	"root-meta",
+	"root-meta-set",
+	"root-meta-unset",
+] as const;
 const ROOT_META_WRITES = new Set<string>(["root-meta-set", "root-meta-unset"]);
 /** Account-global root metadata paths whose shapes `root-meta` records (read only). */
 const ROOT_META_PATHS = [
@@ -30,7 +39,7 @@ const PROBE_VALUE = {x: "1"};
 const RENAMED = "probe error-shape: renamed";
 /** How far the `index` step backdates the create's client clock, so the node's `createdAt` shows whether `ct` was kept. */
 const CT_SHIFT_SEC = 86_400;
-const NEEDS_API_KEY = new Set<string>(["error-shape", "index"]);
+const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore"]);
 
 /** `order` after moving `ids` (in that order) to insertion slot `index` among the same parent's children. */
 export function expectedMove(order: readonly string[], ids: readonly string[], index: number): string[] {
@@ -210,6 +219,7 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe error-shape --yes-live",
 		"<%= config.bin %> internal probe index --yes-live",
 		"<%= config.bin %> internal probe index --yes-live --keep",
+		"<%= config.bin %> internal probe restore --yes-live",
 		"<%= config.bin %> internal probe root-meta --yes-live",
 		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
@@ -231,7 +241,8 @@ export default class Probe extends Command {
 			default: false,
 		}),
 		keep: Flags.boolean({
-			description: "Leave the `index` fixture in the sandbox for a visual check (delete it afterwards)",
+			description:
+				"Leave the `index` or `restore` fixture in the sandbox for a visual check (delete it afterwards)",
 			default: false,
 		}),
 		out: Flags.string({description: "Markdown file the findings are appended to", default: DEFAULT_OUT}),
@@ -294,6 +305,13 @@ export default class Probe extends Command {
 		}
 		if (step === "index") {
 			return this.index(
+				client,
+				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
+				keep,
+			);
+		}
+		if (step === "restore") {
+			return this.restore(
 				client,
 				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
 				keep,
@@ -384,6 +402,116 @@ export default class Probe extends Command {
 			} else {
 				assertUnderSandbox(await readAncestors(api, (await api.getNode(parentId)).parent_id));
 				await writeThrough.deleteNode(parentId);
+				lines.push("- Cleanup: fixture deleted through the write-through client");
+			}
+		}
+		return lines;
+	}
+
+	/**
+	 * Delete and restore with the original id on a fresh sandbox fixture: parents
+	 * `from` and `to` (`to` holds `existing`), and under `from` a completed `target`
+	 * with a note and a grandchild. `target` is deleted (public API), restored by
+	 * `undelete` into `to` at index 0, deleted again, and restored by
+	 * `POST /trash/restore/<id>/`. After each restore the id, parent, slot,
+	 * children, note, completion and created time are compared with the original
+	 * through the public API and the write-through cache. The fixture is deleted
+	 * unless `keep`.
+	 */
+	private async restore(client: WorkflowyInternalClient, api: WorkflowyApiClient, keep: boolean): Promise<string[]> {
+		const stamp = new Date().toISOString();
+		const {id: rootId} = await api.createNode({
+			parent_id: SANDBOX_ID,
+			name: `probe restore ${stamp}`,
+			position: "bottom",
+		});
+		assertUnderSandbox(await readAncestors(api, (await api.getNode(rootId)).parent_id));
+		const db = createDatabase();
+		const cache = new CacheService(db);
+		const writeThrough = new WorkflowyWriteThroughClient(api, cache);
+		const lines = [
+			"- Fixture: fresh sandbox child with parents `from` and `to` (`to` holds `existing`); under `from` a completed `target` with a note and a grandchild (public API); ancestors verified",
+		];
+		try {
+			const {id: fromId} = await writeThrough.createNode({parent_id: rootId, name: "from", position: "bottom"});
+			const {id: toId} = await writeThrough.createNode({parent_id: rootId, name: "to", position: "bottom"});
+			const {id: existingId} = await writeThrough.createNode({
+				parent_id: toId,
+				name: "existing",
+				position: "bottom",
+			});
+			const {id: targetId} = await writeThrough.createNode({
+				parent_id: fromId,
+				name: "target",
+				note: "target note",
+				position: "bottom",
+			});
+			const {id: grandchildId} = await writeThrough.createNode({
+				parent_id: targetId,
+				name: "grandchild",
+				position: "bottom",
+			});
+			await writeThrough.completeNode(targetId);
+			const labels = new Map([
+				[rootId, "fixture"],
+				[fromId, "from"],
+				[toId, "to"],
+				[existingId, "existing"],
+				[targetId, "target"],
+				[grandchildId, "grandchild"],
+			]);
+			const named = (ids: string[]) => ids.map((id) => labels.get(id) ?? id).join(",");
+			const original = await api.getNode(targetId);
+			const snapshot = (node: typeof original) => ({
+				name: node.name,
+				note: node.note ?? null,
+				completed: node.completed,
+				createdAt: node.createdAt,
+			});
+			const deleteTarget = async () => {
+				assertUnderSandbox(await readAncestors(api, (await api.getNode(targetId)).parent_id));
+				await writeThrough.deleteNode(targetId);
+			};
+			const report = async (label: string, expectedParent: string, expectedSiblings: string[]) => {
+				const restored = await api.getNode(targetId).catch(() => {});
+				if (restored === undefined) {
+					lines.push(`- ${label}: public API has no node under the original id (id NOT kept)`);
+					return;
+				}
+				const parentId = restored.parent_id ?? null;
+				assertUnderSandbox(await readAncestors(api, parentId));
+				const siblings = (await writeThrough.liveChildren(parentId)).map((node) => node.id);
+				const children = (await writeThrough.liveChildren(targetId)).map((node) => node.id);
+				const before = snapshot(original);
+				const after = snapshot(restored);
+				const kept = Object.entries(before).map(([key, was]) => {
+					const now: unknown = Reflect.get(after, key);
+					return `${key} ${isDeepStrictEqual(was, now) ? "kept" : `CHANGED (\`${JSON.stringify(was)}\` -> \`${JSON.stringify(now)}\`)`}`;
+				});
+				const cached = cache.getNode(targetId);
+				const cachedSiblings = cache.getChildren(parentId).map((node) => node.id);
+				const cachedChildren = cache.getChildren(targetId).map((node) => node.id);
+				lines.push(
+					`- ${label}: id kept; parent \`${labels.get(parentId ?? "") ?? String(parentId)}\` (expected \`${labels.get(expectedParent)}\`); siblings \`${named(siblings)}\` (expected \`${named(expectedSiblings)}\`, ${isDeepStrictEqual(siblings, expectedSiblings) ? "MATCH" : "MISMATCH"})`,
+					`  - Public API: children \`${named(children)}\` (${isDeepStrictEqual(children, [grandchildId]) ? "kept" : "LOST"}); ${kept.join("; ")}`,
+					`  - Cache: node ${cached === undefined ? "ABSENT" : `present under \`${labels.get(cached.parentId ?? "") ?? String(cached.parentId)}\``}; siblings \`${named(cachedSiblings)}\`; children \`${named(cachedChildren)}\``,
+				);
+			};
+
+			await deleteTarget();
+			const adapter = new WorkflowyInternalAdapter({client, db, writeThrough});
+			await adapter.restore({id: targetId, parentId: toId, index: 0});
+			await report("`restore(target, to, index 0)` (`undelete`)", toId, [targetId, existingId]);
+
+			await deleteTarget();
+			await adapter.restore({id: targetId});
+			await report("`restore(target)` (`POST /trash/restore/<id>/`)", toId, [targetId, existingId]);
+		} finally {
+			if (keep) {
+				lines.push(`- Fixture kept for a visual check: \`${rootId}\` (delete it afterwards)`);
+			} else {
+				assertUnderSandbox(await readAncestors(api, (await api.getNode(rootId)).parent_id));
+				await writeThrough.deleteNode(rootId);
 				lines.push("- Cleanup: fixture deleted through the write-through client");
 			}
 		}
