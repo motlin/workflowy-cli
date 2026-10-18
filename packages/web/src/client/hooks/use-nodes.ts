@@ -6,6 +6,7 @@ import {nodeKeys, patchCachedNode, readNode, spliceBlock, spliceChildren} from "
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
+import {RequestStatusError} from "../undo-batch.js";
 
 interface CreateNodeRequest {
 	/** A client-generated UUID: the optimistic row carries it, so it can be edited before the reply. */
@@ -117,6 +118,29 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 		throw new Error(`Failed to move node: ${response.statusText}`);
 	}
 	return readJson<MoveNodeResponse>(response);
+}
+
+interface RestoreNodeRequest {
+	parent_id: string;
+	/** Exact slot among the parent's children (completed included). */
+	index: number;
+}
+
+/**
+ * Brings a deleted node back under its ORIGINAL id (subtree, note and completion as the server kept
+ * them). Needs the Workflowy internal API: the server answers 503 without it, kept as `status`.
+ */
+export async function restoreNode(nodeId: string, request: RestoreNodeRequest): Promise<NodeResponse> {
+	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/restore`, {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(request),
+	});
+	if (!response.ok) {
+		throw new RequestStatusError(response.status, `Failed to restore node: ${response.statusText}`);
+	}
+	const data = await readJson<{node: NodeResponse}>(response);
+	return data.node;
 }
 
 async function completeNode(nodeId: string): Promise<NodeResponse> {
@@ -588,6 +612,29 @@ export function useToggleComplete() {
 		async onSettled(_data, _error, variables) {
 			// Refetch to get the real data from server
 			await queryClient.invalidateQueries({queryKey: nodeKeys.detail(variables.nodeId)});
+			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		},
+	});
+}
+
+/** Restores a deleted node under its original id, then refetches every node query. */
+// fallow-ignore-next-line unused-export -- callers land with undo/redo commands (M2-60, M2-61)
+export function useRestoreNode() {
+	const queryClient = useQueryClient();
+	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
+	const beginMutation = useOutlineStore((state) => state.beginMutation);
+	const endMutation = useOutlineStore((state) => state.endMutation);
+
+	return useMutation({
+		mutationFn: async ({nodeId, ...request}: RestoreNodeRequest & {nodeId: string}) => restoreNode(nodeId, request),
+		onMutate() {
+			beginMutation();
+		},
+		onError(error) {
+			addErrorNotification(error.message);
+		},
+		async onSettled() {
+			endMutation();
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
