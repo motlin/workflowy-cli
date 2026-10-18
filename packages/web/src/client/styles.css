@@ -98,6 +98,10 @@
 	--safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 	--safe-area-inset-left: env(safe-area-inset-left, 0px);
 
+	/* Upstream row selection tint inset (.project.highlighted/.moving/.tapped:before) */
+	--item-selection-x-offset: -5px;
+	--item-selection-border-radius: 5px;
+
 	/* Upstream light semantic tokens (themes_default ._theme-default) */
 	--wf-background-primary: var(--wf-gray-0);
 	--wf-background-secondary: var(--wf-gray-100);
@@ -1077,6 +1081,21 @@ body {
 .project {
 	box-sizing: border-box;
 	position: relative;
+}
+
+/* Upstream's row tint behind a highlighted, just-moved (Shift+Cmd+Up/Down, 500ms) or tapped row. */
+.project.highlighted:before,
+.project.moving:before,
+.project.tapped:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	right: var(--item-selection-x-offset);
+	bottom: 0;
+	left: var(--item-selection-x-offset);
+	border-radius: var(--item-selection-border-radius);
+	background: var(--wf-background-tertiary);
 }
 
 /* Loading and error states */

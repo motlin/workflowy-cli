@@ -198,6 +198,8 @@ interface OutlineState {
 	animatingCompletionIds: Set<string>;
 	/** Animating rows currently playing the slideUp. */
 	slidingUpCompletionIds: Set<string>;
+	/** The row a single-row Shift+Cmd+Up/Down just moved; it carries upstream's `.moving` flash. */
+	movingId: string | null;
 	leftBarMode: LeftBarMode;
 	leftBarWidth: number;
 	leftBarSectionExpansions: Record<string, boolean>;
@@ -264,6 +266,8 @@ interface OutlineActions {
 	beginCompletionAnimation: (ids: string[]) => void;
 	startCompletionSlideUp: (ids: string[]) => void;
 	endCompletionAnimation: (ids: string[]) => void;
+	/** Flash `.moving` on the moved row for 500ms, restarting for each move. */
+	flashMoving: (id: string) => void;
 	toggleLeftBar: () => void;
 	openLeftBarDrawer: () => void;
 	closeLeftBarDrawer: () => void;
@@ -325,6 +329,10 @@ export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): bo
 	return state.mutationCount > 0;
 }
 
+/** Upstream's desktop `.moving` flash length. */
+const MOVING_FLASH_MS = 500;
+let movingFlashTimer: ReturnType<typeof setTimeout> | undefined;
+
 export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	zoomedNodeId: null,
 	expandedIds: new Set<string>(),
@@ -338,6 +346,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	showCompleted: getInitialShowCompleted(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
+	movingId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
 	rightSidebarOpen: false,
@@ -504,6 +513,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			animatingCompletionIds: new Set([...animatingCompletionIds].filter((id) => !ended.has(id))),
 			slidingUpCompletionIds: new Set([...slidingUpCompletionIds].filter((id) => !ended.has(id))),
 		});
+	},
+
+	flashMoving: (id) => {
+		clearTimeout(movingFlashTimer);
+		set({movingId: id});
+		movingFlashTimer = setTimeout(() => {
+			set({movingId: null});
+		}, MOVING_FLASH_MS);
 	},
 
 	toggleLeftBar: () => {

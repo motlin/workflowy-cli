@@ -113,6 +113,7 @@ export function useKeyboardShortcuts() {
 	const stopEditing = useOutlineStore((state) => state.stopEditing);
 	const holdEditing = useOutlineStore((state) => state.holdEditing);
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
+	const flashMoving = useOutlineStore((state) => state.flashMoving);
 	const toggleLeftBar = useOutlineStore((state) => state.toggleLeftBar);
 	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
 	const toggleCompleted = useOutlineStore((state) => state.toggleCompleted);
@@ -183,8 +184,9 @@ export function useKeyboardShortcuts() {
 				expand(plan.expandParentId);
 			}
 			moveEditedNode({nodeId: plan.nodeId, parent_id: plan.parentId, index: plan.index});
+			flashMoving(plan.nodeId);
 		},
-		[queryClient, zoomedNodeId, expand, moveEditedNode],
+		[queryClient, zoomedNodeId, expand, moveEditedNode, flashMoving],
 	);
 
 	/** Continue editing beside the edited node, which is about to leave the view. */

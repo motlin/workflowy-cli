@@ -307,6 +307,7 @@ function rowProjectClassName(
 	isExpanded: boolean,
 	isEditingNote: boolean,
 	slidingUp: boolean,
+	moving: boolean,
 ): string {
 	return projectClassName({
 		hasChildren,
@@ -320,6 +321,7 @@ function rowProjectClassName(
 		addedToSelection: false,
 		layoutClass: resolveLayoutMode(node.data.layoutMode).projectClass ?? undefined,
 		slidingUp,
+		moving,
 	});
 }
 
@@ -372,6 +374,7 @@ export function OutlineRow({
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
+	const isMoving = useOutlineStore((state) => state.movingId === node.id);
 	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
 	const hasChildren = node.hasChildren !== false;
 
@@ -391,7 +394,7 @@ export function OutlineRow({
 
 	return (
 		<div
-			className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote, isSlidingUp)}
+			className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote, isSlidingUp, isMoving)}
 			onTransitionEnd={handleTransitionEnd}
 		>
 			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} /> : null}

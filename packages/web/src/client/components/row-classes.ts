@@ -13,6 +13,8 @@ export interface ProjectClassState {
 	references?: boolean;
 	/** The completed row is playing upstream's slideUp before it hides. */
 	slidingUp?: boolean;
+	/** Shift+Cmd+Up/Down just moved this row; upstream flashes it for 500ms. */
+	moving?: boolean;
 }
 
 export interface NameClassState {
@@ -39,6 +41,7 @@ export function projectClassName(state: ProjectClassState): string {
 		state.isZoomRoot && "selected root",
 		state.highlighted && "highlighted",
 		state.addedToSelection && "addedToSelection",
+		state.moving && "moving",
 		state.layoutClass,
 		state.slidingUp && "completing-slide-up",
 	]
