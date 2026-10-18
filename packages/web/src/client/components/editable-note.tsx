@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
+import {renderTags} from "../tag-render.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -103,7 +104,9 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 				<div className={contentClassName} onClick={toggleExpand}>
 					<span
 						className="innerContentContainer"
-						dangerouslySetInnerHTML={{__html: renderDatePills(initialValue, DEFAULT_DATE_SETTINGS)}}
+						dangerouslySetInnerHTML={{
+							__html: renderTags(renderDatePills(initialValue, DEFAULT_DATE_SETTINGS)),
+						}}
 					/>
 				</div>
 			</div>

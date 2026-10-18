@@ -1300,14 +1300,14 @@ body.moving .expand {
 }
 
 /* Hashtags and mentions - muted gray underlined, matching production workflowy.com */
-.innerContentContainer .tag-link {
+.innerContentContainer .contentTag {
 	text-decoration: underline;
 	color: var(--wf-tag-default);
 	cursor: pointer;
 }
 
 /* Colored tags render as a pill (no underline), matching production workflowy.com */
-.innerContentContainer .tag-link.tag-colored {
+.innerContentContainer .contentTag.tag-colored {
 	text-decoration: none;
 	color: var(--wf-tag-pill-text);
 	border-radius: 3px;

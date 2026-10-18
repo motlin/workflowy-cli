@@ -13,25 +13,8 @@ import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
 import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
-import {TAG_PATTERN, wrapTagsInSpans} from "../tag-spans.js";
+import {renderTags, tagAtOffset} from "../tag-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
-
-/**
- * Extract the tag at a given character offset in the text.
- * Returns the tag (including # or @) if found, null otherwise.
- */
-function getTagAtPosition(text: string, position: number): string | null {
-	TAG_PATTERN.lastIndex = 0;
-	let match: RegExpExecArray | null;
-	while ((match = TAG_PATTERN.exec(text)) !== null) {
-		const start = match.index;
-		const end = start + match[0].length;
-		if (position >= start && position <= end) {
-			return match[0];
-		}
-	}
-	return null;
-}
 
 /**
  * Get the character offset in the text content from a mouse event.
@@ -492,7 +475,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	/**
 	 * Handle text clicks:
-	 * - Plain click on .tag-link span: opens search (Workflowy behavior)
+	 * - Plain click on a .contentTag span: opens search (Workflowy behavior)
 	 * - Cmd+click: detect tag at cursor position and search
 	 * - Otherwise: start editing at click position
 	 */
@@ -500,9 +483,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		(event: React.MouseEvent<HTMLSpanElement>) => {
 			const target = event.target;
 
-			// Plain click on a .tag-link span opens search directly
-			if (target instanceof Element && target.classList.contains("tag-link")) {
-				const tagText = target.textContent;
+			// Plain click on a .contentTag span (or its inner text) opens search directly
+			const tagEl = target instanceof Element ? target.closest(".contentTag") : null;
+			if (tagEl) {
+				const tagText = tagEl.textContent;
 				if (tagText) {
 					event.preventDefault();
 					event.stopPropagation();
@@ -518,7 +502,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				const offset = getCharacterOffsetFromClick(element, event.nativeEvent);
 
 				if (offset !== null) {
-					const tag = getTagAtPosition(textContent, offset);
+					const tag = tagAtOffset(textContent, offset);
 					if (tag) {
 						event.preventDefault();
 						event.stopPropagation();
@@ -556,7 +540,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (colorPicker) {
 				return;
 			}
-			const tagEl = event.target instanceof Element ? event.target.closest(".tag-link") : null;
+			const tagEl = event.target instanceof Element ? event.target.closest(".contentTag") : null;
 			if (!tagEl) {
 				return;
 			}
@@ -626,12 +610,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	if (!isEditing) {
 		return (
 			<>
-				{/* Pointer entry point: a click places the caret for editing, and clicks on rendered .tag-link spans are delegated here. */}
+				{/* Pointer entry point: a click places the caret for editing, and clicks on rendered .contentTag spans are delegated here. */}
 				<span
 					className="innerContentContainer"
 					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{
-						__html: wrapTagsInSpans(renderDatePills(initialValue, DEFAULT_DATE_SETTINGS), tagColors),
+						__html: renderTags(renderDatePills(initialValue, DEFAULT_DATE_SETTINGS), tagColors),
 					}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}

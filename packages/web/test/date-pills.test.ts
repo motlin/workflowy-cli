@@ -2,7 +2,7 @@ import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {renderDatePills} from "../src/client/date-pills.js";
-import {wrapTagsInSpans} from "../src/client/tag-spans.js";
+import {renderTags} from "../src/client/tag-render.js";
 
 const SETTINGS = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
 const NOW = new Date(2026, 9, 1);
@@ -57,7 +57,7 @@ describe("renderDatePills", () => {
 			SETTINGS,
 			NOW,
 		);
-		expect(wrapTagsInSpans(pills, {})).toBe(pills);
+		expect(renderTags(pills)).toBe(pills);
 	});
 });
 
