@@ -27,7 +27,8 @@ import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
-import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
+import {renderDatePills} from "../date-pills.js";
+import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
@@ -145,6 +146,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const moveNodeMutation = useMoveNode();
 	const holdEditing = useOutlineStore((state) => state.holdEditing);
 	const tagColors = useTagColors();
+	const dateSettings = useDateSettings();
 	const setTagColorMutation = useSetTagColor();
 	const removeTagColorMutation = useRemoveTagColor();
 
@@ -936,10 +938,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					className="innerContentContainer"
 					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{
-						__html: renderTags(
-							renderDatePills(renderLinks(initialValue), DEFAULT_DATE_SETTINGS),
-							tagColors,
-						),
+						__html: renderTags(renderDatePills(renderLinks(initialValue), dateSettings), tagColors),
 					}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}

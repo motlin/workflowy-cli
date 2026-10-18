@@ -6,7 +6,7 @@
 
 import {canonicalTimeAttributes} from "@workflowy/shared";
 import {renderDatePills} from "./date-pills.js";
-import type {DateSettings} from "./date-pills.js";
+import type {DateSettings} from "./date-settings.js";
 import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderTags} from "./tag-render.js";
 import type {TagColorMap} from "./tag-render.js";

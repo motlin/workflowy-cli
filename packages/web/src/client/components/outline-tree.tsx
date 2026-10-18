@@ -1,4 +1,3 @@
-// fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode} from "react";
 import type {BacklinkItem} from "../../node-types.js";

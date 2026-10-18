@@ -1,0 +1,100 @@
+/**
+ * Account-global preferences over `/api/v1/preferences`, backed by upstream's root
+ * metadata so they match workflowy.com. Changes PATCH only the changed keys and
+ * update the `["preferences"]` query optimistically, rolling back on failure.
+ */
+
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
+import {useMemo} from "react";
+import {resolveDateSettings} from "../date-settings.js";
+import type {DateSettings} from "../date-settings.js";
+import {readJson} from "../read-json.js";
+
+export interface Preferences {
+	dateFormat: string | null;
+	timeFormat: string | null;
+	weekStartDay: number | null;
+	slashDiscovered: boolean;
+	notesRootId: string | null;
+}
+
+export type PreferencesPatch = Partial<Preferences>;
+
+export interface PreferencesState {
+	preferences: Preferences;
+	/** False when the internal API is not configured (503); preferences are then the defaults. */
+	available: boolean;
+	/** The endpoint's error text when unavailable. */
+	error: string | null;
+}
+
+export const preferenceKeys = {all: ["preferences"] as const};
+
+export const EMPTY_PREFERENCES: Preferences = {
+	dateFormat: null,
+	timeFormat: null,
+	weekStartDay: null,
+	slashDiscovered: false,
+	notesRootId: null,
+};
+
+const LOADING: PreferencesState = {preferences: EMPTY_PREFERENCES, available: true, error: null};
+
+export async function fetchPreferences(): Promise<PreferencesState> {
+	const response = await fetch("/api/v1/preferences");
+	if (response.status === 503) {
+		const {error} = await readJson<{error: string}>(response);
+		return {preferences: EMPTY_PREFERENCES, available: false, error};
+	}
+	if (!response.ok) {
+		throw new Error(`Failed to fetch preferences: ${response.status}`);
+	}
+	return {preferences: await readJson<Preferences>(response), available: true, error: null};
+}
+
+/** Apply `patch` to the cache, PATCH it, then store the server's answer (or restore on failure). */
+export async function setPreferences(queryClient: QueryClient, patch: PreferencesPatch): Promise<void> {
+	await queryClient.cancelQueries({queryKey: preferenceKeys.all});
+	const previous = queryClient.getQueryData<PreferencesState>(preferenceKeys.all) ?? LOADING;
+	queryClient.setQueryData<PreferencesState>(preferenceKeys.all, {
+		...previous,
+		preferences: {...previous.preferences, ...patch},
+	});
+	try {
+		const response = await fetch("/api/v1/preferences", {
+			method: "PATCH",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify(patch),
+		});
+		if (!response.ok) {
+			throw new Error(`Failed to update preferences: ${response.status}`);
+		}
+		const preferences = await readJson<Preferences>(response);
+		queryClient.setQueryData<PreferencesState>(preferenceKeys.all, {preferences, available: true, error: null});
+	} catch (error) {
+		queryClient.setQueryData(preferenceKeys.all, previous);
+		throw error;
+	}
+}
+
+export interface UsePreferences extends PreferencesState {
+	dateSettings: DateSettings;
+	setPreferences: (patch: PreferencesPatch) => Promise<void>;
+}
+
+export function usePreferences(): UsePreferences {
+	const queryClient = useQueryClient();
+	const {data = LOADING} = useQuery({queryKey: preferenceKeys.all, queryFn: fetchPreferences});
+	const dateSettings = useMemo(() => resolveDateSettings(data.preferences), [data.preferences]);
+	return {
+		...data,
+		dateSettings,
+		setPreferences: async (patch) => setPreferences(queryClient, patch),
+	};
+}
+
+/** The account's date settings for pill labels; upstream defaults while loading or unavailable. */
+export function useDateSettings(): DateSettings {
+	return usePreferences().dateSettings;
+}

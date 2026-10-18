@@ -1,13 +1,5 @@
 import {formatPillLabel, parseTimeAttrs} from "@workflowy/shared";
-
-export interface DateSettings {
-	dateFormat: string;
-	timeFormat: string;
-	weekStartDay: number;
-}
-
-/** Upstream's default date settings until user preferences are wired in. */
-export const DEFAULT_DATE_SETTINGS: DateSettings = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
+import type {DateSettings} from "./date-settings.js";
 
 const BOM = "﻿";
 const PILL_ATTRS =

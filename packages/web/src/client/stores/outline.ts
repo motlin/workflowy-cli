@@ -13,6 +13,8 @@ const RECENT_SEARCHES_LIMIT = 10;
 
 export type Theme = "light" | "dark" | "system";
 
+type SettingsSection = "Dates";
+
 const LeftBarModeSchema = z.enum(["drawerClosed", "drawerOpen", "alwaysOpen"]);
 export type LeftBarMode = z.infer<typeof LeftBarModeSchema>;
 
@@ -207,6 +209,8 @@ interface OutlineState {
 	presentationOpen: boolean;
 	presentationContext: PresentationContext | null;
 	settingsOpen: boolean;
+	/** The Settings section to scroll to when the modal opens. */
+	settingsSection: SettingsSection | null;
 	theme: Theme;
 	isOnline: boolean;
 	errorNotifications: ErrorNotification[];
@@ -276,7 +280,7 @@ interface OutlineActions {
 	nextSlide: () => void;
 	previousSlide: () => void;
 	goToSlide: (index: number) => void;
-	openSettings: () => void;
+	openSettings: (section?: SettingsSection) => void;
 	closeSettings: () => void;
 	setTheme: (theme: Theme) => void;
 	setOnline: (isOnline: boolean) => void;
@@ -361,6 +365,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	presentationOpen: false,
 	presentationContext: null,
 	settingsOpen: false,
+	settingsSection: null,
 	theme: getInitialTheme(),
 	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
@@ -725,12 +730,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		});
 	},
 
-	openSettings: () => {
-		set({settingsOpen: true});
+	openSettings: (section) => {
+		set({settingsOpen: true, settingsSection: section ?? null});
 	},
 
 	closeSettings: () => {
-		set({settingsOpen: false});
+		set({settingsOpen: false, settingsSection: null});
 	},
 
 	setTheme(theme) {

@@ -6,7 +6,7 @@ import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
 import {useTagColors} from "../hooks/use-tag-colors.js";
-import {DEFAULT_DATE_SETTINGS} from "../date-pills.js";
+import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 
 interface EditableNoteProps {
@@ -74,6 +74,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	const updateNodeMutation = useUpdateNode();
 	const queryClient = useQueryClient();
 	const tagColors = useTagColors();
+	const dateSettings = useDateSettings();
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
 	const [focusedHtml, setFocusedHtml] = useState<string | null>(null);
 
@@ -228,8 +229,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				contentEditable
 				dangerouslySetInnerHTML={{
 					__html:
-						focusedHtml ??
-						noteContentHtml(initialValue, tagColors, isFocused ? undefined : DEFAULT_DATE_SETTINGS),
+						focusedHtml ?? noteContentHtml(initialValue, tagColors, isFocused ? undefined : dateSettings),
 				}}
 				onBlur={handleBlur}
 				onFocus={handleFocus}

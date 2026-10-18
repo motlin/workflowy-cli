@@ -1,6 +1,180 @@
+import {useEffect, useRef, useState} from "react";
+import type {KeyboardEvent} from "react";
 import {useHotkeys} from "react-hotkeys-hook";
+import {formatPillLabel} from "@workflowy/shared";
+import {dateFormatOptions, timeFormatOptions, weekStartPatch} from "../date-settings.js";
+import type {FormatOption} from "../date-settings.js";
+import {usePreferences} from "../hooks/use-preferences.js";
+import type {PreferencesPatch} from "../hooks/use-preferences.js";
 import {useOutlineStore} from "../stores/outline.js";
 import type {Theme} from "../stores/outline.js";
+
+const MOMENT_FORMAT_DOCS = "https://momentjscom.readthedocs.io/en/latest/moment/04-displaying/01-format/";
+
+/** The options, plus the current value rendered in itself when it is a custom format. */
+function withCurrent(options: FormatOption[], current: string, label: () => string): FormatOption[] {
+	return options.some((option) => option.value === current)
+		? options
+		: [{value: current, label: label()}, ...options];
+}
+
+interface CustomFormatInputProps {
+	ariaLabel: string;
+	className: string;
+	disabled: boolean;
+	id?: string;
+	value: string;
+	onSave: (value: string) => void;
+}
+
+/** A text field holding a draft that is saved on blur or Enter, only when it changed. Key it by `value` to reset the draft. */
+function CustomFormatInput({ariaLabel, className, disabled, id, value, onSave}: CustomFormatInputProps) {
+	const [draft, setDraft] = useState(value);
+	const save = () => {
+		const next = draft.trim();
+		if (next !== "" && next !== value) {
+			onSave(next);
+		}
+	};
+	return (
+		<input
+			aria-label={ariaLabel}
+			className={`settings-input ${className}`}
+			disabled={disabled}
+			id={id}
+			onBlur={save}
+			onChange={(event) => {
+				setDraft(event.target.value);
+			}}
+			onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+				if (event.key === "Enter") {
+					save();
+				}
+			}}
+			type="text"
+			value={draft}
+		/>
+	);
+}
+
+/**
+ * Settings > Dates: date format, time format, start of week and custom formats,
+ * stored in the account's root metadata through `/api/v1/preferences`.
+ */
+export function DatesSection({now: nowProp}: {now?: Date}) {
+	const [openedAt] = useState(() => new Date());
+	const now = nowProp ?? openedAt;
+	const {available, error, dateSettings, setPreferences} = usePreferences();
+	const {dateFormat, timeFormat, weekStartDay} = dateSettings;
+	const disabled = !available;
+	const change = (patch: PreferencesPatch) => {
+		setPreferences(patch).catch(() => {});
+	};
+	const today = {startYear: now.getFullYear(), startMonth: now.getMonth() + 1, startDay: now.getDate()};
+	const dateOptions = withCurrent(dateFormatOptions(now), dateFormat, () =>
+		formatPillLabel(today, {dateFormat, now}),
+	);
+	const timeOptions = withCurrent(timeFormatOptions(now), timeFormat, () => timeFormat);
+
+	return (
+		<section className="settings-section" id="settings-dates">
+			<h3 className="settings-section-title">Dates</h3>
+			{error !== null && (
+				<div className="settings-row">
+					<span className="settings-info">{error}</span>
+				</div>
+			)}
+			<div className="settings-row">
+				<label className="settings-label" htmlFor="settings-date-format">
+					Date format
+				</label>
+				<select
+					className="settings-select"
+					disabled={disabled}
+					id="settings-date-format"
+					onChange={(event) => {
+						change({dateFormat: event.target.value});
+					}}
+					value={dateFormat}
+				>
+					{dateOptions.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</select>
+			</div>
+			<div className="settings-row">
+				<label className="settings-label" htmlFor="settings-time-format">
+					Time format
+				</label>
+				<select
+					className="settings-select"
+					disabled={disabled}
+					id="settings-time-format"
+					onChange={(event) => {
+						change({timeFormat: event.target.value});
+					}}
+					value={timeFormat}
+				>
+					{timeOptions.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</select>
+			</div>
+			<div className="settings-row">
+				<label className="settings-label" htmlFor="settings-week-start">
+					Start of week
+				</label>
+				<select
+					className="settings-select"
+					disabled={disabled}
+					id="settings-week-start"
+					onChange={(event) => {
+						change(weekStartPatch(event.target.value === "1" ? 1 : 0));
+					}}
+					value={String(weekStartDay === 1 ? 1 : 0)}
+				>
+					<option value="0">Sunday</option>
+					<option value="1">Monday</option>
+				</select>
+			</div>
+			<div className="settings-row">
+				<label className="settings-label" htmlFor="settings-custom-date-format">
+					Custom date format
+				</label>
+				<div className="settings-custom-format">
+					<CustomFormatInput
+						ariaLabel="Custom date format"
+						className="w-[200px]"
+						disabled={disabled}
+						id="settings-custom-date-format"
+						key={dateFormat}
+						onSave={(value) => {
+							change({dateFormat: value});
+						}}
+						value={dateFormat}
+					/>
+					<CustomFormatInput
+						ariaLabel="Custom time format"
+						key={timeFormat}
+						className="w-[120px]"
+						disabled={disabled}
+						onSave={(value) => {
+							change({timeFormat: value});
+						}}
+						value={timeFormat}
+					/>
+					<a href={MOMENT_FORMAT_DOCS} rel="noreferrer" target="_blank">
+						Learn more
+					</a>
+				</div>
+			</div>
+		</section>
+	);
+}
 
 /**
  * Settings modal with theme selector and preferences.
@@ -11,6 +185,14 @@ export function Settings() {
 	const closeSettings = useOutlineStore((state) => state.closeSettings);
 	const theme = useOutlineStore((state) => state.theme);
 	const setTheme = useOutlineStore((state) => state.setTheme);
+	const settingsSection = useOutlineStore((state) => state.settingsSection);
+	const contentRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (settingsOpen && settingsSection === "Dates") {
+			contentRef.current?.querySelector("#settings-dates")?.scrollIntoView({block: "start"});
+		}
+	}, [settingsOpen, settingsSection]);
 
 	useHotkeys(
 		"escape",
@@ -50,7 +232,7 @@ export function Settings() {
 					</button>
 				</div>
 
-				<div className="settings-content">
+				<div className="settings-content" ref={contentRef}>
 					<section className="settings-section">
 						<h3 className="settings-section-title">Appearance</h3>
 
@@ -96,6 +278,8 @@ export function Settings() {
 							</div>
 						</div>
 					</section>
+
+					<DatesSection />
 
 					<section className="settings-section">
 						<h3 className="settings-section-title">Account</h3>

@@ -4314,6 +4314,35 @@ body.moving .itemMenu {
 	color: var(--color-text-secondary);
 }
 
+.settings-row + .settings-row {
+	margin-top: 12px;
+}
+
+.settings-select,
+.settings-input {
+	padding: 6px 8px;
+	border: 1px solid var(--color-border);
+	border-radius: 6px;
+	background: var(--color-bg);
+	color: var(--color-text);
+	font-size: 14px;
+}
+
+.settings-select {
+	max-width: 280px;
+}
+
+.settings-select:disabled,
+.settings-input:disabled {
+	opacity: 0.5;
+}
+
+.settings-custom-format {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .settings-theme-buttons {
 	display: flex;
 	gap: 8px;

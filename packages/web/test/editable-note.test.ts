@@ -5,7 +5,9 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {projectClassName} from "../src/client/components/row-classes.js";
-import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../src/client/date-pills.js";
+import {renderDatePills} from "../src/client/date-pills.js";
+import {DEFAULT_DATE_SETTINGS} from "../src/client/date-settings.js";
+import {EMPTY_PREFERENCES, preferenceKeys} from "../src/client/hooks/use-preferences.js";
 
 const outlineState = {
 	focusNote: () => {},
@@ -25,11 +27,14 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 
 const {EditableNote} = await import("../src/client/components/editable-note.js");
 
-function render(props: {initialValue: string; isFocused?: boolean; isMain?: boolean}): string {
+function render(
+	props: {initialValue: string; isFocused?: boolean; isMain?: boolean},
+	client: QueryClient = new QueryClient(),
+): string {
 	return renderToStaticMarkup(
 		createElement(
 			QueryClientProvider,
-			{client: new QueryClient()},
+			{client},
 			createElement(EditableNote, {nodeId: "alice", isFocused: false, ...props}),
 		),
 	);
@@ -47,6 +52,20 @@ describe("EditableNote markup", () => {
 			unfocused: `${open}" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, DEFAULT_DATE_SETTINGS)}</span></div></div>`,
 			focused: `${open} active" contentEditable="true"><span class="innerContentContainer">${note}</span></div></div>`,
 		});
+	});
+
+	it("labels date pills with the account's date format from preferences", () => {
+		const note = 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
+		const client = new QueryClient();
+		const account = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 1};
+		client.setQueryData(preferenceKeys.all, {
+			preferences: {...EMPTY_PREFERENCES, ...account},
+			available: true,
+			error: null,
+		});
+		expect(render({initialValue: note}, client)).toBe(
+			`<div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, account)}</span></div></div>`,
+		);
 	});
 
 	it("renders one always-contenteditable content div", () => {

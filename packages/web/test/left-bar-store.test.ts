@@ -170,3 +170,20 @@ describe("left-bar store actions", () => {
 		});
 	});
 });
+
+describe("openSettings", () => {
+	it("opens the modal at an optional section and clears it on close", () => {
+		const {openSettings, closeSettings} = useOutlineStore.getState();
+		openSettings("Dates");
+		const atDates = useOutlineStore.getState();
+		const opened = {open: atDates.settingsOpen, section: atDates.settingsSection};
+		closeSettings();
+		openSettings();
+		const plain = useOutlineStore.getState();
+		expect({opened, plain: {open: plain.settingsOpen, section: plain.settingsSection}}).toStrictEqual({
+			opened: {open: true, section: "Dates"},
+			plain: {open: true, section: null},
+		});
+		closeSettings();
+	});
+});
