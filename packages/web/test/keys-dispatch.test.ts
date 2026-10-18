@@ -138,6 +138,13 @@ describe("keymapCombo", () => {
 		}).toStrictEqual({undo: null, escape: null, selectUp: null, zoomIn: "meta+."});
 	});
 
+	it("dispatches ⌘Home / ⌘End to focus_first / focus_last", () => {
+		expect({
+			home: keymapCombo({...event, which: 36, metaKey: true}, true),
+			end: keymapCombo({...event, which: 35, metaKey: true}, true),
+		}).toStrictEqual({home: "meta+home", end: "meta+end"});
+	});
+
 	it("lists the commands the local app leaves to the browser", () => {
 		expect([...BROWSER_NATIVE_COMMANDS]).toStrictEqual([
 			"undo",
@@ -145,8 +152,6 @@ describe("keymapCombo", () => {
 			"select_all",
 			"expand_selection_up",
 			"expand_selection_down",
-			"focus_first",
-			"focus_last",
 			"focus_or_unfocus_search",
 		]);
 	});
