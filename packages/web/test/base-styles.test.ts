@@ -16,6 +16,19 @@ const SYSTEM_FONT_STACK =
 const CHROME_LINKS = ".wf-header a, .leftBar a, .wf-menu a, .wf-helper a";
 const CHROME_LINKS_HOVER = ".wf-header a:hover, .leftBar a:hover, .wf-menu a:hover, .wf-helper a:hover";
 
+// Element list from upstream media/css/reset.css (Eric Meyer reset), which upstream loads before tailwind.
+const RESET_ELEMENTS = [
+	"html, body, div, span, applet, object, iframe,",
+	"h1, h2, h3, h4, h5, h6, p, blockquote, pre,",
+	"a, abbr, acronym, address, big, cite, code,",
+	"del, dfn, em, font, img, ins, kbd, q, s, samp,",
+	"small, strike, strong, sub, sup, tt, var,",
+	"b, u, i, center,",
+	"dl, dt, dd, ol, ul, li,",
+	"fieldset, form, label, legend,",
+	"table, caption, tbody, tfoot, thead, tr, th, td",
+].join(" ");
+
 function stripComments(css: string): string {
 	return css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
 }
@@ -129,6 +142,28 @@ describe("upstream base styles", () => {
 		});
 		expect(cssBlock(styles, "::-webkit-scrollbar-thumb:hover")).toStrictEqual({
 			"background-color": "color-mix(in srgb, currentColor 30%, transparent)",
+		});
+	});
+
+	it("ports the border part of upstream reset.css so border-solid utilities draw only their sized sides", () => {
+		expect(cssBlock(styles, RESET_ELEMENTS)).toStrictEqual({border: "0"});
+	});
+
+	it("ports upstream .content word-break so long URLs wrap", () => {
+		expect(cssBlock(styles, ".content")).toStrictEqual({
+			"word-break": "break-word",
+			position: "relative",
+			"-webkit-user-select": "text",
+			"user-select": "text",
+			"min-width": "0",
+		});
+	});
+
+	it("colors content links with upstream's .contentLink tint", () => {
+		expect(cssBlock(styles, ".contentLink, .content a")).toStrictEqual({
+			color: "var(--wf-text-tint)",
+			cursor: "pointer",
+			"text-decoration": "underline",
 		});
 	});
 
