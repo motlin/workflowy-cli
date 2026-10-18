@@ -238,12 +238,6 @@ describe("page layout styles guard", () => {
 		expect(normalized.includes(".mainTreeRoot>.name>.content{opacity:0;height:30px;")).toBe(true);
 	});
 
-	it("starts the left bar Today row at the scroller padding with no extra nav padding", () => {
-		expect(declarationsFor(/^\s*\.left-sidebar-nav\s*$/u)).toStrictEqual([
-			"flex: 1;\n\toverflow-y: auto;\n\tpadding: 0 0 8px;",
-		]);
-	});
-
 	it("pads the search input's right side only when it carries pr-[72px]", () => {
 		expect(normalized.includes("padding:7px 0 7px 30px;")).toBe(true);
 		expect(normalized.includes(String.raw`.searchBoxInput.pr-\[72px\]{padding-right:72px}`)).toBe(true);
@@ -255,5 +249,21 @@ describe("page layout styles guard", () => {
 				String.raw`.searchBox .fa-magnifying-glass.left-\[10px\]{left:10px;width:1em;height:1em}`,
 			),
 		).toBe(true);
+	});
+});
+
+describe("left bar styles guard", () => {
+	it("drops the legacy local sidebar rules", () => {
+		expect(
+			hasSelector(styles, /\.left-sidebar|\.home-tree|slide-in-left|\.section-chevron|\.tree-toggle-icon/u),
+		).toBe(false);
+	});
+
+	it("drops the placeholder section header and row rules, keeping the row label reset", () => {
+		expect({
+			header: declarationsFor(/^\s*\.left-bar-section-header\s*$/u),
+			item: declarationsFor(/^\s*\.left-bar-section-item\s*$/u),
+			label: declarationsFor(/^\s*\.left-bar-section-item \.innerContentContainer\s*$/u).length,
+		}).toStrictEqual({header: [], item: [], label: 1});
 	});
 });

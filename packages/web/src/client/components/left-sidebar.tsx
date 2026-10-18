@@ -308,7 +308,7 @@ function LeftBarSections() {
 	useRecordStarViews();
 
 	return (
-		<nav className="left-sidebar-nav">
+		<>
 			<TodayRow />
 
 			<StarredSection />
@@ -317,7 +317,7 @@ function LeftBarSections() {
 				<FilesListRows contextKey="leftbar__home__" depth={0} parentId={null} />
 			</LeftBarSection>
 			<NewNodeButton />
-		</nav>
+		</>
 	);
 }
 

@@ -1783,36 +1783,6 @@ body.moving .expand {
 	font-style: italic;
 }
 
-/* Left bar sections (legacy markup until the section ports land) */
-.left-sidebar-nav {
-	flex: 1;
-	overflow-y: auto;
-	padding: 0 0 8px;
-}
-
-.left-sidebar-section {
-	padding: 8px 0;
-}
-
-/* Left sidebar section header and item - Workflowy production styling */
-.left-bar-section-header {
-	position: relative;
-	padding-left: 24px; /* --wf-space-xl */
-	display: flex;
-	align-items: center;
-	font-weight: 400; /* font-normal */
-	color: var(--color-text-secondary);
-	margin-bottom: 8px; /* --wf-space-m */
-}
-
-.left-bar-section-item {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding-right: 8px; /* --wf-space-m */
-	height: 30px;
-}
-
 /* Row labels reuse .innerContentContainer for name HTML; inherit the row's type instead of the outline's 16px/400/24px. */
 .left-bar-section-item .innerContentContainer {
 	font-size: inherit;
@@ -1820,113 +1790,6 @@ body.moving .expand {
 	line-height: inherit;
 	min-height: 0;
 	flex: none;
-}
-
-.left-sidebar-section-title {
-	margin: 0 0 8px;
-	padding: 0 24px;
-	font-size: 16px;
-	font-weight: 400;
-	color: var(--color-text-secondary);
-}
-
-.left-sidebar-list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
-.left-sidebar-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	padding: 0 8px 0 12px;
-	height: 30px;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-	font-size: 16px;
-	font-family: inherit;
-	color: rgb(134, 140, 144);
-	text-align: left;
-	transition: background-color 0.15s ease;
-}
-
-.left-sidebar-item:hover {
-	background-color: var(--color-bg-hover);
-}
-
-.left-sidebar-row {
-	display: flex;
-	align-items: center;
-	transition: background-color 0.15s ease;
-}
-
-.left-sidebar-row:hover {
-	background-color: var(--color-bg-hover);
-}
-
-.left-sidebar-row > .left-sidebar-item {
-	flex: 1;
-	min-width: 0;
-}
-
-.left-sidebar-row > .left-sidebar-item:hover {
-	background-color: transparent;
-}
-
-.left-sidebar-item:focus {
-	outline: none;
-	background-color: var(--color-bg-selected);
-}
-
-.left-sidebar-icon {
-	margin-right: 10px;
-	font-size: 16px;
-	color: var(--color-text-secondary);
-}
-
-.left-sidebar-icon.starred-icon {
-	color: var(--color-warning);
-}
-
-.left-sidebar-label {
-	flex: 1;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.left-sidebar-unstar {
-	margin-right: 8px;
-	padding: 2px 6px;
-	background: transparent;
-	border: none;
-	font-family: inherit;
-	font-size: 14px;
-	color: var(--color-text-faint);
-	border-radius: 4px;
-	cursor: pointer;
-	opacity: 0;
-	transition:
-		opacity 0.15s ease,
-		color 0.15s ease;
-}
-
-.left-sidebar-row:hover .left-sidebar-unstar,
-.left-sidebar-unstar:focus-visible {
-	opacity: 1;
-}
-
-.left-sidebar-unstar:hover {
-	color: var(--color-error);
-}
-
-.left-sidebar-hint {
-	margin: 0;
-	font-size: 11px;
-	color: var(--color-text-faint);
 }
 
 /* Theme selector */
@@ -1966,42 +1829,6 @@ body.moving .expand {
 .theme-selector-button:focus {
 	outline: 2px solid var(--color-border-focus);
 	outline-offset: 1px;
-}
-
-/* Left Sidebar - Section toggles */
-.left-sidebar-section-button {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	color: inherit;
-	font: inherit;
-	cursor: pointer;
-}
-
-.left-sidebar-section-toggle {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--color-text-muted);
-}
-
-.left-sidebar-section-toggle .section-chevron {
-	transition: transform 0.15s ease;
-	transform: rotate(90deg);
-}
-
-.left-sidebar-section-toggle .section-chevron.expanded {
-	transform: rotate(-90deg);
-}
-
-/* Left Sidebar - Today item */
-.left-sidebar-today {
-	font-size: 16px;
-	font-weight: 400;
-	color: var(--color-text-secondary);
 }
 
 /* Outline container; the pinned left bar offset is body padding set by LeftBar */
@@ -4118,7 +3945,6 @@ body.moving .expand {
 	padding-top: 112px; /* 48px top bar + 40px offline banner + 24px spacing */
 }
 
-.outline-container:has(.offline-banner) .left-sidebar,
 .outline-container:has(.offline-banner) .right-sidebar,
 .outline-container:has(.offline-banner) .related-nodes-panel {
 	top: 88px; /* 48px top bar + 40px offline banner */
