@@ -11,7 +11,10 @@ import Delete from "../../../src/commands/node/delete.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createApiNode, createTestNode} from "../../helpers/node-fixtures.js";
-import {requestBody} from "../../helpers/request-body.js";
+import {requestBody, requestJson} from "../../helpers/request-body.js";
+import {z} from "zod";
+
+const moveBodySchema = z.looseObject({parent_id: z.string(), position: z.enum(["top", "bottom"])});
 
 describe("node delete command", () => {
 	let originalEnv: typeof process.env;
@@ -239,17 +242,33 @@ describe("node delete command", () => {
 				"agendas-id": ["mirror-out-id"],
 				"task-b-id": ["mirror-nested-id"],
 			};
+			const names: Record<string, string> = {"task-a-id": "Task A"};
 			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
 				const method = init?.method ?? "GET";
 				const href = url instanceof Request ? url.url : url.toString();
 				const call = `${method} ${href}`;
 				calls.push(init?.body === undefined ? call : `${call} ${requestBody(init)}`);
-				const parentId = new URL(href).searchParams.get("parent_id");
+				const {pathname, searchParams} = new URL(href);
+				const parentId = searchParams.get("parent_id");
 				if (parentId !== null) {
 					const nodes = (children[parentId] ?? []).map((id, priority) =>
-						createApiNode({id, parent_id: parentId, priority}),
+						createApiNode({id, name: names[id] ?? id, parent_id: parentId, priority}),
 					);
 					return Promise.resolve(Response.json({nodes}, {status: 200}));
+				}
+				// Keep the child lists current, since writes re-read their parent's children.
+				const segments = pathname.split("/");
+				const id = segments[4];
+				const action = segments[5];
+				if (method !== "GET") {
+					for (const [listParentId, ids] of Object.entries(children)) {
+						children[listParentId] = ids.filter((childId) => childId !== id);
+					}
+				}
+				if (method === "POST" && action === "move") {
+					const {parent_id: target, position} = moveBodySchema.parse(requestJson(init));
+					const ids = children[target] ?? [];
+					children[target] = position === "top" ? [id!, ...ids] : [...ids, id!];
 				}
 				if (method === "GET") {
 					const node = createApiNode({id: "task-a-id", name: "Task A", parent_id: "agendas-id", priority: 0});
@@ -389,6 +408,7 @@ describe("node delete command", () => {
 					"DELETE https://workflowy.com/api/v1/nodes/mirror-out-id/mirror",
 					'POST https://workflowy.com/api/v1/nodes/task-a-id/move {"parent_id":"agendas-id","position":"top"}',
 					"GET https://workflowy.com/api/v1/nodes/task-a-id",
+					"GET https://workflowy.com/api/v1/nodes?parent_id=agendas-id",
 					"DELETE https://workflowy.com/api/v1/nodes/projects-id",
 				],
 				cache: {

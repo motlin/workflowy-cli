@@ -25,6 +25,7 @@ describe("node-resolver service", () => {
 		findNodeByPath: MockInstance<WorkflowyApiClient["findNodeByPath"]>;
 		createNode: MockInstance<WorkflowyApiClient["createNode"]>;
 		getNode: MockInstance<WorkflowyApiClient["getNode"]>;
+		getChildNodes: MockInstance<WorkflowyApiClient["getChildNodes"]>;
 	};
 
 	beforeEach(() => {
@@ -34,15 +35,25 @@ describe("node-resolver service", () => {
 		cacheService = new CacheService(testDatabase.db);
 
 		apiClient = new WorkflowyApiClient("test-api-key");
+		const createNode = vi
+			.spyOn(apiClient, "createNode")
+			.mockRejectedValue(new Error("createNode was not stubbed for this test"));
 		mockApiClient = {
 			findNodeByPath: vi.spyOn(apiClient, "findNodeByPath").mockResolvedValue(null),
-			createNode: vi
-				.spyOn(apiClient, "createNode")
-				.mockRejectedValue(new Error("createNode was not stubbed for this test")),
+			createNode,
 			// A created node is read back for the priority Workflowy gave it
 			getNode: vi
 				.spyOn(apiClient, "getNode")
 				.mockImplementation(async (id) => Promise.resolve(createApiNode({id, priority: 100}))),
+			// After a create, the parent's children are re-read: the nodes created under it so far
+			getChildNodes: vi.spyOn(apiClient, "getChildNodes").mockImplementation(async (parentId) =>
+				Promise.resolve(
+					createNode.mock.settledResults
+						.flatMap((result) => (result.type === "fulfilled" ? [result.value] : []))
+						.filter((node) => node.parent_id === parentId)
+						.map((node) => ({...node, priority: 100})),
+				),
+			),
 		};
 	});
 

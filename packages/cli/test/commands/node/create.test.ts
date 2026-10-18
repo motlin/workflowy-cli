@@ -72,21 +72,28 @@ describe("node create command", () => {
 				created.set(id, body);
 				return Promise.resolve(Response.json({item_id: id}, {status: 200}));
 			}
-			const id = (url instanceof Request ? url.url : url.toString()).split("/").pop()!;
-			const body = created.get(id)!;
-			const now = Math.floor(Date.now() / 1000);
-			const node = {
-				id,
-				name: body.name,
-				note: body.note ?? null,
-				parent_id: body.parent_id,
-				priority: 100 * bodies.indexOf(body),
-				completed: false,
-				createdAt: now,
-				modifiedAt: now,
-				completedAt: null,
+			const toApi = (id: string) => {
+				const body = created.get(id)!;
+				const now = Math.floor(Date.now() / 1000);
+				return {
+					id,
+					name: body.name,
+					note: body.note ?? null,
+					parent_id: body.parent_id,
+					priority: 100 * bodies.indexOf(body),
+					completed: false,
+					createdAt: now,
+					modifiedAt: now,
+					completedAt: null,
+				};
 			};
-			return Promise.resolve(Response.json({node}, {status: 200}));
+			const target = new URL(url instanceof Request ? url.url : url.toString());
+			const parentId = target.searchParams.get("parent_id");
+			if (parentId !== null) {
+				const nodes = [...created].filter(([, body]) => body.parent_id === parentId).map(([id]) => toApi(id));
+				return Promise.resolve(Response.json({nodes}, {status: 200}));
+			}
+			return Promise.resolve(Response.json({node: toApi(target.pathname.split("/").pop()!)}, {status: 200}));
 		});
 		return bodies;
 	}
@@ -220,6 +227,7 @@ describe("node create command", () => {
 			expect(requests()).toStrictEqual([
 				"POST https://workflowy.com/api/v1/nodes/",
 				"GET https://workflowy.com/api/v1/nodes/new-node-id",
+				"GET https://workflowy.com/api/v1/nodes?parent_id=parent-id",
 			]);
 		});
 
@@ -311,26 +319,23 @@ describe("node create command", () => {
 					return Promise.resolve(Response.json({item_id: "new-id"}, {status: 200}));
 				}
 
+				const node = {
+					id: "new-id",
+					name: "Test",
+					note: null,
+					parent_id: "inbox-uuid",
+					priority: 0,
+					completed: false,
+					createdAt: now,
+					modifiedAt: now,
+					completedAt: null,
+					data: {layoutMode: "bullets"},
+				};
 				if (method === "GET" && urlStr.endsWith("/nodes/new-id")) {
-					return Promise.resolve(
-						Response.json(
-							{
-								node: {
-									id: "new-id",
-									name: "Test",
-									note: null,
-									parent_id: "inbox-uuid",
-									priority: 0,
-									completed: false,
-									createdAt: now,
-									modifiedAt: now,
-									completedAt: null,
-									data: {layoutMode: "bullets"},
-								},
-							},
-							{status: 200},
-						),
-					);
+					return Promise.resolve(Response.json({node}, {status: 200}));
+				}
+				if (method === "GET" && urlStr.endsWith("/nodes?parent_id=inbox-uuid")) {
+					return Promise.resolve(Response.json({nodes: [node]}, {status: 200}));
 				}
 
 				return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
@@ -347,6 +352,7 @@ describe("node create command", () => {
 			expect(capturedRequests).toStrictEqual([
 				"POST https://workflowy.com/api/v1/nodes/",
 				"GET https://workflowy.com/api/v1/nodes/new-id",
+				"GET https://workflowy.com/api/v1/nodes?parent_id=inbox-uuid",
 			]);
 			expect(
 				testDatabase.db
@@ -396,10 +402,13 @@ describe("node create command", () => {
 			expect(requests()).toStrictEqual([
 				"POST https://workflowy.com/api/v1/nodes/",
 				"GET https://workflowy.com/api/v1/nodes/node-1",
+				"GET https://workflowy.com/api/v1/nodes?parent_id=parent-id",
 				"POST https://workflowy.com/api/v1/nodes/",
 				"GET https://workflowy.com/api/v1/nodes/node-2",
+				"GET https://workflowy.com/api/v1/nodes?parent_id=node-1",
 				"POST https://workflowy.com/api/v1/nodes/",
 				"GET https://workflowy.com/api/v1/nodes/node-3",
+				"GET https://workflowy.com/api/v1/nodes?parent_id=node-1",
 			]);
 			expect(stdout).toBe(
 				'Creating node tree...\nParent: Parent\n\nSuccessfully created node tree:\n- Project\n  ID: node-1\n  URL: https://workflowy.com/#/node1\n  - Task 1\n    ID: node-2\n    URL: https://workflowy.com/#/node2\n  - Task 2\n    ID: node-3\n    URL: https://workflowy.com/#/node3\n\nCreated node IDs (JSON):\n[\n  {\n    "id": "node-1",\n    "name": "Project",\n    "parentId": null\n  },\n  {\n    "id": "node-2",\n    "name": "Task 1",\n    "parentId": "node-1"\n  },\n  {\n    "id": "node-3",\n    "name": "Task 2",\n    "parentId": "node-1"\n  }\n]\n',

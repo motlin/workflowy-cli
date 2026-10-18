@@ -75,6 +75,8 @@ export class WorkflowyWriteThroughClient {
 		const parentId = node.parent_id ?? null;
 		await this.ensureParentInCache(parentId);
 		this.cacheService.insertNode(node, parentId);
+		// A top insert can make Workflowy renumber every sibling, so re-read them all.
+		await this.refreshChildren([parentId]);
 		return node;
 	}
 
@@ -150,11 +152,16 @@ export class WorkflowyWriteThroughClient {
 
 	/**
 	 * Re-read each parent's children (Home's for `null`) through the API, then
-	 * replace the cached children of all of them in one transaction. Use after a
-	 * write made outside this client, such as an internal-API push.
+	 * replace the cached children of all of them in one transaction. Positional
+	 * writes call it because Workflowy may renumber every sibling's priority when
+	 * the gap at the top runs out; use it too after a write made outside this
+	 * client, such as an internal-API push.
 	 */
 	async refreshChildren(parentIds: (string | null)[]): Promise<void> {
 		const unique = [...new Set(parentIds)];
+		for (const parentId of unique) {
+			await this.ensureParentInCache(parentId);
+		}
 		const batches = await Promise.all(
 			unique.map(async (parentId) => ({parentId, nodes: await this.liveChildren(parentId)})),
 		);
@@ -185,10 +192,6 @@ export class WorkflowyWriteThroughClient {
 			for (const siblingId of siblingIds) {
 				await this.moveNode(siblingId, parentId, end);
 			}
-			if (siblingIds.length > 0) {
-				// The sibling moves shifted the original, so refresh its cached priority.
-				this.cacheService.insertNode(await this.apiClient.getNode(originalId), parentId);
-			}
 		}
 		if (plan.nodeId !== null) {
 			await this.apiClient.deleteNode(plan.nodeId);
@@ -212,6 +215,8 @@ export class WorkflowyWriteThroughClient {
 			newParentId !== null && isSystemTarget(newParentId) ? (movedNode.parent_id ?? null) : newParentId;
 		await this.ensureParentInCache(parentId);
 		this.cacheService.insertNode(movedNode, parentId);
+		// A top move can make Workflowy renumber every sibling, so re-read them all.
+		await this.refreshChildren([parentId]);
 		return movedNode;
 	}
 

@@ -11,7 +11,7 @@ import Move from "../../../src/commands/node/move.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
 import {createTestNode} from "../../helpers/node-fixtures.js";
-import {requestBody} from "../../helpers/request-body.js";
+import {requestJson} from "../../helpers/request-body.js";
 
 describe("node:move command", () => {
 	let originalEnv: typeof process.env;
@@ -126,9 +126,48 @@ describe("node:move command", () => {
 		});
 	});
 
+	/**
+	 * Answer a move with success, a GET of the moved node with `moved`, and the
+	 * re-read of its new parent's children with `moved` alone. Returns each
+	 * request as `METHOD url` and each request body, in order.
+	 */
+	function fakeMove(moved: {id: string; name: string; parent_id: string; priority: number}): {
+		requests: string[];
+		bodies: unknown[];
+	} {
+		const now = Math.floor(Date.now() / 1000);
+		const node = {
+			...moved,
+			note: null,
+			completed: false,
+			createdAt: now,
+			modifiedAt: now,
+			completedAt: null,
+			data: {},
+		};
+		const requests: string[] = [];
+		const bodies: unknown[] = [];
+		fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+			const urlStr = url instanceof Request ? url.url : String(url);
+			const method = init?.method ?? "GET";
+			requests.push(`${method} ${urlStr}`);
+			if (method === "POST" && urlStr.endsWith(`/nodes/${moved.id}/move`)) {
+				bodies.push(requestJson(init));
+				return Promise.resolve(Response.json({}, {status: 200}));
+			}
+			if (method === "GET" && urlStr.endsWith(`/nodes/${moved.id}`)) {
+				return Promise.resolve(Response.json({node}, {status: 200}));
+			}
+			if (method === "GET" && urlStr.endsWith(`/nodes?parent_id=${moved.parent_id}`)) {
+				return Promise.resolve(Response.json({nodes: [node]}, {status: 200}));
+			}
+			return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
+		});
+		return {requests, bodies};
+	}
+
 	describe("moving by ID", () => {
 		it("moves node via API", async () => {
-			const now = Math.floor(Date.now() / 1000);
 			seedTestData(
 				testDatabase,
 				nodeFixtures([
@@ -136,52 +175,24 @@ describe("node:move command", () => {
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				]),
 			);
-
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? "GET";
-
-				if (method === "POST") {
-					capturedBody = requestBody(init);
-					return Promise.resolve(Response.json({}, {status: 200}));
-				}
-
-				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return Promise.resolve(
-						Response.json(
-							{
-								node: {
-									id: "source-id",
-									name: "Source",
-									parent_id: "target-id",
-									priority: 0,
-									completed: false,
-									createdAt: now * 1000,
-									modifiedAt: now * 1000,
-									completedAt: null,
-									data: {},
-								},
-							},
-							{status: 200},
-						),
-					);
-				}
-
-				return Promise.resolve(Response.json({}, {status: 404}));
-			});
+			const {requests, bodies} = fakeMove({id: "source-id", name: "Source", parent_id: "target-id", priority: 0});
 
 			const {stdout} = await captureOutput(async () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id"]);
 			});
 
-			expect(stdout).toBe("Moving:\n  From: Source\n  To:   Target\nSuccessfully moved node\n");
-			const body: unknown = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: "target-id"});
+			expect({stdout, requests, bodies}).toStrictEqual({
+				stdout: "Moving:\n  From: Source\n  To:   Target\nSuccessfully moved node\n",
+				requests: [
+					"POST https://workflowy.com/api/v1/nodes/source-id/move",
+					"GET https://workflowy.com/api/v1/nodes/source-id",
+					"GET https://workflowy.com/api/v1/nodes?parent_id=target-id",
+				],
+				bodies: [{parent_id: "target-id"}],
+			});
 		});
 
 		it("includes position in API request for top", async () => {
-			const now = Math.floor(Date.now() / 1000);
 			seedTestData(
 				testDatabase,
 				nodeFixtures([
@@ -189,51 +200,16 @@ describe("node:move command", () => {
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				]),
 			);
-
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? "GET";
-
-				if (method === "POST") {
-					capturedBody = requestBody(init);
-					return Promise.resolve(Response.json({}, {status: 200}));
-				}
-
-				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return Promise.resolve(
-						Response.json(
-							{
-								node: {
-									id: "source-id",
-									name: "Source",
-									parent_id: "target-id",
-									priority: -1,
-									completed: false,
-									createdAt: now * 1000,
-									modifiedAt: now * 1000,
-									completedAt: null,
-									data: {},
-								},
-							},
-							{status: 200},
-						),
-					);
-				}
-
-				return Promise.resolve(Response.json({}, {status: 404}));
-			});
+			const {bodies} = fakeMove({id: "source-id", name: "Source", parent_id: "target-id", priority: -1});
 
 			await captureOutput(async () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--position", "top"]);
 			});
 
-			const body: unknown = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: "target-id", position: "top"});
+			expect(bodies).toStrictEqual([{parent_id: "target-id", position: "top"}]);
 		});
 
 		it("includes position in API request for bottom", async () => {
-			const now = Math.floor(Date.now() / 1000);
 			seedTestData(
 				testDatabase,
 				nodeFixtures([
@@ -241,53 +217,18 @@ describe("node:move command", () => {
 					createTestNode({id: "target-id", name: "Target", parentId: null}),
 				]),
 			);
-
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? "GET";
-
-				if (method === "POST") {
-					capturedBody = requestBody(init);
-					return Promise.resolve(Response.json({}, {status: 200}));
-				}
-
-				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return Promise.resolve(
-						Response.json(
-							{
-								node: {
-									id: "source-id",
-									name: "Source",
-									parent_id: "target-id",
-									priority: 0,
-									completed: false,
-									createdAt: now * 1000,
-									modifiedAt: now * 1000,
-									completedAt: null,
-									data: {},
-								},
-							},
-							{status: 200},
-						),
-					);
-				}
-
-				return Promise.resolve(Response.json({}, {status: 404}));
-			});
+			const {bodies} = fakeMove({id: "source-id", name: "Source", parent_id: "target-id", priority: 0});
 
 			await captureOutput(async () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "target-id", "--position", "bottom"]);
 			});
 
-			const body: unknown = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: "target-id", position: "bottom"});
+			expect(bodies).toStrictEqual([{parent_id: "target-id", position: "bottom"}]);
 		});
 	});
 
 	describe("moving by path", () => {
 		it("resolves source and target paths", async () => {
-			const now = Math.floor(Date.now() / 1000);
 			seedTestData(
 				testDatabase,
 				nodeFixtures([
@@ -297,53 +238,26 @@ describe("node:move command", () => {
 					createTestNode({id: "archive-id", name: "Archive", parentId: "work-id"}),
 				]),
 			);
-
-			let capturedUrl: string | undefined;
-			let capturedBody: string | undefined;
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? "GET";
-				capturedUrl = urlStr;
-
-				if (method === "POST") {
-					capturedBody = requestBody(init);
-					return Promise.resolve(Response.json({}, {status: 200}));
-				}
-
-				if (method === "GET" && urlStr.includes("/nodes/source-id")) {
-					return Promise.resolve(
-						Response.json(
-							{
-								node: {
-									id: "source-id",
-									name: "My Task",
-									parent_id: "archive-id",
-									priority: 0,
-									completed: false,
-									createdAt: now * 1000,
-									modifiedAt: now * 1000,
-									completedAt: null,
-									data: {},
-								},
-							},
-							{status: 200},
-						),
-					);
-				}
-
-				return Promise.resolve(Response.json({}, {status: 404}));
+			const {requests, bodies} = fakeMove({
+				id: "source-id",
+				name: "My Task",
+				parent_id: "archive-id",
+				priority: 0,
 			});
 
 			const {stdout} = await captureOutput(async () => {
 				await Move.run(["--node-path", "Work,Tasks,My Task", "--parent-path", "Work,Archive"]);
 			});
 
-			expect(stdout).toBe(
-				"Moving:\n  From: Work > Tasks > My Task\n  To:   Work > Archive\nSuccessfully moved node\n",
-			);
-			expect(capturedUrl).toBe("https://workflowy.com/api/v1/nodes/source-id");
-			const body: unknown = JSON.parse(capturedBody!);
-			expect(body).toStrictEqual({parent_id: "archive-id"});
+			expect({stdout, requests, bodies}).toStrictEqual({
+				stdout: "Moving:\n  From: Work > Tasks > My Task\n  To:   Work > Archive\nSuccessfully moved node\n",
+				requests: [
+					"POST https://workflowy.com/api/v1/nodes/source-id/move",
+					"GET https://workflowy.com/api/v1/nodes/source-id",
+					"GET https://workflowy.com/api/v1/nodes?parent_id=archive-id",
+				],
+				bodies: [{parent_id: "archive-id"}],
+			});
 		});
 	});
 
@@ -358,56 +272,26 @@ describe("node:move command", () => {
 					createTestNode({id: "source-id", name: "Source", parentId: null}),
 				]),
 			);
-
-			const now = Math.floor(Date.now() / 1000);
-			const requests: string[] = [];
-			let capturedBody: string | undefined;
-
-			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
-				const urlStr = url instanceof Request ? url.url : String(url);
-				const method = init?.method ?? "GET";
-				requests.push(`${method} ${urlStr}`);
-
-				if (method === "POST" && urlStr.endsWith("/nodes/source-id/move")) {
-					capturedBody = requestBody(init);
-					return Promise.resolve(Response.json({}, {status: 200}));
-				}
-
-				if (method === "GET" && urlStr.endsWith("/nodes/source-id")) {
-					return Promise.resolve(
-						Response.json(
-							{
-								node: {
-									id: "source-id",
-									name: "Source",
-									note: null,
-									parent_id: "inbox-uuid",
-									priority: 0,
-									completed: false,
-									createdAt: now,
-									modifiedAt: now,
-									completedAt: null,
-									data: {layoutMode: "bullets"},
-								},
-							},
-							{status: 200},
-						),
-					);
-				}
-
-				return Promise.resolve(Response.json({error: "Not found"}, {status: 404}));
+			const {requests, bodies} = fakeMove({
+				id: "source-id",
+				name: "Source",
+				parent_id: "inbox-uuid",
+				priority: 0,
 			});
 
 			const {error} = await captureOutput(async () => {
 				await Move.run(["--node-id", "source-id", "--parent-id", "inbox"]);
 			});
 
-			expect(error).toBeUndefined();
-			expect(JSON.parse(capturedBody!)).toStrictEqual({parent_id: "inbox"});
-			expect(requests).toStrictEqual([
-				"POST https://workflowy.com/api/v1/nodes/source-id/move",
-				"GET https://workflowy.com/api/v1/nodes/source-id",
-			]);
+			expect({error, requests, bodies}).toStrictEqual({
+				error: undefined,
+				requests: [
+					"POST https://workflowy.com/api/v1/nodes/source-id/move",
+					"GET https://workflowy.com/api/v1/nodes/source-id",
+					"GET https://workflowy.com/api/v1/nodes?parent_id=inbox-uuid",
+				],
+				bodies: [{parent_id: "inbox"}],
+			});
 			expect(
 				testDatabase.db
 					.select({id: nodeContent.id, parentId: nodeContent.parentId})

@@ -1,6 +1,8 @@
 import {beforeEach, vi, afterEach, expect, describe, it} from "vite-plus/test";
 import {captureOutput} from "@oclif/test";
+import {nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import {and, eq} from "drizzle-orm";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -73,6 +75,7 @@ describe("calendar:fix-photo-groups command", () => {
 		process.env.WORKFLOWY_BACKUPS_DIR = path.join(tempDir, "backups");
 
 		requests = [];
+		const movedToBottom: string[] = [];
 		fetchStub = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
 			const urlString = url instanceof Request ? url.url : String(url);
 			const method = init?.method ?? "GET";
@@ -82,26 +85,37 @@ describe("calendar:fix-photo-groups command", () => {
 				body: requestJson(init),
 			});
 
+			const {pathname, searchParams} = new URL(urlString);
+			const nodeId = pathname.split("/")[4]!;
+			if (method === "POST" && pathname.endsWith("/move")) {
+				movedToBottom.push(nodeId);
+			}
+			// Every write here is a move to the bottom of "entry", so a moved node sits
+			// below the rest in move order.
+			const apiNode = (id: string, parentId: string) => ({
+				id,
+				name: "",
+				parent_id: parentId,
+				priority: movedToBottom.includes(id) ? 1000 + movedToBottom.indexOf(id) * 100 : 0,
+				completed: false,
+				createdAt: 1_700_000_000_000,
+				modifiedAt: 1_700_000_000_000,
+				completedAt: null,
+				data: {},
+			});
+			const parentId = searchParams.get("parent_id");
+			if (method === "GET" && parentId !== null) {
+				// The cache already holds each move, so its children are what Workflowy would list.
+				const nodes = testDatabase.db
+					.select({id: nodeContent.id})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.parentId, parentId), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.all()
+					.map(({id}) => apiNode(id, parentId));
+				return Promise.resolve(Response.json({nodes}, {status: 200}));
+			}
 			if (method === "GET") {
-				const nodeId = urlString.split("/nodes/")[1];
-				return Promise.resolve(
-					Response.json(
-						{
-							node: {
-								id: nodeId,
-								name: "",
-								parent_id: "entry",
-								priority: 0,
-								completed: false,
-								createdAt: 1_700_000_000_000,
-								modifiedAt: 1_700_000_000_000,
-								completedAt: null,
-								data: {},
-							},
-						},
-						{status: 200},
-					),
-				);
+				return Promise.resolve(Response.json({node: apiNode(nodeId, "entry")}, {status: 200}));
 			}
 
 			return Promise.resolve(Response.json({}, {status: 200}));
