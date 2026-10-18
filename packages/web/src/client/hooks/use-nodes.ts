@@ -1,12 +1,16 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {useCallback} from "react";
-import type {QueryClient} from "@tanstack/react-query";
+import type {MutateOptions, QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {nodeKeys, patchCachedNode, readNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
-import {RequestStatusError} from "../undo-batch.js";
+import {toUndoOps} from "../tree-ops.js";
+import type {UndoableMutation} from "../tree-ops.js";
+import {RequestStatusError, holdUndoSlot} from "../undo-batch.js";
+import type {UndoSlot} from "../undo-batch.js";
+import type {UndoOp} from "../undo-history.js";
 
 interface CreateNodeRequest {
 	/** A client-generated UUID: the optimistic row carries it, so it can be edited before the reply. */
@@ -121,7 +125,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 }
 
 interface RestoreNodeRequest {
-	parent_id: string;
+	parent_id: string | null;
 	/** Exact slot among the parent's children (completed included). */
 	index: number;
 }
@@ -223,6 +227,69 @@ function requestedIndex(request: {index?: number; position?: number}, count: num
 	return request.position !== undefined && request.position < 0 ? 0 : count;
 }
 
+/** The exact `index` a create/move asks for, or undefined for the bottom (see `requestedIndex`). */
+function exactIndex(request: {index?: number; position?: number}): number | undefined {
+	return request.index ?? (request.position !== undefined && request.position < 0 ? 0 : undefined);
+}
+
+type Mutate<TData, TVariables, TContext> = (
+	variables: TVariables,
+	options?: MutateOptions<TData, Error, TVariables, TContext>,
+) => void;
+
+interface HeldUndo<TData> {
+	slot: UndoSlot;
+	finish(data: TData): UndoOp[];
+}
+
+/** One hook's undo slots of mutations in flight, keyed by their variables (first in, first out). */
+class HeldUndos<TData, TVariables> {
+	readonly #held = new Map<TVariables, HeldUndo<TData>[]>();
+
+	hold(variables: TVariables, finish: (data: TData) => UndoOp[]): void {
+		const held = this.#held.get(variables) ?? [];
+		held.push({slot: holdUndoSlot(), finish});
+		this.#held.set(variables, held);
+	}
+
+	/** Settles the oldest slot for `variables`: its ops on success, none on failure. */
+	settle(variables: TVariables, outcome: {data: TData} | "failed"): void {
+		const held = this.#held.get(variables);
+		const next = held?.shift();
+		if (held?.length === 0) {
+			this.#held.delete(variables);
+		}
+		next?.slot.settle(outcome === "failed" ? [] : next.finish(outcome.data));
+	}
+}
+
+/**
+ * Wraps `mutate` so each call reserves its undo slot NOW, reading the before-values from the
+ * cache before any optimistic write; the hook's `onSuccess`/`onError` settle it through `held`.
+ */
+function useUndoableMutate<TData, TVariables, TContext>(
+	mutate: Mutate<TData, TVariables, TContext>,
+	held: HeldUndos<TData, TVariables>,
+	plan: (variables: TVariables) => (data: TData) => UndoOp[],
+): Mutate<TData, TVariables, TContext> {
+	return useCallback<Mutate<TData, TVariables, TContext>>(
+		(variables, options) => {
+			held.hold(variables, plan(variables));
+			mutate(variables, options);
+		},
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- `plan` reads only its arguments and the stable query client
+		[mutate, held],
+	);
+}
+
+/** A plan for mutations whose ops are fully known from the cache before they run. */
+function cachedOps(queryClient: QueryClient, mutation: UndoableMutation): () => UndoOp[] {
+	const ops = toUndoOps(mutation, queryClient);
+	return () => ops;
+}
+
+const createUndos = new HeldUndos<NodeResponse, CreateNodeRequest>();
+
 /**
  * Creates a new node with optimistic update.
  */
@@ -245,6 +312,7 @@ export function useCreateNode() {
 			return insertOptimisticCreate(queryClient, newNode);
 		},
 		onSuccess(createdNode, variables) {
+			createUndos.settle(variables, {data: createdNode});
 			// The public-API fallback cannot honor a client id: follow the caret to the real one.
 			const {editingId, startEditing} = useOutlineStore.getState();
 			if (variables.id !== undefined && createdNode.id !== variables.id && editingId === variables.id) {
@@ -252,6 +320,7 @@ export function useCreateNode() {
 			}
 		},
 		onError(error, variables, context) {
+			createUndos.settle(variables, "failed");
 			// Roll back to previous value on error
 			if (context?.previousChildren !== undefined) {
 				queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
@@ -284,7 +353,14 @@ export function useCreateNode() {
 		},
 		[mutate, queryClient],
 	);
-	return {...mutation, mutate: mutateNow};
+	// Outermost, so the slot is read before `mutateNow`'s optimistic insert.
+	const undoableMutate = useUndoableMutate(mutateNow, createUndos, (request) => {
+		const parentId = request.parent_id ?? null;
+		const [op] = toUndoOps({kind: "create", nodeId: "", parentId, index: exactIndex(request)}, queryClient);
+		// The public-API fallback may answer another id than the client one.
+		return (created) => (op === undefined ? [] : [{...op, nodeId: created.id}]);
+	});
+	return {...mutation, mutate: undoableMutate};
 }
 
 interface CreateContext {
@@ -323,6 +399,8 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 	return {previousChildren, parentId};
 }
 
+const updateUndos = new HeldUndos<NodeResponse, UpdateNodeRequest & {nodeId: string}>();
+
 /**
  * Updates a node with optimistic update.
  */
@@ -330,7 +408,7 @@ export function useUpdateNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: async ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) => updateNode(nodeId, request),
 		async onMutate({nodeId, ...updates}) {
 			// Cancel outgoing refetches
@@ -345,7 +423,11 @@ export function useUpdateNode() {
 			}));
 			return {restore};
 		},
-		onError(error, _variables, context) {
+		onSuccess(data, variables) {
+			updateUndos.settle(variables, {data});
+		},
+		onError(error, variables, context) {
+			updateUndos.settle(variables, "failed");
 			// Roll back to previous value on error
 			context?.restore();
 			addErrorNotification(`Failed to update node: ${error.message}`);
@@ -357,7 +439,13 @@ export function useUpdateNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
+	const mutate = useUndoableMutate(mutation.mutate, updateUndos, ({nodeId, name, note}) =>
+		cachedOps(queryClient, {kind: "edit", nodeId, name, note}),
+	);
+	return {...mutation, mutate};
 }
+
+const deleteUndos = new HeldUndos<void, string>();
 
 /**
  * Deletes a node with optimistic update.
@@ -368,7 +456,7 @@ export function useDeleteNode() {
 	const beginMutation = useOutlineStore((state) => state.beginMutation);
 	const endMutation = useOutlineStore((state) => state.endMutation);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: deleteNode,
 		async onMutate(nodeId) {
 			beginMutation();
@@ -382,7 +470,11 @@ export function useDeleteNode() {
 
 			return {nodeId, previousNode: node};
 		},
-		async onError(error, _variables, context) {
+		onSuccess(data, nodeId) {
+			deleteUndos.settle(nodeId, {data});
+		},
+		async onError(error, nodeId, context) {
+			deleteUndos.settle(nodeId, "failed");
 			// On error, we just refetch everything since rollback is complex
 			if (context?.previousNode !== undefined) {
 				await queryClient.invalidateQueries({queryKey: nodeKeys.all});
@@ -395,7 +487,13 @@ export function useDeleteNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
+	const mutate = useUndoableMutate(mutation.mutate, deleteUndos, (nodeId) =>
+		cachedOps(queryClient, {kind: "delete", nodeId}),
+	);
+	return {...mutation, mutate};
 }
+
+const moveUndos = new HeldUndos<MoveNodeResponse, MoveNodeRequest & {nodeId: string}>();
 
 /**
  * Moves a node to `index` under `parent_id` (same parent or another) with an
@@ -407,7 +505,7 @@ export function useMoveNode() {
 	const beginMutation = useOutlineStore((state) => state.beginMutation);
 	const endMutation = useOutlineStore((state) => state.endMutation);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: async ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
 		async onMutate(request) {
 			beginMutation();
@@ -417,7 +515,11 @@ export function useMoveNode() {
 				? spliceMovedRows(queryClient, [node], request.parent_id, (count) => requestedIndex(request, count))
 				: [];
 		},
-		onError(error, _variables, snapshots) {
+		onSuccess(data, variables) {
+			moveUndos.settle(variables, {data});
+		},
+		onError(error, variables, snapshots) {
+			moveUndos.settle(variables, "failed");
 			restoreSnapshots(queryClient, snapshots);
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
@@ -426,6 +528,15 @@ export function useMoveNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
+	const mutate = useUndoableMutate(mutation.mutate, moveUndos, (request) =>
+		cachedOps(queryClient, {
+			kind: "move",
+			ids: [request.nodeId],
+			parentId: request.parent_id,
+			index: exactIndex(request),
+		}),
+	);
+	return {...mutation, mutate};
 }
 
 interface MoveNodesRequest {
@@ -449,6 +560,8 @@ async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
 	return data.nodes;
 }
 
+const moveNodesUndos = new HeldUndos<NodeResponse[], MoveNodesRequest>();
+
 /**
  * Moves a contiguous block of nodes, in the given order, to `index` under `parent_id`
  * in one call (multi-select, drag, Sort). Splices optimistically, then applies the
@@ -461,7 +574,7 @@ export function useMoveNodes() {
 	const beginMutation = useOutlineStore((state) => state.beginMutation);
 	const endMutation = useOutlineStore((state) => state.endMutation);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: moveNodes,
 		async onMutate(request) {
 			beginMutation();
@@ -471,7 +584,8 @@ export function useMoveNodes() {
 				.filter((row): row is NodeResponse => row !== undefined);
 			return spliceMovedRows(queryClient, rows, request.parent_id, (count) => request.index ?? count);
 		},
-		onSuccess(nodes, _variables, snapshots) {
+		onSuccess(nodes, variables, snapshots) {
+			moveNodesUndos.settle(variables, {data: nodes});
 			for (const {parentId} of snapshots.filter((snapshot) => snapshot.kind === "children")) {
 				queryClient.setQueryData<NodeResponse[]>(
 					nodeKeys.children(parentId),
@@ -482,7 +596,8 @@ export function useMoveNodes() {
 				queryClient.setQueryData<NodeResponse>(nodeKeys.detail(node.id), (old) => (old ? node : old));
 			}
 		},
-		async onError(error, _variables, snapshots) {
+		async onError(error, variables, snapshots) {
+			moveNodesUndos.settle(variables, "failed");
 			restoreSnapshots(queryClient, snapshots);
 			addErrorNotification(`Failed to move nodes: ${error.message}`);
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
@@ -491,6 +606,10 @@ export function useMoveNodes() {
 			endMutation();
 		},
 	});
+	const mutate = useUndoableMutate(mutation.mutate, moveNodesUndos, ({ids, parent_id: parentId, index}) =>
+		cachedOps(queryClient, {kind: "move", ids, parentId, index}),
+	);
+	return {...mutation, mutate};
 }
 
 type CacheSnapshot =
@@ -553,6 +672,8 @@ function restoreSnapshots(queryClient: QueryClient, snapshots: CacheSnapshot[] |
 	}
 }
 
+const toggleUndos = new HeldUndos<NodeResponse, {nodeId: string; isCurrentlyCompleted: boolean}>();
+
 /**
  * Toggles node completion status with optimistic update.
  * If completed, uncompletes. If not completed, completes.
@@ -561,7 +682,7 @@ export function useToggleComplete() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: async ({nodeId, isCurrentlyCompleted}: {nodeId: string; isCurrentlyCompleted: boolean}) =>
 			isCurrentlyCompleted ? uncompleteNode(nodeId) : completeNode(nodeId),
 		async onMutate({nodeId, isCurrentlyCompleted}) {
@@ -599,7 +720,11 @@ export function useToggleComplete() {
 
 			return {nodeId, previousNode, parentId, previousChildren};
 		},
-		onError(error, _variables, context) {
+		onSuccess(data, variables) {
+			toggleUndos.settle(variables, {data});
+		},
+		onError(error, variables, context) {
+			toggleUndos.settle(variables, "failed");
 			// Roll back to previous values on error
 			if (context?.previousNode !== undefined) {
 				queryClient.setQueryData(nodeKeys.detail(context.nodeId), context.previousNode);
@@ -615,7 +740,13 @@ export function useToggleComplete() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
+	const mutate = useUndoableMutate(mutation.mutate, toggleUndos, ({nodeId, isCurrentlyCompleted}) =>
+		cachedOps(queryClient, {kind: isCurrentlyCompleted ? "uncomplete" : "complete", nodeId}),
+	);
+	return {...mutation, mutate};
 }
+
+const restoreUndos = new HeldUndos<NodeResponse, RestoreNodeRequest & {nodeId: string}>();
 
 /** Restores a deleted node under its original id, then refetches every node query. */
 // fallow-ignore-next-line unused-export -- callers land with undo/redo commands (M2-60, M2-61)
@@ -625,12 +756,16 @@ export function useRestoreNode() {
 	const beginMutation = useOutlineStore((state) => state.beginMutation);
 	const endMutation = useOutlineStore((state) => state.endMutation);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: async ({nodeId, ...request}: RestoreNodeRequest & {nodeId: string}) => restoreNode(nodeId, request),
 		onMutate() {
 			beginMutation();
 		},
-		onError(error) {
+		onSuccess(data, variables) {
+			restoreUndos.settle(variables, {data});
+		},
+		onError(error, variables) {
+			restoreUndos.settle(variables, "failed");
 			addErrorNotification(error.message);
 		},
 		async onSettled() {
@@ -638,4 +773,8 @@ export function useRestoreNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
+	const mutate = useUndoableMutate(mutation.mutate, restoreUndos, ({nodeId, parent_id: parentId, index}) =>
+		cachedOps(queryClient, {kind: "restore", nodeId, parentId, index}),
+	);
+	return {...mutation, mutate};
 }

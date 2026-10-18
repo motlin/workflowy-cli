@@ -19,8 +19,11 @@ import {
 	planToggleComplete,
 	planVerticalMove,
 	cacheMoveTree,
+	toUndoOps,
 } from "../src/client/tree-ops.js";
 import type {VerticalMoveTree} from "../src/client/tree-ops.js";
+import {invertBatch} from "../src/client/undo-history.js";
+import type {UndoOp} from "../src/client/undo-history.js";
 
 function node(partial: Partial<NodeResponse> & {id: string}): NodeResponse {
 	return {
@@ -794,5 +797,157 @@ describe("planFocusSibling", () => {
 
 	it("does nothing going forward on an empty zoomed page", () => {
 		expect(planFocusSibling({...base, currentId: null, firstChildId: null, siblings: []}, 1)).toBeNull();
+	});
+});
+
+/** Replays move ops against plain id lists, using the move endpoint's slot-before-removal index. */
+function replayMoves(lists: Record<string, string[]>, ops: UndoOp[]): Record<string, string[]> {
+	const next = Object.fromEntries(Object.entries(lists).map(([key, list]) => [key, [...list]]));
+	for (const op of ops) {
+		if (op.kind !== "move") {
+			throw new Error(`unexpected ${op.kind}`);
+		}
+		const source = next[op.from.parentId ?? "root"] ?? [];
+		const target = (next[op.to.parentId ?? "root"] ??= []);
+		const at = target.slice(0, op.to.index).filter((id) => id !== op.nodeId).length;
+		source.splice(source.indexOf(op.nodeId), 1);
+		target.splice(at, 0, op.nodeId);
+	}
+	return next;
+}
+
+function undo(ops: UndoOp[]): UndoOp[] {
+	const view = {zoomedNodeId: null, editing: null};
+	return invertBatch({ops, before: view, after: view}).ops;
+}
+
+function ids(...names: string[]): NodeResponse[] {
+	return names.map((id, index) => node({id, parent_id: "p", priority: (index + 1) * 100}));
+}
+
+describe("toUndoOps", () => {
+	it("records a delete's parent and slot among ALL children, completed included", () => {
+		const qc = seed({
+			p: [
+				node({id: "a", parent_id: "p", priority: 100}),
+				node({id: "b", parent_id: "p", priority: 200, completedAt: 5}),
+				node({id: "c", parent_id: "p", priority: 300}),
+			],
+		});
+		expect(toUndoOps({kind: "delete", nodeId: "b"}, qc)).toStrictEqual([
+			{kind: "delete", nodeId: "b", parentId: "p", index: 1},
+		]);
+	});
+
+	it("records a root-level delete under the null parent", () => {
+		const qc = seed({root: [node({id: "r1", priority: 100}), node({id: "r2", priority: 200})]});
+		expect(toUndoOps({kind: "delete", nodeId: "r2"}, qc)).toStrictEqual([
+			{kind: "delete", nodeId: "r2", parentId: null, index: 1},
+		]);
+	});
+
+	it("records nothing for a delete of an uncached node", () => {
+		expect(toUndoOps({kind: "delete", nodeId: "ghost"}, seed({}))).toStrictEqual([]);
+	});
+
+	it("turns planIndent's payload into one move with exact from and to slots", () => {
+		const bKids = [node({id: "b1", parent_id: "b", priority: 100})];
+		const qc = seed({p: siblings, b: bKids});
+		const plan = planIndent(qc, siblings[2], new Set());
+		if (plan === null) {
+			throw new Error("expected an indent plan");
+		}
+		expect(
+			toUndoOps({kind: "move", ids: [plan.nodeId], parentId: plan.parent_id, index: plan.index}, qc),
+		).toStrictEqual([{kind: "move", nodeId: "c", from: {parentId: "p", index: 2}, to: {parentId: "b", index: 1}}]);
+	});
+
+	it("records one move per id of a block move, each with its own from-slot", () => {
+		const qc = seed({p: ids("d", "c", "b", "a")});
+		expect(toUndoOps({kind: "move", ids: ["c", "b"], parentId: "p", index: 2}, qc)).toStrictEqual([
+			{kind: "move", nodeId: "c", from: {parentId: "p", index: 1}, to: {parentId: "p", index: 1}},
+			{kind: "move", nodeId: "b", from: {parentId: "p", index: 2}, to: {parentId: "p", index: 2}},
+		]);
+	});
+
+	it("encodes a same-parent move down as the endpoint's slot before removal, both ways", () => {
+		const qc = seed({p: ids("a", "b", "c", "d")});
+		const ops = toUndoOps({kind: "move", ids: ["b"], parentId: "p", index: 3}, qc);
+		expect(ops).toStrictEqual([
+			{kind: "move", nodeId: "b", from: {parentId: "p", index: 1}, to: {parentId: "p", index: 3}},
+		]);
+		const after = replayMoves({p: ["a", "b", "c", "d"]}, ops);
+		expect(after).toStrictEqual({p: ["a", "c", "b", "d"]});
+		expect(replayMoves(after, undo(ops))).toStrictEqual({p: ["a", "b", "c", "d"]});
+	});
+
+	it("round-trips a reordering block move within one parent", () => {
+		const qc = seed({p: ids("a", "b", "c", "d", "e")});
+		const ops = toUndoOps({kind: "move", ids: ["d", "b"], parentId: "p", index: 1}, qc);
+		const after = replayMoves({p: ["a", "b", "c", "d", "e"]}, ops);
+		expect(after).toStrictEqual({p: ["a", "d", "b", "c", "e"]});
+		expect(replayMoves(after, undo(ops))).toStrictEqual({p: ["a", "b", "c", "d", "e"]});
+	});
+
+	it("round-trips a block move to another parent", () => {
+		const qc = seed({p: ids("d", "c", "b", "a"), q: [node({id: "x", parent_id: "q", priority: 100})]});
+		const ops = toUndoOps({kind: "move", ids: ["c", "b"], parentId: "q", index: 0}, qc);
+		expect(ops).toStrictEqual([
+			{kind: "move", nodeId: "c", from: {parentId: "p", index: 1}, to: {parentId: "q", index: 0}},
+			{kind: "move", nodeId: "b", from: {parentId: "p", index: 1}, to: {parentId: "q", index: 1}},
+		]);
+		const after = replayMoves({p: ["d", "c", "b", "a"], q: ["x"]}, ops);
+		expect(after).toStrictEqual({p: ["d", "a"], q: ["c", "b", "x"]});
+		expect(replayMoves(after, undo(ops))).toStrictEqual({p: ["d", "c", "b", "a"], q: ["x"]});
+	});
+
+	it("sends an uncached target's bottom as an index past every child", () => {
+		const qc = seed({p: siblings});
+		expect(toUndoOps({kind: "move", ids: ["a"], parentId: "elsewhere"}, qc)).toStrictEqual([
+			{
+				kind: "move",
+				nodeId: "a",
+				from: {parentId: "p", index: 0},
+				to: {parentId: "elsewhere", index: Number.MAX_SAFE_INTEGER},
+			},
+		]);
+	});
+
+	it("records a create at its exact slot, or the bottom when the index is omitted", () => {
+		const qc = seed({p: siblings});
+		expect([
+			toUndoOps({kind: "create", nodeId: "n", parentId: "p", index: 1}, qc),
+			toUndoOps({kind: "create", nodeId: "m", parentId: "p"}, qc),
+		]).toStrictEqual([
+			[{kind: "create", nodeId: "n", parentId: "p", index: 1}],
+			[{kind: "create", nodeId: "m", parentId: "p", index: 3}],
+		]);
+	});
+
+	it("records each changed text field with its cached before-value and skips unchanged ones", () => {
+		const qc = seed({p: [node({id: "a", parent_id: "p", priority: 100, name: "old", note: "same"})]});
+		expect(toUndoOps({kind: "edit", nodeId: "a", name: "new", note: "same"}, qc)).toStrictEqual([
+			{kind: "edit", nodeId: "a", field: "name", before: "old", after: "new"},
+		]);
+	});
+
+	it("treats a missing cached text as empty", () => {
+		const qc = seed({p: [node({id: "a", parent_id: "p", priority: 100})]});
+		expect(toUndoOps({kind: "edit", nodeId: "a", note: "hi"}, qc)).toStrictEqual([
+			{kind: "edit", nodeId: "a", field: "note", before: "", after: "hi"},
+		]);
+	});
+
+	it("records completion toggles and restores", () => {
+		const qc = seed({});
+		expect([
+			toUndoOps({kind: "complete", nodeId: "a"}, qc),
+			toUndoOps({kind: "uncomplete", nodeId: "a"}, qc),
+			toUndoOps({kind: "restore", nodeId: "a", parentId: "p", index: 2}, qc),
+		]).toStrictEqual([
+			[{kind: "complete", nodeId: "a"}],
+			[{kind: "uncomplete", nodeId: "a"}],
+			[{kind: "undelete", nodeId: "a", parentId: "p", index: 2}],
+		]);
 	});
 });

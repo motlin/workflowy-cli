@@ -22,6 +22,7 @@ import type {EditorKeyAction} from "../editable-text-keys.js";
 import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
@@ -402,25 +403,28 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		// The new row carries a client-generated id, so the caret moves into it now,
 		// before the create round-trip; writes to it wait for the create (pendingCreates).
 		const newId = crypto.randomUUID();
-		for (const step of applySplitPlan(plan, nodeId, initialValueRef.current)) {
-			if (step.type === "update") {
-				initialValueRef.current = step.name;
-				updateNodeMutation.mutate({nodeId: step.nodeId, name: step.name});
-			} else if (step.type === "create") {
-				createNodeMutation.mutate({
-					id: newId,
-					parent_id: step.parent_id ?? undefined,
-					index: step.index,
-					name: step.name,
-					...(step.layoutMode === null ? {} : {layoutMode: step.layoutMode}),
-				});
-			} else if (step.target === "current") {
-				placeCaretAtTextOffset(content, step.caret);
-				resumeEditing(nodeId, step.caret);
-			} else {
-				resumeEditing(newId, step.caret);
+		// The rename and the create are one user command: one undo step.
+		void runInUndoBatch(captureOutlineView, () => {
+			for (const step of applySplitPlan(plan, nodeId, initialValueRef.current)) {
+				if (step.type === "update") {
+					initialValueRef.current = step.name;
+					updateNodeMutation.mutate({nodeId: step.nodeId, name: step.name});
+				} else if (step.type === "create") {
+					createNodeMutation.mutate({
+						id: newId,
+						parent_id: step.parent_id ?? undefined,
+						index: step.index,
+						name: step.name,
+						...(step.layoutMode === null ? {} : {layoutMode: step.layoutMode}),
+					});
+				} else if (step.target === "current") {
+					placeCaretAtTextOffset(content, step.caret);
+					resumeEditing(nodeId, step.caret);
+				} else {
+					resumeEditing(newId, step.caret);
+				}
 			}
-		}
+		});
 	}, [
 		nodeId,
 		parentId,
@@ -512,16 +516,20 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (plan.kind === "none") {
 				return false;
 			}
-			resumeEditing(plan.keepId, plan.caret);
-			// Show the merged row at once; the mutations' refetch confirms it.
-			queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), (old) =>
-				old
-					?.filter((sibling) => sibling.id !== plan.deleteId)
-					.map((sibling) => (sibling.id === plan.keepId ? {...sibling, name: plan.name} : sibling)),
-			);
-			initialValueRef.current = plan.name;
-			updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
-			deleteNodeMutation.mutate(plan.deleteId);
+			// The rename and the delete are one undo step; both read their before-values
+			// from the cache, so they are issued before the optimistic merge below.
+			void runInUndoBatch(captureOutlineView, () => {
+				resumeEditing(plan.keepId, plan.caret);
+				initialValueRef.current = plan.name;
+				updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
+				deleteNodeMutation.mutate(plan.deleteId);
+				// Show the merged row at once; the mutations' refetch confirms it.
+				queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), (old) =>
+					old
+						?.filter((sibling) => sibling.id !== plan.deleteId)
+						.map((sibling) => (sibling.id === plan.keepId ? {...sibling, name: plan.name} : sibling)),
+				);
+			});
 			return true;
 		},
 		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation],

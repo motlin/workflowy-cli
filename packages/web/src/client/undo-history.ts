@@ -4,7 +4,8 @@ import {create} from "zustand";
 export const UNDO_STACK_CAP = 100;
 
 export interface Slot {
-	parentId: string;
+	/** Null for the outline root. */
+	parentId: string | null;
 	index: number;
 }
 
@@ -14,9 +15,9 @@ export interface Slot {
  */
 export type UndoOp =
 	| {kind: "edit"; nodeId: string; field: "name" | "note"; before: string; after: string}
-	| {kind: "create"; nodeId: string; parentId: string; index: number}
-	| {kind: "delete"; nodeId: string; parentId: string; index: number}
-	| {kind: "undelete"; nodeId: string; parentId: string; index: number}
+	| {kind: "create"; nodeId: string; parentId: string | null; index: number}
+	| {kind: "delete"; nodeId: string; parentId: string | null; index: number}
+	| {kind: "undelete"; nodeId: string; parentId: string | null; index: number}
 	| {kind: "move"; nodeId: string; from: Slot; to: Slot}
 	| {kind: "complete" | "uncomplete"; nodeId: string};
 

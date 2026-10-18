@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
-import {RequestStatusError, applyOps, recordOp, runInUndoBatch} from "../src/client/undo-batch.js";
+import {RequestStatusError, applyOps, holdUndoSlot, recordOp, runInUndoBatch} from "../src/client/undo-batch.js";
 import type {UndoAdapter} from "../src/client/undo-batch.js";
 import {undoHistory} from "../src/client/undo-history.js";
 import type {UndoBatch, UndoOp, ViewState} from "../src/client/undo-history.js";
@@ -8,6 +8,10 @@ const notifications = vi.hoisted((): string[][] => []);
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: {
 		getState: () => ({
+			zoomedNodeId: "zoom",
+			editingId: null,
+			editingCaretOffset: null,
+			editingNoteId: null,
 			addErrorNotification(message: string, type = "error") {
 				notifications.push([message, type]);
 				return "id";
@@ -121,6 +125,87 @@ describe("runInUndoBatch", () => {
 
 	it("drops ops recorded outside any batch", () => {
 		recordOp({kind: "complete", nodeId: "a"});
+		expect(undoHistory.canUndo).toBe(false);
+	});
+});
+
+describe("holdUndoSlot", () => {
+	const outlineView: ViewState = {zoomedNodeId: "zoom", editing: null};
+
+	it("makes a standalone mutation its own undo step once it settles", () => {
+		const slot = holdUndoSlot();
+		expect(undoHistory.canUndo).toBe(false);
+		slot.settle([{kind: "complete", nodeId: "a"}]);
+		expect(undoHistory.popUndo()).toStrictEqual({
+			ops: [{kind: "uncomplete", nodeId: "a"}],
+			before: outlineView,
+			after: outlineView,
+		});
+	});
+
+	it("keeps two standalone mutations as two steps", () => {
+		holdUndoSlot().settle([{kind: "complete", nodeId: "a"}]);
+		holdUndoSlot().settle([{kind: "complete", nodeId: "b"}]);
+		expect([undoHistory.popUndo()?.ops, undoHistory.popUndo()?.ops]).toStrictEqual([
+			[{kind: "uncomplete", nodeId: "b"}],
+			[{kind: "uncomplete", nodeId: "a"}],
+		]);
+	});
+
+	it("holds a command's batch open until every mutation it issued settles, keeping issue order", async () => {
+		let first: ReturnType<typeof holdUndoSlot> | undefined;
+		let second: ReturnType<typeof holdUndoSlot> | undefined;
+		await runInUndoBatch(
+			() => viewA,
+			() => {
+				first = holdUndoSlot();
+				second = holdUndoSlot();
+			},
+		);
+		second?.settle([{kind: "create", nodeId: "n", parentId: "p", index: 1}]);
+		expect(undoHistory.canUndo).toBe(false);
+		first?.settle([{kind: "edit", nodeId: "a", field: "name", before: "ab", after: "a"}]);
+		expect(undoHistory.popUndo()).toStrictEqual({
+			ops: [
+				{kind: "delete", nodeId: "n", parentId: "p", index: 1},
+				{kind: "edit", nodeId: "a", field: "name", before: "a", after: "ab"},
+			],
+			before: viewA,
+			after: viewA,
+		});
+		expect(undoHistory.canUndo).toBe(false);
+	});
+
+	it("does not let a later command join a finished command that is still settling", async () => {
+		let pending: ReturnType<typeof holdUndoSlot> | undefined;
+		await runInUndoBatch(
+			() => viewA,
+			() => {
+				pending = holdUndoSlot();
+			},
+		);
+		holdUndoSlot().settle([{kind: "complete", nodeId: "later"}]);
+		expect(undoHistory.canUndo).toBe(false);
+		pending?.settle([{kind: "complete", nodeId: "first"}]);
+		expect([undoHistory.popUndo()?.ops, undoHistory.popUndo()?.ops]).toStrictEqual([
+			[{kind: "uncomplete", nodeId: "later"}],
+			[{kind: "uncomplete", nodeId: "first"}],
+		]);
+	});
+
+	it("records nothing for a failed mutation settled with no ops", () => {
+		holdUndoSlot().settle([]);
+		expect(undoHistory.canUndo).toBe(false);
+	});
+
+	it("does not re-record mutations issued while applyOps replays a batch", async () => {
+		const {adapter} = fakeAdapter({
+			completeNode: async () => {
+				holdUndoSlot().settle([{kind: "complete", nodeId: "echo"}]);
+				return Promise.resolve();
+			},
+		});
+		await applyOps([{kind: "complete", nodeId: "a"}], adapter);
 		expect(undoHistory.canUndo).toBe(false);
 	});
 });

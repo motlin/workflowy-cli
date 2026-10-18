@@ -20,24 +20,63 @@ const RESTORE_UNAVAILABLE =
 export interface UndoAdapter {
 	updateNode(nodeId: string, request: {name?: string; note?: string}): Promise<unknown>;
 	deleteNode(nodeId: string): Promise<unknown>;
-	restoreNode(nodeId: string, request: {parent_id: string; index: number}): Promise<unknown>;
-	moveNode(nodeId: string, request: {parent_id: string; index: number}): Promise<unknown>;
+	restoreNode(nodeId: string, request: {parent_id: string | null; index: number}): Promise<unknown>;
+	moveNode(nodeId: string, request: {parent_id: string | null; index: number}): Promise<unknown>;
 	completeNode(nodeId: string): Promise<unknown>;
 	uncompleteNode(nodeId: string): Promise<unknown>;
 }
 
-interface OpenBatch {
-	depth: number;
-	ops: UndoOp[];
+/** One undo step being collected: an entry per recorded op or held mutation, in issue order. */
+interface PendingBatch {
+	entries: UndoOp[][];
 	before: ViewState;
+	after: ViewState | undefined;
+	/** Held mutations that have not settled yet. */
+	pending: number;
+	/** No further command can join; it pushes once `pending` reaches 0. */
+	sealed: boolean;
 }
 
-let open: OpenBatch | undefined;
+/** The batch the running command joins, with its `runInUndoBatch` nesting depth. */
+let open: {batch: PendingBatch; depth: number} | undefined;
+/** Batches in the order their commands ran, so they push in that order however they settle. */
+const queue: PendingBatch[] = [];
+/** Above 0 while `applyOps` replays: what it issues is the undo itself, never a new step. */
+let replaying = 0;
+
+function enqueue(before: ViewState): PendingBatch {
+	const batch: PendingBatch = {entries: [], before, after: undefined, pending: 0, sealed: false};
+	queue.push(batch);
+	return batch;
+}
+
+/** Pushes every finished batch at the head of the queue as ONE undo step each. */
+function flush(): void {
+	let head = queue[0];
+	while (head?.sealed === true && head.pending === 0) {
+		queue.shift();
+		undoHistory.push({ops: head.entries.flat(), before: head.before, after: head.after ?? captureOutlineView()});
+		head = queue[0];
+	}
+}
+
+/** The outline's zoom and caret as the store holds them. */
+export function captureOutlineView(): ViewState {
+	const {zoomedNodeId, editingId, editingCaretOffset, editingNoteId} = useOutlineStore.getState();
+	const caret = editingCaretOffset ?? 0;
+	if (editingId !== null) {
+		return {zoomedNodeId, editing: {nodeId: editingId, field: "name", start: caret, end: caret}};
+	}
+	return {
+		zoomedNodeId,
+		editing: editingNoteId === null ? null : {nodeId: editingNoteId, field: "note", start: 0, end: 0},
+	};
+}
 
 /** Opens a batch, or joins the outer one when a command runs inside another. */
 function startBatch(before: ViewState): void {
 	if (open === undefined) {
-		open = {depth: 1, ops: [], before};
+		open = {batch: enqueue(before), depth: 1};
 	} else {
 		open.depth++;
 	}
@@ -45,10 +84,12 @@ function startBatch(before: ViewState): void {
 
 /** Adds one mutation to the open batch; a mutation outside any batch is not undoable. */
 export function recordOp(op: UndoOp): void {
-	open?.ops.push(op);
+	if (replaying === 0) {
+		open?.batch.entries.push([op]);
+	}
 }
 
-/** Closes one nesting level; the outermost close pushes the whole batch as ONE undo step. */
+/** Closes one nesting level; the outermost close seals the batch so the next command starts its own. */
 function finishBatch(after: ViewState): void {
 	if (open === undefined) {
 		return;
@@ -57,9 +98,46 @@ function finishBatch(after: ViewState): void {
 	if (open.depth > 0) {
 		return;
 	}
-	const {ops, before} = open;
+	open.batch.after = after;
+	open.batch.sealed = true;
 	open = undefined;
-	undoHistory.push({ops, before, after});
+	flush();
+}
+
+/** A reserved place in an undo step for a mutation whose ops are known only once it settles. */
+export interface UndoSlot {
+	/** Settles the mutation with the ops it applied (none when it failed). */
+	settle(ops: readonly UndoOp[]): void;
+}
+
+/**
+ * Reserves the next op slot for a mutation issued now, so its ops keep issue order. Inside a
+ * command it joins that command's step, which waits for it; alone it is its own step.
+ */
+export function holdUndoSlot(): UndoSlot {
+	if (replaying > 0) {
+		return {settle() {}};
+	}
+	let batch = open?.batch;
+	if (batch === undefined) {
+		batch = enqueue(captureOutlineView());
+		batch.sealed = true;
+	}
+	const target = batch;
+	const index = target.entries.push([]) - 1;
+	target.pending++;
+	let settled = false;
+	return {
+		settle(ops) {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			target.entries[index] = [...ops];
+			target.pending--;
+			flush();
+		},
+	};
 }
 
 /** Runs one user command as a single undo step, capturing the view before and after it. */
@@ -97,6 +175,7 @@ async function applyOp(op: UndoOp, adapter: UndoAdapter): Promise<unknown> {
  * which no longer matches the outline.
  */
 export async function applyOps(ops: readonly UndoOp[], adapter: UndoAdapter): Promise<void> {
+	replaying++;
 	try {
 		for (const op of ops) {
 			// oxlint-disable-next-line no-await-in-loop -- inverses depend on the previous op's result (slots, parents)
@@ -109,5 +188,7 @@ export async function applyOps(ops: readonly UndoOp[], adapter: UndoAdapter): Pr
 			return;
 		}
 		throw error;
+	} finally {
+		replaying--;
 	}
 }

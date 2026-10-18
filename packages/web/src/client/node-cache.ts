@@ -61,7 +61,11 @@ export function spliceChildren(children: NodeResponse[], row: NodeResponse, inde
  * among ALL of `children` in priority order, moved rows included (before removal),
  * so `index` lands the block right before the row that sat at `index`; clamped to the end.
  */
-export function spliceBlock(children: NodeResponse[], rows: NodeResponse[], index: number): NodeResponse[] {
+export function spliceBlock<T extends Pick<NodeResponse, "id" | "priority">>(
+	children: T[],
+	rows: T[],
+	index: number,
+): T[] {
 	const moving = new Set(rows.map((row) => row.id));
 	const sorted = sortByPriority(children);
 	const others = sorted.filter((child) => !moving.has(child.id));

@@ -1,8 +1,9 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
-import {readChildren, readNode} from "./node-cache.js";
+import {readChildren, readNode, spliceBlock} from "./node-cache.js";
 import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "./rich-text.js";
 import {sortByPriority} from "./tree-position.js";
+import type {UndoOp} from "./undo-history.js";
 
 /**
  * Tree-mutation planning: given the React Query cache and a node, compute the
@@ -483,4 +484,128 @@ export function planFocusSibling(
 	}
 	const index = siblings.indexOf(currentId);
 	return index === -1 ? null : (siblings[index + step] ?? null);
+}
+
+/** A mutation as `toUndoOps` reads it; `index` follows the create/move endpoints (omitted = bottom). */
+export type UndoableMutation =
+	| {kind: "create"; nodeId: string; parentId: string | null; index?: number}
+	| {kind: "delete"; nodeId: string}
+	| {kind: "edit"; nodeId: string; name?: string; note?: string}
+	| {kind: "move"; ids: readonly string[]; parentId: string | null; index?: number}
+	| {kind: "complete" | "uncomplete"; nodeId: string}
+	| {kind: "restore"; nodeId: string; parentId: string | null; index: number};
+
+/** A move index the endpoints read as the bottom of a list whose length is unknown. */
+const BOTTOM_INDEX = Number.MAX_SAFE_INTEGER;
+
+function sortedIds(queryClient: QueryClient, parentId: string | null): string[] | undefined {
+	const children = readChildren(queryClient, parentId);
+	return children && sortByPriority(children).map((child) => child.id);
+}
+
+/**
+ * The move endpoint's index (a slot counted before removal) that takes a node from
+ * position `from` to position `to` of one list.
+ */
+function sameListIndex(from: number, to: number): number {
+	return to <= from ? to : to + 1;
+}
+
+/**
+ * One move op per id, issued in order, that together reproduce the block splice.
+ * Each id is placed right after its final predecessor among the rows already in
+ * their final order, so every op's slots are exact for the list as it stands then,
+ * and the inverse batch (reversed) restores every id's own from-slot.
+ */
+function moveOps(
+	queryClient: QueryClient,
+	ids: readonly string[],
+	parentId: string | null,
+	index: number | undefined,
+): UndoOp[] {
+	const lists = new Map<string | null, string[] | undefined>();
+	const list = (id: string | null): string[] | undefined => {
+		if (!lists.has(id)) {
+			lists.set(id, sortedIds(queryClient, id));
+		}
+		return lists.get(id);
+	};
+	const target = list(parentId);
+	const final =
+		target &&
+		spliceBlock(
+			target.map((id, priority) => ({id, priority})),
+			ids.map((id) => ({id, priority: 0})),
+			index ?? target.length,
+		).map((row) => row.id);
+	const ops: UndoOp[] = [];
+	for (const [k, nodeId] of ids.entries()) {
+		const sourceParent = readNode(queryClient, nodeId)?.parent_id ?? null;
+		const source = list(sourceParent);
+		const from = source?.indexOf(nodeId) ?? -1;
+		if (source === undefined || from === -1) {
+			continue;
+		}
+		source.splice(from, 1);
+		if (target === undefined || final === undefined) {
+			ops.push({
+				kind: "move",
+				nodeId,
+				from: {parentId: sourceParent, index: from},
+				to: {parentId, index: BOTTOM_INDEX},
+			});
+			continue;
+		}
+		const unsettled = new Set(ids.slice(k));
+		const predecessor = final.slice(0, final.indexOf(nodeId)).findLast((id) => !unsettled.has(id));
+		const to = predecessor === undefined ? 0 : target.indexOf(predecessor) + 1;
+		target.splice(to, 0, nodeId);
+		const same = sourceParent === parentId;
+		ops.push({
+			kind: "move",
+			nodeId,
+			from: {parentId: sourceParent, index: same ? sameListIndex(to, from) : from},
+			to: {parentId, index: same ? sameListIndex(from, to) : to},
+		});
+	}
+	return ops;
+}
+
+/** The text edits `mutation` makes to `nodeId`, each with its cached before-value. */
+function editOps(queryClient: QueryClient, nodeId: string, changes: {name?: string; note?: string}): UndoOp[] {
+	const node = readNode(queryClient, nodeId);
+	return (["name", "note"] as const).flatMap((field): UndoOp[] => {
+		const after = changes[field];
+		const before = node?.[field] ?? "";
+		return after === undefined || after === before ? [] : [{kind: "edit", nodeId, field, before, after}];
+	});
+}
+
+/**
+ * The undo ops for `mutation`, read from the cache BEFORE it applies: a delete keeps its
+ * parent and slot among all children (completed included; restore brings the same id back),
+ * a block move one op per id with that id's own from-slot, an edit the cached old text.
+ */
+export function toUndoOps(mutation: UndoableMutation, queryClient: QueryClient): UndoOp[] {
+	switch (mutation.kind) {
+		case "create": {
+			const index = mutation.index ?? readChildren(queryClient, mutation.parentId)?.length ?? BOTTOM_INDEX;
+			return [{kind: "create", nodeId: mutation.nodeId, parentId: mutation.parentId, index}];
+		}
+		case "delete": {
+			const parentId = readNode(queryClient, mutation.nodeId)?.parent_id ?? null;
+			const index = sortedIds(queryClient, parentId)?.indexOf(mutation.nodeId) ?? -1;
+			return index === -1 ? [] : [{kind: "delete", nodeId: mutation.nodeId, parentId, index}];
+		}
+		case "edit":
+			return editOps(queryClient, mutation.nodeId, mutation);
+		case "move":
+			return moveOps(queryClient, mutation.ids, mutation.parentId, mutation.index);
+		case "restore":
+			return [{kind: "undelete", nodeId: mutation.nodeId, parentId: mutation.parentId, index: mutation.index}];
+		case "complete":
+		case "uncomplete":
+		default:
+			return [{kind: mutation.kind, nodeId: mutation.nodeId}];
+	}
 }
