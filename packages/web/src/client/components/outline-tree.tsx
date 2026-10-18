@@ -1,17 +1,21 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode} from "react";
+import type {BacklinkItem} from "../../node-types.js";
 import {useEffect, useRef, useState} from "react";
-import {useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
+import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
+import {useBacklinks, useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
+import {nodeUrl} from "../navigation.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild} from "../tree-ops.js";
+import {ExpandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {NodeItemMenu, OutlineRow} from "./outline-node.js";
-import {projectClassName} from "./row-classes.js";
+import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 
 interface OutlineTreeProps {
@@ -201,9 +205,97 @@ function RenderSentinel({onReached}: {onReached: () => void}) {
 }
 
 /**
+ * Upstream's Backlinks section (`children_extra.backlink_root`): the item's
+ * references root as a collapsible `.project.references` row labelled
+ * "N Backlinks", whose children are the backlink items, each a mirror row
+ * preceded by its source's crumbs. The label counts every backlink with a
+ * current source; completed sources hide like any completed row.
+ */
+function BacklinksSection({rootId, items, depth}: {rootId: string; items: BacklinkItem[]; depth: number}) {
+	const isExpanded = useOutlineStore((state) => state.expandedIds.has(rootId));
+	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const visibleItems = items.filter((item) => showCompleted || item.node.completedAt === null);
+	return (
+		<div
+			className={projectClassName({
+				references: true,
+				hasChildren: true,
+				expanded: isExpanded,
+				completed: false,
+				hasNote: false,
+				noteFocused: false,
+				isZoomRoot: false,
+				hasMirrors: false,
+				highlighted: false,
+				addedToSelection: false,
+			})}
+		>
+			<div tabIndex={-1} className={nameClassName({empty: true})} role="presentation">
+				{/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- upstream's bullet anchor is unlabelled; the "N Backlinks" label beside it names the row */}
+				<a
+					href={nodeUrl(rootId)}
+					data-handbook="bullet.handle"
+					data-item-id={rootId}
+					className="bullet bullet--backlink-root"
+					style={{
+						left: "calc(var(--name-left-overhang) + 1px)",
+						width: "18px",
+						["--bullet-size" as string]: "18px",
+					}}
+					onClick={(event) => {
+						event.preventDefault();
+						toggleExpand(rootId);
+					}}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" || event.key === " ") {
+							event.preventDefault();
+							toggleExpand(rootId);
+						}
+					}}
+				>
+					<span className="bulletHalo">
+						<svg
+							width="100%"
+							height="100%"
+							viewBox="0 0 18 18"
+							fill="currentColor"
+							className="zoomBulletIcon"
+						>
+							<circle cx="9" cy="9" r="3.5" />
+						</svg>
+					</span>
+				</a>
+				<div className="notranslate content whitespace-pre-wrap">
+					<span className="innerContentContainer">{backlinksLabel(items.length)}</span>
+				</div>
+				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+				<ExpandArrow hasChildren isExpanded={isExpanded} nodeId={rootId} onToggle={toggleExpand} />
+			</div>
+			<div className="drop-line">
+				<div className="line" />
+			</div>
+			{isExpanded && visibleItems.length > 0 ? (
+				<div className={NESTED_CHILDREN_CLASS}>
+					{visibleItems.map((item) => (
+						<OutlineRow
+							key={item.node.id}
+							backlinkCrumbs={item.crumbs}
+							depth={depth + 1}
+							node={item.node}
+						/>
+					))}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+/**
  * Upstream's `div.children`: the visible children of `parentId`, each a recursive
- * `OutlineRow`. Renders nothing when no child is visible, so a collapsed or empty
- * parent has no `.children` in the DOM.
+ * `OutlineRow`, then, once every child is rendered, the item's Backlinks section.
+ * Renders nothing when neither shows, so a collapsed or empty parent has no
+ * `.children` in the DOM.
  */
 export function OutlineChildren({
 	parentId,
@@ -215,6 +307,7 @@ export function OutlineChildren({
 	depth?: number;
 }) {
 	const {data: nodes} = useChildren(parentId);
+	const {data: backlinks} = useBacklinks(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
 	const visibleNodes = nodes?.filter((node) => isPotentiallyVisible(node, showCompleted, animatingCompletionIds));
@@ -223,8 +316,10 @@ export function OutlineChildren({
 	const growWindow = () => {
 		setMaxToRender((current) => nextMaxToRender(current, total));
 	};
+	const backlinksRootId =
+		total <= maxToRender && isBacklinksSectionVisible(backlinks, showCompleted) ? backlinks?.rootId : null;
 
-	if (!visibleNodes || total === 0) {
+	if (!visibleNodes || (total === 0 && backlinksRootId == null)) {
 		return null;
 	}
 
@@ -234,6 +329,9 @@ export function OutlineChildren({
 				<OutlineRow key={node.id} depth={depth} node={node} />
 			))}
 			{total > maxToRender && <RenderSentinel onReached={growWindow} />}
+			{backlinksRootId == null ? null : (
+				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
+			)}
 		</div>
 	);
 }

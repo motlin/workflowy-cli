@@ -32,6 +32,7 @@ vi.mock("../src/client/navigation.js", async (importOriginal) => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useBacklinks: () => ({data: undefined}),
 	useChildren: () => ({data: [], isLoading: false, error: null}),
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),

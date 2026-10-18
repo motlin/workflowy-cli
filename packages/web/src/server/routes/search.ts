@@ -5,6 +5,7 @@ import {buildSearchConditions, getScoringTerms, parseSearchQuery} from "@workflo
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {and, eq, inArray, sql} from "drizzle-orm";
+import {notReferencesContent} from "../backlinks.js";
 import {getDatabase} from "../db.js";
 
 export const searchRouter = new Hono();
@@ -52,6 +53,8 @@ searchRouter.post("/", async (c) => {
 	const database = getDatabase();
 	const parsed = parseSearchQuery(query);
 	const {contentConditions, metadataConditions, needsMetadataJoin} = buildSearchConditions(parsed);
+	// References roots and their backlink items are never search or jump hits.
+	contentConditions.push(notReferencesContent());
 
 	// If parentId is provided, limit search to descendants of that node
 	if (parentId) {

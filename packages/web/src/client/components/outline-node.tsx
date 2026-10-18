@@ -2,12 +2,13 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import {useQueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
-import type {NodeAttachment, NodeResponse} from "../../node-types.js";
-import {useState} from "react";
+import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
+import {Fragment, useState} from "react";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useDeleteNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {BreadcrumbItem, BreadcrumbSeparator} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
@@ -197,6 +198,7 @@ interface NodeNameProps {
 	isExpanded: boolean;
 	hasChildren: boolean;
 	depth: number;
+	withEmbedder: boolean;
 }
 
 /**
@@ -204,7 +206,7 @@ interface NodeNameProps {
  * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger,
  * which is mounted only while `.name` is hovered or its menu is open.
  */
-function NodeName({node, isExpanded, hasChildren, depth}: NodeNameProps) {
+function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeNameProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {toggleExpand, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
@@ -239,7 +241,7 @@ function NodeName({node, isExpanded, hasChildren, depth}: NodeNameProps) {
 	};
 
 	const nameClasses = [
-		nameClassName({empty: name === ""}),
+		nameClassName({empty: name === "", withEmbedder}),
 		isDragging && "dragging",
 		isDragOver && "drag-over",
 		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
@@ -322,12 +324,50 @@ function rowProjectClassName(
 }
 
 /**
+ * Upstream's backlink breadcrumbs (`ui.item.name.beforebegin.backlink_breadcrumbs`):
+ * the source's ancestors in gray above the backlink row, with Home only for a
+ * top-level source. A local adaptation lays the crumbs out flat, without the
+ * header's truncation engine.
+ */
+function BacklinkCrumbs({crumbs}: {crumbs: BacklinkCrumb[]}) {
+	const {navigateToNode} = useNodeNavigation();
+	const items =
+		crumbs.length === 0 ? [{id: "None", isRoot: true}] : crumbs.map(({id, name}) => ({id, name, isRoot: false}));
+	return (
+		<div className="text-xs mobile:text-s text-tertiary mt-m ml-xl mobile:ml-2xl leading-s">
+			<div className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden">
+				{items.map((crumb, index) => (
+					<Fragment key={crumb.id}>
+						{index > 0 ? <BreadcrumbSeparator /> : null}
+						<BreadcrumbItem
+							crumb={crumb}
+							current={false}
+							truncateWidth={null}
+							onNavigate={navigateToNode}
+						/>
+					</Fragment>
+				))}
+			</div>
+		</div>
+	);
+}
+
+/**
  * Upstream's `div.project`: `.name`, `.notes`, `.drop-line`, then, when expanded,
  * the node's `.children`. Indentation and guide lines come from the enclosing
  * `.children` container, so the row carries no inline style. `depth` is the
  * visual depth below the zoom root, 1 for its children.
  */
-export function OutlineRow({node, depth = 1}: {node: NodeResponse; depth?: number}) {
+export function OutlineRow({
+	node,
+	depth = 1,
+	backlinkCrumbs,
+}: {
+	node: NodeResponse;
+	depth?: number;
+	/** A backlink item's source crumbs, rendered before `.name`. */
+	backlinkCrumbs?: BacklinkCrumb[];
+}) {
 	const isExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
@@ -354,7 +394,14 @@ export function OutlineRow({node, depth = 1}: {node: NodeResponse; depth?: numbe
 			className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote, isSlidingUp)}
 			onTransitionEnd={handleTransitionEnd}
 		>
-			<NodeName depth={depth} hasChildren={hasChildren} isExpanded={isExpanded} node={node} />
+			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} /> : null}
+			<NodeName
+				depth={depth}
+				hasChildren={hasChildren}
+				isExpanded={isExpanded}
+				node={node}
+				withEmbedder={backlinkCrumbs !== undefined}
+			/>
 			{noteMounted || shouldMountNote ? (
 				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} nodeId={node.id} />
 			) : null}

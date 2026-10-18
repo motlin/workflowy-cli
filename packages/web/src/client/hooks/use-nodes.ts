@@ -1,5 +1,5 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import type {NodeResponse} from "../../node-types.js";
+import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {nodeKeys} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
@@ -127,6 +127,22 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 /**
  * Fetches children of a parent node (or root nodes if parentId is null).
  */
+async function fetchBacklinks(nodeId: string): Promise<BacklinksResponse> {
+	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/backlinks`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch backlinks: ${response.statusText}`);
+	}
+	return readJson<BacklinksResponse>(response);
+}
+
+/** Fetches an item's Backlinks section (disabled for the main-tree root). */
+export function useBacklinks(nodeId: string | null) {
+	return useQuery({
+		queryKey: nodeKeys.backlinks(nodeId ?? ""),
+		queryFn: nodeId === null ? skipToken : async () => fetchBacklinks(nodeId),
+	});
+}
+
 export function useChildren(parentId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.children(parentId),

@@ -1288,6 +1288,26 @@ body.moving .expand {
 	background-color: transparent;
 }
 
+/* Upstream's Backlinks section: the references root's label and bullet are tertiary gray. */
+.references > .name > .content {
+	color: var(--wf-text-tertiary);
+}
+
+.bullet.bullet--backlink-root {
+	color: var(--wf-text-tertiary);
+}
+
+.bullet.bullet--backlink-root > .bulletHalo {
+	background-color: transparent;
+}
+
+/* Backlink crumbs sit in the outline, outside the chrome anchor reset; upstream resets every anchor. */
+.breadcrumbs a {
+	text-decoration: none;
+	color: inherit;
+	cursor: pointer;
+}
+
 .bullet:focus {
 	outline: 2px solid var(--color-border-focus);
 	outline-offset: 1px;

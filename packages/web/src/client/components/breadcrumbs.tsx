@@ -40,7 +40,7 @@ export function handleCrumbClick(event: CrumbClickEvent, crumb: Crumb, {navigate
 	navigateToNode(crumb.isRoot ? null : crumb.id);
 }
 
-function BreadcrumbSeparator() {
+export function BreadcrumbSeparator() {
 	return (
 		<svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="flex-shrink-0">
 			<path d="M0 0 L4 4 L0 8" stroke="currentColor" strokeLinecap="round" />
@@ -61,7 +61,7 @@ interface CrumbProps {
 }
 
 /** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
-function BreadcrumbItem({crumb, current, truncateWidth, onNavigate}: CrumbProps) {
+export function BreadcrumbItem({crumb, current, truncateWidth, onNavigate}: CrumbProps) {
 	const disabled = crumb.isRoot && current;
 	const className = `breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate ${current ? "current opacity-100" : "opacity-70"}
     data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`;

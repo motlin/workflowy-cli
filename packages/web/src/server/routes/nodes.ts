@@ -1,12 +1,17 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import type {NodeAttachment, NodeResponse} from "../../node-types.js";
+import type {BacklinkCrumb, BacklinksResponse, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
-import {mirrors as mirrorsTable, nodeContent, s3Files} from "@workflowy/shared/db";
+import {mirrors as mirrorsTable, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {Node} from "@workflowy/shared/types";
 import {isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray} from "drizzle-orm";
 import {Hono} from "hono";
+import {
+	currentBacklinkSources,
+	findReferencesRoot,
+	parentIdsWithChildren as parentIdsWithVisibleChildren,
+} from "../backlinks.js";
 import type {AppEnv, ServerContext} from "../context.js";
 
 /**
@@ -139,25 +144,18 @@ nodesRouter.get("/", async (c) => {
 
 	const {db} = ctx;
 
-	// NodeTreeReader gives each mirror its original's name and note.
-	const nodes = await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0});
+	// NodeTreeReader gives each mirror its original's name and note. A references
+	// root is never a row: its backlinks render as the parent's Backlinks section.
+	const nodes = (await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0})).filter(
+		(node) => !node.hasReferencesRoot,
+	);
 
 	// Determine which nodes have children (single query for efficiency)
 	const nodeIds = nodes.map((n) => n.id);
-	const childParentIds = nodes.map((node) => node.mirror.originalNodeId ?? node.id);
-	const parentIdsWithChildren = new Set<string>();
-	if (nodeIds.length > 0) {
-		const childRows = db
-			.selectDistinct({parentId: nodeContent.parentId})
-			.from(nodeContent)
-			.where(and(inArray(nodeContent.parentId, childParentIds), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-			.all();
-		for (const row of childRows) {
-			if (row.parentId) {
-				parentIdsWithChildren.add(row.parentId);
-			}
-		}
-	}
+	const parentIdsWithChildren = parentIdsWithVisibleChildren(
+		db,
+		nodes.map((node) => node.mirror.originalNodeId ?? node.id),
+	);
 
 	// Batch-load file attachments for all returned nodes.
 	const attachments = loadAttachments(ctx, nodeIds);
@@ -191,18 +189,12 @@ nodesRouter.get("/:id", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 
-	// Check if this node has children
-	const childCheck = db
-		.select({id: nodeContent.id})
-		.from(nodeContent)
-		.where(and(eq(nodeContent.parentId, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-		.limit(1)
-		.get();
+	const hasChildren = parentIdsWithVisibleChildren(db, [node.mirror.originalNodeId ?? id]).size > 0;
 
 	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
 
 	const nodeResponse: NodeResponse = nodeToRestDto(node, {
-		hasChildren: childCheck !== undefined,
+		hasChildren,
 		name: node.name,
 		note: node.note,
 		attachment,
@@ -424,6 +416,78 @@ nodesRouter.get("/:id/ancestors", (c) => {
 	}
 
 	return c.json({ancestors});
+});
+
+// GET /api/v1/nodes/:id/backlinks - The item's Backlinks section: its references root
+// and the backlink items whose source is current, each with the source's text and crumbs.
+nodesRouter.get("/:id/backlinks", async (c) => {
+	const ctx = c.get("ctx");
+	const id = resolveNodeId(ctx, c.req.param("id"));
+	if (!id) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	const {db} = ctx;
+	const rootId = findReferencesRoot(db, resolveMirrorToOriginal(ctx, id));
+	if (rootId === null) {
+		const empty: BacklinksResponse = {rootId: null, items: []};
+		return c.json(empty);
+	}
+
+	const sourceByItem = currentBacklinkSources(db, rootId);
+	const entries = (await new NodeTreeReader(ctx.cacheService).readChildren(rootId, {depth: 0})).flatMap((item) => {
+		const sourceId = sourceByItem.get(item.id);
+		return sourceId === undefined ? [] : [{item, sourceId}];
+	});
+	const sourceIds = entries.map(({sourceId}) => sourceId);
+	const sources = new Map(
+		(await new NodeTreeReader(ctx.cacheService).readNodes(sourceIds, {depth: 0})).map((source) => [
+			source.id,
+			source,
+		]),
+	);
+	const withChildren = parentIdsWithVisibleChildren(db, sourceIds);
+	const reader = new NodeReader(db);
+
+	const crumbsOf = (sourceId: string): BacklinkCrumb[] => {
+		const crumbs: BacklinkCrumb[] = [];
+		let currentId = reader.getById(sourceId)?.parentId ?? null;
+		while (currentId !== null) {
+			const ancestor = reader.getById(currentId);
+			if (!ancestor) {
+				break;
+			}
+			crumbs.unshift({id: ancestor.id, name: ancestor.name ?? ""});
+			currentId = ancestor.parentId;
+		}
+		return crumbs;
+	};
+
+	const body: BacklinksResponse = {
+		rootId,
+		items: entries.flatMap(({item, sourceId}) => {
+			const source = sources.get(sourceId);
+			if (!source) {
+				return [];
+			}
+			return [
+				{
+					node: {
+						...nodeToRestDto(item, {
+							hasChildren: withChildren.has(sourceId),
+							name: source.name,
+							note: source.note,
+						}),
+						completedAt: toUnixSeconds(source.completedAt),
+						isMirror: true,
+						originalNodeId: sourceId,
+					},
+					sourceId,
+					crumbs: crumbsOf(sourceId),
+				},
+			];
+		}),
+	};
+	return c.json(body);
 });
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)

@@ -9,6 +9,8 @@ export interface ProjectClassState {
 	highlighted: boolean;
 	addedToSelection: boolean;
 	layoutClass?: string;
+	/** Upstream's references root, the Backlinks section's row. */
+	references?: boolean;
 	/** The completed row is playing upstream's slideUp before it hides. */
 	slidingUp?: boolean;
 }
@@ -18,6 +20,8 @@ export interface NameClassState {
 	isZoomRoot?: boolean;
 	isMainRoot?: boolean;
 	empty?: boolean;
+	/** Something renders before the name, like a backlink's source crumbs. */
+	withEmbedder?: boolean;
 }
 
 // Mirrors upstream's `.project` class order; layout classes come last.
@@ -25,6 +29,7 @@ export function projectClassName(state: ProjectClassState): string {
 	const branch = state.hasChildren && !state.isZoomRoot;
 	return [
 		"font-custom project",
+		state.references && "references",
 		state.hasMirrors && "hasMirrors",
 		!state.hasChildren && "task",
 		state.completed && "done",
@@ -45,6 +50,7 @@ export function projectClassName(state: ProjectClassState): string {
 export function nameClassName(state: NameClassState): string {
 	return [
 		"name",
+		state.withEmbedder && "name--with-embedder",
 		state.focused && "name--focused",
 		state.isZoomRoot && "name--main",
 		state.isMainRoot && "name--root",

@@ -32,3 +32,23 @@ export interface NodeResponse {
 	originalNodeId?: string | null;
 	attachment?: NodeAttachment | null;
 }
+
+/** One crumb in a backlink source's ancestor path, root first. */
+export interface BacklinkCrumb {
+	id: string;
+	name: string;
+}
+
+/** A backlink item: the mirror row (carrying its source's text and completion) and the source's ancestor crumbs. */
+export interface BacklinkItem {
+	node: NodeResponse;
+	sourceId: string;
+	/** The source's ancestors, root first, excluding the source; empty when the source is top level. */
+	crumbs: BacklinkCrumb[];
+}
+
+/** An item's Backlinks section: its references root and the backlink items whose source is current. */
+export interface BacklinksResponse {
+	rootId: string | null;
+	items: BacklinkItem[];
+}

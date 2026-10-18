@@ -13,6 +13,7 @@ export const nodeKeys = {
 	children: (parentId: string | null) => [...nodeKeys.all, "children", parentId] as const,
 	detail: (nodeId: string) => [...nodeKeys.all, "detail", nodeId] as const,
 	ancestors: (nodeId: string) => [...nodeKeys.all, "ancestors", nodeId] as const,
+	backlinks: (nodeId: string) => [...nodeKeys.all, "backlinks", nodeId] as const,
 	/** A location id (short or full) resolved to the full uuid, or null when the server has no such node. */
 	resolvedId: (locationId: string) => [...nodeKeys.all, "resolved-id", locationId] as const,
 };

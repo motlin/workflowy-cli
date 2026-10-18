@@ -54,6 +54,7 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useBacklinks: () => ({data: undefined}),
 	useChildren: (parentId: string | null) => ({
 		data: childrenByParent.get(parentId) ?? [],
 		isLoading: false,
