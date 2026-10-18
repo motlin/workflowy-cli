@@ -25,6 +25,7 @@ const STEPS = [
 	"root-meta",
 	"root-meta-set",
 	"root-meta-unset",
+	"settings",
 ] as const;
 const ROOT_META_WRITES = new Set<string>(["root-meta-set", "root-meta-unset"]);
 /** Account-global root metadata paths whose shapes `root-meta` records (read only). */
@@ -234,6 +235,7 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe root-meta --yes-live",
 		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
+		"<%= config.bin %> internal probe settings --yes-live --yes-account-global",
 	];
 
 	static override args = {
@@ -248,7 +250,8 @@ export default class Probe extends Command {
 			allowNo: true,
 		}),
 		"yes-account-global": Flags.boolean({
-			description: "Confirm the user approved writing the throwaway account-global root metadata key `probe`",
+			description:
+				"Confirm the user approved the account-global writes: the throwaway root metadata key `probe`, or the `show_completed` flip-and-restore",
 			default: false,
 		}),
 		keep: Flags.boolean({
@@ -267,6 +270,11 @@ export default class Probe extends Command {
 		if (ROOT_META_WRITES.has(args.step) && !flags["yes-account-global"]) {
 			this.error(
 				"Root metadata is account-global and cannot be sandboxed: pass --yes-account-global (with the user's approval) to write it",
+			);
+		}
+		if (args.step === "settings" && !flags["yes-account-global"]) {
+			this.error(
+				"Account settings are account-global and cannot be sandboxed: pass --yes-account-global (with the user's approval) to write them",
 			);
 		}
 		const apiKey = NEEDS_API_KEY.has(args.step) ? process.env.WORKFLOWY_API_KEY : undefined;
@@ -345,6 +353,9 @@ export default class Probe extends Command {
 		}
 		if (step === "root-meta") {
 			return this.rootMeta(client);
+		}
+		if (step === "settings") {
+			return this.settings(client, recorded);
 		}
 		return step === "root-meta-set" ? this.rootMetaSet(client) : this.rootMetaUnset(client);
 	}
@@ -760,6 +771,35 @@ export default class Probe extends Command {
 				after === undefined ? "absent (removal CONFIRMED)" : `\`${JSON.stringify(after)}\` (removal FAILED)`
 			}`,
 		];
+	}
+
+	/**
+	 * ACCOUNT-GLOBAL write: post `show_completed` at its current value through `setSetting`, then flip it and
+	 * restore it at once, reading each back from a fresh bootstrap. The restore runs even if the flip fails.
+	 */
+	private async settings(client: WorkflowyInternalClient, recorded: RecordedRequest[]): Promise<string[]> {
+		const readShowCompleted = async (): Promise<unknown> => (await client.bootstrap()).settings.show_completed;
+		const before = await readShowCompleted();
+		if (typeof before !== "boolean") {
+			this.error(
+				`Refusing to write: init settings.show_completed is ${before === undefined ? "absent" : `\`${JSON.stringify(before)}\``}, not a boolean`,
+			);
+		}
+		const adapter = this.adapter(client);
+		const post = async (label: string, value: boolean): Promise<string> => {
+			await adapter.setSetting("show_completed", value);
+			const response = recorded.findLast((request) => request.path === "/change_settings");
+			const preview = (response?.text ?? "").slice(0, BODY_PREVIEW_CHARS).replaceAll(/\s+/gu, " ").trim();
+			const after = await readShowCompleted();
+			return `- ${label}: posted \`show_completed=${value ? "yes" : "no"}\`: HTTP ${response?.status ?? "?"}, body \`${preview}\`; read back \`${JSON.stringify(after)}\` (${after === value ? "MATCH" : "MISMATCH"})`;
+		};
+		const lines = [`- \`show_completed\` before: \`${before}\` (\`boolean\`)`, await post("Same value", before)];
+		try {
+			lines.push(await post("Flip", !before));
+		} finally {
+			lines.push(await post("Restore", before));
+		}
+		return [...lines, "- Next: reload workflowy.com and confirm completed items show as before"];
 	}
 
 	private async bootstrap(client: WorkflowyInternalClient, recorded: RecordedRequest[]): Promise<string[]> {

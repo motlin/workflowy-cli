@@ -91,7 +91,7 @@ describe("internal probe command", () => {
 
 	it("rejects an unknown step", async () => {
 		await expect(Probe.run(["delete-everything", "--yes-live", "--out", outPath])).rejects.toThrow(
-			"Expected delete-everything to be one of: bootstrap, poll, error-shape, index, restore, meta, expansion, root-meta, root-meta-set, root-meta-unset",
+			"Expected delete-everything to be one of: bootstrap, poll, error-shape, index, restore, meta, expansion, root-meta, root-meta-set, root-meta-unset, settings",
 		);
 	});
 
@@ -803,5 +803,107 @@ describe("internal probe root-meta", () => {
 			Probe.run(["root-meta-unset", "--yes-live", "--yes-account-global", "--out", outPath]),
 		).rejects.toThrow('Refusing to remove: root metadata `probe` is not exactly {"x":"1"}');
 		expect(recorded.some((request) => request.path === "/push_and_poll")).toBe(false);
+	});
+});
+
+/** Internal API fake whose init `settings` change when `/change_settings` posts a `"yes"`/`"no"` flag. */
+function settingsFetch(recorded: Recorded[], settings: Meta) {
+	const state = {settings: structuredClone(settings)};
+	const route = (input: string | URL | Request, init: RequestInit | undefined): Response => {
+		const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+		const body = typeof init?.body === "string" ? init.body : undefined;
+		recorded.push({path: url.pathname, body});
+		if (url.pathname === "/get_initialization_data") {
+			const initBody = structuredClone(INIT_BODY);
+			initBody.settings = structuredClone(state.settings);
+			return Response.json(initBody, {headers: {wfclientid: "2026-10-18 12:00:00.123456"}});
+		}
+		if (url.pathname === "/change_settings") {
+			const form = new URLSearchParams(body);
+			state.settings.show_completed = form.get("show_completed") === "yes";
+			return Response.json({success: true});
+		}
+		return respond(url.pathname, 200);
+	};
+	return vi.fn<typeof fetch>(async (input, init) => Promise.resolve(route(input, init)));
+}
+
+describe("internal probe settings", () => {
+	let tempDir: string;
+	let outPath: string;
+	const savedEnv = {...process.env};
+
+	beforeEach(() => {
+		vi.useFakeTimers({toFake: ["Date"]});
+		vi.setSystemTime(new Date("2026-10-18T12:00:00.000Z"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-probe-"));
+		outPath = path.join(tempDir, "probes.md");
+		process.env.WORKFLOWY_USERNAME = "alice@example.com";
+		process.env.WORKFLOWY_PASSWORD = "hunter2";
+		process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+		process.env = {...savedEnv};
+		fs.rmSync(tempDir, {recursive: true, force: true});
+	});
+
+	/** The `show_completed` values posted to `/change_settings`, in order. */
+	function postedShowCompleted(recorded: Recorded[]): (string | null)[] {
+		return recorded
+			.filter((request) => request.path === "/change_settings")
+			.map((request) => new URLSearchParams(request.body).get("show_completed"));
+	}
+
+	it("refuses without --yes-account-global and makes no request", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", settingsFetch(recorded, {show_completed: true}));
+		await expect(Probe.run(["settings", "--yes-live", "--out", outPath])).rejects.toThrow(
+			"Account settings are account-global and cannot be sandboxed: pass --yes-account-global (with the user's approval) to write them",
+		);
+		expect(recorded).toStrictEqual([]);
+	});
+
+	it("sets show_completed to its current value, flips it, restores it, and reads each back", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", settingsFetch(recorded, {show_completed: true}));
+		await Probe.run(["settings", "--yes-live", "--yes-account-global", "--out", outPath]);
+		expect(postedShowCompleted(recorded)).toStrictEqual(["yes", "no", "yes"]);
+		expect(
+			recorded
+				.filter((request) => request.path === "/change_settings")
+				.map((request) => new URLSearchParams(request.body).get("clientId")),
+		).toStrictEqual(["2026-10-18 12:00:00.123456", "2026-10-18 12:00:00.123456", "2026-10-18 12:00:00.123456"]);
+		expect(fs.readFileSync(outPath, "utf8")).toBe(
+			[
+				"",
+				"## settings (2026-10-18T12:00:00.000Z)",
+				"",
+				"- `show_completed` before: `true` (`boolean`)",
+				'- Same value: posted `show_completed=yes`: HTTP 200, body `{"success":true}`; read back `true` (MATCH)',
+				'- Flip: posted `show_completed=no`: HTTP 200, body `{"success":true}`; read back `false` (MATCH)',
+				'- Restore: posted `show_completed=yes`: HTTP 200, body `{"success":true}`; read back `true` (MATCH)',
+				"- Next: reload workflowy.com and confirm completed items show as before",
+				"",
+			].join("\n"),
+		);
+	});
+
+	it("restores a false show_completed after flipping it to true", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", settingsFetch(recorded, {show_completed: false}));
+		await Probe.run(["settings", "--yes-live", "--yes-account-global", "--out", outPath]);
+		expect(postedShowCompleted(recorded)).toStrictEqual(["no", "yes", "no"]);
+	});
+
+	it("refuses to write when show_completed is not a boolean", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", settingsFetch(recorded, {}));
+		await expect(Probe.run(["settings", "--yes-live", "--yes-account-global", "--out", outPath])).rejects.toThrow(
+			"Refusing to write: init settings.show_completed is absent, not a boolean",
+		);
+		expect(postedShowCompleted(recorded)).toStrictEqual([]);
 	});
 });
