@@ -5,6 +5,7 @@ import {
 	editingAfterRemoval,
 	isCaretOnBoundaryLine,
 	navigableIds,
+	planCompleteFocus,
 } from "../src/client/caret-navigation.js";
 
 describe("isCaretOnBoundaryLine", () => {
@@ -134,5 +135,79 @@ describe("navigableIds", () => {
 			nodeId: "z",
 			caretOffset: Number.MAX_SAFE_INTEGER,
 		});
+	});
+});
+
+describe("planCompleteFocus", () => {
+	// Zoomed into "z": children delta, charlie, bravo, alpha (priority order); alpha expanded [a2, a1].
+	const children: Record<string, string[]> = {
+		z: ["delta", "charlie", "bravo", "alpha"],
+		alpha: ["a2", "a1"],
+	};
+	const parentOf = (id: string): string =>
+		Object.keys(children).find((parent) => children[parent]?.includes(id)) ?? "";
+	const siblingsOf = (id: string): string[] => children[parentOf(id)] ?? [];
+	const allRows = ["z", "delta", "charlie", "bravo", "alpha", "a2", "a1"];
+	const base = {
+		completing: true,
+		showCompleted: false,
+		zoomRootId: "z",
+		siblingsOf,
+		visibleRows: allRows,
+		completedIds: new Set<string>(),
+	};
+
+	it("moves to the next sibling when completing with completed rows hidden", () => {
+		expect(planCompleteFocus({...base, ids: ["charlie"]})).toStrictEqual({kind: "row", id: "bravo", offset: 0});
+	});
+
+	it("falls back to the previous visible row for the last sibling when hidden", () => {
+		expect(planCompleteFocus({...base, ids: ["alpha"]})).toStrictEqual({kind: "row", id: "bravo", offset: 0});
+	});
+
+	it("moves to the next sibling when completed rows are shown", () => {
+		expect(planCompleteFocus({...base, showCompleted: true, ids: ["bravo"]})).toStrictEqual({
+			kind: "row",
+			id: "alpha",
+			offset: 0,
+		});
+	});
+
+	it("keeps the caret in the last sibling at offset 0 when completed rows are shown", () => {
+		expect(planCompleteFocus({...base, showCompleted: true, ids: ["alpha"]})).toStrictEqual({
+			kind: "row",
+			id: "alpha",
+			offset: 0,
+		});
+	});
+
+	it("focuses the zoom title when the only visible child is completed and hidden", () => {
+		expect(
+			planCompleteFocus({
+				...base,
+				ids: ["only"],
+				siblingsOf: () => ["only"],
+				visibleRows: ["z", "only"],
+			}),
+		).toStrictEqual({kind: "zoomTitle"});
+	});
+
+	it("skips already-completed siblings when hidden", () => {
+		expect(
+			planCompleteFocus({
+				...base,
+				ids: ["delta"],
+				visibleRows: ["z", "delta", "bravo", "alpha", "a2", "a1"],
+				completedIds: new Set(["charlie"]),
+			}),
+		).toStrictEqual({kind: "row", id: "bravo", offset: 0});
+	});
+
+	it("keeps the caret where it is when uncompleting", () => {
+		expect(planCompleteFocus({...base, completing: false, ids: ["charlie"]})).toStrictEqual({kind: "stay"});
+	});
+
+	it("zooms out after a delay when the zoom root is among the items", () => {
+		expect(planCompleteFocus({...base, ids: ["z"]})).toStrictEqual({kind: "zoomOut", delayMs: 500});
 	});
 });

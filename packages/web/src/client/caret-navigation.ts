@@ -85,3 +85,55 @@ export function editingAfterRemoval(
 	const next = adjacentVisibleNode(visibleIds, nodeId, "down");
 	return next === null ? null : {nodeId: next, caretOffset: 0};
 }
+
+export type CompleteFocus =
+	| {kind: "row"; id: string; offset: 0}
+	| {kind: "zoomTitle"}
+	| {kind: "stay"}
+	| {kind: "zoomOut"; delayMs: 500};
+
+/**
+ * Where the caret goes after Cmd+Enter toggles completion on `ids`, matching
+ * workflowy.com: uncompleting leaves it in place; completing the zoom root zooms
+ * out after the re-render; otherwise it moves to the start of the last item's next
+ * sibling, else to the row before the first item (the zoom title when that is the
+ * zoom root). With completed rows hidden both lookups skip completed rows; with
+ * them shown and no next sibling, the caret stays in the first item at offset 0.
+ * `visibleRows` is the navigable order before the change.
+ */
+export function planCompleteFocus(input: {
+	ids: readonly string[];
+	completing: boolean;
+	showCompleted: boolean;
+	zoomRootId: string | null;
+	siblingsOf: (id: string) => readonly string[];
+	visibleRows: readonly string[];
+	completedIds: ReadonlySet<string>;
+}): CompleteFocus {
+	const {ids, completing, showCompleted, zoomRootId, siblingsOf, visibleRows, completedIds} = input;
+	const first = ids[0];
+	const last = ids.at(-1);
+	if (!completing || first === undefined || last === undefined) {
+		return {kind: "stay"};
+	}
+	if (zoomRootId !== null && ids.includes(zoomRootId)) {
+		return {kind: "zoomOut", delayMs: 500};
+	}
+	const isCandidate = (id: string): boolean => !ids.includes(id) && (showCompleted || !completedIds.has(id));
+
+	const siblings = siblingsOf(last);
+	const nextSibling = siblings.slice(siblings.indexOf(last) + 1).find(isCandidate);
+	if (nextSibling !== undefined) {
+		return {kind: "row", id: nextSibling, offset: 0};
+	}
+	if (showCompleted) {
+		return {kind: "row", id: first, offset: 0};
+	}
+
+	const firstIndex = visibleRows.indexOf(first);
+	const previous = visibleRows.slice(0, Math.max(firstIndex, 0)).findLast(isCandidate);
+	if (previous === undefined) {
+		return {kind: "stay"};
+	}
+	return previous === zoomRootId ? {kind: "zoomTitle"} : {kind: "row", id: previous, offset: 0};
+}
