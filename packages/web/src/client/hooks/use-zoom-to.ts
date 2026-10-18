@@ -7,6 +7,7 @@ import {nodeKeys, readNode} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {isPotentiallyVisible} from "../tree-ops.js";
+import {ZOOMING_CLASS, runZoomAnimation, waitForZoomRow, zoomAnimationEnabled} from "../zoom-animation.js";
 import {fetchChildren} from "./use-nodes.js";
 
 /**
@@ -47,14 +48,38 @@ export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Prom
 			return;
 		}
 		editor?.blur();
-		goToNode(navigate, focus === "first_child" ? targetId : parentOfZoomed);
-		if (plan.scrollTop) {
-			document.querySelector(".outline-container")?.scrollTo(0, 0);
+		const destination = focus === "first_child" ? targetId : parentOfZoomed;
+		// Upstream `isOut`: the zoomed node is a descendant of the destination. Bullet zooms only reach rows below the
+		// zoomed node, so zooming out is `last_selected` or zooming home from a node.
+		const isOut = focus === "last_selected" || (destination === null && zoomedNodeId !== null);
+		const movingId = isOut ? zoomedNodeId : targetId;
+		const isBoard = (id: string | null) => id !== null && readNode(queryClient, id)?.data.layoutMode === "board";
+		const animate = movingId !== null && zoomAnimationEnabled(isBoard(zoomedNodeId) || isBoard(destination));
+		if (animate) {
+			document.body.classList.add(ZOOMING_CLASS);
 		}
-		if (plan.editId === null) {
-			stopEditing();
-		} else {
-			resumeEditing(plan.editId, plan.offset);
+		try {
+			// Zooming in animates first, then navigates; zooming out navigates, then animates.
+			if (animate && !isOut) {
+				await runZoomAnimation(false, movingId);
+			}
+			goToNode(navigate, destination);
+			if (plan.scrollTop) {
+				document.querySelector(".outline-container")?.scrollTo(0, 0);
+			}
+			if (plan.editId === null) {
+				stopEditing();
+			} else {
+				resumeEditing(plan.editId, plan.offset);
+			}
+			if (animate && isOut) {
+				await waitForZoomRow(movingId);
+				await runZoomAnimation(true, movingId);
+			}
+		} finally {
+			if (animate) {
+				document.body.classList.remove(ZOOMING_CLASS);
+			}
 		}
 	};
 }
