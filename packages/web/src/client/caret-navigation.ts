@@ -55,15 +55,15 @@ export function adjacentVisibleNode(
 
 /**
  * The node to edit after Backspace deletes `nodeId`, or null when Backspace should
- * not delete it: the node still has text or children, or it is the first visible
+ * not delete it: the node still has text, a note, or children, or it is the first visible
  * node and the caret would have nowhere to go.
  */
 export function backspaceDeleteTarget(
 	visibleIds: readonly string[],
 	nodeId: string,
-	node: {text: string; hasChildren: boolean},
+	node: {text: string; note: string; hasChildren: boolean},
 ): string | null {
-	if (node.text !== "" || node.hasChildren) {
+	if (node.text !== "" || node.note !== "" || node.hasChildren) {
 		return null;
 	}
 	return adjacentVisibleNode(visibleIds, nodeId, "up");

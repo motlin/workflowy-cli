@@ -81,19 +81,23 @@ describe("backspaceDeleteTarget", () => {
 	const visible = ["a", "b", "c"];
 
 	it("deletes an empty childless node and edits the previous visible node", () => {
-		expect(backspaceDeleteTarget(visible, "b", {text: "", hasChildren: false})).toBe("a");
+		expect(backspaceDeleteTarget(visible, "b", {text: "", note: "", hasChildren: false})).toBe("a");
 	});
 
 	it("keeps a node that still has text", () => {
-		expect(backspaceDeleteTarget(visible, "b", {text: "x", hasChildren: false})).toBeNull();
+		expect(backspaceDeleteTarget(visible, "b", {text: "x", note: "", hasChildren: false})).toBeNull();
+	});
+
+	it("keeps an empty node that has a note", () => {
+		expect(backspaceDeleteTarget(visible, "b", {text: "", note: "x", hasChildren: false})).toBeNull();
 	});
 
 	it("keeps an empty node that has children", () => {
-		expect(backspaceDeleteTarget(visible, "b", {text: "", hasChildren: true})).toBeNull();
+		expect(backspaceDeleteTarget(visible, "b", {text: "", note: "", hasChildren: true})).toBeNull();
 	});
 
 	it("keeps the first visible node, which has nowhere to move the caret", () => {
-		expect(backspaceDeleteTarget(visible, "a", {text: "", hasChildren: false})).toBeNull();
+		expect(backspaceDeleteTarget(visible, "a", {text: "", note: "", hasChildren: false})).toBeNull();
 	});
 });
 

@@ -2,7 +2,10 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
-import {planInsertFirstChild, planInsertSiblingAfter} from "../tree-ops.js";
+import {planBackspaceAtStart, planDeleteAtEnd, planInsertFirstChild, planInsertSiblingAfter} from "../tree-ops.js";
+import type {MergeRow} from "../tree-ops.js";
+import {sortByPriority} from "../tree-position.js";
+import type {NodeResponse} from "../../node-types.js";
 import {
 	adjacentVisibleNode,
 	backspaceDeleteTarget,
@@ -14,7 +17,7 @@ import type {VerticalDirection} from "../caret-navigation.js";
 import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
 import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
-import {readChildren, readDetail} from "../node-cache.js";
+import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {useCreateNode, useDeleteNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
@@ -114,7 +117,9 @@ const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Le
  * - Saves on blur
  * - Enter creates a new sibling node below and focuses it
  * - Shift+Enter commits the text and focuses the row's note (creating it) with the caret at its end
- * - Backspace in an empty, childless node deletes it and edits the previous node
+ * - Backspace in an empty, childless, note-less node deletes it and edits the previous node
+ * - Backspace at the start merges the previous sibling's text in; Delete at the end
+ *   merges this row's text into the next sibling (plain leaf siblings only)
  * - Down/Right leaving the end of the noted zoom title enter the root note at its start;
  *   Up/Left leaving the start of the first child's name enter it at its end
  * - Escape commits the text and opens search; dismissing search resumes editing here
@@ -331,7 +336,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			zoomedNodeId,
 			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 		);
-		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {text: content.textContent, hasChildren});
+		const note = readDetail(queryClient, nodeId)?.note ?? listed?.note ?? "";
+		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {text: content.textContent, note, hasChildren});
 		if (targetId === null) {
 			return false;
 		}
@@ -339,6 +345,71 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		deleteNodeMutation.mutate(nodeId);
 		return true;
 	}, [nodeId, parentId, queryClient, resumeEditing, deleteNodeMutation]);
+
+	/**
+	 * Backspace at offset 0 / Delete at the text end with a collapsed caret: merge this
+	 * row with its previous / next visible sibling (upstream). The kept row keeps its id,
+	 * children, and note; the other is deleted. Returns false when the merge is refused.
+	 */
+	const mergeWithSibling = useCallback(
+		(direction: "backward" | "forward"): boolean => {
+			const content = contentRef.current;
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			if (!content || nodeId === zoomedNodeId || globalThis.getSelection()?.isCollapsed !== true) {
+				return false;
+			}
+			const offset = caretTextOffset(content);
+			if (offset !== (direction === "backward" ? 0 : content.textContent.length)) {
+				return false;
+			}
+			const visible = new Set(
+				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
+			);
+			const siblings = sortByPriority(readChildren(queryClient, parentId) ?? []).filter(
+				(sibling) => sibling.id === nodeId || visible.has(sibling.id),
+			);
+			const index = siblings.findIndex((sibling) => sibling.id === nodeId);
+			const current = siblings[index];
+			if (current === undefined) {
+				return false;
+			}
+			const toRow = (node: NodeResponse, html: string): MergeRow => {
+				// Unknown children count as children: never delete a subtree that has not loaded.
+				const children = readChildren(queryClient, node.id);
+				return {
+					id: node.id,
+					html,
+					hasChildren: children ? children.length > 0 : node.hasChildren !== false,
+					hasNote: Boolean(readDetail(queryClient, node.id)?.note ?? node.note),
+					completed: node.completedAt !== null,
+					isMirror: node.isMirror === true,
+					layoutMode: node.data.layoutMode,
+				};
+			};
+			const currentRow = toRow(current, content.innerHTML);
+			const neighbor = siblings[direction === "backward" ? index - 1 : index + 1];
+			const neighborRow = neighbor === undefined ? null : toRow(neighbor, neighbor.name ?? "");
+			const plan =
+				direction === "backward"
+					? planBackspaceAtStart({current: currentRow, previousSibling: neighborRow})
+					: planDeleteAtEnd({current: currentRow, nextSibling: neighborRow});
+			if (plan.kind === "none") {
+				return false;
+			}
+			resumeEditing(plan.keepId, plan.caret);
+			// Show the merged row at once; the mutations' refetch confirms it.
+			queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), (old) =>
+				old
+					?.filter((sibling) => sibling.id !== plan.deleteId)
+					.map((sibling) => (sibling.id === plan.keepId ? {...sibling, name: plan.name} : sibling)),
+			);
+			initialValueRef.current = plan.name;
+			updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
+			deleteNodeMutation.mutate(plan.deleteId);
+			return true;
+		},
+		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation],
+	);
 
 	/**
 	 * A structural shortcut (indent, outdent, move) holds editing while it re-renders
@@ -513,7 +584,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				saveChanges();
 				focusNote(nodeId);
 			} else if (action === "DELETE_BACKWARD") {
-				if (deleteIfEmpty()) {
+				if (deleteIfEmpty() || mergeWithSibling("backward")) {
+					event.preventDefault();
+				}
+			} else if (action === "DELETE_FORWARD") {
+				if (mergeWithSibling("forward")) {
 					event.preventDefault();
 				}
 			} else if (event.key === "Escape") {
@@ -549,6 +624,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			deleteIfEmpty,
 			enterRootNote,
 			focusNote,
+			mergeWithSibling,
 			moveToAdjacentNode,
 			nodeId,
 			openSearchFromEditing,

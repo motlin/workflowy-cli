@@ -4,6 +4,8 @@ import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {
 	planAddChild,
+	planBackspaceAtStart,
+	planDeleteAtEnd,
 	planDuplicate,
 	planIndent,
 	planInsertFirstChild,
@@ -357,6 +359,82 @@ describe("planSplit", () => {
 			currentName: "Bravo text",
 			focus: "new",
 			layoutMode: null,
+		});
+	});
+});
+
+describe("planBackspaceAtStart / planDeleteAtEnd", () => {
+	const row = {html: "", hasChildren: false, hasNote: false, completed: false, isMirror: false, layoutMode: null};
+	const current = {...row, id: "cur", html: " text"};
+	const bravo = {...row, id: "bravo", html: "Bravo"};
+
+	it("merges the previous sibling's text into the start of the current row", () => {
+		expect(planBackspaceAtStart({current, previousSibling: bravo})).toStrictEqual({
+			kind: "merge",
+			keepId: "cur",
+			deleteId: "bravo",
+			name: "Bravo text",
+			caret: 5,
+		});
+	});
+
+	it("refuses when the previous sibling has a note", () => {
+		expect(planBackspaceAtStart({current, previousSibling: {...bravo, hasNote: true}})).toStrictEqual({
+			kind: "none",
+		});
+	});
+
+	it("refuses when the previous row is the parent (no previous sibling)", () => {
+		expect(planBackspaceAtStart({current, previousSibling: null})).toStrictEqual({kind: "none"});
+	});
+
+	it("refuses when the previous sibling is completed", () => {
+		expect(planBackspaceAtStart({current, previousSibling: {...bravo, completed: true}})).toStrictEqual({
+			kind: "none",
+		});
+	});
+
+	it("refuses when the previous sibling has children, a mirror, a board, or a different layout", () => {
+		expect(
+			[
+				{...bravo, hasChildren: true},
+				{...bravo, isMirror: true},
+				{...bravo, layoutMode: "board"},
+				{...bravo, layoutMode: "todo"},
+			].map((previousSibling) => planBackspaceAtStart({current, previousSibling})),
+		).toStrictEqual([{kind: "none"}, {kind: "none"}, {kind: "none"}, {kind: "none"}]);
+	});
+
+	it("merges two todo rows", () => {
+		expect(
+			planBackspaceAtStart({
+				current: {...current, layoutMode: "todo"},
+				previousSibling: {...bravo, layoutMode: "todo"},
+			}),
+		).toStrictEqual({kind: "merge", keepId: "cur", deleteId: "bravo", name: "Bravo text", caret: 5});
+	});
+
+	it("merges the current row into the start of the next sibling, which keeps its id", () => {
+		expect(
+			planDeleteAtEnd({
+				current: {...row, id: "bravo", html: "Bravo text"},
+				nextSibling: {...row, id: "alpha", html: "Alpha", hasChildren: true},
+			}),
+		).toStrictEqual({kind: "merge", keepId: "alpha", deleteId: "bravo", name: "Bravo textAlpha", caret: 10});
+	});
+
+	it("refuses Delete at the end when the current row is completed", () => {
+		expect(
+			planDeleteAtEnd({
+				current: {...row, id: "bravo", html: "Bravo text", completed: true},
+				nextSibling: {...row, id: "alpha", html: "Alpha"},
+			}),
+		).toStrictEqual({kind: "none"});
+	});
+
+	it("refuses Delete at the end of the last sibling", () => {
+		expect(planDeleteAtEnd({current: {...row, id: "bravo", html: "Bravo"}, nextSibling: null})).toStrictEqual({
+			kind: "none",
 		});
 	});
 });

@@ -1,7 +1,7 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
 import {readChildren, readDetail} from "./node-cache.js";
-import {splitHtml, trimmedPlainLength} from "./rich-text.js";
+import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "./rich-text.js";
 import {insertAfterPriority, insertBeforePriority, sortByPriority} from "./tree-position.js";
 
 /**
@@ -148,6 +148,68 @@ export function planSplit({
 	}
 	const {before, after} = splitHtml(html, start, end);
 	return create(node.parent_id, node.index, before, after, "current");
+}
+
+/** The row state the merge planners read. */
+export interface MergeRow {
+	id: string;
+	html: string;
+	hasChildren: boolean;
+	hasNote: boolean;
+	completed: boolean;
+	isMirror: boolean;
+	layoutMode: string | null | undefined;
+}
+
+/** What Backspace at the start / Delete at the end does: merge two sibling rows, or nothing. */
+export type MergePlan = {kind: "none"} | {kind: "merge"; keepId: string; deleteId: string; name: string; caret: number};
+
+/**
+ * Merge `absorbed` (deleted) into `kept`, which keeps its id, children, and note. Refused
+ * unless `absorbed` is a plain leaf (no children, note, completion, mirror, or board) with
+ * the same layout as `kept`.
+ */
+function planMerge(first: MergeRow, second: MergeRow, absorbed: MergeRow, kept: MergeRow): MergePlan {
+	const refused =
+		absorbed.hasChildren ||
+		absorbed.hasNote ||
+		absorbed.completed ||
+		absorbed.isMirror ||
+		absorbed.layoutMode === "board" ||
+		(absorbed.layoutMode ?? null) !== (kept.layoutMode ?? null);
+	if (refused) {
+		return {kind: "none"};
+	}
+	return {
+		kind: "merge",
+		keepId: kept.id,
+		deleteId: absorbed.id,
+		name: concatHtml(first.html, second.html),
+		caret: plainLength(first.html),
+	};
+}
+
+/**
+ * Backspace with a collapsed caret at offset 0 (upstream): the previous sibling's text
+ * moves to the start of the current row, which keeps its id; the sibling is deleted.
+ */
+export function planBackspaceAtStart({
+	current,
+	previousSibling,
+}: {
+	current: MergeRow;
+	previousSibling: MergeRow | null;
+}): MergePlan {
+	return previousSibling === null ? {kind: "none"} : planMerge(previousSibling, current, previousSibling, current);
+}
+
+/**
+ * Delete with a collapsed caret at the text end (upstream): the mirror image of
+ * Backspace — the current row's text moves to the start of the next sibling, which
+ * keeps its id; the current row is deleted.
+ */
+export function planDeleteAtEnd({current, nextSibling}: {current: MergeRow; nextSibling: MergeRow | null}): MergePlan {
+	return nextSibling === null ? {kind: "none"} : planMerge(current, nextSibling, current, nextSibling);
 }
 
 /** Duplicate `node`'s name/note as a sibling positioned immediately after it. */
