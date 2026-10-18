@@ -168,21 +168,19 @@ interface MenuButtonProps {
  */
 export function MenuButton({isVisible = true, onClick}: MenuButtonProps) {
 	return (
-		<div className="nameButtons">
-			<button
-				aria-label="More actions"
-				className={`node-context-menu-button ${isVisible ? "visible" : ""}`}
-				onClick={onClick}
-				title="More actions"
-				type="button"
-			>
-				<svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
-					<circle cx="6" cy="12" r="2" />
-					<circle cx="12" cy="12" r="2" />
-					<circle cx="18" cy="12" r="2" />
-				</svg>
-			</button>
-		</div>
+		<button
+			aria-label="More actions"
+			className={`node-context-menu-button ${isVisible ? "visible" : ""}`}
+			onClick={onClick}
+			title="More actions"
+			type="button"
+		>
+			<svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
+				<circle cx="6" cy="12" r="2" />
+				<circle cx="12" cy="12" r="2" />
+				<circle cx="18" cy="12" r="2" />
+			</svg>
+		</button>
 	);
 }
 
@@ -254,9 +252,10 @@ export function StaticNode({
 	layoutMode = null,
 	onToggleExpand,
 }: StaticNodeProps) {
-	const nameClasses = ["name", isCompleted && "completed"].filter(Boolean).join(" ");
 	const layout = resolveLayoutMode(layoutMode);
-	const projectClasses = ["project", layout.projectClass].filter(Boolean).join(" ");
+	const projectClasses = ["font-custom project", isCompleted && "done", layout.projectClass]
+		.filter(Boolean)
+		.join(" ");
 
 	const indentStyle: CSSProperties = {
 		paddingLeft: `${depth * INDENT_PER_LEVEL}px`,
@@ -265,9 +264,7 @@ export function StaticNode({
 	return (
 		<div className={projectClasses} style={indentStyle}>
 			<IndentGuideLines depth={depth} />
-			<div className={nameClasses}>
-				<MenuButton isVisible={isEditing} />
-				<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
+			<div className="name">
 				<BulletDot />
 				{layout.isTodo ? (
 					<button
@@ -300,10 +297,12 @@ export function StaticNode({
 						</svg>
 					</button>
 				) : null}
-				<div className="content">
+				<div className="notranslate content whitespace-pre-wrap">
 					<div className="content-editable" dangerouslySetInnerHTML={{__html: name}} />
 					{note && <NoteDisplay content={note} isExpanded={false} />}
 				</div>
+				<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
+				<MenuButton isVisible={isEditing} />
 			</div>
 			<DropLine isVisible={false} />
 		</div>

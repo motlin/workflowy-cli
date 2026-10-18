@@ -983,6 +983,13 @@ button.iconButton {
 	padding-left: 24px;
 }
 
+/* The content padding vars belong on .children upstream; they sit on each row
+   (where the .font-custom metrics resolve) until a .children wrapper exists. */
+.outline-tree-container .project {
+	--wf-content-padding-top: var(--font-descendant-padding-top);
+	--wf-content-padding-bottom: 0px;
+}
+
 /* Scroller - inner content padding within scrollable area.
    Top padding is 0 so the zoomed title sits at the content top (y≈96),
    matching production workflowy.com; the .outline-view margin+padding
@@ -1025,19 +1032,70 @@ button.iconButton {
 	padding: 0;
 }
 
-/* Node content row - 28px height matching production Workflowy */
-/* Uses 500px padding/margin system for stable absolute positioning of bullets/toggles */
+/* Node row (wf-base). The 500px overhang gives absolutely positioned bullets,
+   toggles, and menus stable room to the left of the text. */
 .name {
 	position: relative;
 	display: flex;
-	align-items: flex-start;
-	padding-left: calc(var(--name-left-overhang) + 24px);
 	margin-left: calc(-1 * var(--name-left-overhang));
-	cursor: text;
-	border-radius: 3px;
-	transition: background-color 0.1s ease;
+	padding-left: calc(var(--name-left-overhang) + 24px);
+	font-size: var(--font-default-font-size);
+	--line-height: var(--font-default-line-height);
+}
+
+.name > .content {
+	flex: 1 1 auto;
+	padding-right: 10px;
+	display: flex;
+	line-height: var(--line-height);
+	padding-top: var(--wf-content-padding-top);
+	padding-bottom: var(--wf-content-padding-bottom);
+	min-height: var(--font-default-line-height);
+}
+
+.children .name > .content {
+	min-height: var(--line-height);
+	line-height: var(--line-height);
+}
+
+.content .innerContentContainer {
+	width: -moz-available;
+}
+
+/* The note and attachment still sit inside .content until notes move to a
+   sibling .notes; wrap them onto their own lines below the text. */
+.name > .content {
+	flex-wrap: wrap;
+}
+
+.name > .content > .outline-node-note,
+.name > .content > .node-attachment {
+	flex-basis: 100%;
+}
+
+.done > .name > .content {
+	text-decoration: line-through;
+}
+
+.done .name > .content,
+.name > .content.done {
+	opacity: 37%;
+}
+
+.nameButtons {
+	display: flex;
+	position: absolute;
+	left: 100%;
 	min-height: 28px;
-	line-height: 16px;
+	flex-direction: row;
+	align-items: center;
+	top: 0;
+	gap: var(--wf-space-m);
+	padding: 0 var(--wf-space-s);
+}
+
+.nameButtons:empty {
+	display: none;
 }
 
 /* Production Workflowy does not highlight rows on hover - only icons change color */
@@ -1108,12 +1166,9 @@ button.iconButton {
 	color: var(--wf-icon-secondary);
 }
 
-/* Leaf nodes (no children): hide expand triangle, move context menu to triangle position */
-.leaf .expand {
+/* Leaf nodes (no children): hide the expand triangle */
+.task > .name > .expand {
 	visibility: hidden;
-}
-.leaf .nameButtons {
-	left: calc(var(--name-left-overhang) + var(--expand-collapse-left));
 }
 
 .expand-svg {
@@ -1194,13 +1249,9 @@ button.iconButton {
 	height: 12px;
 }
 
-/* Node text - matching production Workflowy typography (16px font, 24px line-height) */
+/* Node text; font-size and line-height come from .name and .content */
 .innerContentContainer {
 	flex: 1;
-	font-size: 16px;
-	font-weight: 400;
-	line-height: 24px;
-	min-height: 24px;
 	word-wrap: break-word;
 	overflow-wrap: break-word;
 }
@@ -1208,11 +1259,6 @@ button.iconButton {
 /* No focus ring on the editable text - production workflowy.com shows only the caret */
 .innerContentContainer.editing:focus {
 	outline: none;
-}
-
-.name.completed .innerContentContainer {
-	text-decoration: line-through;
-	opacity: 0.37;
 }
 
 /* Hashtags and mentions - muted gray underlined, matching production workflowy.com */
@@ -1375,16 +1421,10 @@ button.iconButton {
 
 /* Root-level nodes use same font size as other nodes to match Workflowy */
 
-/* Node text container - wraps both text and note */
+/* Positioning context for the attachment indicator */
 .content {
 	position: relative;
-	flex-grow: 1;
 	min-width: 0;
-	padding: 4px 10px 0 0;
-	display: flex;
-	flex-direction: column;
-	line-height: 16px;
-	overflow: visible;
 }
 
 /* 📎 File attachment indicator (appears below text/note) */
@@ -3932,15 +3972,11 @@ button.iconButton {
    Node Context Menu Styles
    ================================ */
 
-.nameButtons {
+/* Absolute bullet-menu trigger at the end of .name, until the upstream trigger lands */
+.node-context-menu-button {
 	position: absolute;
 	top: 4px;
-	left: calc(var(--name-left-overhang) + var(--expand-collapse-left) - 28px);
-	display: flex;
-	align-items: center;
-}
-
-.node-context-menu-button {
+	left: calc(var(--name-left-overhang) - 50px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -3961,7 +3997,7 @@ button.iconButton {
 }
 
 .node-context-menu-button.visible,
-.outline-node:hover > .name > .nameButtons > .node-context-menu-button {
+.outline-node:hover > .name > .node-context-menu-button {
 	opacity: 1;
 }
 

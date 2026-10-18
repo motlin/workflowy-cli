@@ -13,6 +13,7 @@ import {EditableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeContextMenuButton} from "./node-context-menu.js";
 import {RecursiveOutlineTree} from "./outline-tree.js";
+import {nameClassName, projectClassName} from "./row-classes.js";
 
 /**
  * Renders a file-attachment indicator beneath a node's text. Live attachments
@@ -92,17 +93,43 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 	);
 }
 
-interface OutlineNodeProps {
-	node: NodeResponse;
-	depth: number;
-	isExpanded: boolean;
-}
-
-interface VirtualizedOutlineNodeProps {
-	node: NodeResponse;
-	depth: number;
-	isExpanded: boolean;
-	hasChildren: boolean;
+function TodoCheckbox({isCompleted, onComplete}: {isCompleted: boolean; onComplete: () => void}) {
+	return (
+		<button
+			aria-label="Complete"
+			aria-pressed={isCompleted}
+			className={`todo-checkbox${isCompleted ? " checked" : ""}`}
+			onClick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				onComplete();
+			}}
+			type="button"
+		>
+			<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+				<rect
+					fill="none"
+					height="13"
+					rx="3"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					width="13"
+					x="1.5"
+					y="1.5"
+				/>
+				{isCompleted ? (
+					<path
+						d="M4 8.5 L7 11 L12 5"
+						fill="none"
+						stroke="currentColor"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth="2"
+					/>
+				) : null}
+			</svg>
+		</button>
+	);
 }
 
 /**
@@ -118,6 +145,168 @@ function collectDescendantIds(nodeId: string, queryClient: ReturnType<typeof use
 		}
 	}
 	return result;
+}
+
+interface NodeNameProps {
+	node: NodeResponse;
+	isExpanded: boolean;
+	hasChildren: boolean;
+	isHovered: boolean;
+}
+
+/**
+ * Upstream's `.name` row: bullet, todo checkbox, `.content` holding the text,
+ * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger.
+ */
+function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
+	const {
+		toggleExpand,
+		expandAll,
+		collapseDescendants,
+		resumeEditing,
+		editingId,
+		editingClickPosition,
+		editingNoteId,
+	} = useOutlineStore();
+	const queryClient = useQueryClient();
+	const deleteNode = useDeleteNode();
+	const toggleComplete = useToggleComplete();
+	const isEditing = editingId === node.id;
+	const isEditingNote = editingNoteId === node.id;
+	const isCompleted = node.completedAt !== null;
+	const layout = resolveLayoutMode(node.data.layoutMode);
+	const name = node.name ?? "";
+
+	const {
+		isDragging,
+		isDragOver,
+		dragOverPosition,
+		handleDragStart,
+		handleDragEnd,
+		handleDragOver,
+		handleDragLeave,
+		handleDrop,
+	} = useNodeDragDrop({nodeId: node.id, parentId: node.parent_id, priority: node.priority});
+
+	// Clicking the row outside its text edits the node with the caret at the end;
+	// clicks inside an editor (the text or note being edited) belong to that editor.
+	const handleRowClick = (event: React.MouseEvent) => {
+		if (event.target instanceof Element && event.target.closest("[contenteditable]")) {
+			return;
+		}
+		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
+	};
+
+	const handleComplete = () => {
+		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
+	};
+
+	const nameClasses = [
+		nameClassName({empty: name === ""}),
+		isDragging && "dragging",
+		isDragOver && "drag-over",
+		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
+	]
+		.filter(Boolean)
+		.join(" ");
+
+	return (
+		// Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys.
+		<div
+			tabIndex={-1}
+			className={nameClasses}
+			onClick={handleRowClick}
+			onDragLeave={handleDragLeave}
+			onDragOver={handleDragOver}
+			onDrop={handleDrop}
+			role="presentation"
+		>
+			<NodeBullet
+				isMirror={node.isMirror === true}
+				nodeId={node.id}
+				onDragEnd={handleDragEnd}
+				onDragStart={handleDragStart}
+				showHalo={hasChildren && !isExpanded}
+			/>
+			{layout.isTodo ? <TodoCheckbox isCompleted={isCompleted} onComplete={handleComplete} /> : null}
+			<div className="notranslate content whitespace-pre-wrap">
+				{name !== "" || isEditing ? (
+					<EditableText
+						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
+						initialValue={name}
+						isEditing={isEditing}
+						nodeId={node.id}
+						parentId={node.parent_id}
+						priority={node.priority}
+					/>
+				) : null}
+				<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
+				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
+			</div>
+			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+			<button
+				aria-expanded={isExpanded}
+				aria-label={isExpanded ? "Collapse" : "Expand"}
+				className={`expand${isExpanded ? " expanded" : ""}`}
+				onClick={(event) => {
+					event.preventDefault();
+					event.stopPropagation();
+					toggleExpand(node.id);
+				}}
+				type="button"
+			>
+				<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
+					<path
+						d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z"
+						fill="currentColor"
+						stroke="none"
+					/>
+				</svg>
+			</button>
+			<NodeContextMenuButton
+				isVisible={isHovered || isEditing}
+				node={node}
+				onCollapseAll={() => {
+					collapseDescendants(collectDescendantIds(node.id, queryClient));
+				}}
+				onComplete={handleComplete}
+				onDelete={() => {
+					deleteNode.mutate(node.id);
+				}}
+				onExpandAll={() => {
+					expandAll(collectDescendantIds(node.id, queryClient));
+				}}
+			/>
+		</div>
+	);
+}
+
+function rowProjectClassName(node: NodeResponse, hasChildren: boolean, isExpanded: boolean): string {
+	return projectClassName({
+		hasChildren,
+		expanded: isExpanded,
+		completed: node.completedAt !== null,
+		hasNote: Boolean(node.note),
+		noteFocused: false,
+		isZoomRoot: false,
+		hasMirrors: false,
+		highlighted: false,
+		addedToSelection: false,
+		layoutClass: resolveLayoutMode(node.data.layoutMode).projectClass ?? undefined,
+	});
+}
+
+interface OutlineNodeProps {
+	node: NodeResponse;
+	depth: number;
+	isExpanded: boolean;
+}
+
+interface VirtualizedOutlineNodeProps {
+	node: NodeResponse;
+	depth: number;
+	isExpanded: boolean;
+	hasChildren: boolean;
 }
 
 const INDENT_PER_LEVEL = 36;
@@ -148,189 +337,21 @@ function IndentGuideLines({depth}: {depth: number}) {
  * - Triggers children fetch when expanded
  */
 export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: VirtualizedOutlineNodeProps) {
-	const {
-		toggleExpand,
-		expandAll,
-		collapseDescendants,
-		resumeEditing,
-		editingId,
-		editingClickPosition,
-		editingNoteId,
-	} = useOutlineStore();
-	const queryClient = useQueryClient();
-	const deleteNode = useDeleteNode();
-	const toggleComplete = useToggleComplete();
-	const isEditing = editingId === node.id;
-	const isEditingNote = editingNoteId === node.id;
-	const isCompleted = node.completedAt !== null;
-	const layout = resolveLayoutMode(node.data.layoutMode);
-
-	const {
-		isDragging,
-		isDragOver,
-		dragOverPosition,
-		handleDragStart,
-		handleDragEnd,
-		handleDragOver,
-		handleDragLeave,
-		handleDrop,
-	} = useNodeDragDrop({nodeId: node.id, parentId: node.parent_id, priority: node.priority});
 	const [isHovered, setIsHovered] = useState(false);
-
-	const handleToggleExpand = () => {
-		toggleExpand(node.id);
-	};
-
-	// Clicking the row outside its text edits the node with the caret at the end;
-	// clicks inside an editor (the text or note being edited) belong to that editor.
-	const handleRowClick = (event: React.MouseEvent) => {
-		if (event.target instanceof Element && event.target.closest("[contenteditable]")) {
-			return;
-		}
-		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
-	};
-
-	const handleComplete = () => {
-		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
-	};
-
-	const handleDelete = () => {
-		deleteNode.mutate(node.id);
-	};
-
-	const handleExpandAll = () => {
-		const descendantIds = collectDescendantIds(node.id, queryClient);
-		expandAll(descendantIds);
-	};
-
-	const handleCollapseAll = () => {
-		const descendantIds = collectDescendantIds(node.id, queryClient);
-		collapseDescendants(descendantIds);
-	};
-
-	const nameClasses = [
-		"name",
-		isCompleted && "completed",
-		isDragging && "dragging",
-		isDragOver && "drag-over",
-		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
-	]
-		.filter(Boolean)
-		.join(" ");
-
-	const isMirror = node.isMirror === true;
-
-	// Calculate indentation based on depth
-	const indentStyle = {
-		paddingLeft: `${depth * INDENT_PER_LEVEL}px`,
-	};
-
-	const projectClasses = ["project", !hasChildren && "leaf", layout.projectClass].filter(Boolean).join(" ");
 
 	return (
 		<div
-			className={projectClasses}
+			className={rowProjectClassName(node, hasChildren, isExpanded)}
 			onMouseEnter={() => {
 				setIsHovered(true);
 			}}
 			onMouseLeave={() => {
 				setIsHovered(false);
 			}}
-			style={indentStyle}
+			style={{paddingLeft: `${depth * INDENT_PER_LEVEL}px`}}
 		>
 			<IndentGuideLines depth={depth} />
-			{/* Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys. */}
-			<div
-				className={nameClasses}
-				onClick={handleRowClick}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
-				role="presentation"
-			>
-				<NodeContextMenuButton
-					isVisible={isHovered || isEditing}
-					node={node}
-					onCollapseAll={handleCollapseAll}
-					onComplete={handleComplete}
-					onDelete={handleDelete}
-					onExpandAll={handleExpandAll}
-				/>
-				<button
-					aria-expanded={isExpanded}
-					aria-label={isExpanded ? "Collapse" : "Expand"}
-					className={`expand${isExpanded ? " expanded" : ""}`}
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						handleToggleExpand();
-					}}
-					type="button"
-				>
-					<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
-						<path
-							d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z"
-							fill="currentColor"
-							stroke="none"
-						/>
-					</svg>
-				</button>
-				<NodeBullet
-					isMirror={isMirror}
-					nodeId={node.id}
-					onDragEnd={handleDragEnd}
-					onDragStart={handleDragStart}
-					showHalo={hasChildren && !isExpanded}
-				/>
-				{layout.isTodo ? (
-					<button
-						aria-label="Complete"
-						aria-pressed={isCompleted}
-						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
-						onClick={(event) => {
-							event.preventDefault();
-							event.stopPropagation();
-							handleComplete();
-						}}
-						type="button"
-					>
-						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
-							<rect
-								fill="none"
-								height="13"
-								rx="3"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								width="13"
-								x="1.5"
-								y="1.5"
-							/>
-							{isCompleted ? (
-								<path
-									d="M4 8.5 L7 11 L12 5"
-									fill="none"
-									stroke="currentColor"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth="2"
-								/>
-							) : null}
-						</svg>
-					</button>
-				) : null}
-				<div className="content">
-					<EditableText
-						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
-						initialValue={node.name ?? ""}
-						isEditing={isEditing}
-						nodeId={node.id}
-						parentId={node.parent_id}
-						priority={node.priority}
-					/>
-					<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
-					{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
-				</div>
-			</div>
+			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={isHovered} node={node} />
 			<div className="drop-line">
 				<div className="line" />
 			</div>
@@ -343,174 +364,11 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
  * Kept for compatibility and used by RecursiveOutlineTree.
  */
 export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
-	const {
-		toggleExpand,
-		expandAll,
-		collapseDescendants,
-		resumeEditing,
-		editingId,
-		editingClickPosition,
-		editingNoteId,
-	} = useOutlineStore();
-	const queryClient = useQueryClient();
-	const deleteNode = useDeleteNode();
-	const toggleComplete = useToggleComplete();
-	const isEditing = editingId === node.id;
-	const isEditingNote = editingNoteId === node.id;
-	const isCompleted = node.completedAt !== null;
-	const layout = resolveLayoutMode(node.data.layoutMode);
-
-	const {
-		isDragging,
-		isDragOver,
-		dragOverPosition,
-		handleDragStart,
-		handleDragEnd,
-		handleDragOver,
-		handleDragLeave,
-		handleDrop,
-	} = useNodeDragDrop({nodeId: node.id, parentId: node.parent_id, priority: node.priority});
-
-	const handleToggleExpand = () => {
-		toggleExpand(node.id);
-	};
-
-	// Clicking the row outside its text edits the node with the caret at the end;
-	// clicks inside an editor (the text or note being edited) belong to that editor.
-	const handleRowClick = (event: React.MouseEvent) => {
-		if (event.target instanceof Element && event.target.closest("[contenteditable]")) {
-			return;
-		}
-		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
-	};
-
-	const handleComplete = () => {
-		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
-	};
-
-	const handleDelete = () => {
-		deleteNode.mutate(node.id);
-	};
-
-	const handleExpandAll = () => {
-		const descendantIds = collectDescendantIds(node.id, queryClient);
-		expandAll(descendantIds);
-	};
-
-	const handleCollapseAll = () => {
-		const descendantIds = collectDescendantIds(node.id, queryClient);
-		collapseDescendants(descendantIds);
-	};
-
-	const nameClasses = [
-		"name",
-		isCompleted && "completed",
-		isDragging && "dragging",
-		isDragOver && "drag-over",
-		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
-	]
-		.filter(Boolean)
-		.join(" ");
-
-	const isMirrorLegacy = node.isMirror === true;
-	const nodeHasChildren = node.hasChildren !== false;
-
-	const liClasses = ["outline-node", !nodeHasChildren && "leaf", layout.projectClass].filter(Boolean).join(" ");
+	const hasChildren = node.hasChildren !== false;
 
 	return (
-		<li className={liClasses}>
-			{/* Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys. */}
-			<div
-				className={nameClasses}
-				onClick={handleRowClick}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
-				role="presentation"
-			>
-				<NodeContextMenuButton
-					isVisible={isEditing}
-					node={node}
-					onCollapseAll={handleCollapseAll}
-					onComplete={handleComplete}
-					onDelete={handleDelete}
-					onExpandAll={handleExpandAll}
-				/>
-				<button
-					aria-expanded={isExpanded}
-					aria-label={isExpanded ? "Collapse" : "Expand"}
-					className={`expand${isExpanded ? " expanded" : ""}`}
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						handleToggleExpand();
-					}}
-					type="button"
-				>
-					<svg className="expand-svg" height="20" viewBox="0 0 20 20" width="20">
-						<path
-							d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z"
-							fill="currentColor"
-							stroke="none"
-						/>
-					</svg>
-				</button>
-				<NodeBullet
-					isMirror={isMirrorLegacy}
-					nodeId={node.id}
-					onDragEnd={handleDragEnd}
-					onDragStart={handleDragStart}
-					showHalo={nodeHasChildren && !isExpanded}
-				/>
-				{layout.isTodo ? (
-					<button
-						aria-label="Complete"
-						aria-pressed={isCompleted}
-						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
-						onClick={(event) => {
-							event.preventDefault();
-							event.stopPropagation();
-							handleComplete();
-						}}
-						type="button"
-					>
-						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
-							<rect
-								fill="none"
-								height="13"
-								rx="3"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								width="13"
-								x="1.5"
-								y="1.5"
-							/>
-							{isCompleted ? (
-								<path
-									d="M4 8.5 L7 11 L12 5"
-									fill="none"
-									stroke="currentColor"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth="2"
-								/>
-							) : null}
-						</svg>
-					</button>
-				) : null}
-				<div className="content">
-					<EditableText
-						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
-						initialValue={node.name ?? ""}
-						isEditing={isEditing}
-						nodeId={node.id}
-						parentId={node.parent_id}
-						priority={node.priority}
-					/>
-					<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
-					{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
-				</div>
-			</div>
+		<li className={`outline-node ${rowProjectClassName(node, hasChildren, isExpanded)}`}>
+			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={false} node={node} />
 			<div className="drop-line">
 				<div className="line" />
 			</div>
