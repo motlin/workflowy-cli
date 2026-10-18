@@ -37,6 +37,7 @@ describe("round-trip test infrastructure", () => {
 
 			expect(tableNames).toStrictEqual([
 				"__drizzle_migrations",
+				"account_state",
 				"ai_metadata",
 				"backlinks",
 				"backup_imports",
@@ -69,7 +70,7 @@ describe("round-trip test infrastructure", () => {
 
 			const result = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM __drizzle_migrations`);
 
-			expect(result.count).toBe(30);
+			expect(result.count).toBe(31);
 
 			sqlite.close();
 		});

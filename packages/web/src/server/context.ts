@@ -1,6 +1,7 @@
-import {readWorkflowyCredentials} from "@workflowy/shared/api";
+import {readWorkflowyCredentials, WorkflowyInternalClient} from "@workflowy/shared/api";
 import type {WorkflowyCredentials} from "@workflowy/shared/api";
 import {CacheService} from "@workflowy/shared/cache";
+import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {getDatabase} from "./db.js";
 
 type ServerDatabase = ReturnType<typeof getDatabase>;
@@ -18,6 +19,11 @@ export interface ServerContext {
 	apiKey?: string;
 	/** Internal-API login, or undefined when internal-API routes are unavailable. */
 	internalCredentials?: WorkflowyCredentials;
+	/**
+	 * The internal-API adapter, built on first call and shared afterwards, or
+	 * undefined when internal-API credentials are not configured.
+	 */
+	internalAdapter?: () => WorkflowyInternalAdapter | undefined;
 }
 
 /** Hono environment: routers read the {@link ServerContext} via `c.get('ctx')`. */
@@ -31,10 +37,21 @@ export interface AppEnv {
  */
 export function createServerContext(): ServerContext {
 	const db = getDatabase();
+	const internalCredentials = readWorkflowyCredentials();
+	let adapter: WorkflowyInternalAdapter | undefined;
 	return {
 		db,
 		cacheService: new CacheService(db),
 		apiKey: process.env.WORKFLOWY_API_KEY,
-		internalCredentials: readWorkflowyCredentials(),
+		internalCredentials,
+		internalAdapter: () => {
+			if (!adapter && internalCredentials) {
+				adapter = new WorkflowyInternalAdapter({
+					client: new WorkflowyInternalClient({credentials: internalCredentials}),
+					db,
+				});
+			}
+			return adapter;
+		},
 	};
 }

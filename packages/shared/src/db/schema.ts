@@ -347,6 +347,19 @@ export const systemClock = sqliteTable("system_clock", {
 	lastMs: integer("last_ms").notNull(),
 });
 
+/**
+ * account_state: Workflowy account state cached from the internal API (see
+ * `internal/adapter.ts`), one JSON document per key: `account`, `root_metadata`,
+ * `settings`. `fetched_at` is Unix ms of the refresh or accepted write that
+ * produced the row. A write-through cache, so non-bitemporal and excluded from
+ * temporal rollback.
+ */
+export const accountState = sqliteTable("account_state", {
+	key: text("key").primaryKey(),
+	json: text("json").notNull(),
+	fetchedAt: integer("fetched_at").notNull(),
+});
+
 export const nodeContentRelations = relations(nodeContent, ({one, many}) => ({
 	metadata: one(nodeMetadata, {
 		fields: [nodeContent.id, nodeContent.systemTo],

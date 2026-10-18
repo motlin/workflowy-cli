@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
 import type {CacheService} from "@workflowy/shared/cache";
+import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {createServerContext} from "../src/server/context.js";
 import {internalApiRequired} from "../src/server/internal-api.js";
@@ -31,6 +32,25 @@ describe("createServerContext internalCredentials", () => {
 		vi.stubEnv("WORKFLOWY_USERNAME", "");
 		vi.stubEnv("WORKFLOWY_PASSWORD", "pw");
 		expect(createServerContext().internalCredentials).toBeUndefined();
+	});
+});
+
+describe("createServerContext internalAdapter", () => {
+	it("builds one adapter lazily and reuses it when credentials are configured", () => {
+		vi.stubEnv("WORKFLOWY_USERNAME", "alice@example.com");
+		vi.stubEnv("WORKFLOWY_PASSWORD", "pw");
+		const ctx = createServerContext();
+
+		const adapter = ctx.internalAdapter?.();
+
+		expect(adapter).toBeInstanceOf(WorkflowyInternalAdapter);
+		expect(ctx.internalAdapter?.()).toBe(adapter);
+	});
+
+	it("is undefined when credentials are not configured", () => {
+		vi.stubEnv("WORKFLOWY_USERNAME", "");
+		vi.stubEnv("WORKFLOWY_PASSWORD", "");
+		expect(createServerContext().internalAdapter?.()).toBeUndefined();
 	});
 });
 
