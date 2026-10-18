@@ -18,7 +18,7 @@ interface NodeDragDropOptions {
 
 /**
  * Encapsulates drag-and-drop state and handlers for outline nodes.
- * Used by both VirtualizedOutlineNode and OutlineNode to avoid duplication.
+ * Used by OutlineRow for its bullet and name drop target.
  */
 export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOptions) {
 	const moveNode = useMoveNode();

@@ -4,12 +4,10 @@
  * to allow isolated testing without the full app context.
  */
 
-import type {CSSProperties} from "react";
+import type {CSSProperties, ReactNode} from "react";
 
 import {ExpandArrow} from "../expand-arrow.js";
 import {resolveLayoutMode} from "../layout-mode.js";
-
-const INDENT_PER_LEVEL = 36;
 
 interface BulletDotProps {
 	isCollapsed?: boolean;
@@ -71,44 +69,26 @@ export function ExpandTriangle({isExpanded = false, onClick}: ExpandTriangleProp
 	return <ExpandArrow hasChildren isExpanded={isExpanded} nodeId="story" onToggle={() => onClick?.()} />;
 }
 
-interface IndentGuideLinesProps {
-	depth: number;
-}
-
-/**
- * Renders vertical guide lines for tree indentation.
- * Each line represents one level of nesting.
- */
-export function IndentGuideLines({depth}: IndentGuideLinesProps) {
-	if (depth === 0) {
-		return null;
-	}
-
-	const lines = [];
-	for (let i = 0; i < depth; i++) {
-		lines.push(<div className="indent-guide-line" key={i} style={{left: `${i * INDENT_PER_LEVEL + 9}px`}} />);
-	}
-	return lines;
+/** Upstream's nested `div.children`: indented past the parent bullet, the guide line is its left border. */
+function ChildrenContainer({children}: {children: ReactNode}) {
+	return (
+		<div className="children relative ml-[10px] pl-[25px] border-l-[length:var(--wf-border-width-s)] border-solid border-l-secondary [.addedToSelection_&]:border-l-transparent [.item--zooming-in-progress_&]:border-l-transparent">
+			{children}
+		</div>
+	);
 }
 
 interface CompleteBulletProps {
 	isExpanded?: boolean;
 	isCompleted?: boolean;
-	depth?: number;
 	onToggleExpand?: () => void;
 }
 
 /**
- * Complete bullet assembly: triangle + dot + indent lines.
+ * Complete bullet assembly: triangle + dot.
  */
-export function CompleteBullet({
-	isExpanded = false,
-	isCompleted = false,
-	depth = 0,
-	onToggleExpand,
-}: CompleteBulletProps) {
+export function CompleteBullet({isExpanded = false, isCompleted = false, onToggleExpand}: CompleteBulletProps) {
 	const indentStyle: CSSProperties = {
-		paddingLeft: `${depth * INDENT_PER_LEVEL}px`,
 		position: "relative",
 		display: "flex",
 		alignItems: "center",
@@ -117,7 +97,6 @@ export function CompleteBullet({
 
 	return (
 		<div className={["project", isCompleted && "done"].filter(Boolean).join(" ")} style={indentStyle}>
-			<IndentGuideLines depth={depth} />
 			<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
 			<BulletDot isCollapsed={!isExpanded} />
 		</div>
@@ -218,9 +197,9 @@ interface StaticNodeProps {
 	isCompleted?: boolean;
 	isExpanded?: boolean;
 	isEditing?: boolean;
-	depth?: number;
 	layoutMode?: string | null;
 	onToggleExpand?: () => void;
+	children?: ReactNode;
 }
 
 /**
@@ -232,22 +211,17 @@ export function StaticNode({
 	isCompleted = false,
 	isExpanded = false,
 	isEditing = false,
-	depth = 0,
 	layoutMode = null,
 	onToggleExpand,
+	children,
 }: StaticNodeProps) {
 	const layout = resolveLayoutMode(layoutMode);
 	const projectClasses = ["font-custom project", isCompleted && "done", note && "noted", layout.projectClass]
 		.filter(Boolean)
 		.join(" ");
 
-	const indentStyle: CSSProperties = {
-		paddingLeft: `${depth * INDENT_PER_LEVEL}px`,
-	};
-
 	return (
-		<div className={projectClasses} style={indentStyle}>
-			<IndentGuideLines depth={depth} />
+		<div className={projectClasses}>
 			<div className="name">
 				<BulletDot />
 				{layout.isTodo ? (
@@ -289,6 +263,7 @@ export function StaticNode({
 			</div>
 			{note && <NoteDisplay content={note} isExpanded={false} />}
 			<DropLine isVisible={false} />
+			{children === undefined ? null : <ChildrenContainer>{children}</ChildrenContainer>}
 		</div>
 	);
 }

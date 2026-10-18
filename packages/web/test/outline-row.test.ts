@@ -7,6 +7,8 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
 
 const outlineState = {
+	expandedIds: new Set<string>(),
+	showCompleted: true,
 	toggleExpand: () => {},
 	expandAll: () => {},
 	collapseDescendants: () => {},
@@ -26,6 +28,7 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useChildren: () => ({data: [], isLoading: false, error: null}),
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
 }));
@@ -52,7 +55,7 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
 vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenuButton: () => null}));
 
-const {VirtualizedOutlineNode} = await import("../src/client/components/outline-node.js");
+const {OutlineRow} = await import("../src/client/components/outline-node.js");
 const {ExpandArrow} = await import("../src/client/components/expand-arrow.js");
 
 function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
@@ -71,11 +74,12 @@ function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
 }
 
 function render(node: NodeResponse, hasChildren: boolean, isExpanded = false): string {
+	outlineState.expandedIds = isExpanded ? new Set([node.id]) : new Set();
 	return renderToStaticMarkup(
 		createElement(
 			QueryClientProvider,
 			{client: new QueryClient()},
-			createElement(VirtualizedOutlineNode, {node, depth: 0, isExpanded, hasChildren}),
+			createElement(OutlineRow, {node: {...node, hasChildren}}),
 		),
 	);
 }
@@ -95,7 +99,7 @@ function expectedBullet(id: string, classes: string, svg: string): string {
 	return `<a href="/node/${id}" data-handbook="bullet.handle" data-item-id="${id}" class="${classes}" style="${BULLET_STYLE}" draggable="true"><span class="bulletHalo">${svg}</span></a>`;
 }
 
-describe("VirtualizedOutlineNode bullet markup", () => {
+describe("OutlineRow bullet markup", () => {
 	it("renders a collapsed parent's bullet with the halo shown", () => {
 		expect(bulletMarkup(render(makeNode({}), true))).toBe(
 			expectedBullet("alice", "bullet bullet--show-halo keep-bullet", DOT_SVG),
@@ -127,10 +131,10 @@ const NAME_BUTTONS = '<div class="wf-menu nameButtons" style="margin-left:0"></d
 const DROP_LINE = '<div class="drop-line"><div class="line"></div></div>';
 
 function expectedRow(projectClass: string, nameClass: string, content: string): string {
-	return `<div class="${projectClass}" style="padding-left:0px"><div tabindex="-1" class="${nameClass}" role="presentation">${expectedBullet("alice", "bullet", DOT_SVG)}<div class="notranslate content whitespace-pre-wrap">${content}</div>${NAME_BUTTONS}${EXPAND_LEAF}</div>${DROP_LINE}</div>`;
+	return `<div class="${projectClass}"><div tabindex="-1" class="${nameClass}" role="presentation">${expectedBullet("alice", "bullet", DOT_SVG)}<div class="notranslate content whitespace-pre-wrap">${content}</div>${NAME_BUTTONS}${EXPAND_LEAF}</div>${DROP_LINE}</div>`;
 }
 
-describe("VirtualizedOutlineNode name and content markup", () => {
+describe("OutlineRow name and content markup", () => {
 	it("renders a leaf's project, name, content, and empty name buttons in upstream order", () => {
 		expect(render(makeNode({}), false)).toBe(
 			expectedRow("font-custom project task", "name", '<span class="innerContentContainer">Alice</span>'),

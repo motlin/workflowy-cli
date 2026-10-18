@@ -29,7 +29,6 @@ const meta: Meta<typeof StaticNode> = {
 		onToggleExpand: fn<() => void>(),
 		isExpanded: false,
 		isCompleted: false,
-		depth: 0,
 	},
 	decorators: [
 		(Story) => (

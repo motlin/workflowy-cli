@@ -230,9 +230,6 @@
 	/* Default (uncolored) tag/mention text - matches production workflowy.com */
 	--wf-tag-default: rgb(134, 140, 144);
 
-	/* Indentation guide line - matches production workflowy.com */
-	--wf-guide-line: rgb(236, 238, 240);
-
 	/* Colored tag pill backgrounds + text - sampled from production workflowy.com */
 	--wf-tag-pill-text: rgb(75, 81, 85);
 	--wf-tag-bg-red: rgb(251, 213, 213);
@@ -366,9 +363,6 @@
 
 	/* Default (uncolored) tag/mention text - matches production workflowy.com */
 	--wf-tag-default: rgb(158, 161, 162);
-
-	/* Indentation guide line - matches production workflowy.com dark theme (--wf-dark-gray-600) */
-	--wf-guide-line: rgb(66, 72, 75);
 
 	/* Colored tag pills on dark - exact --wf-background-<color> values from production */
 	--wf-tag-pill-text: rgb(217, 219, 219);
@@ -961,30 +955,16 @@ button.iconButton {
 	margin: 72px 40px 0px 24px;
 }
 
-/* Outline tree list */
-.outline-tree {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
-/* Nested trees get indentation with vertical guide line (aligns with parent bullet center) */
-.outline-tree-nested {
-	margin-left: 9px;
-	padding-left: 26px;
-	border-left: 1px solid var(--wf-guide-line);
-}
-
-/* Virtualized tree container */
+/* Outline tree container */
 .outline-tree-container {
 	padding-left: 24px;
 }
 
-/* The content padding vars belong on .children upstream; they sit on each row
-   (where the .font-custom metrics resolve) until a .children wrapper exists. */
-.outline-tree-container .project {
+/* Upstream's `.children` wrapper; its indent and guide border come from the
+   wf-tailwind utility classes on the element. */
+.children {
 	--wf-content-padding-top: var(--font-descendant-padding-top);
-	--wf-content-padding-bottom: 0px;
+	--space-for-bullet: 24px;
 }
 
 /* Scroller - inner content padding within scrollable area.
@@ -995,19 +975,9 @@ button.iconButton {
 	padding: 0 0 40px;
 }
 
-/* Virtualized node wrapper */
 .project {
 	box-sizing: border-box;
 	position: relative;
-}
-
-/* Vertical indent guide lines for tree structure (matching Workflowy production) */
-.indent-guide-line {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	width: 1px;
-	background-color: var(--wf-guide-line);
 }
 
 /* Loading and error states */
@@ -1020,13 +990,6 @@ button.iconButton {
 
 .outline-tree-error {
 	color: var(--color-error);
-}
-
-/* Individual node */
-.outline-node {
-	list-style: none;
-	margin: 0;
-	padding: 0;
 }
 
 /* Node row (wf-base). The 500px overhang gives absolutely positioned bullets,
@@ -1468,9 +1431,7 @@ body.moving .expand {
 	text-decoration: line-through;
 }
 
-/* Notes: upstream's sibling `.notes` after `.name`, verbatim from js_wf-base.css.
-   Until rows nest inside `.children` (M1-45), `.outline-tree-container` stands in
-   for `.children` so outline rows get the descendant note style. */
+/* Notes: upstream's sibling `.notes` after `.name`, verbatim from js_wf-base.css. */
 .notes {
 	display: none;
 	margin-bottom: 10px;
@@ -1482,14 +1443,12 @@ body.moving .expand {
 	display: block;
 }
 
-.outline-tree-container .notes,
 .children .notes {
 	margin-top: 0;
 	margin-bottom: 2px;
 	padding-top: 0;
 }
 
-.outline-tree-container .notes:not(.notes--main),
 .children .notes:not(.notes--main) {
 	margin-left: calc(var(--name-left-overhang) * -1);
 	padding-left: calc(var(--name-left-overhang) + 24px);
@@ -1503,7 +1462,6 @@ body.moving .expand {
 	line-height: var(--font-default-line-height);
 }
 
-.outline-tree-container .notes > .content,
 .children .notes > .content {
 	font-size: var(--font-descendant-note-font-size);
 	line-height: 17px;

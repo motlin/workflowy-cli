@@ -1,5 +1,5 @@
 // fallow-ignore-file circular-dependency
-// Mutual recursion between OutlineNode and RecursiveOutlineTree is intentional.
+// Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import {useQueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeAttachment, NodeResponse} from "../../node-types.js";
@@ -13,7 +13,7 @@ import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeContextMenuButton} from "./node-context-menu.js";
-import {RecursiveOutlineTree} from "./outline-tree.js";
+import {OutlineChildren} from "./outline-tree.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 
 /**
@@ -275,49 +275,16 @@ function rowProjectClassName(
 	});
 }
 
-interface OutlineNodeProps {
-	node: NodeResponse;
-	depth: number;
-	isExpanded: boolean;
-}
-
-interface VirtualizedOutlineNodeProps {
-	node: NodeResponse;
-	depth: number;
-	isExpanded: boolean;
-	hasChildren: boolean;
-}
-
-const INDENT_PER_LEVEL = 36;
-
 /**
- * Renders vertical guide lines for tree indentation.
- * Each line represents one level of nesting.
+ * Upstream's `div.project`: `.name`, `.notes`, `.drop-line`, then, when expanded,
+ * the node's `.children`. Indentation and guide lines come from the enclosing
+ * `.children` container, so the row carries no inline style.
  */
-function IndentGuideLines({depth}: {depth: number}) {
-	if (depth === 0) {
-		return null;
-	}
-
-	const lines = [];
-	for (let i = 0; i < depth; i++) {
-		lines.push(<div className="indent-guide-line" key={i} style={{left: `${i * INDENT_PER_LEVEL + 9}px`}} />);
-	}
-	return lines;
-}
-
-/**
- * Renders a single node in the virtualized outline tree.
- * - Displays bullet point, node text, and expand/collapse toggle
- * - Click bullet to zoom into node
- * - Shows completed state with strikethrough
- * - Indentation calculated from depth prop
- * - Drag bullet to move node
- * - Triggers children fetch when expanded
- */
-export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: VirtualizedOutlineNodeProps) {
+export function OutlineRow({node}: {node: NodeResponse}) {
 	const [isHovered, setIsHovered] = useState(false);
+	const isExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
+	const hasChildren = node.hasChildren !== false;
 
 	return (
 		<div
@@ -328,34 +295,13 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 			onMouseLeave={() => {
 				setIsHovered(false);
 			}}
-			style={{paddingLeft: `${depth * INDENT_PER_LEVEL}px`}}
 		>
-			<IndentGuideLines depth={depth} />
 			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={isHovered} node={node} />
 			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 			<div className="drop-line">
 				<div className="line" />
 			</div>
+			{isExpanded ? <OutlineChildren parentId={node.id} /> : null}
 		</div>
-	);
-}
-
-/**
- * Legacy OutlineNode that renders recursively with nested OutlineTrees.
- * Kept for compatibility and used by RecursiveOutlineTree.
- */
-export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
-	const hasChildren = node.hasChildren !== false;
-	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
-
-	return (
-		<li className={`outline-node ${rowProjectClassName(node, hasChildren, isExpanded, isEditingNote)}`}>
-			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={false} node={node} />
-			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
-			<div className="drop-line">
-				<div className="line" />
-			</div>
-			{isExpanded && <RecursiveOutlineTree depth={depth + 1} parentId={node.id} />}
-		</li>
 	);
 }

@@ -7,6 +7,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
 
 const outlineState = {
+	expandedIds: new Set<string>(),
 	toggleExpand: () => {},
 	expandAll: () => {},
 	collapseDescendants: () => {},
@@ -51,7 +52,7 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 });
 vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenuButton: () => null}));
 
-const {VirtualizedOutlineNode} = await import("../src/client/components/outline-node.js");
+const {OutlineRow} = await import("../src/client/components/outline-node.js");
 
 function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
 	return {
@@ -73,7 +74,7 @@ function render(node: NodeResponse): string {
 		createElement(
 			QueryClientProvider,
 			{client: new QueryClient()},
-			createElement(VirtualizedOutlineNode, {node, depth: 0, isExpanded: false, hasChildren: false}),
+			createElement(OutlineRow, {node: {...node, hasChildren: false}}),
 		),
 	);
 }

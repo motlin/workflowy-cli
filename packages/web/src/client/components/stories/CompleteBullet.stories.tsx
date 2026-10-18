@@ -19,10 +19,6 @@ const meta: Meta<typeof CompleteBullet> = {
 			control: "boolean",
 			description: "Whether the node is completed",
 		},
-		depth: {
-			control: {type: "number", min: 0, max: 10},
-			description: "Nesting depth",
-		},
 	},
 	args: {
 		onToggleExpand: fn<() => void>(),
@@ -43,7 +39,6 @@ export const Default: Story = {
 	args: {
 		isExpanded: false,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
@@ -51,7 +46,6 @@ export const Expanded: Story = {
 	args: {
 		isExpanded: true,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
@@ -59,30 +53,5 @@ export const Completed: Story = {
 	args: {
 		isExpanded: false,
 		isCompleted: true,
-		depth: 0,
-	},
-};
-
-export const NestedOneLevel: Story = {
-	args: {
-		isExpanded: false,
-		isCompleted: false,
-		depth: 1,
-	},
-};
-
-export const NestedTwoLevels: Story = {
-	args: {
-		isExpanded: true,
-		isCompleted: false,
-		depth: 2,
-	},
-};
-
-export const DeepNested: Story = {
-	args: {
-		isExpanded: false,
-		isCompleted: false,
-		depth: 4,
 	},
 };

@@ -31,10 +31,6 @@ const meta: Meta<typeof StaticNode> = {
 			control: "boolean",
 			description: "Whether the node is being edited (shows its menu button)",
 		},
-		depth: {
-			control: {type: "number", min: 0, max: 10},
-			description: "Nesting depth",
-		},
 	},
 	args: {
 		onToggleExpand: fn<() => void>(),
@@ -56,7 +52,6 @@ export const LeafNode: Story = {
 		name: "A leaf node without children",
 		isExpanded: false,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
@@ -65,7 +60,6 @@ export const ExpandedNode: Story = {
 		name: "An expanded node with children",
 		isExpanded: true,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
@@ -74,7 +68,6 @@ export const CompletedNode: Story = {
 		name: "A completed task",
 		isExpanded: false,
 		isCompleted: true,
-		depth: 0,
 	},
 };
 
@@ -84,7 +77,6 @@ export const EditingNode: Story = {
 		isExpanded: false,
 		isCompleted: false,
 		isEditing: true,
-		depth: 0,
 	},
 };
 
@@ -94,7 +86,6 @@ export const NodeWithNote: Story = {
 		note: "This is additional information about the node.",
 		isExpanded: false,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
@@ -104,17 +95,20 @@ export const NodeWithLongNote: Story = {
 		note: "This is a much longer note that contains multiple sentences. It provides detailed context about the node, including background information, related links, and additional considerations that might be relevant when working on this item.",
 		isExpanded: false,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
 export const NestedNode: Story = {
 	args: {
-		name: "A nested child node",
-		isExpanded: false,
+		name: "A parent node",
+		isExpanded: true,
 		isCompleted: false,
-		depth: 2,
 	},
+	render: (args) => (
+		<StaticNode {...args}>
+			<StaticNode name="A nested child node" />
+		</StaticNode>
+	),
 };
 
 export const WithHTMLContent: Story = {
@@ -122,7 +116,6 @@ export const WithHTMLContent: Story = {
 		name: '<span class="colored c-green">Green text</span> with <b>bold</b> and <em>italic</em>',
 		isExpanded: false,
 		isCompleted: false,
-		depth: 0,
 	},
 };
 
@@ -132,6 +125,5 @@ export const CompletedWithNote: Story = {
 		note: "This task was completed on time.",
 		isExpanded: false,
 		isCompleted: true,
-		depth: 0,
 	},
 };
