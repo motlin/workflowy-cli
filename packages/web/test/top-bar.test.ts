@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
+import type * as IconButtonModule from "../src/client/components/icon-button.js";
 import {cssBlock, cssBlockText} from "./helpers/css-block.js";
 
 const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
@@ -48,6 +49,25 @@ vi.mock("../src/client/components/breadcrumbs.js", () => ({
 }));
 vi.mock("../src/client/components/gear-menu.js", () => ({GearMenu: () => null}));
 vi.mock("../src/client/components/layout-menu.js", () => ({LayoutMenu: () => null}));
+
+/** Props of every IconButton rendered, keyed by data-handbook. */
+type IconButtonProps = Parameters<typeof IconButtonModule.IconButton>[0];
+
+const iconButtonProps = new Map<string, IconButtonProps>();
+
+vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof IconButtonModule>();
+	return {
+		...actual,
+		IconButton: (props: IconButtonProps) => {
+			const handbook = props["data-handbook"];
+			if (handbook !== undefined) {
+				iconButtonProps.set(handbook, props);
+			}
+			return actual.IconButton(props);
+		},
+	};
+});
 
 const {TopBar} = await import("../src/client/components/top-bar.js");
 
@@ -240,6 +260,50 @@ describe("TopBar right cluster", () => {
 		expect(html).not.toContain("border-l");
 		expect(html).not.toContain("top-bar-calendar-container");
 		expect(html).not.toContain("calendar-panel");
+	});
+});
+
+/** Outer HTML of the complete.toggle IconButton, svg path data stripped. */
+function completedToggleHtml(html: string): string {
+	const start = html.lastIndexOf("<div", html.indexOf('data-handbook="complete.toggle"'));
+	const end = html.indexOf("</svg></div>", start) + "</svg></div>".length;
+	return html.slice(start, end).replaceAll(/ d="[^"]*"/gu, "");
+}
+
+function svgStyled(name: string, width: number, style: string): string {
+	return svg(name, width).replace(' 512"><path', ` 512" style="${style}"><path`);
+}
+
+describe("TopBar show completed toggle", () => {
+	it("toggles completed directly on click, with no popup", () => {
+		const toggleCompleted = vi.fn<() => void>();
+		storeState.toggleCompleted = toggleCompleted;
+		const html = renderToStaticMarkup(createElement(TopBar));
+		storeState.toggleCompleted = () => {};
+		const onClick = iconButtonProps.get("complete.toggle")?.onClick as () => void;
+		onClick();
+		expect(toggleCompleted).toHaveBeenCalledOnce();
+		expect(html).not.toContain("hide-completed-popup");
+		expect(html).not.toContain("top-bar-completed-container");
+		expect(html).not.toContain('aria-haspopup="true" data-handbook="complete.toggle"');
+	});
+
+	it("renders an untinted check with a Show completed tooltip when hidden", () => {
+		const html = renderToStaticMarkup(createElement(TopBar));
+		expect(completedToggleHtml(html)).toBe(
+			`<div role="button" tabindex="0" data-handbook="complete.toggle" class="iconButton lg shape-circle">${svg("check", 448)}</div>`,
+		);
+		expect(iconButtonProps.get("complete.toggle")?.tooltip).toBe("Show completed");
+	});
+
+	it("tints the check svg and offers Hide completed when shown", () => {
+		storeState.showCompleted = true;
+		const html = renderToStaticMarkup(createElement(TopBar));
+		storeState.showCompleted = false;
+		expect(completedToggleHtml(html)).toBe(
+			`<div role="button" tabindex="0" data-handbook="complete.toggle" class="iconButton lg shape-circle">${svgStyled("check", 448, "color:var(--wf-text-tint)")}</div>`,
+		);
+		expect(iconButtonProps.get("complete.toggle")?.tooltip).toBe("Hide completed");
 	});
 });
 

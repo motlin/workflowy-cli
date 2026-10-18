@@ -7,7 +7,6 @@ import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
 import {GearMenu} from "./gear-menu.js";
-import {HideCompletedToggle} from "./hide-completed-toggle.js";
 import {IconButton} from "./icon-button.js";
 import {LayoutMenu} from "./layout-menu.js";
 import type {LayoutMode} from "./layout-menu.js";
@@ -56,11 +55,9 @@ export function TopBar() {
 	const navigate = useNavigate();
 	const {canGoBack, canGoForward} = useNavigationHistory();
 	const [menuOpen, setMenuOpen] = useState(false);
-	const [completedToggleOpen, setCompletedToggleOpen] = useState(false);
 	const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
 	const [layoutMenuPosition, setLayoutMenuPosition] = useState({top: 0, right: 0});
 	const menuRef = useRef<HTMLDivElement>(null);
-	const completedButtonRef = useRef<HTMLDivElement>(null);
 	const layoutButtonRef = useRef<HTMLDivElement>(null);
 	const updateNodeMutation = useUpdateNode();
 	const isCurrentPageStarred = zoomedNodeId !== null && isPageStarred(zoomedNodeId);
@@ -96,14 +93,6 @@ export function TopBar() {
 
 	const handlePresentationClick = () => {
 		openPresentation(zoomedNodeId ?? "root");
-	};
-
-	const handleCompletedToggleOpen = () => {
-		setCompletedToggleOpen(true);
-	};
-
-	const handleCompletedToggleClose = () => {
-		setCompletedToggleOpen(false);
 	};
 
 	const handleLayoutToggle = () => {
@@ -218,26 +207,14 @@ export function TopBar() {
 					</Tooltip>
 				)}
 
-				{/* Show/hide completed icon */}
-				<div className="top-bar-completed-container" ref={completedButtonRef}>
-					<IconButton
-						aria-expanded={completedToggleOpen}
-						aria-haspopup="true"
-						data-handbook="complete.toggle"
-						onClick={handleCompletedToggleOpen}
-						shortcut="⌘O"
-						tooltip={showCompleted ? "Hide completed" : "Show completed"}
-					>
-						<FaIcon icon="fal:check" />
-					</IconButton>
-					<HideCompletedToggle
-						anchorRef={completedButtonRef}
-						isOpen={completedToggleOpen}
-						onClose={handleCompletedToggleClose}
-						onToggle={toggleCompleted}
-						showCompleted={showCompleted}
-					/>
-				</div>
+				<IconButton
+					data-handbook="complete.toggle"
+					onClick={toggleCompleted}
+					shortcut="⌘O"
+					tooltip={showCompleted ? "Hide completed" : "Show completed"}
+				>
+					<FaIcon icon="fal:check" style={showCompleted ? {color: "var(--wf-text-tint)"} : undefined} />
+				</IconButton>
 
 				{/* Change layout */}
 				<div className="top-bar-layout-container" ref={layoutButtonRef}>
