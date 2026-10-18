@@ -4,7 +4,8 @@ import {useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
-import {noteToEditorHtml, planNoteKey, planNoteSave} from "../note-text.js";
+import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
+import {useTagColors} from "../hooks/use-tag-colors.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -18,11 +19,6 @@ interface EditableNoteProps {
 const SAVE_DEBOUNCE_MS = 500;
 
 const CONTENT_CLASS = "notranslate content text-tertiary whitespace-pre-wrap overflow-hidden";
-
-/** The note's `.content` inner HTML: `.innerContentContainer` around the note, or nothing for an empty note. */
-function contentHtml(note: string): string {
-	return note === "" ? "" : `<span class="innerContentContainer">${noteToEditorHtml(note)}</span>`;
-}
 
 /** The selection's start/end as plain-text offsets into `element`, or null when the selection is outside it. */
 function selectionOffsets(element: HTMLElement): {start: number; end: number} | null {
@@ -60,6 +56,7 @@ function insertAtSelection(text: string, caretInText: number): void {
 /**
  * Upstream's sibling `.notes` after the row's `.name`: ONE always-contenteditable `.content`.
  * - A click places the caret at the click point and focuses the note; while focused, `.content` is `active` (unclamped)
+ * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
  * - Edits are never reverted: Escape saves, exits the note, and opens search like upstream's global Escape
  * - Enter inserts a line break (two at the very end, the second a sentinel); Tab inserts a tab; Shift+Tab does nothing
@@ -75,6 +72,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	const queryClient = useQueryClient();
+	const tagColors = useTagColors();
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
 	const [focusedHtml, setFocusedHtml] = useState<string | null>(null);
 
@@ -137,11 +135,11 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 
 	const handleFocus = useCallback(() => {
 		savedValueRef.current = initialValue;
-		setFocusedHtml(contentHtml(initialValue));
+		setFocusedHtml(noteContentHtml(initialValue, tagColors));
 		if (!isFocused) {
 			focusNote(nodeId);
 		}
-	}, [initialValue, isFocused, nodeId, focusNote]);
+	}, [initialValue, isFocused, nodeId, focusNote, tagColors]);
 
 	const handleBlur = useCallback(() => {
 		saveNow();
@@ -228,7 +226,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			<div
 				className={isFocused ? `${CONTENT_CLASS} active` : CONTENT_CLASS}
 				contentEditable
-				dangerouslySetInnerHTML={{__html: focusedHtml ?? contentHtml(initialValue)}}
+				dangerouslySetInnerHTML={{__html: focusedHtml ?? noteContentHtml(initialValue, tagColors)}}
 				onBlur={handleBlur}
 				onFocus={handleFocus}
 				onInput={handleInput}

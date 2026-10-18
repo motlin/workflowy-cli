@@ -4,6 +4,9 @@
  * `<br>`/`<div>`/`<p>` structure must never reach the API.
  */
 
+import {renderTags} from "./tag-render.js";
+import type {TagColorMap} from "./tag-render.js";
+
 const TAG_PATTERN = /<(\/?)([a-z][\w-]*)([^>]*)>/giu;
 const KEPT_ELEMENTS = new Set(["b", "i", "u", "s", "code", "a", "time"]);
 const BLOCK_ELEMENTS = new Set(["div", "p"]);
@@ -71,6 +74,17 @@ export function editorHtmlToNote(html: string): string {
 /** Converts stored note text into the editor's initial HTML, repairing legacy `<br>` breaks. */
 export function noteToEditorHtml(note: string): string {
 	return note.replaceAll(LEGACY_BREAK_PATTERN, "\n");
+}
+
+/**
+ * The note `.content` element's inner HTML: `.innerContentContainer` around the note with its
+ * #tags and @mentions decorated like a name's, or nothing for an empty note. The decoration
+ * spans are dropped again by `editorHtmlToNote`, so the stored note never carries them.
+ */
+export function noteContentHtml(note: string, tagColors: TagColorMap = {}): string {
+	return note === ""
+		? ""
+		: `<span class="innerContentContainer">${renderTags(noteToEditorHtml(note), tagColors)}</span>`;
 }
 
 /**

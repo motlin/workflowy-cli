@@ -1,5 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {editorHtmlToNote, noteToEditorHtml, planNoteKey, planNoteSave} from "../src/client/note-text.js";
+import {
+	editorHtmlToNote,
+	noteContentHtml,
+	noteToEditorHtml,
+	planNoteKey,
+	planNoteSave,
+} from "../src/client/note-text.js";
+import {renderTags} from "../src/client/tag-render.js";
 
 describe("editorHtmlToNote", () => {
 	it("turns <br> into a newline", () => {
@@ -56,6 +63,24 @@ describe("noteToEditorHtml", () => {
 
 	it("leaves a clean note unchanged", () => {
 		expect(noteToEditorHtml("<b>a</b>\nb")).toBe("<b>a</b>\nb");
+	});
+});
+
+describe("noteContentHtml", () => {
+	it("renders nothing for an empty note", () => {
+		expect(noteContentHtml("")).toBe("");
+	});
+
+	it("decorates tags with the same markup names use and round-trips through the codec", () => {
+		const html = noteContentHtml("and #tag in note");
+		expect(html).toBe(`<span class="innerContentContainer">${renderTags("and #tag")} in note</span>`);
+		expect(editorHtmlToNote(html)).toBe("and #tag in note");
+	});
+
+	it("colors tags and round-trips a colored tag and a repaired legacy break", () => {
+		const html = noteContentHtml("a<br>@bob", {"@bob": "red"});
+		expect(html).toBe(`<span class="innerContentContainer">${renderTags("a\n@bob", {"@bob": "red"})}</span>`);
+		expect(editorHtmlToNote(html)).toBe("a\n@bob");
 	});
 });
 
