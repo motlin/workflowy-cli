@@ -1,4 +1,8 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
+import {fileSessionStore} from "@workflowy/shared/api";
 import {Hono} from "hono";
 import type {CacheService} from "@workflowy/shared/cache";
 import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
@@ -12,33 +16,59 @@ afterEach(() => {
 	vi.unstubAllEnvs();
 });
 
-describe("createServerContext internalCredentials", () => {
+const NO_SESSION_FILE = path.join(os.tmpdir(), "wf-no-session-file-for-tests");
+const tempDirs: string[] = [];
+
+function stubAuthEnv(username: string, password: string, sessionCookie?: string) {
+	vi.stubEnv("WORKFLOWY_USERNAME", username);
+	vi.stubEnv("WORKFLOWY_PASSWORD", password);
+	if (sessionCookie === undefined) {
+		vi.stubEnv("WORKFLOWY_SESSION_FILE", NO_SESSION_FILE);
+		return;
+	}
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wf-session-"));
+	tempDirs.push(dir);
+	const file = path.join(dir, "workflowy-session");
+	fs.writeFileSync(file, sessionCookie);
+	vi.stubEnv("WORKFLOWY_SESSION_FILE", file);
+}
+
+afterEach(() => {
+	for (const dir of tempDirs.splice(0)) {
+		fs.rmSync(dir, {recursive: true, force: true});
+	}
+});
+
+describe("createServerContext internalAuth", () => {
 	it("reads WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD", () => {
-		vi.stubEnv("WORKFLOWY_USERNAME", "alice@example.com");
-		vi.stubEnv("WORKFLOWY_PASSWORD", "pw");
-		expect(createServerContext().internalCredentials).toStrictEqual({
+		stubAuthEnv("alice@example.com", "pw");
+		expect(createServerContext().internalAuth?.credentials).toStrictEqual({
 			username: "alice@example.com",
 			password: "pw",
 		});
 	});
 
-	it("is undefined when the password is missing", () => {
-		vi.stubEnv("WORKFLOWY_USERNAME", "alice@example.com");
-		vi.stubEnv("WORKFLOWY_PASSWORD", "");
-		expect(createServerContext().internalCredentials).toBeUndefined();
+	it("is configured by a saved session cookie without credentials", () => {
+		stubAuthEnv("", "", "sessionid=saved");
+		const auth = createServerContext().internalAuth;
+		expect(auth?.credentials).toBeUndefined();
+		expect(auth?.sessionStore.read()).toBe("sessionid=saved");
 	});
 
-	it("is undefined when the username is missing", () => {
-		vi.stubEnv("WORKFLOWY_USERNAME", "");
-		vi.stubEnv("WORKFLOWY_PASSWORD", "pw");
-		expect(createServerContext().internalCredentials).toBeUndefined();
+	it("is undefined when the password is missing and no cookie is saved", () => {
+		stubAuthEnv("alice@example.com", "");
+		expect(createServerContext().internalAuth).toBeUndefined();
+	});
+
+	it("is undefined when the username is missing and no cookie is saved", () => {
+		stubAuthEnv("", "pw");
+		expect(createServerContext().internalAuth).toBeUndefined();
 	});
 });
 
 describe("createServerContext internalAdapter", () => {
 	it("builds one adapter lazily and reuses it when credentials are configured", () => {
-		vi.stubEnv("WORKFLOWY_USERNAME", "alice@example.com");
-		vi.stubEnv("WORKFLOWY_PASSWORD", "pw");
+		stubAuthEnv("alice@example.com", "pw");
 		const ctx = createServerContext();
 
 		const adapter = ctx.internalAdapter?.();
@@ -47,15 +77,19 @@ describe("createServerContext internalAdapter", () => {
 		expect(ctx.internalAdapter?.()).toBe(adapter);
 	});
 
-	it("is undefined when credentials are not configured", () => {
-		vi.stubEnv("WORKFLOWY_USERNAME", "");
-		vi.stubEnv("WORKFLOWY_PASSWORD", "");
+	it("builds an adapter from a saved session cookie alone", () => {
+		stubAuthEnv("", "", "sessionid=saved");
+		expect(createServerContext().internalAdapter?.()).toBeInstanceOf(WorkflowyInternalAdapter);
+	});
+
+	it("is undefined when neither credentials nor a cookie are configured", () => {
+		stubAuthEnv("", "");
 		expect(createServerContext().internalAdapter?.()).toBeUndefined();
 	});
 });
 
-function makeApp(internalCredentials: ServerContext["internalCredentials"]) {
-	const ctx = {db: {}, cacheService: {} as CacheService, internalCredentials} as ServerContext;
+function makeApp(internalAuth: ServerContext["internalAuth"]) {
+	const ctx = {db: {}, cacheService: {} as CacheService, internalAuth} as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
 		c.set("ctx", ctx);
@@ -66,16 +100,18 @@ function makeApp(internalCredentials: ServerContext["internalCredentials"]) {
 }
 
 describe("internalApiRequired", () => {
-	it("answers 503 when internal credentials are not configured", async () => {
+	it("answers 503 when neither internal credentials nor a session cookie are configured", async () => {
 		const res = await makeApp(undefined).fetch(new Request("http://x/dummy"));
 		expect(res.status).toBe(503);
 		await expect(res.json()).resolves.toStrictEqual({
-			error: "Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)",
+			error: "Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')",
 		});
 	});
 
-	it("passes through when internal credentials are configured", async () => {
-		const res = await makeApp({username: "alice@example.com", password: "pw"}).fetch(new Request("http://x/dummy"));
+	it("passes through when internal auth is configured", async () => {
+		const res = await makeApp({sessionStore: fileSessionStore(NO_SESSION_FILE)}).fetch(
+			new Request("http://x/dummy"),
+		);
 		expect(res.status).toBe(200);
 		await expect(res.json()).resolves.toStrictEqual({ok: true});
 	});

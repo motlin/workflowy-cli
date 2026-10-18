@@ -1,4 +1,4 @@
-import {readWorkflowyCredentials, WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {readInternalAuth, WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
 import {importInternalMetadata} from "@workflowy/shared/cache";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
@@ -83,15 +83,14 @@ export default class ImportApi extends Command {
 	/**
 	 * Import item metadata the public API omits (numbered_start, calendar,
 	 * priority.defaultToBottom) from the internal API's `/get_tree_data/`, when
-	 * WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD are set.
+	 * WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD are set or a session cookie is saved.
 	 */
 	private async importItemMetadata(database: ReturnType<typeof createDatabase>): Promise<void> {
-		const credentials = readWorkflowyCredentials();
-		if (!credentials) {
+		const auth = readInternalAuth();
+		if (!auth) {
 			return;
 		}
-		const client = new WorkflowyInternalClient({credentials});
-		await client.login();
+		const client = new WorkflowyInternalClient(auth);
 		const items = await client.getTreeData();
 		const {written, skipped} = importInternalMetadata(database, items, Date.now());
 		this.log(`Item metadata: ${written.toLocaleString()} nodes (${skipped.toLocaleString()} not in cache)`);

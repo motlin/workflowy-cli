@@ -58,6 +58,7 @@ function fakeFetch(recorded: Recorded[], pollStatus = 200) {
 describe("internal probe command", () => {
 	let tempDir: string;
 	let outPath: string;
+	let sessionFile: string;
 	const savedEnv = {...process.env};
 
 	beforeEach(() => {
@@ -67,6 +68,8 @@ describe("internal probe command", () => {
 		outPath = path.join(tempDir, "probes.md");
 		process.env.WORKFLOWY_USERNAME = "alice@example.com";
 		process.env.WORKFLOWY_PASSWORD = "hunter2";
+		sessionFile = path.join(tempDir, "workflowy-session");
+		process.env.WORKFLOWY_SESSION_FILE = sessionFile;
 	});
 
 	afterEach(() => {
@@ -92,11 +95,27 @@ describe("internal probe command", () => {
 		);
 	});
 
-	it("refuses to run without credentials", async () => {
+	it("refuses to run without credentials or a saved session cookie", async () => {
 		delete process.env.WORKFLOWY_PASSWORD;
 		await expect(Probe.run(["bootstrap", "--yes-live", "--out", outPath])).rejects.toThrow(
-			"WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD must be set",
+			"Set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login' via op run",
 		);
+	});
+
+	it("bootstrap reuses a saved session cookie without credentials or a login", async () => {
+		delete process.env.WORKFLOWY_USERNAME;
+		delete process.env.WORKFLOWY_PASSWORD;
+		fs.writeFileSync(sessionFile, "sessionid=saved\n");
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", fakeFetch(recorded));
+		await Probe.run(["bootstrap", "--yes-live", "--out", outPath]);
+		expect(recorded.map((request) => request.path)).toStrictEqual(["/get_initialization_data"]);
+	});
+
+	it("bootstrap saves the fresh login cookie to the session file", async () => {
+		vi.stubGlobal("fetch", fakeFetch([]));
+		await Probe.run(["bootstrap", "--yes-live", "--out", outPath]);
+		expect(fs.readFileSync(sessionFile, "utf8")).toBe("sessionid=abc123\n");
 	});
 
 	it("bootstrap records client id shape, CLIENT_VERSION and tx id source", async () => {

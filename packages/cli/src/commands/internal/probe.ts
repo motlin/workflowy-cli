@@ -1,7 +1,7 @@
 import {Args, Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import path from "node:path";
-import {readWorkflowyCredentials, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {readInternalAuth, WorkflowyInternalClient} from "@workflowy/shared/api";
 
 const DEFAULT_OUT = ".llm/upstream-sync/internal-api-probes.md";
 const STEPS = ["bootstrap", "poll"] as const;
@@ -108,13 +108,15 @@ export default class Probe extends Command {
 		if (!flags["yes-live"]) {
 			this.error("Live probe against workflowy.com: pass --yes-live to run it");
 		}
-		const credentials = readWorkflowyCredentials();
-		if (!credentials) {
-			this.error("WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD must be set");
+		const auth = readInternalAuth();
+		if (!auth) {
+			this.error(
+				"Set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login' via op run",
+			);
 		}
 		const recorded: RecordedRequest[] = [];
 		const client = new WorkflowyInternalClient({
-			credentials,
+			...auth,
 			fetch: recordingFetch(recorded, !flags.crosscheck),
 		});
 		const startedAt = new Date().toISOString();

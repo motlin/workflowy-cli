@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import {z} from "zod";
 
 /**
@@ -9,9 +11,9 @@ import {z} from "zod";
  * timestamps) and the session bootstrap a `/push_and_poll` write path needs.
  *
  * Authentication flow:
- * 1. POST to /ajax_login with username/password
- * 2. Receive session cookie
- * 3. Use session cookie for subsequent requests
+ * - Reuse the session cookie from the session store when one is saved
+ * - Otherwise (or when the server rejects it) POST to /ajax_login with
+ *   username/password once and save the new cookie back to the store
  */
 
 const WORKFLOWY_URL = "https://workflowy.com";
@@ -98,8 +100,66 @@ export function readWorkflowyCredentials(env: NodeJS.ProcessEnv = process.env): 
 	return username && password ? {username, password} : undefined;
 }
 
+/** Where a Workflowy `sessionid=...` cookie persists between processes. */
+export interface SessionCookieStore {
+	read(): string | undefined;
+	write(cookie: string): void;
+	clear(): void;
+}
+
+/** `.llm/workflowy-session` at the repository root (gitignored), from `src/api` or `dist/api` alike. */
+export const DEFAULT_SESSION_FILE = path.resolve(import.meta.dirname, "../../../../.llm/workflowy-session");
+
+/** A session store backed by one file, written with mode 0600. */
+export function fileSessionStore(file: string): SessionCookieStore {
+	return {
+		read() {
+			const cookie = fs.existsSync(file) ? fs.readFileSync(file, "utf8").trim() : "";
+			return cookie === "" ? undefined : cookie;
+		},
+		write(cookie) {
+			fs.mkdirSync(path.dirname(file), {recursive: true});
+			fs.writeFileSync(file, `${cookie}\n`, {mode: 0o600});
+			fs.chmodSync(file, 0o600);
+		},
+		clear() {
+			fs.rmSync(file, {force: true});
+		},
+	};
+}
+
+/** `WORKFLOWY_SESSION_FILE`, or {@link DEFAULT_SESSION_FILE}. */
+export function sessionFilePath(env: NodeJS.ProcessEnv = process.env): string {
+	return (env.WORKFLOWY_SESSION_FILE ?? "") || DEFAULT_SESSION_FILE;
+}
+
+/** How the internal client authenticates: a saved cookie, a password login, or both. */
+export interface InternalAuth {
+	credentials?: WorkflowyCredentials;
+	sessionStore: SessionCookieStore;
+}
+
+/**
+ * The internal-API auth configured in the environment: credentials, a saved
+ * session cookie, or both. Undefined when neither is available.
+ */
+export function readInternalAuth(env: NodeJS.ProcessEnv = process.env): InternalAuth | undefined {
+	const credentials = readWorkflowyCredentials(env);
+	const sessionStore = fileSessionStore(sessionFilePath(env));
+	if (credentials) {
+		return {credentials, sessionStore};
+	}
+	return sessionStore.read() === undefined ? undefined : {sessionStore};
+}
+
+export const MISSING_AUTH_MESSAGE =
+	"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; run './bin/run.js internal login' via op run";
+
 export interface WorkflowyInternalClientOptions {
-	credentials: WorkflowyCredentials;
+	/** Password login; optional when `sessionStore` holds a valid cookie. */
+	credentials?: WorkflowyCredentials;
+	/** Reads the cookie to start from and saves each fresh login's cookie. */
+	sessionStore?: SessionCookieStore;
 	/** Defaults to the global `fetch`. */
 	fetch?: typeof fetch;
 	/** Defaults to `https://workflowy.com`. */
@@ -150,8 +210,9 @@ export class SessionRejectedError extends Error {
  * Client for Workflowy's internal API (session-based authentication).
  */
 export class WorkflowyInternalClient {
-	private sessionCookie: string | null = null;
-	private readonly credentials: WorkflowyCredentials;
+	private sessionCookie: string | null;
+	private readonly credentials: WorkflowyCredentials | undefined;
+	private readonly sessionStore: SessionCookieStore | undefined;
 	private readonly fetchImpl: typeof fetch;
 	private readonly baseUrl: string;
 	private readonly transientId: string;
@@ -159,6 +220,8 @@ export class WorkflowyInternalClient {
 
 	constructor(options: WorkflowyInternalClientOptions) {
 		this.credentials = options.credentials;
+		this.sessionStore = options.sessionStore;
+		this.sessionCookie = options.sessionStore?.read() ?? null;
 		this.fetchImpl = options.fetch ?? (async (input, init) => fetch(input, init));
 		this.baseUrl = options.baseUrl ?? WORKFLOWY_URL;
 		this.transientId = options.transientId ?? crypto.randomUUID();
@@ -171,9 +234,12 @@ export class WorkflowyInternalClient {
 
 	/**
 	 * Authenticate with Workflowy using username/password.
-	 * Stores the session cookie for subsequent requests.
+	 * Stores the session cookie for subsequent requests and in the session store.
 	 */
 	async login(): Promise<void> {
+		if (!this.credentials) {
+			throw new Error(MISSING_AUTH_MESSAGE);
+		}
 		const url = `${this.baseUrl}/ajax_login`;
 
 		const formData = new URLSearchParams();
@@ -220,29 +286,35 @@ export class WorkflowyInternalClient {
 		if (!this.sessionCookie) {
 			throw new Error("Login failed: No session cookie received");
 		}
+		this.sessionStore?.write(this.sessionCookie);
 	}
 
 	/**
-	 * Log in (only when no session cookie is held yet), fetch initialization
-	 * data, and fall back to `/get_tree_data/` for the transaction id when init
-	 * omits it. A rejected session (302 to login, or `logged_out`) triggers
-	 * exactly one re-login.
+	 * Run `request` with a session: log in first only when no cookie is held,
+	 * and on a rejected session (302 to login, or `logged_out`) log in exactly
+	 * once and retry. A second rejection right after a fresh login propagates.
 	 */
-	async bootstrap(): Promise<InternalSession> {
+	private async withSession<T>(request: () => Promise<T>): Promise<T> {
 		if (!this.sessionCookie) {
 			await this.login();
 		}
-		let session: InternalSession;
 		try {
-			session = await this.fetchSession();
+			return await request();
 		} catch (error) {
 			if (!(error instanceof SessionRejectedError)) {
 				throw error;
 			}
 			await this.login();
-			// A second rejection right after a fresh login propagates: re-login exactly once.
-			session = await this.fetchSession();
+			return request();
 		}
+	}
+
+	/**
+	 * Fetch initialization data (logging in per {@link withSession}), falling
+	 * back to `/get_tree_data/` for the transaction id when init omits it.
+	 */
+	async bootstrap(): Promise<InternalSession> {
+		const session = await this.withSession(async () => this.fetchSession());
 		this.currentSession = session;
 		return session;
 	}
@@ -290,7 +362,8 @@ export class WorkflowyInternalClient {
 
 	/** Every item of the main tree from `/get_tree_data/`: its id and, when it has any, its metadata. */
 	async getTreeData(): Promise<InternalTreeItem[]> {
-		const {items} = TreeItemsSchema.parse((await this.getJson("/get_tree_data/")).body);
+		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
+		const {items} = TreeItemsSchema.parse(body);
 		return items.map(({id, metadata}) => (metadata === undefined ? {id} : {id, metadata}));
 	}
 

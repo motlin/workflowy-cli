@@ -1,5 +1,5 @@
-import {readWorkflowyCredentials, WorkflowyInternalClient} from "@workflowy/shared/api";
-import type {WorkflowyCredentials} from "@workflowy/shared/api";
+import {readInternalAuth, WorkflowyInternalClient} from "@workflowy/shared/api";
+import type {InternalAuth} from "@workflowy/shared/api";
 import {CacheService} from "@workflowy/shared/cache";
 import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {getDatabase} from "./db.js";
@@ -17,11 +17,11 @@ export interface ServerContext {
 	cacheService: CacheService;
 	/** The Workflowy API key, or undefined when write operations are unavailable. */
 	apiKey?: string;
-	/** Internal-API login, or undefined when internal-API routes are unavailable. */
-	internalCredentials?: WorkflowyCredentials;
+	/** Internal-API auth (saved session cookie and/or login), or undefined when internal-API routes are unavailable. */
+	internalAuth?: InternalAuth;
 	/**
 	 * The internal-API adapter, built on first call and shared afterwards, or
-	 * undefined when internal-API credentials are not configured.
+	 * undefined when internal-API auth is not configured.
 	 */
 	internalAdapter?: () => WorkflowyInternalAdapter | undefined;
 }
@@ -37,17 +37,17 @@ export interface AppEnv {
  */
 export function createServerContext(): ServerContext {
 	const db = getDatabase();
-	const internalCredentials = readWorkflowyCredentials();
+	const internalAuth = readInternalAuth();
 	let adapter: WorkflowyInternalAdapter | undefined;
 	return {
 		db,
 		cacheService: new CacheService(db),
 		apiKey: process.env.WORKFLOWY_API_KEY,
-		internalCredentials,
+		internalAuth,
 		internalAdapter: () => {
-			if (!adapter && internalCredentials) {
+			if (!adapter && internalAuth) {
 				adapter = new WorkflowyInternalAdapter({
-					client: new WorkflowyInternalClient({credentials: internalCredentials}),
+					client: new WorkflowyInternalClient(internalAuth),
 					db,
 				});
 			}
