@@ -32,8 +32,8 @@ const InitializationDataSchema = z
 						dateJoinedTimestampInSeconds: z.number(),
 						initialMostRecentOperationTransactionId: TransactionIdSchema.optional(),
 						serverExpandedProjectsList: z.array(z.string()).optional(),
-						ownerId: z.number().optional(),
-						isReadOnly: z.boolean().optional(),
+						ownerId: z.number().nullable().optional(),
+						isReadOnly: z.boolean().nullable().optional(),
 					})
 					.loose(),
 				rootProjectMetadata: z.record(z.string(), z.unknown()).optional(),
@@ -42,6 +42,16 @@ const InitializationDataSchema = z
 		settings: z.record(z.string(), z.unknown()).optional(),
 		user: z.object({id: z.number()}).loose().optional(),
 		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
+	})
+	.loose();
+
+/** `/get_user_data/`: where the live server keeps the user, settings, globals and root metadata. */
+const UserDataSchema = z
+	.object({
+		user: z.object({id: z.number()}).loose(),
+		settings: z.record(z.string(), z.unknown()).optional(),
+		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
+		rootProjectMetadata: z.record(z.string(), z.unknown()).optional(),
 	})
 	.loose();
 
@@ -249,12 +259,20 @@ export class WorkflowyInternalClient {
 			txId = treeData.most_recent_operation_transaction_id;
 		}
 
-		const userId = init.user?.id;
-		if (userId === undefined) {
-			throw new Error("Initialization data has no user id");
-		}
+		// The live server sends only tree info in init; the rest comes from /get_user_data/.
+		const account =
+			init.user === undefined
+				? UserDataSchema.parse((await this.getJson("/get_user_data/")).body)
+				: {
+						user: init.user,
+						settings: init.settings,
+						globals: init.globals,
+						rootProjectMetadata: init.projectTreeData.rootProjectMetadata,
+					};
+		const userId = account.user.id;
+		// CLIENT_VERSION is a page global (`var CLIENT_VERSION = 21;` in the HTML), absent from both JSON globals lists live.
 		const globalVersion = ClientVersionSchema.safeParse(
-			init.globals?.find(([name]) => name === "CLIENT_VERSION")?.[1],
+			account.globals?.find(([name]) => name === "CLIENT_VERSION")?.[1],
 		);
 
 		return {
@@ -264,8 +282,8 @@ export class WorkflowyInternalClient {
 			ownerId: tree.ownerId ?? userId,
 			dateJoinedSec: tree.dateJoinedTimestampInSeconds,
 			txId,
-			rootMetadata: init.projectTreeData.rootProjectMetadata ?? {},
-			settings: init.settings ?? {},
+			rootMetadata: account.rootProjectMetadata ?? {},
+			settings: account.settings ?? {},
 			expandedKeys: tree.serverExpandedProjectsList ?? [],
 		};
 	}

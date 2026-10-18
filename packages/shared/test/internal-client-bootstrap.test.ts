@@ -77,6 +77,52 @@ describe("WorkflowyInternalClient.bootstrap", () => {
 		expect(api.requests[2]?.headers).toStrictEqual(INIT_HEADERS);
 	});
 
+	it("reads user, settings, root metadata and globals from /get_user_data/ when init omits them (live shape)", async () => {
+		const api = createFakeInternalApi();
+		const data = initializationData({isReadOnly: null});
+		const treeData = data.projectTreeData as Record<string, unknown>;
+		delete treeData.rootProjectMetadata;
+		delete data.settings;
+		delete data.user;
+		delete data.globals;
+		delete data.features;
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		api.respond("/get_user_data/", () =>
+			json({
+				user: {id: 123, email: "alice@example.com"},
+				globals: [["SHOW_COMPLETED_DEFAULT", true]],
+				settings: {theme: "dark", show_completed: true},
+				features: [],
+				rootProjectMetadata: {starring: {locations: {abc: "None"}}},
+			}),
+		);
+		const {client} = clientWith(api);
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual({...EXPECTED_SESSION, clientVersion: "21"});
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+			["GET", "/get_user_data/"],
+		]);
+		expect(api.requests[2]?.headers).toStrictEqual(INIT_HEADERS);
+	});
+
+	it("accepts a null isReadOnly (sent live) and a null ownerId", async () => {
+		const api = createFakeInternalApi();
+		const data = initializationData();
+		const tree = (data.projectTreeData as {mainProjectTreeInfo: Record<string, unknown>}).mainProjectTreeInfo;
+		tree.isReadOnly = null;
+		tree.ownerId = null;
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		const {client} = clientWith(api);
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual(EXPECTED_SESSION);
+	});
+
 	it("reuses the session cookie on a second bootstrap and sends the learned client version", async () => {
 		const {api, client} = clientWith();
 
