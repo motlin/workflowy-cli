@@ -2,12 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
-import {
-	DEFAULT_SESSION_FILE,
-	fileSessionStore,
-	readInternalAuth,
-	WorkflowyInternalClient,
-} from "../src/api/workflowy-internal-client.js";
+import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
+import {DEFAULT_SESSION_FILE, fileSessionStore, readInternalAuth} from "../src/node/session-store.js";
 import type {SessionCookieStore} from "../src/api/workflowy-internal-client.js";
 import {createFakeInternalApi, FAKE_SESSION_ID, json} from "./helpers/fake-internal-api.js";
 

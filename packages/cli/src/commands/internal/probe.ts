@@ -1,7 +1,8 @@
 import {Args, Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import path from "node:path";
-import {readInternalAuth, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {WorkflowyInternalClient} from "@workflowy/shared/api";
+import {readInternalAuth} from "@workflowy/shared/node";
 
 const DEFAULT_OUT = ".llm/upstream-sync/internal-api-probes.md";
 const STEPS = ["bootstrap", "poll"] as const;

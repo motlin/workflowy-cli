@@ -1,5 +1,6 @@
-import {readInternalAuth, WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
 import {importInternalMetadata} from "@workflowy/shared/cache";
+import {readInternalAuth} from "@workflowy/shared/node";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
 import {importFromApi} from "../../services/cache-import-api.js";

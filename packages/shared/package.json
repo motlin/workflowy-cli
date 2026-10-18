@@ -24,6 +24,11 @@
 			"types": "./dist/internal/index.d.ts",
 			"import": "./dist/internal/index.js"
 		},
+		"./node": {
+			"source": "./src/node/index.ts",
+			"types": "./dist/node/index.d.ts",
+			"import": "./dist/node/index.js"
+		},
 		"./db": {
 			"source": "./src/db/index.ts",
 			"types": "./dist/db/index.d.ts",

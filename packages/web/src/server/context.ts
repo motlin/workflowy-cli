@@ -1,7 +1,8 @@
-import {readInternalAuth, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {WorkflowyInternalClient} from "@workflowy/shared/api";
 import type {InternalAuth} from "@workflowy/shared/api";
 import {CacheService} from "@workflowy/shared/cache";
 import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import {readInternalAuth} from "@workflowy/shared/node";
 import {getDatabase} from "./db.js";
 
 type ServerDatabase = ReturnType<typeof getDatabase>;

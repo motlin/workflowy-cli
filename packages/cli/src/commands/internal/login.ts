@@ -1,10 +1,6 @@
 import {Command} from "@oclif/core";
-import {
-	fileSessionStore,
-	readWorkflowyCredentials,
-	sessionFilePath,
-	WorkflowyInternalClient,
-} from "@workflowy/shared/api";
+import {readWorkflowyCredentials, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {fileSessionStore, sessionFilePath} from "@workflowy/shared/node";
 
 export default class Login extends Command {
 	static override description =
