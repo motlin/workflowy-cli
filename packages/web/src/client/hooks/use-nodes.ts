@@ -26,7 +26,7 @@ interface UpdateNodeRequest {
 	layoutMode?: string;
 }
 
-async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
+export async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
 	const url = parentId === null ? "/api/v1/nodes" : `/api/v1/nodes?parent_id=${encodeURIComponent(parentId)}`;
 	const response = await fetch(url);
 	if (!response.ok) {

@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {nodeUrl, stepNav} from "../navigation.js";
-import {nodeKeys} from "../node-cache.js";
+import {nodeKeys, readChildren, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
@@ -10,7 +10,10 @@ import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {editingAfterRemoval, planCompleteFocus} from "../caret-navigation.js";
 import {
 	cacheMoveTree,
+	isPotentiallyVisible,
+	nextPotentiallyVisibleSibling,
 	planDuplicate,
+	planFocusSibling,
 	planIndent,
 	planOutdent,
 	planToggleComplete,
@@ -18,6 +21,7 @@ import {
 } from "../tree-ops.js";
 import type {MoveNodePayload} from "../tree-ops.js";
 import {
+	fetchChildren,
 	useChildren,
 	useCreateNode,
 	useDeleteNode,
@@ -33,6 +37,14 @@ import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
 
+/** The ids of `nodes` the outline can show, in priority order. */
+function potentiallyVisibleIds(nodes: NodeResponse[] | undefined): string[] {
+	const {showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	return sortByPriority(nodes ?? [])
+		.filter((node) => isPotentiallyVisible(node, showCompleted, animatingCompletionIds))
+		.map((node) => node.id);
+}
+
 /**
  * The outline's commands, keyed by upstream command id, for the global keymap to dispatch.
  *
@@ -43,9 +55,9 @@ type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
  * Navigation commands commit the edited text before leaving. Structural commands keep the caret and unsaved text
  * in place: they hold editing across the re-render so the edited row keeps (or regains) focus.
  *
- * `navigate_to_prev_item` / `navigate_to_next_item` (⇧⌘9 / ⇧⌘0) still edit the edited node's sibling, and
- * `focus_prev_sibling` / `focus_next_sibling` (⌥⌘↑ / ⌥⌘↓) still zoom to the zoomed node's sibling; the layout
- * commands set the layout rather than toggling it.
+ * As upstream, `navigate_to_prev_item` / `navigate_to_next_item` (⇧⌘9 / ⇧⌘0) zoom to the zoomed page's sibling,
+ * and `focus_prev_sibling` / `focus_next_sibling` (⌥⌘↑ / ⌥⌘↓) move the caret to the edited row's sibling; the
+ * layout commands set the layout rather than toggling it.
  */
 export function useCommandRegistry(): CommandRegistry {
 	const navigate = useNavigate();
@@ -154,41 +166,50 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
-	/** The edited node's sibling `step` places away in priority order, or null past either end. */
-	const siblingOfItem = (ctx: CommandContext, step: -1 | 1): string | null => {
-		const node = itemNode(ctx);
-		if (node === undefined) {
-			return null;
-		}
-		const siblings = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(node.parent_id));
-		if (!siblings) {
-			return null;
-		}
-		const sorted = sortByPriority(siblings);
-		const index = sorted.findIndex((sibling) => sibling.id === node.id);
-		return index === -1 ? null : (sorted[index + step]?.id ?? null);
-	};
-
-	/** Commit the edited text, then edit the item's sibling `step` places away with the caret at its end. */
-	const editSibling = (ctx: CommandContext, step: -1 | 1): void => {
-		const siblingId = siblingOfItem(ctx, step);
-		if (siblingId !== null) {
-			commitEdit();
-			resumeEditing(siblingId, Number.MAX_SAFE_INTEGER);
-		}
-	};
-
-	/** Zoom to the zoomed node's sibling `step` places away, if there is one. */
-	const zoomToSibling = (step: -1 | 1): void => {
-		if (zoomedNodeId === null || zoomedNode === undefined || !zoomedNodeSiblings) {
+	/**
+	 * Upstream `navigate_to_next_item` / `prev_item`: zoom to the zoomed page's potentially visible sibling `step`
+	 * places away, scroll to the top, then edit its first visible child (or its title) at offset 0.
+	 */
+	const jumpToSibling = async (step: -1 | 1): Promise<void> => {
+		if (zoomedNodeId === null || zoomedNode === undefined) {
 			return;
 		}
-		const sorted = sortByPriority(zoomedNodeSiblings);
-		const index = sorted.findIndex((sibling) => sibling.id === zoomedNodeId);
-		const sibling = index === -1 ? undefined : sorted[index + step];
-		if (sibling !== undefined) {
+		const siblings = readChildren(queryClient, zoomedNode.parent_id) ?? zoomedNodeSiblings ?? [];
+		const targetId = nextPotentiallyVisibleSibling(siblings, zoomedNodeId, step, showCompleted);
+		if (targetId === null) {
+			return;
+		}
+		commitEdit();
+		void navigate(nodeUrl(targetId));
+		globalThis.scrollTo(0, 0);
+		const children = await queryClient.query({
+			queryKey: nodeKeys.children(targetId),
+			queryFn: async () => fetchChildren(targetId),
+			staleTime: "static",
+		});
+		resumeEditing(potentiallyVisibleIds(children)[0] ?? targetId, 0);
+	};
+
+	/** Upstream `focus_next_sibling` / `prev`: edit the edited row's potentially visible sibling at offset 0. */
+	const focusSibling = (ctx: CommandContext, step: -1 | 1): void => {
+		const currentId = ctx.items[0] ?? null;
+		const currentNode =
+			currentId === null || currentId === zoomedNodeId ? undefined : readNode(queryClient, currentId);
+		const targetId = planFocusSibling(
+			{
+				zoomedId: zoomedNodeId,
+				currentId,
+				firstChildId: potentiallyVisibleIds(readChildren(queryClient, zoomedNodeId))[0] ?? null,
+				siblings:
+					currentNode === undefined
+						? []
+						: potentiallyVisibleIds(readChildren(queryClient, currentNode.parent_id)),
+			},
+			step,
+		);
+		if (targetId !== null) {
 			commitEdit();
-			void navigate(nodeUrl(sibling.id));
+			resumeEditing(targetId, 0);
 		}
 	};
 
@@ -316,23 +337,23 @@ export function useCommandRegistry(): CommandRegistry {
 			},
 		},
 		navigate_to_prev_item: {
-			execute(ctx) {
-				editSibling(ctx, -1);
+			execute() {
+				void jumpToSibling(-1);
 			},
 		},
 		navigate_to_next_item: {
-			execute(ctx) {
-				editSibling(ctx, 1);
+			execute() {
+				void jumpToSibling(1);
 			},
 		},
 		focus_prev_sibling: {
-			execute() {
-				zoomToSibling(-1);
+			execute(ctx) {
+				focusSibling(ctx, -1);
 			},
 		},
 		focus_next_sibling: {
-			execute() {
-				zoomToSibling(1);
+			execute(ctx) {
+				focusSibling(ctx, 1);
 			},
 		},
 		expand: {

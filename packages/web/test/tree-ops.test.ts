@@ -12,6 +12,8 @@ import {
 	planDuplicate,
 	planIndent,
 	isPotentiallyVisible,
+	nextPotentiallyVisibleSibling,
+	planFocusSibling,
 	planOutdent,
 	planSplit,
 	planToggleComplete,
@@ -724,5 +726,73 @@ describe("dropIndex", () => {
 
 	it("orders siblings by priority", () => {
 		expect(dropIndex([siblings[2], siblings[1], siblings[0]], "a", "above")).toBe(0);
+	});
+});
+
+describe("nextPotentiallyVisibleSibling", () => {
+	const sibs = [
+		node({id: "c", parent_id: "p", priority: 2}),
+		node({id: "a", parent_id: "p", priority: 0}),
+		node({id: "b", parent_id: "p", priority: 1, completedAt: 1}),
+	];
+
+	it("skips a hidden completed sibling going forward", () => {
+		expect(nextPotentiallyVisibleSibling(sibs, "a", 1, false)).toBe("c");
+	});
+
+	it("stops at a completed sibling when completed rows show", () => {
+		expect(nextPotentiallyVisibleSibling(sibs, "a", 1, true)).toBe("b");
+	});
+
+	it("skips a hidden completed sibling going backward", () => {
+		expect(nextPotentiallyVisibleSibling(sibs, "c", -1, false)).toBe("a");
+	});
+
+	it("returns null past the last sibling", () => {
+		expect(nextPotentiallyVisibleSibling(sibs, "c", 1, false)).toBeNull();
+	});
+
+	it("returns null for an id that is not among the siblings", () => {
+		expect(nextPotentiallyVisibleSibling(sibs, "x", 1, false)).toBeNull();
+	});
+});
+
+describe("planFocusSibling", () => {
+	const base = {zoomedId: "z", firstChildId: "a", siblings: ["a", "b", "c"]};
+
+	it("focuses the first child going forward with no current row", () => {
+		expect(planFocusSibling({...base, currentId: null}, 1)).toBe("a");
+	});
+
+	it("does nothing going backward with no current row", () => {
+		expect(planFocusSibling({...base, currentId: null}, -1)).toBeNull();
+	});
+
+	it("focuses the first child going forward from the zoomed title", () => {
+		expect(planFocusSibling({...base, currentId: "z"}, 1)).toBe("a");
+	});
+
+	it("does nothing going backward from the zoomed title", () => {
+		expect(planFocusSibling({...base, currentId: "z"}, -1)).toBeNull();
+	});
+
+	it("never goes back from the first child to the title", () => {
+		expect(planFocusSibling({...base, currentId: "a"}, -1)).toBeNull();
+	});
+
+	it("moves from a middle row to its next sibling", () => {
+		expect(planFocusSibling({...base, currentId: "b"}, 1)).toBe("c");
+	});
+
+	it("moves from a middle row to its previous sibling", () => {
+		expect(planFocusSibling({...base, currentId: "b"}, -1)).toBe("a");
+	});
+
+	it("does nothing going forward from the last sibling", () => {
+		expect(planFocusSibling({...base, currentId: "c"}, 1)).toBeNull();
+	});
+
+	it("does nothing going forward on an empty zoomed page", () => {
+		expect(planFocusSibling({...base, currentId: null, firstChildId: null, siblings: []}, 1)).toBeNull();
 	});
 });

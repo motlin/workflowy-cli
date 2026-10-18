@@ -41,8 +41,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
 	{
 		title: "Sibling Navigation",
 		shortcuts: [
-			{keys: "⇧⌘9", description: "Previous sibling"},
-			{keys: "⇧⌘0", description: "Next sibling"},
+			{keys: "⇧⌘9", description: "Jump to previous sibling"},
+			{keys: "⇧⌘0", description: "Jump to next sibling"},
 			{keys: "⌥⌘↑", description: "Focus previous sibling"},
 			{keys: "⌥⌘↓", description: "Focus next sibling"},
 		],

@@ -439,3 +439,48 @@ export function isPotentiallyVisible(
 ): boolean {
 	return node.completedAt === null || showCompleted || animatingCompletionIds.has(node.id);
 }
+
+/**
+ * Upstream `nextPotentiallyVisibleSibling`: the id of the sibling `step` places from `id` in priority order,
+ * skipping completed siblings while completed rows are hidden, or null past either end.
+ */
+export function nextPotentiallyVisibleSibling(
+	siblings: Pick<NodeResponse, "id" | "priority" | "completedAt">[],
+	id: string,
+	step: -1 | 1,
+	showCompleted: boolean,
+): string | null {
+	const sorted = sortByPriority(siblings);
+	const start = sorted.findIndex((sibling) => sibling.id === id);
+	if (start === -1) {
+		return null;
+	}
+	for (let index = start + step; index >= 0 && index < sorted.length; index += step) {
+		const sibling = sorted[index];
+		if (sibling !== undefined && isPotentiallyVisible(sibling, showCompleted, new Set())) {
+			return sibling.id;
+		}
+	}
+	return null;
+}
+
+/**
+ * Upstream `focus_next_sibling` / `focus_prev_sibling`: where the caret goes. With no current row, or on the
+ * zoomed title, next goes to the zoomed page's first visible child; otherwise the caret steps to the current row's
+ * potentially visible sibling (`siblings`, in order), skipping children. Previous never reaches the title.
+ */
+export function planFocusSibling(
+	{
+		zoomedId,
+		currentId,
+		firstChildId,
+		siblings,
+	}: {zoomedId: string | null; currentId: string | null; firstChildId: string | null; siblings: readonly string[]},
+	step: -1 | 1,
+): string | null {
+	if (currentId === null || currentId === zoomedId) {
+		return step === 1 ? firstChildId : null;
+	}
+	const index = siblings.indexOf(currentId);
+	return index === -1 ? null : (siblings[index + step] ?? null);
+}
