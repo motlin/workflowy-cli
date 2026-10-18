@@ -15,8 +15,6 @@ const outlineState = {
 	endCompletionAnimation: () => {},
 	showCompleted: true,
 	toggleExpand: () => {},
-	expandAll: () => {},
-	collapseDescendants: () => {},
 	resumeEditing: vi.fn<(id: string, caretOffset: number) => void>(),
 	editingId: null as string | null,
 	editingClickPosition: null,
@@ -56,6 +54,7 @@ vi.mock("../src/client/navigation.js", () => ({
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useExpandAll: () => () => {},
 	useBacklinks: () => ({data: undefined}),
 	useChildren: (parentId: string | null) => ({
 		data: childrenByParent.get(parentId) ?? [],

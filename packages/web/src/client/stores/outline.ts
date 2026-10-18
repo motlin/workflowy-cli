@@ -272,9 +272,8 @@ interface OutlineActions {
 	toggleExpand: (id: string) => void;
 	expand: (id: string) => void;
 	collapse: (id: string) => void;
-	expandAll: (ids: string[]) => void;
-	collapseAll: () => void;
-	collapseDescendants: (ids: string[]) => void;
+	/** Replace the expanded set and persist the change (Expand all / Collapse all). */
+	replaceExpanded: (ids: Set<string>) => void;
 	/** Replace the expanded set without persisting it (hydration from `/api/v1/expansion`). */
 	setExpanded: (ids: Set<string>) => void;
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
@@ -510,20 +509,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		commitExpanded(next);
 	},
 
-	expandAll: (ids) => {
-		commitExpanded(new Set([...get().expandedIds, ...ids]));
-	},
-
-	collapseAll: () => {
-		commitExpanded(new Set<string>());
-	},
-
-	collapseDescendants: (ids) => {
-		const next = new Set(get().expandedIds);
-		for (const id of ids) {
-			next.delete(id);
-		}
-		commitExpanded(next);
+	replaceExpanded: (ids) => {
+		commitExpanded(new Set(ids));
 	},
 
 	setExpanded: (ids) => {

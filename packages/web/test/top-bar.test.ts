@@ -19,8 +19,6 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	showCompleted: false,
 	openSettings: () => {},
 	openPresentation: () => {},
-	expandAll: () => {},
-	collapseAll: () => {},
 	leftBarOffset: () => 0,
 	leftBarMode: "drawerClosed",
 	nav: {current: null, back: [], forward: []},
@@ -43,12 +41,14 @@ vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
 	useShowCompletedToggle: () => toggleState.toggleCompleted,
 }));
 vi.mock("../src/client/navigation.js", () => ({stepNav: () => {}, useNavStackSync: () => {}}));
-vi.mock("../src/client/hooks/use-flattened-tree.js", () => ({
-	useFlattenedTree: () => ({flattenedNodes: []}),
-}));
 const nodeState = {hasChildren: true, rootChildren: [{id: "r1"}]};
 
+const expandAllCalls: [string | null, boolean][] = [];
+
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useExpandAll: () => (rootId: string | null, open: boolean) => {
+		expandAllCalls.push([rootId, open]);
+	},
 	useUpdateNode: () => ({mutate: () => {}}),
 	useNode: (nodeId: string | null) => ({
 		data: nodeId === null ? undefined : {id: nodeId, hasChildren: nodeState.hasChildren},
@@ -63,10 +63,17 @@ vi.mock("../src/client/hooks/use-media-query.js", () => ({
 	useMediaQuery: (query: string) => (query === "(min-width: 701px)" ? media.wide : true),
 }));
 
-const gearMenuProps: {headerItems?: GearMenuHeaderItem[]} = {};
+interface CapturedGearMenuProps {
+	headerItems?: GearMenuHeaderItem[];
+	onExpandAll?: () => void;
+	onCollapseAll?: () => void;
+}
+const gearMenuProps: CapturedGearMenuProps = {};
 vi.mock("../src/client/components/gear-menu.js", () => ({
-	GearMenu: (props: {headerItems?: GearMenuHeaderItem[]}) => {
+	GearMenu: (props: CapturedGearMenuProps) => {
 		gearMenuProps.headerItems = props.headerItems;
+		gearMenuProps.onExpandAll = props.onExpandAll;
+		gearMenuProps.onCollapseAll = props.onCollapseAll;
 		return null;
 	},
 }));
@@ -442,5 +449,24 @@ describe("header CSS", () => {
 
 	it("drops the local-only Calendar popover rules", () => {
 		expect(hasSelector(styles, /\.(calendar-panel|calendar-day|top-bar-calendar-container)\b/u)).toBe(false);
+	});
+});
+
+describe("TopBar Expand all / Collapse all", () => {
+	it("acts on the zoomed item's whole subtree, and on Home when not zoomed", () => {
+		expandAllCalls.length = 0;
+		renderToStaticMarkup(createElement(TopBar));
+		gearMenuProps.onExpandAll?.();
+		gearMenuProps.onCollapseAll?.();
+		storeState.zoomedNodeId = null;
+		renderToStaticMarkup(createElement(TopBar));
+		storeState.zoomedNodeId = "alice";
+		gearMenuProps.onExpandAll?.();
+
+		expect(expandAllCalls).toStrictEqual([
+			["alice", true],
+			["alice", false],
+			[null, true],
+		]);
 	});
 });

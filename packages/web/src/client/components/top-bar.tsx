@@ -1,8 +1,7 @@
 import {useRef, useState} from "react";
 import {locationKey} from "@workflowy/shared";
 import {useNavigate} from "react-router-dom";
-import {useFlattenedTree} from "../hooks/use-flattened-tree.js";
-import {useChildren, useNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useChildren, useExpandAll, useNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useStarActions, useStars} from "../hooks/use-starred.js";
 import {useShowCompletedToggle} from "../hooks/use-show-completed-toggle.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -51,9 +50,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const {toggleStar} = useStarActions();
 	const currentPageKey = zoomedNodeId === null ? null : locationKey({nodeId: zoomedNodeId, query: null});
 	const isCurrentPageStarred = stars.some((star) => star.key === currentPageKey);
-	const expandAll = useOutlineStore((state) => state.expandAll);
-	const collapseAll = useOutlineStore((state) => state.collapseAll);
-	const {flattenedNodes} = useFlattenedTree(zoomedNodeId);
+	const expandAll = useExpandAll();
 	const zoomedNode = useNode(zoomedNodeId);
 	const rootChildren = useChildren(null);
 	const canPresent =
@@ -109,13 +106,13 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		}
 	};
 
+	// Upstream: the kebab's Expand/Collapse all act on the zoomed item's whole subtree (every top-level item at Home).
 	const handleExpandAll = () => {
-		const nodeIds = flattenedNodes.filter((fn) => fn.hasChildren).map((fn) => fn.node.id);
-		expandAll(nodeIds);
+		expandAll(zoomedNodeId, true);
 	};
 
 	const handleCollapseAll = () => {
-		collapseAll();
+		expandAll(zoomedNodeId, false);
 	};
 
 	const handleShare = () => {

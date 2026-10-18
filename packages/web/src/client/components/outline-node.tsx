@@ -1,14 +1,12 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
-import {useQueryClient} from "@tanstack/react-query";
-import {nodeKeys} from "../node-cache.js";
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {Fragment, useRef, useState} from "react";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
-import {useDeleteNode, useToggleComplete} from "../hooks/use-nodes.js";
+import {useDeleteNode, useExpandAll, useToggleComplete} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbItem, BreadcrumbSeparator} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
@@ -172,21 +170,6 @@ function TodoCheckbox({isCompleted, onComplete}: {isCompleted: boolean; onComple
 	);
 }
 
-/**
- * Recursively collects all descendant IDs from cached children data.
- * Used for expand all / collapse all operations on a subtree.
- */
-function collectDescendantIds(nodeId: string, queryClient: ReturnType<typeof useQueryClient>): string[] {
-	const result: string[] = [nodeId];
-	const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(nodeId));
-	if (children) {
-		for (const child of children) {
-			result.push(...collectDescendantIds(child.id, queryClient));
-		}
-	}
-	return result;
-}
-
 interface NodeItemMenuProps {
 	node: NodeResponse;
 	left?: string;
@@ -196,11 +179,9 @@ interface NodeItemMenuProps {
 
 /** The bullet-menu trigger wired to the node's outline actions. */
 export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMenuProps) {
-	const expandAll = useOutlineStore((state) => state.expandAll);
-	const collapseDescendants = useOutlineStore((state) => state.collapseDescendants);
+	const expandAll = useExpandAll();
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const focusName = useOutlineStore((state) => state.focusName);
-	const queryClient = useQueryClient();
 	const deleteNode = useDeleteNode();
 	return (
 		<ItemMenuTrigger
@@ -215,14 +196,14 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 				}
 			}}
 			onCollapseAll={() => {
-				collapseDescendants(collectDescendantIds(node.id, queryClient));
+				expandAll(node.id, false);
 			}}
 			onComplete={onComplete}
 			onDelete={() => {
 				deleteNode.mutate(node.id);
 			}}
 			onExpandAll={() => {
-				expandAll(collectDescendantIds(node.id, queryClient));
+				expandAll(node.id, true);
 			}}
 			onOpenChange={onOpenChange}
 		/>

@@ -2,7 +2,7 @@ import {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {BacklinkCrumb, BacklinksResponse, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {ExactMover} from "@workflowy/shared/cache";
-import {mirrors as mirrorsTable, nodeInternalMetadata, s3Files} from "@workflowy/shared/db";
+import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
@@ -11,7 +11,7 @@ import {isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import type {Context} from "hono";
-import {childFlags, currentBacklinkSources, findReferencesRoot} from "../backlinks.js";
+import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoot} from "../backlinks.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
@@ -656,6 +656,77 @@ nodesRouter.post("/:id/complete", async (c) => {
 	};
 
 	return c.json({node: nodeResponse});
+});
+
+/** One descendant row of `GET /:id/subtree-ids`; `parentId` is the row it renders under (a mirror, not its original). */
+interface SubtreeItem {
+	id: string;
+	parentId: string | null;
+	completed: boolean;
+	hasChildren: boolean;
+}
+
+/** Every current node's parent and completion in sibling order, plus each mirror's original, in two queries. */
+function readTreeShape(ctx: ServerContext) {
+	const rows = ctx.db
+		.select({id: nodeContent.id, parentId: nodeContent.parentId, completedAt: nodeMetadata.completedAt})
+		.from(nodeContent)
+		.leftJoin(
+			nodeMetadata,
+			and(eq(nodeMetadata.nodeId, nodeContent.id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE)),
+		)
+		.where(and(eq(nodeContent.systemTo, FAR_FUTURE_DATE), notReferencesRoot()))
+		.orderBy(nodeMetadata.priority, nodeMetadata.createdAt)
+		.all();
+	const children = new Map<string | null, {id: string; completed: boolean}[]>();
+	for (const row of rows) {
+		const siblings = children.get(row.parentId) ?? [];
+		siblings.push({id: row.id, completed: row.completedAt !== null});
+		children.set(row.parentId, siblings);
+	}
+	const originals = new Map(
+		ctx.db
+			.select({mirrorId: mirrorsTable.mirrorId, originalId: mirrorsTable.originalId})
+			.from(mirrorsTable)
+			.where(eq(mirrorsTable.systemTo, FAR_FUTURE_DATE))
+			.all()
+			.map((row) => [row.mirrorId, row.originalId]),
+	);
+	return {children, originals};
+}
+
+/** Every cached descendant of `rootId` (Home's tree for null) in depth-first outline order. */
+function readSubtreeItems(ctx: ServerContext, rootId: string | null): SubtreeItem[] {
+	const {children, originals} = readTreeShape(ctx);
+	const items: SubtreeItem[] = [];
+	// `path` holds the originals on the way down, so a mirror inside its own original's subtree stops there.
+	const walk = (parentId: string | null, childrenOf: string | null, path: ReadonlySet<string>) => {
+		for (const child of children.get(childrenOf) ?? []) {
+			const original = originals.get(child.id) ?? child.id;
+			const hasChildren = children.has(original);
+			items.push({id: child.id, parentId, completed: child.completed, hasChildren});
+			if (hasChildren && !path.has(original)) {
+				walk(child.id, original, new Set([...path, original]));
+			}
+		}
+	};
+	const rootOriginal = rootId === null ? null : (originals.get(rootId) ?? rootId);
+	walk(rootId, rootOriginal, new Set(rootOriginal === null ? [] : [rootOriginal]));
+	return items;
+}
+
+// GET /api/v1/nodes/:id/subtree-ids - Every cached descendant of the node ("home" = the whole tree), for Expand/Collapse all
+nodesRouter.get("/:id/subtree-ids", (c) => {
+	const ctx = c.get("ctx");
+	const rawId = c.req.param("id");
+	if (rawId === HOME_TARGET) {
+		return c.json({items: readSubtreeItems(ctx, null)});
+	}
+	const id = resolveNodeId(ctx, rawId);
+	if (id === null || ctx.cacheService.getNode(id) === undefined) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	return c.json({items: readSubtreeItems(ctx, id)});
 });
 
 // GET /api/v1/nodes/:id/ancestors - Get all ancestors from root to node

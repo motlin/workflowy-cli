@@ -13,8 +13,6 @@ const outlineState = {
 	slidingDownCompletedIds: new Set<string>(),
 	endCompletionAnimation: () => {},
 	toggleExpand: () => {},
-	expandAll: () => {},
-	collapseDescendants: () => {},
 	resumeEditing: () => {},
 	focusNote: () => {},
 	focusName: () => {},
@@ -35,6 +33,7 @@ vi.mock("../src/client/navigation.js", () => ({
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useExpandAll: () => () => {},
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
 	useUpdateNode: () => ({mutate: () => {}}),

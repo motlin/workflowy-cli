@@ -17,6 +17,11 @@ export function notReferencesContent(): SQL {
 	return sql`(${nodeContent.id} NOT IN ${currentReferencesRootIds} AND (${nodeContent.parentId} IS NULL OR ${nodeContent.parentId} NOT IN ${currentReferencesRootIds}))`;
 }
 
+/** A `node_content` condition that drops every references root (its backlink items stay). */
+export function notReferencesRoot(): SQL {
+	return sql`${nodeContent.id} NOT IN ${currentReferencesRootIds}`;
+}
+
 /** Which parents have any child, and which have at least one uncompleted child. */
 export interface ChildFlags {
 	withChildren: Set<string>;

@@ -47,12 +47,12 @@ describe("expansion deltas", () => {
 		});
 	});
 
-	it("collapseAll sends false for every expanded id", async () => {
+	it("replaceExpanded sends the whole delta in one PATCH", async () => {
 		const {store} = await loadModules();
-		store.getState().expandAll(["a", "b"]);
+		store.getState().replaceExpanded(new Set(["a", "b"]));
 		fetchMock.mockClear();
-		store.getState().collapseAll();
-		expect(calls()).toStrictEqual([patch({a: false, b: false})]);
+		store.getState().replaceExpanded(new Set(["c"]));
+		expect(calls()).toStrictEqual([patch({c: true, a: false, b: false})]);
 	});
 
 	it("sends nothing when the set does not change", async () => {

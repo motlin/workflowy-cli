@@ -2,6 +2,8 @@ import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-
 import {useCallback} from "react";
 import type {MutateOptions, QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
+import {expandOrCollapseAll} from "../expansion.js";
+import type {TreeIndex} from "../expansion.js";
 import {nodeKeys, patchCachedNode, readNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
@@ -787,4 +789,73 @@ export function useRestoreNode() {
 		cachedOps(queryClient, {kind: "restore", nodeId, parentId, index}),
 	);
 	return {...mutation, mutate};
+}
+
+/** The route id for Home (the server's `HOME_TARGET`). */
+const HOME_TARGET = "home";
+
+/** One descendant row from `GET /api/v1/nodes/:id/subtree-ids`. */
+interface SubtreeItem {
+	id: string;
+	parentId: string | null;
+	completed: boolean;
+	hasChildren: boolean;
+}
+
+/** The whole cached subtree of `rootId` (Home's tree for null), independent of what the client has loaded. */
+async function fetchSubtreeItems(rootId: string | null): Promise<SubtreeItem[]> {
+	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(rootId ?? HOME_TARGET)}/subtree-ids`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch subtree: ${response.statusText}`);
+	}
+	const data = await readJson<{items: SubtreeItem[]}>(response);
+	return data.items;
+}
+
+/** A `TreeIndex` over the subtree rows; Home's top-level rows sit under the `home` key. */
+function subtreeIndex(items: readonly SubtreeItem[], showCompleted: boolean): TreeIndex {
+	const children = new Map<string, string[]>();
+	const completed = new Set<string>();
+	for (const item of items) {
+		const key = item.parentId ?? HOME_TARGET;
+		children.set(key, [...(children.get(key) ?? []), item.id]);
+		if (item.completed) {
+			completed.add(item.id);
+		}
+	}
+	const isVisible = (id: string) => showCompleted || !completed.has(id);
+	return {
+		children: (id) => children.get(id) ?? [],
+		isVisible,
+		hasVisibleChildren: (id) => (children.get(id) ?? []).some(isVisible),
+	};
+}
+
+/**
+ * Upstream Expand all / Collapse all on `rootId` (the whole page for Home): fetches the full subtree so
+ * descendants the client never loaded are covered, then sets their expansion; hidden completed subtrees are skipped.
+ */
+export async function expandOrCollapseSubtree(rootId: string | null, open: boolean): Promise<void> {
+	const items = await fetchSubtreeItems(rootId);
+	const {expandedIds, showCompleted, replaceExpanded} = useOutlineStore.getState();
+	const index = subtreeIndex(items, showCompleted);
+	const roots = rootId === null ? index.children(HOME_TARGET).filter((id) => index.isVisible(id)) : [rootId];
+	let next = new Set<string>(expandedIds);
+	for (const root of roots) {
+		next = expandOrCollapseAll(next, index, root, open);
+	}
+	replaceExpanded(next);
+}
+
+/** `expandOrCollapseSubtree` that reports a failed subtree fetch as an error notification. */
+export function useExpandAll(): (rootId: string | null, open: boolean) => void {
+	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
+	return useCallback(
+		(rootId, open) => {
+			expandOrCollapseSubtree(rootId, open).catch((error: unknown) => {
+				addErrorNotification(error instanceof Error ? error.message : String(error));
+			});
+		},
+		[addErrorNotification],
+	);
 }
