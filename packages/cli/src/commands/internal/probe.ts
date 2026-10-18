@@ -8,7 +8,8 @@ import {readInternalAuth} from "@workflowy/shared/node";
 import {isDeepStrictEqual} from "node:util";
 import {WorkflowyWriteThroughClient, keptInternalMetadata, normalizeLayoutMode} from "@workflowy/shared/cache";
 import {nodeInternalMetadata} from "@workflowy/shared/db";
-import {eq} from "drizzle-orm";
+import {eq, sql} from "drizzle-orm";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
 
@@ -20,6 +21,7 @@ const STEPS = [
 	"index",
 	"restore",
 	"meta",
+	"expansion",
 	"root-meta",
 	"root-meta-set",
 	"root-meta-unset",
@@ -42,7 +44,7 @@ const PROBE_VALUE = {x: "1"};
 const RENAMED = "probe error-shape: renamed";
 /** How far the `index` step backdates the create's client clock, so the node's `createdAt` shows whether `ct` was kept. */
 const CT_SHIFT_SEC = 86_400;
-const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore", "meta"]);
+const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore", "meta", "expansion"]);
 /** The list start the `meta` step sets, so the rendered numbering shows whether it was honored. */
 const NUMBERED_START = 5;
 
@@ -227,6 +229,8 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe restore --yes-live",
 		"<%= config.bin %> internal probe meta --yes-live",
 		"<%= config.bin %> internal probe meta --yes-live --keep",
+		"<%= config.bin %> internal probe expansion --yes-live",
+		"<%= config.bin %> internal probe expansion --yes-live --keep",
 		"<%= config.bin %> internal probe root-meta --yes-live",
 		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
@@ -249,7 +253,7 @@ export default class Probe extends Command {
 		}),
 		keep: Flags.boolean({
 			description:
-				"Leave the `index`, `restore` or `meta` fixture in the sandbox for a visual check (delete it afterwards); `meta` then stops while the fixture is still numbered",
+				"Leave the `index`, `restore`, `meta` or `expansion` fixture in the sandbox for a visual check (delete it afterwards); `meta` then stops while the fixture is still numbered, `expansion` while it is still expanded",
 			default: false,
 		}),
 		out: Flags.string({description: "Markdown file the findings are appended to", default: DEFAULT_OUT}),
@@ -327,6 +331,14 @@ export default class Probe extends Command {
 		if (step === "meta") {
 			return this.meta(
 				client,
+				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
+				keep,
+			);
+		}
+		if (step === "expansion") {
+			return this.expansion(
+				client,
+				recorded,
 				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
 				keep,
 			);
@@ -608,6 +620,92 @@ export default class Probe extends Command {
 				assertUnderSandbox(await readAncestors(api, (await api.getNode(fixtureId)).parent_id));
 				await writeThrough.deleteNode(fixtureId);
 				lines.push("- Cleanup: fixture deleted through the write-through client");
+			}
+		}
+		return lines;
+	}
+
+	/**
+	 * Expansion state on a fresh sandbox fixture with one child: push
+	 * `project_expansions_delta: {<first 8 chars of the fixture id>: true}` with no
+	 * ops, then check the key in `/get_tree_data/` `server_expanded_projects_list`
+	 * and in a fresh bootstrap; then push `false` and check again. Also counts
+	 * 8-char key collisions among the cache's live ids (read only). With `keep`
+	 * the fixture stays expanded for a visual check and the `false` half is skipped.
+	 */
+	private async expansion(
+		client: WorkflowyInternalClient,
+		recorded: RecordedRequest[],
+		api: WorkflowyApiClient,
+		keep: boolean,
+	): Promise<string[]> {
+		const {id: fixtureId} = await api.createNode({
+			parent_id: SANDBOX_ID,
+			name: `probe expansion ${new Date().toISOString()}`,
+			position: "bottom",
+		});
+		assertUnderSandbox(await readAncestors(api, (await api.getNode(fixtureId)).parent_id));
+		await api.createNode({parent_id: fixtureId, name: "inner", position: "bottom"});
+		const key = fixtureId.slice(0, 8);
+		const groups = createDatabase().all<{key: string; ids: number}>(
+			sql`SELECT substr(id, 1, 8) AS key, COUNT(DISTINCT id) AS ids FROM node_content WHERE system_to = ${FAR_FUTURE_DATE} GROUP BY key HAVING ids > 1`,
+		);
+		const collidingIds = groups.reduce((total, group) => total + group.ids, 0);
+		const lines = [
+			"- Fixture: fresh sandbox child with one child `inner` (public API); ancestors verified",
+			`- Key: first 8 chars of the fixture id (shape \`${shapeOf(key)}\`)`,
+			`- 8-char key collisions among the cache's live ids (read only): ${groups.length} keys shared by ${collidingIds} ids${groups.some((group) => group.key === key) ? "; the fixture key is one of them" : ""}`,
+		];
+		const report = async (label: string, expected: boolean) => {
+			await client.getTreeData();
+			const treeData = recorded.findLast((request) => request.path === "/get_tree_data/");
+			const list: unknown = Reflect.get(Object(parseJson(treeData?.text ?? "")), "server_expanded_projects_list");
+			const inTree = Array.isArray(list) && list.includes(key);
+			await client.bootstrap();
+			const init = recorded.findLast((request) => request.path === "/get_initialization_data");
+			const treeInfo: unknown = Reflect.get(
+				Object(Reflect.get(Object(parseJson(init?.text ?? "")), "projectTreeData")),
+				"mainProjectTreeInfo",
+			);
+			const initList: unknown = Reflect.get(Object(treeInfo), "serverExpandedProjectsList");
+			const inInit = Array.isArray(initList) && initList.includes(key);
+			const verdict = (actual: boolean) => (actual === expected ? "MATCH" : "MISMATCH");
+			lines.push(
+				`- ${label}: expected key ${expected ? "present" : "absent"}`,
+				`  - \`/get_tree_data/\` \`server_expanded_projects_list\`: ${Array.isArray(list) ? `${list.length} keys, key ${inTree ? "present" : "absent"} (${verdict(inTree)})` : "ABSENT"}`,
+				`  - Fresh bootstrap \`mainProjectTreeInfo.serverExpandedProjectsList\`: ${Array.isArray(initList) ? `${initList.length} keys, key ${inInit ? "present" : "absent"} (${verdict(inInit)})` : "ABSENT"}`,
+			);
+		};
+		const push = async (expanded: boolean) => {
+			assertUnderSandbox(await readAncestors(api, (await api.getNode(fixtureId)).parent_id));
+			const session = await client.bootstrap();
+			const response = await sendRawPush(client, session, recorded, {
+				most_recent_operation_transaction_id: session.txId,
+				project_expansions_delta: {[key]: expanded},
+			});
+			const first: unknown = Reflect.get(Object(Reflect.get(Object(parseJson(response.text)), "results")), 0);
+			const error: unknown = Reflect.get(Object(first), "error");
+			lines.push(
+				`- Pushed \`project_expansions_delta: {<key>: ${expanded}}\` with no ops: HTTP ${response.status}${typeof error === "string" ? `, \`results[0].error\` \`${error}\`` : ""}`,
+			);
+		};
+		try {
+			await report("Before any push", false);
+			await push(true);
+			await report("After `true`", true);
+			if (!keep) {
+				await push(false);
+				await report("After `false`", false);
+			}
+		} finally {
+			if (keep) {
+				lines.push(
+					`- Fixture kept expanded for a visual check (reload workflowy.com; \`inner\` should show): \`${fixtureId}\` (collapse and delete it afterwards)`,
+				);
+			} else {
+				assertUnderSandbox(await readAncestors(api, (await api.getNode(fixtureId)).parent_id));
+				await api.deleteNode(fixtureId);
+				lines.push("- Cleanup: fixture deleted via the public API");
 			}
 		}
 		return lines;
