@@ -3,6 +3,7 @@ import {useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
 import {renderTags} from "../tag-render.js";
+import {editorHtmlToNote, noteToEditorHtml} from "../note-text.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -13,7 +14,7 @@ interface EditableNoteProps {
 /**
  * Inline editable note component using contenteditable.
  * - Rendered as upstream's sibling `.notes` after the row's `.name`
- * - Saves on blur
+ * - Saves on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
  * - Escape cancels editing and hides note if empty
  * - Enter (without shift) exits editing mode
  * - Shift+Enter inserts a line break
@@ -49,7 +50,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 			return;
 		}
 
-		const newValue = contentRef.current.innerHTML;
+		const newValue = editorHtmlToNote(contentRef.current.innerHTML);
 
 		// Only save if the value has changed
 		if (newValue !== initialValueRef.current) {
@@ -75,7 +76,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 				event.preventDefault();
 				// Restore original value on escape
 				if (contentRef.current) {
-					contentRef.current.innerHTML = initialValueRef.current;
+					contentRef.current.innerHTML = noteToEditorHtml(initialValueRef.current);
 				}
 				stopEditingNote();
 			}
@@ -120,7 +121,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 				<span
 					className="innerContentContainer"
 					contentEditable
-					dangerouslySetInnerHTML={{__html: initialValue}}
+					dangerouslySetInnerHTML={{__html: noteToEditorHtml(initialValue)}}
 					onBlur={handleBlur}
 					onKeyDown={handleKeyDown}
 					ref={contentRef}
