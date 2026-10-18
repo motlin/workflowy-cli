@@ -167,6 +167,31 @@ describe("upstream base styles", () => {
 		});
 	});
 
+	it("colors internal workflowy.com and localhost links tertiary gray like upstream", () => {
+		const prefixes = [
+			"https://workflowy.com",
+			"https://dev.workflowy.com",
+			"https://beta.workflowy.com",
+			"http://workflowy.com",
+			"http://dev.workflowy.com",
+			"http://beta.workflowy.com",
+			"http://localhost",
+		];
+		const selector = [".contentLink", ".content a"]
+			.flatMap((base) => prefixes.map((prefix) => `${base}[href^="${prefix}"]`))
+			.join(", ");
+		expect(cssBlock(styles, selector)).toStrictEqual({color: "var(--wf-text-tertiary)"});
+	});
+
+	it("colors links in search matches sky like upstream", () => {
+		expect(
+			cssBlock(
+				styles,
+				".fullMatch .contentLink, .project.metaMatches .contentLink, .fullMatch .content a, .project.metaMatches .content a",
+			),
+		).toStrictEqual({color: "var(--wf-text-sky)"});
+	});
+
 	it("marks the body as a desktop system-font page", () => {
 		expect(indexHtml).toContain('<body class="is-desktop font-system">');
 	});

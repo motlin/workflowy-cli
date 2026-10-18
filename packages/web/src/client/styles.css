@@ -1574,6 +1574,32 @@ body.moving .expand {
 	text-decoration: underline;
 }
 
+/* Upstream colors links back into Workflowy (and localhost) tertiary gray instead of tint blue. */
+.contentLink[href^="https://workflowy.com"],
+.contentLink[href^="https://dev.workflowy.com"],
+.contentLink[href^="https://beta.workflowy.com"],
+.contentLink[href^="http://workflowy.com"],
+.contentLink[href^="http://dev.workflowy.com"],
+.contentLink[href^="http://beta.workflowy.com"],
+.contentLink[href^="http://localhost"],
+.content a[href^="https://workflowy.com"],
+.content a[href^="https://dev.workflowy.com"],
+.content a[href^="https://beta.workflowy.com"],
+.content a[href^="http://workflowy.com"],
+.content a[href^="http://dev.workflowy.com"],
+.content a[href^="http://beta.workflowy.com"],
+.content a[href^="http://localhost"] {
+	color: var(--wf-text-tertiary);
+}
+
+/* Upstream search-match links; the local search does not emit these classes yet. */
+.fullMatch .contentLink,
+.project.metaMatches .contentLink,
+.fullMatch .content a,
+.project.metaMatches .content a {
+	color: var(--wf-text-sky);
+}
+
 /* 📎 File attachment indicator (appears below text/note) */
 .node-attachment {
 	display: inline-flex;
