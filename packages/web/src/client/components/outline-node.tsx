@@ -4,7 +4,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeAttachment, NodeResponse} from "../../node-types.js";
 import {useState} from "react";
-import {nodeRoute, useNodeNavigation} from "../navigation.js";
+import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useDeleteNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -55,7 +55,7 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 		.join(" ");
 	return (
 		<a
-			href={nodeRoute(nodeId)}
+			href={nodeUrl(nodeId)}
 			data-handbook="bullet.handle"
 			data-item-id={nodeId}
 			className={className}

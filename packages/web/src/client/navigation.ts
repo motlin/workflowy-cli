@@ -1,16 +1,27 @@
+import {isShortId} from "@workflowy/shared/workflowy";
 import {useNavigate} from "react-router-dom";
+import {locationUrl} from "./location.js";
 
 /**
- * The client route for a node view.
+ * The client URL for a node view: upstream's `/#/<last 12 chars of uuid>`.
  *
- * Uses the full node UUID, not the 12-char short id: the `/node/:id` route stores
- * its raw `id` param as `zoomedNodeId`, which is compared directly against node
- * `id`s throughout the app (e.g. zoomed sibling navigation). A short id in the URL
- * would never match those full ids, silently breaking that navigation. Every
- * `/node/` link must go through this helper so the form stays consistent.
+ * The hash router resolves the short id back to the full uuid before zooming, so
+ * `zoomedNodeId` always holds a full id. Every node link must go through this
+ * helper so the form stays consistent.
  */
-export function nodeRoute(nodeId: string): string {
-	return `/node/${nodeId}`;
+export function nodeUrl(nodeId: string): string {
+	return locationUrl({id: nodeId});
+}
+
+/**
+ * Resolve a location id to a zoom target: `"home"` for no id, a full uuid as is,
+ * and a 12-hex short id through `lookup` (null when it is unknown).
+ */
+export function resolveZoomTarget(param: string | null, lookup: (id: string) => string | null) {
+	if (param === null) {
+		return "home";
+	}
+	return isShortId(param) ? lookup(param) : param;
 }
 
 export function useNodeNavigation() {
@@ -18,7 +29,7 @@ export function useNodeNavigation() {
 
 	return {
 		navigateToNode: (nodeId: string | null) => {
-			void navigate(nodeId === null ? "/" : nodeRoute(nodeId));
+			void navigate(nodeId === null ? "/" : nodeUrl(nodeId));
 		},
 		navigateToRoot: () => void navigate("/"),
 	};

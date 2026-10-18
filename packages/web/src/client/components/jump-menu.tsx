@@ -1,6 +1,6 @@
 import {useQuery} from "@tanstack/react-query";
 import {useCallback, useEffect, useState} from "react";
-import {nodeRoute} from "../navigation.js";
+import {nodeUrl} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
 import {z} from "zod";
@@ -122,7 +122,7 @@ function JumpMenuDialog() {
 		(node: NodeResult) => {
 			addRecentNode(node.id);
 			toggleJumpMenu();
-			void navigate(nodeRoute(node.id));
+			void navigate(nodeUrl(node.id));
 		},
 		[navigate, toggleJumpMenu],
 	);

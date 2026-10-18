@@ -47,7 +47,7 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		selector ? selector(outlineState) : outlineState,
 }));
 vi.mock("../src/client/navigation.js", () => ({
-	nodeRoute: (nodeId: string) => `/node/${nodeId}`,
+	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({

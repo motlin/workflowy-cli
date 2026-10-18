@@ -1,6 +1,7 @@
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {QueryClient, QueryClientProvider, skipToken, useQuery} from "@tanstack/react-query";
 import {useEffect} from "react";
-import {BrowserRouter, Route, Routes, useParams} from "react-router-dom";
+import {BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams} from "react-router-dom";
+import type {NodeResponse} from "../node-types.js";
 
 import {ChangesView} from "./components/changes-view.js";
 import {ErrorBoundary} from "./components/error-boundary.js";
@@ -21,6 +22,10 @@ import {SearchPanel} from "./components/search-panel.js";
 import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
 import {useKeyboardShortcuts} from "./hooks/use-keyboard-shortcuts.js";
+import {locationUrl, parseLocationHash} from "./location.js";
+import {nodeUrl, resolveZoomTarget} from "./navigation.js";
+import {nodeKeys} from "./node-cache.js";
+import {readJson} from "./read-json.js";
 import {useOutlineStore} from "./stores/outline.js";
 import "./wf-tailwind.css";
 import "./styles.css";
@@ -109,34 +114,63 @@ function OutlineView() {
 	);
 }
 
-function RootRoute() {
-	const zoom = useOutlineStore((state) => state.zoom);
-
-	useEffect(() => {
-		zoom(null);
-	}, [zoom]);
-
-	return <OutlineView />;
-}
-
-function NodeRoute() {
-	const {id} = useParams<{id: string}>();
-	const zoom = useOutlineStore((state) => state.zoom);
-
-	useEffect(() => {
-		if (id) {
-			zoom(id);
-		}
-	}, [id, zoom]);
-
-	return <OutlineView />;
+/** Resolve a location id (short or full) to the node's full uuid; null when the server has no such node. */
+async function fetchResolvedId(locationId: string): Promise<string | null> {
+	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(locationId)}`);
+	if (response.status === 404) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(`Failed to resolve node: ${response.statusText}`);
+	}
+	const data = await readJson<{node: NodeResponse}>(response);
+	return data.node.id;
 }
 
 /**
- * Hook for navigating between nodes.
- * Uses react-router's navigate() which updates the URL and triggers browser history.
- * The RootRoute and NodeRoute components sync URL changes to the zoom store state.
+ * The `/` route: zooms to the node named by the `#/<id>?q=` hash and, like
+ * upstream, pushes the canonical URL when it differs (`#/<full uuid>` becomes
+ * `#/<12hex>`; an unknown id becomes `/` and drops `?q=`).
  */
+function HashLocationRoute() {
+	const location = useLocation();
+	const navigate = useNavigate();
+	const zoom = useOutlineStore((state) => state.zoom);
+	const {id, query} = parseLocationHash(location.hash);
+	const resolved = useQuery({
+		queryKey: nodeKeys.resolvedId(id ?? ""),
+		queryFn: id === null ? skipToken : async () => fetchResolvedId(id),
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+	const unknown = resolved.data === null;
+	const target = resolveZoomTarget(id, () => resolved.data ?? null);
+	const currentUrl = location.pathname + location.hash;
+
+	useEffect(() => {
+		if (unknown) {
+			zoom(null);
+			void navigate("/");
+			return;
+		}
+		if (target === null) {
+			return;
+		}
+		const fullId = target === "home" ? null : target;
+		zoom(fullId);
+		const canonical = locationUrl({id: fullId, query});
+		if (canonical !== currentUrl) {
+			void navigate(canonical);
+		}
+	}, [currentUrl, navigate, query, target, unknown, zoom]);
+
+	return <OutlineView />;
+}
+
+/** `/node/:id` is a legacy alias: replace it with the hash URL, which resolves the id. */
+function NodeRedirect() {
+	const {id} = useParams<{id: string}>();
+	return <Navigate replace to={id === undefined ? "/" : nodeUrl(id)} />;
+}
 
 export function App() {
 	return (
@@ -145,10 +179,10 @@ export function App() {
 				<BrowserRouter>
 					<div className="app">
 						<Routes>
-							<Route element={<RootRoute />} path="/" />
+							<Route element={<HashLocationRoute />} path="/" />
 							<Route element={<ChangesView />} path="/changes" />
 							<Route element={<LadderView />} path="/ladder" />
-							<Route element={<NodeRoute />} path="/node/:id" />
+							<Route element={<NodeRedirect />} path="/node/:id" />
 						</Routes>
 					</div>
 				</BrowserRouter>

@@ -13,6 +13,6 @@ describe("zoomToToday", () => {
 		);
 		const navigate = vi.fn<(path: string) => void>();
 		await zoomToToday({navigate});
-		expect(navigate.mock.calls).toStrictEqual([["/node/d1"]]);
+		expect(navigate.mock.calls).toStrictEqual([["/#/d1"]]);
 	});
 });

@@ -1,4 +1,4 @@
-import {nodeRoute} from "./navigation.js";
+import {nodeUrl} from "./navigation.js";
 import {readJson} from "./read-json.js";
 
 /**
@@ -48,7 +48,7 @@ export async function zoomToToday({navigate}: {navigate: (path: string) => unkno
 			const data = await readJson<{results: {id: string; name: string | null}[]}>(response);
 			const [first] = data.results;
 			if (first !== undefined) {
-				void navigate(nodeRoute(first.id));
+				void navigate(nodeUrl(first.id));
 				return;
 			}
 		}

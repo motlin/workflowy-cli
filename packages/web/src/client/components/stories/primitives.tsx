@@ -25,7 +25,7 @@ export function BulletDot({isCollapsed = false, isMirror = false}: BulletDotProp
 
 	return (
 		<a
-			href="/node/story-node"
+			href="/#/story-node"
 			data-handbook="bullet.handle"
 			data-item-id="story-node"
 			className={classes}

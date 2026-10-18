@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {createPortal} from "react-dom";
-import {nodeRoute, useNodeNavigation} from "../navigation.js";
+import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import type {NodeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter} from "../item-menu-model.js";
@@ -88,7 +88,7 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 								</div>
 								<a
 									className="mirrors-modal-location-path"
-									href={nodeRoute(loc.id)}
+									href={nodeUrl(loc.id)}
 									onClick={(event) => {
 										handleNavigate(loc.id, event);
 									}}

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
+import {nodeUrl} from "../navigation.js";
 
 interface NodeResult {
 	id: string;
@@ -136,7 +137,7 @@ export function LinkInsertModal() {
 
 			// Create an anchor element with Workflowy-style internal link
 			const linkElement = document.createElement("a");
-			linkElement.href = `#/node/${node.id}`;
+			linkElement.href = nodeUrl(node.id);
 			linkElement.textContent = linkInsertContext.selectedText;
 			linkElement.className = "internal-link";
 			linkElement.dataset.nodeId = node.id;

@@ -20,7 +20,7 @@ vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => 
 	measureCrumbLabel: (label: string) => label.length * 7,
 }));
 vi.mock("../src/client/navigation.js", () => ({
-	nodeRoute: (nodeId: string) => `/node/${nodeId}`,
+	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 
@@ -74,9 +74,9 @@ describe("Breadcrumbs markup", () => {
 				CONTAINER_OPEN,
 				`<a class="${crumbClass(false)}" href="/" data-item-id="None"><div role="button" tabindex="0" data-handbook="nav.home" class="homeButton  iconButton lg shape-circle">${HOUSE_SVG}</div></a>`,
 				SEPARATOR,
-				`<a class="${crumbClass(false)}" href="/node/alice-uuid" data-item-id="alice-uuid">Alice</a>`,
+				`<a class="${crumbClass(false)}" href="/#/alice-uuid" data-item-id="alice-uuid">Alice</a>`,
 				SEPARATOR,
-				`<a class="${crumbClass(true)}" href="/node/bob-uuid" data-item-id="bob-uuid">Bob</a>`,
+				`<a class="${crumbClass(true)}" href="/#/bob-uuid" data-item-id="bob-uuid">Bob</a>`,
 				"</div>",
 			].join(""),
 		);
@@ -85,7 +85,7 @@ describe("Breadcrumbs markup", () => {
 	it("labels an empty-named ancestor Untitled", () => {
 		const html = render("empty-uuid", [{id: "empty-uuid", name: ""}]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
-			`<a class="${crumbClass(true)}" href="/node/empty-uuid" data-item-id="empty-uuid">Untitled</a></div>`,
+			`<a class="${crumbClass(true)}" href="/#/empty-uuid" data-item-id="empty-uuid">Untitled</a></div>`,
 		);
 	});
 
@@ -94,7 +94,7 @@ describe("Breadcrumbs markup", () => {
 			{id: "day-uuid", name: '<time startYear="2020" startMonth="3" startDay="5">Thu, Mar 5, 2020</time>'},
 		]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
-			`<a class="${crumbClass(true)}" href="/node/day-uuid" data-item-id="day-uuid">2020-03-05 Thu</a></div>`,
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">2020-03-05 Thu</a></div>`,
 		);
 	});
 });
@@ -181,8 +181,8 @@ describe("Breadcrumbs overflow", () => {
 		expect(html).toBe(
 			[
 				'<div class="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style="max-width:822px">',
-				`<div><a class="${crumbClass(false)}" href="/node/bravo-uuid" data-item-id="bravo-uuid">${longName("Bravo")}</a></div>`,
-				`<div><a class="${crumbClass(false)}" href="/node/charlie-uuid" data-item-id="charlie-uuid">${longName("Charlie")}</a></div>`,
+				`<div><a class="${crumbClass(false)}" href="/#/bravo-uuid" data-item-id="bravo-uuid">${longName("Bravo")}</a></div>`,
+				`<div><a class="${crumbClass(false)}" href="/#/charlie-uuid" data-item-id="charlie-uuid">${longName("Charlie")}</a></div>`,
 				"</div>",
 			].join(""),
 		);

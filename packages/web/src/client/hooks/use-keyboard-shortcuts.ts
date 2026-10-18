@@ -1,6 +1,6 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {nodeRoute} from "../navigation.js";
+import {nodeUrl} from "../navigation.js";
 import {nodeKeys} from "../node-cache.js";
 import {historyStep} from "../nav-history.js";
 import type {NodeResponse} from "../../node-types.js";
@@ -200,7 +200,7 @@ export function useKeyboardShortcuts() {
 			}
 			const nodeId = editingId;
 			commitEdit();
-			void navigate(nodeRoute(nodeId));
+			void navigate(nodeUrl(nodeId));
 		},
 		editingShortcut,
 		[editingId, commitEdit, navigate],
@@ -218,7 +218,7 @@ export function useKeyboardShortcuts() {
 			commitEdit();
 			const parentId = zoomedNode?.parent_id;
 			if (parentId) {
-				void navigate(nodeRoute(parentId));
+				void navigate(nodeUrl(parentId));
 			} else {
 				// No parent means we're at a root node, go to root view
 				void navigate("/");
@@ -452,7 +452,7 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			void navigate(nodeRoute(previousSibling.id));
+			void navigate(nodeUrl(previousSibling.id));
 		},
 		{
 			preventDefault: true,
@@ -485,7 +485,7 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			void navigate(nodeRoute(nextSibling.id));
+			void navigate(nodeUrl(nextSibling.id));
 		},
 		{
 			preventDefault: true,

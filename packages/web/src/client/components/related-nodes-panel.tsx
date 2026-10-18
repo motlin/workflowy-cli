@@ -1,6 +1,6 @@
 import {skipToken, useQuery} from "@tanstack/react-query";
 import {useCallback} from "react";
-import {nodeRoute} from "../navigation.js";
+import {nodeUrl} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
@@ -66,7 +66,7 @@ export function RelatedNodesPanel() {
 
 	const handleNavigateToNode = useCallback(
 		(nodeId: string) => {
-			void navigate(nodeRoute(nodeId));
+			void navigate(nodeUrl(nodeId));
 		},
 		[navigate],
 	);

@@ -1,11 +1,30 @@
 import {describe, expect, it} from "vite-plus/test";
-import {nodeRoute} from "../src/client/navigation.js";
+import {nodeUrl, resolveZoomTarget} from "../src/client/navigation.js";
 
-describe("nodeRoute", () => {
-	it("routes on the full node UUID, not a shortened id", () => {
-		const uuid = "5168a562-9286-03ac-7cbc-166badb860f8";
-		// Guard against reintroducing short-id routing (which breaks zoomed-node id
-		// comparisons): the route must contain the hyphenated full UUID.
-		expect(nodeRoute(uuid)).toBe(`/node/${uuid}`);
+const FULL_ID = "4823cefa-5fc0-478c-88ac-35035d443bf1";
+
+describe("resolveZoomTarget", () => {
+	const lookup = (id: string) => (id === "35035d443bf1" ? FULL_ID : null);
+
+	it("treats a missing id as home", () => {
+		expect(resolveZoomTarget(null, lookup)).toBe("home");
+	});
+
+	it("returns a full uuid as is", () => {
+		expect(resolveZoomTarget(FULL_ID, () => null)).toBe(FULL_ID);
+	});
+
+	it("resolves a 12-hex short id through the lookup", () => {
+		expect(resolveZoomTarget("35035d443bf1", lookup)).toBe(FULL_ID);
+	});
+
+	it("returns null for an unknown short id", () => {
+		expect(resolveZoomTarget("ffffffffffff", lookup)).toBeNull();
+	});
+});
+
+describe("nodeUrl", () => {
+	it("routes to the upstream short-id hash URL", () => {
+		expect(nodeUrl(FULL_ID)).toBe("/#/35035d443bf1");
 	});
 });

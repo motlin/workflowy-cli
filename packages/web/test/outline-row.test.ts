@@ -5,6 +5,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
+import type * as Navigation from "../src/client/navigation.js";
 
 const outlineState = {
 	expandedIds: new Set<string>(),
@@ -23,8 +24,8 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		selector ? selector(outlineState) : outlineState,
 }));
 
-vi.mock("../src/client/navigation.js", () => ({
-	nodeRoute: (nodeId: string) => `/node/${nodeId}`,
+vi.mock("../src/client/navigation.js", async (importOriginal) => ({
+	...(await importOriginal<typeof Navigation>()),
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
@@ -85,7 +86,7 @@ function render(node: NodeResponse, hasChildren: boolean, isExpanded = false): s
 }
 
 function bulletMarkup(html: string): string {
-	const start = html.indexOf('<a href="/node/');
+	const start = html.indexOf('<a href="/#/');
 	return html.slice(start, html.indexOf("</a>", start) + "</a>".length);
 }
 
@@ -96,7 +97,7 @@ const DIAMOND_SVG =
 	'<svg width="100%" height="100%" viewBox="0 0 16 16" fill="currentColor" class="mirrorDiamondIcon"><path d="M8 4 L4 8 L8 12 L12 8 Z"></path></svg>';
 
 function expectedBullet(id: string, classes: string, svg: string): string {
-	return `<a href="/node/${id}" data-handbook="bullet.handle" data-item-id="${id}" class="${classes}" style="${BULLET_STYLE}" draggable="true"><span class="bulletHalo">${svg}</span></a>`;
+	return `<a href="/#/${id.slice(-12)}" data-handbook="bullet.handle" data-item-id="${id}" class="${classes}" style="${BULLET_STYLE}" draggable="true"><span class="bulletHalo">${svg}</span></a>`;
 }
 
 describe("OutlineRow bullet markup", () => {
@@ -117,6 +118,13 @@ describe("OutlineRow bullet markup", () => {
 	it("renders a mirror leaf's bullet as a diamond", () => {
 		expect(bulletMarkup(render(makeNode({id: "bob", name: "Bob", isMirror: true}), false))).toBe(
 			expectedBullet("bob", "bullet diamond", DIAMOND_SVG),
+		);
+	});
+
+	it("links the bullet to the upstream short-id hash URL", () => {
+		const id = "4823cefa-5fc0-478c-88ac-35035d443bf1";
+		expect(bulletMarkup(render(makeNode({id}), false))).toBe(
+			`<a href="/#/35035d443bf1" data-handbook="bullet.handle" data-item-id="${id}" class="bullet" style="${BULLET_STYLE}" draggable="true"><span class="bulletHalo">${DOT_SVG}</span></a>`,
 		);
 	});
 });

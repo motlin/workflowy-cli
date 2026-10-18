@@ -4,7 +4,7 @@ import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useAncestors} from "../hooks/use-nodes.js";
-import {nodeRoute, useNodeNavigation} from "../navigation.js";
+import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {IconButton} from "./icon-button.js";
@@ -90,7 +90,7 @@ function BreadcrumbItem({crumb, current, truncateWidth, onNavigate}: CrumbProps)
 		<a
 			className={className}
 			style={style}
-			href={crumb.isRoot ? "/" : nodeRoute(crumb.id)}
+			href={crumb.isRoot ? "/" : nodeUrl(crumb.id)}
 			data-item-id={crumb.isRoot ? "None" : crumb.id}
 			onClick={(event: MouseEvent<HTMLAnchorElement>) => {
 				handleCrumbClick(event, crumb, {navigateToNode: onNavigate});

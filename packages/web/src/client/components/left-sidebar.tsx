@@ -1,6 +1,6 @@
 import {useEffect, useRef} from "react";
 import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
-import {nodeRoute} from "../navigation.js";
+import {nodeUrl} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -39,7 +39,7 @@ function StarredPageItem({nodeId}: {nodeId: string}) {
 	const {data: node} = useNode(nodeId);
 
 	const handleClick = () => {
-		void navigate(nodeRoute(nodeId));
+		void navigate(nodeUrl(nodeId));
 	};
 
 	const handleRemove = () => {

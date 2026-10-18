@@ -3,7 +3,7 @@ import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "reac
 import {useNavigate} from "react-router-dom";
 import type {NodeResponse} from "../../node-types.js";
 import {useChildren} from "../hooks/use-nodes.js";
-import {nodeRoute} from "../navigation.js";
+import {nodeUrl} from "../navigation.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {TriangleSvg} from "./fa-icons.js";
@@ -38,7 +38,7 @@ function FilesListRow({
 	const current = useOutlineStore((state) => state.zoomedNodeId) === node.id;
 	const [hovered, setHovered] = useState(false);
 	const completed = node.completedAt !== null;
-	const href = nodeRoute(node.id);
+	const href = nodeUrl(node.id);
 
 	const handleClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {

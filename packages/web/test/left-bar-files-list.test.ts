@@ -87,7 +87,7 @@ describe("FilesListRows", () => {
 			inner: innerTag(result[0] ?? ""),
 		}).toStrictEqual({
 			labels: ['<span class="colored c-blue">A</span>'],
-			anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom " draggable="false" href="/node/A" style="padding-left:12px;color:var(--wf-text-tertiary)">',
+			anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom " draggable="false" href="/#/A" style="padding-left:12px;color:var(--wf-text-tertiary)">',
 			inner: '<div class="flex grow items-center min-w-0 h-[30px] pl-xs text-tertiary" style="font-weight:400">',
 		});
 	});
@@ -106,13 +106,13 @@ describe("FilesListRows", () => {
 		).toStrictEqual([
 			{
 				label: '<span class="colored c-blue">A</span>',
-				anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom " draggable="false" href="/node/A" style="padding-left:12px;color:var(--wf-text-tertiary)">',
+				anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom " draggable="false" href="/#/A" style="padding-left:12px;color:var(--wf-text-tertiary)">',
 				inner: '<div class="flex grow items-center min-w-0 h-[30px] pl-xs text-tertiary" style="font-weight:400">',
 				arrowExpanded: true,
 			},
 			{
 				label: "A1",
-				anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom " draggable="false" href="/node/A1" style="padding-left:24px;color:var(--wf-text-secondary)">',
+				anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom " draggable="false" href="/#/A1" style="padding-left:24px;color:var(--wf-text-secondary)">',
 				inner: '<div class="flex grow items-center min-w-0 h-[30px] pl-xs text-tertiary" style="font-weight:600">',
 				arrowExpanded: false,
 			},
@@ -124,7 +124,7 @@ describe("FilesListRows", () => {
 		const result = rows();
 		expect({labels: result.map(label), anchor: anchorTag(result[1] ?? "")}).toStrictEqual({
 			labels: ['<span class="colored c-blue">A</span>', "B"],
-			anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:line-through left-bar-section-item font-custom " draggable="false" href="/node/B" style="padding-left:12px;color:var(--wf-text-tertiary);text-decoration:line-through;opacity:0.5">',
+			anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:line-through left-bar-section-item font-custom " draggable="false" href="/#/B" style="padding-left:12px;color:var(--wf-text-tertiary);text-decoration:line-through;opacity:0.5">',
 		});
 	});
 });
