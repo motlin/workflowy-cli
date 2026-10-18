@@ -21,6 +21,7 @@ import {RightSidebar} from "./components/right-sidebar.js";
 import {SearchPanel} from "./components/search-panel.js";
 import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
+import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
@@ -197,12 +198,19 @@ function ShowCompletedSync() {
 	return null;
 }
 
+/** Hydrates expansion from the account (`/api/v1/expansion`) once on load. */
+function ExpansionSync() {
+	useExpansionSync();
+	return null;
+}
+
 export function App() {
 	return (
 		<ErrorBoundary>
 			<QueryClientProvider client={queryClient}>
 				<TagColorStyles />
 				<ShowCompletedSync />
+				<ExpansionSync />
 				<BrowserRouter>
 					<div className="app">
 						<Routes>

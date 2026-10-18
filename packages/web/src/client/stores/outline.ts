@@ -275,6 +275,8 @@ interface OutlineActions {
 	expandAll: (ids: string[]) => void;
 	collapseAll: () => void;
 	collapseDescendants: (ids: string[]) => void;
+	/** Replace the expanded set without persisting it (hydration from `/api/v1/expansion`). */
+	setExpanded: (ids: Set<string>) => void;
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
 	stopEditing: () => void;
 	/** Focus `id`'s note with the caret at its start or end (default), leaving its name (the caller commits any unsaved name text first). */
@@ -379,6 +381,59 @@ export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): bo
 const MOVING_FLASH_MS = 500;
 let movingFlashTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** False once `/api/v1/expansion` answers 503: expansion then lives in memory for the session. */
+let expansionPersisted = true;
+
+export function disableExpansionPersistence(): void {
+	expansionPersisted = false;
+}
+
+/** `{[id]: boolean}` for every id whose expansion differs between `previous` and `next`. */
+function expansionDelta(previous: ReadonlySet<string>, next: ReadonlySet<string>): Record<string, boolean> {
+	const changes: Record<string, boolean> = {};
+	for (const id of next) {
+		if (!previous.has(id)) {
+			changes[id] = true;
+		}
+	}
+	for (const id of previous) {
+		if (!next.has(id)) {
+			changes[id] = false;
+		}
+	}
+	return changes;
+}
+
+/** PATCH one expansion delta immediately; the server coalesces pushes, so the client does not debounce. */
+async function patchExpansion(changes: Record<string, boolean>): Promise<void> {
+	try {
+		const response = await fetch("/api/v1/expansion", {
+			method: "PATCH",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify({changes}),
+		});
+		if (response.status === 503) {
+			disableExpansionPersistence();
+		} else if (!response.ok) {
+			console.error(`Failed to save expansion: ${response.status}`);
+		}
+	} catch (error) {
+		console.error("Failed to save expansion", error);
+	}
+}
+
+/** Store `next` as the expanded set and persist the change. */
+function commitExpanded(next: Set<string>): void {
+	const changes = expansionDelta(useOutlineStore.getState().expandedIds, next);
+	if (Object.keys(changes).length === 0) {
+		return;
+	}
+	useOutlineStore.setState({expandedIds: next});
+	if (expansionPersisted) {
+		void patchExpansion(changes);
+	}
+}
+
 export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	zoomedNodeId: null,
 	expandedIds: new Set<string>(),
@@ -436,58 +491,52 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	toggleExpand: (id) => {
-		set((state) => {
-			const newExpandedIds = new Set(state.expandedIds);
-			if (newExpandedIds.has(id)) {
-				newExpandedIds.delete(id);
-			} else {
-				newExpandedIds.add(id);
-			}
-			return {expandedIds: newExpandedIds};
-		});
+		const next = new Set(get().expandedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		commitExpanded(next);
 	},
 
 	expand: (id) => {
-		set((state) => {
-			const newExpandedIds = new Set([...state.expandedIds, id]);
-			return {expandedIds: newExpandedIds};
-		});
+		commitExpanded(new Set([...get().expandedIds, id]));
 	},
 
 	collapse: (id) => {
-		set((state) => {
-			const newExpandedIds = new Set(state.expandedIds);
-			newExpandedIds.delete(id);
-			return {expandedIds: newExpandedIds};
-		});
+		const next = new Set(get().expandedIds);
+		next.delete(id);
+		commitExpanded(next);
 	},
 
 	expandAll: (ids) => {
-		set((state) => {
-			const newExpandedIds = new Set(state.expandedIds);
-			for (const id of ids) {
-				newExpandedIds.add(id);
-			}
-			return {expandedIds: newExpandedIds};
-		});
+		commitExpanded(new Set([...get().expandedIds, ...ids]));
 	},
 
 	collapseAll: () => {
-		set({expandedIds: new Set<string>()});
+		commitExpanded(new Set<string>());
 	},
 
 	collapseDescendants: (ids) => {
-		set((state) => {
-			const newExpandedIds = new Set(state.expandedIds);
-			for (const id of ids) {
-				newExpandedIds.delete(id);
-			}
-			return {expandedIds: newExpandedIds};
-		});
+		const next = new Set(get().expandedIds);
+		for (const id of ids) {
+			next.delete(id);
+		}
+		commitExpanded(next);
+	},
+
+	setExpanded: (ids) => {
+		set({expandedIds: new Set(ids)});
 	},
 
 	startEditing: (id, clickPosition) => {
-		set({editingId: id, editingClickPosition: clickPosition ?? null, editingCaretOffset: null, lastEditedId: id});
+		set({
+			editingId: id,
+			editingClickPosition: clickPosition ?? null,
+			editingCaretOffset: null,
+			lastEditedId: id,
+		});
 	},
 
 	stopEditing: () => {
