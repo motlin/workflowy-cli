@@ -138,3 +138,46 @@ describe("flyout surface styles guard", () => {
 		});
 	});
 });
+
+describe("menu item styles guard", () => {
+	it("styles .wf-menu .menuItem rows, icons, shortcuts, separators and section headers", () => {
+		const selectors = [
+			".wf-menu .menuItem",
+			".wf-menu .menuItem.pl-xl",
+			".wf-menu .menuItem.text-tertiary",
+			".wf-menu .menuItem.canHover:hover",
+			".wf-menu .menuItem.active",
+			".wf-menu .menuItem > span",
+			".wf-menu .menuItem > span > span:first-of-type",
+			".menuItemIcon",
+			".wf-menu .menuItem .text.ml-l",
+			".wf-menu .border-t.my-s",
+			".menu-section-header",
+		];
+		expect(
+			Object.fromEntries(selectors.map((selector) => [selector, normalizedBlocks(styles, selector)])),
+		).toStrictEqual({
+			".wf-menu .menuItem": [
+				"display: block;padding: 4px 16px;line-height: 18.96px;white-space: nowrap;cursor: pointer;text-decoration: none !important;color: var(--wf-text-primary)",
+			],
+			".wf-menu .menuItem.pl-xl": ["padding-left: 24px"],
+			".wf-menu .menuItem.text-tertiary": ["color: var(--wf-text-tertiary)"],
+			".wf-menu .menuItem.canHover:hover": ["background: var(--wf-background-secondary)"],
+			".wf-menu .menuItem.active": ["background: var(--wf-background-secondary)"],
+			".wf-menu .menuItem > span": [
+				"position: relative;display: flex;justify-content: space-between;align-items: center",
+			],
+			".wf-menu .menuItem > span > span:first-of-type": [
+				"flex-grow: 1;display: flex;align-items: center;gap: 8px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;font-size: 0.79rem",
+			],
+			".menuItemIcon": ["display: flex;align-items: center;color: var(--wf-text-secondary)"],
+			".wf-menu .menuItem .text.ml-l": [
+				"margin-left: 16px;min-width: 22px;font-size: 0.79rem;color: var(--wf-text-tertiary)",
+			],
+			".wf-menu .border-t.my-s": ["border-top: 1px solid var(--wf-border-primary);margin: 6px 0"],
+			".menu-section-header": [
+				"padding: 8px 16px;font-size: 0.79rem;text-transform: uppercase;color: var(--wf-text-tertiary)",
+			],
+		});
+	});
+});

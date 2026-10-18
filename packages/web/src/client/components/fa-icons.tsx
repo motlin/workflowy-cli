@@ -370,7 +370,7 @@ export const FA_ICONS = {
 	"fal:ellipsis-h": FAL_ELLIPSIS,
 } as const satisfies Record<string, FaIconDefinition>;
 
-type FaIconKey = keyof typeof FA_ICONS;
+export type FaIconKey = keyof typeof FA_ICONS;
 
 type FaIconSize = "1x" | "lg" | "xs" | "sm";
 
