@@ -1,6 +1,7 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
 import {readChildren, readDetail} from "./node-cache.js";
+import {splitHtml, trimmedPlainLength} from "./rich-text.js";
 import {insertAfterPriority, insertBeforePriority, sortByPriority} from "./tree-position.js";
 
 /**
@@ -74,6 +75,79 @@ export function planAddChild({
 		name: "",
 		layoutMode: prevVisibleLayout === "todo" ? "todo" : null,
 	};
+}
+
+/** The row state `planSplit` reads. `isEmpty` = empty name AND no note AND no children. */
+export interface SplitNode {
+	id: string;
+	parent_id: string | null;
+	index: number;
+	layoutMode: string | null | undefined;
+	hasVisibleChildren: boolean;
+	isExpanded: boolean;
+	isZoomRoot: boolean;
+	isEmpty: boolean;
+	hasNextSibling: boolean;
+	/** False when the parent is the zoom root (or the tree root). */
+	canOutdent: boolean;
+}
+
+/** What Enter does: outdent the empty row, or create a row and rename the current one. */
+export type SplitPlan =
+	| {kind: "outdent"}
+	| {
+			kind: "create";
+			parentId: string | null;
+			index: number;
+			newName: string;
+			currentName: string;
+			focus: "new" | "current";
+			layoutMode: "todo" | null;
+	  };
+
+/**
+ * Plan Enter in the editor (upstream `hK`). A caret at the trimmed end creates a row
+ * after (or the first child of an expanded parent / the zoom root); a caret at the start
+ * creates an empty row above; anything else moves the text before the selection into a
+ * new row above, so the current row keeps its id, children, and note.
+ */
+export function planSplit({
+	node,
+	html,
+	selection,
+}: {
+	node: SplitNode;
+	html: string;
+	selection: {start: number; end: number};
+}): SplitPlan {
+	if (node.isEmpty && !node.hasNextSibling && node.canOutdent && !node.isZoomRoot) {
+		return {kind: "outdent"};
+	}
+	const layoutMode = node.layoutMode === "todo" ? "todo" : null;
+	const create = (
+		parentId: string | null,
+		index: number,
+		newName: string,
+		currentName: string,
+		focus: "new" | "current",
+	): SplitPlan => ({kind: "create", parentId, index, newName, currentName, focus, layoutMode});
+
+	if (node.isZoomRoot) {
+		return create(node.id, 0, "", html, "new");
+	}
+	const {start, end} = selection;
+	if (start === end && start >= trimmedPlainLength(html)) {
+		const {before, after} = splitHtml(html, start, end);
+		if (node.hasVisibleChildren && node.isExpanded) {
+			return create(node.id, 0, after, before, "new");
+		}
+		return create(node.parent_id, node.index + 1, after, before, "new");
+	}
+	if (start === end && start === 0) {
+		return create(node.parent_id, node.index, "", html, "new");
+	}
+	const {before, after} = splitHtml(html, start, end);
+	return create(node.parent_id, node.index, before, after, "current");
 }
 
 /** Duplicate `node`'s name/note as a sibling positioned immediately after it. */

@@ -12,6 +12,7 @@ import {
 	planMoveDown,
 	planMoveUp,
 	planOutdent,
+	planSplit,
 	planToggleComplete,
 } from "../src/client/tree-ops.js";
 
@@ -186,5 +187,176 @@ describe("isPotentiallyVisible", () => {
 
 	it("shows an open row while completed rows are hidden", () => {
 		expect(isPotentiallyVisible({id: "o", completedAt: null}, false, new Set())).toBe(true);
+	});
+});
+
+describe("planSplit", () => {
+	const base = {
+		id: "n",
+		parent_id: "p",
+		index: 4,
+		layoutMode: null,
+		hasVisibleChildren: false,
+		isExpanded: false,
+		isZoomRoot: false,
+		isEmpty: false,
+		hasNextSibling: true,
+		canOutdent: true,
+	};
+
+	it("puts the text before a mid caret in a new row above and keeps the rest in the current row", () => {
+		expect(planSplit({node: base, html: "Bravo text", selection: {start: 5, end: 5}})).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 4,
+			newName: "Bravo",
+			currentName: " text",
+			focus: "current",
+			layoutMode: null,
+		});
+	});
+
+	it("creates an empty row after when the caret is at the end", () => {
+		expect(planSplit({node: base, html: "Bravo text", selection: {start: 10, end: 10}})).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "",
+			currentName: "Bravo text",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("treats a caret inside trailing whitespace as the end", () => {
+		expect(planSplit({node: base, html: "Bravo&nbsp; ", selection: {start: 5, end: 5}})).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "&nbsp; ",
+			currentName: "Bravo",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("creates an empty row above when the caret is at the start of a non-empty row", () => {
+		expect(planSplit({node: base, html: "Bravo text", selection: {start: 0, end: 0}})).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 4,
+			newName: "",
+			currentName: "Bravo text",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("drops a selection and splits around it", () => {
+		expect(planSplit({node: base, html: "XyCharlie", selection: {start: 1, end: 3}})).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 4,
+			newName: "X",
+			currentName: "harlie",
+			focus: "current",
+			layoutMode: null,
+		});
+	});
+
+	it("creates the first child of an expanded row with visible children when the caret is at the end", () => {
+		expect(
+			planSplit({
+				node: {...base, hasVisibleChildren: true, isExpanded: true},
+				html: "Bravo text",
+				selection: {start: 10, end: 10},
+			}),
+		).toStrictEqual({
+			kind: "create",
+			parentId: "n",
+			index: 0,
+			newName: "",
+			currentName: "Bravo text",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("creates an empty first child of the zoom root and keeps its full text", () => {
+		expect(
+			planSplit({node: {...base, isZoomRoot: true}, html: "<b>Bravo</b> text", selection: {start: 3, end: 3}}),
+		).toStrictEqual({
+			kind: "create",
+			parentId: "n",
+			index: 0,
+			newName: "",
+			currentName: "<b>Bravo</b> text",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("outdents an empty last child instead of creating a row", () => {
+		expect(
+			planSplit({node: {...base, isEmpty: true, hasNextSibling: false}, html: "", selection: {start: 0, end: 0}}),
+		).toStrictEqual({kind: "outdent"});
+	});
+
+	it("creates a row after an empty row that has a next sibling", () => {
+		expect(planSplit({node: {...base, isEmpty: true}, html: "", selection: {start: 0, end: 0}})).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "",
+			currentName: "",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("creates a row after an empty last child that cannot outdent", () => {
+		expect(
+			planSplit({
+				node: {...base, isEmpty: true, hasNextSibling: false, canOutdent: false},
+				html: "",
+				selection: {start: 0, end: 0},
+			}),
+		).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "",
+			currentName: "",
+			focus: "new",
+			layoutMode: null,
+		});
+	});
+
+	it("inherits a todo layout", () => {
+		expect(
+			planSplit({node: {...base, layoutMode: "todo"}, html: "Bravo text", selection: {start: 10, end: 10}}),
+		).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "",
+			currentName: "Bravo text",
+			focus: "new",
+			layoutMode: "todo",
+		});
+	});
+
+	it("does not inherit a bullets layout", () => {
+		expect(
+			planSplit({node: {...base, layoutMode: "bullets"}, html: "Bravo text", selection: {start: 10, end: 10}}),
+		).toStrictEqual({
+			kind: "create",
+			parentId: "p",
+			index: 5,
+			newName: "",
+			currentName: "Bravo text",
+			focus: "new",
+			layoutMode: null,
+		});
 	});
 });

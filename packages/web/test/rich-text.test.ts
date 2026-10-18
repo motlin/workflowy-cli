@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {concatHtml, plainLength, splitHtml} from "../src/client/rich-text.js";
+import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "../src/client/rich-text.js";
 
 describe("splitHtml", () => {
 	it("splits plain text at a collapsed caret", () => {
@@ -66,5 +66,15 @@ describe("plainLength", () => {
 
 	it("ignores tags", () => {
 		expect(plainLength("<b>harl</b>ie")).toBe(6);
+	});
+});
+
+describe("trimmedPlainLength", () => {
+	it("ignores trailing whitespace, nbsp entities, and tags", () => {
+		expect(trimmedPlainLength("<b>Bravo&nbsp;</b> &#160;")).toBe(5);
+	});
+
+	it("keeps leading and inner whitespace", () => {
+		expect(trimmedPlainLength(" a b")).toBe(4);
 	});
 });

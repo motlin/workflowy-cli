@@ -83,6 +83,15 @@ export function plainLength(html: string): number {
 	return tokenize(html).filter((token) => token.kind === "char").length;
 }
 
+const WHITESPACE_CHAR = /^(?:\s|&nbsp;|&#160;|&#xa0;)$/iu;
+
+// Plain-text length with trailing whitespace (including nbsp) removed.
+export function trimmedPlainLength(html: string): number {
+	const chars = tokenize(html).filter((token) => token.kind === "char");
+	const lastText = chars.findLastIndex((token) => !WHITESPACE_CHAR.test(token.raw));
+	return lastText + 1;
+}
+
 // Splits `html` at plain-text offsets; the text between `start` and `end` is dropped.
 export function splitHtml(html: string, start: number, end: number): {before: string; after: string} {
 	const tokens = tokenize(html);
