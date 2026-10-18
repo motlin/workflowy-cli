@@ -32,6 +32,66 @@ function NodeAttachmentIndicator({attachment}: {attachment: NodeAttachment}) {
 	);
 }
 
+interface NodeBulletProps {
+	nodeId: string;
+	isMirror: boolean;
+	showHalo: boolean;
+	onDragStart: (event: React.DragEvent) => void;
+	onDragEnd: (event: React.DragEvent) => void;
+}
+
+/**
+ * The zoom bullet: upstream's `a.bullet > span.bulletHalo > svg`. A collapsed
+ * parent shows the halo; a mirror renders a diamond. Click or Enter zooms in.
+ */
+function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBulletProps) {
+	const {navigateToNode} = useNodeNavigation();
+	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
+		.filter(Boolean)
+		.join(" ");
+	return (
+		<a
+			href={nodeRoute(nodeId)}
+			data-handbook="bullet.handle"
+			data-item-id={nodeId}
+			className={className}
+			style={{left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}}
+			draggable
+			onClick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				navigateToNode(nodeId);
+			}}
+			onDragEnd={onDragEnd}
+			onDragStart={onDragStart}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					navigateToNode(nodeId);
+				}
+			}}
+		>
+			<span className="bulletHalo">
+				{isMirror ? (
+					<svg
+						width="100%"
+						height="100%"
+						viewBox="0 0 16 16"
+						fill="currentColor"
+						className="mirrorDiamondIcon"
+					>
+						<path d="M8 4 L4 8 L8 12 L12 8 Z" />
+					</svg>
+				) : (
+					<svg width="100%" height="100%" viewBox="0 0 18 18" fill="currentColor" className="zoomBulletIcon">
+						<circle cx="9" cy="9" r="3.5" />
+					</svg>
+				)}
+			</span>
+		</a>
+	);
+}
+
 interface OutlineNodeProps {
 	node: NodeResponse;
 	depth: number;
@@ -98,7 +158,6 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 		editingNoteId,
 	} = useOutlineStore();
 	const queryClient = useQueryClient();
-	const {navigateToNode} = useNodeNavigation();
 	const deleteNode = useDeleteNode();
 	const toggleComplete = useToggleComplete();
 	const isEditing = editingId === node.id;
@@ -131,12 +190,6 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
 	};
 
-	const handleBulletClick = (event: React.MouseEvent) => {
-		event.preventDefault();
-		event.stopPropagation();
-		navigateToNode(node.id);
-	};
-
 	const handleComplete = () => {
 		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
@@ -166,15 +219,6 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 		.join(" ");
 
 	const isMirror = node.isMirror === true;
-	const isCollapsedWithChildren = hasChildren && !isExpanded;
-	const bulletClasses = [
-		"bullet",
-		isDragging && "dragging",
-		isCollapsedWithChildren && "collapsed",
-		isMirror && "mirror",
-	]
-		.filter(Boolean)
-		.join(" ");
 
 	// Calculate indentation based on depth
 	const indentStyle = {
@@ -231,41 +275,13 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 						/>
 					</svg>
 				</button>
-				<a
-					aria-label={
-						isMirror ? "Mirror, click to zoom" : isCompleted ? "Completed, click to zoom" : "Click to zoom"
-					}
-					className={bulletClasses}
-					data-handbook="bullet.handle"
-					draggable
-					href={nodeRoute(node.id)}
-					onClick={handleBulletClick}
+				<NodeBullet
+					isMirror={isMirror}
+					nodeId={node.id}
 					onDragEnd={handleDragEnd}
 					onDragStart={handleDragStart}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" || event.key === " ") {
-							event.preventDefault();
-							navigateToNode(node.id);
-						}
-					}}
-					title={isMirror ? "Mirror node" : "Drag to move"}
-				>
-					{isMirror ? (
-						<svg
-							className="bullet-svg mirror-diamond"
-							fill="currentColor"
-							height="100%"
-							viewBox="0 0 16 16"
-							width="100%"
-						>
-							<path d="M8 4 L4 8 L8 12 L12 8 Z" />
-						</svg>
-					) : (
-						<svg className="bullet-svg" fill="currentColor" height="100%" viewBox="0 0 18 18" width="100%">
-							<circle cx="9" cy="9" r="3.5" />
-						</svg>
-					)}
-				</a>
+					showHalo={hasChildren && !isExpanded}
+				/>
 				{layout.isTodo ? (
 					<button
 						aria-label="Complete"
@@ -337,7 +353,6 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 		editingNoteId,
 	} = useOutlineStore();
 	const queryClient = useQueryClient();
-	const {navigateToNode} = useNodeNavigation();
 	const deleteNode = useDeleteNode();
 	const toggleComplete = useToggleComplete();
 	const isEditing = editingId === node.id;
@@ -367,12 +382,6 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 			return;
 		}
 		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
-	};
-
-	const handleBulletClick = (event: React.MouseEvent) => {
-		event.preventDefault();
-		event.stopPropagation();
-		navigateToNode(node.id);
 	};
 
 	const handleComplete = () => {
@@ -405,7 +414,6 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 
 	const isMirrorLegacy = node.isMirror === true;
 	const nodeHasChildren = node.hasChildren !== false;
-	const bulletClasses = ["bullet", isDragging && "dragging", isMirrorLegacy && "mirror"].filter(Boolean).join(" ");
 
 	const liClasses = ["outline-node", !nodeHasChildren && "leaf", layout.projectClass].filter(Boolean).join(" ");
 
@@ -447,37 +455,13 @@ export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 						/>
 					</svg>
 				</button>
-				<a
-					aria-label={
-						isMirrorLegacy
-							? "Mirror, click to zoom"
-							: isCompleted
-								? "Completed, click to zoom"
-								: "Click to zoom"
-					}
-					className={bulletClasses}
-					data-handbook="bullet.handle"
-					draggable
-					href={nodeRoute(node.id)}
-					onClick={handleBulletClick}
+				<NodeBullet
+					isMirror={isMirrorLegacy}
+					nodeId={node.id}
 					onDragEnd={handleDragEnd}
 					onDragStart={handleDragStart}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" || event.key === " ") {
-							event.preventDefault();
-							navigateToNode(node.id);
-						}
-					}}
-					title={isMirrorLegacy ? "Mirror node" : "Drag to move"}
-				>
-					<svg className="bullet-svg" fill="currentColor" height="100%" viewBox="0 0 18 18" width="100%">
-						{isMirrorLegacy ? (
-							<rect height="5" rx="0.5" transform="rotate(45 9 9)" width="5" x="6.5" y="6.5" />
-						) : (
-							<circle cx="9" cy="9" r="3.5" />
-						)}
-					</svg>
-				</a>
+					showHalo={nodeHasChildren && !isExpanded}
+				/>
 				{layout.isTodo ? (
 					<button
 						aria-label="Complete"

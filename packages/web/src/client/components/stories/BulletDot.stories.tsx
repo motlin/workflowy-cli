@@ -10,13 +10,13 @@ const meta: Meta<typeof BulletDot> = {
 	},
 	tags: ["autodocs"],
 	argTypes: {
-		isCompleted: {
+		isCollapsed: {
 			control: "boolean",
-			description: "Whether the node is completed",
+			description: "Whether the node is a collapsed parent (shows the halo)",
 		},
-		isDragging: {
+		isMirror: {
 			control: "boolean",
-			description: "Whether the bullet is being dragged",
+			description: "Whether the node is a mirror (diamond bullet)",
 		},
 	},
 };
@@ -28,14 +28,14 @@ export const Default: Story = {
 	args: {},
 };
 
-export const Completed: Story = {
+export const Collapsed: Story = {
 	args: {
-		isCompleted: true,
+		isCollapsed: true,
 	},
 };
 
-export const Dragging: Story = {
+export const Mirror: Story = {
 	args: {
-		isDragging: true,
+		isMirror: true,
 	},
 };

@@ -11,31 +11,48 @@ import {resolveLayoutMode} from "../layout-mode.js";
 const INDENT_PER_LEVEL = 36;
 
 interface BulletDotProps {
-	isCompleted?: boolean;
-	isDragging?: boolean;
+	isCollapsed?: boolean;
+	isMirror?: boolean;
 }
 
 /**
- * The bullet dot SVG element.
- * A filled circle that indicates a node in the outline.
+ * The zoom bullet: upstream's `a.bullet > span.bulletHalo > svg`.
+ * A collapsed parent shows the halo; a mirror renders a diamond.
  */
-export function BulletDot({isCompleted = false, isDragging = false}: BulletDotProps) {
-	const classes = ["bullet", isDragging && "dragging"].filter(Boolean).join(" ");
+export function BulletDot({isCollapsed = false, isMirror = false}: BulletDotProps) {
+	const classes = ["bullet", isMirror && "diamond", isCollapsed && "bullet--show-halo keep-bullet"]
+		.filter(Boolean)
+		.join(" ");
 
 	return (
 		<a
-			aria-label={isCompleted ? "Completed, click to zoom" : "Click to zoom"}
-			className={classes}
-			draggable
 			href="/node/story-node"
+			data-handbook="bullet.handle"
+			data-item-id="story-node"
+			className={classes}
+			style={{left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}}
+			draggable
 			onClick={(event) => {
 				event.preventDefault();
 			}}
-			title="Drag to move"
 		>
-			<svg className="bullet-svg" fill="currentColor" height="100%" viewBox="0 0 18 18" width="100%">
-				<circle cx="9" cy="9" r="3.5" />
-			</svg>
+			<span className="bulletHalo">
+				{isMirror ? (
+					<svg
+						width="100%"
+						height="100%"
+						viewBox="0 0 16 16"
+						fill="currentColor"
+						className="mirrorDiamondIcon"
+					>
+						<path d="M8 4 L4 8 L8 12 L12 8 Z" />
+					</svg>
+				) : (
+					<svg width="100%" height="100%" viewBox="0 0 18 18" fill="currentColor" className="zoomBulletIcon">
+						<circle cx="9" cy="9" r="3.5" />
+					</svg>
+				)}
+			</span>
 		</a>
 	);
 }
@@ -118,10 +135,10 @@ export function CompleteBullet({
 	};
 
 	return (
-		<div className="project" style={indentStyle}>
+		<div className={["project", isCompleted && "done"].filter(Boolean).join(" ")} style={indentStyle}>
 			<IndentGuideLines depth={depth} />
 			<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
-			<BulletDot isCompleted={isCompleted} />
+			<BulletDot isCollapsed={!isExpanded} />
 		</div>
 	);
 }
@@ -251,7 +268,7 @@ export function StaticNode({
 			<div className={nameClasses}>
 				<MenuButton isVisible={isEditing} />
 				<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
-				<BulletDot isCompleted={isCompleted} />
+				<BulletDot />
 				{layout.isTodo ? (
 					<button
 						aria-label="Complete"

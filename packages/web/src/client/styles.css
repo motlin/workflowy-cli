@@ -212,9 +212,6 @@
 	/* Text colors */
 	--wf-icon-secondary: var(--wf-gray-700);
 	--wf-icon-tertiary: var(--wf-gray-300);
-	--wf-bullet-fill: rgb(75, 81, 85);
-	--wf-bullet-ring: rgb(183, 188, 191);
-	--wf-collapsed-ring: rgb(220, 224, 226);
 	--wf-icon-button: rgb(134, 140, 144);
 
 	/* Expand/collapse toggle positioning - 500px overhang matches production Workflowy */
@@ -360,9 +357,6 @@
 	/* Workflowy-style theme colors (dark) - matched to production workflowy.com */
 	--wf-icon-secondary: rgb(158, 161, 162);
 	--wf-icon-tertiary: rgb(92, 96, 98);
-	--wf-bullet-fill: rgb(158, 161, 162);
-	--wf-bullet-ring: rgb(92, 96, 98);
-	--wf-collapsed-ring: rgb(66, 72, 75);
 	--wf-icon-button: rgb(158, 161, 162);
 	--wf-tag-text-green: rgb(49, 196, 141);
 	--wf-tag-text-blue: rgb(118, 169, 250);
@@ -1131,46 +1125,52 @@ button.iconButton {
 	transform: rotateZ(90deg);
 }
 
-/* Bullet point - SVG circle in 18x24px container (matching Workflowy production) */
-/* Uses content-box so padding-top adds to height (24px + 4px = 28px total) */
+/* Bullet (wf-base). The anchor is 18px wide via its inline style; --line-height
+   and --wf-content-padding-top fall back to the default row metrics until the
+   name/content rows define them. content-box keeps the measured 18x24 plus
+   4px top padding under the local border-box reset. */
 .bullet {
-	position: absolute;
-	top: 0px;
-	left: calc(var(--name-left-overhang) + 1px);
 	display: flex;
+	position: absolute;
+	top: 0;
 	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 24px;
-	padding-top: 4px;
+	height: var(--line-height, var(--font-default-line-height));
+	line-height: var(--line-height, var(--font-default-line-height));
+	padding-top: var(--wf-content-padding-top, 4px);
 	box-sizing: content-box;
+	color: var(--wf-text-quaternary);
 	cursor: pointer;
-	color: var(--wf-bullet-fill);
-	text-decoration: none;
-	border-radius: 9px;
 }
 
-.bullet-svg {
+.bullet > .bulletHalo {
+	display: flex;
+	width: var(--bullet-size);
+	height: var(--bullet-size);
+	border-radius: 50%;
+}
+
+.bullet .zoomBulletIcon {
 	display: block;
-	width: 18px;
-	height: 18px;
-	border-radius: 9px;
-	transition: background-color 0.15s ease;
 }
 
-/* Hover ring - same darker gray for both expanded and collapsed */
-.bullet:hover .bullet-svg {
-	background-color: var(--wf-bullet-ring);
+.collapsed > .name > .bullet > .bulletHalo,
+.bullet.bullet--show-halo > .bulletHalo {
+	background-color: var(--wf-background-quaternary);
+}
+
+.bullet:hover > .bulletHalo,
+.dragging > .bullet > .bulletHalo {
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+.bullet.diamond > .bulletHalo,
+.bullet.noHalo > .bulletHalo {
+	background-color: transparent;
 }
 
 .bullet:focus {
 	outline: 2px solid var(--color-border-focus);
 	outline-offset: 1px;
-}
-
-/* Collapsed bullet - show light ring to indicate hidden children (only when not hovering) */
-.bullet.collapsed:not(:hover) .bullet-svg {
-	background-color: var(--wf-collapsed-ring);
 }
 
 /* Completed nodes - bullet keeps normal color per production Workflowy */
@@ -3327,7 +3327,7 @@ button.iconButton {
    ================================ */
 
 /* Bullet being dragged - only show grabbing cursor while actively dragging */
-.bullet.dragging {
+.dragging > .bullet {
 	opacity: 0.6;
 	cursor: grabbing;
 }
@@ -3335,14 +3335,6 @@ button.iconButton {
 /* Override :active state to show grabbing cursor during drag initiation */
 .bullet:active {
 	cursor: grabbing;
-}
-
-/* Mirror node bullet - diamond shape, transparent background (no collapsed ring) */
-.bullet.mirror .bullet-svg {
-	background-color: transparent;
-}
-.bullet.mirror:hover .bullet-svg {
-	background-color: var(--wf-bullet-ring);
 }
 
 /* Node content while dragging */
@@ -4872,21 +4864,21 @@ button.iconButton {
 }
 
 /* Headings and dividers suppress the round bullet (upstream shows none). */
-.project.header1 > .name .bullet-svg,
-.project.header2 > .name .bullet-svg,
-.project.header3 > .name .bullet-svg,
-.project.divider > .name .bullet-svg,
-.outline-node.header1 > .name .bullet-svg,
-.outline-node.header2 > .name .bullet-svg,
-.outline-node.header3 > .name .bullet-svg,
-.outline-node.divider > .name .bullet-svg {
+.project.header1 > .name .bulletHalo,
+.project.header2 > .name .bulletHalo,
+.project.header3 > .name .bulletHalo,
+.project.divider > .name .bulletHalo,
+.outline-node.header1 > .name .bulletHalo,
+.outline-node.header2 > .name .bulletHalo,
+.outline-node.header3 > .name .bulletHalo,
+.outline-node.divider > .name .bulletHalo {
 	visibility: hidden;
 }
 
 /* To-do: a square checkbox replaces the bullet. The bullet anchor stays for
    drag/zoom but its dot is hidden; the checkbox button sits where the dot was. */
-.project.checkmark > .name .bullet-svg,
-.outline-node.checkmark > .name .bullet-svg {
+.project.checkmark > .name .bulletHalo,
+.outline-node.checkmark > .name .bulletHalo {
 	visibility: hidden;
 }
 
