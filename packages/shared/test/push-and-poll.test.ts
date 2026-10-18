@@ -349,6 +349,17 @@ describe("PushAndPoll", () => {
 		expect(sleeps).toStrictEqual([]);
 	});
 
+	it("throws OperationRejected for the live error-only result that carries no transaction id", async () => {
+		const {api, pusher} = await bootstrapped();
+		api.respond("/push_and_poll", () => json({results: [{error: "error_encountered_running_operations"}]}));
+
+		const error: unknown = await pusher.pushAndPoll({ops: [EDIT_OP]}).catch((e: unknown) => e);
+
+		expect(error).toBeInstanceOf(OperationRejected);
+		expect((error as OperationRejected).serverError).toBe("error_encountered_running_operations");
+		expect(pushes(api.requests)).toHaveLength(1);
+	});
+
 	it("rejects pushed ops when the server returns no server_run transaction", async () => {
 		const {api, pusher} = await bootstrapped();
 		api.respond("/push_and_poll", () => json({results: [{new_most_recent_operation_transaction_id: "4568"}]}));

@@ -70,9 +70,10 @@ const TransactionSchema = z
 	})
 	.loose();
 
+const ErrorResultSchema = z.object({error: z.string()}).loose();
+
 const TreeResultSchema = z
 	.object({
-		error: z.string().optional(),
 		new_most_recent_operation_transaction_id: TransactionIdSchema,
 		server_run_operation_transaction_json: z.string().nullable().optional(),
 		concurrent_remote_operation_transactions: z.array(z.string()).nullable().optional(),
@@ -231,17 +232,19 @@ export class PushAndPoll {
 		if (response.push_lock_timeout === true) {
 			throw new PushLockTimeout();
 		}
+		// Live, a failed batch answers `{error}` alone, with no transaction id, so check the error first.
+		const failed = ErrorResultSchema.safeParse(response.results?.[0]);
+		if (failed.success && failed.data.error === "account_is_busy") {
+			throw new AccountBusy();
+		}
+		if (failed.success) {
+			throw new OperationRejected(failed.data.error);
+		}
 		const parsed = TreeResultSchema.safeParse(response.results?.[0]);
 		if (!parsed.success) {
 			throw new InternalApiError("Invalid /push_and_poll response: no main-tree result", {cause: parsed.error});
 		}
 		const result = parsed.data;
-		if (result.error === "account_is_busy") {
-			throw new AccountBusy();
-		}
-		if (result.error !== undefined) {
-			throw new OperationRejected(result.error);
-		}
 		const serverRunJson = result.server_run_operation_transaction_json ?? undefined;
 		if (ops.length > 0 && !isRedo && serverRunJson === undefined) {
 			throw new OperationRejected("missing server_run");
