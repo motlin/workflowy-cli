@@ -65,6 +65,44 @@ function canHover(): boolean {
 	return globalThis.matchMedia("(any-hover: hover) and (pointer: fine)").matches;
 }
 
+export interface TooltipControllerOptions {
+	/** Delay before showing, in ms. Hiding is immediate. */
+	delay: number;
+	setTimeout: (fn: () => void, ms: number) => number;
+	clearTimeout: (id: number) => void;
+	onChange: (shown: boolean) => void;
+}
+
+/** Tippy's hover timing: show `delay` ms after enter, hide immediately on leave (or mousedown). */
+// oxlint-disable-next-line react/only-export-components -- pure hover-timing controller exported for unit tests
+export function createTooltipController({delay, setTimeout, clearTimeout, onChange}: TooltipControllerOptions) {
+	let timer: number | null = null;
+	const cancel = () => {
+		if (timer !== null) {
+			clearTimeout(timer);
+			timer = null;
+		}
+	};
+	return {
+		/** `allowed` is false while disabled or without a fine hover pointer. */
+		enter(allowed: boolean) {
+			if (!allowed) {
+				return;
+			}
+			cancel();
+			timer = setTimeout(() => {
+				timer = null;
+				onChange(true);
+			}, delay);
+		},
+		leave() {
+			cancel();
+			onChange(false);
+		},
+		dispose: cancel,
+	};
+}
+
 interface UseTooltipOptions {
 	content: ReactNode;
 	shortcut?: string;
@@ -91,31 +129,28 @@ export function useTooltip({content, shortcut, delay = 300, disabled = false}: U
 	const [position, setPosition] = useState({top: 0, left: 0});
 	const triggerRef = useRef<HTMLElement | null>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
-	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-	const clearTimer = useCallback(() => {
-		if (timeoutRef.current !== null) {
-			clearTimeout(timeoutRef.current);
-			timeoutRef.current = null;
-		}
-	}, []);
-
-	const hide = useCallback(() => {
-		clearTimer();
-		setRequested(false);
-		setState("hidden");
-	}, [clearTimer]);
+	const [controller] = useState(() =>
+		createTooltipController({
+			delay,
+			setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+			clearTimeout: (id) => {
+				window.clearTimeout(id);
+			},
+			onChange: (visible) => {
+				setRequested(visible);
+				if (!visible) {
+					setState("hidden");
+				}
+			},
+		}),
+	);
 
 	const show = useCallback(() => {
-		if (disabled || !canHover()) {
-			return;
-		}
-		clearTimer();
-		timeoutRef.current = globalThis.setTimeout(() => {
-			timeoutRef.current = null;
-			setRequested(true);
-		}, delay);
-	}, [clearTimer, delay, disabled]);
+		controller.enter(!disabled && canHover());
+	}, [controller, disabled]);
+	const hide = useCallback(() => {
+		controller.leave();
+	}, [controller]);
 
 	const ref = useCallback((element: HTMLElement | null) => {
 		triggerRef.current = element;
@@ -130,7 +165,7 @@ export function useTooltip({content, shortcut, delay = 300, disabled = false}: U
 		setState("visible");
 	}, [shown]);
 
-	useEffect(() => clearTimer, [clearTimer]);
+	useEffect(() => controller.dispose, [controller]);
 
 	const tooltip = shown
 		? createPortal(

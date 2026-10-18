@@ -17,7 +17,6 @@ export interface ButtonMenuControllerOptions {
 	onShow?: () => void;
 	onHide?: () => void;
 	focusTrigger?: () => void;
-	onEscape?: () => void;
 }
 
 export interface ButtonMenuController {
@@ -121,7 +120,6 @@ export function createButtonMenuController(options: ButtonMenuControllerOptions)
 			if (!open) {
 				return "none";
 			}
-			options.onEscape?.();
 			return "blur";
 		},
 		isOpen: () => open,

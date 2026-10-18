@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {TooltipBox, tooltipPosition} from "../src/client/components/tooltip.js";
+import {TooltipBox, createTooltipController, tooltipPosition} from "../src/client/components/tooltip.js";
 import {cssBlock} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
@@ -26,6 +26,73 @@ describe("TooltipBox", () => {
 		expect(renderToStaticMarkup(createElement(TooltipBox, {content: "Present", state: "hidden"}))).toBe(
 			'<div class="tippy-box wf-helper tooltip text-xs shadow-md" data-placement="bottom" data-state="hidden" role="tooltip" style="max-width:350px;transition-duration:300ms"><div class="tippy-content"><div>Present</div></div></div>',
 		);
+	});
+});
+
+function tooltipHarness(canShow = true) {
+	let now = 0;
+	let timers: {id: number; at: number; fn: () => void}[] = [];
+	let nextId = 1;
+	const shown: boolean[] = [];
+	const controller = createTooltipController({
+		delay: 300,
+		setTimeout: (fn, ms) => {
+			const id = nextId++;
+			timers.push({id, at: now + ms, fn});
+			return id;
+		},
+		clearTimeout: (id) => {
+			timers = timers.filter((timer) => timer.id !== id);
+		},
+		onChange: (visible) => {
+			shown.push(visible);
+		},
+	});
+	return {
+		enter: () => {
+			controller.enter(canShow);
+		},
+		leave: () => {
+			controller.leave();
+		},
+		shown,
+		advance(ms: number) {
+			now += ms;
+			const due = timers.filter((timer) => timer.at <= now);
+			timers = timers.filter((timer) => timer.at > now);
+			for (const timer of due) {
+				timer.fn();
+			}
+		},
+	};
+}
+
+describe("createTooltipController (IconButton hover)", () => {
+	it("shows the tippy box 300ms after hover, not before, and hides on leave", () => {
+		const h = tooltipHarness();
+		h.enter();
+		h.advance(299);
+		const before = [...h.shown];
+		h.advance(1);
+		const after = [...h.shown];
+		h.leave();
+		expect({before, after, left: h.shown}).toStrictEqual({before: [], after: [true], left: [true, false]});
+	});
+
+	it("never shows when leaving before the delay", () => {
+		const h = tooltipHarness();
+		h.enter();
+		h.advance(200);
+		h.leave();
+		h.advance(500);
+		expect(h.shown).toStrictEqual([false]);
+	});
+
+	it("never shows when disabled or without a fine hover pointer", () => {
+		const h = tooltipHarness(false);
+		h.enter();
+		h.advance(1000);
+		expect(h.shown).toStrictEqual([]);
 	});
 });
 

@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
+import {cssBlock} from "./helpers/css-block.js";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {LeftBarMode} from "../src/client/stores/outline.js";
@@ -290,6 +291,14 @@ describe("left bar styles", () => {
 
 	it("drops the with-sidebar margin rule", () => {
 		expect(styles.includes("with-sidebar")).toBe(false);
+	});
+
+	it("scopes the outline's .scroller padding so the left bar scroller keeps its pt-3xl and pb-m", () => {
+		const preludes = (styles.match(/[^{}]+(?=\{)/gu) ?? []).map((prelude) => prelude.trim());
+		expect({
+			bareScroller: preludes.includes(".scroller"),
+			outlineScroller: cssBlock(styles, ".outline-tree-container > .scroller"),
+		}).toStrictEqual({bareScroller: false, outlineScroller: {padding: "0 0 40px"}});
 	});
 
 	it("removes the body padding when printing", () => {

@@ -56,6 +56,7 @@ export function TopBar() {
 		isPageStarred,
 		openPresentation,
 		leftBarOffset,
+		leftBarMode,
 	} = useOutlineStore();
 	const navigate = useNavigate();
 	const {canGoBack, canGoForward} = useNavigationHistory();
@@ -138,11 +139,16 @@ export function TopBar() {
 			className="wf-header header bg-primary border-b border-solid border-primary"
 			style={{left: leftBarOffset(), zIndex: 200}}
 		>
-			<div style={{position: "relative"}}>
-				<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
-					<FaIcon icon="fal:bars" />
-				</IconButton>
-			</div>
+			{/* Upstream swaps the hamburger for a 16px spacer while the left bar is pinned. */}
+			{leftBarMode === "alwaysOpen" ? (
+				<div className="w-l" />
+			) : (
+				<div style={{position: "relative"}}>
+					<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
+						<FaIcon icon="fal:bars" />
+					</IconButton>
+				</div>
+			)}
 
 			<div className="pagination">
 				<IconButton data-handbook="nav.back" disabled={!canGoBack} onClick={handleNavigateBack} tooltip="Back">

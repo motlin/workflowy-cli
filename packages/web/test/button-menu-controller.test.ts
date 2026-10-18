@@ -13,7 +13,7 @@ function createHarness(options: Partial<ButtonMenuControllerOptions> = {}) {
 	let nextId = 1;
 	let timers: Timer[] = [];
 	const bodyClasses = new Set<string>();
-	const calls = {onShow: 0, onHide: 0, focusTrigger: 0, onEscape: 0};
+	const calls = {onShow: 0, onHide: 0, focusTrigger: 0};
 	const controller = createButtonMenuController({
 		forId: "breadcrumbs",
 		setTimeout: (fn, ms) => {
@@ -40,9 +40,6 @@ function createHarness(options: Partial<ButtonMenuControllerOptions> = {}) {
 		},
 		focusTrigger: () => {
 			calls.focusTrigger++;
-		},
-		onEscape: () => {
-			calls.onEscape++;
 		},
 		...options,
 	});
@@ -232,13 +229,12 @@ describe("createButtonMenuController", () => {
 		expect(h.calls.focusTrigger).toBe(0);
 	});
 
-	it("escape asks to blur and calls onEscape when open, does nothing when closed", () => {
+	it("escape only asks to blur when open, and does nothing when closed", () => {
 		const h = createHarness();
 		expect(h.controller.escape()).toBe("none");
-		expect(h.calls.onEscape).toBe(0);
 		h.controller.focus();
 		expect(h.controller.escape()).toBe("blur");
-		expect(h.calls.onEscape).toBe(1);
+		expect(h.calls).toStrictEqual({onShow: 1, onHide: 0, focusTrigger: 0});
 		expect(h.state()).toStrictEqual({
 			open: true,
 			bodyClasses: ["button-menu-for-breadcrumbs"],

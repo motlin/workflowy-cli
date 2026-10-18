@@ -20,6 +20,7 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	expandAll: () => {},
 	collapseAll: () => {},
 	leftBarOffset: () => 0,
+	leftBarMode: "drawerClosed",
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -170,6 +171,15 @@ describe("TopBar left controls", () => {
 		const wrapper = html.slice(html.indexOf(">") + 1, html.indexOf('<div class="pagination">'));
 		expect(wrapper.replaceAll(/ d="[^"]*"/gu, "")).toBe(
 			`<div style="position:relative"><div role="button" tabindex="0" data-handbook="toggle_leftbar" class="iconButton lg shape-circle">${svg("bars", 448)}</div></div>`,
+		);
+	});
+
+	it("replaces the hamburger with upstream's w-l spacer while the left bar is pinned", () => {
+		storeState.leftBarMode = "alwaysOpen";
+		const html = renderWithNav(false, false);
+		storeState.leftBarMode = "drawerClosed";
+		expect(html.slice(html.indexOf(">") + 1, html.indexOf('<div class="pagination">'))).toBe(
+			'<div class="w-l"></div>',
 		);
 	});
 });

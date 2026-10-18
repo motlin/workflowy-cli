@@ -1,7 +1,6 @@
 import {useImperativeHandle, useLayoutEffect, useRef, useState} from "react";
 import type {CSSProperties, ReactNode, Ref} from "react";
 import {createPortal} from "react-dom";
-import {useOutlineStore} from "../../stores/outline.js";
 import {createButtonMenuController} from "./button-menu-controller.js";
 import {MenuBody} from "./menu.js";
 import {placePopper} from "./place-popper.js";
@@ -31,14 +30,6 @@ export interface ButtonMenuProps {
 	blockCloseOnInternalClick?: boolean;
 	ref?: Ref<ButtonMenuHandle>;
 	children?: ReactNode;
-}
-
-/** Local stand-in for upstream's global "Escape focuses search": open the search panel unless it is already open. */
-export function focusSearchOnEscape(): void {
-	const store = useOutlineStore.getState();
-	if (!store.searchPanelOpen) {
-		store.toggleSearchPanel();
-	}
 }
 
 const DEFAULT_OFFSET = [0, 0] as const;
@@ -103,7 +94,6 @@ export function ButtonMenu({
 				latest.current.onHide?.();
 			},
 			focusTrigger: () => triggerRef.current?.focus(),
-			onEscape: focusSearchOnEscape,
 		}),
 	);
 

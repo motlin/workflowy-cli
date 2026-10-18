@@ -1029,11 +1029,6 @@ button.iconButton {
 	margin: 72px 40px 0px 24px;
 }
 
-/* Outline tree container */
-.outline-tree-container {
-	padding-left: 24px;
-}
-
 /* Upstream's `.children` wrapper; its indent and guide border come from the
    wf-tailwind utility classes on the element. */
 .children {
@@ -1044,8 +1039,9 @@ button.iconButton {
 /* Scroller - inner content padding within scrollable area.
    Top padding is 0 so the zoomed title sits at the content top (y≈96),
    matching production workflowy.com; the .outline-view margin+padding
-   already provide the offset below the fixed top bar. */
-.scroller {
+   already provide the offset below the fixed top bar. Scoped to the outline
+   so the left bar and menu scrollers keep their upstream padding utilities. */
+.outline-tree-container > .scroller {
 	padding: 0 0 40px;
 }
 

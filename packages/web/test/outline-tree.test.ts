@@ -239,6 +239,13 @@ describe("outline tree styles guard", () => {
 		});
 	});
 
+	it("adds no outline-tree-container indent on top of the row's own 24px bullet space", () => {
+		const preludes = (styles.replaceAll(/\/\*[\s\S]*?\*\//gu, "").match(/[^{}]+(?=\{)/gu) ?? []).map((prelude) =>
+			prelude.trim(),
+		);
+		expect(preludes.filter((prelude) => prelude === ".outline-tree-container")).toStrictEqual([]);
+	});
+
 	it("puts the descendant content padding on .children like upstream", () => {
 		expect(cssBlock(styles, ".children")).toStrictEqual({
 			"--wf-content-padding-top": "var(--font-descendant-padding-top)",

@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it, vi} from "vite-plus/test";
+import {describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
@@ -14,8 +14,8 @@ vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}})
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
 
-const {ButtonMenu, focusSearchOnEscape} = await import("../src/client/components/flyout/button-menu.js");
-const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const buttonMenuModule = await import("../src/client/components/flyout/button-menu.js");
+const {ButtonMenu} = buttonMenuModule;
 
 function render(props: Omit<ButtonMenuProps, "children">): string {
 	return renderToStaticMarkup(createElement(ButtonMenu, props, createElement("div", null, "crumbs")));
@@ -76,20 +76,8 @@ describe("ButtonMenu", () => {
 	});
 });
 
-describe("focusSearchOnEscape", () => {
-	afterEach(() => {
-		useOutlineStore.setState({searchPanelOpen: false});
-	});
-
-	it("opens the search panel when it is closed", () => {
-		useOutlineStore.setState({searchPanelOpen: false});
-		focusSearchOnEscape();
-		expect(useOutlineStore.getState().searchPanelOpen).toBe(true);
-	});
-
-	it("leaves an open search panel open", () => {
-		useOutlineStore.setState({searchPanelOpen: true});
-		focusSearchOnEscape();
-		expect(useOutlineStore.getState().searchPanelOpen).toBe(true);
+describe("ButtonMenu Escape", () => {
+	it("exports no search side effect: upstream's item menu Escape only closes the menu", () => {
+		expect(Object.keys(buttonMenuModule)).toStrictEqual(["ButtonMenu"]);
 	});
 });
