@@ -6,10 +6,12 @@ import type {InternalSession} from "@workflowy/shared/api";
 import {WorkflowyInternalAdapter, editOp, moveOp} from "@workflowy/shared/internal";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {isDeepStrictEqual} from "node:util";
+import {WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import {createDatabase} from "../../db/index.js";
+import {CacheService} from "../../services/cache.js";
 
 const DEFAULT_OUT = ".llm/upstream-sync/internal-api-probes.md";
-const STEPS = ["bootstrap", "poll", "error-shape", "root-meta", "root-meta-set", "root-meta-unset"] as const;
+const STEPS = ["bootstrap", "poll", "error-shape", "index", "root-meta", "root-meta-set", "root-meta-unset"] as const;
 const ROOT_META_WRITES = new Set<string>(["root-meta-set", "root-meta-unset"]);
 /** Account-global root metadata paths whose shapes `root-meta` records (read only). */
 const ROOT_META_PATHS = [
@@ -26,6 +28,15 @@ const ROOT_META_PATHS = [
 const PROBE_KEY = "probe";
 const PROBE_VALUE = {x: "1"};
 const RENAMED = "probe error-shape: renamed";
+/** How far the `index` step backdates the create's client clock, so the node's `createdAt` shows whether `ct` was kept. */
+const CT_SHIFT_SEC = 86_400;
+const NEEDS_API_KEY = new Set<string>(["error-shape", "index"]);
+
+/** `order` after moving `ids` (in that order) to insertion slot `index` among the same parent's children. */
+export function expectedMove(order: readonly string[], ids: readonly string[], index: number): string[] {
+	const kept = (part: readonly string[]) => part.filter((id) => !ids.includes(id));
+	return [...kept(order.slice(0, index)), ...ids, ...kept(order.slice(index))];
+}
 
 /** The only subtree a live probe may write to. */
 export const SANDBOX_ID = "7aed376b-80c8-42c5-8065-ab03ee6d2ae0";
@@ -197,6 +208,8 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe poll --yes-live",
 		"<%= config.bin %> internal probe poll --no-crosscheck --yes-live",
 		"<%= config.bin %> internal probe error-shape --yes-live",
+		"<%= config.bin %> internal probe index --yes-live",
+		"<%= config.bin %> internal probe index --yes-live --keep",
 		"<%= config.bin %> internal probe root-meta --yes-live",
 		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
@@ -217,6 +230,10 @@ export default class Probe extends Command {
 			description: "Confirm the user approved writing the throwaway account-global root metadata key `probe`",
 			default: false,
 		}),
+		keep: Flags.boolean({
+			description: "Leave the `index` fixture in the sandbox for a visual check (delete it afterwards)",
+			default: false,
+		}),
 		out: Flags.string({description: "Markdown file the findings are appended to", default: DEFAULT_OUT}),
 	};
 
@@ -230,8 +247,8 @@ export default class Probe extends Command {
 				"Root metadata is account-global and cannot be sandboxed: pass --yes-account-global (with the user's approval) to write it",
 			);
 		}
-		const apiKey = args.step === "error-shape" ? process.env.WORKFLOWY_API_KEY : undefined;
-		if (args.step === "error-shape" && !apiKey) {
+		const apiKey = NEEDS_API_KEY.has(args.step) ? process.env.WORKFLOWY_API_KEY : undefined;
+		if (NEEDS_API_KEY.has(args.step) && !apiKey) {
 			this.error("WORKFLOWY_API_KEY environment variable is required");
 		}
 		const auth = readInternalAuth();
@@ -246,7 +263,7 @@ export default class Probe extends Command {
 			fetch: recordingFetch(recorded, !flags.crosscheck),
 		});
 		const startedAt = new Date().toISOString();
-		const lines = await this.runStep(args.step, client, recorded, flags.crosscheck, apiKey);
+		const lines = await this.runStep(args.step, client, recorded, flags.crosscheck, apiKey, flags.keep);
 		const title = args.step === "poll" && !flags.crosscheck ? "poll --no-crosscheck" : args.step;
 		const section = ["", `## ${title} (${startedAt})`, "", ...lines, ""].join("\n");
 		fs.mkdirSync(path.dirname(flags.out), {recursive: true});
@@ -260,6 +277,7 @@ export default class Probe extends Command {
 		recorded: RecordedRequest[],
 		crosscheck: boolean,
 		apiKey: string | undefined,
+		keep: boolean,
 	): Promise<string[]> {
 		if (step === "bootstrap") {
 			return this.bootstrap(client, recorded);
@@ -274,10 +292,102 @@ export default class Probe extends Command {
 				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
 			);
 		}
+		if (step === "index") {
+			return this.index(
+				client,
+				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
+				keep,
+			);
+		}
 		if (step === "root-meta") {
 			return this.rootMeta(client);
 		}
 		return step === "root-meta-set" ? this.rootMetaSet(client) : this.rootMetaUnset(client);
+	}
+
+	/**
+	 * Exact-index tree writes through the adapter on a fresh sandbox fixture with
+	 * children `a,b,c`: `createAt` index 1 (client uuid, backdated `ct`), `moveTo`
+	 * to the top, a same-parent down move, and a two-id `bulk_move`. After each
+	 * step the order is read from the public API and from the cache the adapter
+	 * wrote through. The fixture is deleted unless `keep`.
+	 */
+	private async index(client: WorkflowyInternalClient, api: WorkflowyApiClient, keep: boolean): Promise<string[]> {
+		const {id: parentId} = await api.createNode({
+			parent_id: SANDBOX_ID,
+			name: `probe index ${new Date().toISOString()}`,
+			position: "bottom",
+		});
+		assertUnderSandbox(await readAncestors(api, (await api.getNode(parentId)).parent_id));
+		const labels = new Map<string, string>();
+		for (const name of ["a", "b", "c"]) {
+			const {id} = await api.createNode({parent_id: parentId, name, position: "bottom"});
+			labels.set(id, name);
+		}
+		const db = createDatabase();
+		const cache = new CacheService(db);
+		const writeThrough = new WorkflowyWriteThroughClient(api, cache);
+		const lines = ["- Fixture: fresh child of the sandbox with children `a,b,c` (public API); ancestors verified"];
+		try {
+			await writeThrough.refreshChildren([parentId]);
+			const byLabel = (label: string) => [...labels].find(([, name]) => name === label)?.[0] ?? label;
+			const named = (ids: string[]) => ids.map((id) => labels.get(id) ?? id).join(",");
+			let order = (await writeThrough.liveChildren(parentId)).map((node) => node.id);
+			const check = async (step: string, expected: string[]) => {
+				const live = (await writeThrough.liveChildren(parentId)).map((node) => node.id);
+				const cached = cache.getChildren(parentId).map((node) => node.id);
+				const ok = isDeepStrictEqual(live, expected) && isDeepStrictEqual(cached, expected);
+				lines.push(
+					`- ${step}: expected \`${named(expected)}\`; public API \`${named(live)}\`; cache \`${named(cached)}\` (${ok ? "MATCH" : "MISMATCH"})`,
+				);
+				order = live;
+			};
+
+			const startSec = Math.floor(Date.now() / 1000);
+			const backdated = new WorkflowyInternalAdapter({
+				client,
+				db,
+				writeThrough,
+				now: () => Date.now() - CT_SHIFT_SEC * 1000,
+			});
+			const {id: newId} = await backdated.createAt({parentId, index: 1, name: "new"});
+			labels.set(newId, "new");
+			await check("`createAt(index 1)` (`bulk_create`)", expectedMove([...order, newId], [newId], 1));
+			const created = await api.getNode(newId).catch(() => {});
+			const createdAt = created?.createdAt;
+			lines.push(
+				`- Client-chosen uuid: ${created?.parent_id === parentId ? "accepted (public API returns the node under that id)" : "NOT found under the id the client chose"}`,
+				`- \`ct\` (backdated ${CT_SHIFT_SEC / 3600}h): ${
+					createdAt === undefined
+						? "unknown (no createdAt)"
+						: Math.abs(createdAt - (startSec - CT_SHIFT_SEC)) < 600
+							? "accepted (createdAt matches the backdated clock)"
+							: Math.abs(createdAt - startSec) < 600
+								? "ignored (createdAt is server time)"
+								: `inconclusive (createdAt ${createdAt - startSec}s from now)`
+				}`,
+			);
+
+			const adapter = new WorkflowyInternalAdapter({client, db, writeThrough});
+			const c = byLabel("c");
+			await adapter.moveTo({ids: [c], parentId, index: 0});
+			await check("`moveTo(c, index 0)` (`move`)", expectedMove(order, [c], 0));
+			const a = byLabel("a");
+			await adapter.moveTo({ids: [a], parentId, index: 3});
+			await check("same-parent `moveTo(a, index 3)` (`move`, down)", expectedMove(order, [a], 3));
+			const pair = [byLabel("b"), newId];
+			await adapter.moveTo({ids: pair, parentId, index: 0});
+			await check("`moveTo([b,new], index 0)` (`bulk_move`)", expectedMove(order, pair, 0));
+		} finally {
+			if (keep) {
+				lines.push(`- Fixture kept for a visual check: \`${parentId}\` (delete it afterwards)`);
+			} else {
+				assertUnderSandbox(await readAncestors(api, (await api.getNode(parentId)).parent_id));
+				await writeThrough.deleteNode(parentId);
+				lines.push("- Cleanup: fixture deleted through the write-through client");
+			}
+		}
+		return lines;
 	}
 
 	/** Read-only: the shapes of the account-global root metadata keys, values redacted to types. */
