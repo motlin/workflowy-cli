@@ -23,3 +23,26 @@ describe("add-child button styles", () => {
 		});
 	});
 });
+
+describe("add-sibling button styles", () => {
+	it("pins upstream's svg to the guide line's bottom, hidden until hovered", () => {
+		expect({
+			base: cssBlock(styles, ".addSiblingButton"),
+			hover: cssBlock(styles, ".addSiblingButton:hover"),
+			active: cssBlock(styles, ".addSiblingButton:active"),
+		}).toStrictEqual({
+			base: {
+				position: "absolute",
+				left: "-11px",
+				bottom: "3px",
+				width: "20px",
+				height: "20px",
+				display: "block",
+				opacity: "0",
+				cursor: "pointer",
+			},
+			hover: {opacity: "0.7"},
+			active: {opacity: "1"},
+		});
+	});
+});

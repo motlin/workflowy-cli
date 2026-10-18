@@ -106,7 +106,7 @@ vi.mock("../src/client/components/editable-note.js", async () => {
 });
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
-const {AddChildButton, OutlineTree} = await import("../src/client/components/outline-tree.js");
+const {AddChildButton, AddSiblingButton, OutlineTree} = await import("../src/client/components/outline-tree.js");
 
 function render(parentId: string | null = null): string {
 	return renderToStaticMarkup(
@@ -315,6 +315,56 @@ describe("OutlineTree add-child button", () => {
 			calls: [[{id, parent_id: "alice", name: "", index: 1}]],
 			resumed: [[id, 0]],
 			blurred: 1,
+		});
+	});
+});
+
+const ADD_SIBLING_MARKUP =
+	'<svg viewBox="0 0 20 20" class="absolute left-[-11px] bottom-[3px] w-[20px] h-[20px] block opacity-0 hover:opacity-70 active:opacity-100 addSiblingButton"><circle cx="10.5" cy="10.5" r="9" fill="var(--wf-background-quaternary)"></circle><line x1="6" y1="10.5" x2="15" y2="10.5" stroke="var(--wf-text-quaternary)" stroke-width="1"></line><line x1="10.5" y1="6" x2="10.5" y2="15" stroke="var(--wf-text-quaternary)" stroke-width="1"></line></svg>';
+
+describe("OutlineTree add-sibling button", () => {
+	beforeEach(() => {
+		outlineState.expandedIds = new Set(["alice"]);
+		createMutate.mockClear();
+		outlineState.resumeEditing.mockClear();
+	});
+
+	it("ends each nested .children with upstream's svg and leaves the root .children without one", () => {
+		const html = render();
+		const stack = stackAt(html, "addSiblingButton");
+		expect({
+			count: html.split("addSiblingButton").length - 1,
+			parent: classOf(stack[stack.length - 2]),
+			endsNested: html.includes(`${ADD_SIBLING_MARKUP}</div></div></div><div class="mt-m `),
+		}).toStrictEqual({count: 1, parent: NESTED_CHILDREN, endsNested: true});
+	});
+
+	it("creates an empty sibling right after the owner, edits it at offset 0, and hides the svg until the next mouseenter", () => {
+		const id = "1a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+		vi.spyOn(crypto, "randomUUID").mockReturnValue(id);
+		const owner = childrenByParent.get(null)?.[0];
+		if (owner === undefined) {
+			throw new Error("missing owner");
+		}
+		const element = AddSiblingButton({owner});
+		const props = element.props as {
+			onClick: (event: unknown) => void;
+			onMouseEnter: (event: unknown) => void;
+		};
+		const svg = {style: {opacity: ""}};
+		props.onClick({currentTarget: svg});
+		const afterClick = svg.style.opacity;
+		props.onMouseEnter({currentTarget: svg});
+		expect({
+			calls: createMutate.mock.calls,
+			resumed: outlineState.resumeEditing.mock.calls,
+			afterClick,
+			afterEnter: svg.style.opacity,
+		}).toStrictEqual({
+			calls: [[{id, parent_id: undefined, name: "", index: 1}]],
+			resumed: [[id, 0]],
+			afterClick: "0",
+			afterEnter: "",
 		});
 	});
 });

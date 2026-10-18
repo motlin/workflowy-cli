@@ -95,6 +95,23 @@ export function planAddChild({
 	};
 }
 
+/** Payload for an outline's add-sibling button: an empty node right after its owner. */
+export interface AddSiblingPlan {
+	parent_id: string | undefined;
+	name: string;
+	index: number;
+}
+
+/**
+ * Plan the guide line's add-sibling button: an empty sibling of `owner` (the row
+ * whose `.children` holds the button) in the slot right after it among ALL of its
+ * `siblings` in priority order, completed rows included.
+ */
+export function planAddSibling({owner, siblings}: {owner: PlanNode; siblings: PlanNode[]}): AddSiblingPlan {
+	const ownerIndex = sortByPriority(siblings).findIndex((sibling) => sibling.id === owner.id);
+	return {parent_id: owner.parent_id ?? undefined, name: "", index: ownerIndex + 1};
+}
+
 /** The row state `planSplit` reads. `isEmpty` = empty name AND no note AND no children. */
 export interface SplitNode {
 	id: string;

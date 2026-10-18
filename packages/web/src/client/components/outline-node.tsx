@@ -457,7 +457,7 @@ export function OutlineRow({
 			<div className="drop-line">
 				<div className="line" />
 			</div>
-			{isExpanded ? <OutlineChildren depth={depth + 1} parentId={node.id} /> : null}
+			{isExpanded ? <OutlineChildren depth={depth + 1} owner={node} parentId={node.id} /> : null}
 		</div>
 	);
 }

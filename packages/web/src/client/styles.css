@@ -1372,6 +1372,26 @@ body.moving .expand {
 	height: 16px;
 }
 
+/* Upstream's add-sibling "+" at the bottom of each nested .children guide line */
+.addSiblingButton {
+	position: absolute;
+	left: -11px;
+	bottom: 3px;
+	width: 20px;
+	height: 20px;
+	display: block;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.addSiblingButton:hover {
+	opacity: 0.7;
+}
+
+.addSiblingButton:active {
+	opacity: 1;
+}
+
 /* Node text; font-size and line-height come from .name and .content */
 .innerContentContainer {
 	flex: 1;

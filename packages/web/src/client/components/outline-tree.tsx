@@ -1,13 +1,13 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode} from "react";
-import type {BacklinkItem} from "../../node-types.js";
+import type {BacklinkItem, NodeResponse} from "../../node-types.js";
 import {useEffect, useRef, useState} from "react";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {useBacklinks, useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {isPotentiallyVisible, planAddChild} from "../tree-ops.js";
+import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -77,6 +77,43 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 				<FaIcon icon="fal:plus" />
 			</IconButton>
 		</div>
+	);
+}
+
+/**
+ * Upstream's `.addSiblingButton`: a "+" at the bottom of a nested `.children` guide
+ * line that creates an empty sibling right after `owner` (the row whose `.children`
+ * holds it) and puts the caret in it. Clicking hides it with an inline opacity
+ * until the next mouseenter. Uses no React built-in hooks so tests can invoke its
+ * handlers directly.
+ */
+export function AddSiblingButton({owner}: {owner: NodeResponse}) {
+	const createNode = useCreateNode();
+	const {data: siblings} = useChildren(owner.parent_id);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+
+	const handleClick = (event: {currentTarget: {style: {opacity: string}}}) => {
+		const plan = planAddSibling({owner, siblings: siblings ?? [owner]});
+		const id = crypto.randomUUID();
+		event.currentTarget.style.opacity = "0";
+		createNode.mutate({id, ...plan});
+		resumeEditing(id, 0);
+	};
+
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's markup is a bare svg; keyboard users add a sibling with Enter at the end of a row
+		<svg
+			viewBox="0 0 20 20"
+			className="absolute left-[-11px] bottom-[3px] w-[20px] h-[20px] block opacity-0 hover:opacity-70 active:opacity-100 addSiblingButton"
+			onClick={handleClick}
+			onMouseEnter={(event: {currentTarget: {style: {opacity: string}}}) => {
+				event.currentTarget.style.opacity = "";
+			}}
+		>
+			<circle cx="10.5" cy="10.5" r="9" fill="var(--wf-background-quaternary)" />
+			<line x1="6" y1="10.5" x2="15" y2="10.5" stroke="var(--wf-text-quaternary)" strokeWidth="1" />
+			<line x1="10.5" y1="6" x2="10.5" y2="15" stroke="var(--wf-text-quaternary)" strokeWidth="1" />
+		</svg>
 	);
 }
 
@@ -291,16 +328,20 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
 
 /**
  * Upstream's `div.children`: the visible children of `parentId`, each a recursive
- * `OutlineRow`, then, once every child is rendered, the item's Backlinks section.
+ * `OutlineRow`, then, once every child is rendered, the item's Backlinks section,
+ * then (nested only) the add-sibling button.
  * Renders nothing when neither shows, so a collapsed or empty parent has no
  * `.children` in the DOM.
  */
 export function OutlineChildren({
 	parentId,
+	owner,
 	isRoot = false,
 	depth = 1,
 }: {
 	parentId: string | null;
+	/** The row whose `.children` this is; a nested `.children` ends with its add-sibling button. */
+	owner?: NodeResponse;
 	isRoot?: boolean;
 	depth?: number;
 }) {
@@ -330,6 +371,7 @@ export function OutlineChildren({
 			{backlinksRootId == null ? null : (
 				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
 			)}
+			{isRoot || owner === undefined ? null : <AddSiblingButton owner={owner} />}
 		</div>
 	);
 }

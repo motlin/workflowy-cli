@@ -9,6 +9,7 @@ import {
 	planAddChild,
 	planBackspaceAtStart,
 	planDeleteAtEnd,
+	planAddSibling,
 	planDuplicate,
 	planIndent,
 	isPotentiallyVisible,
@@ -61,6 +62,27 @@ describe("planDuplicate", () => {
 		const qc = seed({p: siblings});
 		const src = node({id: "a", parent_id: "p", priority: 100, name: "Hi", note: "yo"});
 		expect(planDuplicate(qc, src)).toStrictEqual({parent_id: "p", name: "Hi", note: "yo", index: 1});
+	});
+});
+
+describe("planAddSibling", () => {
+	it("plans an empty sibling right after the owner, counting completed siblings in the index", () => {
+		const all = [
+			node({id: "x", parent_id: "p", priority: 50, completedAt: 1_760_745_600}),
+			node({id: "c", parent_id: "p", priority: 300}),
+			node({id: "a", parent_id: "p", priority: 100}),
+			node({id: "b", parent_id: "p", priority: 200}),
+		];
+		expect(planAddSibling({owner: all[2], siblings: all})).toStrictEqual({parent_id: "p", name: "", index: 2});
+	});
+
+	it("plans a top-level owner's sibling under the root", () => {
+		const top = [node({id: "a", priority: 0}), node({id: "b", priority: 1})];
+		expect(planAddSibling({owner: top[1], siblings: top})).toStrictEqual({
+			parent_id: undefined,
+			name: "",
+			index: 2,
+		});
 	});
 });
 
