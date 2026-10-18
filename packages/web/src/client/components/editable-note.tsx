@@ -1,12 +1,13 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {useOutlineStore} from "../stores/outline.js";
+import {registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
 import {useTagColors} from "../hooks/use-tag-colors.js";
 import {DEFAULT_DATE_SETTINGS} from "../date-pills.js";
+import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -16,8 +17,6 @@ interface EditableNoteProps {
 	/** The zoom root's note (`notes--main`). */
 	isMain?: boolean;
 }
-
-const SAVE_DEBOUNCE_MS = 500;
 
 const CONTENT_CLASS = "notranslate content text-tertiary whitespace-pre-wrap overflow-hidden";
 
@@ -78,11 +77,19 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
 	const [focusedHtml, setFocusedHtml] = useState<string | null>(null);
 
-	// The last note value saved (or loaded), so unchanged values are never re-saved.
-	const savedValueRef = useRef(initialValue);
-	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	// The editor HTML as of the last input, read when the editor's ref is already detached on unmount.
-	const latestHtmlRef = useRef<string | null>(null);
+	// Saves the note after each pause in typing; it holds the last note value saved (or loaded).
+	const {mutate: updateNode} = updateNodeMutation;
+	// One saver per node, so a pending save flushed after a node change still targets its own node.
+	const noteSaver = useMemo(
+		() =>
+			createEditDebouncer({
+				delay: TEXT_SAVE_DEBOUNCE_MS,
+				save: ({after}) => {
+					updateNode({nodeId, note: after});
+				},
+			}),
+		[nodeId, updateNode],
+	);
 
 	// Focus from the store puts the caret at the requested start or end (Shift+Enter: end); a click keeps its caret.
 	useEffect(() => {
@@ -99,49 +106,40 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 		selection?.addRange(range);
 	}, [isFocused]);
 
-	const cancelPendingSave = useCallback(() => {
-		if (saveTimerRef.current !== null) {
-			globalThis.clearTimeout(saveTimerRef.current);
-			saveTimerRef.current = null;
-		}
-	}, []);
-
 	const saveNow = useCallback(() => {
-		cancelPendingSave();
-		const html = contentRef.current?.innerHTML ?? latestHtmlRef.current;
-		if (html === null) {
+		const element = contentRef.current;
+		if (element === null) {
+			noteSaver.flush();
 			return;
 		}
-		const plan = planNoteSave(savedValueRef.current, html);
-		if (plan.save) {
-			savedValueRef.current = plan.note;
-			updateNodeMutation.mutate({nodeId, note: plan.note});
-		}
-	}, [cancelPendingSave, nodeId, updateNodeMutation]);
+		noteSaver.saveNow(planNoteSave(noteSaver.saved, element.innerHTML).note);
+	}, [noteSaver]);
 
-	// Flush a pending debounced save if the editor unmounts (or saveNow changes) first.
+	// Flush a pending debounced save if the editor unmounts first.
 	useEffect(
 		() => () => {
-			if (saveTimerRef.current !== null) {
-				saveNow();
-			}
+			noteSaver.flush();
 		},
-		[saveNow],
+		[noteSaver],
 	);
 
+	// While focused, ⌘S and undo save the note's pending text in place.
+	useEffect(() => (isFocused ? registerEditFlush(saveNow) : undefined), [isFocused, saveNow]);
+
 	const handleInput = useCallback(() => {
-		latestHtmlRef.current = contentRef.current?.innerHTML ?? null;
-		cancelPendingSave();
-		saveTimerRef.current = globalThis.setTimeout(saveNow, SAVE_DEBOUNCE_MS);
-	}, [cancelPendingSave, saveNow]);
+		const element = contentRef.current;
+		if (element !== null) {
+			noteSaver.change(planNoteSave(noteSaver.saved, element.innerHTML).note);
+		}
+	}, [noteSaver]);
 
 	const handleFocus = useCallback(() => {
-		savedValueRef.current = initialValue;
+		noteSaver.reset(initialValue);
 		setFocusedHtml(noteContentHtml(initialValue, tagColors));
 		if (!isFocused) {
 			focusNote(nodeId);
 		}
-	}, [initialValue, isFocused, nodeId, focusNote, tagColors]);
+	}, [initialValue, isFocused, nodeId, focusNote, tagColors, noteSaver]);
 
 	const handleBlur = useCallback(() => {
 		saveNow();

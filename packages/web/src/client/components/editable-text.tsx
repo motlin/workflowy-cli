@@ -1,5 +1,5 @@
 import {canonicalTimeAttributes} from "@workflowy/shared";
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {registerEditFlush, shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
@@ -23,6 +23,7 @@ import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
+import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
@@ -118,7 +119,7 @@ const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Le
 /**
  * Inline editable text component using contenteditable.
  * - Supports HTML formatting (bold, italic preserved from node content)
- * - Saves on blur
+ * - Saves after each 500ms pause in typing (one undo step per pause), and on blur
  * - Enter splits the row at the selection (or outdents an empty last row); see `planSplit`
  * - Shift+Enter commits the text and focuses the row's note (creating it) with the caret at its end
  * - Backspace in an empty, childless, note-less node deletes it and edits the previous node
@@ -158,15 +159,34 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const [colorPicker, setColorPicker] = useState<{tag: string; top: number; left: number} | null>(null);
 	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	// Store the value at the time editing started for comparison
-	const initialValueRef = useRef(initialValue);
+	// The HTML as of editing start, held while editing so saves and refetches never rewrite the DOM under the caret.
+	const [editingHtml, setEditingHtml] = useState<string | null>(null);
+	if (isEditing && editingHtml === null) {
+		setEditingHtml(initialValue);
+	} else if (!isEditing && editingHtml !== null) {
+		setEditingHtml(null);
+	}
+	const editorHtml = editingHtml ?? initialValue;
+
+	// Saves the name after each 500ms pause in typing (upstream `saveLater`): one undo step per pause.
+	// One saver per node, so a pending save flushed after a node change still targets its own node.
+	const {mutate: updateNode} = updateNodeMutation;
+	const nameSaver = useMemo(
+		() =>
+			createEditDebouncer({
+				delay: TEXT_SAVE_DEBOUNCE_MS,
+				save: ({after}) => {
+					updateNode({nodeId, name: after});
+				},
+			}),
+		[nodeId, updateNode],
+	);
 
 	// Focus and position cursor when entering edit mode
 	useEffect(() => {
 		if (isEditing && contentRef.current) {
 			contentRef.current.focus();
-			// Store the initial value when starting to edit
-			initialValueRef.current = initialValue;
+			nameSaver.reset(editorHtml);
 
 			const {editingId, editingCaretOffset} = useOutlineStore.getState();
 			if (editingId === nodeId && editingCaretOffset !== null) {
@@ -195,7 +215,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
-	}, [isEditing, initialValue, clickPosition, nodeId]);
+	}, [isEditing, editorHtml, clickPosition, nodeId, nameSaver]);
 
 	/** Save the edited text if it changed, keeping the caret (⌘S); returns false with no editor. */
 	const saveInPlace = useCallback((): boolean => {
@@ -203,18 +223,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return false;
 		}
 
-		const newValue = canonicalTimeAttributes(contentRef.current.innerHTML);
-
-		// Only save if the value has changed
-		if (newValue !== initialValueRef.current) {
-			updateNodeMutation.mutate({
-				nodeId,
-				name: newValue,
-			});
-			initialValueRef.current = newValue;
-		}
+		nameSaver.saveNow(canonicalTimeAttributes(contentRef.current.innerHTML));
 		return true;
-	}, [nodeId, updateNodeMutation]);
+	}, [nameSaver]);
 
 	useEffect(() => {
 		const unregister = isEditing
@@ -222,8 +233,18 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					saveInPlace();
 				})
 			: undefined;
-		return unregister;
-	}, [isEditing, saveInPlace]);
+		return () => {
+			unregister?.();
+			// Leaving the row without a blur commit (a remount or a structural move) still saves the last pause.
+			nameSaver.flush();
+		};
+	}, [isEditing, saveInPlace, nameSaver]);
+
+	const handleInput = useCallback(() => {
+		if (contentRef.current) {
+			nameSaver.change(canonicalTimeAttributes(contentRef.current.innerHTML));
+		}
+	}, [nameSaver]);
 
 	const saveChanges = useCallback(() => {
 		if (!saveInPlace()) {
@@ -405,9 +426,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const newId = crypto.randomUUID();
 		// The rename and the create are one user command: one undo step.
 		void runInUndoBatch(captureOutlineView, () => {
-			for (const step of applySplitPlan(plan, nodeId, initialValueRef.current)) {
+			for (const step of applySplitPlan(plan, nodeId, nameSaver.saved)) {
 				if (step.type === "update") {
-					initialValueRef.current = step.name;
+					nameSaver.reset(step.name);
 					updateNodeMutation.mutate({nodeId: step.nodeId, name: step.name});
 				} else if (step.type === "create") {
 					createNodeMutation.mutate({
@@ -436,6 +457,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		holdEditing,
 		releaseEditing,
 		resumeEditing,
+		nameSaver,
 	]);
 
 	/**
@@ -461,10 +483,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		if (targetId === null) {
 			return false;
 		}
+		// The row is going away: never save its pending text.
+		nameSaver.reset(content.innerHTML);
 		resumeEditing(targetId, Number.MAX_SAFE_INTEGER);
 		deleteNodeMutation.mutate(nodeId);
 		return true;
-	}, [nodeId, parentId, queryClient, resumeEditing, deleteNodeMutation]);
+	}, [nodeId, parentId, queryClient, resumeEditing, deleteNodeMutation, nameSaver]);
 
 	/**
 	 * Backspace at offset 0 / Delete at the text end with a collapsed caret: merge this
@@ -520,8 +544,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			// from the cache, so they are issued before the optimistic merge below.
 			void runInUndoBatch(captureOutlineView, () => {
 				resumeEditing(plan.keepId, plan.caret);
-				initialValueRef.current = plan.name;
+				nameSaver.reset(plan.name);
 				updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
+				// The held editor never re-renders its text: show the merged row and its caret here.
+				if (plan.keepId === nodeId) {
+					content.innerHTML = plan.name;
+					placeCaretAtTextOffset(content, plan.caret);
+				}
 				deleteNodeMutation.mutate(plan.deleteId);
 				// Show the merged row at once; the mutations' refetch confirms it.
 				queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), (old) =>
@@ -532,7 +561,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			});
 			return true;
 		},
-		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation],
+		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation, nameSaver],
 	);
 
 	/**
@@ -955,8 +984,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			className="innerContentContainer editing"
 			data-node-id={nodeId}
 			contentEditable
-			dangerouslySetInnerHTML={{__html: initialValue}}
+			dangerouslySetInnerHTML={{__html: editorHtml}}
 			onBlur={handleBlur}
+			onInput={handleInput}
 			onKeyDown={handleKeyDown}
 			ref={contentRef}
 			suppressContentEditableWarning
