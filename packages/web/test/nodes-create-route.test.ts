@@ -18,7 +18,7 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 const {nodesRouter} = await import("../src/server/routes/nodes.js");
 
 function makeApp() {
-	const ctx = {apiKey: "test-key"} as unknown as ServerContext;
+	const ctx = {apiKey: "test-key", cacheService: {getChildren: () => []}} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
 		c.set("ctx", ctx);
@@ -58,22 +58,24 @@ describe("POST /api/v1/nodes", () => {
 
 		expect(res.status).toBe(201);
 		expect(createNode.mock.calls).toStrictEqual([
-			[{parent_id: "p", name: "", note: undefined, layoutMode: undefined, position: undefined}],
+			[{parent_id: "p", name: "", note: undefined, layoutMode: undefined, position: "bottom"}],
 		]);
 		await expect(res.json()).resolves.toStrictEqual({
-			id: "n1",
-			parent_id: "p",
-			name: "",
-			note: null,
-			priority: 0,
-			data: {layoutMode: null},
-			createdAt: 100,
-			modifiedAt: 100,
-			completedAt: null,
-			hasChildren: true,
-			isMirror: false,
-			originalNodeId: null,
-			attachment: null,
+			node: {
+				id: "n1",
+				parent_id: "p",
+				name: "",
+				note: null,
+				priority: 0,
+				data: {layoutMode: null},
+				createdAt: 100,
+				modifiedAt: 100,
+				completedAt: null,
+				hasChildren: true,
+				isMirror: false,
+				originalNodeId: null,
+				attachment: null,
+			},
 		});
 	});
 

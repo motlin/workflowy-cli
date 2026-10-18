@@ -55,7 +55,8 @@ async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 	if (!response.ok) {
 		throw new Error(`Failed to create node: ${response.statusText}`);
 	}
-	return readJson<NodeResponse>(response);
+	const data = await readJson<{node: NodeResponse}>(response);
+	return data.node;
 }
 
 async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<NodeResponse> {

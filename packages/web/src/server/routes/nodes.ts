@@ -3,16 +3,20 @@ import type {BacklinkCrumb, BacklinksResponse, NodeAttachment, NodeResponse} fro
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
+import {HOME_TARGET} from "@workflowy/shared/types";
 import {isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray} from "drizzle-orm";
 import {Hono} from "hono";
+import type {Context} from "hono";
 import {
 	currentBacklinkSources,
 	findReferencesRoot,
 	parentIdsWithChildren as parentIdsWithVisibleChildren,
 } from "../backlinks.js";
 import type {AppEnv, ServerContext} from "../context.js";
+import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
 /**
  * Resolve an ID parameter that could be a short ID (12 hex chars) or a full UUID.
@@ -122,6 +126,122 @@ function getWriteClient(ctx: ServerContext): WorkflowyWriteThroughClient | undef
 	return new WorkflowyWriteThroughClient(apiClient, ctx.cacheService);
 }
 
+/**
+ * The internal-API adapter for exact-index tree writes, or undefined when the
+ * internal API (or the public API key its write-through refresh needs) is not
+ * configured.
+ */
+function getAdapter(ctx: ServerContext): WorkflowyInternalAdapter | undefined {
+	return ctx.apiKey ? ctx.internalAdapter?.() : undefined;
+}
+
+/** A node as the REST API returns it, read from the cache; undefined when it is not cached. */
+async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse | undefined> {
+	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
+	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
+	if (node === undefined) {
+		return undefined;
+	}
+	const hasChildren = parentIdsWithVisibleChildren(ctx.db, [node.mirror.originalNodeId ?? id]).size > 0;
+	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
+	return nodeToRestDto(node, {hasChildren, name: node.name, note: node.note, attachment});
+}
+
+/** A parent's children (Home's for `null`) as the REST API returns them, read from the cache. */
+async function readChildDtos(ctx: ServerContext, parentId: string | null): Promise<NodeResponse[]> {
+	// NodeTreeReader gives each mirror its original's name and note. A references
+	// root is never a row: its backlinks render as the parent's Backlinks section.
+	const nodes = (await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0})).filter(
+		(node) => !node.hasReferencesRoot,
+	);
+	// Determine which nodes have children (single query for efficiency)
+	const parentIdsWithChildren = parentIdsWithVisibleChildren(
+		ctx.db,
+		nodes.map((node) => node.mirror.originalNodeId ?? node.id),
+	);
+	// Batch-load file attachments for all returned nodes.
+	const attachments = loadAttachments(
+		ctx,
+		nodes.map((node) => node.id),
+	);
+	return nodes.map((node) =>
+		nodeToRestDto(node, {
+			hasChildren: parentIdsWithChildren.has(node.mirror.originalNodeId ?? node.id),
+			name: node.name,
+			note: node.note,
+			attachment: attachments.get(node.id) ?? null,
+		}),
+	);
+}
+
+/** The refreshed children of every affected parent, in order, as one list. */
+async function readSiblingDtos(ctx: ServerContext, parentIds: (string | null)[]): Promise<NodeResponse[]> {
+	const lists = await Promise.all([...new Set(parentIds)].map(async (parentId) => readChildDtos(ctx, parentId)));
+	return lists.flat();
+}
+
+type ParentResult = {ok: true; parentId: string | null} | {ok: false; status: 400 | 404; error: string};
+
+/**
+ * Resolve a request's `parent_id`: `null`, `""`, `"None"` and `"home"` mean
+ * Home (`null`); a short id is expanded from the cache. Undefined is rejected.
+ */
+function parseParent(ctx: ServerContext, raw: unknown): ParentResult {
+	if (raw === undefined) {
+		return {ok: false, status: 400, error: "parent_id is required"};
+	}
+	if (raw === null || raw === "" || raw === "None" || raw === HOME_TARGET) {
+		return {ok: true, parentId: null};
+	}
+	if (typeof raw !== "string") {
+		return {ok: false, status: 400, error: "parent_id must be a string or null"};
+	}
+	const resolved = resolveNodeId(ctx, raw);
+	return resolved === null
+		? {ok: false, status: 404, error: "Parent node not found"}
+		: {ok: true, parentId: resolved};
+}
+
+type IndexResult = {ok: true; index: number | undefined} | {ok: false; error: string};
+
+/**
+ * The requested slot: `index` when given, else the legacy `position` (negative
+ * means top, anything else bottom), else undefined (bottom).
+ */
+function parseIndex(index: unknown, position: unknown): IndexResult {
+	if (index !== undefined) {
+		return typeof index === "number" && Number.isInteger(index) && index >= 0
+			? {ok: true, index}
+			: {ok: false, error: "index must be a non-negative integer"};
+	}
+	return {ok: true, index: typeof position === "number" && position < 0 ? 0 : undefined};
+}
+
+/** The adapter's parent id: a node id, or `HOME_TARGET`. */
+function adapterParent(parentId: string | null): string {
+	return parentId ?? HOME_TARGET;
+}
+
+/**
+ * Map a slot onto the public API's two ends: omitted or past the last child is
+ * the bottom, 0 the top. Any other slot needs the internal API (undefined).
+ */
+function publicEnd(index: number | undefined, childCount: number): "top" | "bottom" | undefined {
+	if (index === undefined || index >= childCount) {
+		return "bottom";
+	}
+	return index === 0 ? "top" : undefined;
+}
+
+/** The public API's move position for an end: negative is top, anything else bottom. */
+function publicMovePosition(end: "top" | "bottom"): number {
+	return end === "top" ? -1 : 0;
+}
+
+function countChildren(ctx: ServerContext, parentId: string | null): number {
+	return ctx.cacheService.getChildren(parentId).length;
+}
+
 export const nodesRouter = new Hono<AppEnv>();
 
 // GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
@@ -142,34 +262,7 @@ nodesRouter.get("/", async (c) => {
 		parentId = resolveMirrorToOriginal(ctx, resolved);
 	}
 
-	const {db} = ctx;
-
-	// NodeTreeReader gives each mirror its original's name and note. A references
-	// root is never a row: its backlinks render as the parent's Backlinks section.
-	const nodes = (await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0})).filter(
-		(node) => !node.hasReferencesRoot,
-	);
-
-	// Determine which nodes have children (single query for efficiency)
-	const nodeIds = nodes.map((n) => n.id);
-	const parentIdsWithChildren = parentIdsWithVisibleChildren(
-		db,
-		nodes.map((node) => node.mirror.originalNodeId ?? node.id),
-	);
-
-	// Batch-load file attachments for all returned nodes.
-	const attachments = loadAttachments(ctx, nodeIds);
-
-	const nodeResponses: NodeResponse[] = nodes.map((node) =>
-		nodeToRestDto(node, {
-			hasChildren: parentIdsWithChildren.has(node.mirror.originalNodeId ?? node.id),
-			name: node.name,
-			note: node.note,
-			attachment: attachments.get(node.id) ?? null,
-		}),
-	);
-
-	return c.json({nodes: nodeResponses});
+	return c.json({nodes: await readChildDtos(ctx, parentId)});
 });
 
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
@@ -181,30 +274,16 @@ nodesRouter.get("/:id", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 
-	const {db} = ctx;
-
-	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
-	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
-	if (node === undefined) {
+	const nodeResponse = await readNodeDto(ctx, id);
+	if (nodeResponse === undefined) {
 		return c.json({error: "Node not found"}, 404);
 	}
-
-	const hasChildren = parentIdsWithVisibleChildren(db, [node.mirror.originalNodeId ?? id]).size > 0;
-
-	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
-
-	const nodeResponse: NodeResponse = nodeToRestDto(node, {
-		hasChildren,
-		name: node.name,
-		note: node.note,
-		attachment,
-	});
 
 	// Wrap in { node: ... } to match Workflowy API format
 	return c.json({node: nodeResponse});
 });
 
-// POST /api/v1/nodes - Create node
+// POST /api/v1/nodes - Create node at an exact `index` among all siblings (omitted = bottom)
 nodesRouter.post("/", async (c) => {
 	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
@@ -212,38 +291,60 @@ nodesRouter.post("/", async (c) => {
 		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
 	}
 
-	const {
-		parent_id: parentId,
-		name,
-		note,
-		layoutMode,
-		position,
-	} = await c.req.json<{
-		parent_id?: string;
+	const body = await c.req.json<{
+		parent_id?: string | null;
 		name?: string;
 		note?: string;
 		layoutMode?: string;
+		index?: number;
+		/** Legacy: negative = top, anything else = bottom. */
 		position?: number;
 	}>();
+	const {name, note, layoutMode} = body;
 
 	// An empty name is valid: every empty-row create (add button, Enter) sends `name: ""`.
 	if (typeof name !== "string") {
 		return c.json({error: "name is required"}, 400);
 	}
 
-	if (!parentId) {
-		return c.json({error: "parent_id is required"}, 400);
+	const parent = parseParent(ctx, body.parent_id);
+	if (!parent.ok) {
+		return c.json({error: parent.error}, parent.status);
+	}
+	const {parentId} = parent;
+	const slot = parseIndex(body.index, body.position);
+	if (!slot.ok) {
+		return c.json({error: slot.error}, 400);
+	}
+	const count = countChildren(ctx, parentId);
+
+	const adapter = getAdapter(ctx);
+	if (adapter) {
+		const {id} = await adapter.createAt({
+			parentId: adapterParent(parentId),
+			index: slot.index ?? count,
+			name,
+			...(note === undefined ? {} : {note}),
+			...(layoutMode === undefined ? {} : {metadata: {layoutMode}}),
+		});
+		const node = await readNodeDto(ctx, id);
+		if (node === undefined) {
+			return c.json({error: `Created node ${id} is missing from the cache`}, 500);
+		}
+		return c.json({node}, 201);
 	}
 
-	const resolvedPosition: "top" | "bottom" | undefined =
-		position === undefined ? undefined : position < 0 ? "top" : "bottom";
+	const end = publicEnd(slot.index, count);
+	if (end === undefined) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
 
 	const createdNode = await client.createNode({
-		parent_id: parentId,
+		parent_id: parentId ?? HOME_TARGET,
 		name,
 		note,
 		layoutMode,
-		position: resolvedPosition,
+		position: end,
 	});
 
 	// Return in Workflowy response format
@@ -263,7 +364,34 @@ nodesRouter.post("/", async (c) => {
 		attachment: null,
 	};
 
-	return c.json(nodeResponse, 201);
+	return c.json({node: nodeResponse}, 201);
+});
+
+// POST /api/v1/nodes/move - Move a block of nodes, in the given order, to an exact `index`
+nodesRouter.post("/move", async (c) => {
+	const ctx = c.get("ctx");
+	const client = getWriteClient(ctx);
+	if (!client) {
+		return c.json({error: "WORKFLOWY_API_KEY environment variable is required"}, 500);
+	}
+
+	const body = await c.req.json<{ids?: unknown; parent_id?: string | null; index?: number}>();
+	if (
+		!Array.isArray(body.ids) ||
+		body.ids.length === 0 ||
+		!body.ids.every((id): id is string => typeof id === "string")
+	) {
+		return c.json({error: "ids must be a non-empty array of strings"}, 400);
+	}
+	const ids: string[] = [];
+	for (const rawId of body.ids) {
+		const id = resolveNodeId(ctx, rawId);
+		if (id === null || !ctx.cacheService.getNode(id)) {
+			return c.json({error: `Node not found: ${rawId}`}, 404);
+		}
+		ids.push(id);
+	}
+	return moveNodes(c, client, ids, body.parent_id, body.index, undefined);
 });
 
 // POST /api/v1/nodes/:id - Update node
@@ -593,7 +721,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 	return c.json({node: nodeResponse});
 });
 
-// POST /api/v1/nodes/:id/move - Move node to new parent
+// POST /api/v1/nodes/:id/move - Move a node to an exact `index` under a parent (omitted = bottom)
 nodesRouter.post("/:id/move", async (c) => {
 	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
@@ -602,50 +730,95 @@ nodesRouter.post("/:id/move", async (c) => {
 	}
 
 	const id = resolveNodeId(ctx, c.req.param("id"));
-	if (!id) {
+	if (id === null || !ctx.cacheService.getNode(id)) {
 		return c.json({error: "Node not found"}, 404);
 	}
-	const {parent_id: newParentId, position} = await c.req.json<{
-		// Client JSON may omit it, which the check below rejects.
+	const body = await c.req.json<{
 		parent_id?: string | null;
+		index?: number;
+		/** Legacy: negative = top, anything else = bottom. */
 		position?: number;
 	}>();
-
-	// parent_id is required but can be null (for root level) or a string (for a parent node)
-	// Empty string means root level as well
-	const normalizedParentId = newParentId === "" ? null : newParentId;
-
-	if (normalizedParentId === undefined) {
-		return c.json({error: "parent_id is required"}, 400);
-	}
-
-	const {cacheService} = ctx;
-	// Verify the node exists
-	const existingNode = cacheService.getNode(id);
-	if (!existingNode) {
-		return c.json({error: "Node not found"}, 404);
-	}
-
-	const oldParentId = existingNode.parentId;
-
-	const movedNode = await client.moveNode(id, normalizedParentId, position);
-
-	// Return in Workflowy response format
-	const nodeResponse: NodeResponse = {
-		id: movedNode.id,
-		parent_id: normalizedParentId,
-		name: movedNode.name,
-		note: movedNode.note ?? null,
-		priority: movedNode.priority,
-		data: {layoutMode: movedNode.data?.layoutMode ?? null},
-		createdAt: movedNode.createdAt,
-		modifiedAt: movedNode.modifiedAt,
-		completedAt: movedNode.completedAt ?? null,
-		hasChildren: true,
-		isMirror: false,
-		originalNodeId: null,
-		attachment: null,
-	};
-
-	return c.json({node: nodeResponse, oldParentId});
+	return moveNodes(c, client, [id], body.parent_id, body.index, body.position);
 });
+
+// POST /api/v1/nodes/:id/restore - Bring back a deleted node under its ORIGINAL id
+nodesRouter.post("/:id/restore", async (c) => {
+	const ctx = c.get("ctx");
+	const adapter = getAdapter(ctx);
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+
+	const id = c.req.param("id");
+	if (ctx.cacheService.getNode(id)) {
+		return c.json({error: "Node is not deleted"}, 409);
+	}
+	const body = await c.req.json<{parent_id?: string | null; index?: number}>().catch(() => ({}) as const);
+	const input: RestoreInput = {id};
+	if ("parent_id" in body && body.parent_id !== undefined) {
+		const parent = parseParent(ctx, body.parent_id);
+		if (!parent.ok) {
+			return c.json({error: parent.error}, parent.status);
+		}
+		input.parentId = adapterParent(parent.parentId);
+	}
+	if ("index" in body && body.index !== undefined) {
+		const slot = parseIndex(body.index, undefined);
+		if (!slot.ok) {
+			return c.json({error: slot.error}, 400);
+		}
+		input.index = slot.index;
+	}
+
+	await adapter.restore(input);
+	const node = await readNodeDto(ctx, id);
+	if (node === undefined) {
+		return c.json({error: `Restored node ${id} is missing from the cache`}, 500);
+	}
+	return c.json({node});
+});
+
+/**
+ * Move `ids` (in that order, all cached) under `rawParent` at a slot, then
+ * answer `{nodes}`: the refreshed children of every affected parent. Through
+ * the internal API this is one exact-index push; without it only the two ends
+ * work (a top block moves last-first so it keeps its order), and any other
+ * slot answers 503.
+ */
+async function moveNodes(
+	c: Context<AppEnv>,
+	client: WorkflowyWriteThroughClient,
+	ids: string[],
+	rawParent: unknown,
+	rawIndex: unknown,
+	legacyPosition: unknown,
+) {
+	const ctx = c.get("ctx");
+	const parent = parseParent(ctx, rawParent);
+	if (!parent.ok) {
+		return c.json({error: parent.error}, parent.status);
+	}
+	const {parentId} = parent;
+	const slot = parseIndex(rawIndex, legacyPosition);
+	if (!slot.ok) {
+		return c.json({error: slot.error}, 400);
+	}
+	const oldParents = ids.map((id) => ctx.cacheService.getNode(id)?.parentId ?? null);
+	const count = countChildren(ctx, parentId);
+
+	const adapter = getAdapter(ctx);
+	if (adapter) {
+		await adapter.moveTo({ids, parentId: adapterParent(parentId), index: slot.index ?? count});
+	} else {
+		const end = publicEnd(slot.index, count);
+		if (end === undefined) {
+			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+		}
+		for (const id of end === "top" ? ids.toReversed() : ids) {
+			await client.moveNode(id, parentId, publicMovePosition(end));
+		}
+	}
+
+	return c.json({nodes: await readSiblingDtos(ctx, [...oldParents, parentId])});
+}
