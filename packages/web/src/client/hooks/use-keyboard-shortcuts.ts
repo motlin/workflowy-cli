@@ -9,7 +9,7 @@ import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
-import {editingAfterRemoval} from "../caret-navigation.js";
+import {editingAfterRemoval, navigableIds} from "../caret-navigation.js";
 import {planDuplicate, planIndent, planMoveDown, planMoveUp, planOutdent} from "../tree-ops.js";
 import type {MoveNodePayload} from "../tree-ops.js";
 import {
@@ -162,14 +162,14 @@ export function useKeyboardShortcuts() {
 	/** Continue editing beside the edited node, which is about to leave the view. */
 	const editBesideRemovedNode = useCallback(
 		(nodeId: string) => {
-			const next = editingAfterRemoval(visibleNodes, nodeId);
+			const next = editingAfterRemoval(navigableIds(zoomedNodeId, visibleNodes), nodeId);
 			if (next === null) {
 				stopEditing();
 			} else {
 				resumeEditing(next.nodeId, next.caretOffset);
 			}
 		},
-		[visibleNodes, stopEditing, resumeEditing],
+		[zoomedNodeId, visibleNodes, stopEditing, resumeEditing],
 	);
 
 	/** Commit the edited text, then edit `nodeId` with the caret at its end. */

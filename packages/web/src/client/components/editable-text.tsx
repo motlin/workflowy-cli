@@ -2,8 +2,8 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
-import {planInsertSiblingAfter} from "../tree-ops.js";
-import {adjacentVisibleNode, backspaceDeleteTarget, isCaretOnBoundaryLine} from "../caret-navigation.js";
+import {planInsertFirstChild, planInsertSiblingAfter} from "../tree-ops.js";
+import {adjacentVisibleNode, backspaceDeleteTarget, isCaretOnBoundaryLine, navigableIds} from "../caret-navigation.js";
 import type {VerticalDirection} from "../caret-navigation.js";
 import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
 import {readChildren} from "../node-cache.js";
@@ -204,7 +204,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return false;
 			}
 			const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore.getState();
-			const visibleIds = collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted);
+			const visibleIds = navigableIds(
+				zoomedNodeId,
+				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted),
+			);
 			const targetId = adjacentVisibleNode(visibleIds, nodeId, direction);
 			if (targetId === null) {
 				return true;
@@ -229,7 +232,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 		}
 
-		const payload = planInsertSiblingAfter(queryClient, {id: nodeId, parent_id: parentId, priority});
+		// Enter in the zoom title creates its first child rather than an off-screen sibling.
+		const payload =
+			useOutlineStore.getState().zoomedNodeId === nodeId
+				? planInsertFirstChild(queryClient, nodeId)
+				: planInsertSiblingAfter(queryClient, {id: nodeId, parent_id: parentId, priority});
 
 		stopEditing();
 
@@ -255,7 +262,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const listed = readChildren(queryClient, parentId)?.find((sibling) => sibling.id === nodeId);
 		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
 		const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore.getState();
-		const visibleIds = collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted);
+		const visibleIds = navigableIds(
+			zoomedNodeId,
+			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted),
+		);
 		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {text: content.textContent, hasChildren});
 		if (targetId === null) {
 			return false;

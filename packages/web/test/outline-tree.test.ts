@@ -14,7 +14,7 @@ const outlineState = {
 	expandAll: () => {},
 	collapseDescendants: () => {},
 	resumeEditing: vi.fn<(id: string, caretOffset: number) => void>(),
-	editingId: null,
+	editingId: null as string | null,
 	editingClickPosition: null,
 	editingNoteId: null,
 };
@@ -76,8 +76,19 @@ vi.mock("../src/client/hooks/use-node-drag-drop.js", () => ({
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
 	return {
-		EditableText: ({initialValue}: {initialValue: string}) =>
-			h("span", {className: "innerContentContainer"}, initialValue),
+		EditableText: ({initialValue, isEditing, nodeId}: {initialValue: string; isEditing: boolean; nodeId: string}) =>
+			h(
+				"span",
+				isEditing
+					? {
+							className: "innerContentContainer editing",
+							"data-node-id": nodeId,
+							contentEditable: true,
+							suppressContentEditableWarning: true,
+						}
+					: {className: "innerContentContainer", "data-node-id": nodeId},
+				initialValue,
+			),
 	};
 });
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
@@ -165,9 +176,36 @@ describe("OutlineTree zoom root row", () => {
 		nodesById.set("alice", makeNode({name: "Alice"}));
 		const html = render("alice");
 		const expected =
-			'<div class="font-custom project selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer">Alice</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="drop-line"><div class="line"></div></div><div class="children ';
+			'<div class="font-custom project selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer" data-node-id="alice">Alice</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="drop-line"><div class="line"></div></div><div class="children ';
 		const start = html.indexOf('<div class="font-custom project selected root">');
 		expect(html.slice(start, start + expected.length)).toBe(expected);
+	});
+
+	it("renders the zoomed node's title as an editor while it is being edited", () => {
+		nodesById.set("alice", makeNode({name: "Alice"}));
+		outlineState.editingId = "alice";
+		try {
+			const html = render("alice");
+			const expected =
+				'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer editing" data-node-id="alice" contentEditable="true">Alice</span></div>';
+			expect(html.includes(expected)).toBe(true);
+		} finally {
+			outlineState.editingId = null;
+		}
+	});
+
+	it("mounts the editor in an unnamed zoomed node's title while it is being edited", () => {
+		nodesById.set("alice", makeNode({name: ""}));
+		outlineState.editingId = "alice";
+		try {
+			expect(
+				render("alice").includes(
+					'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer editing" data-node-id="alice" contentEditable="true"></span></div>',
+				),
+			).toBe(true);
+		} finally {
+			outlineState.editingId = null;
+		}
 	});
 
 	it("marks a completed zoomed leaf's root .project as done", () => {

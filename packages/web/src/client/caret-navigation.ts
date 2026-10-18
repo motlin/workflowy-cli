@@ -30,6 +30,14 @@ export function isCaretOnBoundaryLine(
 }
 
 /**
+ * The nodes the caret can visit in display order: the zoom root's editable title
+ * (when zoomed) followed by the visible rows.
+ */
+export function navigableIds(zoomedNodeId: string | null, visibleIds: readonly string[]): string[] {
+	return zoomedNodeId === null ? [...visibleIds] : [zoomedNodeId, ...visibleIds];
+}
+
+/**
  * The node to edit after leaving `currentId` in `direction`, or null at the
  * first/last visible node (no wrapping) or when `currentId` is not visible.
  */

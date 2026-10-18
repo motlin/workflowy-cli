@@ -6,6 +6,7 @@ import {
 	planAddChild,
 	planDuplicate,
 	planIndent,
+	planInsertFirstChild,
 	planInsertSiblingAfter,
 	planMoveDown,
 	planMoveUp,
@@ -58,6 +59,23 @@ describe("planInsertSiblingAfter / planDuplicate", () => {
 		const qc = seed({p: siblings});
 		const src = node({id: "a", parent_id: "p", priority: 0, name: "Hi", note: "yo"});
 		expect(planDuplicate(qc, src)).toStrictEqual({parent_id: "p", name: "Hi", note: "yo", position: 50});
+	});
+});
+
+describe("planInsertFirstChild", () => {
+	it("prepends an empty child below the first child's priority (Enter in the zoom title)", () => {
+		const qc = seed({p: siblings});
+		expect(planInsertFirstChild(qc, "p")).toStrictEqual({parent_id: "p", name: "", position: -100});
+	});
+
+	it("stays negative so the server places it at the top when the first child sits above zero", () => {
+		const qc = seed({p: [node({id: "a", parent_id: "p", priority: 150})]});
+		expect(planInsertFirstChild(qc, "p")).toStrictEqual({parent_id: "p", name: "", position: -100});
+	});
+
+	it("goes below a negative first child", () => {
+		const qc = seed({p: [node({id: "a", parent_id: "p", priority: -300})]});
+		expect(planInsertFirstChild(qc, "p")).toStrictEqual({parent_id: "p", name: "", position: -400});
 	});
 });
 

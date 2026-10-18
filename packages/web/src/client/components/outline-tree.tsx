@@ -8,8 +8,10 @@ import {useOutlineStore} from "../stores/outline.js";
 import {planAddChild} from "../tree-ops.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {EditableText} from "./editable-text.js";
 import {NodeItemMenu, OutlineRow} from "./outline-node.js";
 import {projectClassName} from "./row-classes.js";
+import {rowClickResumesEditing} from "./row-click.js";
 
 interface OutlineTreeProps {
 	parentId: string | null;
@@ -76,8 +78,8 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 }
 
 /**
- * Upstream's zoom-root `.project.selected.root`: the zoomed node's read-only title in a
- * `.name--main` row, then the root `.children`. At the main-tree root (no zoom) it is
+ * Upstream's zoom-root `.project.selected.root`: the zoomed node's title, edited in place
+ * like any row (`editingId === nodeId`), in a `.name--main` row, then the root `.children`. At the main-tree root (no zoom) it is
  * `.mainTreeRoot` with a title-less `.name--root` row.
  */
 function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: ReactNode}) {
@@ -85,8 +87,20 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const toggleComplete = useToggleComplete();
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const editingId = useOutlineStore((state) => state.editingId);
+	const editingClickPosition = useOutlineStore((state) => state.editingClickPosition);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 	const isMainTreeRoot = nodeId === null;
+	const isEditing = !isMainTreeRoot && editingId === nodeId;
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
+
+	// Clicking the title row outside its text edits the title with the caret at the end.
+	const handleTitleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		const target = event.target instanceof Element ? event.target : null;
+		if (nodeId !== null && rowClickResumesEditing(target, event.currentTarget)) {
+			resumeEditing(nodeId, Number.MAX_SAFE_INTEGER);
+		}
+	};
 
 	return (
 		<div
@@ -107,10 +121,11 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				.filter(Boolean)
 				.join(" ")}
 		>
-			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hover only mounts the bullet-menu trigger */}
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- hover mounts the bullet-menu trigger; click is a mouse shortcut for editing the title, which keyboard users reach with the arrow keys */}
 			<div
 				tabIndex={-1}
 				className={isMainTreeRoot ? "name name--root" : "name name--main"}
+				onClick={isMainTreeRoot ? undefined : handleTitleClick}
 				onMouseEnter={() => {
 					setIsHovered(true);
 				}}
@@ -119,9 +134,16 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				}}
 			>
 				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
-					{nameHtml !== "" && (
-						<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: nameHtml}} />
-					)}
+					{node && (nameHtml !== "" || isEditing) ? (
+						<EditableText
+							clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
+							initialValue={nameHtml}
+							isEditing={isEditing}
+							nodeId={node.id}
+							parentId={node.parent_id}
+							priority={node.priority}
+						/>
+					) : null}
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (

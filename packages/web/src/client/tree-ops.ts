@@ -38,6 +38,15 @@ export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode)
 	return {parent_id: node.parent_id ?? undefined, name: "", position};
 }
 
+/**
+ * Create an empty first child of `parentId` (Enter in the zoom title). The position
+ * stays negative so the server prepends it, and below the current first child.
+ */
+export function planInsertFirstChild(queryClient: QueryClient, parentId: string): CreateNodePayload {
+	const first = sortByPriority(readChildren(queryClient, parentId) ?? [])[0];
+	return {parent_id: parentId, name: "", position: Math.min(first?.priority ?? 0, 0) - 100};
+}
+
 /** Payload for the add-child button: an empty last child of the zoomed item. */
 export interface AddChildPlan {
 	parent_id: string | undefined;

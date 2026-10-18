@@ -4,6 +4,7 @@ import {
 	backspaceDeleteTarget,
 	editingAfterRemoval,
 	isCaretOnBoundaryLine,
+	navigableIds,
 } from "../src/client/caret-navigation.js";
 
 describe("isCaretOnBoundaryLine", () => {
@@ -108,5 +109,30 @@ describe("editingAfterRemoval", () => {
 
 	it("stops editing when no other node is visible", () => {
 		expect(editingAfterRemoval(["a"], "a")).toBeNull();
+	});
+});
+
+describe("navigableIds", () => {
+	it("prepends the zoom root's title when zoomed", () => {
+		expect(navigableIds("z", ["a", "b"])).toStrictEqual(["z", "a", "b"]);
+	});
+
+	it("returns the visible rows unchanged at the main-tree root", () => {
+		expect(navigableIds(null, ["a"])).toStrictEqual(["a"]);
+	});
+
+	it("moves Up from the first child into the zoom title", () => {
+		expect(adjacentVisibleNode(navigableIds("z", ["a", "b"]), "a", "up")).toBe("z");
+	});
+
+	it("moves Down from the zoom title into the first child", () => {
+		expect(adjacentVisibleNode(navigableIds("z", ["a", "b"]), "z", "down")).toBe("a");
+	});
+
+	it("continues editing at the end of the zoom title when its only child leaves the view", () => {
+		expect(editingAfterRemoval(navigableIds("z", ["a"]), "a")).toStrictEqual({
+			nodeId: "z",
+			caretOffset: Number.MAX_SAFE_INTEGER,
+		});
 	});
 });
