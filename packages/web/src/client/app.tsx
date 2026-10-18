@@ -21,7 +21,8 @@ import {RightSidebar} from "./components/right-sidebar.js";
 import {SearchPanel} from "./components/search-panel.js";
 import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
-import {useKeyboardShortcuts} from "./hooks/use-keyboard-shortcuts.js";
+import {useCommandRegistry} from "./hooks/use-command-registry.js";
+import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {locationUrl, parseLocationHash} from "./location.js";
 import {nodeUrl, resolveZoomTarget} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
@@ -82,7 +83,7 @@ function OutlineView() {
 	const isMutating = useOutlineStore(selectIsMutating);
 
 	// Register keyboard shortcuts
-	useKeyboardShortcuts();
+	useGlobalKeymap(useCommandRegistry());
 
 	const containerClasses = [
 		"outline-container",
