@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {editorHtmlToNote, noteToEditorHtml} from "../src/client/note-text.js";
+import {editorHtmlToNote, noteToEditorHtml, planNoteSave} from "../src/client/note-text.js";
 
 describe("editorHtmlToNote", () => {
 	it("turns <br> into a newline", () => {
@@ -56,5 +56,27 @@ describe("noteToEditorHtml", () => {
 
 	it("leaves a clean note unchanged", () => {
 		expect(noteToEditorHtml("<b>a</b>\nb")).toBe("<b>a</b>\nb");
+	});
+});
+
+describe("planNoteSave", () => {
+	it("skips saving an unchanged note", () => {
+		expect(planNoteSave("a", "a")).toStrictEqual({save: false, note: "a"});
+	});
+
+	it("saves a changed note with line breaks as newlines", () => {
+		expect(planNoteSave("a", "a<br>b")).toStrictEqual({save: true, note: "a\nb"});
+	});
+
+	it("saves a blank note as the empty string", () => {
+		expect(planNoteSave("a", "<br>")).toStrictEqual({save: true, note: ""});
+	});
+
+	it("saves a whitespace-only note as the empty string", () => {
+		expect(planNoteSave("a", "&nbsp; ")).toStrictEqual({save: true, note: ""});
+	});
+
+	it("skips saving a blank note that was already empty", () => {
+		expect(planNoteSave("", "<br>")).toStrictEqual({save: false, note: ""});
 	});
 });

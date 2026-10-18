@@ -3,7 +3,7 @@ import {useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../date-pills.js";
 import {renderTags} from "../tag-render.js";
-import {editorHtmlToNote, noteToEditorHtml} from "../note-text.js";
+import {noteToEditorHtml, planNoteSave} from "../note-text.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -11,23 +11,29 @@ interface EditableNoteProps {
 	isEditing: boolean;
 }
 
+const SAVE_DEBOUNCE_MS = 500;
+
 /**
  * Inline editable note component using contenteditable.
  * - Rendered as upstream's sibling `.notes` after the row's `.name`
- * - Saves on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
- * - Escape cancels editing and hides note if empty
- * - Enter (without shift) exits editing mode
+ * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
+ * - Edits are never reverted: Escape saves, exits the note, and opens search like upstream's global Escape
+ * - Enter (without shift) saves and exits editing mode
  * - Shift+Enter inserts a line break
  * - Collapsible with expand/collapse toggle for long notes
  */
 export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
 	const stopEditingNote = useOutlineStore((state) => state.stopEditingNote);
+	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	const [isExpanded, setIsExpanded] = useState(false);
 
-	// Store the value at the time editing started for comparison
-	const initialValueRef = useRef(initialValue);
+	// The last note value saved (or loaded), so unchanged values are never re-saved.
+	const savedValueRef = useRef(initialValue);
+	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// The editor HTML as of the last input, read when the editor's ref is already detached on unmount.
+	const latestHtmlRef = useRef<string | null>(null);
 
 	// Focus when entering edit mode
 	useEffect(() => {
@@ -40,48 +46,66 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 			const selection = globalThis.getSelection();
 			selection?.removeAllRanges();
 			selection?.addRange(range);
-			// Store the initial value when starting to edit
-			initialValueRef.current = initialValue;
+			savedValueRef.current = initialValue;
 		}
 	}, [isEditing, initialValue]);
 
-	const saveChanges = useCallback(() => {
-		if (!contentRef.current) {
+	const cancelPendingSave = useCallback(() => {
+		if (saveTimerRef.current !== null) {
+			globalThis.clearTimeout(saveTimerRef.current);
+			saveTimerRef.current = null;
+		}
+	}, []);
+
+	const saveNow = useCallback(() => {
+		cancelPendingSave();
+		const html = contentRef.current?.innerHTML ?? latestHtmlRef.current;
+		if (html === null) {
 			return;
 		}
-
-		const newValue = editorHtmlToNote(contentRef.current.innerHTML);
-
-		// Only save if the value has changed
-		if (newValue !== initialValueRef.current) {
-			updateNodeMutation.mutate({
-				nodeId,
-				note: newValue,
-			});
+		const plan = planNoteSave(savedValueRef.current, html);
+		if (plan.save) {
+			savedValueRef.current = plan.note;
+			updateNodeMutation.mutate({nodeId, note: plan.note});
 		}
+	}, [cancelPendingSave, nodeId, updateNodeMutation]);
 
-		stopEditingNote();
-	}, [nodeId, updateNodeMutation, stopEditingNote]);
+	// Flush a pending debounced save if the editor unmounts (or saveNow changes) first.
+	useEffect(
+		() => () => {
+			if (saveTimerRef.current !== null) {
+				saveNow();
+			}
+		},
+		[saveNow],
+	);
+
+	const handleInput = useCallback(() => {
+		latestHtmlRef.current = contentRef.current?.innerHTML ?? null;
+		cancelPendingSave();
+		saveTimerRef.current = globalThis.setTimeout(saveNow, SAVE_DEBOUNCE_MS);
+	}, [cancelPendingSave, saveNow]);
 
 	const handleBlur = useCallback(() => {
-		saveChanges();
-	}, [saveChanges]);
+		saveNow();
+		stopEditingNote();
+	}, [saveNow, stopEditingNote]);
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
 			if (event.key === "Enter" && !event.shiftKey) {
 				event.preventDefault();
-				saveChanges();
+				saveNow();
+				stopEditingNote();
 			} else if (event.key === "Escape") {
 				event.preventDefault();
-				// Restore original value on escape
-				if (contentRef.current) {
-					contentRef.current.innerHTML = noteToEditorHtml(initialValueRef.current);
-				}
+				saveNow();
 				stopEditingNote();
+				// Search-return resumes the node's name, not the note: a documented local deviation.
+				openSearchFromEditing(nodeId, Number.MAX_SAFE_INTEGER);
 			}
 		},
-		[saveChanges, stopEditingNote],
+		[nodeId, openSearchFromEditing, saveNow, stopEditingNote],
 	);
 
 	const toggleExpand = useCallback((event: React.MouseEvent) => {
@@ -123,6 +147,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 					contentEditable
 					dangerouslySetInnerHTML={{__html: noteToEditorHtml(initialValue)}}
 					onBlur={handleBlur}
+					onInput={handleInput}
 					onKeyDown={handleKeyDown}
 					ref={contentRef}
 					suppressContentEditableWarning

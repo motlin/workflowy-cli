@@ -72,3 +72,13 @@ export function editorHtmlToNote(html: string): string {
 export function noteToEditorHtml(note: string): string {
 	return note.replaceAll(LEGACY_BREAK_PATTERN, "\n");
 }
+
+/**
+ * Decides whether the note editor's HTML needs saving against the last saved note. A blank
+ * (whitespace-only) note saves as `""`; an unchanged note is skipped.
+ */
+export function planNoteSave(initial: string, html: string): {save: boolean; note: string} {
+	const converted = editorHtmlToNote(html);
+	const note = converted.trim() === "" ? "" : converted;
+	return {save: note !== initial, note};
+}
