@@ -58,3 +58,83 @@ describe("top bar styles guard", () => {
 		expect(hasSelector(styles, /\.top-bar-search-box\b/u)).toBe(true);
 	});
 });
+
+const tailwind = readFileSync(fileURLToPath(new URL("../src/client/wf-tailwind.css", import.meta.url)), "utf8");
+
+function normalizedBlocks(css: string, selector: string): string[] {
+	const stripped = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
+	return [...stripped.matchAll(/([^{}]+)\{([^{}]*)\}/gu)]
+		.filter((match) => match[1].trim() === selector)
+		.map((match) =>
+			match[2]
+				.split(";")
+				.map((declaration) => declaration.trim().replaceAll(/\s+/gu, " "))
+				.filter((declaration) => declaration !== "")
+				.join(";"),
+		);
+}
+
+describe("flyout surface styles guard", () => {
+	it("keeps the flyout content-box so max-width 240 gives a 252px border-box", () => {
+		expect(normalizedBlocks(styles, ".wf-menu.flyout")).toStrictEqual(["box-sizing: content-box"]);
+	});
+
+	it("scopes the light and dark .wf-menu tokens", () => {
+		expect({
+			light: normalizedBlocks(styles, ':root:not([data-theme="dark"]) .wf-menu'),
+			dark: normalizedBlocks(styles, '[data-theme="dark"] .wf-menu'),
+		}).toStrictEqual({
+			light: ["--wf-text-primary: var(--wf-gray-700);--wf-border-secondary: var(--wf-gray-400)"],
+			dark: [
+				"--wf-text-primary: var(--wf-dark-gray-200);--wf-border-primary: var(--wf-dark-gray-600);--wf-border-secondary: var(--wf-dark-gray-500)",
+			],
+		});
+	});
+
+	it("relies on the cloned tailwind utilities for the surface and scroller", () => {
+		const selectors = [
+			".flex",
+			".flex-col",
+			".border",
+			".border-solid",
+			".border-primary",
+			".font-normal",
+			".text-xs",
+			".rounded-md",
+			".bg-primary",
+			".shadow-md",
+			".overflow-x-hidden",
+			String.raw`.\[transition\:200ms_opacity\]`,
+			String.raw`.print\:hidden`,
+			".overflow-y-auto",
+			String.raw`.is-desktop .desktop\:max-h-\[min\(var\(--menu-max-h\)\2c calc\(100vh-50px\)\)\]`,
+			String.raw`.\[\&\>\*\:first-child\]\:mt-xs>*:first-child`,
+			String.raw`.\[\&\>\*\:last-child\]\:mb-xs>*:last-child`,
+		];
+		expect(
+			Object.fromEntries(selectors.map((selector) => [selector, normalizedBlocks(tailwind, selector)])),
+		).toStrictEqual({
+			".flex": ["display: flex"],
+			".flex-col": ["flex-direction: column"],
+			".border": ["border-width: 1px"],
+			".border-solid": ["border-style: solid"],
+			".border-primary": ["border-color: var(--wf-border-primary)"],
+			".font-normal": ["font-weight: 400"],
+			".text-xs": ["font-size: 0.79rem"],
+			".rounded-md": ["border-radius: 0.375rem"],
+			".bg-primary": ["background-color: var(--wf-background-primary)"],
+			".shadow-md": [
+				"--tw-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored: 0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)",
+			],
+			".overflow-x-hidden": ["overflow-x: hidden"],
+			".\\[transition\\:200ms_opacity\\]": ["transition: 200ms opacity"],
+			".print\\:hidden": ["display: none"],
+			".overflow-y-auto": ["overflow-y: auto"],
+			".is-desktop .desktop\\:max-h-\\[min\\(var\\(--menu-max-h\\)\\2c calc\\(100vh-50px\\)\\)\\]": [
+				"max-height: min(var(--menu-max-h),calc(100vh - 50px))",
+			],
+			".\\[\\&\\>\\*\\:first-child\\]\\:mt-xs>*:first-child": ["margin-top: 0.25rem"],
+			".\\[\\&\\>\\*\\:last-child\\]\\:mb-xs>*:last-child": ["margin-bottom: 0.25rem"],
+		});
+	});
+});

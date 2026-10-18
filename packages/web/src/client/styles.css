@@ -5075,3 +5075,11 @@ body.moving .expand {
 		display: none;
 	}
 }
+
+/* DomKit flyout surface, cloned from tailwind + themes. The popoverBox class string's utilities
+   (wf-tailwind.css) and the .wf-menu token scopes above cover the rest; only the box model differs,
+   because the local reset sets border-box on everything. Upstream's flyout is content-box, so
+   max-width 240 gives a 252px border-box (240 + 2*5 padding + 2*1 border). */
+.wf-menu.flyout {
+	box-sizing: content-box;
+}
