@@ -228,13 +228,14 @@ nodesRouter.post("/", async (c) => {
 		position,
 	} = await c.req.json<{
 		parent_id?: string;
-		name: string;
+		name?: string;
 		note?: string;
 		layoutMode?: string;
 		position?: number;
 	}>();
 
-	if (!name) {
+	// An empty name is valid: every empty-row create (add button, Enter) sends `name: ""`.
+	if (typeof name !== "string") {
 		return c.json({error: "name is required"}, 400);
 	}
 

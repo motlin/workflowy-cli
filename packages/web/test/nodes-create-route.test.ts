@@ -1,0 +1,87 @@
+import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {Hono} from "hono";
+import type * as SharedCache from "@workflowy/shared/cache";
+import type {AppEnv, ServerContext} from "../src/server/context.js";
+
+const createNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["createNode"]>());
+
+vi.mock("@workflowy/shared/cache", async (importOriginal) => {
+	const actual = await importOriginal<typeof SharedCache>();
+	return {
+		...actual,
+		WorkflowyWriteThroughClient: class {
+			createNode = createNode;
+		},
+	};
+});
+
+const {nodesRouter} = await import("../src/server/routes/nodes.js");
+
+function makeApp() {
+	const ctx = {apiKey: "test-key"} as unknown as ServerContext;
+	const app = new Hono<AppEnv>();
+	app.use("*", async (c, next) => {
+		c.set("ctx", ctx);
+		await next();
+	});
+	app.route("/api/v1/nodes", nodesRouter);
+	return app;
+}
+
+async function post(body: unknown): Promise<Response> {
+	return makeApp().fetch(
+		new Request("http://x/api/v1/nodes", {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify(body),
+		}),
+	);
+}
+
+describe("POST /api/v1/nodes", () => {
+	beforeEach(() => {
+		createNode.mockReset();
+	});
+
+	it("creates a node with an empty name", async () => {
+		createNode.mockResolvedValue({
+			id: "n1",
+			name: "",
+			priority: 0,
+			data: {},
+			createdAt: 100,
+			modifiedAt: 100,
+			completedAt: null,
+		});
+
+		const res = await post({parent_id: "p", name: ""});
+
+		expect(res.status).toBe(201);
+		expect(createNode.mock.calls).toStrictEqual([
+			[{parent_id: "p", name: "", note: undefined, layoutMode: undefined, position: undefined}],
+		]);
+		await expect(res.json()).resolves.toStrictEqual({
+			id: "n1",
+			parent_id: "p",
+			name: "",
+			note: null,
+			priority: 0,
+			data: {layoutMode: null},
+			createdAt: 100,
+			modifiedAt: 100,
+			completedAt: null,
+			hasChildren: true,
+			isMirror: false,
+			originalNodeId: null,
+			attachment: null,
+		});
+	});
+
+	it("rejects a body with no name", async () => {
+		const res = await post({parent_id: "p"});
+
+		expect(res.status).toBe(400);
+		await expect(res.json()).resolves.toStrictEqual({error: "name is required"});
+		expect(createNode.mock.calls).toStrictEqual([]);
+	});
+});
