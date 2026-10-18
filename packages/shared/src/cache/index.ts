@@ -54,5 +54,17 @@ export {
 	type MirrorPromotion,
 	planSubtreeDelete,
 } from "./delete-plan.js";
+export {
+	type CompositeEntry,
+	type CompositePart,
+	endNodeComposites,
+	endOrphanedParts,
+	NODE_COMPOSITE_PARTS,
+	NODE_COMPOSITE_ROOT,
+	NON_NODE_ID_COLUMNS,
+	NON_NODE_TABLES,
+	runUnitOfWork,
+	type UnitOfWork,
+} from "./node-composite.js";
 export {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
 export {WorkflowyWriteThroughClient} from "./workflowy-write-through-client.js";

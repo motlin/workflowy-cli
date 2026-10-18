@@ -38,7 +38,7 @@ CREATE TABLE nodes (
   name TEXT,
   system_from TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
   system_to TEXT NOT NULL DEFAULT '9999-12-31 23:59:59',
-  PRIMARY KEY (id, system_to)
+  PRIMARY KEY (id, system_from)
 );
 ```
 
@@ -54,3 +54,11 @@ SELECT * FROM nodes WHERE system_from <= '2024-06-15 14:30:00' AND system_to > '
 -- Query historical records at backup import time
 SELECT * FROM nodes WHERE system_from <= @importTimestamp AND system_to > @importTimestamp;
 ```
+
+## Composites
+
+See Liftwizard's [Composites](https://liftwizard.io/docs/temporal-data/versioning#composites) and [Reladomo](https://github.com/goldmansachs/reladomo).
+
+- A node is the composite root. The ownership map is `NODE_COMPOSITE_PARTS` in `packages/shared/src/cache/node-composite.ts`; `packages/shared/test/node-composite.test.ts` fails when a table or node-id column is unclassified.
+- Here the leading primary-key column names the owner; every other node-id column is a reference.
+- Unit of work: one logical operation may edit several composites, and all of them share one transaction and one system time (`UnitOfWork` from `runUnitOfWork`). That time is every ended row's `system_to` and every new row's `system_from`. Helpers take the unit of work from the caller and never call `now()` or open their own transaction.
