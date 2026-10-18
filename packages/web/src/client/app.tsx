@@ -86,7 +86,11 @@ function OutlineView() {
 	const isMutating = useOutlineStore(selectIsMutating);
 
 	// Register keyboard shortcuts
-	useGlobalKeymap(useCommandRegistry());
+	const commands = useCommandRegistry();
+	useGlobalKeymap(commands);
+	const runCommand = (commandId: "undo" | "redo") => () => {
+		commands[commandId].execute({items: [], zoomedId: zoomedNodeId});
+	};
 
 	const containerClasses = [
 		"outline-container",
@@ -99,7 +103,7 @@ function OutlineView() {
 	return (
 		<div className={containerClasses}>
 			<OfflineBanner />
-			<TopBar />
+			<TopBar onRedo={runCommand("redo")} onUndo={runCommand("undo")} />
 			<LeftBar />
 			<div className="outline-view">
 				<OutlineTree parentId={zoomedNodeId} />

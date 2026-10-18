@@ -1,5 +1,6 @@
 import {useEffect, useRef} from "react";
 import {useOutlineStore} from "../stores/outline.js";
+import {useUndoStore} from "../undo-history.js";
 
 /** A compacted header action prepended to the menu under 701px, like upstream's `more-menu.menu.header.*`. */
 export interface GearMenuHeaderItem {
@@ -18,6 +19,8 @@ interface GearMenuProps {
 	onOpenSettings: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
+	onUndo: () => void;
+	onRedo: () => void;
 }
 
 interface MenuItemProps {
@@ -98,14 +101,6 @@ function RedoIcon() {
 	return (
 		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
 			<path d="M386.3 160l-50.3 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-128c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 51.2L414.4 97.6c-87.5-87.5-229.3-87.5-316.8 0s-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3s163.8-62.5 226.3 0L386.3 160z" />
-		</svg>
-	);
-}
-
-function SyncIcon() {
-	return (
-		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
-			<path d="M105.1 202.6c7.7-21.8 20.2-42.3 37.8-59.8c62.5-62.5 163.8-62.5 226.3 0L386.3 160 336 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-128c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 51.2L414.4 97.6c-87.5-87.5-229.3-87.5-316.8 0C73.2 122 55.6 150.7 44.8 181.4c-5.9 16.7 2.9 34.9 19.5 40.8s34.9-2.9 40.8-19.5zM39 289.3c-5 1.5-9.8 4.2-13.7 8.2c-4 4-6.7 8.8-8.1 14c-3.7 13.9 .5 28.4 12.1 37.5l.1 .1 .2 .1 .6 .5 2.1 1.8c1.8 1.5 4.3 3.5 7.4 6c6.3 5 15.1 11.8 25.9 19.6c21.7 15.8 51.5 35.6 84.5 54.1c65.6 36.7 147.2 68.8 209.5 54c16.9-4 27.1-21.2 23.1-38.1s-21.2-27.1-38.1-23.1c-37.7 9-100.4-10.8-162.3-45.4c-30.6-17.1-58-35.3-77.8-49.9c-9.9-7.3-17.7-13.5-23-17.8c-2.7-2.2-4.7-3.9-6-5l-.8-.7-.1-.1c-18.1-15.4-44.8-14.2-61.5 3.5c-9.4 9.9-13 23.1-10.8 35.3zm372.9 20.1c-5.9-16.7-24.2-25.4-40.8-19.5c-16.7 5.9-25.4 24.2-19.5 40.8c10.8 30.6 9.2 63.4-5.8 93.2c-14.2 28.2-38.7 50.3-69.8 62.1c-16.7 6.3-25 25-18.7 41.7s25 25 41.7 18.7c49.5-18.8 88.5-53.5 107.7-95.5c18.3-40.1 20.4-85.8 5.1-128.3z" />
 		</svg>
 	);
 }
@@ -201,9 +196,13 @@ export function GearMenu({
 	onOpenSettings,
 	onExpandAll,
 	onCollapseAll,
+	onUndo,
+	onRedo,
 }: GearMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
+	const canUndo = useUndoStore((state) => state.canUndo);
+	const canRedo = useUndoStore((state) => state.canRedo);
 
 	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
@@ -253,6 +252,16 @@ export function GearMenu({
 		onClose();
 	};
 
+	const handleUndo = () => {
+		onUndo();
+		onClose();
+	};
+
+	const handleRedo = () => {
+		onRedo();
+		onClose();
+	};
+
 	const handleSettings = () => {
 		onOpenSettings();
 		onClose();
@@ -284,9 +293,8 @@ export function GearMenu({
 
 				<MenuDivider />
 
-				<MenuItem disabled icon={<UndoIcon />} label="Undo" shortcut="⌘Z" />
-				<MenuItem disabled icon={<RedoIcon />} label="Redo" shortcut="⇧⌘Z" />
-				<MenuItem disabled icon={<SyncIcon />} label="Save" shortcut="⌘S" subtitle="Autosaved just now" />
+				<MenuItem disabled={!canUndo} icon={<UndoIcon />} label="Undo" onClick={handleUndo} shortcut="⌘Z" />
+				<MenuItem disabled={!canRedo} icon={<RedoIcon />} label="Redo" onClick={handleRedo} shortcut="⇧⌘Z" />
 
 				<MenuDivider />
 

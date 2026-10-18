@@ -28,7 +28,12 @@ export function shareUrl(id: string): string {
 	return `https://workflowy.com/#/${id.replaceAll("-", "").slice(-12)}`;
 }
 
-export function TopBar() {
+interface TopBarProps {
+	onUndo: () => void;
+	onRedo: () => void;
+}
+
+export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const {zoomedNodeId, toggleLeftBar, showCompleted, openSettings, openPresentation, leftBarOffset, leftBarMode} =
 		useOutlineStore();
 	const navigate = useNavigate();
@@ -284,6 +289,8 @@ export function TopBar() {
 						onCollapseAll={handleCollapseAll}
 						onExpandAll={handleExpandAll}
 						onOpenSettings={handleSettingsClick}
+						onRedo={onRedo}
+						onUndo={onUndo}
 					/>
 				</div>
 			</div>

@@ -17,6 +17,8 @@ function render(headerItems: {label: string; icon: string; onSelect: () => void;
 			onOpenSettings: () => {},
 			onExpandAll: () => {},
 			onCollapseAll: () => {},
+			onUndo: () => {},
+			onRedo: () => {},
 			headerItems,
 		}),
 	);
