@@ -15,8 +15,13 @@ export type LadderBuckets = Record<string, RawNode>;
 
 export interface LadderServiceOptions {
 	readBuckets: () => Promise<LadderBuckets>;
-	/** Negative position prepends; zero appends. */
+	/** Negative position prepends; zero appends. The fallback when {@link moveTo} is absent. */
 	moveNode: (nodeId: string, parentId: string, position: number) => Promise<unknown>;
+	/**
+	 * Move to an exact slot (the internal API). `index` counts the tier's full
+	 * current child list, hidden completed rows and the moved node included.
+	 */
+	moveTo?: (nodeId: string, parentId: string, index: number) => Promise<unknown>;
 	completeNode: (nodeId: string) => Promise<unknown>;
 	/**
 	 * Re-read a tier's sibling order after a move. It runs after the response,
@@ -60,7 +65,8 @@ export class LadderService {
 		toTier: string;
 		beforeNodeId?: string;
 	}): Promise<LadderEvent> {
-		const ladder = await this.#ladder(root);
+		const buckets = await this.#options.readBuckets();
+		const ladder = ladderFrom(buckets, root);
 		const plan = planTierMove(ladder, nodeId, toTier);
 		const destination = ladder.tiers.find((tier) => tier.id === plan.parentId);
 		if (destination === undefined) {
@@ -78,6 +84,13 @@ export class LadderService {
 			fromTier: plan.fromTier,
 			toTier,
 		};
+		const {moveTo} = this.#options;
+		if (moveTo !== undefined) {
+			const children = buckets[root]?.children?.find((child) => child.id === plan.parentId)?.children ?? [];
+			const ids = children.map((child) => child.id);
+			await moveTo(nodeId, plan.parentId, beforeNodeId ? ids.indexOf(beforeNodeId) : ids.length);
+			return this.#landed(plan.parentId, {...event, beforeNodeId: beforeNodeId ?? ""});
+		}
 		await this.#options.moveNode(nodeId, plan.parentId, index === 0 ? -1 : 0);
 		if (index === 0) {
 			return this.#landed(plan.parentId, {...event, beforeNodeId: remaining[0]?.id ?? ""});
@@ -116,12 +129,7 @@ export class LadderService {
 	}
 
 	async #ladder(root: string): Promise<Ladder> {
-		const ladders = await this.read();
-		const ladder = ladders[root];
-		if (ladder === undefined) {
-			throw new Error(`no ladder named ${root}`);
-		}
-		return ladder;
+		return ladderFrom(await this.#options.readBuckets(), root);
 	}
 
 	#publish(event: Omit<LadderEvent, "at">): LadderEvent {
@@ -130,6 +138,14 @@ export class LadderService {
 		this.#options.events.publish(published);
 		return published;
 	}
+}
+
+function ladderFrom(buckets: LadderBuckets, root: string): Ladder {
+	const bucket = buckets[root];
+	if (bucket === undefined) {
+		throw new Error(`no ladder named ${root}`);
+	}
+	return toLadder(root, bucket);
 }
 
 function findItem(ladder: Ladder, nodeId: string) {

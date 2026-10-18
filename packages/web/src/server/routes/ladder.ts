@@ -116,6 +116,7 @@ function messageOf(error: unknown): string {
  * Workflowy API, and announce every write on the process-wide bus.
  */
 function defaultService(ctx: ServerContext): LadderService {
+	const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 	return new LadderService({
 		readBuckets: async () => {
 			const reader = new NodeTreeReader(ctx.cacheService);
@@ -134,6 +135,8 @@ function defaultService(ctx: ServerContext): LadderService {
 			return buckets;
 		},
 		moveNode: async (nodeId, parentId, position) => writeClient(ctx).moveNode(nodeId, parentId, position),
+		// With the internal API a landing is one exact-index move; without it, the service rotates the suffix.
+		...(adapter && {moveTo: async (nodeId, parentId, index) => adapter.moveTo({ids: [nodeId], parentId, index})}),
 		// Reordering can renumber siblings, so refresh their cached priorities too.
 		refreshTier: async (parentId) => {
 			const children = await apiClient(ctx).getChildNodes(parentId);

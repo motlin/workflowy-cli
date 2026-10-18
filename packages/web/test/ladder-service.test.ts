@@ -196,3 +196,85 @@ describe("exact placement using top/bottom writes", () => {
 		expect(moveNode.mock.calls).toStrictEqual([]);
 	});
 });
+
+describe("exact placement using one internal-API move", () => {
+	const node = (id: string, completedAt: string | null = null) => ({id, name: id, completedAt, children: []});
+	const buckets = {
+		work: {
+			id: "bucket",
+			children: [
+				{id: "first", name: "1st", completedAt: null, children: [node("zed")]},
+				{
+					id: "second",
+					name: "2nd",
+					completedAt: null,
+					children: [node("done", "2026-01-01T00:00:00.000Z"), node("alice"), node("bob"), node("charlie")],
+				},
+			],
+		},
+	};
+
+	function exactService() {
+		const moveTo = vi.fn<NonNullable<LadderServiceOptions["moveTo"]>>(async () => {});
+		const made = makeService({
+			readBuckets: async () => Promise.resolve(buckets),
+			moveTo,
+			now: () => new Date("2000-01-01T00:00:00.000Z"),
+		});
+		const seen: unknown[] = [];
+		made.events.subscribe((event) => {
+			seen.push(event);
+		});
+		return {...made, moveTo, seen};
+	}
+
+	const landed = (nodeId: string, fromTier: string, beforeNodeId: string) => ({
+		verb: "move",
+		nodeId,
+		name: nodeId,
+		fromTier,
+		toTier: "2nd",
+		beforeNodeId,
+		at: "2000-01-01T00:00:00.000Z",
+	});
+
+	it("lands a step-down mid-tier with one move indexed over every child, completed rows included", async () => {
+		const {service, moveTo, moveNode, seen} = exactService();
+		await service.move({root: "work", nodeId: "zed", toTier: "2nd", beforeNodeId: "bob"});
+		expect({moveTo: moveTo.mock.calls, moveNode: moveNode.mock.calls, seen}).toStrictEqual({
+			moveTo: [["zed", "second", 2]],
+			moveNode: [],
+			seen: [landed("zed", "1st", "bob")],
+		});
+	});
+
+	it("lands a step-down at the top of the tier just before its first open row", async () => {
+		const {service, moveTo, moveNode, seen} = exactService();
+		await service.move({root: "work", nodeId: "zed", toTier: "2nd", beforeNodeId: "alice"});
+		expect({moveTo: moveTo.mock.calls, moveNode: moveNode.mock.calls, seen}).toStrictEqual({
+			moveTo: [["zed", "second", 1]],
+			moveNode: [],
+			seen: [landed("zed", "1st", "alice")],
+		});
+	});
+
+	it("lands a row at the bottom of the tier after every child", async () => {
+		const {service, moveTo, moveNode, seen} = exactService();
+		await service.move({root: "work", nodeId: "zed", toTier: "2nd"});
+		expect({moveTo: moveTo.mock.calls, moveNode: moveNode.mock.calls, seen}).toStrictEqual({
+			moveTo: [["zed", "second", 4]],
+			moveNode: [],
+			seen: [landed("zed", "1st", "")],
+		});
+	});
+
+	it("reorders within a tier with one move and no writes to the other rows", async () => {
+		const {service, moveTo, moveNode, seen} = exactService();
+		await service.move({root: "work", nodeId: "alice", toTier: "2nd", beforeNodeId: "charlie"});
+		expect({moveTo: moveTo.mock.calls, moveNode: moveNode.mock.calls, seen}).toStrictEqual({
+			moveTo: [["alice", "second", 3]],
+			moveNode: [],
+			seen: [landed("alice", "2nd", "charlie")],
+		});
+	});
+});
