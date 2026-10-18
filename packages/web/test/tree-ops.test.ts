@@ -11,6 +11,7 @@ import {
 	planMoveDown,
 	planMoveUp,
 	planOutdent,
+	planToggleComplete,
 } from "../src/client/tree-ops.js";
 
 function node(partial: Partial<NodeResponse> & {id: string}): NodeResponse {
@@ -142,5 +143,29 @@ describe("planAddChild", () => {
 			name: "",
 			layoutMode: null,
 		});
+	});
+});
+
+describe("planToggleComplete", () => {
+	it("completes every item when any item is not completed", () => {
+		expect(
+			planToggleComplete([
+				{id: "a", completedAt: null},
+				{id: "b", completedAt: 123},
+			]),
+		).toStrictEqual({action: "complete", ids: ["a", "b"]});
+	});
+
+	it("uncompletes every item when all items are completed", () => {
+		expect(
+			planToggleComplete([
+				{id: "a", completedAt: 1},
+				{id: "b", completedAt: 2},
+			]),
+		).toStrictEqual({action: "uncomplete", ids: ["a", "b"]});
+	});
+
+	it("does nothing for an empty list", () => {
+		expect(planToggleComplete([])).toStrictEqual({action: "none", ids: []});
 	});
 });

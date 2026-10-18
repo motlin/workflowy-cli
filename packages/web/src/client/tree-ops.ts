@@ -153,3 +153,21 @@ export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNode
 	}
 	return {nodeId: node.id, parent_id: node.parent_id, position: insertAfterPriority(sorted, next.id, next.priority)};
 }
+
+export interface ToggleCompletePlan {
+	action: "complete" | "uncomplete" | "none";
+	ids: string[];
+}
+
+/**
+ * Upstream multi-item toggle: if any item is not completed, complete them all;
+ * otherwise uncomplete them all. An empty list does nothing.
+ */
+export function planToggleComplete(nodes: Pick<NodeResponse, "id" | "completedAt">[]): ToggleCompletePlan {
+	const ids = nodes.map((node) => node.id);
+	if (ids.length === 0) {
+		return {action: "none", ids};
+	}
+	const allCompleted = nodes.every((node) => node.completedAt !== null);
+	return {action: allCompleted ? "uncomplete" : "complete", ids};
+}
