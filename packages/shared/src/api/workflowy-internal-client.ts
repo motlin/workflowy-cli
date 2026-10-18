@@ -112,7 +112,7 @@ export interface InternalAuth {
 }
 
 export const MISSING_AUTH_MESSAGE =
-	"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; run './bin/run.js internal login' via op run";
+	"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; set them in the environment (e.g. from .envrc), or run './bin/run.js internal login' with them set";
 
 export interface WorkflowyInternalClientOptions {
 	/** Password login; optional when `sessionStore` holds a valid cookie. */

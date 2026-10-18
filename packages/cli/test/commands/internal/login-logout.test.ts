@@ -55,9 +55,13 @@ describe("internal login and logout", () => {
 	it("login refuses without credentials", async () => {
 		delete process.env.WORKFLOWY_PASSWORD;
 		await expect(Login.run([])).rejects.toThrow(
-			"WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD must be set (run via op run)",
+			"WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD must be set in the environment (e.g. from .envrc)",
 		);
 		expect(fs.existsSync(sessionFile)).toBe(false);
+	});
+
+	it("login examples run the command directly without a secrets tool", () => {
+		expect(Login.examples).toStrictEqual(["<%= config.bin %> internal login"]);
 	});
 
 	it("logout deletes the cookie file", async () => {

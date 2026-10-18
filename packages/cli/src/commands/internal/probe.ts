@@ -265,7 +265,7 @@ export default class Probe extends Command {
 		const auth = readInternalAuth();
 		if (!auth) {
 			this.error(
-				"Set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login' via op run",
+				"Set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD in the environment (e.g. from .envrc), or run './bin/run.js internal login' with them set",
 			);
 		}
 		const recorded: RecordedRequest[] = [];

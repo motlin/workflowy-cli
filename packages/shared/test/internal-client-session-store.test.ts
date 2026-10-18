@@ -111,7 +111,7 @@ describe("WorkflowyInternalClient with a session store", () => {
 
 		await expect(client.bootstrap()).rejects.toThrow(
 			new Error(
-				"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; run './bin/run.js internal login' via op run",
+				"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; set them in the environment (e.g. from .envrc), or run './bin/run.js internal login' with them set",
 			),
 		);
 		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([["GET", "/get_initialization_data"]]);
@@ -123,7 +123,7 @@ describe("WorkflowyInternalClient with a session store", () => {
 
 		await expect(client.bootstrap()).rejects.toThrow(
 			new Error(
-				"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; run './bin/run.js internal login' via op run",
+				"Workflowy session cookie is missing or expired and WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD are not set; set them in the environment (e.g. from .envrc), or run './bin/run.js internal login' with them set",
 			),
 		);
 		expect(api.requests).toStrictEqual([]);
