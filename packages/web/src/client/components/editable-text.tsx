@@ -203,10 +203,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (!isCaretOnBoundaryLine(direction, caret, content.getBoundingClientRect())) {
 				return false;
 			}
-			const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore.getState();
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
 			const visibleIds = navigableIds(
 				zoomedNodeId,
-				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted),
+				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 			);
 			const targetId = adjacentVisibleNode(visibleIds, nodeId, direction);
 			if (targetId === null) {
@@ -261,10 +261,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const children = readChildren(queryClient, nodeId);
 		const listed = readChildren(queryClient, parentId)?.find((sibling) => sibling.id === nodeId);
 		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
-		const {zoomedNodeId, expandedIds, showCompleted} = useOutlineStore.getState();
+		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
 		const visibleIds = navigableIds(
 			zoomedNodeId,
-			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted),
+			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 		);
 		const targetId = backspaceDeleteTarget(visibleIds, nodeId, {text: content.textContent, hasChildren});
 		if (targetId === null) {

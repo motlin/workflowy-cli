@@ -23,6 +23,7 @@ import {
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
+import {scheduleCompletionHide} from "../completion-animation.js";
 import {completeHotkey, navigationShortcut, punctuationHotkeys, structureHotkeys} from "../hotkey-bindings.js";
 
 /**
@@ -370,6 +371,16 @@ export function useKeyboardShortcuts() {
 							},
 						}
 					: undefined;
+			// Hidden completed rows stay for upstream's deferred hide; the caret has already moved
+			if (completing && !showCompleted) {
+				const parentId = editedNode.parent_id;
+				scheduleCompletionHide(plan.ids, useOutlineStore.getState(), (id) => {
+					const current = queryClient
+						.getQueryData<NodeResponse[]>(nodeKeys.children(parentId))
+						?.find((sibling) => sibling.id === id);
+					return !useOutlineStore.getState().showCompleted && current?.completedAt !== null;
+				});
+			}
 			for (const nodeId of plan.ids) {
 				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing}, zoomOutAfterSettling);
 			}

@@ -1115,6 +1115,17 @@ body {
 	flex-basis: 100%;
 }
 
+/* Upstream's slideUp(120): a completed row shrinks and fades before it hides. */
+.project.completing-slide-up {
+	transform-origin: 0 0;
+	will-change: transform, opacity;
+	transition:
+		opacity 120ms,
+		transform 120ms;
+	opacity: 0;
+	transform: scale(0.2, 0);
+}
+
 .done > .name > .content {
 	text-decoration: line-through;
 }

@@ -5,6 +5,7 @@ import {useMemo} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import {useChildren} from "./use-nodes.js";
 import {readJson} from "../read-json.js";
+import {isPotentiallyVisible} from "../tree-ops.js";
 
 /**
  * A flattened node includes the original node data plus its depth in the tree.
@@ -31,18 +32,19 @@ async function fetchChildren(parentId: string): Promise<NodeResponse[]> {
  * Recursively flattens the tree structure into an array for virtualization.
  * Only includes nodes that are visible (i.e., all ancestors are expanded).
  */
-function flattenTree(
+export function flattenTree(
 	nodes: NodeResponse[] | undefined,
 	expandedIds: Set<string>,
 	showCompleted: boolean,
 	depth: number,
 	childrenMap: Map<string, NodeResponse[]>,
+	animating: ReadonlySet<string>,
 ): FlattenedNode[] {
 	if (!nodes || nodes.length === 0) {
 		return [];
 	}
 
-	const visibleNodes = showCompleted ? nodes : nodes.filter((node) => node.completedAt === null);
+	const visibleNodes = nodes.filter((node) => isPotentiallyVisible(node, showCompleted, animating));
 
 	const result: FlattenedNode[] = [];
 
@@ -61,7 +63,7 @@ function flattenTree(
 
 		// Only recurse into expanded nodes that have fetched children
 		if (isExpanded && children && children.length > 0) {
-			const childFlattened = flattenTree(children, expandedIds, showCompleted, depth + 1, childrenMap);
+			const childFlattened = flattenTree(children, expandedIds, showCompleted, depth + 1, childrenMap, animating);
 			result.push(...childFlattened);
 		}
 	}
@@ -78,12 +80,13 @@ function collectExpandedIds(
 	expandedIds: Set<string>,
 	showCompleted: boolean,
 	childrenMap: Map<string, NodeResponse[]>,
+	animating: ReadonlySet<string>,
 ): string[] {
 	if (!nodes || nodes.length === 0) {
 		return [];
 	}
 
-	const visibleNodes = showCompleted ? nodes : nodes.filter((node) => node.completedAt === null);
+	const visibleNodes = nodes.filter((node) => isPotentiallyVisible(node, showCompleted, animating));
 	const result: string[] = [];
 
 	for (const node of visibleNodes) {
@@ -92,7 +95,7 @@ function collectExpandedIds(
 			// Recurse into children if they're available
 			const children = childrenMap.get(node.id);
 			if (children && children.length > 0) {
-				result.push(...collectExpandedIds(children, expandedIds, showCompleted, childrenMap));
+				result.push(...collectExpandedIds(children, expandedIds, showCompleted, childrenMap, animating));
 			}
 		}
 	}
@@ -109,7 +112,7 @@ function collectExpandedIds(
  */
 export function useFlattenedTree(rootParentId: string | null) {
 	const queryClient = useQueryClient();
-	const {expandedIds, showCompleted} = useOutlineStore();
+	const {expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore();
 
 	// Fetch root children
 	const {data: rootChildren, isLoading, error} = useChildren(rootParentId);
@@ -145,8 +148,8 @@ export function useFlattenedTree(rootParentId: string | null) {
 
 	// Collect IDs of expanded nodes that need their children fetched
 	const expandedNodeIds = useMemo(
-		() => collectExpandedIds(rootChildren, expandedIds, showCompleted, cachedChildrenMap),
-		[rootChildren, expandedIds, showCompleted, cachedChildrenMap],
+		() => collectExpandedIds(rootChildren, expandedIds, showCompleted, cachedChildrenMap, animatingCompletionIds),
+		[rootChildren, expandedIds, showCompleted, cachedChildrenMap, animatingCompletionIds],
 	);
 
 	// Fetch children for all expanded nodes using useQueries
@@ -175,8 +178,8 @@ export function useFlattenedTree(rootParentId: string | null) {
 
 	// Flatten the tree structure
 	const flattenedNodes = useMemo(
-		() => flattenTree(rootChildren, expandedIds, showCompleted, 0, childrenMap),
-		[rootChildren, expandedIds, showCompleted, childrenMap],
+		() => flattenTree(rootChildren, expandedIds, showCompleted, 0, childrenMap, animatingCompletionIds),
+		[rootChildren, expandedIds, showCompleted, childrenMap, animatingCompletionIds],
 	);
 
 	return {

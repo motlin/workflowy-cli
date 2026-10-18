@@ -7,6 +7,7 @@ import {
 	planDuplicate,
 	planIndent,
 	planInsertFirstChild,
+	isPotentiallyVisible,
 	planInsertSiblingAfter,
 	planMoveDown,
 	planMoveUp,
@@ -167,5 +168,23 @@ describe("planToggleComplete", () => {
 
 	it("does nothing for an empty list", () => {
 		expect(planToggleComplete([])).toStrictEqual({action: "none", ids: []});
+	});
+});
+
+describe("isPotentiallyVisible", () => {
+	it("keeps a completed row that is animating its completion while completed rows are hidden", () => {
+		expect(isPotentiallyVisible({id: "c", completedAt: 1}, false, new Set(["c"]))).toBe(true);
+	});
+
+	it("hides a completed row that is not animating while completed rows are hidden", () => {
+		expect(isPotentiallyVisible({id: "c", completedAt: 1}, false, new Set())).toBe(false);
+	});
+
+	it("shows a completed row when completed rows are shown", () => {
+		expect(isPotentiallyVisible({id: "c", completedAt: 1}, true, new Set())).toBe(true);
+	});
+
+	it("shows an open row while completed rows are hidden", () => {
+		expect(isPotentiallyVisible({id: "o", completedAt: null}, false, new Set())).toBe(true);
 	});
 });

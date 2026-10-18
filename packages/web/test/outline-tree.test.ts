@@ -9,6 +9,9 @@ import {cssBlock} from "./helpers/css-block.js";
 
 const outlineState = {
 	expandedIds: new Set<string>(),
+	animatingCompletionIds: new Set<string>(),
+	slidingUpCompletionIds: new Set<string>(),
+	endCompletionAnimation: () => {},
 	showCompleted: true,
 	toggleExpand: () => {},
 	expandAll: () => {},

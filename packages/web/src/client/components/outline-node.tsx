@@ -294,6 +294,7 @@ function rowProjectClassName(
 	hasChildren: boolean,
 	isExpanded: boolean,
 	isEditingNote: boolean,
+	slidingUp: boolean,
 ): string {
 	return projectClassName({
 		hasChildren,
@@ -306,6 +307,7 @@ function rowProjectClassName(
 		highlighted: false,
 		addedToSelection: false,
 		layoutClass: resolveLayoutMode(node.data.layoutMode).projectClass ?? undefined,
+		slidingUp,
 	});
 }
 
@@ -318,10 +320,22 @@ function rowProjectClassName(
 export function OutlineRow({node, depth = 1}: {node: NodeResponse; depth?: number}) {
 	const isExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
+	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
+	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
 	const hasChildren = node.hasChildren !== false;
 
+	// The slideUp's own transition ending hides the row; a child's transition does not.
+	const handleTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
+		if (isSlidingUp && event.target === event.currentTarget) {
+			endCompletionAnimation([node.id]);
+		}
+	};
+
 	return (
-		<div className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote)}>
+		<div
+			className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote, isSlidingUp)}
+			onTransitionEnd={handleTransitionEnd}
+		>
 			<NodeName depth={depth} hasChildren={hasChildren} isExpanded={isExpanded} node={node} />
 			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 			<div className="drop-line">

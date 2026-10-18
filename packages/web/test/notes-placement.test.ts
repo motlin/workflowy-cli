@@ -8,6 +8,9 @@ import type {NodeResponse} from "../src/node-types.js";
 
 const outlineState = {
 	expandedIds: new Set<string>(),
+	animatingCompletionIds: new Set<string>(),
+	slidingUpCompletionIds: new Set<string>(),
+	endCompletionAnimation: () => {},
 	toggleExpand: () => {},
 	expandAll: () => {},
 	collapseDescendants: () => {},

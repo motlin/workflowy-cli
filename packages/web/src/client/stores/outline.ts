@@ -192,6 +192,10 @@ interface OutlineState {
 	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
 	lastEditedId: string | null;
 	showCompleted: boolean;
+	/** Completed rows kept visible while their deferred hide runs, though completed rows are hidden. */
+	animatingCompletionIds: Set<string>;
+	/** Animating rows currently playing the slideUp. */
+	slidingUpCompletionIds: Set<string>;
 	leftBarMode: LeftBarMode;
 	leftBarWidth: number;
 	leftBarSectionExpansions: Record<string, boolean>;
@@ -250,6 +254,9 @@ interface OutlineActions {
 	holdEditing: (caretOffset: number) => void;
 	releaseEditing: () => void;
 	toggleCompleted: () => void;
+	beginCompletionAnimation: (ids: string[]) => void;
+	startCompletionSlideUp: (ids: string[]) => void;
+	endCompletionAnimation: (ids: string[]) => void;
 	toggleLeftBar: () => void;
 	openLeftBarDrawer: () => void;
 	closeLeftBarDrawer: () => void;
@@ -316,6 +323,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingHeld: false,
 	lastEditedId: null,
 	showCompleted: getInitialShowCompleted(),
+	animatingCompletionIds: new Set<string>(),
+	slidingUpCompletionIds: new Set<string>(),
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
 	rightSidebarOpen: false,
@@ -442,6 +451,26 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			const newShowCompleted = !state.showCompleted;
 			localStorage.setItem(SHOW_COMPLETED_STORAGE_KEY, String(newShowCompleted));
 			return {showCompleted: newShowCompleted};
+		});
+	},
+
+	beginCompletionAnimation: (ids) => {
+		set((state) => ({animatingCompletionIds: new Set([...state.animatingCompletionIds, ...ids])}));
+	},
+
+	startCompletionSlideUp: (ids) => {
+		set((state) => ({slidingUpCompletionIds: new Set([...state.slidingUpCompletionIds, ...ids])}));
+	},
+
+	endCompletionAnimation: (ids) => {
+		const {animatingCompletionIds, slidingUpCompletionIds} = get();
+		if (!ids.some((id) => animatingCompletionIds.has(id) || slidingUpCompletionIds.has(id))) {
+			return;
+		}
+		const ended = new Set(ids);
+		set({
+			animatingCompletionIds: new Set([...animatingCompletionIds].filter((id) => !ended.has(id))),
+			slidingUpCompletionIds: new Set([...slidingUpCompletionIds].filter((id) => !ended.has(id))),
 		});
 	},
 

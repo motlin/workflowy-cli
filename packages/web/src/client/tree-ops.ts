@@ -171,3 +171,16 @@ export function planToggleComplete(nodes: Pick<NodeResponse, "id" | "completedAt
 	const allCompleted = nodes.every((node) => node.completedAt !== null);
 	return {action: allCompleted ? "uncomplete" : "complete", ids};
 }
+
+/**
+ * Upstream's hidden test inverted: a row hides only when it is completed, completed
+ * rows are hidden, and its completion is not still animating. Descendants of a hidden
+ * row hide with it because callers stop recursing there.
+ */
+export function isPotentiallyVisible(
+	node: Pick<NodeResponse, "id" | "completedAt">,
+	showCompleted: boolean,
+	animatingCompletionIds: ReadonlySet<string>,
+): boolean {
+	return node.completedAt === null || showCompleted || animatingCompletionIds.has(node.id);
+}

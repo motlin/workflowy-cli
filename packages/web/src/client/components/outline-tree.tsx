@@ -1,11 +1,11 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode} from "react";
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {planAddChild} from "../tree-ops.js";
+import {isPotentiallyVisible, planAddChild} from "../tree-ops.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {EditableText} from "./editable-text.js";
@@ -204,12 +204,13 @@ export function OutlineChildren({
 }) {
 	const {data: nodes} = useChildren(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
-	const visibleNodes = showCompleted ? nodes : nodes?.filter((node) => node.completedAt === null);
+	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
+	const visibleNodes = nodes?.filter((node) => isPotentiallyVisible(node, showCompleted, animatingCompletionIds));
 	const [maxToRender, setMaxToRender] = useState(initialMaxToRender);
 	const total = visibleNodes?.length ?? 0;
-	const growWindow = useCallback(() => {
+	const growWindow = () => {
 		setMaxToRender((current) => nextMaxToRender(current, total));
-	}, [total]);
+	};
 
 	if (!visibleNodes || total === 0) {
 		return null;

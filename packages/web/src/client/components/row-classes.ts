@@ -9,6 +9,8 @@ export interface ProjectClassState {
 	highlighted: boolean;
 	addedToSelection: boolean;
 	layoutClass?: string;
+	/** The completed row is playing upstream's slideUp before it hides. */
+	slidingUp?: boolean;
 }
 
 export interface NameClassState {
@@ -33,6 +35,7 @@ export function projectClassName(state: ProjectClassState): string {
 		state.highlighted && "highlighted",
 		state.addedToSelection && "addedToSelection",
 		state.layoutClass,
+		state.slidingUp && "completing-slide-up",
 	]
 		.filter(Boolean)
 		.join(" ");
