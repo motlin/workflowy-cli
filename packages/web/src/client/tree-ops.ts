@@ -1,6 +1,6 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
-import {readChildren, readDetail} from "./node-cache.js";
+import {readChildren, readNode} from "./node-cache.js";
 import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "./rich-text.js";
 import {sortByPriority} from "./tree-position.js";
 
@@ -282,7 +282,7 @@ export function planOutdent(queryClient: QueryClient, node: PlanNode): MoveNodeP
 	if (node.parent_id === null) {
 		return null;
 	}
-	const parent = readDetail(queryClient, node.parent_id);
+	const parent = readNode(queryClient, node.parent_id);
 	if (parent === undefined) {
 		return null;
 	}

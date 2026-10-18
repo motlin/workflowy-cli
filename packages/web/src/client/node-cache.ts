@@ -30,6 +30,24 @@ export function readDetail(queryClient: QueryClient, nodeId: string): NodeRespon
 }
 
 /**
+ * A node from its detail cache, else from whichever cached children list holds it.
+ * Rows render from children lists, so most visible nodes have no detail entry.
+ */
+export function readNode(queryClient: QueryClient, nodeId: string): NodeResponse | undefined {
+	const detail = readDetail(queryClient, nodeId);
+	if (detail) {
+		return detail;
+	}
+	for (const [, children] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "children"]})) {
+		const found = children?.find((child) => child.id === nodeId);
+		if (found) {
+			return found;
+		}
+	}
+	return undefined;
+}
+
+/**
  * Upstream move/insert splice: sort `children` by priority, drop any copy of `row`,
  * insert it at `index` (a move slot, see `spliceBlock`), and renumber priorities `(i+1)*100`.
  */

@@ -121,6 +121,12 @@ describe("planOutdent", () => {
 		const qc = seed({});
 		expect(planOutdent(qc, node({id: "x", parent_id: null}))).toBeNull();
 	});
+
+	it("finds the parent in the zoomed root's cached children when its detail is not cached", () => {
+		const parent = node({id: "p", parent_id: "zoom", priority: 100});
+		const qc = seed({zoom: [parent, node({id: "q", parent_id: "zoom", priority: 200})], p: siblings});
+		expect(planOutdent(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "zoom", index: 1});
+	});
 });
 
 describe("planMoveUp / planMoveDown", () => {

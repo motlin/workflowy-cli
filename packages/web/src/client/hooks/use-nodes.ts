@@ -1,7 +1,7 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
-import {nodeKeys, patchCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
+import {nodeKeys, patchCachedNode, readNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 
@@ -188,21 +188,6 @@ function requestedIndex(request: {index?: number; position?: number}, count: num
 	return request.position !== undefined && request.position < 0 ? 0 : count;
 }
 
-/** A node from its detail cache, else from whichever cached children list holds it. */
-function findCachedNode(queryClient: QueryClient, nodeId: string): NodeResponse | undefined {
-	const detail = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
-	if (detail) {
-		return detail;
-	}
-	for (const [, children] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "children"]})) {
-		const found = children?.find((child) => child.id === nodeId);
-		if (found) {
-			return found;
-		}
-	}
-	return undefined;
-}
-
 /**
  * Creates a new node with optimistic update.
  */
@@ -350,7 +335,7 @@ export function useMoveNode() {
 		async onMutate(request) {
 			beginMutation();
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
-			const node = findCachedNode(queryClient, request.nodeId);
+			const node = readNode(queryClient, request.nodeId);
 			return node
 				? spliceMovedRows(queryClient, [node], request.parent_id, (count) => requestedIndex(request, count))
 				: [];
@@ -404,7 +389,7 @@ export function useMoveNodes() {
 			beginMutation();
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const rows = request.ids
-				.map((id) => findCachedNode(queryClient, id))
+				.map((id) => readNode(queryClient, id))
 				.filter((row): row is NodeResponse => row !== undefined);
 			return spliceMovedRows(queryClient, rows, request.parent_id, (count) => request.index ?? count);
 		},
