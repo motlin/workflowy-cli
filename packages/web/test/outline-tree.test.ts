@@ -170,6 +170,11 @@ describe("OutlineTree zoom root row", () => {
 		expect(html.slice(start, start + expected.length)).toBe(expected);
 	});
 
+	it("marks a completed zoomed leaf's root .project as done", () => {
+		nodesById.set("alice", makeNode({hasChildren: false, completedAt: 1_760_745_600}));
+		expect(render("alice").includes('<div class="font-custom project task done selected root">')).toBe(true);
+	});
+
 	it("leaves the content div empty for an unnamed zoomed node so the placeholder shows", () => {
 		nodesById.set("alice", makeNode({name: ""}));
 		expect(

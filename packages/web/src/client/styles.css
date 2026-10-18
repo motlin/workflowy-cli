@@ -4975,6 +4975,10 @@ body.moving .itemMenu {
 	display: block;
 }
 
+.done .todo-checkbox {
+	opacity: 0.37;
+}
+
 /* Code block: full-width monospace box. Upstream renders content in a
    whitespace-pre-wrap div inside a gray box. */
 .project.code-block > .name .content,

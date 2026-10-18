@@ -9,6 +9,7 @@ import {planAddChild} from "../tree-ops.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {NodeItemMenu, OutlineRow} from "./outline-node.js";
+import {projectClassName} from "./row-classes.js";
 
 interface OutlineTreeProps {
 	parentId: string | null;
@@ -89,9 +90,22 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 
 	return (
 		<div
-			className={
-				isMainTreeRoot ? "font-custom project selected root mainTreeRoot" : "font-custom project selected root"
-			}
+			className={[
+				projectClassName({
+					hasChildren: node?.hasChildren !== false,
+					expanded: true,
+					completed: node !== undefined && node.completedAt !== null,
+					hasNote: false,
+					noteFocused: false,
+					isZoomRoot: true,
+					hasMirrors: false,
+					highlighted: false,
+					addedToSelection: false,
+				}),
+				isMainTreeRoot && "mainTreeRoot",
+			]
+				.filter(Boolean)
+				.join(" ")}
 		>
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hover only mounts the bullet-menu trigger */}
 			<div
