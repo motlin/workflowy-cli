@@ -65,6 +65,72 @@ describe("the edited node is the only notion of focus", () => {
 	});
 });
 
+describe("name and note share one focus", () => {
+	function nameNoteState() {
+		const {editingId, editingNoteId, editingCaretOffset, editingClickPosition, lastEditedId} =
+			useOutlineStore.getState();
+		return {editingId, editingNoteId, editingCaretOffset, editingClickPosition, lastEditedId};
+	}
+
+	beforeEach(() => {
+		useOutlineStore.setState({
+			editingId: null,
+			editingNoteId: null,
+			editingCaretOffset: null,
+			editingClickPosition: null,
+			editingHeld: false,
+			lastEditedId: null,
+		});
+	});
+
+	it("focusNote moves focus from the name to the note", () => {
+		useOutlineStore.getState().startEditing("a");
+		useOutlineStore.getState().focusNote("a");
+		expect(nameNoteState()).toStrictEqual({
+			editingId: null,
+			editingNoteId: "a",
+			editingCaretOffset: null,
+			editingClickPosition: null,
+			lastEditedId: "a",
+		});
+	});
+
+	it("focusName with caret end moves focus from the note to the end of the name", () => {
+		useOutlineStore.getState().focusNote("a");
+		useOutlineStore.getState().focusName("a", "end");
+		expect(nameNoteState()).toStrictEqual({
+			editingId: "a",
+			editingNoteId: null,
+			editingCaretOffset: Number.MAX_SAFE_INTEGER,
+			editingClickPosition: null,
+			lastEditedId: "a",
+		});
+	});
+
+	it("focusName with caret 0 puts the caret at the start of the name", () => {
+		useOutlineStore.getState().focusNote("a");
+		useOutlineStore.getState().focusName("a", 0);
+		expect(nameNoteState()).toStrictEqual({
+			editingId: "a",
+			editingNoteId: null,
+			editingCaretOffset: 0,
+			editingClickPosition: null,
+			lastEditedId: "a",
+		});
+	});
+
+	it("blurNote clears only its own note's focus", () => {
+		useOutlineStore.getState().focusNote("a");
+		useOutlineStore.getState().blurNote("b");
+		const otherBlurred = nameNoteState().editingNoteId;
+		useOutlineStore.getState().blurNote("a");
+		expect({otherBlurred, ownBlurred: nameNoteState().editingNoteId}).toStrictEqual({
+			otherBlurred: "a",
+			ownBlurred: null,
+		});
+	});
+});
+
 describe("shouldCommitOnBlur", () => {
 	it("commits and stops editing when the blurred node is still the edited one", () => {
 		expect(shouldCommitOnBlur({editingId: "node-a", editingHeld: false}, "node-a")).toBe(true);

@@ -6,8 +6,9 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {projectClassName} from "../src/client/components/row-classes.js";
 
 const outlineState = {
-	startEditingNote: () => {},
-	stopEditingNote: () => {},
+	focusNote: () => {},
+	focusName: () => {},
+	blurNote: () => {},
 	openSearchFromEditing: () => {},
 };
 

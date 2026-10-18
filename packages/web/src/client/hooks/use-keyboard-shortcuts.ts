@@ -45,8 +45,7 @@ import {completeHotkey, navigationShortcut, punctuationHotkeys, structureHotkeys
  *
  * Navigation shortcuts fire while editing and commit the edited text before leaving.
  *
- * Editing (Enter, Backspace, Escape and Up/Down are handled by EditableText):
- * - Shift+Enter: Edit the note of the edited node
+ * Editing (Enter, Shift+Enter, Backspace, Escape and Up/Down are handled by EditableText):
  * - Tab: Indent the edited node (make it a child of its previous sibling)
  * - Shift+Tab: Outdent the edited node (make it a sibling of its parent)
  * - Cmd+Enter (Ctrl+Enter off mac): Toggle complete/uncomplete on the edited node; completing moves
@@ -107,7 +106,6 @@ export function useKeyboardShortcuts() {
 	const stopEditing = useOutlineStore((state) => state.stopEditing);
 	const holdEditing = useOutlineStore((state) => state.holdEditing);
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
-	const startEditingNote = useOutlineStore((state) => state.startEditingNote);
 	const toggleLeftBar = useOutlineStore((state) => state.toggleLeftBar);
 	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
 	const toggleCompleted = useOutlineStore((state) => state.toggleCompleted);
@@ -285,18 +283,6 @@ export function useKeyboardShortcuts() {
 		},
 		editingShortcut,
 		[editingId, collapse],
-	);
-
-	// Shift+Enter: Edit the note of the edited node
-	useHotkeys(
-		"shift+enter",
-		() => {
-			if (editingId !== null && editingNoteId === null) {
-				startEditingNote(editingId);
-			}
-		},
-		editingShortcut,
-		[editingId, editingNoteId, startEditingNote],
 	);
 
 	// Tab or Ctrl+Shift+Right: Indent the edited node (make it a child of its previous sibling)

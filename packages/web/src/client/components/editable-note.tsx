@@ -27,11 +27,13 @@ function contentHtml(note: string): string {
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
  * - Edits are never reverted: Escape saves, exits the note, and opens search like upstream's global Escape
  * - Enter (without shift) saves and exits the note
+ * - Shift+Enter saves and moves the caret to the end of the same row's name
  */
 export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: EditableNoteProps) {
 	const contentRef = useRef<HTMLDivElement>(null);
-	const startEditingNote = useOutlineStore((state) => state.startEditingNote);
-	const stopEditingNote = useOutlineStore((state) => state.stopEditingNote);
+	const focusNote = useOutlineStore((state) => state.focusNote);
+	const focusName = useOutlineStore((state) => state.focusName);
+	const blurNote = useOutlineStore((state) => state.blurNote);
 	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
@@ -98,19 +100,23 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 		savedValueRef.current = initialValue;
 		setFocusedHtml(contentHtml(initialValue));
 		if (!isFocused) {
-			startEditingNote(nodeId);
+			focusNote(nodeId);
 		}
-	}, [initialValue, isFocused, nodeId, startEditingNote]);
+	}, [initialValue, isFocused, nodeId, focusNote]);
 
 	const handleBlur = useCallback(() => {
 		saveNow();
 		setFocusedHtml(null);
-		stopEditingNote();
-	}, [saveNow, stopEditingNote]);
+		blurNote(nodeId);
+	}, [saveNow, blurNote, nodeId]);
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			if (event.key === "Enter" && !event.shiftKey) {
+			if (event.key === "Enter" && event.shiftKey) {
+				event.preventDefault();
+				saveNow();
+				focusName(nodeId, "end");
+			} else if (event.key === "Enter") {
 				event.preventDefault();
 				contentRef.current?.blur();
 			} else if (event.key === "Escape") {
@@ -120,7 +126,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				openSearchFromEditing(nodeId, Number.MAX_SAFE_INTEGER);
 			}
 		},
-		[nodeId, openSearchFromEditing],
+		[focusName, nodeId, openSearchFromEditing, saveNow],
 	);
 
 	return (

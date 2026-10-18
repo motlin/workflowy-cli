@@ -161,12 +161,22 @@ interface NodeItemMenuProps {
 export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMenuProps) {
 	const expandAll = useOutlineStore((state) => state.expandAll);
 	const collapseDescendants = useOutlineStore((state) => state.collapseDescendants);
+	const focusNote = useOutlineStore((state) => state.focusNote);
+	const focusName = useOutlineStore((state) => state.focusName);
 	const queryClient = useQueryClient();
 	const deleteNode = useDeleteNode();
 	return (
 		<ItemMenuTrigger
 			left={left}
 			node={node}
+			onAddNote={() => {
+				// Upstream: "Add note" from inside the note moves the caret to the end of the name.
+				if (useOutlineStore.getState().editingNoteId === node.id) {
+					focusName(node.id, "end");
+				} else {
+					focusNote(node.id);
+				}
+			}}
 			onCollapseAll={() => {
 				collapseDescendants(collectDescendantIds(node.id, queryClient));
 			}}

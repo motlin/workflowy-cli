@@ -169,6 +169,7 @@ function MirrorBanner({
 
 interface ItemMenuActions {
 	onComplete: () => void;
+	onAddNote: () => void;
 	onDelete: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
@@ -177,6 +178,7 @@ interface ItemMenuActions {
 /** Commands the local app can run today; buildItemMenu filters everything else out (M2-88 adds more). */
 const AVAILABLE_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
 	"complete",
+	"add_note",
 	"delete",
 	"expand_all",
 	"collapse_all",
@@ -210,11 +212,16 @@ export function ItemMenuBody({
 	// The body mounts each time the menu opens, so "now" is the moment it opened.
 	const [now] = useState(() => new Date());
 	const entries = buildItemMenu(node, {available: (key) => AVAILABLE_ITEM_MENU_KEYS.has(key)});
-	// Expand all / Collapse all return true so the menu stays open; Complete / Delete close it.
+	// Expand all / Collapse all return true so the menu stays open; the rest close it.
 	const select: Partial<Record<ItemMenuKey, () => boolean>> = {
 		complete: () => {
 			actions.onComplete();
 			onClose();
+			return false;
+		},
+		add_note: () => {
+			onClose();
+			actions.onAddNote();
 			return false;
 		},
 		delete: () => {
@@ -280,6 +287,7 @@ interface ItemMenuTriggerProps {
 	/** Upstream `--item-menu-left`, from `itemMenuLeft`; omitted on the zoom title, whose CSS pins it at 65px. */
 	left?: string;
 	onComplete: () => void;
+	onAddNote: () => void;
 	onDelete: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
@@ -309,6 +317,7 @@ export function ItemMenuTrigger({
 	node,
 	left,
 	onComplete,
+	onAddNote,
 	onDelete,
 	onExpandAll,
 	onCollapseAll,
@@ -345,7 +354,7 @@ export function ItemMenuTrigger({
 				}
 			>
 				<ItemMenuBody
-					actions={{onComplete, onDelete, onExpandAll, onCollapseAll}}
+					actions={{onComplete, onAddNote, onDelete, onExpandAll, onCollapseAll}}
 					node={node}
 					onClose={blurActiveElement}
 					onShowMirrors={(data) => {

@@ -32,6 +32,7 @@ describe("ItemMenuTrigger", () => {
 				left: "calc(var(--name-left-overhang) - 46px)",
 				onCollapseAll: () => {},
 				onComplete: () => {},
+				onAddNote: () => {},
 				onDelete: () => {},
 				onExpandAll: () => {},
 				onOpenChange: () => {},

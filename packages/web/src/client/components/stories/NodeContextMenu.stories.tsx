@@ -27,7 +27,13 @@ function ItemMenuInline({isCompleted = false, modifiedAt = true}: {isCompleted?:
 		>
 			<div className="scroller overflow-y-auto">
 				<ItemMenuBody
-					actions={{onComplete: () => {}, onDelete: () => {}, onExpandAll: () => {}, onCollapseAll: () => {}}}
+					actions={{
+						onComplete: () => {},
+						onAddNote: () => {},
+						onDelete: () => {},
+						onExpandAll: () => {},
+						onCollapseAll: () => {},
+					}}
 					node={node}
 					onClose={() => {}}
 					onShowMirrors={() => {}}

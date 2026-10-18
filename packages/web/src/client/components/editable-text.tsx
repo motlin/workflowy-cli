@@ -97,6 +97,7 @@ interface EditableTextProps {
  * - Supports HTML formatting (bold, italic preserved from node content)
  * - Saves on blur
  * - Enter creates a new sibling node below and focuses it
+ * - Shift+Enter commits the text and focuses the row's note (creating it) with the caret at its end
  * - Backspace in an empty, childless node deletes it and edits the previous node
  * - Escape commits the text and opens search; dismissing search resumes editing here
  */
@@ -106,6 +107,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const stopEditing = useOutlineStore((state) => state.stopEditing);
 	const startEditing = useOutlineStore((state) => state.startEditing);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+	const focusNote = useOutlineStore((state) => state.focusNote);
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
 	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
@@ -437,6 +439,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			} else if (event.key === "Enter" && plainKey) {
 				event.preventDefault();
 				createSiblingBelow();
+			} else if (event.key === "Enter" && event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey) {
+				event.preventDefault();
+				saveChanges();
+				focusNote(nodeId);
 			} else if (event.key === "Backspace" && plainKey) {
 				if (deleteIfEmpty()) {
 					event.preventDefault();
@@ -472,6 +478,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[
 			createSiblingBelow,
 			deleteIfEmpty,
+			focusNote,
 			moveToAdjacentNode,
 			nodeId,
 			openSearchFromEditing,

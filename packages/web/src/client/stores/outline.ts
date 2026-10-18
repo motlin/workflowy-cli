@@ -247,8 +247,12 @@ interface OutlineActions {
 	collapseDescendants: (ids: string[]) => void;
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
 	stopEditing: () => void;
-	startEditingNote: (id: string) => void;
-	stopEditingNote: () => void;
+	/** Focus `id`'s note, leaving its name (the caller commits any unsaved name text first). */
+	focusNote: (id: string) => void;
+	/** Focus `id`'s name with the caret at its start or end, leaving any note. */
+	focusName: (id: string, caret: 0 | "end") => void;
+	/** The note `id` lost focus: clear note focus unless it already moved elsewhere. */
+	blurNote: (id: string) => void;
 	/** Edit `id` with the caret `caretOffset` text characters in (clamped to the end). */
 	resumeEditing: (id: string, caretOffset: number) => void;
 	holdEditing: (caretOffset: number) => void;
@@ -426,12 +430,30 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({editingId: null, editingClickPosition: null, editingCaretOffset: null});
 	},
 
-	startEditingNote: (id) => {
-		set({editingNoteId: id, lastEditedId: id});
+	focusNote: (id) => {
+		set({
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+			editingNoteId: id,
+			lastEditedId: id,
+		});
 	},
 
-	stopEditingNote: () => {
-		set({editingNoteId: null});
+	focusName: (id, caret) => {
+		set({
+			editingId: id,
+			editingClickPosition: null,
+			editingCaretOffset: caret === "end" ? Number.MAX_SAFE_INTEGER : 0,
+			editingNoteId: null,
+			lastEditedId: id,
+		});
+	},
+
+	blurNote: (id) => {
+		if (get().editingNoteId === id) {
+			set({editingNoteId: null});
+		}
 	},
 
 	resumeEditing: (id, caretOffset) => {

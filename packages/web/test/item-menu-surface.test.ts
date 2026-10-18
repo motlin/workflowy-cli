@@ -36,6 +36,7 @@ function render(target: NodeResponse): string {
 			expanded: true,
 			onCollapseAll: () => {},
 			onComplete: () => {},
+			onAddNote: () => {},
 			onDelete: () => {},
 			onExpandAll: () => {},
 			onOpenChange: () => {},
@@ -139,6 +140,7 @@ describe("item menu surface", () => {
 		const children = scrollerChildren(render(node));
 		expect(children.map((child) => classTokens(child))).toStrictEqual([
 			ITEM_TOKENS,
+			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
@@ -149,6 +151,7 @@ describe("item menu surface", () => {
 		]);
 		expect(children.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)).toStrictEqual([
 			"complete",
+			"add_note",
 			null,
 			"delete",
 			null,
@@ -166,8 +169,15 @@ describe("item menu surface", () => {
 		);
 	});
 
+	it("renders the Add note row with its pencil icon, label and shortcut", () => {
+		const addNote = scrollerChildren(render(node))[1];
+		expect(addNote).toMatch(
+			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="pencil"[^>]*><path [^>]*><\/path><\/svg><\/div>Add note<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">⇧↵<\/span><\/span><\/a>$/u,
+		);
+	});
+
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[2];
+		const del = scrollerChildren(render(node))[3];
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
 	});
@@ -183,6 +193,7 @@ describe("item menu surface", () => {
 		const children = scrollerChildren(render({...node, completedAt: 1, modifiedAt: null}));
 		expect(children.map((child) => /<\/div>([^<]+)<\/span>/u.exec(child)?.[1] ?? null)).toStrictEqual([
 			"Uncomplete",
+			"Add note",
 			null,
 			"Delete",
 			null,
