@@ -24,6 +24,8 @@ export interface NodeResponse {
 	note: string | null;
 	priority: number;
 	data: {layoutMode: string | null};
+	/** The first number of a numbered list (`metadata.numbered_start`), or null when unset. */
+	numberedStart?: number | null;
 	createdAt: number | null;
 	modifiedAt: number | null;
 	completedAt: number | null;

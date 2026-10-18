@@ -383,6 +383,59 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		]);
 	});
 
+	it("sets several node metadata values with one edit and caches the kept ones", async () => {
+		const {adapter, pushes, sqlite} = await tracked();
+
+		await adapter.setNodeMetaValues("a", [
+			{path: ["layoutMode"], value: "numbered"},
+			{path: ["numbered_start"], value: 5},
+		]);
+
+		expect({
+			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data])),
+			cached: sqlite.prepare("SELECT node_id, metadata_json FROM node_internal_metadata").all(),
+		}).toStrictEqual({
+			pushes: [
+				[
+					[
+						"edit",
+						{
+							projectid: "a",
+							metadataPatches: [
+								{op: "add", path: ["layoutMode"], value: "numbered"},
+								{op: "add", path: ["numbered_start"], value: 5},
+							],
+							metadataInversePatches: [
+								{op: "remove", path: ["numbered_start"]},
+								{op: "remove", path: ["layoutMode"]},
+							],
+						},
+					],
+				],
+			],
+			cached: [{node_id: "a", metadata_json: JSON.stringify({numbered_start: 5, layoutMode: "numbered"})}],
+		});
+	});
+
+	it("sends home's metadata values to the root as one edit", async () => {
+		const {adapter, pushes} = await tracked();
+
+		await adapter.setNodeMetaValues("home", [{path: ["layoutMode"], value: "board"}]);
+
+		expect(pushes.map((ops) => ops.map((op) => [op.type, op.data]))).toStrictEqual([
+			[
+				[
+					"edit",
+					{
+						projectid: "None",
+						metadataPatches: [{op: "add", path: ["layoutMode"], value: "board"}],
+						metadataInversePatches: [{op: "remove", path: ["layoutMode"]}],
+					},
+				],
+			],
+		]);
+	});
+
 	it("patches the cached internal metadata after each accepted node metadata edit", async () => {
 		const {adapter, sqlite} = await tracked();
 		const cachedMetadata = () =>

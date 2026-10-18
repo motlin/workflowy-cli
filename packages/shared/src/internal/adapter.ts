@@ -7,7 +7,8 @@ import {keptInternalMetadata} from "../cache/importer.js";
 import {accountState, nodeInternalMetadata} from "../db/schema.js";
 import {HOME_TARGET} from "../types/targets.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
-import {applyMetadataPatches, buildMetadataPatches} from "./metadata-patch.js";
+import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
+import type {MetadataChange} from "./metadata-patch.js";
 import {bulkCreateOp, bulkMoveOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
 import type {Location, NewTree} from "./ops.js";
 import {PushAndPoll} from "./push-and-poll.js";
@@ -236,23 +237,28 @@ export class WorkflowyInternalAdapter {
 		await tree.refreshChildren([parent]);
 	}
 
+	/** Set (or, with `undefined`, remove) one node metadata value; see {@link setNodeMetaValues}. */
+	async setNodeMeta(id: string, path: string[], value: unknown): Promise<void> {
+		await this.setNodeMetaValues(id, [{path, value}]);
+	}
+
 	/**
-	 * Set (or, with `undefined`, remove) a node's metadata value at `path` with
-	 * one `edit`; `HOME` goes to {@link setRootMeta}. Patches are built against
-	 * the node's fresh public-API `data` (which carries only keys such as
-	 * `layoutMode`) overlaid with its cached internal metadata, and once the
-	 * server accepts the edit the patched result is written back to
+	 * Set (or, with `undefined`, remove) several of a node's metadata values
+	 * with one `edit`; `HOME` goes to {@link setRootMetaValues}. Patches are
+	 * built against the node's fresh public-API `data` (which carries only keys
+	 * such as `layoutMode`) overlaid with its cached internal metadata, and once
+	 * the server accepts the edit the patched result is written back to
 	 * `node_internal_metadata`.
 	 */
-	async setNodeMeta(id: string, path: string[], value: unknown): Promise<void> {
+	async setNodeMetaValues(id: string, changes: MetadataChange[]): Promise<void> {
 		if (id === HOME) {
-			await this.setRootMeta(path, value);
+			await this.setRootMetaValues(changes);
 			return;
 		}
 		const tree = this.tree();
 		const node = await tree.liveNode(id);
 		const base = {...node.data, ...this.readNodeMetadata(id)};
-		const {patches, inverse} = buildMetadataPatches(base, path, value);
+		const {patches, inverse} = buildMetadataChanges(base, changes);
 		if (patches.length === 0) {
 			return;
 		}
@@ -334,15 +340,20 @@ export class WorkflowyInternalAdapter {
 		return getPath((await this.snapshot()).rootMetadata, path);
 	}
 
-	/**
-	 * Set (or, with `undefined`, remove) the root metadata value at `path`:
-	 * refresh, build patches against the fresh metadata, push one edit, then
-	 * cache the patched metadata.
-	 */
+	/** Set (or, with `undefined`, remove) one root metadata value; see {@link setRootMetaValues}. */
 	async setRootMeta(path: string[], value: unknown): Promise<void> {
+		await this.setRootMetaValues([{path, value}]);
+	}
+
+	/**
+	 * Set (or, with `undefined`, remove) several root metadata values: refresh,
+	 * build patches against the fresh metadata, push one edit, then cache the
+	 * patched metadata.
+	 */
+	async setRootMetaValues(changes: MetadataChange[]): Promise<void> {
 		const session = await this.client.bootstrap();
 		const fresh = this.fromSession(session);
-		const {patches, inverse} = buildMetadataPatches(fresh.rootMetadata, path, value);
+		const {patches, inverse} = buildMetadataChanges(fresh.rootMetadata, changes);
 		if (patches.length > 0) {
 			const op = editOp({
 				id: ROOT_PROJECT_ID,

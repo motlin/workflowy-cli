@@ -62,6 +62,30 @@ export function buildMetadataPatches(metadata: MetadataObject, path: string[], v
 	throw new Error("unreachable");
 }
 
+/** One metadata value to set at `path`, or to remove when `value` is undefined. */
+export interface MetadataChange {
+	path: string[];
+	value: unknown;
+}
+
+/**
+ * Build the patches for several changes applied in order, as one `produce`
+ * would: each change is built against the result of the ones before it, and
+ * the inverse patches undo them in reverse order.
+ */
+export function buildMetadataChanges(metadata: MetadataObject, changes: MetadataChange[]): MetadataPatchSet {
+	const patches: MetadataPatch[] = [];
+	const inverse: MetadataPatch[] = [];
+	let current = metadata;
+	for (const change of changes) {
+		const set = buildMetadataPatches(current, change.path, change.value);
+		patches.push(...set.patches);
+		inverse.unshift(...set.inverse);
+		current = applyMetadataPatches(current, set.patches);
+	}
+	return {patches, inverse};
+}
+
 /** Apply Immer patches to a copy of `metadata`; the input is never mutated. */
 export function applyMetadataPatches(metadata: MetadataObject, patches: MetadataPatch[]): MetadataObject {
 	const result = structuredClone(metadata);

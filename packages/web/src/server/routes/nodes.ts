@@ -1,13 +1,13 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {BacklinkCrumb, BacklinksResponse, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
-import {mirrors as mirrorsTable, s3Files} from "@workflowy/shared/db";
+import {mirrors as mirrorsTable, nodeInternalMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import {isShortId} from "@workflowy/shared/workflowy";
-import {and, eq, inArray} from "drizzle-orm";
+import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import type {Context} from "hono";
 import {
@@ -58,6 +58,7 @@ function nodeToRestDto(
 		name: string | null;
 		note: string | null;
 		attachment?: NodeAttachment | null;
+		numberedStart?: number | null;
 	},
 ): NodeResponse {
 	return {
@@ -67,6 +68,7 @@ function nodeToRestDto(
 		note: derived.note,
 		priority: node.priority,
 		data: {layoutMode: node.layoutMode},
+		numberedStart: derived.numberedStart ?? null,
 		createdAt: toUnixSeconds(node.createdAt),
 		modifiedAt: toUnixSeconds(node.modifiedAt),
 		completedAt: toUnixSeconds(node.completedAt),
@@ -115,6 +117,31 @@ function loadAttachments(ctx: ServerContext, nodeIds: string[]): Map<string, Nod
 }
 
 /**
+ * Load each node's `numbered_start` (the first number of a numbered list) from
+ * the cached internal metadata; nodes without one are absent from the map.
+ */
+function loadNumberedStarts(ctx: ServerContext, nodeIds: string[]): Map<string, number> {
+	const map = new Map<string, number>();
+	if (nodeIds.length === 0) {
+		return map;
+	}
+	const rows = ctx.db
+		.select({
+			nodeId: nodeInternalMetadata.nodeId,
+			numberedStart: sql<unknown>`json_extract(${nodeInternalMetadata.metadataJson}, '$.numbered_start')`,
+		})
+		.from(nodeInternalMetadata)
+		.where(inArray(nodeInternalMetadata.nodeId, nodeIds))
+		.all();
+	for (const row of rows) {
+		if (typeof row.numberedStart === "number") {
+			map.set(row.nodeId, row.numberedStart);
+		}
+	}
+	return map;
+}
+
+/**
  * Build the write-through client from the context, or undefined when no API key
  * is configured (read-only mode).
  */
@@ -144,7 +171,8 @@ async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse
 	}
 	const hasChildren = parentIdsWithVisibleChildren(ctx.db, [node.mirror.originalNodeId ?? id]).size > 0;
 	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
-	return nodeToRestDto(node, {hasChildren, name: node.name, note: node.note, attachment});
+	const numberedStart = loadNumberedStarts(ctx, [id]).get(id) ?? null;
+	return nodeToRestDto(node, {hasChildren, name: node.name, note: node.note, attachment, numberedStart});
 }
 
 /** A parent's children (Home's for `null`) as the REST API returns them, read from the cache. */
@@ -164,12 +192,17 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 		ctx,
 		nodes.map((node) => node.id),
 	);
+	const numberedStarts = loadNumberedStarts(
+		ctx,
+		nodes.map((node) => node.id),
+	);
 	return nodes.map((node) =>
 		nodeToRestDto(node, {
 			hasChildren: parentIdsWithChildren.has(node.mirror.originalNodeId ?? node.id),
 			name: node.name,
 			note: node.note,
 			attachment: attachments.get(node.id) ?? null,
+			numberedStart: numberedStarts.get(node.id) ?? null,
 		}),
 	);
 }
@@ -355,6 +388,7 @@ nodesRouter.post("/", async (c) => {
 		note: createdNode.note ?? null,
 		priority: createdNode.priority,
 		data: {layoutMode: createdNode.data?.layoutMode ?? null},
+		numberedStart: null,
 		createdAt: createdNode.createdAt,
 		modifiedAt: createdNode.modifiedAt,
 		completedAt: createdNode.completedAt ?? null,
@@ -394,8 +428,35 @@ nodesRouter.post("/move", async (c) => {
 	return moveNodes(c, client, ids, body.parent_id, body.index, undefined);
 });
 
-// POST /api/v1/nodes/:id - Update node
-nodesRouter.post("/:id", async (c) => {
+/** Upstream offers only these layouts at Home. */
+const HOME_LAYOUT_MODES = new Set(["bullets", "board"]);
+
+/** A `layoutMode` as a metadata value: `"bullets"` is upstream's default, stored as no key. */
+function layoutModeValue(layoutMode: string): string | undefined {
+	return layoutMode === "bullets" ? undefined : layoutMode;
+}
+
+// PATCH (or POST) /api/v1/nodes/home - Set Home's layoutMode through the root metadata
+nodesRouter.on(["PATCH", "POST"], `/${HOME_TARGET}`, async (c) => {
+	const ctx = c.get("ctx");
+	const body = await c.req.json<Record<string, unknown>>();
+	const {layoutMode} = body;
+	if (typeof layoutMode !== "string" || Object.keys(body).some((key) => key !== "layoutMode")) {
+		return c.json({error: "Home accepts only layoutMode"}, 400);
+	}
+	if (!HOME_LAYOUT_MODES.has(layoutMode)) {
+		return c.json({error: "Home's layoutMode must be bullets or board"}, 400);
+	}
+	const adapter = getAdapter(ctx);
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	await adapter.setNodeMetaValues(HOME_TARGET, [{path: ["layoutMode"], value: layoutModeValue(layoutMode)}]);
+	return c.json({layoutMode});
+});
+
+// PATCH (or POST) /api/v1/nodes/:id - Update node
+nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
 	if (!client) {
@@ -406,15 +467,19 @@ nodesRouter.post("/:id", async (c) => {
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
-	const {name, note, layoutMode} = await c.req.json<{
+	const {name, note, layoutMode, numberedStart} = await c.req.json<{
 		name?: string;
 		note?: string;
 		layoutMode?: string;
+		numberedStart?: unknown;
 	}>();
 
 	// Validate that at least one field is provided
-	if (name === undefined && note === undefined && layoutMode === undefined) {
-		return c.json({error: "At least one of name, note, or layoutMode is required"}, 400);
+	if (name === undefined && note === undefined && layoutMode === undefined && numberedStart === undefined) {
+		return c.json({error: "At least one of name, note, layoutMode, or numberedStart is required"}, 400);
+	}
+	if (numberedStart !== undefined && numberedStart !== null && !Number.isInteger(numberedStart)) {
+		return c.json({error: "numberedStart must be an integer or null"}, 400);
 	}
 
 	const {cacheService} = ctx;
@@ -424,7 +489,38 @@ nodesRouter.post("/:id", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 
-	const updatedNode = await client.updateNode(id, {name, note, layoutMode});
+	// Metadata goes through the internal API as one edit when it is configured;
+	// without it only layoutMode can be written (through the public API).
+	const adapter = getAdapter(ctx);
+	if (adapter) {
+		const changes = [
+			...(layoutMode === undefined ? [] : [{path: ["layoutMode"], value: layoutModeValue(layoutMode)}]),
+			...(numberedStart === undefined ? [] : [{path: ["numbered_start"], value: numberedStart ?? undefined}]),
+		];
+		if (name !== undefined || note !== undefined) {
+			await client.updateNode(id, {
+				...(name === undefined ? {} : {name}),
+				...(note === undefined ? {} : {note}),
+			});
+		}
+		if (changes.length > 0) {
+			await adapter.setNodeMetaValues(id, changes);
+		}
+		const node = await readNodeDto(ctx, id);
+		if (node === undefined) {
+			return c.json({error: "Node not found"}, 404);
+		}
+		return c.json({node});
+	}
+	if (numberedStart !== undefined) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+
+	const updatedNode = await client.updateNode(id, {
+		...(name === undefined ? {} : {name}),
+		...(note === undefined ? {} : {note}),
+		...(layoutMode === undefined ? {} : {layoutMode}),
+	});
 
 	// Return in Workflowy response format
 	const nodeResponse: NodeResponse = {
@@ -434,6 +530,7 @@ nodesRouter.post("/:id", async (c) => {
 		note: updatedNode.note ?? null,
 		priority: updatedNode.priority,
 		data: {layoutMode: updatedNode.data?.layoutMode ?? null},
+		numberedStart: null,
 		createdAt: updatedNode.createdAt,
 		modifiedAt: updatedNode.modifiedAt,
 		completedAt: updatedNode.completedAt ?? null,
@@ -501,6 +598,7 @@ nodesRouter.post("/:id/complete", async (c) => {
 		note: completedNode.note ?? null,
 		priority: completedNode.priority,
 		data: {layoutMode: completedNode.data?.layoutMode ?? null},
+		numberedStart: null,
 		createdAt: completedNode.createdAt,
 		modifiedAt: completedNode.modifiedAt,
 		completedAt: completedNode.completedAt ?? null,
@@ -709,6 +807,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 		note: uncompletedNode.note ?? null,
 		priority: uncompletedNode.priority,
 		data: {layoutMode: uncompletedNode.data?.layoutMode ?? null},
+		numberedStart: null,
 		createdAt: uncompletedNode.createdAt,
 		modifiedAt: uncompletedNode.modifiedAt,
 		completedAt: uncompletedNode.completedAt ?? null,
@@ -822,3 +921,15 @@ async function moveNodes(
 
 	return c.json({nodes: await readSiblingDtos(ctx, [...oldParents, parentId])});
 }
+
+export const homeRouter = new Hono<AppEnv>();
+
+// GET /api/v1/home - Home's layoutMode, read from the root metadata ("bullets" when unset)
+homeRouter.get("/", async (c) => {
+	const adapter = getAdapter(c.get("ctx"));
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	const layoutMode = await adapter.getRootMeta(["layoutMode"]);
+	return c.json({layoutMode: typeof layoutMode === "string" ? layoutMode : "bullets"});
+});

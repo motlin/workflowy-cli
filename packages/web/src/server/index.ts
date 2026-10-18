@@ -8,7 +8,7 @@ import {changesRouter} from "./routes/changes.js";
 import {ladderEvents} from "./ladder-events.js";
 import {ladderSocketHandlers} from "./ladder-socket.js";
 import {createLadderRouter} from "./routes/ladder.js";
-import {nodesRouter} from "./routes/nodes.js";
+import {homeRouter, nodesRouter} from "./routes/nodes.js";
 import {resolvePort} from "./port.js";
 import {relatedRouter} from "./routes/related.js";
 import {searchRouter} from "./routes/search.js";
@@ -23,7 +23,7 @@ app.use(
 	"/*",
 	cors({
 		origin: "http://localhost:5173",
-		allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+		allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 		allowHeaders: ["Content-Type", "Authorization"],
 	}),
 );
@@ -38,6 +38,7 @@ app.use("/*", async (c, next) => {
 // Mount API routes
 app.route("/api/changes", changesRouter);
 app.route("/api/v1/nodes", nodesRouter);
+app.route("/api/v1/home", homeRouter);
 app.route("/api/v1/tags", tagsRouter);
 app.route("/api/v1/ladder", createLadderRouter());
 app.route("/api/search", searchRouter);

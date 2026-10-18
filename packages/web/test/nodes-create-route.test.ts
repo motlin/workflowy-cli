@@ -68,6 +68,7 @@ describe("POST /api/v1/nodes", () => {
 				note: null,
 				priority: 0,
 				data: {layoutMode: null},
+				numberedStart: null,
 				createdAt: 100,
 				modifiedAt: 100,
 				completedAt: null,

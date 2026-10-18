@@ -43,6 +43,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 		note: null,
 		priority,
 		data: {layoutMode: null},
+		numberedStart: null,
 		createdAt: 100,
 		modifiedAt: 200,
 		completedAt: null,
