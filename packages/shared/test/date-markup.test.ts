@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {formatPillLabel, parseTimeAttrs, toTimeMarkup} from "../src/index.js";
+import {canonicalTimeAttributes, formatPillLabel, parseTimeAttrs, toTimeMarkup} from "../src/index.js";
 
 const now = new Date(2026, 9, 1);
 const custom = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", now};
@@ -68,5 +68,26 @@ describe("parseTimeAttrs", () => {
 		const attrs = {startYear: 2026, startMonth: 10, startDay: 12, endYear: 2026, endMonth: 10, endDay: 16};
 		const markup = toTimeMarkup(attrs);
 		expect(parseTimeAttrs(markup.slice("<time ".length, markup.indexOf(">")))).toStrictEqual(attrs);
+	});
+});
+
+describe("canonicalTimeAttributes", () => {
+	it("restores upstream's camelCase <time> attribute names that DOM innerHTML lowercased", () => {
+		const markup = toTimeMarkup({startYear: 2026, startMonth: 10, startDay: 2, startHour: 14, startMinute: 30});
+		const lowered = markup.replaceAll(
+			/\s((?:start|end)\w+)=/gu,
+			(_match, name: string) => ` ${name.toLowerCase()}=`,
+		);
+		expect(canonicalTimeAttributes(`Due ${lowered} <b class="startyear">x</b>`)).toBe(
+			`Due ${markup} <b class="startyear">x</b>`,
+		);
+	});
+
+	it("leaves other attributes and already-canonical markup untouched", () => {
+		const html =
+			'<time startYear="2026" endyear="2027" startMonth="1" startDay="2" data-x="a startyear=b">t</time>';
+		expect(canonicalTimeAttributes(html)).toBe(
+			'<time startYear="2026" endYear="2027" startMonth="1" startDay="2" data-x="a startyear=b">t</time>',
+		);
 	});
 });

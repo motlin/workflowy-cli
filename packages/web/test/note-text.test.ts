@@ -57,6 +57,15 @@ describe("editorHtmlToNote", () => {
 	});
 });
 
+describe("editorHtmlToNote <time> round trip", () => {
+	it("stores <time> with upstream's camelCase attribute names after the DOM lowercased them", () => {
+		const stored =
+			'Call <time startYear="2026" startMonth="10" startDay="2" startHour="14" startMinute="30">Fri, Oct 2, 2026 at 2:30pm</time> back';
+		const fromDom = stored.replaceAll(/\s(start\w+)=/gu, (_match, name: string) => ` ${name.toLowerCase()}=`);
+		expect(editorHtmlToNote(fromDom)).toBe(stored);
+	});
+});
+
 describe("noteToEditorHtml", () => {
 	it("repairs legacy <br> line breaks into newlines", () => {
 		expect(noteToEditorHtml("abc<br>def<br/>ghi")).toBe("abc\ndef\nghi");

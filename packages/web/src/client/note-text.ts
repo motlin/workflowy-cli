@@ -4,6 +4,7 @@
  * `<br>`/`<div>`/`<p>` structure must never reach the API.
  */
 
+import {canonicalTimeAttributes} from "@workflowy/shared";
 import {renderDatePills} from "./date-pills.js";
 import type {DateSettings} from "./date-pills.js";
 import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
@@ -31,8 +32,9 @@ function isKept(name: string, attributes: string): boolean {
 	return KEPT_ELEMENTS.has(name) || (name === "span" && isColorSpan(attributes));
 }
 
-/** Converts the note editor's innerHTML into stored note text. */
-export function editorHtmlToNote(html: string): string {
+/** Converts the note editor's innerHTML into stored note text (with upstream's camelCase `<time>` attributes). */
+export function editorHtmlToNote(editorHtml: string): string {
+	const html = canonicalTimeAttributes(editorHtml);
 	let note = "";
 	let cursor = 0;
 	// For each open element, whether its open tag was emitted and so needs a close tag.

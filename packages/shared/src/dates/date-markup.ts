@@ -67,6 +67,25 @@ const ATTR_ORDER = [
 	"endMinute",
 ] as const satisfies readonly (keyof TimeAttrs)[];
 
+const CANONICAL_ATTR_NAMES = new Map<string, string>(ATTR_ORDER.map((name) => [name.toLowerCase(), name]));
+const TIME_OPEN_TAG = /<time\b[^>]*>/giu;
+/** One attribute with its value consumed, so text inside a quoted value never matches as a name. */
+const ATTRIBUTE = /(\s)([\w-]+)(\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/gu;
+
+/**
+ * Restore upstream's camelCase `<time>` attribute names (`startYear`, ...) in HTML read
+ * back from the DOM, whose `innerHTML` serializes attribute names lowercased. Other tags,
+ * other attributes, and attribute values are left alone.
+ */
+export function canonicalTimeAttributes(html: string): string {
+	return html.replaceAll(TIME_OPEN_TAG, (tag) =>
+		tag.replaceAll(ATTRIBUTE, (match, space: string, name: string, value: string | undefined) => {
+			const canonical = CANONICAL_ATTR_NAMES.get(name.toLowerCase());
+			return canonical === undefined ? match : `${space}${canonical}${value ?? ""}`;
+		}),
+	);
+}
+
 type Side = "start" | "end";
 
 interface Moment {

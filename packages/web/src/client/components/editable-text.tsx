@@ -1,3 +1,4 @@
+import {canonicalTimeAttributes} from "@workflowy/shared";
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
@@ -198,7 +199,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return;
 		}
 
-		const newValue = contentRef.current.innerHTML;
+		const newValue = canonicalTimeAttributes(contentRef.current.innerHTML);
 
 		// Only save if the value has changed
 		if (newValue !== initialValueRef.current) {
@@ -327,7 +328,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const createSiblingBelow = useCallback(() => {
 		// Save current changes first
 		if (contentRef.current) {
-			const newValue = contentRef.current.innerHTML;
+			const newValue = canonicalTimeAttributes(contentRef.current.innerHTML);
 			if (newValue !== initialValueRef.current) {
 				updateNodeMutation.mutate({
 					nodeId,
@@ -417,7 +418,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					layoutMode: node.data.layoutMode,
 				};
 			};
-			const currentRow = toRow(current, content.innerHTML);
+			const currentRow = toRow(current, canonicalTimeAttributes(content.innerHTML));
 			const neighbor = siblings[direction === "backward" ? index - 1 : index + 1];
 			const neighborRow = neighbor === undefined ? null : toRow(neighbor, neighbor.name ?? "");
 			const plan =
