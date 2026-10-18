@@ -12,6 +12,8 @@ import {
 } from "../caret-navigation.js";
 import type {VerticalDirection} from "../caret-navigation.js";
 import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
+import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
+import type {EditorKeyAction} from "../editable-text-keys.js";
 import {readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {useCreateNode, useDeleteNode, useUpdateNode} from "../hooks/use-nodes.js";
@@ -98,12 +100,12 @@ interface EditableTextProps {
 	clickPosition?: {x: number; y: number};
 }
 
-/** Arrow keys named the way `planNoteBoundary` takes them. */
-const ARROW_KEYS: Readonly<Record<string, "Up" | "Down" | "Left" | "Right">> = {
-	ArrowUp: "Up",
-	ArrowDown: "Down",
-	ArrowLeft: "Left",
-	ArrowRight: "Right",
+/** Caret actions named the way `planNoteBoundary` takes them. */
+const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Left" | "Right">>> = {
+	CARET_UP: "Up",
+	CARET_DOWN: "Down",
+	CARET_LEFT: "Left",
+	CARET_RIGHT: "Right",
 };
 
 /**
@@ -492,26 +494,25 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
-			const plainKey = !event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey;
-			const arrow = ARROW_KEYS[event.key];
-			if (arrow !== undefined && plainKey && !event.nativeEvent.isComposing && enterRootNote(arrow)) {
+			const action = classifyEditorKey(event, isMacPlatform());
+			const composing = event.nativeEvent.isComposing;
+			const arrow = action === null ? undefined : CARET_ARROWS[action];
+			if (arrow !== undefined && !composing && enterRootNote(arrow)) {
 				event.preventDefault();
-			} else if (
-				(event.key === "ArrowUp" || event.key === "ArrowDown") &&
-				plainKey &&
-				!event.nativeEvent.isComposing
-			) {
-				if (moveToAdjacentNode(event.key === "ArrowUp" ? "up" : "down")) {
+			} else if ((action === "CARET_UP" || action === "CARET_DOWN") && !composing) {
+				if (moveToAdjacentNode(action === "CARET_UP" ? "up" : "down")) {
 					event.preventDefault();
 				}
-			} else if (event.key === "Enter" && plainKey) {
+			} else if (action === "CARRIAGE_RETURN") {
+				event.preventDefault();
+			} else if (action === "RETURN") {
 				event.preventDefault();
 				createSiblingBelow();
-			} else if (event.key === "Enter" && event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey) {
+			} else if (action === "SHIFT_RETURN") {
 				event.preventDefault();
 				saveChanges();
 				focusNote(nodeId);
-			} else if (event.key === "Backspace" && plainKey) {
+			} else if (action === "DELETE_BACKWARD") {
 				if (deleteIfEmpty()) {
 					event.preventDefault();
 				}
