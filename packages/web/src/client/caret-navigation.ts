@@ -38,6 +38,21 @@ export function navigableIds(zoomedNodeId: string | null, visibleIds: readonly s
 }
 
 /**
+ * Upstream `focus_first` / `focus_last` (⌘Home / ⌘End) targets: the zoomed title when it is editable, else the
+ * first visible row; and the last visible row (the deepest last visible descendant), else the zoomed title.
+ * Null when there is nothing to focus.
+ */
+export function firstLastNavigable(
+	visibleIds: readonly string[],
+	title: {titleEditable: false} | {titleEditable: true; zoomedId: string},
+): {first: string; last: string} | null {
+	const ids = title.titleEditable ? [title.zoomedId, ...visibleIds] : visibleIds;
+	const first = ids[0];
+	const last = ids.at(-1);
+	return first === undefined || last === undefined ? null : {first, last};
+}
+
+/**
  * The node to edit after leaving `currentId` in `direction`, or null at the
  * first/last visible node (no wrapping) or when `currentId` is not visible.
  */

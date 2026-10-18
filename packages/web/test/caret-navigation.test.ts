@@ -3,6 +3,7 @@ import {
 	adjacentVisibleNode,
 	backspaceDeleteTarget,
 	editingAfterRemoval,
+	firstLastNavigable,
 	horizontalTarget,
 	isCaretOnBoundaryLine,
 	navigableIds,
@@ -283,5 +284,32 @@ describe("planNoteBoundary", () => {
 			planNoteBoundary({from: "rootTitleEnd", key: "Down", rootNoted: false}),
 			planNoteBoundary({from: "firstChildName", key: "Up", caret: 0, rootNoted: false}),
 		]).toStrictEqual([null, null]);
+	});
+});
+
+describe("firstLastNavigable", () => {
+	it("spans the first and last visible rows at home", () => {
+		expect(firstLastNavigable(["c", "b", "b1", "a"], {titleEditable: false})).toStrictEqual({
+			first: "c",
+			last: "a",
+		});
+	});
+
+	it("starts at the zoomed title when it is editable", () => {
+		expect(firstLastNavigable(["c", "b", "b1", "a"], {titleEditable: true, zoomedId: "sandbox"})).toStrictEqual({
+			first: "sandbox",
+			last: "a",
+		});
+	});
+
+	it("uses the zoomed title for both ends when the zoomed node has no visible rows", () => {
+		expect(firstLastNavigable([], {titleEditable: true, zoomedId: "sandbox"})).toStrictEqual({
+			first: "sandbox",
+			last: "sandbox",
+		});
+	});
+
+	it("returns null with nothing to focus", () => {
+		expect(firstLastNavigable([], {titleEditable: false})).toBeNull();
 	});
 });

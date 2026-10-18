@@ -6,8 +6,8 @@ import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
-import {caretTextOffset, editorElement} from "../caret-dom.js";
-import {editingAfterRemoval, planCompleteFocus} from "../caret-navigation.js";
+import {caretTextOffset, editorElement, placeCaretAtTextOffset} from "../caret-dom.js";
+import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../caret-navigation.js";
 import {
 	cacheMoveTree,
 	isPotentiallyVisible,
@@ -30,7 +30,7 @@ import {
 	useToggleComplete,
 	useUpdateNode,
 } from "./use-nodes.js";
-import {currentNavigableIds} from "./use-visible-nodes.js";
+import {collectVisibleNodeIds, currentNavigableIds} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
@@ -213,6 +213,34 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
+	/** Upstream `focus_first` / `focus_last`: caret at the start of the first navigable node or the end of the last. */
+	const focusEdge = (edge: "first" | "last"): void => {
+		const state = useOutlineStore.getState();
+		const visibleIds = collectVisibleNodeIds(
+			queryClient,
+			state.zoomedNodeId,
+			state.expandedIds,
+			state.showCompleted,
+			state.animatingCompletionIds,
+		);
+		const targets = firstLastNavigable(
+			visibleIds,
+			state.zoomedNodeId === null ? {titleEditable: false} : {titleEditable: true, zoomedId: state.zoomedNodeId},
+		);
+		if (targets === null) {
+			return;
+		}
+		const targetId = targets[edge];
+		const offset = edge === "first" ? 0 : Number.MAX_SAFE_INTEGER;
+		const editor = targetId === state.editingId ? editorElement(targetId) : null;
+		if (editor === null) {
+			commitEdit();
+			resumeEditing(targetId, offset);
+		} else {
+			placeCaretAtTextOffset(editor, offset);
+		}
+	};
+
 	/** Toggle complete on the edited node and move the caret as upstream does. */
 	const complete = (ctx: CommandContext): void => {
 		const node = itemNode(ctx);
@@ -354,6 +382,16 @@ export function useCommandRegistry(): CommandRegistry {
 		focus_next_sibling: {
 			execute(ctx) {
 				focusSibling(ctx, 1);
+			},
+		},
+		focus_first: {
+			execute() {
+				focusEdge("first");
+			},
+		},
+		focus_last: {
+			execute() {
+				focusEdge("last");
 			},
 		},
 		expand: {
