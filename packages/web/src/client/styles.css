@@ -214,10 +214,7 @@
 	--wf-icon-tertiary: var(--wf-gray-300);
 	--wf-icon-button: rgb(134, 140, 144);
 
-	/* Expand/collapse toggle positioning - 500px overhang matches production Workflowy */
-	--expand-collapse--top: 4px;
-	--expand-collapse-left: -22px;
-	--expand-collapse-right: auto;
+	/* 500px overhang matches production Workflowy */
 	--name-left-overhang: 500px;
 
 	/* Tag colors */
@@ -1142,40 +1139,60 @@ button.iconButton {
 	color: var(--wf-tag-text-gray);
 }
 
-/* Expand/collapse toggle - 20x24px production Workflowy style with absolute positioning */
+/* Expand toggle (wf-base). Button reset added locally; content-box keeps the
+   measured 20x24 plus 4px top padding under the local border-box reset. */
 .expand {
 	position: absolute;
-	top: var(--expand-collapse--top);
-	left: calc(var(--name-left-overhang) + var(--expand-collapse-left));
+	top: 0;
+	left: calc(var(--name-left-overhang) - 22px);
+	width: 20px;
+	height: var(--line-height);
+	padding: var(--wf-content-padding-top) 0 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 24px;
-	padding: 0;
+	cursor: pointer;
 	border: none;
 	background: none;
-	cursor: default;
-	color: var(--wf-icon-tertiary);
-	text-decoration: none;
+	box-sizing: content-box;
 }
 
-.expand:hover {
-	color: var(--wf-icon-secondary);
+.name:not(.name--root):hover > .expand {
+	opacity: 1 !important;
 }
 
-/* Leaf nodes (no children): hide the expand triangle */
-.task > .name > .expand {
-	visibility: hidden;
+.name:hover > .expand {
+	color: var(--wf-text-quaternary) !important;
 }
 
-.expand-svg {
+.header1:not(.root) > .name > .expand,
+.header2:not(.root) > .name > .expand,
+.header3:not(.root) > .name > .expand,
+.paragraph:not(.root) > .name > .expand {
+	color: var(--wf-text-quinary);
+}
+
+.expand svg {
 	display: block;
-	transition: transform 200ms ease;
+	transition: transform 0.2s ease;
 }
 
-.expand.expanded .expand-svg {
-	transform: rotateZ(90deg);
+.open > .name > .expand svg {
+	transform: rotate(90deg);
+}
+
+.open.halfExpanded > .name > .expand svg {
+	transform: rotate(45deg);
+}
+
+body.moving .expand {
+	display: none;
+}
+
+@media print {
+	.expand {
+		display: none;
+	}
 }
 
 /* Bullet (wf-base). The anchor is 18px wide via its inline style; --line-height

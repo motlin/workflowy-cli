@@ -53,6 +53,7 @@ vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () =>
 vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenuButton: () => null}));
 
 const {VirtualizedOutlineNode} = await import("../src/client/components/outline-node.js");
+const {ExpandArrow} = await import("../src/client/components/expand-arrow.js");
 
 function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
 	return {
@@ -116,13 +117,17 @@ describe("VirtualizedOutlineNode bullet markup", () => {
 	});
 });
 
-const EXPAND_COLLAPSED =
-	'<button aria-expanded="false" aria-label="Expand" class="expand" type="button"><svg class="expand-svg" height="20" viewBox="0 0 20 20" width="20"><path d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z" fill="currentColor" stroke="none"></path></svg></button>';
+const EXPAND_CLASS =
+	"expand absolute top-0 w-[20px] h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center justify-center cursor-pointer print:hidden [body.moving_&amp;]:hidden left-[calc(var(--name-left-overhang)_-_22px)]";
+const EXPAND_ATTRS = `data-handbook="expand.toggle" class="${EXPAND_CLASS}" style="color:var(--wf-text-quinary)"`;
+const EXPAND_LEAF = `<button type="button" tabindex="-1" aria-hidden="true" ${EXPAND_ATTRS}></button>`;
+const EXPAND_SVG =
+	'<div><svg width="20" height="20" viewBox="0 0 20 20" class="block transition-transform duration-200 ease-base [.open&gt;_.name_&amp;]:rotate-90 [.open.halfExpanded&gt;_.name_&amp;]:rotate-45"><path d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z" stroke="none" fill="currentColor"></path></svg></div>';
 const NAME_BUTTONS = '<div class="wf-menu nameButtons" style="margin-left:0"></div>';
 const DROP_LINE = '<div class="drop-line"><div class="line"></div></div>';
 
 function expectedRow(projectClass: string, nameClass: string, content: string): string {
-	return `<div class="${projectClass}" style="padding-left:0px"><div tabindex="-1" class="${nameClass}" role="presentation">${expectedBullet("alice", "bullet", DOT_SVG)}<div class="notranslate content whitespace-pre-wrap">${content}</div>${NAME_BUTTONS}${EXPAND_COLLAPSED}</div>${DROP_LINE}</div>`;
+	return `<div class="${projectClass}" style="padding-left:0px"><div tabindex="-1" class="${nameClass}" role="presentation">${expectedBullet("alice", "bullet", DOT_SVG)}<div class="notranslate content whitespace-pre-wrap">${content}</div>${NAME_BUTTONS}${EXPAND_LEAF}</div>${DROP_LINE}</div>`;
 }
 
 describe("VirtualizedOutlineNode name and content markup", () => {
@@ -140,6 +145,46 @@ describe("VirtualizedOutlineNode name and content markup", () => {
 		expect(render(makeNode({completedAt: 1_792_195_200_000}), false)).toBe(
 			expectedRow("font-custom project task done", "name", '<span class="innerContentContainer">Alice</span>'),
 		);
+	});
+});
+
+function expandMarkup(html: string): string {
+	const start = html.indexOf('<button type="button"');
+	return html.slice(start, html.indexOf("</button>", start) + "</button>".length);
+}
+
+describe("expand arrow", () => {
+	it("renders an expanded parent's arrow with the svg after the name buttons", () => {
+		const html = render(makeNode({}), true, true);
+		expect({
+			markup: expandMarkup(html),
+			afterNameButtons: html.indexOf(NAME_BUTTONS) < html.indexOf(EXPAND_ATTRS),
+		}).toStrictEqual({
+			markup: `<button type="button" aria-expanded="true" aria-label="Collapse" ${EXPAND_ATTRS}>${EXPAND_SVG}</button>`,
+			afterNameButtons: true,
+		});
+	});
+
+	it("renders a collapsed parent's arrow as expandable", () => {
+		expect(expandMarkup(render(makeNode({}), true))).toBe(
+			`<button type="button" aria-expanded="false" aria-label="Expand" ${EXPAND_ATTRS}>${EXPAND_SVG}</button>`,
+		);
+	});
+
+	it("toggles a parent on click and ignores clicks on a leaf", () => {
+		const toggleExpand = vi.fn<(nodeId: string) => void>();
+		const event = {preventDefault: () => {}, stopPropagation: () => {}};
+		const click = (hasChildren: boolean) => {
+			(
+				ExpandArrow({nodeId: "alice", hasChildren, isExpanded: false, onToggle: toggleExpand}).props as {
+					onClick: (e: typeof event) => void;
+				}
+			).onClick(event);
+		};
+		click(false);
+		expect(toggleExpand.mock.calls).toStrictEqual([]);
+		click(true);
+		expect(toggleExpand.mock.calls).toStrictEqual([["alice"]]);
 	});
 });
 
@@ -191,6 +236,32 @@ describe("name and content CSS", () => {
 			".done .name>.content,.name>.content.done{opacity:37%}",
 			".nameButtons{display:flex;position:absolute;left:100%;min-height:28px;flex-direction:row;align-items:center;top:0;gap:var(--wf-space-m);padding:0 var(--wf-space-s)}",
 			".nameButtons:empty{display:none}",
+		];
+		expect(rules.filter((rule) => !css.includes(normalizeCss(rule)))).toStrictEqual([]);
+	});
+});
+
+describe("expand arrow CSS", () => {
+	const css = normalizeCss(styles);
+
+	it("drops the local expand rules and offset tokens", () => {
+		expect(
+			[".expand:hover", ".expand.expanded", ".expand-svg", ".leaf .expand", "--expand-collapse-left"].filter(
+				(text) => styles.includes(text),
+			),
+		).toStrictEqual([]);
+	});
+
+	it("contains upstream's expand rules", () => {
+		const rules = [
+			".expand{position:absolute;top:0;left:calc(var(--name-left-overhang) - 22px);width:20px;height:var(--line-height);padding:var(--wf-content-padding-top) 0 0;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;background:none;box-sizing:content-box}",
+			".name:not(.name--root):hover>.expand{opacity:1 !important}",
+			".name:hover>.expand{color:var(--wf-text-quaternary)!important}",
+			".header1:not(.root)>.name>.expand,.header2:not(.root)>.name>.expand,.header3:not(.root)>.name>.expand,.paragraph:not(.root)>.name>.expand{color:var(--wf-text-quinary)}",
+			".expand svg{display:block;transition:transform 0.2s ease}",
+			".open>.name>.expand svg{transform:rotate(90deg)}",
+			".open.halfExpanded>.name>.expand svg{transform:rotate(45deg)}",
+			"body.moving .expand{display:none}",
 		];
 		expect(rules.filter((rule) => !css.includes(normalizeCss(rule)))).toStrictEqual([]);
 	});

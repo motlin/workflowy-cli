@@ -1,0 +1,50 @@
+interface ExpandArrowProps {
+	nodeId: string;
+	hasChildren: boolean;
+	isExpanded: boolean;
+	onToggle: (nodeId: string) => void;
+}
+
+const EXPAND_CLASS =
+	"expand absolute top-0 w-[20px] h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center justify-center cursor-pointer print:hidden [body.moving_&]:hidden left-[calc(var(--name-left-overhang)_-_22px)]";
+
+/**
+ * Upstream's expand toggle (`a.expand`, kept a button for a11y). A parent shows
+ * the triangle, rotated by the `.open` row; a leaf renders it empty and inert.
+ */
+export function ExpandArrow({nodeId, hasChildren, isExpanded, onToggle}: ExpandArrowProps) {
+	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation">) => {
+		event.preventDefault();
+		event.stopPropagation();
+		if (hasChildren) {
+			onToggle(nodeId);
+		}
+	};
+	const shared = {
+		"data-handbook": "expand.toggle",
+		className: EXPAND_CLASS,
+		style: {color: "var(--wf-text-quinary)"},
+		onClick: handleClick,
+	};
+	if (!hasChildren) {
+		return <button type="button" tabIndex={-1} aria-hidden="true" {...shared} />;
+	}
+	return (
+		<button type="button" aria-expanded={isExpanded} aria-label={isExpanded ? "Collapse" : "Expand"} {...shared}>
+			<div>
+				<svg
+					width="20"
+					height="20"
+					viewBox="0 0 20 20"
+					className="block transition-transform duration-200 ease-base [.open>_.name_&]:rotate-90 [.open.halfExpanded>_.name_&]:rotate-45"
+				>
+					<path
+						d="M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z"
+						stroke="none"
+						fill="currentColor"
+					/>
+				</svg>
+			</div>
+		</button>
+	);
+}
