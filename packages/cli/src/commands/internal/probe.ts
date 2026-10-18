@@ -6,7 +6,9 @@ import type {InternalSession} from "@workflowy/shared/api";
 import {WorkflowyInternalAdapter, editOp, moveOp} from "@workflowy/shared/internal";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {isDeepStrictEqual} from "node:util";
-import {WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {WorkflowyWriteThroughClient, keptInternalMetadata, normalizeLayoutMode} from "@workflowy/shared/cache";
+import {nodeInternalMetadata} from "@workflowy/shared/db";
+import {eq} from "drizzle-orm";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
 
@@ -17,6 +19,7 @@ const STEPS = [
 	"error-shape",
 	"index",
 	"restore",
+	"meta",
 	"root-meta",
 	"root-meta-set",
 	"root-meta-unset",
@@ -39,7 +42,9 @@ const PROBE_VALUE = {x: "1"};
 const RENAMED = "probe error-shape: renamed";
 /** How far the `index` step backdates the create's client clock, so the node's `createdAt` shows whether `ct` was kept. */
 const CT_SHIFT_SEC = 86_400;
-const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore"]);
+const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore", "meta"]);
+/** The list start the `meta` step sets, so the rendered numbering shows whether it was honored. */
+const NUMBERED_START = 5;
 
 /** `order` after moving `ids` (in that order) to insertion slot `index` among the same parent's children. */
 export function expectedMove(order: readonly string[], ids: readonly string[], index: number): string[] {
@@ -220,6 +225,8 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe index --yes-live",
 		"<%= config.bin %> internal probe index --yes-live --keep",
 		"<%= config.bin %> internal probe restore --yes-live",
+		"<%= config.bin %> internal probe meta --yes-live",
+		"<%= config.bin %> internal probe meta --yes-live --keep",
 		"<%= config.bin %> internal probe root-meta --yes-live",
 		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
@@ -242,7 +249,7 @@ export default class Probe extends Command {
 		}),
 		keep: Flags.boolean({
 			description:
-				"Leave the `index` or `restore` fixture in the sandbox for a visual check (delete it afterwards)",
+				"Leave the `index`, `restore` or `meta` fixture in the sandbox for a visual check (delete it afterwards); `meta` then stops while the fixture is still numbered",
 			default: false,
 		}),
 		out: Flags.string({description: "Markdown file the findings are appended to", default: DEFAULT_OUT}),
@@ -312,6 +319,13 @@ export default class Probe extends Command {
 		}
 		if (step === "restore") {
 			return this.restore(
+				client,
+				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
+				keep,
+			);
+		}
+		if (step === "meta") {
+			return this.meta(
 				client,
 				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
 				keep,
@@ -512,6 +526,87 @@ export default class Probe extends Command {
 			} else {
 				assertUnderSandbox(await readAncestors(api, (await api.getNode(rootId)).parent_id));
 				await writeThrough.deleteNode(rootId);
+				lines.push("- Cleanup: fixture deleted through the write-through client");
+			}
+		}
+		return lines;
+	}
+
+	/**
+	 * Node metadata through `setNodeMeta` on a fresh sandbox fixture with children
+	 * `one,two,three`: `layoutMode:"numbered"` then `numbered_start`, read back from
+	 * the public API (`data.layoutMode`), from `/get_tree_data/` (what `cache
+	 * import-api` imports) and from the cache the adapter wrote through; then
+	 * bullets (a `remove` patch on `layoutMode`) and the same read-back. Home's
+	 * `layoutMode` is read from root metadata only, never written. With `keep` the
+	 * fixture stays numbered for a visual check and the bullets half is skipped.
+	 */
+	private async meta(client: WorkflowyInternalClient, api: WorkflowyApiClient, keep: boolean): Promise<string[]> {
+		const {id: fixtureId} = await api.createNode({
+			parent_id: SANDBOX_ID,
+			name: `probe meta ${new Date().toISOString()}`,
+			position: "bottom",
+		});
+		assertUnderSandbox(await readAncestors(api, (await api.getNode(fixtureId)).parent_id));
+		for (const name of ["one", "two", "three"]) {
+			await api.createNode({parent_id: fixtureId, name, position: "bottom"});
+		}
+		const {rootMetadata} = await client.bootstrap();
+		const homeLayout: unknown = rootMetadata.layoutMode;
+		const db = createDatabase();
+		const cache = new CacheService(db);
+		const writeThrough = new WorkflowyWriteThroughClient(api, cache);
+		const lines = [
+			"- Fixture: fresh sandbox child with children `one,two,three` (public API); ancestors verified",
+			`- Home \`layoutMode\` (root metadata, read only): ${homeLayout === undefined ? "absent (bullets)" : `\`${JSON.stringify(homeLayout)}\``}`,
+		];
+		const report = async (label: string, expected: Record<string, unknown>) => {
+			const live = await api.getNode(fixtureId);
+			const item = (await client.getTreeData()).find((candidate) => candidate.id === fixtureId);
+			const imported = keptInternalMetadata(item?.metadata) ?? {};
+			const row = db
+				.select({metadataJson: nodeInternalMetadata.metadataJson})
+				.from(nodeInternalMetadata)
+				.where(eq(nodeInternalMetadata.nodeId, fixtureId))
+				.get();
+			const cachedMeta: unknown = row === undefined ? {} : JSON.parse(row.metadataJson);
+			const cachedLayout = cache.getNode(fixtureId)?.layoutMode ?? null;
+			const pick = (source: unknown) =>
+				Object.fromEntries(Object.keys(expected).map((key) => [key, Reflect.get(Object(source), key) ?? null]));
+			const want = Object.fromEntries(Object.entries(expected).map(([key, value]) => [key, value ?? null]));
+			const verdict = (actual: unknown) => (isDeepStrictEqual(actual, want) ? "MATCH" : "MISMATCH");
+			const publicLayout = live.data?.layoutMode ?? null;
+			lines.push(
+				`- ${label}: expected \`${JSON.stringify(want)}\``,
+				`  - Public API \`data.layoutMode\`: \`${JSON.stringify(publicLayout)}\` (${normalizeLayoutMode(publicLayout) === want.layoutMode ? "MATCH" : "MISMATCH"}, "bullets" read as absent); \`data\` keys ${codeList(objectKeys(live.data))}`,
+				`  - \`/get_tree_data/\` (import): \`${JSON.stringify(pick(imported))}\` (${verdict(pick(imported))}); item ${item === undefined ? "ABSENT" : "present"}`,
+				`  - Cache: \`node_internal_metadata\` \`${JSON.stringify(pick(cachedMeta))}\` (${verdict(pick(cachedMeta))}); node \`layoutMode\` \`${JSON.stringify(cachedLayout)}\``,
+			);
+		};
+		try {
+			await writeThrough.refreshChildren([SANDBOX_ID]);
+			const adapter = new WorkflowyInternalAdapter({client, db, writeThrough});
+			await adapter.setNodeMeta(fixtureId, ["layoutMode"], "numbered");
+			await adapter.setNodeMeta(fixtureId, ["numbered_start"], NUMBERED_START);
+			await report(`\`setNodeMeta(layoutMode "numbered")\` + \`setNodeMeta(numbered_start ${NUMBERED_START})\``, {
+				layoutMode: "numbered",
+				numbered_start: NUMBERED_START,
+			});
+			if (!keep) {
+				await adapter.setNodeMeta(fixtureId, ["layoutMode"], undefined);
+				await report("bullets: `setNodeMeta(layoutMode undefined)` (`remove` patch)", {
+					layoutMode: undefined,
+					numbered_start: NUMBERED_START,
+				});
+			}
+		} finally {
+			if (keep) {
+				lines.push(
+					`- Fixture kept numbered for a visual check (list should start at ${NUMBERED_START}): \`${fixtureId}\` (delete it afterwards)`,
+				);
+			} else {
+				assertUnderSandbox(await readAncestors(api, (await api.getNode(fixtureId)).parent_id));
+				await writeThrough.deleteNode(fixtureId);
 				lines.push("- Cleanup: fixture deleted through the write-through client");
 			}
 		}
