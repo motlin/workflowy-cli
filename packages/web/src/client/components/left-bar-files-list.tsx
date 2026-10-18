@@ -20,25 +20,71 @@ function isListed(node: NodeResponse, showCompleted: boolean): boolean {
 	return Boolean(node.name) || Boolean(node.note) || node.hasChildren !== false;
 }
 
-/** One upstream FilesList row: a link with a triangle, the raw name HTML, and hover-only controls. */
-function FilesListRow({
-	node,
+/** A name fragment: stored HTML keeps its colors and formatting; plain text (a custom star name) is escaped. */
+export function RowName({html, text}: {html?: string; text?: string}) {
+	return (
+		<span style={{pointerEvents: "none", whiteSpace: "nowrap"}}>
+			{html === undefined ? (
+				<span className="innerContentContainer">{text}</span>
+			) : (
+				<span
+					className="innerContentContainer"
+					// oxlint-disable-next-line react/no-danger -- node names are stored HTML; colors and formatting must survive
+					dangerouslySetInnerHTML={{__html: html}}
+				/>
+			)}
+		</span>
+	);
+}
+
+/** A node's rich name, or "Untitled" when it has none. */
+export function nodeNameHtml(name: string | null | undefined): string {
+	return name === null || name === undefined || name === "" ? "Untitled" : name;
+}
+
+/** The expand triangle; clicks toggle without following the row's link. */
+export function FilesListArrow({expanded, onToggle}: {expanded: boolean; onToggle: () => void}) {
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div arrow
+		<div
+			className={`flex shrink-0 items-center justify-center opacity-[var(--opacity)] hover:opacity-[var(--hover-opacity)] arrow ${expanded ? "expanded" : ""}`}
+			data-left-bar-controls
+			onClick={(event) => {
+				event.stopPropagation();
+				event.preventDefault();
+				onToggle();
+			}}
+			style={ARROW_STYLE}
+		>
+			<div>
+				<TriangleSvg className="block transition-transform duration-200 ease-base [.expanded_&]:rotate-90" />
+			</div>
+		</div>
+	);
+}
+
+/** One upstream FilesList row: a link with an arrow slot, a label, and hover-only controls. */
+export function LeftBarRow({
+	href,
 	depth,
+	current,
+	completed,
 	expanded,
-	onToggle,
+	arrow,
+	label,
 	controls,
 }: {
-	node: NodeResponse;
+	href: string;
 	depth: number;
+	current: boolean;
+	completed: boolean;
 	expanded: boolean;
-	onToggle: () => void;
+	arrow: ReactNode;
+	label: ReactNode;
 	controls?: ReactNode;
 }) {
 	const navigate = useNavigate();
-	const current = useOutlineStore((state) => state.zoomedNodeId) === node.id;
 	const [hovered, setHovered] = useState(false);
-	const completed = node.completedAt !== null;
-	const href = nodeUrl(node.id);
 
 	const handleClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -72,29 +118,9 @@ function FilesListRow({
 				className="flex grow items-center min-w-0 h-[30px] pl-xs text-tertiary"
 				style={{fontWeight: current ? 600 : 400}}
 			>
-				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div arrow */}
-				<div
-					className={`flex shrink-0 items-center justify-center opacity-[var(--opacity)] hover:opacity-[var(--hover-opacity)] arrow ${expanded ? "expanded" : ""}`}
-					data-left-bar-controls
-					onClick={(event) => {
-						event.stopPropagation();
-						event.preventDefault();
-						onToggle();
-					}}
-					style={ARROW_STYLE}
-				>
-					<div>
-						<TriangleSvg className="block transition-transform duration-200 ease-base [.expanded_&]:rotate-90" />
-					</div>
-				</div>
+				{arrow}
 				<div className="grow py-xs truncate" data-expanded={expanded}>
-					<span
-						// oxlint-disable-next-line react/no-danger -- node names are stored HTML; colors and formatting must survive
-						dangerouslySetInnerHTML={{
-							__html: `<span class="innerContentContainer">${node.name === null || node.name === "" ? "Untitled" : node.name}</span>`,
-						}}
-						style={{pointerEvents: "none", whiteSpace: "nowrap"}}
-					/>
+					{label}
 				</div>
 			</div>
 			{hovered ? (
@@ -103,6 +129,31 @@ function FilesListRow({
 				</div>
 			) : null}
 		</a>
+	);
+}
+
+function FilesListRow({
+	node,
+	depth,
+	expanded,
+	onToggle,
+}: {
+	node: NodeResponse;
+	depth: number;
+	expanded: boolean;
+	onToggle: () => void;
+}) {
+	const current = useOutlineStore((state) => state.zoomedNodeId) === node.id;
+	return (
+		<LeftBarRow
+			arrow={<FilesListArrow expanded={expanded} onToggle={onToggle} />}
+			completed={node.completedAt !== null}
+			current={current}
+			depth={depth}
+			expanded={expanded}
+			href={nodeUrl(node.id)}
+			label={<RowName html={nodeNameHtml(node.name)} />}
+		/>
 	);
 }
 

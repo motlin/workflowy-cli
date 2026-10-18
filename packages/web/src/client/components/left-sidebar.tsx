@@ -3,86 +3,161 @@ import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
 import {label} from "@workflowy/shared";
 import type {Star} from "@workflowy/shared";
 import {locationUrl} from "../location.js";
-import {nodeUrl} from "../navigation.js";
 import {useNavigate} from "react-router-dom";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useRecordStarViews, useStarActions, useStarredLocations} from "../hooks/use-starred.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
-import {FilesListRows} from "./left-bar-files-list.js";
+import {FilesListArrow, FilesListRows, LeftBarRow, RowName, nodeNameHtml} from "./left-bar-files-list.js";
+import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {zoomToToday} from "../zoom-to-today.js";
 
-/** Font Awesome style search icon for saved-search rows. */
-function SearchIcon() {
-	return (
-		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
-			<path d="M384 208A176 176 0 1 0 32 208a176 176 0 1 0 352 0zM343.3 366C307 397.2 259.7 416 208 416C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208c0 51.7-18.8 99-50 135.3L507.3 484.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L343.3 366z" />
-		</svg>
-	);
+const STARRED_CONTEXT = "leftbar__starred__";
+
+/** The current zoom/search location is this star's location. */
+function useIsCurrent(star: Star): boolean {
+	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
+	const query = useOutlineStore((state) => state.urlSearchQuery);
+	return zoomedNodeId === star.nodeId && (query ?? null) === star.query;
+}
+
+/** Keep a control click from following the row's link. */
+function swallow(event: {preventDefault: () => void; stopPropagation: () => void}): void {
+	event.preventDefault();
+	event.stopPropagation();
 }
 
 /**
- * Star icon (filled) for starred locations.
+ * Upstream's starred-row hover controls: a filled spark star that unstars, then for pages a plus that
+ * opens the page and adds an empty first child. Clicks never follow the row's link.
  */
-function StarIcon() {
+export function StarredRowControls({star}: {star: Star}) {
+	const navigate = useNavigate();
+	const {toggleStar} = useStarActions();
+	const createNode = useCreateNode();
+	const startEditing = useOutlineStore((state) => state.startEditing);
 	return (
-		<svg fill="currentColor" height="14" viewBox="0 0 576 512" width="14">
-			<path d="M316.9 18C311.6 7 300.4 0 288.1 0s-23.4 7-28.8 18L195 150.3 51.4 171.5c-12 1.8-22 10.2-25.7 21.7s-.7 24.2 7.9 32.7L137.8 329 113.2 474.7c-2 12 3 24.2 12.9 31.3s23 8 33.8 2.3l128.3-68.5 128.3 68.5c10.8 5.7 23.9 4.9 33.8-2.3s14.9-19.3 12.9-31.3L438.5 329 542.6 225.9c8.6-8.5 11.7-21.2 7.9-32.7s-13.7-19.9-25.7-21.7L381.2 150.3 316.9 18z" />
-		</svg>
+		<>
+			<IconButton
+				className="!text-spark hover:!bg-quaternary"
+				onClick={(event) => {
+					swallow(event);
+					void toggleStar({nodeId: star.nodeId, query: star.query});
+				}}
+				shape="square"
+				size="sm"
+			>
+				<FaIcon icon="fas:star" />
+			</IconButton>
+			{star.query === null ? (
+				<IconButton
+					className=" hover:!bg-quaternary add-node"
+					onClick={(event) => {
+						swallow(event);
+						void navigate(locationUrl({id: star.nodeId}));
+						createNode.mutate(
+							{...(star.nodeId === null ? {} : {parent_id: star.nodeId}), name: "", position: 0},
+							{
+								onSuccess(createdNode) {
+									startEditing(createdNode.id);
+								},
+							},
+						);
+					}}
+					shape="square"
+					size="sm"
+				>
+					<FaIcon icon="fal:plus" />
+				</IconButton>
+			) : null}
+		</>
 	);
 }
 
-/** Display name of a star: custom name, then query, then the node's plain-text name. */
-function useStarLabel(star: Star): string {
-	const {data: node} = useNode(star.query === null ? star.nodeId : null);
-	return label(star, () => (node?.name?.replaceAll(/<[^>]*>/gu, "") ?? "") || "Loading...");
+/** A starred page: an expandable FilesList row in the starred context, labelled by its custom name or rich name. */
+function StarredPageRow({star}: {star: Star}) {
+	const {data: node} = useNode(star.nodeId);
+	const current = useIsCurrent(star);
+	const expansionKey = star.nodeId ?? "None";
+	const expanded =
+		useLeftBarExpansionStore((state) => state.expansions[STARRED_CONTEXT])?.includes(expansionKey) ?? false;
+	const toggle = useLeftBarExpansionStore((state) => state.toggle);
+	const customName = star.name !== null && star.name !== "";
+	const name =
+		customName || star.nodeId === null ? (
+			<RowName text={label(star, () => "")} />
+		) : (
+			<RowName html={nodeNameHtml(node?.name)} />
+		);
+	return (
+		<>
+			<LeftBarRow
+				arrow={
+					<FilesListArrow
+						expanded={expanded}
+						onToggle={() => {
+							toggle(STARRED_CONTEXT, expansionKey);
+						}}
+					/>
+				}
+				completed={(node?.completedAt ?? null) !== null}
+				controls={<StarredRowControls star={star} />}
+				current={current}
+				depth={0}
+				expanded={expanded}
+				href={locationUrl({id: star.nodeId})}
+				label={name}
+			/>
+			{expanded ? <FilesListRows contextKey={STARRED_CONTEXT} depth={1} parentId={star.nodeId} /> : null}
+		</>
+	);
 }
 
-/** One star: a page opens its node, a search opens the search (scoped to its node when it has one). */
-function StarItem({star}: {star: Star}) {
-	const navigate = useNavigate();
-	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
-	const {toggleStar} = useStarActions();
-	const displayName = useStarLabel(star);
-
-	const handleClick = () => {
-		if (star.query === null) {
-			void navigate(star.nodeId === null ? "/" : nodeUrl(star.nodeId));
-		} else if (star.nodeId === null) {
-			openSearchWithQuery(star.query);
-		} else {
-			void navigate(locationUrl({id: star.nodeId, query: star.query}));
-		}
-	};
-
-	const handleRemove = () => {
-		void toggleStar({nodeId: star.nodeId, query: star.query}, false);
-	};
-
+/** A starred search: the magnifier replaces the arrow and the label names the page it searches. */
+function StarredSearchRow({star}: {star: Star}) {
+	const {data: node} = useNode(star.nodeId);
+	const current = useIsCurrent(star);
 	return (
-		<li className="left-sidebar-row">
-			<button className="left-sidebar-item" onClick={handleClick} type="button">
-				{star.query === null ? (
-					<span className="left-sidebar-icon starred-icon">
-						<StarIcon />
+		<LeftBarRow
+			arrow={
+				<div className="flex shrink-0 items-center justify-center" style={{width: 20, height: 20}}>
+					<FaIcon icon="fas:magnifying-glass" size="xs" />
+				</div>
+			}
+			completed={false}
+			controls={<StarredRowControls star={star} />}
+			current={current}
+			depth={0}
+			expanded={false}
+			href={locationUrl({id: star.nodeId, query: star.query})}
+			label={
+				<span>
+					{label(star, () => "")}{" "}
+					<span className="font-light text-[.8em] opacity-75">
+						in{" "}
+						{star.nodeId === null ? <RowName text="Home" /> : <RowName html={nodeNameHtml(node?.name)} />}
 					</span>
-				) : (
-					<span className="left-sidebar-icon">
-						<SearchIcon />
-					</span>
-				)}
-				<span className="left-sidebar-label">{displayName}</span>
-			</button>
-			<button
-				aria-label={star.query === null ? "Unstar this page" : "Remove saved search"}
-				className="left-sidebar-unstar"
-				onClick={handleRemove}
-				type="button"
-			>
-				&times;
-			</button>
-		</li>
+				</span>
+			}
+		/>
+	);
+}
+
+/** Upstream's Starred section: hidden entirely when nothing is starred, rows in the hook's order. */
+export function StarredSection() {
+	const stars = useStarredLocations();
+	if (stars.length === 0) {
+		return null;
+	}
+	return (
+		<LeftBarSection contextKey={STARRED_CONTEXT} name="Starred">
+			{stars.map((star) => (
+				<div className="relative" key={star.key}>
+					{star.query === null ? <StarredPageRow star={star} /> : <StarredSearchRow star={star} />}
+				</div>
+			))}
+		</LeftBarSection>
 	);
 }
 
@@ -230,22 +305,13 @@ export function NewNodeButton() {
 
 /** Today, Starred and Home sections plus the New node button; replaced section by section by upstream ports. */
 function LeftBarSections() {
-	const stars = useStarredLocations();
 	useRecordStarViews();
 
 	return (
 		<nav className="left-sidebar-nav">
 			<TodayRow />
 
-			<LeftBarSection contextKey="leftbar__starred__" name="Starred">
-				<ul className="left-sidebar-list">
-					{stars.length === 0 ? (
-						<li className="left-sidebar-empty">No starred items</li>
-					) : (
-						stars.map((star) => <StarItem key={star.key} star={star} />)
-					)}
-				</ul>
-			</LeftBarSection>
+			<StarredSection />
 
 			<LeftBarSection contextKey="leftbar__home__" name={<HomeSectionName />}>
 				<FilesListRows contextKey="leftbar__home__" depth={0} parentId={null} />

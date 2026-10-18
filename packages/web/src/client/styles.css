@@ -1923,13 +1923,6 @@ body.moving .expand {
 	color: var(--color-error);
 }
 
-.left-sidebar-empty {
-	padding: 8px 16px;
-	font-size: 12px;
-	color: var(--color-text-faint);
-	font-style: italic;
-}
-
 .left-sidebar-hint {
 	margin: 0;
 	font-size: 11px;

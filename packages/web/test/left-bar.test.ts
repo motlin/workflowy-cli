@@ -4,6 +4,7 @@ import {fileURLToPath} from "node:url";
 import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
+import type {Star} from "@workflowy/shared";
 import type {LeftBarMode} from "../src/client/stores/outline.js";
 
 const storeState = {
@@ -16,6 +17,7 @@ const storeState = {
 	setLeftBarWidth: () => {},
 	zoomedNodeId: null as string | null,
 	startEditing: vi.fn<(id: string) => void>(),
+	urlSearchQuery: null as string | null,
 	openSearchWithQuery: () => {},
 	leftBarSectionExpansions: {} as Record<string, boolean>,
 	setLeftBarSectionExpanded: vi.fn<(key: string, value: boolean) => void>(),
@@ -28,25 +30,39 @@ vi.mock("../src/client/stores/outline.js", () => ({
 const navigateMock = vi.fn<(path: string) => void>();
 const mutateMock = vi.fn<(payload: unknown, options?: {onSuccess?: (node: {id: string}) => void}) => void>();
 let rootChildren: {id: string}[] = [];
+let starred: Star[] = [];
+const toggleStarMock = vi.fn<(loc: {nodeId: string | null; query: string | null}) => Promise<boolean>>(async () =>
+	Promise.resolve(false),
+);
+const nodesById: Record<string, {id: string; name: string; completedAt: null}> = {};
 
 vi.mock("../src/client/hooks/use-starred.js", () => ({
 	STARS_UNAVAILABLE_TOOLTIP: "Stars need Workflowy login",
 	useRecordStarViews: () => {},
-	useStarActions: () => ({toggleStar: async () => Promise.resolve(true)}),
-	useStarredLocations: () => [],
+	useStarActions: () => ({toggleStar: toggleStarMock}),
+	useStarredLocations: () => starred,
 	useStars: () => ({stars: [], unavailable: false}),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => navigateMock}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: () => ({data: rootChildren}),
 	useCreateNode: () => ({mutate: mutateMock}),
-	useNode: () => ({data: undefined}),
+	useNode: (id: string | null) => ({data: id === null ? undefined : nodesById[id]}),
 }));
 const zoomToTodayMock = vi.fn<(options: {navigate: (path: string) => unknown}) => Promise<void>>(async () => {});
 vi.mock("../src/client/zoom-to-today.js", () => ({zoomToToday: zoomToTodayMock}));
 
-const {HomeSectionName, LeftBar, LeftBarSection, NewNodeButton, TodayRow, applyBodyOffset, resizeWidth} =
-	await import("../src/client/components/left-sidebar.js");
+const {
+	HomeSectionName,
+	LeftBar,
+	LeftBarSection,
+	NewNodeButton,
+	StarredRowControls,
+	StarredSection,
+	TodayRow,
+	applyBodyOffset,
+	resizeWidth,
+} = await import("../src/client/components/left-sidebar.js");
 const {TRIANGLE_PATH} = await import("../src/client/components/fa-icons.js");
 
 function render(mode: LeftBarMode, hovered = false): string {
@@ -254,6 +270,137 @@ describe("NewNodeButton", () => {
 		});
 		storeState.zoomedNodeId = null;
 		rootChildren = [];
+	});
+});
+
+describe("Starred section", () => {
+	const ROW_CLASS =
+		"flex justify-between items-center pr-m hover:cursor-pointer hover:no-underline left-bar-section-item font-custom ";
+	const INNER = '<div class="flex grow items-center min-w-0 h-[30px] pl-xs text-tertiary" style="font-weight:400">';
+	const ARROW =
+		'<div class="flex shrink-0 items-center justify-center opacity-[var(--opacity)] hover:opacity-[var(--hover-opacity)] arrow " data-left-bar-controls="true" style="--opacity:0.45;--hover-opacity:1">';
+	const STAR_CLASS = "!text-spark hover:!bg-quaternary iconButton sm shape-square";
+	const PLUS_CLASS = " hover:!bg-quaternary add-node iconButton sm shape-square";
+
+	function star(overrides: Partial<Star>): Star {
+		return {key: "k", nodeId: null, query: null, name: null, position: 0, ...overrides};
+	}
+
+	function renderStarred(stars: Star[]): string {
+		starred = stars;
+		storeState.leftBarSectionExpansions = {};
+		const html = renderToStaticMarkup(createElement(StarredSection))
+			.replaceAll(/ d="[^"]*"/gu, "")
+			.replaceAll(/<svg width="20"[\s\S]*?<\/svg>/gu, "TRI");
+		starred = [];
+		return html;
+	}
+
+	function rows(html: string): string {
+		return html.slice(html.indexOf('<div class="relative">'), html.lastIndexOf('<div style="margin-bottom'));
+	}
+
+	it("renders nothing when nothing is starred", () => {
+		expect(renderStarred([])).toBe("");
+	});
+
+	it("renders a search row with the magnifier slot and its page name", () => {
+		nodesById.x = {id: "x", name: "<b>Xname</b>", completedAt: null};
+		expect(rows(renderStarred([star({key: "x_date:past", nodeId: "x", query: "date:past"})]))).toBe(
+			`<div class="relative">` +
+				`<a class="${ROW_CLASS}" draggable="false" href="/#/x?q=date%3Apast" style="padding-left:12px;color:var(--wf-text-tertiary)">${
+					INNER
+				}<div class="flex shrink-0 items-center justify-center" style="width:20px;height:20px">` +
+				`<svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="magnifying-glass" class="svg-inline--fa fa-magnifying-glass fa-xs " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor"></path></svg></div>` +
+				`<div class="grow py-xs truncate" data-expanded="false"><span>date:past <span class="font-light text-[.8em] opacity-75">in ` +
+				`<span style="pointer-events:none;white-space:nowrap"><span class="innerContentContainer"><b>Xname</b></span></span></span></span></div>` +
+				`</div></a></div>`,
+		);
+	});
+
+	it("names a Home search in Home", () => {
+		expect(renderStarred([star({key: "None_#a", query: "#a"})])).toContain(
+			'<span>#a <span class="font-light text-[.8em] opacity-75">in <span style="pointer-events:none;white-space:nowrap"><span class="innerContentContainer">Home</span></span></span></span>',
+		);
+	});
+
+	it("renders a page row as an expandable FilesList row with the node's rich name", () => {
+		nodesById.p = {id: "p", name: "<i>Page</i>", completedAt: null};
+		expect(rows(renderStarred([star({key: "p", nodeId: "p"})]))).toBe(
+			`<div class="relative">` +
+				`<a class="${ROW_CLASS}" draggable="false" href="/#/p" style="padding-left:12px;color:var(--wf-text-tertiary)">${
+					INNER
+				}${ARROW}<div>TRI</div></div><div class="grow py-xs truncate" data-expanded="false"><span style="pointer-events:none;white-space:nowrap"><span class="innerContentContainer"><i>Page</i></span></span></div>` +
+				`</div></a></div>`,
+		);
+	});
+
+	it("labels a renamed star with its custom name", () => {
+		nodesById.p = {id: "p", name: "Page", completedAt: null};
+		expect(renderStarred([star({key: "p", nodeId: "p", name: "Alice"})])).toContain(
+			'<span class="innerContentContainer">Alice</span>',
+		);
+	});
+
+	it("renders rows in the order the hook returns", () => {
+		nodesById.a = {id: "a", name: "Zed", completedAt: null};
+		nodesById.b = {id: "b", name: "Abe", completedAt: null};
+		const html = renderStarred([star({key: "a", nodeId: "a"}), star({key: "b", nodeId: "b"})]);
+		expect(html.indexOf(">Zed<") < html.indexOf(">Abe<")).toBe(true);
+	});
+
+	it("gives a page row a star then a plus control", () => {
+		const html = renderToStaticMarkup(createElement(StarredRowControls, {star: star({key: "p", nodeId: "p"})}));
+		expect([...html.matchAll(/class="([^"]*iconButton[^"]*)"/gu)].map((match) => match[1])).toStrictEqual([
+			STAR_CLASS,
+			PLUS_CLASS,
+		]);
+	});
+
+	it("gives a search row only the star control", () => {
+		const html = renderToStaticMarkup(
+			createElement(StarredRowControls, {star: star({key: "p_x", nodeId: "p", query: "x"})}),
+		);
+		expect([...html.matchAll(/class="([^"]*iconButton[^"]*)"/gu)].map((match) => match[1])).toStrictEqual([
+			STAR_CLASS,
+		]);
+	});
+
+	interface Control {
+		props: {onClick: (event: unknown) => void};
+	}
+	function controls(target: Star): Control[] {
+		const element = StarredRowControls({star: target}) as {props: {children: (Control | null)[]}};
+		return element.props.children.filter((child): child is Control => child !== null);
+	}
+	const event = () => ({preventDefault: vi.fn<() => void>(), stopPropagation: vi.fn<() => void>()});
+
+	it("unstars the row's location from the star control without following the link", () => {
+		toggleStarMock.mockClear();
+		const click = event();
+		controls(star({key: "p_x", nodeId: "p", query: "x"}))[0]?.props.onClick(click);
+		expect({
+			calls: toggleStarMock.mock.calls,
+			prevented: click.preventDefault.mock.calls.length,
+			stopped: click.stopPropagation.mock.calls.length,
+		}).toStrictEqual({calls: [[{nodeId: "p", query: "x"}]], prevented: 1, stopped: 1});
+	});
+
+	it("navigates to the page and creates an empty first child from the plus control", () => {
+		navigateMock.mockClear();
+		mutateMock.mockClear();
+		storeState.startEditing.mockClear();
+		controls(star({key: "p", nodeId: "p"}))[1]?.props.onClick(event());
+		mutateMock.mock.calls[0]?.[1]?.onSuccess?.({id: "new-id"});
+		expect({
+			navigate: navigateMock.mock.calls,
+			payloads: mutateMock.mock.calls.map((call) => call[0]),
+			editing: storeState.startEditing.mock.calls,
+		}).toStrictEqual({
+			navigate: [["/#/p"]],
+			payloads: [{parent_id: "p", name: "", position: 0}],
+			editing: [["new-id"]],
+		});
 	});
 });
 
