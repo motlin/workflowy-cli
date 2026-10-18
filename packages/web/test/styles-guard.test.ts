@@ -182,3 +182,26 @@ describe("menu item styles guard", () => {
 		});
 	});
 });
+
+describe("item menu trigger styles guard", () => {
+	const normalized = uncommented
+		.replaceAll(/\s*([{}:;,>()])\s*/gu, "$1")
+		.replaceAll(/\s+/gu, " ")
+		.replaceAll(";}", "}");
+
+	it("drops the local bullet-menu button rules", () => {
+		expect(hasSelector(styles, /\.node-context-menu-button\b|\.leaf \.nameButtons/u)).toBe(false);
+	});
+
+	it("has upstream's .itemMenu trigger rules", () => {
+		const rules = [
+			".itemMenu{position:absolute !important;left:var(--item-menu-left);top:0;height:var(--line-height);padding-top:var(--wf-content-padding-top);display:flex;align-items:center;cursor:pointer;outline:none;transition:opacity 0.2s}",
+			".itemMenu>div>span{display:block;width:24px;height:24px;border-radius:12px;color:var(--wf-text-tertiary)}",
+			".itemMenu>div>span:hover,.itemMenu:focus>div>span{background:var(--wf-background-tertiary)}",
+			".itemMenu:focus>div>span{color:var(--wf-text-quaternary)}",
+			"body.moving .itemMenu{display:none}",
+			".root>.name .itemMenu{left:65px;right:auto}",
+		];
+		expect(rules.filter((rule) => !normalized.includes(rule))).toStrictEqual([]);
+	});
+});

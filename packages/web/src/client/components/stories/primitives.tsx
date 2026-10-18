@@ -127,19 +127,20 @@ interface MenuButtonProps {
  * The three-dot menu button that triggers the context menu.
  */
 export function MenuButton({isVisible = true, onClick}: MenuButtonProps) {
+	if (!isVisible) {
+		return null;
+	}
 	return (
-		<button
-			aria-label="More actions"
-			className={`node-context-menu-button ${isVisible ? "visible" : ""}`}
-			onClick={onClick}
-			title="More actions"
-			type="button"
-		>
-			<svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
-				<circle cx="6" cy="12" r="2" />
-				<circle cx="12" cy="12" r="2" />
-				<circle cx="18" cy="12" r="2" />
-			</svg>
+		<button aria-label="More actions" className="itemMenu" onClick={onClick} type="button">
+			<div>
+				<span className="block size-xl rounded-[12px] text-tertiary hover:bg-tertiary">
+					<svg viewBox="0 0 24 24" fill="currentColor" className="block size-full">
+						<circle cx="6" cy="12" r="2" />
+						<circle cx="12" cy="12" r="2" />
+						<circle cx="18" cy="12" r="2" />
+					</svg>
+				</span>
+			</div>
 		</button>
 	);
 }

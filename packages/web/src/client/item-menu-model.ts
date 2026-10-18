@@ -148,3 +148,11 @@ export function buildItemMenu<N extends ItemMenuNode>(node: N, ctx: ItemMenuCont
 export function hasFooter(node: Pick<NodeResponse, "modifiedAt">): boolean {
 	return node.modifiedAt !== null;
 }
+
+/** Upstream's `--item-menu-left`: where the bullet-menu trigger sits, left of the expand arrow. */
+export function itemMenuLeft(hasVisibleChildren: boolean, visualDepth: number): string {
+	if (!hasVisibleChildren) {
+		return "calc(var(--name-left-overhang) - 23px)";
+	}
+	return visualDepth > 1 ? "calc(var(--name-left-overhang) - 55px)" : "calc(var(--name-left-overhang) - 46px)";
+}

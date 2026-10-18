@@ -4060,57 +4060,50 @@ body.moving .expand {
    Node Context Menu Styles
    ================================ */
 
-/* Absolute bullet-menu trigger at the end of .name, until the upstream trigger lands */
-.node-context-menu-button {
-	position: absolute;
-	top: 4px;
-	left: calc(var(--name-left-overhang) - 50px);
+/* Upstream bullet-menu trigger: the ButtonMenu `.itemMenu`, last child of a hovered `.name` */
+.itemMenu {
+	position: absolute !important;
+	left: var(--item-menu-left);
+	top: 0;
+	height: var(--line-height);
+	padding-top: var(--wf-content-padding-top);
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	cursor: pointer;
+	outline: none;
+	transition: opacity 0.2s;
+}
+
+.itemMenu > div > span {
+	display: block;
 	width: 24px;
 	height: 24px;
-	padding: 0;
-	margin-right: 4px;
-	background: transparent;
-	border: none;
-	border-radius: 50%;
-	cursor: pointer;
-	color: var(--wf-icon-tertiary);
-	opacity: 0;
-	transition:
-		opacity 0.15s ease,
-		background-color 0.15s ease,
-		color 0.15s ease;
+	border-radius: 12px;
+	color: var(--wf-text-tertiary);
 }
 
-.node-context-menu-button.visible,
-.outline-node:hover > .name > .node-context-menu-button {
-	opacity: 1;
+.itemMenu > div > span:hover,
+.itemMenu:focus > div > span {
+	background: var(--wf-background-tertiary);
 }
 
-.node-context-menu-button:hover {
-	background-color: var(--color-bg-hover);
-	color: var(--color-text);
+.itemMenu:focus > div > span {
+	color: var(--wf-text-quaternary);
 }
 
-.node-context-menu-button:focus {
-	outline: none;
-	opacity: 1;
-	background-color: var(--color-bg-hover);
+body.moving .itemMenu {
+	display: none;
 }
 
+.root > .name .itemMenu {
+	left: 65px;
+	right: auto;
+}
+
+/* Interim body inside the ButtonMenu flyout, which supplies the surface */
 .node-context-menu {
-	position: fixed;
-	z-index: 10000;
 	min-width: 180px;
-	background-color: var(--color-bg);
-	border: 1px solid var(--color-border);
-	border-radius: 6px;
-	box-shadow: var(--shadow-modal);
 	padding: 4px 0;
-	max-height: 400px;
-	overflow-y: auto;
 }
 
 .node-context-menu-section {

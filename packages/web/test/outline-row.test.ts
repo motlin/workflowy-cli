@@ -53,7 +53,7 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 	};
 });
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
-vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenuButton: () => null}));
+vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
 const {OutlineRow} = await import("../src/client/components/outline-node.js");
 const {ExpandArrow} = await import("../src/client/components/expand-arrow.js");

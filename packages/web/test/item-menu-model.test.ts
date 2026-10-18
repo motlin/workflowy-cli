@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {buildItemMenu, hasFooter, ITEM_MENU_KEYS} from "../src/client/item-menu-model.js";
+import {buildItemMenu, hasFooter, ITEM_MENU_KEYS, itemMenuLeft} from "../src/client/item-menu-model.js";
 import type {ItemMenuEntry, ItemMenuKey, ItemMenuNode} from "../src/client/item-menu-model.js";
 
 const plain: ItemMenuNode = {completedAt: null, isMirror: false};
@@ -158,5 +158,21 @@ describe("hasFooter", () => {
 	it("shows the footer only when the node has a modified time", () => {
 		expect(hasFooter({modifiedAt: null})).toBe(false);
 		expect(hasFooter({modifiedAt: 1_700_000_000})).toBe(true);
+	});
+});
+
+describe("itemMenuLeft", () => {
+	it("offsets the trigger by visible children and depth", () => {
+		expect([
+			itemMenuLeft(false, 0),
+			itemMenuLeft(false, 3),
+			itemMenuLeft(true, 1),
+			itemMenuLeft(true, 2),
+		]).toStrictEqual([
+			"calc(var(--name-left-overhang) - 23px)",
+			"calc(var(--name-left-overhang) - 23px)",
+			"calc(var(--name-left-overhang) - 46px)",
+			"calc(var(--name-left-overhang) - 55px)",
+		]);
 	});
 });

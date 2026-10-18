@@ -12,7 +12,8 @@ import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
-import {NodeContextMenuButton} from "./node-context-menu.js";
+import {itemMenuLeft} from "../item-menu-model.js";
+import {ItemMenuTrigger} from "./node-context-menu.js";
 import {OutlineChildren} from "./outline-tree.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 
@@ -148,22 +149,54 @@ function collectDescendantIds(nodeId: string, queryClient: ReturnType<typeof use
 	return result;
 }
 
+interface NodeItemMenuProps {
+	node: NodeResponse;
+	left?: string;
+	onComplete: () => void;
+	onOpenChange: (open: boolean) => void;
+}
+
+/** The bullet-menu trigger wired to the node's outline actions. */
+export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMenuProps) {
+	const expandAll = useOutlineStore((state) => state.expandAll);
+	const collapseDescendants = useOutlineStore((state) => state.collapseDescendants);
+	const queryClient = useQueryClient();
+	const deleteNode = useDeleteNode();
+	return (
+		<ItemMenuTrigger
+			left={left}
+			node={node}
+			onCollapseAll={() => {
+				collapseDescendants(collectDescendantIds(node.id, queryClient));
+			}}
+			onComplete={onComplete}
+			onDelete={() => {
+				deleteNode.mutate(node.id);
+			}}
+			onExpandAll={() => {
+				expandAll(collectDescendantIds(node.id, queryClient));
+			}}
+			onOpenChange={onOpenChange}
+		/>
+	);
+}
+
 interface NodeNameProps {
 	node: NodeResponse;
 	isExpanded: boolean;
 	hasChildren: boolean;
-	isHovered: boolean;
+	depth: number;
 }
 
 /**
  * Upstream's `.name` row: bullet, todo checkbox, `.content` holding the text,
- * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger.
+ * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger,
+ * which is mounted only while `.name` is hovered or its menu is open.
  */
-function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
-	const {toggleExpand, expandAll, collapseDescendants, resumeEditing, editingId, editingClickPosition} =
-		useOutlineStore();
-	const queryClient = useQueryClient();
-	const deleteNode = useDeleteNode();
+function NodeName({node, isExpanded, hasChildren, depth}: NodeNameProps) {
+	const [isHovered, setIsHovered] = useState(false);
+	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const {toggleExpand, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
 	const toggleComplete = useToggleComplete();
 	const isEditing = editingId === node.id;
 	const isCompleted = node.completedAt !== null;
@@ -212,6 +245,12 @@ function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
 			onDragLeave={handleDragLeave}
 			onDragOver={handleDragOver}
 			onDrop={handleDrop}
+			onMouseEnter={() => {
+				setIsHovered(true);
+			}}
+			onMouseLeave={() => {
+				setIsHovered(false);
+			}}
 			role="presentation"
 		>
 			<NodeBullet
@@ -237,20 +276,14 @@ function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
 			</div>
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 			<ExpandArrow hasChildren={hasChildren} isExpanded={isExpanded} nodeId={node.id} onToggle={toggleExpand} />
-			<NodeContextMenuButton
-				isVisible={isHovered || isEditing}
-				node={node}
-				onCollapseAll={() => {
-					collapseDescendants(collectDescendantIds(node.id, queryClient));
-				}}
-				onComplete={handleComplete}
-				onDelete={() => {
-					deleteNode.mutate(node.id);
-				}}
-				onExpandAll={() => {
-					expandAll(collectDescendantIds(node.id, queryClient));
-				}}
-			/>
+			{isHovered || isMenuOpen ? (
+				<NodeItemMenu
+					left={itemMenuLeft(hasChildren, depth)}
+					node={node}
+					onComplete={handleComplete}
+					onOpenChange={setIsMenuOpen}
+				/>
+			) : null}
 		</div>
 	);
 }
@@ -278,30 +311,22 @@ function rowProjectClassName(
 /**
  * Upstream's `div.project`: `.name`, `.notes`, `.drop-line`, then, when expanded,
  * the node's `.children`. Indentation and guide lines come from the enclosing
- * `.children` container, so the row carries no inline style.
+ * `.children` container, so the row carries no inline style. `depth` is the
+ * visual depth below the zoom root, 1 for its children.
  */
-export function OutlineRow({node}: {node: NodeResponse}) {
-	const [isHovered, setIsHovered] = useState(false);
+export function OutlineRow({node, depth = 1}: {node: NodeResponse; depth?: number}) {
 	const isExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const hasChildren = node.hasChildren !== false;
 
 	return (
-		<div
-			className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote)}
-			onMouseEnter={() => {
-				setIsHovered(true);
-			}}
-			onMouseLeave={() => {
-				setIsHovered(false);
-			}}
-		>
-			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={isHovered} node={node} />
+		<div className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote)}>
+			<NodeName depth={depth} hasChildren={hasChildren} isExpanded={isExpanded} node={node} />
 			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 			<div className="drop-line">
 				<div className="line" />
 			</div>
-			{isExpanded ? <OutlineChildren parentId={node.id} /> : null}
+			{isExpanded ? <OutlineChildren depth={depth + 1} parentId={node.id} /> : null}
 		</div>
 	);
 }

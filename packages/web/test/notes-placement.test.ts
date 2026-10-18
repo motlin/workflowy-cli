@@ -50,7 +50,7 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 			h("span", {className: "innerContentContainer"}, initialValue),
 	};
 });
-vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenuButton: () => null}));
+vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
 const {OutlineRow} = await import("../src/client/components/outline-node.js");
 

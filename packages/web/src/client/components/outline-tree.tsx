@@ -2,10 +2,10 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode} from "react";
 import {useCallback, useEffect, useRef, useState} from "react";
-import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
+import {useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {OutlineRow} from "./outline-node.js";
+import {NodeItemMenu, OutlineRow} from "./outline-node.js";
 
 interface OutlineTreeProps {
 	parentId: string | null;
@@ -56,6 +56,9 @@ function AddButton({parentId}: {parentId: string | null}) {
  */
 function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: ReactNode}) {
 	const {data: node} = useNode(nodeId);
+	const toggleComplete = useToggleComplete();
+	const [isHovered, setIsHovered] = useState(false);
+	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const isMainTreeRoot = nodeId === null;
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 
@@ -65,13 +68,32 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				isMainTreeRoot ? "font-custom project selected root mainTreeRoot" : "font-custom project selected root"
 			}
 		>
-			<div tabIndex={-1} className={isMainTreeRoot ? "name name--root" : "name name--main"}>
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hover only mounts the bullet-menu trigger */}
+			<div
+				tabIndex={-1}
+				className={isMainTreeRoot ? "name name--root" : "name name--main"}
+				onMouseEnter={() => {
+					setIsHovered(true);
+				}}
+				onMouseLeave={() => {
+					setIsHovered(false);
+				}}
+			>
 				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
 					{nameHtml !== "" && (
 						<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: nameHtml}} />
 					)}
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (
+					<NodeItemMenu
+						node={node}
+						onComplete={() => {
+							toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: node.completedAt !== null});
+						}}
+						onOpenChange={setIsMenuOpen}
+					/>
+				) : null}
 			</div>
 			<div className="drop-line">
 				<div className="line" />
@@ -110,7 +132,15 @@ function RenderSentinel({onReached}: {onReached: () => void}) {
  * `OutlineRow`. Renders nothing when no child is visible, so a collapsed or empty
  * parent has no `.children` in the DOM.
  */
-export function OutlineChildren({parentId, isRoot = false}: {parentId: string | null; isRoot?: boolean}) {
+export function OutlineChildren({
+	parentId,
+	isRoot = false,
+	depth = 1,
+}: {
+	parentId: string | null;
+	isRoot?: boolean;
+	depth?: number;
+}) {
 	const {data: nodes} = useChildren(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const visibleNodes = showCompleted ? nodes : nodes?.filter((node) => node.completedAt === null);
@@ -127,7 +157,7 @@ export function OutlineChildren({parentId, isRoot = false}: {parentId: string | 
 	return (
 		<div className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
 			{visibleNodes.slice(0, maxToRender).map((node) => (
-				<OutlineRow key={node.id} node={node} />
+				<OutlineRow key={node.id} depth={depth} node={node} />
 			))}
 			{total > maxToRender && <RenderSentinel onReached={growWindow} />}
 		</div>

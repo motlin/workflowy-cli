@@ -4,6 +4,7 @@ import {createPortal} from "react-dom";
 import {nodeRoute, useNodeNavigation} from "../navigation.js";
 import type {NodeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
+import {ButtonMenu} from "./flyout/button-menu.js";
 
 interface MirrorLocationPath {
 	id: string;
@@ -30,7 +31,6 @@ interface NodeContextMenuProps {
 	onCollapseAll: () => void;
 	onClose: () => void;
 	onShowMirrors?: (data: MirrorsResponse) => void;
-	position: {top: number; left: number};
 }
 
 function formatTimestamp(unixTimestamp: number | null): string {
@@ -191,32 +191,8 @@ function NodeContextMenu({
 	onCollapseAll,
 	onClose,
 	onShowMirrors,
-	position,
 }: NodeContextMenuProps) {
-	const menuRef = useRef<HTMLDivElement>(null);
 	const isCompleted = node.completedAt !== null;
-
-	useEffect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			if (menuRef.current && !menuRef.current.contains(event.target instanceof Node ? event.target : null)) {
-				onClose();
-			}
-		}
-
-		function handleEscape(event: KeyboardEvent) {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		}
-
-		document.addEventListener("mousedown", handleClickOutside);
-		document.addEventListener("keydown", handleEscape);
-
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-			document.removeEventListener("keydown", handleEscape);
-		};
-	}, [onClose]);
 
 	const handleAction = (action: () => void) => {
 		action();
@@ -224,7 +200,7 @@ function NodeContextMenu({
 	};
 
 	const menu = (
-		<div className="node-context-menu" ref={menuRef} style={{top: position.top, left: position.left}}>
+		<div className="node-context-menu">
 			{node.isMirror && node.originalNodeId && onShowMirrors && (
 				<MirrorBanner
 					onShowMirrors={(data) => {
@@ -378,71 +354,69 @@ function NodeContextMenu({
 		</div>
 	);
 
-	return createPortal(menu, document.body);
+	return menu;
 }
 
-interface NodeContextMenuButtonProps {
+interface ItemMenuTriggerProps {
 	node: NodeResponse;
+	/** Upstream `--item-menu-left`, from `itemMenuLeft`; omitted on the zoom title, whose CSS pins it at 65px. */
+	left?: string;
 	onComplete: () => void;
 	onDelete: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
-	isVisible: boolean;
+	onOpenChange: (open: boolean) => void;
+}
+
+const ITEM_MENU_TRIGGER_CLASS =
+	"!absolute left-[var(--item-menu-left)] top-0 h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center opacity-100 cursor-pointer transition-opacity duration-200 [body.moving_&]:hidden itemMenu";
+
+function blurActiveElement(): void {
+	if (document.activeElement instanceof HTMLElement) {
+		document.activeElement.blur();
+	}
 }
 
 /**
- * Button that triggers the context menu.
- * Appears on hover or when node is selected.
+ * Upstream's bullet-menu trigger: a ButtonMenu `div.menu.itemMenu` holding the three-dot
+ * button. The row mounts it only while hovered or while its menu is open.
  */
-export function NodeContextMenuButton({
+export function ItemMenuTrigger({
 	node,
+	left,
 	onComplete,
 	onDelete,
 	onExpandAll,
 	onCollapseAll,
-	isVisible,
-}: NodeContextMenuButtonProps) {
-	const [isMenuOpen, setIsMenuOpen] = useState(false);
-	const [menuPosition, setMenuPosition] = useState({top: 0, left: 0});
+	onOpenChange,
+}: ItemMenuTriggerProps) {
 	const [mirrorsModalData, setMirrorsModalData] = useState<MirrorsResponse | null>(null);
-	const buttonRef = useRef<HTMLButtonElement>(null);
-
-	const handleClick = (event: React.MouseEvent) => {
-		event.stopPropagation();
-		if (!isMenuOpen && buttonRef.current) {
-			const rect = buttonRef.current.getBoundingClientRect();
-			setMenuPosition({
-				top: rect.bottom,
-				left: rect.left,
-			});
-		}
-		setIsMenuOpen(!isMenuOpen);
-	};
-
-	const handleClose = () => {
-		setIsMenuOpen(false);
-	};
 
 	return (
 		<>
-			<button
-				aria-label="More actions"
-				className={`node-context-menu-button ${isVisible || isMenuOpen ? "visible" : ""}`}
-				onClick={handleClick}
-				ref={buttonRef}
-				title="More actions"
-				type="button"
+			<ButtonMenu
+				blockCloseOnInternalClick
+				className={ITEM_MENU_TRIGGER_CLASS}
+				onHide={() => {
+					onOpenChange(false);
+				}}
+				onShow={() => {
+					onOpenChange(true);
+				}}
+				style={left === undefined ? undefined : {["--item-menu-left" as string]: left}}
+				button={
+					<span className="block size-xl rounded-[12px] text-tertiary hover:bg-tertiary">
+						<svg viewBox="0 0 24 24" fill="currentColor" className="block size-full">
+							<circle cx="6" cy="12" r="2" />
+							<circle cx="12" cy="12" r="2" />
+							<circle cx="18" cy="12" r="2" />
+						</svg>
+					</span>
+				}
 			>
-				<svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
-					<circle cx="6" cy="12" r="2" />
-					<circle cx="12" cy="12" r="2" />
-					<circle cx="18" cy="12" r="2" />
-				</svg>
-			</button>
-			{isMenuOpen && (
 				<NodeContextMenu
 					node={node}
-					onClose={handleClose}
+					onClose={blurActiveElement}
 					onCollapseAll={onCollapseAll}
 					onComplete={onComplete}
 					onDelete={onDelete}
@@ -450,9 +424,8 @@ export function NodeContextMenuButton({
 					onShowMirrors={(data) => {
 						setMirrorsModalData(data);
 					}}
-					position={menuPosition}
 				/>
-			)}
+			</ButtonMenu>
 			{mirrorsModalData && (
 				<MirrorsModal
 					data={mirrorsModalData}

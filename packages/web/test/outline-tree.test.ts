@@ -80,7 +80,7 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 	};
 });
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
-vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenuButton: () => null}));
+vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
 const {OutlineTree} = await import("../src/client/components/outline-tree.js");
 
