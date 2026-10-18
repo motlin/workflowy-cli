@@ -1,10 +1,12 @@
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {readJson} from "../read-json.js";
+import {normalizeTagColors} from "../tag-color-styles.js";
 
 /**
- * Per-tag color assignments, as a map of tag text (incl. leading #/@) to a
- * Workflowy color name, keyed by the lowercased tag. Backed by root metadata
- * `color.tags` (shared with workflowy.com) via /api/v1/tags.
+ * Per-tag color assignments, as a map of the lowercased tag text (incl. leading
+ * #/@) to a Workflowy color name. These are Workflowy's own colors, stored in
+ * root metadata `color.tags` and shared with workflowy.com, via /api/v1/tags.
+ * Keys are lowercased on read, so look tags up with `tag.toLowerCase()`.
  */
 export type TagColors = Record<string, string>;
 
@@ -18,7 +20,7 @@ async function fetchTagColors(): Promise<TagColors> {
 		throw new Error(`Failed to fetch tag colors: ${response.statusText}`);
 	}
 	const data = await readJson<{colors: TagColors}>(response);
-	return data.colors;
+	return normalizeTagColors(data.colors);
 }
 
 async function setTagColor(name: string, color: string): Promise<void> {

@@ -9,7 +9,6 @@ import {renderDatePills} from "./date-pills.js";
 import type {DateSettings} from "./date-settings.js";
 import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderTags} from "./tag-render.js";
-import type {TagColorMap} from "./tag-render.js";
 
 const TAG_PATTERN = /<(\/?)([a-z][\w-]*)([^>]*)>/giu;
 const KEPT_ELEMENTS = new Set(["b", "i", "u", "s", "code", "a", "time"]);
@@ -88,18 +87,13 @@ export function noteToEditorHtml(note: string): string {
  * Given `dateSettings` (an unfocused note), stored `<time>` also renders as monolith pills,
  * which the codec does not strip, so a focused editor must omit them.
  */
-export function noteContentHtml(
-	note: string,
-	tagColors: TagColorMap = {},
-	dateSettings?: DateSettings,
-	now?: Date,
-): string {
+export function noteContentHtml(note: string, dateSettings?: DateSettings, now?: Date): string {
 	if (note === "") {
 		return "";
 	}
 	const linked = renderLinks(noteToEditorHtml(note));
 	const dated = dateSettings === undefined ? linked : renderDatePills(linked, dateSettings, now);
-	return `<span class="innerContentContainer">${renderTags(dated, tagColors)}</span>`;
+	return `<span class="innerContentContainer">${renderTags(dated)}</span>`;
 }
 
 /**

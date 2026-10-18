@@ -938,7 +938,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					className="innerContentContainer"
 					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{
-						__html: renderTags(renderDatePills(renderLinks(initialValue), dateSettings), tagColors),
+						__html: renderTags(renderDatePills(renderLinks(initialValue), dateSettings)),
 					}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}
@@ -966,7 +966,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					)}
 				{colorPicker && (
 					<TagColorPicker
-						currentColor={tagColors[colorPicker.tag]}
+						currentColor={tagColors[colorPicker.tag.toLowerCase()]}
 						left={colorPicker.left}
 						onRemove={clearTagColor}
 						onSelect={applyTagColor}

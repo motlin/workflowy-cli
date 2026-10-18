@@ -54,12 +54,6 @@ describe("renderTags", () => {
 	it("treats &nbsp; as a boundary", () => {
 		expect(renderTags("Space&nbsp;#taNbsp end")).toBe(`Space&nbsp;${tagSpan("#taNbsp")} end`);
 	});
-
-	it("adds the legacy color classes for a colored tag", () => {
-		expect(renderTags("Alpha #taZebra item", {"#taZebra": "green"})).toBe(
-			'Alpha <span class="contentTag explosive tag-colored bc-green" title="Filter #taZebra" data-val="#tazebra">#<span class="contentTagText">taZebra</span><span class="contentTagNub"></span></span> item',
-		);
-	});
 });
 
 describe("tagAtOffset", () => {

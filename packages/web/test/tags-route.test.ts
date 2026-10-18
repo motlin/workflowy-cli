@@ -75,6 +75,17 @@ describe("PUT /api/v1/tags/:name", () => {
 		expect(adapter.setRootMeta.mock.calls).toStrictEqual([[["color", "tags", "@alice"], 0]]);
 	});
 
+	it("lowercases a mixed-case hashtag before writing", async () => {
+		const {adapter, request} = setup({});
+
+		await request("PUT", "/%23TaZebra", {color: "green"});
+		await request("DELETE", "/%23TaZebra");
+		expect(adapter.setRootMeta.mock.calls).toStrictEqual([
+			[["color", "tags", "#tazebra"], 3],
+			[["color", "tags", "#tazebra"], undefined],
+		]);
+	});
+
 	it("maps every palette color to its upstream index", async () => {
 		const {adapter, request} = setup({});
 		const colors = ["red", "orange", "yellow", "green", "blue", "purple", "gray", "teal", "sky", "pink"];

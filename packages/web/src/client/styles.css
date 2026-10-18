@@ -235,7 +235,7 @@
 	--wf-tag-default: rgb(134, 140, 144);
 
 	/* Colored tag pill backgrounds + text - sampled from production workflowy.com */
-	--wf-tag-pill-text: rgb(75, 81, 85);
+	--wf-tag-pill-text: var(--wf-text-primary);
 	--wf-tag-bg-red: rgb(251, 213, 213);
 	--wf-tag-bg-orange: rgb(252, 217, 189);
 	--wf-tag-bg-yellow: rgb(252, 233, 106);
@@ -1417,58 +1417,36 @@ body.moving .expand {
 	background-color: transparent;
 }
 
-/* Colored tags render as a pill: no underline at rest, whole-tag underline and kept color on hover */
-.content .contentTag.tag-colored {
-	color: var(--wf-tag-pill-text);
-}
-.content .contentTag.tag-colored .contentTagText {
-	text-decoration: none;
-}
-.content .contentTag.tag-colored:hover {
-	background-color: var(--tag-bg);
-	text-decoration: underline;
-}
-
-/* Color-name backgrounds, shared by colored tag pills and picker swatches */
+/* Color-name backgrounds for picker swatches; tag pills are colored by the generated <style id="tags-None"> */
 .bc-red {
-	--tag-bg: var(--wf-tag-bg-red);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-red);
 }
 .bc-orange {
-	--tag-bg: var(--wf-tag-bg-orange);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-orange);
 }
 .bc-yellow {
-	--tag-bg: var(--wf-tag-bg-yellow);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-yellow);
 }
 .bc-green {
-	--tag-bg: var(--wf-tag-bg-green);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-green);
 }
 .bc-teal {
-	--tag-bg: var(--wf-tag-bg-teal);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-teal);
 }
 .bc-sky {
-	--tag-bg: var(--wf-tag-bg-sky);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-sky);
 }
 .bc-blue {
-	--tag-bg: var(--wf-tag-bg-blue);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-blue);
 }
 .bc-purple {
-	--tag-bg: var(--wf-tag-bg-purple);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-purple);
 }
 .bc-pink {
-	--tag-bg: var(--wf-tag-bg-pink);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-pink);
 }
 .bc-gray {
-	--tag-bg: var(--wf-tag-bg-gray);
-	background-color: var(--tag-bg);
+	background-color: var(--wf-tag-bg-gray);
 }
 
 /* Tag color caret - appears at a tag's right edge on hover; opens the picker */

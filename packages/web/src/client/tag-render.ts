@@ -1,11 +1,5 @@
 import {findTags} from "@workflowy/shared/tags";
 
-/**
- * Tag colors keyed by tag text; colored tags still carry the legacy pill classes
- * until the generated tag stylesheet replaces them.
- */
-export type TagColorMap = Readonly<Record<string, string | undefined>>;
-
 const ENTITIES: Readonly<Record<string, string>> = {
 	"&amp;": "&",
 	"&lt;": "<",
@@ -87,11 +81,7 @@ function escapeAttribute(value: string): string {
 	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-function renderSegment(
-	segment: TextSegment,
-	tags: readonly {index: number; tag: string}[],
-	tagColors: TagColorMap,
-): string {
+function renderSegment(segment: TextSegment, tags: readonly {index: number; tag: string}[]): string {
 	const plainLength = segment.htmlOffsets.length - 1;
 	let out = "";
 	let htmlCursor = 0;
@@ -104,12 +94,10 @@ function renderSegment(
 		const htmlStart = segment.htmlOffsets[start] ?? 0;
 		const htmlAfterFirst = segment.htmlOffsets[start + 1] ?? htmlStart;
 		const htmlEnd = segment.htmlOffsets[end] ?? htmlAfterFirst;
-		const color = tagColors[tag];
-		const className = color ? `contentTag explosive tag-colored bc-${color}` : "contentTag explosive";
 		out += `${segment.html.slice(
 			htmlCursor,
 			htmlStart,
-		)}<span class="${className}" title="Filter ${escapeAttribute(tag)}" data-val="${escapeAttribute(tag.toLowerCase())}">${segment.html.slice(
+		)}<span class="contentTag explosive" title="Filter ${escapeAttribute(tag)}" data-val="${escapeAttribute(tag.toLowerCase())}">${segment.html.slice(
 			htmlStart,
 			htmlAfterFirst,
 		)}<span class="contentTagText">${segment.html.slice(htmlAfterFirst, htmlEnd)}</span><span class="contentTagNub"></span></span>`;
@@ -123,7 +111,7 @@ function renderSegment(
  * `.contentTag` markup. Text inside `<a>` and `<code>` is never tagged, and a
  * tag split across formatting elements is left as-is.
  */
-export function renderTags(html: string, tagColors: TagColorMap = {}): string {
+export function renderTags(html: string): string {
 	const {tokens, plain} = tokenize(html);
 	const tags = findTags(plain);
 	if (tags.length === 0) {
@@ -134,7 +122,7 @@ export function renderTags(html: string, tagColors: TagColorMap = {}): string {
 			if (token.kind === "markup") {
 				return token.html;
 			}
-			return token.segment.taggable ? renderSegment(token.segment, tags, tagColors) : token.segment.html;
+			return token.segment.taggable ? renderSegment(token.segment, tags) : token.segment.html;
 		})
 		.join("");
 }

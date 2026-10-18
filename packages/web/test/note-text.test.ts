@@ -87,9 +87,9 @@ describe("noteContentHtml", () => {
 		expect(editorHtmlToNote(html)).toBe("and #tag in note");
 	});
 
-	it("colors tags and round-trips a colored tag and a repaired legacy break", () => {
-		const html = noteContentHtml("a<br>@bob", {"@bob": "red"});
-		expect(html).toBe(`<span class="innerContentContainer">${renderTags("a\n@bob", {"@bob": "red"})}</span>`);
+	it("round-trips a tag after a repaired legacy break", () => {
+		const html = noteContentHtml("a<br>@bob");
+		expect(html).toBe(`<span class="innerContentContainer">${renderTags("a\n@bob")}</span>`);
 		expect(editorHtmlToNote(html)).toBe("a\n@bob");
 	});
 
@@ -107,7 +107,7 @@ describe("noteContentHtml", () => {
 		const now = new Date(2026, 9, 1);
 		expect({
 			raw: noteContentHtml(note),
-			pills: noteContentHtml(note, {}, settings, now),
+			pills: noteContentHtml(note, settings, now),
 		}).toStrictEqual({
 			raw: `<span class="innerContentContainer">${renderTags(note)}</span>`,
 			pills: `<span class="innerContentContainer">${renderTags(renderDatePills(note, settings, now))}</span>`,

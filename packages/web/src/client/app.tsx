@@ -23,10 +23,12 @@ import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
+import {useTagColors} from "./hooks/use-tag-colors.js";
 import {locationUrl, parseLocationHash} from "./location.js";
 import {nodeUrl, resolveZoomTarget} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
 import {readJson} from "./read-json.js";
+import {buildTagColorCss} from "./tag-color-styles.js";
 import {selectIsMutating, useOutlineStore} from "./stores/outline.js";
 import "./wf-tailwind.css";
 import "./styles.css";
@@ -179,10 +181,16 @@ function NodeRedirect() {
 	return <Navigate replace to={id === undefined ? "/" : nodeUrl(id)} />;
 }
 
+/** Upstream's generated tag color sheet: colors `.contentTag` spans by their lowercased `data-val`. */
+function TagColorStyles() {
+	return <style id="tags-None">{buildTagColorCss(useTagColors())}</style>;
+}
+
 export function App() {
 	return (
 		<ErrorBoundary>
 			<QueryClientProvider client={queryClient}>
+				<TagColorStyles />
 				<BrowserRouter>
 					<div className="app">
 						<Routes>
