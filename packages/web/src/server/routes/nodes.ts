@@ -1,6 +1,7 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import type {BacklinkCrumb, BacklinksResponse, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import type {ExactMover} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeInternalMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
@@ -150,7 +151,12 @@ function getWriteClient(ctx: ServerContext): WorkflowyWriteThroughClient | undef
 		return undefined;
 	}
 	const apiClient = new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
-	return new WorkflowyWriteThroughClient(apiClient, ctx.cacheService);
+	// With the internal API, a mirror-delete promotion is one exact-index move instead of a sibling rotation.
+	const adapter = getAdapter(ctx);
+	const exactMover: ExactMover | undefined = adapter && {
+		moveTo: async ({ids, parentId, index}) => adapter.moveTo({ids, parentId: adapterParent(parentId), index}),
+	};
+	return new WorkflowyWriteThroughClient(apiClient, ctx.cacheService, exactMover);
 }
 
 /**

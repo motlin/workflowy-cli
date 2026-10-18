@@ -26,6 +26,12 @@ export interface MirrorPromotion {
 	 * `priority` (verified live on 2026-09-30).
 	 */
 	siblingIds: string[];
+	/**
+	 * The mirror's slot among its parent's children once it is removed, for an
+	 * exact-index move (the internal API) that replaces the original-plus-siblings
+	 * run: the count of children before it that are still there then.
+	 */
+	index: number;
 }
 
 /** The API calls {@link WorkflowyWriteThroughClient.deleteNode} makes for one delete, in order. */
@@ -95,6 +101,8 @@ export async function planSubtreeDelete(
 		);
 	}
 
+	// Removed before any promotion, so they no longer count toward a slot.
+	const removedFirst = new Set(subtree.inside.filter(deleted));
 	const outline = new OutlineSimulation(childOrder);
 	const pendingMirrors = new Set(chosen.values());
 	const promotions: MirrorPromotion[] = [];
@@ -108,17 +116,19 @@ export async function planSubtreeDelete(
 		const after = slot === -1 ? [] : siblings.slice(slot + 1);
 		const position = slot !== -1 && before.length <= after.length ? "top" : "bottom";
 		const siblingIds = position === "top" ? before.toReversed() : after;
+		const live = await outline.children(parentId);
+		const index = live.slice(0, Math.max(live.indexOf(mirrorId), 0)).filter((id) => !removedFirst.has(id)).length;
 
 		pendingMirrors.delete(mirrorId);
 		outline.remove(mirrorId);
 		for (const id of [originalId, ...siblingIds]) {
 			await outline.move(id, parentId, position);
 		}
-		promotions.push({originalId, mirrorId, parentId, position, siblingIds});
+		promotions.push({originalId, mirrorId, parentId, position, siblingIds, index});
 	}
 
 	return {
-		mirrorIds: subtree.inside.filter(deleted),
+		mirrorIds: [...removedFirst],
 		promotions,
 		nodeId: kept.has(nodeId) ? null : nodeId,
 	};

@@ -75,3 +75,4 @@ export {
 } from "./node-composite.js";
 export {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
 export {WorkflowyWriteThroughClient} from "./workflowy-write-through-client.js";
+export type {ExactMover} from "./workflowy-write-through-client.js";

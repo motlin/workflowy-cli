@@ -9,6 +9,7 @@ import {CacheService} from "../src/cache/cache-service.js";
 import {deletePlanCalls} from "../src/cache/delete-plan.js";
 import type {DeletePlan} from "../src/cache/delete-plan.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
+import type {ExactMover} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
 import {backlinks, mirrors, nodeContent, nodeEmbeddings, nodeMetadata} from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
@@ -95,8 +96,11 @@ function setup({
 	failCall,
 	serverOutline = {},
 	backlinkItems = [],
+	exactMover = false,
 }: {
 	failCall?: string;
+	/** Give the client an exact-index mover (the internal API), recorded in `calls` as `moveTo <input>`. */
+	exactMover?: boolean;
 	serverOutline?: Record<string, string[]>;
 	backlinkItems?: [nodeId: string, sourceId: string, targetId: string][];
 } = {}) {
@@ -213,7 +217,21 @@ function setup({
 		baseDelayMs: 0,
 		maxDelayMs: 0,
 	});
-	const client = new WorkflowyWriteThroughClient(apiClient, new CacheService(database));
+	const mover: ExactMover = {
+		moveTo: async (input) => {
+			calls.push(`moveTo ${JSON.stringify(input)}`);
+			for (const id of input.ids) {
+				detach(id);
+			}
+			server.get(input.parentId)!.splice(input.index, 0, ...input.ids);
+			return Promise.resolve();
+		},
+	};
+	const client = new WorkflowyWriteThroughClient(
+		apiClient,
+		new CacheService(database),
+		exactMover ? mover : undefined,
+	);
 
 	/** Each cached parent's current children in priority order (roots under `root`), and the current mirrors. */
 	const cacheState = () => {
@@ -248,8 +266,15 @@ function setup({
 const PROJECTS_PLAN = {
 	mirrorIds: ["mirror-in", "mirror-nested", "mirror-b"],
 	promotions: [
-		{originalId: "task-a", mirrorId: "mirror-out", parentId: "agendas", position: "top", siblingIds: ["agenda-1"]},
-		{originalId: "task-y", mirrorId: "mirror-y", parentId: "task-a", position: "bottom", siblingIds: []},
+		{
+			originalId: "task-a",
+			mirrorId: "mirror-out",
+			parentId: "agendas",
+			position: "top",
+			siblingIds: ["agenda-1"],
+			index: 1,
+		},
+		{originalId: "task-y", mirrorId: "mirror-y", parentId: "task-a", position: "bottom", siblingIds: [], index: 1},
 	],
 	nodeId: "projects",
 } satisfies DeletePlan;
@@ -336,6 +361,7 @@ describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 						parentId: "agendas",
 						position: "bottom",
 						siblingIds: ["agenda-3"],
+						index: 2,
 					},
 					PROJECTS_PLAN.promotions[1],
 				],
@@ -405,6 +431,7 @@ describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 						parentId: "task-b",
 						position: "bottom",
 						siblingIds: [],
+						index: 1,
 					},
 				],
 				nodeId: null,
@@ -511,6 +538,42 @@ describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 		await expect(client.deleteNode("task-a")).rejects.toThrow("promotion failed");
 
 		expect(cacheState()).toStrictEqual(before);
+	});
+
+	it("promotes a kept original into its mirror's exact slot with one exact-index move, touching no sibling, when an exact mover is given", async () => {
+		const {client, calls, cacheState} = setup({
+			exactMover: true,
+			serverOutline: {agendas: ["agenda-1", "agenda-2", "mirror-out", "agenda-3", "agenda-4"]},
+		});
+
+		const plan = await client.deleteNode("projects");
+
+		expect({index: plan.promotions.map(({index}) => index), calls, cache: cacheState()}).toStrictEqual({
+			index: [2, 1],
+			calls: [
+				"GET /nodes?parent_id=agendas",
+				"GET /nodes?parent_id=task-a",
+				"DELETE /nodes/mirror-in/mirror",
+				"DELETE /nodes/mirror-nested/mirror",
+				"DELETE /nodes/mirror-b/mirror",
+				"DELETE /nodes/mirror-out/mirror",
+				'moveTo {"ids":["task-a"],"parentId":"agendas","index":2}',
+				"GET /nodes?parent_id=agendas",
+				"DELETE /nodes/mirror-y/mirror",
+				'moveTo {"ids":["task-y"],"parentId":"task-a","index":1}',
+				"GET /nodes?parent_id=task-a",
+				"DELETE /nodes/projects",
+			],
+			cache: {
+				outline: {
+					root: ["agendas", "other"],
+					agendas: ["agenda-1", "agenda-2", "task-a", "agenda-3", "agenda-4"],
+					"task-a": ["task-a1", "task-y"],
+					other: ["other-original", "mirror-a1"],
+				},
+				mirrors: [{originalId: "task-a1", mirrorId: "mirror-a1"}],
+			},
+		});
 	});
 
 	it("deletes a node without mirrors through the generic endpoint only", async () => {

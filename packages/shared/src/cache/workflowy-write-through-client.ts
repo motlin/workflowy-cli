@@ -10,6 +10,11 @@ import type {CacheService} from "./cache-service.js";
 import {planSubtreeDelete} from "./delete-plan.js";
 import type {DeletePlan} from "./delete-plan.js";
 
+/** Moves nodes to an exact slot among a parent's children (Home's for `null`), as the internal API can. */
+export interface ExactMover {
+	moveTo(input: {ids: string[]; parentId: string | null; index: number}): Promise<void>;
+}
+
 /**
  * Unified write-through client that wraps both WorkflowyApiClient and CacheService.
  * All write operations are performed against the Workflowy API first, then the cache is updated.
@@ -21,6 +26,8 @@ export class WorkflowyWriteThroughClient {
 	constructor(
 		private readonly apiClient: WorkflowyApiClient,
 		private readonly cacheService: CacheService,
+		/** Places a promoted original in one move; without it, promotions rotate siblings through the REST API. */
+		private readonly exactMover?: ExactMover,
 	) {}
 
 	/**
@@ -171,7 +178,8 @@ export class WorkflowyWriteThroughClient {
 	/**
 	 * Delete a node and remove it from the cache, carrying out {@link planDelete}
 	 * in order: inner mirrors, then each promotion (remove the mirror, move the
-	 * original into its slot, move siblings to fix the slot), then the generic
+	 * original into its slot, move siblings to fix the slot; with an
+	 * {@link ExactMover}, one exact-index move instead), then the generic
 	 * delete. The cache follows each call. If any call fails, the rest are not
 	 * sent, so the generic delete never runs before every kept original has
 	 * moved out of the subtree.
@@ -185,7 +193,13 @@ export class WorkflowyWriteThroughClient {
 		for (const mirrorId of plan.mirrorIds) {
 			await this.deleteMirror(mirrorId);
 		}
-		for (const {mirrorId, originalId, parentId, position, siblingIds} of plan.promotions) {
+		for (const {mirrorId, originalId, parentId, position, siblingIds, index} of plan.promotions) {
+			if (this.exactMover !== undefined) {
+				await this.deleteMirror(mirrorId);
+				await this.exactMover.moveTo({ids: [originalId], parentId, index});
+				await this.refreshChildren([parentId]);
+				continue;
+			}
 			const end = position === "top" ? -1 : 0;
 			await this.promote(mirrorId, originalId, parentId, end);
 			for (const siblingId of siblingIds) {
