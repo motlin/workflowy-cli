@@ -1299,51 +1299,108 @@ body.moving .expand {
 	outline: none;
 }
 
-/* Hashtags and mentions - muted gray underlined, matching production workflowy.com */
-.innerContentContainer .contentTag {
-	text-decoration: underline;
-	color: var(--wf-tag-default);
+/* Hashtags and mentions - upstream wf-base .contentTag rules, verbatim; .content wraps both names and notes */
+.content .contentTag {
+	color: var(--wf-text-tertiary);
+	word-break: normal;
+	padding: 0 1px;
+	margin: 0 -1px;
+	border-radius: 3px;
 	cursor: pointer;
 }
-
-/* Colored tags render as a pill (no underline), matching production workflowy.com */
-.innerContentContainer .contentTag.tag-colored {
+.content .contentTag b {
+	font-weight: inherit;
+}
+.content .contentTag i {
+	font-style: inherit;
+}
+.content .contentTag u {
 	text-decoration: none;
+}
+.content .contentTag:hover {
+	background: var(--wf-background-tertiary);
+}
+/* Only the text after the # is underlined */
+.content .contentTag .contentTagText {
+	text-decoration: underline;
+}
+.content .contentTag.contentTagDelete:hover {
+	background-color: #f4666633;
+}
+.content .contentTag.contentTagDelete:hover .contentMatch {
+	background-color: transparent;
+}
+.content .contentTag.contentTagDeleteHover:hover {
+	color: #f4666666;
+}
+.content .contentTag.contentTagDeleteHover:hover .contentTagText {
+	background-color: transparent;
+}
+.content .contentTag.contentTagDeleteHover:hover .contentTagNub {
+	display: none;
+}
+.project.addedToSelection .content .contentTag:hover {
+	background: none;
+}
+.contentTag.tapped {
+	background: var(--wf-background-tertiary);
+}
+.contentTag.tapped .contentMatch {
+	background-color: transparent;
+}
+
+/* Colored tags render as a pill: no underline at rest, whole-tag underline and kept color on hover */
+.content .contentTag.tag-colored {
 	color: var(--wf-tag-pill-text);
-	border-radius: 3px;
-	padding: 0 1px;
+}
+.content .contentTag.tag-colored .contentTagText {
+	text-decoration: none;
+}
+.content .contentTag.tag-colored:hover {
+	background-color: var(--tag-bg);
+	text-decoration: underline;
 }
 
 /* Color-name backgrounds, shared by colored tag pills and picker swatches */
 .bc-red {
-	background-color: var(--wf-tag-bg-red);
+	--tag-bg: var(--wf-tag-bg-red);
+	background-color: var(--tag-bg);
 }
 .bc-orange {
-	background-color: var(--wf-tag-bg-orange);
+	--tag-bg: var(--wf-tag-bg-orange);
+	background-color: var(--tag-bg);
 }
 .bc-yellow {
-	background-color: var(--wf-tag-bg-yellow);
+	--tag-bg: var(--wf-tag-bg-yellow);
+	background-color: var(--tag-bg);
 }
 .bc-green {
-	background-color: var(--wf-tag-bg-green);
+	--tag-bg: var(--wf-tag-bg-green);
+	background-color: var(--tag-bg);
 }
 .bc-teal {
-	background-color: var(--wf-tag-bg-teal);
+	--tag-bg: var(--wf-tag-bg-teal);
+	background-color: var(--tag-bg);
 }
 .bc-sky {
-	background-color: var(--wf-tag-bg-sky);
+	--tag-bg: var(--wf-tag-bg-sky);
+	background-color: var(--tag-bg);
 }
 .bc-blue {
-	background-color: var(--wf-tag-bg-blue);
+	--tag-bg: var(--wf-tag-bg-blue);
+	background-color: var(--tag-bg);
 }
 .bc-purple {
-	background-color: var(--wf-tag-bg-purple);
+	--tag-bg: var(--wf-tag-bg-purple);
+	background-color: var(--tag-bg);
 }
 .bc-pink {
-	background-color: var(--wf-tag-bg-pink);
+	--tag-bg: var(--wf-tag-bg-pink);
+	background-color: var(--tag-bg);
 }
 .bc-gray {
-	background-color: var(--wf-tag-bg-gray);
+	--tag-bg: var(--wf-tag-bg-gray);
+	background-color: var(--tag-bg);
 }
 
 /* Tag color caret - appears at a tag's right edge on hover; opens the picker */
