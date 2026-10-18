@@ -3,8 +3,8 @@ import {readJson} from "../read-json.js";
 
 /**
  * Per-tag color assignments, as a map of tag text (incl. leading #/@) to a
- * Workflowy color name. Backed by the local `tags` table via /api/v1/tags.
- * Workflowy itself has no API for tag colors — this is our own feature.
+ * Workflowy color name, keyed by the lowercased tag. Backed by root metadata
+ * `color.tags` (shared with workflowy.com) via /api/v1/tags.
  */
 export type TagColors = Record<string, string>;
 

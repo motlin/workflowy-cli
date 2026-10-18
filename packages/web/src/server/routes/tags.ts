@@ -1,54 +1,84 @@
+/**
+ * Tag colors stored in upstream's root (Home) metadata through the internal
+ * API, so they match workflowy.com: `color.tags[<lowercased tag incl. #/@>] = <color index>`.
+ *
+ * `GET /` -> `{colors: {name: color}}`; `PUT /:name` `{color}` sets one;
+ * `DELETE /:name` clears one.
+ */
+
 import {Hono} from "hono";
-import {tags} from "@workflowy/shared/db";
-import {eq} from "drizzle-orm";
-import {getDatabase} from "../db.js";
-import {TAG_COLORS} from "../../tag-colors.js";
+import type {AppEnv} from "../context.js";
+import {withAdapter} from "../internal-api.js";
+import type {TagColorName} from "../../tag-colors.js";
 
-export const tagsRouter = new Hono();
+/** Upstream's color enum (`red=0 ... pink=9`); `-1` means "no color". */
+const COLOR_INDEX: Record<TagColorName, number> = {
+	red: 0,
+	orange: 1,
+	yellow: 2,
+	green: 3,
+	blue: 4,
+	purple: 5,
+	gray: 6,
+	teal: 7,
+	sky: 8,
+	pink: 9,
+};
 
-// Assignments outside the shared tag color palette are rejected.
-const VALID_COLORS = new Set<string>(TAG_COLORS);
+const COLOR_BY_INDEX = new Map<unknown, string>(Object.entries(COLOR_INDEX).map(([color, index]) => [index, color]));
 
-interface TagColorBody {
-	color?: string;
+function isColorName(color: unknown): color is TagColorName {
+	return typeof color === "string" && Object.hasOwn(COLOR_INDEX, color);
 }
 
-// GET /api/v1/tags - all tag color assignments as {name: color}
-tagsRouter.get("/", (c) => {
-	const database = getDatabase();
-	const rows = database.select({name: tags.name, color: tags.color}).from(tags).all();
-	const colors: Record<string, string> = {};
-	for (const row of rows) {
-		colors[row.name] = row.color;
-	}
-	return c.json({colors});
-});
+const TAGS_PATH = ["color", "tags"];
 
-// PUT /api/v1/tags/:name - set the color for a tag (upsert)
-tagsRouter.put("/:name", async (c) => {
-	const name = c.req.param("name");
-	const body = await c.req.json<TagColorBody>();
-	const color = body.color;
+function tagPath(name: string): string[] {
+	return [...TAGS_PATH, name.toLowerCase()];
+}
 
-	if (!color || !VALID_COLORS.has(color)) {
-		return c.json({error: `Invalid color: ${color ?? "(missing)"}`}, 400);
-	}
+export function createTagsRouter(): Hono<AppEnv> {
+	const router = new Hono<AppEnv>();
 
-	const database = getDatabase();
-	const now = new Date().toISOString();
-	database
-		.insert(tags)
-		.values({name, color, createdAt: now, updatedAt: now})
-		.onConflictDoUpdate({target: tags.name, set: {color, updatedAt: now}})
-		.run();
+	router.get(
+		"/",
+		withAdapter(async (c, adapter) => {
+			const stored = await adapter.getRootMeta(TAGS_PATH);
+			const colors: Record<string, string> = {};
+			if (typeof stored === "object" && stored !== null) {
+				for (const [name, index] of Object.entries(stored)) {
+					const color = COLOR_BY_INDEX.get(index);
+					if (color) {
+						colors[name] = color;
+					}
+				}
+			}
+			return c.json({colors});
+		}),
+	);
 
-	return c.json({name, color});
-});
+	router.put(
+		"/:name",
+		withAdapter<"/:name">(async (c, adapter) => {
+			const name = c.req.param("name");
+			const body: unknown = await c.req.json().catch(() => {});
+			const color = typeof body === "object" && body !== null && "color" in body ? body.color : undefined;
+			if (!isColorName(color)) {
+				return c.json({error: `Invalid color: ${typeof color === "string" ? color : "(missing)"}`}, 400);
+			}
+			await adapter.setRootMeta(tagPath(name), COLOR_INDEX[color]);
+			return c.json({name, color});
+		}),
+	);
 
-// DELETE /api/v1/tags/:name - clear the color for a tag
-tagsRouter.delete("/:name", (c) => {
-	const name = c.req.param("name");
-	const database = getDatabase();
-	database.delete(tags).where(eq(tags.name, name)).run();
-	return c.json({name});
-});
+	router.delete(
+		"/:name",
+		withAdapter<"/:name">(async (c, adapter) => {
+			const name = c.req.param("name");
+			await adapter.setRootMeta(tagPath(name), undefined);
+			return c.json({name});
+		}),
+	);
+
+	return router;
+}
