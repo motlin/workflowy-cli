@@ -82,7 +82,7 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<N
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to update node: ${response.statusText}`);
+		throw new RequestStatusError(response.status, `Failed to update node: ${response.statusText}`);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -94,7 +94,7 @@ async function deleteNode(nodeId: string): Promise<void> {
 		method: "DELETE",
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to delete node: ${response.statusText}`);
+		throw new RequestStatusError(response.status, `Failed to delete node: ${response.statusText}`);
 	}
 }
 
@@ -119,7 +119,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to move node: ${response.statusText}`);
+		throw new RequestStatusError(response.status, `Failed to move node: ${response.statusText}`);
 	}
 	return readJson<MoveNodeResponse>(response);
 }
@@ -153,7 +153,7 @@ async function completeNode(nodeId: string): Promise<NodeResponse> {
 		method: "POST",
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to complete node: ${response.statusText}`);
+		throw new RequestStatusError(response.status, `Failed to complete node: ${response.statusText}`);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -165,7 +165,7 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 		method: "POST",
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to uncomplete node: ${response.statusText}`);
+		throw new RequestStatusError(response.status, `Failed to uncomplete node: ${response.statusText}`);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;

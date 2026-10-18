@@ -334,6 +334,38 @@ describe("applyOps", () => {
 		expect([undoHistory.canUndo, undoHistory.canRedo]).toStrictEqual([false, false]);
 	});
 
+	it.each([
+		["moveNode", 404, "Couldn't undo: the item no longer exists", []],
+		[
+			"restoreNode",
+			409,
+			"Couldn't undo: the item was already restored",
+			[["moveNode", "M", {parent_id: "P", index: 0}]],
+		],
+	] as const)(
+		"reports a %s %i, drops the rest of the batch and clears both stacks",
+		async (method, status, message, done) => {
+			await runInUndoBatch(
+				() => viewA,
+				() => {
+					recordOp({kind: "complete", nodeId: "other"});
+				},
+			);
+			const batch = await recordAndUndo(
+				{kind: "complete", nodeId: "C"},
+				{kind: "delete", nodeId: "A", parentId: "P", index: 1},
+				{kind: "move", nodeId: "M", from: {parentId: "P", index: 0}, to: {parentId: "Q", index: 3}},
+			);
+			const {adapter, calls} = fakeAdapter({
+				[method]: async () => Promise.reject(new RequestStatusError(status, "Failed")),
+			});
+			await applyOps(batch.ops, adapter);
+			expect(calls).toStrictEqual(done);
+			expect(notifications).toStrictEqual([[message, "error"]]);
+			expect([undoHistory.canUndo, undoHistory.canRedo]).toStrictEqual([false, false]);
+		},
+	);
+
 	it("rethrows other failures without clearing history", async () => {
 		await runInUndoBatch(
 			() => viewA,
@@ -378,6 +410,15 @@ describe("restoreNode", () => {
 		const error = await restoreNode("A", {parent_id: "P", index: 1}).catch((error_: unknown) => error_);
 		expect(error).toStrictEqual(new RequestStatusError(503, "Failed to restore node: Service Unavailable"));
 		expect((error as RequestStatusError).status).toBe(503);
+		vi.unstubAllGlobals();
+	});
+
+	it("keeps the HTTP status of a failed move replayed by undo", async () => {
+		vi.stubGlobal("fetch", async () => Promise.resolve(new Response(null, {status: 404, statusText: "Not Found"})));
+		const {undoAdapter} = await import("../src/client/hooks/use-nodes.js");
+		const error = await undoAdapter.moveNode("A", {parent_id: "P", index: 1}).catch((error_: unknown) => error_);
+		expect(error).toStrictEqual(new RequestStatusError(404, "Failed to move node: Not Found"));
+		expect((error as RequestStatusError).status).toBe(404);
 		vi.unstubAllGlobals();
 	});
 });

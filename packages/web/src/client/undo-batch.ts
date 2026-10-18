@@ -14,8 +14,18 @@ export class RequestStatusError extends Error {
 	}
 }
 
-const RESTORE_UNAVAILABLE =
-	"Couldn't undo: undo of delete needs the Workflowy internal API (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)";
+/**
+ * Statuses that mean the outline no longer matches the history: the node is gone (404), was
+ * already restored elsewhere (409), or cannot be restored at all without the internal API (503).
+ */
+const INVALIDATING_FAILURES = new Map<number, string>([
+	[404, "Couldn't undo: the item no longer exists"],
+	[409, "Couldn't undo: the item was already restored"],
+	[
+		503,
+		"Couldn't undo: undo of delete needs the Workflowy internal API (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD)",
+	],
+]);
 
 /** The server calls that replay an inverted batch; injected so tests can record them. */
 export interface UndoAdapter {
@@ -209,9 +219,8 @@ async function applyOp(op: UndoOp, adapter: UndoAdapter): Promise<unknown> {
 }
 
 /**
- * Replays a popped (already inverted) batch in order. A 503 means the internal API that restores
- * deleted nodes is not configured: there is no local fallback, so report it and drop the history,
- * which no longer matches the outline.
+ * Replays a popped (already inverted) batch in order. A 404, 409 or 503 means the outline no longer
+ * matches the history: report it, drop the rest of the batch and clear both stacks.
  */
 export async function applyOps(ops: readonly UndoOp[], adapter: UndoAdapter): Promise<void> {
 	replaying++;
@@ -221,8 +230,9 @@ export async function applyOps(ops: readonly UndoOp[], adapter: UndoAdapter): Pr
 			await applyOp(op, adapter);
 		}
 	} catch (error) {
-		if (error instanceof RequestStatusError && error.status === 503) {
-			useOutlineStore.getState().addErrorNotification(RESTORE_UNAVAILABLE);
+		const message = error instanceof RequestStatusError ? INVALIDATING_FAILURES.get(error.status) : undefined;
+		if (message !== undefined) {
+			useOutlineStore.getState().addErrorNotification(message);
 			undoHistory.clear();
 			return;
 		}

@@ -11,6 +11,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {parseLadderEvent} from "../../server/ladder-events.js";
+import {undoHistory} from "../undo-history.js";
 import type {LadderEvent} from "../../server/ladder-events.js";
 import {tierLabel} from "../../server/ladder-model.js";
 import type {LadderItem, LadderTier} from "../../server/ladder-model.js";
@@ -135,6 +136,8 @@ export function LadderView() {
 			}
 			receivedWrites.current.set(event.nodeId, event);
 			updateLadders((current) => applyLadderEvent(current, event));
+			// The outline changed under the undo history, so its inverses no longer apply.
+			undoHistory.clear();
 		});
 		return () => {
 			socket.close();
