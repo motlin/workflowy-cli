@@ -68,6 +68,8 @@ const TreeItemSchema = z
 	})
 	.loose();
 
+const ExpandedKeysSchema = z.object({server_expanded_projects_list: z.array(z.string()).optional()}).loose();
+
 const TreeItemsSchema = z.object({items: z.array(TreeItemSchema)}).loose();
 
 /** One `/get_tree_data/` item, reduced to what the cache imports. */
@@ -324,6 +326,12 @@ export class WorkflowyInternalClient {
 		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
 		const {items} = TreeItemsSchema.parse(body);
 		return items.map(({id, metadata}) => (metadata === undefined ? {id} : {id, metadata}));
+	}
+
+	/** The server's expanded-node keys (first 8 chars of each id) from `/get_tree_data/`, its only complete source. */
+	async getExpandedKeys(): Promise<string[]> {
+		const {body} = await this.withSession(async () => this.getJson("/get_tree_data/"));
+		return ExpandedKeysSchema.parse(body).server_expanded_projects_list ?? [];
 	}
 
 	/** An authenticated GET; throws `SessionRejectedError` on a login redirect or `logged_out` body. */

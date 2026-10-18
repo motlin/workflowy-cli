@@ -4,7 +4,8 @@ import {z} from "zod";
 import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
-import {accountState, nodeInternalMetadata} from "../db/schema.js";
+import {accountState, nodeContent, nodeInternalMetadata} from "../db/schema.js";
+import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
@@ -57,6 +58,11 @@ function publicParent(id: string): PublicParent {
 
 function internalParent(parent: PublicParent): string {
 	return parent ?? ROOT_PROJECT_ID;
+}
+
+/** Upstream's expansion key for a node: the first 8 chars of its id. */
+function expansionKey(id: string): string {
+	return id.slice(0, 8);
 }
 
 function clampIndex(index: number, length: number): number {
@@ -328,6 +334,35 @@ export class WorkflowyInternalAdapter {
 				throw new OperationRejected(`POST ${path} did not succeed`);
 			}
 		}
+	}
+
+	/**
+	 * Every cached node the server records as expanded. The server keys
+	 * expansion by the first 8 chars of the id, so a key resolves to every
+	 * cached id it prefixes (twins expand together, as upstream) and keys with
+	 * no cached node are dropped.
+	 */
+	async getExpandedIds(): Promise<string[]> {
+		const keys = new Set(await this.client.getExpandedKeys());
+		return this.db
+			.select({id: nodeContent.id})
+			.from(nodeContent)
+			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+			.orderBy(nodeContent.id)
+			.all()
+			.map(({id}) => id)
+			.filter((id) => keys.has(expansionKey(id)));
+	}
+
+	/** Expand (`true`) or collapse (`false`) nodes with one push carrying only `project_expansions_delta`. */
+	async setExpanded(changes: Record<string, boolean>): Promise<void> {
+		const entries = Object.entries(changes);
+		if (entries.length === 0) {
+			return;
+		}
+		await this.session();
+		const expansionsDelta = Object.fromEntries(entries.map(([id, expanded]) => [expansionKey(id), expanded]));
+		await this.pusher.pushAndPoll({expansionsDelta});
 	}
 
 	async getAccount(): Promise<Account> {
