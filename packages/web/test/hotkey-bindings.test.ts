@@ -1,5 +1,10 @@
 import {afterEach, beforeAll, describe, expect, it, vi} from "vite-plus/test";
-import {navigationShortcut, punctuationHotkeys, structureHotkeys} from "../src/client/hotkey-bindings.js";
+import {
+	completeHotkey,
+	navigationShortcut,
+	punctuationHotkeys,
+	structureHotkeys,
+} from "../src/client/hotkey-bindings.js";
 
 type IsHotkeyPressed = (key: string | readonly string[], delimiter?: string) => boolean;
 
@@ -61,5 +66,11 @@ describe("structureHotkeys", () => {
 			moveUp: "shift+meta+up, ctrl+shift+up",
 			moveDown: "shift+meta+down, ctrl+shift+down",
 		});
+	});
+});
+
+describe("completeHotkey", () => {
+	it("binds meta+enter on mac and ctrl+enter elsewhere", () => {
+		expect(completeHotkey).toBe("meta+enter, ctrl+enter");
 	});
 });

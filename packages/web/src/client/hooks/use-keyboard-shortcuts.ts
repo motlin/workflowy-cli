@@ -9,8 +9,8 @@ import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
-import {editingAfterRemoval, navigableIds} from "../caret-navigation.js";
-import {planDuplicate, planIndent, planMoveDown, planMoveUp, planOutdent} from "../tree-ops.js";
+import {editingAfterRemoval, navigableIds, planCompleteFocus} from "../caret-navigation.js";
+import {planDuplicate, planIndent, planMoveDown, planMoveUp, planOutdent, planToggleComplete} from "../tree-ops.js";
 import type {MoveNodePayload} from "../tree-ops.js";
 import {
 	useChildren,
@@ -23,7 +23,7 @@ import {
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
-import {navigationShortcut, punctuationHotkeys, structureHotkeys} from "../hotkey-bindings.js";
+import {completeHotkey, navigationShortcut, punctuationHotkeys, structureHotkeys} from "../hotkey-bindings.js";
 
 /**
  * Keyboard shortcuts for the outline view.
@@ -48,7 +48,9 @@ import {navigationShortcut, punctuationHotkeys, structureHotkeys} from "../hotke
  * - Shift+Enter: Edit the note of the edited node
  * - Tab: Indent the edited node (make it a child of its previous sibling)
  * - Shift+Tab: Outdent the edited node (make it a sibling of its parent)
- * - Cmd+Enter: Toggle complete/uncomplete on the edited node
+ * - Cmd+Enter (Ctrl+Enter off mac): Toggle complete/uncomplete on the edited node; completing moves
+ *   the caret to the next sibling (or the previous row) at offset 0, and completing the zoom root
+ *   zooms out to its parent
  *
  * Structural shortcuts keep the caret and unsaved text in place: they hold editing
  * across the re-render so the edited row keeps (or regains) focus.
@@ -320,24 +322,71 @@ export function useKeyboardShortcuts() {
 		[editedNode, queryClient, moveEditedNode],
 	);
 
-	// Cmd+Enter: Toggle complete/uncomplete on the edited node
+	// Cmd+Enter or Ctrl+Enter: Toggle complete/uncomplete on the edited node and move the caret as upstream does
 	useHotkeys(
-		"meta+enter",
+		completeHotkey,
 		() => {
 			if (editedNode === undefined) {
 				return;
 			}
-
-			const isCurrentlyCompleted = editedNode.completedAt !== null;
-			if (!isCurrentlyCompleted && !showCompleted) {
-				// The node is about to be hidden; keep the text and continue editing beside it
-				commitEdit();
-				editBesideRemovedNode(editedNode.id);
+			const plan = planToggleComplete([editedNode]);
+			if (plan.action === "none") {
+				return;
 			}
-			toggleCompleteMutation.mutate({nodeId: editedNode.id, isCurrentlyCompleted});
+			const completing = plan.action === "complete";
+			const siblings = sortByPriority(
+				queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(editedNode.parent_id)) ?? [],
+			);
+			const focus = planCompleteFocus({
+				ids: plan.ids,
+				completing,
+				showCompleted,
+				zoomRootId: zoomedNodeId,
+				siblingsOf: () => siblings.map((sibling) => sibling.id),
+				visibleRows: navigableIds(zoomedNodeId, visibleNodes),
+				completedIds: new Set(
+					siblings.filter((sibling) => sibling.completedAt !== null).map((sibling) => sibling.id),
+				),
+			});
+
+			// Commit the edited text before the caret moves; "stay" keeps editing in place
+			if (focus.kind !== "stay") {
+				commitEdit();
+			}
+			if (focus.kind === "row") {
+				resumeEditing(focus.id, focus.offset);
+			} else if (focus.kind === "zoomTitle" && zoomedNodeId !== null) {
+				resumeEditing(zoomedNodeId, 0);
+			}
+
+			const parentOfZoomed = zoomedNode?.parent_id ?? null;
+			const zoomOutAfterSettling =
+				focus.kind === "zoomOut"
+					? {
+							onSettled() {
+								setTimeout(() => {
+									void navigate(parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed));
+								}, focus.delayMs);
+							},
+						}
+					: undefined;
+			for (const nodeId of plan.ids) {
+				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing}, zoomOutAfterSettling);
+			}
 		},
 		editingShortcut,
-		[editedNode, showCompleted, commitEdit, editBesideRemovedNode, toggleCompleteMutation],
+		[
+			editedNode,
+			queryClient,
+			showCompleted,
+			zoomedNodeId,
+			zoomedNode,
+			visibleNodes,
+			commitEdit,
+			resumeEditing,
+			navigate,
+			toggleCompleteMutation,
+		],
 	);
 
 	// Shift+Cmd+Up or Ctrl+Shift+Up: Move the edited node up among siblings

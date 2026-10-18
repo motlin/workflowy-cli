@@ -27,6 +27,9 @@ export const structureHotkeys = {
 	moveDown: "shift+meta+down, ctrl+shift+down",
 } as const;
 
+/** Toggle complete on the edited node: Cmd+Enter on mac, Ctrl+Enter elsewhere, as upstream. */
+export const completeHotkey = "meta+enter, ctrl+enter";
+
 /**
  * Options for navigation shortcuts. Almost every keypress happens while a node is being
  * edited, so navigation fires from inside the edited text, as on workflowy.com.
