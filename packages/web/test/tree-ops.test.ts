@@ -82,25 +82,52 @@ describe("planInsertFirstChild", () => {
 });
 
 describe("planIndent", () => {
-	it("appends the node last under its previous sibling's cached children", () => {
+	const collapsed = new Set<string>();
+
+	it("appends the node last under its previous sibling's cached children and expands the collapsed new parent", () => {
 		const bKids = [node({id: "b1", parent_id: "b", priority: 0}), node({id: "b2", parent_id: "b", priority: 1})];
 		const qc = seed({p: siblings, b: bKids});
-		expect(planIndent(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "b", index: 2});
+		expect(planIndent(qc, siblings[2], collapsed)).toStrictEqual({
+			nodeId: "c",
+			parent_id: "b",
+			index: 2,
+			expandParentId: "b",
+		});
+	});
+
+	it("does not re-expand a new parent that is already expanded", () => {
+		const bKids = [node({id: "b1", parent_id: "b", priority: 0}), node({id: "b2", parent_id: "b", priority: 1})];
+		const qc = seed({p: siblings, b: bKids});
+		expect(planIndent(qc, siblings[2], new Set(["b"]))).toStrictEqual({
+			nodeId: "c",
+			parent_id: "b",
+			index: 2,
+			expandParentId: null,
+		});
 	});
 
 	it("uses index 0 when the previous sibling has no children", () => {
 		const qc = seed({p: [siblings[0], {...siblings[1], hasChildren: false}, siblings[2]]});
-		expect(planIndent(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "b", index: 0});
+		expect(planIndent(qc, siblings[2], collapsed)).toStrictEqual({
+			nodeId: "c",
+			parent_id: "b",
+			index: 0,
+			expandParentId: "b",
+		});
 	});
 
 	it("omits the index (bottom = last) when the previous sibling's children are not cached", () => {
 		const qc = seed({p: [siblings[0], {...siblings[1], hasChildren: true}, siblings[2]]});
-		expect(planIndent(qc, siblings[2])).toStrictEqual({nodeId: "c", parent_id: "b"});
+		expect(planIndent(qc, siblings[2], collapsed)).toStrictEqual({
+			nodeId: "c",
+			parent_id: "b",
+			expandParentId: "b",
+		});
 	});
 
 	it("returns null for the first sibling", () => {
 		const qc = seed({p: siblings});
-		expect(planIndent(qc, siblings[0])).toBeNull();
+		expect(planIndent(qc, siblings[0], collapsed)).toBeNull();
 	});
 });
 
@@ -115,18 +142,24 @@ describe("planOutdent", () => {
 			node({id: "q4", parent_id: "gp", priority: 500}),
 		];
 		const qc = seed({gp: parentSiblings, p: siblings}, [parent]);
-		expect(planOutdent(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "gp", index: 4});
+		expect(planOutdent(qc, siblings[0], null)).toStrictEqual({nodeId: "a", parent_id: "gp", index: 4});
 	});
 
 	it("returns null for a root-level node", () => {
 		const qc = seed({});
-		expect(planOutdent(qc, node({id: "x", parent_id: null}))).toBeNull();
+		expect(planOutdent(qc, node({id: "x", parent_id: null}), null)).toBeNull();
+	});
+
+	it("returns null when the parent is the zoom root", () => {
+		const parent = node({id: "p", parent_id: "gp", priority: 400});
+		const qc = seed({gp: [parent], p: siblings}, [parent]);
+		expect(planOutdent(qc, siblings[0], "p")).toBeNull();
 	});
 
 	it("finds the parent in the zoomed root's cached children when its detail is not cached", () => {
 		const parent = node({id: "p", parent_id: "zoom", priority: 100});
 		const qc = seed({zoom: [parent, node({id: "q", parent_id: "zoom", priority: 200})], p: siblings});
-		expect(planOutdent(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "zoom", index: 1});
+		expect(planOutdent(qc, siblings[0], "zoom")).toStrictEqual({nodeId: "a", parent_id: "zoom", index: 1});
 	});
 });
 

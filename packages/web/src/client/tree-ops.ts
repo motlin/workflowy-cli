@@ -252,12 +252,20 @@ export function planDuplicate(
 	};
 }
 
+/** Tab plan: the move payload, plus the new parent to expand when it is collapsed (or null). */
+export type IndentPlan = MoveNodePayload & {expandParentId: string | null};
+
 /**
- * Indent `node` as the LAST child of its previous sibling (upstream `Gs1`), or null if
- * it has no previous sibling. Without the sibling's children cached the index is
- * omitted, since the server's bottom is the same slot.
+ * Indent `node` as the LAST child of its previous sibling (upstream `Gs1`), expanding
+ * that sibling when it is not in `expandedIds`, or null if it has no previous sibling.
+ * Without the sibling's children cached the index is omitted, since the server's
+ * bottom is the same slot.
  */
-export function planIndent(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
+export function planIndent(
+	queryClient: QueryClient,
+	node: PlanNode,
+	expandedIds: ReadonlySet<string>,
+): IndentPlan | null {
 	const siblings = readChildren(queryClient, node.parent_id);
 	if (!siblings) {
 		return null;
@@ -268,18 +276,26 @@ export function planIndent(queryClient: QueryClient, node: PlanNode): MoveNodePa
 	if (index <= 0 || previous === undefined) {
 		return null;
 	}
+	const expandParentId = expandedIds.has(previous.id) ? null : previous.id;
 	const previousChildren = readChildren(queryClient, previous.id);
 	if (previousChildren !== undefined) {
-		return {nodeId: node.id, parent_id: previous.id, index: previousChildren.length};
+		return {nodeId: node.id, parent_id: previous.id, index: previousChildren.length, expandParentId};
 	}
 	return previous.hasChildren === false
-		? {nodeId: node.id, parent_id: previous.id, index: 0}
-		: {nodeId: node.id, parent_id: previous.id};
+		? {nodeId: node.id, parent_id: previous.id, index: 0, expandParentId}
+		: {nodeId: node.id, parent_id: previous.id, expandParentId};
 }
 
-/** Outdent `node` to sit after its parent among the grandparent's children, or null if at root. */
-export function planOutdent(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
-	if (node.parent_id === null) {
+/**
+ * Outdent `node` to sit right after its parent among the grandparent's children.
+ * Null at root, or when the parent is the zoom root (the node would leave the page).
+ */
+export function planOutdent(
+	queryClient: QueryClient,
+	node: PlanNode,
+	zoomedNodeId: string | null,
+): MoveNodePayload | null {
+	if (node.parent_id === null || node.parent_id === zoomedNodeId) {
 		return null;
 	}
 	const parent = readNode(queryClient, node.parent_id);

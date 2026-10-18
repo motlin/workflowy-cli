@@ -155,17 +155,24 @@ export function useKeyboardShortcuts() {
 		}
 	}, [editingId]);
 
-	/** Move the edited node, keeping its caret and unsaved text through the re-render. */
+	/**
+	 * Move the edited node, keeping its caret and unsaved text through the re-render,
+	 * after expanding its new parent when the plan asks for it.
+	 */
 	const moveEditedNode = useCallback(
-		(payload: MoveNodePayload | null) => {
-			if (payload === null) {
+		(plan: (MoveNodePayload & {expandParentId?: string | null}) | null) => {
+			if (plan === null) {
 				return;
+			}
+			const {expandParentId, ...payload} = plan;
+			if (expandParentId !== undefined && expandParentId !== null) {
+				expand(expandParentId);
 			}
 			const editor = editorElement(payload.nodeId);
 			holdEditing(editor ? caretTextOffset(editor) : Number.MAX_SAFE_INTEGER);
 			moveNodeMutation.mutate(payload, {onSettled: releaseEditing});
 		},
-		[holdEditing, releaseEditing, moveNodeMutation],
+		[expand, holdEditing, releaseEditing, moveNodeMutation],
 	);
 
 	/** Shift+Cmd+Up/Down: swap with a sibling or cross into the parent's sibling, expanding it. */
@@ -180,13 +187,15 @@ export function useKeyboardShortcuts() {
 			if (plan === null) {
 				return;
 			}
-			if (plan.expandParentId !== null) {
-				expand(plan.expandParentId);
-			}
-			moveEditedNode({nodeId: plan.nodeId, parent_id: plan.parentId, index: plan.index});
+			moveEditedNode({
+				nodeId: plan.nodeId,
+				parent_id: plan.parentId,
+				index: plan.index,
+				expandParentId: plan.expandParentId,
+			});
 			flashMoving(plan.nodeId);
 		},
-		[queryClient, zoomedNodeId, expand, moveEditedNode, flashMoving],
+		[queryClient, zoomedNodeId, moveEditedNode, flashMoving],
 	);
 
 	/** Continue editing beside the edited node, which is about to leave the view. */
@@ -319,7 +328,7 @@ export function useKeyboardShortcuts() {
 		structureHotkeys.indent,
 		() => {
 			if (editedNode !== undefined) {
-				moveEditedNode(planIndent(queryClient, editedNode));
+				moveEditedNode(planIndent(queryClient, editedNode, useOutlineStore.getState().expandedIds));
 			}
 		},
 		editingShortcut,
@@ -331,11 +340,11 @@ export function useKeyboardShortcuts() {
 		structureHotkeys.outdent,
 		() => {
 			if (editedNode !== undefined) {
-				moveEditedNode(planOutdent(queryClient, editedNode));
+				moveEditedNode(planOutdent(queryClient, editedNode, zoomedNodeId));
 			}
 		},
 		editingShortcut,
-		[editedNode, queryClient, moveEditedNode],
+		[editedNode, queryClient, zoomedNodeId, moveEditedNode],
 	);
 
 	// Cmd+Enter or Ctrl+Enter: Toggle complete/uncomplete on the edited node and move the caret as upstream does
