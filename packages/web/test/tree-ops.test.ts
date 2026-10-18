@@ -3,6 +3,7 @@ import {describe, expect, it} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys, spliceChildren} from "../src/client/node-cache.js";
 import {
+	applySplitPlan,
 	defaultIndexIn,
 	dropIndex,
 	planAddChild,
@@ -10,9 +11,7 @@ import {
 	planDeleteAtEnd,
 	planDuplicate,
 	planIndent,
-	planInsertFirstChild,
 	isPotentiallyVisible,
-	planInsertSiblingAfter,
 	planOutdent,
 	planSplit,
 	planToggleComplete,
@@ -52,32 +51,11 @@ const siblings = [
 	node({id: "c", parent_id: "p", priority: 300}),
 ];
 
-describe("planInsertSiblingAfter / planDuplicate", () => {
-	it("inserts an empty sibling at the index after the node", () => {
-		const qc = seed({p: siblings});
-		expect(planInsertSiblingAfter(qc, siblings[1])).toStrictEqual({parent_id: "p", name: "", index: 2});
-	});
-
-	it("counts a completed sibling in the index", () => {
-		const done = node({id: "x", parent_id: "p", priority: 150, completedAt: 1});
-		const qc = seed({p: [siblings[2], done, siblings[0], siblings[1]]});
-		expect(planInsertSiblingAfter(qc, siblings[1])).toStrictEqual({parent_id: "p", name: "", index: 3});
-	});
-
-	it("omits the index (bottom) when the siblings are not cached", () => {
-		expect(planInsertSiblingAfter(seed({}), siblings[1])).toStrictEqual({parent_id: "p", name: ""});
-	});
-
+describe("planDuplicate", () => {
 	it("carries name and note when duplicating", () => {
 		const qc = seed({p: siblings});
 		const src = node({id: "a", parent_id: "p", priority: 100, name: "Hi", note: "yo"});
 		expect(planDuplicate(qc, src)).toStrictEqual({parent_id: "p", name: "Hi", note: "yo", index: 1});
-	});
-});
-
-describe("planInsertFirstChild", () => {
-	it("creates an empty child at index 0 (Enter in the zoom title)", () => {
-		expect(planInsertFirstChild("p")).toStrictEqual({parent_id: "p", name: "", index: 0});
 	});
 });
 
@@ -596,6 +574,49 @@ describe("planSplit", () => {
 			focus: "new",
 			layoutMode: null,
 		});
+	});
+});
+
+describe("applySplitPlan", () => {
+	const plan = {
+		kind: "create",
+		parentId: "p",
+		index: 4,
+		newName: "Bravo",
+		currentName: " text",
+		focus: "current",
+		layoutMode: null,
+	} as const;
+
+	it("renames the current row, creates the row above at the planner's index, and edits the current row at 0 for a mid caret", () => {
+		expect(applySplitPlan(plan, "n", "Bravo text")).toStrictEqual([
+			{type: "update", nodeId: "n", name: " text"},
+			{type: "create", parent_id: "p", index: 4, name: "Bravo", layoutMode: null},
+			{type: "edit", target: "current", caret: 0},
+		]);
+	});
+
+	it("skips the rename when the current name is unchanged and edits the new row at 0 for an end caret", () => {
+		expect(
+			applySplitPlan(
+				{...plan, index: 5, newName: "", currentName: "Bravo text", focus: "new", layoutMode: "todo"},
+				"n",
+				"Bravo text",
+			),
+		).toStrictEqual([
+			{type: "create", parent_id: "p", index: 5, name: "", layoutMode: "todo"},
+			{type: "edit", target: "new", caret: 0},
+		]);
+	});
+
+	it("saves text typed before an end-caret Enter", () => {
+		expect(
+			applySplitPlan({...plan, index: 5, newName: "", currentName: "Bravo text", focus: "new"}, "n", "Bravo"),
+		).toStrictEqual([
+			{type: "update", nodeId: "n", name: "Bravo text"},
+			{type: "create", parent_id: "p", index: 5, name: "", layoutMode: null},
+			{type: "edit", target: "new", caret: 0},
+		]);
 	});
 });
 

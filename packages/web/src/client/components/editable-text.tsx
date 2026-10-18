@@ -3,7 +3,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
-import {planBackspaceAtStart, planDeleteAtEnd, planInsertFirstChild, planInsertSiblingAfter} from "../tree-ops.js";
+import {applySplitPlan, planBackspaceAtStart, planDeleteAtEnd, planOutdent, planSplit} from "../tree-ops.js";
 import type {MergeRow} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import type {NodeResponse} from "../../node-types.js";
@@ -16,12 +16,12 @@ import {
 	planNoteBoundary,
 } from "../caret-navigation.js";
 import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.js";
-import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
+import {caretTextOffset, placeCaretAtTextOffset, selectionTextOffsets} from "../caret-dom.js";
 import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
 import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
-import {useCreateNode, useDeleteNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
@@ -118,7 +118,7 @@ const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Le
  * Inline editable text component using contenteditable.
  * - Supports HTML formatting (bold, italic preserved from node content)
  * - Saves on blur
- * - Enter creates a new sibling node below and focuses it
+ * - Enter splits the row at the selection (or outdents an empty last row); see `planSplit`
  * - Shift+Enter commits the text and focuses the row's note (creating it) with the caret at its end
  * - Backspace in an empty, childless, note-less node deletes it and edits the previous node
  * - Backspace at the start merges the previous sibling's text in; Delete at the end
@@ -140,6 +140,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
 	const deleteNodeMutation = useDeleteNode();
+	const moveNodeMutation = useMoveNode();
+	const holdEditing = useOutlineStore((state) => state.holdEditing);
 	const tagColors = useTagColors();
 	const setTagColorMutation = useSetTagColor();
 	const removeTagColorMutation = useRemoveTagColor();
@@ -325,30 +327,95 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[focusNote, nodeId, queryClient, saveChanges],
 	);
 
-	const createSiblingBelow = useCallback(() => {
-		// Save current changes first
-		if (contentRef.current) {
-			const newValue = canonicalTimeAttributes(contentRef.current.innerHTML);
-			if (newValue !== initialValueRef.current) {
-				updateNodeMutation.mutate({
-					nodeId,
-					name: newValue,
-				});
+	/**
+	 * Enter (upstream `hK`): outdent an empty last row, else split the text around the
+	 * selection into a new row created at its exact slot (one create per Enter), rename
+	 * the current row when its text changed, and edit the focused row at its start.
+	 */
+	const splitAtSelection = useCallback(() => {
+		const content = contentRef.current;
+		if (!content) {
+			return;
+		}
+		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+		const visible = new Set(
+			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
+		);
+		const allSiblings = sortByPriority(readChildren(queryClient, parentId) ?? []);
+		const listed = allSiblings.find((sibling) => sibling.id === nodeId);
+		const visibleSiblings = allSiblings.filter((sibling) => sibling.id === nodeId || visible.has(sibling.id));
+		// Unknown children count as children: never treat an unloaded subtree as empty.
+		const children = readChildren(queryClient, nodeId);
+		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
+		const note = readDetail(queryClient, nodeId)?.note ?? listed?.note ?? "";
+		const html = canonicalTimeAttributes(content.innerHTML);
+		const outdent = planOutdent(queryClient, {id: nodeId, parent_id: parentId, priority}, zoomedNodeId);
+		const plan = planSplit({
+			node: {
+				id: nodeId,
+				parent_id: parentId,
+				index: Math.max(
+					allSiblings.findIndex((sibling) => sibling.id === nodeId),
+					0,
+				),
+				layoutMode: listed?.data.layoutMode,
+				hasVisibleChildren: (children ?? []).some((child) => visible.has(child.id)),
+				isExpanded: expandedIds.has(nodeId),
+				isZoomRoot: nodeId === zoomedNodeId,
+				isEmpty: content.textContent === "" && !note && !hasChildren,
+				hasNextSibling: visibleSiblings.at(-1)?.id !== nodeId,
+				canOutdent: outdent !== null,
+			},
+			html,
+			selection: selectionTextOffsets(content),
+		});
+
+		if (plan.kind === "outdent") {
+			if (outdent !== null) {
+				holdEditing(0);
+				moveNodeMutation.mutate(outdent, {onSettled: releaseEditing});
 			}
+			return;
 		}
 
-		// Enter in the zoom title creates its first child rather than an off-screen sibling.
-		const payload =
-			useOutlineStore.getState().zoomedNodeId === nodeId
-				? planInsertFirstChild(nodeId)
-				: planInsertSiblingAfter(queryClient, {id: nodeId, parent_id: parentId, priority});
-
+		// Show the kept text now, so the blur commit and the re-render agree with the plan.
+		if (html !== plan.currentName) {
+			content.innerHTML = plan.currentName;
+		}
 		// The new row carries a client-generated id, so the caret moves into it now,
 		// before the create round-trip; writes to it wait for the create (pendingCreates).
-		const id = crypto.randomUUID();
-		createNodeMutation.mutate({...payload, id});
-		startEditing(id);
-	}, [nodeId, parentId, priority, queryClient, updateNodeMutation, createNodeMutation, startEditing]);
+		const newId = crypto.randomUUID();
+		for (const step of applySplitPlan(plan, nodeId, initialValueRef.current)) {
+			if (step.type === "update") {
+				initialValueRef.current = step.name;
+				updateNodeMutation.mutate({nodeId: step.nodeId, name: step.name});
+			} else if (step.type === "create") {
+				createNodeMutation.mutate({
+					id: newId,
+					parent_id: step.parent_id ?? undefined,
+					index: step.index,
+					name: step.name,
+					...(step.layoutMode === null ? {} : {layoutMode: step.layoutMode}),
+				});
+			} else if (step.target === "current") {
+				placeCaretAtTextOffset(content, step.caret);
+				resumeEditing(nodeId, step.caret);
+			} else {
+				resumeEditing(newId, step.caret);
+			}
+		}
+	}, [
+		nodeId,
+		parentId,
+		priority,
+		queryClient,
+		updateNodeMutation,
+		createNodeMutation,
+		moveNodeMutation,
+		holdEditing,
+		releaseEditing,
+		resumeEditing,
+	]);
 
 	/**
 	 * Backspace in an empty, childless node deletes it and continues editing at the
@@ -614,7 +681,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				event.preventDefault();
 			} else if (action === "RETURN") {
 				event.preventDefault();
-				createSiblingBelow();
+				splitAtSelection();
 			} else if (action === "SHIFT_RETURN") {
 				event.preventDefault();
 				saveChanges();
@@ -656,7 +723,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 		},
 		[
-			createSiblingBelow,
 			deleteIfEmpty,
 			enterRootNote,
 			focusNote,
@@ -666,6 +732,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			nodeId,
 			openSearchFromEditing,
 			saveChanges,
+			splitAtSelection,
 			toggleStrikethrough,
 			toggleCode,
 			toggleCodeBlock,

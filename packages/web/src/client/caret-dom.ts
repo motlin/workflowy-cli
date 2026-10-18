@@ -19,6 +19,32 @@ export function caretTextOffset(element: HTMLElement): number {
 	return before.toString().length;
 }
 
+/**
+ * Text-character offsets of the selection's start and end within `element`; both are
+ * the text length when the selection lies outside it.
+ */
+export function selectionTextOffsets(element: HTMLElement): {start: number; end: number} {
+	const selection = globalThis.getSelection();
+	const length = element.textContent.length;
+	if (!selection || selection.rangeCount === 0) {
+		return {start: length, end: length};
+	}
+	const range = selection.getRangeAt(0);
+	if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) {
+		return {start: length, end: length};
+	}
+	const offsetOf = (container: Node, offset: number): number => {
+		const before = document.createRange();
+		before.selectNodeContents(element);
+		before.setEnd(container, offset);
+		return before.toString().length;
+	};
+	return {
+		start: offsetOf(range.startContainer, range.startOffset),
+		end: offsetOf(range.endContainer, range.endOffset),
+	};
+}
+
 /** Collapse the selection to `offset` text characters into `element`, clamped to its end. */
 export function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
 	const range = document.createRange();

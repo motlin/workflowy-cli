@@ -65,16 +65,6 @@ export function dropIndex(
 	return target + (position === "below" ? 1 : 0);
 }
 
-/** Create an empty sibling immediately after `node` (Enter / new-sibling). */
-export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode): CreateNodePayload {
-	return {parent_id: node.parent_id ?? undefined, name: "", ...indexAfter(queryClient, node.parent_id, node.id)};
-}
-
-/** Create an empty first child of `parentId` (Enter in the zoom title). */
-export function planInsertFirstChild(parentId: string): CreateNodePayload {
-	return {parent_id: parentId, name: "", index: 0};
-}
-
 /** Payload for the add-child button: an empty last child of the zoomed item. */
 export interface AddChildPlan {
 	parent_id: string | undefined;
@@ -175,6 +165,31 @@ export function planSplit({
 	}
 	const {before, after} = splitHtml(html, start, end);
 	return create(node.parent_id, node.index, before, after, "current");
+}
+
+/** One step of carrying out a split plan, in order. */
+export type SplitMutation =
+	| {type: "update"; nodeId: string; name: string}
+	| {type: "create"; parent_id: string | null; index: number; name: string; layoutMode: "todo" | null}
+	| {type: "edit"; target: "new" | "current"; caret: 0};
+
+/**
+ * The ordered mutations for a `create` split plan on `nodeId`: rename the current row
+ * when its name differs from `savedName`, create the new row at the planner's exact
+ * `index` (one create, no sibling rotation), then edit the focused row at its start.
+ */
+export function applySplitPlan(
+	plan: Extract<SplitPlan, {kind: "create"}>,
+	nodeId: string,
+	savedName: string,
+): SplitMutation[] {
+	const rename: SplitMutation[] =
+		plan.currentName === savedName ? [] : [{type: "update", nodeId, name: plan.currentName}];
+	return [
+		...rename,
+		{type: "create", parent_id: plan.parentId, index: plan.index, name: plan.newName, layoutMode: plan.layoutMode},
+		{type: "edit", target: plan.focus, caret: 0},
+	];
 }
 
 /** The row state the merge planners read. */

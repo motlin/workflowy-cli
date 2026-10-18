@@ -15,6 +15,7 @@ vi.mock("../src/client/stores/outline.js", () => ({
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useCreateNode: () => ({mutate: () => {}}),
 	useDeleteNode: () => ({mutate: () => {}}),
+	useMoveNode: () => ({mutate: () => {}}),
 	useUpdateNode: () => ({mutate: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-tag-colors.js", () => ({
