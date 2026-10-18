@@ -50,6 +50,21 @@ export function defaultIndexIn(target: Pick<NodeResponse, "defaultToBottom">, ch
 	return target.defaultToBottom === true ? childCount : 0;
 }
 
+/**
+ * The move index for dropping `draggedId` above or below `targetId`: the target's
+ * slot among `children` (priority order) with the dragged row removed, +1 for below.
+ */
+export function dropIndex(
+	children: Pick<NodeResponse, "id" | "priority">[],
+	draggedId: string,
+	targetId: string,
+	position: "above" | "below",
+): number {
+	const others = sortByPriority(children).filter((child) => child.id !== draggedId);
+	const target = others.findIndex((child) => child.id === targetId);
+	return target + (position === "below" ? 1 : 0);
+}
+
 /** Create an empty sibling immediately after `node` (Enter / new-sibling). */
 export function planInsertSiblingAfter(queryClient: QueryClient, node: PlanNode): CreateNodePayload {
 	return {parent_id: node.parent_id ?? undefined, name: "", ...indexAfter(queryClient, node.parent_id, node.id)};

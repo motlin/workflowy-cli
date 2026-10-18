@@ -1,9 +1,9 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
-import {nodeKeys} from "../node-cache.js";
+import {nodeKeys, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
-import {priorityAtIndex} from "../tree-position.js";
 
 interface CreateNodeRequest {
 	parent_id?: string;
@@ -180,6 +180,29 @@ export function useAncestors(nodeId: string | null) {
 	});
 }
 
+/** The slot a create/move lands in: the exact `index`, else the legacy hint (negative = top, else bottom). */
+function requestedIndex(request: {index?: number; position?: number}, count: number): number {
+	if (request.index !== undefined) {
+		return request.index;
+	}
+	return request.position !== undefined && request.position < 0 ? 0 : count;
+}
+
+/** A node from its detail cache, else from whichever cached children list holds it. */
+function findCachedNode(queryClient: QueryClient, nodeId: string): NodeResponse | undefined {
+	const detail = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
+	if (detail) {
+		return detail;
+	}
+	for (const [, children] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "children"]})) {
+		const found = children?.find((child) => child.id === nodeId);
+		if (found) {
+			return found;
+		}
+	}
+	return undefined;
+}
+
 /**
  * Creates a new node with optimistic update.
  */
@@ -207,15 +230,17 @@ export function useCreateNode() {
 				parent_id: parentId,
 				name: newNode.name,
 				note: newNode.note ?? null,
-				priority: newNode.position ?? priorityAtIndex(previousChildren ?? [], newNode.index),
+				priority: 0,
 				data: {layoutMode: newNode.layoutMode ?? null},
 				createdAt: Math.floor(Date.now() / 1000),
 				modifiedAt: Math.floor(Date.now() / 1000),
 				completedAt: null,
 			};
 
-			queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), (old) =>
-				old ? [...old, optimisticNode] : [optimisticNode],
+			const siblings = previousChildren ?? [];
+			queryClient.setQueryData<NodeResponse[]>(
+				nodeKeys.children(parentId),
+				spliceChildren(siblings, optimisticNode, requestedIndex(newNode, siblings.length)),
 			);
 
 			return {previousChildren, parentId};
@@ -322,7 +347,8 @@ export function useDeleteNode() {
 }
 
 /**
- * Moves a node to a new parent with optimistic update.
+ * Moves a node to `index` under `parent_id` (same parent or another) with an
+ * optimistic splice: the row is removed then inserted at the index, never duplicated.
  */
 export function useMoveNode() {
 	const queryClient = useQueryClient();
@@ -332,140 +358,148 @@ export function useMoveNode() {
 
 	return useMutation({
 		mutationFn: async ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
-		async onMutate({nodeId, parent_id: newParentId}) {
+		async onMutate(request) {
 			beginMutation();
-			// Cancel outgoing refetches for all nodes
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
-
-			// Get the node to find its current parent
-			const node = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
-			const oldParentId = node?.parent_id ?? null;
-
-			// Snapshot previous children lists
-			const previousOldParentChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(oldParentId));
-			const previousNewParentChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(newParentId));
-
-			// Optimistically remove from old parent
-			if (previousOldParentChildren) {
-				queryClient.setQueryData<NodeResponse[]>(
-					nodeKeys.children(oldParentId),
-					previousOldParentChildren.filter((n) => n.id !== nodeId),
-				);
-			}
-
-			// Optimistically add to new parent
-			if (node && previousNewParentChildren) {
-				const movedNode = {...node, parent_id: newParentId};
-				queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(newParentId), [
-					...previousNewParentChildren,
-					movedNode,
-				]);
-			}
-
-			// Update node detail cache
-			if (node) {
-				queryClient.setQueryData<NodeResponse>(nodeKeys.detail(nodeId), {
-					...node,
-					parent_id: newParentId,
-				});
-			}
-
-			return {
-				nodeId,
-				oldParentId,
-				newParentId,
-				previousOldParentChildren,
-				previousNewParentChildren,
-				previousNode: node,
-			};
+			const node = findCachedNode(queryClient, request.nodeId);
+			return node
+				? spliceMovedRows(queryClient, [node], request.parent_id, (count) => requestedIndex(request, count))
+				: [];
 		},
-		onError(error, _variables, context) {
-			// Roll back to previous values on error
-			if (context) {
-				if (context.previousOldParentChildren !== undefined) {
-					queryClient.setQueryData(nodeKeys.children(context.oldParentId), context.previousOldParentChildren);
-				}
-				if (context.previousNewParentChildren !== undefined) {
-					queryClient.setQueryData(nodeKeys.children(context.newParentId), context.previousNewParentChildren);
-				}
-				if (context.previousNode !== undefined) {
-					queryClient.setQueryData(nodeKeys.detail(context.nodeId), context.previousNode);
-				}
-			}
+		onError(error, _variables, snapshots) {
+			restoreSnapshots(queryClient, snapshots);
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
 		async onSettled() {
 			endMutation();
-			// Refetch to get the real data from server
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
 }
 
+interface MoveNodesRequest {
+	ids: string[];
+	parent_id: string | null;
+	/** Slot among the new parent's children not being moved; omitted = bottom. */
+	index?: number;
+}
+
+async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
+	const response = await fetch("/api/v1/nodes/move", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(request),
+	});
+	if (!response.ok) {
+		throw new Error(`Failed to move nodes: ${response.statusText}`);
+	}
+	const data = await readJson<{nodes: NodeResponse[]}>(response);
+	return data.nodes;
+}
+
 /**
- * Reorders a node among its siblings (same parent) with optimistic update.
- * Used for drag-and-drop reordering within the same level.
+ * Moves a contiguous block of nodes, in the given order, to `index` under `parent_id`
+ * in one call (multi-select, drag, Sort). Splices optimistically, then applies the
+ * server's sibling lists for every touched parent.
  */
-export function useReorderNode() {
+// fallow-ignore-next-line unused-export -- callers land with Sort (M2-88) and block moves (M2-108)
+export function useMoveNodes() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
+	const beginMutation = useOutlineStore((state) => state.beginMutation);
+	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	return useMutation({
-		mutationFn: async ({nodeId, parentId, position}: {nodeId: string; parentId: string | null; position: number}) =>
-			moveNode(nodeId, {parent_id: parentId, position}),
-		async onMutate({nodeId, parentId, position}) {
-			// Cancel outgoing refetches for all nodes
+		mutationFn: moveNodes,
+		async onMutate(request) {
+			beginMutation();
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
-
-			// Get the node
-			const node = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
-
-			// Snapshot previous children list
-			const previousChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
-
-			// Optimistically reorder within the same parent
-			if (node && previousChildren) {
-				const otherChildren = previousChildren.filter((n) => n.id !== nodeId);
-				const reorderedNode = {...node, priority: position};
-
-				// Insert at new position and update priorities
-				const newChildren = [...otherChildren, reorderedNode].toSorted((a, b) => a.priority - b.priority);
-
-				queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), newChildren);
-			}
-
-			// Update node detail cache with new priority
-			if (node) {
-				queryClient.setQueryData<NodeResponse>(nodeKeys.detail(nodeId), {
-					...node,
-					priority: position,
-				});
-			}
-
-			return {
-				nodeId,
-				parentId,
-				previousChildren,
-				previousNode: node,
-			};
+			const rows = request.ids
+				.map((id) => findCachedNode(queryClient, id))
+				.filter((row): row is NodeResponse => row !== undefined);
+			return spliceMovedRows(queryClient, rows, request.parent_id, (count) => request.index ?? count);
 		},
-		onError(error, _variables, context) {
-			// Roll back to previous values on error
-			if (context) {
-				if (context.previousChildren !== undefined) {
-					queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
-				}
-				if (context.previousNode !== undefined) {
-					queryClient.setQueryData(nodeKeys.detail(context.nodeId), context.previousNode);
-				}
+		onSuccess(nodes, _variables, snapshots) {
+			for (const {parentId} of snapshots.filter((snapshot) => snapshot.kind === "children")) {
+				queryClient.setQueryData<NodeResponse[]>(
+					nodeKeys.children(parentId),
+					nodes.filter((node) => node.parent_id === parentId),
+				);
 			}
-			addErrorNotification(`Failed to reorder node: ${error.message}`);
+			for (const node of nodes) {
+				queryClient.setQueryData<NodeResponse>(nodeKeys.detail(node.id), (old) => (old ? node : old));
+			}
 		},
-		async onSettled() {
-			// Refetch to get the real data from server
+		async onError(error, _variables, snapshots) {
+			restoreSnapshots(queryClient, snapshots);
+			addErrorNotification(`Failed to move nodes: ${error.message}`);
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
+		onSettled() {
+			endMutation();
+		},
 	});
+}
+
+type CacheSnapshot =
+	| {kind: "children"; parentId: string | null; previous: NodeResponse[] | undefined}
+	| {kind: "detail"; nodeId: string; previous: NodeResponse | undefined};
+
+/**
+ * Optimistically move `rows` under `newParentId` at `indexFor(siblingCount)`: remove them
+ * from their old parents' cached lists, splice them into the new parent's, and repoint
+ * their detail caches. Returns snapshots of every touched entry for rollback.
+ */
+function spliceMovedRows(
+	queryClient: QueryClient,
+	rows: NodeResponse[],
+	newParentId: string | null,
+	indexFor: (count: number) => number,
+): CacheSnapshot[] {
+	const movedIds = new Set(rows.map((row) => row.id));
+	const parentIds = [...new Set([...rows.map((row) => row.parent_id), newParentId])];
+	const snapshots: CacheSnapshot[] = parentIds.map((parentId) => ({
+		kind: "children",
+		parentId,
+		previous: queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId)),
+	}));
+	for (const snapshot of snapshots) {
+		if (snapshot.kind === "children" && snapshot.previous && snapshot.parentId !== newParentId) {
+			queryClient.setQueryData<NodeResponse[]>(
+				nodeKeys.children(snapshot.parentId),
+				snapshot.previous.filter((child) => !movedIds.has(child.id)),
+			);
+		}
+	}
+	const moved = rows.map((row) => ({...row, parent_id: newParentId}));
+	const target = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(newParentId));
+	if (target) {
+		const remaining = target.filter((child) => !movedIds.has(child.id)).length;
+		queryClient.setQueryData<NodeResponse[]>(
+			nodeKeys.children(newParentId),
+			spliceBlock(target, moved, indexFor(remaining)),
+		);
+	}
+	for (const row of moved) {
+		const previous = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(row.id));
+		snapshots.push({kind: "detail", nodeId: row.id, previous});
+		if (previous) {
+			queryClient.setQueryData<NodeResponse>(nodeKeys.detail(row.id), {...previous, parent_id: newParentId});
+		}
+	}
+	return snapshots;
+}
+
+/** Roll every snapshotted cache entry back to its pre-mutation value. */
+function restoreSnapshots(queryClient: QueryClient, snapshots: CacheSnapshot[] | undefined): void {
+	for (const snapshot of snapshots ?? []) {
+		if (snapshot.previous === undefined) {
+			continue;
+		}
+		const key =
+			snapshot.kind === "children" ? nodeKeys.children(snapshot.parentId) : nodeKeys.detail(snapshot.nodeId);
+		queryClient.setQueryData(key, snapshot.previous);
+	}
 }
 
 /**

@@ -4,6 +4,7 @@ import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {
 	defaultIndexIn,
+	dropIndex,
 	planAddChild,
 	planBackspaceAtStart,
 	planDeleteAtEnd,
@@ -455,5 +456,21 @@ describe("planBackspaceAtStart / planDeleteAtEnd", () => {
 		expect(planDeleteAtEnd({current: {...row, id: "bravo", html: "Bravo"}, nextSibling: null})).toStrictEqual({
 			kind: "none",
 		});
+	});
+});
+
+describe("dropIndex", () => {
+	it("indexes the target among the siblings without the dragged row", () => {
+		expect(dropIndex(siblings, "a", "b", "below")).toBe(1);
+		expect(dropIndex(siblings, "c", "a", "above")).toBe(0);
+		expect(dropIndex(siblings, "a", "c", "above")).toBe(1);
+	});
+
+	it("indexes a row dragged in from another parent among all siblings", () => {
+		expect(dropIndex(siblings, "elsewhere", "b", "below")).toBe(2);
+	});
+
+	it("orders siblings by priority", () => {
+		expect(dropIndex([siblings[2], siblings[1], siblings[0]], "elsewhere", "a", "above")).toBe(0);
 	});
 });

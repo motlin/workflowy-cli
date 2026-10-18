@@ -1,6 +1,9 @@
+import {useQueryClient} from "@tanstack/react-query";
 import {useState} from "react";
 import {z} from "zod";
-import {useMoveNode, useReorderNode} from "./use-nodes.js";
+import {readChildren} from "../node-cache.js";
+import {dropIndex} from "../tree-ops.js";
+import {useMoveNode} from "./use-nodes.js";
 
 const DragDataSchema = z.object({
 	nodeId: z.string(),
@@ -21,8 +24,8 @@ interface NodeDragDropOptions {
  * Used by OutlineRow for its bullet and name drop target.
  */
 export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOptions) {
+	const queryClient = useQueryClient();
 	const moveNode = useMoveNode();
-	const reorderNode = useReorderNode();
 
 	const [isDragging, setIsDragging] = useState(false);
 	const [isDragOver, setIsDragOver] = useState(false);
@@ -102,27 +105,14 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 		}
 
 		if (currentDropPosition === "child") {
+			moveNode.mutate({nodeId: data.nodeId, parent_id: nodeId, index: 0});
+		} else if (currentDropPosition === "above" || currentDropPosition === "below") {
+			const siblings = readChildren(queryClient, parentId) ?? [];
 			moveNode.mutate({
 				nodeId: data.nodeId,
-				parent_id: nodeId,
-				position: 0,
+				parent_id: parentId,
+				index: dropIndex(siblings, data.nodeId, nodeId, currentDropPosition),
 			});
-		} else if (currentDropPosition === "above" || currentDropPosition === "below") {
-			const newPosition = currentDropPosition === "above" ? -1 : 1;
-
-			if (data.parentId === parentId) {
-				reorderNode.mutate({
-					nodeId: data.nodeId,
-					parentId,
-					position: newPosition,
-				});
-			} else {
-				moveNode.mutate({
-					nodeId: data.nodeId,
-					parent_id: parentId,
-					position: newPosition,
-				});
-			}
 		}
 	};
 

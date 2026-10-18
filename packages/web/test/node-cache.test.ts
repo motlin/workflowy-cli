@@ -1,6 +1,6 @@
 import {QueryClient} from "@tanstack/react-query";
 import {describe, expect, it} from "vite-plus/test";
-import {nodeKeys, readChildren, readDetail} from "../src/client/node-cache.js";
+import {nodeKeys, readChildren, readDetail, spliceBlock, spliceChildren} from "../src/client/node-cache.js";
 import type {NodeResponse} from "../src/node-types.js";
 
 describe("nodeKeys", () => {
@@ -40,5 +40,54 @@ describe("readChildren / readDetail", () => {
 		const qc = new QueryClient();
 		expect(readChildren(qc, "absent")).toBeUndefined();
 		expect(readDetail(qc, "absent")).toBeUndefined();
+	});
+});
+
+function row(id: string, priority: number): NodeResponse {
+	return {
+		id,
+		parent_id: "p",
+		name: id,
+		note: null,
+		priority,
+		data: {layoutMode: null},
+		createdAt: null,
+		modifiedAt: null,
+		completedAt: null,
+	};
+}
+
+const ids = (rows: NodeResponse[]) => rows.map((r) => r.id);
+
+describe("spliceChildren", () => {
+	const abc = [row("a", 100), row("b", 200), row("c", 300)];
+
+	it("moves a row within its parent without duplicating it", () => {
+		expect(ids(spliceChildren(abc, abc[0], 1))).toStrictEqual(["b", "a", "c"]);
+		expect(ids(spliceChildren(abc, abc[2], 0))).toStrictEqual(["c", "a", "b"]);
+	});
+
+	it("inserts a new row at the index", () => {
+		expect(ids(spliceChildren([row("y", 5), row("z", 9)], row("x", 0), 0))).toStrictEqual(["x", "y", "z"]);
+	});
+
+	it("clamps an index past the end", () => {
+		expect(ids(spliceChildren(abc, row("x", 0), 9))).toStrictEqual(["a", "b", "c", "x"]);
+	});
+
+	it("sorts by priority and renumbers priorities", () => {
+		const shuffled = [row("c", 30), row("a", 10), row("b", 20)];
+		expect(spliceChildren(shuffled, shuffled[0], 0).map((r) => [r.id, r.priority])).toStrictEqual([
+			["c", 100],
+			["a", 200],
+			["b", 300],
+		]);
+	});
+});
+
+describe("spliceBlock", () => {
+	it("removes every moved row then inserts the block contiguously in order", () => {
+		const children = [row("d", 1), row("c", 2), row("b", 3), row("a", 4)];
+		expect(ids(spliceBlock(children, [children[1], children[2]], 2))).toStrictEqual(["d", "a", "c", "b"]);
 	});
 });
