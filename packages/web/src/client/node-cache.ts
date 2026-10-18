@@ -53,3 +53,38 @@ export function spliceBlock(children: NodeResponse[], rows: NodeResponse[], inde
 		priority: (i + 1) * 100,
 	}));
 }
+
+/**
+ * Optimistically apply `patch` to `nodeId` everywhere the outline reads it: its detail
+ * entry and its row in every cached children list (rows render from the list, so a
+ * detail-only patch leaves the row showing stale text until the refetch). Returns a
+ * function that restores every touched entry.
+ */
+export function patchCachedNode(
+	queryClient: QueryClient,
+	nodeId: string,
+	apply: (node: NodeResponse) => NodeResponse,
+): () => void {
+	const snapshots: [readonly unknown[], NodeResponse | NodeResponse[]][] = [];
+	const detail = readDetail(queryClient, nodeId);
+	if (detail) {
+		snapshots.push([nodeKeys.detail(nodeId), detail]);
+		queryClient.setQueryData<NodeResponse>(nodeKeys.detail(nodeId), apply(detail));
+	}
+	for (const [key, children] of queryClient.getQueriesData<NodeResponse[]>({
+		queryKey: [...nodeKeys.all, "children"],
+	})) {
+		if (children?.some((child) => child.id === nodeId)) {
+			snapshots.push([key, children]);
+			queryClient.setQueryData<NodeResponse[]>(
+				key,
+				children.map((child) => (child.id === nodeId ? apply(child) : child)),
+			);
+		}
+	}
+	return () => {
+		for (const [key, value] of snapshots) {
+			queryClient.setQueryData(key, value);
+		}
+	};
+}

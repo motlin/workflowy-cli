@@ -344,12 +344,17 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		stopEditing();
 
-		// Create the new node
-		createNodeMutation.mutate(payload, {
-			onSuccess(createdNode) {
+		// Not mutate's onSuccess: that is dropped when this editor unmounts first (an empty
+		// row's editor unmounts as soon as editing stops), which left focus on <body>.
+		const createAndFocus = async () => {
+			try {
+				const createdNode = await createNodeMutation.mutateAsync(payload);
 				startEditing(createdNode.id);
-			},
-		});
+			} catch {
+				// useCreateNode rolls back and reports the error.
+			}
+		};
+		void createAndFocus();
 	}, [nodeId, parentId, priority, queryClient, updateNodeMutation, createNodeMutation, stopEditing, startEditing]);
 
 	/**

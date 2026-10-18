@@ -1,6 +1,13 @@
 import {QueryClient} from "@tanstack/react-query";
 import {describe, expect, it} from "vite-plus/test";
-import {nodeKeys, readChildren, readDetail, spliceBlock, spliceChildren} from "../src/client/node-cache.js";
+import {
+	nodeKeys,
+	patchCachedNode,
+	readChildren,
+	readDetail,
+	spliceBlock,
+	spliceChildren,
+} from "../src/client/node-cache.js";
 import type {NodeResponse} from "../src/node-types.js";
 
 describe("nodeKeys", () => {
@@ -106,5 +113,32 @@ describe("spliceBlock", () => {
 			["d", "c", "b", "a"],
 			["c", "b", "d", "a"],
 		]);
+	});
+});
+
+describe("patchCachedNode", () => {
+	it("patches the node's detail and its row in every cached children list, leaving other rows alone", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.children("p"), [row("a", 100), row("b", 200)]);
+		qc.setQueryData(nodeKeys.detail("a"), row("a", 100));
+		patchCachedNode(qc, "a", (node) => ({...node, name: "alpha"}));
+		expect({
+			children: qc.getQueryData<NodeResponse[]>(nodeKeys.children("p"))?.map((r) => [r.id, r.name]),
+			detail: qc.getQueryData<NodeResponse>(nodeKeys.detail("a"))?.name,
+		}).toStrictEqual({
+			children: [
+				["a", "alpha"],
+				["b", "b"],
+			],
+			detail: "alpha",
+		});
+	});
+
+	it("returns snapshots that restore every touched entry", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.children("p"), [row("a", 100)]);
+		const restore = patchCachedNode(qc, "a", (node) => ({...node, name: "alpha"}));
+		restore();
+		expect(qc.getQueryData<NodeResponse[]>(nodeKeys.children("p"))?.map((r) => r.name)).toStrictEqual(["a"]);
 	});
 });

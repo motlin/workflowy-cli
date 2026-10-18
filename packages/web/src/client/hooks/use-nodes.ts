@@ -1,7 +1,7 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
-import {nodeKeys, spliceBlock, spliceChildren} from "../node-cache.js";
+import {nodeKeys, patchCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 
@@ -273,30 +273,19 @@ export function useUpdateNode() {
 		async onMutate({nodeId, ...updates}) {
 			// Cancel outgoing refetches
 			await queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
-
-			// Snapshot previous value
-			const previousNode = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
-
-			// Optimistically update the node
-			if (previousNode) {
-				queryClient.setQueryData<NodeResponse>(nodeKeys.detail(nodeId), {
-					...previousNode,
-					name: updates.name ?? previousNode.name,
-					note: updates.note ?? previousNode.note,
-					data: {
-						layoutMode: updates.layoutMode ?? previousNode.data.layoutMode,
-					},
-					modifiedAt: Math.floor(Date.now() / 1000),
-				});
-			}
-
-			return {previousNode, nodeId};
+			// Patch the row in its parent's list too: an empty row's name drives whether its editor stays mounted.
+			const restore = patchCachedNode(queryClient, nodeId, (node) => ({
+				...node,
+				name: updates.name ?? node.name,
+				note: updates.note ?? node.note,
+				data: {...node.data, layoutMode: updates.layoutMode ?? node.data.layoutMode},
+				modifiedAt: Math.floor(Date.now() / 1000),
+			}));
+			return {restore};
 		},
 		onError(error, _variables, context) {
 			// Roll back to previous value on error
-			if (context?.previousNode !== undefined) {
-				queryClient.setQueryData(nodeKeys.detail(context.nodeId), context.previousNode);
-			}
+			context?.restore();
 			addErrorNotification(`Failed to update node: ${error.message}`);
 		},
 		async onSettled(_data, _error, variables) {
