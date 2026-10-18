@@ -136,6 +136,7 @@ function HashLocationRoute() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const zoom = useOutlineStore((state) => state.zoom);
+	const setUrlSearchQuery = useOutlineStore((state) => state.setUrlSearchQuery);
 	const {id, query} = parseLocationHash(location.hash);
 	const resolved = useQuery({
 		queryKey: nodeKeys.resolvedId(id ?? ""),
@@ -162,6 +163,10 @@ function HashLocationRoute() {
 			void navigate(canonical);
 		}
 	}, [currentUrl, navigate, query, target, unknown, zoom]);
+
+	useEffect(() => {
+		setUrlSearchQuery(query);
+	}, [query, setUrlSearchQuery]);
 
 	return <OutlineView />;
 }

@@ -5,7 +5,8 @@ vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}})
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
 
-const {goToNode, nodeUrl, resolveZoomTarget, stepNav, syncNavLocation} = await import("../src/client/navigation.js");
+const {goToNode, navigateToSearch, nodeUrl, resolveZoomTarget, stepNav, syncNavLocation} =
+	await import("../src/client/navigation.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
 
@@ -104,5 +105,53 @@ describe("in-app navigation stacks", () => {
 			],
 			forward: [],
 		});
+	});
+});
+
+describe("navigateToSearch", () => {
+	beforeEach(() => {
+		useOutlineStore.setState({nav: initialNavState, zoomedNodeId: FULL_ID, urlSearchQuery: null});
+	});
+
+	it("pushes the zoomed node's URL with ?q= and records a non-deduped navigation", () => {
+		const navigate = vi.fn<(to: string) => void>();
+		goToNode(navigate, FULL_ID);
+		navigateToSearch(navigate, "x");
+		expect({urls: navigate.mock.calls, nav: useOutlineStore.getState().nav}).toStrictEqual({
+			urls: [["/#/35035d443bf1"], ["/#/35035d443bf1?q=x"]],
+			nav: {
+				current: {id: "35035d443bf1", query: "x"},
+				back: [{id: "35035d443bf1", query: null}],
+				forward: [],
+			},
+		});
+	});
+
+	it("searches from home without an id", () => {
+		useOutlineStore.setState({zoomedNodeId: null});
+		const navigate = vi.fn<(to: string) => void>();
+		navigateToSearch(navigate, "a b");
+		expect({urls: navigate.mock.calls, current: useOutlineStore.getState().nav.current}).toStrictEqual({
+			urls: [["/#?q=a%20b"]],
+			current: {id: null, query: "a b"},
+		});
+	});
+
+	it("an empty query clears the search back to the bare node URL", () => {
+		const navigate = vi.fn<(to: string) => void>();
+		navigateToSearch(navigate, "");
+		expect({urls: navigate.mock.calls, current: useOutlineStore.getState().nav.current}).toStrictEqual({
+			urls: [["/#/35035d443bf1"]],
+			current: {id: "35035d443bf1", query: null},
+		});
+	});
+});
+
+describe("urlSearchQuery", () => {
+	it("starts null and is set through setUrlSearchQuery", () => {
+		useOutlineStore.setState({urlSearchQuery: null});
+		const initial = useOutlineStore.getState().urlSearchQuery;
+		useOutlineStore.getState().setUrlSearchQuery("x");
+		expect({initial, after: useOutlineStore.getState().urlSearchQuery}).toStrictEqual({initial: null, after: "x"});
 	});
 });

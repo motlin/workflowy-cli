@@ -38,6 +38,18 @@ export function goToNode(navigate: NavigateFn, nodeId: string | null): void {
 }
 
 /**
+ * Commit a search: push the zoomed node's URL with `?q=<query>` through the same
+ * navigate path as a node move (an empty query clears it). A new query on the same
+ * node is a distinct location, so it is never deduped.
+ */
+export function navigateToSearch(navigate: NavigateFn, query: string): void {
+	const {zoomedNodeId, dispatchNav} = useOutlineStore.getState();
+	const q = query === "" ? null : query;
+	dispatchNav({type: "navigate", loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q}});
+	void navigate(locationUrl({id: zoomedNodeId, query: q}));
+}
+
+/**
  * Upstream's Back/Forward: step the in-app stacks and push a new browser entry
  * for the target (never `history.back()`); a no-op when that stack is empty.
  */
@@ -84,6 +96,9 @@ export function useNodeNavigation() {
 		},
 		navigateToRoot: () => {
 			goToNode(navigate, null);
+		},
+		navigateToSearch: (query: string) => {
+			navigateToSearch(navigate, query);
 		},
 	};
 }

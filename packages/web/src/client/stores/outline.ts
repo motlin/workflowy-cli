@@ -227,10 +227,13 @@ interface OutlineState {
 	isMutating: boolean;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
 	nav: NavState;
+	/** The committed search from the URL's `?q=` (null when absent); the hash route keeps it in sync. */
+	urlSearchQuery: string | null;
 }
 
 interface OutlineActions {
 	dispatchNav: (action: NavAction) => void;
+	setUrlSearchQuery: (query: string | null) => void;
 	zoom: (id: string | null) => void;
 	toggleExpand: (id: string) => void;
 	expand: (id: string) => void;
@@ -341,9 +344,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	errorNotifications: [],
 	isMutating: false,
 	nav: initialNavState,
+	urlSearchQuery: null,
 
 	dispatchNav: (action) => {
 		set((state) => ({nav: navReducer(state.nav, action)}));
+	},
+
+	setUrlSearchQuery: (query) => {
+		set({urlSearchQuery: query});
 	},
 
 	zoom: (id) => {
