@@ -14,7 +14,14 @@ export {
 	normalizeLayoutMode,
 	systemFromToDate,
 } from "./cache-temporal.js";
-export {type ApplyRowsResult, applyRows, type NormalizedRowsByTable} from "./importer.js";
+export {
+	type ApplyRowsResult,
+	applyRows,
+	type ImportInternalMetadataResult,
+	importInternalMetadata,
+	keptInternalMetadata,
+	type NormalizedRowsByTable,
+} from "./importer.js";
 export {applyMirrorText, loadMirrorOriginals, notAMirror, withMirrorText} from "./mirror-text.js";
 export {NodeReader} from "./node-reader.js";
 export {PathBuilder} from "./path-builder.js";

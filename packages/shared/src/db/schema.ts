@@ -360,6 +360,21 @@ export const accountState = sqliteTable("account_state", {
 	fetchedAt: integer("fetched_at").notNull(),
 });
 
+/**
+ * node_internal_metadata: item metadata the public API does not return,
+ * imported from the internal API's `/get_tree_data/` (see
+ * `importInternalMetadata` in `cache/importer.ts`). `metadata_json` holds only
+ * the keys the app uses: `numbered_start`, `calendar`,
+ * `priority.defaultToBottom` and `layoutMode`. `fetched_at` is Unix ms of the
+ * import or accepted write that produced the row. A write-through cache, so
+ * non-bitemporal and excluded from temporal rollback.
+ */
+export const nodeInternalMetadata = sqliteTable("node_internal_metadata", {
+	nodeId: text("node_id").primaryKey(),
+	metadataJson: text("metadata_json").notNull(),
+	fetchedAt: integer("fetched_at").notNull(),
+});
+
 export const nodeContentRelations = relations(nodeContent, ({one, many}) => ({
 	metadata: one(nodeMetadata, {
 		fields: [nodeContent.id, nodeContent.systemTo],

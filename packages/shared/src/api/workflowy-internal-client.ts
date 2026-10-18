@@ -51,6 +51,21 @@ const TreeDataSchema = z
 	})
 	.loose();
 
+const TreeItemSchema = z
+	.object({
+		id: z.string(),
+		metadata: z.record(z.string(), z.unknown()).optional(),
+	})
+	.loose();
+
+const TreeItemsSchema = z.object({items: z.array(TreeItemSchema)}).loose();
+
+/** One `/get_tree_data/` item, reduced to what the cache imports. */
+export interface InternalTreeItem {
+	id: string;
+	metadata?: Record<string, unknown>;
+}
+
 const LoggedOutSchema = z.object({logged_out: z.literal(true)}).loose();
 
 /**
@@ -253,6 +268,12 @@ export class WorkflowyInternalClient {
 			settings: init.settings ?? {},
 			expandedKeys: tree.serverExpandedProjectsList ?? [],
 		};
+	}
+
+	/** Every item of the main tree from `/get_tree_data/`: its id and, when it has any, its metadata. */
+	async getTreeData(): Promise<InternalTreeItem[]> {
+		const {items} = TreeItemsSchema.parse((await this.getJson("/get_tree_data/")).body);
+		return items.map(({id, metadata}) => (metadata === undefined ? {id} : {id, metadata}));
 	}
 
 	/** An authenticated GET; throws `SessionRejectedError` on a login redirect or `logged_out` body. */

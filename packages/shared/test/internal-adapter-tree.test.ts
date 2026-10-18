@@ -383,6 +383,29 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		]);
 	});
 
+	it("patches the cached internal metadata after each accepted node metadata edit", async () => {
+		const {adapter, sqlite} = await tracked();
+		const cachedMetadata = () =>
+			sqlite.prepare("SELECT node_id, metadata_json, fetched_at FROM node_internal_metadata").all();
+
+		await adapter.setNodeMeta("a", ["numbered_start"], 5);
+		await adapter.setNodeMeta("a", ["priority", "defaultToBottom"], true);
+		const afterSet = cachedMetadata();
+		await adapter.setNodeMeta("a", ["numbered_start"], undefined);
+		await adapter.setNodeMeta("a", ["priority", "defaultToBottom"], undefined);
+
+		expect({afterSet, afterRemove: cachedMetadata()}).toStrictEqual({
+			afterSet: [
+				{
+					node_id: "a",
+					metadata_json: JSON.stringify({numbered_start: 5, priority: {defaultToBottom: true}}),
+					fetched_at: START_MS,
+				},
+			],
+			afterRemove: [],
+		});
+	});
+
 	it("leaves the cache untouched and reads nothing back when the push is rejected", async () => {
 		const {api, adapter, order, publicCalls} = await tracked();
 		api.respond("/push_and_poll", () =>

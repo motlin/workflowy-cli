@@ -15,7 +15,8 @@
 
 import {eq} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import type {SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
+import type {BaseSQLiteDatabase, SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
+import type {InternalTreeItem} from "../api/workflowy-internal-client.js";
 import type * as schema from "../db/schema.js";
 import {
 	aiMetadata,
@@ -23,6 +24,7 @@ import {
 	calendarMetadata,
 	changesMetadata,
 	nodeContent,
+	nodeInternalMetadata,
 	nodeMetadata,
 	referencesRoots,
 	s3Files,
@@ -331,4 +333,79 @@ export function applyRows(
  */
 function toUnix(date: Date | null | undefined): number | null {
 	return date ? Math.floor(date.getTime() / 1000) : null;
+}
+
+/** Top-level item metadata keys the app reads; `mirror` stays with the mirror import. */
+const KEPT_METADATA_KEYS = ["numbered_start", "calendar", "layoutMode"] as const;
+
+/**
+ * The subset of an item's internal metadata the cache keeps:
+ * `numbered_start`, `calendar`, `layoutMode` and `priority.defaultToBottom`.
+ * Undefined when none of them is present.
+ */
+export function keptInternalMetadata(
+	metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	if (metadata === undefined) {
+		return undefined;
+	}
+	const kept: Record<string, unknown> = {};
+	for (const key of KEPT_METADATA_KEYS) {
+		if (Object.hasOwn(metadata, key)) {
+			kept[key] = metadata[key];
+		}
+	}
+	const {priority} = metadata;
+	if (typeof priority === "object" && priority !== null && Object.hasOwn(priority, "defaultToBottom")) {
+		const defaultToBottom: unknown = Reflect.get(priority, "defaultToBottom");
+		kept.priority = {defaultToBottom};
+	}
+	return Object.keys(kept).length === 0 ? undefined : kept;
+}
+
+export interface ImportInternalMetadataResult {
+	/** Cached nodes whose kept metadata was written. */
+	written: number;
+	/** Items with kept metadata whose node is absent from the cache. */
+	skipped: number;
+}
+
+/**
+ * Replace `node_internal_metadata` with the kept metadata of `items` (a full
+ * `/get_tree_data/` read), in one transaction. Only nodes currently in
+ * `node_content` get a row; node tables are not touched.
+ */
+export function importInternalMetadata(
+	// oxlint-disable-next-line @typescript-eslint/no-explicit-any
+	database: BaseSQLiteDatabase<"sync", any, any>,
+	items: InternalTreeItem[],
+	fetchedAt: number,
+): ImportInternalMetadataResult {
+	const result: ImportInternalMetadataResult = {written: 0, skipped: 0};
+	database.transaction((tx) => {
+		const cached = new Set(
+			tx
+				.select({id: nodeContent.id})
+				.from(nodeContent)
+				.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+				.all()
+				.map((row) => row.id),
+		);
+		tx.delete(nodeInternalMetadata).run();
+		for (const item of items) {
+			const kept = keptInternalMetadata(item.metadata);
+			if (kept === undefined) {
+				continue;
+			}
+			if (!cached.has(item.id)) {
+				result.skipped++;
+				continue;
+			}
+			tx.insert(nodeInternalMetadata)
+				.values({nodeId: item.id, metadataJson: JSON.stringify(kept), fetchedAt})
+				.run();
+			result.written++;
+		}
+	});
+	return result;
 }

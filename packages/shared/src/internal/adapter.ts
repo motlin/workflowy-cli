@@ -1,8 +1,10 @@
+import {eq} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
 import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
-import {accountState} from "../db/schema.js";
+import {keptInternalMetadata} from "../cache/importer.js";
+import {accountState, nodeInternalMetadata} from "../db/schema.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataPatches} from "./metadata-patch.js";
 import {bulkCreateOp, bulkMoveOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
@@ -236,8 +238,10 @@ export class WorkflowyInternalAdapter {
 	/**
 	 * Set (or, with `undefined`, remove) a node's metadata value at `path` with
 	 * one `edit`; `HOME` goes to {@link setRootMeta}. Patches are built against
-	 * the node's fresh public-API `data`, which carries only the keys that API
-	 * exposes (such as `layoutMode`).
+	 * the node's fresh public-API `data` (which carries only keys such as
+	 * `layoutMode`) overlaid with its cached internal metadata, and once the
+	 * server accepts the edit the patched result is written back to
+	 * `node_internal_metadata`.
 	 */
 	async setNodeMeta(id: string, path: string[], value: unknown): Promise<void> {
 		if (id === HOME) {
@@ -246,7 +250,8 @@ export class WorkflowyInternalAdapter {
 		}
 		const tree = this.tree();
 		const node = await tree.liveNode(id);
-		const {patches, inverse} = buildMetadataPatches({...node.data}, path, value);
+		const base = {...node.data, ...this.readNodeMetadata(id)};
+		const {patches, inverse} = buildMetadataPatches(base, path, value);
 		if (patches.length === 0) {
 			return;
 		}
@@ -259,7 +264,30 @@ export class WorkflowyInternalAdapter {
 			dateJoinedSec: session.dateJoinedSec,
 		});
 		await this.pusher.pushAndPoll({ops: [op]});
+		this.writeNodeMetadata(id, keptInternalMetadata(applyMetadataPatches(base, patches)));
 		await tree.refreshChildren([node.parent_id ?? null]);
+	}
+
+	private readNodeMetadata(id: string): Metadata {
+		const row = this.db
+			.select({metadataJson: nodeInternalMetadata.metadataJson})
+			.from(nodeInternalMetadata)
+			.where(eq(nodeInternalMetadata.nodeId, id))
+			.get();
+		return row === undefined ? {} : MetadataSchema.parse(JSON.parse(row.metadataJson));
+	}
+
+	private writeNodeMetadata(id: string, metadata: Metadata | undefined): void {
+		if (metadata === undefined) {
+			this.db.delete(nodeInternalMetadata).where(eq(nodeInternalMetadata.nodeId, id)).run();
+			return;
+		}
+		const row = {metadataJson: JSON.stringify(metadata), fetchedAt: this.now()};
+		this.db
+			.insert(nodeInternalMetadata)
+			.values({nodeId: id, ...row})
+			.onConflictDoUpdate({target: nodeInternalMetadata.nodeId, set: row})
+			.run();
 	}
 
 	private tree(): WorkflowyWriteThroughClient {

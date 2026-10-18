@@ -1,4 +1,5 @@
-import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {readWorkflowyCredentials, WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
+import {importInternalMetadata} from "@workflowy/shared/cache";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
 import {importFromApi} from "../../services/cache-import-api.js";
@@ -70,11 +71,29 @@ export default class ImportApi extends Command {
 					`(${result.nodesAdded} + ${result.nodesUpdated} + ${result.nodesUnchanged} + ${result.nodesDeleted} = ${result.totalNodes.toLocaleString()} nodes in ${totalElapsed}s)`,
 				);
 			}
+			await this.importItemMetadata(database);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes("429")) {
 				this.error("Rate limit exceeded. Please wait 1 minute before trying again.");
 			}
 			this.error(`Failed to import from API: ${String(error)}`);
 		}
+	}
+
+	/**
+	 * Import item metadata the public API omits (numbered_start, calendar,
+	 * priority.defaultToBottom) from the internal API's `/get_tree_data/`, when
+	 * WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD are set.
+	 */
+	private async importItemMetadata(database: ReturnType<typeof createDatabase>): Promise<void> {
+		const credentials = readWorkflowyCredentials();
+		if (!credentials) {
+			return;
+		}
+		const client = new WorkflowyInternalClient({credentials});
+		await client.login();
+		const items = await client.getTreeData();
+		const {written, skipped} = importInternalMetadata(database, items, Date.now());
+		this.log(`Item metadata: ${written.toLocaleString()} nodes (${skipped.toLocaleString()} not in cache)`);
 	}
 }

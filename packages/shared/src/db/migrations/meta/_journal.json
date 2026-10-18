@@ -218,6 +218,13 @@
 			"when": 1779148800000,
 			"tag": "0030_add_account_state",
 			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "6",
+			"when": 1779235200000,
+			"tag": "0031_add_node_internal_metadata",
+			"breakpoints": true
 		}
 	]
 }
