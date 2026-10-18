@@ -14,7 +14,7 @@ import {stripHtmlTags} from "@workflowy/shared/html";
 import {orderChanges, renameChanges, starChanges, starsFromRootMeta, unstarChanges} from "@workflowy/shared/internal";
 import type {StarNodes, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv, ServerContext} from "../context.js";
-import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
+import {withAdapter} from "../internal-api.js";
 
 const LocationSchema = z.object({nodeId: z.string().nullable(), query: z.string().nullable()});
 const RenameSchema = z.object({name: z.string().nullable()});
@@ -34,16 +34,6 @@ async function readStars(ctx: ServerContext, adapter: WorkflowyInternalAdapter) 
 
 async function jsonBody(c: Context<AppEnv>): Promise<unknown> {
 	return c.req.json().catch(() => {});
-}
-
-type AdapterHandler<P extends string> = (c: Context<AppEnv, P>, adapter: WorkflowyInternalAdapter) => Promise<Response>;
-
-/** Run `handler` with the internal adapter, or answer 503 when it is not configured. */
-function withAdapter<P extends string>(handler: AdapterHandler<P>) {
-	return async (c: Context<AppEnv, P>) => {
-		const adapter = c.get("ctx").internalAdapter?.();
-		return adapter ? handler(c, adapter) : c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
-	};
 }
 
 export function createStarsRouter(): Hono<AppEnv> {

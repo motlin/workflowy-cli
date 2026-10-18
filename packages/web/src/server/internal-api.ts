@@ -1,4 +1,6 @@
+import type {Context} from "hono";
 import {createMiddleware} from "hono/factory";
+import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv} from "./context.js";
 
 export const INTERNAL_API_NOT_CONFIGURED =
@@ -14,3 +16,13 @@ export const internalApiRequired = createMiddleware<AppEnv>(async (c, next) => {
 	}
 	return next();
 });
+
+type AdapterHandler<P extends string> = (c: Context<AppEnv, P>, adapter: WorkflowyInternalAdapter) => Promise<Response>;
+
+/** Run `handler` with the internal adapter, or answer 503 when it is not configured. */
+export function withAdapter<P extends string>(handler: AdapterHandler<P>) {
+	return async (c: Context<AppEnv, P>) => {
+		const adapter = c.get("ctx").internalAdapter?.();
+		return adapter ? handler(c, adapter) : c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	};
+}
