@@ -109,6 +109,18 @@ describe("WorkflowyInternalClient.bootstrap", () => {
 		expect(api.requests[2]?.headers).toStrictEqual(INIT_HEADERS);
 	});
 
+	it("carries the user's entropyKey (salt of upstream's deterministic ids) when the server sends one", async () => {
+		const api = createFakeInternalApi();
+		const data = initializationData();
+		data.user = {id: 123, email: "alice@example.com", entropyKey: "k".repeat(64)};
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		const {client} = clientWith(api);
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual({...EXPECTED_SESSION, entropyKey: "k".repeat(64)});
+	});
+
 	it("accepts a null isReadOnly (sent live) and a null ownerId", async () => {
 		const api = createFakeInternalApi();
 		const data = initializationData();

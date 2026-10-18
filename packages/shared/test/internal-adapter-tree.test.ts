@@ -299,6 +299,44 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		expect(order("a")).toStrictEqual(["x", "new"]);
 	});
 
+	it("creates with a caller-chosen id and caches the kept part of its metadata", async () => {
+		const {adapter, pushes, order, sqlite} = await tracked();
+		const calendar = {level: "day", value: "17", timestamp: 1, dateId: 20_261_017};
+
+		await expect(
+			adapter.createAt({
+				parentId: "a",
+				index: 0,
+				id: "day-id",
+				name: "d",
+				metadata: {restorableUniqueNode: true, calendar},
+			}),
+		).resolves.toStrictEqual({id: "day-id"});
+
+		expect({
+			trees: pushes.map((ops) => ops.map((op) => JSON.parse(String(op.data.project_trees)) as unknown)),
+			order: order("a"),
+			cached: sqlite.prepare("SELECT node_id, metadata_json FROM node_internal_metadata").all(),
+		}).toStrictEqual({
+			trees: [
+				[
+					[
+						{
+							id: "day-id",
+							nm: "d",
+							metadata: {restorableUniqueNode: true, calendar},
+							ct: 300_000_000,
+							cb: 123,
+							ch: [],
+						},
+					],
+				],
+			],
+			order: ["day-id", "x"],
+			cached: [{node_id: "day-id", metadata_json: JSON.stringify({calendar})}],
+		});
+	});
+
 	it("moves one node to the top with one move at priority 0", async () => {
 		const {adapter, pushes, order} = await tracked();
 

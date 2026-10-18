@@ -5,6 +5,7 @@ import {createNodeWebSocket} from "@hono/node-ws";
 import {createServerContext} from "./context.js";
 import type {AppEnv} from "./context.js";
 import {changesRouter} from "./routes/changes.js";
+import {createCalendarRouter} from "./routes/calendar.js";
 import {createExpansionRouter} from "./routes/expansion.js";
 import {ladderEvents} from "./ladder-events.js";
 import {ladderSocketHandlers} from "./ladder-socket.js";
@@ -43,6 +44,7 @@ app.route("/api/v1/home", homeRouter);
 app.route("/api/v1/tags", tagsRouter);
 app.route("/api/v1/ladder", createLadderRouter());
 app.route("/api/v1/expansion", createExpansionRouter());
+app.route("/api/v1/calendar", createCalendarRouter());
 app.route("/api/search", searchRouter);
 app.route("/api/related", relatedRouter);
 

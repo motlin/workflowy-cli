@@ -1,4 +1,4 @@
-import {eq} from "drizzle-orm";
+import {and, eq, like} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
 import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
@@ -7,6 +7,16 @@ import {keptInternalMetadata} from "../cache/importer.js";
 import {accountState, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
+import {
+	CALENDAR_LEVELS,
+	CalendarRootMissing,
+	calendarDateId,
+	calendarInsertIndex,
+	calendarLevelMetadata,
+	calendarLevelName,
+	parseDateId,
+} from "./calendar-day.js";
+import {calendarNodeId} from "./calendar-ids.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
 import type {MetadataChange} from "./metadata-patch.js";
@@ -34,6 +44,16 @@ export interface Account {
 const StoredAccountSchema = z.object({userId: z.number(), dateJoinedSec: z.number()});
 const MetadataSchema = z.record(z.string(), z.unknown());
 const SucceededSchema = z.object({succeeded: z.boolean()});
+const CalendarMetadataSchema = z.object({
+	calendar: z
+		.object({
+			root: z.boolean().optional(),
+			level: z.string().optional(),
+			dateId: z.number().optional(),
+			levels: z.record(z.string(), z.boolean()).optional(),
+		})
+		.loose(),
+});
 
 type StoredAccount = z.infer<typeof StoredAccountSchema>;
 type Metadata = z.infer<typeof MetadataSchema>;
@@ -70,6 +90,8 @@ function clampIndex(index: number, length: number): number {
 }
 
 export interface CreateAtInput {
+	/** The new node's id; generated when absent. */
+	id?: string;
 	/** A node id, or `HOME`. */
 	parentId: string;
 	/** 0-based slot among all siblings, completed ones included; clamped to `[0, siblings]`. */
@@ -77,6 +99,14 @@ export interface CreateAtInput {
 	name: string;
 	note?: string;
 	metadata?: Record<string, unknown>;
+}
+
+export interface EnsuredCalendarDay {
+	dayId: string;
+	/** The day's first child (the empty one created for a new or empty day). */
+	firstChildId: string;
+	/** Ids created by this call, outermost first. */
+	created: string[];
 }
 
 export interface MoveToInput {
@@ -156,6 +186,9 @@ export class WorkflowyInternalAdapter {
 		const siblings = await tree.liveChildren(parent);
 		const session = await this.session();
 		const newTree: NewTree = {name: input.name};
+		if (input.id !== undefined) {
+			newTree.id = input.id;
+		}
 		if (input.note !== undefined) {
 			newTree.note = input.note;
 		}
@@ -172,12 +205,118 @@ export class WorkflowyInternalAdapter {
 			generateId: this.generateId,
 		});
 		await this.pusher.pushAndPoll({ops: [op]});
-		await tree.refreshChildren([parent]);
 		const [id] = ids;
 		if (id === undefined) {
 			throw new Error("bulk_create produced no id");
 		}
+		const kept = keptInternalMetadata(input.metadata);
+		if (kept !== undefined) {
+			this.writeNodeMetadata(id, kept);
+		}
+		await tree.refreshChildren([parent]);
 		return {id};
+	}
+
+	/**
+	 * Find or create the `📆 Calendar` day node for a `YYYYMMDD` dateId the way
+	 * upstream's Today does (`C9`): for each enabled level, a child whose
+	 * calendar metadata (or id) matches is reused; otherwise the deterministic
+	 * id `calendarNodeId(entropyKey, level, dateId)` is moved back under the
+	 * parent when it exists elsewhere, or created there with
+	 * `{restorableUniqueNode, calendar}` metadata at the timestamp-sorted slot.
+	 * A new or empty day gets one empty child.
+	 */
+	async ensureCalendarDay(dateId: number): Promise<EnsuredCalendarDay> {
+		const date = parseDateId(dateId);
+		if (date === undefined) {
+			throw new RangeError(`${dateId} is not a YYYYMMDD date`);
+		}
+		const root = this.findCalendarRoot();
+		if (root.levels.week === true) {
+			throw new Error("calendar week levels are not supported");
+		}
+		const levels = CALENDAR_LEVELS.filter((level) => root.levels[level] ?? true);
+		const session = await this.session();
+		const dateFormat = await this.getRootMeta(["dateFormat"]);
+		const tree = this.tree();
+		const created: string[] = [];
+		let parentId = root.id;
+		for (const level of levels) {
+			const levelDateId = calendarDateId(level, date);
+			const id =
+				session.entropyKey === undefined ? undefined : calendarNodeId(session.entropyKey, level, levelDateId);
+			const children = (await tree.liveChildren(parentId)).map((child) => child.id);
+			const calendars = children.map((child) => this.readCalendar(child));
+			const match = children.find((child, position) => {
+				const calendar = calendars[position];
+				return child === id || (calendar?.level === level && calendar.dateId === levelDateId);
+			});
+			if (match !== undefined) {
+				parentId = match;
+				continue;
+			}
+			const index = calendarInsertIndex(calendars, level, levelDateId);
+			if (id !== undefined && this.isCached(id)) {
+				await this.moveTo({ids: [id], parentId, index});
+				parentId = id;
+				continue;
+			}
+			const node = await this.createAt({
+				parentId,
+				index,
+				...(id === undefined ? {} : {id}),
+				name: calendarLevelName(level, date, typeof dateFormat === "string" ? dateFormat : ""),
+				metadata: {restorableUniqueNode: true, calendar: calendarLevelMetadata(level, date)},
+			});
+			created.push(node.id);
+			parentId = node.id;
+		}
+		let [firstChildId] = (await tree.liveChildren(parentId)).map((child) => child.id);
+		if (firstChildId === undefined) {
+			firstChildId = (await this.createAt({parentId, index: 0, name: ""})).id;
+			created.push(firstChildId);
+		}
+		return {dayId: parentId, firstChildId, created};
+	}
+
+	private findCalendarRoot(): {id: string; levels: Record<string, boolean>} {
+		const rows = this.db
+			.select({nodeId: nodeInternalMetadata.nodeId, metadataJson: nodeInternalMetadata.metadataJson})
+			.from(nodeInternalMetadata)
+			.innerJoin(nodeContent, eq(nodeContent.id, nodeInternalMetadata.nodeId))
+			.where(
+				and(
+					eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+					like(nodeInternalMetadata.metadataJson, '%"root":true%'),
+				),
+			)
+			.all();
+		for (const row of rows) {
+			const parsed = CalendarMetadataSchema.safeParse(JSON.parse(row.metadataJson));
+			if (parsed.success && parsed.data.calendar.root === true) {
+				return {id: row.nodeId, levels: parsed.data.calendar.levels ?? {}};
+			}
+		}
+		throw new CalendarRootMissing();
+	}
+
+	/** A node's cached calendar level and dateId, if it has both. */
+	private readCalendar(id: string): {level: string; dateId: number} | undefined {
+		const parsed = CalendarMetadataSchema.safeParse(this.readNodeMetadata(id));
+		const calendar = parsed.success ? parsed.data.calendar : undefined;
+		return calendar?.level === undefined || calendar.dateId === undefined
+			? undefined
+			: {level: calendar.level, dateId: calendar.dateId};
+	}
+
+	private isCached(id: string): boolean {
+		return (
+			this.db
+				.select({id: nodeContent.id})
+				.from(nodeContent)
+				.where(and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.get() !== undefined
+		);
 	}
 
 	/** Move nodes to an exact slot: one `move` for one id, one `bulk_move` (keeping their order) for several. */

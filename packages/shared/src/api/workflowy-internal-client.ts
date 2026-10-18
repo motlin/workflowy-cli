@@ -145,6 +145,8 @@ export interface InternalSession {
 	settings: Record<string, unknown>;
 	/** Short ids of the nodes the server records as expanded. */
 	expandedKeys: string[];
+	/** The per-account salt upstream's `WF.Id.uuidv5` prefixes to every deterministic id; absent when the server sends none. */
+	entropyKey?: string;
 }
 
 /** The `client_version` sent before the server has told us its `CLIENT_VERSION`. */
@@ -303,6 +305,7 @@ export class WorkflowyInternalClient {
 						rootProjectMetadata: init.projectTreeData.rootProjectMetadata,
 					};
 		const userId = account.user.id;
+		const entropyKey = z.string().min(1).safeParse(account.user.entropyKey);
 		// CLIENT_VERSION is a page global (`var CLIENT_VERSION = 21;` in the HTML), absent from both JSON globals lists live.
 		const globalVersion = ClientVersionSchema.safeParse(
 			account.globals?.find(([name]) => name === "CLIENT_VERSION")?.[1],
@@ -318,6 +321,7 @@ export class WorkflowyInternalClient {
 			rootMetadata: account.rootProjectMetadata ?? {},
 			settings: account.settings ?? {},
 			expandedKeys: tree.serverExpandedProjectsList ?? [],
+			...(entropyKey.success ? {entropyKey: entropyKey.data} : {}),
 		};
 	}
 
