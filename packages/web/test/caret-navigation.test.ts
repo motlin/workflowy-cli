@@ -6,6 +6,7 @@ import {
 	isCaretOnBoundaryLine,
 	navigableIds,
 	planCompleteFocus,
+	planNoteBoundary,
 } from "../src/client/caret-navigation.js";
 
 describe("isCaretOnBoundaryLine", () => {
@@ -209,5 +210,53 @@ describe("planCompleteFocus", () => {
 
 	it("zooms out after a delay when the zoom root is among the items", () => {
 		expect(planCompleteFocus({...base, ids: ["z"]})).toStrictEqual({kind: "zoomOut", delayMs: 500});
+	});
+});
+
+describe("planNoteBoundary", () => {
+	it("moves Down from the end of the noted root title to the start of the root note", () => {
+		expect(planNoteBoundary({from: "rootTitleEnd", key: "Down", rootNoted: true})).toStrictEqual({
+			focus: "rootNote",
+			caret: 0,
+		});
+	});
+
+	it("moves Right from the end of the noted root title to the start of the root note", () => {
+		expect(planNoteBoundary({from: "rootTitleEnd", key: "Right", rootNoted: true})).toStrictEqual({
+			focus: "rootNote",
+			caret: 0,
+		});
+	});
+
+	it("moves Up from the start of the first child's name to the end of the root note", () => {
+		expect(planNoteBoundary({from: "firstChildName", key: "Up", caret: 0, rootNoted: true})).toStrictEqual({
+			focus: "rootNote",
+			caret: "end",
+		});
+	});
+
+	it("moves Left from the start of the first child's name to the end of the root note", () => {
+		expect(planNoteBoundary({from: "firstChildName", key: "Left", caret: 0, rootNoted: true})).toStrictEqual({
+			focus: "rootNote",
+			caret: "end",
+		});
+	});
+
+	it("leaves the first child's name alone when the caret is not at its start", () => {
+		expect(planNoteBoundary({from: "firstChildName", key: "Up", caret: 3, rootNoted: true})).toBeNull();
+	});
+
+	it("ignores keys that move away from the root note", () => {
+		expect([
+			planNoteBoundary({from: "rootTitleEnd", key: "Up", rootNoted: true}),
+			planNoteBoundary({from: "firstChildName", key: "Down", caret: 0, rootNoted: true}),
+		]).toStrictEqual([null, null]);
+	});
+
+	it("does nothing when the root has no note", () => {
+		expect([
+			planNoteBoundary({from: "rootTitleEnd", key: "Down", rootNoted: false}),
+			planNoteBoundary({from: "firstChildName", key: "Up", caret: 0, rootNoted: false}),
+		]).toStrictEqual([null, null]);
 	});
 });

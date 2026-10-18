@@ -94,7 +94,13 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 			),
 	};
 });
-vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
+vi.mock("../src/client/components/editable-note.js", async () => {
+	const {createElement: h} = await import("react");
+	return {
+		EditableNote: ({nodeId, initialValue, isMain}: {nodeId: string; initialValue: string; isMain?: boolean}) =>
+			isMain ? h("div", {className: "notes notes--main", "data-note-of": nodeId}, initialValue) : null,
+	};
+});
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
 const {AddChildButton, OutlineTree} = await import("../src/client/components/outline-tree.js");
@@ -223,6 +229,34 @@ describe("OutlineTree zoom root row", () => {
 				'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"></div>',
 			),
 		).toBe(true);
+	});
+
+	it("renders the zoom root's note as notes--main after the title, before the children, and marks the root noted", () => {
+		nodesById.set("alice", makeNode({name: "Delta", note: "Delta parent note"}));
+		const html = render("alice");
+		const expected =
+			'<div class="font-custom project noted selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer" data-node-id="alice">Delta</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="notes notes--main" data-note-of="alice">Delta parent note</div><div class="drop-line"><div class="line"></div></div><div class="children ';
+		const start = html.indexOf('<div class="font-custom project noted selected root">');
+		expect(html.slice(start, start + expected.length)).toBe(expected);
+	});
+
+	it("has no root note when the zoom root has no note and its title is not focused", () => {
+		nodesById.set("alice", makeNode({name: "Delta"}));
+		expect(render("alice").includes("notes--main")).toBe(false);
+	});
+
+	it("mounts an empty root note once the zoom root's title is focused", () => {
+		nodesById.set("alice", makeNode({name: "Delta"}));
+		outlineState.editingId = "alice";
+		try {
+			expect(render("alice").includes('<div class="notes notes--main" data-note-of="alice"></div>')).toBe(true);
+		} finally {
+			outlineState.editingId = null;
+		}
+	});
+
+	it("never renders a note on the unzoomed main-tree root", () => {
+		expect(render().includes("notes--main")).toBe(false);
 	});
 
 	it("marks the unzoomed root as mainTreeRoot with a title-less name--root row", () => {

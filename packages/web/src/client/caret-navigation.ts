@@ -137,3 +137,23 @@ export function planCompleteFocus(input: {
 	}
 	return previous === zoomRootId ? {kind: "zoomTitle"} : {kind: "row", id: previous, offset: 0};
 }
+
+export type NoteBoundaryInput =
+	| {from: "rootTitleEnd"; key: "Up" | "Down" | "Left" | "Right"; rootNoted: boolean}
+	| {from: "firstChildName"; key: "Up" | "Down" | "Left" | "Right"; caret: number; rootNoted: boolean};
+
+/**
+ * Caret moves into the zoom root's note (`notes--main`), matching workflowy.com:
+ * Down/Right at the end of the noted root title enter the note at its start; Up/Left
+ * at the start of the first child's name enter it at its end. Null when the root has
+ * no note or the key moves elsewhere.
+ */
+export function planNoteBoundary(input: NoteBoundaryInput): {focus: "rootNote"; caret: 0 | "end"} | null {
+	if (!input.rootNoted) {
+		return null;
+	}
+	if (input.from === "rootTitleEnd") {
+		return input.key === "Down" || input.key === "Right" ? {focus: "rootNote", caret: 0} : null;
+	}
+	return input.caret === 0 && (input.key === "Up" || input.key === "Left") ? {focus: "rootNote", caret: "end"} : null;
+}

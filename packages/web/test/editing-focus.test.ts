@@ -95,6 +95,16 @@ describe("name and note share one focus", () => {
 		});
 	});
 
+	it("focusNote with caret 0 asks the note to put the caret at its start, and defaults to the end", () => {
+		useOutlineStore.getState().focusNote("a", 0);
+		const atStart = useOutlineStore.getState().editingNoteCaret;
+		useOutlineStore.getState().focusNote("b");
+		expect({atStart, byDefault: useOutlineStore.getState().editingNoteCaret}).toStrictEqual({
+			atStart: 0,
+			byDefault: "end",
+		});
+	});
+
 	it("focusName with caret end moves focus from the note to the end of the name", () => {
 		useOutlineStore.getState().focusNote("a");
 		useOutlineStore.getState().focusName("a", "end");

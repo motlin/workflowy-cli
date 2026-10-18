@@ -8,6 +8,7 @@ import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild} from "../tree-ops.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {NodeItemMenu, OutlineRow} from "./outline-node.js";
 import {projectClassName} from "./row-classes.js";
@@ -79,7 +80,7 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 
 /**
  * Upstream's zoom-root `.project.selected.root`: the zoomed node's title, edited in place
- * like any row (`editingId === nodeId`), in a `.name--main` row, then the root `.children`. At the main-tree root (no zoom) it is
+ * like any row (`editingId === nodeId`), in a `.name--main` row, its `.notes--main` note, then the root `.children`. At the main-tree root (no zoom) it is
  * `.mainTreeRoot` with a title-less `.name--root` row.
  */
 function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: ReactNode}) {
@@ -90,9 +91,17 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const editingId = useOutlineStore((state) => state.editingId);
 	const editingClickPosition = useOutlineStore((state) => state.editingClickPosition);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+	const isEditingNote = useOutlineStore((state) => nodeId !== null && state.editingNoteId === nodeId);
 	const isMainTreeRoot = nodeId === null;
 	const isEditing = !isMainTreeRoot && editingId === nodeId;
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
+
+	// Like a row, the root's `.notes--main` mounts once noted, note-focused, or title-focused, and stays mounted.
+	const [noteMounted, setNoteMounted] = useState(false);
+	const shouldMountNote = !isMainTreeRoot && (Boolean(node?.note) || isEditingNote || isEditing);
+	if (shouldMountNote && !noteMounted) {
+		setNoteMounted(true);
+	}
 
 	// Clicking the title row outside its text edits the title with the caret at the end.
 	const handleTitleClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -109,8 +118,8 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					hasChildren: node?.hasChildren !== false,
 					expanded: true,
 					completed: node !== undefined && node.completedAt !== null,
-					hasNote: false,
-					noteFocused: false,
+					hasNote: Boolean(node?.note),
+					noteFocused: isEditingNote,
 					isZoomRoot: true,
 					hasMirrors: false,
 					highlighted: false,
@@ -156,6 +165,9 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					/>
 				) : null}
 			</div>
+			{node && (noteMounted || shouldMountNote) ? (
+				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} isMain nodeId={node.id} />
+			) : null}
 			<div className="drop-line">
 				<div className="line" />
 			</div>

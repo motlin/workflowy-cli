@@ -3,10 +3,16 @@ import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
 import {planInsertFirstChild, planInsertSiblingAfter} from "../tree-ops.js";
-import {adjacentVisibleNode, backspaceDeleteTarget, isCaretOnBoundaryLine, navigableIds} from "../caret-navigation.js";
+import {
+	adjacentVisibleNode,
+	backspaceDeleteTarget,
+	isCaretOnBoundaryLine,
+	navigableIds,
+	planNoteBoundary,
+} from "../caret-navigation.js";
 import type {VerticalDirection} from "../caret-navigation.js";
 import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
-import {readChildren} from "../node-cache.js";
+import {readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {useCreateNode, useDeleteNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
@@ -92,6 +98,14 @@ interface EditableTextProps {
 	clickPosition?: {x: number; y: number};
 }
 
+/** Arrow keys named the way `planNoteBoundary` takes them. */
+const ARROW_KEYS: Readonly<Record<string, "Up" | "Down" | "Left" | "Right">> = {
+	ArrowUp: "Up",
+	ArrowDown: "Down",
+	ArrowLeft: "Left",
+	ArrowRight: "Right",
+};
+
 /**
  * Inline editable text component using contenteditable.
  * - Supports HTML formatting (bold, italic preserved from node content)
@@ -99,6 +113,8 @@ interface EditableTextProps {
  * - Enter creates a new sibling node below and focuses it
  * - Shift+Enter commits the text and focuses the row's note (creating it) with the caret at its end
  * - Backspace in an empty, childless node deletes it and edits the previous node
+ * - Down/Right leaving the end of the noted zoom title enter the root note at its start;
+ *   Up/Left leaving the start of the first child's name enter it at its end
  * - Escape commits the text and opens search; dismissing search resumes editing here
  */
 export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
@@ -220,6 +236,51 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return true;
 		},
 		[nodeId, queryClient, saveChanges, startEditing],
+	);
+
+	/**
+	 * Arrow keys between the zoom title or first child's name and the zoom root's note.
+	 * The leading edge is the first/last line for Up/Down and the text start/end for
+	 * Left/Right. Returns false when the key should move the caret elsewhere.
+	 */
+	const enterRootNote = useCallback(
+		(key: "Up" | "Down" | "Left" | "Right"): boolean => {
+			const content = contentRef.current;
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			if (!content || zoomedNodeId === null || globalThis.getSelection()?.isCollapsed !== true) {
+				return false;
+			}
+			const rootNoted = Boolean(readDetail(queryClient, zoomedNodeId)?.note);
+			const forward = key === "Down" || key === "Right";
+			const vertical = key === "Up" || key === "Down";
+			const direction: VerticalDirection = forward ? "down" : "up";
+			const offset = caretTextOffset(content);
+			const atEdge = vertical
+				? isCaretOnBoundaryLine(direction, caretRect(direction), content.getBoundingClientRect())
+				: offset === (forward ? content.textContent.length : 0);
+			let plan: ReturnType<typeof planNoteBoundary> = null;
+			if (nodeId === zoomedNodeId) {
+				plan = atEdge ? planNoteBoundary({from: "rootTitleEnd", key, rootNoted}) : null;
+			} else {
+				const [firstChild] = collectVisibleNodeIds(
+					queryClient,
+					zoomedNodeId,
+					expandedIds,
+					showCompleted,
+					animatingCompletionIds,
+				);
+				if (firstChild === nodeId) {
+					plan = planNoteBoundary({from: "firstChildName", key, caret: atEdge ? 0 : offset || 1, rootNoted});
+				}
+			}
+			if (plan === null) {
+				return false;
+			}
+			saveChanges();
+			focusNote(zoomedNodeId, plan.caret);
+			return true;
+		},
+		[focusNote, nodeId, queryClient, saveChanges],
 	);
 
 	const createSiblingBelow = useCallback(() => {
@@ -432,7 +493,14 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
 			const plainKey = !event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey;
-			if ((event.key === "ArrowUp" || event.key === "ArrowDown") && plainKey && !event.nativeEvent.isComposing) {
+			const arrow = ARROW_KEYS[event.key];
+			if (arrow !== undefined && plainKey && !event.nativeEvent.isComposing && enterRootNote(arrow)) {
+				event.preventDefault();
+			} else if (
+				(event.key === "ArrowUp" || event.key === "ArrowDown") &&
+				plainKey &&
+				!event.nativeEvent.isComposing
+			) {
 				if (moveToAdjacentNode(event.key === "ArrowUp" ? "up" : "down")) {
 					event.preventDefault();
 				}
@@ -478,6 +546,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[
 			createSiblingBelow,
 			deleteIfEmpty,
+			enterRootNote,
 			focusNote,
 			moveToAdjacentNode,
 			nodeId,

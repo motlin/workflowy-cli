@@ -187,6 +187,8 @@ interface OutlineState {
 	/** Text offset to place the caret at when editing resumes after dismissing search. */
 	editingCaretOffset: number | null;
 	editingNoteId: string | null;
+	/** Where the focused note puts the caret when focus arrives from the keyboard. */
+	editingNoteCaret: 0 | "end";
 	/** Set while a structural shortcut moves the edited node, so the blur from re-rendering keeps editing. */
 	editingHeld: boolean;
 	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
@@ -247,8 +249,8 @@ interface OutlineActions {
 	collapseDescendants: (ids: string[]) => void;
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
 	stopEditing: () => void;
-	/** Focus `id`'s note, leaving its name (the caller commits any unsaved name text first). */
-	focusNote: (id: string) => void;
+	/** Focus `id`'s note with the caret at its start or end (default), leaving its name (the caller commits any unsaved name text first). */
+	focusNote: (id: string, caret?: 0 | "end") => void;
 	/** Focus `id`'s name with the caret at its start or end, leaving any note. */
 	focusName: (id: string, caret: 0 | "end") => void;
 	/** The note `id` lost focus: clear note focus unless it already moved elsewhere. */
@@ -324,6 +326,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingClickPosition: null,
 	editingCaretOffset: null,
 	editingNoteId: null,
+	editingNoteCaret: "end",
 	editingHeld: false,
 	lastEditedId: null,
 	showCompleted: getInitialShowCompleted(),
@@ -430,12 +433,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({editingId: null, editingClickPosition: null, editingCaretOffset: null});
 	},
 
-	focusNote: (id) => {
+	focusNote: (id, caret = "end") => {
 		set({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
 			editingNoteId: id,
+			editingNoteCaret: caret,
 			lastEditedId: id,
 		});
 	},

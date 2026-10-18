@@ -84,7 +84,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	// The editor HTML as of the last input, read when the editor's ref is already detached on unmount.
 	const latestHtmlRef = useRef<string | null>(null);
 
-	// Focus from the store (e.g. Shift+Enter in the name) puts the caret at the end; a click keeps its caret.
+	// Focus from the store puts the caret at the requested start or end (Shift+Enter: end); a click keeps its caret.
 	useEffect(() => {
 		const element = contentRef.current;
 		if (!isFocused || element === null || document.activeElement === element) {
@@ -93,7 +93,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 		element.focus();
 		const range = document.createRange();
 		range.selectNodeContents(element.querySelector(".innerContentContainer") ?? element);
-		range.collapse(false);
+		range.collapse(useOutlineStore.getState().editingNoteCaret === 0);
 		const selection = globalThis.getSelection();
 		selection?.removeAllRanges();
 		selection?.addRange(range);
