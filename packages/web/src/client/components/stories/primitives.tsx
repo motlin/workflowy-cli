@@ -219,12 +219,15 @@ export function NoteDisplay({content, isExpanded = false, onToggle}: NoteDisplay
 	}
 
 	return (
-		<div
-			className={`outline-node-note ${isExpanded ? "expanded" : "collapsed"}`}
-			dangerouslySetInnerHTML={{__html: content}}
-			onClick={onToggle}
-			role="presentation"
-		/>
+		<div className="notes">
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- mouse-only clamp toggle; upstream's markup carries no role */}
+			<div
+				className={`notranslate content text-tertiary whitespace-pre-wrap overflow-hidden${isExpanded ? " expanded" : ""}`}
+				onClick={onToggle}
+			>
+				<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: content}} />
+			</div>
+		</div>
 	);
 }
 
@@ -253,7 +256,7 @@ export function StaticNode({
 	onToggleExpand,
 }: StaticNodeProps) {
 	const layout = resolveLayoutMode(layoutMode);
-	const projectClasses = ["font-custom project", isCompleted && "done", layout.projectClass]
+	const projectClasses = ["font-custom project", isCompleted && "done", note && "noted", layout.projectClass]
 		.filter(Boolean)
 		.join(" ");
 
@@ -299,11 +302,11 @@ export function StaticNode({
 				) : null}
 				<div className="notranslate content whitespace-pre-wrap">
 					<div className="content-editable" dangerouslySetInnerHTML={{__html: name}} />
-					{note && <NoteDisplay content={note} isExpanded={false} />}
 				</div>
 				<ExpandTriangle isExpanded={isExpanded} onClick={onToggleExpand} />
 				<MenuButton isVisible={isEditing} />
 			</div>
+			{note && <NoteDisplay content={note} isExpanded={false} />}
 			<DropLine isVisible={false} />
 		</div>
 	);

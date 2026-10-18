@@ -10,7 +10,7 @@ interface EditableNoteProps {
 
 /**
  * Inline editable note component using contenteditable.
- * - Displayed below the node text in smaller font
+ * - Rendered as upstream's sibling `.notes` after the row's `.name`
  * - Saves on blur
  * - Escape cancels editing and hides note if empty
  * - Enter (without shift) exits editing mode
@@ -18,7 +18,7 @@ interface EditableNoteProps {
  * - Collapsible with expand/collapse toggle for long notes
  */
 export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProps) {
-	const contentRef = useRef<HTMLDivElement>(null);
+	const contentRef = useRef<HTMLSpanElement>(null);
 	const stopEditingNote = useOutlineStore((state) => state.stopEditingNote);
 	const updateNodeMutation = useUpdateNode();
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -65,7 +65,7 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 	}, [saveChanges]);
 
 	const handleKeyDown = useCallback(
-		(event: React.KeyboardEvent<HTMLDivElement>) => {
+		(event: React.KeyboardEvent<HTMLSpanElement>) => {
 			if (event.key === "Enter" && !event.shiftKey) {
 				event.preventDefault();
 				saveChanges();
@@ -92,28 +92,34 @@ export function EditableNote({nodeId, initialValue, isEditing}: EditableNoteProp
 		return null;
 	}
 
+	const contentClassName = `notranslate content text-tertiary whitespace-pre-wrap overflow-hidden${isExpanded ? " expanded" : ""}`;
+
 	if (!isEditing) {
 		// Expanding only lifts the visual clamp; the full note text is already exposed to assistive tech.
 		return (
-			<div
-				className={`outline-node-note ${isExpanded ? "expanded" : "collapsed"}`}
-				dangerouslySetInnerHTML={{__html: initialValue}}
-				onClick={toggleExpand}
-				role="presentation"
-			/>
+			<div className="notes">
+				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- mouse-only clamp toggle; upstream's markup carries no role */}
+				<div className={contentClassName} onClick={toggleExpand}>
+					<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: initialValue}} />
+				</div>
+			</div>
 		);
 	}
 
 	return (
-		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model
-		<div
-			className="outline-node-note editing"
-			contentEditable
-			dangerouslySetInnerHTML={{__html: initialValue}}
-			onBlur={handleBlur}
-			onKeyDown={handleKeyDown}
-			ref={contentRef}
-			suppressContentEditableWarning
-		/>
+		<div className="notes">
+			<div className={contentClassName}>
+				{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model */}
+				<span
+					className="innerContentContainer"
+					contentEditable
+					dangerouslySetInnerHTML={{__html: initialValue}}
+					onBlur={handleBlur}
+					onKeyDown={handleKeyDown}
+					ref={contentRef}
+					suppressContentEditableWarning
+				/>
+			</div>
+		</div>
 	);
 }

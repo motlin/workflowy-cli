@@ -159,20 +159,12 @@ interface NodeNameProps {
  * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger.
  */
 function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
-	const {
-		toggleExpand,
-		expandAll,
-		collapseDescendants,
-		resumeEditing,
-		editingId,
-		editingClickPosition,
-		editingNoteId,
-	} = useOutlineStore();
+	const {toggleExpand, expandAll, collapseDescendants, resumeEditing, editingId, editingClickPosition} =
+		useOutlineStore();
 	const queryClient = useQueryClient();
 	const deleteNode = useDeleteNode();
 	const toggleComplete = useToggleComplete();
 	const isEditing = editingId === node.id;
-	const isEditingNote = editingNoteId === node.id;
 	const isCompleted = node.completedAt !== null;
 	const layout = resolveLayoutMode(node.data.layoutMode);
 	const name = node.name ?? "";
@@ -240,7 +232,6 @@ function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
 						priority={node.priority}
 					/>
 				) : null}
-				<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 			</div>
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
@@ -281,13 +272,18 @@ function NodeName({node, isExpanded, hasChildren, isHovered}: NodeNameProps) {
 	);
 }
 
-function rowProjectClassName(node: NodeResponse, hasChildren: boolean, isExpanded: boolean): string {
+function rowProjectClassName(
+	node: NodeResponse,
+	hasChildren: boolean,
+	isExpanded: boolean,
+	isEditingNote: boolean,
+): string {
 	return projectClassName({
 		hasChildren,
 		expanded: isExpanded,
 		completed: node.completedAt !== null,
 		hasNote: Boolean(node.note),
-		noteFocused: false,
+		noteFocused: isEditingNote,
 		isZoomRoot: false,
 		hasMirrors: false,
 		highlighted: false,
@@ -338,10 +334,11 @@ function IndentGuideLines({depth}: {depth: number}) {
  */
 export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: VirtualizedOutlineNodeProps) {
 	const [isHovered, setIsHovered] = useState(false);
+	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 
 	return (
 		<div
-			className={rowProjectClassName(node, hasChildren, isExpanded)}
+			className={rowProjectClassName(node, hasChildren, isExpanded, isEditingNote)}
 			onMouseEnter={() => {
 				setIsHovered(true);
 			}}
@@ -352,6 +349,7 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
 		>
 			<IndentGuideLines depth={depth} />
 			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={isHovered} node={node} />
+			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 			<div className="drop-line">
 				<div className="line" />
 			</div>
@@ -365,10 +363,12 @@ export function VirtualizedOutlineNode({node, depth, isExpanded, hasChildren}: V
  */
 export function OutlineNode({node, depth, isExpanded}: OutlineNodeProps) {
 	const hasChildren = node.hasChildren !== false;
+	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 
 	return (
-		<li className={`outline-node ${rowProjectClassName(node, hasChildren, isExpanded)}`}>
+		<li className={`outline-node ${rowProjectClassName(node, hasChildren, isExpanded, isEditingNote)}`}>
 			<NodeName hasChildren={hasChildren} isExpanded={isExpanded} isHovered={false} node={node} />
+			<EditableNote initialValue={node.note ?? ""} isEditing={isEditingNote} nodeId={node.id} />
 			<div className="drop-line">
 				<div className="line" />
 			</div>

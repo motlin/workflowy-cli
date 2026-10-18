@@ -1062,13 +1062,11 @@ button.iconButton {
 	width: -moz-available;
 }
 
-/* The note and attachment still sit inside .content until notes move to a
-   sibling .notes; wrap them onto their own lines below the text. */
+/* The attachment still sits inside .content; wrap it onto its own line below the text. */
 .name > .content {
 	flex-wrap: wrap;
 }
 
-.name > .content > .outline-node-note,
 .name > .content > .node-attachment {
 	flex-basis: 100%;
 }
@@ -1453,50 +1451,61 @@ button.iconButton {
 	text-decoration: line-through;
 }
 
-/* Node note (appears below text in smaller font) */
-.outline-node-note {
-	font-size: 12px;
-	color: var(--color-text-secondary);
-	line-height: 17px;
-	margin-top: 2px;
-	cursor: pointer;
+/* Notes: upstream's sibling `.notes` after `.name`, verbatim from js_wf-base.css.
+   Until rows nest inside `.children` (M1-45), `.outline-tree-container` stands in
+   for `.children` so outline rows get the descendant note style. */
+.notes {
+	display: none;
+	margin-bottom: 10px;
+	padding-top: 4px;
+	margin-top: 5px;
 }
 
-/* Collapsed note: single line with ellipsis, click to expand */
-.outline-node-note.collapsed {
+.noted > .notes {
+	display: block;
+}
+
+.outline-tree-container .notes,
+.children .notes {
+	margin-top: 0;
+	margin-bottom: 2px;
+	padding-top: 0;
+}
+
+.outline-tree-container .notes:not(.notes--main),
+.children .notes:not(.notes--main) {
+	margin-left: calc(var(--name-left-overhang) * -1);
+	padding-left: calc(var(--name-left-overhang) + 24px);
+}
+
+.notes > .content {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 1;
-	overflow: hidden;
+	font-size: var(--font-default-font-size);
+	line-height: var(--font-default-line-height);
+}
+
+.outline-tree-container .notes > .content,
+.children .notes > .content {
+	font-size: var(--font-descendant-note-font-size);
+	line-height: 17px;
 	max-height: 30px;
 }
 
-/* Expanded note: full height, no truncation, preserve line breaks */
-.outline-node-note.expanded {
+/* Clicking a clamped note lifts the clamp until clicked again. */
+.notes > .content.expanded {
 	display: block;
 	-webkit-line-clamp: unset;
-	overflow: visible;
 	max-height: none;
-	white-space: pre-wrap;
-	overflow-wrap: break-word;
 }
 
-.outline-node-note.editing {
+.notes .innerContentContainer[contenteditable]:focus {
 	outline: none;
-	background-color: var(--color-bg-secondary);
-	border-radius: 2px;
-	padding: 2px 4px;
-	margin-left: -4px;
-	min-height: 18px;
-}
-
-.outline-node-note.editing:focus {
-	background-color: var(--color-bg-hover);
 }
 
 /* Inline code formatting */
-.innerContentContainer code,
-.outline-node-note code {
+.innerContentContainer code {
 	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 	font-size: 0.9em;
 	background-color: var(--color-bg-code);

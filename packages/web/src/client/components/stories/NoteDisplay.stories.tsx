@@ -25,7 +25,7 @@ const meta: Meta<typeof NoteDisplay> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{width: "400px"}}>
+			<div className="noted" style={{width: "400px"}}>
 				<Story />
 			</div>
 		),
