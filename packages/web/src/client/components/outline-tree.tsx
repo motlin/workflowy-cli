@@ -44,7 +44,7 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 
-	const handleClick = () => {
+	const handleClick = (event?: {currentTarget: {blur: () => void}}) => {
 		const children = nodes ?? [];
 		const visible = showCompleted ? children : children.filter((node) => node.completedAt === null);
 		const plan = planAddChild({
@@ -52,19 +52,18 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 			zoomedId: parentId,
 			prevVisibleLayout: visible.at(-1)?.data.layoutMode,
 		});
-		createNode.mutate(
-			{
-				parent_id: plan.parent_id,
-				name: plan.name,
-				index: plan.index,
-				...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
-			},
-			{
-				onSuccess(createdNode) {
-					resumeEditing(createdNode.id, 0);
-				},
-			},
-		);
+		// A client-generated id lets the caret enter the new row now, not after the round-trip;
+		// blurring the button keeps Space/Enter typed meanwhile from clicking it again.
+		const id = crypto.randomUUID();
+		event?.currentTarget.blur();
+		createNode.mutate({
+			id,
+			parent_id: plan.parent_id,
+			name: plan.name,
+			index: plan.index,
+			...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
+		});
+		resumeEditing(id, 0);
 	};
 
 	return (

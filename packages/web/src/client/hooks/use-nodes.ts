@@ -1,11 +1,15 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {useCallback} from "react";
 import type {QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {nodeKeys, patchCachedNode, readNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
+import {pendingCreates} from "../pending-creates.js";
 
 interface CreateNodeRequest {
+	/** A client-generated UUID: the optimistic row carries it, so it can be edited before the reply. */
+	id?: string;
 	parent_id?: string;
 	name: string;
 	note?: string;
@@ -29,10 +33,11 @@ async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
 		throw new Error(`Failed to fetch children: ${response.statusText}`);
 	}
 	const data = await readJson<{nodes: NodeResponse[]}>(response);
-	return data.nodes;
+	return pendingCreates.withPending(parentId, data.nodes);
 }
 
 async function fetchNode(nodeId: string): Promise<NodeResponse> {
+	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch node: ${response.statusText}`);
@@ -51,6 +56,7 @@ async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 }
 
 async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
+	await pendingCreates.prior(request.id);
 	const response = await fetch("/api/v1/nodes", {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
@@ -64,6 +70,7 @@ async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 }
 
 async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<NodeResponse> {
+	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`, {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
@@ -77,6 +84,7 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<N
 }
 
 async function deleteNode(nodeId: string): Promise<void> {
+	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`, {
 		method: "DELETE",
 	});
@@ -99,6 +107,7 @@ interface MoveNodeResponse {
 }
 
 async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveNodeResponse> {
+	await pendingCreates.settled([nodeId, request.parent_id]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/move`, {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
@@ -111,6 +120,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 }
 
 async function completeNode(nodeId: string): Promise<NodeResponse> {
+	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/complete`, {
 		method: "POST",
 	});
@@ -122,6 +132,7 @@ async function completeNode(nodeId: string): Promise<NodeResponse> {
 }
 
 async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
+	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/uncomplete`, {
 		method: "POST",
 	});
@@ -197,38 +208,24 @@ export function useCreateNode() {
 	const beginMutation = useOutlineStore((state) => state.beginMutation);
 	const endMutation = useOutlineStore((state) => state.endMutation);
 
-	return useMutation({
+	const mutation = useMutation({
 		mutationFn: createNode,
 		async onMutate(newNode) {
 			beginMutation();
-			const parentId = newNode.parent_id ?? null;
-
+			const early = earlyCreates.get(newNode);
+			if (early) {
+				return early;
+			}
 			// Cancel outgoing refetches to avoid overwriting optimistic update
-			await queryClient.cancelQueries({queryKey: nodeKeys.children(parentId)});
-
-			// Snapshot previous value
-			const previousChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
-
-			// Optimistically add the new node
-			const optimisticNode: NodeResponse = {
-				id: `temp-${Date.now()}`,
-				parent_id: parentId,
-				name: newNode.name,
-				note: newNode.note ?? null,
-				priority: 0,
-				data: {layoutMode: newNode.layoutMode ?? null},
-				createdAt: Math.floor(Date.now() / 1000),
-				modifiedAt: Math.floor(Date.now() / 1000),
-				completedAt: null,
-			};
-
-			const siblings = previousChildren ?? [];
-			queryClient.setQueryData<NodeResponse[]>(
-				nodeKeys.children(parentId),
-				spliceChildren(siblings, optimisticNode, requestedIndex(newNode, siblings.length)),
-			);
-
-			return {previousChildren, parentId};
+			await queryClient.cancelQueries({queryKey: nodeKeys.children(newNode.parent_id ?? null)});
+			return insertOptimisticCreate(queryClient, newNode);
+		},
+		onSuccess(createdNode, variables) {
+			// The public-API fallback cannot honor a client id: follow the caret to the real one.
+			const {editingId, startEditing} = useOutlineStore.getState();
+			if (variables.id !== undefined && createdNode.id !== variables.id && editingId === variables.id) {
+				startEditing(createdNode.id);
+			}
 		},
 		onError(error, variables, context) {
 			// Roll back to previous value on error
@@ -239,11 +236,67 @@ export function useCreateNode() {
 		},
 		async onSettled(_data, _error, variables) {
 			endMutation();
+			if (variables.id !== undefined) {
+				pendingCreates.end(variables.id);
+			}
 			// Refetch to get the real data from server
 			const parentId = variables.parent_id ?? null;
 			await queryClient.invalidateQueries({queryKey: nodeKeys.children(parentId)});
 		},
 	});
+	const {mutate} = mutation;
+
+	/**
+	 * A create under a client id inserts its optimistic row synchronously, in the same
+	 * render as the caller's startEditing, so the row's editor mounts at once (no keystroke
+	 * gap) and the edited node's reads already wait on pendingCreates.
+	 */
+	const mutateNow = useCallback<typeof mutate>(
+		(request, options) => {
+			if (request.id !== undefined) {
+				earlyCreates.set(request, insertOptimisticCreate(queryClient, request));
+			}
+			mutate(request, options);
+		},
+		[mutate, queryClient],
+	);
+	return {...mutation, mutate: mutateNow};
+}
+
+interface CreateContext {
+	previousChildren: NodeResponse[] | undefined;
+	parentId: string | null;
+}
+
+/** Optimistic inserts `mutate` already made, handed to `onMutate` by request identity. */
+const earlyCreates = new WeakMap<CreateNodeRequest, CreateContext>();
+
+/** Splice the optimistic row for `newNode` into its parent's cached children (tracking it when it has a client id). */
+function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeRequest): CreateContext {
+	const parentId = newNode.parent_id ?? null;
+	const previousChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
+	const now = Math.floor(Date.now() / 1000);
+	const optimisticNode: NodeResponse = {
+		id: newNode.id ?? `temp-${Date.now()}`,
+		parent_id: parentId,
+		name: newNode.name,
+		note: newNode.note ?? null,
+		priority: 0,
+		data: {layoutMode: newNode.layoutMode ?? null},
+		createdAt: now,
+		modifiedAt: now,
+		completedAt: null,
+	};
+	const siblings = previousChildren ?? [];
+	const index = requestedIndex(newNode, siblings.length);
+	if (newNode.id !== undefined) {
+		pendingCreates.begin(optimisticNode, index);
+	}
+	queryClient.setQueryData<NodeResponse[]>(
+		nodeKeys.children(parentId),
+		spliceChildren(siblings, optimisticNode, index),
+	);
+	return {previousChildren, parentId};
 }
 
 /**
@@ -359,6 +412,7 @@ interface MoveNodesRequest {
 }
 
 async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
+	await pendingCreates.settled([...request.ids, request.parent_id]);
 	const response = await fetch("/api/v1/nodes/move", {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},

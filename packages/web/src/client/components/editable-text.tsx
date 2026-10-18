@@ -342,20 +342,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				? planInsertFirstChild(nodeId)
 				: planInsertSiblingAfter(queryClient, {id: nodeId, parent_id: parentId, priority});
 
-		stopEditing();
-
-		// Not mutate's onSuccess: that is dropped when this editor unmounts first (an empty
-		// row's editor unmounts as soon as editing stops), which left focus on <body>.
-		const createAndFocus = async () => {
-			try {
-				const createdNode = await createNodeMutation.mutateAsync(payload);
-				startEditing(createdNode.id);
-			} catch {
-				// useCreateNode rolls back and reports the error.
-			}
-		};
-		void createAndFocus();
-	}, [nodeId, parentId, priority, queryClient, updateNodeMutation, createNodeMutation, stopEditing, startEditing]);
+		// The new row carries a client-generated id, so the caret moves into it now,
+		// before the create round-trip; writes to it wait for the create (pendingCreates).
+		const id = crypto.randomUUID();
+		createNodeMutation.mutate({...payload, id});
+		startEditing(id);
+	}, [nodeId, parentId, priority, queryClient, updateNodeMutation, createNodeMutation, startEditing]);
 
 	/**
 	 * Backspace in an empty, childless node deletes it and continues editing at the

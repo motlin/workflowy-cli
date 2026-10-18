@@ -292,6 +292,9 @@ function countChildren(ctx: ServerContext, parentId: string | null): number {
 	return ctx.cacheService.getChildren(parentId).length;
 }
 
+/** A client-generated node id: a lowercase UUID, as upstream's own clients mint. */
+const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
 export const nodesRouter = new Hono<AppEnv>();
 
 // GET /api/v1/nodes - List children (or root nodes if no parent_id; accepts short IDs)
@@ -349,6 +352,12 @@ nodesRouter.post("/", async (c) => {
 		index?: number;
 		/** Legacy: negative = top, anything else = bottom. */
 		position?: number;
+		/**
+		 * A client-generated lowercase UUID for the new node, so the client can edit the
+		 * optimistic row before this reply. Honored through the internal API only; the
+		 * public-API fallback assigns its own id (the reply carries the real one).
+		 */
+		id?: unknown;
 	}>();
 	const {name, note, layoutMode} = body;
 
@@ -366,6 +375,12 @@ nodesRouter.post("/", async (c) => {
 	if (!slot.ok) {
 		return c.json({error: slot.error}, 400);
 	}
+	if (body.id !== undefined && (typeof body.id !== "string" || !CLIENT_ID_PATTERN.test(body.id))) {
+		return c.json({error: "id must be a lowercase UUID"}, 400);
+	}
+	if (typeof body.id === "string" && ctx.cacheService.getNode(body.id)) {
+		return c.json({error: `Node already exists: ${body.id}`}, 409);
+	}
 	const count = countChildren(ctx, parentId);
 
 	const adapter = getAdapter(ctx);
@@ -374,6 +389,7 @@ nodesRouter.post("/", async (c) => {
 			parentId: adapterParent(parentId),
 			index: slot.index ?? count,
 			name,
+			...(typeof body.id === "string" ? {id: body.id} : {}),
 			...(note === undefined ? {} : {note}),
 			...(layoutMode === undefined ? {} : {metadata: {layoutMode}}),
 		});

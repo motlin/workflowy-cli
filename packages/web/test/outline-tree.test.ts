@@ -298,20 +298,21 @@ describe("OutlineTree add-child button", () => {
 		});
 	});
 
-	it("creates an empty bottom child of the zoomed node and resumes editing it at offset 0", () => {
+	it("creates an empty bottom child under a client id, edits it at offset 0 at once, and blurs the button", () => {
+		const id = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+		vi.spyOn(crypto, "randomUUID").mockReturnValue(id);
+		const blur = vi.fn<() => void>();
 		const element = AddChildButton({parentId: "alice"});
-		const button = (element.props as {children: {props: {onClick: () => void}}}).children;
-		button.props.onClick();
-		const [payload, options] = createMutate.mock.calls[0];
-		options?.onSuccess?.({id: "carol"});
+		const button = (element.props as {children: {props: {onClick: (event: unknown) => void}}}).children;
+		button.props.onClick({currentTarget: {blur}});
 		expect({
-			payload,
-			calls: createMutate.mock.calls.length,
+			calls: createMutate.mock.calls,
 			resumed: outlineState.resumeEditing.mock.calls,
+			blurred: blur.mock.calls.length,
 		}).toStrictEqual({
-			payload: {parent_id: "alice", name: "", index: 1},
-			calls: 1,
-			resumed: [["carol", 0]],
+			calls: [[{id, parent_id: "alice", name: "", index: 1}]],
+			resumed: [[id, 0]],
+			blurred: 1,
 		});
 	});
 });

@@ -72,8 +72,9 @@ function setup(configured: boolean) {
 	}
 	const adapter: FakeAdapter = {
 		createAt: vi.fn<WorkflowyInternalAdapter["createAt"]>(async (input) => {
-			cacheService.insertNode(apiNode("new", input.parentId === "home" ? null : input.parentId, 1), null);
-			return Promise.resolve({id: "new"});
+			const id = input.id ?? "new";
+			cacheService.insertNode(apiNode(id, input.parentId === "home" ? null : input.parentId, 1), null);
+			return Promise.resolve({id});
 		}),
 		moveTo: vi.fn<WorkflowyInternalAdapter["moveTo"]>(async () => {}),
 		restore: vi.fn<WorkflowyInternalAdapter["restore"]>(async (input) => {
@@ -137,6 +138,34 @@ describe("POST /api/v1/nodes with the internal API", () => {
 		expect(adapter.createAt.mock.calls).toStrictEqual([
 			[{parentId: "home", index: 0, name: "x", note: "n", metadata: {layoutMode: "board"}}],
 		]);
+	});
+
+	it("creates under a client-generated id so the client can edit the row before the reply", async () => {
+		const {adapter, post} = setup(true);
+		const id = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+
+		await post("", {parent_id: "home", name: "", index: 1, id});
+
+		expect(adapter.createAt.mock.calls).toStrictEqual([[{parentId: "home", index: 1, name: "", id}]]);
+	});
+
+	it("rejects a malformed or already used client id", async () => {
+		const {adapter, post} = setup(true);
+
+		const id = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+		const malformed = await post("", {parent_id: "home", name: "", id: "not-a-uuid"});
+		await post("", {parent_id: "home", name: "", id});
+		const taken = await post("", {parent_id: "home", name: "", id});
+
+		expect({
+			malformed: [malformed.status, await malformed.json()],
+			taken: [taken.status, await taken.json()],
+			calls: adapter.createAt.mock.calls.length,
+		}).toStrictEqual({
+			malformed: [400, {error: "id must be a lowercase UUID"}],
+			taken: [409, {error: `Node already exists: ${id}`}],
+			calls: 1,
+		});
 	});
 
 	it("maps a legacy negative position to the top", async () => {
