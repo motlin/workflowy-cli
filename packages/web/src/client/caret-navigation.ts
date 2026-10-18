@@ -53,6 +53,24 @@ export function adjacentVisibleNode(
 	return visibleIds[direction === "up" ? index - 1 : index + 1] ?? null;
 }
 
+export type HorizontalDirection = "left" | "right";
+
+/**
+ * Where Left at a row's text start or Right at its text end continues editing,
+ * matching workflowy.com: the end of the previous visible row, or the start of the
+ * next one. Null at the first/last row (the key then stays native) or when
+ * `currentId` is not visible.
+ */
+export function horizontalTarget(
+	visibleIds: readonly string[],
+	currentId: string,
+	direction: HorizontalDirection,
+): {nodeId: string; caretOffset: number} | null {
+	const left = direction === "left";
+	const nodeId = adjacentVisibleNode(visibleIds, currentId, left ? "up" : "down");
+	return nodeId === null ? null : {nodeId, caretOffset: left ? Number.MAX_SAFE_INTEGER : 0};
+}
+
 /**
  * The node to edit after Backspace deletes `nodeId`, or null when Backspace should
  * not delete it: the node still has text, a note, or children, or it is the first visible

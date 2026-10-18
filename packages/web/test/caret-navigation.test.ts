@@ -3,6 +3,7 @@ import {
 	adjacentVisibleNode,
 	backspaceDeleteTarget,
 	editingAfterRemoval,
+	horizontalTarget,
 	isCaretOnBoundaryLine,
 	navigableIds,
 	planCompleteFocus,
@@ -115,6 +116,26 @@ describe("editingAfterRemoval", () => {
 
 	it("stops editing when no other node is visible", () => {
 		expect(editingAfterRemoval(["a"], "a")).toBeNull();
+	});
+});
+
+describe("horizontalTarget", () => {
+	it("moves Left to the end of the previous row and Right to the start of the next", () => {
+		expect({
+			left: horizontalTarget(["a", "b", "c"], "b", "left"),
+			right: horizontalTarget(["a", "b", "c"], "b", "right"),
+		}).toStrictEqual({
+			left: {nodeId: "a", caretOffset: Number.MAX_SAFE_INTEGER},
+			right: {nodeId: "c", caretOffset: 0},
+		});
+	});
+
+	it("returns null at the first row going left, the last going right, and for unknown rows", () => {
+		expect({
+			firstLeft: horizontalTarget(["a", "b", "c"], "a", "left"),
+			lastRight: horizontalTarget(["a", "b", "c"], "c", "right"),
+			unknown: horizontalTarget(["a", "b", "c"], "z", "left"),
+		}).toStrictEqual({firstLeft: null, lastRight: null, unknown: null});
 	});
 });
 

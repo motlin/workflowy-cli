@@ -9,11 +9,12 @@ import type {NodeResponse} from "../../node-types.js";
 import {
 	adjacentVisibleNode,
 	backspaceDeleteTarget,
+	horizontalTarget,
 	isCaretOnBoundaryLine,
 	navigableIds,
 	planNoteBoundary,
 } from "../caret-navigation.js";
-import type {VerticalDirection} from "../caret-navigation.js";
+import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.js";
 import {caretTextOffset, placeCaretAtTextOffset} from "../caret-dom.js";
 import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
@@ -243,6 +244,38 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return true;
 		},
 		[nodeId, queryClient, saveChanges, startEditing],
+	);
+
+	/**
+	 * Left at the text start / Right at the text end of a collapsed caret: commit this
+	 * edit and continue at the end of the previous / start of the next visible node.
+	 * Returns false when the caret should move natively (mid-text, a selection, or no
+	 * neighbor in that direction).
+	 */
+	const crossRowHorizontally = useCallback(
+		(direction: HorizontalDirection): boolean => {
+			const content = contentRef.current;
+			if (!content || globalThis.getSelection()?.isCollapsed !== true) {
+				return false;
+			}
+			const edgeOffset = direction === "left" ? 0 : content.textContent.length;
+			if (caretTextOffset(content) !== edgeOffset) {
+				return false;
+			}
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			const visibleIds = navigableIds(
+				zoomedNodeId,
+				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
+			);
+			const target = horizontalTarget(visibleIds, nodeId, direction);
+			if (target === null) {
+				return false;
+			}
+			saveChanges();
+			resumeEditing(target.nodeId, target.caretOffset);
+			return true;
+		},
+		[nodeId, queryClient, resumeEditing, saveChanges],
 	);
 
 	/**
@@ -574,6 +607,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				if (moveToAdjacentNode(action === "CARET_UP" ? "up" : "down")) {
 					event.preventDefault();
 				}
+			} else if ((action === "CARET_LEFT" || action === "CARET_RIGHT") && !composing) {
+				if (crossRowHorizontally(action === "CARET_LEFT" ? "left" : "right")) {
+					event.preventDefault();
+				}
 			} else if (action === "CARRIAGE_RETURN") {
 				event.preventDefault();
 			} else if (action === "RETURN") {
@@ -626,6 +663,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			focusNote,
 			mergeWithSibling,
 			moveToAdjacentNode,
+			crossRowHorizontally,
 			nodeId,
 			openSearchFromEditing,
 			saveChanges,
