@@ -1,7 +1,18 @@
 import {useEffect, useRef} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 
+/** A compacted header action prepended to the menu under 701px, like upstream's `more-menu.menu.header.*`. */
+export interface GearMenuHeaderItem {
+	label: string;
+	icon: React.ReactNode;
+	onSelect: () => void;
+	disabled?: boolean;
+}
+
+const NO_HEADER_ITEMS: GearMenuHeaderItem[] = [];
+
 interface GearMenuProps {
+	headerItems?: GearMenuHeaderItem[];
 	isOpen: boolean;
 	onClose: () => void;
 	onOpenSettings: () => void;
@@ -183,7 +194,14 @@ function LogoutIcon() {
  * Gear menu dropdown component matching Workflowy's production menu.
  * Contains options like What's New, Settings, Help, etc.
  */
-export function GearMenu({isOpen, onClose, onOpenSettings, onExpandAll, onCollapseAll}: GearMenuProps) {
+export function GearMenu({
+	headerItems = NO_HEADER_ITEMS,
+	isOpen,
+	onClose,
+	onOpenSettings,
+	onExpandAll,
+	onCollapseAll,
+}: GearMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 
@@ -243,6 +261,20 @@ export function GearMenu({isOpen, onClose, onOpenSettings, onExpandAll, onCollap
 	return (
 		<div className="gear-menu" ref={menuRef}>
 			<div className="gear-menu-scroller">
+				{headerItems.map((item) => (
+					<MenuItem
+						disabled={item.disabled}
+						icon={item.icon}
+						key={item.label}
+						label={item.label}
+						onClick={() => {
+							item.onSelect();
+							onClose();
+						}}
+					/>
+				))}
+				{headerItems.length > 0 && <MenuDivider />}
+
 				<MenuItem hasNotificationDot icon={<ClipboardListIcon />} label="What's New" />
 				<MenuItem icon={<ChalkboardUserIcon />} label="Learn WorkFlowy" />
 

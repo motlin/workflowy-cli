@@ -6,6 +6,8 @@ import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
 import {GearMenu} from "./gear-menu.js";
+import type {GearMenuHeaderItem} from "./gear-menu.js";
+import {useMediaQuery} from "../hooks/use-media-query.js";
 import {IconButton} from "./icon-button.js";
 import {LayoutMenu} from "./layout-menu.js";
 import {SearchBox} from "./search-box.js";
@@ -75,6 +77,8 @@ export function TopBar() {
 	const rootChildren = useChildren(null);
 	const canPresent =
 		zoomedNodeId === null ? (rootChildren.data?.length ?? 0) > 0 : zoomedNode.data?.hasChildren === true;
+	// Upstream's zv4: under 701px the compactable actions move into the more menu.
+	const compact = !useMediaQuery("(min-width: 701px)");
 
 	const handleStarToggle = () => {
 		if (zoomedNodeId !== null) {
@@ -106,9 +110,9 @@ export function TopBar() {
 		openPresentation(zoomedNodeId ?? "root");
 	};
 
-	const handleLayoutToggle = () => {
-		if (!layoutMenuOpen && layoutButtonRef.current) {
-			const rect = layoutButtonRef.current.getBoundingClientRect();
+	const handleLayoutToggle = (anchor: Element | null) => {
+		if (!layoutMenuOpen && anchor) {
+			const rect = anchor.getBoundingClientRect();
 			setLayoutMenuPosition({
 				top: rect.bottom + 4,
 				right: window.innerWidth - rect.right,
@@ -138,6 +142,56 @@ export function TopBar() {
 	const handleCollapseAll = () => {
 		collapseAll();
 	};
+
+	const handleShare = () => {
+		if (zoomedNodeId !== null) {
+			window.open(shareUrl(zoomedNodeId), "_blank", "noopener");
+		}
+	};
+
+	const headerItems: GearMenuHeaderItem[] = [];
+	if (compact) {
+		if (zoomedNodeId !== null) {
+			headerItems.push({label: "Share", icon: <FaIcon icon="fal:user-plus" />, onSelect: handleShare});
+		}
+		headerItems.push({
+			label: "Present",
+			icon: <FaIcon icon="fal:play" />,
+			onSelect: handlePresentationClick,
+			disabled: !canPresent,
+		});
+		if (zoomedNodeId !== null) {
+			headerItems.push({
+				label: isCurrentPageStarred ? "Unstar" : "Star",
+				icon: isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />,
+				onSelect: handleStarToggle,
+			});
+		}
+		headerItems.push(
+			{
+				label: showCompleted ? "Hide completed" : "Show completed",
+				icon: <FaIcon icon="fal:check" />,
+				onSelect: toggleCompleted,
+			},
+			{
+				label: "Change layout",
+				icon: <FaIcon icon="fal:list-ul" />,
+				// The menu item has no element of its own, so anchor under the kebab like upstream.
+				onSelect: () => {
+					handleLayoutToggle(document.querySelector(".wf-header .gearMenu"));
+				},
+			},
+		);
+	}
+
+	const layoutMenu = layoutMenuOpen && (
+		<LayoutMenu
+			currentLayout={null}
+			onClose={handleLayoutClose}
+			onSelect={handleLayoutSelect}
+			position={layoutMenuPosition}
+		/>
+	);
 
 	return (
 		<div
@@ -183,72 +237,70 @@ export function TopBar() {
 					</IconButton>
 				</div>
 
-				{/* Share hands off to workflowy.com's own share dialog until share-dialog lands */}
-				{zoomedNodeId !== null && (
-					<IconButton
-						onClick={() => {
-							window.open(shareUrl(zoomedNodeId), "_blank", "noopener");
-						}}
-						tooltip="Share"
-					>
-						<FaIcon icon="fal:user-plus" />
-					</IconButton>
+				{!compact && (
+					<>
+						{/* Share hands off to workflowy.com's own share dialog until share-dialog lands */}
+						{zoomedNodeId !== null && (
+							<IconButton onClick={handleShare} tooltip="Share">
+								<FaIcon icon="fal:user-plus" />
+							</IconButton>
+						)}
+
+						{canPresent && (
+							<IconButton
+								data-handbook="present_it"
+								onClick={handlePresentationClick}
+								tooltip="Start presentation"
+							>
+								<FaIcon icon="fal:play" />
+							</IconButton>
+						)}
+
+						{/* Star slot: M1-29 replaces this with <StarButton nodeId={zoomedNodeId} handbook="starring.star" size="lg"/> */}
+						{zoomedNodeId !== null && (
+							<IconButton
+								aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
+								data-handbook="starring.star"
+								onClick={handleStarToggle}
+								shortcut="⇧⌘8"
+								tooltip={isCurrentPageStarred ? "Unstar" : "Star"}
+							>
+								<span style={isCurrentPageStarred ? {color: "var(--color-warning)"} : undefined}>
+									{isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />}
+								</span>
+							</IconButton>
+						)}
+
+						<IconButton
+							data-handbook="complete.toggle"
+							onClick={toggleCompleted}
+							shortcut="⌘O"
+							tooltip={showCompleted ? "Hide completed" : "Show completed"}
+						>
+							<FaIcon
+								icon="fal:check"
+								style={showCompleted ? {color: "var(--wf-text-tint)"} : undefined}
+							/>
+						</IconButton>
+
+						{/* Change layout */}
+						<div className="relative" ref={layoutButtonRef}>
+							<IconButton
+								aria-expanded={layoutMenuOpen}
+								aria-haspopup="true"
+								data-handbook="bullet.layout"
+								onClick={() => {
+									handleLayoutToggle(layoutButtonRef.current);
+								}}
+								tooltip="Change layout"
+							>
+								<FaIcon icon="fal:list-ul" />
+							</IconButton>
+							{layoutMenu}
+						</div>
+					</>
 				)}
-
-				{canPresent && (
-					<IconButton
-						data-handbook="present_it"
-						onClick={handlePresentationClick}
-						tooltip="Start presentation"
-					>
-						<FaIcon icon="fal:play" />
-					</IconButton>
-				)}
-
-				{/* Star slot: M1-29 replaces this with <StarButton nodeId={zoomedNodeId} handbook="starring.star" size="lg"/> */}
-				{zoomedNodeId !== null && (
-					<IconButton
-						aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
-						data-handbook="starring.star"
-						onClick={handleStarToggle}
-						shortcut="⇧⌘8"
-						tooltip={isCurrentPageStarred ? "Unstar" : "Star"}
-					>
-						<span style={isCurrentPageStarred ? {color: "var(--color-warning)"} : undefined}>
-							{isCurrentPageStarred ? <StarFilledIcon /> : <StarOutlineIcon />}
-						</span>
-					</IconButton>
-				)}
-
-				<IconButton
-					data-handbook="complete.toggle"
-					onClick={toggleCompleted}
-					shortcut="⌘O"
-					tooltip={showCompleted ? "Hide completed" : "Show completed"}
-				>
-					<FaIcon icon="fal:check" style={showCompleted ? {color: "var(--wf-text-tint)"} : undefined} />
-				</IconButton>
-
-				{/* Change layout */}
-				<div className="relative" ref={layoutButtonRef}>
-					<IconButton
-						aria-expanded={layoutMenuOpen}
-						aria-haspopup="true"
-						data-handbook="bullet.layout"
-						onClick={handleLayoutToggle}
-						tooltip="Change layout"
-					>
-						<FaIcon icon="fal:list-ul" />
-					</IconButton>
-					{layoutMenuOpen && (
-						<LayoutMenu
-							currentLayout={null}
-							onClose={handleLayoutClose}
-							onSelect={handleLayoutSelect}
-							position={layoutMenuPosition}
-						/>
-					)}
-				</div>
+				{compact && layoutMenu}
 
 				{/* More: upstream's gearMenu wrapper, no tooltip; blue dot omitted (no unread rows locally) */}
 				<div
@@ -263,6 +315,7 @@ export function TopBar() {
 						</IconButton>
 					</div>
 					<GearMenu
+						headerItems={headerItems}
 						isOpen={menuOpen}
 						onClose={handleMenuClose}
 						onCollapseAll={handleCollapseAll}

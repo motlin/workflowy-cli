@@ -4,6 +4,7 @@ import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type * as IconButtonModule from "../src/client/components/icon-button.js";
+import type {GearMenuHeaderItem} from "../src/client/components/gear-menu.js";
 import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
 const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
@@ -49,7 +50,18 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 vi.mock("../src/client/components/breadcrumbs.js", () => ({
 	Breadcrumbs: () => createElement("div", {className: "breadcrumbs-mock"}),
 }));
-vi.mock("../src/client/components/gear-menu.js", () => ({GearMenu: () => null}));
+const media = {wide: true};
+vi.mock("../src/client/hooks/use-media-query.js", () => ({
+	useMediaQuery: (query: string) => (query === "(min-width: 701px)" ? media.wide : true),
+}));
+
+const gearMenuProps: {headerItems?: GearMenuHeaderItem[]} = {};
+vi.mock("../src/client/components/gear-menu.js", () => ({
+	GearMenu: (props: {headerItems?: GearMenuHeaderItem[]}) => {
+		gearMenuProps.headerItems = props.headerItems;
+		return null;
+	},
+}));
 vi.mock("../src/client/components/layout-menu.js", () => ({LayoutMenu: () => null}));
 
 /** Props of every IconButton rendered, keyed by data-handbook. */
@@ -270,6 +282,53 @@ describe("TopBar right cluster", () => {
 		expect(html).not.toMatch(/class="[^"]*\bborder-l\b/u);
 		expect(html).not.toContain("top-bar-calendar-container");
 		expect(html).not.toContain("calendar-panel");
+	});
+});
+
+function renderCompact(zoomedNodeId: string | null): string {
+	media.wide = false;
+	const html = renderCluster(zoomedNodeId, true, [{id: "r1"}]);
+	media.wide = true;
+	return html;
+}
+
+describe("TopBar compact mode under 701px", () => {
+	it("keeps only search, Today and the kebab in the cluster", () => {
+		expect(clusterSequence(renderCompact("alice"))).toStrictEqual(["search", "today", "gearMenu"]);
+	});
+
+	it("prepends the compactable actions to the more menu", () => {
+		renderCompact("alice");
+		expect(gearMenuProps.headerItems?.map((item) => item.label)).toStrictEqual([
+			"Share",
+			"Present",
+			"Star",
+			"Show completed",
+			"Change layout",
+		]);
+	});
+
+	it("drops Share and Star from the more menu at root", () => {
+		renderCompact(null);
+		expect(gearMenuProps.headerItems?.map((item) => item.label)).toStrictEqual([
+			"Present",
+			"Show completed",
+			"Change layout",
+		]);
+	});
+
+	it("runs the same actions from the more menu", () => {
+		const toggleCompleted = vi.fn<() => void>();
+		storeState.toggleCompleted = toggleCompleted;
+		renderCompact("alice");
+		storeState.toggleCompleted = () => {};
+		gearMenuProps.headerItems?.find((item) => item.label === "Show completed")?.onSelect();
+		expect(toggleCompleted).toHaveBeenCalledOnce();
+	});
+
+	it("passes no header items when wide", () => {
+		renderCluster("alice", true, []);
+		expect(gearMenuProps.headerItems).toStrictEqual([]);
 	});
 });
 
