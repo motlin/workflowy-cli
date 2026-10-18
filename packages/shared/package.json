@@ -73,6 +73,11 @@
 			"source": "./src/search/index.ts",
 			"types": "./dist/search/index.d.ts",
 			"import": "./dist/search/index.js"
+		},
+		"./tags": {
+			"source": "./src/tags/index.ts",
+			"types": "./dist/tags/index.d.ts",
+			"import": "./dist/tags/index.js"
 		}
 	},
 	"scripts": {
