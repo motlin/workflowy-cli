@@ -1,10 +1,9 @@
-import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
-import {useMemo} from "react";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible} from "../tree-ops.js";
+import {navigableIds} from "../caret-navigation.js";
 
 /**
  * Builds a flattened list of visible node IDs in display order.
@@ -48,12 +47,15 @@ export function collectVisibleNodeIds(
 	return visibleIds;
 }
 
-export function useVisibleNodes(): string[] {
-	const queryClient = useQueryClient();
-	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore();
-
-	return useMemo(
-		() => collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
-		[queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds],
+/**
+ * The nodes the caret can visit right now, in display order: the zoom root's
+ * title (when zoomed) then the visible rows. Reads the store and cache at call
+ * time, so commands see rows created since the last render.
+ */
+export function currentNavigableIds(queryClient: QueryClient): string[] {
+	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	return navigableIds(
+		zoomedNodeId,
+		collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 	);
 }

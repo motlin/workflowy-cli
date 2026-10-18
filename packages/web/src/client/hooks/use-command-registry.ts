@@ -7,7 +7,7 @@ import {useNavigate} from "react-router-dom";
 import {useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
-import {editingAfterRemoval, navigableIds, planCompleteFocus} from "../caret-navigation.js";
+import {editingAfterRemoval, planCompleteFocus} from "../caret-navigation.js";
 import {
 	cacheMoveTree,
 	planDuplicate,
@@ -26,7 +26,7 @@ import {
 	useToggleComplete,
 	useUpdateNode,
 } from "./use-nodes.js";
-import {useVisibleNodes} from "./use-visible-nodes.js";
+import {currentNavigableIds} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
@@ -68,7 +68,6 @@ export function useCommandRegistry(): CommandRegistry {
 	const collapse = useOutlineStore((state) => state.collapse);
 	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
-	const visibleNodes = useVisibleNodes();
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
 	const deleteNodeMutation = useDeleteNode();
@@ -141,7 +140,7 @@ export function useCommandRegistry(): CommandRegistry {
 
 	/** Continue editing beside the edited node, which is about to leave the view. */
 	const editBesideRemovedNode = (nodeId: string): void => {
-		const next = editingAfterRemoval(navigableIds(zoomedNodeId, visibleNodes), nodeId);
+		const next = editingAfterRemoval(currentNavigableIds(queryClient), nodeId);
 		if (next === null) {
 			stopEditing();
 		} else {
@@ -213,7 +212,7 @@ export function useCommandRegistry(): CommandRegistry {
 			showCompleted,
 			zoomRootId: zoomedNodeId,
 			siblingsOf: () => siblings.map((sibling) => sibling.id),
-			visibleRows: navigableIds(zoomedNodeId, visibleNodes),
+			visibleRows: currentNavigableIds(queryClient),
 			completedIds: new Set(
 				siblings.filter((sibling) => sibling.completedAt !== null).map((sibling) => sibling.id),
 			),
