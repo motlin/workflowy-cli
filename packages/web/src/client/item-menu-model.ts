@@ -4,6 +4,10 @@
  * shown disabled, and separators are cleaned up after filtering.
  */
 import type {NodeResponse} from "../node-types.js";
+import type {FaIconKey} from "./components/fa-icons.js";
+
+/** A light (`fal:`) FontAwesome icon name from the shared registry. */
+export type ItemMenuIcon = FaIconKey extends infer K ? (K extends `fal:${infer N}` ? N : never) : never;
 
 export type ItemMenuKey =
 	| "open_in_pane"
@@ -69,7 +73,7 @@ export const ITEM_MENU_KEYS: readonly ItemMenuSlot[] = [
 
 interface ItemMenuDef {
 	label: string;
-	icon: string;
+	icon: ItemMenuIcon;
 	shortcut?: string;
 }
 
@@ -102,7 +106,7 @@ const ITEM_MENU_DEFS: Record<ItemMenuKey, ItemMenuDef> = {
 };
 
 export type ItemMenuEntry =
-	| {kind: "item"; key: ItemMenuKey; label: string; icon: string; shortcut?: string}
+	| {kind: "item"; key: ItemMenuKey; label: string; icon: ItemMenuIcon; shortcut?: string}
 	| {kind: "separator"};
 
 export type ItemMenuNode = Pick<NodeResponse, "completedAt" | "isMirror">;

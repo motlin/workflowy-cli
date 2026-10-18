@@ -16,6 +16,7 @@ import {itemMenuLeft} from "../item-menu-model.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
 import {OutlineChildren} from "./outline-tree.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
+import {rowClickResumesEditing} from "./row-click.js";
 
 /**
  * Renders a file-attachment indicator beneath a node's text. Live attachments
@@ -216,11 +217,11 @@ function NodeName({node, isExpanded, hasChildren, depth}: NodeNameProps) {
 
 	// Clicking the row outside its text edits the node with the caret at the end;
 	// clicks inside an editor (the text or note being edited) belong to that editor.
-	const handleRowClick = (event: React.MouseEvent) => {
-		if (event.target instanceof Element && event.target.closest("[contenteditable]")) {
-			return;
+	const handleRowClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		const target = event.target instanceof Element ? event.target : null;
+		if (rowClickResumesEditing(target, event.currentTarget)) {
+			resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
 		}
-		resumeEditing(node.id, Number.MAX_SAFE_INTEGER);
 	};
 
 	const handleComplete = () => {

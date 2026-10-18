@@ -4,7 +4,11 @@ import {createPortal} from "react-dom";
 import {nodeRoute, useNodeNavigation} from "../navigation.js";
 import type {NodeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
+import {buildItemMenu, hasFooter} from "../item-menu-model.js";
+import type {ItemMenuKey} from "../item-menu-model.js";
+import {formatMenuTimestamp} from "../menu-timestamp.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
+import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 
 interface MirrorLocationPath {
 	id: string;
@@ -21,30 +25,6 @@ interface MirrorsResponse {
 	mirrors: MirrorLocation[];
 	originalId: string;
 	nodeName: string;
-}
-
-interface NodeContextMenuProps {
-	node: NodeResponse;
-	onComplete: () => void;
-	onDelete: () => void;
-	onExpandAll: () => void;
-	onCollapseAll: () => void;
-	onClose: () => void;
-	onShowMirrors?: (data: MirrorsResponse) => void;
-}
-
-function formatTimestamp(unixTimestamp: number | null): string {
-	if (unixTimestamp === null) {
-		return "Unknown";
-	}
-	const date = new Date(unixTimestamp * 1000);
-	return date.toLocaleString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
 }
 
 function truncate(text: string, maxLength: number): string {
@@ -172,36 +152,89 @@ function MirrorBanner({
 	return (
 		<div className="mirror-banner">
 			<span>Node has {mirrorsData.mirrors.length} mirrors. </span>
-			<button className="mirror-banner-link" onClick={handleSeeAll} type="button">
+			{/* Upstream's link prevents mousedown so focus stays on the menu trigger and the menu stays open. */}
+			<button
+				className="mirror-banner-link"
+				onClick={handleSeeAll}
+				onMouseDown={(event) => {
+					event.preventDefault();
+				}}
+				type="button"
+			>
 				See them
 			</button>
 		</div>
 	);
 }
 
+interface ItemMenuActions {
+	onComplete: () => void;
+	onDelete: () => void;
+	onExpandAll: () => void;
+	onCollapseAll: () => void;
+}
+
+/** Commands the local app can run today; buildItemMenu filters everything else out (M2-88 adds more). */
+const AVAILABLE_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
+	"complete",
+	"delete",
+	"expand_all",
+	"collapse_all",
+]);
+
+function footerTimestamp(label: string, unixSeconds: number | null, now: Date) {
+	return (
+		<div className="flex flex-col gap-s">
+			<div>
+				<b>{label}</b> {unixSeconds === null ? "Unknown" : formatMenuTimestamp(unixSeconds, now)}
+			</div>
+		</div>
+	);
+}
+
 /**
- * Context menu dropdown for node actions.
- * Shows working actions and disabled placeholders for future features.
+ * Upstream's item-menu body (`AV`): returned as one Fragment so MenuBody sees no navigable
+ * items and ArrowDown highlights nothing. Rows come from the pure item-menu model.
  */
-function NodeContextMenu({
+export function ItemMenuBody({
 	node,
-	onComplete,
-	onDelete,
-	onExpandAll,
-	onCollapseAll,
+	actions,
 	onClose,
 	onShowMirrors,
-}: NodeContextMenuProps) {
-	const isCompleted = node.completedAt !== null;
-
-	const handleAction = (action: () => void) => {
-		action();
-		onClose();
+}: {
+	node: NodeResponse;
+	actions: ItemMenuActions;
+	onClose: () => void;
+	onShowMirrors: (data: MirrorsResponse) => void;
+}) {
+	// The body mounts each time the menu opens, so "now" is the moment it opened.
+	const [now] = useState(() => new Date());
+	const entries = buildItemMenu(node, {available: (key) => AVAILABLE_ITEM_MENU_KEYS.has(key)});
+	// Expand all / Collapse all return true so the menu stays open; Complete / Delete close it.
+	const select: Partial<Record<ItemMenuKey, () => boolean>> = {
+		complete: () => {
+			actions.onComplete();
+			onClose();
+			return false;
+		},
+		delete: () => {
+			actions.onDelete();
+			onClose();
+			return false;
+		},
+		expand_all: () => {
+			actions.onExpandAll();
+			return true;
+		},
+		collapse_all: () => {
+			actions.onCollapseAll();
+			return true;
+		},
 	};
 
-	const menu = (
-		<div className="node-context-menu">
-			{node.isMirror && node.originalNodeId && onShowMirrors && (
+	return (
+		<>
+			{node.isMirror && node.originalNodeId && (
 				<MirrorBanner
 					onShowMirrors={(data) => {
 						onClose();
@@ -210,151 +243,36 @@ function NodeContextMenu({
 					originalNodeId={node.originalNodeId}
 				/>
 			)}
-			<div className="node-context-menu-section">
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Turn into...</span>
-				</button>
-				<button
-					className="node-context-menu-item"
-					onClick={() => {
-						handleAction(onComplete);
-					}}
-					type="button"
-				>
-					<span>{isCompleted ? "Uncomplete" : "Complete"}</span>
-					<span className="node-context-menu-shortcut">⌘↵</span>
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Add note</span>
-					<span className="node-context-menu-shortcut">⇧↵</span>
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Add date</span>
-					<span className="node-context-menu-shortcut">!!</span>
-				</button>
-			</div>
-
-			<div className="node-context-menu-divider" />
-
-			<div className="node-context-menu-section">
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Present</span>
-					<span className="node-context-menu-shortcut">⇧⌘P</span>
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Add comment</span>
-					<span className="node-context-menu-shortcut">^M</span>
-				</button>
-			</div>
-
-			<div className="node-context-menu-divider" />
-
-			<div className="node-context-menu-section">
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Move To...
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Move to Today
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Move to Tomorrow
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Move to Next Week
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Upload file
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Mirror To...
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Mirror</span>
-					<span className="node-context-menu-shortcut">⇧⌘M</span>
-				</button>
-				{node.isMirror && (
-					<button className="node-context-menu-item disabled" disabled type="button">
-						Detach Mirror
-					</button>
-				)}
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Duplicate</span>
-					<span className="node-context-menu-shortcut">⇧⌘D</span>
-				</button>
-			</div>
-
-			<div className="node-context-menu-divider" />
-
-			<div className="node-context-menu-section">
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Share
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Export
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					<span>Copy internal link</span>
-					<span className="node-context-menu-shortcut">⇧⌘L</span>
-				</button>
-				<button className="node-context-menu-item disabled" disabled type="button">
-					Make template
-				</button>
-			</div>
-
-			<div className="node-context-menu-divider" />
-
-			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item danger"
-					onClick={() => {
-						handleAction(onDelete);
-					}}
-					type="button"
-				>
-					<span>Delete</span>
-					<span className="node-context-menu-shortcut">⇧⌘⌫</span>
-				</button>
-			</div>
-
-			<div className="node-context-menu-divider" />
-
-			<div className="node-context-menu-section">
-				<button
-					className="node-context-menu-item"
-					onClick={() => {
-						handleAction(onExpandAll);
-					}}
-					type="button"
-				>
-					Expand all
-				</button>
-				<button
-					className="node-context-menu-item"
-					onClick={() => {
-						handleAction(onCollapseAll);
-					}}
-					type="button"
-				>
-					Collapse all
-				</button>
-			</div>
-
-			<div className="node-context-menu-divider" />
-
-			<div className="node-context-menu-timestamps">
-				<div className="node-context-menu-timestamp">
-					<span className="node-context-menu-timestamp-label">Changed:</span>
-					<span className="node-context-menu-timestamp-value">{formatTimestamp(node.modifiedAt)}</span>
-				</div>
-				<div className="node-context-menu-timestamp">
-					<span className="node-context-menu-timestamp-label">Created:</span>
-					<span className="node-context-menu-timestamp-value">{formatTimestamp(node.createdAt)}</span>
-				</div>
-			</div>
-		</div>
+			{entries.map((entry, index) =>
+				entry.kind === "separator" ? (
+					// Separators have no identity beyond their position in the filtered list.
+					// oxlint-disable-next-line react/no-array-index-key
+					<MenuSeparator key={`separator${index}`} />
+				) : (
+					<MenuItem
+						handbook={entry.key}
+						icon={`fal:${entry.icon}`}
+						key={entry.key}
+						label={entry.label}
+						onSelect={select[entry.key]}
+						shortcut={entry.shortcut}
+					/>
+				),
+			)}
+			{hasFooter(node) && (
+				<>
+					<MenuSeparator key="separator4" />
+					<div
+						className={`flex flex-col gap-m text-tertiary text-xs px-l pt-s pb-ml whitespace-nowrap
+            mobile:text-base  mobile:py-ml mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right`}
+					>
+						{footerTimestamp("Changed:", node.modifiedAt, now)}
+						{footerTimestamp("Created:", node.createdAt, now)}
+					</div>
+				</>
+			)}
+		</>
 	);
-
-	return menu;
 }
 
 interface ItemMenuTriggerProps {
@@ -366,7 +284,13 @@ interface ItemMenuTriggerProps {
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
 	onOpenChange: (open: boolean) => void;
+	/** Upstream fa1's controlled open state; omitted, ButtonMenu keeps its own. */
+	expanded?: boolean;
+	setExpanded?: (expanded: boolean) => void;
 }
+
+/** Upstream fa1's ButtonMenu placement: the flyout hangs 16px left of the trigger, up to 300px wide. */
+const ITEM_MENU_OFFSET = [-16, 0] as const;
 
 const ITEM_MENU_TRIGGER_CLASS =
 	"!absolute left-[var(--item-menu-left)] top-0 h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center opacity-100 cursor-pointer transition-opacity duration-200 [body.moving_&]:hidden itemMenu";
@@ -389,14 +313,20 @@ export function ItemMenuTrigger({
 	onExpandAll,
 	onCollapseAll,
 	onOpenChange,
+	expanded,
+	setExpanded,
 }: ItemMenuTriggerProps) {
 	const [mirrorsModalData, setMirrorsModalData] = useState<MirrorsResponse | null>(null);
 
 	return (
 		<>
 			<ButtonMenu
-				blockCloseOnInternalClick
 				className={ITEM_MENU_TRIGGER_CLASS}
+				expanded={expanded}
+				maxWidth={300}
+				offset={ITEM_MENU_OFFSET}
+				placement="bottom-start"
+				setExpanded={setExpanded}
 				onHide={() => {
 					onOpenChange(false);
 				}}
@@ -414,13 +344,10 @@ export function ItemMenuTrigger({
 					</span>
 				}
 			>
-				<NodeContextMenu
+				<ItemMenuBody
+					actions={{onComplete, onDelete, onExpandAll, onCollapseAll}}
 					node={node}
 					onClose={blurActiveElement}
-					onCollapseAll={onCollapseAll}
-					onComplete={onComplete}
-					onDelete={onDelete}
-					onExpandAll={onExpandAll}
 					onShowMirrors={(data) => {
 						setMirrorsModalData(data);
 					}}

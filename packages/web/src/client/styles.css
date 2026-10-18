@@ -4100,90 +4100,6 @@ body.moving .itemMenu {
 	right: auto;
 }
 
-/* Interim body inside the ButtonMenu flyout, which supplies the surface */
-.node-context-menu {
-	min-width: 180px;
-	padding: 4px 0;
-}
-
-.node-context-menu-section {
-	padding: 2px 0;
-}
-
-.node-context-menu-divider {
-	height: 1px;
-	background-color: var(--color-border);
-	margin: 4px 0;
-}
-
-.node-context-menu-item {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	width: 100%;
-	padding: 6px 12px;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-	font-size: 13px;
-	font-family: inherit;
-	color: var(--color-text);
-	text-align: left;
-	transition: background-color 0.1s ease;
-}
-.node-context-menu-shortcut {
-	font-size: 11px;
-	color: var(--color-text-muted);
-	margin-left: 16px;
-	flex-shrink: 0;
-}
-
-.node-context-menu-item:hover:not(:disabled) {
-	background-color: var(--color-bg-hover);
-}
-
-.node-context-menu-item:focus {
-	outline: none;
-	background-color: var(--color-bg-selected);
-}
-
-.node-context-menu-item.disabled {
-	color: var(--color-text-faint);
-	cursor: not-allowed;
-}
-
-.node-context-menu-item.danger {
-	color: var(--color-error);
-}
-
-.node-context-menu-item.danger:hover {
-	background-color: #fdeaea;
-}
-
-[data-theme="dark"] .node-context-menu-item.danger:hover {
-	background-color: #3a2020;
-}
-
-.node-context-menu-timestamps {
-	padding: 8px 12px;
-}
-
-.node-context-menu-timestamp {
-	display: flex;
-	gap: 8px;
-	font-size: 11px;
-	line-height: 1.5;
-}
-
-.node-context-menu-timestamp-label {
-	color: var(--color-text-muted);
-	flex-shrink: 0;
-}
-
-.node-context-menu-timestamp-value {
-	color: var(--color-text-secondary);
-}
-
 /* Mirror banner in context menu */
 .mirror-banner {
 	padding: 8px 12px;
@@ -5080,6 +4996,11 @@ body.moving .itemMenu {
    max-width 240 gives a 252px border-box (240 + 2*5 padding + 2*1 border). */
 .wf-menu.flyout {
 	box-sizing: content-box;
+}
+
+/* The page's .scroller bottom padding must not leak into the MenuBody scroller. */
+.wf-menu .scroller {
+	padding: 0;
 }
 
 /* DomKit MenuItem / MenuSeparator / MenuSectionHeader (flyout/menu-item.tsx). The .svg-inline--fa and

@@ -145,26 +145,6 @@ export function MenuButton({isVisible = true, onClick}: MenuButtonProps) {
 	);
 }
 
-interface MenuItemProps {
-	label: string;
-	onClick?: () => void;
-	disabled?: boolean;
-	danger?: boolean;
-}
-
-/**
- * Individual menu item for the context menu.
- */
-export function MenuItem({label, onClick, disabled = false, danger = false}: MenuItemProps) {
-	const classes = ["node-context-menu-item", disabled && "disabled", danger && "danger"].filter(Boolean).join(" ");
-
-	return (
-		<button className={classes} disabled={disabled} onClick={onClick} type="button">
-			{label}
-		</button>
-	);
-}
-
 interface NoteDisplayProps {
 	content: string;
 	isExpanded?: boolean;

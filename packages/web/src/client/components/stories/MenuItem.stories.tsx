@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from "@storybook/react-vite";
 import {fn} from "storybook/test";
 
-import {MenuItem} from "./primitives.js";
+import {MenuItem, MenuSeparator} from "../flyout/menu-item.js";
 
 const meta: Meta<typeof MenuItem> = {
 	title: "Components/MenuItem",
@@ -19,24 +19,19 @@ const meta: Meta<typeof MenuItem> = {
 			control: "boolean",
 			description: "Whether the menu item is disabled",
 		},
-		danger: {
-			control: "boolean",
-			description: "Whether this is a destructive action (red styling)",
+		shortcut: {
+			control: "text",
+			description: "Keyboard shortcut shown at the end of the row",
 		},
 	},
 	args: {
-		onClick: fn<() => void>(),
+		onSelect: fn<() => void>(),
 	},
 	decorators: [
 		(Story) => (
 			<div
-				style={{
-					backgroundColor: "var(--color-bg)",
-					border: "1px solid var(--color-border)",
-					borderRadius: "6px",
-					padding: "4px 0",
-					minWidth: "160px",
-				}}
+				className="wf-menu flex flex-col border border-solid border-primary text-xs rounded-md bg-primary shadow-md"
+				style={{padding: 5, minWidth: 160}}
 			>
 				<Story />
 			</div>
@@ -50,46 +45,28 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
 	args: {
 		label: "Complete",
+		icon: "fal:check",
+		shortcut: "⌘↵",
 	},
 };
 
 export const Disabled: Story = {
 	args: {
-		label: "Turn into",
+		label: "Add note",
+		icon: "fal:pencil",
 		disabled: true,
-	},
-};
-
-export const Danger: Story = {
-	args: {
-		label: "Delete",
-		danger: true,
 	},
 };
 
 export const AllVariants: Story = {
 	render: () => (
 		<>
-			<MenuItem label="Complete" />
-			<MenuItem disabled label="Add note" />
-			<MenuItem disabled label="Add date" />
-			<div
-				style={{
-					height: "1px",
-					backgroundColor: "var(--color-border)",
-					margin: "4px 0",
-				}}
-			/>
-			<MenuItem label="Expand all" />
-			<MenuItem label="Collapse all" />
-			<div
-				style={{
-					height: "1px",
-					backgroundColor: "var(--color-border)",
-					margin: "4px 0",
-				}}
-			/>
-			<MenuItem danger label="Delete" />
+			<MenuItem icon="fal:check" label="Complete" shortcut="⌘↵" />
+			<MenuSeparator />
+			<MenuItem icon="fal:trash-can" label="Delete" shortcut="⇧⌘⌫" />
+			<MenuSeparator />
+			<MenuItem icon="fal:up-right-and-down-left-from-center" label="Expand all" />
+			<MenuItem icon="fal:down-left-and-up-right-to-center" label="Collapse all" />
 		</>
 	),
 };

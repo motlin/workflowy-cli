@@ -193,6 +193,14 @@ describe("item menu trigger styles guard", () => {
 		expect(hasSelector(styles, /\.node-context-menu-button\b|\.leaf \.nameButtons/u)).toBe(false);
 	});
 
+	it("keeps the page .scroller padding out of the menu scroller", () => {
+		expect(normalized.includes(".wf-menu .scroller{padding:0}")).toBe(true);
+	});
+
+	it("drops the local .node-context-menu body rules", () => {
+		expect(hasSelector(styles, /\.node-context-menu\b/u)).toBe(false);
+	});
+
 	it("has upstream's .itemMenu trigger rules", () => {
 		const rules = [
 			".itemMenu{position:absolute !important;left:var(--item-menu-left);top:0;height:var(--line-height);padding-top:var(--wf-content-padding-top);display:flex;align-items:center;cursor:pointer;outline:none;transition:opacity 0.2s}",
