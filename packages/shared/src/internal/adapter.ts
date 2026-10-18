@@ -113,7 +113,12 @@ export interface MoveToInput {
 	ids: string[];
 	/** A node id, or `HOME`. */
 	parentId: string;
-	/** Insertion slot among the target's current children, moved ones included; clamped to `[0, children]`. */
+	/**
+	 * Insertion slot among the target's current children, moved ones included (counted
+	 * BEFORE removal): the nodes land right before the child now at `index`. Among a,b,c,d,
+	 * moving b below c is index 3. Clamped to `[0, children]`. The web move endpoints and
+	 * client planners use this same contract.
+	 */
 	index: number;
 }
 

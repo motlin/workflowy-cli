@@ -111,7 +111,7 @@ export function useNodeDragDrop({nodeId, parentId, priority}: NodeDragDropOption
 			moveNode.mutate({
 				nodeId: data.nodeId,
 				parent_id: parentId,
-				index: dropIndex(siblings, data.nodeId, nodeId, currentDropPosition),
+				index: dropIndex(siblings, nodeId, currentDropPosition),
 			});
 		}
 	};

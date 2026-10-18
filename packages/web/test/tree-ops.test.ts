@@ -1,7 +1,7 @@
 import {QueryClient} from "@tanstack/react-query";
 import {describe, expect, it} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
-import {nodeKeys} from "../src/client/node-cache.js";
+import {nodeKeys, spliceChildren} from "../src/client/node-cache.js";
 import {
 	defaultIndexIn,
 	dropIndex,
@@ -131,9 +131,21 @@ describe("planMoveUp / planMoveDown", () => {
 	it("returns null moving up the first sibling", () => {
 		expect(planMoveUp(seed({p: siblings}), siblings[0])).toBeNull();
 	});
-	it("moves down past the next sibling", () => {
+	it("moves down past the next sibling (slot counted before removal, like the move endpoint)", () => {
 		const qc = seed({p: siblings});
-		expect(planMoveDown(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "p", index: 1});
+		expect(planMoveDown(qc, siblings[0])).toStrictEqual({nodeId: "a", parent_id: "p", index: 2});
+	});
+	it("swaps with the neighbour when the plan is spliced into the cache", () => {
+		const qc = seed({p: siblings});
+		const down = planMoveDown(qc, siblings[1]);
+		const up = planMoveUp(qc, siblings[1]);
+		expect([
+			spliceChildren(siblings, siblings[1], down?.index ?? -1).map((child) => child.id),
+			spliceChildren(siblings, siblings[1], up?.index ?? -1).map((child) => child.id),
+		]).toStrictEqual([
+			["a", "c", "b"],
+			["b", "a", "c"],
+		]);
 	});
 	it("returns null moving down the last sibling", () => {
 		expect(planMoveDown(seed({p: siblings}), siblings[2])).toBeNull();
@@ -460,17 +472,32 @@ describe("planBackspaceAtStart / planDeleteAtEnd", () => {
 });
 
 describe("dropIndex", () => {
-	it("indexes the target among the siblings without the dragged row", () => {
-		expect(dropIndex(siblings, "a", "b", "below")).toBe(1);
-		expect(dropIndex(siblings, "c", "a", "above")).toBe(0);
-		expect(dropIndex(siblings, "a", "c", "above")).toBe(1);
+	it("indexes the target among all siblings, the dragged row included", () => {
+		expect([
+			dropIndex(siblings, "b", "below"),
+			dropIndex(siblings, "a", "above"),
+			dropIndex(siblings, "c", "above"),
+			dropIndex(siblings, "c", "below"),
+		]).toStrictEqual([2, 0, 2, 3]);
 	});
 
-	it("indexes a row dragged in from another parent among all siblings", () => {
-		expect(dropIndex(siblings, "elsewhere", "b", "below")).toBe(2);
+	it("lands a same-parent drag exactly next to the target when spliced", () => {
+		expect([
+			spliceChildren(siblings, siblings[0], dropIndex(siblings, "b", "below")).map((child) => child.id),
+			spliceChildren(siblings, siblings[0], dropIndex(siblings, "c", "above")).map((child) => child.id),
+			spliceChildren(siblings, siblings[2], dropIndex(siblings, "a", "below")).map((child) => child.id),
+		]).toStrictEqual([
+			["b", "a", "c"],
+			["b", "a", "c"],
+			["a", "c", "b"],
+		]);
+	});
+
+	it("indexes a row dragged in from another parent the same way", () => {
+		expect(dropIndex(siblings, "b", "below")).toBe(2);
 	});
 
 	it("orders siblings by priority", () => {
-		expect(dropIndex([siblings[2], siblings[1], siblings[0]], "elsewhere", "a", "above")).toBe(0);
+		expect(dropIndex([siblings[2], siblings[1], siblings[0]], "a", "above")).toBe(0);
 	});
 });

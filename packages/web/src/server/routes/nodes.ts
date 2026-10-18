@@ -419,7 +419,10 @@ nodesRouter.post("/", async (c) => {
 	return c.json({node: nodeResponse}, 201);
 });
 
-// POST /api/v1/nodes/move - Move a block of nodes, in the given order, to an exact `index`
+// POST /api/v1/nodes/move - Move a block of nodes, in the given order, to an exact `index`.
+// `index` is a slot among ALL of the target parent's current children in order, the moved
+// nodes included (counted before removal): the block lands right before the child now at
+// `index`; omitted or >= the child count = bottom. Same contract as `MoveToInput.index`.
 nodesRouter.post("/move", async (c) => {
 	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);
@@ -841,7 +844,9 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 	return c.json({node: nodeResponse});
 });
 
-// POST /api/v1/nodes/:id/move - Move a node to an exact `index` under a parent (omitted = bottom)
+// POST /api/v1/nodes/:id/move - Move a node to an exact `index` under a parent (omitted = bottom).
+// `index` counts the moved node when it stays under the same parent (slot before removal):
+// among a,b,c,d, moving b below c is `index: 3`, not 2. Same contract as `MoveToInput.index`.
 nodesRouter.post("/:id/move", async (c) => {
 	const ctx = c.get("ctx");
 	const client = getWriteClient(ctx);

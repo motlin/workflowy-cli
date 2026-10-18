@@ -380,7 +380,7 @@ export function useMoveNode() {
 interface MoveNodesRequest {
 	ids: string[];
 	parent_id: string | null;
-	/** Slot among the new parent's children not being moved; omitted = bottom. */
+	/** Slot among ALL of the new parent's children, moved ones included (see `spliceBlock`); omitted = bottom. */
 	index?: number;
 }
 
@@ -474,10 +474,9 @@ function spliceMovedRows(
 	const moved = rows.map((row) => ({...row, parent_id: newParentId}));
 	const target = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(newParentId));
 	if (target) {
-		const remaining = target.filter((child) => !movedIds.has(child.id)).length;
 		queryClient.setQueryData<NodeResponse[]>(
 			nodeKeys.children(newParentId),
-			spliceBlock(target, moved, indexFor(remaining)),
+			spliceBlock(target, moved, indexFor(target.length)),
 		);
 	}
 	for (const row of moved) {

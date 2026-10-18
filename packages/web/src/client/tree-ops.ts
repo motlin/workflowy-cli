@@ -12,6 +12,8 @@ import {sortByPriority} from "./tree-position.js";
  *
  * An `index` is a slot among ALL of the target parent's children sorted by priority,
  * completed rows included (hiding them is render-time only); omitted means bottom.
+ * For a move it is counted BEFORE the moved node is removed (the node lands right
+ * before the row now at `index`), matching the move endpoint and `MoveToInput`.
  *
  * These are pure over `(queryClient, node)`, so they unit-test by seeding a
  * QueryClient and asserting the emitted payload — no DOM, no key events.
@@ -51,17 +53,15 @@ export function defaultIndexIn(target: Pick<NodeResponse, "defaultToBottom">, ch
 }
 
 /**
- * The move index for dropping `draggedId` above or below `targetId`: the target's
- * slot among `children` (priority order) with the dragged row removed, +1 for below.
+ * The move index for dropping a row above or below `targetId`: the target's
+ * slot among all `children` (priority order, the dragged row included), +1 for below.
  */
 export function dropIndex(
 	children: Pick<NodeResponse, "id" | "priority">[],
-	draggedId: string,
 	targetId: string,
 	position: "above" | "below",
 ): number {
-	const others = sortByPriority(children).filter((child) => child.id !== draggedId);
-	const target = others.findIndex((child) => child.id === targetId);
+	const target = sortByPriority(children).findIndex((child) => child.id === targetId);
 	return target + (position === "below" ? 1 : 0);
 }
 
@@ -305,7 +305,7 @@ export function planMoveUp(queryClient: QueryClient, node: PlanNode): MoveNodePa
 	return {nodeId: node.id, parent_id: node.parent_id, index: index - 1};
 }
 
-/** Move `node` down among its siblings (after the next one), or null if already last. The index is after removal. */
+/** Move `node` down among its siblings (after the next one), or null if already last. The index counts `node`. */
 export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNodePayload | null {
 	const siblings = readChildren(queryClient, node.parent_id);
 	if (!siblings || siblings.length < 2) {
@@ -317,7 +317,7 @@ export function planMoveDown(queryClient: QueryClient, node: PlanNode): MoveNode
 	if (index === -1 || next === undefined) {
 		return null;
 	}
-	return {nodeId: node.id, parent_id: node.parent_id, index: index + 1};
+	return {nodeId: node.id, parent_id: node.parent_id, index: index + 2};
 }
 
 export interface ToggleCompletePlan {

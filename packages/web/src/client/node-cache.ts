@@ -31,7 +31,7 @@ export function readDetail(queryClient: QueryClient, nodeId: string): NodeRespon
 
 /**
  * Upstream move/insert splice: sort `children` by priority, drop any copy of `row`,
- * insert it at `index` (clamped to the end), and renumber priorities `(i+1)*100`.
+ * insert it at `index` (a move slot, see `spliceBlock`), and renumber priorities `(i+1)*100`.
  */
 export function spliceChildren(children: NodeResponse[], row: NodeResponse, index: number): NodeResponse[] {
 	return spliceBlock(children, [row], index);
@@ -39,12 +39,15 @@ export function spliceChildren(children: NodeResponse[], row: NodeResponse, inde
 
 /**
  * Upstream `bulk_move` splice: remove every row in `rows` from `children`, then insert
- * them contiguously in the given order at `index` among the remaining siblings.
+ * them contiguously in the given order. `index` is the move endpoint's slot: counted
+ * among ALL of `children` in priority order, moved rows included (before removal),
+ * so `index` lands the block right before the row that sat at `index`; clamped to the end.
  */
 export function spliceBlock(children: NodeResponse[], rows: NodeResponse[], index: number): NodeResponse[] {
 	const moving = new Set(rows.map((row) => row.id));
-	const others = sortByPriority(children).filter((child) => !moving.has(child.id));
-	const at = Math.max(0, Math.min(index, others.length));
+	const sorted = sortByPriority(children);
+	const others = sorted.filter((child) => !moving.has(child.id));
+	const at = sorted.slice(0, Math.max(0, index)).filter((child) => !moving.has(child.id)).length;
 	return [...others.slice(0, at), ...rows, ...others.slice(at)].map((child, i) => ({
 		...child,
 		priority: (i + 1) * 100,

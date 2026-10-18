@@ -62,9 +62,18 @@ const ids = (rows: NodeResponse[]) => rows.map((r) => r.id);
 describe("spliceChildren", () => {
 	const abc = [row("a", 100), row("b", 200), row("c", 300)];
 
-	it("moves a row within its parent without duplicating it", () => {
-		expect(ids(spliceChildren(abc, abc[0], 1))).toStrictEqual(["b", "a", "c"]);
-		expect(ids(spliceChildren(abc, abc[2], 0))).toStrictEqual(["c", "a", "b"]);
+	it("moves a row within its parent to a slot counted before removal, without duplicating it", () => {
+		expect([
+			ids(spliceChildren(abc, abc[0], 2)),
+			ids(spliceChildren(abc, abc[0], 1)),
+			ids(spliceChildren(abc, abc[2], 0)),
+			ids(spliceChildren(abc, abc[0], 3)),
+		]).toStrictEqual([
+			["b", "a", "c"],
+			["a", "b", "c"],
+			["c", "a", "b"],
+			["b", "c", "a"],
+		]);
 	});
 
 	it("inserts a new row at the index", () => {
@@ -88,6 +97,14 @@ describe("spliceChildren", () => {
 describe("spliceBlock", () => {
 	it("removes every moved row then inserts the block contiguously in order", () => {
 		const children = [row("d", 1), row("c", 2), row("b", 3), row("a", 4)];
-		expect(ids(spliceBlock(children, [children[1], children[2]], 2))).toStrictEqual(["d", "a", "c", "b"]);
+		expect([
+			ids(spliceBlock(children, [children[1], children[2]], 4)),
+			ids(spliceBlock(children, [children[1], children[2]], 3)),
+			ids(spliceBlock(children, [children[1], children[2]], 0)),
+		]).toStrictEqual([
+			["d", "a", "c", "b"],
+			["d", "c", "b", "a"],
+			["c", "b", "d", "a"],
+		]);
 	});
 });
