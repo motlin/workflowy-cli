@@ -4,6 +4,8 @@
  * `<br>`/`<div>`/`<p>` structure must never reach the API.
  */
 
+import {renderDatePills} from "./date-pills.js";
+import type {DateSettings} from "./date-pills.js";
 import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderTags} from "./tag-render.js";
 import type {TagColorMap} from "./tag-render.js";
@@ -81,11 +83,21 @@ export function noteToEditorHtml(note: string): string {
  * The note `.content` element's inner HTML: `.innerContentContainer` around the note with its
  * #tags, @mentions, and links decorated like a name's, or nothing for an empty note. The
  * decoration is dropped again by `editorHtmlToNote`, so the stored note never carries it.
+ * Given `dateSettings` (an unfocused note), stored `<time>` also renders as monolith pills,
+ * which the codec does not strip, so a focused editor must omit them.
  */
-export function noteContentHtml(note: string, tagColors: TagColorMap = {}): string {
-	return note === ""
-		? ""
-		: `<span class="innerContentContainer">${renderTags(renderLinks(noteToEditorHtml(note)), tagColors)}</span>`;
+export function noteContentHtml(
+	note: string,
+	tagColors: TagColorMap = {},
+	dateSettings?: DateSettings,
+	now?: Date,
+): string {
+	if (note === "") {
+		return "";
+	}
+	const linked = renderLinks(noteToEditorHtml(note));
+	const dated = dateSettings === undefined ? linked : renderDatePills(linked, dateSettings, now);
+	return `<span class="innerContentContainer">${renderTags(dated, tagColors)}</span>`;
 }
 
 /**

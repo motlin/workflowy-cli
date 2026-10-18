@@ -5,6 +5,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {projectClassName} from "../src/client/components/row-classes.js";
+import {DEFAULT_DATE_SETTINGS, renderDatePills} from "../src/client/date-pills.js";
 
 const outlineState = {
 	focusNote: () => {},
@@ -34,6 +35,19 @@ function render(props: {initialValue: string; isFocused?: boolean; isMain?: bool
 }
 
 describe("EditableNote markup", () => {
+	it("renders date pills while unfocused and the raw <time> while focused", () => {
+		const note = 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
+		const open =
+			'<div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden';
+		expect({
+			unfocused: render({initialValue: note}),
+			focused: render({initialValue: note, isFocused: true}),
+		}).toStrictEqual({
+			unfocused: `${open}" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, DEFAULT_DATE_SETTINGS)}</span></div></div>`,
+			focused: `${open} active" contentEditable="true"><span class="innerContentContainer">${note}</span></div></div>`,
+		});
+	});
+
 	it("renders one always-contenteditable content div", () => {
 		expect(render({initialValue: "Alice\nBob"})).toBe(
 			'<div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden" contentEditable="true"><span class="innerContentContainer">Alice\nBob</span></div></div>',

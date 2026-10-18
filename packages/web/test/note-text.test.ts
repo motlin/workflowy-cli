@@ -7,6 +7,7 @@ import {
 	planNoteSave,
 } from "../src/client/note-text.js";
 import {renderTags} from "../src/client/tag-render.js";
+import {renderDatePills} from "../src/client/date-pills.js";
 
 describe("editorHtmlToNote", () => {
 	it("turns <br> into a newline", () => {
@@ -89,6 +90,19 @@ describe("noteContentHtml", () => {
 			'<span class="innerContentContainer">see <a class="contentLink" target="_blank" rel="noreferrer" href="https://example.com/">site</a></span>',
 		);
 		expect(editorHtmlToNote(html)).toBe('see <a href="https://example.com/">site</a>');
+	});
+
+	it("renders stored <time> as monolith pills only when given date settings", () => {
+		const note = 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time> #tag';
+		const settings = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
+		const now = new Date(2026, 9, 1);
+		expect({
+			raw: noteContentHtml(note),
+			pills: noteContentHtml(note, {}, settings, now),
+		}).toStrictEqual({
+			raw: `<span class="innerContentContainer">${renderTags(note)}</span>`,
+			pills: `<span class="innerContentContainer">${renderTags(renderDatePills(note, settings, now))}</span>`,
+		});
 	});
 });
 

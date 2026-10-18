@@ -6,6 +6,7 @@ import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
 import {useTagColors} from "../hooks/use-tag-colors.js";
+import {DEFAULT_DATE_SETTINGS} from "../date-pills.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -57,6 +58,7 @@ function insertAtSelection(text: string, caretInText: number): void {
  * Upstream's sibling `.notes` after the row's `.name`: ONE always-contenteditable `.content`.
  * - A click places the caret at the click point and focuses the note; while focused, `.content` is `active` (unclamped)
  * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused
+ * - Stored `<time>` dates render as monolith pills only at rest; the focused editor holds the raw `<time>` so pills are never saved
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
  * - Edits are never reverted: Escape saves, exits the note, and opens search like upstream's global Escape
  * - Enter inserts a line break (two at the very end, the second a sentinel); Tab inserts a tab; Shift+Tab does nothing
@@ -226,7 +228,11 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			<div
 				className={isFocused ? `${CONTENT_CLASS} active` : CONTENT_CLASS}
 				contentEditable
-				dangerouslySetInnerHTML={{__html: focusedHtml ?? noteContentHtml(initialValue, tagColors)}}
+				dangerouslySetInnerHTML={{
+					__html:
+						focusedHtml ??
+						noteContentHtml(initialValue, tagColors, isFocused ? undefined : DEFAULT_DATE_SETTINGS),
+				}}
 				onBlur={handleBlur}
 				onFocus={handleFocus}
 				onInput={handleInput}
