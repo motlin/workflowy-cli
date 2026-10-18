@@ -1,3 +1,5 @@
+import {readWorkflowyCredentials} from "@workflowy/shared/api";
+import type {WorkflowyCredentials} from "@workflowy/shared/api";
 import {CacheService} from "@workflowy/shared/cache";
 import {getDatabase} from "./db.js";
 
@@ -14,6 +16,8 @@ export interface ServerContext {
 	cacheService: CacheService;
 	/** The Workflowy API key, or undefined when write operations are unavailable. */
 	apiKey?: string;
+	/** Internal-API login, or undefined when internal-API routes are unavailable. */
+	internalCredentials?: WorkflowyCredentials;
 }
 
 /** Hono environment: routers read the {@link ServerContext} via `c.get('ctx')`. */
@@ -31,5 +35,6 @@ export function createServerContext(): ServerContext {
 		db,
 		cacheService: new CacheService(db),
 		apiKey: process.env.WORKFLOWY_API_KEY,
+		internalCredentials: readWorkflowyCredentials(),
 	};
 }

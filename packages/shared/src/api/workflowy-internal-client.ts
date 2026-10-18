@@ -41,6 +41,13 @@ export interface WorkflowyCredentials {
 	password: string;
 }
 
+/** Both `WORKFLOWY_USERNAME` and `WORKFLOWY_PASSWORD` from the environment, or undefined if either is unset. */
+export function readWorkflowyCredentials(env: NodeJS.ProcessEnv = process.env): WorkflowyCredentials | undefined {
+	const username = env.WORKFLOWY_USERNAME;
+	const password = env.WORKFLOWY_PASSWORD;
+	return username && password ? {username, password} : undefined;
+}
+
 export interface WorkflowyInternalClientOptions {
 	credentials: WorkflowyCredentials;
 }
