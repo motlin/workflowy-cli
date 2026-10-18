@@ -3,7 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
 import type {InternalSession} from "@workflowy/shared/api";
-import {WorkflowyInternalAdapter, editOp, moveOp} from "@workflowy/shared/internal";
+import {
+	CALENDAR_ID_NAMESPACE,
+	WorkflowyInternalAdapter,
+	calendarNodeId,
+	editOp,
+	moveOp,
+} from "@workflowy/shared/internal";
+import type {CalendarIdLevel} from "@workflowy/shared/internal";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {isDeepStrictEqual} from "node:util";
 import {WorkflowyWriteThroughClient, keptInternalMetadata, normalizeLayoutMode} from "@workflowy/shared/cache";
@@ -26,6 +33,7 @@ const STEPS = [
 	"root-meta-set",
 	"root-meta-unset",
 	"settings",
+	"calendar-ids",
 ] as const;
 const ROOT_META_WRITES = new Set<string>(["root-meta-set", "root-meta-unset"]);
 /** Account-global root metadata paths whose shapes `root-meta` records (read only). */
@@ -48,6 +56,9 @@ const CT_SHIFT_SEC = 86_400;
 const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore", "meta", "expansion"]);
 /** The list start the `meta` step sets, so the rendered numbering shows whether it was honored. */
 const NUMBERED_START = 5;
+/** How many of the most recent cached day nodes the `calendar-ids` step checks one by one. */
+const CALENDAR_SAMPLE = 5;
+const CALENDAR_LEVELS: CalendarIdLevel[] = ["day", "month", "year"];
 
 /** `order` after moving `ids` (in that order) to insertion slot `index` among the same parent's children. */
 export function expectedMove(order: readonly string[], ids: readonly string[], index: number): string[] {
@@ -236,6 +247,7 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe root-meta-set --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe settings --yes-live --yes-account-global",
+		"<%= config.bin %> internal probe calendar-ids --yes-live",
 	];
 
 	static override args = {
@@ -356,6 +368,9 @@ export default class Probe extends Command {
 		}
 		if (step === "settings") {
 			return this.settings(client, recorded);
+		}
+		if (step === "calendar-ids") {
+			return this.calendarIds(client, recorded);
 		}
 		return step === "root-meta-set" ? this.rootMetaSet(client) : this.rootMetaUnset(client);
 	}
@@ -728,6 +743,46 @@ export default class Probe extends Command {
 		return [
 			`- Top-level root metadata keys: ${codeList(objectKeys(rootMetadata))}`,
 			...ROOT_META_PATHS.map((keys) => `- \`${keys.join(".")}\`: \`${typeShape(getPath(rootMetadata, keys))}\``),
+		];
+	}
+
+	/**
+	 * Read-only: whether upstream's deterministic calendar ids
+	 * (`uuidv5(\`${entropyKey}-calendar-${level}-${dateId}\`)`) reproduce the
+	 * ids of the calendar nodes already in the cache.
+	 */
+	private async calendarIds(client: WorkflowyInternalClient, recorded: RecordedRequest[]): Promise<string[]> {
+		await client.bootstrap();
+		const source = recorded.findLast(
+			(request) => request.path === "/get_user_data/" || request.path === "/get_initialization_data",
+		);
+		const sourceName = `\`${source?.path ?? "/get_user_data/"}\` \`user\``;
+		const entropyKey: unknown = getPath(parseJson(source?.text ?? ""), ["user", "entropyKey"]);
+		if (typeof entropyKey !== "string" || entropyKey === "") {
+			return [
+				`- \`entropyKey\`: ABSENT from ${sourceName}; upstream then falls back to random ids (TD9 must name-match)`,
+			];
+		}
+		const cached = createDatabase().all<{nodeId: string; level: string; dateId: number}>(
+			sql`SELECT node_id AS nodeId, json_extract(metadata_json, '$.calendar.level') AS level, json_extract(metadata_json, '$.calendar.dateId') AS dateId FROM node_internal_metadata WHERE json_type(metadata_json, '$.calendar.dateId') = 'integer' ORDER BY dateId DESC`,
+		);
+		const rows = cached.filter((row): row is {nodeId: string; level: CalendarIdLevel; dateId: number} =>
+			CALENDAR_LEVELS.some((level) => level === row.level),
+		);
+		const matches = (row: {nodeId: string; level: CalendarIdLevel; dateId: number}) =>
+			calendarNodeId(entropyKey, row.level, row.dateId) === row.nodeId;
+		const sample = rows.filter((row) => row.level === "day").slice(0, CALENDAR_SAMPLE);
+		const totals = CALENDAR_LEVELS.map((level) => {
+			const atLevel = rows.filter((row) => row.level === level);
+			return `${level} ${atLevel.filter(matches).length} of ${atLevel.length}`;
+		});
+		return [
+			`- \`entropyKey\`: present in ${sourceName} (${entropyKey.length} chars, value not recorded)`,
+			`- Formula: \`\`uuidv5(\`\${entropyKey}-calendar-\${level}-\${dateId}\`, ${CALENDAR_ID_NAMESPACE})\`\``,
+			`- Sample: the ${CALENDAR_SAMPLE} most recent cached day nodes by \`dateId\` (\`node_internal_metadata\`, read only)`,
+			...sample.map((row) => `  - \`${row.dateId}\`: ${matches(row) ? "MATCH" : "MISMATCH"}`),
+			`- Sample result: ${sample.filter(matches).length} of ${sample.length} match`,
+			`- All cached calendar nodes: ${totals.join(", ")} match`,
 		];
 	}
 

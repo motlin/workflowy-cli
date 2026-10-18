@@ -2,6 +2,9 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {calendarNodeId} from "@workflowy/shared/internal";
+import {nodeInternalMetadata} from "@workflowy/shared/db";
+import {createDatabase} from "../../../src/db/index.js";
 import Probe, {SANDBOX_ID, assertUnderSandbox, expectedMove, typeShape} from "../../../src/commands/internal/probe.js";
 
 const INIT_BODY = {
@@ -905,5 +908,116 @@ describe("internal probe settings", () => {
 			"Refusing to write: init settings.show_completed is absent, not a boolean",
 		);
 		expect(postedShowCompleted(recorded)).toStrictEqual([]);
+	});
+});
+
+describe("internal probe calendar-ids", () => {
+	let tempDir: string;
+	let outPath: string;
+	const savedEnv = {...process.env};
+
+	beforeEach(() => {
+		vi.useFakeTimers({toFake: ["Date"]});
+		vi.setSystemTime(new Date("2026-10-18T12:00:00.000Z"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-probe-"));
+		outPath = path.join(tempDir, "probes.md");
+		process.env.WORKFLOWY_USERNAME = "alice@example.com";
+		process.env.WORKFLOWY_PASSWORD = "hunter2";
+		process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+		process.env.WORKFLOWY_DB_PATH = path.join(tempDir, "cache.sqlite");
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+		process.env = {...savedEnv};
+		fs.rmSync(tempDir, {recursive: true, force: true});
+	});
+
+	const OTHER_ID = "00000000-0000-4000-8000-00000000000";
+
+	function seedCalendar(): void {
+		const rows: [string, "day" | "month" | "year", number][] = [
+			[calendarNodeId("k", "day", 20_261_013), "day", 20_261_013],
+			[calendarNodeId("k", "day", 20_261_012), "day", 20_261_012],
+			[`${OTHER_ID}1`, "day", 20_261_009],
+			[calendarNodeId("k", "day", 20_261_008), "day", 20_261_008],
+			[`${OTHER_ID}2`, "day", 20_261_007],
+			[calendarNodeId("k", "day", 20_261_001), "day", 20_261_001],
+			[calendarNodeId("k", "month", 20_261_000), "month", 20_261_000],
+			[`${OTHER_ID}3`, "year", 20_260_000],
+		];
+		createDatabase()
+			.insert(nodeInternalMetadata)
+			.values([
+				...rows.map(([nodeId, level, dateId]) => ({
+					nodeId,
+					metadataJson: JSON.stringify({calendar: {level, value: "x", dateId, timestamp: 0}}),
+					fetchedAt: 0,
+				})),
+				{nodeId: `${OTHER_ID}4`, metadataJson: JSON.stringify({layoutMode: "board"}), fetchedAt: 0},
+			])
+			.run();
+	}
+
+	function userDataFetch(recorded: Recorded[], user: Record<string, unknown>) {
+		return vi.fn<typeof fetch>(async (input, init) => {
+			const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+			recorded.push({path: url.pathname, body: typeof init?.body === "string" ? init.body : undefined});
+			if (url.pathname === "/get_initialization_data") {
+				return Promise.resolve(
+					Response.json({projectTreeData: INIT_BODY.projectTreeData}, {headers: {wfclientid: "c"}}),
+				);
+			}
+			if (url.pathname === "/get_user_data/") {
+				return Promise.resolve(Response.json({user, settings: {}, globals: [], rootProjectMetadata: {}}));
+			}
+			return Promise.resolve(respond(url.pathname, 200));
+		});
+	}
+
+	it("compares the 5 most recent cached day ids, and every calendar level, with uuidv5 of entropyKey, read only", async () => {
+		seedCalendar();
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", userDataFetch(recorded, {id: 42, entropyKey: "k"}));
+		await Probe.run(["calendar-ids", "--yes-live", "--out", outPath]);
+		expect(recorded.map((request) => request.path)).toStrictEqual([
+			"/ajax_login",
+			"/get_initialization_data",
+			"/get_user_data/",
+		]);
+		expect(fs.readFileSync(outPath, "utf8")).toBe(
+			[
+				"",
+				"## calendar-ids (2026-10-18T12:00:00.000Z)",
+				"",
+				"- `entropyKey`: present in `/get_user_data/` `user` (1 chars, value not recorded)",
+				"- Formula: ``uuidv5(`${entropyKey}-calendar-${level}-${dateId}`, 3e19dffe-1c3b-4d76-8e57-0de20e69bdae)``",
+				"- Sample: the 5 most recent cached day nodes by `dateId` (`node_internal_metadata`, read only)",
+				"  - `20261013`: MATCH",
+				"  - `20261012`: MATCH",
+				"  - `20261009`: MISMATCH",
+				"  - `20261008`: MATCH",
+				"  - `20261007`: MISMATCH",
+				"- Sample result: 3 of 5 match",
+				"- All cached calendar nodes: day 4 of 6, month 1 of 1, year 0 of 1 match",
+				"",
+			].join("\n"),
+		);
+	});
+
+	it("reports a missing entropyKey without reading the cache", async () => {
+		const recorded: Recorded[] = [];
+		vi.stubGlobal("fetch", userDataFetch(recorded, {id: 42}));
+		await Probe.run(["calendar-ids", "--yes-live", "--out", outPath]);
+		expect(fs.readFileSync(outPath, "utf8")).toBe(
+			[
+				"",
+				"## calendar-ids (2026-10-18T12:00:00.000Z)",
+				"",
+				"- `entropyKey`: ABSENT from `/get_user_data/` `user`; upstream then falls back to random ids (TD9 must name-match)",
+				"",
+			].join("\n"),
+		);
 	});
 });
