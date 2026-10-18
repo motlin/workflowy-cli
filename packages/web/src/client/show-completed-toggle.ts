@@ -1,4 +1,5 @@
 import {planHideCompletedFocus} from "./caret-navigation.js";
+import type {Command} from "./keys/dispatch.js";
 
 /** Upstream animates only the first rows when completed rows hide or show. */
 const SLIDE_MAX_ROWS = 10;
@@ -62,4 +63,12 @@ export function runShowCompletedToggle(input: ShowCompletedToggleInput): void {
 	setTimeout(() => {
 		actions.endCompletedSlideDown(revealed);
 	}, SLIDE_SETTLE_MS);
+}
+
+/**
+ * Upstream's `show_or_hide_completed` command: unavailable while a search is in progress
+ * (`WF.Search.isInProgress()`), so its combo is still claimed but does nothing.
+ */
+export function showCompletedCommand(toggle: () => void, isSearching: () => boolean): Command {
+	return {available: () => !isSearching(), execute: toggle};
 }

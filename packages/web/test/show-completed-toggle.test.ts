@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
-import {runShowCompletedToggle} from "../src/client/show-completed-toggle.js";
+import {processCombo} from "../src/client/keys/dispatch.js";
+import {runShowCompletedToggle, showCompletedCommand} from "../src/client/show-completed-toggle.js";
 import type {ShowCompletedToggleInput} from "../src/client/show-completed-toggle.js";
 
 type Call = [string, ...unknown[]];
@@ -102,6 +103,36 @@ describe("runShowCompletedToggle", () => {
 				["startCompletedSlideDown", ["b"]],
 			],
 			after: [["endCompletedSlideDown", ["b"]]],
+		});
+	});
+});
+
+describe("showCompletedCommand", () => {
+	const ctx = {items: ["alice-uuid"], zoomedId: null};
+
+	function press(combo: string, isMac: boolean, searching: boolean): {result: string; toggles: number} {
+		let toggles = 0;
+		const command = showCompletedCommand(
+			() => {
+				toggles++;
+			},
+			() => searching,
+		);
+		const result = processCombo(combo, {show_or_hide_completed: command}, ctx, isMac);
+		return {result, toggles};
+	}
+
+	it("toggles on Cmd+O while editing and on Ctrl+O off mac", () => {
+		expect({mac: press("meta+o", true, false), other: press("ctrl+o", false, false)}).toStrictEqual({
+			mac: {result: "claimed", toggles: 1},
+			other: {result: "claimed", toggles: 1},
+		});
+	});
+
+	it("claims Cmd+O and Ctrl+O without toggling while a search is in progress", () => {
+		expect({mac: press("meta+o", true, true), other: press("ctrl+o", false, true)}).toStrictEqual({
+			mac: {result: "claimed", toggles: 0},
+			other: {result: "claimed", toggles: 0},
 		});
 	});
 });

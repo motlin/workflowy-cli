@@ -43,6 +43,7 @@ import {undoHistory} from "../undo-history.js";
 import {editPatches, queueUndo} from "../undo-view-state.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
+import {showCompletedCommand} from "../show-completed-toggle.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
@@ -558,7 +559,8 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightSidebar},
-		show_or_hide_completed: {execute: toggleShowCompleted},
+		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3
+		show_or_hide_completed: showCompletedCommand(toggleShowCompleted, () => searchPanelOpen),
 		star_current_item: {
 			execute(ctx) {
 				if (ctx.zoomedId !== null) {
