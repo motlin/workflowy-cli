@@ -758,20 +758,6 @@ body {
 	color: var(--color-warning);
 }
 
-.top-bar-menu-button {
-	position: relative;
-}
-
-.top-bar-menu-notification-dot {
-	position: absolute;
-	bottom: 4px;
-	right: 4px;
-	width: 7px;
-	height: 7px;
-	background-color: var(--wf-accent-cyan);
-	border-radius: 50%;
-}
-
 .top-bar-separator {
 	width: 1px;
 	height: 20px;
@@ -781,10 +767,6 @@ body {
 
 .top-bar-avatar {
 	border-radius: 50%;
-}
-
-.top-bar-menu-container {
-	position: relative;
 }
 
 .top-bar-dropdown {
@@ -4696,172 +4678,6 @@ button.iconButton {
 	font-size: 12px;
 	color: var(--color-text-muted);
 	z-index: 500;
-}
-
-/* ================================
-   Calendar Panel Styles
-   ================================
-   Calendar dropdown matching Workflowy's design.
-   - White background with subtle shadow
-   - Month/year header with navigation arrows
-   - 7-column grid for days
-   - Today highlighted with accent color
-*/
-
-.calendar-panel {
-	position: absolute;
-	top: 100%;
-	right: 0;
-	z-index: 1000;
-	margin-top: 4px;
-	background-color: var(--color-bg);
-	border: 1px solid var(--color-border);
-	border-radius: var(--wf-radius-m);
-	box-shadow: var(--wf-box-shadow-m);
-	min-width: 280px;
-}
-
-.calendar-content {
-	padding: var(--wf-space-m);
-	font-size: var(--wf-font-size-xs);
-	line-height: var(--wf-line-height-base);
-}
-
-.calendar-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: var(--wf-space-s) var(--wf-space-m);
-	margin-bottom: var(--wf-space-s);
-}
-
-.calendar-month-year {
-	display: flex;
-	align-items: center;
-	gap: var(--wf-space-xs);
-}
-
-.calendar-month-button,
-.calendar-year-button {
-	padding: var(--wf-space-xs) var(--wf-space-s);
-	background: transparent;
-	border: none;
-	border-radius: var(--wf-radius-s);
-	font-size: var(--wf-font-size-s);
-	font-weight: var(--wf-font-weight-semibold);
-	color: var(--color-text);
-	cursor: pointer;
-	transition: background-color 0.15s ease;
-}
-
-.calendar-month-button:hover,
-.calendar-year-button:hover {
-	background-color: var(--wf-background-tertiary);
-}
-
-.calendar-nav {
-	display: flex;
-	align-items: center;
-	gap: var(--wf-space-xs);
-}
-
-.calendar-nav-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: var(--wf-radius-s);
-	color: var(--color-text-secondary);
-	cursor: pointer;
-	transition:
-		background-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.calendar-nav-button:hover {
-	background-color: var(--wf-background-tertiary);
-	color: var(--color-text);
-}
-
-.calendar-weekdays {
-	display: flex;
-	justify-content: space-around;
-	padding: 0 var(--wf-space-ml);
-	margin-bottom: var(--wf-space-s);
-}
-
-.calendar-weekday {
-	width: 24px;
-	text-align: center;
-	font-size: var(--wf-font-size-xs);
-	font-weight: var(--wf-font-weight-semibold);
-	color: var(--color-text-muted);
-}
-
-.calendar-grid {
-	padding-bottom: var(--wf-space-s);
-}
-
-.calendar-week {
-	display: flex;
-	justify-content: space-around;
-	padding: 0 var(--wf-space-ml);
-}
-
-.calendar-day {
-	margin: 0;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: var(--wf-radius-s);
-	font-size: var(--wf-font-size-xs);
-	color: var(--color-text);
-	cursor: pointer;
-	transition: background-color 0.15s ease;
-}
-
-.calendar-day:hover {
-	color: var(--color-text);
-}
-
-.calendar-day:hover .calendar-day-inner {
-	background-color: var(--wf-background-tertiary);
-}
-
-.calendar-day.other-month {
-	color: var(--color-text-muted);
-}
-
-.calendar-day-inner {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 24px;
-	height: 24px;
-	border-radius: var(--wf-radius-s);
-	border: 1px solid transparent;
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease;
-}
-
-.calendar-day.today .calendar-day-inner {
-	background-color: var(--color-accent);
-	color: white;
-	font-weight: var(--wf-font-weight-bold);
-	border-color: var(--color-accent);
-}
-
-.calendar-day.today:hover .calendar-day-inner {
-	background-color: var(--color-accent-hover);
-}
-
-.top-bar-calendar-container {
-	position: relative;
 }
 
 .top-bar-layout-container {

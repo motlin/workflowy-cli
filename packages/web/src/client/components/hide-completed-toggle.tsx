@@ -2,7 +2,7 @@ import {useEffect, useId, useRef} from "react";
 import type {RefObject} from "react";
 
 interface HideCompletedToggleProps {
-	anchorRef: RefObject<HTMLButtonElement | null>;
+	anchorRef: RefObject<HTMLElement | null>;
 	isOpen: boolean;
 	onClose: () => void;
 	onToggle: () => void;

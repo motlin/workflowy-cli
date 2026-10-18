@@ -2,10 +2,9 @@ import {useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useFlattenedTree} from "../hooks/use-flattened-tree.js";
 import {useNavigationHistory} from "../hooks/use-navigation-history.js";
-import {useUpdateNode} from "../hooks/use-nodes.js";
+import {useChildren, useNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
-import {CalendarPanel} from "./calendar-panel.js";
 import {FaIcon} from "./fa-icons.js";
 import {GearMenu} from "./gear-menu.js";
 import {HideCompletedToggle} from "./hide-completed-toggle.js";
@@ -13,6 +12,7 @@ import {IconButton} from "./icon-button.js";
 import {LayoutMenu} from "./layout-menu.js";
 import type {LayoutMode} from "./layout-menu.js";
 import {Tooltip} from "./tooltip.js";
+import {zoomToToday} from "../zoom-to-today.js";
 
 /**
  * Star icon (outline) for unstarred state.
@@ -45,7 +45,6 @@ export function TopBar() {
 		zoomedNodeId,
 		toggleLeftBar,
 		toggleSearchPanel,
-		openSearchWithQuery,
 		toggleCompleted,
 		showCompleted,
 		openSettings,
@@ -57,19 +56,21 @@ export function TopBar() {
 	const navigate = useNavigate();
 	const {canGoBack, canGoForward} = useNavigationHistory();
 	const [menuOpen, setMenuOpen] = useState(false);
-	const [calendarOpen, setCalendarOpen] = useState(false);
 	const [completedToggleOpen, setCompletedToggleOpen] = useState(false);
 	const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
 	const [layoutMenuPosition, setLayoutMenuPosition] = useState({top: 0, right: 0});
 	const menuRef = useRef<HTMLDivElement>(null);
-	const calendarButtonRef = useRef<HTMLButtonElement>(null);
-	const completedButtonRef = useRef<HTMLButtonElement>(null);
-	const layoutButtonRef = useRef<HTMLButtonElement>(null);
+	const completedButtonRef = useRef<HTMLDivElement>(null);
+	const layoutButtonRef = useRef<HTMLDivElement>(null);
 	const updateNodeMutation = useUpdateNode();
 	const isCurrentPageStarred = zoomedNodeId !== null && isPageStarred(zoomedNodeId);
 	const expandAll = useOutlineStore((state) => state.expandAll);
 	const collapseAll = useOutlineStore((state) => state.collapseAll);
 	const {flattenedNodes} = useFlattenedTree(zoomedNodeId);
+	const zoomedNode = useNode(zoomedNodeId);
+	const rootChildren = useChildren(null);
+	const canPresent =
+		zoomedNodeId === null ? (rootChildren.data?.length ?? 0) > 0 : zoomedNode.data?.hasChildren === true;
 
 	const handleStarToggle = () => {
 		if (zoomedNodeId !== null) {
@@ -97,33 +98,12 @@ export function TopBar() {
 		openPresentation(zoomedNodeId ?? "root");
 	};
 
-	const handleCalendarToggle = () => {
-		setCalendarOpen((prev) => !prev);
-	};
-
-	const handleCalendarClose = () => {
-		setCalendarOpen(false);
-	};
-
 	const handleCompletedToggleOpen = () => {
 		setCompletedToggleOpen(true);
 	};
 
 	const handleCompletedToggleClose = () => {
 		setCompletedToggleOpen(false);
-	};
-
-	const handleDateSelect = (date: Date) => {
-		// Format date as YYYY-MM-DD
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, "0");
-		const day = String(date.getDate()).padStart(2, "0");
-		const dateString = `${year}-${month}-${day}`;
-
-		// Open search with date query
-		toggleSearchPanel();
-		openSearchWithQuery(`date:${dateString}`);
-		setCalendarOpen(false);
 	};
 
 	const handleLayoutToggle = () => {
@@ -204,12 +184,32 @@ export function TopBar() {
 					</button>
 				</Tooltip>
 
-				{/* Star button - only shown when zoomed into a node */}
+				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
+				<div onClick={() => void zoomToToday({navigate})}>
+					<IconButton shortcut="⌃T" tooltip="Today">
+						<FaIcon icon="fal:calendar-day" />
+					</IconButton>
+				</div>
+
+				{/* Share slot: M1-32 */}
+
+				{canPresent && (
+					<IconButton
+						data-handbook="present_it"
+						onClick={handlePresentationClick}
+						tooltip="Start presentation"
+					>
+						<FaIcon icon="fal:play" />
+					</IconButton>
+				)}
+
+				{/* Star slot: M1-29 replaces this with <StarButton nodeId={zoomedNodeId} handbook="starring.star" size="lg"/> */}
 				{zoomedNodeId !== null && (
 					<Tooltip content={isCurrentPageStarred ? "Unstar" : "Star"} shortcut="⇧⌘8">
 						<button
 							aria-label={isCurrentPageStarred ? "Unstar this page" : "Star this page"}
 							className={`top-bar-button top-bar-star ${isCurrentPageStarred ? "starred" : ""}`}
+							data-handbook="starring.star"
 							onClick={handleStarToggle}
 							type="button"
 						>
@@ -218,63 +218,18 @@ export function TopBar() {
 					</Tooltip>
 				)}
 
-				{/* Play/Present icon */}
-				<Tooltip content="Present">
-					<button
-						aria-label="Present"
-						className="top-bar-button"
-						data-handbook="present.it"
-						onClick={handlePresentationClick}
-						type="button"
-					>
-						<svg fill="currentColor" height="16" viewBox="0 0 384 512" width="16">
-							<path d="M56.3 66.3c-4.9-3-11.1-3.1-16.2-.3s-8.2 8.2-8.2 14l0 352c0 5.8 3.1 11.1 8.2 14s11.2 2.7 16.2-.3l288-176c4.8-2.9 7.7-8.1 7.7-13.7s-2.9-10.7-7.7-13.7l-288-176zM24.5 38.1C39.7 29.6 58.2 30 73 39L361 215c14.3 8.7 23 24.2 23 41s-8.7 32.2-23 41L73 473c-14.8 9.1-33.4 9.4-48.5 .9S0 449.4 0 432L0 80C0 62.6 9.4 46.6 24.5 38.1z" />
-						</svg>
-					</button>
-				</Tooltip>
-
-				{/* Calendar icon */}
-				<div className="top-bar-calendar-container">
-					<Tooltip content="Calendar">
-						<button
-							aria-expanded={calendarOpen}
-							aria-haspopup="true"
-							aria-label="Calendar"
-							className={`top-bar-button ${calendarOpen ? "active" : ""}`}
-							onClick={handleCalendarToggle}
-							ref={calendarButtonRef}
-							type="button"
-						>
-							<svg fill="currentColor" height="16" viewBox="0 0 448 512" width="16">
-								<path d="M128 16c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 48L64 64C28.7 64 0 92.7 0 128l0 32 0 32L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-256 0-32 0-32c0-35.3-28.7-64-64-64l-32 0 0-48c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 48L128 64l0-48zM32 192l384 0 0 256c0 17.7-14.3 32-32 32L64 480c-17.7 0-32-14.3-32-32l0-256zM64 96l320 0c17.7 0 32 14.3 32 32l0 32L32 160l0-32c0-17.7 14.3-32 32-32zm40 160l80 0c4.4 0 8 3.6 8 8l0 80c0 4.4-3.6 8-8 8l-80 0c-4.4 0-8-3.6-8-8l0-80c0-4.4 3.6-8 8-8zm-40 8l0 80c0 22.1 17.9 40 40 40l80 0c22.1 0 40-17.9 40-40l0-80c0-22.1-17.9-40-40-40l-80 0c-22.1 0-40 17.9-40 40z" />
-							</svg>
-						</button>
-					</Tooltip>
-					<CalendarPanel
-						anchorRef={calendarButtonRef}
-						isOpen={calendarOpen}
-						onClose={handleCalendarClose}
-						onDateSelect={handleDateSelect}
-					/>
-				</div>
-
 				{/* Show/hide completed icon */}
-				<div className="top-bar-completed-container">
-					<Tooltip content={showCompleted ? "Hide completed" : "Show completed"} shortcut="⌘O">
-						<button
-							aria-expanded={completedToggleOpen}
-							aria-haspopup="true"
-							aria-label={showCompleted ? "Hide completed" : "Show completed"}
-							className={`top-bar-button ${showCompleted ? "active" : ""}`}
-							onClick={handleCompletedToggleOpen}
-							ref={completedButtonRef}
-							type="button"
-						>
-							<svg fill="currentColor" height="16" viewBox="0 0 448 512" width="16">
-								<path d="M443.3 100.7c6.2 6.2 6.2 16.4 0 22.6l-272 272c-6.2 6.2-16.4 6.2-22.6 0l-144-144c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L160 361.4 420.7 100.7c6.2-6.2 16.4-6.2 22.6 0z" />
-							</svg>
-						</button>
-					</Tooltip>
+				<div className="top-bar-completed-container" ref={completedButtonRef}>
+					<IconButton
+						aria-expanded={completedToggleOpen}
+						aria-haspopup="true"
+						data-handbook="complete.toggle"
+						onClick={handleCompletedToggleOpen}
+						shortcut="⌘O"
+						tooltip={showCompleted ? "Hide completed" : "Show completed"}
+					>
+						<FaIcon icon="fal:check" />
+					</IconButton>
 					<HideCompletedToggle
 						anchorRef={completedButtonRef}
 						isOpen={completedToggleOpen}
@@ -284,24 +239,17 @@ export function TopBar() {
 					/>
 				</div>
 
-				{/* List/Layout icon */}
-				<div className="top-bar-layout-container">
-					<Tooltip content="Layout">
-						<button
-							aria-expanded={layoutMenuOpen}
-							aria-haspopup="true"
-							aria-label="Layout"
-							className={`top-bar-button ${layoutMenuOpen ? "active" : ""}`}
-							data-handbook="bullet.layout"
-							onClick={handleLayoutToggle}
-							ref={layoutButtonRef}
-							type="button"
-						>
-							<svg fill="currentColor" height="16" viewBox="0 0 512 512" width="16">
-								<path d="M64 64a32 32 0 1 0 0 64 32 32 0 1 0 0-64zM176 80c-8.8 0-16 7.2-16 16s7.2 16 16 16l320 0c8.8 0 16-7.2 16-16s-7.2-16-16-16L176 80zm0 160c-8.8 0-16 7.2-16 16s7.2 16 16 16l320 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-320 0zm0 160c-8.8 0-16 7.2-16 16s7.2 16 16 16l320 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-320 0zM64 224a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0 160a32 32 0 1 0 0 64 32 32 0 1 0 0-64z" />
-							</svg>
-						</button>
-					</Tooltip>
+				{/* Change layout */}
+				<div className="top-bar-layout-container" ref={layoutButtonRef}>
+					<IconButton
+						aria-expanded={layoutMenuOpen}
+						aria-haspopup="true"
+						data-handbook="bullet.layout"
+						onClick={handleLayoutToggle}
+						tooltip="Change layout"
+					>
+						<FaIcon icon="fal:list-ul" />
+					</IconButton>
 					{layoutMenuOpen && (
 						<LayoutMenu
 							currentLayout={null}
@@ -312,23 +260,18 @@ export function TopBar() {
 					)}
 				</div>
 
-				{/* Menu dots icon */}
-				<div className="top-bar-menu-container" ref={menuRef}>
-					<Tooltip content="More options">
-						<button
-							aria-expanded={menuOpen}
-							aria-haspopup="true"
-							aria-label="More options"
-							className="top-bar-button top-bar-menu-button"
-							onClick={handleMenuToggle}
-							type="button"
-						>
-							<svg fill="currentColor" height="16" viewBox="0 0 128 512" width="16">
-								<path d="M64 384a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-160a32 32 0 1 0 0 64 32 32 0 1 0 0-64zM96 96A32 32 0 1 0 32 96a32 32 0 1 0 64 0z" />
-							</svg>
-							<span className="top-bar-menu-notification-dot" />
-						</button>
-					</Tooltip>
+				{/* More: upstream's gearMenu wrapper, no tooltip; blue dot omitted (no unread rows locally) */}
+				<div
+					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- upstream's focusable gearMenu wrapper; markup parity with workflowy.com
+					tabIndex={0}
+					className="relative outline-none menu gearMenu"
+					ref={menuRef}
+				>
+					<div>
+						<IconButton onClick={handleMenuToggle}>
+							<FaIcon icon="fal:ellipsis-vertical" size="lg" />
+						</IconButton>
+					</div>
 					<GearMenu
 						isOpen={menuOpen}
 						onClose={handleMenuClose}

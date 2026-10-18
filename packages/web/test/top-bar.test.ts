@@ -5,7 +5,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {cssBlock, cssBlockText} from "./helpers/css-block.js";
 
-const storeState = {
+const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	zoomedNodeId: "alice",
 	toggleLeftBar: () => {},
 	toggleSearchPanel: () => {},
@@ -34,7 +34,15 @@ vi.mock("../src/client/hooks/use-navigation-history.js", () => ({
 vi.mock("../src/client/hooks/use-flattened-tree.js", () => ({
 	useFlattenedTree: () => ({flattenedNodes: []}),
 }));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({useUpdateNode: () => ({mutate: () => {}})}));
+const nodeState = {hasChildren: true, rootChildren: [{id: "r1"}]};
+
+vi.mock("../src/client/hooks/use-nodes.js", () => ({
+	useUpdateNode: () => ({mutate: () => {}}),
+	useNode: (nodeId: string | null) => ({
+		data: nodeId === null ? undefined : {id: nodeId, hasChildren: nodeState.hasChildren},
+	}),
+	useChildren: () => ({data: nodeState.rootChildren}),
+}));
 vi.mock("../src/client/components/breadcrumbs.js", () => ({
 	Breadcrumbs: () => createElement("div", {className: "breadcrumbs-mock"}),
 }));
@@ -143,6 +151,98 @@ describe("TopBar left controls", () => {
 	});
 });
 
+/** Inner HTML of the right cluster. */
+function clusterHtml(html: string): string {
+	const marker = '<div class="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">';
+	return html.slice(html.indexOf(marker) + marker.length);
+}
+
+/** Ordered identifiers of the right-cluster controls. */
+function clusterSequence(html: string): string[] {
+	const tokens = clusterHtml(html).matchAll(
+		/top-bar-search-box|fa-calendar-day|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
+	);
+	return [...tokens].map((match) => {
+		if (match[0].startsWith("data-handbook")) {
+			return match[1];
+		}
+		if (match[0] === "top-bar-search-box") {
+			return "search";
+		}
+		return match[0] === "fa-calendar-day" ? "today" : "gearMenu";
+	});
+}
+
+function renderCluster(zoomedNodeId: string | null, hasChildren: boolean, rootChildren: {id: string}[]): string {
+	storeState.zoomedNodeId = zoomedNodeId;
+	nodeState.hasChildren = hasChildren;
+	nodeState.rootChildren = rootChildren;
+	const html = renderToStaticMarkup(createElement(TopBar));
+	storeState.zoomedNodeId = "alice";
+	nodeState.hasChildren = true;
+	nodeState.rootChildren = [{id: "r1"}];
+	return html;
+}
+
+describe("TopBar right cluster", () => {
+	it("orders the zoomed controls like upstream", () => {
+		expect(clusterSequence(renderCluster("alice", true, []))).toStrictEqual([
+			"search",
+			"today",
+			"present_it",
+			"starring.star",
+			"complete.toggle",
+			"bullet.layout",
+			"gearMenu",
+		]);
+	});
+
+	it("drops the star at root and keeps Present when root has children", () => {
+		expect(clusterSequence(renderCluster(null, false, [{id: "r1"}]))).toStrictEqual([
+			"search",
+			"today",
+			"present_it",
+			"complete.toggle",
+			"bullet.layout",
+			"gearMenu",
+		]);
+	});
+
+	it("hides Present when the zoomed node has no children", () => {
+		expect(clusterSequence(renderCluster("alice", false, [{id: "r1"}]))).not.toContain("present_it");
+	});
+
+	it("hides Present at an empty root", () => {
+		expect(clusterSequence(renderCluster(null, true, []))).not.toContain("present_it");
+	});
+
+	it("renders the kebab wrapper without a tooltip or blue dot", () => {
+		const cluster = clusterHtml(renderCluster("alice", true, []));
+		const kebab = cluster.slice(cluster.indexOf('<div tabindex="0" class="relative outline-none menu gearMenu">'));
+		expect(kebab.replaceAll(/ d="[^"]*"/gu, "")).toBe(
+			'<div tabindex="0" class="relative outline-none menu gearMenu"><div><div role="button" tabindex="0" class="iconButton lg shape-circle">' +
+				'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="ellipsis-vertical" class="svg-inline--fa fa-ellipsis-vertical fa-lg " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 512"><path fill="currentColor"></path></svg>' +
+				"</div></div></div></div></div>",
+		);
+		expect(cluster).not.toContain("w-[7px]");
+		expect(cluster).not.toContain('role="tooltip"');
+	});
+
+	it("renders Today as a bare div around a calendar-day IconButton", () => {
+		const cluster = clusterHtml(renderCluster("alice", true, [])).replaceAll(/ d="[^"]*"/gu, "");
+		expect(cluster).toContain(
+			`<div><div role="button" tabindex="0" class="iconButton lg shape-circle">${svg("calendar-day", 448)}</div></div>`,
+		);
+	});
+
+	it("renders no New pane separator and no Calendar popover", () => {
+		const html = renderCluster("alice", true, []);
+		expect(html).not.toContain("border-l");
+		expect(html).not.toContain("top-bar-calendar-container");
+		expect(html).not.toContain("calendar-panel");
+	});
+});
+
 describe("header CSS", () => {
 	it("ports upstream's .header rule plus content-box sizing", () => {
 		expect(cssBlock(styles, ".header")).toStrictEqual({
@@ -174,5 +274,9 @@ describe("header CSS", () => {
 	it("drops the old top-bar layout rules and retargets the offline-banner override", () => {
 		expect(hasSelector(styles, /\.top-bar(-left|-right|-nav-buttons)?\s*[{,]/u)).toBe(false);
 		expect(cssBlock(styles, ".outline-container:has(.offline-banner) .wf-header")).toStrictEqual({top: "40px"});
+	});
+
+	it("drops the local-only Calendar popover rules", () => {
+		expect(hasSelector(styles, /\.(calendar-panel|calendar-day|top-bar-calendar-container)\b/u)).toBe(false);
 	});
 });

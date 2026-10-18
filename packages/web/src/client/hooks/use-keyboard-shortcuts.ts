@@ -23,7 +23,7 @@ import {
 	useUpdateNode,
 } from "./use-nodes.js";
 import {useVisibleNodes} from "./use-visible-nodes.js";
-import {readJson} from "../read-json.js";
+import {zoomToToday} from "../zoom-to-today.js";
 import {navigationShortcut, punctuationHotkeys} from "../hotkey-bindings.js";
 
 /**
@@ -657,66 +657,17 @@ export function useKeyboardShortcuts() {
 
 	// Ctrl+T (^T): Zoom to Today
 	// Searches for a node containing today's date and navigates to it
-	const zoomToToday = async () => {
+	const handleZoomToToday = async () => {
 		// Don't zoom if editing
 		if (editingId !== null || editingNoteId !== null) {
 			return;
 		}
-
-		// Format today's date in common formats to search
-		const today = new Date();
-		const monthNames = [
-			"January",
-			"February",
-			"March",
-			"April",
-			"May",
-			"June",
-			"July",
-			"August",
-			"September",
-			"October",
-			"November",
-			"December",
-		];
-		const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-		const day = today.getDate();
-		const month = monthNames[today.getMonth()];
-		const year = today.getFullYear();
-		const dayOfWeek = dayNames[today.getDay()];
-
-		// Try common date formats
-		const dateFormats = [
-			`${month} ${day}, ${year}`,
-			`${dayOfWeek}, ${month} ${day}`,
-			`${month} ${day}`,
-			`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-		];
-
-		// Search for nodes containing today's date
-		for (const dateFormat of dateFormats) {
-			const response = await fetch("/api/search", {
-				method: "POST",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({query: dateFormat, limit: 1}),
-			});
-
-			if (response.ok) {
-				const data = await readJson<{results: {id: string; name: string | null}[]}>(response);
-				const [first] = data.results;
-				if (first !== undefined) {
-					void navigate(nodeRoute(first.id));
-					return;
-				}
-			}
-		}
-
-		// If no node found, could show a notification (for now just do nothing)
+		await zoomToToday({navigate});
 	};
 	useHotkeys(
 		"ctrl+t",
 		() => {
-			void zoomToToday();
+			void handleZoomToToday();
 		},
 		{
 			preventDefault: true,
