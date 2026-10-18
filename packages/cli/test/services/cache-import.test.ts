@@ -801,6 +801,50 @@ describe("cache-import service", () => {
 		});
 	});
 
+	describe("one unit of work", () => {
+		it("rolls back the node merge when merging a relationship table fails", async () => {
+			await importBackup(
+				testDatabase.db,
+				writeBackupFile([
+					{id: "kept", nm: "Kept"},
+					{id: "doomed", nm: "Doomed"},
+				]),
+				"backup.json",
+				false,
+				T0,
+			);
+			const currentContent = () =>
+				testDatabase.db
+					.select({id: nodeContent.id, name: nodeContent.name})
+					.from(nodeContent)
+					.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+					.orderBy(nodeContent.id)
+					.all();
+			const before = currentContent();
+			testDatabase.sqlite.exec(
+				"CREATE TRIGGER fail_backlink BEFORE INSERT ON backlinks BEGIN SELECT RAISE(ABORT, 'backlink failed'); END",
+			);
+
+			await expect(
+				importBackup(
+					testDatabase.db,
+					writeBackupFile([
+						{
+							id: "kept",
+							nm: "Kept, renamed",
+							metadata: {backlink: {sourceID: "source-node", targetID: "target-node"}},
+						},
+					]),
+					"backup.json",
+					false,
+					T1,
+				),
+			).rejects.toThrow("backlink failed");
+
+			expect(currentContent()).toStrictEqual(before);
+		});
+	});
+
 	describe("validation errors", () => {
 		it("throws error for invalid backup format", async () => {
 			const backupContent = [

@@ -225,6 +225,13 @@
 			"when": 1779235200000,
 			"tag": "0031_add_node_internal_metadata",
 			"breakpoints": true
+		},
+		{
+			"idx": 32,
+			"version": "6",
+			"when": 1779321600000,
+			"tag": "0032_mirrors_pk_mirror_first",
+			"breakpoints": true
 		}
 	]
 }

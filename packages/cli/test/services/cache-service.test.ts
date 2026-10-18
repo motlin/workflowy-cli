@@ -1,5 +1,19 @@
 import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
-import {backlinks, mirrors, nodeContent, nodeMetadata, virtualRootIds} from "@workflowy/shared/db";
+import {
+	aiMetadata,
+	backlinks,
+	calendarLevels,
+	calendarMetadata,
+	changesMetadata,
+	mirrors,
+	nodeContent,
+	nodeEmbeddings,
+	nodeInternalMetadata,
+	nodeMetadata,
+	referencesRoots,
+	s3Files,
+	virtualRootIds,
+} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {eq} from "drizzle-orm";
 import fs from "node:fs";
@@ -803,6 +817,61 @@ describe("CacheService (shared)", () => {
 			expect(byCopy.systemTo).not.toBe(FAR_FUTURE_DATE);
 			const byOriginal = testDatabase.db.select().from(mirrors).where(eq(mirrors.originalId, "orig2")).get()!;
 			expect(byOriginal.systemTo).not.toBe(FAR_FUTURE_DATE);
+		});
+
+		it("ends every owned part of the deleted subtree at the content's system time", () => {
+			const from = formatTemporalTimestamp(new Date(Date.now() - 1000));
+			const temporal = {systemFrom: from, systemTo: FAR_FUTURE_DATE};
+			seedTestData(testDatabase, {
+				...nodeFixtures([
+					createTestNode({id: "parent", name: "Parent", parentId: null}),
+					createTestNode({id: "child", name: "Child", parentId: "parent"}),
+				]),
+				aiMetadata: [{nodeId: "child", inChat: 1, ...temporal}],
+				s3Files: [{nodeId: "child", fileName: "f", fileType: "image/png", ...temporal}],
+				changesMetadata: [{nodeId: "child", ctBy: 1, ...temporal}],
+				referencesRoots: [{nodeId: "parent", ...temporal}],
+			});
+			const {db} = testDatabase;
+			db.insert(nodeEmbeddings)
+				.values({nodeId: "child", model: "minilm", embedding: Buffer.from([1]), ...temporal})
+				.run();
+			db.insert(calendarMetadata)
+				.values({
+					nodeId: "child",
+					root: null,
+					level: null,
+					value: null,
+					dateId: null,
+					timestamp: null,
+					foundDates: null,
+					...temporal,
+				})
+				.run();
+			db.insert(calendarLevels)
+				.values({nodeId: "child", day: 1, week: null, month: null, year: null, ...temporal})
+				.run();
+			db.insert(nodeInternalMetadata).values({nodeId: "child", metadataJson: "{}", fetchedAt: 1}).run();
+
+			cacheService.deleteNode("parent");
+
+			const systemTos = [
+				nodeContent,
+				nodeMetadata,
+				nodeEmbeddings,
+				calendarMetadata,
+				calendarLevels,
+				aiMetadata,
+				s3Files,
+				changesMetadata,
+				referencesRoots,
+			].flatMap((table) => db.selectDistinct({systemTo: table.systemTo}).from(table).all());
+			const contentSystemTo = db.select().from(nodeContent).where(eq(nodeContent.id, "parent")).get()!.systemTo;
+			expect({
+				systemTos: [...new Set(systemTos.map((row) => row.systemTo))],
+				internal: db.select().from(nodeInternalMetadata).all(),
+			}).toStrictEqual({systemTos: [contentSystemTo], internal: []});
+			expect(contentSystemTo).not.toBe(FAR_FUTURE_DATE);
 		});
 
 		it("leaves a surviving node backlink that merely targets the deleted node", () => {

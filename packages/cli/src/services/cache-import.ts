@@ -1,16 +1,15 @@
 import {fetchWorkflowyEpoch} from "@workflowy/shared/api";
-import {
-	backlinks,
-	config,
-	mirrors,
-	nodeContent,
-	nodeEmbeddings,
-	nodeMetadata,
-	virtualRootIds,
-} from "@workflowy/shared/db";
+import {backlinks, config, mirrors, nodeContent, nodeMetadata, virtualRootIds} from "@workflowy/shared/db";
 import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
-import {applyRows, joinKey, nextSystemTime, temporalMerge} from "@workflowy/shared/cache";
+import {
+	applyRows,
+	endOrphanedParts,
+	joinKey,
+	nextSystemTime,
+	runUnitOfWork,
+	temporalMerge,
+} from "@workflowy/shared/cache";
 import type {
 	TemporalTransaction,
 	NormalizedAiMetadataRow,
@@ -26,7 +25,7 @@ import {BackupFileSchema, BackupNodeSchema} from "@workflowy/shared/schemas";
 import type {BackupNode} from "@workflowy/shared/schemas";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {backupToUnixTime, uuidToShortId} from "@workflowy/shared/workflowy";
-import {and, eq, inArray, lt} from "drizzle-orm";
+import {eq} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {formatError, ZodError} from "zod";
 import {readBackupFile} from "../utils/backup-archive.js";
@@ -129,9 +128,6 @@ async function getOrFetchWorkflowyEpoch(tx: TemporalTransaction): Promise<number
 			"or provide WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD to fetch automatically.",
 	);
 }
-
-// Batch size for bulk operations - balance between memory and performance
-const BULK_BATCH_SIZE = 1000;
 
 /**
  * Convert a Unix timestamp (seconds) to a Date object.
@@ -798,10 +794,10 @@ export async function importBackup(
 
 	// Normalize the bulk-export tree into the shared in-DB row shape, then hand
 	// the node-keyed temporal tables to the shared importer. applyRows() owns the
-	// transaction, the temporal merge, and FK-correct insertion order for these
-	// tables. The composite-key tables (mirrors, backlinks, virtual_root_ids) and
-	// orphan cleanup are merged separately below — they are not node-keyed and the
-	// merge engine does not yet support their multi-column natural keys.
+	// temporal merge and FK-correct insertion order for these tables. The
+	// composite-key tables (mirrors, backlinks, virtual_root_ids) are merged
+	// separately below, in the same unit of work — they are not node-keyed and
+	// applyRows() does not yet support their multi-column natural keys.
 	const nodeContentRows: NormalizedNodeContentRow[] = nodesToProcess.map((node) => ({
 		id: node.id,
 		name: node.name,
@@ -826,212 +822,156 @@ export async function importBackup(
 
 	const importTimestamp = timestamp ?? nextSystemTime(database);
 	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
-	const mergeResult = applyRows(
+	// One unit of work: the node-keyed merge, the relationship merges and the
+	// orphan sweep commit together at the import time, or not at all.
+	runUnitOfWork(
 		database,
-		{
-			nodeContent: nodeContentRows,
-			nodeMetadata: nodeMetadataRows,
-			calendarMetadata: calendarMetadataRows,
-			calendarLevels: calendarLevelsRows,
-			aiMetadata: aiMetadataRows,
-			s3Files: s3FileRows,
-			changesMetadata: changesMetadataRows,
-			referencesRoots: referencesRootsRows,
-		},
-		importTimestampStr,
-		protectedIds,
-	);
-	logTiming(
-		`Merged node-keyed tables: ${mergeResult.nodeContent?.inserted ?? 0} content, ` +
-			`${mergeResult.nodeMetadata?.inserted ?? 0} metadata`,
-	);
-	logTiming(`Content updates: ${contentUpdated}, Metadata updates: ${metadataUpdated}`);
+		(unitOfWork) => {
+			const {tx} = unitOfWork;
+			const merged = applyRows(
+				unitOfWork,
+				{
+					nodeContent: nodeContentRows,
+					nodeMetadata: nodeMetadataRows,
+					calendarMetadata: calendarMetadataRows,
+					calendarLevels: calendarLevelsRows,
+					aiMetadata: aiMetadataRows,
+					s3Files: s3FileRows,
+					changesMetadata: changesMetadataRows,
+					referencesRoots: referencesRootsRows,
+				},
+				protectedIds,
+			);
+			logTiming(
+				`Merged node-keyed tables: ${merged.nodeContent?.inserted ?? 0} content, ` +
+					`${merged.nodeMetadata?.inserted ?? 0} metadata`,
+			);
+			logTiming(`Content updates: ${contentUpdated}, Metadata updates: ${metadataUpdated}`);
 
-	database.transaction((tx) => {
-		// Merge mirror relationships through the shared engine (composite key:
-		// originalId + mirrorId). Dedupe incoming first, since temporalMerge treats
-		// each incoming row as a desired-state row and would otherwise double-insert
-		// a repeated pair. Workflowy keeps a mirror's `originalId` after deleting its
-		// original (and an original's `mirrorRootIds` after deleting a mirror), so
-		// only pairs whose two nodes both survive this import are live.
-		const liveNodeIds = new Set([...nodesToProcess.map((n) => n.id), ...protectedIds]);
-		const dedupedMirrors = [
-			...new Map(
-				mirrorRecords
-					.filter((m) => liveNodeIds.has(m.originalId) && liveNodeIds.has(m.mirrorId))
-					.map((m) => [joinKey(m.originalId, m.mirrorId), m]),
-			).values(),
-		];
-		const currentMirrorRows = tx.select().from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)).all();
-		const mirrorResult = temporalMerge(
-			tx,
-			{
-				table: mirrors,
-				keyColumns: [mirrors.originalId, mirrors.mirrorId],
-				systemToColumn: mirrors.systemTo,
-				incomingKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
-				currentKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
-				contentMatches: () => true, // mirror rows carry no content beyond their key
-				buildInsertRow: (m: {originalId: string; mirrorId: string}) => ({
-					originalId: m.originalId,
-					mirrorId: m.mirrorId,
-				}),
-			},
-			dedupedMirrors,
-			currentMirrorRows,
-			importTimestampStr,
-		);
-		logTiming(`Processed mirrors: ${mirrorResult.inserted} inserted, ${mirrorResult.phasedOut} closed`);
+			// Merge mirror relationships through the shared engine (composite key:
+			// originalId + mirrorId). Dedupe incoming first, since temporalMerge treats
+			// each incoming row as a desired-state row and would otherwise double-insert
+			// a repeated pair. Workflowy keeps a mirror's `originalId` after deleting its
+			// original (and an original's `mirrorRootIds` after deleting a mirror), so
+			// only pairs whose two nodes both survive this import are live.
+			const liveNodeIds = new Set([...nodesToProcess.map((n) => n.id), ...protectedIds]);
+			const dedupedMirrors = [
+				...new Map(
+					mirrorRecords
+						.filter((m) => liveNodeIds.has(m.originalId) && liveNodeIds.has(m.mirrorId))
+						.map((m) => [joinKey(m.originalId, m.mirrorId), m]),
+				).values(),
+			];
+			const currentMirrorRows = tx.select().from(mirrors).where(eq(mirrors.systemTo, FAR_FUTURE_DATE)).all();
+			const mirrorResult = temporalMerge(
+				tx,
+				{
+					table: mirrors,
+					keyColumns: [mirrors.originalId, mirrors.mirrorId],
+					systemToColumn: mirrors.systemTo,
+					incomingKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
+					currentKey: (m: {originalId: string; mirrorId: string}) => joinKey(m.originalId, m.mirrorId),
+					contentMatches: () => true, // mirror rows carry no content beyond their key
+					buildInsertRow: (m: {originalId: string; mirrorId: string}) => ({
+						originalId: m.originalId,
+						mirrorId: m.mirrorId,
+					}),
+				},
+				dedupedMirrors,
+				currentMirrorRows,
+				importTimestampStr,
+			);
+			logTiming(`Processed mirrors: ${mirrorResult.inserted} inserted, ${mirrorResult.phasedOut} closed`);
 
-		// Merge backlinks through the shared engine (composite key: nodeId +
-		// sourceId + targetId). A full backup is the complete desired state, so this
-		// is a GLOBAL merge: any current backlink whose key is absent from the backup
-		// is closed — including every backlink of a node that lost all of them. The
-		// former per-node loop only scanned nodes that still had incoming backlinks,
-		// so it silently leaked the backlinks of a node that dropped to zero.
-		const dedupedBacklinks = [
-			...new Map(backlinkRecords.map((b) => [joinKey(b.nodeId, b.sourceId, b.targetId), b])).values(),
-		];
-		const currentBacklinkRows = tx.select().from(backlinks).where(eq(backlinks.systemTo, FAR_FUTURE_DATE)).all();
-		const backlinkResult = temporalMerge(
-			tx,
-			{
-				table: backlinks,
-				keyColumns: [backlinks.nodeId, backlinks.sourceId, backlinks.targetId],
-				systemToColumn: backlinks.systemTo,
-				incomingKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
-					joinKey(b.nodeId, b.sourceId, b.targetId),
-				currentKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
-					joinKey(b.nodeId, b.sourceId, b.targetId),
-				contentMatches: () => true, // backlink rows carry no content beyond their key
-				buildInsertRow: (b: {nodeId: string; sourceId: string; targetId: string}) => ({
-					nodeId: b.nodeId,
-					sourceId: b.sourceId,
-					targetId: b.targetId,
-				}),
-			},
-			dedupedBacklinks,
-			currentBacklinkRows,
-			importTimestampStr,
-		);
-		logTiming(`Processed backlinks: ${backlinkResult.inserted} inserted, ${backlinkResult.phasedOut} closed`);
+			// Merge backlinks through the shared engine (composite key: nodeId +
+			// sourceId + targetId). A full backup is the complete desired state, so this
+			// is a GLOBAL merge: any current backlink whose key is absent from the backup
+			// is closed — including every backlink of a node that lost all of them. The
+			// former per-node loop only scanned nodes that still had incoming backlinks,
+			// so it silently leaked the backlinks of a node that dropped to zero.
+			const dedupedBacklinks = [
+				...new Map(backlinkRecords.map((b) => [joinKey(b.nodeId, b.sourceId, b.targetId), b])).values(),
+			];
+			const currentBacklinkRows = tx
+				.select()
+				.from(backlinks)
+				.where(eq(backlinks.systemTo, FAR_FUTURE_DATE))
+				.all();
+			const backlinkResult = temporalMerge(
+				tx,
+				{
+					table: backlinks,
+					keyColumns: [backlinks.nodeId, backlinks.sourceId, backlinks.targetId],
+					systemToColumn: backlinks.systemTo,
+					incomingKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
+						joinKey(b.nodeId, b.sourceId, b.targetId),
+					currentKey: (b: {nodeId: string; sourceId: string; targetId: string}) =>
+						joinKey(b.nodeId, b.sourceId, b.targetId),
+					contentMatches: () => true, // backlink rows carry no content beyond their key
+					buildInsertRow: (b: {nodeId: string; sourceId: string; targetId: string}) => ({
+						nodeId: b.nodeId,
+						sourceId: b.sourceId,
+						targetId: b.targetId,
+					}),
+				},
+				dedupedBacklinks,
+				currentBacklinkRows,
+				importTimestampStr,
+			);
+			logTiming(`Processed backlinks: ${backlinkResult.inserted} inserted, ${backlinkResult.phasedOut} closed`);
 
-		// Merge virtual root IDs through the shared engine (composite key: nodeId +
-		// virtualRootId). Also a GLOBAL merge — a node that lost all of its virtual
-		// roots has them closed, which the former per-node loop could not do. The
-		// backup carries these as one record per node with a list of ids, so flatten
-		// to one desired-state row per (nodeId, virtualRootId) pair first.
-		const dedupedVirtualRootIds = [
-			...new Map(
-				virtualRootIdRecords.flatMap((r) =>
-					r.virtualRootIds.map((v) => [joinKey(r.nodeId, v), {nodeId: r.nodeId, virtualRootId: v}] as const),
-				),
-			).values(),
-		];
-		const currentVirtualRootIdRows = tx
-			.select()
-			.from(virtualRootIds)
-			.where(eq(virtualRootIds.systemTo, FAR_FUTURE_DATE))
-			.all();
-		const virtualRootIdResult = temporalMerge(
-			tx,
-			{
-				table: virtualRootIds,
-				keyColumns: [virtualRootIds.nodeId, virtualRootIds.virtualRootId],
-				systemToColumn: virtualRootIds.systemTo,
-				incomingKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
-				currentKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
-				contentMatches: () => true, // virtual-root rows carry no content beyond their key
-				buildInsertRow: (r: {nodeId: string; virtualRootId: string}) => ({
-					nodeId: r.nodeId,
-					virtualRootId: r.virtualRootId,
-				}),
-			},
-			dedupedVirtualRootIds,
-			currentVirtualRootIdRows,
-			importTimestampStr,
-		);
-		logTiming(
-			`Processed virtual root IDs: ${virtualRootIdResult.inserted} inserted, ${virtualRootIdResult.phasedOut} closed`,
-		);
+			// Merge virtual root IDs through the shared engine (composite key: nodeId +
+			// virtualRootId). Also a GLOBAL merge — a node that lost all of its virtual
+			// roots has them closed, which the former per-node loop could not do. The
+			// backup carries these as one record per node with a list of ids, so flatten
+			// to one desired-state row per (nodeId, virtualRootId) pair first.
+			const dedupedVirtualRootIds = [
+				...new Map(
+					virtualRootIdRecords.flatMap((r) =>
+						r.virtualRootIds.map(
+							(v) => [joinKey(r.nodeId, v), {nodeId: r.nodeId, virtualRootId: v}] as const,
+						),
+					),
+				).values(),
+			];
+			const currentVirtualRootIdRows = tx
+				.select()
+				.from(virtualRootIds)
+				.where(eq(virtualRootIds.systemTo, FAR_FUTURE_DATE))
+				.all();
+			const virtualRootIdResult = temporalMerge(
+				tx,
+				{
+					table: virtualRootIds,
+					keyColumns: [virtualRootIds.nodeId, virtualRootIds.virtualRootId],
+					systemToColumn: virtualRootIds.systemTo,
+					incomingKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
+					currentKey: (r: {nodeId: string; virtualRootId: string}) => joinKey(r.nodeId, r.virtualRootId),
+					contentMatches: () => true, // virtual-root rows carry no content beyond their key
+					buildInsertRow: (r: {nodeId: string; virtualRootId: string}) => ({
+						nodeId: r.nodeId,
+						virtualRootId: r.virtualRootId,
+					}),
+				},
+				dedupedVirtualRootIds,
+				currentVirtualRootIdRows,
+				importTimestampStr,
+			);
+			logTiming(
+				`Processed virtual root IDs: ${virtualRootIdResult.inserted} inserted, ${virtualRootIdResult.phasedOut} closed`,
+			);
 
-		// Close out nodes that were deleted in Workflowy (not present in this backup)
-		// Uses in-memory orphan IDs computed earlier - this is fail-safe:
-		// empty orphan set = nothing closed (vs old approach where empty temp table = everything closed)
-		//
-		// node_content, node_metadata, and the node-keyed attribute tables
-		// (ai_metadata, s3_files, changes_metadata, references_roots,
-		// calendar_metadata, calendar_levels) have ALREADY had their orphan rows
-		// phased out by applyRows() above — temporalMerge closes any current row
-		// whose key is absent from the incoming set. Only the composite-key tables
-		// and node_embeddings (which applyRows() does not manage) need explicit
-		// orphan cleanup here.
-		if (orphanIds.length > 0) {
+			// End every owned row whose node is no longer current: the nodes deleted in
+			// Workflowy (absent from this backup) take their whole composite with them.
+			// applyRows() already closed their node-keyed rows; this sweep covers the
+			// rest (mirrors, backlinks, virtual root ids, embeddings, ...).
+			endOrphanedParts(unitOfWork);
 			nodesDeleted = orphanIds.length;
 
-			// Close orphaned mirrors (where the mirror node is orphaned)
-			for (let i = 0; i < orphanIds.length; i += BULK_BATCH_SIZE) {
-				const batch = orphanIds.slice(i, i + BULK_BATCH_SIZE);
-				tx.update(mirrors)
-					.set({systemTo: importTimestampStr})
-					.where(
-						and(
-							eq(mirrors.systemTo, FAR_FUTURE_DATE),
-							lt(mirrors.systemFrom, importTimestampStr),
-							inArray(mirrors.mirrorId, batch),
-						),
-					)
-					.run();
-			}
-
-			// Close orphaned backlinks
-			for (let i = 0; i < orphanIds.length; i += BULK_BATCH_SIZE) {
-				const batch = orphanIds.slice(i, i + BULK_BATCH_SIZE);
-				tx.update(backlinks)
-					.set({systemTo: importTimestampStr})
-					.where(
-						and(
-							eq(backlinks.systemTo, FAR_FUTURE_DATE),
-							lt(backlinks.systemFrom, importTimestampStr),
-							inArray(backlinks.nodeId, batch),
-						),
-					)
-					.run();
-			}
-
-			// Close orphaned virtual root IDs
-			for (let i = 0; i < orphanIds.length; i += BULK_BATCH_SIZE) {
-				const batch = orphanIds.slice(i, i + BULK_BATCH_SIZE);
-				tx.update(virtualRootIds)
-					.set({systemTo: importTimestampStr})
-					.where(
-						and(
-							eq(virtualRootIds.systemTo, FAR_FUTURE_DATE),
-							lt(virtualRootIds.systemFrom, importTimestampStr),
-							inArray(virtualRootIds.nodeId, batch),
-						),
-					)
-					.run();
-			}
-
-			// Close orphaned node embeddings
-			for (let i = 0; i < orphanIds.length; i += BULK_BATCH_SIZE) {
-				const batch = orphanIds.slice(i, i + BULK_BATCH_SIZE);
-				tx.update(nodeEmbeddings)
-					.set({systemTo: importTimestampStr})
-					.where(
-						and(
-							eq(nodeEmbeddings.systemTo, FAR_FUTURE_DATE),
-							lt(nodeEmbeddings.systemFrom, importTimestampStr),
-							inArray(nodeEmbeddings.nodeId, batch),
-						),
-					)
-					.run();
-			}
-		}
-
-		logTiming(`Closed ${nodesDeleted} orphaned nodes (deleted from Workflowy)`);
-	});
+			logTiming(`Closed ${nodesDeleted} orphaned nodes (deleted from Workflowy)`);
+		},
+		importTimestampStr,
+	);
 
 	logTiming("Transaction complete");
 

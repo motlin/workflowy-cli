@@ -187,8 +187,7 @@ export class WorkflowyWriteThroughClient {
 		}
 		for (const {mirrorId, originalId, parentId, position, siblingIds} of plan.promotions) {
 			const end = position === "top" ? -1 : 0;
-			await this.deleteMirror(mirrorId);
-			await this.moveNode(originalId, parentId, end);
+			await this.promote(mirrorId, originalId, parentId, end);
 			for (const siblingId of siblingIds) {
 				await this.moveNode(siblingId, parentId, end);
 			}
@@ -198,6 +197,31 @@ export class WorkflowyWriteThroughClient {
 			this.cacheService.deleteNode(plan.nodeId);
 		}
 		return plan;
+	}
+
+	/**
+	 * Remove a mirror and move its original into the mirror's slot. The cache
+	 * records both as one unit of work; if the move fails, it records the
+	 * removal alone, matching Workflowy.
+	 */
+	private async promote(
+		mirrorId: string,
+		originalId: string,
+		parentId: string | null,
+		position: number,
+	): Promise<void> {
+		await this.apiClient.deleteMirror(mirrorId);
+		let moved: WorkflowyNode;
+		try {
+			await this.apiClient.moveNode(originalId, parentId, position);
+			moved = await this.apiClient.getNode(originalId);
+		} catch (error) {
+			this.cacheService.deleteNode(mirrorId);
+			throw error;
+		}
+		this.cacheService.promoteOriginal(mirrorId, moved, parentId);
+		// A top move can make Workflowy renumber every sibling, so re-read them all.
+		await this.refreshChildren([parentId]);
 	}
 
 	/**

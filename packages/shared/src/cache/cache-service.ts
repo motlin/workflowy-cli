@@ -15,7 +15,7 @@ import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js
 import type {Node} from "../types/node.js";
 import type {WorkflowyNode} from "../types/workflowy.js";
 import {uuidToShortId} from "../workflowy/constants.js";
-import {and, eq, inArray, isNull, like, notInArray, or, sql} from "drizzle-orm";
+import {and, eq, inArray, isNull, like, notExists, notInArray, or, sql} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import {
 	contentMatches,
@@ -25,6 +25,7 @@ import {
 	systemFromToDate,
 } from "./cache-temporal.js";
 import {loadMirrorOriginals, notAMirror} from "./mirror-text.js";
+import {endNodeComposites, runUnitOfWork} from "./node-composite.js";
 import {NodeReader} from "./node-reader.js";
 import {nextSystemTime, nextSystemTimestamp} from "./system-clock.js";
 import type {TemporalTransaction} from "./temporal-merge.js";
@@ -244,7 +245,8 @@ export interface SubtreeMirrors {
 	/**
 	 * The current mirrors, sorted by id, of each non-mirror node in the subtree
 	 * (the root included) that has any, keyed in breadth-first order. Mirrors
-	 * may lie inside or outside the subtree; only cached mirror nodes count.
+	 * may lie inside or outside the subtree; only cached mirror nodes count, and
+	 * backlink items (mirrors with a current backlink row) never do.
 	 */
 	mirrorsOf: Map<string, string[]>;
 }
@@ -620,8 +622,6 @@ export class CacheService {
 	 * @param nodeId The node ID to delete
 	 */
 	deleteNode(nodeId: string): void {
-		const now = nextSystemTimestamp(this.database);
-
 		// Collect all descendant IDs iteratively (BFS)
 		const descendantIds: string[] = [nodeId];
 		// for-of over an array visits elements pushed during the loop, so this walks every level.
@@ -636,37 +636,27 @@ export class CacheService {
 			}
 		}
 
-		// Close all node records (set systemTo to now). A genuine deletion also closes the
-		// node's own relationship records (backlinks, virtualRootIds, mirrors): the node is gone,
-		// so no backup import will re-supply them. This does NOT replay the sync data-loss bug (#1712),
-		// which blanked these for nodes still present — here the nodes are actually deleted. Rows
-		// are filtered by nodeId, so a surviving node's backlink that merely targets a deleted
-		// node is left untouched.
-		this.database.transaction((tx) => {
-			for (const id of descendantIds) {
-				tx.update(nodeContent)
-					.set({systemTo: now})
-					.where(and(eq(nodeContent.id, id), currentVersion(nodeContent)))
-					.run();
-				tx.update(nodeMetadata)
-					.set({systemTo: now})
-					.where(and(eq(nodeMetadata.nodeId, id), currentVersion(nodeMetadata)))
-					.run();
-				tx.update(backlinks)
-					.set({systemTo: now})
-					.where(and(eq(backlinks.nodeId, id), currentVersion(backlinks)))
-					.run();
-				tx.update(virtualRootIds)
-					.set({systemTo: now})
-					.where(and(eq(virtualRootIds.nodeId, id), currentVersion(virtualRootIds)))
-					.run();
-				// A mirror row keys the deleted node as either the copy or the original; close
-				// it from whichever side, so a deleted node leaves no dangling mirror link.
-				tx.update(mirrors)
-					.set({systemTo: now})
-					.where(and(or(eq(mirrors.mirrorId, id), eq(mirrors.originalId, id)), currentVersion(mirrors)))
-					.run();
-			}
+		// A genuine deletion ends each node's whole composite (content, metadata and
+		// every owned part) in one unit of work. Rows of surviving nodes that merely
+		// reference a deleted node are left alone, except mirror rows, which close
+		// when either side dies.
+		runUnitOfWork(this.database, (unitOfWork) => {
+			endNodeComposites(unitOfWork, descendantIds);
+		});
+	}
+
+	/**
+	 * Promote an original into its mirror's slot, as one unit of work: the
+	 * mirror's composite ends (with its mirror row) and the original gets a new
+	 * version under `parentId`, all at one system time.
+	 * @param mirrorId The mirror removed upstream
+	 * @param original The original as Workflowy returns it after the move
+	 * @param parentId The parent the original now sits under
+	 */
+	promoteOriginal(mirrorId: string, original: WorkflowyNode, parentId: string | null): void {
+		runUnitOfWork(this.database, (unitOfWork) => {
+			endNodeComposites(unitOfWork, [mirrorId]);
+			upsertNodeVersion(unitOfWork.tx, original, parentId, unitOfWork.systemTime);
 		});
 	}
 
@@ -906,7 +896,20 @@ export class CacheService {
 				.select({originalId: mirrors.originalId, mirrorId: mirrors.mirrorId})
 				.from(mirrors)
 				.innerJoin(nodeContent, and(eq(nodeContent.id, mirrors.mirrorId), currentVersion(nodeContent)))
-				.where(and(inArray(mirrors.originalId, nonMirrorIds.slice(i, i + chunkSize)), currentVersion(mirrors)))
+				.where(
+					and(
+						inArray(mirrors.originalId, nonMirrorIds.slice(i, i + chunkSize)),
+						currentVersion(mirrors),
+						// A backlink item mirrors its source but is never a promotion target:
+						// deleting the source leaves the item in place, as upstream does.
+						notExists(
+							this.database
+								.select({nodeId: backlinks.nodeId})
+								.from(backlinks)
+								.where(and(eq(backlinks.nodeId, mirrors.mirrorId), currentVersion(backlinks))),
+						),
+					),
+				)
 				.all();
 			for (const row of rows) {
 				mirrorIds.set(row.originalId, [...(mirrorIds.get(row.originalId) ?? []), row.mirrorId]);

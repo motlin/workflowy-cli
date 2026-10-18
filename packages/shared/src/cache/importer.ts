@@ -14,10 +14,8 @@
  */
 
 import {eq} from "drizzle-orm";
-import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import type {BaseSQLiteDatabase, SQLiteColumn, SQLiteTable} from "drizzle-orm/sqlite-core";
 import type {InternalTreeItem} from "../api/workflowy-internal-client.js";
-import type * as schema from "../db/schema.js";
 import {
 	aiMetadata,
 	calendarLevels,
@@ -42,6 +40,7 @@ import type {
 	NormalizedReferencesRootsRow,
 	NormalizedS3FileRow,
 } from "./normalized-rows.js";
+import type {UnitOfWork} from "./node-composite.js";
 import {temporalMerge} from "./temporal-merge.js";
 import type {TemporalMergeResult, TemporalTransaction} from "./temporal-merge.js";
 
@@ -159,169 +158,167 @@ function mergeNodeKeyedTable<TIncoming, TTable extends SQLiteTable>(
 /**
  * Apply normalized rows to the cache database.
  *
- * Opens a single transaction, then dispatches each supplied table to
+ * Runs in the caller's unit of work (its transaction, with its system time as
+ * the import time), dispatching each supplied table to
  * {@link temporalMerge} in foreign-key-correct order: `node_content` and
  * `node_metadata` first (they describe the nodes themselves), then the
  * node-attribute tables that reference a node. Tables absent from `rowsByTable`
  * are skipped entirely — their current rows are left untouched.
  *
- * @param database   Drizzle database instance.
+ * @param unitOfWork The caller's transaction and system time.
  * @param rowsByTable Desired current state per destination table.
- * @param importedAt Temporal timestamp string for this import.
  * @param preserveNodeIds Nodes that must stay open even when absent from
  *   `rowsByTable`, because the incoming data predates them.
  */
 export function applyRows(
-	database: BetterSQLite3Database<typeof schema>,
+	unitOfWork: UnitOfWork,
 	rowsByTable: NormalizedRowsByTable,
-	importedAt: string,
 	preserveNodeIds?: ReadonlySet<string>,
 ): ApplyRowsResult {
 	const result: ApplyRowsResult = {};
+	const {tx, systemTime: importedAt} = unitOfWork;
 
-	database.transaction((tx) => {
-		// node_content / node_metadata describe the nodes themselves; merge first.
-		if (rowsByTable.nodeContent !== undefined) {
-			result.nodeContent = mergeNodeKeyedTable(
-				tx,
-				nodeContent,
-				nodeContent.id,
-				nodeContent.systemTo,
-				rowsByTable.nodeContent,
-				(row) => row.id,
-				(row) => row.id,
-				(current, incoming) =>
-					contentMatches(current, {
-						name: incoming.name ?? null,
-						note: incoming.note ?? null,
-						parentId: incoming.parentId ?? null,
-					}),
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	// node_content / node_metadata describe the nodes themselves; merge first.
+	if (rowsByTable.nodeContent !== undefined) {
+		result.nodeContent = mergeNodeKeyedTable(
+			tx,
+			nodeContent,
+			nodeContent.id,
+			nodeContent.systemTo,
+			rowsByTable.nodeContent,
+			(row) => row.id,
+			(row) => row.id,
+			(current, incoming) =>
+				contentMatches(current, {
+					name: incoming.name ?? null,
+					note: incoming.note ?? null,
+					parentId: incoming.parentId ?? null,
+				}),
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		if (rowsByTable.nodeMetadata !== undefined) {
-			result.nodeMetadata = mergeNodeKeyedTable(
-				tx,
-				nodeMetadata,
-				nodeMetadata.nodeId,
-				nodeMetadata.systemTo,
-				rowsByTable.nodeMetadata,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				(current, incoming) =>
-					metadataMatches(current, {
-						priority: incoming.priority ?? null,
-						createdAt: toUnix(incoming.createdAt),
-						modifiedAt: toUnix(incoming.modifiedAt),
-						completedAt: toUnix(incoming.completedAt),
-						layoutMode: incoming.layoutMode ?? null,
-					}),
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	if (rowsByTable.nodeMetadata !== undefined) {
+		result.nodeMetadata = mergeNodeKeyedTable(
+			tx,
+			nodeMetadata,
+			nodeMetadata.nodeId,
+			nodeMetadata.systemTo,
+			rowsByTable.nodeMetadata,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			(current, incoming) =>
+				metadataMatches(current, {
+					priority: incoming.priority ?? null,
+					createdAt: toUnix(incoming.createdAt),
+					modifiedAt: toUnix(incoming.modifiedAt),
+					completedAt: toUnix(incoming.completedAt),
+					layoutMode: incoming.layoutMode ?? null,
+				}),
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		// Node-attribute tables reference a node; merge after the node rows.
-		if (rowsByTable.calendarMetadata !== undefined) {
-			result.calendarMetadata = mergeNodeKeyedTable(
-				tx,
-				calendarMetadata,
-				calendarMetadata.nodeId,
-				calendarMetadata.systemTo,
-				rowsByTable.calendarMetadata,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				calendarMetadataMatches,
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	// Node-attribute tables reference a node; merge after the node rows.
+	if (rowsByTable.calendarMetadata !== undefined) {
+		result.calendarMetadata = mergeNodeKeyedTable(
+			tx,
+			calendarMetadata,
+			calendarMetadata.nodeId,
+			calendarMetadata.systemTo,
+			rowsByTable.calendarMetadata,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			calendarMetadataMatches,
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		if (rowsByTable.calendarLevels !== undefined) {
-			result.calendarLevels = mergeNodeKeyedTable(
-				tx,
-				calendarLevels,
-				calendarLevels.nodeId,
-				calendarLevels.systemTo,
-				rowsByTable.calendarLevels,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				calendarLevelsMatches,
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	if (rowsByTable.calendarLevels !== undefined) {
+		result.calendarLevels = mergeNodeKeyedTable(
+			tx,
+			calendarLevels,
+			calendarLevels.nodeId,
+			calendarLevels.systemTo,
+			rowsByTable.calendarLevels,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			calendarLevelsMatches,
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		if (rowsByTable.aiMetadata !== undefined) {
-			result.aiMetadata = mergeNodeKeyedTable(
-				tx,
-				aiMetadata,
-				aiMetadata.nodeId,
-				aiMetadata.systemTo,
-				rowsByTable.aiMetadata,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				(current, incoming) => current.inChat === incoming.inChat,
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	if (rowsByTable.aiMetadata !== undefined) {
+		result.aiMetadata = mergeNodeKeyedTable(
+			tx,
+			aiMetadata,
+			aiMetadata.nodeId,
+			aiMetadata.systemTo,
+			rowsByTable.aiMetadata,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			(current, incoming) => current.inChat === incoming.inChat,
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		if (rowsByTable.s3Files !== undefined) {
-			result.s3Files = mergeNodeKeyedTable(
-				tx,
-				s3Files,
-				s3Files.nodeId,
-				s3Files.systemTo,
-				rowsByTable.s3Files,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				s3Matches,
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	if (rowsByTable.s3Files !== undefined) {
+		result.s3Files = mergeNodeKeyedTable(
+			tx,
+			s3Files,
+			s3Files.nodeId,
+			s3Files.systemTo,
+			rowsByTable.s3Files,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			s3Matches,
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		if (rowsByTable.changesMetadata !== undefined) {
-			result.changesMetadata = mergeNodeKeyedTable(
-				tx,
-				changesMetadata,
-				changesMetadata.nodeId,
-				changesMetadata.systemTo,
-				rowsByTable.changesMetadata,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				(current, incoming) => current.ctBy === incoming.ctBy,
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
+	if (rowsByTable.changesMetadata !== undefined) {
+		result.changesMetadata = mergeNodeKeyedTable(
+			tx,
+			changesMetadata,
+			changesMetadata.nodeId,
+			changesMetadata.systemTo,
+			rowsByTable.changesMetadata,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			(current, incoming) => current.ctBy === incoming.ctBy,
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
-		if (rowsByTable.referencesRoots !== undefined) {
-			result.referencesRoots = mergeNodeKeyedTable(
-				tx,
-				referencesRoots,
-				referencesRoots.nodeId,
-				referencesRoots.systemTo,
-				rowsByTable.referencesRoots,
-				(row) => row.nodeId,
-				(row) => row.nodeId,
-				() => true,
-				(row) => ({...row}),
-				importedAt,
-				preserveNodeIds,
-			);
-		}
-	});
+	if (rowsByTable.referencesRoots !== undefined) {
+		result.referencesRoots = mergeNodeKeyedTable(
+			tx,
+			referencesRoots,
+			referencesRoots.nodeId,
+			referencesRoots.systemTo,
+			rowsByTable.referencesRoots,
+			(row) => row.nodeId,
+			(row) => row.nodeId,
+			() => true,
+			(row) => ({...row}),
+			importedAt,
+			preserveNodeIds,
+		);
+	}
 
 	return result;
 }

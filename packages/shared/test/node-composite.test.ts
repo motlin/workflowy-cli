@@ -23,9 +23,6 @@ const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
 const SEEDED = "2026-01-01 00:00:00.000";
 const UOW_TIME = "2026-06-01 12:00:00.000";
 
-/** Tables whose PK still leads with a non-owner column; Temporal composites 2/4 reorders mirrors. */
-const PK_REORDER_PENDING = new Set(["mirrors"]);
-
 function sqlTables(): SQLiteTable[] {
 	const values: unknown[] = Object.values(schema);
 	return values.filter((value): value is SQLiteTable => is(value, SQLiteTable));
@@ -69,11 +66,31 @@ describe("node composite ownership map", () => {
 		for (const entry of [NODE_COMPOSITE_ROOT, ...NODE_COMPOSITE_PARTS]) {
 			const config = getTableConfig(entry.table);
 			const leading = config.primaryKeys[0]?.columns[0] ?? config.columns.find((column) => column.primary);
-			if (leading?.name !== entry.owner.name && !PK_REORDER_PENDING.has(config.name)) {
+			if (leading?.name !== entry.owner.name) {
 				mismatches.push(`${config.name}: leading ${leading?.name}, owner ${entry.owner.name}`);
 			}
 		}
 		expect(mismatches).toStrictEqual([]);
+	});
+
+	it("migrates every owned table to the primary key the schema declares", () => {
+		const sqlite = new DatabaseConstructor(":memory:");
+		migrate(drizzle(sqlite, {schema}), {migrationsFolder});
+		const declared: Record<string, string[]> = {};
+		const migrated: Record<string, string[]> = {};
+		for (const entry of [NODE_COMPOSITE_ROOT, ...NODE_COMPOSITE_PARTS]) {
+			const config = getTableConfig(entry.table);
+			declared[config.name] =
+				config.primaryKeys[0]?.columns.map((column) => column.name) ??
+				config.columns.filter((column) => column.primary).map((column) => column.name);
+			const columns = sqlite.prepare(`PRAGMA table_info(${config.name})`).all() as {name: string; pk: number}[];
+			migrated[config.name] = columns
+				.filter((column) => column.pk > 0)
+				.toSorted((a, b) => a.pk - b.pk)
+				.map((column) => column.name);
+		}
+		sqlite.close();
+		expect(migrated).toStrictEqual(declared);
 	});
 });
 

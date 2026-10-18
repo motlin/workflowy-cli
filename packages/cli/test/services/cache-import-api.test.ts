@@ -1,5 +1,5 @@
 import {assert, beforeEach, vi, afterEach, describe, expect, it} from "vite-plus/test";
-import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import {backlinks, mirrors, nodeContent, nodeEmbeddings, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {eq} from "drizzle-orm";
@@ -540,6 +540,96 @@ describe("cache-import-api service", () => {
 					systemTo: FAR_FUTURE_DATE,
 				},
 			]);
+		});
+	});
+
+	describe("composites of deleted nodes", () => {
+		const T0 = new Date("2024-01-01T00:00:00Z");
+		const T1 = new Date("2024-01-01T00:01:00Z");
+		const SEEDED = "2024-01-01 00:00:00.000";
+
+		function seed(): void {
+			importFromApi(
+				testDatabase.db,
+				[createApiNode({id: "doomed", name: "Doomed"}), createApiNode({id: "survivor", name: "Survivor"})],
+				false,
+				T0,
+			);
+			const temporal = {systemFrom: SEEDED, systemTo: FAR_FUTURE_DATE};
+			testDatabase.db
+				.insert(backlinks)
+				.values([
+					{nodeId: "doomed", sourceId: "source", targetId: "target", ...temporal},
+					// The survivor's backlink merely references the doomed node, so it stays.
+					{nodeId: "survivor", sourceId: "doomed", targetId: "target", ...temporal},
+				])
+				.run();
+			testDatabase.db
+				.insert(referencesRoots)
+				.values({nodeId: "doomed", ...temporal})
+				.run();
+			testDatabase.db
+				.insert(nodeEmbeddings)
+				.values({nodeId: "doomed", model: "minilm", embedding: Buffer.from([1]), ...temporal})
+				.run();
+		}
+
+		function ownedRows() {
+			const {db} = testDatabase;
+			return {
+				backlinks: db
+					.select({nodeId: backlinks.nodeId, systemTo: backlinks.systemTo})
+					.from(backlinks)
+					.orderBy(backlinks.nodeId)
+					.all(),
+				referencesRoots: db
+					.select({nodeId: referencesRoots.nodeId, systemTo: referencesRoots.systemTo})
+					.from(referencesRoots)
+					.all(),
+				embeddings: db
+					.select({nodeId: nodeEmbeddings.nodeId, systemTo: nodeEmbeddings.systemTo})
+					.from(nodeEmbeddings)
+					.all(),
+				content: db
+					.select({id: nodeContent.id, systemTo: nodeContent.systemTo})
+					.from(nodeContent)
+					.orderBy(nodeContent.id)
+					.all(),
+			};
+		}
+
+		it("ends the owned rows of a node absent from the export at the import time", () => {
+			seed();
+
+			importFromApi(testDatabase.db, [createApiNode({id: "survivor", name: "Survivor"})], false, T1);
+
+			const ended = "2024-01-01 00:01:00.000";
+			expect(ownedRows()).toStrictEqual({
+				backlinks: [
+					{nodeId: "doomed", systemTo: ended},
+					{nodeId: "survivor", systemTo: FAR_FUTURE_DATE},
+				],
+				referencesRoots: [{nodeId: "doomed", systemTo: ended}],
+				embeddings: [{nodeId: "doomed", systemTo: ended}],
+				content: [
+					{id: "doomed", systemTo: ended},
+					{id: "survivor", systemTo: FAR_FUTURE_DATE},
+				],
+			});
+		});
+
+		it("rolls back the node rows too when ending an owned row fails", () => {
+			seed();
+			const before = ownedRows();
+			testDatabase.sqlite.exec(
+				"CREATE TRIGGER fail_part BEFORE UPDATE ON references_roots BEGIN SELECT RAISE(ABORT, 'part failed'); END",
+			);
+
+			expect(() =>
+				importFromApi(testDatabase.db, [createApiNode({id: "survivor", name: "Survivor"})], false, T1),
+			).toThrow('Failed to run the query \'UPDATE "references_roots"');
+
+			expect(ownedRows()).toStrictEqual(before);
 		});
 	});
 

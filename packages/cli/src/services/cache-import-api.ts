@@ -1,15 +1,14 @@
-import {mirrors, nodeContent, nodeMetadata} from "@workflowy/shared/db";
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import type {NodeContentType, NodeMetadataType} from "@workflowy/shared/db";
 import type * as schema from "@workflowy/shared/db";
-import {applyRows, nextSystemTime} from "@workflowy/shared/cache";
+import {applyRows, endOrphanedParts, nextSystemTime, runUnitOfWork} from "@workflowy/shared/cache";
 import type {NormalizedNodeContentRow, NormalizedNodeMetadataRow, NormalizedRowsByTable} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {WorkflowyNodeSchema} from "@workflowy/shared/types";
 import type {WorkflowyNode} from "@workflowy/shared/types";
 import {uuidToShortId} from "@workflowy/shared/workflowy";
-import {and, eq, notExists, or} from "drizzle-orm";
+import {eq} from "drizzle-orm";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
-import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
 import {formatError, ZodError} from "zod";
 import {contentMatches, metadataComparisonStats, metadataMatches, normalizeLayoutMode} from "./cache-temporal.js";
 import {logger} from "./logger.js";
@@ -47,31 +46,6 @@ interface ProcessedNode {
 	modifiedAt: number | null;
 	completedAt: number | null;
 	layoutMode: string | null;
-}
-
-/**
- * Close every current mirror row whose original or mirror node is no longer
- * current. The REST API carries no mirror metadata, so this adapter cannot
- * write mirror rows, but a node it phases out takes its relationships with it.
- */
-function closeMirrorsOfDeletedNodes(database: BetterSQLite3Database<typeof schema>, importedAt: string): void {
-	const noCurrentNode = (column: AnySQLiteColumn) =>
-		notExists(
-			database
-				.select({id: nodeContent.id})
-				.from(nodeContent)
-				.where(and(eq(nodeContent.id, column), eq(nodeContent.systemTo, FAR_FUTURE_DATE))),
-		);
-	database
-		.update(mirrors)
-		.set({systemTo: importedAt})
-		.where(
-			and(
-				eq(mirrors.systemTo, FAR_FUTURE_DATE),
-				or(noCurrentNode(mirrors.originalId), noCurrentNode(mirrors.mirrorId)),
-			),
-		)
-		.run();
 }
 
 /**
@@ -218,8 +192,8 @@ export function importFromApi(
 	metadataComparisonStats.log();
 
 	// Normalize the per-node REST payload into the shared in-DB row shape, then
-	// hand it to the shared importer, which owns the transaction and the
-	// temporal merge. This adapter only manages node_content and node_metadata.
+	// hand it to the shared importer, which owns the temporal merge. This adapter
+	// merges only node_content and node_metadata.
 	const contentRows: NormalizedNodeContentRow[] = nodesToProcess.map((node) => ({
 		id: node.id,
 		name: node.name,
@@ -238,8 +212,18 @@ export function importFromApi(
 	const rowsByTable: NormalizedRowsByTable = {nodeContent: contentRows, nodeMetadata: metadataRows};
 	const importTimestamp = timestamp ?? nextSystemTime(database);
 	const importTimestampStr = formatTemporalTimestamp(importTimestamp);
-	const mergeResult = applyRows(database, rowsByTable, importTimestampStr);
-	closeMirrorsOfDeletedNodes(database, importTimestampStr);
+	// One unit of work: the node merge and the end of every deleted node's
+	// composite (backlinks, references roots, embeddings, mirror rows from
+	// either side, ...) commit together at the import time.
+	const mergeResult = runUnitOfWork(
+		database,
+		(unitOfWork) => {
+			const merged = applyRows(unitOfWork, rowsByTable);
+			endOrphanedParts(unitOfWork);
+			return merged;
+		},
+		importTimestampStr,
+	);
 
 	logTiming(
 		`Merged ${mergeResult.nodeContent?.inserted ?? 0} content rows, ` +

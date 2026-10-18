@@ -8,7 +8,7 @@ import {readFileSync} from "node:fs";
 import {join} from "node:path";
 import * as schema from "@workflowy/shared/db";
 import {mirrors, nodeContent} from "@workflowy/shared/db";
-import {applyRows, normalizeLayoutMode} from "@workflowy/shared/cache";
+import {applyRows, normalizeLayoutMode, runUnitOfWork} from "@workflowy/shared/cache";
 import type {ApplyRowsResult, NormalizedRowsByTable} from "@workflowy/shared/cache";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import type {Node, WorkflowyNode} from "@workflowy/shared/types";
@@ -309,7 +309,11 @@ export function bulkImportWithWatermarkGuard(
 	}
 
 	const rowsByTable = normalizeBackupNodes(nodes);
-	const mergeResult = applyRows(database, rowsByTable, formatTemporalTimestamp(importedAt));
+	const mergeResult = runUnitOfWork(
+		database,
+		(unitOfWork) => applyRows(unitOfWork, rowsByTable),
+		formatTemporalTimestamp(importedAt),
+	);
 	return {skipped: false, mergeResult};
 }
 
@@ -326,5 +330,9 @@ export function restImport(
 	importedAt: Date,
 ): ApplyRowsResult {
 	const rowsByTable = normalizeRestNodes(nodes);
-	return applyRows(database, rowsByTable, formatTemporalTimestamp(importedAt));
+	return runUnitOfWork(
+		database,
+		(unitOfWork) => applyRows(unitOfWork, rowsByTable),
+		formatTemporalTimestamp(importedAt),
+	);
 }

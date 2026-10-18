@@ -1,4 +1,4 @@
-import {applyRows, NodeReader} from "@workflowy/shared/cache";
+import {applyRows, NodeReader, runUnitOfWork} from "@workflowy/shared/cache";
 import {eq, sql} from "drizzle-orm";
 import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
@@ -71,7 +71,7 @@ describe("round-trip test infrastructure", () => {
 
 			const result = database.get<{count: number}>(sql`SELECT COUNT(*) AS count FROM __drizzle_migrations`);
 
-			expect(result.count).toBe(32);
+			expect(result.count).toBe(33);
 
 			sqlite.close();
 		});
@@ -187,7 +187,11 @@ describe("round-trip equivalence", () => {
 			// current, the temporal merge must insert nothing and phase out
 			// nothing — the whole point of the round-trip safety net.
 			const reimportRows = restDtoToNormalizedRows(dtos);
-			const reapplied = applyRows(database, reimportRows, "2026-05-22 11:00:00");
+			const reapplied = runUnitOfWork(
+				database,
+				(unitOfWork) => applyRows(unitOfWork, reimportRows),
+				"2026-05-22 11:00:00",
+			);
 			expect(reapplied.nodeContent?.inserted).toBe(0);
 			expect(reapplied.nodeContent?.phasedOut).toBe(0);
 			expect(reapplied.nodeContent?.unchanged).toBe(4);

@@ -141,14 +141,14 @@ export const nodeEmbeddings = sqliteTable(
 export const mirrors = sqliteTable(
 	"mirrors",
 	{
-		originalId: text("original_id").notNull(),
 		mirrorId: text("mirror_id").notNull(),
+		originalId: text("original_id").notNull(),
 
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),
 	},
 	(table) => [
-		primaryKey({columns: [table.originalId, table.mirrorId, table.systemFrom]}),
+		primaryKey({columns: [table.mirrorId, table.originalId, table.systemFrom]}),
 		index("mirrors_mirror_idx").on(table.mirrorId, table.systemTo),
 		index("mirrors_original_idx").on(table.originalId, table.systemTo),
 	],

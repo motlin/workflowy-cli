@@ -10,7 +10,7 @@ import {deletePlanCalls} from "../src/cache/delete-plan.js";
 import type {DeletePlan} from "../src/cache/delete-plan.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
-import {mirrors, nodeContent, nodeMetadata} from "../src/db/schema.js";
+import {backlinks, mirrors, nodeContent, nodeEmbeddings, nodeMetadata} from "../src/db/schema.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
 import {requestBody, requestJson} from "./helpers/request-body.js";
 import {z} from "zod";
@@ -91,7 +91,15 @@ const INITIAL_OUTLINE = {
  * @param failCall A `METHOD /path` call the fake server answers with a 500.
  * @param serverOutline Children lists the fake server holds in place of the cached ones, as when the cache is stale.
  */
-function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline?: Record<string, string[]>} = {}) {
+function setup({
+	failCall,
+	serverOutline = {},
+	backlinkItems = [],
+}: {
+	failCall?: string;
+	serverOutline?: Record<string, string[]>;
+	backlinkItems?: [nodeId: string, sourceId: string, targetId: string][];
+} = {}) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const database = drizzle(sqlite, {schema});
 	migrate(database, {migrationsFolder});
@@ -131,6 +139,12 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 			})),
 		)
 		.run();
+	for (const [nodeId, sourceId, targetId] of backlinkItems) {
+		database
+			.insert(backlinks)
+			.values({nodeId, sourceId, targetId, systemFrom: SEEDED_AT, systemTo: FAR_FUTURE_DATE})
+			.run();
+	}
 
 	// A fake Workflowy that tracks each parent's ordered children, so moves and GETs agree.
 	const server = childLists();
@@ -228,7 +242,7 @@ function setup({failCall, serverOutline = {}}: {failCall?: string; serverOutline
 		};
 	};
 
-	return {client, calls, cacheState};
+	return {client, calls, cacheState, database, sqlite};
 }
 
 const PROJECTS_PLAN = {
@@ -417,6 +431,86 @@ describe("WorkflowyWriteThroughClient.deleteNode with mirrors", () => {
 				],
 			},
 		});
+	});
+
+	it("deletes a backlink source without promoting it into its backlink item, which keeps its backlink row", async () => {
+		const {client, calls, cacheState, database} = setup({backlinkItems: [["mirror-a1", "task-a1", "other"]]});
+
+		const plan = await client.deleteNode("task-a1");
+
+		expect({
+			plan,
+			calls,
+			cache: cacheState(),
+			backlinks: database.select({nodeId: backlinks.nodeId, systemTo: backlinks.systemTo}).from(backlinks).all(),
+		}).toStrictEqual({
+			plan: {mirrorIds: [], promotions: [], nodeId: "task-a1"},
+			calls: ["DELETE /nodes/task-a1"],
+			cache: {
+				outline: {...INITIAL_OUTLINE, "task-a": ["mirror-y"]},
+				mirrors: [
+					{originalId: "task-a", mirrorId: "mirror-b"},
+					{originalId: "other-original", mirrorId: "mirror-in"},
+					{originalId: "task-a", mirrorId: "mirror-nested"},
+					{originalId: "task-a", mirrorId: "mirror-out"},
+					{originalId: "task-y", mirrorId: "mirror-y"},
+				],
+			},
+			backlinks: [{nodeId: "mirror-a1", systemTo: FAR_FUTURE_DATE}],
+		});
+	});
+
+	it("ends the promoted mirror's composite and moves the original into its slot at one system time", async () => {
+		const {client, database} = setup();
+		database
+			.insert(nodeEmbeddings)
+			.values({
+				nodeId: "mirror-b",
+				model: "minilm",
+				embedding: Buffer.from([1]),
+				systemFrom: SEEDED_AT,
+				systemTo: FAR_FUTURE_DATE,
+			})
+			.run();
+
+		await client.deleteNode("task-a");
+
+		const promoted = database
+			.select({systemFrom: nodeContent.systemFrom})
+			.from(nodeContent)
+			.where(and(eq(nodeContent.id, "task-a"), eq(nodeContent.parentId, "task-b")))
+			.get();
+		const ended = [
+			database
+				.select({systemTo: nodeContent.systemTo})
+				.from(nodeContent)
+				.where(eq(nodeContent.id, "mirror-b"))
+				.get(),
+			database
+				.select({systemTo: nodeMetadata.systemTo})
+				.from(nodeMetadata)
+				.where(eq(nodeMetadata.nodeId, "mirror-b"))
+				.get(),
+			database
+				.select({systemTo: nodeEmbeddings.systemTo})
+				.from(nodeEmbeddings)
+				.where(eq(nodeEmbeddings.nodeId, "mirror-b"))
+				.get(),
+			database.select({systemTo: mirrors.systemTo}).from(mirrors).where(eq(mirrors.mirrorId, "mirror-b")).get(),
+		].map((row) => row?.systemTo);
+		expect([...new Set([promoted?.systemFrom, ...ended])]).toStrictEqual([promoted?.systemFrom]);
+	});
+
+	it("rolls back the whole promotion in the cache when versioning the original fails", async () => {
+		const {client, cacheState, sqlite} = setup();
+		const before = cacheState();
+		sqlite.exec(
+			"CREATE TRIGGER fail_promotion BEFORE INSERT ON node_content WHEN NEW.id = 'task-a' BEGIN SELECT RAISE(ABORT, 'promotion failed'); END",
+		);
+
+		await expect(client.deleteNode("task-a")).rejects.toThrow("promotion failed");
+
+		expect(cacheState()).toStrictEqual(before);
 	});
 
 	it("deletes a node without mirrors through the generic endpoint only", async () => {
