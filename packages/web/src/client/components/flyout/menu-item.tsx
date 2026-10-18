@@ -82,6 +82,8 @@ export interface MenuItemProps {
 	onMouseLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
 	onMouseDown?: () => void;
 	withPlaceForIcon?: boolean;
+	/** Read by MenuBody: render after the scroller. */
+	bottomSticky?: boolean;
 	ref?: Ref<HTMLAnchorElement>;
 }
 
