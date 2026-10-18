@@ -64,12 +64,15 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 			if (handbook !== undefined) {
 				iconButtonProps.set(handbook, props);
 			}
+			if (props.tooltip === "Share") {
+				iconButtonProps.set("share", props);
+			}
 			return actual.IconButton(props);
 		},
 	};
 });
 
-const {TopBar} = await import("../src/client/components/top-bar.js");
+const {TopBar, shareUrl} = await import("../src/client/components/top-bar.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
@@ -180,7 +183,7 @@ function clusterHtml(html: string): string {
 /** Ordered identifiers of the right-cluster controls. */
 function clusterSequence(html: string): string[] {
 	const tokens = clusterHtml(html).matchAll(
-		/top-bar-search-box|fa-calendar-day|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
+		/top-bar-search-box|fa-calendar-day|fa-user-plus|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
 	);
 	return [...tokens].map((match) => {
 		if (match[0].startsWith("data-handbook")) {
@@ -188,6 +191,9 @@ function clusterSequence(html: string): string[] {
 		}
 		if (match[0] === "top-bar-search-box") {
 			return "search";
+		}
+		if (match[0] === "fa-user-plus") {
+			return "share";
 		}
 		return match[0] === "fa-calendar-day" ? "today" : "gearMenu";
 	});
@@ -209,6 +215,7 @@ describe("TopBar right cluster", () => {
 		expect(clusterSequence(renderCluster("alice", true, []))).toStrictEqual([
 			"search",
 			"today",
+			"share",
 			"present_it",
 			"starring.star",
 			"complete.toggle",
@@ -273,6 +280,29 @@ function completedToggleHtml(html: string): string {
 function svgStyled(name: string, width: number, style: string): string {
 	return svg(name, width).replace(' 512"><path', ` 512" style="${style}"><path`);
 }
+
+describe("TopBar share button", () => {
+	it("builds the workflowy.com short-id URL", () => {
+		expect(shareUrl("21757ea6-e49b-4392-aa5b-aeda6fe0c1bb")).toBe("https://workflowy.com/#/aeda6fe0c1bb");
+	});
+
+	it("opens the zoomed node on workflowy.com in a new tab", () => {
+		const open = vi.fn<typeof window.open>();
+		vi.stubGlobal("window", {open});
+		renderCluster("21757ea6-e49b-4392-aa5b-aeda6fe0c1bb", true, []);
+		const onClick = iconButtonProps.get("share")?.onClick as () => void;
+		onClick();
+		vi.unstubAllGlobals();
+		expect(open.mock.calls).toStrictEqual([["https://workflowy.com/#/aeda6fe0c1bb", "_blank", "noopener"]]);
+	});
+
+	it("renders a user-plus IconButton without a handbook", () => {
+		const cluster = clusterHtml(renderCluster("alice", true, [])).replaceAll(/ d="[^"]*"/gu, "");
+		expect(cluster).toContain(
+			`<div role="button" tabindex="0" class="iconButton lg shape-circle">${svg("user-plus", 640)}</div>`,
+		);
+	});
+});
 
 describe("TopBar show completed toggle", () => {
 	it("toggles completed directly on click, with no popup", () => {

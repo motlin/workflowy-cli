@@ -39,6 +39,11 @@ function StarFilledIcon() {
  * Top toolbar matching upstream's div.wf-header.header: flat children (hamburger,
  * pagination, breadcrumbs, right cluster), 48px tall, fixed at the top.
  */
+/** The workflowy.com URL of a node, keyed by the last 12 hex digits of its id. */
+export function shareUrl(id: string): string {
+	return `https://workflowy.com/#/${id.replaceAll("-", "").slice(-12)}`;
+}
+
 export function TopBar() {
 	const {
 		zoomedNodeId,
@@ -180,7 +185,17 @@ export function TopBar() {
 					</IconButton>
 				</div>
 
-				{/* Share slot: M1-32 */}
+				{/* Share hands off to workflowy.com's own share dialog until share-dialog lands */}
+				{zoomedNodeId !== null && (
+					<IconButton
+						onClick={() => {
+							window.open(shareUrl(zoomedNodeId), "_blank", "noopener");
+						}}
+						tooltip="Share"
+					>
+						<FaIcon icon="fal:user-plus" />
+					</IconButton>
+				)}
 
 				{canPresent && (
 					<IconButton
