@@ -2,7 +2,7 @@ import {canonicalTimeAttributes} from "@workflowy/shared";
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
-import {shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
+import {registerEditFlush, shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
 import {applySplitPlan, planBackspaceAtStart, planDeleteAtEnd, planOutdent, planSplit} from "../tree-ops.js";
 import type {MergeRow} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
@@ -196,9 +196,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		}
 	}, [isEditing, initialValue, clickPosition, nodeId]);
 
-	const saveChanges = useCallback(() => {
+	/** Save the edited text if it changed, keeping the caret (⌘S); returns false with no editor. */
+	const saveInPlace = useCallback((): boolean => {
 		if (!contentRef.current) {
-			return;
+			return false;
 		}
 
 		const newValue = canonicalTimeAttributes(contentRef.current.innerHTML);
@@ -211,12 +212,28 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			});
 			initialValueRef.current = newValue;
 		}
+		return true;
+	}, [nodeId, updateNodeMutation]);
+
+	useEffect(() => {
+		const unregister = isEditing
+			? registerEditFlush(() => {
+					saveInPlace();
+				})
+			: undefined;
+		return unregister;
+	}, [isEditing, saveInPlace]);
+
+	const saveChanges = useCallback(() => {
+		if (!saveInPlace()) {
+			return;
+		}
 
 		// A vertical move may already have handed editing to another node.
 		if (useOutlineStore.getState().editingId === nodeId) {
 			stopEditing();
 		}
-	}, [nodeId, updateNodeMutation, stopEditing]);
+	}, [nodeId, saveInPlace, stopEditing]);
 
 	/**
 	 * Up on the first line / Down on the last line: commit this edit and start

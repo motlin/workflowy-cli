@@ -35,6 +35,7 @@ import {zoomToToday} from "../zoom-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
+import {saveAndSyncCommand} from "../save-and-sync.js";
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
 
@@ -324,6 +325,9 @@ export function useCommandRegistry(): CommandRegistry {
 	};
 
 	return {
+		save_and_sync: saveAndSyncCommand(() => {
+			void queryClient.invalidateQueries();
+		}),
 		zoom_in: {
 			execute(ctx) {
 				const [nodeId] = ctx.items;

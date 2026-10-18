@@ -47,6 +47,14 @@ describe("processCombo", () => {
 		}).toStrictEqual({result: "claimed", calls: []});
 	});
 
+	it("executes save_and_sync once on meta+s and claims the combo", () => {
+		const execute = vi.fn<(ctx: CommandContext) => void>();
+		expect({
+			result: processCombo("meta+s", {save_and_sync: {execute}}, ctx, true),
+			calls: execute.mock.calls,
+		}).toStrictEqual({result: "claimed", calls: [[ctx]]});
+	});
+
 	it("leaves an unbound combo to the browser", () => {
 		expect(processCombo("meta+q", {}, ctx, true)).toBe("unclaimed");
 	});

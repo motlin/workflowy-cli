@@ -316,6 +316,26 @@ interface OutlineActions {
 
 type OutlineStore = OutlineActions & OutlineState;
 
+let editFlush: (() => void) | null = null;
+
+/**
+ * The edited row registers how to save its unsaved text in place, keeping the caret (upstream's
+ * `WF.Editor.saveFocused()`). Returns the unregister function, which leaves a newer registration alone.
+ */
+export function registerEditFlush(flush: () => void): () => void {
+	editFlush = flush;
+	return () => {
+		if (editFlush === flush) {
+			editFlush = null;
+		}
+	};
+}
+
+/** Save the edited row's unsaved text without leaving it; a no-op when nothing is being edited. */
+export function flushEditing(): void {
+	editFlush?.();
+}
+
 /**
  * Whether a blur of `nodeId`'s editor should commit its text and stop editing.
  * Not when a structural shortcut holds editing across the re-render, and not

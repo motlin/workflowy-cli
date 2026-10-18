@@ -5,7 +5,9 @@ vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}})
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
 
-const {shouldCommitOnBlur, useOutlineStore} = await import("../src/client/stores/outline.js");
+const {flushEditing, registerEditFlush, shouldCommitOnBlur, useOutlineStore} =
+	await import("../src/client/stores/outline.js");
+const {saveAndSyncCommand} = await import("../src/client/save-and-sync.js");
 
 function focusState() {
 	const {editingId, editingCaretOffset, editingHeld, lastEditedId} = useOutlineStore.getState();
@@ -152,5 +154,47 @@ describe("shouldCommitOnBlur", () => {
 
 	it("ignores the blur after editing was already handed to another node", () => {
 		expect(shouldCommitOnBlur({editingId: "node-b", editingHeld: false}, "node-a")).toBe(false);
+	});
+});
+
+describe("edit flush", () => {
+	it("calls the registered flush once", () => {
+		const flush = vi.fn<() => void>();
+		const unregister = registerEditFlush(flush);
+		flushEditing();
+		unregister();
+		expect(flush.mock.calls).toStrictEqual([[]]);
+	});
+
+	it("is a no-op after the flush unregisters", () => {
+		const flush = vi.fn<() => void>();
+		registerEditFlush(flush)();
+		flushEditing();
+		expect(flush.mock.calls).toStrictEqual([]);
+	});
+
+	it("keeps a newer flush when an older one unregisters late", () => {
+		const older = vi.fn<() => void>();
+		const newer = vi.fn<() => void>();
+		const unregisterOlder = registerEditFlush(older);
+		const unregisterNewer = registerEditFlush(newer);
+		unregisterOlder();
+		flushEditing();
+		unregisterNewer();
+		expect({older: older.mock.calls, newer: newer.mock.calls}).toStrictEqual({older: [], newer: [[]]});
+	});
+});
+
+describe("saveAndSyncCommand", () => {
+	it("flushes the edited text, then refetches everything", () => {
+		const order: string[] = [];
+		const unregister = registerEditFlush(() => {
+			order.push("flush");
+		});
+		saveAndSyncCommand(() => {
+			order.push("sync");
+		}).execute({items: [], zoomedId: null});
+		unregister();
+		expect(order).toStrictEqual(["flush", "sync"]);
 	});
 });
