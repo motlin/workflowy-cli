@@ -1,3 +1,4 @@
+import {inject} from "vite-plus/test";
 import * as schema from "@workflowy/shared/db";
 import type {
 	NewAiMetadata,
@@ -16,8 +17,6 @@ import type {TestNode} from "../helpers/node-fixtures.js";
 import type Database from "better-sqlite3";
 import type {BetterSQLite3Database} from "drizzle-orm/better-sqlite3";
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import {createDatabase} from "../../src/db/index.js";
 
 export interface TestDatabase {
@@ -48,34 +47,16 @@ export function nodeFixtures(nodes: TestNode[]): Required<Pick<TestFixtures, "no
 }
 
 /**
- * Replaying the migrations costs ~35ms, which dominates the runtime of every
- * database-backed test. Migrate once per worker into a template file and copy
- * that instead: drizzle sees an up-to-date `__drizzle_migrations` table and its
- * migrate() call becomes a no-op, cutting the per-database cost to ~2ms.
- */
-let migratedTemplatePath: string | undefined;
-
-function migratedTemplate(): string {
-	if (migratedTemplatePath === undefined) {
-		const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflowy-db-template-"));
-		const templatePath = path.join(templateDir, "template.sqlite");
-		createDatabase(templatePath).$client.close();
-		migratedTemplatePath = templatePath;
-	}
-
-	return migratedTemplatePath;
-}
-
-/**
  * Create a test database with migrations applied
  */
 export function createTestDatabase(dbPath = ":memory:"): TestDatabase {
-	// An in-memory database has no file to copy onto, so it pays the full cost.
+	// Starting from the run-wide template (see test/setup/migrated-template.ts) makes drizzle's migrate() a no-op.
+	const template = inject("migratedDatabaseTemplate");
 	if (dbPath !== ":memory:") {
-		fs.copyFileSync(migratedTemplate(), dbPath);
+		fs.copyFileSync(template, dbPath);
 	}
 
-	const db = createDatabase(dbPath);
+	const db = createDatabase(dbPath === ":memory:" ? fs.readFileSync(template) : dbPath);
 
 	return {db, sqlite: db.$client, path: dbPath};
 }

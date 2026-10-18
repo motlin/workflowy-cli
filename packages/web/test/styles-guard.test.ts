@@ -1,14 +1,10 @@
 import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
+import {hasSelector} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 const uncommented = styles.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
-
-function hasSelector(css: string, pattern: RegExp): boolean {
-	const preludes = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "").match(/[^{}]+(?=\{)/gu) ?? [];
-	return preludes.some((prelude) => pattern.test(prelude));
-}
 
 function declarationsFor(selectorPattern: RegExp): string[] {
 	return [...uncommented.matchAll(/([^{}]+)\{([^{}]*)\}/gu)]

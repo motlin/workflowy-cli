@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {cssBlock} from "./helpers/css-block.js";
+import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {LeftBarMode} from "../src/client/stores/outline.js";
@@ -294,7 +294,7 @@ describe("left bar styles", () => {
 	});
 
 	it("scopes the outline's .scroller padding so the left bar scroller keeps its pt-3xl and pb-m", () => {
-		const preludes = (styles.match(/[^{}]+(?=\{)/gu) ?? []).map((prelude) => prelude.trim());
+		const preludes = cssPreludes(styles).map((prelude) => prelude.trim());
 		expect({
 			bareScroller: preludes.includes(".scroller"),
 			outlineScroller: cssBlock(styles, ".outline-tree-container > .scroller"),

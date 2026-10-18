@@ -72,3 +72,28 @@ export function cssBlock(css: string, selector: string): Record<string, string> 
 export function cssBlockText(css: string, selector: string): string {
 	return findBlockBody(css, selector);
 }
+
+/**
+ * Raw prelude (the text before each "{") of every rule and at-rule, in source order; comments are left in.
+ * A single linear pass: the equivalent /[^{}]+(?=\{)/gu scan backtracks through every declaration body and
+ * took ~160ms per call on styles.css, enough to time out CSS guards under a loaded parallel run.
+ */
+export function cssPreludes(css: string): string[] {
+	const preludes: string[] = [];
+	let start = 0;
+	for (let index = 0; index < css.length; index++) {
+		const char = css[index];
+		if (char === "{" || char === "}") {
+			if (char === "{" && index > start) {
+				preludes.push(css.slice(start, index));
+			}
+			start = index + 1;
+		}
+	}
+	return preludes;
+}
+
+/** Whether any rule prelude, comments stripped, matches `pattern`. */
+export function hasSelector(css: string, pattern: RegExp): boolean {
+	return cssPreludes(stripComments(css)).some((prelude) => pattern.test(prelude));
+}

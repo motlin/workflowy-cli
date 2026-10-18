@@ -4,14 +4,9 @@ import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {IconButton, iconButtonKeyDown} from "../src/client/components/icon-button.js";
-import {cssBlock} from "./helpers/css-block.js";
+import {cssBlock, hasSelector} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
-
-function hasSelector(css: string, pattern: RegExp): boolean {
-	const preludes = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "").match(/[^{}]+(?=\{)/gu) ?? [];
-	return preludes.some((prelude) => pattern.test(prelude));
-}
 
 function fakeEvent(key: string) {
 	return {

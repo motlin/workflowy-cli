@@ -7,9 +7,12 @@ import {join} from "node:path";
 import {sqlLogger} from "../services/sql-logger.js";
 import {nonEmpty} from "../utils/non-empty.js";
 
-export function createDatabase(dbPath?: string) {
-	const actualPath = nonEmpty(dbPath) ?? nonEmpty(process.env.WORKFLOWY_DB_PATH) ?? "workflowy.sqlite";
-	const sqlite = new DatabaseConstructor(actualPath);
+/** Open (and migrate) the cache database; a Buffer opens an in-memory copy of that serialized database. */
+export function createDatabase(dbPath?: string | Buffer) {
+	const source = Buffer.isBuffer(dbPath)
+		? dbPath
+		: (nonEmpty(dbPath) ?? nonEmpty(process.env.WORKFLOWY_DB_PATH) ?? "workflowy.sqlite");
+	const sqlite = new DatabaseConstructor(source);
 
 	sqliteVec.load(sqlite);
 

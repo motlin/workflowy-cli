@@ -1,14 +1,14 @@
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vite-plus/test";
-import {cssBlock} from "./helpers/css-block.js";
+import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8").replaceAll(
 	/\/\*[\s\S]*?\*\//gu,
 	"",
 );
 
-const preludes = (styles.match(/[^{}]+(?=\{)/gu) ?? []).map((prelude) => prelude.trim());
+const preludes = cssPreludes(styles).map((prelude) => prelude.trim());
 
 describe("add-child button styles", () => {
 	it("drops the legacy container and keeps only upstream's svg sizing rule", () => {

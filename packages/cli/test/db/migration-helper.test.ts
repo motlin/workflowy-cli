@@ -1,4 +1,5 @@
-import {beforeEach, afterEach, describe, expect, it} from "vite-plus/test";
+import {beforeEach, afterEach, describe, expect, inject, it} from "vite-plus/test";
+import Database from "better-sqlite3";
 import {nodeContent} from "@workflowy/shared/db";
 import fs from "node:fs";
 import os from "node:os";
@@ -50,6 +51,26 @@ describe("migration-helper", () => {
 			expect(database.db.select().from(nodeContent).all()).toStrictEqual([]);
 		} finally {
 			cleanupTestDatabase(database);
+		}
+	});
+
+	it("migrates the shared template once per run in global setup, before any test file opens a database", () => {
+		// With per-file module isolation a module-level cache rebuilt the template in every database-backed file,
+		// replaying all migrations inside the first beforeEach; under a loaded parallel run that blew the 10s hook timeout.
+		const templatePath = inject("migratedDatabaseTemplate");
+		const journal: {entries: unknown[]} = JSON.parse(
+			fs.readFileSync(
+				path.join(import.meta.dirname, "../../../shared/dist/db/migrations/meta/_journal.json"),
+				"utf8",
+			),
+		);
+		const template = new Database(templatePath, {readonly: true});
+		try {
+			expect(
+				template.prepare<[], {count: number}>("SELECT count(*) AS count FROM __drizzle_migrations").get(),
+			).toStrictEqual({count: journal.entries.length});
+		} finally {
+			template.close();
 		}
 	});
 

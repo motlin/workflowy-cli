@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type * as IconButtonModule from "../src/client/components/icon-button.js";
-import {cssBlock, cssBlockText} from "./helpers/css-block.js";
+import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
 const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	zoomedNodeId: "alice",
@@ -77,11 +77,6 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 const {TopBar, shareUrl} = await import("../src/client/components/top-bar.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
-
-function hasSelector(css: string, pattern: RegExp): boolean {
-	const preludes = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "").match(/[^{}]+(?=\{)/gu) ?? [];
-	return preludes.some((prelude) => pattern.test(prelude));
-}
 
 const VOID_TAGS = new Set(["input", "img", "br", "hr"]);
 

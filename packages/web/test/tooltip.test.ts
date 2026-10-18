@@ -4,14 +4,9 @@ import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {TooltipBox, createTooltipController, tooltipPosition} from "../src/client/components/tooltip.js";
-import {cssBlock} from "./helpers/css-block.js";
+import {cssBlock, hasSelector} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
-
-function hasSelector(css: string, pattern: RegExp): boolean {
-	const preludes = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "").match(/[^{}]+(?=\{)/gu) ?? [];
-	return preludes.some((prelude) => pattern.test(prelude));
-}
 
 describe("TooltipBox", () => {
 	it("renders upstream's tippy box with content and shortcut as one text node", () => {

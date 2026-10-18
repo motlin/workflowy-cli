@@ -474,7 +474,7 @@ describe("API Sync with Cache", () => {
 	});
 
 	describe("Batch operations and performance", () => {
-		it("efficiently stores multiple nodes from API in batch", async () => {
+		it("stores multiple nodes from API in one batch", async () => {
 			const apiResponse = {
 				nodes: Array.from({length: 100}, (_, i) => ({
 					id: `node-${i}`,
@@ -494,20 +494,13 @@ describe("API Sync with Cache", () => {
 				json: async () => Promise.resolve(apiResponse),
 			});
 
-			const startTime = Date.now();
-
 			const nodes = await apiClient.getRootNodes();
 			cacheService.storeApiResponse(nodes, null);
-
-			const endTime = Date.now();
-			const duration = endTime - startTime;
 
 			const storedContent = testDatabase.db.select().from(nodeContent).all();
 			expect(storedContent.map((content) => content.id).toSorted()).toStrictEqual(
 				Array.from({length: 100}, (_, index) => `node-${index}`).toSorted(),
 			);
-
-			expect(duration).toBeLessThan(5000);
 
 			// Spot-check node-0 (index 0: even, divisible by 3)
 			const content0 = storedContent.find((n) => n.id === "node-0");

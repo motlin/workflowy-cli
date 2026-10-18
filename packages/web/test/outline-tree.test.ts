@@ -5,7 +5,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
-import {cssBlock} from "./helpers/css-block.js";
+import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 
 const outlineState = {
 	expandedIds: new Set<string>(),
@@ -368,9 +368,7 @@ describe("outline tree styles guard", () => {
 	});
 
 	it("adds no outline-tree-container indent on top of the row's own 24px bullet space", () => {
-		const preludes = (styles.replaceAll(/\/\*[\s\S]*?\*\//gu, "").match(/[^{}]+(?=\{)/gu) ?? []).map((prelude) =>
-			prelude.trim(),
-		);
+		const preludes = cssPreludes(styles.replaceAll(/\/\*[\s\S]*?\*\//gu, "")).map((prelude) => prelude.trim());
 		expect(preludes.filter((prelude) => prelude === ".outline-tree-container")).toStrictEqual([]);
 	});
 
