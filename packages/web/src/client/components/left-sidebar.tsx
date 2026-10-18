@@ -7,18 +7,9 @@ import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {FilesListRows} from "./left-bar-files-list.js";
+import {zoomToToday} from "../zoom-to-today.js";
 
-/**
- * SVG icon components matching Font Awesome style.
- */
-function CalendarDayIcon() {
-	return (
-		<svg fill="currentColor" height="16" viewBox="0 0 448 512" width="16">
-			<path d="M128 0c17.7 0 32 14.3 32 32l0 32 128 0 0-32c0-17.7 14.3-32 32-32s32 14.3 32 32l0 32 48 0c26.5 0 48 21.5 48 48l0 48L0 160l0-48C0 85.5 21.5 64 48 64l48 0 0-32c0-17.7 14.3-32 32-32zM0 192l448 0 0 272c0 26.5-21.5 48-48 48L48 512c-26.5 0-48-21.5-48-48L0 192zm80 64c-8.8 0-16 7.2-16 16l0 96c0 8.8 7.2 16 16 16l96 0c8.8 0 16-7.2 16-16l0-96c0-8.8-7.2-16-16-16l-96 0z" />
-		</svg>
-	);
-}
-
+/** Font Awesome style search icon for saved-search rows. */
 function SearchIcon() {
 	return (
 		<svg fill="currentColor" height="14" viewBox="0 0 512 512" width="14">
@@ -203,6 +194,23 @@ export function HomeSectionName() {
 	);
 }
 
+/** Upstream's Today row: zooms to today's day node. */
+export function TodayRow() {
+	const navigate = useNavigate();
+	return (
+		<div className="my-xl mx-l desktop:mt-m desktop:mb-2xl">
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div */}
+			<div
+				className="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer"
+				onClick={() => void zoomToToday({navigate})}
+			>
+				<FaIcon className="text-tertiary" icon="fal:calendar-day" />
+				<span>Today</span>
+			</div>
+		</div>
+	);
+}
+
 /** Upstream's "New node" pill: appends an empty node to the end of the root and edits it. */
 export function NewNodeButton() {
 	const createNode = useCreateNode();
@@ -235,32 +243,11 @@ export function NewNodeButton() {
 /** Today, Starred and Home sections plus the New node button; replaced section by section by upstream ports. */
 function LeftBarSections() {
 	const {savedSearches, starredPages} = useOutlineStore();
-	const navigate = useNavigate();
 	const starredPagesArray = [...starredPages];
-
-	const handleTodayClick = () => {
-		void navigate("/");
-	};
 
 	return (
 		<nav className="left-sidebar-nav">
-			{/* Today Section */}
-			<section className="left-sidebar-section">
-				<ul className="left-sidebar-list">
-					<li>
-						<button
-							className="left-sidebar-item left-sidebar-today"
-							onClick={handleTodayClick}
-							type="button"
-						>
-							<span className="left-sidebar-icon">
-								<CalendarDayIcon />
-							</span>
-							<span className="left-sidebar-label">Today</span>
-						</button>
-					</li>
-				</ul>
-			</section>
+			<TodayRow />
 
 			<LeftBarSection contextKey="leftbar__starred__" name="Starred">
 				<ul className="left-sidebar-list">

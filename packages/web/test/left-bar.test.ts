@@ -38,8 +38,10 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useCreateNode: () => ({mutate: mutateMock}),
 	useNode: () => ({data: undefined}),
 }));
+const zoomToTodayMock = vi.fn<(options: {navigate: (path: string) => unknown}) => Promise<void>>(async () => {});
+vi.mock("../src/client/zoom-to-today.js", () => ({zoomToToday: zoomToTodayMock}));
 
-const {HomeSectionName, LeftBar, LeftBarSection, NewNodeButton, applyBodyOffset, resizeWidth} =
+const {HomeSectionName, LeftBar, LeftBarSection, NewNodeButton, TodayRow, applyBodyOffset, resizeWidth} =
 	await import("../src/client/components/left-sidebar.js");
 const {TRIANGLE_PATH} = await import("../src/client/components/fa-icons.js");
 
@@ -192,6 +194,31 @@ describe("Home section name", () => {
 			navigate: [["/"]],
 			stopped: 1,
 			toggled: [],
+		});
+	});
+});
+
+describe("TodayRow", () => {
+	it("renders upstream's Today block with the light calendar-day icon", () => {
+		const html = renderToStaticMarkup(createElement(TodayRow)).replace(/ d="[^"]*"/u, "");
+		expect(html).toBe(
+			'<div class="my-xl mx-l desktop:mt-m desktop:mb-2xl"><div class="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer">' +
+				'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="calendar-day" class="svg-inline--fa fa-calendar-day fa-1x text-tertiary" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor"></path></svg>' +
+				"<span>Today</span></div></div>",
+		);
+	});
+
+	it("zooms to today instead of navigating to the root", () => {
+		navigateMock.mockClear();
+		zoomToTodayMock.mockClear();
+		const wrapper = TodayRow() as {props: {children: {props: {onClick: () => void}}}};
+		wrapper.props.children.props.onClick();
+		expect({
+			zoom: zoomToTodayMock.mock.calls,
+			navigate: navigateMock.mock.calls,
+		}).toStrictEqual({
+			zoom: [[{navigate: navigateMock}]],
+			navigate: [],
 		});
 	});
 });
