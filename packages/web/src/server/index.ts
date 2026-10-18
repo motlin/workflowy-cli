@@ -14,6 +14,7 @@ import {homeRouter, nodesRouter} from "./routes/nodes.js";
 import {resolvePort} from "./port.js";
 import {relatedRouter} from "./routes/related.js";
 import {searchRouter} from "./routes/search.js";
+import {createStarsRouter} from "./routes/stars.js";
 import {tagsRouter} from "./routes/tags.js";
 
 process.title = "workflowy-web-server";
@@ -45,6 +46,7 @@ app.route("/api/v1/tags", tagsRouter);
 app.route("/api/v1/ladder", createLadderRouter());
 app.route("/api/v1/expansion", createExpansionRouter());
 app.route("/api/v1/calendar", createCalendarRouter());
+app.route("/api/v1/stars", createStarsRouter());
 app.route("/api/search", searchRouter);
 app.route("/api/related", relatedRouter);
 

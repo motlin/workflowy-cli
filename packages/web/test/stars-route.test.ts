@@ -1,0 +1,183 @@
+import {describe, expect, it, vi} from "vite-plus/test";
+import {Hono} from "hono";
+import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {createStarsRouter} from "../src/server/routes/stars.js";
+
+const NOT_CONFIGURED =
+	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
+const P1 = "1a2b3c4d-0000-4000-8000-000000000001";
+const P2 = "5e6f7a8b-0000-4000-8000-000000000002";
+
+const NAMES: Record<string, string> = {[P1]: "<b>Zulu</b>", [P2]: "Bravo"};
+
+function setup(meta: Record<string, unknown> | undefined) {
+	const adapter = {
+		getRootMeta: vi.fn<WorkflowyInternalAdapter["getRootMeta"]>(async () => Promise.resolve(meta)),
+		setRootMetaValues: vi.fn<WorkflowyInternalAdapter["setRootMetaValues"]>(async () => Promise.resolve()),
+	};
+	const cacheService = {
+		getNode: (id: string) => (Object.hasOwn(NAMES, id) ? {id, name: NAMES[id]} : undefined),
+	};
+	const ctx = {
+		cacheService,
+		internalAuth: meta ? {} : undefined,
+		internalAdapter: () => (meta ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
+	} as unknown as ServerContext;
+	const app = new Hono<AppEnv>();
+	app.use("*", async (c, next) => {
+		c.set("ctx", ctx);
+		await next();
+	});
+	app.route("/api/v1/stars", createStarsRouter());
+	const request = async (method: string, path = "", body?: unknown) => {
+		const res = await app.fetch(
+			new Request(`http://x/api/v1/stars${path}`, {
+				method,
+				headers: {"content-type": "application/json"},
+				...(body === undefined ? {} : {body: JSON.stringify(body)}),
+			}),
+		);
+		const text = await res.text();
+		return {status: res.status, body: text === "" ? null : (JSON.parse(text) as unknown)};
+	};
+	return {adapter, request};
+}
+
+const ORDERED = {
+	starring: {locations: {[P1]: "None", [`${P1}_#todo`]: "None"}, order: `None/${P1}/#todo,None/${P1}/`},
+	location: {renamed: {[`None/${P1}/`]: "Alice"}},
+};
+
+describe("GET /api/v1/stars", () => {
+	it("returns the stars in stored order", async () => {
+		const {request} = setup(ORDERED);
+
+		await expect(request("GET")).resolves.toStrictEqual({
+			status: 200,
+			body: {
+				stars: [
+					{key: `${P1}_#todo`, nodeId: P1, query: "#todo", name: null, position: 0},
+					{key: P1, nodeId: P1, query: null, name: "Alice", position: 1},
+				],
+			},
+		});
+	});
+
+	it("orders by plain-text node name without a stored order", async () => {
+		const {request} = setup({starring: {locations: {[P1]: "None", [P2]: "None"}}});
+
+		const response = await request("GET");
+
+		expect(response).toStrictEqual({
+			status: 200,
+			body: {
+				stars: [
+					{key: P2, nodeId: P2, query: null, name: null, position: 0},
+					{key: P1, nodeId: P1, query: null, name: null, position: 1},
+				],
+			},
+		});
+	});
+
+	it("answers 503 without the internal API", async () => {
+		const {request} = setup(undefined);
+
+		await expect(request("GET")).resolves.toStrictEqual({status: 503, body: {error: NOT_CONFIGURED}});
+	});
+});
+
+describe("PUT /api/v1/stars/:key", () => {
+	it("stars the location and appends it to the order in one push, answering the new star", async () => {
+		const {adapter, request} = setup({starring: {locations: {[P1]: "None"}, order: `None/${P1}/`}});
+		adapter.getRootMeta
+			.mockResolvedValueOnce({starring: {locations: {[P1]: "None"}, order: `None/${P1}/`}})
+			.mockResolvedValueOnce({
+				starring: {locations: {[P1]: "None", [`${P2}_#todo`]: "None"}, order: `None/${P1}/,None/${P2}/#todo`},
+			});
+
+		const response = await request("PUT", `/${P2}_%23todo`, {nodeId: P2, query: "#todo"});
+
+		expect({response, writes: adapter.setRootMetaValues.mock.calls}).toStrictEqual({
+			response: {status: 201, body: {key: `${P2}_#todo`, nodeId: P2, query: "#todo", name: null, position: 1}},
+			writes: [
+				[
+					[
+						{path: ["starring", "locations", `${P2}_#todo`], value: "None"},
+						{path: ["starring", "order"], value: `None/${P1}/,None/${P2}/#todo`},
+					],
+				],
+			],
+		});
+	});
+
+	it("rejects a body that does not match the key, and a node missing from the cache", async () => {
+		const {adapter, request} = setup({});
+		const missing = "9c9c9c9c-0000-4000-8000-000000000009";
+
+		const mismatch = await request("PUT", `/${P1}`, {nodeId: P2, query: null});
+		const unknown = await request("PUT", `/${missing}`, {nodeId: missing, query: null});
+
+		expect({mismatch, unknown, writes: adapter.setRootMetaValues.mock.calls}).toStrictEqual({
+			mismatch: {status: 400, body: {error: "key must equal the location key of {nodeId, query}"}},
+			unknown: {status: 404, body: {error: `Node not found: ${missing}`}},
+			writes: [],
+		});
+	});
+});
+
+describe("DELETE /api/v1/stars/:key", () => {
+	it("removes the location, its order entry and its rename", async () => {
+		const {adapter, request} = setup(ORDERED);
+
+		const response = await request("DELETE", `/${P1}`);
+
+		expect({response, writes: adapter.setRootMetaValues.mock.calls}).toStrictEqual({
+			response: {status: 204, body: null},
+			writes: [
+				[
+					[
+						{path: ["starring", "locations", P1], value: undefined},
+						{path: ["starring", "order"], value: `None/${P1}/#todo`},
+						{path: ["location", "renamed", `None/${P1}/`], value: undefined},
+					],
+				],
+			],
+		});
+	});
+});
+
+describe("PATCH /api/v1/stars/:key", () => {
+	it("renames and clears a rename", async () => {
+		const {adapter, request} = setup(ORDERED);
+
+		const renamed = await request("PATCH", `/${P1}_%23todo`, {name: "Inbox triage"});
+		const cleared = await request("PATCH", `/${P1}_%23todo`, {name: null});
+		const invalid = await request("PATCH", `/${P1}_%23todo`, {name: 3});
+
+		expect({renamed, cleared, invalid, writes: adapter.setRootMetaValues.mock.calls}).toStrictEqual({
+			renamed: {status: 204, body: null},
+			cleared: {status: 204, body: null},
+			invalid: {status: 400, body: {error: "body must be {name: string | null}"}},
+			writes: [
+				[[{path: ["location", "renamed", `None/${P1}/#todo`], value: "Inbox triage"}]],
+				[[{path: ["location", "renamed", `None/${P1}/#todo`], value: undefined}]],
+			],
+		});
+	});
+});
+
+describe("PUT /api/v1/stars/order", () => {
+	it("stores the keys as the order", async () => {
+		const {adapter, request} = setup(ORDERED);
+
+		const response = await request("PUT", "/order", {keys: [P1, `${P1}_#todo`]});
+		const invalid = await request("PUT", "/order", {keys: "nope"});
+
+		expect({response, invalid, writes: adapter.setRootMetaValues.mock.calls}).toStrictEqual({
+			response: {status: 204, body: null},
+			invalid: {status: 400, body: {error: "body must be {keys: string[]}"}},
+			writes: [[[{path: ["starring", "order"], value: `None/${P1}/,None/${P1}/#todo`}]]],
+		});
+	});
+});
