@@ -79,6 +79,15 @@ describe("Breadcrumbs markup", () => {
 			`<a class="${crumbClass(true)}" href="/node/empty-uuid" data-item-id="empty-uuid">Untitled</a></div>`,
 		);
 	});
+
+	it("labels a date-node ancestor with its formatted date", () => {
+		const html = render("day-uuid", [
+			{id: "day-uuid", name: '<time startYear="2020" startMonth="3" startDay="5">Thu, Mar 5, 2020</time>'},
+		]);
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/node/day-uuid" data-item-id="day-uuid">2020-03-05 Thu</a></div>`,
+		);
+	});
 });
 
 function clickEvent(

@@ -1,5 +1,5 @@
 import type {MouseEvent} from "react";
-import {stripHtmlTags} from "@workflowy/shared/html";
+import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {nodeRoute, useNodeNavigation} from "../navigation.js";
 import {FaIcon} from "./fa-icons.js";
@@ -45,7 +45,7 @@ function BreadcrumbSeparator() {
 }
 
 function crumbLabel(name: string | null | undefined): string {
-	const label = stripHtmlTags(name ?? "");
+	const label = formatCrumbLabel(name ?? "", {now: new Date()});
 	return label === "" ? "Untitled" : label;
 }
 
