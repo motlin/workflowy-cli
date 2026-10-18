@@ -753,6 +753,11 @@ body {
 	}
 }
 
+/* Upstream's overflow flyout crumbs compute line-height 1 (12.64px); local body line-height is 1.5. */
+.breadcrumb-overflow-menu .breadcrumb-item {
+	line-height: 1;
+}
+
 /* ================================
    Gear Menu Styles
    ================================

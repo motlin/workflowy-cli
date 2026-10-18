@@ -37,9 +37,10 @@ describe("breadcrumb styles guard", () => {
 		).toStrictEqual([]);
 	});
 
-	it("keeps only the header color rule for crumbs", () => {
+	it("keeps only the header color rule and the overflow-menu line-height for crumbs", () => {
 		expect(declarationsFor(/\.breadcrumbs?\b|\.breadcrumb-item\b/u)).toStrictEqual([
 			"color: var(--wf-text-primary) !important;",
+			"line-height: 1;",
 		]);
 	});
 });
