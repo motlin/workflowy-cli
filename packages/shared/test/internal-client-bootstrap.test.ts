@@ -1,0 +1,143 @@
+import {describe, expect, it} from "vite-plus/test";
+import {SessionRejectedError, WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
+import {
+	createFakeInternalApi,
+	FAKE_CLIENT_ID,
+	FAKE_SESSION_ID,
+	initializationData,
+	json,
+} from "./helpers/fake-internal-api.js";
+
+const TRANSIENT_ID = "6f1c1d1e-0000-4000-8000-000000000001";
+const BASE_URL = "https://workflowy.test";
+
+function clientWith(api = createFakeInternalApi()) {
+	const client = new WorkflowyInternalClient({
+		credentials: {username: "alice@example.com", password: "hunter2"},
+		fetch: api.fetch,
+		baseUrl: BASE_URL,
+		transientId: TRANSIENT_ID,
+	});
+	return {api, client};
+}
+
+const EXPECTED_SESSION = {
+	clientId: FAKE_CLIENT_ID,
+	clientVersion: "25",
+	userId: 123,
+	ownerId: 123,
+	dateJoinedSec: 1_500_000_000,
+	txId: "4567",
+	rootMetadata: {starring: {locations: {abc: "None"}}},
+	settings: {theme: "dark", show_completed: true},
+	expandedKeys: ["1a2b3c4d"],
+};
+
+const INIT_HEADERS = {
+	cookie: `sessionid=${FAKE_SESSION_ID}`,
+	accept: "application/json",
+	"x-requested-with": "XMLHttpRequest",
+	"wf-transient-id": TRANSIENT_ID,
+};
+
+describe("WorkflowyInternalClient.bootstrap", () => {
+	it("logs in, then fetches initialization data once and parses the session", async () => {
+		const {api, client} = clientWith();
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual(EXPECTED_SESSION);
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+		]);
+		const init = api.requests[1];
+		expect(init?.url).toBe(
+			`${BASE_URL}/get_initialization_data?client_version=21&client_version_v2=28&no_root_children=1`,
+		);
+		expect(init?.headers).toStrictEqual(INIT_HEADERS);
+	});
+
+	it("falls back to /get_tree_data/ for the transaction id when init has none", async () => {
+		const api = createFakeInternalApi();
+		const data = initializationData();
+		const tree = (data.projectTreeData as {mainProjectTreeInfo: Record<string, unknown>}).mainProjectTreeInfo;
+		delete tree.initialMostRecentOperationTransactionId;
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		const {client} = clientWith(api);
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual({...EXPECTED_SESSION, txId: "9999"});
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+			["GET", "/get_tree_data/"],
+		]);
+		expect(api.requests[2]?.headers).toStrictEqual(INIT_HEADERS);
+	});
+
+	it("reuses the session cookie on a second bootstrap and sends the learned client version", async () => {
+		const {api, client} = clientWith();
+
+		await client.bootstrap();
+		const second = await client.bootstrap();
+
+		expect(second).toStrictEqual(EXPECTED_SESSION);
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+			["GET", "/get_initialization_data"],
+		]);
+		expect(api.requests[2]?.url).toBe(
+			`${BASE_URL}/get_initialization_data?client_version=25&client_version_v2=28&no_root_children=1`,
+		);
+		expect(client.session).toStrictEqual(EXPECTED_SESSION);
+	});
+
+	it("re-logs in exactly once when init redirects to the login page", async () => {
+		const {api, client} = clientWith();
+		api.respondOnce(
+			"/get_initialization_data",
+			() => new Response("", {status: 302, headers: {location: "/login/"}}),
+		);
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual(EXPECTED_SESSION);
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+		]);
+	});
+
+	it("re-logs in exactly once when init reports logged_out", async () => {
+		const {api, client} = clientWith();
+		api.respondOnce("/get_initialization_data", () => json({logged_out: true}));
+
+		const session = await client.bootstrap();
+
+		expect(session).toStrictEqual(EXPECTED_SESSION);
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+		]);
+	});
+
+	it("gives up after one re-login when the session keeps being rejected", async () => {
+		const {api, client} = clientWith();
+		api.respond("/get_initialization_data", () => json({logged_out: true}));
+
+		await expect(client.bootstrap()).rejects.toThrow(new SessionRejectedError("logged_out"));
+		expect(api.requests.map((r) => [r.method, r.path])).toStrictEqual([
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+			["POST", "/ajax_login"],
+			["GET", "/get_initialization_data"],
+		]);
+	});
+});
