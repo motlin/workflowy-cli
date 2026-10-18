@@ -230,7 +230,8 @@ interface OutlineState {
 	theme: Theme;
 	isOnline: boolean;
 	errorNotifications: ErrorNotification[];
-	isMutating: boolean;
+	/** In-flight node mutations; the saving overlay shows while it is above zero (see selectIsMutating). */
+	mutationCount: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
 	nav: NavState;
 	/** The committed search from the URL's `?q=` (null when absent); the hash route keeps it in sync. */
@@ -305,7 +306,8 @@ interface OutlineActions {
 	addErrorNotification: (message: string, type?: "error" | "warning" | "info", retryAction?: () => void) => string;
 	removeErrorNotification: (id: string) => void;
 	clearAllErrorNotifications: () => void;
-	setMutating: (isMutating: boolean) => void;
+	beginMutation: () => void;
+	endMutation: () => void;
 }
 
 type OutlineStore = OutlineActions & OutlineState;
@@ -317,6 +319,10 @@ type OutlineStore = OutlineActions & OutlineState;
  */
 export function shouldCommitOnBlur(state: Pick<OutlineState, "editingId" | "editingHeld">, nodeId: string): boolean {
 	return state.editingId === nodeId && !state.editingHeld;
+}
+
+export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): boolean {
+	return state.mutationCount > 0;
 }
 
 export const useOutlineStore = create<OutlineStore>((set, get) => ({
@@ -358,7 +364,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	theme: getInitialTheme(),
 	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
-	isMutating: false,
+	mutationCount: 0,
 	nav: initialNavState,
 	urlSearchQuery: null,
 
@@ -797,8 +803,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({errorNotifications: []});
 	},
 
-	setMutating: (isMutating) => {
-		set({isMutating});
+	beginMutation: () => {
+		set((state) => ({mutationCount: state.mutationCount + 1}));
+	},
+
+	endMutation: () => {
+		set((state) => ({mutationCount: Math.max(0, state.mutationCount - 1)}));
 	},
 }));
 

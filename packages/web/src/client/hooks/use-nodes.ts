@@ -162,12 +162,13 @@ export function useAncestors(nodeId: string | null) {
 export function useCreateNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const setMutating = useOutlineStore((state) => state.setMutating);
+	const beginMutation = useOutlineStore((state) => state.beginMutation);
+	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	return useMutation({
 		mutationFn: createNode,
 		async onMutate(newNode) {
-			setMutating(true);
+			beginMutation();
 			const parentId = newNode.parent_id ?? null;
 
 			// Cancel outgoing refetches to avoid overwriting optimistic update
@@ -196,7 +197,6 @@ export function useCreateNode() {
 			return {previousChildren, parentId};
 		},
 		onError(error, variables, context) {
-			setMutating(false);
 			// Roll back to previous value on error
 			if (context?.previousChildren !== undefined) {
 				queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
@@ -204,7 +204,7 @@ export function useCreateNode() {
 			addErrorNotification(`Failed to create node: ${error.message}`);
 		},
 		async onSettled(_data, _error, variables) {
-			setMutating(false);
+			endMutation();
 			// Refetch to get the real data from server
 			const parentId = variables.parent_id ?? null;
 			await queryClient.invalidateQueries({queryKey: nodeKeys.children(parentId)});
@@ -265,12 +265,13 @@ export function useUpdateNode() {
 export function useDeleteNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const setMutating = useOutlineStore((state) => state.setMutating);
+	const beginMutation = useOutlineStore((state) => state.beginMutation);
+	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	return useMutation({
 		mutationFn: deleteNode,
 		async onMutate(nodeId) {
-			setMutating(true);
+			beginMutation();
 			// Get the node to find its parent
 			const node = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
 
@@ -282,7 +283,6 @@ export function useDeleteNode() {
 			return {nodeId, previousNode: node};
 		},
 		async onError(error, _variables, context) {
-			setMutating(false);
 			// On error, we just refetch everything since rollback is complex
 			if (context?.previousNode !== undefined) {
 				await queryClient.invalidateQueries({queryKey: nodeKeys.all});
@@ -290,7 +290,7 @@ export function useDeleteNode() {
 			addErrorNotification(`Failed to delete node: ${error.message}`);
 		},
 		async onSettled() {
-			setMutating(false);
+			endMutation();
 			// Refetch all node queries to reflect deletion
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
@@ -303,12 +303,13 @@ export function useDeleteNode() {
 export function useMoveNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const setMutating = useOutlineStore((state) => state.setMutating);
+	const beginMutation = useOutlineStore((state) => state.beginMutation);
+	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	return useMutation({
 		mutationFn: async ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
 		async onMutate({nodeId, parent_id: newParentId}) {
-			setMutating(true);
+			beginMutation();
 			// Cancel outgoing refetches for all nodes
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 
@@ -355,7 +356,6 @@ export function useMoveNode() {
 			};
 		},
 		onError(error, _variables, context) {
-			setMutating(false);
 			// Roll back to previous values on error
 			if (context) {
 				if (context.previousOldParentChildren !== undefined) {
@@ -371,7 +371,7 @@ export function useMoveNode() {
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
 		async onSettled() {
-			setMutating(false);
+			endMutation();
 			// Refetch to get the real data from server
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},

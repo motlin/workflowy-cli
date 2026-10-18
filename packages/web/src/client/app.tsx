@@ -26,7 +26,7 @@ import {locationUrl, parseLocationHash} from "./location.js";
 import {nodeUrl, resolveZoomTarget} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
 import {readJson} from "./read-json.js";
-import {useOutlineStore} from "./stores/outline.js";
+import {selectIsMutating, useOutlineStore} from "./stores/outline.js";
 import "./wf-tailwind.css";
 import "./styles.css";
 
@@ -78,7 +78,8 @@ const queryClient = new QueryClient({
 });
 
 function OutlineView() {
-	const {zoomedNodeId, rightSidebarOpen, relatedNodesPanelOpen, isMutating} = useOutlineStore();
+	const {zoomedNodeId, rightSidebarOpen, relatedNodesPanelOpen} = useOutlineStore();
+	const isMutating = useOutlineStore(selectIsMutating);
 
 	// Register keyboard shortcuts
 	useKeyboardShortcuts();
