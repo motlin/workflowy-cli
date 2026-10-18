@@ -31,6 +31,7 @@ vi.mock("../src/client/navigation.js", async (importOriginal) => ({
 	...(await importOriginal<typeof Navigation>()),
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
+vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useBacklinks: () => ({data: undefined}),
 	useChildren: () => ({data: [], isLoading: false, error: null}),

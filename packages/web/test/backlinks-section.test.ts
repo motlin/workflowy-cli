@@ -64,6 +64,7 @@ vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId}`,
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
+vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: (parentId: string | null) => ({
 		data: childrenByParent.get(parentId) ?? [],

@@ -6,6 +6,7 @@ import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types
 import {Fragment, useState} from "react";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
+import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useDeleteNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbItem, BreadcrumbSeparator} from "./breadcrumbs.js";
@@ -50,7 +51,7 @@ interface NodeBulletProps {
  * parent shows the halo; a mirror renders a diamond. Click or Enter zooms in.
  */
 function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBulletProps) {
-	const {navigateToNode} = useNodeNavigation();
+	const zoomTo = useZoomTo();
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
 		.filter(Boolean)
 		.join(" ");
@@ -65,14 +66,14 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 			onClick={(event) => {
 				event.preventDefault();
 				event.stopPropagation();
-				navigateToNode(nodeId);
+				void zoomTo(nodeId, "first_child");
 			}}
 			onDragEnd={onDragEnd}
 			onDragStart={onDragStart}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
-					navigateToNode(nodeId);
+					void zoomTo(nodeId, "first_child");
 				}
 			}}
 		>

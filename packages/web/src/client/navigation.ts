@@ -29,35 +29,56 @@ export function resolveZoomTarget(param: string | null, lookup: (id: string) => 
 	return isShortId(param) ? lookup(param) : param;
 }
 
+export type ZoomFocus = "first_child" | "last_selected";
+
 export interface ZoomFocusInput {
 	zoomedId: string | null;
-	/** The edited row, or null when nothing is edited. */
-	currentId: string | null;
-	/** The edited row's first potentially visible child. */
+	/** `first_child`: the node to zoom into (null for home). Unused by `last_selected`. */
+	targetId: string | null;
+	/** The target's first potentially visible child. */
 	firstChildId: string | null;
 	parentOfZoomed: string | null;
+	/** The row edited before the zoom, and its caret offset. */
+	previousEditingId: string | null;
+	previousOffset: number;
+}
+
+export interface ZoomFocusPlan {
+	route: string;
+	/** The row to edit after navigating, or null to stop editing. */
+	editId: string | null;
+	offset: number;
+	/** Scroll the outline to the top. */
+	scrollTop: boolean;
 }
 
 /**
- * Upstream `zoom_in` / `zoom_out` targets: the route to navigate to and the node to edit there at offset 0.
- * Zooming in on the edited row edits its first visible child (nothing when it has none); zooming out edits the node
- * zoomed out of. Null when there is nothing to do: zooming in on the zoomed title or with no edited row, or zooming
- * out at the root.
+ * Upstream `zoomTo(target, focus)`. `first_child` (bullet click, zoom_in) zooms into the target and edits its first
+ * visible child, or its title when it has none (nothing at home), keeping the old caret offset when that row already
+ * had focus, then scrolls to the top. `last_selected` (zoom_out) zooms to the parent and edits the node zoomed out of
+ * at offset 0. Null when there is nothing to do: the target is already zoomed, or zooming out at the root.
  */
 export function planZoomFocus(
-	direction: "in" | "out",
-	{zoomedId, currentId, firstChildId, parentOfZoomed}: ZoomFocusInput,
-): {route: string; editId: string | null} | null {
-	if (direction === "in") {
-		if (currentId === null || currentId === zoomedId) {
+	focus: ZoomFocus,
+	{zoomedId, targetId, firstChildId, parentOfZoomed, previousEditingId, previousOffset}: ZoomFocusInput,
+): ZoomFocusPlan | null {
+	if (focus === "first_child") {
+		if (targetId === zoomedId) {
 			return null;
 		}
-		return {route: nodeUrl(currentId), editId: firstChildId};
+		const editId = firstChildId ?? targetId;
+		const offset = editId !== null && editId === previousEditingId ? previousOffset : 0;
+		return {route: targetId === null ? "/" : nodeUrl(targetId), editId, offset, scrollTop: true};
 	}
 	if (zoomedId === null) {
 		return null;
 	}
-	return {route: parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed), editId: zoomedId};
+	return {
+		route: parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed),
+		editId: zoomedId,
+		offset: 0,
+		scrollTop: false,
+	};
 }
 
 /** Record a move to `nodeId` (null for home) on the in-app stacks, then push its URL. */

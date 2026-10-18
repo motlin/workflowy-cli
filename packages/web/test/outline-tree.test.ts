@@ -53,6 +53,7 @@ vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
+vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useBacklinks: () => ({data: undefined}),
 	useChildren: (parentId: string | null) => ({

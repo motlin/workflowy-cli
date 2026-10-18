@@ -1,6 +1,6 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {nodeUrl, planZoomFocus, stepNav} from "../navigation.js";
+import {nodeUrl, stepNav} from "../navigation.js";
 import {nodeKeys, readChildren, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
@@ -32,6 +32,7 @@ import {
 } from "./use-nodes.js";
 import {collectVisibleNodeIds, currentNavigableIds} from "./use-visible-nodes.js";
 import {zoomToToday} from "../zoom-to-today.js";
+import {useZoomTo} from "./use-zoom-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
 
@@ -81,6 +82,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
 	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
+	const zoomTo = useZoomTo();
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
 	const deleteNodeMutation = useDeleteNode();
@@ -189,38 +191,6 @@ export function useCommandRegistry(): CommandRegistry {
 			staleTime: "static",
 		});
 		resumeEditing(potentiallyVisibleIds(children)[0] ?? targetId, 0);
-	};
-
-	/**
-	 * Upstream `zoom_in` / `zoom_out`: navigate, then edit at offset 0 the zoomed-into row's first visible child or
-	 * the node zoomed out of. Zooming into a row with no visible children stops editing.
-	 */
-	const zoomWithFocus = async (direction: "in" | "out", ctx: CommandContext): Promise<void> => {
-		const currentId = ctx.items[0] ?? null;
-		const zoomingInto = direction === "in" && currentId !== null && currentId !== zoomedNodeId;
-		const children = zoomingInto
-			? await queryClient.query({
-					queryKey: nodeKeys.children(currentId),
-					queryFn: async () => fetchChildren(currentId),
-					staleTime: "static",
-				})
-			: undefined;
-		const plan = planZoomFocus(direction, {
-			zoomedId: zoomedNodeId,
-			currentId,
-			firstChildId: potentiallyVisibleIds(children)[0] ?? null,
-			parentOfZoomed: zoomedNode?.parent_id ?? null,
-		});
-		if (plan === null) {
-			return;
-		}
-		commitEdit();
-		void navigate(plan.route);
-		if (plan.editId === null) {
-			stopEditing();
-		} else {
-			resumeEditing(plan.editId, 0);
-		}
 	};
 
 	/** Upstream `focus_next_sibling` / `prev`: edit the edited row's potentially visible sibling at offset 0. */
@@ -356,12 +326,15 @@ export function useCommandRegistry(): CommandRegistry {
 	return {
 		zoom_in: {
 			execute(ctx) {
-				void zoomWithFocus("in", ctx);
+				const [nodeId] = ctx.items;
+				if (nodeId !== undefined) {
+					void zoomTo(nodeId, "first_child");
+				}
 			},
 		},
 		zoom_out: {
-			execute(ctx) {
-				void zoomWithFocus("out", ctx);
+			execute() {
+				void zoomTo(null, "last_selected");
 			},
 		},
 		navigate_home: {
