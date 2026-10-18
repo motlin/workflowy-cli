@@ -1,6 +1,7 @@
 /**
- * Account-global preferences stored in upstream's root (Home) metadata through
- * the internal API, so they match workflowy.com.
+ * Account-global preferences stored in upstream's root (Home) metadata and
+ * server-saved account settings through the internal API, so they match
+ * workflowy.com.
  *
  * `GET /` -> preferences; `PATCH /` with any subset -> the full preferences.
  * A `null` removes the stored value.
@@ -8,7 +9,7 @@
 
 import {Hono} from "hono";
 import {z} from "zod";
-import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import type {ServerSetting, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv} from "../context.js";
 import {withAdapter} from "../internal-api.js";
 
@@ -19,6 +20,8 @@ const PreferencesPatchSchema = z
 		weekStartDay: z.number().int().min(0).max(6).nullable(),
 		slashDiscovered: z.boolean(),
 		notesRootId: z.string().nullable(),
+		showCompleted: z.boolean(),
+		showKeyboardShortcuts: z.boolean(),
 	})
 	.partial()
 	.strict();
@@ -28,8 +31,8 @@ type Preferences = Required<PreferencesPatch>;
 
 const KEYS = ["dateFormat", "timeFormat", "weekStartDay", "slashDiscovered", "notesRootId"] as const;
 
-/** Each preference's root metadata path. */
-const PATHS: Record<keyof Preferences, string[]> = {
+/** Each root-metadata preference's path. */
+const PATHS: Record<(typeof KEYS)[number], string[]> = {
 	dateFormat: ["dateFormat"],
 	timeFormat: ["timeFormat"],
 	weekStartDay: ["weekStartDay"],
@@ -37,21 +40,40 @@ const PATHS: Record<keyof Preferences, string[]> = {
 	notesRootId: ["notesRootId"],
 };
 
+/** Flag preferences kept in upstream's account settings rather than root metadata. */
+const SETTINGS = {
+	showCompleted: "show_completed",
+	showKeyboardShortcuts: "show_keyboard_shortcuts",
+} as const satisfies Record<string, ServerSetting>;
+
+const SETTING_KEYS = ["showCompleted", "showKeyboardShortcuts"] as const;
+
+/** Upstream sends flags as `"yes"`/`"no"`; the adapter caches a written flag as a boolean. */
+function asFlag(value: unknown): boolean {
+	return value === true || value === "yes";
+}
+
 function asString(value: unknown): string | null {
 	return typeof value === "string" ? value : null;
 }
 
 /** Read the preferences, treating missing or mistyped values as null (false for the flag). */
 async function readPreferences(adapter: WorkflowyInternalAdapter): Promise<Preferences> {
-	const [dateFormat, timeFormat, weekStartDay, slashDiscovered, notesRootId] = await Promise.all(
-		KEYS.map(async (key) => adapter.getRootMeta(PATHS[key])),
-	);
+	const [
+		[dateFormat, timeFormat, weekStartDay, slashDiscovered, notesRootId],
+		[showCompleted, showKeyboardShortcuts],
+	] = await Promise.all([
+		Promise.all(KEYS.map(async (key) => adapter.getRootMeta(PATHS[key]))),
+		Promise.all(SETTING_KEYS.map(async (key) => adapter.getSetting(SETTINGS[key]))),
+	]);
 	return {
 		dateFormat: asString(dateFormat),
 		timeFormat: asString(timeFormat),
 		weekStartDay: typeof weekStartDay === "number" ? weekStartDay : null,
 		slashDiscovered: slashDiscovered === true,
 		notesRootId: asString(notesRootId),
+		showCompleted: asFlag(showCompleted),
+		showKeyboardShortcuts: asFlag(showKeyboardShortcuts),
 	};
 }
 
@@ -77,6 +99,12 @@ export function createPreferencesRouter(): Hono<AppEnv> {
 			}));
 			if (changes.length > 0) {
 				await adapter.setRootMetaValues(changes);
+			}
+			for (const key of SETTING_KEYS) {
+				const value = patch[key];
+				if (value !== undefined) {
+					await adapter.setSetting(SETTINGS[key], value);
+				}
 			}
 			return c.json(await readPreferences(adapter));
 		}),

@@ -1,6 +1,6 @@
 /**
  * Account-global preferences over `/api/v1/preferences`, backed by upstream's root
- * metadata so they match workflowy.com. Changes PATCH only the changed keys and
+ * metadata and account settings so they match workflowy.com. Changes PATCH only the changed keys and
  * update the `["preferences"]` query optimistically, rolling back on failure.
  */
 
@@ -17,6 +17,8 @@ export interface Preferences {
 	weekStartDay: number | null;
 	slashDiscovered: boolean;
 	notesRootId: string | null;
+	showCompleted: boolean;
+	showKeyboardShortcuts: boolean;
 }
 
 export type PreferencesPatch = Partial<Preferences>;
@@ -37,6 +39,8 @@ export const EMPTY_PREFERENCES: Preferences = {
 	weekStartDay: null,
 	slashDiscovered: false,
 	notesRootId: null,
+	showCompleted: false,
+	showKeyboardShortcuts: false,
 };
 
 const LOADING: PreferencesState = {preferences: EMPTY_PREFERENCES, available: true, error: null};

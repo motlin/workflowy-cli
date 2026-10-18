@@ -32,8 +32,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
-function setup(meta: Record<string, unknown> | undefined) {
+function setup(meta: Record<string, unknown> | undefined, settings: Record<string, unknown> = {}) {
 	const adapter = {
+		getSetting: vi.fn<WorkflowyInternalAdapter["getSetting"]>(async (name) => Promise.resolve(settings[name])),
+		setSetting: vi.fn<WorkflowyInternalAdapter["setSetting"]>(async (name, value) => {
+			settings[name] = value;
+			return Promise.resolve();
+		}),
 		getRootMeta: vi.fn<WorkflowyInternalAdapter["getRootMeta"]>(async (path) =>
 			Promise.resolve(path.reduce<unknown>((value, key) => (isRecord(value) ? value[key] : undefined), meta)),
 		),
@@ -68,7 +73,15 @@ function setup(meta: Record<string, unknown> | undefined) {
 	return {adapter, request};
 }
 
-const EMPTY = {dateFormat: null, timeFormat: null, weekStartDay: null, slashDiscovered: false, notesRootId: null};
+const EMPTY = {
+	dateFormat: null,
+	timeFormat: null,
+	weekStartDay: null,
+	slashDiscovered: false,
+	notesRootId: null,
+	showCompleted: false,
+	showKeyboardShortcuts: false,
+};
 
 describe("GET /api/v1/preferences", () => {
 	it("reads the root metadata fields", async () => {
@@ -89,7 +102,27 @@ describe("GET /api/v1/preferences", () => {
 				weekStartDay: 1,
 				slashDiscovered: true,
 				notesRootId: NOTES,
+				showCompleted: false,
+				showKeyboardShortcuts: false,
 			},
+		});
+	});
+
+	it("maps the yes/no account settings to booleans", async () => {
+		const {request} = setup({}, {show_completed: "yes", show_keyboard_shortcuts: "no"});
+
+		await expect(request("GET", "/preferences")).resolves.toStrictEqual({
+			status: 200,
+			body: {...EMPTY, showCompleted: true, showKeyboardShortcuts: false},
+		});
+	});
+
+	it("reads boolean account settings cached after a write", async () => {
+		const {request} = setup({}, {show_completed: false, show_keyboard_shortcuts: true});
+
+		await expect(request("GET", "/preferences")).resolves.toStrictEqual({
+			status: 200,
+			body: {...EMPTY, showCompleted: false, showKeyboardShortcuts: true},
 		});
 	});
 
@@ -150,17 +183,62 @@ describe("PATCH /api/v1/preferences", () => {
 		});
 	});
 
+	it("writes showCompleted through the account settings, not root metadata", async () => {
+		const {adapter, request} = setup({}, {show_completed: "yes"});
+
+		const response = await request("PATCH", "/preferences", {showCompleted: false});
+
+		expect({
+			response,
+			settings: adapter.setSetting.mock.calls,
+			metadata: adapter.setRootMetaValues.mock.calls,
+		}).toStrictEqual({
+			response: {status: 200, body: EMPTY},
+			settings: [["show_completed", false]],
+			metadata: [],
+		});
+	});
+
+	it("writes metadata and both account settings in one PATCH", async () => {
+		const {adapter, request} = setup({});
+
+		const response = await request("PATCH", "/preferences", {
+			dateFormat: "MMM D",
+			showCompleted: true,
+			showKeyboardShortcuts: true,
+		});
+
+		expect({
+			response,
+			settings: adapter.setSetting.mock.calls,
+			metadata: adapter.setRootMetaValues.mock.calls,
+		}).toStrictEqual({
+			response: {
+				status: 200,
+				body: {...EMPTY, dateFormat: "MMM D", showCompleted: true, showKeyboardShortcuts: true},
+			},
+			settings: [
+				["show_completed", true],
+				["show_keyboard_shortcuts", true],
+			],
+			metadata: [[[{path: ["dateFormat"], value: "MMM D"}]]],
+		});
+	});
+
 	it("rejects unknown keys and mistyped values without writing", async () => {
 		const {adapter, request} = setup({});
 
 		const bogus = await request("PATCH", "/preferences", {bogus: 1});
 		const mistyped = await request("PATCH", "/preferences", {weekStartDay: "monday"});
+		const nullFlag = await request("PATCH", "/preferences", {showCompleted: null});
 
 		expect({
 			bogus: bogus.status,
 			mistyped: mistyped.status,
+			nullFlag: nullFlag.status,
 			writes: adapter.setRootMetaValues.mock.calls,
-		}).toStrictEqual({bogus: 400, mistyped: 400, writes: []});
+			settings: adapter.setSetting.mock.calls,
+		}).toStrictEqual({bogus: 400, mistyped: 400, nullFlag: 400, writes: [], settings: []});
 	});
 });
 
