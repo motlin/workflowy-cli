@@ -1129,46 +1129,36 @@ button.iconButton {
 
 /* Completed nodes - no container opacity per production Workflowy */
 
-/* Zoomed node title - 27px bold per production Workflowy */
-.zoomed-node-title {
-	font-size: 27px;
+/* Zoom-root title row (wf-base). Colored text uses the .innerContentContainer .colored rules. */
+.name.name--main {
 	font-weight: 700;
-	line-height: 27px;
-	color: var(--color-text);
+	font-size: var(--font-selected-name-font-size);
+	--line-height: var(--font-selected-name-line-height);
 	margin-bottom: 10px;
+	margin-left: -100px;
+	padding-left: 100px;
 }
 
-/* Colored text in zoomed node title */
-.zoomed-node-title .colored.c-green {
-	color: var(--wf-tag-text-green);
+.root > .name > .content {
+	padding-top: 0;
 }
 
-.zoomed-node-title .colored.c-red {
-	color: var(--wf-tag-text-red);
+.name--main > .content:empty::before {
+	content: attr(data-placeholder);
+	color: var(--wf-text-tertiary);
 }
 
-.zoomed-node-title .colored.c-blue {
-	color: var(--wf-tag-text-blue);
+/* Upstream sizes this via an inline --root-content-height (30px); 0 keeps the local layout. */
+.mainTreeRoot > .name > .content {
+	opacity: 0;
+	height: var(--root-content-height, 0);
+	min-height: 0;
+	padding-bottom: 0;
+	cursor: default;
 }
 
-.zoomed-node-title .colored.c-yellow {
-	color: var(--wf-tag-text-yellow);
-}
-
-.zoomed-node-title .colored.c-purple {
-	color: var(--wf-tag-text-purple);
-}
-
-.zoomed-node-title .colored.c-pink {
-	color: var(--wf-tag-text-pink);
-}
-
-.zoomed-node-title .colored.c-teal {
-	color: var(--wf-tag-text-teal);
-}
-
-.zoomed-node-title .colored.c-gray {
-	color: var(--wf-tag-text-gray);
+.mainTreeRoot > .name {
+	pointer-events: none;
 }
 
 /* Expand toggle (wf-base). Button reset added locally; content-box keeps the

@@ -1,5 +1,6 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
+import type {ReactNode} from "react";
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
@@ -49,17 +50,35 @@ function AddButton({parentId}: {parentId: string | null}) {
 }
 
 /**
- * Displays the zoomed node's name as a title when zoomed into a node.
- * Preserves HTML formatting including colored text spans.
+ * Upstream's zoom-root `.project.selected.root`: the zoomed node's read-only title in a
+ * `.name--main` row, then the root `.children`. At the main-tree root (no zoom) it is
+ * `.mainTreeRoot` with a title-less `.name--root` row.
  */
-function ZoomedNodeTitle({nodeId}: {nodeId: string}) {
+function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: ReactNode}) {
 	const {data: node} = useNode(nodeId);
+	const isMainTreeRoot = nodeId === null;
+	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 
-	if (!node) {
-		return null;
-	}
-
-	return <div className="zoomed-node-title" dangerouslySetInnerHTML={{__html: node.name ?? ""}} />;
+	return (
+		<div
+			className={
+				isMainTreeRoot ? "font-custom project selected root mainTreeRoot" : "font-custom project selected root"
+			}
+		>
+			<div tabIndex={-1} className={isMainTreeRoot ? "name name--root" : "name name--main"}>
+				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
+					{nameHtml !== "" && (
+						<span className="innerContentContainer" dangerouslySetInnerHTML={{__html: nameHtml}} />
+					)}
+				</div>
+				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+			</div>
+			<div className="drop-line">
+				<div className="line" />
+			</div>
+			{children}
+		</div>
+	);
 }
 
 /**
@@ -130,14 +149,13 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 		return <div className="outline-tree-error">Error loading nodes: {error.message}</div>;
 	}
 
-	// font-custom resolves the row metrics for the root .children; upstream gets them
-	// from the enclosing zoom-root .project, which M1-47 adds.
 	return (
-		<div className="outline-tree-container font-custom">
+		<div className="outline-tree-container">
 			<div className="scroller">
-				{parentId && <ZoomedNodeTitle nodeId={parentId} />}
-				<OutlineChildren isRoot parentId={parentId} />
-				<AddButton parentId={parentId} />
+				<ZoomRootRow nodeId={parentId}>
+					<OutlineChildren isRoot parentId={parentId} />
+					<AddButton parentId={parentId} />
+				</ZoomRootRow>
 			</div>
 		</div>
 	);

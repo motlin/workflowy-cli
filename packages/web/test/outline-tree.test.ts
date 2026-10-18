@@ -39,6 +39,8 @@ const childrenByParent = new Map<string | null, NodeResponse[]>([
 	["alice", [makeNode({id: "bob", parent_id: "alice", name: "Bob", hasChildren: false})]],
 ]);
 
+const nodesById = new Map<string, NodeResponse>();
+
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
@@ -53,7 +55,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 		isLoading: false,
 		error: null,
 	}),
-	useNode: () => ({data: undefined}),
+	useNode: (nodeId: string) => ({data: nodesById.get(nodeId)}),
 	useCreateNode: () => ({mutate: () => {}}),
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
@@ -82,9 +84,9 @@ vi.mock("../src/client/components/node-context-menu.js", () => ({NodeContextMenu
 
 const {OutlineTree} = await import("../src/client/components/outline-tree.js");
 
-function render(): string {
+function render(parentId: string | null = null): string {
 	return renderToStaticMarkup(
-		createElement(QueryClientProvider, {client: new QueryClient()}, createElement(OutlineTree, {parentId: null})),
+		createElement(QueryClientProvider, {client: new QueryClient()}, createElement(OutlineTree, {parentId})),
 	);
 }
 
@@ -136,7 +138,13 @@ describe("OutlineTree nested .children rendering", () => {
 		);
 		expect(
 			stack.map(classOf).filter((cls) => cls.startsWith("children ") || cls.startsWith("font-custom project")),
-		).toStrictEqual([ROOT_CHILDREN, "font-custom project open", NESTED_CHILDREN, "font-custom project task"]);
+		).toStrictEqual([
+			"font-custom project selected root mainTreeRoot",
+			ROOT_CHILDREN,
+			"font-custom project open",
+			NESTED_CHILDREN,
+			"font-custom project task",
+		]);
 		expect(projectAncestor?.attrs.includes("style=")).toBe(false);
 	});
 
@@ -144,6 +152,38 @@ describe("OutlineTree nested .children rendering", () => {
 		const html = render();
 		expect(html.includes('class="children relative ml-')).toBe(false);
 		expect(html.includes('data-item-id="bob"')).toBe(false);
+	});
+});
+
+describe("OutlineTree zoom root row", () => {
+	beforeEach(() => {
+		nodesById.clear();
+	});
+
+	it("renders the zoomed node as the root .project with its name in a .name--main row", () => {
+		nodesById.set("alice", makeNode({name: "Alice"}));
+		const html = render("alice");
+		const expected =
+			'<div class="font-custom project selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer">Alice</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="drop-line"><div class="line"></div></div><div class="children ';
+		const start = html.indexOf('<div class="font-custom project selected root">');
+		expect(html.slice(start, start + expected.length)).toBe(expected);
+	});
+
+	it("leaves the content div empty for an unnamed zoomed node so the placeholder shows", () => {
+		nodesById.set("alice", makeNode({name: ""}));
+		expect(
+			render("alice").includes(
+				'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"></div>',
+			),
+		).toBe(true);
+	});
+
+	it("marks the unzoomed root as mainTreeRoot with a title-less name--root row", () => {
+		const html = render();
+		const expected =
+			'<div class="font-custom project selected root mainTreeRoot"><div tabindex="-1" class="name name--root"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"></div>';
+		const start = html.indexOf('<div class="font-custom project selected root mainTreeRoot">');
+		expect(html.slice(start, start + expected.length)).toBe(expected);
 	});
 });
 
@@ -159,7 +199,7 @@ describe("OutlineTree chunked child rendering", () => {
 		try {
 			const html = render();
 			expect({
-				projects: html.split('class="font-custom project').length - 1,
+				projects: html.split('class="font-custom project task').length - 1,
 				sentinels: html.split('<div class="render-sentinel"').length - 1,
 			}).toStrictEqual({projects: 200, sentinels: 1});
 		} finally {
@@ -176,6 +216,27 @@ const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", im
 describe("outline tree styles guard", () => {
 	it("drops the flat-virtualizer indent rules", () => {
 		expect(/\.indent-guide-line|\.outline-tree-virtualizer|\.outline-tree-nested/u.test(styles)).toBe(false);
+	});
+
+	it("replaces .zoomed-node-title with upstream's .name--main rules", () => {
+		expect({
+			legacy: styles.includes(".zoomed-node-title"),
+			main: cssBlock(styles, ".name.name--main"),
+			rootContent: cssBlock(styles, ".root > .name > .content"),
+			placeholder: cssBlock(styles, ".name--main > .content:empty::before"),
+		}).toStrictEqual({
+			legacy: false,
+			main: {
+				"font-weight": "700",
+				"font-size": "var(--font-selected-name-font-size)",
+				"--line-height": "var(--font-selected-name-line-height)",
+				"margin-bottom": "10px",
+				"margin-left": "-100px",
+				"padding-left": "100px",
+			},
+			rootContent: {"padding-top": "0"},
+			placeholder: {content: "attr(data-placeholder)", color: "var(--wf-text-tertiary)"},
+		});
 	});
 
 	it("puts the descendant content padding on .children like upstream", () => {
