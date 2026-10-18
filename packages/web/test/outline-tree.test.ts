@@ -363,7 +363,12 @@ describe("outline tree styles guard", () => {
 				"padding-left": "100px",
 			},
 			rootContent: {"padding-top": "0"},
-			placeholder: {content: "attr(data-placeholder)", color: "var(--wf-text-tertiary)"},
+			placeholder: {
+				content: "attr(data-placeholder)",
+				color: "var(--wf-text-tertiary)",
+				width: "auto",
+				"pointer-events": "none",
+			},
 		});
 	});
 

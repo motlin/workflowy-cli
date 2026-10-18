@@ -1172,6 +1172,8 @@ body {
 .name--main > .content:empty::before {
 	content: attr(data-placeholder);
 	color: var(--wf-text-tertiary);
+	width: auto;
+	pointer-events: none;
 }
 
 /* Upstream sizes this via an inline --root-content-height (30px); 0 keeps the local layout. */
