@@ -1,4 +1,3 @@
-import {canonicalTimeAttributes} from "@workflowy/shared";
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
@@ -16,7 +15,7 @@ import {
 	planNoteBoundary,
 } from "../caret-navigation.js";
 import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.js";
-import {caretTextOffset, placeCaretAtTextOffset, selectionTextOffsets} from "../caret-dom.js";
+import {caretTextOffset, placeCaretAtTextOffset, selectionTextOffsets, textUnitLength} from "../caret-dom.js";
 import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
 import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
@@ -27,7 +26,7 @@ import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
-import {renderDatePills} from "../date-pills.js";
+import {deletePillAfterCaret, deletePillBeforeCaret, renderDatePills, serializeDatePills} from "../date-pills.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
@@ -168,7 +167,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	} else if (!isEditing && editingHtml !== null) {
 		setEditingHtml(null);
 	}
-	const editorHtml = editingHtml ?? initialValue;
+	const storedEditorHtml = editingHtml ?? initialValue;
+	// Pills are atomic in edit mode too; every save path serializes them back to stored `<time>` markup.
+	const editorHtml = useMemo(() => renderDatePills(storedEditorHtml, dateSettings), [storedEditorHtml, dateSettings]);
 
 	// Saves the name after each 500ms pause in typing (upstream `saveLater`): one undo step per pause.
 	// One saver per node, so a pending save flushed after a node change still targets its own node.
@@ -188,7 +189,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	useEffect(() => {
 		if (isEditing && contentRef.current) {
 			contentRef.current.focus();
-			nameSaver.reset(editorHtml);
+			nameSaver.reset(storedEditorHtml);
 
 			const {editingId, editingCaretOffset} = useOutlineStore.getState();
 			if (editingId === nodeId && editingCaretOffset !== null) {
@@ -217,7 +218,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
-	}, [isEditing, editorHtml, clickPosition, nodeId, nameSaver]);
+	}, [isEditing, storedEditorHtml, clickPosition, nodeId, nameSaver]);
 
 	/** Save the edited text if it changed, keeping the caret (⌘S); returns false with no editor. */
 	const saveInPlace = useCallback((): boolean => {
@@ -225,7 +226,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return false;
 		}
 
-		nameSaver.saveNow(canonicalTimeAttributes(contentRef.current.innerHTML));
+		nameSaver.saveNow(serializeDatePills(contentRef.current.innerHTML));
 		return true;
 	}, [nameSaver]);
 
@@ -244,7 +245,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleInput = useCallback(() => {
 		if (contentRef.current) {
-			nameSaver.change(canonicalTimeAttributes(contentRef.current.innerHTML));
+			nameSaver.change(serializeDatePills(contentRef.current.innerHTML));
 		}
 	}, [nameSaver]);
 
@@ -303,7 +304,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (!content || globalThis.getSelection()?.isCollapsed !== true) {
 				return false;
 			}
-			const edgeOffset = direction === "left" ? 0 : content.textContent.length;
+			const edgeOffset = direction === "left" ? 0 : textUnitLength(content);
 			if (caretTextOffset(content) !== edgeOffset) {
 				return false;
 			}
@@ -342,7 +343,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			const offset = caretTextOffset(content);
 			const atEdge = vertical
 				? isCaretOnBoundaryLine(direction, caretRect(direction), content.getBoundingClientRect())
-				: offset === (forward ? content.textContent.length : 0);
+				: offset === (forward ? textUnitLength(content) : 0);
 			let plan: ReturnType<typeof planNoteBoundary> = null;
 			if (nodeId === zoomedNodeId) {
 				plan = atEdge ? planNoteBoundary({from: "rootTitleEnd", key, rootNoted}) : null;
@@ -389,7 +390,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const children = readChildren(queryClient, nodeId);
 		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
 		const note = readDetail(queryClient, nodeId)?.note ?? listed?.note ?? "";
-		const html = canonicalTimeAttributes(content.innerHTML);
+		const html = serializeDatePills(content.innerHTML);
 		const outdent = planOutdent(queryClient, {id: nodeId, parent_id: parentId, priority}, zoomedNodeId);
 		const plan = planSplit({
 			node: {
@@ -421,7 +422,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		// Show the kept text now, so the blur commit and the re-render agree with the plan.
 		if (html !== plan.currentName) {
-			content.innerHTML = plan.currentName;
+			content.innerHTML = renderDatePills(plan.currentName, dateSettings);
 		}
 		// The new row carries a client-generated id, so the caret moves into it now,
 		// before the create round-trip; writes to it wait for the create (pendingCreates).
@@ -460,6 +461,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		releaseEditing,
 		resumeEditing,
 		nameSaver,
+		dateSettings,
 	]);
 
 	/**
@@ -486,7 +488,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return false;
 		}
 		// The row is going away: never save its pending text.
-		nameSaver.reset(content.innerHTML);
+		nameSaver.reset(serializeDatePills(content.innerHTML));
 		resumeEditing(targetId, Number.MAX_SAFE_INTEGER);
 		deleteNodeMutation.mutate(nodeId);
 		return true;
@@ -505,7 +507,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return false;
 			}
 			const offset = caretTextOffset(content);
-			if (offset !== (direction === "backward" ? 0 : content.textContent.length)) {
+			if (offset !== (direction === "backward" ? 0 : textUnitLength(content))) {
 				return false;
 			}
 			const visible = new Set(
@@ -532,7 +534,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					layoutMode: node.data.layoutMode,
 				};
 			};
-			const currentRow = toRow(current, canonicalTimeAttributes(content.innerHTML));
+			const currentRow = toRow(current, serializeDatePills(content.innerHTML));
 			const neighbor = siblings[direction === "backward" ? index - 1 : index + 1];
 			const neighborRow = neighbor === undefined ? null : toRow(neighbor, neighbor.name ?? "");
 			const plan =
@@ -550,7 +552,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
 				// The held editor never re-renders its text: show the merged row and its caret here.
 				if (plan.keepId === nodeId) {
-					content.innerHTML = plan.name;
+					content.innerHTML = renderDatePills(plan.name, dateSettings);
 					placeCaretAtTextOffset(content, plan.caret);
 				}
 				deleteNodeMutation.mutate(plan.deleteId);
@@ -563,7 +565,32 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			});
 			return true;
 		},
-		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation, nameSaver],
+		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation, nameSaver, dateSettings],
+	);
+
+	/**
+	 * Backspace right after / Delete right before a date pill with a collapsed caret
+	 * removes the whole pill (upstream monolith). Returns false when no pill is adjacent.
+	 */
+	const deleteAdjacentPill = useCallback(
+		(direction: "backward" | "forward"): boolean => {
+			const content = contentRef.current;
+			if (!content || globalThis.getSelection()?.isCollapsed !== true) {
+				return false;
+			}
+			const offset = caretTextOffset(content);
+			const html = serializeDatePills(content.innerHTML);
+			const next =
+				direction === "backward" ? deletePillBeforeCaret(html, offset) : deletePillAfterCaret(html, offset);
+			if (next === null) {
+				return false;
+			}
+			content.innerHTML = renderDatePills(next, dateSettings);
+			placeCaretAtTextOffset(content, direction === "backward" ? offset - 1 : offset);
+			nameSaver.change(next);
+			return true;
+		},
+		[dateSettings, nameSaver],
 	);
 
 	/**
@@ -743,11 +770,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				saveChanges();
 				focusNote(nodeId);
 			} else if (action === "DELETE_BACKWARD") {
-				if (deleteIfEmpty() || mergeWithSibling("backward")) {
+				if (deleteAdjacentPill("backward") || deleteIfEmpty() || mergeWithSibling("backward")) {
 					event.preventDefault();
 				}
 			} else if (action === "DELETE_FORWARD") {
-				if (mergeWithSibling("forward")) {
+				if (deleteAdjacentPill("forward") || mergeWithSibling("forward")) {
 					event.preventDefault();
 				}
 			} else if (event.key === "Escape") {
@@ -779,6 +806,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 		},
 		[
+			deleteAdjacentPill,
 			deleteIfEmpty,
 			enterRootNote,
 			focusNote,

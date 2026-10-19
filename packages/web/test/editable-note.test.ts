@@ -41,7 +41,7 @@ function render(
 }
 
 describe("EditableNote markup", () => {
-	it("renders date pills while unfocused and the raw <time> while focused", () => {
+	it("renders date pills while unfocused and while focused", () => {
 		const note = 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
 		const open =
 			'<div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden';
@@ -50,7 +50,7 @@ describe("EditableNote markup", () => {
 			focused: render({initialValue: note, isFocused: true}),
 		}).toStrictEqual({
 			unfocused: `${open}" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, DEFAULT_DATE_SETTINGS)}</span></div></div>`,
-			focused: `${open} active" contentEditable="true"><span class="innerContentContainer">${note}</span></div></div>`,
+			focused: `${open} active" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, DEFAULT_DATE_SETTINGS)}</span></div></div>`,
 		});
 	});
 

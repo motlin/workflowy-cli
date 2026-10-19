@@ -1,31 +1,64 @@
+// Caret offsets count plain-text units: a date pill (`<time>`) is one unit and the pills'
+// U+FEFF caret guards count zero, matching `rich-text.ts` offsets into stored HTML.
+
+const BOM = "﻿";
+
 /** The contenteditable of the node being edited, when it is rendered. */
 export function editorElement(nodeId: string): HTMLElement | null {
 	return document.querySelector<HTMLElement>(`.innerContentContainer.editing[data-node-id="${CSS.escape(nodeId)}"]`);
 }
 
-/** Number of text characters between the start of `element` and the caret. */
+function isPill(node: Node): node is Element {
+	return node instanceof Element && node.localName === "time";
+}
+
+function unitsIn(node: Node): number {
+	if (node.nodeType === Node.TEXT_NODE) {
+		return (node.textContent ?? "").replaceAll(BOM, "").length;
+	}
+	if (isPill(node)) {
+		// A pill cut by the range counts only once its label is inside it.
+		return node.textContent.replaceAll(BOM, "") === "" ? 0 : 1;
+	}
+	let count = 0;
+	for (const child of node.childNodes) {
+		count += unitsIn(child);
+	}
+	return count;
+}
+
+/** Plain-text units in `element`'s content. */
+export function textUnitLength(element: HTMLElement): number {
+	return unitsIn(element);
+}
+
+function unitsBefore(element: HTMLElement, container: Node, offset: number): number {
+	const before = document.createRange();
+	before.selectNodeContents(element);
+	before.setEnd(container, offset);
+	return unitsIn(before.cloneContents());
+}
+
+/** Number of plain-text units between the start of `element` and the caret. */
 export function caretTextOffset(element: HTMLElement): number {
 	const selection = globalThis.getSelection();
 	if (!selection || selection.rangeCount === 0) {
-		return element.textContent.length;
+		return textUnitLength(element);
 	}
 	const caret = selection.getRangeAt(0);
 	if (!element.contains(caret.endContainer)) {
-		return element.textContent.length;
+		return textUnitLength(element);
 	}
-	const before = document.createRange();
-	before.selectNodeContents(element);
-	before.setEnd(caret.endContainer, caret.endOffset);
-	return before.toString().length;
+	return unitsBefore(element, caret.endContainer, caret.endOffset);
 }
 
 /**
- * Text-character offsets of the selection's start and end within `element`; both are
+ * Plain-text offsets of the selection's start and end within `element`; both are
  * the text length when the selection lies outside it.
  */
 export function selectionTextOffsets(element: HTMLElement): {start: number; end: number} {
 	const selection = globalThis.getSelection();
-	const length = element.textContent.length;
+	const length = textUnitLength(element);
 	if (!selection || selection.rangeCount === 0) {
 		return {start: length, end: length};
 	}
@@ -33,33 +66,58 @@ export function selectionTextOffsets(element: HTMLElement): {start: number; end:
 	if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) {
 		return {start: length, end: length};
 	}
-	const offsetOf = (container: Node, offset: number): number => {
-		const before = document.createRange();
-		before.selectNodeContents(element);
-		before.setEnd(container, offset);
-		return before.toString().length;
-	};
 	return {
-		start: offsetOf(range.startContainer, range.startOffset),
-		end: offsetOf(range.endContainer, range.endOffset),
+		start: unitsBefore(element, range.startContainer, range.startOffset),
+		end: unitsBefore(element, range.endContainer, range.endOffset),
 	};
 }
 
-/** Collapse the selection to `offset` text characters into `element`, clamped to its end. */
+/** Raw index in `text` after `units` non-guard characters, or null when it has fewer. */
+function rawIndex(text: string, units: number): number | null {
+	let remaining = units;
+	for (let index = 0; index <= text.length; index++) {
+		if (remaining === 0) {
+			return index;
+		}
+		if (text[index] !== BOM) {
+			remaining--;
+		}
+	}
+	return null;
+}
+
+/** Collapse the selection to `offset` plain-text units into `element`, clamped to its end. */
 export function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
 	const range = document.createRange();
-	const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
 	let remaining = offset;
-	let placed = false;
-	for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
-		const length = text.textContent?.length ?? 0;
-		if (remaining <= length) {
-			range.setStart(text, remaining);
-			placed = true;
-			break;
+	// Sets the range start at the target unit; true once placed.
+	const visit = (node: Node): boolean => {
+		for (const child of node.childNodes) {
+			if (isPill(child)) {
+				if (remaining === 0) {
+					range.setStartBefore(child);
+					return true;
+				}
+				remaining--;
+				if (remaining === 0) {
+					range.setStartAfter(child);
+					return true;
+				}
+			} else if (child.nodeType === Node.TEXT_NODE) {
+				const text = child.textContent ?? "";
+				const index = rawIndex(text, remaining);
+				if (index !== null) {
+					range.setStart(child, index);
+					return true;
+				}
+				remaining -= text.replaceAll(BOM, "").length;
+			} else if (visit(child)) {
+				return true;
+			}
 		}
-		remaining -= length;
-	}
+		return false;
+	};
+	const placed = visit(element);
 	if (!placed) {
 		range.selectNodeContents(element);
 	}

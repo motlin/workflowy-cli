@@ -1,6 +1,7 @@
 // Pure helpers for splitting and joining Workflowy rich-text names at plain-text offsets.
 // Inline formatting tags survive a split (closed in `before`, reopened in `after`) and
-// identical tags meeting at a join are merged back together.
+// identical tags meeting at a join are merged back together. A `<time>` element (a date
+// pill) is atomic: one plain-text character that is never split.
 
 const FORMAT_TAGS = new Set(["b", "i", "u", "s", "code", "a", "span"]);
 
@@ -10,7 +11,8 @@ type Token =
 	| {kind: "other"; raw: string}
 	| {kind: "char"; raw: string};
 
-const TOKEN_PATTERN = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>|&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);|[\s\S]/gu;
+const TOKEN_PATTERN =
+	/<time\b[^>]*>[\s\S]*?<\/time>|<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>|&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);|[\s\S]/gu;
 
 function tokenize(html: string): Token[] {
 	const tokens: Token[] = [];
@@ -77,6 +79,17 @@ function stripEmptyTags(html: string): string {
 
 function joinRaw(tokens: Token[]): string {
 	return tokens.map((token) => token.raw).join("");
+}
+
+/** The raw token of the plain-text character at `offset` and `html` without it, or null past the end. */
+export function plainCharAt(html: string, offset: number): {raw: string; without: string} | null {
+	const tokens = tokenize(html);
+	const {index} = walkTo(tokens, offset);
+	const token = tokens[index];
+	if (token === undefined) {
+		return null;
+	}
+	return {raw: token.raw, without: joinRaw(tokens.toSpliced(index, 1))};
 }
 
 export function plainLength(html: string): number {

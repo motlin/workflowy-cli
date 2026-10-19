@@ -134,11 +134,11 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 
 	const handleFocus = useCallback(() => {
 		noteSaver.reset(initialValue);
-		setFocusedHtml(noteContentHtml(initialValue));
+		setFocusedHtml(noteContentHtml(initialValue, dateSettings));
 		if (!isFocused) {
 			focusNote(nodeId);
 		}
-	}, [initialValue, isFocused, nodeId, focusNote, noteSaver]);
+	}, [initialValue, dateSettings, isFocused, nodeId, focusNote, noteSaver]);
 
 	const handleBlur = useCallback(() => {
 		saveNow();
@@ -226,7 +226,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				className={isFocused ? `${CONTENT_CLASS} active` : CONTENT_CLASS}
 				contentEditable
 				dangerouslySetInnerHTML={{
-					__html: focusedHtml ?? noteContentHtml(initialValue, isFocused ? undefined : dateSettings),
+					__html: focusedHtml ?? noteContentHtml(initialValue, dateSettings),
 				}}
 				onBlur={handleBlur}
 				onFocus={handleFocus}

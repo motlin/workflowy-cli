@@ -66,6 +66,14 @@ describe("editorHtmlToNote <time> round trip", () => {
 	});
 });
 
+describe("editorHtmlToNote date pills", () => {
+	it("stores a rendered pill back as canonical <time> markup", () => {
+		const note = 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
+		const settings = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
+		expect(editorHtmlToNote(noteContentHtml(note, settings, new Date(2026, 9, 1)))).toBe(note);
+	});
+});
+
 describe("noteToEditorHtml", () => {
 	it("repairs legacy <br> line breaks into newlines", () => {
 		expect(noteToEditorHtml("abc<br>def<br/>ghi")).toBe("abc\ndef\nghi");

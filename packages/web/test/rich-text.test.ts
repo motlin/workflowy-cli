@@ -78,3 +78,15 @@ describe("trimmedPlainLength", () => {
 		expect(trimmedPlainLength(" a b")).toBe(4);
 	});
 });
+
+describe("date pills are one character", () => {
+	const pill = '<time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
+
+	it("counts a <time> element as one plain-text character", () => {
+		expect(plainLength(`ab ${pill} c`)).toBe(6);
+	});
+
+	it("never splits inside a <time> element", () => {
+		expect(splitHtml(`ab ${pill} c`, 4, 4)).toStrictEqual({before: `ab ${pill}`, after: " c"});
+	});
+});

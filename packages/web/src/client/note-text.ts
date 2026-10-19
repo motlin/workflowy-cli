@@ -4,8 +4,7 @@
  * `<br>`/`<div>`/`<p>` structure must never reach the API.
  */
 
-import {canonicalTimeAttributes} from "@workflowy/shared";
-import {renderDatePills} from "./date-pills.js";
+import {renderDatePills, serializeDatePills} from "./date-pills.js";
 import type {DateSettings} from "./date-settings.js";
 import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderTags} from "./tag-render.js";
@@ -31,9 +30,9 @@ function isKept(name: string, attributes: string): boolean {
 	return KEPT_ELEMENTS.has(name) || (name === "span" && isColorSpan(attributes));
 }
 
-/** Converts the note editor's innerHTML into stored note text (with upstream's camelCase `<time>` attributes). */
+/** Converts the note editor's innerHTML into stored note text (date pills back to canonical `<time>` markup). */
 export function editorHtmlToNote(editorHtml: string): string {
-	const html = canonicalTimeAttributes(editorHtml);
+	const html = serializeDatePills(editorHtml);
 	let note = "";
 	let cursor = 0;
 	// For each open element, whether its open tag was emitted and so needs a close tag.
@@ -84,8 +83,8 @@ export function noteToEditorHtml(note: string): string {
  * The note `.content` element's inner HTML: `.innerContentContainer` around the note with its
  * #tags, @mentions, and links decorated like a name's, or nothing for an empty note. The
  * decoration is dropped again by `editorHtmlToNote`, so the stored note never carries it.
- * Given `dateSettings` (an unfocused note), stored `<time>` also renders as monolith pills,
- * which the codec does not strip, so a focused editor must omit them.
+ * Given `dateSettings`, stored `<time>` also renders as monolith pills, which the codec
+ * serializes back to canonical `<time>` markup.
  */
 export function noteContentHtml(note: string, dateSettings?: DateSettings, now?: Date): string {
 	if (note === "") {

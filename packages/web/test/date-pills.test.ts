@@ -1,7 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {renderDatePills} from "../src/client/date-pills.js";
+import {
+	deletePillAfterCaret,
+	deletePillBeforeCaret,
+	renderDatePills,
+	serializeDatePills,
+} from "../src/client/date-pills.js";
 import {renderTags} from "../src/client/tag-render.js";
 
 const SETTINGS = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
@@ -58,6 +63,54 @@ describe("renderDatePills", () => {
 			NOW,
 		);
 		expect(renderTags(pills)).toBe(pills);
+	});
+});
+
+const SINGLE = 'dpSingle <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time> tail';
+const HOURS =
+	'dpHours <time startYear="2026" startMonth="10" startDay="1" startHour="14" startMinute="30">Thu, Oct 1, 2026 at 2:30pm</time>';
+const RANGE =
+	'r <time startYear="2026" endYear="2026" startMonth="10" endMonth="10" startDay="1" endDay="3">Thu, Oct 1, 2026 - Sat, Oct 3, 2026</time> x';
+
+describe("serializeDatePills", () => {
+	it("round-trips rendered pills back to the stored markup", () => {
+		expect(
+			[SINGLE, HOURS, RANGE].map((stored) => serializeDatePills(renderDatePills(stored, SETTINGS, NOW))),
+		).toStrictEqual([SINGLE, HOURS, RANGE]);
+	});
+
+	it("writes camelCase attributes and markup-format inner text", () => {
+		expect(serializeDatePills('a <time startyear="2026" startmonth="10" startday="2">garbage</time>')).toBe(
+			'a <time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>',
+		);
+	});
+
+	it("drops the U+FEFF caret guards typed text can land beside", () => {
+		expect(serializeDatePills(`x${BOM}y`)).toBe("xy");
+	});
+
+	it("keeps a <time> without a start date as written, with camelCase attributes", () => {
+		expect(serializeDatePills('<time startyear="2026">odd</time>')).toBe('<time startYear="2026">odd</time>');
+	});
+});
+
+describe("deletePillBeforeCaret", () => {
+	it("deletes the whole pill when the caret is right after it", () => {
+		expect(deletePillBeforeCaret(SINGLE, 10)).toBe("dpSingle  tail");
+	});
+
+	it("leaves text alone when no pill is right before the caret", () => {
+		expect([deletePillBeforeCaret(SINGLE, 9), deletePillBeforeCaret(SINGLE, 0)]).toStrictEqual([null, null]);
+	});
+});
+
+describe("deletePillAfterCaret", () => {
+	it("deletes the whole pill when the caret is right before it", () => {
+		expect(deletePillAfterCaret(SINGLE, 9)).toBe("dpSingle  tail");
+	});
+
+	it("leaves text alone when no pill is right after the caret", () => {
+		expect([deletePillAfterCaret(SINGLE, 10), deletePillAfterCaret(SINGLE, 99)]).toStrictEqual([null, null]);
 	});
 });
 
