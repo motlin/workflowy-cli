@@ -1,5 +1,11 @@
-import {describe, expect, it} from "vite-plus/test";
-import {createSwitcherSelection} from "../src/client/switcher-model.js";
+import {beforeEach, describe, expect, it} from "vite-plus/test";
+import {
+	applySpecial,
+	createSwitcherSelection,
+	getPreviousLocation,
+	resetPreviousLocation,
+	specialRows,
+} from "../src/client/switcher-model.js";
 
 function withCount(count: number, selected = 0) {
 	const selection = createSwitcherSelection();
@@ -77,5 +83,51 @@ describe("createSwitcherSelection", () => {
 		const before = selection.getState();
 		selection.selectNext();
 		expect(before).toStrictEqual({selected: 1, filter: "", count: 8});
+	});
+});
+
+describe("specialRows", () => {
+	beforeEach(() => {
+		resetPreviousLocation();
+	});
+
+	it("'..' prepends a zoom-up row when the zoom root has a parent", () => {
+		expect(specialRows("..", {zoomId: "z", parentId: "p", previous: null})).toStrictEqual([
+			{kind: "up", label: "Zoom one level up", targetId: "p"},
+		]);
+	});
+
+	it("'..' zooms up to Home from a top-level page", () => {
+		expect(specialRows("..", {zoomId: "z", parentId: null, previous: null})).toStrictEqual([
+			{kind: "up", label: "Zoom one level up", targetId: null},
+		]);
+	});
+
+	it("'..' has no row at Home", () => {
+		expect(specialRows("..", {zoomId: null, parentId: null, previous: null})).toStrictEqual([]);
+	});
+
+	it("'-' has no row without a previous location", () => {
+		expect(specialRows("-", {previous: null})).toStrictEqual([]);
+	});
+
+	it("other filters have no special rows", () => {
+		expect(specialRows("qwzx", {zoomId: "z", parentId: "p", previous: {id: "a", name: "A"}})).toStrictEqual([]);
+	});
+
+	it("after a '..' jump, '-' offers the page it left", () => {
+		const [up] = specialRows("..", {zoomId: "z", parentId: "p"});
+		expect(applySpecial(up, {id: "z", name: "Qwzx parent page"})).toBe("p");
+		expect(specialRows("-", {zoomId: "p", parentId: null}).map((row) => row.label)).toStrictEqual([
+			"Previous location: Qwzx parent page",
+		]);
+	});
+
+	it("'-' swaps the current and previous locations", () => {
+		applySpecial({kind: "up", label: "Zoom one level up", targetId: "p"}, {id: "z", name: "Child"});
+		const [back] = specialRows("-", {zoomId: "p", parentId: null});
+		expect(back).toStrictEqual({kind: "previous", label: "Previous location: Child", targetId: "z"});
+		expect(applySpecial(back, {id: "p", name: "Parent"})).toBe("z");
+		expect(getPreviousLocation()).toStrictEqual({id: "p", name: "Parent"});
 	});
 });

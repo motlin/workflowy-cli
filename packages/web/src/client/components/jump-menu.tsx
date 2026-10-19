@@ -1,4 +1,4 @@
-import {useQueries} from "@tanstack/react-query";
+import {useQueries, useQueryClient} from "@tanstack/react-query";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {KeyboardEvent, UIEvent} from "react";
 import {useNavigate} from "react-router-dom";
@@ -10,9 +10,10 @@ import type {SwitcherResponse, SwitcherResult} from "../../server/switcher-searc
 import {fetchAncestors} from "../hooks/use-nodes.js";
 import {readLastViewed, useStars} from "../hooks/use-starred.js";
 import {locationUrl} from "../location.js";
-import {nodeKeys} from "../node-cache.js";
+import {nodeKeys, readNode} from "../node-cache.js";
 import {readJson} from "../read-json.js";
-import {switcherCrumb} from "../switcher-model.js";
+import {applySpecial, isSpecialFilter, specialRows, switcherCrumb} from "../switcher-model.js";
+import type {SpecialRow} from "../switcher-model.js";
 import {nearScrollEnd, onSwitcherStep, stepSelection, switcherKeyAction} from "../switcher-keys.js";
 import {buildSwitcherRows} from "../switcher-rows.js";
 import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
@@ -36,6 +37,8 @@ const INPUT_CLASS =
 	"block w-full box-border appearance-none p-m rounded-s py-ml px-l outline-none border border-solid border-primary bg-primary focus:border-tint text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected [&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:inherit] [&:-webkit-autofill]:border-tint [&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]";
 
 const SEARCH_LIMIT = 20;
+
+const NO_SPECIALS: readonly SpecialRow[] = [];
 
 function optionClass(hasCrumbs: boolean, selected: boolean): string {
 	return [
@@ -97,8 +100,34 @@ function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps)
 	);
 }
 
+interface SpecialOptionProps {
+	row: SpecialRow;
+	selected: boolean;
+	onSelect: () => void;
+	onHover: () => void;
+}
+
+/** A `..` or `-` row: a plain label with no star, crumbs or action buttons. */
+function SpecialOption({row, selected, onSelect, onHover}: SpecialOptionProps) {
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream rows are plain divs; the input owns the keyboard
+		<div className={optionClass(false, selected)} onClick={onSelect} onMouseMove={onHover}>
+			<div className="w-4" />
+			<div className="items-center text-base leading-base truncate">
+				<div className="flex justify-between items-center">
+					<div className="overflow-hidden mr-m">
+						<span>{row.label}</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export interface SwitcherDialogProps {
 	query: string;
+	/** The `..` / `-` rows, listed before `rows`; `selectedIndex` counts them first. */
+	specials?: readonly SpecialRow[];
 	rows: readonly SwitcherRow[];
 	selectedIndex: number;
 	/** Plain text shown after the list, or null for none. */
@@ -108,6 +137,7 @@ export interface SwitcherDialogProps {
 	onQueryChange: (query: string) => void;
 	onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 	onSelect: (row: SwitcherRow) => void;
+	onSelectSpecial?: (row: SpecialRow) => void;
 	onHover: (index: number) => void;
 	onClose: () => void;
 	/** The dialog scrolled within 300px of its bottom: time to load the next page. */
@@ -117,6 +147,7 @@ export interface SwitcherDialogProps {
 /** Upstream's switcher dialog DOM: backdrop, scrim, dialog box with the input, close icon and option list. */
 export function SwitcherDialog({
 	query,
+	specials = NO_SPECIALS,
 	rows,
 	selectedIndex,
 	emptyText,
@@ -124,6 +155,7 @@ export function SwitcherDialog({
 	onQueryChange,
 	onKeyDown,
 	onSelect,
+	onSelectSpecial,
 	onHover,
 	onClose,
 	onScrollNearEnd,
@@ -162,16 +194,29 @@ export function SwitcherDialog({
 						onClick={onClose}
 					/>
 					<div className="flex flex-col gap-s">
+						{specials.map((row, index) => (
+							<SpecialOption
+								key={`special-${row.kind}`}
+								row={row}
+								selected={index === selectedIndex}
+								onSelect={() => {
+									onSelectSpecial?.(row);
+								}}
+								onHover={() => {
+									onHover(index);
+								}}
+							/>
+						))}
 						{rows.map((row, index) => (
 							<SwitcherOption
 								key={row.key}
 								row={row}
-								selected={index === selectedIndex}
+								selected={specials.length + index === selectedIndex}
 								onSelect={() => {
 									onSelect(row);
 								}}
 								onHover={() => {
-									onHover(index);
+									onHover(specials.length + index);
 								}}
 							/>
 						))}
@@ -235,9 +280,13 @@ function JumpMenuDialog() {
 		closeJumpMenu("cancel");
 	}, [closeJumpMenu]);
 	const zoomTo = useZoomTo();
+	const queryClient = useQueryClient();
+	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const {stars} = useStars();
 	const starred = useStarredEntries(stars);
 	const [query, setQuery] = useState("");
+	// Upstream quirk: `..` and `-` have no words, so the list below them keeps the last real filter's results.
+	const [listQuery, setListQuery] = useState("");
 	const [results, setResults] = useState<readonly SwitcherResult[]>([]);
 	const [hasMore, setHasMore] = useState(false);
 	const loadingMore = useRef(false);
@@ -254,12 +303,15 @@ function JumpMenuDialog() {
 
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);
-		latestQuery.current = value;
 		setSelectedIndex(0);
+		if (!isSpecialFilter(value)) {
+			setListQuery(value);
+			latestQuery.current = value;
+		}
 	}, []);
 
 	useEffect(() => {
-		if (!query.trim()) {
+		if (!listQuery.trim()) {
 			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 			return undefined;
 		}
@@ -272,7 +324,7 @@ function JumpMenuDialog() {
 				const response = await fetch("/api/search/switcher", {
 					method: "POST",
 					headers: {"Content-Type": "application/json"},
-					body: JSON.stringify({query, limit: SEARCH_LIMIT, starredIds}),
+					body: JSON.stringify({query: listQuery, limit: SEARCH_LIMIT, starredIds}),
 				});
 				if (!response.ok) {
 					throw new Error(`Switcher search failed: ${response.status}`);
@@ -300,9 +352,22 @@ function JumpMenuDialog() {
 			cancelled = true;
 			clearTimeout(searchTimeout);
 		};
-	}, [query, starredIds]);
+	}, [listQuery, starredIds]);
 
-	const {rows, emptyText, indexing} = buildSwitcherRows(starred, {status, results}, query);
+	const {rows, emptyText, indexing} = buildSwitcherRows(starred, {status, results}, listQuery);
+
+	const zoomedNode = zoomedNodeId === null ? undefined : readNode(queryClient, zoomedNodeId);
+	const zoomedName = zoomedNodeId === null ? "Home" : stripHtmlTags(zoomedNode?.name ?? "");
+	const specials = specialRows(query, {zoomId: zoomedNodeId, parentId: zoomedNode?.parent_id ?? null});
+
+	/** Upstream `..` / `-`: remember where we were, then go to the row's page like any other jump. */
+	const handleSelectSpecial = useCallback(
+		(row: SpecialRow) => {
+			closeJumpMenu("navigate");
+			void zoomTo(applySpecial(row, {id: zoomedNodeId, name: zoomedName}), "first_child");
+		},
+		[closeJumpMenu, zoomTo, zoomedName, zoomedNodeId],
+	);
 
 	/** Upstream: close without restoring, go to the row, then edit its first child (or the zoom-root title). */
 	const handleSelect = useCallback(
@@ -317,7 +382,7 @@ function JumpMenuDialog() {
 		[closeJumpMenu, navigate, zoomTo],
 	);
 
-	const rowCount = rows.length;
+	const rowCount = specials.length + rows.length;
 	useEffect(
 		() =>
 			onSwitcherStep((step) => {
@@ -344,20 +409,23 @@ function JumpMenuDialog() {
 					break;
 				}
 				case "enter": {
-					const selected = rows[selectedIndex];
-					if (selected !== undefined) {
+					const special = specials[selectedIndex];
+					const selected = rows[selectedIndex - specials.length];
+					if (special !== undefined) {
+						handleSelectSpecial(special);
+					} else if (selected !== undefined) {
 						handleSelect(selected);
 					}
 					break;
 				}
 			}
 		},
-		[cancel, handleSelect, rowCount, rows, selectedIndex],
+		[cancel, handleSelect, handleSelectSpecial, rowCount, rows, selectedIndex, specials],
 	);
 
 	/** Upstream's infinite scroll: append the next page of server results. */
 	const loadMore = useCallback(() => {
-		if (!hasMore || loadingMore.current || !query.trim()) {
+		if (!hasMore || loadingMore.current || !listQuery.trim()) {
 			return;
 		}
 		loadingMore.current = true;
@@ -366,12 +434,12 @@ function JumpMenuDialog() {
 				const response = await fetch("/api/search/switcher", {
 					method: "POST",
 					headers: {"Content-Type": "application/json"},
-					body: JSON.stringify({query, offset: results.length, limit: SEARCH_LIMIT, starredIds}),
+					body: JSON.stringify({query: listQuery, offset: results.length, limit: SEARCH_LIMIT, starredIds}),
 				});
 				if (response.ok) {
 					const data = await readJson<SwitcherResponse>(response);
 					// A page for a query the user has since changed is dropped.
-					if (latestQuery.current === query) {
+					if (latestQuery.current === listQuery) {
 						setResults((previous) => [...previous, ...data.results]);
 						setHasMore(data.hasMore);
 					}
@@ -381,11 +449,12 @@ function JumpMenuDialog() {
 			}
 		};
 		void loadNextPage();
-	}, [hasMore, query, results.length, starredIds]);
+	}, [hasMore, listQuery, results.length, starredIds]);
 
 	return (
 		<SwitcherDialog
 			query={query}
+			specials={specials}
 			rows={rows}
 			selectedIndex={selectedIndex}
 			emptyText={emptyText}
@@ -393,6 +462,7 @@ function JumpMenuDialog() {
 			onQueryChange={handleQueryChange}
 			onKeyDown={handleKeyDown}
 			onSelect={handleSelect}
+			onSelectSpecial={handleSelectSpecial}
 			onHover={setSelectedIndex}
 			onClose={cancel}
 			onScrollNearEnd={loadMore}
