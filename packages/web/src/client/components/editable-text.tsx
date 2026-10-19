@@ -62,7 +62,7 @@ import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
 import {highlightSearchMatches} from "../highlight-html.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
-import {renderTags, tagAtOffset, teaserPosition} from "../tag-render.js";
+import {renderTags, tagAtOffset, teaserPosition, toggleTagInQuery} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
@@ -166,10 +166,11 @@ function teaserStyle(tag: {top: number; right: number; bottom: number}): React.C
 	return {top: `${top}px`, left: `${left}px`};
 }
 
-/** Upstream tag click: search for `#tag ` (trailing space), or clear the search when that tag search is active. */
-export function tagClickQuery(tag: string, searchQuery: string): string {
-	const query = `${tag} `;
-	return searchQuery === query ? "" : query;
+/** Upstream: mousedown on a tag never places a caret or moves focus. */
+function preventTagMouseDown(event: React.MouseEvent<HTMLSpanElement>): void {
+	if (event.target instanceof Element && event.target.closest(".explosive")) {
+		event.preventDefault();
+	}
 }
 
 export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
@@ -990,22 +991,27 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	/**
 	 * Handle text clicks:
-	 * - Plain click on a .contentTag span: toggles an in-place search for the tag (Workflowy behavior)
-	 * - Cmd+click: detect tag at cursor position and toggle its search
+	 * - Plain click on a .contentTag span: blurs the editor, marks the tag tapped, and toggles
+	 *   the tag in the search query (appends it, or removes it when already there)
+	 * - Cmd+click: detect tag at cursor position and toggle it in the search query
 	 * - Otherwise: start editing at click position
 	 */
 	const handleTextClick = useCallback(
 		(event: React.MouseEvent<HTMLSpanElement>) => {
 			const target = event.target;
 
-			// Plain click on a .contentTag span (or its inner text) toggles its search in place
+			// Plain click on a .contentTag span (or its inner text) toggles it in the search query
 			const tagEl = target instanceof Element ? target.closest(".contentTag") : null;
 			if (tagEl) {
 				const tagText = tagEl.textContent;
 				if (tagText) {
 					event.preventDefault();
 					event.stopPropagation();
-					commitSearch(tagClickQuery(tagText, useOutlineStore.getState().searchQuery));
+					if (document.activeElement instanceof HTMLElement) {
+						document.activeElement.blur();
+					}
+					tagEl.classList.add("tapped");
+					commitSearch(toggleTagInQuery(useOutlineStore.getState().searchQuery, tagText));
 				}
 				return;
 			}
@@ -1030,7 +1036,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					if (tag) {
 						event.preventDefault();
 						event.stopPropagation();
-						commitSearch(tagClickQuery(tag, useOutlineStore.getState().searchQuery));
+						commitSearch(toggleTagInQuery(useOutlineStore.getState().searchQuery, tag));
 					}
 				}
 				return;
@@ -1150,6 +1156,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 						),
 					}}
 					onClick={handleTextClick}
+					onMouseDown={preventTagMouseDown}
 					onMouseLeave={scheduleHide}
 					// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance; the span is not focusable
 					onMouseOver={handleTagHover}

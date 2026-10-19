@@ -30,7 +30,7 @@ interface Word {
 	index: number;
 }
 
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
 	return text.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
 }
 

@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {renderTags, tagAtOffset, teaserPosition} from "../src/client/tag-render.js";
+import {renderTags, tagAtOffset, teaserPosition, toggleTagInQuery} from "../src/client/tag-render.js";
 
 function tagSpan(tag: string): string {
 	return `<span class="contentTag explosive" title="Filter ${tag}" data-val="${tag.toLowerCase()}">${tag.slice(0, 1)}<span class="contentTagText">${tag.slice(1)}</span><span class="contentTagNub"></span></span>`;
@@ -71,5 +71,25 @@ describe("tagAtOffset", () => {
 describe("teaserPosition", () => {
 	it("places the teaser at the tag's right edge, vertically centred plus the Flyout margin", () => {
 		expect(teaserPosition({top: 146.5, right: 216.92, height: 19})).toStrictEqual({left: 215.92, top: 146.5});
+	});
+});
+
+describe("toggleTagInQuery", () => {
+	it("appends a new tag and removes one already in the query, case-insensitively, keeping one trailing space", () => {
+		expect({
+			empty: toggleTagInQuery("", "#taZebra"),
+			append: toggleTagInQuery("#taZebra ", "#taApple"),
+			removeCaseInsensitive: toggleTagInQuery("#taZebra #taApple ", "#TAAPPLE"),
+			removeLast: toggleTagInQuery("#taZebra ", "#taZebra"),
+			prefixIsNotMatch: toggleTagInQuery("#taZebraLong ", "#taZebra"),
+			regexChars: toggleTagInQuery("#a.b ", "#a+b"),
+		}).toStrictEqual({
+			empty: "#taZebra ",
+			append: "#taZebra #taApple ",
+			removeCaseInsensitive: "#taZebra ",
+			removeLast: "",
+			prefixIsNotMatch: "#taZebraLong #taZebra ",
+			regexChars: "#a.b #a+b ",
+		});
 	});
 });

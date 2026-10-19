@@ -1,4 +1,5 @@
 import {findTags} from "@workflowy/shared/tags";
+import {escapeRegExp} from "./search/helper-insert.js";
 
 const ENTITIES: Readonly<Record<string, string>> = {
 	"&amp;": "&",
@@ -142,4 +143,16 @@ const TEASER_FLYOUT_MARGIN = 4;
  */
 export function teaserPosition(tag: {top: number; right: number; height: number}): {left: number; top: number} {
 	return {left: tag.right - 1, top: tag.top - 6 + (tag.height - 15) / 2 + TEASER_FLYOUT_MARGIN};
+}
+
+/**
+ * Upstream tag click: remove `tag` from the search query when it is already there
+ * (whole word, case-insensitive), otherwise append it; a non-empty result keeps
+ * exactly one trailing space.
+ */
+export function toggleTagInQuery(query: string, tag: string): string {
+	const pattern = new RegExp(`(^|\\s)${escapeRegExp(tag)}(?=$|\\s)`, "giu");
+	const next = pattern.test(query) ? query.replace(pattern, "") : `${query.trimEnd()} ${tag}`;
+	const trimmed = next.trim();
+	return trimmed === "" ? "" : `${trimmed} `;
 }
