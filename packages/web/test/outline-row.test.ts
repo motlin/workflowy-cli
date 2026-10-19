@@ -11,6 +11,7 @@ const outlineState = {
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
+	draggingIds: [] as string[],
 	slidingDownCompletedIds: new Set<string>(),
 	endCompletionAnimation: () => {},
 	showCompleted: true,
@@ -41,18 +42,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
 }));
-vi.mock("../src/client/hooks/use-node-drag-drop.js", () => ({
-	useNodeDragDrop: () => ({
-		isDragging: false,
-		isDragOver: false,
-		dragOverPosition: null,
-		handleDragStart: () => {},
-		handleDragEnd: () => {},
-		handleDragOver: () => {},
-		handleDragLeave: () => {},
-		handleDrop: () => {},
-	}),
-}));
+vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
@@ -105,7 +95,7 @@ const DIAMOND_SVG =
 	'<svg width="100%" height="100%" viewBox="0 0 16 16" fill="currentColor" class="mirrorDiamondIcon"><path d="M8 4 L4 8 L8 12 L12 8 Z"></path></svg>';
 
 function expectedBullet(id: string, classes: string, svg: string): string {
-	return `<a href="/#/${id.slice(-12)}" data-handbook="bullet.handle" data-item-id="${id}" class="${classes}" style="${BULLET_STYLE}" draggable="true"><span class="bulletHalo">${svg}</span></a>`;
+	return `<a href="/#/${id.slice(-12)}" data-handbook="bullet.handle" data-item-id="${id}" class="${classes}" style="${BULLET_STYLE}"><span class="bulletHalo">${svg}</span></a>`;
 }
 
 describe("OutlineRow bullet markup", () => {
@@ -132,7 +122,7 @@ describe("OutlineRow bullet markup", () => {
 	it("links the bullet to the upstream short-id hash URL", () => {
 		const id = "4823cefa-5fc0-478c-88ac-35035d443bf1";
 		expect(bulletMarkup(render(makeNode({id}), false))).toBe(
-			`<a href="/#/35035d443bf1" data-handbook="bullet.handle" data-item-id="${id}" class="bullet" style="${BULLET_STYLE}" draggable="true"><span class="bulletHalo">${DOT_SVG}</span></a>`,
+			`<a href="/#/35035d443bf1" data-handbook="bullet.handle" data-item-id="${id}" class="bullet" style="${BULLET_STYLE}"><span class="bulletHalo">${DOT_SVG}</span></a>`,
 		);
 	});
 });

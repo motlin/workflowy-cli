@@ -10,6 +10,7 @@ const outlineState = {
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
+	draggingIds: [] as string[],
 	slidingDownCompletedIds: new Set<string>(),
 	endCompletionAnimation: () => {},
 	toggleExpand: () => {},
@@ -39,18 +40,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useToggleComplete: () => ({mutate: () => {}}),
 	useUpdateNode: () => ({mutate: () => {}}),
 }));
-vi.mock("../src/client/hooks/use-node-drag-drop.js", () => ({
-	useNodeDragDrop: () => ({
-		isDragging: false,
-		isDragOver: false,
-		dragOverPosition: null,
-		handleDragStart: () => {},
-		handleDragEnd: () => {},
-		handleDragOver: () => {},
-		handleDragLeave: () => {},
-		handleDrop: () => {},
-	}),
-}));
+vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
 	return {

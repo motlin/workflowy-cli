@@ -5,6 +5,7 @@ import {initialNavState, navReducer} from "../nav-stack.js";
 import type {NavAction, NavState} from "../nav-stack.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
+import type {DropIndicator} from "../bullet-drag-state.js";
 
 const StringArraySchema = z.array(z.string());
 
@@ -258,6 +259,10 @@ interface OutlineState {
 	slidingDownCompletedIds: Set<string>;
 	/** The row a single-row Shift+Cmd+Up/Down just moved; it carries upstream's `.moving` flash. */
 	movingId: string | null;
+	/** Rows a bullet drag is carrying; they carry upstream's `.project.moving` until the drop. */
+	draggingIds: readonly string[];
+	/** Where the bullet drag's drop line goes, or null when there is no target. */
+	dropIndicator: DropIndicator | null;
 	/** The row whose item (bullet) menu is open; it carries upstream's `.highlighted` tint over its subtree. */
 	itemMenuOpenId: string | null;
 	leftBarMode: LeftBarMode;
@@ -350,6 +355,7 @@ interface OutlineActions {
 	endCompletionAnimation: (ids: string[]) => void;
 	/** Flash `.moving` on the moved row for 500ms, restarting for each move. */
 	flashMoving: (id: string) => void;
+	setBulletDrag: (draggingIds: readonly string[], dropIndicator: DropIndicator | null) => void;
 	toggleLeftBar: () => void;
 	openLeftBarDrawer: () => void;
 	closeLeftBarDrawer: () => void;
@@ -511,6 +517,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	slidingUpCompletionIds: new Set<string>(),
 	slidingDownCompletedIds: new Set<string>(),
 	movingId: null,
+	draggingIds: [],
+	dropIndicator: null,
 	itemMenuOpenId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
@@ -722,6 +730,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			animatingCompletionIds: new Set([...animatingCompletionIds].filter((id) => !ended.has(id))),
 			slidingUpCompletionIds: new Set([...slidingUpCompletionIds].filter((id) => !ended.has(id))),
 		});
+	},
+
+	setBulletDrag: (draggingIds, dropIndicator) => {
+		set({draggingIds, dropIndicator});
 	},
 
 	flashMoving: (id) => {

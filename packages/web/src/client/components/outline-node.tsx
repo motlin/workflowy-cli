@@ -3,11 +3,10 @@
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
-import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
-import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
+import {useBulletDrag} from "../hooks/use-bullet-drag.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useQueryClient} from "@tanstack/react-query";
 import {
@@ -59,18 +58,17 @@ interface NodeBulletProps {
 	nodeId: string;
 	isMirror: boolean;
 	showHalo: boolean;
-	onDragStart: (event: React.DragEvent) => void;
-	onDragEnd: (event: React.DragEvent) => void;
 }
 
 /**
  * The zoom bullet: upstream's `a.bullet > span.bulletHalo > svg`. A collapsed
- * parent shows the halo; a mirror renders a diamond. Click or Enter zooms in.
+ * parent shows the halo; a mirror renders a diamond. A press that does not
+ * become a drag, or Enter, zooms in.
  */
-function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBulletProps) {
+function NodeBullet({nodeId, isMirror, showHalo}: NodeBulletProps) {
 	const zoomTo = useZoomTo();
 	const queryClient = useQueryClient();
-	const pressed = useRef(false);
+	const handleMouseDown = useBulletDrag(nodeId);
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
 		.filter(Boolean)
 		.join(" ");
@@ -81,50 +79,24 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 			data-item-id={nodeId}
 			className={className}
 			style={{left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}}
-			draggable
-			onFocus={(event) => {
-				// A press or drag focuses the link, which would end the edit; hand focus back to the
-				// held editor so the caret stays. Preventing mousedown, or refocusing synchronously,
-				// suppresses the native dragstart, so the refocus waits a task.
-				const editor = event.relatedTarget;
-				if (pressed.current && editor instanceof HTMLElement) {
-					setTimeout(() => {
-						editor.focus({preventScroll: true});
-					}, 0);
-				}
-			}}
-			onMouseDown={() => {
-				const {editingId, holdEditing, releaseEditing} = useOutlineStore.getState();
-				const editor = editingId === null ? null : editorElement(editingId);
-				if (editor === null) {
-					return;
-				}
-				holdEditing(caretTextOffset(editor));
-				pressed.current = true;
-				// mouseup precedes click, so zoomTo sees a released edit; a drag ends with dragend instead.
-				const release = () => {
-					globalThis.removeEventListener("mouseup", release, true);
-					globalThis.removeEventListener("dragend", release, true);
-					pressed.current = false;
-					releaseEditing();
-				};
-				globalThis.addEventListener("mouseup", release, true);
-				globalThis.addEventListener("dragend", release, true);
-			}}
+			onMouseDown={handleMouseDown}
 			onClick={(event) => {
 				event.stopPropagation();
 				if (bulletClickAction(event) === "browser") {
 					return;
 				}
 				event.preventDefault();
+				// Only a press the drag armed and released before moving 3px zooms; a finished drag does not.
+				if (event.currentTarget.dataset.preDragClick !== "true") {
+					return;
+				}
+				delete event.currentTarget.dataset.preDragClick;
 				// A selected row's bullet clears the selection and stays put.
 				if (clearSelectionFromBullet(queryClient, nodeId)) {
 					return;
 				}
 				void zoomTo(nodeId, "first_child");
 			}}
-			onDragEnd={onDragEnd}
-			onDragStart={onDragStart}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
@@ -340,16 +312,6 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 	const layout = resolveLayoutMode(node.data.layoutMode);
 	const name = node.name ?? "";
 
-	const {
-		isDragging,
-		isDragOver,
-		dragOverPosition,
-		handleDragStart,
-		handleDragEnd,
-		handleDragOver,
-		handleDragLeave,
-		handleDrop,
-	} = useNodeDragDrop({nodeId: node.id, parentId: node.parent_id, priority: node.priority});
 	const handleContentMouseDown = useContentMouseDown(node.id);
 
 	// Clicking the row outside its text edits the node with the caret at the end;
@@ -365,14 +327,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
 
-	const nameClasses = [
-		nameClassName({empty: name === "", withEmbedder}),
-		isDragging && "dragging",
-		isDragOver && "drag-over",
-		isDragOver && dragOverPosition && `drag-over-${dragOverPosition}`,
-	]
-		.filter(Boolean)
-		.join(" ");
+	const nameClasses = nameClassName({empty: name === "", withEmbedder});
 
 	return (
 		// Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys.
@@ -380,9 +335,6 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 			tabIndex={-1}
 			className={nameClasses}
 			onClick={handleRowClick}
-			onDragLeave={handleDragLeave}
-			onDragOver={handleDragOver}
-			onDrop={handleDrop}
 			onMouseEnter={() => {
 				setIsHovered(true);
 			}}
@@ -391,13 +343,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 			}}
 			role="presentation"
 		>
-			<NodeBullet
-				isMirror={node.isMirror === true}
-				nodeId={node.id}
-				onDragEnd={handleDragEnd}
-				onDragStart={handleDragStart}
-				showHalo={hasChildren && !isExpanded}
-			/>
+			<NodeBullet isMirror={node.isMirror === true} nodeId={node.id} showHalo={hasChildren && !isExpanded} />
 			{layout.isTodo ? <TodoCheckbox isCompleted={isCompleted} onComplete={handleComplete} /> : null}
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mouse-only item selection (⌘/⌥/⇧-press, drag); keyboard users select with ⇧↑/⇧↓ */}
 			<div className="notranslate content whitespace-pre-wrap" onMouseDown={handleContentMouseDown}>
@@ -515,7 +461,7 @@ export function OutlineRow({
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
-	const isMoving = useOutlineStore((state) => state.movingId === node.id);
+	const isMoving = useOutlineStore((state) => state.movingId === node.id || state.draggingIds.includes(node.id));
 	const isAddedToSelection = useOutlineStore((state) => isEntry(state.itemSelection, node.id));
 	// Upstream tints the row and its nested `.children` while the row's item menu is open.
 	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);

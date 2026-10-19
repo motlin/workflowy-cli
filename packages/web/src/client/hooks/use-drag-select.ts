@@ -15,8 +15,8 @@ const DRAGGING_CLASS = "item-selection--dragging";
 /** Each outline row's bullet, in display order; the zoomed title and the Backlinks header are not rows. */
 const ROW_BULLET_SELECTOR = ".project:not(.root) > .name > a.bullet[data-item-id]:not(.bullet--backlink-root)";
 
-/** Commit the edited text, stop editing, and drop the caret, so the item selection owns the keyboard. */
-function leaveEditorForSelection(): void {
+/** Commit the edited text, stop editing, and drop the caret, so an item selection or bullet drag owns the keyboard. */
+export function leaveEditor(): void {
 	flushEditing();
 	const active = document.activeElement;
 	useOutlineStore.getState().stopEditing();
@@ -127,7 +127,7 @@ function armDragSelect(nodeId: string, name: Element, queryClient: QueryClient):
 		style?.remove();
 		suppressNextClick();
 		if (useOutlineStore.getState().itemSelection.entries.length > 0) {
-			leaveEditorForSelection();
+			leaveEditor();
 		}
 	};
 
@@ -173,7 +173,7 @@ export function useContentMouseDown(nodeId: string): (event: React.MouseEvent<HT
 			event.preventDefault();
 			const view = currentSelectionView(queryClient);
 			const fallback = state.editingId ?? state.lastEditedId;
-			leaveEditorForSelection();
+			leaveEditor();
 			const selection = useOutlineStore.getState().itemSelection;
 			useOutlineStore
 				.getState()

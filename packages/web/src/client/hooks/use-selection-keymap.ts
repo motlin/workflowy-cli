@@ -22,7 +22,7 @@ import {useDeleteNode} from "./use-nodes.js";
 import {collectVisibleNodeIds} from "./use-visible-nodes.js";
 
 /** Stands in for Home as the selection's zoom root; it is never a row, so it is never selected. */
-const HOME_ROOT = "home";
+export const HOME_ROOT = "home";
 
 /** Upstream confirms deleting a selection that holds more than this many items, descendants included. */
 const DELETE_CONFIRM_THRESHOLD = 20;
