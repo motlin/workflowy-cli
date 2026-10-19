@@ -1,5 +1,6 @@
 import type {SearchOperator} from "../query-nodes.js";
 import * as meta from "./meta.js";
+import * as time from "./time.js";
 
 /**
  * Search operators in upstream insertion order (WF.map.SearchQueryNode): the first whose `matchesToken`
@@ -13,7 +14,12 @@ export const SEARCH_OPERATORS: SearchOperator[] = [
 	meta.isDivider,
 	meta.hasNote,
 	meta.hasChildren,
-	// Time-range, changed-by and date operators register here.
+	time.changed,
+	time.changedBefore,
+	time.created,
+	time.completed,
+	time.changedBy,
+	// Date operators register here.
 	meta.textBold,
 	meta.textItalic,
 	meta.textUnderline,

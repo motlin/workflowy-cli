@@ -10,7 +10,7 @@ interface MetaOptions {
 }
 
 /** Port of upstream MetaMatchNode: matches on item metadata and reports `metaMatches` (whole-row highlight). */
-class MetaNode implements QueryNode {
+export class MetaNode implements QueryNode {
 	constructor(
 		private readonly predicate: Predicate,
 		private readonly options: MetaOptions = {},
