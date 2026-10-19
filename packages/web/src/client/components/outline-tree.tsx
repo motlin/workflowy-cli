@@ -12,6 +12,7 @@ import {dropHoverOf} from "../bullet-drag-state.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {searchShowsCompleted, searchShowsNode} from "../search-filter.js";
 import {usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
+import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
 import {ExpandArrow} from "./expand-arrow.js";
@@ -145,6 +146,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const isMainTreeRoot = nodeId === null;
 	const isDragHoveredIn = useOutlineStore((state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT) === "in");
 	const isEditing = !isMainTreeRoot && editingId === nodeId;
+	const searchRootClasses = rootSearchClasses(useSearchFilter());
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 	const layout = resolveLayoutMode(node?.data.layoutMode);
 	const handleComplete = () => {
@@ -185,6 +187,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					dragHoveredIn: isDragHoveredIn,
 				}),
 				isMainTreeRoot && "mainTreeRoot",
+				...searchRootClasses,
 			]
 				.filter(Boolean)
 				.join(" ")}
@@ -413,6 +416,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 	const {isLoading, error} = useChildren(parentId);
 	const queryClient = useQueryClient();
 	usePrefetchSearchAncestors(useSearchFilter());
+	const showsAddChild = shouldRenderAddChildButton(useOutlineStore((state) => state.searchQuery));
 
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
 	// last visible row.
@@ -443,7 +447,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 			<div className="scroller">
 				<ZoomRootRow nodeId={parentId}>
 					<OutlineChildren isRoot parentId={parentId} />
-					<AddChildButton parentId={parentId} />
+					{showsAddChild ? <AddChildButton parentId={parentId} /> : null}
 				</ZoomRootRow>
 			</div>
 		</div>

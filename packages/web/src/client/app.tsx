@@ -38,6 +38,7 @@ import {nodeKeys} from "./node-cache.js";
 import {readJson} from "./read-json.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
 import {selectIsMutating, useOutlineStore} from "./stores/outline.js";
+import {outlineViewClassName} from "./search-classes.js";
 import "./wf-tailwind.css";
 import "./styles.css";
 
@@ -89,7 +90,7 @@ const queryClient = new QueryClient({
 });
 
 function OutlineView() {
-	const {zoomedNodeId, relatedNodesPanelOpen} = useOutlineStore();
+	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery} = useOutlineStore();
 	const isMutating = useOutlineStore(selectIsMutating);
 
 	// Register keyboard shortcuts
@@ -113,7 +114,7 @@ function OutlineView() {
 			<OfflineBanner />
 			<TopBar onRedo={runCommand("redo")} onUndo={runCommand("undo")} />
 			<LeftBar />
-			<div className="outline-view">
+			<div className={outlineViewClassName(searchQuery)}>
 				<OutlineTree parentId={zoomedNodeId} />
 			</div>
 			<RightBar />

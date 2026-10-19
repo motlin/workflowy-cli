@@ -22,6 +22,7 @@ const outlineState = {
 	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	editingClickPosition: null,
 	editingNoteId: null,
+	searchQuery: "",
 };
 
 function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
@@ -325,6 +326,15 @@ describe("OutlineTree add-child button", () => {
 			markup: ADD_BUTTON_MARKUP,
 			endsRoot: true,
 		});
+	});
+
+	it("leaves the add-child button out during a search", () => {
+		outlineState.searchQuery = "apple";
+		try {
+			expect(render().split("addChildButton").length - 1).toBe(0);
+		} finally {
+			outlineState.searchQuery = "";
+		}
 	});
 
 	it("creates an empty bottom child under a client id, edits it at offset 0 at once, and blurs the button", () => {

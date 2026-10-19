@@ -1067,6 +1067,19 @@ body {
 	}
 }
 
+/* Upstream's .page.searching: extra bottom room while a search filters the outline. */
+.outline-view.searching {
+	padding-bottom: 70px;
+}
+
+/* Upstream's .page.searching .notes.matches>.content: a matched note opens to full height. */
+.outline-view.searching .notes.matches > .content {
+	overflow: visible;
+	display: block;
+	max-height: none;
+	height: auto;
+}
+
 /* Upstream's `.children` wrapper; its indent and guide border come from the
    wf-tailwind utility classes on the element. */
 .children {

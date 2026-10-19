@@ -8,13 +8,26 @@ export interface SearchFilter {
 	matchIds: ReadonlySet<string>;
 	/** `result.ancestorIds` as a Set. */
 	ancestorIds: ReadonlySet<string>;
+	/** `result.nameMatchIds` as a Set. */
+	nameMatchIds: ReadonlySet<string>;
+	/** `result.noteMatchIds` as a Set. */
+	noteMatchIds: ReadonlySet<string>;
+	/** `result.metaMatchIds` as a Set. */
+	metaMatchIds: ReadonlySet<string>;
+	/** `result.halfExpandedIds` as a Set. */
+	halfExpandedIds: ReadonlySet<string>;
 	/** Items created while searching stay visible though they do not match. */
 	createdIds: ReadonlySet<string>;
 	/** Per-item expansion overrides while searching: false collapses, true shows every child. */
 	expansion: ReadonlyMap<string, boolean>;
 }
 
-const idSetsByResult = new WeakMap<TreeSearchResult, {matchIds: Set<string>; ancestorIds: Set<string>}>();
+type IdSets = Pick<
+	SearchFilter,
+	"matchIds" | "ancestorIds" | "nameMatchIds" | "noteMatchIds" | "metaMatchIds" | "halfExpandedIds"
+>;
+
+const idSetsByResult = new WeakMap<TreeSearchResult, IdSets>();
 
 /** The filter for `result`, indexing its ids once per result rather than once per rendered row. */
 export function searchFilter(
@@ -24,7 +37,14 @@ export function searchFilter(
 ): SearchFilter {
 	let idSets = idSetsByResult.get(result);
 	if (idSets === undefined) {
-		idSets = {matchIds: new Set(result.matchIds), ancestorIds: new Set(result.ancestorIds)};
+		idSets = {
+			matchIds: new Set(result.matchIds),
+			ancestorIds: new Set(result.ancestorIds),
+			nameMatchIds: new Set(result.nameMatchIds),
+			noteMatchIds: new Set(result.noteMatchIds),
+			metaMatchIds: new Set(result.metaMatchIds),
+			halfExpandedIds: new Set(result.halfExpandedIds),
+		};
 		idSetsByResult.set(result, idSets);
 	}
 	return {result, ...idSets, createdIds, expansion};

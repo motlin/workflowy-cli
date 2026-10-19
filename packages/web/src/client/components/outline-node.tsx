@@ -16,6 +16,7 @@ import {deleteDates} from "../date-pills.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
+import {searchClasses, withClasses} from "../search-classes.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
 import {BreadcrumbItem} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
@@ -253,6 +254,8 @@ interface NodeNameProps {
 	withEmbedder: boolean;
 	/** Whether a search is filtering the outline; the arrow then writes the search expansion. */
 	searching: boolean;
+	/** Classes the search appends to `.name`. */
+	searchNameClasses: readonly string[];
 }
 
 /**
@@ -260,7 +263,7 @@ interface NodeNameProps {
  * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger,
  * which is mounted only while `.name` is hovered or its menu is open.
  */
-function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching}: NodeNameProps) {
+function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching, searchNameClasses}: NodeNameProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const setItemMenuOpen = useOutlineStore((state) => state.setItemMenuOpen);
@@ -294,7 +297,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching
 		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
 
-	const nameClasses = nameClassName({empty: name === "", withEmbedder});
+	const nameClasses = withClasses(nameClassName({empty: name === "", withEmbedder}), searchNameClasses);
 
 	return (
 		// Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys.
@@ -436,6 +439,7 @@ export function OutlineRow({
 	const search = useSearchFilter();
 	const isPersistentlyExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
+	const rowSearchClasses = searchClasses({id: node.id, parentId: node.parent_id}, search);
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
@@ -494,18 +498,21 @@ export function OutlineRow({
 
 	return (
 		<div
-			className={rowProjectClassName(
-				node,
-				hasChildren,
-				isExpanded,
-				isEditingNote,
-				isSlidingUp,
-				isSlidingDown,
-				isMoving,
-				childrenSlide === "down",
-				isAddedToSelection,
-				isHighlighted,
-				dragHover,
+			className={withClasses(
+				rowProjectClassName(
+					node,
+					hasChildren,
+					isExpanded,
+					isEditingNote,
+					isSlidingUp,
+					isSlidingDown,
+					isMoving,
+					childrenSlide === "down",
+					isAddedToSelection,
+					isHighlighted,
+					dragHover,
+				),
+				rowSearchClasses.project,
 			)}
 			onTransitionEnd={handleTransitionEnd}
 		>
@@ -515,11 +522,17 @@ export function OutlineRow({
 				hasChildren={hasChildren}
 				isExpanded={isExpanded}
 				node={node}
+				searchNameClasses={rowSearchClasses.name}
 				searching={search !== null}
 				withEmbedder={backlinkCrumbs !== undefined}
 			/>
 			{noteMounted || shouldMountNote ? (
-				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} nodeId={node.id} />
+				<EditableNote
+					extraClasses={rowSearchClasses.note}
+					initialValue={node.note ?? ""}
+					isFocused={isEditingNote}
+					nodeId={node.id}
+				/>
 			) : null}
 			<div className="drop-line">
 				<div className="line" />

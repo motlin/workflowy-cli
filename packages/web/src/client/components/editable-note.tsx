@@ -22,6 +22,7 @@ import {plainText} from "../rich-text.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripSlashChip} from "../slash-trigger.js";
+import {withClasses} from "../search-classes.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -30,10 +31,14 @@ interface EditableNoteProps {
 	isFocused: boolean;
 	/** The zoom root's note (`notes--main`). */
 	isMain?: boolean;
+	/** Classes appended to `.notes`, like a search's `matches fullMatch`. */
+	extraClasses?: readonly string[];
 }
 
 /** Stands in for a date pill, one caret unit, in the plain text the tag autocomplete reads. */
 const PILL_UNIT = "\uFFFC";
+
+const NO_EXTRA_CLASSES: readonly string[] = [];
 
 const CONTENT_CLASS = "notranslate content text-tertiary whitespace-pre-wrap overflow-hidden";
 
@@ -82,7 +87,13 @@ function insertAtSelection(text: string, caretInText: number): void {
  * - Backspace in a blank note clears it and moves the caret to the end of the name
  * - Up at the start / Left at the start leave for the name; Down / Right at the end leave for the next row's name
  */
-export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: EditableNoteProps) {
+export function EditableNote({
+	nodeId,
+	initialValue,
+	isFocused,
+	isMain = false,
+	extraClasses = NO_EXTRA_CLASSES,
+}: EditableNoteProps) {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const focusName = useOutlineStore((state) => state.focusName);
@@ -385,7 +396,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	);
 
 	return (
-		<div className={isMain ? "notes notes--main" : "notes"}>
+		<div className={withClasses(isMain ? "notes notes--main" : "notes", extraClasses)}>
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model */}
 			<div
 				className={isFocused ? `${CONTENT_CLASS} active` : CONTENT_CLASS}
