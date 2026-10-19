@@ -107,6 +107,28 @@ export function createDoublePressDetector(windowMs = 250): DoublePressDetector {
 	};
 }
 
+export interface ExpandClickInput {
+	now: number;
+	id: string;
+	isOpen: boolean;
+	hasChildren: boolean;
+	detector: DoublePressDetector;
+}
+
+export type ExpandClickPlan = {type: "none"} | {type: "toggle"} | {type: "all"; open: boolean};
+
+/**
+ * Upstream arrow click: a single click toggles the row; a second click on the same row inside the window
+ * expands or collapses its whole subtree, opposite to the state at the first click. Leaves do nothing.
+ */
+export function handleExpandClick(input: ExpandClickInput): ExpandClickPlan {
+	if (!input.hasChildren) {
+		return {type: "none"};
+	}
+	const press = input.detector.press(input.id, input.isOpen, input.now);
+	return press.double ? {type: "all", open: !press.wasOpenAtFirst} : {type: "toggle"};
+}
+
 /** The mac combos for the three expansion commands (`expand`, `collapse`, `expand_or_collapse`). */
 export const EXPAND_KEYS = {expand: "meta+down", collapse: "meta+up", toggle: "ctrl+space"} as const;
 

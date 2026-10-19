@@ -1,8 +1,15 @@
+import {createDoublePressDetector, handleExpandClick} from "../expansion.js";
+
+/** Shared across arrows so a second click pairs only with the first click on the same row. */
+const clickDetector = createDoublePressDetector();
+
 interface ExpandArrowProps {
 	nodeId: string;
 	hasChildren: boolean;
 	isExpanded: boolean;
 	onToggle: (nodeId: string) => void;
+	/** When set, a second click within 250ms expands or collapses the whole subtree (upstream arrow double-click). */
+	onExpandAll?: (nodeId: string, open: boolean) => void;
 }
 
 const EXPAND_CLASS =
@@ -12,12 +19,27 @@ const EXPAND_CLASS =
  * Upstream's expand toggle (`a.expand`, kept a button for a11y). A parent shows
  * the triangle, rotated by the `.open` row; a leaf renders it empty and inert.
  */
-export function ExpandArrow({nodeId, hasChildren, isExpanded, onToggle}: ExpandArrowProps) {
-	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation">) => {
+export function ExpandArrow({nodeId, hasChildren, isExpanded, onToggle, onExpandAll}: ExpandArrowProps) {
+	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation" | "timeStamp">) => {
 		event.preventDefault();
 		event.stopPropagation();
-		if (hasChildren) {
+		if (!onExpandAll) {
+			if (hasChildren) {
+				onToggle(nodeId);
+			}
+			return;
+		}
+		const plan = handleExpandClick({
+			now: event.timeStamp,
+			id: nodeId,
+			isOpen: isExpanded,
+			hasChildren,
+			detector: clickDetector,
+		});
+		if (plan.type === "toggle") {
 			onToggle(nodeId);
+		} else if (plan.type === "all") {
+			onExpandAll(nodeId, plan.open);
 		}
 	};
 	const shared = {

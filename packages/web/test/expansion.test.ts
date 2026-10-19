@@ -5,6 +5,7 @@ import {
 	createDoublePressDetector,
 	expandOrCollapseAll,
 	expandShallowestCollapsedLevel,
+	handleExpandClick,
 	pageHasCollapsed,
 	planExpandKey,
 	subtreeIds,
@@ -228,5 +229,44 @@ describe("planExpandKey", () => {
 				type: "none",
 			});
 		}
+	});
+});
+
+describe("handleExpandClick", () => {
+	it("toggles on the first click and expands or collapses the whole subtree on a second click within 250ms", () => {
+		const detector = createDoublePressDetector();
+		expect(handleExpandClick({now: 0, id: "x", isOpen: true, hasChildren: true, detector})).toStrictEqual({
+			type: "toggle",
+		});
+		expect(handleExpandClick({now: 100, id: "x", isOpen: false, hasChildren: true, detector})).toStrictEqual({
+			type: "all",
+			open: false,
+		});
+	});
+
+	it("expands all when the row was collapsed at the first click", () => {
+		const detector = createDoublePressDetector();
+		expect(handleExpandClick({now: 0, id: "x", isOpen: false, hasChildren: true, detector})).toStrictEqual({
+			type: "toggle",
+		});
+		expect(handleExpandClick({now: 100, id: "x", isOpen: true, hasChildren: true, detector})).toStrictEqual({
+			type: "all",
+			open: true,
+		});
+	});
+
+	it("toggles again when the second click is outside the window", () => {
+		const detector = createDoublePressDetector();
+		handleExpandClick({now: 0, id: "x", isOpen: true, hasChildren: true, detector});
+		expect(handleExpandClick({now: 300, id: "x", isOpen: false, hasChildren: true, detector})).toStrictEqual({
+			type: "toggle",
+		});
+	});
+
+	it("does nothing on a leaf", () => {
+		const detector = createDoublePressDetector();
+		expect(handleExpandClick({now: 0, id: "x", isOpen: false, hasChildren: false, detector})).toStrictEqual({
+			type: "none",
+		});
 	});
 });

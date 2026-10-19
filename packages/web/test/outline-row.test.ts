@@ -203,6 +203,30 @@ describe("expand arrow", () => {
 		click(true);
 		expect(toggleExpand.mock.calls).toStrictEqual([["alice"]]);
 	});
+
+	it("expands the whole subtree on a second arrow click within 250ms, else toggles again", () => {
+		const toggleExpand = vi.fn<(nodeId: string) => void>();
+		const expandAll = vi.fn<(nodeId: string, open: boolean) => void>();
+		const click = (timeStamp: number, isExpanded: boolean) => {
+			const event = {preventDefault: () => {}, stopPropagation: () => {}, timeStamp};
+			(
+				ExpandArrow({
+					nodeId: "double",
+					hasChildren: true,
+					isExpanded,
+					onToggle: toggleExpand,
+					onExpandAll: expandAll,
+				}).props as {onClick: (e: typeof event) => void}
+			).onClick(event);
+		};
+		click(1000, false);
+		click(1100, true);
+		click(2000, true);
+		expect({toggles: toggleExpand.mock.calls, all: expandAll.mock.calls}).toStrictEqual({
+			toggles: [["double"], ["double"]],
+			all: [["double", true]],
+		});
+	});
 });
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");

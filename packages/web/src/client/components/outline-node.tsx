@@ -228,6 +228,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {toggleExpand, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
 	const toggleComplete = useToggleComplete();
+	const expandAll = useExpandAll();
 	const isEditing = editingId === node.id;
 	const isCompleted = node.completedAt !== null;
 	const layout = resolveLayoutMode(node.data.layoutMode);
@@ -305,7 +306,13 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 			</div>
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
-			<ExpandArrow hasChildren={hasChildren} isExpanded={isExpanded} nodeId={node.id} onToggle={toggleExpand} />
+			<ExpandArrow
+				hasChildren={hasChildren}
+				isExpanded={isExpanded}
+				nodeId={node.id}
+				onExpandAll={expandAll}
+				onToggle={toggleExpand}
+			/>
 			{isHovered || isMenuOpen ? (
 				<NodeItemMenu
 					left={itemMenuLeft(hasChildren, depth)}
