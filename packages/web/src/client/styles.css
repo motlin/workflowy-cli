@@ -3430,6 +3430,27 @@ body.moving * {
 	cursor: grab !important;
 }
 
+/* Upstream's drop into a collapsed parent: the moved bullet swings half a turn toward the parent's bullet. */
+.moved-bullet-rotate {
+	position: fixed;
+	z-index: 200;
+	width: 18px;
+	height: 18px;
+	border-radius: 14px;
+	pointer-events: none;
+	color: var(--wf-text-primary);
+	animation: animateMovedBulletUnderneathNewParent 0.4s ease-out forwards;
+}
+
+@keyframes animateMovedBulletUnderneathNewParent {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(-180deg);
+	}
+}
+
 /* ================================
    Export Dialog Styles
    ================================ */

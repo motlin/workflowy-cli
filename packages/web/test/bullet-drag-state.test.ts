@@ -1,3 +1,4 @@
+import {readFileSync} from "node:fs";
 import {describe, expect, it} from "vite-plus/test";
 import {
 	IDLE_BULLET_DRAG,
@@ -5,6 +6,7 @@ import {
 	bulletDragReducer,
 	dropBulletDrag,
 	dropIndicatorFor,
+	planDrop,
 } from "../src/client/bullet-drag-state.js";
 import type {BulletDragState} from "../src/client/bullet-drag-state.js";
 import {resolveDropTarget} from "../src/client/outline-drop-target.js";
@@ -96,6 +98,10 @@ describe("bulletDragReducer", () => {
 });
 
 describe("dropBulletDrag", () => {
+	const leafFacts = {childCount: 0, wasLeaf: true, wasCollapsed: false, defaultToBottom: false};
+	const dndFacts = {childCount: 5, wasLeaf: false, wasCollapsed: false, defaultToBottom: false};
+	const factsOf = (parentId: string) => (parentId === "dnd" ? dndFacts : leafFacts);
+	const nothing = {move: null, expandId: null, flashParentId: null, animate: false};
 	const dropOn = (parentId: string, index: number) =>
 		dropBulletDrag(
 			bulletDragReducer(dragging, {
@@ -103,27 +109,128 @@ describe("dropBulletDrag", () => {
 				target: {parentId, index, ambiguous: false},
 				indicator: null,
 			}),
+			factsOf,
 		);
 
 	it("moves nothing when the parent and index are unchanged", () => {
-		expect(dropOn("dnd", 3)).toStrictEqual({state: IDLE_BULLET_DRAG, effect: null});
-		expect(dropOn("dnd", 4)).toStrictEqual({state: IDLE_BULLET_DRAG, effect: null});
+		expect([dropOn("dnd", 3), dropOn("dnd", 4)]).toStrictEqual([
+			{state: IDLE_BULLET_DRAG, plan: nothing},
+			{state: IDLE_BULLET_DRAG, plan: nothing},
+		]);
 	});
 
-	it("moves the dragged rows to a new slot", () => {
-		expect(dropOn("dnd", 2)).toStrictEqual({
-			state: IDLE_BULLET_DRAG,
-			effect: {ids: ["delta"], parentId: "dnd", index: 2},
-		});
-		expect(dropOn("charlie", 0)).toStrictEqual({
-			state: IDLE_BULLET_DRAG,
-			effect: {ids: ["delta"], parentId: "charlie", index: 0},
-		});
+	it("plans the drop with the facts about the target's parent", () => {
+		expect([dropOn("dnd", 2), dropOn("charlie", 0)]).toStrictEqual([
+			{
+				state: IDLE_BULLET_DRAG,
+				plan: {
+					move: {ids: ["delta"], parentId: "dnd", index: 2},
+					expandId: null,
+					flashParentId: null,
+					animate: false,
+				},
+			},
+			{
+				state: IDLE_BULLET_DRAG,
+				plan: {
+					move: {ids: ["delta"], parentId: "charlie", index: 0},
+					expandId: "charlie",
+					flashParentId: null,
+					animate: false,
+				},
+			},
+		]);
 	});
 
 	it("moves nothing when released before the drag started or with no target", () => {
-		expect(dropBulletDrag(armed)).toStrictEqual({state: IDLE_BULLET_DRAG, effect: null});
-		expect(dropBulletDrag(dragging)).toStrictEqual({state: IDLE_BULLET_DRAG, effect: null});
+		expect([dropBulletDrag(armed, factsOf), dropBulletDrag(dragging, factsOf)]).toStrictEqual([
+			{state: IDLE_BULLET_DRAG, plan: nothing},
+			{state: IDLE_BULLET_DRAG, plan: nothing},
+		]);
+	});
+});
+
+describe("planDrop", () => {
+	const facts = {childCount: 0, wasLeaf: false, wasCollapsed: false, defaultToBottom: false};
+	const nothing = {move: null, expandId: null, flashParentId: null, animate: false};
+
+	it("drops into a collapsed parent at the top, keeps it collapsed, flashes it and animates", () => {
+		expect(
+			planDrop({
+				target: {parentId: "alpha", index: 0, ambiguous: true},
+				draggingIds: ["delta"],
+				home: {parentId: "dnd", index: 3},
+				...facts,
+				childCount: 2,
+				wasCollapsed: true,
+			}),
+		).toStrictEqual({
+			move: {ids: ["delta"], parentId: "alpha", index: 0},
+			expandId: null,
+			flashParentId: "alpha",
+			animate: true,
+		});
+	});
+
+	it("drops into a collapsed defaultToBottom parent after its last child", () => {
+		expect(
+			planDrop({
+				target: {parentId: "alpha", index: 0, ambiguous: true},
+				draggingIds: ["delta"],
+				home: {parentId: "dnd", index: 3},
+				...facts,
+				childCount: 2,
+				wasCollapsed: true,
+				defaultToBottom: true,
+			}).move,
+		).toStrictEqual({ids: ["delta"], parentId: "alpha", index: 2});
+	});
+
+	it("expands a leaf it drops into, without the flash or the animation", () => {
+		expect(
+			planDrop({
+				target: {parentId: "charlie", index: 0, ambiguous: false},
+				draggingIds: ["delta"],
+				home: {parentId: "dnd", index: 3},
+				...facts,
+				wasLeaf: true,
+			}),
+		).toStrictEqual({
+			move: {ids: ["delta"], parentId: "charlie", index: 0},
+			expandId: "charlie",
+			flashParentId: null,
+			animate: false,
+		});
+	});
+
+	it("moves several dragged rows as one block", () => {
+		expect(
+			planDrop({
+				target: {parentId: "dnd", index: 0, ambiguous: false},
+				draggingIds: ["bravo", "charlie"],
+				home: {parentId: "dnd", index: 1},
+				...facts,
+				childCount: 4,
+			}),
+		).toStrictEqual({
+			move: {ids: ["bravo", "charlie"], parentId: "dnd", index: 0},
+			expandId: null,
+			flashParentId: null,
+			animate: false,
+		});
+	});
+
+	it("moves nothing when dropped back where the rows are", () => {
+		const home = {parentId: "dnd", index: 1};
+		const at = (index: number) =>
+			planDrop({
+				target: {parentId: "dnd", index, ambiguous: false},
+				draggingIds: ["bravo", "charlie"],
+				home,
+				...facts,
+				childCount: 4,
+			});
+		expect([at(1), at(2), at(3)]).toStrictEqual([nothing, nothing, nothing]);
 	});
 });
 
@@ -217,5 +324,21 @@ describe("buildDropRows", () => {
 				zoomRootId: "dnd",
 			}),
 		).toStrictEqual({parentId: "dnd", index: 2, ambiguous: false});
+	});
+});
+
+describe("drop rotate animation CSS", () => {
+	it("swings the moved bullet half a turn under its new collapsed parent", () => {
+		const css = readFileSync(new URL("../src/client/styles.css", import.meta.url), "utf8")
+			.replaceAll(/\s+/gu, "")
+			.replaceAll(";}", "}");
+		expect({
+			rule: css.includes(
+				".moved-bullet-rotate{position:fixed;z-index:200;width:18px;height:18px;border-radius:14px;pointer-events:none;color:var(--wf-text-primary);animation:animateMovedBulletUnderneathNewParent0.4sease-outforwards}",
+			),
+			keyframes: css.includes(
+				"@keyframesanimateMovedBulletUnderneathNewParent{0%{transform:rotate(0deg)}100%{transform:rotate(-180deg)}}",
+			),
+		}).toStrictEqual({rule: true, keyframes: true});
 	});
 });

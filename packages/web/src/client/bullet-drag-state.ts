@@ -2,6 +2,7 @@
 // The hook in `hooks/use-bullet-drag.ts` feeds it window mouse events and renders what it decides.
 
 import type {DropRows, DropTarget} from "./outline-drop-target.js";
+import {defaultIndexIn} from "./tree-ops.js";
 
 /** A press becomes a drag once the pointer has moved this far (Euclidean) from the mousedown point. */
 const DRAG_START_THRESHOLD_PX = 3;
@@ -105,20 +106,76 @@ export function bulletDragReducer(state: BulletDragState, action: BulletDragActi
 	return IDLE_BULLET_DRAG;
 }
 
+/** What the hook knows about the drop target's parent at release. */
+export interface DropTargetFacts {
+	/** Every child of the target parent, the dragged rows included. */
+	readonly childCount: number;
+	readonly wasLeaf: boolean;
+	readonly wasCollapsed: boolean;
+	/** Upstream `metadata.priority.defaultToBottom`: a drop with no exact slot lands at the bottom. */
+	readonly defaultToBottom: boolean;
+}
+
+export interface DropPlanInput extends DropTargetFacts {
+	readonly target: DropTarget;
+	/** The dragged rows in document order. */
+	readonly draggingIds: readonly string[];
+	readonly home: Slot | null;
+}
+
+/** Upstream's drop (`jL4` mouseup): one block move, then expand a leaf or flash and animate into a collapsed parent. */
+export interface DropPlan {
+	readonly move: MoveEffect | null;
+	readonly expandId: string | null;
+	readonly flashParentId: string | null;
+	readonly animate: boolean;
+}
+
+const NO_DROP: DropPlan = {move: null, expandId: null, flashParentId: null, animate: false};
+
 /**
- * Release the drag. The target index counts every child, the dragged rows included, so the row's own
- * slot and the one just after it both leave it where it is.
+ * Plan a drop. The index counts every child, the dragged rows included, so any slot from the block's first row
+ * through the one just after its last leaves it where it is. A collapsed (ambiguous) target has no exact slot,
+ * so the rows land at its default end.
  */
-export function dropBulletDrag(state: BulletDragState): {state: BulletDragState; effect: MoveEffect | null} {
-	const {phase, target, home, draggingIds} = state;
-	if (phase !== "dragging" || target === null || home === null) {
-		return {state: IDLE_BULLET_DRAG, effect: null};
-	}
+export function planDrop({
+	target,
+	draggingIds,
+	home,
+	childCount,
+	wasLeaf,
+	wasCollapsed,
+	defaultToBottom,
+}: DropPlanInput): DropPlan {
+	const index = target.ambiguous ? defaultIndexIn({defaultToBottom}, childCount) : target.index;
 	const unchanged =
-		target.parentId === home.parentId && (target.index === home.index || target.index === home.index + 1);
+		home !== null &&
+		target.parentId === home.parentId &&
+		index >= home.index &&
+		index <= home.index + draggingIds.length;
+	if (unchanged || draggingIds.length === 0) {
+		return NO_DROP;
+	}
+	return {
+		move: {ids: draggingIds, parentId: target.parentId, index},
+		expandId: wasLeaf ? target.parentId : null,
+		flashParentId: wasCollapsed ? target.parentId : null,
+		animate: wasCollapsed,
+	};
+}
+
+/** Release the drag, planning the drop from the facts about the hovered target's parent. */
+export function dropBulletDrag(
+	state: BulletDragState,
+	factsOf: (parentId: string) => DropTargetFacts,
+): {state: BulletDragState; plan: DropPlan} {
+	const {phase, target, home, draggingIds} = state;
+	if (phase !== "dragging" || target === null) {
+		return {state: IDLE_BULLET_DRAG, plan: NO_DROP};
+	}
 	return {
 		state: IDLE_BULLET_DRAG,
-		effect: unchanged ? null : {ids: draggingIds, parentId: target.parentId, index: target.index},
+		plan: planDrop({target, draggingIds, home, ...factsOf(target.parentId)}),
 	};
 }
 

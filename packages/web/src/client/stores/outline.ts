@@ -257,8 +257,8 @@ interface OutlineState {
 	slidingUpCompletionIds: Set<string>;
 	/** Completed rows just revealed by showing completed, playing the slideDown. */
 	slidingDownCompletedIds: Set<string>;
-	/** The row a single-row Shift+Cmd+Up/Down just moved; it carries upstream's `.moving` flash. */
-	movingId: string | null;
+	/** Rows just moved (Shift+Cmd+Up/Down, a bullet drop, its collapsed parent); they carry upstream's `.moving` flash. */
+	movingIds: readonly string[];
 	/** Rows a bullet drag is carrying; they carry upstream's `.project.moving` until the drop. */
 	draggingIds: readonly string[];
 	/** Where the bullet drag's drop line goes, or null when there is no target. */
@@ -354,7 +354,7 @@ interface OutlineActions {
 	startCompletionSlideUp: (ids: string[]) => void;
 	endCompletionAnimation: (ids: string[]) => void;
 	/** Flash `.moving` on the moved row for 500ms, restarting for each move. */
-	flashMoving: (id: string) => void;
+	flashMoving: (ids: readonly string[]) => void;
 	setBulletDrag: (draggingIds: readonly string[], dropIndicator: DropIndicator | null) => void;
 	toggleLeftBar: () => void;
 	openLeftBarDrawer: () => void;
@@ -516,7 +516,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
 	slidingDownCompletedIds: new Set<string>(),
-	movingId: null,
+	movingIds: [],
 	draggingIds: [],
 	dropIndicator: null,
 	itemMenuOpenId: null,
@@ -736,11 +736,11 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({draggingIds, dropIndicator});
 	},
 
-	flashMoving: (id) => {
+	flashMoving: (ids) => {
 		clearTimeout(movingFlashTimer);
-		set({movingId: id});
+		set({movingIds: ids});
 		movingFlashTimer = setTimeout(() => {
-			set({movingId: null});
+			set({movingIds: []});
 		}, MOVING_FLASH_MS);
 	},
 

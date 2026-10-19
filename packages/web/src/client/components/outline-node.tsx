@@ -466,7 +466,9 @@ export function OutlineRow({
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
-	const isMoving = useOutlineStore((state) => state.movingId === node.id || state.draggingIds.includes(node.id));
+	const isMoving = useOutlineStore(
+		(state) => state.movingIds.includes(node.id) || state.draggingIds.includes(node.id),
+	);
 	const isAddedToSelection = useOutlineStore((state) => isEntry(state.itemSelection, node.id));
 	// Upstream tints the row and its nested `.children` while the row's item menu is open.
 	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);

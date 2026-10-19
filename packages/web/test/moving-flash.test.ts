@@ -10,12 +10,12 @@ vi.stubGlobal("addEventListener", () => {});
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {projectClassName} = await import("../src/client/components/row-classes.js");
 
-const movingId = () => useOutlineStore.getState().movingId;
+const movingIds = () => useOutlineStore.getState().movingIds;
 
 describe("flashMoving", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
-		useOutlineStore.setState({movingId: null});
+		useOutlineStore.setState({movingIds: []});
 	});
 
 	afterEach(() => {
@@ -23,23 +23,27 @@ describe("flashMoving", () => {
 	});
 
 	it("marks the moved row for 500ms", () => {
-		useOutlineStore.getState().flashMoving("a");
-		const start = movingId();
+		useOutlineStore.getState().flashMoving(["a"]);
+		const start = movingIds();
 		vi.advanceTimersByTime(499);
-		const waiting = movingId();
+		const waiting = movingIds();
 		vi.advanceTimersByTime(1);
-		expect({start, waiting, done: movingId()}).toStrictEqual({start: "a", waiting: "a", done: null});
+		expect({start, waiting, done: movingIds()}).toStrictEqual({start: ["a"], waiting: ["a"], done: []});
 	});
 
-	it("restarts the 500ms for a second move", () => {
-		useOutlineStore.getState().flashMoving("a");
+	it("restarts the 500ms for a second move of several rows", () => {
+		useOutlineStore.getState().flashMoving(["a"]);
 		vi.advanceTimersByTime(200);
-		useOutlineStore.getState().flashMoving("b");
-		const restarted = movingId();
+		useOutlineStore.getState().flashMoving(["b", "c"]);
+		const restarted = movingIds();
 		vi.advanceTimersByTime(499);
-		const waiting = movingId();
+		const waiting = movingIds();
 		vi.advanceTimersByTime(1);
-		expect({restarted, waiting, done: movingId()}).toStrictEqual({restarted: "b", waiting: "b", done: null});
+		expect({restarted, waiting, done: movingIds()}).toStrictEqual({
+			restarted: ["b", "c"],
+			waiting: ["b", "c"],
+			done: [],
+		});
 	});
 });
 

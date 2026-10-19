@@ -8,7 +8,8 @@ import {
 	dropBulletDrag,
 	dropIndicatorFor,
 } from "../bullet-drag-state.js";
-import type {BulletDragAction, BulletDragState} from "../bullet-drag-state.js";
+import type {BulletDragAction, BulletDragState, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
+import {emptySelection} from "../item-selection.js";
 import {readChildren, readNode} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows} from "../outline-drop-target.js";
@@ -25,6 +26,8 @@ const GHOST_OFFSET_PX = 9;
 /** The hit point stays this far inside the outline's horizontal edges. */
 const HIT_INSET_PX = 6;
 const ROW_BULLET = "a.bullet[data-item-id]:not(.bullet--backlink-root)";
+const ROTATE_ANIMATION_MS = 400;
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 function childIdsOf(queryClient: QueryClient, id: string): string[] {
 	return sortByPriority(readChildren(queryClient, id === HOME_ROOT ? null : id) ?? []).map((child) => child.id);
@@ -74,6 +77,89 @@ function hitRowId(x: number, y: number, container: Element, zoomRootId: string):
 		}
 	}
 	return null;
+}
+
+function targetFacts(queryClient: QueryClient, parentId: string, collapsed: boolean): DropTargetFacts {
+	const node = readNode(queryClient, parentId);
+	const {showCompleted} = useOutlineStore.getState();
+	return {
+		childCount: childIdsOf(queryClient, parentId).length,
+		wasLeaf: node !== undefined && !rowHasChildren(node, showCompleted),
+		wasCollapsed: collapsed,
+		defaultToBottom: node?.defaultToBottom === true,
+	};
+}
+
+/**
+ * Upstream's drop into a collapsed parent: an 18x18 bullet circle at the ghost swings half a turn around the
+ * midpoint between it and the parent's bullet, then disappears.
+ */
+function animateUnderParent(ghostRect: DOMRect, parentId: string): void {
+	const parentBullet = document.querySelector(`${ROW_BULLET}[data-item-id="${CSS.escape(parentId)}"]`);
+	if (parentBullet === null) {
+		return;
+	}
+	const target = parentBullet.getBoundingClientRect();
+	const half = GHOST_OFFSET_PX;
+	const dx = target.left + target.width / 2 - (ghostRect.left + half);
+	const dy = target.top + target.height / 2 - (ghostRect.top + half);
+	const rotate = document.createElement("div");
+	rotate.className = "moved-bullet-rotate";
+	Object.assign(rotate.style, {
+		left: `${ghostRect.left}px`,
+		top: `${ghostRect.top}px`,
+		transformOrigin: `${half + dx / 2}px ${half + dy / 2}px`,
+	});
+	const svg = document.createElementNS(SVG_NS, "svg");
+	svg.setAttribute("width", "18");
+	svg.setAttribute("height", "18");
+	svg.setAttribute("viewBox", "0 0 18 18");
+	svg.setAttribute("fill", "currentColor");
+	const circle = document.createElementNS(SVG_NS, "circle");
+	circle.setAttribute("cx", "9");
+	circle.setAttribute("cy", "9");
+	circle.setAttribute("r", "3.5");
+	svg.append(circle);
+	rotate.append(svg);
+	document.body.append(rotate);
+	setTimeout(() => {
+		rotate.remove();
+	}, ROTATE_ANIMATION_MS);
+}
+
+/** Upstream's after-drop effects: expand a leaf, or keep a collapsed parent shut and flash it; flash the moved rows. */
+function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null): void {
+	const {move, expandId, flashParentId, animate} = plan;
+	if (move === null) {
+		return;
+	}
+	const {expand, flashMoving, setItemSelection} = useOutlineStore.getState();
+	if (expandId !== null) {
+		expand(expandId);
+	}
+	if (flashParentId !== null) {
+		setTimeout(() => {
+			setItemSelection(emptySelection());
+		}, 0);
+	}
+	if (animate && ghostRect !== null) {
+		animateUnderParent(ghostRect, move.parentId);
+	}
+	flashMoving(flashParentId === null ? move.ids : [flashParentId, ...move.ids]);
+	globalThis.dispatchEvent(new CustomEvent("moving.end", {detail: {itemIds: move.ids, parentId: move.parentId}}));
+}
+
+function swallowClick(clickEvent: MouseEvent): void {
+	clickEvent.preventDefault();
+	clickEvent.stopPropagation();
+}
+
+/** The click a released drag fires on the rows under the pointer would put a caret there; upstream leaves focus on body. */
+function swallowNextClick(): void {
+	globalThis.addEventListener("click", swallowClick, {capture: true, once: true});
+	setTimeout(() => {
+		globalThis.removeEventListener("click", swallowClick, {capture: true});
+	}, 0);
 }
 
 function makeGhost(bullet: HTMLElement, x: number, y: number, count: number): HTMLElement {
@@ -221,16 +307,22 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			};
 
 			const onUp = () => {
-				const {effect} = dropBulletDrag(state);
+				const collapsed = state.target?.ambiguous === true;
+				const {plan} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
+				const ghostRect = ghost?.querySelector(ROW_BULLET)?.getBoundingClientRect() ?? null;
+				if (state.phase === "dragging") {
+					swallowNextClick();
+				}
 				state = IDLE_BULLET_DRAG;
 				finish();
-				if (effect !== null) {
+				if (plan.move !== null) {
 					moveNodes.mutate({
-						ids: [...effect.ids],
-						parent_id: effect.parentId === HOME_ROOT ? null : effect.parentId,
-						index: effect.index,
+						ids: [...plan.move.ids],
+						parent_id: plan.move.parentId === HOME_ROOT ? null : plan.move.parentId,
+						index: plan.move.index,
 					});
 				}
+				runDropEffects(plan, ghostRect);
 			};
 
 			const onKeyDown = (keyEvent: KeyboardEvent) => {

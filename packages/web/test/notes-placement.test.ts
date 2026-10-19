@@ -11,6 +11,7 @@ const outlineState = {
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
 	draggingIds: [] as string[],
+	movingIds: [] as string[],
 	slidingDownCompletedIds: new Set<string>(),
 	endCompletionAnimation: () => {},
 	toggleExpand: () => {},

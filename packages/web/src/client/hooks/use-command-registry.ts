@@ -229,7 +229,7 @@ export function useCommandRegistry(): CommandRegistry {
 			index: plan.index,
 			expandParentId: plan.expandParentId,
 		});
-		flashMoving(plan.nodeId);
+		flashMoving([plan.nodeId]);
 	};
 
 	/** Continue editing beside the edited node, which is about to leave the view. */
