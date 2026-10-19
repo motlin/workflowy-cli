@@ -258,6 +258,8 @@ interface OutlineState {
 	slidingDownCompletedIds: Set<string>;
 	/** The row a single-row Shift+Cmd+Up/Down just moved; it carries upstream's `.moving` flash. */
 	movingId: string | null;
+	/** The row whose item (bullet) menu is open; it carries upstream's `.highlighted` tint over its subtree. */
+	itemMenuOpenId: string | null;
 	leftBarMode: LeftBarMode;
 	leftBarWidth: number;
 	leftBarSectionExpansions: Record<string, boolean>;
@@ -316,6 +318,8 @@ interface OutlineActions {
 	setExpanded: (ids: Set<string>) => void;
 	setItemSelection: (selection: SelectionState) => void;
 	clearItemSelection: () => void;
+	/** Record a row's item menu opening or closing; a stale close for another row is ignored. */
+	setItemMenuOpen: (id: string, open: boolean) => void;
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
 	stopEditing: () => void;
 	/** Focus `id`'s note with the caret at its start or end (default), leaving its name (the caller commits any unsaved name text first). */
@@ -505,6 +509,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	slidingUpCompletionIds: new Set<string>(),
 	slidingDownCompletedIds: new Set<string>(),
 	movingId: null,
+	itemMenuOpenId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
 	showKeyboardShortcuts: false,
@@ -583,6 +588,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	clearItemSelection: () => {
 		set({itemSelection: emptySelection()});
+	},
+
+	setItemMenuOpen: (id, open) => {
+		if (open) {
+			set({itemMenuOpenId: id});
+		} else if (get().itemMenuOpenId === id) {
+			set({itemMenuOpenId: null});
+		}
 	},
 
 	startEditing: (id, clickPosition) => {

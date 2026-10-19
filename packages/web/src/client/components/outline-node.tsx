@@ -1,7 +1,7 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
-import {Fragment, useLayoutEffect, useRef, useState} from "react";
+import {Fragment, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {isEntry} from "../item-selection.js";
@@ -318,6 +318,14 @@ interface NodeNameProps {
 function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeNameProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const setItemMenuOpen = useOutlineStore((state) => state.setItemMenuOpen);
+	// A row unmounted with its menu open (collapsed parent, deleted row) must not leave a stale highlight.
+	useEffect(
+		() => () => {
+			setItemMenuOpen(node.id, false);
+		},
+		[node.id, setItemMenuOpen],
+	);
 	const {toggleExpand, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
 	const toggleComplete = useToggleComplete();
 	const expandAll = useExpandAll();
@@ -410,7 +418,10 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 					left={itemMenuLeft(hasChildren, depth)}
 					node={node}
 					onComplete={handleComplete}
-					onOpenChange={setIsMenuOpen}
+					onOpenChange={(open) => {
+						setIsMenuOpen(open);
+						setItemMenuOpen(node.id, open);
+					}}
 				/>
 			) : null}
 		</div>
@@ -427,6 +438,7 @@ function rowProjectClassName(
 	moving: boolean,
 	animatingShowChildren: boolean,
 	addedToSelection: boolean,
+	highlighted: boolean,
 ): string {
 	return projectClassName({
 		hasChildren,
@@ -436,7 +448,7 @@ function rowProjectClassName(
 		noteFocused: isEditingNote,
 		isZoomRoot: false,
 		hasMirrors: false,
-		highlighted: false,
+		highlighted,
 		addedToSelection,
 		layoutClass: resolveLayoutMode(node.data.layoutMode).projectClass ?? undefined,
 		slidingUp,
@@ -497,6 +509,8 @@ export function OutlineRow({
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
 	const isMoving = useOutlineStore((state) => state.movingId === node.id);
 	const isAddedToSelection = useOutlineStore((state) => isEntry(state.itemSelection, node.id));
+	// Upstream tints the row and its nested `.children` while the row's item menu is open.
+	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);
 	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));
 	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
@@ -555,6 +569,7 @@ export function OutlineRow({
 				isMoving,
 				childrenSlide === "down",
 				isAddedToSelection,
+				isHighlighted,
 			)}
 			onTransitionEnd={handleTransitionEnd}
 		>

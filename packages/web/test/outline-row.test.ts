@@ -20,6 +20,8 @@ const outlineState = {
 	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	editingClickPosition: null,
 	editingNoteId: null,
+	itemMenuOpenId: null as string | null,
+	setItemMenuOpen: () => {},
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -157,6 +159,19 @@ describe("OutlineRow name and content markup", () => {
 
 	it("marks an empty-name leaf and omits its text span", () => {
 		expect(render(makeNode({name: ""}), false)).toBe(expectedRow("font-custom project task", "name empty", ""));
+	});
+
+	it("highlights the project whose item menu is open, and no other", () => {
+		outlineState.itemMenuOpenId = "alice";
+		const highlighted = render(makeNode({}), false);
+		outlineState.itemMenuOpenId = "bob";
+		const other = render(makeNode({}), false);
+		outlineState.itemMenuOpenId = null;
+		const content = '<span class="innerContentContainer">Alice</span>';
+		expect([highlighted, other]).toStrictEqual([
+			expectedRow("font-custom project task highlighted", "name", content),
+			expectedRow("font-custom project task", "name", content),
+		]);
 	});
 
 	it("marks a completed leaf's project as done", () => {
