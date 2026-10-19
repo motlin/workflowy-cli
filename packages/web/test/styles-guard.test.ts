@@ -273,3 +273,36 @@ describe("item type picker styles guard", () => {
 		expect(hasSelector(styles, /\.layout-menu\b/u)).toBe(false);
 	});
 });
+
+describe("right bar styles guard", () => {
+	it("drops the local .right-sidebar and .shortcut-* rules", () => {
+		expect(hasSelector(styles, /\.right-sidebar|\.shortcut-(list|item|keys|description)|with-right-sidebar/u)).toBe(
+			false,
+		);
+	});
+
+	it("relies on exactly one copy of the upstream right-bar utilities", () => {
+		const selectors = [
+			".bg-quaternary",
+			String.raw`.\!bg-tint`,
+			String.raw`.min-w-\[96px\]`,
+			String.raw`.tracking-\[0\.02em\]`,
+		];
+		expect(
+			Object.fromEntries(
+				selectors.map((selector) => [
+					selector,
+					{
+						styles: normalizedBlocks(styles, selector).length,
+						tailwind: normalizedBlocks(tailwind, selector).length,
+					},
+				]),
+			),
+		).toStrictEqual({
+			".bg-quaternary": {styles: 0, tailwind: 1},
+			".\\!bg-tint": {styles: 0, tailwind: 1},
+			".min-w-\\[96px\\]": {styles: 0, tailwind: 1},
+			".tracking-\\[0\\.02em\\]": {styles: 0, tailwind: 1},
+		});
+	});
+});
