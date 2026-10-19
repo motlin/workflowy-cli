@@ -211,7 +211,6 @@ export default defineConfig({
 			"storybook-static",
 			".llm/**",
 			"vitest.shims.d.ts",
-			"packages/web/src/client/app.tsx",
 			"packages/web/.storybook/preview.ts",
 		],
 		overrides: [

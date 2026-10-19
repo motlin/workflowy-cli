@@ -52,9 +52,9 @@ function shouldRetry(failureCount: number, error: Error): boolean {
 	}
 
 	// Check for HTTP status in error message
-	const statusDigits = error.message.match(/(\d{3})/)?.[1];
+	const statusDigits = error.message.match(/(\d{3})/u)?.[1];
 	if (statusDigits !== undefined) {
-		const status = Number.parseInt(statusDigits, 10);
+		const status = Math.trunc(Number(statusDigits));
 		// Don't retry client errors except timeout (408) and rate limit (429)
 		if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
 			return false;
@@ -98,7 +98,7 @@ function OutlineView() {
 	useSelectionKeymap();
 	useSearchEscape();
 	const runCommand = (commandId: "undo" | "redo") => () => {
-		commands[commandId].execute({items: [], zoomedId: zoomedNodeId});
+		commands[commandId]?.execute({items: [], zoomedId: zoomedNodeId});
 	};
 
 	const containerClasses = [
