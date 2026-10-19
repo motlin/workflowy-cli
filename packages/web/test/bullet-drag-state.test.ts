@@ -5,10 +5,14 @@ import {
 	buildDropRows,
 	bulletDragReducer,
 	dropBulletDrag,
+	dragItems,
+	dropClearsSelection,
 	dropIndicatorFor,
 	planDrop,
 } from "../src/client/bullet-drag-state.js";
 import type {BulletDragState} from "../src/client/bullet-drag-state.js";
+import {emptySelection, selectionOf} from "../src/client/item-selection.js";
+import type {TreeView} from "../src/client/item-selection.js";
 import {resolveDropTarget} from "../src/client/outline-drop-target.js";
 
 const armed: BulletDragState = bulletDragReducer(IDLE_BULLET_DRAG, {
@@ -16,8 +20,8 @@ const armed: BulletDragState = bulletDragReducer(IDLE_BULLET_DRAG, {
 	id: "delta",
 	x: 100,
 	y: 200,
-	parentId: "dnd",
-	index: 3,
+	itemIds: ["delta"],
+	home: {parentId: "dnd", index: 3},
 });
 
 const dragging: BulletDragState = bulletDragReducer(armed, {type: "move", x: 100, y: 203});
@@ -29,6 +33,7 @@ describe("bulletDragReducer", () => {
 			sourceId: "delta",
 			origin: {x: 100, y: 200},
 			home: {parentId: "dnd", index: 3},
+			itemIds: ["delta"],
 			draggingIds: [],
 			indicator: null,
 			ghostTransform: null,
@@ -46,6 +51,7 @@ describe("bulletDragReducer", () => {
 			sourceId: "delta",
 			origin: {x: 100, y: 200},
 			home: {parentId: "dnd", index: 3},
+			itemIds: ["delta"],
 			draggingIds: ["delta"],
 			indicator: null,
 			ghostTransform: "translate3d(0px, 3px, 0px)",
@@ -89,11 +95,84 @@ describe("bulletDragReducer", () => {
 			sourceId: null,
 			origin: null,
 			home: null,
+			itemIds: [],
 			draggingIds: [],
 			indicator: null,
 			ghostTransform: null,
 			target: null,
 		});
+	});
+
+	it("drags every item the press armed once the drag starts", () => {
+		const selectionArmed = bulletDragReducer(IDLE_BULLET_DRAG, {
+			type: "start",
+			id: "charlie",
+			x: 100,
+			y: 200,
+			itemIds: ["bravo", "charlie"],
+			home: {parentId: "dnd", index: 1},
+		});
+		expect(bulletDragReducer(selectionArmed, {type: "move", x: 100, y: 203}).draggingIds).toStrictEqual([
+			"bravo",
+			"charlie",
+		]);
+	});
+});
+
+describe("dragItems", () => {
+	// DnD{Alpha, Bravo, Charlie{C1}, Delta}; all expanded.
+	const children: Record<string, string[]> = {dnd: ["alpha", "bravo", "charlie", "delta"], charlie: ["c1"]};
+	const parents = new Map(
+		Object.entries(children).flatMap(([parentId, ids]) => ids.map((id) => [id, parentId] as const)),
+	);
+	const tree: TreeView = {
+		zoomRootId: "dnd",
+		parentOf: (id) => parents.get(id) ?? null,
+		visibleOrder: ["dnd", "alpha", "bravo", "charlie", "c1", "delta"],
+		nextPotentiallyVisibleSiblingOf: () => null,
+		previousPotentiallyVisibleSiblingOf: () => null,
+	};
+	const childIdsOf = (id: string) => children[id] ?? [];
+	const items = (sourceId: string, ids: readonly string[]) =>
+		dragItems({sourceId, selection: ids.length === 0 ? emptySelection() : selectionOf(ids), tree, childIdsOf});
+
+	it("drags only the pressed row when it is not a selection entry", () => {
+		expect([items("delta", []), items("c1", ["charlie"])]).toStrictEqual([
+			{ids: ["delta"], home: {parentId: "dnd", index: 3}, selection: false},
+			{ids: ["c1"], home: {parentId: "charlie", index: 0}, selection: false},
+		]);
+	});
+
+	it("drags the whole selection in document order when the pressed row is an entry", () => {
+		expect(items("bravo", ["charlie", "bravo"])).toStrictEqual({
+			ids: ["bravo", "charlie"],
+			home: {parentId: "dnd", index: 1},
+			selection: true,
+		});
+	});
+
+	it("has no home for a selection that is not one contiguous sibling block", () => {
+		expect([items("alpha", ["alpha", "charlie"]), items("bravo", ["bravo", "c1"])]).toStrictEqual([
+			{ids: ["alpha", "charlie"], home: null, selection: true},
+			{ids: ["bravo", "c1"], home: null, selection: true},
+		]);
+	});
+});
+
+describe("dropClearsSelection", () => {
+	const plan = (flashParentId: string | null) => ({
+		move: {ids: ["bravo", "charlie"], parentId: "alpha", index: 0},
+		expandId: null,
+		flashParentId,
+		animate: flashParentId !== null,
+	});
+
+	it("keeps the selection unless the rows dropped into a collapsed parent", () => {
+		expect([
+			dropClearsSelection(plan(null)),
+			dropClearsSelection(plan("alpha")),
+			dropClearsSelection({move: null, expandId: null, flashParentId: null, animate: false}),
+		]).toStrictEqual([false, true, false]);
 	});
 });
 

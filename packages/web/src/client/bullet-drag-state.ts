@@ -1,6 +1,8 @@
 // Upstream's mouse-driven bullet drag (`LP4` mousedown, `jL4`/`_t2` dragging), as a pure state machine.
 // The hook in `hooks/use-bullet-drag.ts` feeds it window mouse events and renders what it decides.
 
+import {isEntry, sortedIds} from "./item-selection.js";
+import type {SelectionState, TreeView} from "./item-selection.js";
 import type {DropRows, DropTarget} from "./outline-drop-target.js";
 import {defaultIndexIn} from "./tree-ops.js";
 
@@ -28,6 +30,8 @@ export interface BulletDragState {
 	readonly origin: Point | null;
 	/** Where the dragged row sits now; dropping back there moves nothing. */
 	readonly home: Slot | null;
+	/** What the press would drag: the whole selection when the pressed row is an entry, else the row. */
+	readonly itemIds: readonly string[];
 	readonly draggingIds: readonly string[];
 	readonly indicator: DropIndicator | null;
 	readonly ghostTransform: string | null;
@@ -41,8 +45,8 @@ export type BulletDragAction =
 			readonly id: string;
 			readonly x: number;
 			readonly y: number;
-			readonly parentId: string;
-			readonly index: number;
+			readonly itemIds: readonly string[];
+			readonly home: Slot | null;
 	  }
 	| {readonly type: "move"; readonly x: number; readonly y: number}
 	| {readonly type: "hover"; readonly target: DropTarget | null; readonly indicator: DropIndicator | null}
@@ -60,6 +64,7 @@ export const IDLE_BULLET_DRAG: BulletDragState = {
 	sourceId: null,
 	origin: null,
 	home: null,
+	itemIds: [],
 	draggingIds: [],
 	indicator: null,
 	ghostTransform: null,
@@ -74,7 +79,8 @@ export function bulletDragReducer(state: BulletDragState, action: BulletDragActi
 				phase: "armed",
 				sourceId: action.id,
 				origin: {x: action.x, y: action.y},
-				home: {parentId: action.parentId, index: action.index},
+				home: action.home,
+				itemIds: action.itemIds,
 			};
 		}
 		case "move": {
@@ -89,7 +95,7 @@ export function bulletDragReducer(state: BulletDragState, action: BulletDragActi
 			return {
 				...state,
 				phase: "dragging",
-				draggingIds: state.phase === "dragging" ? state.draggingIds : [state.sourceId],
+				draggingIds: state.phase === "dragging" ? state.draggingIds : state.itemIds,
 				ghostTransform: `translate3d(${dx}px, ${dy}px, 0px)`,
 			};
 		}
@@ -104,6 +110,43 @@ export function bulletDragReducer(state: BulletDragState, action: BulletDragActi
 		}
 	}
 	return IDLE_BULLET_DRAG;
+}
+
+export interface DragItemsInput {
+	readonly sourceId: string;
+	readonly selection: SelectionState;
+	readonly tree: TreeView;
+	/** Every child of `id` in order, rendered or not. */
+	readonly childIdsOf: (id: string) => readonly string[];
+}
+
+export interface DragItems {
+	/** The rows to drag, in document order. */
+	readonly ids: readonly string[];
+	/** Where the rows sit as one contiguous sibling block, or null when they do not. */
+	readonly home: Slot | null;
+	/** Whether the press dragged the selection: the source bullet then stays visible. */
+	readonly selection: boolean;
+}
+
+/** Upstream drags the whole selection when the pressed bullet's row is `.addedToSelection`, otherwise just the row. */
+export function dragItems({sourceId, selection, tree, childIdsOf}: DragItemsInput): DragItems {
+	const fromSelection = isEntry(selection, sourceId);
+	const ids = fromSelection ? sortedIds(selection, tree) : [sourceId];
+	const [firstId] = ids;
+	const parentId = firstId === undefined ? null : tree.parentOf(firstId);
+	if (firstId === undefined || parentId === null || ids.some((id) => tree.parentOf(id) !== parentId)) {
+		return {ids, home: null, selection: fromSelection};
+	}
+	const siblings = childIdsOf(parentId);
+	const index = siblings.indexOf(firstId);
+	const contiguous = ids.every((id, offset) => siblings[index + offset] === id);
+	return {ids, home: contiguous ? {parentId, index} : null, selection: fromSelection};
+}
+
+/** A drop keeps the selection, except one into a collapsed parent, which clears it on the next tick. */
+export function dropClearsSelection(plan: DropPlan): boolean {
+	return plan.move !== null && plan.flashParentId !== null;
 }
 
 /** What the hook knows about the drop target's parent at release. */

@@ -5,7 +5,9 @@ import {
 	IDLE_BULLET_DRAG,
 	buildDropRows,
 	bulletDragReducer,
+	dragItems,
 	dropBulletDrag,
+	dropClearsSelection,
 	dropIndicatorFor,
 } from "../bullet-drag-state.js";
 import type {BulletDragAction, BulletDragState, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
@@ -138,7 +140,7 @@ function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null): void {
 	if (expandId !== null) {
 		expand(expandId);
 	}
-	if (flashParentId !== null) {
+	if (dropClearsSelection(plan)) {
 		setTimeout(() => {
 			setItemSelection(emptySelection());
 		}, 0);
@@ -289,15 +291,20 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			if (node === undefined || sourceRow === null) {
 				return;
 			}
-			const parentId = node.parent_id ?? HOME_ROOT;
+			const items = dragItems({
+				sourceId: nodeId,
+				selection: useOutlineStore.getState().itemSelection,
+				tree: currentSelectionView(queryClient).tree,
+				childIdsOf: (id) => childIdsOf(queryClient, id),
+			});
 			const {clientX: startX, clientY: startY} = event;
 			let state: BulletDragState = bulletDragReducer(IDLE_BULLET_DRAG, {
 				type: "start",
 				id: nodeId,
 				x: startX,
 				y: startY,
-				parentId,
-				index: childIdsOf(queryClient, parentId).indexOf(nodeId),
+				itemIds: items.ids,
+				home: items.home,
 			});
 			let ghost: HTMLElement | null = null;
 			let rowTop = 0;
@@ -316,7 +323,10 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				document.body.classList.add("moving");
 				ghost = makeGhost(bullet, startX, startY, state.draggingIds.length);
 				document.body.append(ghost);
-				bullet.style.visibility = "hidden";
+				// A selection drag leaves the source bullet visible.
+				if (!items.selection) {
+					bullet.style.visibility = "hidden";
+				}
 				setBulletDrag(state.draggingIds, null);
 			};
 
