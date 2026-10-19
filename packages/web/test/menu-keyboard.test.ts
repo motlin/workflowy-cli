@@ -1,6 +1,9 @@
 import {describe, expect, it} from "vite-plus/test";
-import {menuKeyboard} from "../src/client/components/flyout/menu-keyboard.js";
+import {menuFocusStep, menuKeyboard} from "../src/client/components/flyout/menu-keyboard.js";
 import type {
+	MenuFocusable,
+	MenuFocusKey,
+	MenuFocusStep,
 	MenuKeyboardEvent,
 	MenuKeyboardOptions,
 	MenuKeyboardResult,
@@ -101,5 +104,50 @@ const cases: [string, MenuKeyboardState, MenuKeyboardEvent, Partial<MenuKeyboard
 describe("menuKeyboard", () => {
 	it.each(cases)("%s", (_name, state, event, opts, expected) => {
 		expect(menuKeyboard(state, event, {...defaults, ...opts})).toStrictEqual(expected);
+	});
+});
+
+describe("menuFocusStep", () => {
+	// The date popup's order: input, three presets, a focus scope (header, day, last-row day), Range, Format.
+	const items: MenuFocusable[] = [
+		{menuItem: false},
+		{menuItem: true},
+		{menuItem: true},
+		{menuItem: true},
+		{menuItem: false, scope: 0},
+		{menuItem: false, scope: 0},
+		{menuItem: false, scope: 0, enterFromAfter: true},
+		{menuItem: true},
+		{menuItem: true},
+	];
+	const focusCases: [string, number, number, MenuFocusKey, MenuFocusStep][] = [
+		["ArrowDown from the focused input selects the first row", 0, -1, "ArrowDown", {kind: "select", menuIndex: 0}],
+		["ArrowDown between rows is a plain move", -1, 0, "ArrowDown", {kind: "move"}],
+		[
+			"ArrowDown from the last preset focuses the first scope button",
+			-1,
+			2,
+			"ArrowDown",
+			{kind: "focus", index: 4},
+		],
+		["ArrowDown from inside a scope selects the row after it", 5, -1, "ArrowDown", {kind: "select", menuIndex: 3}],
+		["ArrowDown from the last row is a plain move", -1, 4, "ArrowDown", {kind: "move"}],
+		["ArrowUp into a scope focuses its enter-from-after button", -1, 3, "ArrowUp", {kind: "focus", index: 6}],
+		["ArrowUp from inside a scope selects the row before it", 4, -1, "ArrowUp", {kind: "select", menuIndex: 2}],
+		["ArrowUp from the focused input does nothing", 0, -1, "ArrowUp", {kind: "none"}],
+		["ArrowUp between rows is a plain move", -1, 1, "ArrowUp", {kind: "move"}],
+		["Tab from the focused input selects the first row", 0, -1, "Tab", {kind: "select", menuIndex: 0}],
+		["Tab from the last preset focuses the next button", -1, 2, "Tab", {kind: "focus", index: 4}],
+		["Tab inside a scope focuses the next button", 4, -1, "Tab", {kind: "focus", index: 5}],
+		["Shift+Tab from a scope button selects the row before it", 4, -1, "ShiftTab", {kind: "select", menuIndex: 2}],
+		["Tab with nothing focused focuses the input", -1, -1, "Tab", {kind: "focus", index: 0}],
+		["Tab past the end does nothing", -1, 4, "Tab", {kind: "none"}],
+	];
+	it.each(focusCases)("%s", (_name, focused, selectedRow, step, expected) => {
+		expect(menuFocusStep(items, focused, selectedRow, step, false)).toStrictEqual(expected);
+	});
+
+	it("wraps Tab past the end when cyclic", () => {
+		expect(menuFocusStep(items, -1, 4, "Tab", true)).toStrictEqual({kind: "focus", index: 0});
 	});
 });

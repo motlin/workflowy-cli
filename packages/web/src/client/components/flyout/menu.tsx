@@ -1,8 +1,8 @@
-import {Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useState} from "react";
+import {Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, ReactElement, ReactNode} from "react";
 import type {MenuItemProps} from "./menu-item.js";
-import {menuKeyboard} from "./menu-keyboard.js";
-import type {MenuKeyboardState} from "./menu-keyboard.js";
+import {menuFocusStep, menuKeyboard} from "./menu-keyboard.js";
+import type {MenuFocusKey, MenuFocusStep, MenuKeyboardState} from "./menu-keyboard.js";
 
 type MenuItemElement = ReactElement<MenuItemProps>;
 
@@ -44,7 +44,54 @@ export interface MenuBodyProps {
 	stopKeydownEventPropagation?: boolean;
 	keyboardMode?: boolean;
 	initialSelect?: number;
+	/** Upstream's wrapped Menu: arrows and Tab walk inputs, rows and buttons, entering `[data-keyboard-focus-scope]`s. */
+	focusNavigation?: boolean;
 	children?: ReactNode;
+}
+
+const FOCUSABLE_SELECTOR = 'input, .menuItem, button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusKey(event: KeyboardEvent, selectOnTab: boolean): MenuFocusKey | undefined {
+	if (event.ctrlKey || event.isComposing) {
+		return undefined;
+	}
+	if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+		return event.key;
+	}
+	if (event.key === "Tab" && !selectOnTab) {
+		return event.shiftKey ? "ShiftTab" : "Tab";
+	}
+	return undefined;
+}
+
+/** Reads the menu's focusables from the DOM and runs upstream's wrapped-Menu step over them. */
+function focusStep(
+	root: HTMLElement | null,
+	event: KeyboardEvent,
+	selected: number,
+	cyclic: boolean,
+	selectOnTab: boolean,
+): {result: MenuFocusStep; elements: HTMLElement[]; focused: HTMLElement | undefined} | undefined {
+	const key = focusKey(event, selectOnTab);
+	if (!root || !key) {
+		return undefined;
+	}
+	const elements = [...root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
+		(element) => !element.closest('[aria-hidden="true"]'),
+	);
+	const scopes = [...root.querySelectorAll("[data-keyboard-focus-scope]")];
+	const items = elements.map((element) => {
+		const scope = element.closest("[data-keyboard-focus-scope]");
+		return {
+			menuItem: element.classList.contains("menuItem"),
+			...(scope ? {scope: scopes.indexOf(scope)} : {}),
+			...(element.hasAttribute("data-keyboard-focus-enter-from-after") ? {enterFromAfter: true} : {}),
+		};
+	});
+	const active = document.activeElement;
+	const focused = active instanceof HTMLElement && root.contains(active) ? active : undefined;
+	const focusedIndex = focused ? elements.indexOf(focused) : -1;
+	return {result: menuFocusStep(items, focusedIndex, selected, key, cyclic), elements, focused};
 }
 
 /** Upstream DomKit Menu (`z24`) in its unwrapped form: keyboard model, item cloning, scroller and bottomSticky. */
@@ -57,8 +104,10 @@ export function MenuBody({
 	stopKeydownEventPropagation = false,
 	keyboardMode = false,
 	initialSelect = -1,
+	focusNavigation = false,
 	children,
 }: MenuBodyProps) {
+	const scroller = useRef<HTMLDivElement>(null);
 	const [state, setState] = useState<MenuKeyboardState>({index: initialSelect, hidden: false, keyboardMode});
 	const [lastKeyMoved, setLastKeyMoved] = useState(false);
 	const [mouseMovedSinceKey, setMouseMovedSinceKey] = useState(false);
@@ -94,6 +143,25 @@ export function MenuBody({
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
+			const step = focusNavigation
+				? focusStep(scroller.current, event, state.index, cyclicNavigation, selectOnTab)
+				: undefined;
+			if (step && step.result.kind !== "move") {
+				event.preventDefault();
+				if (stopKeydownEventPropagation) {
+					event.stopImmediatePropagation();
+				}
+				setLastKeyMoved(true);
+				setMouseMovedSinceKey(false);
+				if (step.result.kind === "focus") {
+					setState({index: -1, hidden: false, keyboardMode: true});
+					step.elements[step.result.index]?.focus();
+				} else if (step.result.kind === "select") {
+					step.focused?.blur();
+					setState({index: step.result.menuIndex, hidden: false, keyboardMode: true});
+				}
+				return;
+			}
 			const result = menuKeyboard(
 				state,
 				{key: event.key, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, composing: event.isComposing},
@@ -133,6 +201,7 @@ export function MenuBody({
 		stopKeydownEventPropagation,
 		stopWhenSelected,
 		selectIndex,
+		focusNavigation,
 	]);
 
 	let navigableIndex = 0;
@@ -175,6 +244,7 @@ export function MenuBody({
 	return (
 		<>
 			<div
+				ref={scroller}
 				onMouseMove={() => {
 					setMouseMovedSinceKey(true);
 				}}

@@ -1,12 +1,14 @@
 import {useDatePicker} from "@rehookify/datepicker";
 import type {DPDay, DPDayInteger, DPPropGetter} from "@rehookify/datepicker";
-import {useState} from "react";
-import type {ReactNode} from "react";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
+import type {ReactNode, RefObject} from "react";
 import {FaIcon} from "./fa-icons.js";
 import {MenuBody} from "./flyout/menu.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 import {popoverBox} from "./flyout/popover-box.js";
 import {IconButton} from "./icon-button.js";
+import {CALENDAR_KEYS, nextCalendarFocus} from "./date-picker-keyboard.js";
+import type {CalendarFocusTarget} from "./date-picker-keyboard.js";
 import type {DatePreset} from "@workflowy/shared";
 
 export type DatePickerView = "DATE" | "MONTH" | "YEAR";
@@ -343,6 +345,52 @@ function YearView({datepicker, onChange}: ViewProps) {
 	);
 }
 
+const HEADER_SELECTOR = '[data-date-picker-header-button="true"]:not(:disabled)';
+const DAY_SELECTOR = '[data-date-picker-day-button="true"]:not(:disabled)';
+const GRID_SELECTOR = '[data-date-picker-grid-button="true"]:not(:disabled)';
+
+/** Upstream `ZK`'s window capture keydown: arrow keys move focus between the focused scope's calendar buttons. */
+function useCalendarArrowKeys(scope: RefObject<HTMLDivElement | null>): void {
+	useLayoutEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			const root = scope.current;
+			const active = document.activeElement;
+			if (!CALENDAR_KEYS.has(event.key) || !root || !(active instanceof HTMLElement) || !root.contains(active)) {
+				return;
+			}
+			const headers = [...root.querySelectorAll<HTMLElement>(HEADER_SELECTOR)];
+			const days = [...root.querySelectorAll<HTMLElement>(DAY_SELECTOR)];
+			const grids = [...root.querySelectorAll<HTMLElement>(GRID_SELECTOR)];
+			const counts = {headers: headers.length, grid: grids.length, days: days.length};
+			const at = (list: HTMLElement[]) => list.indexOf(active);
+			let target: CalendarFocusTarget | undefined;
+			if (at(headers) >= 0) {
+				target = nextCalendarFocus("header", at(headers), event.key, counts);
+			} else if (at(days) >= 0) {
+				target = nextCalendarFocus("day", at(days), event.key, counts);
+			} else if (at(grids) >= 0) {
+				const rects = grids.map((button) => {
+					const rect = button.getBoundingClientRect();
+					return {top: rect.top, centerX: rect.left + rect.width / 2};
+				});
+				target = nextCalendarFocus("grid", at(grids), event.key, counts, rects);
+			} else {
+				target = nextCalendarFocus("other", 0, event.key, counts);
+			}
+			const element = target && (target.kind === "header" ? headers : grids)[target.index];
+			if (element) {
+				event.stopImmediatePropagation();
+				event.preventDefault();
+				element.focus();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown, true);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown, true);
+		};
+	}, [scope]);
+}
+
 const DAY_INTEGERS: readonly DPDayInteger[] = [0, 1, 2, 3, 4, 5, 6];
 
 function toDayInteger(weekStartDay: number): DPDayInteger {
@@ -366,6 +414,22 @@ function Calendar({
 	onApply: (dates: Date[]) => void;
 }) {
 	const [view, setView] = useState<DatePickerView>(initialView);
+	const scope = useRef<HTMLDivElement>(null);
+	const viewRoot = useRef<HTMLDivElement>(null);
+	const previousView = useRef(view);
+	useCalendarArrowKeys(scope);
+	// Upstream `Z82`: a view switch focuses the new view's active button, else its first focusable.
+	useLayoutEffect(() => {
+		if (previousView.current === view) {
+			return;
+		}
+		previousView.current = view;
+		const root = viewRoot.current;
+		const target =
+			root?.querySelector<HTMLElement>('[data-date-picker-active-button="true"]:not(:disabled)') ??
+			root?.querySelector<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])');
+		target?.focus();
+	}, [view]);
 	const [rangeStart, setRangeStart] = useState<Date | undefined>(undefined);
 	const anchor = selected[0];
 	const [offsetDate, setOffsetDate] = useState<Date>(() => anchor ?? new Date());
@@ -398,14 +462,14 @@ function Calendar({
 		}
 	};
 	return (
-		<div data-keyboard-focus-scope="true" className="flex flex-col w-[220px]">
+		<div ref={scope} data-keyboard-focus-scope="true" className="flex flex-col w-[220px]">
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- verbatim upstream markup: mousedown keeps focus in the date input */}
 			<section
 				onMouseDown={(event) => {
 					event.preventDefault();
 				}}
 			>
-				<div className="leading-m text-xs">
+				<div ref={viewRoot} className="leading-m text-xs">
 					{view === "YEAR" && <YearView datepicker={datepicker} onChange={setView} />}
 					{view === "MONTH" && <MonthView datepicker={datepicker} onChange={setView} />}
 					{view === "DATE" && (
@@ -460,12 +524,26 @@ export function DatePickerPopup({
 	onClose,
 }: DatePickerPopupProps) {
 	const box = popoverBox({minWidth: 0, maxWidth: 240, offset: [0, 0]});
+	// Upstream `ZK`: Escape closes in the capture phase wherever focus sits, so the caret is restored.
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape" && onEscape) {
+				event.stopImmediatePropagation();
+				event.preventDefault();
+				onEscape();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown, true);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown, true);
+		};
+	}, [onEscape]);
 	return (
 		<div
 			className={`${box.className} absolute flyout menu [&.menu]:py-0`}
 			style={{...box.style, ...(position ? {left: position.left, top: position.top} : {})}}
 		>
-			<MenuBody keyboardMode initialSelect={-1} selectOnTab={false} exit={onClose}>
+			<MenuBody keyboardMode focusNavigation initialSelect={-1} selectOnTab={false} exit={onClose}>
 				<div className="flex items-center px-l py-m bg-secondary">
 					<input
 						type="text"
@@ -475,11 +553,7 @@ export function DatePickerPopup({
 						className="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary"
 						value={term}
 						onKeyDown={(event) => {
-							if (event.key === "Escape") {
-								onEscape?.();
-								event.preventDefault();
-								event.stopPropagation();
-							} else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+							if (event.key === "Enter" && !event.nativeEvent.isComposing) {
 								onEnter?.();
 								event.preventDefault();
 								event.stopPropagation();

@@ -93,3 +93,87 @@ export function menuKeyboard(
 			return none();
 	}
 }
+
+/** One of the wrapped menu's focusables: `input, .menuItem, button:not([disabled]), [tabindex]:not([tabindex="-1"])`. */
+export interface MenuFocusable {
+	menuItem: boolean;
+	/** Which `[data-keyboard-focus-scope]` the element sits in, if any. */
+	scope?: number;
+	/** Carries `data-keyboard-focus-enter-from-after`: ArrowUp into its scope lands here. */
+	enterFromAfter?: boolean;
+}
+
+export type MenuFocusKey = "ArrowUp" | "ArrowDown" | "Tab" | "ShiftTab";
+
+/** `focus` moves DOM focus and clears the row; `select` blurs and selects a row; `move` falls back to the pure step. */
+export type MenuFocusStep =
+	| {kind: "focus"; index: number}
+	| {kind: "select"; menuIndex: number}
+	| {kind: "move"}
+	| {kind: "none"};
+
+function landOn(items: readonly MenuFocusable[], index: number): MenuFocusStep {
+	const target = items[index];
+	if (!target) {
+		return {kind: "none"};
+	}
+	if (!target.menuItem) {
+		return {kind: "focus", index};
+	}
+	return {kind: "select", menuIndex: items.slice(0, index).filter((item) => item.menuItem).length};
+}
+
+function wrapIndex(index: number, length: number, cyclic: boolean): number {
+	if (!cyclic) {
+		return index;
+	}
+	if (index < 0) {
+		return length - 1;
+	}
+	return index >= length ? 0 : index;
+}
+
+/**
+ * Upstream DomKit Menu (`z24`) wrapped-form ArrowUp/ArrowDown and Tab (`S1`) over its focusables.
+ * `focused` is the focused element's index (-1 when focus is outside), `selected` the active row (-1 for none).
+ */
+export function menuFocusStep(
+	items: readonly MenuFocusable[],
+	focused: number,
+	selected: number,
+	key: MenuFocusKey,
+	cyclic: boolean,
+): MenuFocusStep {
+	const rows = items.flatMap((item, index) => (item.menuItem ? [index] : []));
+	const selectedAt = selected >= 0 ? rows[selected] : undefined;
+	const current = selectedAt ?? (focused >= 0 ? focused : undefined);
+	if (key === "Tab" || key === "ShiftTab") {
+		const delta = key === "Tab" ? 1 : -1;
+		const start = current ?? (delta === 1 ? -1 : items.length);
+		return landOn(items, wrapIndex(start + delta, items.length, cyclic));
+	}
+	const scope = focused >= 0 ? items[focused]?.scope : undefined;
+	const inScope = items.flatMap((item, index) => (scope !== undefined && item.scope === scope ? [index] : []));
+	let target: number;
+	if (key === "ArrowDown") {
+		const last = inScope.at(-1);
+		target = wrapIndex((last !== undefined && selected === -1 ? last : (current ?? -1)) + 1, items.length, cyclic);
+	} else {
+		const first = inScope[0];
+		target = wrapIndex(
+			(first !== undefined && selected === -1 ? first : (current ?? items.length)) - 1,
+			items.length,
+			cyclic,
+		);
+		const targetScope = items[target]?.scope;
+		const entry = items.findIndex((item) => item.scope === targetScope && item.enterFromAfter === true);
+		if (targetScope !== undefined && entry !== -1) {
+			target = entry;
+		}
+	}
+	const landing = items[target];
+	if ((selected === -1 && focused >= 0) || (landing && !landing.menuItem)) {
+		return landOn(items, target);
+	}
+	return {kind: "move"};
+}

@@ -3,6 +3,8 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {DatePickerPopup} from "../src/client/components/date-picker-popup.js";
 import type {DatePickerPopupProps} from "../src/client/components/date-picker-popup.js";
+import {nextCalendarFocus} from "../src/client/components/date-picker-keyboard.js";
+import type {CalendarFocusTarget} from "../src/client/components/date-picker-keyboard.js";
 
 function render(props: Partial<DatePickerPopupProps> = {}): string {
 	return renderToStaticMarkup(createElement(DatePickerPopup, {selected: [], ...props}));
@@ -155,5 +157,60 @@ describe("DatePickerPopup", () => {
 			header: "2026",
 			months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
 		});
+	});
+});
+
+describe("nextCalendarFocus", () => {
+	const counts = {headers: 4, grid: 42, days: 42};
+	const cases: [string, Parameters<typeof nextCalendarFocus>, CalendarFocusTarget | undefined][] = [
+		[
+			"header ArrowDown goes to the first grid button",
+			["header", 0, "ArrowDown", counts],
+			{kind: "grid", index: 0},
+		],
+		["header ArrowLeft wraps to the last header", ["header", 0, "ArrowLeft", counts], {kind: "header", index: 3}],
+		[
+			"header ArrowRight wraps to the first header",
+			["header", 3, "ArrowRight", counts],
+			{kind: "header", index: 0},
+		],
+		["header ArrowUp is left to the menu", ["header", 1, "ArrowUp", counts], undefined],
+		["day ArrowDown moves one week later", ["day", 0, "ArrowDown", counts], {kind: "grid", index: 7}],
+		["day ArrowUp moves one week earlier", ["day", 10, "ArrowUp", counts], {kind: "grid", index: 3}],
+		[
+			"day ArrowUp past the first row goes to the first header",
+			["day", 3, "ArrowUp", counts],
+			{kind: "header", index: 0},
+		],
+		["day ArrowDown past the last row is left to the menu", ["day", 38, "ArrowDown", counts], undefined],
+		["day ArrowLeft does not wrap", ["day", 0, "ArrowLeft", counts], undefined],
+		["day ArrowRight does not wrap", ["day", 41, "ArrowRight", counts], undefined],
+		["day ArrowRight moves to the next day", ["day", 6, "ArrowRight", counts], {kind: "grid", index: 7}],
+		[
+			"focus elsewhere in the calendar: ArrowDown goes to the first header",
+			["other", 0, "ArrowDown", counts],
+			{kind: "header", index: 0},
+		],
+		[
+			"focus elsewhere in the calendar: ArrowUp goes to the last grid button",
+			["other", 0, "ArrowUp", counts],
+			{kind: "grid", index: 41},
+		],
+	];
+	it.each(cases)("%s", (_name, args, expected) => {
+		expect(nextCalendarFocus(...args)).toStrictEqual(expected);
+	});
+
+	// Two columns of month buttons, 30px apart vertically: Jan Feb / Mar Apr / May Jun.
+	const months = [0, 1, 2, 3, 4, 5].map((i) => ({top: Math.floor(i / 2) * 30, centerX: i % 2 === 0 ? 50 : 150}));
+	const gridCounts = {headers: 1, grid: 6, days: 0};
+	it.each([
+		["month ArrowDown goes to the button straight below", 1, "ArrowDown", {kind: "grid", index: 3}],
+		["month ArrowUp goes to the button straight above", 4, "ArrowUp", {kind: "grid", index: 2}],
+		["month ArrowUp in the top row goes to the first header", 0, "ArrowUp", {kind: "header", index: 0}],
+		["month ArrowDown in the bottom row stays put", 5, "ArrowDown", undefined],
+		["month ArrowLeft goes to the previous button", 3, "ArrowLeft", {kind: "grid", index: 2}],
+	] as const)("%s", (_name, index, key, expected) => {
+		expect(nextCalendarFocus("grid", index, key, gridCounts, months)).toStrictEqual(expected);
 	});
 });
