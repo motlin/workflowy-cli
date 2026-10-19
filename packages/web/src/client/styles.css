@@ -969,6 +969,11 @@ body {
 	opacity: 0.7;
 }
 
+/* Upstream selection toolbar: the palette chevron is a narrow 12px item. */
+.ctx-menu-item:has(> .show-palette) {
+	width: 12px;
+}
+
 @media (any-hover: hover) and (pointer: fine) {
 	.iconButton.disabled:hover {
 		background: none;

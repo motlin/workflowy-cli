@@ -82,6 +82,17 @@ describe("FA_ICONS", () => {
 			"fas:circle-small",
 			"fal:ellipsis-h",
 			"far:font",
+			"far:h1",
+			"far:h2",
+			"far:h3",
+			"far:paragraph",
+			"far:bold",
+			"far:underline",
+			"far:italic",
+			"far:strikethrough",
+			"far:code",
+			"far:link",
+			"far:chevron-down",
 		]);
 	});
 
