@@ -95,6 +95,11 @@ describe("FA_ICONS", () => {
 			"far:code",
 			"far:link",
 			"far:chevron-down",
+			"fal:bolt",
+			"fal:arrow-down-long",
+			"fal:abacus",
+			"fal:palette",
+			"fal:arrow-down",
 		]);
 	});
 
