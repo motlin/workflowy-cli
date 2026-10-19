@@ -1,7 +1,8 @@
 import {Hono} from "hono";
+import type {Context} from "hono";
 import {PathBuilder} from "@workflowy/shared/cache";
 import {nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
-import {buildSearchConditions, getScoringTerms, parseSearchQuery} from "@workflowy/shared/search";
+import {buildSearchConditions, getScoringTerms, parseSearchQuery, resolveJoinedSec} from "@workflowy/shared/search";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {and, eq, inArray, sql} from "drizzle-orm";
@@ -9,10 +10,12 @@ import {notReferencesContent} from "../backlinks.js";
 import {getDatabase} from "../db.js";
 import {collectHelperTags} from "../helper-tags.js";
 import type {HelperTags} from "../helper-tags.js";
+import type {AppEnv} from "../context.js";
+import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
 
-export const searchRouter = new Hono();
+export const searchRouter = new Hono<AppEnv>();
 
 interface SearchBody {
 	query: string;
@@ -125,6 +128,47 @@ searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
 	const rows = loadTreeSearchRows(getDatabase(), rootId);
 	return c.json(computeTreeSearch(rows, rootId, query, Date.now()));
+});
+
+interface SwitcherBody {
+	query: string;
+	offset?: number;
+	limit?: number;
+	starredIds?: string[];
+}
+
+let joinedSecPromise: Promise<number> | undefined;
+
+/** The account join date (once per server), else the earliest cached `created_at`, for switcher recency. */
+async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise<number> {
+	// A loop, not Math.min(...), so a large tree cannot overflow the call stack.
+	let earliestCreatedMs = Infinity;
+	for (const row of rows) {
+		if (row.createdAt !== null && row.createdAt < earliestCreatedMs) {
+			earliestCreatedMs = row.createdAt;
+		}
+	}
+	const earliestCreatedSec = Number.isFinite(earliestCreatedMs) ? Math.floor(earliestCreatedMs / 1000) : 0;
+	const adapter = c.get("ctx").internalAdapter?.();
+	if (!adapter) {
+		return resolveJoinedSec({account: null, earliestCreatedSec});
+	}
+	joinedSecPromise ??= adapter.getAccount().then(
+		({joinedAt}) => resolveJoinedSec({account: {joinedAt: joinedAt.toISOString()}, earliestCreatedSec}),
+		() => {
+			joinedSecPromise = undefined;
+			return resolveJoinedSec({account: null, earliestCreatedSec});
+		},
+	);
+	return joinedSecPromise;
+}
+
+// POST /api/search/switcher - Upstream jump-menu search: word-start matches ranked by staticScore x textFactor
+searchRouter.post("/switcher", async (c) => {
+	const {query, offset = 0, limit = 20, starredIds = []} = await c.req.json<SwitcherBody>();
+	const rows = loadTreeSearchRows(getDatabase(), null);
+	const joinedSec = await loadJoinedSec(c, rows);
+	return c.json(rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit}));
 });
 
 // POST /api/search - Text-based search with operators
