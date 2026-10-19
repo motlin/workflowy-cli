@@ -152,7 +152,7 @@ export function deleteSelectedItems(
 /**
  * Upstream's item-selection hotkeys, live only while items are selected and focus is off every editor: ⇧↑/⇧↓
  * expand, ⌘A selects the zoom root, plain arrows clear the selection and edit beside it, Backspace/Delete delete
- * every selected item, and Escape clears it and opens search.
+ * every selected item. Escape is the global search Escape's, which clears the selection as it focuses search.
  */
 export function useSelectionKeymap(): void {
 	const queryClient = useQueryClient();
@@ -205,13 +205,6 @@ export function useSelectionKeymap(): void {
 				}
 				case "DELETE": {
 					deleteSelectedItems(queryClient, ordered, deleteNode);
-					break;
-				}
-				case "ESCAPE": {
-					state.clearItemSelection();
-					if (!state.searchPanelOpen) {
-						state.toggleSearchPanel();
-					}
 					break;
 				}
 			}

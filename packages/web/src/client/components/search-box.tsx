@@ -1,10 +1,9 @@
 import {useEffect, useMemo, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import type {QueryClient} from "@tanstack/react-query";
 import {useNavigate} from "react-router-dom";
 import {useMediaQuery} from "../hooks/use-media-query.js";
-import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
+import {focusOutline} from "../hooks/use-search-escape.js";
 import {createSearchBoxController} from "../search-box-model.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Tooltip} from "./tooltip.js";
@@ -25,24 +24,6 @@ const CLEAR_PATH =
 function borderStyle(color: string): CSSProperties {
 	const side = `var(--wf-border-width-s) solid ${color}`;
 	return {borderRadius: 20, borderTop: side, borderRight: side, borderLeft: side, borderBottom: side};
-}
-
-/** Hand focus back to the outline: the row search was opened from, else the first visible row. */
-function focusOutline(input: HTMLInputElement, queryClient: QueryClient): void {
-	input.blur();
-	const {searchReturn, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds, resumeEditing} =
-		useOutlineStore.getState();
-	const [firstVisibleRowId] = collectVisibleNodeIds(
-		queryClient,
-		zoomedNodeId,
-		expandedIds,
-		showCompleted,
-		animatingCompletionIds,
-	);
-	const nodeId = searchReturn?.nodeId ?? firstVisibleRowId;
-	if (nodeId !== undefined) {
-		resumeEditing(nodeId, searchReturn?.caretOffset ?? 0);
-	}
 }
 
 /**
@@ -95,7 +76,7 @@ export function SearchBox() {
 			event.preventDefault();
 		}
 		if (result.action === "focusOutline") {
-			focusOutline(event.currentTarget, queryClient);
+			focusOutline(queryClient);
 		}
 	};
 
@@ -151,18 +132,16 @@ export function SearchBox() {
 							onMouseDown={(event) => {
 								event.preventDefault();
 							}}
-							onClick={(event) => {
+							onClick={() => {
 								if (useOutlineStore.getState().searchQuery === "") {
 									setSearchInput("");
 									controller.change("");
 									return;
 								}
 								controller.dispose();
-								useOutlineStore.getState().cancelSearch(navigate);
-								const input = event.currentTarget.closest("label")?.querySelector("input");
-								if (input) {
-									focusOutline(input, queryClient);
-								}
+								focusOutline(queryClient, () => {
+									useOutlineStore.getState().cancelSearch(navigate);
+								});
 							}}
 						>
 							<path clipRule="evenodd" d={CLEAR_PATH} fill="currentColor" fillRule="evenodd" />

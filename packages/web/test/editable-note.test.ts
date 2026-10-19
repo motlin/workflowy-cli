@@ -13,7 +13,6 @@ const outlineState = {
 	focusNote: () => {},
 	focusName: () => {},
 	blurNote: () => {},
-	openSearchFromEditing: () => {},
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({

@@ -122,8 +122,7 @@ export function SearchPanel() {
 }
 
 function SearchPanelContent({initialQuery}: {initialQuery: string}) {
-	const {toggleSearchPanel, dismissSearchPanel, recentSearches, addRecentSearch, clearRecentSearches, zoomedNodeId} =
-		useOutlineStore();
+	const {toggleSearchPanel, recentSearches, addRecentSearch, clearRecentSearches, zoomedNodeId} = useOutlineStore();
 	const [query, setQuery] = useState(initialQuery);
 	const {toggleStar} = useStarActions();
 	const savedSearches = useStarredLocations().flatMap((star) =>
@@ -259,7 +258,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 			switch (event.key) {
 				case "Escape": {
 					event.preventDefault();
-					dismissSearchPanel();
+					toggleSearchPanel();
 					break;
 				}
 				case "ArrowDown": {
@@ -282,7 +281,7 @@ function SearchPanelContent({initialQuery}: {initialQuery: string}) {
 				}
 			}
 		},
-		[dismissSearchPanel, handleNavigateToResult, results, selectedIndex],
+		[toggleSearchPanel, handleNavigateToResult, results, selectedIndex],
 	);
 
 	const handleBackdropClick = useCallback(

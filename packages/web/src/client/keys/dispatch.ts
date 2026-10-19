@@ -96,7 +96,7 @@ export function deferToFocusedControl(combo: string, active: FocusedElement | nu
 
 /**
  * Upstream commands the local app still leaves to the browser or another owner: select-all and shift-arrow
- * selection inside the editor, and Escape (EditableText and search own it).
+ * selection inside the editor, and Escape (`useSearchEscape` owns it).
  * Their combos are not dispatched at all, so they keep their default behavior.
  */
 export const BROWSER_NATIVE_COMMANDS: ReadonlySet<string> = new Set([

@@ -174,7 +174,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const setItemSelection = useOutlineStore((state) => state.setItemSelection);
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
-	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
 	const deleteNodeMutation = useDeleteNode();
@@ -957,11 +956,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				if (deleteAdjacentPill("forward") || mergeWithSibling("forward")) {
 					event.preventDefault();
 				}
-			} else if (event.key === "Escape") {
-				event.preventDefault();
-				const caretOffset = contentRef.current ? caretTextOffset(contentRef.current) : 0;
-				saveChanges();
-				openSearchFromEditing(nodeId, caretOffset);
 			} else if (formatAttr !== null && !composing) {
 				event.preventDefault();
 				applyInlineToggle(formatAttr);
@@ -978,7 +972,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			moveToAdjacentNode,
 			crossRowHorizontally,
 			nodeId,
-			openSearchFromEditing,
 			saveChanges,
 			selectItemsFromEditor,
 			splitAtSelection,

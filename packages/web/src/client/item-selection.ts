@@ -378,8 +378,7 @@ export type SelectionKeyAction =
 	| "CLEAR_RIGHT"
 	| "CLEAR_UP"
 	| "CLEAR_DOWN"
-	| "DELETE"
-	| "ESCAPE";
+	| "DELETE";
 
 const PLAIN_SELECTION_KEYS: Readonly<Record<string, SelectionKeyAction>> = {
 	ArrowLeft: "CLEAR_LEFT",
@@ -388,7 +387,6 @@ const PLAIN_SELECTION_KEYS: Readonly<Record<string, SelectionKeyAction>> = {
 	ArrowDown: "CLEAR_DOWN",
 	Backspace: "DELETE",
 	Delete: "DELETE",
-	Escape: "ESCAPE",
 };
 
 /** Classify a keydown made while items are selected, or null when the selection leaves it alone. */

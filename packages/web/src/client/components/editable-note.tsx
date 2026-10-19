@@ -76,7 +76,7 @@ function insertAtSelection(text: string, caretInText: number): void {
  * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused
  * - Stored `<time>` dates render as monolith pills only at rest; the focused editor holds the raw `<time>` so pills are never saved
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
- * - Edits are never reverted: Escape saves, exits the note, and opens search like upstream's global Escape
+ * - Edits are never reverted: Escape is left to the global search Escape, which saves, exits the note, and focuses search
  * - Enter inserts a line break (two at the very end, the second a sentinel); Tab inserts a tab; Shift+Tab does nothing
  * - Shift+Enter saves and moves the caret to the end of the same row's name
  * - Backspace in a blank note clears it and moves the caret to the end of the name
@@ -87,7 +87,6 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const focusName = useOutlineStore((state) => state.focusName);
 	const blurNote = useOutlineStore((state) => state.blurNote);
-	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
 	const queryClient = useQueryClient();
 	const dateSettings = useDateSettings();
@@ -323,13 +322,6 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			if (element === null || handleTagAutocompleteKey(event)) {
 				return;
 			}
-			if (event.key === "Escape") {
-				event.preventDefault();
-				element.blur();
-				// Search-return resumes the node's name, not the note: a documented local deviation.
-				openSearchFromEditing(nodeId, Number.MAX_SAFE_INTEGER);
-				return;
-			}
 			const formatAttr = classifyFormatKey(event, isMacPlatform());
 			if (formatAttr !== null && !event.nativeEvent.isComposing) {
 				event.preventDefault();
@@ -388,7 +380,6 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			handleSlashKey,
 			handleTagAutocompleteKey,
 			nodeId,
-			openSearchFromEditing,
 			saveNow,
 		],
 	);

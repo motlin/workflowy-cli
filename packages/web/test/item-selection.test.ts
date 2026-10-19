@@ -299,7 +299,7 @@ describe("selectionKeyAction", () => {
 			"CLEAR_DOWN",
 			"DELETE",
 			"DELETE",
-			"ESCAPE",
+			null,
 			null,
 			null,
 		]);

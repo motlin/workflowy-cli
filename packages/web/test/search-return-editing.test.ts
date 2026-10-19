@@ -6,84 +6,94 @@ vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {to
 vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const {initialNavState} = await import("../src/client/nav-stack.js");
 
 function editingState() {
-	const {editingId, editingCaretOffset, lastEditedId, searchPanelOpen, searchReturn} = useOutlineStore.getState();
-	return {editingId, editingCaretOffset, lastEditedId, searchPanelOpen, searchReturn};
+	const {editingId, editingCaretOffset, lastEditedId, searchFocused, searchReturn, searchInput} =
+		useOutlineStore.getState();
+	return {editingId, editingCaretOffset, lastEditedId, searchFocused, searchReturn, searchInput};
 }
 
-describe("Escape while editing opens search and returns to the edited node", () => {
+describe("Escape focuses search and returns to the edited node", () => {
 	beforeEach(() => {
 		useOutlineStore.setState({
+			nav: initialNavState,
+			zoomedNodeId: null,
 			editingId: null,
 			editingCaretOffset: null,
 			editingClickPosition: null,
 			lastEditedId: null,
-			searchPanelOpen: false,
-			searchInitialQuery: null,
+			searchFocused: false,
 			searchReturn: null,
+			searchInput: "",
+			searchQuery: "",
 		});
 	});
 
-	it("remembers the edited node and caret, then restores editing when search is dismissed", () => {
-		const {startEditing} = useOutlineStore.getState();
-		startEditing("node-a");
-		useOutlineStore.getState().openSearchFromEditing("node-a", 7);
-		const opened = editingState();
-		useOutlineStore.getState().dismissSearchPanel();
-		const dismissed = editingState();
-		expect({opened, dismissed}).toStrictEqual({
-			opened: {
+	it("remembers the edited node and caret, then resumes editing there when search blurs", () => {
+		useOutlineStore.getState().startEditing("node-a");
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 7});
+		const focused = editingState();
+		useOutlineStore.getState().blurSearch();
+		const blurred = editingState();
+		expect({focused, blurred}).toStrictEqual({
+			focused: {
 				editingId: null,
 				editingCaretOffset: null,
 				lastEditedId: "node-a",
-				searchPanelOpen: true,
+				searchFocused: true,
 				searchReturn: {nodeId: "node-a", caretOffset: 7},
+				searchInput: "",
 			},
-			dismissed: {
+			blurred: {
 				editingId: "node-a",
 				editingCaretOffset: 7,
 				lastEditedId: "node-a",
-				searchPanelOpen: false,
+				searchFocused: false,
 				searchReturn: null,
+				searchInput: "",
 			},
 		});
 	});
 
-	it("does not restore editing when search closes by choosing a result", () => {
-		useOutlineStore.getState().openSearchFromEditing("node-a", 3);
-		useOutlineStore.getState().toggleSearchPanel();
-		expect(editingState()).toStrictEqual({
-			editingId: null,
-			editingCaretOffset: null,
-			lastEditedId: "node-a",
-			searchPanelOpen: false,
-			searchReturn: null,
-		});
-	});
-
-	it("dismissing search that was not opened from editing just closes it", () => {
-		useOutlineStore.getState().toggleSearchPanel();
-		useOutlineStore.getState().dismissSearchPanel();
+	it("blurring search that was not focused from editing resumes nothing", () => {
+		useOutlineStore.getState().focusSearch(null);
+		useOutlineStore.getState().blurSearch();
 		expect(editingState()).toStrictEqual({
 			editingId: null,
 			editingCaretOffset: null,
 			lastEditedId: null,
-			searchPanelOpen: false,
+			searchFocused: false,
 			searchReturn: null,
+			searchInput: "",
+		});
+	});
+
+	it("cancelling search clears the input and resumes the saved node and caret", () => {
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 3});
+		useOutlineStore.getState().setSearchInput("draft");
+		useOutlineStore.getState().cancelSearch(() => {});
+		expect(editingState()).toStrictEqual({
+			editingId: "node-a",
+			editingCaretOffset: 3,
+			lastEditedId: "node-a",
+			searchFocused: false,
+			searchReturn: null,
+			searchInput: "",
 		});
 	});
 
 	it("starting a fresh edit clears any restored caret offset", () => {
-		useOutlineStore.getState().openSearchFromEditing("node-a", 4);
-		useOutlineStore.getState().dismissSearchPanel();
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 4});
+		useOutlineStore.getState().blurSearch();
 		useOutlineStore.getState().startEditing("node-b");
 		expect(editingState()).toStrictEqual({
 			editingId: "node-b",
 			editingCaretOffset: null,
 			lastEditedId: "node-b",
-			searchPanelOpen: false,
+			searchFocused: false,
 			searchReturn: null,
+			searchInput: "",
 		});
 	});
 });

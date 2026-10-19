@@ -219,7 +219,7 @@ interface ClickPosition {
 	y: number;
 }
 
-interface SearchReturn {
+export interface SearchReturn {
 	nodeId: string;
 	caretOffset: number;
 }
@@ -297,7 +297,7 @@ interface OutlineState {
 	searchInitialQuery: string | null;
 	/** Bumped on every open request; the panel remounts per session so each request starts fresh. */
 	searchPanelSession: number;
-	/** The node being edited when Escape opened search; dismissing search resumes editing it. */
+	/** The node and caret being edited when Escape focused search; leaving search resumes editing there. */
 	searchReturn: SearchReturn | null;
 	/** Live text of the header search box (uncommitted). */
 	searchInput: string;
@@ -402,16 +402,18 @@ interface OutlineActions {
 	addRecentSearch: (query: string) => void;
 	clearRecentSearches: () => void;
 	toggleSearchPanel: () => void;
-	openSearchFromEditing: (nodeId: string, caretOffset: number) => void;
-	dismissSearchPanel: () => void;
 	openSearchWithQuery: (query: string) => void;
 	setSearchInput: (value: string) => void;
 	setSearchFocused: (focused: boolean) => void;
+	/** Leave the outline for the search box, remembering the edited node and caret (`from`) to return to. */
+	focusSearch: (from: SearchReturn | null) => void;
+	/** Leave the search box, resuming editing at the remembered node and caret when there is one. */
+	blurSearch: () => void;
 	/** Upstream's `navigateToSearch`: record the zoomed node with `?q=` on the nav stacks and push its URL. */
 	pushSearchLocation: (query: string, navigate: NavigateFn) => void;
 	/** Commit `query`: push its URL, or re-run it when it is already the committed query. */
 	commitSearch: (query: string, navigate: NavigateFn) => void;
-	/** Clear the input and, when a search is committed, push the URL without `?q=`. */
+	/** Clear the input, push the URL without `?q=` when a search is committed, then leave the search box. */
 	cancelSearch: (navigate: NavigateFn) => void;
 	toggleJumpMenu: () => void;
 	openLinkInsert: (context: LinkInsertContext) => void;
@@ -908,36 +910,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}));
 	},
 
-	openSearchFromEditing: (nodeId, caretOffset) => {
-		set((state) => ({
-			editingId: null,
-			editingClickPosition: null,
-			editingCaretOffset: null,
-			lastEditedId: nodeId,
-			searchPanelOpen: true,
-			searchInitialQuery: null,
-			searchPanelSession: state.searchPanelSession + 1,
-			searchReturn: {nodeId, caretOffset},
-		}));
-	},
-
-	dismissSearchPanel: () => {
-		set((state) => {
-			const closed = {searchPanelOpen: false, searchInitialQuery: null, searchReturn: null};
-			if (state.searchReturn === null) {
-				return closed;
-			}
-			const {nodeId, caretOffset} = state.searchReturn;
-			return {
-				...closed,
-				editingId: nodeId,
-				editingClickPosition: null,
-				editingCaretOffset: caretOffset,
-				lastEditedId: nodeId,
-			};
-		});
-	},
-
 	openSearchWithQuery: (query) => {
 		set((state) => ({
 			searchPanelOpen: true,
@@ -953,6 +925,27 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setSearchFocused: (focused) => {
 		set({searchFocused: focused});
+	},
+
+	focusSearch: (from) => {
+		set((state) => ({
+			itemSelection: emptySelection(),
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+			editingNoteId: null,
+			lastEditedId: from?.nodeId ?? state.lastEditedId,
+			searchFocused: true,
+			searchReturn: from,
+		}));
+	},
+
+	blurSearch: () => {
+		const {searchReturn} = get();
+		set({searchFocused: false, searchReturn: null});
+		if (searchReturn !== null) {
+			get().resumeEditing(searchReturn.nodeId, searchReturn.caretOffset);
+		}
 	},
 
 	pushSearchLocation: (query, navigate) => {
@@ -975,6 +968,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (get().searchQuery !== "") {
 			get().pushSearchLocation("", navigate);
 		}
+		get().blurSearch();
 	},
 
 	toggleJumpMenu: () => {
