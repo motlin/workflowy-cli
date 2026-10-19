@@ -1,0 +1,524 @@
+import {useDatePicker} from "@rehookify/datepicker";
+import type {DPDay, DPDayInteger, DPPropGetter} from "@rehookify/datepicker";
+import {useState} from "react";
+import type {ReactNode} from "react";
+import {FaIcon} from "./fa-icons.js";
+import {MenuBody} from "./flyout/menu.js";
+import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
+import {popoverBox} from "./flyout/popover-box.js";
+import {IconButton} from "./icon-button.js";
+import type {DatePreset} from "@workflowy/shared";
+
+export type DatePickerView = "DATE" | "MONTH" | "YEAR";
+
+export interface DatePickerPopupProps {
+	/** Upstream `MP.date`: one date in single mode, up to two in range mode. */
+	selected: Date[];
+	/** 0 = Sunday, 1 = Monday (Settings > Dates "Start of week"). */
+	weekStartDay?: number;
+	isRange?: boolean;
+	/** Adds "Remove date"; upstream shows it only when the popup edits an existing pill. */
+	showNoDate?: boolean;
+	term?: string;
+	initialView?: DatePickerView;
+	/** Viewport position of the popup's top-left corner, before the shell's 4px margin-top. */
+	position?: {left: number; top: number};
+	/** Whether a day has journal content under 📆 Calendar; draws the single-mode event dot (DP10). */
+	hasEvent?: (date: Date) => boolean;
+	onTermChange?: (term: string) => void;
+	/** A day click: `[day]` in single mode; in range mode `[first]` then the sorted `[start, end]`. */
+	onApply?: (dates: Date[]) => void;
+	onPreset?: (preset: DatePreset) => void;
+	onToggleRange?: () => void;
+	onFormat?: () => void;
+	onRemove?: () => void;
+	onEscape?: () => void;
+	onClose?: () => void;
+}
+
+/** Upstream `WF.DomKit.Toggle` (`HY2`) without children or secondary text, byte-for-byte class templates. */
+function Toggle({on, className = "", disabled = false}: {on: boolean; className?: string; disabled?: boolean}) {
+	return (
+		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- verbatim upstream Toggle markup; the menu row carries the text
+		<label
+			className={`toggle ${on ? "on" : "off"} inline-flex gap-m mobile:gap-l
+        ${className}
+        ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+		>
+			<div
+				className={`inline-flex w-[20px] h-[10px] p-2xs rounded-m mobile:w-[44px] mobile:h-[22px] mobile:rounded-[16px]
+        ${on ? "bg-tint" : "bg-tertiary"}`}
+			>
+				<div
+					className={`w-[10px] h-[10px] rounded-circle bg-white transition-transform duration-300
+          mobile:w-[22px] mobile:h-[22px] ${on ? "translate-x-[10px] mobile:translate-x-[22px]" : ""}`}
+				/>
+			</div>
+			<div className="inline-flex flex-col gap-xs justify-center flex-1" />
+		</label>
+	);
+}
+
+/** Upstream `Pd4`: the 24x24 day cell's class template. */
+function dayCellClassName(day: Pick<DPDay, "selected" | "inCurrentMonth" | "now">): string {
+	const color = day.selected ? "" : day.inCurrentMonth ? (day.now ? "text-tint" : "") : "text-tertiary";
+	return `date-picker-day-cell w-[24px] h-[24px] flex items-center justify-center cursor-pointer bg-transparent rounded-s relative
+    border-solid border
+    ${day.now ? "font-bold border-tint mobile:border-tint" : "border-transparent mobile:border-transparent"}
+    ${color}
+    ${day.selected ? "!text-on-color !bg-tint" : ""}`;
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+	const rows: T[][] = [];
+	for (let start = 0; start < items.length; start += size) {
+		rows.push(items.slice(start, start + size));
+	}
+	return rows;
+}
+
+const HEADER_BUTTON_CLASS = `!bg-transparent hover:!bg-secondary focus:!bg-transparent focus-visible:!bg-secondary active:!bg-transparent cursor-pointer
+                px-xs py-2xs rounded-s font-semibold text-s mobile:text-base
+                text-primary hover:text-primary`;
+const CHEVRON_BUTTON_CLASS = "hover:!bg-secondary focus:!bg-secondary active:!bg-secondary";
+
+type DayContent = (day: DPDay) => ReactNode;
+
+/** Upstream `Ed4`: the plain day number with leading zeros stripped. */
+function plainDayContent(day: DPDay): ReactNode {
+	return day.day.replace(/^0+/u, "");
+}
+
+/** Upstream's popup `renderDayContent`: the day number over a `circle-small` dot that is visible on days with journal content. */
+function dottedDayContent(hasEvent: (date: Date) => boolean): DayContent {
+	return (day) => {
+		const color = day.selected ? "!text-on-color" : day.inCurrentMonth && day.now ? "text-tint" : "text-tertiary";
+		return (
+			<div className="flex h-full w-full flex-col items-center justify-center">
+				<div
+					className={`
+                          flex items-center justify-center flex-1
+                          pt-xs
+                        `}
+				>
+					{day.day.replace(/^0+/u, "")}
+				</div>
+				<div
+					className={`
+                          flex items-center justify-center
+                          pb-xs mobile:pb-m
+                          ${hasEvent(day.$date) ? "opacity-1" : "opacity-0"}
+                        `}
+				>
+					<FaIcon icon="fas:circle-small" className={`w-s h-s ${color}`} />
+				</div>
+			</div>
+		);
+	};
+}
+
+interface ViewProps {
+	datepicker: ReturnType<typeof useDatePicker>;
+	onChange: (view: DatePickerView) => void;
+}
+
+/** Upstream `Ad4`: month/year header, chevrons, weekday row and the six-week day grid. */
+function DateView({
+	datepicker,
+	onChange,
+	onDateClick,
+	applySelectedDateOnClick,
+	renderDayContent,
+}: ViewProps & {onDateClick: (date: Date) => void; applySelectedDateOnClick: boolean; renderDayContent: DayContent}) {
+	const {
+		data: {weekDays, calendars},
+		propGetters: {dayButton, addOffset, subtractOffset},
+	} = datepicker;
+	const calendar = calendars[0];
+	if (!calendar) {
+		return null;
+	}
+	const {year, month, days} = calendar;
+	const rows = chunk(days, 7);
+	const active =
+		days.find((d) => d.selected && !d.disabled) ??
+		days.find((d) => d.now && !d.disabled) ??
+		days.find((d) => d.inCurrentMonth && !d.disabled) ??
+		days.find((d) => !d.disabled);
+	return (
+		<>
+			<header>
+				<div className="flex items-center justify-between py-s px-m mobile:p-m">
+					<div className="flex flex-row items-center ml-xs">
+						<button
+							data-date-picker-header-button="true"
+							onClick={() => {
+								onChange("MONTH");
+							}}
+							className={HEADER_BUTTON_CLASS}
+						>
+							{month}
+						</button>
+						<button
+							data-date-picker-header-button="true"
+							onClick={() => {
+								onChange("YEAR");
+							}}
+							className={HEADER_BUTTON_CLASS}
+						>
+							{year}
+						</button>
+					</div>
+					<div className="flex items-center">
+						<ChevronButton direction="left" props={subtractOffset({months: 1})} />
+						<ChevronButton direction="right" props={addOffset({months: 1})} />
+					</div>
+				</div>
+				<div className="grid grid-cols-7 justify-items-center text-tertiary font-semibold px-ml mb-s mobile:px-0 mobile:text-s">
+					{weekDays.map((weekDay) => (
+						<div className="text-center" key={`${month}-${weekDay}`}>
+							{weekDay.slice(0, 2)}
+						</div>
+					))}
+				</div>
+			</header>
+			<div className="pb-xs">
+				{rows.map((row, rowIndex) => (
+					<div
+						key={row[0]?.$date.toString()}
+						className="grid grid-cols-7 justify-items-center px-ml py-0 mobile:px-0"
+					>
+						{row.map((day, dayIndex) => {
+							const reapply = applySelectedDateOnClick && day.selected && !day.disabled;
+							const color = day.inCurrentMonth
+								? "text-primary hover:text-primary"
+								: "text-tertiary hover:text-tertiary";
+							const hover = day.selected
+								? "[&:hover_.date-picker-day-cell]:!bg-tint [&:focus-visible_.date-picker-day-cell]:!bg-tint"
+								: "[&:hover_.date-picker-day-cell]:!bg-secondary [&:focus-visible_.date-picker-day-cell]:!bg-secondary";
+							const props = dayButton(day, {
+								onClick: (_event, date) => {
+									if (date) {
+										onDateClick(date);
+									}
+								},
+							});
+							return (
+								<button
+									key={day.$date.toString()}
+									{...props}
+									{...(reapply
+										? {
+												onClick: () => {
+													onDateClick(day.$date);
+												},
+											}
+										: {})}
+									data-date-picker-day-button="true"
+									data-date-picker-grid-button="true"
+									data-date-picker-active-button={day === active ? "true" : undefined}
+									data-keyboard-focus-enter-from-after={
+										rowIndex === rows.length - 1 && dayIndex === 0 ? "true" : undefined
+									}
+									className={`!bg-transparent hover:!bg-transparent [&:focus:not(:hover)]:!bg-transparent active:!bg-transparent rounded-s m-0 p-0 mobile:p-m text-xs mobile:text-s ${color} ${hover}`}
+								>
+									<div className={dayCellClassName(day)}>{renderDayContent(day)}</div>
+								</button>
+							);
+						})}
+					</div>
+				))}
+			</div>
+		</>
+	);
+}
+
+function ChevronButton({direction, props}: {direction: "left" | "right"; props: DPPropGetter}) {
+	const {role: _role, tabIndex: _tabIndex, disabled, ...rest} = props;
+	return (
+		<IconButton
+			{...rest}
+			data-date-picker-header-button="true"
+			size="md"
+			shape="square"
+			disabled={disabled === true}
+			className={CHEVRON_BUTTON_CLASS}
+			onClick={(event) => {
+				props.onClick?.(event);
+			}}
+		>
+			<FaIcon icon={direction === "left" ? "fal:chevron-left" : "fal:chevron-right"} size="lg" />
+		</IconButton>
+	);
+}
+
+/** Upstream `Td4`: the year header and twelve month buttons. */
+function MonthView({datepicker, onChange}: ViewProps) {
+	const {
+		data: {months, calendars},
+		propGetters: {monthButton},
+	} = datepicker;
+	return (
+		<>
+			<header>
+				<div className="flex items-center justify-between py-s px-m mobile:p-m">
+					<button
+						type="button"
+						data-date-picker-header-button="true"
+						className="!bg-transparent hover:!bg-secondary focus:!bg-transparent focus-visible:!bg-secondary active:!bg-transparent leading-base text-center text-s mobile:text-base py-2xs px-s cursor-pointer rounded-s text-primary hover:text-primary"
+						onClick={() => {
+							onChange("YEAR");
+						}}
+					>
+						<strong>{calendars[0]?.year}</strong>
+					</button>
+				</div>
+			</header>
+			<div>
+				<div className="flex flex-wrap justify-around px-m">
+					{months.map((month) => (
+						<button
+							className={`flex-1 m-m cursor-pointer rounded-s text-xs !bg-transparent border-1 border-solid text-primary hover:text-primary
+              focus:!bg-transparent focus-visible:!bg-selected active:!bg-transparent
+              ${month.now ? "border-tint" : "border-transparent"} hover:!bg-selected`}
+							key={month.$date.toString()}
+							{...monthButton(month, {
+								onClick: () => {
+									onChange("DATE");
+								},
+							})}
+							data-date-picker-grid-button="true"
+							data-date-picker-active-button={month.active ? "true" : undefined}
+						>
+							{month.month.slice(0, 3)}
+						</button>
+					))}
+				</div>
+			</div>
+		</>
+	);
+}
+
+/** Upstream `Id4`: the decade window header, chevrons and twelve year buttons. */
+function YearView({datepicker, onChange}: ViewProps) {
+	const {
+		data: {years},
+		propGetters: {nextYearsButton, previousYearsButton, yearButton},
+	} = datepicker;
+	return (
+		<>
+			<header>
+				<div className="flex items-center justify-between py-s px-m mobile:p-m">
+					<strong className="flex-1 text-left text-s mobile:text-base text-primary ml-m min-w-[120px]">
+						{`${years[0]?.year} - ${years.at(-1)?.year}`}
+					</strong>
+					<ChevronButton direction="left" props={previousYearsButton()} />
+					<ChevronButton direction="right" props={nextYearsButton()} />
+				</div>
+			</header>
+			<div>
+				<div className="flex flex-wrap justify-around px-m">
+					{years.map((year) => (
+						<button
+							className={`flex-1 m-m cursor-pointer rounded-s text-xs mobile:text-s !bg-transparent border-1 border-solid text-primary hover:text-primary
+              focus:!bg-transparent focus-visible:!bg-secondary active:!bg-transparent
+              ${year.now ? "border-tint" : "border-transparent"} hover:!bg-secondary`}
+							key={year.$date.toString()}
+							{...yearButton(year, {
+								onClick: () => {
+									onChange("DATE");
+								},
+							})}
+							data-date-picker-grid-button="true"
+							data-date-picker-active-button={year.active ? "true" : undefined}
+						>
+							{year.year}
+						</button>
+					))}
+				</div>
+			</div>
+		</>
+	);
+}
+
+const DAY_INTEGERS: readonly DPDayInteger[] = [0, 1, 2, 3, 4, 5, 6];
+
+function toDayInteger(weekStartDay: number): DPDayInteger {
+	return DAY_INTEGERS.find((day) => day === weekStartDay) ?? 0;
+}
+
+/** Upstream `ZK` + `Z82`: the `data-keyboard-focus-scope` calendar with its DATE/MONTH/YEAR views (`_d4` single, `kd4` range). */
+function Calendar({
+	selected,
+	weekStartDay,
+	isRange,
+	initialView,
+	renderDayContent,
+	onApply,
+}: {
+	selected: Date[];
+	weekStartDay: number;
+	isRange: boolean;
+	initialView: DatePickerView;
+	renderDayContent: DayContent;
+	onApply: (dates: Date[]) => void;
+}) {
+	const [view, setView] = useState<DatePickerView>(initialView);
+	const [rangeStart, setRangeStart] = useState<Date | undefined>(undefined);
+	const anchor = selected[0];
+	const [offsetDate, setOffsetDate] = useState<Date>(() => anchor ?? new Date());
+	const [previousAnchor, setPreviousAnchor] = useState(anchor?.getTime());
+	// Upstream re-centres the grid on the selected date whenever it changes.
+	if (previousAnchor !== anchor?.getTime()) {
+		setPreviousAnchor(anchor?.getTime());
+		if (anchor) {
+			setOffsetDate(anchor);
+		}
+	}
+	const datepicker = useDatePicker({
+		selectedDates: selected,
+		onDatesChange: () => {},
+		offsetDate,
+		onOffsetChange: setOffsetDate,
+		locale: {locale: "en-GB", monthName: "short", weekday: "short"},
+		calendar: {startDay: toDayInteger(weekStartDay)},
+		years: {mode: "decade", numberOfYears: 12, step: 10},
+		...(isRange ? {dates: {mode: "range", selectSameDate: true}} : {}),
+	});
+	const onDateClick = (date: Date) => {
+		if (!isRange) {
+			onApply([date]);
+		} else if (rangeStart) {
+			onApply([rangeStart, date].toSorted((a, b) => a.getTime() - b.getTime()));
+		} else {
+			setRangeStart(date);
+			onApply([date]);
+		}
+	};
+	return (
+		<div data-keyboard-focus-scope="true" className="flex flex-col w-[220px]">
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- verbatim upstream markup: mousedown keeps focus in the date input */}
+			<section
+				onMouseDown={(event) => {
+					event.preventDefault();
+				}}
+			>
+				<div className="leading-m text-xs">
+					{view === "YEAR" && <YearView datepicker={datepicker} onChange={setView} />}
+					{view === "MONTH" && <MonthView datepicker={datepicker} onChange={setView} />}
+					{view === "DATE" && (
+						<DateView
+							datepicker={datepicker}
+							onChange={setView}
+							onDateClick={onDateClick}
+							applySelectedDateOnClick={!isRange}
+							renderDayContent={isRange ? plainDayContent : renderDayContent}
+						/>
+					)}
+				</div>
+			</section>
+		</div>
+	);
+}
+
+// Upstream builds menu rows with `${itemClassName}`, so the presets group (no itemClassName) carries a literal "undefined".
+const PRESET_ROW_CLASS = "undefined";
+const CONTROL_ROW_CLASS = "[&_.menuItemIcon]:w-[26px] mobile:[&_.menuItemIcon]:w-[54px]";
+
+function noEvents(): boolean {
+	return false;
+}
+
+function ignoreDates(): void {}
+
+const PRESETS: {label: string; preset: DatePreset; icon: "fal:sun-bright" | "fal:moon" | "fal:calendar-week"}[] = [
+	{label: "Today", preset: "today", icon: "fal:sun-bright"},
+	{label: "Tomorrow", preset: "tomorrow", icon: "fal:moon"},
+	{label: "Next week", preset: "next week", icon: "fal:calendar-week"},
+];
+
+/** Upstream's `!!` / pill date popup (`gP.for`): input row, presets, calendar, then Range / Format / Remove date. */
+export function DatePickerPopup({
+	selected,
+	weekStartDay = 0,
+	isRange = false,
+	showNoDate = false,
+	term = "",
+	initialView = "DATE",
+	position,
+	hasEvent = noEvents,
+	onTermChange,
+	onApply = ignoreDates,
+	onPreset,
+	onToggleRange,
+	onFormat,
+	onRemove,
+	onEscape,
+	onClose,
+}: DatePickerPopupProps) {
+	const box = popoverBox({minWidth: 0, maxWidth: 240, offset: [0, 0]});
+	return (
+		<div
+			className={`${box.className} absolute flyout menu [&.menu]:py-0`}
+			style={{...box.style, ...(position ? {left: position.left, top: position.top} : {})}}
+		>
+			<MenuBody keyboardMode initialSelect={-1} selectOnTab={false} exit={onClose}>
+				<div className="flex items-center px-l py-m bg-secondary">
+					<input
+						type="text"
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream focuses the date input as soon as the popup opens
+						autoFocus
+						placeholder="Type date"
+						className="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary"
+						value={term}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								onEscape?.();
+								event.preventDefault();
+								event.stopPropagation();
+							}
+						}}
+						onChange={(event) => {
+							onTermChange?.(event.currentTarget.value);
+						}}
+					/>
+				</div>
+				<MenuSeparator style={{margin: 0}} />
+				{PRESETS.map(({label, preset, icon}) => (
+					<MenuItem
+						key={preset}
+						label={label}
+						icon={icon}
+						className={PRESET_ROW_CLASS}
+						onSelect={() => {
+							onPreset?.(preset);
+						}}
+					/>
+				))}
+				<MenuSeparator style={{margin: 0}} />
+				<Calendar
+					selected={selected}
+					weekStartDay={weekStartDay}
+					isRange={isRange}
+					initialView={initialView}
+					renderDayContent={dottedDayContent(hasEvent)}
+					onApply={onApply}
+				/>
+				<MenuSeparator style={{margin: 0}} />
+				<MenuItem
+					label="Range"
+					icon={<Toggle on={isRange} />}
+					className={CONTROL_ROW_CLASS}
+					onSelect={() => {
+						onToggleRange?.();
+						return true;
+					}}
+				/>
+				<MenuItem label="Format" icon="fal:gear" className={CONTROL_ROW_CLASS} onSelect={onFormat} />
+				{showNoDate && (
+					<MenuItem label="Remove date" icon="fal:ban" className={CONTROL_ROW_CLASS} onSelect={onRemove} />
+				)}
+			</MenuBody>
+		</div>
+	);
+}

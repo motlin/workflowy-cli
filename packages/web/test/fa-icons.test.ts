@@ -75,6 +75,11 @@ describe("FA_ICONS", () => {
 			"fal:block-quote",
 			"fal:rectangle-code",
 			"fal:horizontal-rule",
+			"fal:sun-bright",
+			"fal:moon",
+			"fal:gear",
+			"fal:ban",
+			"fas:circle-small",
 			"fal:ellipsis-h",
 		]);
 	});
