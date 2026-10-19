@@ -26,6 +26,7 @@ describe("node-resolver service", () => {
 		createNode: MockInstance<WorkflowyApiClient["createNode"]>;
 		getNode: MockInstance<WorkflowyApiClient["getNode"]>;
 		getChildNodes: MockInstance<WorkflowyApiClient["getChildNodes"]>;
+		getRootNodes: MockInstance<WorkflowyApiClient["getRootNodes"]>;
 	};
 
 	beforeEach(() => {
@@ -51,6 +52,15 @@ describe("node-resolver service", () => {
 					createNode.mock.settledResults
 						.flatMap((result) => (result.type === "fulfilled" ? [result.value] : []))
 						.filter((node) => node.parent_id === parentId)
+						.map((node) => ({...node, priority: 100})),
+				),
+			),
+			// A create at Home re-reads the top-level nodes instead
+			getRootNodes: vi.spyOn(apiClient, "getRootNodes").mockImplementation(async () =>
+				Promise.resolve(
+					createNode.mock.settledResults
+						.flatMap((result) => (result.type === "fulfilled" ? [result.value] : []))
+						.filter((node) => node.parent_id === null)
 						.map((node) => ({...node, priority: 100})),
 				),
 			),
@@ -313,12 +323,24 @@ describe("node-resolver service", () => {
 			expect(mockApiClient.createNode).toHaveBeenCalledTimes(2);
 		});
 
-		it("throws error for root-level creation", async () => {
+		it("creates a missing first segment at Home", async () => {
 			mockApiClient.findNodeByPath.mockResolvedValue(null);
 
-			await expect(resolveOrCreateNodePath("NewRoot,Child", cacheService, apiClient)).rejects.toThrow(
-				'Cannot create path "NewRoot,Child": first segment "NewRoot" does not exist. Root-level node creation is not supported.',
+			const now = Date.now();
+			mockApiClient.createNode.mockResolvedValueOnce(
+				createApiNode({id: "new-root-id", name: "NewRoot", parent_id: null, createdAt: now}),
 			);
+			mockApiClient.createNode.mockResolvedValueOnce(
+				createApiNode({id: "child-id", name: "Child", parent_id: "new-root-id", createdAt: now}),
+			);
+
+			const result = await resolveOrCreateNodePath("NewRoot,Child", cacheService, apiClient);
+
+			expect(result).toBe("child-id");
+			expect(mockApiClient.createNode.mock.calls).toStrictEqual([
+				[{parent_id: null, name: "NewRoot"}],
+				[{parent_id: "new-root-id", name: "Child"}],
+			]);
 		});
 
 		it("deduplicates created nodes within same call", async () => {

@@ -87,7 +87,8 @@ export async function resolveOptionalNodeId(
 
 /**
  * Resolves a node path, creating missing segments as needed (like `mkdir -p`).
- * Walks the path from root, finds existing nodes, and creates any missing ones.
+ * Walks the path from Home, finds existing nodes, and creates any missing ones,
+ * including a missing first segment at the top level.
  *
  * @param path - Comma-separated path to resolve/create
  * @param cacheService - The cache service for local lookup and caching created nodes
@@ -121,14 +122,9 @@ export async function resolveOrCreateNodePath(
 			currentParentId = nodeId;
 			createdNodes.set(subKey, nodeId);
 		} else {
-			if (!currentParentId) {
-				throw new Error(
-					`Cannot create path "${path}": first segment "${pathParts[0]}" does not exist. Root-level node creation is not supported.`,
-				);
-			}
-
+			// A missing first segment is created at Home (the top level).
 			const newNode = await new WorkflowyWriteThroughClient(apiClient, cacheService).createNode({
-				parent_id: currentParentId,
+				parent_id: currentParentId ?? null,
 				name: part,
 			});
 
