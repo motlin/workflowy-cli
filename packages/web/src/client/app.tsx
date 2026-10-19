@@ -26,6 +26,7 @@ import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
+import {useSelectionKeymap} from "./hooks/use-selection-keymap.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
@@ -93,6 +94,7 @@ function OutlineView() {
 	// Register keyboard shortcuts
 	const commands = useCommandRegistry();
 	useGlobalKeymap(commands);
+	useSelectionKeymap();
 	const runCommand = (commandId: "undo" | "redo") => () => {
 		commands[commandId].execute({items: [], zoomedId: zoomedNodeId});
 	};

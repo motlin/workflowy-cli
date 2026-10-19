@@ -1,5 +1,9 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
+	caretAfterArrowClear,
+	deleteCaretTarget,
+	editorSelectAllTakesOver,
+	editorShiftArrowTakesOver,
 	emptySelection,
 	expand,
 	isCovered,
@@ -8,10 +12,11 @@ import {
 	pivotTo,
 	removeIds,
 	selectIds,
+	selectionKeyAction,
 	sortedIds,
 	toggleClick,
 } from "../src/client/item-selection.js";
-import type {SelectionState, TreeView} from "../src/client/item-selection.js";
+import type {FlatRow, SelectionState, TreeView} from "../src/client/item-selection.js";
 
 // R; Alpha{A1,A2}, Bravo, Charlie{C1}, Delta, Echo; all expanded.
 const children: Record<string, string[]> = {
@@ -175,5 +180,132 @@ describe("isEntry", () => {
 			false,
 			true,
 		]);
+	});
+});
+
+// The navigable rows in display order: the zoom root's title, then every visible row.
+const flattened: FlatRow[] = tree.visibleOrder.map((id) => ({id, parentId: id === "R" ? null : tree.parentOf(id)}));
+
+describe("editorShiftArrowTakesOver", () => {
+	it("takes over only at the caret boundary of the name editor", () => {
+		expect([
+			editorShiftArrowTakesOver({dir: "down", start: 2, end: 3, length: 5, inNote: false}),
+			editorShiftArrowTakesOver({dir: "down", start: 2, end: 5, length: 5, inNote: false}),
+			editorShiftArrowTakesOver({dir: "up", start: 0, end: 3, length: 5, inNote: false}),
+			editorShiftArrowTakesOver({dir: "up", start: 1, end: 5, length: 5, inNote: false}),
+			editorShiftArrowTakesOver({dir: "up", start: 0, end: 0, length: 5, inNote: true}),
+		]).toStrictEqual([false, true, true, false, false]);
+	});
+});
+
+describe("editorSelectAllTakesOver", () => {
+	it("takes over once the whole row text is already selected", () => {
+		expect([
+			editorSelectAllTakesOver({start: 0, end: 5, length: 5}),
+			editorSelectAllTakesOver({start: 1, end: 5, length: 5}),
+			editorSelectAllTakesOver({start: 0, end: 4, length: 5}),
+			editorSelectAllTakesOver({start: 0, end: 0, length: 0}),
+		]).toStrictEqual([true, false, false, true]);
+	});
+});
+
+describe("caretAfterArrowClear", () => {
+	it("places the caret beside the selection for each arrow", () => {
+		expect([
+			caretAfterArrowClear("down", ["Alpha", "Bravo"], flattened),
+			caretAfterArrowClear("up", ["Bravo"], flattened),
+			caretAfterArrowClear("right", ["Alpha"], flattened),
+			caretAfterArrowClear("left", ["Bravo", "Delta"], flattened),
+			caretAfterArrowClear("down", ["Alpha"], flattened),
+		]).toStrictEqual([
+			{id: "Charlie", offset: 0},
+			{id: "A2", offset: 0},
+			{id: "A2", offset: "end"},
+			{id: "Bravo", offset: 0},
+			{id: "Bravo", offset: 0},
+		]);
+	});
+
+	it("falls back to the selection's own rows at the outline's edges", () => {
+		expect([
+			caretAfterArrowClear("down", ["Echo"], flattened),
+			caretAfterArrowClear("up", ["R"], flattened),
+			caretAfterArrowClear("down", ["R"], flattened),
+			caretAfterArrowClear("left", [], flattened),
+		]).toStrictEqual([{id: "Echo", offset: "end"}, {id: "R", offset: 0}, {id: "Echo", offset: "end"}, null]);
+	});
+});
+
+describe("deleteCaretTarget", () => {
+	it("is the end of the row above the first selected row", () => {
+		expect([
+			deleteCaretTarget(["Echo"], flattened),
+			deleteCaretTarget(["Charlie", "Echo"], flattened),
+			deleteCaretTarget(["A1"], flattened),
+		]).toStrictEqual([
+			{id: "Delta", offset: "end"},
+			{id: "Bravo", offset: "end"},
+			{id: "Alpha", offset: "end"},
+		]);
+	});
+
+	it("falls back to the start of the row after the selection, else nowhere", () => {
+		const rows = flattened.slice(1);
+		expect([
+			deleteCaretTarget(["Alpha"], rows),
+			deleteCaretTarget(["Alpha", "Bravo", "Charlie", "Delta", "Echo"], rows),
+		]).toStrictEqual([{id: "Bravo", offset: 0}, null]);
+	});
+});
+
+describe("selectionKeyAction", () => {
+	const key = (k: string, mods: Partial<Record<"metaKey" | "ctrlKey" | "altKey" | "shiftKey", boolean>> = {}) => ({
+		key: k,
+		metaKey: false,
+		ctrlKey: false,
+		altKey: false,
+		shiftKey: false,
+		...mods,
+	});
+
+	it("maps the keys a selection owns on mac", () => {
+		expect(
+			[
+				key("ArrowUp", {shiftKey: true}),
+				key("ArrowDown", {shiftKey: true}),
+				key("a", {metaKey: true}),
+				key("a", {ctrlKey: true}),
+				key("ArrowLeft"),
+				key("ArrowRight"),
+				key("ArrowUp"),
+				key("ArrowDown"),
+				key("Backspace"),
+				key("Delete"),
+				key("Escape"),
+				key("ArrowUp", {metaKey: true, shiftKey: true}),
+				key("x"),
+			].map((event) => selectionKeyAction(event, true)),
+		).toStrictEqual([
+			"EXPAND_UP",
+			"EXPAND_DOWN",
+			"SELECT_ALL",
+			null,
+			"CLEAR_LEFT",
+			"CLEAR_RIGHT",
+			"CLEAR_UP",
+			"CLEAR_DOWN",
+			"DELETE",
+			"DELETE",
+			"ESCAPE",
+			null,
+			null,
+		]);
+	});
+
+	it("selects all with ctrl elsewhere", () => {
+		expect([
+			selectionKeyAction(key("a", {ctrlKey: true}), false),
+			selectionKeyAction(key("a", {metaKey: true}), false),
+		]).toStrictEqual(["SELECT_ALL", null]);
 	});
 });

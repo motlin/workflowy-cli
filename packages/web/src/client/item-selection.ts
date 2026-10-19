@@ -235,3 +235,157 @@ export function pivotTo(
 		retractableIds: selected.entries.map((entry) => entry.id).filter((entryId) => !before.has(entryId)),
 	};
 }
+
+/** ⇧↑ at the name's text start or ⇧↓ at its end ends editing and selects the row; mid-text and in notes it stays native. */
+export function editorShiftArrowTakesOver({
+	dir,
+	start,
+	end,
+	length,
+	inNote,
+}: {
+	dir: Direction;
+	start: number;
+	end: number;
+	length: number;
+	inNote: boolean;
+}): boolean {
+	if (inNote) {
+		return false;
+	}
+	return dir === "up" ? start === 0 : end >= length;
+}
+
+/** ⌘A selects items only once the row's whole text is already selected; the first ⌘A stays native. */
+export function editorSelectAllTakesOver({start, end, length}: {start: number; end: number; length: number}): boolean {
+	return start === 0 && end >= length;
+}
+
+/** A navigable row in display order (the zoom root's title first when zoomed) and its parent. */
+export interface FlatRow {
+	id: string;
+	parentId: string | null;
+}
+
+/** Where editing resumes: a text offset, or the end of the row's text. */
+export interface CaretTarget {
+	id: string;
+	offset: number | "end";
+}
+
+export type ArrowDirection = "left" | "right" | "up" | "down";
+
+/** The index of `id`'s last descendant among `rows` (its own index when it has none), or -1 when absent. */
+function lastDescendantIndex(rows: readonly FlatRow[], id: string): number {
+	const index = rows.findIndex((row) => row.id === id);
+	if (index === -1) {
+		return -1;
+	}
+	const parents = new Map(rows.map((row) => [row.id, row.parentId]));
+	const descends = (rowId: string) => {
+		for (let parent = parents.get(rowId) ?? null; parent !== null; parent = parents.get(parent) ?? null) {
+			if (parent === id) {
+				return true;
+			}
+		}
+		return false;
+	};
+	let last = index;
+	while (last + 1 < rows.length && descends(rows[last + 1]?.id ?? "")) {
+		last += 1;
+	}
+	return last;
+}
+
+/**
+ * A plain arrow with an item selection clears it and edits beside it: ← the first row's start; → the end of the last
+ * row's last descendant; ↑ the start of the row above the first; ↓ the start of the row after the last row's
+ * descendants, else the end of that last descendant. `ordered` is the selection in display order.
+ */
+export function caretAfterArrowClear(
+	dir: ArrowDirection,
+	ordered: readonly string[],
+	rows: readonly FlatRow[],
+): CaretTarget | null {
+	const first = ordered[0];
+	const last = ordered.at(-1);
+	if (first === undefined || last === undefined) {
+		return null;
+	}
+	if (dir === "left") {
+		return {id: first, offset: 0};
+	}
+	if (dir === "up") {
+		const above = rows[rows.findIndex((row) => row.id === first) - 1];
+		return {id: above?.id ?? first, offset: 0};
+	}
+	const end = lastDescendantIndex(rows, last);
+	const endId = rows[end]?.id ?? last;
+	if (dir === "right") {
+		return {id: endId, offset: "end"};
+	}
+	const after = rows[end + 1];
+	return after === undefined ? {id: endId, offset: "end"} : {id: after.id, offset: 0};
+}
+
+/** Where editing resumes after deleting the selection: the end of the row above it, else the start of the row after it. */
+export function deleteCaretTarget(ordered: readonly string[], rows: readonly FlatRow[]): CaretTarget | null {
+	const first = ordered[0];
+	const last = ordered.at(-1);
+	if (first === undefined || last === undefined) {
+		return null;
+	}
+	const above = rows[rows.findIndex((row) => row.id === first) - 1];
+	if (above !== undefined) {
+		return {id: above.id, offset: "end"};
+	}
+	const after = rows[lastDescendantIndex(rows, last) + 1];
+	return after === undefined ? null : {id: after.id, offset: 0};
+}
+
+/** The keys an item selection owns while focus is off the editors (upstream's hotkeys enabled while it has entries). */
+export type SelectionKeyAction =
+	| "EXPAND_UP"
+	| "EXPAND_DOWN"
+	| "SELECT_ALL"
+	| "CLEAR_LEFT"
+	| "CLEAR_RIGHT"
+	| "CLEAR_UP"
+	| "CLEAR_DOWN"
+	| "DELETE"
+	| "ESCAPE";
+
+const PLAIN_SELECTION_KEYS: Readonly<Record<string, SelectionKeyAction>> = {
+	ArrowLeft: "CLEAR_LEFT",
+	ArrowRight: "CLEAR_RIGHT",
+	ArrowUp: "CLEAR_UP",
+	ArrowDown: "CLEAR_DOWN",
+	Backspace: "DELETE",
+	Delete: "DELETE",
+	Escape: "ESCAPE",
+};
+
+/** Classify a keydown made while items are selected, or null when the selection leaves it alone. */
+export function selectionKeyAction(
+	event: {key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean},
+	isMac: boolean,
+): SelectionKeyAction | null {
+	const {key, metaKey, ctrlKey, altKey, shiftKey} = event;
+	if (altKey) {
+		return null;
+	}
+	const mod = isMac ? metaKey && !ctrlKey : ctrlKey && !metaKey;
+	if (mod) {
+		return !shiftKey && key === "a" ? "SELECT_ALL" : null;
+	}
+	if (metaKey || ctrlKey) {
+		return null;
+	}
+	if (shiftKey) {
+		if (key === "ArrowUp") {
+			return "EXPAND_UP";
+		}
+		return key === "ArrowDown" ? "EXPAND_DOWN" : null;
+	}
+	return PLAIN_SELECTION_KEYS[key] ?? null;
+}

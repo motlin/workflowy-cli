@@ -20,6 +20,8 @@ import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
 import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
+import {currentSelectionView, freshSelection, scrollRowIntoView} from "../hooks/use-selection-keymap.js";
+import {editorSelectAllTakesOver, editorShiftArrowTakesOver} from "../item-selection.js";
 import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
@@ -151,6 +153,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
+	const setItemSelection = useOutlineStore((state) => state.setItemSelection);
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
 	const openSearchFromEditing = useOutlineStore((state) => state.openSearchFromEditing);
 	const updateNodeMutation = useUpdateNode();
@@ -857,12 +860,58 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		}
 	}, [nodeId, saveChanges, hideDateAutocomplete]);
 
+	/**
+	 * ⇧↑ at the text start, ⇧↓ at its end, or ⌘A over the already fully selected text: commit the text, stop editing
+	 * and select items instead (this row, or the zoom root / Home's top-level rows for ⌘A). Returns false when the key
+	 * stays native.
+	 */
+	const selectItemsFromEditor = useCallback(
+		(action: "SELECT_UP" | "SELECT_DOWN" | "SELECT_ALL"): boolean => {
+			const content = contentRef.current;
+			if (!content) {
+				return false;
+			}
+			const {start, end} = selectionTextOffsets(content);
+			const length = textUnitLength(content);
+			const takesOver =
+				action === "SELECT_ALL"
+					? editorSelectAllTakesOver({start, end, length})
+					: editorShiftArrowTakesOver({
+							dir: action === "SELECT_UP" ? "up" : "down",
+							start,
+							end,
+							length,
+							inNote: false,
+						});
+			if (!takesOver) {
+				return false;
+			}
+			const view = currentSelectionView(queryClient);
+			saveChanges();
+			stopEditing();
+			globalThis.getSelection()?.removeAllRanges();
+			content.blur();
+			setItemSelection(freshSelection(view, action === "SELECT_ALL" ? view.allIds : [nodeId]));
+			if (action !== "SELECT_ALL") {
+				scrollRowIntoView(nodeId);
+			}
+			return true;
+		},
+		[nodeId, queryClient, saveChanges, setItemSelection, stopEditing],
+	);
+
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
 			const action = classifyEditorKey(event, isMacPlatform());
 			const composing = event.nativeEvent.isComposing;
 			const arrow = action === null ? undefined : CARET_ARROWS[action];
-			if (arrow !== undefined && !composing && enterRootNote(arrow)) {
+			if (
+				(action === "SELECT_UP" || action === "SELECT_DOWN" || action === "SELECT_ALL") &&
+				!composing &&
+				selectItemsFromEditor(action)
+			) {
+				event.preventDefault();
+			} else if (arrow !== undefined && !composing && enterRootNote(arrow)) {
 				event.preventDefault();
 			} else if ((action === "CARET_UP" || action === "CARET_DOWN") && !composing) {
 				if (moveToAdjacentNode(action === "CARET_UP" ? "up" : "down")) {
@@ -928,6 +977,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			nodeId,
 			openSearchFromEditing,
 			saveChanges,
+			selectItemsFromEditor,
 			splitAtSelection,
 			toggleStrikethrough,
 			toggleCode,
