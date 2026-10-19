@@ -31,3 +31,11 @@ describe("show completed slideDown CSS", () => {
 		);
 	});
 });
+
+describe("expand slideDown CSS", () => {
+	it("lets notes under a row whose children are sliding down use their inherited line clamp", () => {
+		expect(cssBlock(styles, ".project.animatingShowChildren .noted > .notes > .content")).toStrictEqual({
+			"-webkit-line-clamp": "inherit",
+		});
+	});
+});

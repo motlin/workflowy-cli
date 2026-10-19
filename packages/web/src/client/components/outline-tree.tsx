@@ -1,5 +1,5 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
-import type {ReactNode} from "react";
+import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, NodeResponse} from "../../node-types.js";
 import {useEffect, useRef, useState} from "react";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
@@ -338,8 +338,11 @@ export function OutlineChildren({
 	owner,
 	isRoot = false,
 	depth = 1,
+	containerRef,
 }: {
 	parentId: string | null;
+	/** The `.children` element, for the expand/collapse slide. */
+	containerRef?: Ref<HTMLDivElement>;
 	/** The row whose `.children` this is; a nested `.children` ends with its add-sibling button. */
 	owner?: NodeResponse;
 	isRoot?: boolean;
@@ -363,7 +366,7 @@ export function OutlineChildren({
 	}
 
 	return (
-		<div className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
+		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
 			{visibleNodes.slice(0, maxToRender).map((node) => (
 				<OutlineRow key={node.id} depth={depth} node={node} />
 			))}

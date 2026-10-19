@@ -1177,6 +1177,11 @@ body {
 	animation: completed-slide-down 120ms;
 }
 
+/* Upstream lets notes under a row whose children are sliding down keep their inherited line clamp. */
+.project.animatingShowChildren .noted > .notes > .content {
+	-webkit-line-clamp: inherit;
+}
+
 .done > .name > .content {
 	text-decoration: line-through;
 }

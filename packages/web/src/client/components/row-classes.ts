@@ -15,6 +15,8 @@ export interface ProjectClassState {
 	slidingUp?: boolean;
 	/** The completed row was just revealed by showing completed and plays the slideDown. */
 	slidingDown?: boolean;
+	/** The row's `.children` is playing the expand slideDown. */
+	animatingShowChildren?: boolean;
 	/** Shift+Cmd+Up/Down just moved this row; upstream flashes it for 500ms. */
 	moving?: boolean;
 }
@@ -39,6 +41,7 @@ export function projectClassName(state: ProjectClassState): string {
 		state.completed && "done",
 		(state.hasNote || state.noteFocused) && "noted",
 		branch && state.expanded && "open",
+		branch && state.expanded && state.animatingShowChildren && "animatingShowChildren",
 		branch && !state.expanded && "collapsed",
 		state.isZoomRoot && "selected root",
 		state.highlighted && "highlighted",

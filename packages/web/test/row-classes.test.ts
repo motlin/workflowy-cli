@@ -23,6 +23,12 @@ describe("projectClassName", () => {
 		expect(projectClassName({...LEAF, hasChildren: true, expanded: true})).toBe("font-custom project open");
 	});
 
+	it("marks a parent whose children are sliding down as open animatingShowChildren", () => {
+		expect(projectClassName({...LEAF, hasChildren: true, expanded: true, animatingShowChildren: true})).toBe(
+			"font-custom project open animatingShowChildren",
+		);
+	});
+
 	it("marks a collapsed parent as collapsed", () => {
 		expect(projectClassName({...LEAF, hasChildren: true})).toBe("font-custom project collapsed");
 	});

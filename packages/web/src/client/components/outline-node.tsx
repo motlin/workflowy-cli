@@ -1,7 +1,8 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
-import {Fragment, useRef, useState} from "react";
+import {Fragment, useLayoutEffect, useRef, useState} from "react";
+import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
@@ -333,6 +334,7 @@ function rowProjectClassName(
 	slidingUp: boolean,
 	slidingDown: boolean,
 	moving: boolean,
+	animatingShowChildren: boolean,
 ): string {
 	return projectClassName({
 		hasChildren,
@@ -348,6 +350,7 @@ function rowProjectClassName(
 		slidingUp,
 		slidingDown,
 		moving,
+		animatingShowChildren,
 	});
 }
 
@@ -413,6 +416,33 @@ export function OutlineRow({
 		setNoteMounted(true);
 	}
 
+	// Expanding slides `.children` down; collapsing removes `open` at once but keeps `.children` mounted while it
+	// slides up. A row that mounts expanded does not slide.
+	const [prevExpanded, setPrevExpanded] = useState(isExpanded);
+	const [childrenSlide, setChildrenSlide] = useState<"down" | "up" | null>(null);
+	if (isExpanded !== prevExpanded) {
+		setPrevExpanded(isExpanded);
+		setChildrenSlide(isExpanded ? "down" : "up");
+	}
+	const childrenRef = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		if (childrenSlide === null) {
+			return () => {};
+		}
+		const done = () => {
+			setChildrenSlide(null);
+		};
+		const el = childrenRef.current;
+		if (el === null) {
+			// Children not rendered yet (still loading) get no slide.
+			const frame = requestAnimationFrame(done);
+			return () => {
+				cancelAnimationFrame(frame);
+			};
+		}
+		return (childrenSlide === "down" ? slideDown : slideUp)(el, browserSlideDeps(), done);
+	}, [childrenSlide]);
+
 	// The slideUp's own transition ending hides the row; a child's transition does not.
 	const handleTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
 		if (isSlidingUp && event.target === event.currentTarget) {
@@ -430,6 +460,7 @@ export function OutlineRow({
 				isSlidingUp,
 				isSlidingDown,
 				isMoving,
+				childrenSlide === "down",
 			)}
 			onTransitionEnd={handleTransitionEnd}
 		>
@@ -447,7 +478,9 @@ export function OutlineRow({
 			<div className="drop-line">
 				<div className="line" />
 			</div>
-			{isExpanded ? <OutlineChildren depth={depth + 1} owner={node} parentId={node.id} /> : null}
+			{isExpanded || childrenSlide === "up" ? (
+				<OutlineChildren containerRef={childrenRef} depth={depth + 1} owner={node} parentId={node.id} />
+			) : null}
 		</div>
 	);
 }
