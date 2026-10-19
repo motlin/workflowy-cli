@@ -112,7 +112,7 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 	};
 });
 
-const {TopBar} = await import("../src/client/components/top-bar.js");
+const {TopBar, createPeekController} = await import("../src/client/components/top-bar.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
@@ -526,5 +526,58 @@ describe("TopBar Change layout button", () => {
 		gearMenuProps.headerItems?.find((item) => item.label === "Change layout")?.onSelect();
 		vi.unstubAllGlobals();
 		expect(pickerCalls).toStrictEqual([{nodeIds: ["alice"], position: {top: 48, left: 1200}}]);
+	});
+});
+
+describe("createPeekController", () => {
+	function setup(hovered = false) {
+		const calls: string[] = [];
+		const controller = createPeekController({
+			open: () => {
+				calls.push("open");
+			},
+			close: () => {
+				calls.push("close");
+			},
+			isHovered: () => hovered,
+		});
+		return {calls, controller};
+	}
+
+	it("opens the drawer on enter and closes it 200ms after leave", () => {
+		vi.useFakeTimers();
+		const {calls, controller} = setup();
+		controller.enter();
+		expect(calls).toStrictEqual(["open"]);
+		controller.leave();
+		vi.advanceTimersByTime(199);
+		expect(calls).toStrictEqual(["open"]);
+		vi.advanceTimersByTime(1);
+		expect(calls).toStrictEqual(["open", "close"]);
+		vi.advanceTimersByTime(1000);
+		vi.useRealTimers();
+		expect(calls).toStrictEqual(["open", "close"]);
+	});
+
+	it("keeps the drawer open when the pointer reached the left bar", () => {
+		vi.useFakeTimers();
+		const {calls, controller} = setup(true);
+		controller.enter();
+		controller.leave();
+		vi.advanceTimersByTime(200);
+		vi.useRealTimers();
+		expect(calls).toStrictEqual(["open"]);
+	});
+
+	it("cancels a pending close when the pointer re-enters", () => {
+		vi.useFakeTimers();
+		const {calls, controller} = setup();
+		controller.enter();
+		controller.leave();
+		vi.advanceTimersByTime(100);
+		controller.enter();
+		vi.advanceTimersByTime(500);
+		vi.useRealTimers();
+		expect(calls).toStrictEqual(["open", "open"]);
 	});
 });

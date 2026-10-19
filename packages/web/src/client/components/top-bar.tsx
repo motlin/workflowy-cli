@@ -1,4 +1,4 @@
-import {useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {locationKey} from "@workflowy/shared";
 import {useNavigate} from "react-router-dom";
 import {useChildren, useExpandAll, useHome, useNode} from "../hooks/use-nodes.js";
@@ -19,6 +19,48 @@ import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {stepNav, useNavStackSync} from "../navigation.js";
 import {internalLinkUrl} from "../item-menu-model.js";
 
+/** Upstream's hamburger hover peek: the drawer closes this long after the pointer leaves the hamburger. */
+const PEEK_CLOSE_DELAY_MS = 200;
+
+export interface PeekControllerOptions {
+	open: () => void;
+	close: () => void;
+	/** True while the pointer is over the left bar itself, which keeps the drawer open. */
+	isHovered: () => boolean;
+}
+
+/**
+ * Hamburger hover peek: enter cancels any pending close and opens the drawer; leave closes it
+ * 200ms later unless the pointer has moved onto the left bar by then.
+ */
+export function createPeekController({open, close, isHovered}: PeekControllerOptions) {
+	let closeTimer: ReturnType<typeof setTimeout> | undefined;
+	const cancel = () => {
+		clearTimeout(closeTimer);
+		closeTimer = undefined;
+	};
+	return {
+		enter: () => {
+			cancel();
+			open();
+		},
+		leave: () => {
+			cancel();
+			closeTimer = setTimeout(() => {
+				closeTimer = undefined;
+				if (!isHovered()) {
+					close();
+				}
+			}, PEEK_CLOSE_DELAY_MS);
+		},
+		dispose: cancel,
+	};
+}
+
+function canHover(): boolean {
+	return globalThis.matchMedia("(any-hover: hover) and (pointer: fine)").matches;
+}
+
 /**
  * Top toolbar matching upstream's div.wf-header.header: flat children (hamburger,
  * pagination, breadcrumbs, right cluster), 48px tall, fixed at the top.
@@ -38,7 +80,17 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		leftBarOffset,
 		leftBarMode,
 		showItemTypePicker,
+		openLeftBarDrawer,
+		closeLeftBarDrawer,
 	} = useOutlineStore();
+	const [peek] = useState(() =>
+		createPeekController({
+			open: openLeftBarDrawer,
+			close: closeLeftBarDrawer,
+			isHovered: () => useOutlineStore.getState().leftBarHovered,
+		}),
+	);
+	useEffect(() => peek.dispose, [peek]);
 	const navigate = useNavigate();
 	const navigateToToday = useNavigateToToday();
 	const toggleCompleted = useShowCompletedToggle();
@@ -162,7 +214,16 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			{leftBarMode === "alwaysOpen" ? (
 				<div className="w-l" />
 			) : (
-				<div style={{position: "relative"}}>
+				<div
+					style={{position: "relative"}}
+					onMouseEnter={() => {
+						// Upstream peeks on pointer devices only; touch taps go through the toggle.
+						if (canHover()) {
+							peek.enter();
+						}
+					}}
+					onMouseLeave={peek.leave}
+				>
 					<IconButton data-handbook="toggle_leftbar" onClick={toggleLeftBar}>
 						<FaIcon icon="fal:bars" />
 					</IconButton>
