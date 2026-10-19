@@ -80,6 +80,22 @@ describe("processCombo", () => {
 			calls: toggle.mock.calls,
 		}).toStrictEqual({results: ["claimed", "unclaimed"], calls: [[ctx]]});
 	});
+
+	it("toggles the left bar on ⌃L on mac and ⌥L elsewhere, leaving ctrl+l off mac to the browser", () => {
+		const toggle = vi.fn<(ctx: CommandContext) => void>();
+		const registry = {toggle_leftbar: {execute: toggle}};
+		const key = {which: 76, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false};
+		const dispatch = (event: typeof key, isMac: boolean) => {
+			const combo = keymapCombo(event, isMac);
+			return combo === null ? null : processCombo(combo, registry, ctx, isMac);
+		};
+		expect({
+			macCtrl: dispatch({...key, ctrlKey: true}, true),
+			otherAlt: dispatch({...key, altKey: true}, false),
+			otherCtrl: dispatch({...key, ctrlKey: true}, false),
+			calls: toggle.mock.calls,
+		}).toStrictEqual({macCtrl: "claimed", otherAlt: "claimed", otherCtrl: "unclaimed", calls: [[ctx], [ctx]]});
+	});
 });
 
 describe("hotkeyTable", () => {
