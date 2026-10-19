@@ -24,6 +24,7 @@
 		"diff": "^9.0.0",
 		"drizzle-orm": "^0.45.3",
 		"hono": "^4.13.13",
+		"math-expression-evaluator": "^2.0.7",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
 		"react-hotkeys-hook": "^5.3.3",

@@ -5,6 +5,7 @@ import {SlashMenu} from "../components/slash-menu.js";
 import type {CommandContext} from "../keys/dispatch.js";
 import {LOCAL_SLASH_AVAILABLE, resolveSlash} from "../slash-commands.js";
 import type {SlashCommandKey, SlashCommandOption, SlashGroup, SlashMathOption} from "../slash-commands.js";
+import {evalMath} from "../slash-math.js";
 import {slashKeyAction, slashMode} from "../slash-menu-state.js";
 import {planSlashOpen, planSlashRearm, SLASH_CHIP_CLASS} from "../slash-trigger.js";
 import type {SlashRange} from "../slash-trigger.js";
@@ -52,6 +53,7 @@ function resolve(chipText: string, nodeId: string): SlashGroup[] | null {
 			const command = registry[key];
 			return LOCAL_SLASH_AVAILABLE(key) && command !== undefined && command.available?.(ctx) !== false;
 		},
+		evalMath,
 	});
 	return groups !== null && flatOptions(groups).length > 0 ? groups : null;
 }

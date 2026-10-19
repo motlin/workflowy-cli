@@ -38,4 +38,12 @@ describe("slash menu wiring", () => {
 			["editable-note.tsx", true, true, true, true, true],
 		]);
 	});
+
+	it("passes evalMath to resolveSlash so /2*3 offers the = math group", () => {
+		const text = readFileSync(new URL("../src/client/hooks/use-slash-menu.tsx", import.meta.url), "utf8");
+		expect([
+			text.includes('import {evalMath} from "../slash-math.js";'),
+			/resolveSlash\(chipText, \{[\s\S]*?\n\t\tevalMath,\n\t\}\);/u.test(text),
+		]).toStrictEqual([true, true]);
+	});
 });
