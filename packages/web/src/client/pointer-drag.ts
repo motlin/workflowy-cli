@@ -40,6 +40,42 @@ export function autoScrollBy(pointerY: number, viewportHeight: number): number {
 	return 0;
 }
 
+export interface EdgeAutoscrollInput {
+	pointerY: number;
+	scrollerTop: number;
+	scrollerHeight: number;
+	/** Where the drag began, relative to the scroller's top. */
+	startY: number;
+	haveScrolled: boolean;
+	mobile: boolean;
+}
+
+const EDGE_ZONE_FRACTION = 0.15;
+const DESKTOP_MAX_SPEED_PX_PER_S = 1250;
+const MOBILE_MAX_SPEED_PX_PER_S = 1000;
+
+/**
+ * Upstream's outline autoscroll, in px/s. Each edge zone is 15% of the scroller
+ * and speed rises quadratically toward the edge. A zone only arms once the
+ * pointer has moved toward it from the drag start (or once anything has
+ * scrolled), so grabbing a row that already sits in a zone does not lurch.
+ */
+export function edgeAutoscrollSpeed(input: EdgeAutoscrollInput): number {
+	const {pointerY, scrollerTop, scrollerHeight, startY, haveScrolled, mobile} = input;
+	const zone = EDGE_ZONE_FRACTION * scrollerHeight;
+	const maxSpeed = mobile ? MOBILE_MAX_SPEED_PX_PER_S : DESKTOP_MAX_SPEED_PX_PER_S;
+	const offset = pointerY - scrollerTop;
+	const speedAt = (distance: number): number => Math.round(maxSpeed * (1 - distance / zone) ** 2);
+	if (offset < zone && (haveScrolled || offset < startY)) {
+		return -speedAt(Math.max(0, offset));
+	}
+	const fromBottom = scrollerHeight - offset;
+	if (fromBottom < zone && (haveScrolled || offset > startY)) {
+		return speedAt(Math.max(0, fromBottom));
+	}
+	return 0;
+}
+
 export interface DropTarget {
 	tier: string;
 	beforeNodeId: string;

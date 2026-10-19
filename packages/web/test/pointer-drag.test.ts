@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {DRAG_THRESHOLD_PX, autoScrollBy, isDragGesture} from "../src/client/pointer-drag.js";
+import {DRAG_THRESHOLD_PX, autoScrollBy, edgeAutoscrollSpeed, isDragGesture} from "../src/client/pointer-drag.js";
 
 describe("isDragGesture", () => {
 	it("ignores the jitter of a tap so a tap never refiles a row", () => {
@@ -32,5 +32,30 @@ describe("autoScrollBy", () => {
 
 	it("scrolls faster the closer the pointer gets to the edge", () => {
 		expect(Math.abs(autoScrollBy(2, viewport))).toBeGreaterThan(Math.abs(autoScrollBy(60, viewport)));
+	});
+});
+
+describe("edgeAutoscrollSpeed", () => {
+	const base = {scrollerTop: 0, scrollerHeight: 1000, startY: 500, haveScrolled: false, mobile: false};
+
+	it("follows upstream's quadratic curve inside the 15% edge zones", () => {
+		const speeds = [
+			edgeAutoscrollSpeed({...base, pointerY: 0}),
+			edgeAutoscrollSpeed({...base, pointerY: 75}),
+			edgeAutoscrollSpeed({...base, pointerY: 100, startY: 50}),
+			edgeAutoscrollSpeed({...base, pointerY: 100, startY: 50, haveScrolled: true}),
+			edgeAutoscrollSpeed({...base, pointerY: 925}),
+			edgeAutoscrollSpeed({...base, pointerY: 500}),
+			edgeAutoscrollSpeed({...base, pointerY: 0, mobile: true}),
+		];
+		expect(speeds).toStrictEqual([-1250, -313, 0, -139, 313, 0, -1000]);
+	});
+
+	it("measures the pointer relative to the scroller's top", () => {
+		expect(edgeAutoscrollSpeed({...base, scrollerTop: 200, pointerY: 275})).toBe(-313);
+	});
+
+	it("ignores the bottom zone while the drag started below the pointer and nothing has scrolled", () => {
+		expect(edgeAutoscrollSpeed({...base, pointerY: 925, startY: 950})).toBe(0);
 	});
 });
