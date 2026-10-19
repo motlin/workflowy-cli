@@ -19,7 +19,7 @@ import {OfflineBanner} from "./components/offline-banner.js";
 import {OutlineTree} from "./components/outline-tree.js";
 import {PresentationMode} from "./components/presentation-mode.js";
 import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
-import {RightSidebar} from "./components/right-sidebar.js";
+import {RightBar} from "./components/right-bar.js";
 import {SearchPanel} from "./components/search-panel.js";
 import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
@@ -108,7 +108,7 @@ function OutlineView() {
 			<div className="outline-view">
 				<OutlineTree parentId={zoomedNodeId} />
 			</div>
-			<RightSidebar />
+			<RightBar />
 			<RelatedNodesPanel />
 			<SearchPanel />
 			<JumpMenu />
