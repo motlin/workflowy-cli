@@ -36,6 +36,8 @@ export interface RankSwitcherOptions {
 	joinedSec: number;
 	offset?: number;
 	limit?: number;
+	/** A node to leave out of the results (the location picker's own item). */
+	excludeId?: string;
 }
 
 /** Upstream's switcher word-start boundary, as in matchField. */
@@ -140,7 +142,7 @@ export function rankSwitcher(
 	query: string,
 	starredIds: readonly string[],
 	nowSec: number,
-	{joinedSec, offset = 0, limit = DEFAULT_LIMIT}: RankSwitcherOptions,
+	{joinedSec, offset = 0, limit = DEFAULT_LIMIT, excludeId}: RankSwitcherOptions,
 ): SwitcherResponse {
 	const words = splitIntoWords(query);
 	if (words.length === 0) {
@@ -169,6 +171,9 @@ export function rankSwitcher(
 	const scored: {score: number; row: TreeSearchRow}[] = [];
 	for (const row of rows) {
 		// Stands in for the SQL LIKE prefilter on the normalised plain text.
+		if (row.id === excludeId) {
+			continue;
+		}
 		const text = rowText(row);
 		if ((!text.foldedName.includes(longest) && !text.foldedNote.includes(longest)) || row.completedAt !== null) {
 			continue;

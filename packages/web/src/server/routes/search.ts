@@ -11,6 +11,7 @@ import {getDatabase} from "../db.js";
 import {collectHelperTags} from "../helper-tags.js";
 import type {HelperTags} from "../helper-tags.js";
 import type {AppEnv} from "../context.js";
+import {filterLocations} from "../location-search.js";
 import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
@@ -109,6 +110,21 @@ searchRouter.post("/switcher", async (c) => {
 	const rows = loadTreeRows(getDatabase(), null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	return c.json(rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit}));
+});
+
+interface LocationsBody {
+	query: string;
+	offset?: number;
+	limit?: number;
+	excludeId?: string;
+}
+
+// POST /api/search/locations - Upstream move-to location picker: switcher matching without completed nodes or excludeId
+searchRouter.post("/locations", async (c) => {
+	const {query, offset = 0, limit = 20, excludeId} = await c.req.json<LocationsBody>();
+	const rows = loadTreeRows(getDatabase(), null);
+	const joinedSec = await loadJoinedSec(c, rows);
+	return c.json(filterLocations(rows, {query, excludeId, offset, limit, joinedSec}));
 });
 
 // POST /api/search - Text-based search with operators

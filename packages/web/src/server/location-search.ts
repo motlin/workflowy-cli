@@ -1,0 +1,42 @@
+import {matchField, splitIntoWords} from "@workflowy/shared/search";
+import {rankSwitcher} from "./switcher-search.js";
+import type {SwitcherAncestor} from "./switcher-search.js";
+import type {TreeSearchRow} from "./tree-search.js";
+
+export interface LocationResult {
+	id: string;
+	labelHtml: string;
+	/** Root-first, without Home. */
+	ancestors: SwitcherAncestor[];
+}
+
+export interface LocationResponse {
+	results: LocationResult[];
+	hasMore: boolean;
+}
+
+export interface FilterLocationsOptions {
+	query: string;
+	excludeId?: string;
+	offset?: number;
+	limit?: number;
+	joinedSec?: number;
+	nowSec?: number;
+}
+
+/** The query's word-start hits in `text`, each wrapped in `<b><u>`, with the rest HTML-escaped. */
+export function highlightLabel(query: string, text: string): string {
+	return matchField(splitIntoWords(query), text).html;
+}
+
+/**
+ * Upstream's move-to location search: the switcher's word-start match and ranking without stars, dropping
+ * completed nodes, nodes under a completed ancestor and the item being moved.
+ */
+export function filterLocations(
+	rows: readonly TreeSearchRow[],
+	{query, excludeId, offset, limit, joinedSec = 0, nowSec = Math.floor(Date.now() / 1000)}: FilterLocationsOptions,
+): LocationResponse {
+	const {results, hasMore} = rankSwitcher(rows, query, [], nowSec, {joinedSec, offset, limit, excludeId});
+	return {results: results.map(({id, labelHtml, ancestors}) => ({id, labelHtml, ancestors})), hasMore};
+}
