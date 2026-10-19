@@ -24,7 +24,8 @@ interface TextSegment {
 
 type Token = {kind: "markup"; html: string} | {kind: "text"; segment: TextSegment};
 
-function decodeSegment(html: string): {plain: string; htmlOffsets: number[]} {
+/** Plain text of an HTML text run, with each plain character's html offset (plus one end entry). */
+export function decodeSegment(html: string): {plain: string; htmlOffsets: number[]} {
 	let plain = "";
 	const htmlOffsets: number[] = [];
 	let index = 0;

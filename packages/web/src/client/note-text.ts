@@ -6,7 +6,7 @@
 
 import {renderDatePills, serializeDatePills} from "./date-pills.js";
 import type {DateSettings} from "./date-settings.js";
-import {anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
+import {AUTO_LINK_ATTRIBUTE, anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
 import {renderTags} from "./tag-render.js";
 
 const TAG_PATTERN = /<(\/?)([a-z][\w-]*)([^>]*)>/giu;
@@ -27,6 +27,9 @@ function decodeText(text: string): string {
 }
 
 function isKept(name: string, attributes: string): boolean {
+	if (name === "a") {
+		return !attributes.includes(AUTO_LINK_ATTRIBUTE);
+	}
 	return KEPT_ELEMENTS.has(name) || (name === "span" && isColorSpan(attributes));
 }
 
@@ -81,8 +84,9 @@ export function noteToEditorHtml(note: string): string {
 
 /**
  * The note `.content` element's inner HTML: `.innerContentContainer` around the note with its
- * #tags, @mentions, and links decorated like a name's, or nothing for an empty note. The
- * decoration is dropped again by `editorHtmlToNote`, so the stored note never carries it.
+ * #tags, @mentions, and links (stored and auto-detected) decorated like a name's, or nothing
+ * for an empty note. The decoration, auto-links included, is dropped again by
+ * `editorHtmlToNote`, so the stored note never carries it.
  * Given `dateSettings`, stored `<time>` also renders as monolith pills, which the codec
  * serializes back to canonical `<time>` markup.
  */
