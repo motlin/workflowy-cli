@@ -53,7 +53,7 @@ import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
 const toggleDetector = createDoublePressDetector();
 
-type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
+type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "p";
 
 /** The ids of `nodes` the outline can show, in priority order. */
 function potentiallyVisibleIds(nodes: NodeResponse[] | undefined): string[] {
@@ -607,7 +607,7 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		toggle_paragraph: {
 			execute(ctx) {
-				setLayoutMode(ctx, "paragraph");
+				setLayoutMode(ctx, "p");
 			},
 		},
 		toggle_leftbar: {execute: toggleLeftBar},

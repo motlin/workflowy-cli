@@ -4,10 +4,11 @@
  * the renderer needs.
  *
  * Workflowy's convention: the `.project` class equals the `layoutMode` value, with
- * two exceptions — headings map to `header{N}` and the default `bullets`/`bullet`
- * carries no class. Some surfaces emit `quote` vs `quote-block` and `p` vs
- * `paragraph`; both spellings are normalized here so persisted data and the in-app
- * layout menu agree.
+ * exceptions — headings map to `header{N}`, `todo` maps to `checkmark`, and the
+ * default `bullets`/`bullet`, `numbered` (numbering renders as a prefix) and
+ * `table` (renders as bullets until table layout lands) carry no class. The stored
+ * values are `p` and `quote-block`; legacy `paragraph`, `quote` and `check` are
+ * still read as aliases.
  *
  * Styling lives in styles.css keyed on `.project.<class>`. See
  * `.llm/web/node-type-coverage.md` for the upstream capture.
@@ -50,7 +51,7 @@ export function resolveLayoutMode(layoutMode: string | null | undefined): Layout
 		return {projectClass: heading, isTodo: false, isMultiline: false, hidesBullet: true};
 	}
 
-	if (layoutMode === "todo") {
+	if (layoutMode === "todo" || layoutMode === "check") {
 		return {projectClass: "checkmark", isTodo: true, isMultiline: false, hidesBullet: false};
 	}
 
@@ -64,10 +65,6 @@ export function resolveLayoutMode(layoutMode: string | null | undefined): Layout
 
 	if (layoutMode === "divider") {
 		return {projectClass: "divider", isTodo: false, isMultiline: false, hidesBullet: true};
-	}
-
-	if (layoutMode === "numbered") {
-		return {projectClass: "numbered", isTodo: false, isMultiline: false, hidesBullet: false};
 	}
 
 	if (layoutMode === "board") {

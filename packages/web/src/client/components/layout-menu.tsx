@@ -1,5 +1,6 @@
 import {useEffect, useRef} from "react";
 import {createPortal} from "react-dom";
+import {FaIcon} from "./fa-icons.js";
 
 /**
  * Available layout modes matching Workflowy's item type picker.
@@ -10,11 +11,12 @@ export type LayoutMode =
 	| "h1"
 	| "h2"
 	| "h3"
-	| "paragraph"
+	| "p"
 	| "todo"
 	| "numbered"
 	| "board"
-	| "quote"
+	| "table"
+	| "quote-block"
 	| "code-block"
 	| "divider";
 
@@ -150,11 +152,12 @@ const layoutOptions: LayoutOption[] = [
 	{id: "h1", label: "Heading 1", icon: <H1Icon />},
 	{id: "h2", label: "Heading 2", icon: <H2Icon />},
 	{id: "h3", label: "Heading 3", icon: <H3Icon />},
-	{id: "paragraph", label: "Paragraph", icon: <ParagraphIcon />},
+	{id: "p", label: "Paragraph", icon: <ParagraphIcon />},
 	{id: "todo", label: "To-do", icon: <TodoIcon />},
 	{id: "numbered", label: "Number", icon: <NumberIcon />},
 	{id: "board", label: "Board", icon: <BoardIcon />},
-	{id: "quote", label: "Quote", icon: <QuoteIcon />},
+	{id: "table", label: "Table", icon: <FaIcon icon="fal:table-cells" />},
+	{id: "quote-block", label: "Quote", icon: <QuoteIcon />},
 	{id: "code-block", label: "Code Block", icon: <CodeBlockIcon />},
 	{id: "divider", label: "Divider", icon: <DividerIcon />},
 ];
