@@ -1294,7 +1294,9 @@ body.item-selection--dragging * {
 	cursor: default;
 }
 
-.mainTreeRoot > .name {
+/* The root title row passes clicks through, except while a bullet drag needs it as a drop target. */
+body:not(.moving) .mainTreeRoot > .name,
+body:not(.moving) .mainTreeRoot > .notes {
 	pointer-events: none;
 }
 
@@ -1387,8 +1389,11 @@ body.moving .expand {
 	background-color: var(--wf-background-quaternary);
 }
 
-.bullet:hover > .bulletHalo,
-.dragging > .bullet > .bulletHalo {
+.bullet:hover > .bulletHalo {
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+.is-desktop .dragging > .bullet > .bulletHalo {
 	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
 }
 
@@ -3384,73 +3389,45 @@ body.moving .expand {
    Drag and Drop Styles
    ================================ */
 
-/* Bullet being dragged - only show grabbing cursor while actively dragging */
-.dragging > .bullet {
-	opacity: 0.6;
-	cursor: grabbing;
-}
-
-/* Override :active state to show grabbing cursor during drag initiation */
-.bullet:active {
-	cursor: grabbing;
-}
-
-/* Node content while dragging */
-.name.dragging {
-	opacity: 0.5;
-}
-
-/* Drop target highlighting */
-.name.drag-over {
-	background-color: var(--color-bg-hover);
-}
-
-/* Drop position indicators */
-.name.drag-over-above {
-	box-shadow: 0 -3px 0 0 var(--color-text);
-}
-
-.name.drag-over-below {
-	box-shadow: 0 3px 0 0 var(--color-text);
-}
-
-.name.drag-over-child {
-	background-color: var(--color-bg-hover);
-	box-shadow: inset 0 0 0 3px var(--color-text);
-}
-
-/* Drop line element for drag-and-drop visual feedback */
+/* Upstream's drop indicator: a 4px gray line inside the hovered parent (first slot) or under the hovered row. */
 .drop-line {
+	display: none;
 	position: relative;
-	height: 0;
+	height: 0px;
+	z-index: var(--wf-drop-line-z-index);
+}
+
+.line {
+	position: absolute;
+	background: #ccc;
+	border-radius: 2px;
+	pointer-events: none;
+	height: 4px;
 	width: 100%;
 }
 
-.drop-line .line {
+.project.drag-hovered-in > .drop-line {
+	display: block;
+}
+
+.project.drag-hovered-in:not(.selected) > .drop-line {
+	margin-left: 35px;
+}
+
+.project.drag-hovered-at:after {
+	content: "";
 	position: absolute;
-	left: 0;
-	right: 0;
-	height: 3px;
-	background-color: var(--color-text);
-	opacity: 0;
+	background: #ccc;
+	border-radius: 2px;
 	pointer-events: none;
-	transition: opacity 0.15s ease;
+	height: 4px;
+	width: 100%;
+	top: calc(100% - 4px);
+	left: 0%;
 }
 
-/* Show line when drop target is above or below */
-.name.drag-over-above + .drop-line .line,
-.name.drag-over-below + .drop-line .line {
-	opacity: 1;
-}
-
-/* Position line at top for 'above' drop position */
-.name.drag-over-above + .drop-line .line {
-	top: -14px;
-}
-
-/* Position line at bottom for 'below' drop position */
-.name.drag-over-below + .drop-line .line {
-	top: 0;
+body.moving * {
+	cursor: grab !important;
 }
 
 /* ================================

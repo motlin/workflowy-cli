@@ -260,7 +260,8 @@ describe("bullet CSS", () => {
 			".bullet>.bulletHalo{display:flex;width:var(--bullet-size);height:var(--bullet-size);border-radius:50%}",
 			".bullet .zoomBulletIcon{display:block}",
 			".collapsed>.name>.bullet>.bulletHalo,.bullet.bullet--show-halo>.bulletHalo{background-color:var(--wf-background-quaternary)}",
-			".bullet:hover>.bulletHalo,.dragging>.bullet>.bulletHalo{background-color:color-mix(in srgb,var(--wf-background-quaternary) 85%,black)}",
+			".bullet:hover>.bulletHalo{background-color:color-mix(in srgb,var(--wf-background-quaternary) 85%,black)}",
+			".is-desktop .dragging>.bullet>.bulletHalo{background-color:color-mix(in srgb,var(--wf-background-quaternary) 85%,black)}",
 			".bullet.diamond>.bulletHalo,.bullet.noHalo>.bulletHalo{background-color:transparent}",
 		];
 		expect(rules.filter((rule) => !css.includes(normalizeCss(rule)))).toStrictEqual([]);

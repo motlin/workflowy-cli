@@ -31,6 +31,8 @@ import {ExpandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {internalLinkUrl, itemMenuLeft} from "../item-menu-model.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
+import type {DropHover} from "../bullet-drag-state.js";
+import {dropHoverOf} from "../bullet-drag-state.js";
 import {OutlineChildren} from "./outline-tree.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
@@ -393,6 +395,7 @@ function rowProjectClassName(
 	animatingShowChildren: boolean,
 	addedToSelection: boolean,
 	highlighted: boolean,
+	dragHover: DropHover,
 ): string {
 	return projectClassName({
 		hasChildren,
@@ -409,6 +412,8 @@ function rowProjectClassName(
 		slidingDown,
 		moving,
 		animatingShowChildren,
+		dragHoveredIn: dragHover === "in",
+		dragHoveredAt: dragHover === "at",
 	});
 }
 
@@ -466,6 +471,7 @@ export function OutlineRow({
 	// Upstream tints the row and its nested `.children` while the row's item menu is open.
 	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);
 	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));
+	const dragHover = useOutlineStore((state) => dropHoverOf(state.dropIndicator, node.id));
 	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const hasChildren = rowHasChildren(node, showCompleted);
@@ -524,6 +530,7 @@ export function OutlineRow({
 				childrenSlide === "down",
 				isAddedToSelection,
 				isHighlighted,
+				dragHover,
 			)}
 			onTransitionEnd={handleTransitionEnd}
 		>

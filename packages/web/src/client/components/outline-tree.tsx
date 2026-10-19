@@ -7,7 +7,8 @@ import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {useBacklinks, useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
 import {isEntry} from "../item-selection.js";
-import {currentSelectionView} from "../hooks/use-selection-keymap.js";
+import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
+import {dropHoverOf} from "../bullet-drag-state.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
@@ -140,6 +141,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const isEditingNote = useOutlineStore((state) => nodeId !== null && state.editingNoteId === nodeId);
 	const isAddedToSelection = useOutlineStore((state) => nodeId !== null && isEntry(state.itemSelection, nodeId));
 	const isMainTreeRoot = nodeId === null;
+	const isDragHoveredIn = useOutlineStore((state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT) === "in");
 	const isEditing = !isMainTreeRoot && editingId === nodeId;
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 	const layout = resolveLayoutMode(node?.data.layoutMode);
@@ -178,6 +180,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					highlighted: false,
 					addedToSelection: isAddedToSelection,
 					layoutClass: layout.projectClass ?? undefined,
+					dragHoveredIn: isDragHoveredIn,
 				}),
 				isMainTreeRoot && "mainTreeRoot",
 			]

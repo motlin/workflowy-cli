@@ -134,6 +134,16 @@ export function dropIndicatorFor(target: DropTarget | null, childIds: readonly s
 	return rowId === undefined ? null : {kind: "at", rowId};
 }
 
+/** How the drop line marks a row: `in` (inside, `.drag-hovered-in`), `at` (under, `.drag-hovered-at`), or not at all. */
+export type DropHover = "in" | "at" | null;
+
+export function dropHoverOf(indicator: DropIndicator | null, id: string): DropHover {
+	if (indicator?.kind === "in" && indicator.parentId === id) {
+		return "in";
+	}
+	return indicator?.kind === "at" && indicator.rowId === id ? "at" : null;
+}
+
 export interface DropRowsInput {
 	/** Rendered rows in document order, the zoom root first. */
 	readonly order: readonly string[];

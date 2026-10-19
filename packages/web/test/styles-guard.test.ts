@@ -353,3 +353,61 @@ describe("item selection styles guard", () => {
 		});
 	});
 });
+
+describe("drop indicator styles guard", () => {
+	it("drops the old drag-over and dragging rules", () => {
+		expect(hasSelector(styles, /\.drag-over|\.name\.dragging|\.bullet:active|\.drop-line \.line/u)).toBe(false);
+	});
+
+	it("carries upstream's drop-line, line and drag-hovered rules", () => {
+		expect(
+			Object.fromEntries(
+				[
+					".drop-line",
+					".line",
+					".project.drag-hovered-in > .drop-line",
+					".project.drag-hovered-in:not(.selected) > .drop-line",
+					".project.drag-hovered-at:after",
+					"body.moving *",
+					"body:not(.moving) .mainTreeRoot > .name, body:not(.moving) .mainTreeRoot > .notes",
+					".is-desktop .dragging > .bullet > .bulletHalo",
+				].map((selector) => [selector, cssBlock(styles, selector)]),
+			),
+		).toStrictEqual({
+			".drop-line": {
+				display: "none",
+				position: "relative",
+				height: "0px",
+				"z-index": "var(--wf-drop-line-z-index)",
+			},
+			".line": {
+				position: "absolute",
+				background: "#ccc",
+				"border-radius": "2px",
+				"pointer-events": "none",
+				height: "4px",
+				width: "100%",
+			},
+			".project.drag-hovered-in > .drop-line": {display: "block"},
+			".project.drag-hovered-in:not(.selected) > .drop-line": {"margin-left": "35px"},
+			".project.drag-hovered-at:after": {
+				content: '""',
+				position: "absolute",
+				background: "#ccc",
+				"border-radius": "2px",
+				"pointer-events": "none",
+				height: "4px",
+				width: "100%",
+				top: "calc(100% - 4px)",
+				left: "0%",
+			},
+			"body.moving *": {cursor: "grab !important"},
+			"body:not(.moving) .mainTreeRoot > .name, body:not(.moving) .mainTreeRoot > .notes": {
+				"pointer-events": "none",
+			},
+			".is-desktop .dragging > .bullet > .bulletHalo": {
+				"background-color": "color-mix(in srgb, var(--wf-background-quaternary) 85%, black)",
+			},
+		});
+	});
+});

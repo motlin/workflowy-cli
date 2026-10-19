@@ -19,6 +19,10 @@ export interface ProjectClassState {
 	animatingShowChildren?: boolean;
 	/** Shift+Cmd+Up/Down just moved this row; upstream flashes it for 500ms. */
 	moving?: boolean;
+	/** A bullet drag's drop line sits inside this row, in its first child slot. */
+	dragHoveredIn?: boolean;
+	/** A bullet drag's drop line sits under this row. */
+	dragHoveredAt?: boolean;
 }
 
 export interface NameClassState {
@@ -47,6 +51,8 @@ export function projectClassName(state: ProjectClassState): string {
 		state.highlighted && "highlighted",
 		state.addedToSelection && "addedToSelection",
 		state.moving && "moving",
+		state.dragHoveredIn && "drag-hovered-in",
+		state.dragHoveredAt && "drag-hovered-at",
 		state.layoutClass,
 		state.slidingUp && "completing-slide-up",
 		state.slidingDown && "completed-slide-down",
