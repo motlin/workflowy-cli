@@ -81,8 +81,8 @@ function leaveEditor(): SearchReturn | null {
 }
 
 function popupOwnsEscape(): boolean {
-	const {searchPanelOpen, presentationOpen, itemTypePicker} = useOutlineStore.getState();
-	return isModalOpen() || searchPanelOpen || presentationOpen || itemTypePicker !== null;
+	const {presentationOpen, itemTypePicker} = useOutlineStore.getState();
+	return isModalOpen() || presentationOpen || itemTypePicker !== null;
 }
 
 /**

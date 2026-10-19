@@ -417,3 +417,9 @@ describe("move assistant styles guard", () => {
 		expect(hasSelector(styles, /\.move-assistant-/u)).toBe(false);
 	});
 });
+
+describe("search panel styles guard", () => {
+	it("drops every .search-panel- rule", () => {
+		expect(hasSelector(styles, /\.search-panel-/u)).toBe(false);
+	});
+});

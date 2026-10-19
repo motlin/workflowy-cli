@@ -145,7 +145,6 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleRightBar = useOutlineStore((state) => state.toggleRightBar);
 	const toggleShowCompleted = useShowCompletedToggle();
 	const {toggleStar} = useStarActions();
-	const searchPanelOpen = useOutlineStore((state) => state.searchPanelOpen);
 	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
 	const expand = useOutlineStore((state) => state.expand);
 	const collapse = useOutlineStore((state) => state.collapse);
@@ -545,9 +544,6 @@ export function useCommandRegistry(): CommandRegistry {
 
 	/** Open the link-insert modal for a text selection in the edited node, else the jump menu. */
 	const showSwitcher = (ctx: CommandContext): void => {
-		if (searchPanelOpen) {
-			return;
-		}
 		const [itemId] = ctx.items;
 		const selection = globalThis.getSelection();
 		if (selection && !selection.isCollapsed && itemId !== undefined) {
@@ -828,7 +824,10 @@ export function useCommandRegistry(): CommandRegistry {
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightBar},
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3
-		show_or_hide_completed: showCompletedCommand(toggleShowCompleted, () => searchPanelOpen),
+		show_or_hide_completed: showCompletedCommand(
+			toggleShowCompleted,
+			() => useOutlineStore.getState().searchQuery !== "",
+		),
 		star_current_item: {
 			execute(ctx) {
 				if (ctx.zoomedId !== null) {

@@ -11,7 +11,6 @@ const pickerCalls: unknown[] = [];
 const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	zoomedNodeId: "alice",
 	toggleLeftBar: () => {},
-	toggleSearchPanel: () => {},
 	searchInput: "",
 	setSearchInput: () => {},
 	searchFocused: false,

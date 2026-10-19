@@ -21,7 +21,6 @@ import {PresentationMode} from "./components/presentation-mode.js";
 import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
 import {SearchCountIndicator} from "./components/search-count-indicator.js";
-import {SearchPanel} from "./components/search-panel.js";
 import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
@@ -121,7 +120,6 @@ function OutlineView() {
 			</div>
 			<RightBar />
 			<RelatedNodesPanel />
-			<SearchPanel />
 			<JumpMenu />
 			<LinkInsertModal />
 			<LocationPickerHost />

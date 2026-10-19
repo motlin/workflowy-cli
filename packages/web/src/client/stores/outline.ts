@@ -8,14 +8,10 @@ import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
 
-const StringArraySchema = z.array(z.string());
-
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
 const COMPLETED_MODE_STORAGE_KEY = "completedMode";
 const LEGACY_SHOW_COMPLETED_STORAGE_KEY = "workflowy-show-completed";
 const THEME_STORAGE_KEY = "workflowy-theme";
-const RECENT_SEARCHES_STORAGE_KEY = "workflowy-recent-searches";
-const RECENT_SEARCHES_LIMIT = 10;
 
 export type Theme = "light" | "dark" | "system";
 
@@ -162,15 +158,6 @@ async function patchPreference(patch: Record<string, boolean>, label: string): P
 	}
 }
 
-function getInitialRecentSearches(): string[] {
-	const stored = localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY);
-	if (stored === null) {
-		return [];
-	}
-	const result = StringArraySchema.safeParse(JSON.parse(stored));
-	return result.success ? result.data : [];
-}
-
 interface LinkInsertContext {
 	selectedText: string;
 	nodeId: string;
@@ -293,10 +280,6 @@ interface OutlineState {
 	showKeyboardShortcuts: boolean;
 	/** Whether the right bar is collapsed; always true on load and never persisted. */
 	rightBarCollapsed: boolean;
-	searchPanelOpen: boolean;
-	searchInitialQuery: string | null;
-	/** Bumped on every open request; the panel remounts per session so each request starts fresh. */
-	searchPanelSession: number;
 	/** The node and caret being edited when Escape focused search; leaving search resumes editing there. */
 	searchReturn: SearchReturn | null;
 	/** Live text of the header search box (uncommitted). */
@@ -316,7 +299,6 @@ interface OutlineState {
 	jumpMenuOpen: boolean;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
-	recentSearches: string[];
 	relatedNodesPanelOpen: boolean;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
@@ -405,10 +387,6 @@ interface OutlineActions {
 	toggleRightBarCollapsed: () => void;
 	/** Upstream's right-bar toggle: expand and show shortcuts when collapsed, otherwise collapse and hide them. */
 	toggleRightBar: () => void;
-	addRecentSearch: (query: string) => void;
-	clearRecentSearches: () => void;
-	toggleSearchPanel: () => void;
-	openSearchWithQuery: (query: string) => void;
 	setSearchInput: (value: string) => void;
 	setSearchFocused: (focused: boolean) => void;
 	/** Leave the outline for the search box, remembering the edited node and caret (`from`) to return to. */
@@ -586,9 +564,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	leftBarHovered: false,
 	showKeyboardShortcuts: false,
 	rightBarCollapsed: true,
-	searchPanelOpen: false,
-	searchInitialQuery: null,
-	searchPanelSession: 0,
 	searchReturn: null,
 	searchInput: "",
 	searchFocused: false,
@@ -600,7 +575,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	jumpMenuOpen: false,
 	linkInsertOpen: false,
 	linkInsertContext: null,
-	recentSearches: getInitialRecentSearches(),
 	relatedNodesPanelOpen: false,
 	exportDialogOpen: false,
 	exportContext: null,
@@ -900,43 +874,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		const collapsed = get().rightBarCollapsed;
 		set({rightBarCollapsed: !collapsed});
 		get().setShowKeyboardShortcuts(collapsed);
-	},
-
-	addRecentSearch: (query) => {
-		set((state) => {
-			const trimmedQuery = query.trim();
-			if (!trimmedQuery) {
-				return state;
-			}
-			// Remove existing occurrence if present, then prepend
-			const filtered = state.recentSearches.filter((s) => s !== trimmedQuery);
-			const newRecentSearches = [trimmedQuery, ...filtered].slice(0, RECENT_SEARCHES_LIMIT);
-			localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(newRecentSearches));
-			return {recentSearches: newRecentSearches};
-		});
-	},
-
-	clearRecentSearches() {
-		localStorage.removeItem(RECENT_SEARCHES_STORAGE_KEY);
-		set({recentSearches: []});
-	},
-
-	toggleSearchPanel: () => {
-		set((state) => ({
-			searchPanelOpen: !state.searchPanelOpen,
-			searchInitialQuery: null,
-			searchPanelSession: state.searchPanelSession + 1,
-			searchReturn: null,
-		}));
-	},
-
-	openSearchWithQuery: (query) => {
-		set((state) => ({
-			searchPanelOpen: true,
-			searchInitialQuery: query,
-			searchPanelSession: state.searchPanelSession + 1,
-			searchReturn: null,
-		}));
 	},
 
 	setSearchInput: (value) => {

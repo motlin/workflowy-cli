@@ -55,6 +55,7 @@ import {planLayoutHotkey} from "../layout-hotkeys.js";
 import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
 import type {SelectionToolbarAction} from "./selection-toolbar.js";
+import {useCommitSearch} from "../hooks/use-commit-search.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
@@ -165,6 +166,12 @@ function teaserStyle(tag: {top: number; right: number; bottom: number}): React.C
 	return {top: `${top}px`, left: `${left}px`};
 }
 
+/** Upstream tag click: search for `#tag ` (trailing space), or clear the search when that tag search is active. */
+export function tagClickQuery(tag: string, searchQuery: string): string {
+	const query = `${tag} `;
+	return searchQuery === query ? "" : query;
+}
+
 export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
 	const queryClient = useQueryClient();
@@ -174,7 +181,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const setItemSelection = useOutlineStore((state) => state.setItemSelection);
-	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
+	const commitSearch = useCommitSearch();
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
@@ -983,22 +990,22 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	/**
 	 * Handle text clicks:
-	 * - Plain click on a .contentTag span: opens search (Workflowy behavior)
-	 * - Cmd+click: detect tag at cursor position and search
+	 * - Plain click on a .contentTag span: toggles an in-place search for the tag (Workflowy behavior)
+	 * - Cmd+click: detect tag at cursor position and toggle its search
 	 * - Otherwise: start editing at click position
 	 */
 	const handleTextClick = useCallback(
 		(event: React.MouseEvent<HTMLSpanElement>) => {
 			const target = event.target;
 
-			// Plain click on a .contentTag span (or its inner text) opens search directly
+			// Plain click on a .contentTag span (or its inner text) toggles its search in place
 			const tagEl = target instanceof Element ? target.closest(".contentTag") : null;
 			if (tagEl) {
 				const tagText = tagEl.textContent;
 				if (tagText) {
 					event.preventDefault();
 					event.stopPropagation();
-					openSearchWithQuery(tagText);
+					commitSearch(tagClickQuery(tagText, useOutlineStore.getState().searchQuery));
 				}
 				return;
 			}
@@ -1023,7 +1030,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					if (tag) {
 						event.preventDefault();
 						event.stopPropagation();
-						openSearchWithQuery(tag);
+						commitSearch(tagClickQuery(tag, useOutlineStore.getState().searchQuery));
 					}
 				}
 				return;
@@ -1033,7 +1040,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			event.stopPropagation();
 			startEditing(nodeId, {x: event.clientX, y: event.clientY});
 		},
-		[nodeId, startEditing, openSearchWithQuery, openPillPicker],
+		[nodeId, startEditing, commitSearch, openPillPicker],
 	);
 
 	// Show the color teaser when hovering a tag; upstream's 150ms hide delay lets the

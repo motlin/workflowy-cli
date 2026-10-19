@@ -18,7 +18,6 @@ const storeState = {
 	zoomedNodeId: null as string | null,
 	startEditing: vi.fn<(id: string) => void>(),
 	urlSearchQuery: null as string | null,
-	openSearchWithQuery: () => {},
 	leftBarSectionExpansions: {} as Record<string, boolean>,
 	setLeftBarSectionExpanded: vi.fn<(key: string, value: boolean) => void>(),
 };

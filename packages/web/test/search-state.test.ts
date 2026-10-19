@@ -141,3 +141,19 @@ describe("committed search state", () => {
 		});
 	});
 });
+
+describe("retired search modal", () => {
+	it("has no search panel state or actions on the store", () => {
+		const retired = new Set([
+			"searchPanelOpen",
+			"searchInitialQuery",
+			"searchPanelSession",
+			"toggleSearchPanel",
+			"openSearchWithQuery",
+			"recentSearches",
+			"addRecentSearch",
+			"clearRecentSearches",
+		]);
+		expect(Object.keys(useOutlineStore.getState()).filter((key) => retired.has(key))).toStrictEqual([]);
+	});
+});

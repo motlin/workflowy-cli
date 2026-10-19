@@ -13,7 +13,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useAncestors: () => ancestorsState,
 }));
 vi.mock("../src/client/stores/outline.js", () => ({
-	useOutlineStore: {getState: () => ({searchPanelOpen: false, toggleSearchPanel: () => {}})},
+	useOutlineStore: {getState: () => ({})},
 }));
 vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => ({
 	...(await importOriginal()),
