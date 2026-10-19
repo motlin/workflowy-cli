@@ -129,11 +129,6 @@ export function renderTags(html: string): string {
 		.join("");
 }
 
-/** The tag in plain text whose span covers `offset` (inclusive of its end), if any. */
-export function tagAtOffset(plainText: string, offset: number): string | undefined {
-	return findTags(plainText).find(({index, tag}) => offset >= index && offset <= index + tag.length)?.tag;
-}
-
 /** Upstream's Flyout margin-top under the tag-color teaser. */
 const TEASER_FLYOUT_MARGIN = 4;
 
@@ -155,4 +150,67 @@ export function toggleTagInQuery(query: string, tag: string): string {
 	const next = pattern.test(query) ? query.replace(pattern, "") : `${query.trimEnd()} ${tag}`;
 	const trimmed = next.trim();
 	return trimmed === "" ? "" : `${trimmed} `;
+}
+
+/** Plain offsets of the tags `renderTags` wraps: whole tags inside taggable text (not `<a>`/`<code>`). */
+export function renderedTagStarts(html: string): number[] {
+	const {tokens, plain} = tokenize(html);
+	const segments = tokens.flatMap((token) =>
+		token.kind === "text" && token.segment.taggable ? [token.segment] : [],
+	);
+	return findTags(plain)
+		.filter(({index, tag}) =>
+			segments.some(
+				(segment) =>
+					index >= segment.plainStart &&
+					index + tag.length <= segment.plainStart + segment.htmlOffsets.length - 1,
+			),
+		)
+		.map(({index}) => index);
+}
+
+/** Upstream's tag-delete gesture: Meta-click on mac, Meta- or Alt-click elsewhere. */
+export function isTagDeleteClick(event: {metaKey: boolean; altKey: boolean}, isMac: boolean): boolean {
+	return event.metaKey || (!isMac && event.altKey);
+}
+
+/** End of `tag` at `start` plus any following spaces and tabs, or undefined when `tag` is not there. */
+function tagRemovalEnd(plain: string, start: number, tag: string): number | undefined {
+	if (plain.slice(start, start + tag.length) !== tag) {
+		return undefined;
+	}
+	let end = start + tag.length;
+	while (plain[end] === " " || plain[end] === "\t") {
+		end += 1;
+	}
+	return end;
+}
+
+/** Upstream tag explode: remove `tag` at `start` plus following `[ \t]*`; the caret lands at `start`. */
+export function removeTagAt(text: string, start: number, tag: string): {text: string; caret: number} {
+	const end = tagRemovalEnd(text, start, tag);
+	return {text: end === undefined ? text : text.slice(0, start) + text.slice(end), caret: start};
+}
+
+/** `removeTagAt` on stored rich-text HTML: plain offsets map through each text run, markup stays intact. */
+export function removeTagFromHtml(html: string, plainStart: number, tag: string): string {
+	const {tokens, plain} = tokenize(html);
+	const plainEnd = tagRemovalEnd(plain, plainStart, tag);
+	if (plainEnd === undefined) {
+		return html;
+	}
+	return tokens
+		.map((token) => {
+			if (token.kind === "markup") {
+				return token.html;
+			}
+			const {html: text, plainStart: segmentStart, htmlOffsets} = token.segment;
+			const from = Math.max(plainStart - segmentStart, 0);
+			const to = Math.min(plainEnd - segmentStart, htmlOffsets.length - 1);
+			if (from >= to) {
+				return text;
+			}
+			return text.slice(0, htmlOffsets[from]) + text.slice(htmlOffsets[to]);
+		})
+		.join("");
 }

@@ -24,7 +24,7 @@ import {
 } from "../caret-dom.js";
 import {classifyEditorKey, classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
-import {nodeKeys, readChildren, readDetail, readNode} from "../node-cache.js";
+import {nodeKeys, patchCachedNode, readChildren, readDetail, readNode} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {currentSelectionView, freshSelection, scrollRowIntoView} from "../hooks/use-selection-keymap.js";
 import {editorSelectAllTakesOver, editorShiftArrowTakesOver} from "../item-selection.js";
@@ -62,35 +62,18 @@ import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
 import {highlightSearchMatches} from "../highlight-html.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
-import {renderTags, tagAtOffset, teaserPosition, toggleTagInQuery} from "../tag-render.js";
+import {
+	isTagDeleteClick,
+	removeTagFromHtml,
+	renderTags,
+	renderedTagStarts,
+	teaserPosition,
+	toggleTagInQuery,
+} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
-
-/**
- * Get the character offset in the text content from a mouse event.
- * Uses caretPositionFromPoint.
- */
-function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): number | null {
-	if ("caretPositionFromPoint" in document) {
-		const position = document.caretPositionFromPoint(event.clientX, event.clientY);
-		if (position?.offsetNode.nodeType === Node.TEXT_NODE) {
-			// Calculate offset within the full text content
-			let offset = 0;
-			const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-			let node: Node | null;
-			while ((node = walker.nextNode()) !== null) {
-				if (node === position.offsetNode) {
-					return offset + position.offset;
-				}
-				offset += node.textContent?.length ?? 0;
-			}
-		}
-	}
-
-	return null;
-}
 
 /**
  * The caret's client rect at the edge of the current selection that the arrow key
@@ -164,6 +147,30 @@ const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Le
 function teaserStyle(tag: {top: number; right: number; bottom: number}): React.CSSProperties {
 	const {left, top} = teaserPosition({top: tag.top, right: tag.right, height: tag.bottom - tag.top});
 	return {top: `${top}px`, left: `${left}px`};
+}
+
+/** Upstream marks a hovered tag `contentTagDeleteHover` while the delete modifier is held. */
+function markTagDeleteHover(tagEl: Element, event: {metaKey: boolean; altKey: boolean}): void {
+	tagEl.classList.toggle("contentTagDeleteHover", isTagDeleteClick(event, isMacPlatform()));
+}
+
+/** Pressing or releasing the modifier over a hovered tag updates its class. */
+function onTagDeleteKey(event: KeyboardEvent): void {
+	for (const tagEl of document.querySelectorAll(".contentTag:hover")) {
+		markTagDeleteHover(tagEl, event);
+	}
+}
+
+let tagDeleteKeysInstalled = false;
+
+/** Installs the one document listener for `onTagDeleteKey` on the first tag hover. */
+function installTagDeleteKeys(): void {
+	if (tagDeleteKeysInstalled) {
+		return;
+	}
+	tagDeleteKeysInstalled = true;
+	document.addEventListener("keydown", onTagDeleteKey);
+	document.addEventListener("keyup", onTagDeleteKey);
 }
 
 /** Upstream: mousedown on a tag never places a caret or moves focus. */
@@ -990,10 +997,36 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	);
 
 	/**
+	 * Upstream tag explode: drop the clicked tag and its following spaces from the stored
+	 * name in one undo step, then edit this node with the caret at the tag's start.
+	 */
+	const explodeTag = useCallback(
+		(container: HTMLElement, tagEl: Element) => {
+			const ordinal = [...container.querySelectorAll(".contentTag")].indexOf(tagEl);
+			const start = renderedTagStarts(renderLinks(initialValue))[ordinal];
+			if (start === undefined) {
+				return;
+			}
+			const name = removeTagFromHtml(initialValue, start, tagEl.textContent);
+			if (name === initialValue) {
+				return;
+			}
+			void runInUndoBatch(captureOutlineView, () => {
+				updateNodeMutation.mutate({nodeId, name});
+				// The editor captures its HTML when editing starts: show the new name before that.
+				patchCachedNode(queryClient, nodeId, (node) => ({...node, name}));
+				resumeEditing(nodeId, start);
+			});
+		},
+		[initialValue, nodeId, queryClient, resumeEditing, updateNodeMutation],
+	);
+
+	/**
 	 * Handle text clicks:
+	 * - Meta-click (mac) or Meta/Alt-click on a .contentTag span: explodes the tag, removing it
+	 *   and its following spaces in one undo step, then edits with the caret where it was
 	 * - Plain click on a .contentTag span: blurs the editor, marks the tag tapped, and toggles
 	 *   the tag in the search query (appends it, or removes it when already there)
-	 * - Cmd+click: detect tag at cursor position and toggle it in the search query
 	 * - Otherwise: start editing at click position
 	 */
 	const handleTextClick = useCallback(
@@ -1002,6 +1035,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 			// Plain click on a .contentTag span (or its inner text) toggles it in the search query
 			const tagEl = target instanceof Element ? target.closest(".contentTag") : null;
+			if (tagEl && isTagDeleteClick(event, isMacPlatform())) {
+				event.preventDefault();
+				event.stopPropagation();
+				explodeTag(event.currentTarget, tagEl);
+				return;
+			}
 			if (tagEl) {
 				const tagText = tagEl.textContent;
 				if (tagText) {
@@ -1025,28 +1064,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return;
 			}
 
-			// Cmd+click: detect tag at cursor position
-			if (event.metaKey) {
-				const element = event.currentTarget;
-				const {textContent} = element;
-				const offset = getCharacterOffsetFromClick(element, event.nativeEvent);
-
-				if (offset !== null) {
-					const tag = tagAtOffset(textContent, offset);
-					if (tag) {
-						event.preventDefault();
-						event.stopPropagation();
-						commitSearch(toggleTagInQuery(useOutlineStore.getState().searchQuery, tag));
-					}
-				}
-				return;
-			}
-
 			// Regular click: start editing at click position
 			event.stopPropagation();
 			startEditing(nodeId, {x: event.clientX, y: event.clientY});
 		},
-		[nodeId, startEditing, commitSearch, openPillPicker],
+		[nodeId, startEditing, commitSearch, openPillPicker, explodeTag],
 	);
 
 	// Show the color teaser when hovering a tag; upstream's 150ms hide delay lets the
@@ -1075,6 +1097,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return;
 			}
 			cancelHide();
+			installTagDeleteKeys();
+			markTagDeleteHover(tagEl, event);
 			const rect = tagEl.getBoundingClientRect();
 			setTagHover({
 				tag: tagEl.textContent,

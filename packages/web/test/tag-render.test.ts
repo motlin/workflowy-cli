@@ -1,5 +1,13 @@
 import {describe, expect, it} from "vite-plus/test";
-import {renderTags, tagAtOffset, teaserPosition, toggleTagInQuery} from "../src/client/tag-render.js";
+import {
+	isTagDeleteClick,
+	removeTagAt,
+	removeTagFromHtml,
+	renderTags,
+	renderedTagStarts,
+	teaserPosition,
+	toggleTagInQuery,
+} from "../src/client/tag-render.js";
 
 function tagSpan(tag: string): string {
 	return `<span class="contentTag explosive" title="Filter ${tag}" data-val="${tag.toLowerCase()}">${tag.slice(0, 1)}<span class="contentTagText">${tag.slice(1)}</span><span class="contentTagNub"></span></span>`;
@@ -56,18 +64,6 @@ describe("renderTags", () => {
 	});
 });
 
-describe("tagAtOffset", () => {
-	it("returns the tag spanning the plain-text offset", () => {
-		expect([0, 6, 10, 14, 15].map((offset) => tagAtOffset("Alpha #taZebra item", offset))).toStrictEqual([
-			undefined,
-			"#taZebra",
-			"#taZebra",
-			"#taZebra",
-			undefined,
-		]);
-	});
-});
-
 describe("teaserPosition", () => {
 	it("places the teaser at the tag's right edge, vertically centred plus the Flyout margin", () => {
 		expect(teaserPosition({top: 146.5, right: 216.92, height: 19})).toStrictEqual({left: 215.92, top: 146.5});
@@ -91,5 +87,53 @@ describe("toggleTagInQuery", () => {
 			prefixIsNotMatch: "#taZebraLong #taZebra ",
 			regexChars: "#a.b #a+b ",
 		});
+	});
+});
+
+describe("removeTagAt", () => {
+	it("removes the tag plus following spaces and tabs, leaving the caret at the tag's start", () => {
+		expect({
+			trailing: removeTagAt("Type here #taApple #taZebra foo #taBold ", 32, "#taBold"),
+			tab: removeTagAt("a #x\tb", 2, "#x"),
+			mismatch: removeTagAt("a #x b", 2, "#y"),
+		}).toStrictEqual({
+			trailing: {text: "Type here #taApple #taZebra foo ", caret: 32},
+			tab: {text: "a b", caret: 2},
+			mismatch: {text: "a #x b", caret: 2},
+		});
+	});
+});
+
+describe("removeTagFromHtml", () => {
+	it("removes the tag through the plain-text map and leaves surrounding markup intact", () => {
+		expect({
+			afterBold: removeTagFromHtml("<b>x</b> #t y", 2, "#t"),
+			entities: removeTagFromHtml("a &amp; #t &lt;b", 4, "#t"),
+			spaceInNextSegment: removeTagFromHtml("#t<i> y</i>", 0, "#t"),
+			mismatch: removeTagFromHtml("<b>x</b> #t y", 2, "#u"),
+		}).toStrictEqual({
+			afterBold: "<b>x</b> y",
+			entities: "a &amp; &lt;b",
+			spaceInNextSegment: "<i>y</i>",
+			mismatch: "<b>x</b> #t y",
+		});
+	});
+});
+
+describe("renderedTagStarts", () => {
+	it("lists the plain offsets of the tags renderTags wraps, skipping links and code", () => {
+		expect(renderedTagStarts('#a <a href="x">#b</a> <code>#c</code> @d')).toStrictEqual([0, 9]);
+	});
+});
+
+describe("isTagDeleteClick", () => {
+	it("is Meta-click on mac and Meta- or Alt-click elsewhere", () => {
+		expect({
+			macMeta: isTagDeleteClick({metaKey: true, altKey: false}, true),
+			macAlt: isTagDeleteClick({metaKey: false, altKey: true}, true),
+			otherAlt: isTagDeleteClick({metaKey: false, altKey: true}, false),
+			otherMeta: isTagDeleteClick({metaKey: true, altKey: false}, false),
+			plain: isTagDeleteClick({metaKey: false, altKey: false}, false),
+		}).toStrictEqual({macMeta: true, macAlt: false, otherAlt: true, otherMeta: true, plain: false});
 	});
 });
