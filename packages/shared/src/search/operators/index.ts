@@ -1,4 +1,5 @@
 import type {SearchOperator} from "../query-nodes.js";
+import * as dates from "./dates.js";
 import * as meta from "./meta.js";
 import * as time from "./time.js";
 
@@ -19,7 +20,13 @@ export const SEARCH_OPERATORS: SearchOperator[] = [
 	time.created,
 	time.completed,
 	time.changedBy,
-	// Date operators register here.
+	dates.past,
+	dates.future,
+	dates.on,
+	dates.before,
+	dates.after,
+	// Bare natural-language dates (M2-150) register here.
+	dates.dayOfWeek,
 	meta.textBold,
 	meta.textItalic,
 	meta.textUnderline,
