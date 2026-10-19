@@ -11,3 +11,11 @@ export {
 	type SearchOperator,
 } from "./query-ast.js";
 export {type ParsedQuery, parseSearchQuery} from "./query-parser.js";
+export {
+	type FieldMatch,
+	matchField,
+	matchSwitcherRow,
+	splitIntoWords,
+	type SwitcherRowInput,
+	type SwitcherRowMatch,
+} from "./switcher-match.js";
