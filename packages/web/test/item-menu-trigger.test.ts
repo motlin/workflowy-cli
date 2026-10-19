@@ -13,6 +13,7 @@ const NOOP_ACTIONS: ItemMenuActions = {
 	onAddDate: () => {},
 	onDeleteDates: () => {},
 	onPresent: () => {},
+	onMoveTo: () => {},
 	onDuplicate: () => {},
 	onExport: () => {},
 	onCopyLink: () => {},

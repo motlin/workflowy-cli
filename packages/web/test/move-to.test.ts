@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {canMoveUnder, moveToastText, planMoveTo, runMoveTo} from "../src/client/move-to.js";
+import {canMoveUnder, executeMoveTo, moveToastText, planMoveTo, runMoveTo} from "../src/client/move-to.js";
 import type {MoveToRequest, MoveToToast} from "../src/client/move-to.js";
 
 // home > grandpa > {dad > {item > {child > {grandchild}}}, uncle}
@@ -130,6 +130,59 @@ describe("runMoveTo", () => {
 			moved: false,
 			moves: [],
 			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: []}],
+		});
+	});
+});
+
+async function execute(picked: {id: string} | {createdId: string} | undefined) {
+	const log: string[] = [];
+	const moved = await executeMoveTo({
+		itemId: "item",
+		from: {parentId: "dad", index: 3},
+		pick: async () => Promise.resolve(picked),
+		loadTarget: async (id) => {
+			log.push(`load ${id}`);
+			return Promise.resolve({target: {id, name: "Uncle"}, childCount: 2, parentOf});
+		},
+		leaveItem: () => {
+			log.push("leave");
+		},
+		moveNode: (request) => {
+			log.push(`move ${request.nodeId} ${String(request.parent_id)} ${request.index}`);
+		},
+		showToast: (toast) => {
+			log.push(`toast ${toast.text}`);
+		},
+		view: () => {},
+	});
+	return {moved, log};
+}
+
+describe("executeMoveTo", () => {
+	it("does nothing when the picker closes without a choice", async () => {
+		await expect(execute(undefined)).resolves.toStrictEqual({moved: false, log: []});
+	});
+
+	it("loads the chosen location, leaves the item's row, then moves it and toasts", async () => {
+		await expect(execute({id: "uncle"})).resolves.toStrictEqual({
+			moved: true,
+			log: ["load uncle", "leave", "move item uncle 0", "toast Moved to 'Uncle'"],
+		});
+	});
+
+	it("moves into a location the picker just created", async () => {
+		expect((await execute({createdId: "fresh"})).log).toStrictEqual([
+			"load fresh",
+			"leave",
+			"move item fresh 0",
+			"toast Moved to 'Uncle'",
+		]);
+	});
+
+	it("keeps the caret on the item when the location is under it", async () => {
+		await expect(execute({id: "grandchild"})).resolves.toStrictEqual({
+			moved: false,
+			log: ["load grandchild", "toast Can't move to 'Uncle'"],
 		});
 	});
 });

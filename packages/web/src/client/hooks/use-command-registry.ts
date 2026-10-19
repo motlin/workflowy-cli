@@ -40,6 +40,7 @@ import {createDoublePressDetector, planExpandKey} from "../expansion.js";
 import type {ExpandKey} from "../expansion.js";
 import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
+import {useMoveTo} from "./use-move-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
@@ -138,6 +139,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
+	const moveTo = useMoveTo();
 	const navigateToToday = useNavigateToToday();
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
@@ -697,6 +699,15 @@ export function useCommandRegistry(): CommandRegistry {
 		move_down: {
 			execute(ctx) {
 				moveEditedNodeVertically(ctx, "down");
+			},
+		},
+		move_to: {
+			available: (ctx) => ctx.items.length === 1 && ctx.items[0] !== ctx.zoomedId,
+			execute(ctx) {
+				const [itemId] = ctx.items;
+				if (itemId !== undefined) {
+					void moveTo(itemId);
+				}
 			},
 		},
 		complete: {execute: complete},

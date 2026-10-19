@@ -46,7 +46,7 @@ export async function fetchChildren(parentId: string | null): Promise<NodeRespon
 	return pendingCreates.withPending(parentId, data.nodes);
 }
 
-async function fetchNode(nodeId: string): Promise<NodeResponse> {
+export async function fetchNode(nodeId: string): Promise<NodeResponse> {
 	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`);
 	if (!response.ok) {
@@ -56,7 +56,7 @@ async function fetchNode(nodeId: string): Promise<NodeResponse> {
 	return data.node;
 }
 
-async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
+export async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/ancestors`);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch ancestors: ${response.statusText}`);

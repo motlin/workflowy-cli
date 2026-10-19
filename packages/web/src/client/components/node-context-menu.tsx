@@ -178,6 +178,7 @@ export interface ItemMenuActions {
 	onAddDate: () => void;
 	onDeleteDates: () => void;
 	onPresent: () => void;
+	onMoveTo: () => void;
 	onDuplicate: () => void;
 	onExport: () => void;
 	onCopyLink: () => void;
@@ -274,6 +275,7 @@ export function ItemMenuBody({
 		add_date: closeThen(actions.onAddDate),
 		delete_dates: thenClose(actions.onDeleteDates),
 		present_it: closeThen(actions.onPresent),
+		move_to: closeThen(actions.onMoveTo),
 		duplicate: thenClose(actions.onDuplicate),
 		show_export: closeThen(actions.onExport),
 		copy_link: thenClose(actions.onCopyLink),

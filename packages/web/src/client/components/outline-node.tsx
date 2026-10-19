@@ -8,6 +8,7 @@ import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
 import {useBulletDrag} from "../hooks/use-bullet-drag.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
+import {useMoveTo} from "../hooks/use-move-to.js";
 import {useQueryClient} from "@tanstack/react-query";
 import {
 	fetchChildren,
@@ -189,6 +190,7 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 	const moveNodes = useMoveNodes();
 	const requestDatePicker = useOutlineStore((state) => state.requestDatePicker);
 	const updateNode = useUpdateNode();
+	const moveTo = useMoveTo();
 	const copyLink = async () => {
 		await navigator.clipboard.writeText(internalLinkUrl(node.id));
 		showAppMessage("Link copied.", {timeout: 1000});
@@ -249,6 +251,9 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 				onPresent: () => {
 					navigateToNode(node.id);
 					openPresentation(node.id);
+				},
+				onMoveTo: () => {
+					void moveTo(node.id);
 				},
 				onDuplicate: () => {
 					// Same mutation as ⇧⌘D, without moving focus into the copy.

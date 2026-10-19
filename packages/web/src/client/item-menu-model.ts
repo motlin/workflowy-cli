@@ -160,6 +160,7 @@ const LOCAL_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
 	"add_date",
 	"delete_dates",
 	"present_it",
+	"move_to",
 	"duplicate",
 	"show_export",
 	"copy_link",

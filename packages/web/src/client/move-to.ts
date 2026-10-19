@@ -64,6 +64,7 @@ export function runMoveTo({
 	moveNode,
 	showToast,
 	view,
+	leaveItem,
 }: {
 	itemId: string;
 	/** The item's current slot, for Undo. */
@@ -75,11 +76,14 @@ export function runMoveTo({
 	moveNode: (request: MoveToRequest) => void;
 	showToast: (toast: MoveToToast) => void;
 	view: (targetId: string) => void;
+	/** Runs just before the move, while the item's row is still in place (caret to the previous visible row). */
+	leaveItem?: () => void;
 }): boolean {
 	if (!canMoveUnder(parentOf, itemId, target.id)) {
 		showToast({text: moveToastText("cant", target.name), timeout: MOVE_TOAST_TIMEOUT, actions: []});
 		return false;
 	}
+	leaveItem?.();
 	moveNode(planMoveTo({item: itemId, target, childCount}));
 	showToast({
 		text: moveToastText("moved", target.name),
@@ -101,4 +105,31 @@ export function runMoveTo({
 		],
 	});
 	return true;
+}
+
+/** A loaded Move To location: its name and priority default, child count and ancestry. */
+export interface LoadedMoveTarget {
+	target: MoveToTarget;
+	childCount: number;
+	parentOf: (id: string) => string | null;
+}
+
+/**
+ * The Move To caller (`⌃⌘M`, bullet menu): open the location picker, load what it chose (an existing location,
+ * or the one its create-and-move just made), then `runMoveTo`. Returns whether the item moved.
+ */
+export async function executeMoveTo({
+	pick,
+	loadTarget,
+	...move
+}: Omit<Parameters<typeof runMoveTo>[0], "target" | "childCount" | "parentOf"> & {
+	pick: () => Promise<{id: string} | {createdId: string} | undefined>;
+	loadTarget: (id: string) => Promise<LoadedMoveTarget>;
+}): Promise<boolean> {
+	const picked = await pick();
+	if (picked === undefined) {
+		return false;
+	}
+	const loaded = await loadTarget("id" in picked ? picked.id : picked.createdId);
+	return runMoveTo({...move, ...loaded});
 }

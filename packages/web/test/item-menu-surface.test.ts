@@ -20,6 +20,7 @@ const NOOP_ACTIONS: ItemMenuActions = {
 	onAddDate: () => {},
 	onDeleteDates: () => {},
 	onPresent: () => {},
+	onMoveTo: () => {},
 	onDuplicate: () => {},
 	onExport: () => {},
 	onCopyLink: () => {},
@@ -174,6 +175,7 @@ describe("item menu surface", () => {
 			ITEM_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
+			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
@@ -195,6 +197,7 @@ describe("item menu surface", () => {
 			"add_note",
 			"add_date",
 			"present_it",
+			"move_to",
 			"duplicate",
 			null,
 			"show_export",
@@ -250,7 +253,7 @@ describe("item menu surface", () => {
 	});
 
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[12];
+		const del = scrollerChildren(render(node))[13];
 		expect(del).toContain('data-handbook="delete"');
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
@@ -270,6 +273,7 @@ describe("item menu surface", () => {
 			"Add note",
 			"Add date",
 			"Present",
+			"Move To...",
 			"Duplicate",
 			null,
 			"Export",

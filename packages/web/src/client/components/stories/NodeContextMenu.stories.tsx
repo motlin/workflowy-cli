@@ -33,6 +33,7 @@ function ItemMenuInline({isCompleted = false, modifiedAt = true}: {isCompleted?:
 						onAddDate: () => {},
 						onDeleteDates: () => {},
 						onPresent: () => {},
+						onMoveTo: () => {},
 						onDuplicate: () => {},
 						onExport: () => {},
 						onCopyLink: () => {},
