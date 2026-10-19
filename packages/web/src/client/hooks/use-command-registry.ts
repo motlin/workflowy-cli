@@ -11,6 +11,7 @@ import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../car
 import {
 	cacheMoveTree,
 	isPotentiallyVisible,
+	rowHasChildren,
 	nextPotentiallyVisibleSibling,
 	planDuplicate,
 	planFocusSibling,
@@ -29,9 +30,12 @@ import {
 	useNode,
 	useToggleComplete,
 	undoAdapter,
+	useExpandAll,
 	useUpdateNode,
 } from "./use-nodes.js";
-import {collectVisibleNodeIds, currentNavigableIds} from "./use-visible-nodes.js";
+import {collectVisibleNodeIds, currentExpansionRows, currentNavigableIds} from "./use-visible-nodes.js";
+import {createDoublePressDetector, planExpandKey} from "../expansion.js";
+import type {ExpandKey} from "../expansion.js";
 import {zoomToToday} from "../zoom-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
@@ -45,6 +49,9 @@ import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
+
+/** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
+const toggleDetector = createDoublePressDetector();
 
 type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "paragraph";
 
@@ -90,6 +97,8 @@ export function useCommandRegistry(): CommandRegistry {
 	const expand = useOutlineStore((state) => state.expand);
 	const collapse = useOutlineStore((state) => state.collapse);
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
+	const replaceExpanded = useOutlineStore((state) => state.replaceExpanded);
+	const expandAll = useExpandAll();
 	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
@@ -251,6 +260,56 @@ export function useCommandRegistry(): CommandRegistry {
 			resumeEditing(targetId, offset);
 		} else {
 			placeCaretAtTextOffset(editor, offset);
+		}
+	};
+
+	/**
+	 * Upstream ⌘↓ / ⌘↑ / ⌃Space: act on the edited row, or on the zoom root when its title is edited or nothing is.
+	 * The caret stays where it is.
+	 */
+	const expandKey = (ctx: CommandContext, key: ExpandKey): void => {
+		const [itemId] = ctx.items;
+		const isRoot = itemId === undefined || itemId === ctx.zoomedId;
+		const node = itemNode(ctx);
+		const {expandedIds, showCompleted: completedShown} = useOutlineStore.getState();
+		const rowId = itemId ?? "";
+		const plan = planExpandKey({
+			key,
+			target: isRoot ? "root" : "row",
+			id: rowId,
+			isOpen: expandedIds.has(rowId),
+			hasVisibleChildren: node === undefined || rowHasChildren(node, completedShown),
+			now: performance.now(),
+			detector: toggleDetector,
+			rows: isRoot ? currentExpansionRows(queryClient) : [],
+			expanded: expandedIds,
+		});
+		switch (plan.type) {
+			case "none":
+				return;
+			case "expand":
+				expand(plan.id);
+				return;
+			case "collapse":
+				collapse(plan.id);
+				return;
+			case "toggle":
+				toggleExpand(plan.id);
+				return;
+			case "all":
+				expandAll(isRoot ? ctx.zoomedId : plan.id, plan.open);
+				return;
+			case "level": {
+				const next = new Set(expandedIds);
+				for (const id of plan.ids) {
+					if (plan.open) {
+						next.add(id);
+					} else {
+						next.delete(id);
+					}
+				}
+				replaceExpanded(next);
+			}
 		}
 	};
 
@@ -456,23 +515,17 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		expand: {
 			execute(ctx) {
-				for (const nodeId of ctx.items) {
-					expand(nodeId);
-				}
+				expandKey(ctx, "expand");
 			},
 		},
 		collapse: {
 			execute(ctx) {
-				for (const nodeId of ctx.items) {
-					collapse(nodeId);
-				}
+				expandKey(ctx, "collapse");
 			},
 		},
 		expand_or_collapse: {
 			execute(ctx) {
-				for (const nodeId of ctx.items) {
-					toggleExpand(nodeId);
-				}
+				expandKey(ctx, "toggle");
 			},
 		},
 		indent: {

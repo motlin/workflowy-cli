@@ -23,6 +23,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
 		shortcuts: [
 			{keys: "⌘↓", description: "Expand"},
 			{keys: "⌘↑", description: "Collapse"},
+			{keys: "⌃Space", description: "Expand or collapse"},
 		],
 	},
 	{

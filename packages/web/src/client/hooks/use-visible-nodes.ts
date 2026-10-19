@@ -2,7 +2,8 @@ import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {isPotentiallyVisible} from "../tree-ops.js";
+import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
+import type {ExpansionRow} from "../expansion.js";
 import {navigableIds} from "../caret-navigation.js";
 
 /**
@@ -58,4 +59,32 @@ export function currentNavigableIds(queryClient: QueryClient): string[] {
 		zoomedNodeId,
 		collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 	);
+}
+
+/**
+ * The rendered rows under the zoom root with their depth and whether each is a parent, read from the store and
+ * cache at call time, for the zoom root's level-by-level ⌘↓ / ⌘↑ and page-wide ⌃Space.
+ */
+export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
+	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	const rows: ExpansionRow[] = [];
+	const walk = (parentId: string | null, depth: number) => {
+		const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId)) ?? [];
+		for (const node of children) {
+			if (!isPotentiallyVisible(node, showCompleted, animatingCompletionIds)) {
+				continue;
+			}
+			const cached = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(node.id));
+			const hasVisibleChildren =
+				node.hasChildren === undefined
+					? cached === undefined || cached.length > 0
+					: rowHasChildren(node, showCompleted);
+			rows.push({id: node.id, depth, hasVisibleChildren});
+			if (expandedIds.has(node.id)) {
+				walk(node.id, depth + 1);
+			}
+		}
+	};
+	walk(zoomedNodeId, 0);
+	return rows;
 }

@@ -1,10 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
+	EXPAND_KEYS,
 	collapseDeepestOpenLevel,
 	createDoublePressDetector,
 	expandOrCollapseAll,
 	expandShallowestCollapsedLevel,
 	pageHasCollapsed,
+	planExpandKey,
 	subtreeIds,
 } from "../src/client/expansion.js";
 import type {ExpansionRow, TreeIndex} from "../src/client/expansion.js";
@@ -109,5 +111,122 @@ describe("createDoublePressDetector", () => {
 		const detector = createDoublePressDetector(250);
 		expect(detector.press("x", false, 0)).toStrictEqual({double: false});
 		expect(detector.press("y", false, 100)).toStrictEqual({double: false});
+	});
+});
+
+describe("EXPAND_KEYS", () => {
+	it("names the mac combos for expand, collapse and toggle", () => {
+		expect(EXPAND_KEYS).toStrictEqual({expand: "meta+down", collapse: "meta+up", toggle: "ctrl+space"});
+	});
+});
+
+describe("planExpandKey", () => {
+	const base = {
+		id: "Alpha",
+		isOpen: false,
+		hasVisibleChildren: true,
+		now: 0,
+		rows: rowsFor(new Set()),
+		expanded: new Set<string>(),
+	};
+
+	it("expands the shallowest collapsed level on the zoom root", () => {
+		const expanded = new Set(["Alpha"]);
+		const plan = planExpandKey({
+			...base,
+			key: "expand",
+			target: "root",
+			id: ROOT,
+			rows: rowsFor(expanded),
+			expanded,
+			detector: createDoublePressDetector(),
+		});
+		expect(plan).toStrictEqual({type: "level", ids: ["Beta"], open: true});
+	});
+
+	it("collapses the deepest open level on the zoom root", () => {
+		const expanded = new Set(["Alpha", "A1", "Beta"]);
+		const plan = planExpandKey({
+			...base,
+			key: "collapse",
+			target: "root",
+			id: ROOT,
+			rows: rowsFor(expanded),
+			expanded,
+			detector: createDoublePressDetector(),
+		});
+		expect(plan).toStrictEqual({type: "level", ids: ["A1"], open: false});
+	});
+
+	it("does nothing on the zoom root when no level is left to change", () => {
+		const plan = planExpandKey({
+			...base,
+			key: "collapse",
+			target: "root",
+			id: ROOT,
+			detector: createDoublePressDetector(),
+		});
+		expect(plan).toStrictEqual({type: "none"});
+	});
+
+	it("toggles the whole page on the zoom root: expand all while anything is collapsed", () => {
+		const detector = createDoublePressDetector();
+		expect(planExpandKey({...base, key: "toggle", target: "root", id: ROOT, detector})).toStrictEqual({
+			type: "all",
+			id: ROOT,
+			open: true,
+		});
+		const all = new Set(["Alpha", "A1", "Beta"]);
+		expect(
+			planExpandKey({
+				...base,
+				key: "toggle",
+				target: "root",
+				id: ROOT,
+				rows: rowsFor(all),
+				expanded: all,
+				detector,
+			}),
+		).toStrictEqual({type: "all", id: ROOT, open: false});
+	});
+
+	it("toggles a row, and a second press within the window collapses all from open", () => {
+		const detector = createDoublePressDetector();
+		const first = planExpandKey({...base, key: "toggle", target: "row", isOpen: true, now: 1000, detector});
+		expect(first).toStrictEqual({type: "toggle", id: "Alpha"});
+		const second = planExpandKey({...base, key: "toggle", target: "row", isOpen: false, now: 1200, detector});
+		expect(second).toStrictEqual({type: "all", id: "Alpha", open: false});
+	});
+
+	it("expands all on a second press from closed", () => {
+		const detector = createDoublePressDetector();
+		planExpandKey({...base, key: "toggle", target: "row", isOpen: false, now: 1000, detector});
+		const second = planExpandKey({...base, key: "toggle", target: "row", isOpen: true, now: 1100, detector});
+		expect(second).toStrictEqual({type: "all", id: "Alpha", open: true});
+	});
+
+	it("expands a collapsed row and collapses an open one, and leaves the other no-ops alone", () => {
+		const detector = createDoublePressDetector();
+		expect(planExpandKey({...base, key: "expand", target: "row", detector})).toStrictEqual({
+			type: "expand",
+			id: "Alpha",
+		});
+		expect(planExpandKey({...base, key: "expand", target: "row", isOpen: true, detector})).toStrictEqual({
+			type: "none",
+		});
+		expect(planExpandKey({...base, key: "collapse", target: "row", isOpen: true, detector})).toStrictEqual({
+			type: "collapse",
+			id: "Alpha",
+		});
+		expect(planExpandKey({...base, key: "collapse", target: "row", detector})).toStrictEqual({type: "none"});
+	});
+
+	it("does nothing on a leaf row", () => {
+		const detector = createDoublePressDetector();
+		for (const key of ["expand", "collapse", "toggle"] as const) {
+			expect(planExpandKey({...base, key, target: "row", hasVisibleChildren: false, detector})).toStrictEqual({
+				type: "none",
+			});
+		}
 	});
 });
