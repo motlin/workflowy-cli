@@ -63,6 +63,8 @@ import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
+import {useSlashMenu} from "../hooks/use-slash-menu.js";
+import {stripSlashChip} from "../slash-trigger.js";
 
 /**
  * Get the character offset in the text content from a mouse event.
@@ -260,7 +262,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return false;
 		}
 
-		nameSaver.saveNow(serializeDatePills(contentRef.current.innerHTML));
+		nameSaver.saveNow(stripSlashChip(serializeDatePills(contentRef.current.innerHTML)));
 		return true;
 	}, [nameSaver]);
 
@@ -466,16 +468,34 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[applyInlineToggle, nodeId, openLinkInsert, toggleLayoutFromToolbar],
 	);
 
+	// Typing a first or standalone "/" opens the slash command menu under a chip; it never schedules a save while open.
+	const changeName = useCallback(() => {
+		if (contentRef.current) {
+			nameSaver.change(stripSlashChip(serializeDatePills(contentRef.current.innerHTML)));
+		}
+	}, [nameSaver]);
+	const saveName = useCallback(() => {
+		saveInPlace();
+	}, [saveInPlace]);
+	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeName, onSave: saveName});
+	const {
+		handleInput: handleSlashInput,
+		handleKeyDown: handleSlashKey,
+		isOpen: isSlashOpen,
+		detach: detachSlashMenu,
+	} = slashMenu;
+
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
+			handleSlashInput(event.nativeEvent);
 			handleDateTrigger(event.nativeEvent);
 			handleDateAutocomplete();
 			handleTagAutocomplete();
-			if (contentRef.current) {
-				nameSaver.change(serializeDatePills(contentRef.current.innerHTML));
+			if (!isSlashOpen()) {
+				changeName();
 			}
 		},
-		[handleDateTrigger, handleDateAutocomplete, handleTagAutocomplete, nameSaver],
+		[changeName, handleSlashInput, isSlashOpen, handleDateTrigger, handleDateAutocomplete, handleTagAutocomplete],
 	);
 
 	const saveChanges = useCallback(() => {
@@ -843,12 +863,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	});
 
 	const handleBlur = useCallback(() => {
+		detachSlashMenu();
 		hideDateAutocomplete();
 		detachTagAutocomplete();
 		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
 			saveChanges();
 		}
-	}, [nodeId, saveChanges, hideDateAutocomplete, detachTagAutocomplete]);
+	}, [nodeId, saveChanges, detachSlashMenu, hideDateAutocomplete, detachTagAutocomplete]);
 
 	/**
 	 * ⇧↑ at the text start, ⇧↓ at its end, or ⌘A over the already fully selected text: commit the text, stop editing
@@ -892,6 +913,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
+			if (handleSlashKey(event)) {
+				return;
+			}
 			if (handleTagAutocompleteKey(event)) {
 				return;
 			}
@@ -947,6 +971,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			deleteIfEmpty,
 			enterRootNote,
 			focusNote,
+			handleSlashKey,
 			handleTagAutocompleteKey,
 			mergeWithSibling,
 			moveToAdjacentNode,
@@ -1174,6 +1199,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			{datePicker.popup}
 			{dateAutocomplete.flyout}
 			{tagAutocomplete.popup}
+			{slashMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
 					activeAttrs={toolbarView.activeAttrs}

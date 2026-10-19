@@ -20,6 +20,13 @@ function focusedElement(): HTMLElement | null {
 	return document.activeElement instanceof HTMLElement ? document.activeElement : null;
 }
 
+let activeRegistry: CommandRegistry = {};
+
+/** The registry the global keymap dispatches to, for editors that run a command by id (the slash menu). */
+export function activeCommandRegistry(): CommandRegistry {
+	return activeRegistry;
+}
+
 /**
  * Upstream's bubble-phase `window` keydown dispatcher: one listener turns each keydown into a combo and runs the
  * bound command from `registry`, claiming every bound combo but the passthroughs. Item commands act on the item
@@ -30,6 +37,7 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 	const registryRef = useRef(registry);
 	useEffect(() => {
 		registryRef.current = registry;
+		activeRegistry = registry;
 	}, [registry]);
 
 	useEffect(() => {

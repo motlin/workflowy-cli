@@ -10,6 +10,8 @@ import type {KeyComboEvent} from "./keymap.js";
 export interface CommandContext {
 	items: readonly string[];
 	zoomedId: string | null;
+	/** Where a picker the command opens anchors, e.g. the removed slash chip's rect. */
+	anchorRect?: DOMRect;
 }
 
 export interface Command {

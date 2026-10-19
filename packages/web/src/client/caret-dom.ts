@@ -32,7 +32,8 @@ export function textUnitLength(element: HTMLElement): number {
 	return unitsIn(element);
 }
 
-function unitsBefore(element: HTMLElement, container: Node, offset: number): number {
+/** Number of plain-text units between the start of `element` and the DOM point (`container`, `offset`). */
+export function unitsBefore(element: HTMLElement, container: Node, offset: number): number {
 	const before = document.createRange();
 	before.selectNodeContents(element);
 	before.setEnd(container, offset);

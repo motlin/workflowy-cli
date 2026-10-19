@@ -20,6 +20,8 @@ import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import {plainText} from "../rich-text.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
+import {useSlashMenu} from "../hooks/use-slash-menu.js";
+import {stripSlashChip} from "../slash-trigger.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -127,7 +129,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			noteSaver.flush();
 			return;
 		}
-		noteSaver.saveNow(planNoteSave(noteSaver.saved, element.innerHTML).note);
+		noteSaver.saveNow(planNoteSave(noteSaver.saved, stripSlashChip(element.innerHTML)).note);
 	}, [noteSaver]);
 
 	// Flush a pending debounced save if the editor unmounts first.
@@ -208,18 +210,33 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 		detach: detachTagAutocomplete,
 	} = tagAutocomplete;
 
+	// Typing a first or standalone "/" opens the slash command menu under a chip; it never schedules a save while open.
+	const changeNote = useCallback(() => {
+		const element = contentRef.current;
+		if (element !== null) {
+			noteSaver.change(planNoteSave(noteSaver.saved, stripSlashChip(element.innerHTML)).note);
+		}
+	}, [noteSaver]);
+	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeNote, onSave: saveNow});
+	const {
+		handleInput: handleSlashInput,
+		handleKeyDown: handleSlashKey,
+		isOpen: isSlashOpen,
+		detach: detachSlashMenu,
+	} = slashMenu;
+
 	const handleInput = useCallback(
 		(event?: React.SyntheticEvent<HTMLDivElement>) => {
+			handleSlashInput(event?.nativeEvent);
 			if (event !== undefined) {
 				handleDateTrigger(event.nativeEvent);
 			}
 			handleTagAutocomplete();
-			const element = contentRef.current;
-			if (element !== null) {
-				noteSaver.change(planNoteSave(noteSaver.saved, element.innerHTML).note);
+			if (!isSlashOpen()) {
+				changeNote();
 			}
 		},
-		[handleDateTrigger, handleTagAutocomplete, noteSaver],
+		[changeNote, handleSlashInput, isSlashOpen, handleDateTrigger, handleTagAutocomplete],
 	);
 
 	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
@@ -274,6 +291,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	}, [initialValue, dateSettings, isFocused, nodeId, focusNote, noteSaver]);
 
 	const handleBlur = useCallback(() => {
+		detachSlashMenu();
 		detachTagAutocomplete();
 		if (datePickerOpen.current) {
 			return;
@@ -281,7 +299,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 		saveNow();
 		setFocusedHtml(null);
 		blurNote(nodeId);
-	}, [detachTagAutocomplete, saveNow, blurNote, nodeId]);
+	}, [detachSlashMenu, detachTagAutocomplete, saveNow, blurNote, nodeId]);
 
 	const focusNextRowName = useCallback(() => {
 		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
@@ -298,6 +316,9 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLDivElement>) => {
+			if (handleSlashKey(event)) {
+				return;
+			}
 			const element = contentRef.current;
 			if (element === null || handleTagAutocompleteKey(event)) {
 				return;
@@ -364,6 +385,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			focusName,
 			focusNextRowName,
 			handleInput,
+			handleSlashKey,
 			handleTagAutocompleteKey,
 			nodeId,
 			openSearchFromEditing,
@@ -390,6 +412,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			/>
 			{datePicker.popup}
 			{tagAutocomplete.popup}
+			{slashMenu.menu}
 			{toolbarView && (
 				<SelectionToolbar
 					activeAttrs={toolbarView.activeAttrs}
