@@ -275,6 +275,11 @@ export class WorkflowyWriteThroughClient {
 		return result;
 	}
 
+	/** Cache that `mirrorId` mirrors `originalId`, for a mirror created outside {@link createMirror}. */
+	recordMirror(originalId: string, mirrorId: string): void {
+		this.cacheService.insertMirror(originalId, mirrorId);
+	}
+
 	/**
 	 * Remove a mirror and drop it, with its mirror relationship, from the cache.
 	 * @param mirrorId The mirror node to remove

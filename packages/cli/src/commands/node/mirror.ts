@@ -1,5 +1,7 @@
-import {WorkflowyApiClient} from "@workflowy/shared/api";
+import {WorkflowyApiClient, WorkflowyInternalClient} from "@workflowy/shared/api";
 import {PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {HOME, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import {readInternalAuth} from "@workflowy/shared/node";
 import type {NodeMirrorResult} from "@workflowy/shared/types";
 import {Command, Flags} from "@oclif/core";
 import {createDatabase} from "../../db/index.js";
@@ -13,6 +15,9 @@ export default class Mirror extends Command {
 	static override examples = [
 		"# Mirror a node into another parent (top by default)",
 		"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id def456",
+		"",
+		"# Mirror a node to the top level (Home); needs WORKFLOWY_USERNAME/WORKFLOWY_PASSWORD for the internal API",
+		"<%= config.bin %> <%= command.id %> --node-id abc123 --parent-id home",
 		"",
 		"# Mirror by path, placing the mirror at the bottom",
 		'<%= config.bin %> <%= command.id %> --node-path "Work,Tasks,My Task" --parent-path "Work,Agendas" --position bottom',
@@ -31,7 +36,8 @@ export default class Mirror extends Command {
 			exclusive: ["node-id"],
 		}),
 		"parent-id": Flags.string({
-			description: 'ID of the parent to place the mirror under, or a system target (e.g., "inbox")',
+			description:
+				'ID of the parent to place the mirror under, a system target (e.g., "inbox"), or "home" for the top level',
 			exclusive: ["parent-path", "delete"],
 		}),
 		"parent-path": Flags.string({
@@ -91,19 +97,18 @@ export default class Mirror extends Command {
 			cacheService,
 			apiClient,
 		);
-		if (parentId === null) {
-			// POST /nodes/:id/mirror requires a string parent_id; it rejects null and 404s "home".
-			this.error("Mirroring to Home (the top level) is not supported by the Workflowy API");
-		}
 		const {position} = flags;
 
 		if (!flags.json) {
 			this.log("Mirroring:");
 			this.log(`  Origin: ${pathBuilder.buildFullPath(nodeId)}`);
-			this.log(`  Into:   ${pathBuilder.buildFullPath(parentId)}`);
+			this.log(`  Into:   ${parentId === null ? "Home" : pathBuilder.buildFullPath(parentId)}`);
 		}
 
-		const result = await client.createMirror(nodeId, parentId, position);
+		const result =
+			parentId === null
+				? await this.mirrorToHome(nodeId, position, database, client)
+				: await client.createMirror(nodeId, parentId, position);
 
 		this.report(
 			{action: "created", mirrorId: result.mirrorId, originId: result.originId, parentId},
@@ -114,6 +119,34 @@ export default class Mirror extends Command {
 				this.log(`  Origin: ${result.originId}`);
 			},
 		);
+	}
+
+	/**
+	 * POST /nodes/:id/mirror requires a string parent_id (it rejects null and 404s "home"),
+	 * so a mirror at Home goes through the internal API the way upstream creates one.
+	 */
+	private async mirrorToHome(
+		nodeId: string,
+		position: "top" | "bottom",
+		database: ReturnType<typeof createDatabase>,
+		writeThrough: WorkflowyWriteThroughClient,
+	): Promise<{mirrorId: string; originId: string}> {
+		const auth = readInternalAuth();
+		if (!auth) {
+			this.error(
+				"Mirroring to Home needs the internal API: set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD in the environment (e.g. from .envrc)",
+			);
+		}
+		const adapter = new WorkflowyInternalAdapter({
+			client: new WorkflowyInternalClient(auth),
+			db: database,
+			writeThrough,
+		});
+		return adapter.createMirrorAt({
+			originalId: nodeId,
+			parentId: HOME,
+			index: position === "top" ? 0 : Number.MAX_SAFE_INTEGER,
+		});
 	}
 
 	private report(result: NodeMirrorResult, json: boolean, logText: () => void): void {

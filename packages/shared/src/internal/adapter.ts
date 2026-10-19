@@ -1,6 +1,7 @@
 import {and, eq, like} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
+import type {CreateMirrorResult} from "../api/workflowy-client.js";
 import type {InternalSession, WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
 import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
 import {keptInternalMetadata} from "../cache/importer.js";
@@ -107,6 +108,15 @@ export interface CreateAtInput {
 	name: string;
 	note?: string;
 	metadata?: Record<string, unknown>;
+}
+
+export interface CreateMirrorAtInput {
+	/** The node to mirror; a mirror resolves to its original. */
+	originalId: string;
+	/** A node id, or `HOME`. */
+	parentId: string;
+	/** 0-based slot among all siblings; clamped to `[0, siblings]`. */
+	index: number;
 }
 
 export interface EnsuredCalendarDay {
@@ -242,6 +252,61 @@ export class WorkflowyInternalAdapter {
 		}
 		await tree.refreshChildren([parent]);
 		return {id};
+	}
+
+	/**
+	 * Create a live mirror of a node at an exact slot, the way upstream's
+	 * `mirrorProjectTree` does: one push of a `bulk_create` for an empty mirror
+	 * root carrying `mirror.{originalId, isMirrorRoot}`, and an `edit` adding the
+	 * mirror to the original's `mirror.mirrorRootIds`. Unlike the public mirror
+	 * endpoint, this takes `HOME`. The original's metadata is read fresh from
+	 * `/get_tree_data/` so the patch keeps the mirrors it already has.
+	 */
+	async createMirrorAt(input: CreateMirrorAtInput): Promise<CreateMirrorResult> {
+		const tree = this.tree();
+		const items = await this.client.getTreeData();
+		const metadataOf = (id: string): Metadata | undefined => {
+			const item = items.find((candidate) => candidate.id === id);
+			return item === undefined ? undefined : (item.metadata ?? {});
+		};
+		const requested = metadataOf(input.originalId);
+		if (requested === undefined) {
+			throw new Error(`Cannot mirror ${input.originalId}: it is not in the Workflowy tree`);
+		}
+		const mirroredOriginal = getPath(requested, ["mirror", "originalId"]);
+		const originId = typeof mirroredOriginal === "string" ? mirroredOriginal : input.originalId;
+		const originMetadata = metadataOf(originId) ?? {};
+
+		const parent = publicParent(input.parentId);
+		const siblings = await tree.liveChildren(parent);
+		const session = await this.session();
+		const {op: createOp, ids} = bulkCreateOp({
+			parentId: internalParent(parent),
+			index: clampIndex(input.index, siblings.length),
+			trees: [{name: "", metadata: {mirror: {originalId: originId, isMirrorRoot: true}}}],
+			userId: session.userId,
+			now: this.now(),
+			dateJoinedSec: session.dateJoinedSec,
+			generateId: this.generateId,
+		});
+		const [mirrorId] = ids;
+		if (mirrorId === undefined) {
+			throw new Error("bulk_create produced no id");
+		}
+		const {patches, inverse} = buildMetadataChanges(originMetadata, [
+			{path: ["mirror", "mirrorRootIds", mirrorId], value: true},
+		]);
+		const linkOp = editOp({
+			id: originId,
+			metadataPatches: patches,
+			metadataInversePatches: inverse,
+			now: this.now(),
+			dateJoinedSec: session.dateJoinedSec,
+		});
+		await this.pusher.pushAndPoll({ops: [createOp, linkOp]});
+		await tree.refreshChildren([parent]);
+		tree.recordMirror(originId, mirrorId);
+		return {mirrorId, originId};
 	}
 
 	/**
