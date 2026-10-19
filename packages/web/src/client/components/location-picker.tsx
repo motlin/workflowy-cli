@@ -1,4 +1,4 @@
-import {useLayoutEffect, useRef, useState} from "react";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import type {CSSProperties, MouseEvent, ReactElement, ReactNode} from "react";
 import {createPortal} from "react-dom";
 import type {PickerIcon, PickerRow} from "../location-picker-model.js";
@@ -33,9 +33,15 @@ export interface LocationPickerProps {
 	rows: readonly PickerRow[];
 	/** Ancestors of a location, top-down, without Home and without the location itself. */
 	crumbsOf: (id: string) => readonly LocationCrumb[];
-	/** Truthy keeps the picker open (e.g. More results). */
-	onSelect: (row: PickerRow) => unknown;
+	/** The reducer's active row, an index into the enabled rows; the menu starts its selection there. */
+	active?: number;
+	/** `index` counts enabled rows only, matching `reducePicker`'s `select` event. Truthy keeps the picker open. */
+	onSelect: (row: PickerRow, index: number) => unknown;
 	exit?: () => void;
+	/** Escape while open, from a document listener so it fires while focus is in the input. */
+	onEscape?: () => void;
+	/** Focus moved outside the picker. */
+	onFocusLeave?: () => void;
 }
 
 // Upstream Cb4's popper wrapper class, template-literal newline included.
@@ -152,7 +158,7 @@ function LocationRow({
 
 LocationRow.componentType = "menuItem" as const;
 
-function renderRow(row: PickerRow, props: LocationPickerProps): ReactElement {
+function renderRow(row: PickerRow, index: number, props: LocationPickerProps): ReactElement {
 	if (row.kind === "help") {
 		return (
 			<div key="help" className="help-text">
@@ -174,7 +180,7 @@ function renderRow(row: PickerRow, props: LocationPickerProps): ReactElement {
 			crumbs={row.id === undefined ? undefined : props.crumbsOf(row.id)}
 			style={style}
 			bottomSticky={footer}
-			onSelect={() => props.onSelect(row)}
+			onSelect={() => props.onSelect(row, index)}
 		/>
 	);
 }
@@ -199,10 +205,36 @@ function usePopperPosition(position: readonly [number, number]) {
 	return {ref, placed};
 }
 
+/** Upstream's step-1 document keydown listener: Escape is the picker's, before the menu or editor see it. */
+function useEscape(onEscape: (() => void) | undefined) {
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (onEscape && event.key === "Escape") {
+				event.preventDefault();
+				event.stopPropagation();
+				onEscape();
+			}
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => {
+			document.removeEventListener("keydown", onKeyDown);
+		};
+	}, [onEscape]);
+}
+
+/** Enabled-row index of each row (disabled rows get -1), as the menu and `reducePicker` count them. */
+function enabledIndexes(rows: readonly PickerRow[]): number[] {
+	let next = 0;
+	return rows.map((row) => (row.disabled ? -1 : next++));
+}
+
 /** Upstream WF.InlineSearch picker (`Bp` desktop `Cb4` + steps `Lm1`/`Mm1` + results list `KM`). */
 export function LocationPicker(props: LocationPickerProps) {
-	const {position, step, headerText, subActionName, name = "", query, onQueryChange, rows, exit} = props;
+	const {position, step, headerText, subActionName, name = "", query, onQueryChange, rows, active = 0, exit} = props;
+	const {onFocusLeave} = props;
 	const {ref, placed} = usePopperPosition(position);
+	useEscape(props.onEscape);
+	const indexes = enabledIndexes(rows);
 	const header =
 		step === 1 ? (
 			headerText
@@ -229,12 +261,19 @@ export function LocationPicker(props: LocationPickerProps) {
 			data-popper-escaped="false"
 			data-popper-placement="bottom-start"
 			className={WRAPPER_CLASS}
+			onBlur={(event) => {
+				if (onFocusLeave && !event.currentTarget.contains(event.relatedTarget)) {
+					onFocusLeave();
+				}
+			}}
 		>
 			<Flyout expanded position={position} align={FlyoutAlign.Left}>
 				<MenuSectionHeader>{header}</MenuSectionHeader>
 				<div className={step === 1 ? "p-l pt-0 mobile:pl-ml" : "pt-0 pb-l px-l mobile:pl-ml"}>
 					<div className="flex flex-col w-full">
 						<input
+							// Keyed by step: each step mounts its own autofocused input, as upstream's Lm1/Mm1 do.
+							key={step}
 							className={INPUT_CLASS}
 							type="text"
 							placeholder="Find location..."
@@ -257,13 +296,13 @@ export function LocationPicker(props: LocationPickerProps) {
 						<MenuBody
 							unwrapped
 							keyboardMode
-							initialSelect={0}
+							initialSelect={active}
 							cyclicNavigation
 							stopKeydownEventPropagation
 							maxHeight={MENU_MAX_HEIGHT}
 							exit={exit}
 						>
-							{rows.map((row) => renderRow(row, props))}
+							{rows.map((row, index) => renderRow(row, indexes[index] ?? -1, props))}
 						</MenuBody>
 					</Flyout>
 				</div>

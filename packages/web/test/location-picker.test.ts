@@ -73,9 +73,10 @@ interface RenderOptions {
 	query: string;
 	rows: PickerRow[];
 	name?: string;
+	active?: number;
 }
 
-function render({step = 1, query, rows, name}: RenderOptions): string {
+function render({step = 1, query, rows, name, active}: RenderOptions): string {
 	return normalize(
 		renderToStaticMarkup(
 			createElement(LocationPicker, {
@@ -84,6 +85,7 @@ function render({step = 1, query, rows, name}: RenderOptions): string {
 				headerText: "Move To...",
 				name,
 				query,
+				active,
 				onQueryChange: () => {},
 				rows,
 				crumbsOf: (id: string) => CRUMBS_BY_ID[id] ?? [],
@@ -239,5 +241,20 @@ describe("LocationPicker markup", () => {
 			rows: [{kind: "recent", id: "top", labelHtml: "Top", disabled: false, icon: "clock"}],
 		});
 		expect(html).toContain(`<span class="${SUBTEXT}ml-xl">${crumbs("Home")}</span>`);
+	});
+
+	it("starts the keyboard selection on the reducer's active enabled row", () => {
+		const html = render({
+			query: "qzpick",
+			active: 2,
+			rows: [
+				{kind: "result", id: "r1", labelHtml: "One", disabled: false, icon: null},
+				{kind: "more", labelHtml: "More results", disabled: false, icon: "ellipsis"},
+				...createRows("qzpick", false),
+			],
+		});
+		expect(
+			[...html.matchAll(/<a [^>]*class="([^"]*)"/gu)].map(([, rowClass]) => rowClass === ROW_ACTIVE),
+		).toStrictEqual([false, false, true, false]);
 	});
 });

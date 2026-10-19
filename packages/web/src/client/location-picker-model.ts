@@ -100,3 +100,76 @@ export function buildPickerRows(input: PickerRowsInput): PickerRow[] {
 export function firstEnabledIndex(rows: readonly PickerRow[]): number {
 	return rows.findIndex((row) => !row.disabled);
 }
+
+/** The picker's step machine. `active` indexes the enabled rows, as the shared menu reducer does. */
+export interface PickerState {
+	step: 1 | 2;
+	query: string;
+	expanded: boolean;
+	active: number;
+	/** Step 2: the name of the item `New "name" in…` creates. */
+	name: string;
+}
+
+/** Arrows and Ctrl+N/P are the shared menu reducer's; it reports selections as `select` with the enabled index. */
+export type PickerEvent =
+	| {type: "query"; query: string}
+	| {type: "key"; key: "Enter" | "Tab" | "Escape"; shiftKey?: boolean}
+	| {type: "select"; index: number}
+	| {type: "focus-leave"};
+
+/** `sub-action` creates `name` under `id`, or under the default (newest recent) location when `id` is absent. */
+export type PickerEffect =
+	| {type: "none"}
+	| {type: "close"}
+	| {type: "action"; id: string}
+	| {type: "sub-action"; id?: string; name: string};
+
+export interface PickerTransition {
+	state: PickerState;
+	effect: PickerEffect;
+}
+
+const INITIAL_PICKER_STATE: PickerState = {step: 1, query: "", expanded: false, active: 0, name: ""};
+
+const NONE: PickerEffect = {type: "none"};
+
+function selectRow(state: PickerState, index: number, rows: readonly PickerRow[]): PickerTransition {
+	const row = rows.filter((candidate) => !candidate.disabled)[index];
+	if (!row) {
+		return {state, effect: NONE};
+	}
+	if (row.kind === "more") {
+		return {state: {...state, expanded: true, active: index}, effect: NONE};
+	}
+	if (row.kind === "create-default") {
+		return {state, effect: {type: "sub-action", name: state.query}};
+	}
+	if (row.kind === "create-elsewhere") {
+		return {state: {...INITIAL_PICKER_STATE, step: 2, name: state.query}, effect: NONE};
+	}
+	if (row.id === undefined) {
+		return {state, effect: NONE};
+	}
+	return {
+		state,
+		effect: state.step === 2 ? {type: "sub-action", id: row.id, name: state.name} : {type: "action", id: row.id},
+	};
+}
+
+/** Upstream WF.InlineSearch steps (`Lm1` search, `Mm1` destination for `New "q" in…`). */
+export function reducePicker(state: PickerState, event: PickerEvent, rows: readonly PickerRow[]): PickerTransition {
+	if (event.type === "query") {
+		return {state: {...state, query: event.query, expanded: false, active: 0}, effect: NONE};
+	}
+	if (event.type === "select") {
+		return selectRow(state, event.index, rows);
+	}
+	if (event.type === "focus-leave") {
+		return {state, effect: {type: "close"}};
+	}
+	if (event.key === "Escape") {
+		return state.step === 2 ? {state: INITIAL_PICKER_STATE, effect: NONE} : {state, effect: {type: "close"}};
+	}
+	return selectRow(state, state.active, rows);
+}

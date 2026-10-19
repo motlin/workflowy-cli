@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
-import {buildPickerRows, firstEnabledIndex} from "../src/client/location-picker-model.js";
-import type {PickerRow} from "../src/client/location-picker-model.js";
+import {buildPickerRows, firstEnabledIndex, reducePicker} from "../src/client/location-picker-model.js";
+import type {PickerRow, PickerState} from "../src/client/location-picker-model.js";
 
 const NAMES: Record<string, string> = {hub: "Qzpick Hub", cal: "📆 Calendar", mover: "Mover"};
 
@@ -108,5 +108,86 @@ describe("buildPickerRows", () => {
 describe("firstEnabledIndex", () => {
 	it("is -1 when every row is disabled", () => {
 		expect(firstEnabledIndex(buildPickerRows({...BASE, query: ""}))).toBe(-1);
+	});
+});
+
+const STEP1: PickerState = {step: 1, query: "qzpick", expanded: false, active: 0, name: ""};
+
+describe("reducePicker", () => {
+	const rows = buildPickerRows({...BASE, query: "qzpick", results: results(9)});
+
+	it("selects the active row on Tab, Shift+Tab and Enter", () => {
+		const state = {...STEP1, active: 1};
+		const expected = {state, effect: {type: "action", id: "r2"}};
+		expect(reducePicker(state, {type: "key", key: "Tab"}, rows)).toStrictEqual(expected);
+		expect(reducePicker(state, {type: "key", key: "Tab", shiftKey: true}, rows)).toStrictEqual(expected);
+		expect(reducePicker(state, {type: "key", key: "Enter"}, rows)).toStrictEqual(expected);
+	});
+
+	it("does nothing on Enter when no row is active", () => {
+		const state = {...STEP1, query: "", active: -1};
+		expect(reducePicker(state, {type: "key", key: "Enter"}, buildPickerRows({...BASE, query: ""}))).toStrictEqual({
+			state,
+			effect: {type: "none"},
+		});
+	});
+
+	it("indexes enabled rows only, skipping the disabled help row", () => {
+		const helpRows = buildPickerRows({...BASE, query: "zq", results: []});
+		expect(reducePicker({...STEP1, query: "zq"}, {type: "select", index: 0}, helpRows)).toStrictEqual({
+			state: {...STEP1, query: "zq"},
+			effect: {type: "sub-action", name: "zq"},
+		});
+	});
+
+	it("expands on More results and keeps the active index", () => {
+		expect(reducePicker(STEP1, {type: "select", index: 5}, rows)).toStrictEqual({
+			state: {...STEP1, expanded: true, active: 5},
+			effect: {type: "none"},
+		});
+	});
+
+	it("enters step 2 with the query as the name on create-elsewhere", () => {
+		expect(reducePicker(STEP1, {type: "select", index: 7}, rows)).toStrictEqual({
+			state: {step: 2, name: "qzpick", query: "", expanded: false, active: 0},
+			effect: {type: "none"},
+		});
+	});
+
+	it("creates under the chosen location in step 2", () => {
+		const state: PickerState = {step: 2, name: "qzpick", query: "hub", expanded: false, active: 0};
+		const step2Rows = buildPickerRows({
+			...BASE,
+			query: "hub",
+			results: [{id: "hub", labelHtml: "Hub"}],
+			action: false,
+		});
+		expect(reducePicker(state, {type: "key", key: "Enter"}, step2Rows)).toStrictEqual({
+			state,
+			effect: {type: "sub-action", id: "hub", name: "qzpick"},
+		});
+	});
+
+	it("resets the active row and collapses on every filter change", () => {
+		expect(reducePicker({...STEP1, expanded: true, active: 4}, {type: "query", query: "qz"}, rows)).toStrictEqual({
+			state: {...STEP1, query: "qz"},
+			effect: {type: "none"},
+		});
+	});
+
+	it("returns from step 2 to step 1 with an empty query on Escape", () => {
+		const state: PickerState = {step: 2, name: "qzpick", query: "hub", expanded: true, active: 2};
+		expect(reducePicker(state, {type: "key", key: "Escape"}, rows)).toStrictEqual({
+			state: {step: 1, query: "", expanded: false, active: 0, name: ""},
+			effect: {type: "none"},
+		});
+	});
+
+	it("closes on Escape in step 1 and when focus leaves", () => {
+		expect(reducePicker(STEP1, {type: "key", key: "Escape"}, rows)).toStrictEqual({
+			state: STEP1,
+			effect: {type: "close"},
+		});
+		expect(reducePicker(STEP1, {type: "focus-leave"}, rows)).toStrictEqual({state: STEP1, effect: {type: "close"}});
 	});
 });
