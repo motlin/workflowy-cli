@@ -18,7 +18,11 @@ const outlineState = {
 	beginMutation() {},
 	endMutation() {},
 	startEditing() {},
+	markCreatedForSearch(id: string) {
+		createdForSearch.push(id);
+	},
 };
+const createdForSearch: string[] = [];
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: Object.assign(
@@ -95,6 +99,7 @@ beforeEach(() => {
 	undoHistory.clear();
 	responses = [];
 	createdId = undefined;
+	createdForSearch.length = 0;
 	vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
 		if (url === "/api/v1/nodes" && init?.method === "POST") {
 			const body = JSON.parse(typeof init.body === "string" ? init.body : "{}") as {id: string};
@@ -167,5 +172,15 @@ describe("mutation hooks record undo ops", () => {
 			{kind: "edit", nodeId: "a", field: "name", before: "al", after: "alpha"},
 		]);
 		expect(undoHistory.canUndo).toBe(false);
+	});
+});
+
+describe("creates during a search", () => {
+	it("marks the optimistic row and then the id the server answered as created-for-search", async () => {
+		const queryClient = seeded();
+		createdId = "server-id";
+		captureHooks(queryClient).create.mutate({id: "client-id", parent_id: "p", name: "", index: 1});
+		await settled(queryClient);
+		expect(createdForSearch).toStrictEqual(["client-id", "server-id"]);
 	});
 });

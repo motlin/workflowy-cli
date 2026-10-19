@@ -360,7 +360,8 @@ export function useCreateNode() {
 		onSuccess(createdNode, variables) {
 			createUndos.settle(variables, {data: createdNode});
 			// The public-API fallback cannot honor a client id: follow the caret to the real one.
-			const {editingId, startEditing} = useOutlineStore.getState();
+			const {editingId, startEditing, markCreatedForSearch} = useOutlineStore.getState();
+			markCreatedForSearch(createdNode.id);
 			if (variables.id !== undefined && createdNode.id !== variables.id && editingId === variables.id) {
 				startEditing(createdNode.id);
 			}
@@ -437,6 +438,8 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 	const index = requestedIndex(newNode, siblings.length);
 	if (newNode.id !== undefined) {
 		pendingCreates.begin(optimisticNode, index);
+		// The editor mounts on this row at once, so a search must show it before the server answers.
+		useOutlineStore.getState().markCreatedForSearch(newNode.id);
 	}
 	queryClient.setQueryData<NodeResponse[]>(
 		nodeKeys.children(parentId),

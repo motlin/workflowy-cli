@@ -344,6 +344,8 @@ interface OutlineActions {
 	dispatchNav: (action: NavAction) => void;
 	setUrlSearchQuery: (query: string | null) => void;
 	zoom: (id: string | null) => void;
+	/** Keeps a row created during the committed search visible though it does not match; no-op with no search. */
+	markCreatedForSearch: (id: string) => void;
 	toggleExpand: (id: string) => void;
 	/** Arrow click during a search: record the opposite of the row's current search expansion; `expandedIds` is untouched. */
 	toggleSearchExpansion: (id: string, isExpanded: boolean) => void;
@@ -634,6 +636,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			searchCreatedIds: new Set(),
 			searchExpansion: new Map(),
 		}));
+	},
+
+	markCreatedForSearch: (id) => {
+		const {searchQuery, searchCreatedIds} = get();
+		if (searchQuery === "" || searchCreatedIds.has(id)) {
+			return;
+		}
+		set({searchCreatedIds: new Set(searchCreatedIds).add(id)});
 	},
 
 	zoom: (id) => {

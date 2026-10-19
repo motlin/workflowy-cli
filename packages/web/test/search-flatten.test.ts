@@ -15,6 +15,7 @@ const {nodeKeys} = await import("../src/client/node-cache.js");
 const {currentExpansionRows, currentNavigableIds} = await import("../src/client/hooks/use-visible-nodes.js");
 const {currentSearchFilter, treeSearchKey} = await import("../src/client/hooks/use-tree-search.js");
 const {searchFilter} = await import("../src/client/search-filter.js");
+const {searchClasses} = await import("../src/client/search-classes.js");
 
 function node(id: string, parentId: string, name: string, childCount: number, completedAt: number | null = null) {
 	const result: NodeResponse = {
@@ -138,6 +139,32 @@ describe("flattenTree during a search", () => {
 			"deep apple leaf",
 			"Plain item #fruitTag",
 		]);
+	});
+
+	it("keeps a row created under a match right after the row it was created from", () => {
+		const children = new Map([
+			...CHILDREN,
+			[
+				"fruit",
+				[
+					node("green", "fruit", "Green apple pie", 0),
+					node("zz", "fruit", "zz", 0),
+					node("banana", "fruit", "Banana split", 0),
+					node("cherry", "fruit", "Cherry tart", 1),
+				],
+			],
+		]);
+		const search = searchFilter(APPLE, new Set(["zz"]), new Map());
+		const rows = flattenTree(ROOT_CHILDREN, new Set(), false, 0, children, new Set(), search);
+		expect({
+			names: rows.map((row) => row.node.name),
+			matchCount: search.result.matchCount,
+			classes: searchClasses({id: "zz", parentId: "fruit"}, search),
+		}).toStrictEqual({
+			names: ["Fruit apple", "Green apple pie", "zz", "Cherry tart", "deep apple leaf"],
+			matchCount: 4,
+			classes: {project: ["matches", "terminalMatch"], name: [], note: []},
+		});
 	});
 
 	it("reports each row's search expansion", () => {

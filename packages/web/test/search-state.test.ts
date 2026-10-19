@@ -105,6 +105,26 @@ describe("committed search state", () => {
 		});
 	});
 
+	it("markCreatedForSearch keeps a row created while searching visible", () => {
+		useOutlineStore.getState().setUrlSearchQuery("apple");
+		useOutlineStore.getState().markCreatedForSearch("n1");
+		useOutlineStore.getState().markCreatedForSearch("n2");
+		expect(useOutlineStore.getState().searchCreatedIds).toStrictEqual(new Set(["n1", "n2"]));
+	});
+
+	it("markCreatedForSearch ignores rows created with no search committed", () => {
+		useOutlineStore.getState().markCreatedForSearch("n1");
+		expect(useOutlineStore.getState().searchCreatedIds).toStrictEqual(new Set());
+	});
+
+	it("markCreatedForSearch keeps the same Set for an id it already has", () => {
+		useOutlineStore.getState().setUrlSearchQuery("apple");
+		useOutlineStore.getState().markCreatedForSearch("n1");
+		const before = useOutlineStore.getState().searchCreatedIds;
+		useOutlineStore.getState().markCreatedForSearch("n1");
+		expect(useOutlineStore.getState().searchCreatedIds).toBe(before);
+	});
+
 	it("committing the same query re-runs it without navigating", () => {
 		useOutlineStore.getState().setUrlSearchQuery("apple");
 		useOutlineStore.setState({searchCreatedIds: new Set(["n1"])});
