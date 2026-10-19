@@ -1042,7 +1042,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return;
 			}
 			cancelHide();
-			setColorPicker({tag: tagHover.tag, top: tagHover.bottom + 4, left: tagHover.left});
+			setColorPicker({tag: tagHover.tag, top: tagHover.bottom, left: tagHover.left});
 			setTagHover(null);
 		},
 		[tagHover, cancelHide],

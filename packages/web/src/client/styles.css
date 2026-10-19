@@ -1584,49 +1584,6 @@ body.moving .expand {
 	height: 1em;
 }
 
-/* Tag color picker - floating swatch row shown when a tag is selected */
-.tag-color-picker {
-	position: fixed;
-	z-index: 300;
-	display: flex;
-	gap: 6px;
-	padding: 8px;
-	background-color: var(--color-bg);
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
-	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-}
-
-.tag-color-swatch {
-	box-sizing: border-box;
-	width: 24px;
-	height: 24px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0;
-	border: 1px solid var(--color-border-light);
-	border-radius: 5px;
-	color: var(--wf-tag-pill-text);
-	font-size: 13px;
-	font-weight: 600;
-	cursor: pointer;
-}
-
-.tag-color-swatch:hover {
-	border-color: var(--wf-tag-default);
-}
-
-.tag-color-swatch.selected {
-	border-color: var(--color-accent);
-	border-width: 2px;
-}
-
-.tag-color-swatch.tag-color-remove svg {
-	width: 100%;
-	height: 100%;
-}
-
 /* Workflowy-style colored text spans */
 .innerContentContainer .colored.c-green {
 	color: var(--wf-tag-text-green);

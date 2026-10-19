@@ -81,6 +81,7 @@ describe("FA_ICONS", () => {
 			"fal:ban",
 			"fas:circle-small",
 			"fal:ellipsis-h",
+			"far:font",
 		]);
 	});
 
