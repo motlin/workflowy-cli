@@ -3,6 +3,7 @@ import {useEffect} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams} from "react-router-dom";
 import type {NodeResponse} from "../node-types.js";
 
+import {AppMessages} from "./components/app-message.js";
 import {ChangesView} from "./components/changes-view.js";
 import {ErrorBoundary} from "./components/error-boundary.js";
 import {ErrorNotifications} from "./components/error-notification.js";
@@ -119,6 +120,7 @@ function OutlineView() {
 			<Settings />
 			<PresentationMode />
 			<ErrorNotifications />
+			<AppMessages />
 			{isMutating && <LoadingOverlay message="Saving changes..." />}
 		</div>
 	);

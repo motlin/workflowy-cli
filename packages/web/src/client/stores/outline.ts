@@ -192,6 +192,26 @@ interface ErrorNotification {
 	retryAction?: () => void;
 }
 
+export interface AppMessageAction {
+	label: string;
+	/** Display-only shortcut hint, e.g. "shift+return". */
+	shortcut?: string;
+	run: () => void;
+}
+
+interface AppMessageState {
+	text: string;
+	actions: readonly AppMessageAction[];
+}
+
+interface ShowAppMessageOptions {
+	/** Milliseconds before the message hides itself; omitted keeps it until hidden. */
+	timeout?: number;
+	actions?: readonly AppMessageAction[];
+}
+
+let appMessageTimer: ReturnType<typeof setTimeout> | undefined;
+
 interface ClickPosition {
 	x: number;
 	y: number;
@@ -259,6 +279,7 @@ interface OutlineState {
 	theme: Theme;
 	isOnline: boolean;
 	errorNotifications: ErrorNotification[];
+	appMessage: AppMessageState | null;
 	/** In-flight node mutations; the saving overlay shows while it is above zero (see selectIsMutating). */
 	mutationCount: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
@@ -343,6 +364,8 @@ interface OutlineActions {
 	addErrorNotification: (message: string, type?: "error" | "warning" | "info", retryAction?: () => void) => string;
 	removeErrorNotification: (id: string) => void;
 	clearAllErrorNotifications: () => void;
+	showAppMessage: (text: string, options?: ShowAppMessageOptions) => void;
+	hideAppMessage: () => void;
 	beginMutation: () => void;
 	endMutation: () => void;
 }
@@ -480,6 +503,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	theme: getInitialTheme(),
 	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
+	appMessage: null,
 	mutationCount: 0,
 	nav: initialNavState,
 	urlSearchQuery: null,
@@ -901,6 +925,23 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	clearAllErrorNotifications: () => {
 		set({errorNotifications: []});
+	},
+
+	showAppMessage(text, {timeout, actions = []} = {}) {
+		clearTimeout(appMessageTimer);
+		appMessageTimer =
+			timeout === undefined
+				? undefined
+				: setTimeout(() => {
+						get().hideAppMessage();
+					}, timeout);
+		set({appMessage: {text, actions}});
+	},
+
+	hideAppMessage() {
+		clearTimeout(appMessageTimer);
+		appMessageTimer = undefined;
+		set({appMessage: null});
 	},
 
 	beginMutation: () => {
