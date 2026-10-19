@@ -57,5 +57,13 @@
 			"file": "packages/cli/src/services/list-by-id.ts",
 			"exports": ["*"],
 		},
+		{
+			"file": "packages/web/src/client/keys/hint.ts",
+			"exports": ["*"],
+		},
+		{
+			"file": "packages/web/src/client/keys/keymap.ts",
+			"exports": ["*"],
+		},
 	],
 }
