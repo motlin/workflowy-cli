@@ -1,6 +1,11 @@
-import {useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
+import {useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
+import {useNavigate} from "react-router-dom";
 import {useMediaQuery} from "../hooks/use-media-query.js";
+import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
+import {createSearchBoxController} from "../search-box-model.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Tooltip} from "./tooltip.js";
 
@@ -22,6 +27,24 @@ function borderStyle(color: string): CSSProperties {
 	return {borderRadius: 20, borderTop: side, borderRight: side, borderLeft: side, borderBottom: side};
 }
 
+/** Hand focus back to the outline: the row search was opened from, else the first visible row. */
+function focusOutline(input: HTMLInputElement, queryClient: QueryClient): void {
+	input.blur();
+	const {searchReturn, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds, resumeEditing} =
+		useOutlineStore.getState();
+	const [firstVisibleRowId] = collectVisibleNodeIds(
+		queryClient,
+		zoomedNodeId,
+		expandedIds,
+		showCompleted,
+		animatingCompletionIds,
+	);
+	const nodeId = searchReturn?.nodeId ?? firstVisibleRowId;
+	if (nodeId !== undefined) {
+		resumeEditing(nodeId, searchReturn?.caretOffset ?? 0);
+	}
+}
+
 /**
  * Upstream header search box (label.searchBox): a 210px pill that widens to 320px on focus and
  * collapses to a borderless 36px circle with a plain magnifier below 1000px while empty and unfocused.
@@ -31,7 +54,19 @@ export function SearchBox() {
 	const setSearchInput = useOutlineStore((state) => state.setSearchInput);
 	const focused = useOutlineStore((state) => state.searchFocused);
 	const setSearchFocused = useOutlineStore((state) => state.setSearchFocused);
-	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const controller = useMemo(
+		() =>
+			createSearchBoxController({
+				commit: (query) => {
+					useOutlineStore.getState().commitSearch(query, navigate);
+				},
+				getCommitted: () => useOutlineStore.getState().searchQuery,
+			}),
+		[navigate],
+	);
+	useEffect(() => controller.dispose, [controller]);
 	const wide = useMediaQuery("(min-width: 1000px)");
 	const [armed, setArmed] = useState(false);
 
@@ -55,8 +90,12 @@ export function SearchBox() {
 	};
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		if (event.key === "Enter") {
-			openSearchWithQuery(searchInput);
+		const result = controller.key(event.key, searchInput);
+		if (result.preventDefault) {
+			event.preventDefault();
+		}
+		if (result.action === "focusOutline") {
+			focusOutline(event.currentTarget, queryClient);
 		}
 	};
 
@@ -82,6 +121,7 @@ export function SearchBox() {
 					}}
 					onChange={(event) => {
 						setSearchInput(event.target.value);
+						controller.change(event.target.value);
 					}}
 					onFocus={() => {
 						setArmed(true);
@@ -108,8 +148,21 @@ export function SearchBox() {
 							height="14"
 							viewBox="0 0 14 14"
 							className="cursor-pointer text-secondary"
-							onClick={() => {
-								setSearchInput("");
+							onMouseDown={(event) => {
+								event.preventDefault();
+							}}
+							onClick={(event) => {
+								if (useOutlineStore.getState().searchQuery === "") {
+									setSearchInput("");
+									controller.change("");
+									return;
+								}
+								controller.dispose();
+								useOutlineStore.getState().cancelSearch(navigate);
+								const input = event.currentTarget.closest("label")?.querySelector("input");
+								if (input) {
+									focusOutline(input, queryClient);
+								}
 							}}
 						>
 							<path clipRule="evenodd" d={CLEAR_PATH} fill="currentColor" fillRule="evenodd" />

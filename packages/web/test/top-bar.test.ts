@@ -12,7 +12,6 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	zoomedNodeId: "alice",
 	toggleLeftBar: () => {},
 	toggleSearchPanel: () => {},
-	openSearchWithQuery: () => {},
 	searchInput: "",
 	setSearchInput: () => {},
 	searchFocused: false,
@@ -40,6 +39,7 @@ vi.mock("../src/client/hooks/use-starred.js", () => ({
 	useStars: () => ({stars: [], unavailable: false}),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
+vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({})}));
 const toggleState = {toggleCompleted: (): void => {}};
 vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
 	useShowCompletedToggle: () => toggleState.toggleCompleted,

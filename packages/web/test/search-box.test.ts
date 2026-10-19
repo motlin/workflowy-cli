@@ -7,13 +7,18 @@ const state = {
 	setSearchInput: (_value: string) => {},
 	searchFocused: false,
 	setSearchFocused: (_focused: boolean) => {},
-	openSearchWithQuery: (_query: string) => {},
 };
 
 const media = {wide: true};
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector: (s: typeof state) => unknown) => selector(state),
+}));
+vi.mock("react-router-dom", () => ({
+	useNavigate: () => () => {},
+}));
+vi.mock("@tanstack/react-query", () => ({
+	useQueryClient: () => ({}),
 }));
 vi.mock("../src/client/hooks/use-media-query.js", () => ({
 	useMediaQuery: () => media.wide,
