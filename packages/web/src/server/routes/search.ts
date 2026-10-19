@@ -7,6 +7,8 @@ import {stripHtmlTags} from "@workflowy/shared/html";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {notReferencesContent} from "../backlinks.js";
 import {getDatabase} from "../db.js";
+import {collectHelperTags} from "../helper-tags.js";
+import type {HelperTags} from "../helper-tags.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
 
@@ -108,6 +110,15 @@ export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, roo
 		isMirror: row.isMirror === 1,
 	}));
 }
+
+/** Search helper #tags/@tags of the live descendants of `rootId`, excluding the root (whole tree when empty). */
+export function loadHelperTags(database: ReturnType<typeof getDatabase>, rootId: string): HelperTags {
+	const rows = loadTreeSearchRows(database, rootId === "" ? null : rootId);
+	return collectHelperTags(rows.filter((row) => row.id !== rootId));
+}
+
+// GET /api/search/helpers?rootId= - Subtree tags for the search helper's #TAGS / @TAGS sections
+searchRouter.get("/helpers", (c) => c.json(loadHelperTags(getDatabase(), c.req.query("rootId") ?? "")));
 
 // POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
 searchRouter.post("/tree", async (c) => {
