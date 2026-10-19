@@ -82,6 +82,24 @@ export async function setPreferences(queryClient: QueryClient, patch: Preference
 	}
 }
 
+/** The account's `slashDiscovered`; true while loading or unavailable so the slash hint never flashes. */
+export function slashDiscoveredFrom(state: PreferencesState | undefined): boolean {
+	return state?.available === true ? state.preferences.slashDiscovered : true;
+}
+
+/** Upstream `WF.Slash.discover()`: the first slash-menu open turns the placeholder hint off for good. */
+export async function markSlashDiscovered(queryClient: QueryClient): Promise<void> {
+	if (!slashDiscoveredFrom(queryClient.getQueryData<PreferencesState>(preferenceKeys.all))) {
+		await setPreferences(queryClient, {slashDiscovered: true});
+	}
+}
+
+/** Whether the slash menu has been discovered on this account (true while loading or unavailable). */
+export function useSlashDiscovered(): boolean {
+	const {data} = useQuery({queryKey: preferenceKeys.all, queryFn: fetchPreferences});
+	return slashDiscoveredFrom(data);
+}
+
 export interface UsePreferences extends PreferencesState {
 	dateSettings: DateSettings;
 	setPreferences: (patch: PreferencesPatch) => Promise<void>;

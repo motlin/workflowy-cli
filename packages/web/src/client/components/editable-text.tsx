@@ -59,12 +59,12 @@ import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
-import {useDateSettings} from "../hooks/use-preferences.js";
+import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
-import {stripSlashChip} from "../slash-trigger.js";
+import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
 
 /**
  * Get the character offset in the text content from a mouse event.
@@ -478,6 +478,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		saveInPlace();
 	}, [saveInPlace]);
 	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeName, onSave: saveName});
+	const slashDiscovered = useSlashDiscovered();
 	const {
 		handleInput: handleSlashInput,
 		handleKeyDown: handleSlashKey,
@@ -1187,6 +1188,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			<span
 				className="innerContentContainer editing"
 				data-node-id={nodeId}
+				// The CSS `:empty` rule shows it only while the editor is empty.
+				data-placeholder={placeholderFor({
+					focused: true,
+					empty: true,
+					layoutMode: readNode(queryClient, nodeId)?.data.layoutMode,
+					slashDiscovered,
+				})}
 				contentEditable
 				dangerouslySetInnerHTML={{__html: editorHtml}}
 				onBlur={handleBlur}

@@ -57,3 +57,34 @@ const SLASH_CHIP_PATTERN = new RegExp(`<span class="${SLASH_CHIP_CLASS}">([^<]*)
 export function stripSlashChip(html: string): string {
 	return html.replace(SLASH_CHIP_PATTERN, "$1");
 }
+
+const SLASH_HINT = 'Type "/" for commands';
+
+export interface PlaceholderInput {
+	readonly focused: boolean;
+	readonly empty: boolean;
+	readonly layoutMode?: string | null | undefined;
+	readonly slashDiscovered?: boolean;
+	readonly isZoomRoot?: boolean;
+}
+
+/**
+ * Upstream's name placeholder (`doc/plugins/slash-hint` plus the zoom-root title): a focused empty
+ * name hints at the slash menu until it is discovered, except on dividers and numbered rows; an
+ * empty zoom-root title otherwise reads "Untitled". The account-age rule is n/a locally.
+ */
+export function placeholderFor({
+	focused,
+	empty,
+	layoutMode,
+	slashDiscovered = true,
+	isZoomRoot = false,
+}: PlaceholderInput): string | undefined {
+	if (!empty) {
+		return undefined;
+	}
+	if (focused && !slashDiscovered && layoutMode !== "divider" && layoutMode !== "numbered") {
+		return SLASH_HINT;
+	}
+	return isZoomRoot ? "Untitled" : undefined;
+}

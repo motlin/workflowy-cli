@@ -1,3 +1,4 @@
+import {useQueryClient} from "@tanstack/react-query";
 import {useCallback, useEffect, useRef, useState} from "react";
 import type {ReactNode} from "react";
 import {placeCaretAtTextOffset, unitsBefore} from "../caret-dom.js";
@@ -11,6 +12,7 @@ import {planSlashOpen, planSlashRearm, SLASH_CHIP_CLASS} from "../slash-trigger.
 import type {SlashRange} from "../slash-trigger.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {activeCommandRegistry} from "./use-global-keymap.js";
+import {markSlashDiscovered} from "./use-preferences.js";
 
 interface SlashOpen {
 	groups: SlashGroup[];
@@ -107,6 +109,7 @@ export function useSlashMenu({editorRef, nodeId, onChange, onSave}: SlashMenuOpt
 	detach: () => void;
 	menu: ReactNode;
 } {
+	const queryClient = useQueryClient();
 	const [open, setOpenState] = useState<SlashOpen | null>(null);
 	const openRef = useRef<SlashOpen | null>(null);
 	const chipRef = useRef<HTMLSpanElement | null>(null);
@@ -168,9 +171,11 @@ export function useSlashMenu({editorRef, nodeId, onChange, onSave}: SlashMenuOpt
 			const chip = wrapChip(node, range);
 			chipRef.current = chip;
 			setOpen({groups, index: 0, keyboardMode: true, ...chipAnchor(chip)});
+			// A failed PATCH rolls the flag back; the hint just stays until the next open.
+			markSlashDiscovered(queryClient).catch(() => {});
 			return true;
 		},
-		[nodeId, setOpen],
+		[nodeId, queryClient, setOpen],
 	);
 
 	const handleInput = useCallback(

@@ -1784,6 +1784,13 @@ body.moving .expand {
 	display: block;
 }
 
+/* Upstream slash hint: a focused empty name shows `Type "/" for commands` until the menu is discovered. */
+.innerContentContainer.editing[data-placeholder]:empty::before {
+	content: attr(data-placeholder);
+	color: var(--wf-text-tertiary);
+	pointer-events: none;
+}
+
 .notes > .content > .innerContentContainer::selection,
 .notes > .content > .innerContentContainer > *::selection {
 	color: var(--wf-text-secondary);
