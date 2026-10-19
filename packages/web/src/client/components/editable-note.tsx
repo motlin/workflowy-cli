@@ -5,6 +5,10 @@ import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
+import {placeCaretAtTextOffset} from "../caret-dom.js";
+import {planDateInsertion} from "../date-pills.js";
+import type {TimeAttrs} from "@workflowy/shared";
+import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 
@@ -125,14 +129,63 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	// While focused, ⌘S and undo save the note's pending text in place.
 	useEffect(() => (isFocused ? registerEditFlush(saveNow) : undefined), [isFocused, saveNow]);
 
-	const handleInput = useCallback(() => {
+	// While the `!!` date picker holds focus, the note's blur and refocus neither save nor re-render it.
+	const datePickerOpen = useRef(false);
+
+	const insertDate = useCallback(
+		(attrs: TimeAttrs, offset: number) => {
+			const element = contentRef.current;
+			if (element !== null) {
+				const plan = planDateInsertion(planNoteSave(noteSaver.saved, element.innerHTML).note, offset, attrs);
+				element.focus();
+				element.innerHTML = noteContentHtml(plan.html, dateSettings);
+				placeCaretAtTextOffset(element, plan.caretOffset);
+				noteSaver.saveNow(plan.html);
+			}
+			datePickerOpen.current = false;
+		},
+		[dateSettings, noteSaver],
+	);
+
+	const cancelDate = useCallback((offset: number) => {
 		const element = contentRef.current;
 		if (element !== null) {
-			noteSaver.change(planNoteSave(noteSaver.saved, element.innerHTML).note);
+			element.focus();
+			placeCaretAtTextOffset(element, offset);
 		}
-	}, [noteSaver]);
+		datePickerOpen.current = false;
+	}, []);
+
+	const openDate = useCallback(() => {
+		datePickerOpen.current = true;
+	}, []);
+
+	const datePicker = useBangDatePicker({
+		editorRef: contentRef,
+		dateSettings,
+		onOpen: openDate,
+		onInsert: insertDate,
+		onCancel: cancelDate,
+	});
+	const {handleInput: handleDateTrigger} = datePicker;
+
+	const handleInput = useCallback(
+		(event?: React.SyntheticEvent<HTMLDivElement>) => {
+			if (event !== undefined) {
+				handleDateTrigger(event.nativeEvent);
+			}
+			const element = contentRef.current;
+			if (element !== null) {
+				noteSaver.change(planNoteSave(noteSaver.saved, element.innerHTML).note);
+			}
+		},
+		[handleDateTrigger, noteSaver],
+	);
 
 	const handleFocus = useCallback(() => {
+		if (datePickerOpen.current) {
+			return;
+		}
 		noteSaver.reset(initialValue);
 		setFocusedHtml(noteContentHtml(initialValue, dateSettings));
 		if (!isFocused) {
@@ -141,6 +194,9 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	}, [initialValue, dateSettings, isFocused, nodeId, focusNote, noteSaver]);
 
 	const handleBlur = useCallback(() => {
+		if (datePickerOpen.current) {
+			return;
+		}
 		saveNow();
 		setFocusedHtml(null);
 		blurNote(nodeId);
@@ -235,6 +291,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				ref={contentRef}
 				suppressContentEditableWarning
 			/>
+			{datePicker.popup}
 		</div>
 	);
 }

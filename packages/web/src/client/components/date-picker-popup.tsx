@@ -26,6 +26,8 @@ export interface DatePickerPopupProps {
 	/** Whether a day has journal content under 📆 Calendar; draws the single-mode event dot (DP10). */
 	hasEvent?: (date: Date) => boolean;
 	onTermChange?: (term: string) => void;
+	/** Enter in the date input (upstream `apply(state.date, true)`). */
+	onEnter?: () => void;
 	/** A day click: `[day]` in single mode; in range mode `[first]` then the sorted `[start, end]`. */
 	onApply?: (dates: Date[]) => void;
 	onPreset?: (preset: DatePreset) => void;
@@ -448,6 +450,7 @@ export function DatePickerPopup({
 	position,
 	hasEvent = noEvents,
 	onTermChange,
+	onEnter,
 	onApply = ignoreDates,
 	onPreset,
 	onToggleRange,
@@ -474,6 +477,10 @@ export function DatePickerPopup({
 						onKeyDown={(event) => {
 							if (event.key === "Escape") {
 								onEscape?.();
+								event.preventDefault();
+								event.stopPropagation();
+							} else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+								onEnter?.();
 								event.preventDefault();
 								event.stopPropagation();
 							}

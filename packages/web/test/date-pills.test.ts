@@ -4,9 +4,13 @@ import {fileURLToPath} from "node:url";
 import {
 	deletePillAfterCaret,
 	deletePillBeforeCaret,
+	planDateInsertion,
 	renderDatePills,
 	serializeDatePills,
+	shouldTriggerDatePopup,
+	timeAttrsFromDates,
 } from "../src/client/date-pills.js";
+import {plainLength} from "../src/client/rich-text.js";
 import {renderTags} from "../src/client/tag-render.js";
 
 const SETTINGS = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
@@ -136,5 +140,65 @@ describe("date pill styles", () => {
 
 	it("drops the old local time badge rule", () => {
 		expect(normalized.includes(".innerContentContainer time{")).toBe(false);
+	});
+});
+
+describe("shouldTriggerDatePopup", () => {
+	it("opens on !! preceded by whitespace and followed by the end or whitespace", () => {
+		expect([
+			shouldTriggerDatePopup("dpEmpty !!", 10),
+			shouldTriggerDatePopup("!!", 2),
+			shouldTriggerDatePopup("a !! b", 4),
+			shouldTriggerDatePopup("a ！！", 4),
+			shouldTriggerDatePopup("a !！", 4),
+		]).toStrictEqual([true, true, true, true, true]);
+	});
+
+	it("stays literal when !! touches text on either side", () => {
+		expect([
+			shouldTriggerDatePopup("dpEmpty!!", 9),
+			shouldTriggerDatePopup("a !!b", 4),
+			shouldTriggerDatePopup("a x!", 4),
+			shouldTriggerDatePopup("!", 1),
+		]).toStrictEqual([false, false, false, false]);
+	});
+});
+
+describe("timeAttrsFromDates", () => {
+	it("builds single and sorted range attributes with 1-based months", () => {
+		expect([
+			timeAttrsFromDates([new Date(2026, 9, 15)]),
+			timeAttrsFromDates([new Date(2026, 9, 16), new Date(2026, 9, 12)]),
+		]).toStrictEqual([
+			{startYear: 2026, startMonth: 10, startDay: 15},
+			{startYear: 2026, startMonth: 10, startDay: 12, endYear: 2026, endMonth: 10, endDay: 16},
+		]);
+	});
+});
+
+describe("planDateInsertion", () => {
+	const OCT_15 = {startYear: 2026, startMonth: 10, startDay: 15};
+
+	it("inserts the pill plus one space at the end and puts the caret after the space", () => {
+		const plan = planDateInsertion("dpPlain text row ", 17, OCT_15);
+		// Caret offsets count a pill as one unit (caret-dom), so the caret sits after the 17 chars, the pill and the space.
+		expect(plan).toStrictEqual({
+			html: 'dpPlain text row <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> ',
+			caretOffset: plainLength("dpPlain text row ") + 1 + 1,
+		});
+	});
+
+	it("adds no space when text follows the caret", () => {
+		expect(planDateInsertion("a  tail", 2, OCT_15)).toStrictEqual({
+			html: 'a <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> tail',
+			caretOffset: 3,
+		});
+	});
+
+	it("counts an existing pill before the caret as one unit", () => {
+		expect(planDateInsertion(`${SINGLE} `, 16, OCT_15)).toStrictEqual({
+			html: `${SINGLE} <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> `,
+			caretOffset: 18,
+		});
 	});
 });

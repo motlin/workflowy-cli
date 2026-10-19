@@ -26,7 +26,15 @@ import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
-import {deletePillAfterCaret, deletePillBeforeCaret, renderDatePills, serializeDatePills} from "../date-pills.js";
+import {
+	deletePillAfterCaret,
+	deletePillBeforeCaret,
+	planDateInsertion,
+	renderDatePills,
+	serializeDatePills,
+} from "../date-pills.js";
+import type {TimeAttrs} from "@workflowy/shared";
+import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
@@ -243,11 +251,52 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		};
 	}, [isEditing, saveInPlace, nameSaver]);
 
-	const handleInput = useCallback(() => {
-		if (contentRef.current) {
-			nameSaver.change(serializeDatePills(contentRef.current.innerHTML));
-		}
-	}, [nameSaver]);
+	const insertDate = useCallback(
+		(attrs: TimeAttrs, offset: number) => {
+			const content = contentRef.current;
+			if (content) {
+				const plan = planDateInsertion(serializeDatePills(content.innerHTML), offset, attrs);
+				content.focus();
+				content.innerHTML = renderDatePills(plan.html, dateSettings);
+				placeCaretAtTextOffset(content, plan.caretOffset);
+				nameSaver.saveNow(plan.html);
+			}
+			releaseEditing();
+		},
+		[dateSettings, nameSaver, releaseEditing],
+	);
+
+	const cancelDate = useCallback(
+		(offset: number) => {
+			const content = contentRef.current;
+			if (content) {
+				content.focus();
+				placeCaretAtTextOffset(content, offset);
+			}
+			releaseEditing();
+		},
+		[releaseEditing],
+	);
+
+	// `!!` opens the date picker; holding editing keeps the input's focus from committing this edit.
+	const datePicker = useBangDatePicker({
+		editorRef: contentRef,
+		dateSettings,
+		onOpen: holdEditing,
+		onInsert: insertDate,
+		onCancel: cancelDate,
+	});
+	const {handleInput: handleDateTrigger} = datePicker;
+
+	const handleInput = useCallback(
+		(event: React.SyntheticEvent<HTMLSpanElement>) => {
+			handleDateTrigger(event.nativeEvent);
+			if (contentRef.current) {
+				nameSaver.change(serializeDatePills(contentRef.current.innerHTML));
+			}
+		},
+		[handleDateTrigger, nameSaver],
+	);
 
 	const saveChanges = useCallback(() => {
 		if (!saveInPlace()) {
@@ -1006,17 +1055,20 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}
 
 	return (
-		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model
-		<span
-			className="innerContentContainer editing"
-			data-node-id={nodeId}
-			contentEditable
-			dangerouslySetInnerHTML={{__html: editorHtml}}
-			onBlur={handleBlur}
-			onInput={handleInput}
-			onKeyDown={handleKeyDown}
-			ref={contentRef}
-			suppressContentEditableWarning
-		/>
+		<>
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model */}
+			<span
+				className="innerContentContainer editing"
+				data-node-id={nodeId}
+				contentEditable
+				dangerouslySetInnerHTML={{__html: editorHtml}}
+				onBlur={handleBlur}
+				onInput={handleInput}
+				onKeyDown={handleKeyDown}
+				ref={contentRef}
+				suppressContentEditableWarning
+			/>
+			{datePicker.popup}
+		</>
 	);
 }

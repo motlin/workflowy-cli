@@ -1,5 +1,6 @@
 import {canonicalTimeAttributes, formatPillLabel, parseTimeAttrs, toTimeMarkup} from "@workflowy/shared";
-import {plainCharAt} from "./rich-text.js";
+import type {TimeAttrs} from "@workflowy/shared";
+import {plainCharAt, plainLength, splitHtml} from "./rich-text.js";
 import type {DateSettings} from "./date-settings.js";
 
 const BOM = "﻿";
@@ -56,4 +57,59 @@ export function deletePillBeforeCaret(html: string, offset: number): string | nu
 /** Delete right before a pill (at plain-text `offset`, a pill counting one) deletes the whole pill, else null. */
 export function deletePillAfterCaret(html: string, offset: number): string | null {
 	return deletePillAt(html, offset);
+}
+
+const BANG = /^[!！]$/u;
+const EDGE = /^\s$/u;
+
+/**
+ * Upstream's `symbol.spaced` `!!` trigger: the two characters before `caret` in plain `text`
+ * are `!` or `！`, preceded by whitespace or the start and followed by whitespace or the end.
+ */
+export function shouldTriggerDatePopup(text: string, caret: number): boolean {
+	const before = text[caret - 3];
+	const after = text[caret];
+	return (
+		caret >= 2 &&
+		BANG.test(text[caret - 1] ?? "") &&
+		BANG.test(text[caret - 2] ?? "") &&
+		(before === undefined || EDGE.test(before)) &&
+		(after === undefined || EDGE.test(after))
+	);
+}
+
+/** `<time>` attributes for a picked day, or for a range sorted start to end (months 1-based). */
+export function timeAttrsFromDates(dates: Date[]): TimeAttrs {
+	const [start, end] = dates.toSorted((a, b) => a.getTime() - b.getTime());
+	if (start === undefined) {
+		throw new Error("timeAttrsFromDates needs at least one date");
+	}
+	const attrs: TimeAttrs = {
+		startYear: start.getFullYear(),
+		startMonth: start.getMonth() + 1,
+		startDay: start.getDate(),
+	};
+	if (end !== undefined) {
+		attrs.endYear = end.getFullYear();
+		attrs.endMonth = end.getMonth() + 1;
+		attrs.endDay = end.getDate();
+	}
+	return attrs;
+}
+
+/**
+ * Stored HTML after inserting a date pill at plain-text `caretOffset` (a pill counting one),
+ * plus one space only when nothing follows, and the caret offset right after it all.
+ */
+export function planDateInsertion(
+	html: string,
+	caretOffset: number,
+	attrs: TimeAttrs,
+): {html: string; caretOffset: number} {
+	const {before, after} = splitHtml(html, caretOffset, caretOffset);
+	const space = plainLength(after) === 0 ? " " : "";
+	return {
+		html: `${before}${toTimeMarkup(attrs)}${space}${after}`,
+		caretOffset: plainLength(before) + 1 + space.length,
+	};
 }
