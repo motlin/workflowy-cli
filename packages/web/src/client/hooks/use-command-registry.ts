@@ -41,8 +41,12 @@ import type {ExpandKey} from "../expansion.js";
 import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
-import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
+import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
+import {renderDatePills, serializeDatePills} from "../date-pills.js";
+import {planLayoutHotkey} from "../layout-hotkeys.js";
+import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
+import {useDateSettings} from "./use-preferences.js";
 import {plainLength} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, whenUndoSettled} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
@@ -55,8 +59,6 @@ import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
 const toggleDetector = createDoublePressDetector();
-
-type LayoutMode = "bullets" | "todo" | "h1" | "h2" | "h3" | "p";
 
 /** The ids of `nodes` the outline can show, in priority order. */
 function potentiallyVisibleIds(nodes: NodeResponse[] | undefined): string[] {
@@ -143,6 +145,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const deleteNodeMutation = useDeleteNode();
 	const toggleCompleteMutation = useToggleComplete();
 	const updateNodeMutation = useUpdateNode();
+	const dateSettings = useDateSettings();
 
 	// The zoomed node's parent and siblings, for zooming out and to its siblings
 	const {data: zoomedNode} = useNode(zoomedNodeId);
@@ -239,11 +242,50 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
-	const setLayoutMode = (ctx: CommandContext, layoutMode: LayoutMode): void => {
-		for (const nodeId of ctx.items) {
-			updateNodeMutation.mutate({nodeId, layoutMode});
+	/**
+	 * Upstream's layout toggles (`planLayoutToggle`) over the command targets, in one undo step. While editing, the
+	 * unsaved text is committed first and the editor stays open with the caret in place, showing any rewritten name.
+	 */
+	const toggleLayout = (ctx: CommandContext, command: LayoutHotkeyCommand): void => {
+		const nodes = ctx.items.flatMap((id) => readNode(queryClient, id) ?? []);
+		if (nodes.length === 0) {
+			return;
+		}
+		const editor = editingId !== null && !hasItemSelection() ? editorElement(editingId) : null;
+		const edited =
+			editor !== null && editingId !== null
+				? {nodeId: editingId, name: serializeDatePills(editor.innerHTML)}
+				: undefined;
+		const plan = planLayoutHotkey(command, nodes, edited);
+		if (editor !== null && edited !== undefined) {
+			flushEditing();
+			let caret = caretTextOffset(editor);
+			const renamed = plan.updates.find((update) => update.nodeId === edited.nodeId)?.name;
+			if (renamed !== undefined) {
+				caret = Math.max(0, caret - (plainLength(edited.name) - plainLength(renamed)));
+				editor.innerHTML = renderDatePills(renamed, dateSettings);
+				placeCaretAtTextOffset(editor, caret);
+			}
+			holdEditing(caret);
+		}
+		void runInUndoBatch(captureOutlineView, () => {
+			for (const update of plan.updates) {
+				updateNodeMutation.mutate(update, {onSettled: releaseEditing});
+			}
+			for (const nodeId of plan.deletes) {
+				deleteNodeMutation.mutate(nodeId);
+			}
+		});
+		if (plan.clearSelection) {
+			useOutlineStore.getState().clearItemSelection();
 		}
 	};
+
+	const layoutCommand = (command: LayoutHotkeyCommand): Command => ({
+		execute(ctx) {
+			toggleLayout(ctx, command);
+		},
+	});
 
 	/**
 	 * Upstream `navigate_to_next_item` / `prev_item`: zoom to the zoomed page's potentially visible sibling `step`
@@ -688,36 +730,15 @@ export function useCommandRegistry(): CommandRegistry {
 				}
 			},
 		},
-		toggle_bullet: {
-			execute(ctx) {
-				setLayoutMode(ctx, "bullets");
-			},
-		},
-		toggle_todo: {
-			execute(ctx) {
-				setLayoutMode(ctx, "todo");
-			},
-		},
-		toggle_h1: {
-			execute(ctx) {
-				setLayoutMode(ctx, "h1");
-			},
-		},
-		toggle_h2: {
-			execute(ctx) {
-				setLayoutMode(ctx, "h2");
-			},
-		},
-		toggle_h3: {
-			execute(ctx) {
-				setLayoutMode(ctx, "h3");
-			},
-		},
-		toggle_paragraph: {
-			execute(ctx) {
-				setLayoutMode(ctx, "p");
-			},
-		},
+		toggle_h1: layoutCommand("toggle_h1"),
+		toggle_h2: layoutCommand("toggle_h2"),
+		toggle_h3: layoutCommand("toggle_h3"),
+		toggle_paragraph: layoutCommand("toggle_paragraph"),
+		toggle_code_block: layoutCommand("toggle_code_block"),
+		toggle_quote_block: layoutCommand("toggle_quote_block"),
+		toggle_bullet: layoutCommand("toggle_bullet"),
+		toggle_todo: layoutCommand("toggle_todo"),
+		toggle_numbered: layoutCommand("toggle_numbered"),
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightBar},
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3

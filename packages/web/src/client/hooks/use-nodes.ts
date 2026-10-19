@@ -32,6 +32,8 @@ interface UpdateNodeRequest {
 	name?: string;
 	note?: string;
 	layoutMode?: string;
+	/** The first number of a numbered list; null clears it. */
+	numberedStart?: number | null;
 }
 
 export async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
@@ -463,6 +465,7 @@ export function useUpdateNode() {
 				name: updates.name ?? node.name,
 				note: updates.note ?? node.note,
 				data: {...node.data, layoutMode: updates.layoutMode ?? node.data.layoutMode},
+				...(updates.numberedStart === undefined ? {} : {numberedStart: updates.numberedStart}),
 				modifiedAt: Math.floor(Date.now() / 1000),
 			}));
 			return {restore};

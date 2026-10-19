@@ -809,50 +809,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		}
 	}, []);
 
-	const toggleCodeBlock = useCallback(() => {
-		if (!contentRef.current) {
-			return;
-		}
-
-		// Check if content is already wrapped in <pre><code>
-		const firstChild = contentRef.current.firstElementChild;
-		const isCodeBlock = firstChild?.tagName === "PRE" && firstChild.firstElementChild?.tagName === "CODE";
-
-		if (isCodeBlock) {
-			// Remove code block: extract content from <pre><code>
-			contentRef.current.innerHTML = firstChild.firstElementChild.innerHTML;
-		} else {
-			// Add code block: wrap entire content in <pre><code>
-			const preElement = document.createElement("pre");
-			const codeElement = document.createElement("code");
-			codeElement.innerHTML = contentRef.current.innerHTML;
-			preElement.append(codeElement);
-			contentRef.current.innerHTML = "";
-			contentRef.current.append(preElement);
-		}
-	}, []);
-
-	const toggleQuote = useCallback(() => {
-		if (!contentRef.current) {
-			return;
-		}
-
-		// Check if content is already wrapped in <blockquote>
-		const firstChild = contentRef.current.firstElementChild;
-		const isQuote = firstChild?.tagName === "BLOCKQUOTE";
-
-		if (isQuote) {
-			// Remove quote: extract content from <blockquote>
-			contentRef.current.innerHTML = firstChild.innerHTML;
-		} else {
-			// Add quote: wrap entire content in <blockquote>
-			const blockquoteElement = document.createElement("blockquote");
-			blockquoteElement.innerHTML = contentRef.current.innerHTML;
-			contentRef.current.innerHTML = "";
-			contentRef.current.append(blockquoteElement);
-		}
-	}, []);
-
 	const handleBlur = useCallback(() => {
 		hideDateAutocomplete();
 		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
@@ -958,12 +914,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			} else if (event.key === "c" && event.metaKey && event.shiftKey) {
 				event.preventDefault();
 				toggleCode();
-			} else if (event.key === "6" && event.metaKey && event.altKey) {
-				event.preventDefault();
-				toggleCodeBlock();
-			} else if (event.key === "7" && event.metaKey && event.altKey) {
-				event.preventDefault();
-				toggleQuote();
 			}
 		},
 		[
@@ -981,8 +931,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			splitAtSelection,
 			toggleStrikethrough,
 			toggleCode,
-			toggleCodeBlock,
-			toggleQuote,
 		],
 	);
 
