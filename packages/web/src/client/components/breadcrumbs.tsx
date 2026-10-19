@@ -5,6 +5,7 @@ import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
+import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
 import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {IconButton} from "./icon-button.js";
@@ -38,14 +39,6 @@ export function handleCrumbClick(event: CrumbClickEvent, crumb: Crumb, {navigate
 	}
 	event.preventDefault();
 	navigateToNode(crumb.isRoot ? null : crumb.id);
-}
-
-export function BreadcrumbSeparator() {
-	return (
-		<svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="flex-shrink-0">
-			<path d="M0 0 L4 4 L0 8" stroke="currentColor" strokeLinecap="round" />
-		</svg>
-	);
 }
 
 function crumbLabel(name: string | null | undefined): string {

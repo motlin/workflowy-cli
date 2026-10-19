@@ -1,0 +1,274 @@
+import {useLayoutEffect, useRef, useState} from "react";
+import type {CSSProperties, MouseEvent, ReactElement, ReactNode} from "react";
+import {createPortal} from "react-dom";
+import type {PickerIcon, PickerRow} from "../location-picker-model.js";
+import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
+import {FaIcon} from "./fa-icons.js";
+import type {FaIconKey} from "./fa-icons.js";
+import {Flyout} from "./flyout/flyout.js";
+import {FlyoutAlign} from "./flyout/flyout-style.js";
+import {MenuBody} from "./flyout/menu.js";
+import {MenuItem, MenuSectionHeader} from "./flyout/menu-item.js";
+import {placePopper} from "./flyout/place-popper.js";
+import {POPUP_Z} from "./flyout/popover-box.js";
+
+/** One ancestor shown in a location row's subtext, top-down, Home excluded. */
+export interface LocationCrumb {
+	id: string;
+	name: string;
+}
+
+export interface LocationPickerProps {
+	/** Caret box bottom-left, in page coordinates. */
+	position: readonly [number, number];
+	/** Step 1 searches for the target; step 2 picks where `New "name" in…` goes. */
+	step: 1 | 2;
+	/** Step 1 header, e.g. `Move To...`. */
+	headerText?: ReactNode;
+	subActionName?: string;
+	/** Step 2: the name of the item to create. */
+	name?: string;
+	query: string;
+	onQueryChange: (query: string) => void;
+	rows: readonly PickerRow[];
+	/** Ancestors of a location, top-down, without Home and without the location itself. */
+	crumbsOf: (id: string) => readonly LocationCrumb[];
+	/** Truthy keeps the picker open (e.g. More results). */
+	onSelect: (row: PickerRow) => unknown;
+	exit?: () => void;
+}
+
+// Upstream Cb4's popper wrapper class, template-literal newline included.
+const WRAPPER_CLASS = `[&_.flyout]:static [&_.flyout]:m-0 [&_.flyout]:min-w-[480px] [&_.flyout]:p-0
+        [&_.flyout:empty]:hidden [&_.flyout.menu]:border-0 [&_.flyout.menu]:rounded-none `;
+
+// Upstream WF.DomKit.Input.
+const INPUT_CLASS =
+	"block w-full box-border appearance-none p-m rounded-s outline-none border border-solid border-primary bg-primary focus:border-tint text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected [&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:inherit] [&:-webkit-autofill]:border-tint [&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] ";
+
+const MENU_MAX_HEIGHT = 240;
+
+const FOOTER_STYLE: CSSProperties = {height: 32, display: "flex", alignItems: "center"};
+const FOOTER_A_STYLE: CSSProperties = {
+	overflow: "hidden",
+	...FOOTER_STYLE,
+	borderTop: "1px solid var(--wf-border-primary)",
+};
+
+const STRING_ICONS: Partial<Record<NonNullable<PickerIcon>, FaIconKey>> = {
+	clock: "fal:clock",
+	ellipsis: "fal:ellipsis",
+	plus: "fal:plus",
+};
+
+/** Upstream passes clock/ellipsis/plus as icon names (fa-fw, subtext ml-xl) and star/arrow-up as elements. */
+function rowIcon(icon: PickerIcon): FaIconKey | ReactElement | undefined {
+	if (icon === "star") {
+		return <FaIcon icon="fas:star" style={{color: "var(--wf-yellow-200)"}} />;
+	}
+	if (icon === "arrow-up") {
+		return <FaIcon icon="fal:arrow-up" style={{transform: "rotate(45deg)"}} />;
+	}
+	return icon === null ? undefined : STRING_ICONS[icon];
+}
+
+/** Upstream GuiCrumbs.Widget with hideCurrent, showLastSeparator and itemsDisabled: plain divs, Home for top level. */
+function LocationCrumbs({crumbs}: {crumbs: readonly LocationCrumb[]}) {
+	const shown = crumbs.length === 0 ? [{id: "None", name: "Home"}] : crumbs;
+	return (
+		<div
+			className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden"
+			style={{height: 24, color: "var(--wf-text-primary)"}}
+		>
+			{shown.flatMap((crumb) => [
+				<div
+					key={crumb.id}
+					className={`breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate opacity-70
+    data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`}
+				>
+					{crumb.name}
+				</div>,
+				<BreadcrumbSeparator key={`${crumb.id}-separator`} />,
+			])}
+		</div>
+	);
+}
+
+interface LocationRowProps {
+	row: PickerRow;
+	crumbs?: readonly LocationCrumb[];
+	style?: CSSProperties;
+	bottomSticky?: boolean;
+	isSelected?: boolean;
+	isInKeyboardMode?: boolean;
+	onSelect?: () => unknown;
+	onMouseEnter?: (event: MouseEvent<HTMLAnchorElement>) => void;
+}
+
+/** Upstream `Zf` (e92): a MenuItem with an HTML label and a breadcrumb subtext. */
+function LocationRow({
+	row,
+	crumbs,
+	style,
+	bottomSticky,
+	isSelected,
+	isInKeyboardMode,
+	onSelect,
+	onMouseEnter,
+}: LocationRowProps) {
+	// The default-location footer's label is a fragment upstream, so it is not wrapped in an inner div.
+	const label =
+		row.kind === "create-default" ? (
+			<div
+				data-menu-item-label=""
+				className="flex flex-row gap-m"
+				dangerouslySetInnerHTML={{__html: row.labelHtml}}
+			/>
+		) : (
+			<div data-menu-item-label="" className="flex flex-row gap-m">
+				<div dangerouslySetInnerHTML={{__html: row.labelHtml}} />
+			</div>
+		);
+	return (
+		<MenuItem
+			icon={rowIcon(row.icon)}
+			label={label}
+			subtext={crumbs && <LocationCrumbs crumbs={crumbs} />}
+			isSelected={isSelected}
+			isInKeyboardMode={isInKeyboardMode}
+			onSelect={onSelect}
+			onMouseEnter={onMouseEnter}
+			disabled={row.disabled}
+			style={style}
+			bottomSticky={bottomSticky}
+			className={`
+        [&:not(:last-child)]:mb-xs
+        [&_.menuItemIcon]:w-auto
+        ${row.disabled ? "[&_span]:text-inherit" : "[&.active]:bg-secondary [&.canHover:hover]:bg-secondary"}
+        `}
+		/>
+	);
+}
+
+LocationRow.componentType = "menuItem" as const;
+
+function renderRow(row: PickerRow, props: LocationPickerProps): ReactElement {
+	if (row.kind === "help") {
+		return (
+			<div key="help" className="help-text">
+				{row.labelHtml}
+			</div>
+		);
+	}
+	const footer = row.kind === "create-default" || row.kind === "create-elsewhere";
+	let style: CSSProperties | undefined;
+	if (row.kind === "create-default") {
+		style = FOOTER_A_STYLE;
+	} else if (footer) {
+		style = FOOTER_STYLE;
+	}
+	return (
+		<LocationRow
+			key={row.id === undefined ? row.kind : `${row.kind}-${row.id}`}
+			row={row}
+			crumbs={row.id === undefined ? undefined : props.crumbsOf(row.id)}
+			style={style}
+			bottomSticky={footer}
+			onSelect={() => props.onSelect(row)}
+		/>
+	);
+}
+
+/** Upstream `bb4`: the popper div at `position`, bottom-start, clamped 10px inside the viewport, never flipped. */
+function usePopperPosition(position: readonly [number, number]) {
+	const ref = useRef<HTMLDivElement>(null);
+	const [placed, setPlaced] = useState<readonly [number, number]>(position);
+	useLayoutEffect(() => {
+		const element = ref.current;
+		if (!element) {
+			return;
+		}
+		const {x, y} = placePopper({
+			reference: {left: position[0], top: position[1], width: 0, height: 0},
+			popper: {width: element.offsetWidth, height: element.offsetHeight},
+			placement: "bottom-start",
+			viewport: {width: window.innerWidth, height: Number.POSITIVE_INFINITY},
+		});
+		setPlaced([x, y]);
+	}, [position]);
+	return {ref, placed};
+}
+
+/** Upstream WF.InlineSearch picker (`Bp` desktop `Cb4` + steps `Lm1`/`Mm1` + results list `KM`). */
+export function LocationPicker(props: LocationPickerProps) {
+	const {position, step, headerText, subActionName, name = "", query, onQueryChange, rows, exit} = props;
+	const {ref, placed} = usePopperPosition(position);
+	const header =
+		step === 1 ? (
+			headerText
+		) : (
+			<>
+				{subActionName === undefined || subActionName === "" ? "New" : subActionName} &quot;<b>{name}</b>&quot;
+				in…
+			</>
+		);
+	let menuClass = "[&_.help-text]:pt-0 [&_.help-text]:px-l [&_.help-text]:pb-l";
+	if (step === 1) {
+		menuClass = `[&_.help-text]:p-l ${query ? "[&_.help-text]:pt-m" : ""}`;
+	}
+	return createPortal(
+		<div
+			ref={ref}
+			style={{
+				position: "absolute",
+				inset: "0 auto auto 0",
+				zIndex: POPUP_Z,
+				transform: `translate3d(${placed[0]}px, ${placed[1]}px, 0px)`,
+			}}
+			data-popper-reference-hidden="false"
+			data-popper-escaped="false"
+			data-popper-placement="bottom-start"
+			className={WRAPPER_CLASS}
+		>
+			<Flyout expanded position={position} align={FlyoutAlign.Left}>
+				<MenuSectionHeader>{header}</MenuSectionHeader>
+				<div className={step === 1 ? "p-l pt-0 mobile:pl-ml" : "pt-0 pb-l px-l mobile:pl-ml"}>
+					<div className="flex flex-col w-full">
+						<input
+							className={INPUT_CLASS}
+							type="text"
+							placeholder="Find location..."
+							value={query}
+							onChange={(event) => {
+								onQueryChange(event.currentTarget.value);
+							}}
+							// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream's picker input autofocuses
+							autoFocus
+						/>
+					</div>
+				</div>
+				<div>
+					<Flyout
+						expanded
+						removeFromDom={false}
+						align={FlyoutAlign.Left}
+						className={`menu ${menuClass} !static`}
+					>
+						<MenuBody
+							unwrapped
+							keyboardMode
+							initialSelect={0}
+							cyclicNavigation
+							stopKeydownEventPropagation
+							maxHeight={MENU_MAX_HEIGHT}
+							exit={exit}
+						>
+							{rows.map((row) => renderRow(row, props))}
+						</MenuBody>
+					</Flyout>
+				</div>
+			</Flyout>
+		</div>,
+		document.body,
+	);
+}

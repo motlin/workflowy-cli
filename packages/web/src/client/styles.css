@@ -4960,3 +4960,12 @@ body.moving .itemMenu {
 	text-transform: uppercase;
 	color: var(--wf-text-tertiary);
 }
+
+/* Inline location picker, cloned from wf-base + tailwind (components/location-picker.tsx). The markup's
+   utilities (wf-tailwind.css) and the DomKit flyout/menu rules above give the box model: 480px surface,
+   header padding 8px 16px, input 448x37.55, rows 4px 16px at 18.96px (42.96px with crumbs), 32px footers,
+   help text 8px 16px 16px. Upstream's reset gives the surface line-height 1 (12.64px header); the local
+   body keeps 1.5, so restore it here. Selected via the popper wrapper's unique min-width utility. */
+.\[\&_\.flyout\]\:min-w-\[480px\] > .wf-menu.flyout {
+	line-height: 1;
+}

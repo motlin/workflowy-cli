@@ -38,6 +38,8 @@ describe("FA_ICONS", () => {
 			"fal:ellipsis",
 			"fal:arrow-left",
 			"fal:plus",
+			"fal:clock",
+			"fal:arrow-up",
 			"fal:pencil",
 			"fas:star",
 			"fas:magnifying-glass",
