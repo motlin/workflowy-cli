@@ -17,6 +17,7 @@ import {nearScrollEnd, onSwitcherStep, stepSelection, switcherKeyAction} from ".
 import {buildSwitcherRows} from "../switcher-rows.js";
 import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {FaIcon} from "./fa-icons.js";
 import {LoadingSpinner} from "./loading-spinner.js";
 
@@ -229,7 +230,11 @@ function useStarredEntries(stars: readonly Star[]): readonly StarredEntry[] {
 }
 
 function JumpMenuDialog() {
-	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
+	const closeJumpMenu = useOutlineStore((state) => state.closeJumpMenu);
+	const cancel = useCallback(() => {
+		closeJumpMenu("cancel");
+	}, [closeJumpMenu]);
+	const zoomTo = useZoomTo();
 	const {stars} = useStars();
 	const starred = useStarredEntries(stars);
 	const [query, setQuery] = useState("");
@@ -299,12 +304,17 @@ function JumpMenuDialog() {
 
 	const {rows, emptyText, indexing} = buildSwitcherRows(starred, {status, results}, query);
 
+	/** Upstream: close without restoring, go to the row, then edit its first child (or the zoom-root title). */
 	const handleSelect = useCallback(
 		(row: SwitcherRow) => {
-			toggleJumpMenu();
-			void navigate(locationUrl({id: row.nodeId, query: row.query}));
+			closeJumpMenu("navigate");
+			if (row.query === null) {
+				void zoomTo(row.nodeId, "first_child");
+			} else {
+				void navigate(locationUrl({id: row.nodeId, query: row.query}));
+			}
 		},
-		[navigate, toggleJumpMenu],
+		[closeJumpMenu, navigate, zoomTo],
 	);
 
 	const rowCount = rows.length;
@@ -325,7 +335,7 @@ function JumpMenuDialog() {
 			event.preventDefault();
 			switch (action) {
 				case "close": {
-					toggleJumpMenu();
+					cancel();
 					break;
 				}
 				case "next":
@@ -342,7 +352,7 @@ function JumpMenuDialog() {
 				}
 			}
 		},
-		[handleSelect, rowCount, rows, selectedIndex, toggleJumpMenu],
+		[cancel, handleSelect, rowCount, rows, selectedIndex],
 	);
 
 	/** Upstream's infinite scroll: append the next page of server results. */
@@ -384,7 +394,7 @@ function JumpMenuDialog() {
 			onKeyDown={handleKeyDown}
 			onSelect={handleSelect}
 			onHover={setSelectedIndex}
-			onClose={toggleJumpMenu}
+			onClose={cancel}
 			onScrollNearEnd={loadMore}
 		/>
 	);

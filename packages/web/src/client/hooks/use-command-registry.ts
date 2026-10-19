@@ -150,7 +150,8 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleRightBar = useOutlineStore((state) => state.toggleRightBar);
 	const toggleShowCompleted = useShowCompletedToggle();
 	const {toggleStar} = useStarActions();
-	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
+	const openJumpMenu = useOutlineStore((state) => state.openJumpMenu);
+	const closeJumpMenu = useOutlineStore((state) => state.closeJumpMenu);
 	const expand = useOutlineStore((state) => state.expand);
 	const collapse = useOutlineStore((state) => state.collapse);
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
@@ -558,7 +559,11 @@ export function useCommandRegistry(): CommandRegistry {
 				return;
 			}
 		}
-		toggleJumpMenu();
+		if (isJumpMenuOpen()) {
+			closeJumpMenu("cancel");
+		} else {
+			openJumpMenu();
+		}
 	};
 
 	const undoRunner: UndoRunner = {
@@ -841,8 +846,8 @@ export function useCommandRegistry(): CommandRegistry {
 			},
 		},
 		show_switcher: {execute: showSwitcher},
-		_select_next_in_switcher: switcherStepCommand("next", isJumpMenuOpen, toggleJumpMenu),
-		_select_prev_in_switcher: switcherStepCommand("prev", isJumpMenuOpen, toggleJumpMenu),
+		_select_next_in_switcher: switcherStepCommand("next", isJumpMenuOpen, openJumpMenu),
+		_select_prev_in_switcher: switcherStepCommand("prev", isJumpMenuOpen, openJumpMenu),
 		show_export: {
 			execute(ctx) {
 				if (ctx.items.length > 0) {

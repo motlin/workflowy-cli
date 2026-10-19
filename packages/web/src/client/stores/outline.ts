@@ -7,6 +7,9 @@ import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
+import {caretTextOffset, editorElement} from "../caret-dom.js";
+import {closeSwitcher} from "../switcher-close.js";
+import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
 const COMPLETED_MODE_STORAGE_KEY = "completedMode";
@@ -297,6 +300,8 @@ interface OutlineState {
 	/** Per-item expansion overrides while searching; reset per zoom and query. */
 	searchExpansion: Map<string, boolean>;
 	jumpMenuOpen: boolean;
+	/** The edited node and caret when the jump menu opened, restored when it is cancelled. */
+	jumpMenuReturn: SwitcherReturn | null;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
 	relatedNodesPanelOpen: boolean;
@@ -399,7 +404,10 @@ interface OutlineActions {
 	commitSearch: (query: string, navigate: NavigateFn) => void;
 	/** Clear the input, push the URL without `?q=` when a search is committed, then leave the search box. */
 	cancelSearch: (navigate: NavigateFn) => void;
-	toggleJumpMenu: () => void;
+	/** Open the jump menu, committing the edit by blurring and remembering its caret. */
+	openJumpMenu: () => void;
+	/** Close the jump menu; `cancel` returns the caret to where it was, `navigate` leaves placing it to the caller. */
+	closeJumpMenu: (mode: SwitcherCloseMode) => void;
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
 	toggleRelatedNodesPanel: () => void;
@@ -573,6 +581,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchCreatedIds: new Set(),
 	searchExpansion: new Map(),
 	jumpMenuOpen: false,
+	jumpMenuReturn: null,
 	linkInsertOpen: false,
 	linkInsertContext: null,
 	relatedNodesPanelOpen: false,
@@ -928,8 +937,29 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		get().blurSearch();
 	},
 
-	toggleJumpMenu: () => {
-		set((state) => ({jumpMenuOpen: !state.jumpMenuOpen}));
+	openJumpMenu: () => {
+		const {editingId} = get();
+		const editor = editingId === null ? null : editorElement(editingId);
+		const saved =
+			editingId === null ? null : {nodeId: editingId, caretOffset: editor ? caretTextOffset(editor) : 0};
+		editor?.blur();
+		set({
+			jumpMenuOpen: true,
+			jumpMenuReturn: saved,
+			itemSelection: emptySelection(),
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+		});
+	},
+
+	closeJumpMenu: (mode) => {
+		const {jumpMenuOpen, jumpMenuReturn} = get();
+		const {restore} = closeSwitcher({open: jumpMenuOpen, saved: jumpMenuReturn}, mode);
+		set({jumpMenuOpen: false, jumpMenuReturn: null});
+		if (restore !== null) {
+			get().resumeEditing(restore.nodeId, restore.caretOffset);
+		}
 	},
 
 	openLinkInsert: (context) => {
