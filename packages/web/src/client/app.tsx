@@ -15,7 +15,6 @@ import {LeftBar} from "./components/left-sidebar.js";
 import {LinkInsertModal} from "./components/link-insert-modal.js";
 import {LocationPickerHost} from "./components/location-picker-host.js";
 import {LoadingOverlay} from "./components/loading-spinner.js";
-import {MoveAssistant} from "./components/move-assistant.js";
 import {OfflineBanner} from "./components/offline-banner.js";
 import {OutlineTree} from "./components/outline-tree.js";
 import {PresentationMode} from "./components/presentation-mode.js";
@@ -120,7 +119,6 @@ function OutlineView() {
 			<SearchPanel />
 			<JumpMenu />
 			<LinkInsertModal />
-			<MoveAssistant />
 			<LocationPickerHost />
 			<ExportDialog />
 			<Settings />

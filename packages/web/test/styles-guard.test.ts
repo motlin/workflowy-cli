@@ -411,3 +411,9 @@ describe("drop indicator styles guard", () => {
 		});
 	});
 });
+
+describe("move assistant styles guard", () => {
+	it("has no .move-assistant- selector", () => {
+		expect(hasSelector(styles, /\.move-assistant-/u)).toBe(false);
+	});
+});

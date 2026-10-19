@@ -173,12 +173,6 @@ interface LinkInsertContext {
 	range: Range | null;
 }
 
-interface MoveAssistantContext {
-	nodeId: string;
-	nodeName: string;
-	mode: "move" | "copy";
-}
-
 interface ExportContext {
 	nodeIds: string[];
 }
@@ -310,8 +304,6 @@ interface OutlineState {
 	linkInsertContext: LinkInsertContext | null;
 	recentSearches: string[];
 	relatedNodesPanelOpen: boolean;
-	moveAssistantOpen: boolean;
-	moveAssistantContext: MoveAssistantContext | null;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
 	presentationOpen: boolean;
@@ -407,8 +399,6 @@ interface OutlineActions {
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
 	toggleRelatedNodesPanel: () => void;
-	openMoveAssistant: (context: MoveAssistantContext) => void;
-	closeMoveAssistant: () => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
 	openPresentation: (nodeId: string) => void;
@@ -483,7 +473,6 @@ export function isModalOpen(): boolean {
 	return (
 		state.linkInsertOpen ||
 		state.jumpMenuOpen ||
-		state.moveAssistantOpen ||
 		state.locationPicker !== null ||
 		state.exportDialogOpen ||
 		state.settingsOpen
@@ -582,8 +571,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	linkInsertContext: null,
 	recentSearches: getInitialRecentSearches(),
 	relatedNodesPanelOpen: false,
-	moveAssistantOpen: false,
-	moveAssistantContext: null,
 	exportDialogOpen: false,
 	exportContext: null,
 	presentationOpen: false,
@@ -946,14 +933,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	toggleRelatedNodesPanel: () => {
 		set((state) => ({relatedNodesPanelOpen: !state.relatedNodesPanelOpen}));
-	},
-
-	openMoveAssistant: (context) => {
-		set({moveAssistantOpen: true, moveAssistantContext: context});
-	},
-
-	closeMoveAssistant: () => {
-		set({moveAssistantOpen: false, moveAssistantContext: null});
 	},
 
 	openExportDialog: (context) => {

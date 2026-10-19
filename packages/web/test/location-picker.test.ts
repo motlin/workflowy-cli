@@ -1,3 +1,5 @@
+import {existsSync, readFileSync} from "node:fs";
+import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
@@ -256,5 +258,25 @@ describe("LocationPicker markup", () => {
 		expect(
 			[...html.matchAll(/<a [^>]*class="([^"]*)"/gu)].map(([, rowClass]) => rowClass === ROW_ACTIVE),
 		).toStrictEqual([false, false, true, false]);
+	});
+});
+
+describe("MoveAssistant removal", () => {
+	it("renders Move To as the inline picker with no move-assistant markup", () => {
+		const html = render({
+			query: "qzpick",
+			rows: [
+				{kind: "result", id: "r1", labelHtml: "One", disabled: false, icon: null},
+				...createRows("qzpick", false),
+			],
+		});
+		expect(html.includes("move-assistant")).toBe(false);
+	});
+
+	it("deletes the modal component and its app mount", () => {
+		const source = (path: string) => fileURLToPath(new URL(`../src/client/${path}`, import.meta.url));
+		expect(existsSync(source("components/move-assistant.tsx"))).toBe(false);
+		expect(/MoveAssistant|move-assistant/u.test(readFileSync(source("app.tsx"), "utf8"))).toBe(false);
+		expect(/MoveAssistant|moveAssistant/u.test(readFileSync(source("stores/outline.ts"), "utf8"))).toBe(false);
 	});
 });
