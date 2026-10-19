@@ -96,6 +96,24 @@ export function plainLength(html: string): number {
 	return tokenize(html).filter((token) => token.kind === "char").length;
 }
 
+const NAMED_ENTITIES: Record<string, string> = {amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00A0"};
+
+function decodeEntity(raw: string): string {
+	const code = /^&#(x?)([0-9a-f]+);$/iu.exec(raw);
+	if (code) {
+		return String.fromCodePoint(Number.parseInt(code[2] ?? "", code[1] ? 16 : 10));
+	}
+	return NAMED_ENTITIES[raw.slice(1, -1).toLowerCase()] ?? raw;
+}
+
+/** Plain text of `html`, one character per plain-text unit: each `<time>` pill becomes `pillChar`. */
+export function plainText(html: string, pillChar: string): string {
+	return tokenize(html)
+		.filter((token) => token.kind === "char")
+		.map(({raw}) => (raw.startsWith("<time") ? pillChar : raw.startsWith("&") ? decodeEntity(raw) : raw))
+		.join("");
+}
+
 const WHITESPACE_CHAR = /^(?:\s|&nbsp;|&#160;|&#xa0;)$/iu;
 
 // Plain-text length with trailing whitespace (including nbsp) removed.

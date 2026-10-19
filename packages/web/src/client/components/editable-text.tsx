@@ -29,13 +29,17 @@ import {TagColorPicker} from "./tag-color-picker.js";
 import {
 	deletePillAfterCaret,
 	deletePillBeforeCaret,
+	applyDatePhrase,
 	planDateInsertion,
 	renderDatePills,
 	replacePill,
 	serializeDatePills,
 } from "../date-pills.js";
+import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
+import {useDateAutocomplete} from "./date-autocomplete.js";
+import {splitHtml} from "../rich-text.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset} from "../tag-render.js";
@@ -254,10 +258,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}, [isEditing, saveInPlace, nameSaver]);
 
 	const insertDate = useCallback(
-		(attrs: TimeAttrs, offset: number) => {
+		(attrs: TimeAttrs, offset: number, replaceEnd?: number) => {
 			const content = contentRef.current;
 			if (content) {
-				const plan = planDateInsertion(serializeDatePills(content.innerHTML), offset, attrs);
+				const html = serializeDatePills(content.innerHTML);
+				const {before, after} =
+					replaceEnd === undefined ? {before: html, after: ""} : splitHtml(html, offset, replaceEnd);
+				const plan = planDateInsertion(before + after, offset, attrs);
 				content.focus();
 				content.innerHTML = renderDatePills(plan.html, dateSettings);
 				placeCaretAtTextOffset(content, plan.caretOffset);
@@ -288,7 +295,37 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		onInsert: insertDate,
 		onCancel: cancelDate,
 	});
-	const {handleInput: handleDateTrigger} = datePicker;
+	const {handleInput: handleDateTrigger, openForPhrase, isOpen: isDatePickerOpen} = datePicker;
+
+	// Typing a natural-language date ("tomorrow") offers a flyout; Tab or a click converts it to a pill.
+	const openSettings = useOutlineStore((state) => state.openSettings);
+	const dateAutocomplete = useDateAutocomplete({
+		editorRef: contentRef,
+		dateSettings,
+		isBlocked: isDatePickerOpen,
+		onApply: (phrase) => {
+			const content = contentRef.current;
+			if (content) {
+				const plan = applyDatePhrase(serializeDatePills(content.innerHTML), phrase);
+				content.innerHTML = renderDatePills(plan.html, dateSettings);
+				placeCaretAtTextOffset(content, plan.caretOffset);
+				nameSaver.saveNow(plan.html);
+			}
+		},
+		onOpenPicker: (phrase, position) => {
+			openForPhrase({
+				offset: phrase.start,
+				replaceEnd: phrase.end,
+				position,
+				term: formatPillLabel(phrase.attrs, {dateFormat: dateSettings.dateFormat}),
+				isRange: phrase.attrs.endYear !== undefined,
+			});
+		},
+		onOpenSettings: () => {
+			openSettings("Dates");
+		},
+	});
+	const {handleInput: handleDateAutocomplete, hide: hideDateAutocomplete} = dateAutocomplete;
 
 	// A plain click on a display-mode pill edits or removes just that pill.
 	const pillPicker = usePillDatePicker({
@@ -302,11 +339,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
 			handleDateTrigger(event.nativeEvent);
+			handleDateAutocomplete();
 			if (contentRef.current) {
 				nameSaver.change(serializeDatePills(contentRef.current.innerHTML));
 			}
 		},
-		[handleDateTrigger, nameSaver],
+		[handleDateTrigger, handleDateAutocomplete, nameSaver],
 	);
 
 	const saveChanges = useCallback(() => {
@@ -800,10 +838,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}, []);
 
 	const handleBlur = useCallback(() => {
+		hideDateAutocomplete();
 		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
 			saveChanges();
 		}
-	}, [nodeId, saveChanges]);
+	}, [nodeId, saveChanges, hideDateAutocomplete]);
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
@@ -1090,6 +1129,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				suppressContentEditableWarning
 			/>
 			{datePicker.popup}
+			{dateAutocomplete.flyout}
 		</>
 	);
 }

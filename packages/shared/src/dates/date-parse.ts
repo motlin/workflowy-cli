@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import type {Dayjs} from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import {DATE_FORMATS_SHORT} from "./date-markup.js";
+import type {TimeAttrs} from "./date-markup.js";
 
 dayjs.extend(customParseFormat);
 
@@ -205,4 +206,95 @@ export function presetDate(preset: DatePreset, options: PresetDateOptions = {}):
 	}
 	const daysIntoWeek = (today.getDay() - weekStartDay + 7) % 7;
 	return new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysIntoWeek + 7);
+}
+
+export interface DatePhrase {
+	/** Offset in the searched text where the date phrase starts. */
+	start: number;
+	/** Offset where the phrase (or a trailing range separator, or the caret past it) ends. */
+	end: number;
+	attrs: TimeAttrs;
+}
+
+/** Upstream's autocomplete chrono (`Rr`): no casual-time parser, and phrases of 3 chars or fewer (but "now") or ending `)` dropped. */
+const phraseChrono = (() => {
+	const parser = chrono.casual.clone();
+	parser.parsers = parser.parsers.filter((each) => !each.constructor.name.includes("CasualTime"));
+	parser.refiners.push({
+		refine: (_context, results) =>
+			results.filter(
+				(result) =>
+					!(result.text.length <= 3 && result.text.toLowerCase() !== "now") && !result.text.endsWith(")"),
+			),
+	});
+	return parser;
+})();
+
+function escapeRegExp(text: string): string {
+	return text.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+}
+
+function componentParts(component: chrono.ParsedComponents): {
+	year: number;
+	month: number;
+	day: number;
+	hour?: number;
+	minute?: number;
+} {
+	const date = component.date();
+	const parts = {year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate()};
+	return component.isCertain("hour") ? {...parts, hour: date.getHours(), minute: date.getMinutes()} : parts;
+}
+
+function startAttrs(component: chrono.ParsedComponents): TimeAttrs {
+	const {year, month, day, hour, minute} = componentParts(component);
+	const attrs: TimeAttrs = {startYear: year, startMonth: month, startDay: day};
+	return hour === undefined ? attrs : {...attrs, startHour: hour, startMinute: minute};
+}
+
+function endAttrs(component: chrono.ParsedComponents): Partial<TimeAttrs> {
+	const {year, month, day, hour, minute} = componentParts(component);
+	const attrs: Partial<TimeAttrs> = {endYear: year, endMonth: month, endDay: day};
+	return hour === undefined ? attrs : {...attrs, endHour: hour, endMinute: minute};
+}
+
+function datePhraseIn(text: string, caret: number, now: Date): DatePhrase | undefined {
+	for (const result of phraseChrono.parse(text, now, {forwardDate: true})) {
+		const phrase = result.text.trim();
+		const index = result.index + result.text.length - result.text.trimStart().length;
+		const phraseEnd = index + phrase.length;
+		const caretInPhrase = caret >= index && caret <= phraseEnd;
+		const end = Math.max(caret, phraseEnd);
+		const tail = text.slice(index, end);
+		const start = startAttrs(result.start);
+		if (result.end) {
+			if (caretInPhrase && /\s?-\s?|\sto\s/u.test(tail)) {
+				return {start: index, end, attrs: {...start, ...endAttrs(result.end)}};
+			}
+			continue;
+		}
+		if (new RegExp(String.raw`^${escapeRegExp(phrase)}(?:\sto\s|\s?-)\s?$`, "u").test(tail)) {
+			const next = result.start.date();
+			next.setDate(next.getDate() + 1);
+			return {
+				start: index,
+				end,
+				attrs: {...start, endYear: next.getFullYear(), endMonth: next.getMonth() + 1, endDay: next.getDate()},
+			};
+		}
+		if (caretInPhrase) {
+			return {start: index, end, attrs: start};
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Upstream's date autocomplete (`z42`): the chrono date phrase in `text` that the collapsed
+ * `caret` sits in or at the end of, trying the whole text and then the text up to the caret.
+ * A range needs an explicit `-` or ` to `; a single date followed by a trailing `-` or ` to `
+ * becomes a range ending one day later, its end then covering the separator.
+ */
+export function findDatePhrase(text: string, caret: number, now: Date = new Date()): DatePhrase | undefined {
+	return datePhraseIn(text, caret, now) ?? datePhraseIn(text.slice(0, caret), caret, now);
 }

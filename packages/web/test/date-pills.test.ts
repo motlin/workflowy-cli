@@ -2,7 +2,10 @@ import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {
+	applyDatePhrase,
+	datePhraseText,
 	deletePillAfterCaret,
+	findDatePhraseAtCaret,
 	deletePillBeforeCaret,
 	planDateInsertion,
 	renderDatePills,
@@ -243,5 +246,83 @@ describe("replacePill", () => {
 		const first = '<time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
 		const second = '<time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>';
 		expect(replacePill(`${first} and ${second}`, 1, null)).toBe(`${first} and `);
+	});
+});
+
+describe("findDatePhraseAtCaret", () => {
+	const OCT_2 = {startYear: 2026, startMonth: 10, startDay: 2};
+
+	it("finds the phrase ending at the caret", () => {
+		expect(findDatePhraseAtCaret("meet tomorrow", 13, NOW)).toStrictEqual({start: 5, end: 13, attrs: OCT_2});
+	});
+
+	it("finds nothing when the caret is past the phrase", () => {
+		expect(findDatePhraseAtCaret("meet tomorrow x", 15, NOW)).toBeUndefined();
+	});
+
+	it("ignores phrases of three characters or fewer", () => {
+		expect(findDatePhraseAtCaret("meet fri", 8, NOW)).toBeUndefined();
+	});
+
+	it("makes a trailing dash a one-day range ending at the caret", () => {
+		expect(findDatePhraseAtCaret("tomorrow -", 10, NOW)).toStrictEqual({
+			start: 0,
+			end: 10,
+			attrs: {...OCT_2, endYear: 2026, endMonth: 10, endDay: 3},
+		});
+	});
+
+	it("makes a trailing ' to ' a one-day range ending at the caret", () => {
+		expect(findDatePhraseAtCaret("tomorrow to ", 12, NOW)).toStrictEqual({
+			start: 0,
+			end: 12,
+			attrs: {...OCT_2, endYear: 2026, endMonth: 10, endDay: 3},
+		});
+	});
+
+	it("finds an explicit dash range", () => {
+		expect(findDatePhraseAtCaret("trip oct 5 - oct 7", 18, NOW)).toStrictEqual({
+			start: 5,
+			end: 18,
+			attrs: {startYear: 2026, startMonth: 10, startDay: 5, endYear: 2026, endMonth: 10, endDay: 7},
+		});
+	});
+
+	it("searches only the text after the last pill before the caret", () => {
+		expect(findDatePhraseAtCaret("\uFFFC tomorrow", 10, NOW)).toStrictEqual({start: 2, end: 10, attrs: OCT_2});
+	});
+});
+
+describe("datePhraseText", () => {
+	it("is plain text with each pill as U+FFFC and entities decoded", () => {
+		expect(datePhraseText(`a ${SINGLE} &amp; <b>b</b>`)).toBe("a dpSingle \uFFFC tail & b");
+	});
+});
+
+describe("applyDatePhrase", () => {
+	it("replaces the phrase with a pill plus one space and puts the caret after the space", () => {
+		expect(
+			applyDatePhrase("meet tomorrow", {
+				start: 5,
+				end: 13,
+				attrs: {startYear: 2026, startMonth: 10, startDay: 2},
+			}),
+		).toStrictEqual({
+			html: 'meet <time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time> ',
+			caretOffset: 7,
+		});
+	});
+
+	it("keeps the text after the phrase", () => {
+		expect(
+			applyDatePhrase("<b>meet tomorrow</b> x", {
+				start: 5,
+				end: 13,
+				attrs: {startYear: 2026, startMonth: 10, startDay: 2},
+			}),
+		).toStrictEqual({
+			html: '<b>meet </b><time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>  x',
+			caretOffset: 7,
+		});
 	});
 });

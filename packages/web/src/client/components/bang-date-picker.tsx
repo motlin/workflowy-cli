@@ -19,8 +19,11 @@ interface BangDatePickerOptions {
 	dateSettings: DateSettings;
 	/** The popup took focus at plain-text `offset`; the editor must not commit on its blur. */
 	onOpen: (offset: number) => void;
-	/** Insert a pill at `offset`, refocus the editor with the caret after it, and save. */
-	onInsert: (attrs: TimeAttrs, offset: number) => void;
+	/**
+	 * Insert a pill at `offset` (first removing the text up to `replaceEnd`, when given), refocus
+	 * the editor with the caret after it, and save.
+	 */
+	onInsert: (attrs: TimeAttrs, offset: number, replaceEnd?: number) => void;
 	/** Closed with nothing inserted: refocus the editor with the caret at `offset`. */
 	onCancel: (offset: number) => void;
 }
@@ -30,6 +33,8 @@ interface OpenPicker {
 	position: {left: number; top: number};
 	term: string;
 	isRange: boolean;
+	/** Set when the picker edits an autocompleted phrase from `offset` up to here. */
+	replaceEnd?: number;
 }
 
 /** Deletes the `!!` just typed before a collapsed caret in a text node; false when it is not there. */
@@ -72,6 +77,9 @@ function caretPosition(): {left: number; top: number} {
  */
 export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, onCancel}: BangDatePickerOptions): {
 	handleInput: (native: Event) => void;
+	/** Open the picker to replace the plain text `offset`..`replaceEnd`, its input prefilled with `term`. */
+	openForPhrase: (phrase: Required<Pick<OpenPicker, "replaceEnd">> & Omit<OpenPicker, "replaceEnd">) => void;
+	isOpen: () => boolean;
 	popup: ReactNode;
 } {
 	const [picker, setPicker] = useState<OpenPicker | null>(null);
@@ -102,6 +110,17 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 		[editorRef, onOpen],
 	);
 
+	const openForPhrase = useCallback(
+		(opened: OpenPicker) => {
+			openRef.current = opened;
+			onOpen(opened.offset);
+			setPicker(opened);
+		},
+		[onOpen],
+	);
+
+	const isOpen = useCallback(() => openRef.current !== null, []);
+
 	const close = useCallback((): OpenPicker | null => {
 		const opened = openRef.current;
 		openRef.current = null;
@@ -113,7 +132,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 		(dates: Date[]) => {
 			const opened = close();
 			if (opened !== null) {
-				onInsert(timeAttrsFromDates(dates), opened.offset);
+				onInsert(timeAttrsFromDates(dates), opened.offset, opened.replaceEnd);
 			}
 		},
 		[close, onInsert],
@@ -122,7 +141,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 	const cancel = useCallback(() => {
 		const opened = close();
 		if (opened !== null) {
-			onCancel(opened.offset);
+			onCancel(opened.replaceEnd ?? opened.offset);
 		}
 	}, [close, onCancel]);
 
@@ -185,5 +204,5 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 					/>,
 					document.body,
 				);
-	return {handleInput, popup};
+	return {handleInput, openForPhrase, isOpen, popup};
 }

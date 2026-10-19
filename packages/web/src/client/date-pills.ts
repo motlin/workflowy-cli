@@ -1,6 +1,12 @@
-import {canonicalTimeAttributes, formatPillLabel, parseTimeAttrs, toTimeMarkup} from "@workflowy/shared";
-import type {TimeAttrs} from "@workflowy/shared";
-import {plainCharAt, plainLength, splitHtml} from "./rich-text.js";
+import {
+	canonicalTimeAttributes,
+	findDatePhrase,
+	formatPillLabel,
+	parseTimeAttrs,
+	toTimeMarkup,
+} from "@workflowy/shared";
+import type {DatePhrase, TimeAttrs} from "@workflowy/shared";
+import {plainCharAt, plainLength, plainText, splitHtml} from "./rich-text.js";
 import type {DateSettings} from "./date-settings.js";
 
 const BOM = "﻿";
@@ -129,4 +135,31 @@ export function replacePill(html: string, pillIndex: number, attrs: TimeAttrs | 
 		}
 		return attrs === null ? "" : toTimeMarkup(attrs);
 	});
+}
+
+/** Stands in for a date pill in `datePhraseText`, one character like the pill's caret unit. */
+const PILL_CHAR = "\uFFFC";
+
+/** Plain text of editor or stored HTML for date-phrase search: each pill is U+FFFC, entities decoded. */
+export function datePhraseText(html: string): string {
+	return plainText(html, PILL_CHAR);
+}
+
+/**
+ * Upstream's date autocomplete (`fK`): the natural-language date phrase the caret is in or at
+ * the end of, searching only the text between the pills (U+FFFC in `text`) around the caret.
+ * Offsets are plain-text units, a pill counting one.
+ */
+export function findDatePhraseAtCaret(text: string, caret: number, now: Date = new Date()): DatePhrase | undefined {
+	const segmentStart = text.lastIndexOf(PILL_CHAR, caret - 1) + 1;
+	const nextPill = text.indexOf(PILL_CHAR, caret);
+	const segment = text.slice(segmentStart, nextPill === -1 ? undefined : nextPill);
+	const found = findDatePhrase(segment, caret - segmentStart, now);
+	return found && {start: found.start + segmentStart, end: found.end + segmentStart, attrs: found.attrs};
+}
+
+/** Stored HTML with the autocompleted phrase replaced by its pill plus one space, and the caret after the space. */
+export function applyDatePhrase(html: string, phrase: DatePhrase): {html: string; caretOffset: number} {
+	const {before, after} = splitHtml(html, phrase.start, phrase.end);
+	return {html: `${before}${toTimeMarkup(phrase.attrs)} ${after}`, caretOffset: plainLength(before) + 2};
 }
