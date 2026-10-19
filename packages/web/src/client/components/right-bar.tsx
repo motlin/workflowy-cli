@@ -81,6 +81,22 @@ function useRightBarWidth(): number {
 	return width;
 }
 
+/** Upstream pads the body so page content clears the bar: 0 hidden, the 16px strip collapsed, the full width expanded. */
+// oxlint-disable-next-line react/only-export-components -- pure helper exported for tests
+export function bodyPaddingRight({show, collapsed, width}: {show: boolean; collapsed: boolean; width: number}): number {
+	if (!show) {
+		return 0;
+	}
+	return collapsed ? 16 : width;
+}
+
+function useBodyPaddingRight(show: boolean, collapsed: boolean, width: number): void {
+	useEffect(() => {
+		document.body.style.paddingRight = `${bodyPaddingRight({show, collapsed, width})}px`;
+		document.body.style.transition = "padding-right .35s";
+	}, [show, collapsed, width]);
+}
+
 function HotkeyRowView({name, command, modifier}: HotkeyRow) {
 	const chip = hint(command);
 	const text = chip === undefined || modifier === undefined ? chip : modifier(chip);
@@ -119,6 +135,7 @@ export function RightBar() {
 	const collapsed = useOutlineStore((s) => s.rightBarCollapsed);
 	const toggleRightBarCollapsed = useOutlineStore((s) => s.toggleRightBarCollapsed);
 	const width = useRightBarWidth();
+	useBodyPaddingRight(show, collapsed, width);
 
 	return (
 		<div className="right-bar inline-flex fixed top-3xl right-0" style={{zIndex: 99}}>

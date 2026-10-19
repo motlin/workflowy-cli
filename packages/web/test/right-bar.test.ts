@@ -13,7 +13,7 @@ vi.mock("../src/client/stores/outline.js", () => ({
 }));
 vi.stubGlobal("innerWidth", 1272);
 
-const {RightBar, HOTKEY_ROWS} = await import("../src/client/components/right-bar.js");
+const {RightBar, HOTKEY_ROWS, bodyPaddingRight} = await import("../src/client/components/right-bar.js");
 
 // Copied from .llm/upstream-sync/dumps/shortcuts-help-upstream-rows.txt (mac, upstream order)
 const UPSTREAM_ROWS: {command: string; name: string; text: string}[] = [
@@ -141,5 +141,15 @@ describe("RightBar", () => {
 				),
 			})),
 		).toStrictEqual(UPSTREAM_ROWS);
+	});
+});
+
+describe("bodyPaddingRight", () => {
+	it("pads the body by the hidden, collapsed, and expanded bar widths", () => {
+		expect([
+			bodyPaddingRight({show: false, collapsed: false, width: 400}),
+			bodyPaddingRight({show: true, collapsed: true, width: 400}),
+			bodyPaddingRight({show: true, collapsed: false, width: 400}),
+		]).toStrictEqual([0, 16, 400]);
 	});
 });
