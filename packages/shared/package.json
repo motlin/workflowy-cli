@@ -91,6 +91,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"chrono-node": "^2.10.3",
 		"dayjs": "^1.11.23",
 		"drizzle-orm": "^0.45.3",
 		"zod": "^4.6.5"

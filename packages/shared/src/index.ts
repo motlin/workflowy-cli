@@ -3,6 +3,7 @@ export * from "./cache/index.js";
 export * from "./changes/index.js";
 export * from "./dates/calendar-levels.js";
 export * from "./dates/date-markup.js";
+export * from "./dates/date-parse.js";
 export * from "./db/index.js";
 export * from "./html/index.js";
 export * from "./schemas/index.js";
