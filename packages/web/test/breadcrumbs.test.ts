@@ -12,8 +12,11 @@ const ancestorsState: {data: Ancestor[] | undefined; isLoading: boolean} = {data
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useAncestors: () => ancestorsState,
 }));
+const storeState = {searchQuery: ""};
 vi.mock("../src/client/stores/outline.js", () => ({
-	useOutlineStore: {getState: () => ({})},
+	useOutlineStore: Object.assign((selector: (state: typeof storeState) => unknown) => selector(storeState), {
+		getState: () => storeState,
+	}),
 }));
 vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => ({
 	...(await importOriginal()),
@@ -21,12 +24,13 @@ vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => 
 }));
 vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,
-	useNodeNavigation: () => ({navigateToNode: () => {}}),
+	useNodeNavigation: () => ({navigateToNode: () => {}, cancelSearch: () => {}}),
 }));
 
 vi.stubGlobal("window", {innerWidth: 1272});
 
-const {Breadcrumbs, BreadcrumbOverflowMenu, handleCrumbClick} = await import("../src/client/components/breadcrumbs.js");
+const {Breadcrumbs, BreadcrumbOverflowMenu, handleCrumbClick, preventCrumbMouseDown} =
+	await import("../src/client/components/breadcrumbs.js");
 
 const CRUMB_CLASS =
 	"breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate {state}\n    data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer";
@@ -44,7 +48,8 @@ function crumbClass(current: boolean): string {
 	return CRUMB_CLASS.replace("{state}", current ? "current opacity-100" : "opacity-70");
 }
 
-function render(nodeId: string | null, ancestors: Ancestor[] | undefined, isLoading = false): string {
+function render(nodeId: string | null, ancestors: Ancestor[] | undefined, isLoading = false, searchQuery = ""): string {
+	storeState.searchQuery = searchQuery;
 	ancestorsState.data = ancestors;
 	ancestorsState.isLoading = isLoading;
 	// Strip FontAwesome path data; keep the separator chevron's path.
@@ -58,6 +63,12 @@ const ROOT_MARKUP = `${CONTAINER_OPEN}<div class="${crumbClass(true)}"><div role
 describe("Breadcrumbs markup", () => {
 	it("renders a disabled current Home crumb at the root", () => {
 		expect(render(null, undefined)).toBe(ROOT_MARKUP);
+	});
+
+	it("enables Home at the root while a search is committed", () => {
+		expect(render(null, undefined, false, "x")).toBe(
+			`${CONTAINER_OPEN}<a class="${crumbClass(true)}" href="/" data-item-id="None"><div role="button" tabindex="0" data-handbook="nav.home" class="homeButton  iconButton lg shape-circle">${HOUSE_SVG}</div></a></div>`,
+		);
 	});
 
 	it("renders the root shape while ancestors load", () => {
@@ -200,44 +211,113 @@ function clickEvent(
 		button: 0,
 		...overrides,
 		preventDefault: vi.fn<() => void>(),
+		stopPropagation: vi.fn<() => void>(),
 	};
 }
+
+function clickDeps() {
+	return {
+		navigateToNode: vi.fn<(nodeId: string | null) => void>(),
+		cancelSearch: vi.fn<() => void>(),
+		scrollToTop: vi.fn<() => void>(),
+		focusWindow: vi.fn<() => void>(),
+	};
+}
+
+type ClickEvent = ReturnType<typeof clickEvent>;
+type ClickDeps = ReturnType<typeof clickDeps>;
+
+function calls(event: ClickEvent, deps: ClickDeps) {
+	return {
+		preventDefault: event.preventDefault.mock.calls,
+		stopPropagation: event.stopPropagation.mock.calls,
+		focusWindow: deps.focusWindow.mock.calls,
+		cancelSearch: deps.cancelSearch.mock.calls,
+		navigate: deps.navigateToNode.mock.calls,
+		scrollToTop: deps.scrollToTop.mock.calls,
+	};
+}
+
+const NOTHING = {
+	preventDefault: [],
+	stopPropagation: [],
+	focusWindow: [],
+	cancelSearch: [],
+	navigate: [],
+	scrollToTop: [],
+};
+
+const ALICE = {id: "alice-uuid", isRoot: false};
 
 describe("handleCrumbClick", () => {
 	it("leaves a meta-click to the browser", () => {
 		const event = clickEvent({metaKey: true});
-		const navigateToNode = vi.fn<(nodeId: string | null) => void>();
-		handleCrumbClick(event, {id: "alice-uuid", isRoot: false}, {navigateToNode});
-		expect({preventDefault: event.preventDefault.mock.calls, navigate: navigateToNode.mock.calls}).toStrictEqual({
-			preventDefault: [],
-			navigate: [],
-		});
+		const deps = clickDeps();
+		handleCrumbClick(event, ALICE, {current: false, searchActive: true}, deps);
+		expect(calls(event, deps)).toStrictEqual(NOTHING);
 	});
 
 	it("leaves a middle-click to the browser", () => {
 		const event = clickEvent({button: 1});
-		const navigateToNode = vi.fn<(nodeId: string | null) => void>();
-		handleCrumbClick(event, {id: "alice-uuid", isRoot: false}, {navigateToNode});
-		expect({preventDefault: event.preventDefault.mock.calls, navigate: navigateToNode.mock.calls}).toStrictEqual({
-			preventDefault: [],
-			navigate: [],
+		const deps = clickDeps();
+		handleCrumbClick(event, ALICE, {current: false, searchActive: true}, deps);
+		expect(calls(event, deps)).toStrictEqual(NOTHING);
+	});
+
+	it("focuses the window, exits search, navigates and scrolls to top on a plain click", () => {
+		const event = clickEvent({});
+		const deps = clickDeps();
+		handleCrumbClick(event, ALICE, {current: false, searchActive: true}, deps);
+		expect(calls(event, deps)).toStrictEqual({
+			...NOTHING,
+			preventDefault: [[]],
+			focusWindow: [[]],
+			cancelSearch: [[]],
+			navigate: [["alice-uuid"]],
+			scrollToTop: [[]],
 		});
 	});
 
-	it("navigates in-app on a plain click", () => {
+	it("exits search and navigates when the current crumb is clicked", () => {
 		const event = clickEvent({});
-		const navigateToNode = vi.fn<(nodeId: string | null) => void>();
-		handleCrumbClick(event, {id: "alice-uuid", isRoot: false}, {navigateToNode});
-		expect({preventDefault: event.preventDefault.mock.calls, navigate: navigateToNode.mock.calls}).toStrictEqual({
+		const deps = clickDeps();
+		handleCrumbClick(event, ALICE, {current: true, searchActive: true}, deps);
+		expect(calls(event, deps)).toStrictEqual({
+			...NOTHING,
 			preventDefault: [[]],
+			focusWindow: [[]],
+			cancelSearch: [[]],
 			navigate: [["alice-uuid"]],
+			scrollToTop: [[]],
 		});
 	});
 
 	it("navigates to the root on a plain Home click", () => {
 		const event = clickEvent({});
-		const navigateToNode = vi.fn<(nodeId: string | null) => void>();
-		handleCrumbClick(event, {id: "None", isRoot: true}, {navigateToNode});
-		expect(navigateToNode.mock.calls).toStrictEqual([[null]]);
+		const deps = clickDeps();
+		handleCrumbClick(event, {id: "None", isRoot: true}, {current: false, searchActive: false}, deps);
+		expect(deps.navigateToNode.mock.calls).toStrictEqual([[null]]);
+	});
+
+	it("only cancels the search when the root Home is clicked during a search", () => {
+		const event = clickEvent({});
+		const deps = clickDeps();
+		handleCrumbClick(event, {id: "None", isRoot: true}, {current: true, searchActive: true}, deps);
+		expect(calls(event, deps)).toStrictEqual({
+			...NOTHING,
+			preventDefault: [[]],
+			stopPropagation: [[]],
+			focusWindow: [[]],
+			cancelSearch: [[]],
+			scrollToTop: [[]],
+		});
+	});
+});
+
+describe("preventCrumbMouseDown", () => {
+	it("keeps the caret by preventing the mousedown default", () => {
+		const event = {preventDefault: vi.fn<() => void>()};
+		preventCrumbMouseDown(event);
+		expect(event.preventDefault.mock.calls).toStrictEqual([[]]);
 	});
 });

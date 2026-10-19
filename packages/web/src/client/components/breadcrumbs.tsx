@@ -5,6 +5,7 @@ import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
+import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
 import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
@@ -25,21 +26,68 @@ interface CrumbClickEvent {
 	shiftKey: boolean;
 	button: number;
 	preventDefault: () => void;
+	stopPropagation: () => void;
+}
+
+interface CrumbClickState {
+	current: boolean;
+	/** A search is committed (`?q=` in the URL). */
+	searchActive: boolean;
 }
 
 interface CrumbClickDeps {
 	navigateToNode: (nodeId: string | null) => void;
+	cancelSearch: () => void;
+	scrollToTop: () => void;
+	focusWindow: () => void;
 }
 
-/** Plain clicks navigate in-app; modified and middle clicks fall through to the anchor's href. */
+/**
+ * Plain clicks focus the window, exit any committed search, navigate in-app and scroll to the top; modified and
+ * middle clicks fall through to the anchor's href. The root Home is only clickable during a search, which it exits.
+ */
 // oxlint-disable-next-line react/only-export-components -- pure click handler exported for tests and reuse by other crumb renderers
-export function handleCrumbClick(event: CrumbClickEvent, crumb: Crumb, {navigateToNode}: CrumbClickDeps): void {
+export function handleCrumbClick(
+	event: CrumbClickEvent,
+	crumb: Crumb,
+	{current, searchActive}: CrumbClickState,
+	{navigateToNode, cancelSearch, scrollToTop, focusWindow}: CrumbClickDeps,
+): void {
 	if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
 		return;
 	}
 	event.preventDefault();
-	navigateToNode(crumb.isRoot ? null : crumb.id);
+	const rootDuringSearch = crumb.isRoot && current;
+	if (rootDuringSearch) {
+		event.stopPropagation();
+	}
+	focusWindow();
+	if (searchActive) {
+		cancelSearch();
+	}
+	if (!rootDuringSearch) {
+		navigateToNode(crumb.isRoot ? null : crumb.id);
+	}
+	scrollToTop();
 }
+
+/** Upstream crumbs never take focus on mousedown, so the editor keeps its caret until navigation. */
+// oxlint-disable-next-line react/only-export-components -- pure handler exported for tests
+export function preventCrumbMouseDown(event: {preventDefault: () => void}): void {
+	event.preventDefault();
+}
+
+function focusBrowserWindow(): void {
+	window.focus();
+}
+
+/** Upstream scrolls the window; the local outline scrolls inside `.outline-container`, so reset both. */
+function scrollOutlineToTop(): void {
+	window.scrollTo(0, 0);
+	document.querySelector(".outline-container")?.scrollTo(0, 0);
+}
+
+function noop(): void {}
 
 function crumbLabel(name: string | null | undefined): string {
 	const label = formatCrumbLabel(name ?? "", {now: new Date()});
@@ -51,11 +99,21 @@ interface CrumbProps {
 	current: boolean;
 	truncateWidth?: number | null;
 	onNavigate: (nodeId: string | null) => void;
+	/** A search is committed; enables the root Home so it can exit the search. */
+	searchActive?: boolean;
+	onCancelSearch?: () => void;
 }
 
 /** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
-export function BreadcrumbItem({crumb, current, truncateWidth, onNavigate}: CrumbProps) {
-	const disabled = crumb.isRoot && current;
+export function BreadcrumbItem({
+	crumb,
+	current,
+	truncateWidth,
+	onNavigate,
+	searchActive = false,
+	onCancelSearch = noop,
+}: CrumbProps) {
+	const disabled = crumb.isRoot && current && !searchActive;
 	const className = `breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate ${current ? "current opacity-100" : "opacity-70"}
     data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`;
 	const content = crumb.isRoot ? (
@@ -85,8 +143,19 @@ export function BreadcrumbItem({crumb, current, truncateWidth, onNavigate}: Crum
 			style={style}
 			href={crumb.isRoot ? "/" : nodeUrl(crumb.id)}
 			data-item-id={crumb.isRoot ? "None" : crumb.id}
+			onMouseDown={preventCrumbMouseDown}
 			onClick={(event: MouseEvent<HTMLAnchorElement>) => {
-				handleCrumbClick(event, crumb, {navigateToNode: onNavigate});
+				handleCrumbClick(
+					event,
+					crumb,
+					{current, searchActive},
+					{
+						navigateToNode: onNavigate,
+						cancelSearch: onCancelSearch,
+						scrollToTop: scrollOutlineToTop,
+						focusWindow: focusBrowserWindow,
+					},
+				);
 			}}
 		>
 			{content}
@@ -107,10 +176,20 @@ interface BreadcrumbOverflowMenuProps {
 	currentId: string;
 	maxWidth: number;
 	onNavigate: (nodeId: string | null) => void;
+	searchActive?: boolean;
+	onCancelSearch?: () => void;
 }
 
 /** The ellipsis flyout's body: collapsed crumbs stacked vertically, each in a div, without separators. */
-export function BreadcrumbOverflowMenu({items, crumbs, currentId, maxWidth, onNavigate}: BreadcrumbOverflowMenuProps) {
+export function BreadcrumbOverflowMenu({
+	items,
+	crumbs,
+	currentId,
+	maxWidth,
+	onNavigate,
+	searchActive,
+	onCancelSearch,
+}: BreadcrumbOverflowMenuProps) {
 	return (
 		<div className="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style={{maxWidth}}>
 			{items.map((item) => {
@@ -122,6 +201,8 @@ export function BreadcrumbOverflowMenu({items, crumbs, currentId, maxWidth, onNa
 							current={item.id === currentId}
 							truncateWidth={item.truncateWidth}
 							onNavigate={onNavigate}
+							searchActive={searchActive}
+							onCancelSearch={onCancelSearch}
 						/>
 					</div>
 				);
@@ -195,7 +276,8 @@ interface BreadcrumbsProps {
 
 /** Upstream's header breadcrumbs: flat crumbs from Home to the zoomed node, truncated and middle-collapsed to fit. */
 export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
-	const {navigateToNode} = useNodeNavigation();
+	const {navigateToNode, cancelSearch} = useNodeNavigation();
+	const searchActive = useOutlineStore((state) => state.searchQuery !== "");
 	const {data: ancestors, isLoading} = useAncestors(nodeId);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
@@ -246,6 +328,8 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 								currentId={currentId}
 								maxWidth={windowWidth - leftOffset - containerLeft - OVERFLOW_MENU_GUTTER}
 								onNavigate={navigateToNode}
+								searchActive={searchActive}
+								onCancelSearch={cancelSearch}
 							/>
 						</ButtonMenu>,
 						<BreadcrumbSeparator key={`breadcrumb-icon-${leftOffset}`} />,
@@ -264,6 +348,8 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 							current={current}
 							truncateWidth={item.truncateWidth}
 							onNavigate={navigateToNode}
+							searchActive={searchActive}
+							onCancelSearch={cancelSearch}
 						/>
 					);
 					return current ? [element] : [element, <BreadcrumbSeparator key={`${crumb.id}-separator`} />];

@@ -156,5 +156,8 @@ export function useNodeNavigation() {
 		navigateToSearch: (query: string) => {
 			navigateToSearch(navigate, query);
 		},
+		cancelSearch: () => {
+			useOutlineStore.getState().cancelSearch(navigate);
+		},
 	};
 }
