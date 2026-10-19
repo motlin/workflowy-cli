@@ -6,6 +6,7 @@ import type {NavAction, NavState} from "../nav-stack.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
+import {locationUrl, shortId} from "../location.js";
 
 const StringArraySchema = z.array(z.string());
 
@@ -17,6 +18,9 @@ const RECENT_SEARCHES_STORAGE_KEY = "workflowy-recent-searches";
 const RECENT_SEARCHES_LIMIT = 10;
 
 export type Theme = "light" | "dark" | "system";
+
+/** A router push, e.g. react-router's `navigate`. */
+export type NavigateFn = (to: string) => unknown;
 
 type SettingsSection = "Dates";
 
@@ -299,6 +303,14 @@ interface OutlineState {
 	searchInput: string;
 	/** Whether the header search box has focus. */
 	searchFocused: boolean;
+	/** The committed search, mirrored from the URL's `?q=` ("" when none). */
+	searchQuery: string;
+	/** Bumped when the committed query is re-run unchanged; part of the tree-search query key. */
+	searchRun: number;
+	/** Items created while searching stay visible though they do not match; reset per zoom and query. */
+	searchCreatedIds: Set<string>;
+	/** Per-item expansion overrides while searching; reset per zoom and query. */
+	searchExpansion: Map<string, boolean>;
 	jumpMenuOpen: boolean;
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
@@ -395,6 +407,12 @@ interface OutlineActions {
 	openSearchWithQuery: (query: string) => void;
 	setSearchInput: (value: string) => void;
 	setSearchFocused: (focused: boolean) => void;
+	/** Upstream's `navigateToSearch`: record the zoomed node with `?q=` on the nav stacks and push its URL. */
+	pushSearchLocation: (query: string, navigate: NavigateFn) => void;
+	/** Commit `query`: push its URL, or re-run it when it is already the committed query. */
+	commitSearch: (query: string, navigate: NavigateFn) => void;
+	/** Clear the input and, when a search is committed, push the URL without `?q=`. */
+	cancelSearch: (navigate: NavigateFn) => void;
 	toggleJumpMenu: () => void;
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
@@ -566,6 +584,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchReturn: null,
 	searchInput: "",
 	searchFocused: false,
+	searchQuery: "",
+	searchRun: 0,
+	searchCreatedIds: new Set(),
+	searchExpansion: new Map(),
 	jumpMenuOpen: false,
 	linkInsertOpen: false,
 	linkInsertContext: null,
@@ -592,11 +614,25 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	setUrlSearchQuery: (query) => {
-		set({urlSearchQuery: query});
+		const searchQuery = query ?? "";
+		if (searchQuery === get().searchQuery) {
+			set({urlSearchQuery: query});
+			return;
+		}
+		set({
+			urlSearchQuery: query,
+			searchQuery,
+			searchInput: searchQuery,
+			searchCreatedIds: new Set(),
+			searchExpansion: new Map(),
+		});
 	},
 
 	zoom: (id) => {
-		set({zoomedNodeId: id});
+		if (id === get().zoomedNodeId) {
+			return;
+		}
+		set({zoomedNodeId: id, searchCreatedIds: new Set(), searchExpansion: new Map()});
 	},
 
 	toggleExpand: (id) => {
@@ -917,6 +953,28 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setSearchFocused: (focused) => {
 		set({searchFocused: focused});
+	},
+
+	pushSearchLocation: (query, navigate) => {
+		const {zoomedNodeId, dispatchNav} = get();
+		const q = query === "" ? null : query;
+		dispatchNav({type: "navigate", loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q}});
+		void navigate(locationUrl({id: zoomedNodeId, query: q}));
+	},
+
+	commitSearch: (query, navigate) => {
+		if (query === get().searchQuery) {
+			set((state) => ({searchCreatedIds: new Set(), searchRun: state.searchRun + 1}));
+			return;
+		}
+		get().pushSearchLocation(query, navigate);
+	},
+
+	cancelSearch: (navigate) => {
+		set({searchInput: ""});
+		if (get().searchQuery !== "") {
+			get().pushSearchLocation("", navigate);
+		}
 	},
 
 	toggleJumpMenu: () => {

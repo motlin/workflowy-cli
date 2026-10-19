@@ -4,8 +4,7 @@ import {NavigationType, useLocation, useNavigate, useNavigationType} from "react
 import {locationUrl, shortId} from "./location.js";
 import {locFromHash} from "./nav-stack.js";
 import {useOutlineStore} from "./stores/outline.js";
-
-type NavigateFn = (to: string) => unknown;
+import type {NavigateFn} from "./stores/outline.js";
 
 /**
  * The client URL for a node view: upstream's `/#/<last 12 chars of uuid>`.
@@ -103,10 +102,7 @@ export function goToNode(navigate: NavigateFn, nodeId: string | null): void {
  * node is a distinct location, so it is never deduped.
  */
 export function navigateToSearch(navigate: NavigateFn, query: string): void {
-	const {zoomedNodeId, dispatchNav} = useOutlineStore.getState();
-	const q = query === "" ? null : query;
-	dispatchNav({type: "navigate", loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q}});
-	void navigate(locationUrl({id: zoomedNodeId, query: q}));
+	useOutlineStore.getState().pushSearchLocation(query, navigate);
 }
 
 /**
