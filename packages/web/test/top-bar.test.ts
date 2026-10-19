@@ -7,6 +7,7 @@ import type * as IconButtonModule from "../src/client/components/icon-button.js"
 import type {GearMenuHeaderItem} from "../src/client/components/gear-menu.js";
 import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
+const pickerCalls: unknown[] = [];
 const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	zoomedNodeId: "alice",
 	toggleLeftBar: () => {},
@@ -22,6 +23,9 @@ const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
 	leftBarOffset: () => 0,
 	leftBarMode: "drawerClosed",
 	nav: {current: null, back: [], forward: []},
+	showItemTypePicker: (picker: unknown) => {
+		pickerCalls.push(picker);
+	},
 };
 
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -41,7 +45,12 @@ vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
 	useShowCompletedToggle: () => toggleState.toggleCompleted,
 }));
 vi.mock("../src/client/navigation.js", () => ({stepNav: () => {}, useNavStackSync: () => {}}));
-const nodeState = {hasChildren: true, rootChildren: [{id: "r1"}]};
+const nodeState: {hasChildren: boolean; rootChildren: {id: string}[]; layoutMode: string | null} = {
+	hasChildren: true,
+	rootChildren: [{id: "r1"}],
+	layoutMode: null,
+};
+const homeState: {layoutMode: string | undefined} = {layoutMode: undefined};
 
 const expandAllCalls: [string | null, boolean][] = [];
 
@@ -51,8 +60,12 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	},
 	useUpdateNode: () => ({mutate: () => {}}),
 	useNode: (nodeId: string | null) => ({
-		data: nodeId === null ? undefined : {id: nodeId, hasChildren: nodeState.hasChildren},
+		data:
+			nodeId === null
+				? undefined
+				: {id: nodeId, hasChildren: nodeState.hasChildren, data: {layoutMode: nodeState.layoutMode}},
 	}),
+	useHome: () => ({data: homeState.layoutMode === undefined ? undefined : {layoutMode: homeState.layoutMode}}),
 	useChildren: () => ({data: nodeState.rootChildren}),
 }));
 vi.mock("../src/client/components/breadcrumbs.js", () => ({
@@ -77,7 +90,6 @@ vi.mock("../src/client/components/gear-menu.js", () => ({
 		return null;
 	},
 }));
-vi.mock("../src/client/components/layout-menu.js", () => ({ItemTypePicker: () => null}));
 
 /** Props of every IconButton rendered, keyed by data-handbook. */
 type IconButtonProps = Parameters<typeof IconButtonModule.IconButton>[0];
@@ -464,5 +476,56 @@ describe("TopBar Expand all / Collapse all", () => {
 			["alice", false],
 			[null, true],
 		]);
+	});
+});
+
+/** The data-icon of the Change layout button's svg. */
+function layoutIcon(html: string): string | undefined {
+	const button = html.slice(html.indexOf('data-handbook="bullet.layout"'));
+	return /data-icon="([^"]*)"/u.exec(button)?.[1];
+}
+
+/** Click Change layout with its element reporting `rect`, and return what the picker store received. */
+function clickLayout(rect: {left: number; bottom: number}): unknown[] {
+	pickerCalls.length = 0;
+	const currentTarget = {getBoundingClientRect: () => rect};
+	const onClick = iconButtonProps.get("bullet.layout")?.onClick as unknown as (event: unknown) => void;
+	onClick({currentTarget});
+	return [...pickerCalls];
+}
+
+describe("TopBar Change layout button", () => {
+	it("shows the zoomed item's type icon and opens the picker under the button", () => {
+		nodeState.layoutMode = "h2";
+		const html = renderToStaticMarkup(createElement(TopBar));
+		nodeState.layoutMode = null;
+		expect(layoutIcon(html)).toBe("h2");
+		expect(clickLayout({left: 1131, bottom: 42})).toStrictEqual([
+			{nodeIds: ["alice"], position: {top: 46, left: 1131}},
+		]);
+	});
+
+	it("shows Home's layout icon at Home and opens the picker on the home node", () => {
+		storeState.zoomedNodeId = null;
+		homeState.layoutMode = "board";
+		const html = renderToStaticMarkup(createElement(TopBar));
+		homeState.layoutMode = undefined;
+		storeState.zoomedNodeId = "alice";
+		expect(layoutIcon(html)).toBe("columns-3");
+		expect(clickLayout({left: 1131, bottom: 42})).toStrictEqual([
+			{nodeIds: ["home"], position: {top: 46, left: 1131}},
+		]);
+	});
+
+	it("opens the picker under the kebab from the compact more menu", () => {
+		pickerCalls.length = 0;
+		renderCompact("alice");
+		vi.stubGlobal("document", {
+			querySelector: (selector: string) =>
+				selector === ".wf-header .gearMenu" ? {getBoundingClientRect: () => ({left: 1200, bottom: 44})} : null,
+		});
+		gearMenuProps.headerItems?.find((item) => item.label === "Change layout")?.onSelect();
+		vi.unstubAllGlobals();
+		expect(pickerCalls).toStrictEqual([{nodeIds: ["alice"], position: {top: 48, left: 1200}}]);
 	});
 });

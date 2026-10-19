@@ -222,6 +222,12 @@ interface SearchReturn {
 	caretOffset: number;
 }
 
+/** Where the shared item-type picker is open and which items it turns into the chosen type. */
+interface ItemTypePickerState {
+	nodeIds: string[];
+	position: {top: number; left: number};
+}
+
 interface OutlineState {
 	zoomedNodeId: string | null;
 	expandedIds: Set<string>;
@@ -280,6 +286,7 @@ interface OutlineState {
 	isOnline: boolean;
 	errorNotifications: ErrorNotification[];
 	appMessage: AppMessageState | null;
+	itemTypePicker: ItemTypePickerState | null;
 	/** In-flight node mutations; the saving overlay shows while it is above zero (see selectIsMutating). */
 	mutationCount: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
@@ -366,6 +373,9 @@ interface OutlineActions {
 	clearAllErrorNotifications: () => void;
 	showAppMessage: (text: string, options?: ShowAppMessageOptions) => void;
 	hideAppMessage: () => void;
+	/** Upstream's `showItemTypePicker`: open the one shared item-type picker for `nodeIds` at `position`. */
+	showItemTypePicker: (picker: ItemTypePickerState) => void;
+	hideItemTypePicker: () => void;
 	beginMutation: () => void;
 	endMutation: () => void;
 }
@@ -504,6 +514,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
 	appMessage: null,
+	itemTypePicker: null,
 	mutationCount: 0,
 	nav: initialNavState,
 	urlSearchQuery: null,
@@ -942,6 +953,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		clearTimeout(appMessageTimer);
 		appMessageTimer = undefined;
 		set({appMessage: null});
+	},
+
+	showItemTypePicker: (picker) => {
+		set({itemTypePicker: picker});
+	},
+
+	hideItemTypePicker: () => {
+		set({itemTypePicker: null});
 	},
 
 	beginMutation: () => {

@@ -1,5 +1,6 @@
 import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {useCallback} from "react";
+import {HOME_TARGET} from "@workflowy/shared/types";
 import type {MutateOptions, QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {expandOrCollapseAll} from "../expansion.js";
@@ -88,6 +89,32 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<N
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
+}
+
+/** Home's own metadata: its layoutMode ("bullets" when unset). */
+interface HomeResponse {
+	layoutMode: string;
+}
+
+async function fetchHome(): Promise<HomeResponse> {
+	const response = await fetch("/api/v1/home");
+	if (!response.ok) {
+		throw new RequestStatusError(response.status, `Failed to fetch home: ${response.statusText}`);
+	}
+	return readJson<HomeResponse>(response);
+}
+
+/** Home accepts only a layoutMode (Bullets or Board). */
+async function updateHome(layoutMode: string): Promise<HomeResponse> {
+	const response = await fetch(`/api/v1/nodes/${HOME_TARGET}`, {
+		method: "PATCH",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify({layoutMode}),
+	});
+	if (!response.ok) {
+		throw new RequestStatusError(response.status, `Failed to update home: ${response.statusText}`);
+	}
+	return readJson<HomeResponse>(response);
 }
 
 async function deleteNode(nodeId: string): Promise<void> {
@@ -218,6 +245,11 @@ export function useNode(nodeId: string | null) {
 		queryKey: nodeKeys.detail(nodeId ?? ""),
 		queryFn: nodeId === null || nodeId === "" ? skipToken : async () => fetchNode(nodeId),
 	});
+}
+
+/** Home's layoutMode from `GET /api/v1/home` (the zoom root's layout when not zoomed). */
+export function useHome() {
+	return useQuery({queryKey: nodeKeys.home(), queryFn: fetchHome});
 }
 
 /**
@@ -451,8 +483,38 @@ export function useUpdateNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
-	const mutate = useUndoableMutate(mutation.mutate, updateUndos, ({nodeId, name, note}) =>
+	const nodeMutate = useUndoableMutate(mutation.mutate, updateUndos, ({nodeId, name, note}) =>
 		cachedOps(queryClient, {kind: "edit", nodeId, name, note}),
+	);
+	const homeMutation = useMutation({
+		mutationFn: updateHome,
+		async onMutate(layoutMode) {
+			await queryClient.cancelQueries({queryKey: nodeKeys.home()});
+			const previous = queryClient.getQueryData<HomeResponse>(nodeKeys.home());
+			queryClient.setQueryData<HomeResponse>(nodeKeys.home(), {layoutMode});
+			return {previous};
+		},
+		onError(error, _layoutMode, context) {
+			queryClient.setQueryData(nodeKeys.home(), context?.previous);
+			addErrorNotification(`Failed to update home: ${error.message}`);
+		},
+		async onSettled() {
+			await queryClient.invalidateQueries({queryKey: nodeKeys.home()});
+		},
+	});
+	const homeMutate = homeMutation.mutate;
+	// `nodeId: "home"` writes Home's layoutMode, the only field Home has.
+	const mutate = useCallback<typeof nodeMutate>(
+		(variables, options) => {
+			if (variables.nodeId === HOME_TARGET) {
+				if (variables.layoutMode !== undefined) {
+					homeMutate(variables.layoutMode);
+				}
+				return;
+			}
+			nodeMutate(variables, options);
+		},
+		[homeMutate, nodeMutate],
 	);
 	return {...mutation, mutate};
 }
@@ -789,9 +851,6 @@ export function useRestoreNode() {
 	);
 	return {...mutation, mutate};
 }
-
-/** The route id for Home (the server's `HOME_TARGET`). */
-const HOME_TARGET = "home";
 
 /** One descendant row from `GET /api/v1/nodes/:id/subtree-ids`. */
 interface SubtreeItem {

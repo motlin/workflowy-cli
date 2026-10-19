@@ -3,6 +3,7 @@ import {useEffect} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams} from "react-router-dom";
 import type {NodeResponse} from "../node-types.js";
 
+import {ItemTypePickerHost} from "./components/item-type-picker-host.js";
 import {AppMessages} from "./components/app-message.js";
 import {ChangesView} from "./components/changes-view.js";
 import {ErrorBoundary} from "./components/error-boundary.js";
@@ -213,6 +214,7 @@ export function App() {
 				<TagColorStyles />
 				<ShowCompletedSync />
 				<ExpansionSync />
+				<ItemTypePickerHost />
 				<BrowserRouter>
 					<div className="app">
 						<Routes>

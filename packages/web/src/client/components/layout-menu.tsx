@@ -2,24 +2,11 @@ import {useEffect, useRef} from "react";
 import type {ReactElement} from "react";
 import {createPortal} from "react-dom";
 import type {ItemType} from "../layout-types.js";
-import {FA_ICONS} from "./fa-icons.js";
-import type {FaIconKey} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import type {ButtonMenuHandle} from "./flyout/button-menu.js";
 import {MenuItem} from "./flyout/menu-item.js";
 import type {MenuItemProps} from "./flyout/menu-item.js";
-
-function isFaIconKey(key: string): key is FaIconKey {
-	return key in FA_ICONS;
-}
-
-function typeIcon(icon: string): FaIconKey {
-	const key = `fal:${icon}`;
-	if (!isFaIconKey(key)) {
-		throw new Error(`Missing item type icon ${key}`);
-	}
-	return key;
-}
+import {typeIcon} from "./item-type-icon.js";
 
 /** Upstream picker: selecting runs the type's effect, then the focus leaves the picker (to body), which closes it. */
 function selectType(type: ItemType, onSelect: (type: ItemType) => void): void {

@@ -1,21 +1,20 @@
 import {useRef, useState} from "react";
 import {locationKey} from "@workflowy/shared";
 import {useNavigate} from "react-router-dom";
-import {useChildren, useExpandAll, useNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useChildren, useExpandAll, useHome, useNode} from "../hooks/use-nodes.js";
 import {useStarActions, useStars} from "../hooks/use-starred.js";
 import {useShowCompletedToggle} from "../hooks/use-show-completed-toggle.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
+import {typeIcon} from "./item-type-icon.js";
 import {GearMenu} from "./gear-menu.js";
 import type {GearMenuHeaderItem} from "./gear-menu.js";
 import {useMediaQuery} from "../hooks/use-media-query.js";
 import {IconButton} from "./icon-button.js";
-import {ItemTypePicker} from "./layout-menu.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton, StarIcon} from "./star-button.js";
-import {ITEM_TYPES} from "../layout-types.js";
-import type {ItemType} from "../layout-types.js";
+import {currentTypeIcon} from "../layout-types.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {stepNav, useNavStackSync} from "../navigation.js";
 import {internalLinkUrl} from "../item-menu-model.js";
@@ -30,8 +29,16 @@ interface TopBarProps {
 }
 
 export function TopBar({onUndo, onRedo}: TopBarProps) {
-	const {zoomedNodeId, toggleLeftBar, showCompleted, openSettings, openPresentation, leftBarOffset, leftBarMode} =
-		useOutlineStore();
+	const {
+		zoomedNodeId,
+		toggleLeftBar,
+		showCompleted,
+		openSettings,
+		openPresentation,
+		leftBarOffset,
+		leftBarMode,
+		showItemTypePicker,
+	} = useOutlineStore();
 	const navigate = useNavigate();
 	const navigateToToday = useNavigateToToday();
 	const toggleCompleted = useShowCompletedToggle();
@@ -39,17 +46,21 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const canGoBack = useOutlineStore((state) => state.nav.back.length > 0);
 	const canGoForward = useOutlineStore((state) => state.nav.forward.length > 0);
 	const [menuOpen, setMenuOpen] = useState(false);
-	const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
-	const [layoutMenuPosition, setLayoutMenuPosition] = useState({top: 0, left: 0});
 	const menuRef = useRef<HTMLDivElement>(null);
-	const layoutButtonRef = useRef<HTMLDivElement>(null);
-	const updateNodeMutation = useUpdateNode();
 	const {stars, unavailable: starsUnavailable} = useStars();
 	const {toggleStar} = useStarActions();
 	const currentPageKey = zoomedNodeId === null ? null : locationKey({nodeId: zoomedNodeId, query: null});
 	const isCurrentPageStarred = stars.some((star) => star.key === currentPageKey);
 	const expandAll = useExpandAll();
 	const zoomedNode = useNode(zoomedNodeId);
+	const home = useHome();
+	const layoutIcon = (
+		<FaIcon
+			icon={typeIcon(
+				currentTypeIcon(zoomedNodeId === null ? home.data?.layoutMode : zoomedNode.data?.data.layoutMode),
+			)}
+		/>
+	);
 	const rootChildren = useChildren(null);
 	const canPresent =
 		zoomedNodeId === null ? (rootChildren.data?.length ?? 0) > 0 : zoomedNode.data?.hasChildren === true;
@@ -84,21 +95,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const handleLayoutOpen = (anchor: Element | null) => {
 		if (anchor) {
 			const rect = anchor.getBoundingClientRect();
-			setLayoutMenuPosition({top: rect.bottom + 4, left: rect.left});
-		}
-		setLayoutMenuOpen(true);
-	};
-
-	const handleLayoutClose = () => {
-		setLayoutMenuOpen(false);
-	};
-
-	const handleLayoutSelect = (type: ItemType) => {
-		if (zoomedNodeId !== null) {
-			updateNodeMutation.mutate({
-				nodeId: zoomedNodeId,
-				layoutMode: type.layoutModeKey,
-			});
+			showItemTypePicker({nodeIds: [zoomedNodeId ?? "home"], position: {top: rect.bottom + 4, left: rect.left}});
 		}
 	};
 
@@ -147,7 +144,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			},
 			{
 				label: "Change layout",
-				icon: <FaIcon icon="fal:list-ul" />,
+				icon: layoutIcon,
 				// The menu item has no element of its own, so anchor under the kebab like upstream.
 				onSelect: () => {
 					handleLayoutOpen(document.querySelector(".wf-header .gearMenu"));
@@ -155,15 +152,6 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			},
 		);
 	}
-
-	const layoutMenu = layoutMenuOpen && (
-		<ItemTypePicker
-			onClose={handleLayoutClose}
-			onSelect={handleLayoutSelect}
-			position={layoutMenuPosition}
-			types={ITEM_TYPES}
-		/>
-	);
 
 	return (
 		<div
@@ -245,23 +233,17 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 						</IconButton>
 
 						{/* Change layout */}
-						<div className="relative" ref={layoutButtonRef}>
-							<IconButton
-								aria-expanded={layoutMenuOpen}
-								aria-haspopup="true"
-								data-handbook="bullet.layout"
-								onClick={() => {
-									handleLayoutOpen(layoutButtonRef.current);
-								}}
-								tooltip="Change layout"
-							>
-								<FaIcon icon="fal:list-ul" />
-							</IconButton>
-							{layoutMenu}
-						</div>
+						<IconButton
+							data-handbook="bullet.layout"
+							onClick={(event) => {
+								handleLayoutOpen(event.currentTarget);
+							}}
+							tooltip="Change layout"
+						>
+							{layoutIcon}
+						</IconButton>
 					</>
 				)}
-				{compact && layoutMenu}
 
 				{/* More: upstream's gearMenu wrapper, no tooltip; blue dot omitted (no unread rows locally) */}
 				<div
