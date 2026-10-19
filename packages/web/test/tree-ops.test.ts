@@ -3,6 +3,7 @@ import {describe, expect, it} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys, spliceChildren} from "../src/client/node-cache.js";
 import {
+	applyBlockMove,
 	applySplitPlan,
 	defaultIndexIn,
 	dropIndex,
@@ -10,6 +11,7 @@ import {
 	planBackspaceAtStart,
 	planDeleteAtEnd,
 	planAddSibling,
+	planBlockMove,
 	planDuplicate,
 	planIndent,
 	isPotentiallyVisible,
@@ -22,7 +24,7 @@ import {
 	cacheMoveTree,
 	toUndoOps,
 } from "../src/client/tree-ops.js";
-import type {VerticalMoveTree} from "../src/client/tree-ops.js";
+import type {BlockMove, BlockMoveTree, VerticalMoveTree} from "../src/client/tree-ops.js";
 import {invertBatch} from "../src/client/undo-history.js";
 import type {UndoOp} from "../src/client/undo-history.js";
 
@@ -339,6 +341,116 @@ describe("planVerticalMove", () => {
 	});
 });
 
+/** Every parent's children after applying `moves` in order, for the parents listed in `parents`. */
+function afterMoves(tree: BlockMoveTree, moves: BlockMove[], parents: (string | null)[]): (string | null | string[])[] {
+	const after = moves.reduce<BlockMoveTree>((current, move) => applyBlockMove(current, move), tree);
+	return parents.map((parentId) => after.childrenOf(parentId));
+}
+
+describe("planBlockMove", () => {
+	const root = (): Row[] => [{id: "delta"}, {id: "charlie"}, {id: "bravo"}, {id: "alpha"}];
+
+	it("moves a run down past the next sibling as one block, decided by its last row", () => {
+		const tree = rowTree(root());
+		const plan = planBlockMove(["charlie", "bravo"], "down", tree);
+		expect(plan).toStrictEqual([{ids: ["charlie", "bravo"], parentId: null, index: 4}]);
+		expect(afterMoves(tree, plan, [null])).toStrictEqual([["delta", "alpha", "charlie", "bravo"]]);
+	});
+
+	it("moves a run up past the previous sibling as one block, decided by its first row", () => {
+		const tree = rowTree(root());
+		const plan = planBlockMove(["charlie", "bravo"], "up", tree);
+		expect(plan).toStrictEqual([{ids: ["charlie", "bravo"], parentId: null, index: 0}]);
+		expect(afterMoves(tree, plan, [null])).toStrictEqual([["charlie", "bravo", "delta", "alpha"]]);
+	});
+
+	it("gathers separate runs into one contiguous block at the target", () => {
+		const tree = rowTree([{id: "delta"}, {id: "charlie"}, {id: "bravo"}, {id: "alpha"}, {id: "echo"}]);
+		const plan = planBlockMove(["charlie", "alpha"], "down", tree);
+		expect(plan).toStrictEqual([{ids: ["charlie", "alpha"], parentId: null, index: 5}]);
+		expect(afterMoves(tree, plan, [null])).toStrictEqual([["delta", "bravo", "echo", "charlie", "alpha"]]);
+	});
+
+	it("crosses into the parent's sibling at the edge, as a single-row move would", () => {
+		const tree = rowTree([
+			{id: "alpha", expanded: true, children: [{id: "a1"}, {id: "a2"}]},
+			{id: "bravo", children: [{id: "b1"}]},
+		]);
+		const plan = planBlockMove(["a1", "a2"], "down", tree);
+		expect(plan).toStrictEqual([{ids: ["a1", "a2"], parentId: "bravo", index: 0}]);
+		expect(afterMoves(tree, plan, ["alpha", "bravo"])).toStrictEqual([[], ["a1", "a2", "b1"]]);
+	});
+
+	it("does nothing when there is nowhere to go or the zoom root is selected", () => {
+		const tree = rowTree(root());
+		expect([
+			planBlockMove(["delta", "charlie"], "up", tree),
+			planBlockMove(["alpha"], "down", tree),
+			planBlockMove([], "down", tree),
+			planBlockMove(["charlie"], "down", tree, "charlie"),
+		]).toStrictEqual([[], [], [], []]);
+	});
+
+	it("indents a run as the last children of the previous sibling, in order", () => {
+		const tree = rowTree([{id: "alpha", children: [{id: "a1"}]}, {id: "charlie"}, {id: "bravo"}]);
+		const plan = planBlockMove(["charlie", "bravo"], "indent", tree);
+		expect(plan).toStrictEqual([{ids: ["charlie", "bravo"], parentId: "alpha", index: 1}]);
+		expect(afterMoves(tree, plan, [null, "alpha"])).toStrictEqual([["alpha"], ["a1", "charlie", "bravo"]]);
+	});
+
+	it("indents runs in reverse order, each under its own previous sibling", () => {
+		const tree = rowTree([{id: "alpha"}, {id: "bravo"}, {id: "charlie"}, {id: "delta"}]);
+		const plan = planBlockMove(["bravo", "delta"], "indent", tree);
+		expect(plan).toStrictEqual([
+			{ids: ["delta"], parentId: "charlie", index: 0},
+			{ids: ["bravo"], parentId: "alpha", index: 0},
+		]);
+		expect(afterMoves(tree, plan, [null, "alpha", "charlie"])).toStrictEqual([
+			["alpha", "charlie"],
+			["bravo"],
+			["delta"],
+		]);
+	});
+
+	it("skips a run with no previous sibling, and lands at the bottom when the new parent's children are unloaded", () => {
+		const tree: BlockMoveTree = {
+			...rowTree([{id: "alpha"}, {id: "bravo"}, {id: "charlie"}]),
+			childrenLoaded: (id) => id !== "bravo",
+		};
+		expect(planBlockMove(["alpha", "charlie"], "indent", tree)).toStrictEqual([
+			{ids: ["charlie"], parentId: "bravo"},
+		]);
+	});
+
+	it("outdents runs in reverse order to just after their parent, keeping their order", () => {
+		const tree = rowTree([
+			{id: "alpha", children: [{id: "a1"}, {id: "a2"}, {id: "a3"}, {id: "a4"}]},
+			{id: "bravo"},
+		]);
+		const plan = planBlockMove(["a1", "a3", "a4"], "outdent", tree);
+		expect(plan).toStrictEqual([
+			{ids: ["a3", "a4"], parentId: null, index: 1},
+			{ids: ["a1"], parentId: null, index: 1},
+		]);
+		expect(afterMoves(tree, plan, [null, "alpha"])).toStrictEqual([["alpha", "a1", "a3", "a4", "bravo"], ["a2"]]);
+	});
+
+	it("does not outdent out of Home or the zoomed page", () => {
+		const tree = rowTree([{id: "alpha", children: [{id: "a1"}]}]);
+		expect([
+			planBlockMove(["alpha"], "outdent", tree),
+			planBlockMove(["a1"], "outdent", tree, "alpha"),
+		]).toStrictEqual([[], []]);
+	});
+
+	it("treats rows separated only by a hidden sibling as one run", () => {
+		const tree = rowTree([{id: "alpha"}, {id: "bravo"}, {id: "done", hidden: true}, {id: "charlie"}]);
+		expect(planBlockMove(["bravo", "charlie"], "indent", tree)).toStrictEqual([
+			{ids: ["bravo", "charlie"], parentId: "alpha", index: 0},
+		]);
+	});
+});
+
 describe("cacheMoveTree", () => {
 	it("reads parents and priority-ordered children from the cache, visibility from completion", () => {
 		const done = node({id: "d", parent_id: "p", priority: 50, completedAt: 1});
@@ -358,6 +470,17 @@ describe("cacheMoveTree", () => {
 			tree.isVisible("d"),
 			tree.isVisible("a"),
 		]).toStrictEqual(["p", null, ["d", "a", "b"], [], true, false, false, true]);
+	});
+
+	it("knows a row's children are loaded when they are cached or it has none", () => {
+		const leaf = node({id: "leaf", priority: 2, hasChildren: false});
+		const qc = seed({root: [node({id: "p", priority: 1}), leaf], p: siblings}, [leaf, ...siblings]);
+		const tree = cacheMoveTree(qc, {
+			expandedIds: new Set(),
+			showCompleted: true,
+			animatingCompletionIds: new Set(),
+		});
+		expect(["p", "leaf", "a"].map((id) => tree.childrenLoaded?.(id))).toStrictEqual([true, true, false]);
 	});
 });
 

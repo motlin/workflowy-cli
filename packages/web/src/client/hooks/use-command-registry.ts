@@ -13,6 +13,7 @@ import {
 	isPotentiallyVisible,
 	rowHasChildren,
 	nextPotentiallyVisibleSibling,
+	planBlockMove,
 	planDuplicate,
 	planFocusSibling,
 	planIndent,
@@ -20,13 +21,14 @@ import {
 	planToggleComplete,
 	planVerticalMove,
 } from "../tree-ops.js";
-import type {MoveNodePayload} from "../tree-ops.js";
+import type {BlockMove, BlockMoveDirection, MoveNodePayload} from "../tree-ops.js";
 import {
 	fetchChildren,
 	useChildren,
 	useCreateNode,
 	useDeleteNode,
 	useMoveNode,
+	useMoveNodes,
 	useNode,
 	useToggleComplete,
 	undoAdapter,
@@ -69,12 +71,37 @@ function hasItemSelection(): boolean {
 	return useOutlineStore.getState().itemSelection.entries.length > 0;
 }
 
+type MoveNodesMutate = ReturnType<typeof useMoveNodes>["mutate"];
+
+/** Send each block move once the previous one lands, so every planned slot matches the server's outline; stop at a failure. */
+async function sendBlockMoves(moves: readonly BlockMove[], mutate: MoveNodesMutate): Promise<void> {
+	for (const {ids, parentId, index} of moves) {
+		// oxlint-disable-next-line no-await-in-loop -- each move's slot is planned against the outline the previous one left
+		const landed = await new Promise<boolean>((resolve) => {
+			mutate(
+				{ids, parent_id: parentId, ...(index === undefined ? {} : {index})},
+				{
+					onSuccess: () => {
+						resolve(true);
+					},
+					onError: () => {
+						resolve(false);
+					},
+				},
+			);
+		});
+		if (!landed) {
+			return;
+		}
+	}
+}
+
 /**
  * The outline's commands, keyed by upstream command id, for the global keymap to dispatch.
  *
  * Every item command acts on `ctx.items`: the item selection in display order, else the edited node, else nothing.
  * Complete, delete and export act on every selected item and clear the selection; duplicate keeps it; indent,
- * outdent and moves leave a selection alone until block moves land. Moving between nodes is caret movement
+ * outdent and moves move the selection as blocks and keep it. Moving between nodes is caret movement
  * (Up/Down at a node's edge, handled by EditableText, which also owns Enter, Backspace and Escape).
  *
  * Navigation commands commit the edited text before leaving. Structural commands keep the caret and unsaved text
@@ -112,6 +139,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const navigateToToday = useNavigateToToday();
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
+	const moveNodesMutation = useMoveNodes();
 	const deleteNodeMutation = useDeleteNode();
 	const toggleCompleteMutation = useToggleComplete();
 	const updateNodeMutation = useUpdateNode();
@@ -156,10 +184,31 @@ export function useCommandRegistry(): CommandRegistry {
 		[expand, holdEditing, releaseEditing, moveNodeMutation],
 	);
 
+	/**
+	 * Move the item selection as blocks (`planBlockMove`) in one undo step, keeping it selected and expanding each
+	 * new parent.
+	 */
+	const moveSelection = (ctx: CommandContext, direction: BlockMoveDirection): void => {
+		const state = useOutlineStore.getState();
+		const moves = planBlockMove(ctx.items, direction, cacheMoveTree(queryClient, state), zoomedNodeId);
+		for (const {parentId} of moves) {
+			if (parentId !== null && parentId !== zoomedNodeId && !state.expandedIds.has(parentId)) {
+				expand(parentId);
+			}
+		}
+		if (moves.length > 0) {
+			void runInUndoBatch(captureOutlineView, async () => sendBlockMoves(moves, moveNodesMutation.mutate));
+		}
+	};
+
 	/** Swap with a sibling or cross into the parent's sibling, expanding it. */
 	const moveEditedNodeVertically = (ctx: CommandContext, direction: "up" | "down"): void => {
+		if (hasItemSelection()) {
+			moveSelection(ctx, direction);
+			return;
+		}
 		const [nodeId] = ctx.items;
-		if (nodeId === undefined || hasItemSelection()) {
+		if (nodeId === undefined) {
 			return;
 		}
 		const plan = planVerticalMove({
@@ -566,6 +615,10 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		indent: {
 			execute(ctx) {
+				if (hasItemSelection()) {
+					moveSelection(ctx, "indent");
+					return;
+				}
 				const node = itemNode(ctx);
 				if (node !== undefined) {
 					moveEditedNode(planIndent(queryClient, node, useOutlineStore.getState().expandedIds));
@@ -574,6 +627,10 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		outdent: {
 			execute(ctx) {
+				if (hasItemSelection()) {
+					moveSelection(ctx, "outdent");
+					return;
+				}
 				const node = itemNode(ctx);
 				if (node !== undefined) {
 					moveEditedNode(planOutdent(queryClient, node, zoomedNodeId));

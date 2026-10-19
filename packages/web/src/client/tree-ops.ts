@@ -407,7 +407,7 @@ export function planVerticalMove({
 	return {nodeId, parentId: uncle, index, expandParentId: open ? null : uncle};
 }
 
-/** A `VerticalMoveTree` over the React Query cache and the outline's expansion/visibility state. */
+/** A `BlockMoveTree` over the React Query cache and the outline's expansion/visibility state. */
 export function cacheMoveTree(
 	queryClient: QueryClient,
 	{
@@ -415,9 +415,11 @@ export function cacheMoveTree(
 		showCompleted,
 		animatingCompletionIds,
 	}: {expandedIds: ReadonlySet<string>; showCompleted: boolean; animatingCompletionIds: ReadonlySet<string>},
-): VerticalMoveTree {
+): BlockMoveTree {
 	return {
 		parentOf: (id) => readNode(queryClient, id)?.parent_id ?? null,
+		childrenLoaded: (id) =>
+			readChildren(queryClient, id) !== undefined || readNode(queryClient, id)?.hasChildren === false,
 		childrenOf: (id) => sortByPriority(readChildren(queryClient, id) ?? []).map((child) => child.id),
 		isExpanded: (id) => expandedIds.has(id),
 		isVisible: (id) => {
@@ -425,6 +427,128 @@ export function cacheMoveTree(
 			return found === undefined || isPotentiallyVisible(found, showCompleted, animatingCompletionIds);
 		},
 	};
+}
+
+/** The outline as `planBlockMove` sees it; `childrenLoaded` (default true) is false while a row's children are uncached. */
+export interface BlockMoveTree extends VerticalMoveTree {
+	childrenLoaded?(id: string): boolean;
+}
+
+/** One `POST /api/v1/nodes/move`: `ids` in order, landing at `index` (a slot counted before removal; omitted = bottom). */
+export interface BlockMove {
+	ids: string[];
+	parentId: string | null;
+	index?: number;
+}
+
+export type BlockMoveDirection = "up" | "down" | "indent" | "outdent";
+
+/** Upstream `aY1`: split display-ordered `ids` into runs of rows that are each other's visible siblings. */
+function siblingRuns(tree: VerticalMoveTree, ids: readonly string[]): string[][] {
+	const runs: string[][] = [];
+	let previous: string | undefined;
+	for (const id of ids) {
+		const run = runs.at(-1);
+		if (run !== undefined && previous !== undefined && visibleSibling(tree, id, "up") === previous) {
+			run.push(id);
+		} else {
+			runs.push([id]);
+		}
+		previous = id;
+	}
+	return runs;
+}
+
+/** Whether `id` is `ancestorId` or sits inside it. */
+function isWithin(tree: VerticalMoveTree, id: string | null, ancestorId: string): boolean {
+	for (let current = id; current !== null; current = tree.parentOf(current)) {
+		if (current === ancestorId) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** Tab for one run (upstream `Gs1`): the last children of the first row's visible previous sibling. */
+function indentRun(tree: BlockMoveTree, run: string[]): BlockMove | null {
+	const [first] = run;
+	const previous = first === undefined ? undefined : visibleSibling(tree, first, "up");
+	if (previous === undefined) {
+		return null;
+	}
+	return tree.childrenLoaded?.(previous) === false
+		? {ids: run, parentId: previous}
+		: {ids: run, parentId: previous, index: tree.childrenOf(previous).length};
+}
+
+/** Shift+Tab for one run (upstream `Vs1`): right after the parent, never out of Home or the zoomed page. */
+function outdentRun(tree: BlockMoveTree, run: string[], zoomRootId: string | null): BlockMove | null {
+	const [first] = run;
+	const parentId = first === undefined ? null : tree.parentOf(first);
+	if (parentId === null || parentId === zoomRootId) {
+		return null;
+	}
+	const grandparentId = tree.parentOf(parentId);
+	return {ids: run, parentId: grandparentId, index: tree.childrenOf(grandparentId).indexOf(parentId) + 1};
+}
+
+/**
+ * `tree` as it stands after `move`: the moved rows leave their parents and land, in order, before the
+ * target's child now at `index` (the bottom when it is omitted or past the end), as `spliceBlock` does.
+ */
+export function applyBlockMove(tree: BlockMoveTree, move: BlockMove): BlockMoveTree {
+	const moving = new Set(move.ids);
+	const childrenOf = (id: string | null): string[] => {
+		const others = tree.childrenOf(id).filter((child) => !moving.has(child));
+		if (id !== move.parentId) {
+			return others;
+		}
+		const all = tree.childrenOf(id);
+		const at = all.slice(0, move.index ?? all.length).filter((child) => !moving.has(child)).length;
+		return [...others.slice(0, at), ...move.ids, ...others.slice(at)];
+	};
+	return {
+		...tree,
+		parentOf: (id) => (moving.has(id) ? move.parentId : tree.parentOf(id)),
+		childrenOf,
+	};
+}
+
+/**
+ * Upstream's multi-selection moves: the display-ordered `ids` split into runs of consecutive visible siblings.
+ * Up/down move every row as one block to where the first run's first row (up) or the last run's last row (down)
+ * would go alone. Tab/Shift+Tab move each run as a block, last run first, planning each against the outline as
+ * the earlier moves left it; a run with nowhere to go is skipped. Nothing moves the zoom root.
+ */
+export function planBlockMove(
+	ids: readonly string[],
+	direction: BlockMoveDirection,
+	tree: BlockMoveTree,
+	zoomRootId: string | null = null,
+): BlockMove[] {
+	if (ids.length === 0 || (zoomRootId !== null && ids.includes(zoomRootId))) {
+		return [];
+	}
+	const runs = siblingRuns(tree, ids);
+	if (direction === "up" || direction === "down") {
+		const decider = direction === "up" ? runs[0]?.[0] : runs.at(-1)?.at(-1);
+		const plan = decider === undefined ? null : planVerticalMove({nodeId: decider, direction, zoomRootId, tree});
+		if (plan === null) {
+			return [];
+		}
+		const movable = ids.filter((id) => !isWithin(tree, plan.parentId, id));
+		return movable.length === 0 ? [] : [{ids: movable, parentId: plan.parentId, index: plan.index}];
+	}
+	const moves: BlockMove[] = [];
+	let current = tree;
+	for (const run of runs.toReversed()) {
+		const move = direction === "indent" ? indentRun(current, run) : outdentRun(current, run, zoomRootId);
+		if (move !== null) {
+			moves.push(move);
+			current = applyBlockMove(current, move);
+		}
+	}
+	return moves;
 }
 
 export interface ToggleCompletePlan {
