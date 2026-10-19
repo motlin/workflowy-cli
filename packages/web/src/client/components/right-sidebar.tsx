@@ -93,9 +93,9 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
  * Styled to match Workflowy's right sidebar layout.
  */
 export function RightSidebar() {
-	const {rightSidebarOpen, toggleRightSidebar} = useOutlineStore();
+	const {showKeyboardShortcuts, rightBarCollapsed, toggleRightBar} = useOutlineStore();
 
-	if (!rightSidebarOpen) {
+	if (!showKeyboardShortcuts || rightBarCollapsed) {
 		return null;
 	}
 
@@ -106,7 +106,7 @@ export function RightSidebar() {
 				<button
 					aria-label="Close sidebar"
 					className="right-sidebar-close"
-					onClick={toggleRightSidebar}
+					onClick={toggleRightBar}
 					type="button"
 				>
 					&times;

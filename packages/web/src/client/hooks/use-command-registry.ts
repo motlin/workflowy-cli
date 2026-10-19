@@ -89,7 +89,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const flashMoving = useOutlineStore((state) => state.flashMoving);
 	const toggleLeftBar = useOutlineStore((state) => state.toggleLeftBar);
-	const toggleRightSidebar = useOutlineStore((state) => state.toggleRightSidebar);
+	const toggleRightBar = useOutlineStore((state) => state.toggleRightBar);
 	const toggleShowCompleted = useShowCompletedToggle();
 	const {toggleStar} = useStarActions();
 	const searchPanelOpen = useOutlineStore((state) => state.searchPanelOpen);
@@ -611,7 +611,7 @@ export function useCommandRegistry(): CommandRegistry {
 			},
 		},
 		toggle_leftbar: {execute: toggleLeftBar},
-		toggle_rightbar: {execute: toggleRightSidebar},
+		toggle_rightbar: {execute: toggleRightBar},
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3
 		show_or_hide_completed: showCompletedCommand(toggleShowCompleted, () => searchPanelOpen),
 		star_current_item: {

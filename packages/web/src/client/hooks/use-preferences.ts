@@ -107,3 +107,8 @@ export function useDateSettings(): DateSettings {
 export function serverShowCompleted(state: PreferencesState | undefined): boolean | null {
 	return state?.available === true ? state.preferences.showCompleted : null;
 }
+
+/** The account's `showKeyboardShortcuts` once preferences load; null while loading or when the internal API is unavailable. */
+export function serverShowKeyboardShortcuts(state: PreferencesState | undefined): boolean | null {
+	return state?.available === true ? state.preferences.showKeyboardShortcuts : null;
+}

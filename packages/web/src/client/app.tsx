@@ -27,6 +27,7 @@ import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
+import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {locationUrl, parseLocationHash} from "./location.js";
 import {nodeUrl, resolveZoomTarget} from "./navigation.js";
@@ -85,7 +86,7 @@ const queryClient = new QueryClient({
 });
 
 function OutlineView() {
-	const {zoomedNodeId, rightSidebarOpen, relatedNodesPanelOpen} = useOutlineStore();
+	const {zoomedNodeId, relatedNodesPanelOpen} = useOutlineStore();
 	const isMutating = useOutlineStore(selectIsMutating);
 
 	// Register keyboard shortcuts
@@ -95,11 +96,7 @@ function OutlineView() {
 		commands[commandId].execute({items: [], zoomedId: zoomedNodeId});
 	};
 
-	const containerClasses = [
-		"outline-container",
-		rightSidebarOpen && "with-right-sidebar",
-		relatedNodesPanelOpen && "with-related-panel",
-	]
+	const containerClasses = ["outline-container", relatedNodesPanelOpen && "with-related-panel"]
 		.filter(Boolean)
 		.join(" ");
 
@@ -201,6 +198,12 @@ function ShowCompletedSync() {
 	return null;
 }
 
+/** Keeps the right bar's shortcuts help in step with the account's `show_keyboard_shortcuts` setting. */
+function ShowKeyboardShortcutsSync() {
+	useShowKeyboardShortcutsSync();
+	return null;
+}
+
 /** Hydrates expansion from the account (`/api/v1/expansion`) once on load. */
 function ExpansionSync() {
 	useExpansionSync();
@@ -213,6 +216,7 @@ export function App() {
 			<QueryClientProvider client={queryClient}>
 				<TagColorStyles />
 				<ShowCompletedSync />
+				<ShowKeyboardShortcutsSync />
 				<ExpansionSync />
 				<ItemTypePickerHost />
 				<BrowserRouter>

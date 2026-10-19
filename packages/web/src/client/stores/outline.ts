@@ -139,18 +139,19 @@ function getInitialShowCompleted(): boolean {
 }
 
 /** Save the account's `show_completed`; failures keep the local value, and 503 (no internal API) stays local-only. */
-async function patchShowCompleted(showCompleted: boolean): Promise<void> {
+/** PATCH one account preference; 503 (no internal API) keeps the value local for the session. */
+async function patchPreference(patch: Record<string, boolean>, label: string): Promise<void> {
 	try {
 		const response = await fetch("/api/v1/preferences", {
 			method: "PATCH",
 			headers: {"Content-Type": "application/json"},
-			body: JSON.stringify({showCompleted}),
+			body: JSON.stringify(patch),
 		});
 		if (!response.ok && response.status !== 503) {
-			console.error(`Failed to save show completed: ${response.status}`);
+			console.error(`Failed to save ${label}: ${response.status}`);
 		}
 	} catch (error) {
-		console.error("Failed to save show completed", error);
+		console.error(`Failed to save ${label}`, error);
 	}
 }
 
@@ -257,7 +258,10 @@ interface OutlineState {
 	leftBarWidth: number;
 	leftBarSectionExpansions: Record<string, boolean>;
 	leftBarHovered: boolean;
-	rightSidebarOpen: boolean;
+	/** Upstream's account setting `show_keyboard_shortcuts`: the right bar shows the shortcuts help. */
+	showKeyboardShortcuts: boolean;
+	/** Whether the right bar is collapsed; always true on load and never persisted. */
+	rightBarCollapsed: boolean;
 	searchPanelOpen: boolean;
 	searchInitialQuery: string | null;
 	/** Bumped on every open request; the panel remounts per session so each request starts fresh. */
@@ -342,7 +346,13 @@ interface OutlineActions {
 	setLeftBarHovered: (hovered: boolean) => void;
 	/** Horizontal space the pinned bar takes from the page; 0 for the drawer. */
 	leftBarOffset: () => number;
-	toggleRightSidebar: () => void;
+	/** Set and persist `showKeyboardShortcuts` through `/api/v1/preferences`. */
+	setShowKeyboardShortcuts: (on: boolean) => void;
+	/** Take the account's `showKeyboardShortcuts` without writing it back. */
+	adoptShowKeyboardShortcuts: (on: boolean) => void;
+	toggleRightBarCollapsed: () => void;
+	/** Upstream's right-bar toggle: expand and show shortcuts when collapsed, otherwise collapse and hide them. */
+	toggleRightBar: () => void;
 	addRecentSearch: (query: string) => void;
 	clearRecentSearches: () => void;
 	toggleSearchPanel: () => void;
@@ -490,7 +500,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	movingId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
-	rightSidebarOpen: false,
+	showKeyboardShortcuts: false,
+	rightBarCollapsed: true,
 	searchPanelOpen: false,
 	searchInitialQuery: null,
 	searchPanelSession: 0,
@@ -627,7 +638,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	setShowCompleted: (showCompleted) => {
 		set({showCompleted});
 		writeCompletedMode(showCompleted);
-		void patchShowCompleted(showCompleted);
+		void patchPreference({showCompleted}, "show completed");
 	},
 
 	toggleShowCompleted: () => {
@@ -724,8 +735,23 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		return leftBarMode === "alwaysOpen" ? leftBarWidth : 0;
 	},
 
-	toggleRightSidebar: () => {
-		set((state) => ({rightSidebarOpen: !state.rightSidebarOpen}));
+	setShowKeyboardShortcuts: (on) => {
+		set({showKeyboardShortcuts: on});
+		void patchPreference({showKeyboardShortcuts: on}, "keyboard shortcuts");
+	},
+
+	adoptShowKeyboardShortcuts: (on) => {
+		set({showKeyboardShortcuts: on});
+	},
+
+	toggleRightBarCollapsed: () => {
+		set((state) => ({rightBarCollapsed: !state.rightBarCollapsed}));
+	},
+
+	toggleRightBar: () => {
+		const collapsed = get().rightBarCollapsed;
+		set({rightBarCollapsed: !collapsed});
+		get().setShowKeyboardShortcuts(collapsed);
 	},
 
 	addRecentSearch: (query) => {
