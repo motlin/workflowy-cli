@@ -1,5 +1,11 @@
 import {describe, expect, it} from "vite-plus/test";
-import {DRAG_THRESHOLD_PX, autoScrollBy, edgeAutoscrollSpeed, isDragGesture} from "../src/client/pointer-drag.js";
+import {
+	DRAG_THRESHOLD_PX,
+	autoScrollBy,
+	edgeAutoscrollSpeed,
+	isDragGesture,
+	stepAutoscroll,
+} from "../src/client/pointer-drag.js";
 
 describe("isDragGesture", () => {
 	it("ignores the jitter of a tap so a tap never refiles a row", () => {
@@ -57,5 +63,30 @@ describe("edgeAutoscrollSpeed", () => {
 
 	it("ignores the bottom zone while the drag started below the pointer and nothing has scrolled", () => {
 		expect(edgeAutoscrollSpeed({...base, pointerY: 925, startY: 950})).toBe(0);
+	});
+});
+
+describe("stepAutoscroll", () => {
+	it("scrolls by the speed times the seconds since the last frame", () => {
+		const state = {scrollTop: 500, speed: -1250, lastFrameAt: 1000, haveScrolled: false};
+		expect(stepAutoscroll(state, 1100)).toStrictEqual({scrollTop: 375, haveScrolled: true});
+	});
+
+	it("rounds the step and leaves haveScrolled alone when nothing moved", () => {
+		const state = {scrollTop: 500, speed: 0, lastFrameAt: 1000, haveScrolled: false};
+		expect([
+			stepAutoscroll(state, 1016),
+			stepAutoscroll({...state, speed: 313}, 1016),
+			stepAutoscroll({...state, speed: 0, haveScrolled: true}, 1016),
+		]).toStrictEqual([
+			{scrollTop: 500, haveScrolled: false},
+			{scrollTop: 505, haveScrolled: true},
+			{scrollTop: 500, haveScrolled: true},
+		]);
+	});
+
+	it("does not scroll above the top", () => {
+		const state = {scrollTop: 50, speed: -1250, lastFrameAt: 1000, haveScrolled: true};
+		expect(stepAutoscroll(state, 1100)).toStrictEqual({scrollTop: 0, haveScrolled: true});
 	});
 });

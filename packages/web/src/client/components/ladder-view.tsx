@@ -27,7 +27,7 @@ import {
 } from "../ladder-state.js";
 import type {Ladders} from "../ladder-state.js";
 import {autoScrollBy, isDragGesture, dropAtPoint} from "../pointer-drag.js";
-import type {Point, DropTarget} from "../pointer-drag.js";
+import type {LadderDropTarget, Point} from "../pointer-drag.js";
 import {LadderTree} from "./ladder-tree.js";
 import "../ladder.css";
 import {readJson} from "../read-json.js";
@@ -71,7 +71,7 @@ export function LadderView() {
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [live, setLive] = useState(false);
 	const [dragging, setDragging] = useState<string>();
-	const [dropTarget, setDropTarget] = useState<DropTarget>();
+	const [dropTarget, setDropTarget] = useState<LadderDropTarget>();
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const anchor = useRef<string>(undefined);
 	const busy = useRef(false);

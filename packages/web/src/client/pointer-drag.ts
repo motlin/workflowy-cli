@@ -76,12 +76,27 @@ export function edgeAutoscrollSpeed(input: EdgeAutoscrollInput): number {
 	return 0;
 }
 
-export interface DropTarget {
+export interface AutoscrollState {
+	scrollTop: number;
+	/** Signed px/s from `edgeAutoscrollSpeed`. */
+	speed: number;
+	lastFrameAt: number;
+	haveScrolled: boolean;
+}
+
+/** One frame of upstream's autoscroll loop: move by `round(speed * secondsSinceLastFrame)`, never above the top. */
+export function stepAutoscroll(state: AutoscrollState, now: number): {scrollTop: number; haveScrolled: boolean} {
+	const delta = Math.round((state.speed * (now - state.lastFrameAt)) / 1000);
+	const scrollTop = Math.max(0, state.scrollTop + delta);
+	return {scrollTop, haveScrolled: state.haveScrolled || scrollTop !== state.scrollTop};
+}
+
+export interface LadderDropTarget {
 	tier: string;
 	beforeNodeId: string;
 }
 
-export function dropAtPoint(x: number, y: number, moving: Set<string>): DropTarget | undefined {
+export function dropAtPoint(x: number, y: number, moving: Set<string>): LadderDropTarget | undefined {
 	const element = document.elementFromPoint(x, y);
 	const target = element?.closest<HTMLElement>("[data-tier]");
 	if (!target?.dataset.tier) {

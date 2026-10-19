@@ -99,7 +99,10 @@ function OutlineView() {
 		commands[commandId].execute({items: [], zoomedId: zoomedNodeId});
 	};
 
-	const containerClasses = ["outline-container", relatedNodesPanelOpen && "with-related-panel"]
+	const containerClasses = [
+		"outline-container vertical-scrollable-container",
+		relatedNodesPanelOpen && "with-related-panel",
+	]
 		.filter(Boolean)
 		.join(" ");
 

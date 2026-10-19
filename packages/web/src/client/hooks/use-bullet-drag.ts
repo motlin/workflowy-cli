@@ -13,6 +13,7 @@ import {emptySelection} from "../item-selection.js";
 import {readChildren, readNode} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows} from "../outline-drop-target.js";
+import {edgeAutoscrollSpeed, stepAutoscroll} from "../pointer-drag.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
@@ -149,6 +150,75 @@ function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null): void {
 	globalThis.dispatchEvent(new CustomEvent("moving.end", {detail: {itemIds: move.ids, parentId: move.parentId}}));
 }
 
+/** Upstream scrolls the nearest `.vertical-scrollable-container`, otherwise the page. */
+function scrollerOf(element: Element): Element {
+	return element.closest(".vertical-scrollable-container") ?? document.scrollingElement ?? document.documentElement;
+}
+
+function scrollerBounds(scroller: Element): {top: number; height: number} {
+	if (scroller === document.scrollingElement || scroller === document.documentElement) {
+		return {top: 0, height: globalThis.innerHeight};
+	}
+	const {top, height} = scroller.getBoundingClientRect();
+	return {top, height: scroller instanceof HTMLElement ? scroller.offsetHeight : height};
+}
+
+/**
+ * Upstream's pointer-edge autoscroll: while the pointer sits in an armed edge zone, a rAF loop scrolls by
+ * speed x elapsed time and calls `afterScroll` so the drop target follows the content under the pointer.
+ */
+function edgeAutoscroller(scroller: Element, startY: number, afterScroll: () => void) {
+	const startOffset = startY - scrollerBounds(scroller).top;
+	let pointerY = startY;
+	let haveScrolled = false;
+	let frame: number | null = null;
+	let lastFrameAt = 0;
+
+	const speed = () => {
+		const {top, height} = scrollerBounds(scroller);
+		return edgeAutoscrollSpeed({
+			pointerY,
+			scrollerTop: top,
+			scrollerHeight: height,
+			startY: startOffset,
+			haveScrolled,
+			mobile: document.body.classList.contains("is-mobile"),
+		});
+	};
+
+	const tick = (now: number) => {
+		const current = speed();
+		if (current === 0) {
+			frame = null;
+			return;
+		}
+		const next = stepAutoscroll({scrollTop: scroller.scrollTop, speed: current, lastFrameAt, haveScrolled}, now);
+		lastFrameAt = now;
+		haveScrolled = next.haveScrolled;
+		if (next.scrollTop !== scroller.scrollTop) {
+			scroller.scrollTop = next.scrollTop;
+			afterScroll();
+		}
+		frame = requestAnimationFrame(tick);
+	};
+
+	return {
+		update(y: number) {
+			pointerY = y;
+			if (frame === null && speed() !== 0) {
+				lastFrameAt = performance.now();
+				frame = requestAnimationFrame(tick);
+			}
+		},
+		dispose() {
+			if (frame !== null) {
+				cancelAnimationFrame(frame);
+				frame = null;
+			}
+		},
+	};
+}
+
 function swallowClick(clickEvent: MouseEvent): void {
 	clickEvent.preventDefault();
 	clickEvent.stopPropagation();
@@ -231,6 +301,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			});
 			let ghost: HTMLElement | null = null;
 			let rowTop = 0;
+			let pointer = {x: startX, y: startY};
 			const {setBulletDrag} = useOutlineStore.getState();
 
 			const dispatch = (action: BulletDragAction) => {
@@ -284,11 +355,18 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				if (ghost !== null) {
 					ghost.style.transform = state.ghostTransform ?? "";
 				}
-				hover(moveEvent.clientX, moveEvent.clientY);
+				pointer = {x: moveEvent.clientX, y: moveEvent.clientY};
+				hover(pointer.x, pointer.y);
+				autoscroll.update(pointer.y);
 			};
+
+			const autoscroll = edgeAutoscroller(scrollerOf(bullet), startY, () => {
+				hover(pointer.x, pointer.y);
+			});
 
 			const onLeaveWindow = (outEvent: MouseEvent) => {
 				if (outEvent.relatedTarget === null) {
+					autoscroll.dispose();
 					dispatch({type: "leave"});
 				}
 			};
@@ -298,6 +376,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				globalThis.removeEventListener("mouseup", onUp, true);
 				globalThis.removeEventListener("keydown", onKeyDown, true);
 				document.removeEventListener("mouseout", onLeaveWindow, true);
+				autoscroll.dispose();
 				if (ghost !== null) {
 					ghost.remove();
 					bullet.style.visibility = "";
