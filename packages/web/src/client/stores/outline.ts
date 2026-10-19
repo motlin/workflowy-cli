@@ -3,6 +3,8 @@ import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
 import {initialNavState, navReducer} from "../nav-stack.js";
 import type {NavAction, NavState} from "../nav-stack.js";
+import {emptySelection} from "../item-selection.js";
+import type {SelectionState} from "../item-selection.js";
 
 const StringArraySchema = z.array(z.string());
 
@@ -233,6 +235,8 @@ interface OutlineState {
 	zoomedNodeId: string | null;
 	expandedIds: Set<string>;
 	editingId: string | null;
+	/** Upstream's multi-item selection; non-empty only while no editor has the caret. */
+	itemSelection: SelectionState;
 	editingClickPosition: ClickPosition | null;
 	/** Text offset to place the caret at when editing resumes after dismissing search. */
 	editingCaretOffset: number | null;
@@ -310,6 +314,8 @@ interface OutlineActions {
 	replaceExpanded: (ids: Set<string>) => void;
 	/** Replace the expanded set without persisting it (hydration from `/api/v1/expansion`). */
 	setExpanded: (ids: Set<string>) => void;
+	setItemSelection: (selection: SelectionState) => void;
+	clearItemSelection: () => void;
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
 	stopEditing: () => void;
 	/** Focus `id`'s note with the caret at its start or end (default), leaving its name (the caller commits any unsaved name text first). */
@@ -486,6 +492,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	zoomedNodeId: null,
 	expandedIds: new Set<string>(),
 	editingId: null,
+	itemSelection: emptySelection(),
 	editingClickPosition: null,
 	editingCaretOffset: null,
 	editingNoteId: null,
@@ -570,8 +577,17 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({expandedIds: new Set(ids)});
 	},
 
+	setItemSelection: (selection) => {
+		set({itemSelection: selection});
+	},
+
+	clearItemSelection: () => {
+		set({itemSelection: emptySelection()});
+	},
+
 	startEditing: (id, clickPosition) => {
 		set({
+			itemSelection: emptySelection(),
 			editingId: id,
 			editingClickPosition: clickPosition ?? null,
 			editingCaretOffset: null,
@@ -585,6 +601,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	focusNote: (id, caret = "end") => {
 		set({
+			itemSelection: emptySelection(),
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
@@ -596,6 +613,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	focusName: (id, caret) => {
 		set({
+			itemSelection: emptySelection(),
 			editingId: id,
 			editingClickPosition: null,
 			editingCaretOffset: caret === "end" ? Number.MAX_SAFE_INTEGER : 0,
@@ -624,7 +642,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	resumeEditing: (id, caretOffset) => {
-		set({editingId: id, editingClickPosition: null, editingCaretOffset: caretOffset, lastEditedId: id});
+		set({
+			itemSelection: emptySelection(),
+			editingId: id,
+			editingClickPosition: null,
+			editingCaretOffset: caretOffset,
+			lastEditedId: id,
+		});
 	},
 
 	holdEditing: (caretOffset) => {

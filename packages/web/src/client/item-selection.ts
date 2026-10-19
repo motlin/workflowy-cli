@@ -78,6 +78,11 @@ export function selectIds(state: SelectionState, tree: TreeView, ids: readonly s
 	return {...state, entries, counter};
 }
 
+/** Whether `id` is itself a selection entry: the row that carries `.addedToSelection` (its nested `.project` covers the descendants). */
+export function isEntry(state: SelectionState, id: string): boolean {
+	return state.entries.some((entry) => entry.id === id);
+}
+
 export function removeIds(state: SelectionState, ids: readonly string[]): SelectionState {
 	const removed = new Set(ids);
 	return {

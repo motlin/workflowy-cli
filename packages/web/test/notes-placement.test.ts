@@ -19,6 +19,7 @@ const outlineState = {
 	blurNote: () => {},
 	openSearchFromEditing: () => {},
 	editingId: null as string | null,
+	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	editingClickPosition: null,
 	editingNoteId: null as string | null,
 };

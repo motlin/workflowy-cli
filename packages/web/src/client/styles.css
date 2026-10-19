@@ -1098,6 +1098,59 @@ body {
 	background: var(--wf-background-tertiary);
 }
 
+/* Upstream's item selection: only entries carry .addedToSelection; the band covers their nested .children. */
+.project.addedToSelection:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	right: var(--item-selection-x-offset);
+	bottom: 0;
+	left: var(--item-selection-x-offset);
+	border-radius: 0;
+	background: var(--wf-background-selected);
+}
+
+body.wf-dom-window-blurred .project.addedToSelection:before {
+	background: var(--wf-background-tertiary);
+}
+
+.project.addedToSelection .content .contentMatch {
+	background-color: transparent;
+}
+
+.project.metaMatches.addedToSelection > .name > .content > .innerContentContainer,
+.project.addedToSelection .project.metaMatches > .name > .content > .innerContentContainer {
+	background-color: transparent;
+}
+
+.addedToSelection code {
+	background: transparent;
+	border-color: transparent;
+}
+
+.addedToSelection .bullet {
+	cursor: grab;
+}
+
+.code-block.addedToSelection:before,
+.quote-block.addedToSelection:before {
+	background-color: var(--wf-background-selected);
+}
+
+.code-block.addedToSelection .content {
+	background-color: var(--wf-background-selected);
+	border-color: transparent;
+}
+
+.quote-block.addedToSelection > .name .content .innerContentContainer {
+	border-color: transparent;
+}
+
+body.item-selection--dragging * {
+	cursor: text !important;
+}
+
 /* Loading and error states */
 .outline-tree-loading,
 .outline-tree-error {

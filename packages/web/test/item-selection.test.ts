@@ -3,6 +3,7 @@ import {
 	emptySelection,
 	expand,
 	isCovered,
+	isEntry,
 	leadId,
 	pivotTo,
 	removeIds,
@@ -162,5 +163,17 @@ describe("isCovered", () => {
 	it("is true for a selected row and its descendants only", () => {
 		const state = selectIds(emptySelection(), tree, ["Alpha"]);
 		expect(["Alpha", "A2", "Bravo"].map((id) => isCovered(state, tree, id))).toStrictEqual([true, true, false]);
+	});
+});
+
+describe("isEntry", () => {
+	it("marks only the selected entries; descendants are covered by the entry's nested .project", () => {
+		const state = selectIds(emptySelection(), tree, ["Charlie", "Echo"]);
+		expect(["Charlie", "C1", "Delta", "Echo"].map((id) => isEntry(state, id))).toStrictEqual([
+			true,
+			false,
+			false,
+			true,
+		]);
 	});
 });

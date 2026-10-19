@@ -5,6 +5,7 @@ import {useEffect, useRef, useState} from "react";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {useBacklinks, useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
+import {isEntry} from "../item-selection.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
@@ -132,6 +133,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const editingClickPosition = useOutlineStore((state) => state.editingClickPosition);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 	const isEditingNote = useOutlineStore((state) => nodeId !== null && state.editingNoteId === nodeId);
+	const isAddedToSelection = useOutlineStore((state) => nodeId !== null && isEntry(state.itemSelection, nodeId));
 	const isMainTreeRoot = nodeId === null;
 	const isEditing = !isMainTreeRoot && editingId === nodeId;
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
@@ -169,7 +171,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					isZoomRoot: true,
 					hasMirrors: false,
 					highlighted: false,
-					addedToSelection: false,
+					addedToSelection: isAddedToSelection,
 					layoutClass: layout.projectClass ?? undefined,
 				}),
 				isMainTreeRoot && "mainTreeRoot",

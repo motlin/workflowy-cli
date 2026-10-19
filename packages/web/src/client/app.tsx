@@ -29,6 +29,7 @@ import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
+import {installWindowBlurredClass} from "./window-blurred.js";
 import {locationUrl, parseLocationHash} from "./location.js";
 import {nodeUrl, resolveZoomTarget} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
@@ -210,11 +211,18 @@ function ExpansionSync() {
 	return null;
 }
 
+/** Dims item-selection tints while the window is blurred (`body.wf-dom-window-blurred`). */
+function WindowBlurredClass() {
+	useEffect(() => installWindowBlurredClass(window, document.body), []);
+	return null;
+}
+
 export function App() {
 	return (
 		<ErrorBoundary>
 			<QueryClientProvider client={queryClient}>
 				<TagColorStyles />
+				<WindowBlurredClass />
 				<ShowCompletedSync />
 				<ShowKeyboardShortcutsSync />
 				<ExpansionSync />

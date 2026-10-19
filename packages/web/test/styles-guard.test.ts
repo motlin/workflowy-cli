@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {hasSelector} from "./helpers/css-block.js";
+import {cssBlock, hasSelector} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 const uncommented = styles.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
@@ -303,6 +303,53 @@ describe("right bar styles guard", () => {
 			".\\!bg-tint": {styles: 0, tailwind: 1},
 			".min-w-\\[96px\\]": {styles: 0, tailwind: 1},
 			".tracking-\\[0\\.02em\\]": {styles: 0, tailwind: 1},
+		});
+	});
+});
+
+describe("item selection styles guard", () => {
+	it("tints a selected row's whole block with upstream's square selection band", () => {
+		expect(cssBlock(styles, ".project.addedToSelection:before")).toStrictEqual({
+			content: '""',
+			display: "block",
+			position: "absolute",
+			top: "0",
+			right: "var(--item-selection-x-offset)",
+			bottom: "0",
+			left: "var(--item-selection-x-offset)",
+			"border-radius": "0",
+			background: "var(--wf-background-selected)",
+		});
+	});
+
+	it("dims the band to the tertiary background while the window is blurred", () => {
+		expect(cssBlock(styles, "body.wf-dom-window-blurred .project.addedToSelection:before")).toStrictEqual({
+			background: "var(--wf-background-tertiary)",
+		});
+	});
+
+	it("carries upstream's in-selection overrides", () => {
+		expect(
+			Object.fromEntries(
+				[
+					".addedToSelection .bullet",
+					".addedToSelection code",
+					".project.addedToSelection .content .contentMatch",
+					".code-block.addedToSelection .content",
+					".quote-block.addedToSelection > .name .content .innerContentContainer",
+					"body.item-selection--dragging *",
+				].map((selector) => [selector, cssBlock(styles, selector)]),
+			),
+		).toStrictEqual({
+			".addedToSelection .bullet": {cursor: "grab"},
+			".addedToSelection code": {background: "transparent", "border-color": "transparent"},
+			".project.addedToSelection .content .contentMatch": {"background-color": "transparent"},
+			".code-block.addedToSelection .content": {
+				"background-color": "var(--wf-background-selected)",
+				"border-color": "transparent",
+			},
+			".quote-block.addedToSelection > .name .content .innerContentContainer": {"border-color": "transparent"},
+			"body.item-selection--dragging *": {cursor: "text !important"},
 		});
 	});
 });

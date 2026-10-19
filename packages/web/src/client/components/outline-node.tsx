@@ -4,6 +4,7 @@ import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types
 import {Fragment, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
+import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
@@ -425,6 +426,7 @@ function rowProjectClassName(
 	slidingDown: boolean,
 	moving: boolean,
 	animatingShowChildren: boolean,
+	addedToSelection: boolean,
 ): string {
 	return projectClassName({
 		hasChildren,
@@ -435,7 +437,7 @@ function rowProjectClassName(
 		isZoomRoot: false,
 		hasMirrors: false,
 		highlighted: false,
-		addedToSelection: false,
+		addedToSelection,
 		layoutClass: resolveLayoutMode(node.data.layoutMode).projectClass ?? undefined,
 		slidingUp,
 		slidingDown,
@@ -494,6 +496,7 @@ export function OutlineRow({
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
 	const isMoving = useOutlineStore((state) => state.movingId === node.id);
+	const isAddedToSelection = useOutlineStore((state) => isEntry(state.itemSelection, node.id));
 	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));
 	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
@@ -551,6 +554,7 @@ export function OutlineRow({
 				isSlidingDown,
 				isMoving,
 				childrenSlide === "down",
+				isAddedToSelection,
 			)}
 			onTransitionEnd={handleTransitionEnd}
 		>

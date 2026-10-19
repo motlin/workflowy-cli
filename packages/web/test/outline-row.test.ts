@@ -17,6 +17,7 @@ const outlineState = {
 	toggleExpand: () => {},
 	resumeEditing: () => {},
 	editingId: null,
+	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	editingClickPosition: null,
 	editingNoteId: null,
 };
