@@ -6,6 +6,7 @@ import {
 	deletePillBeforeCaret,
 	planDateInsertion,
 	renderDatePills,
+	replacePill,
 	serializeDatePills,
 	shouldTriggerDatePopup,
 	timeAttrsFromDates,
@@ -200,5 +201,47 @@ describe("planDateInsertion", () => {
 			html: `${SINGLE} <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> `,
 			caretOffset: 18,
 		});
+	});
+});
+
+describe("replacePill", () => {
+	it("replaces only the indexed pill, adding no space", () => {
+		expect(
+			replacePill(
+				'dpSingle <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time> tail',
+				0,
+				{
+					startYear: 2026,
+					startMonth: 10,
+					startDay: 5,
+				},
+			),
+		).toBe('dpSingle <time startYear="2026" startMonth="10" startDay="5">Mon, Oct 5, 2026</time> tail');
+	});
+
+	it("removes the pill and keeps the space before it", () => {
+		expect(
+			replacePill(
+				'dpOtherYear <time startYear="2025" startMonth="3" startDay="14">Fri, Mar 14, 2025</time>',
+				0,
+				null,
+			),
+		).toBe("dpOtherYear ");
+	});
+
+	it("drops the replaced pill's hours and minutes", () => {
+		expect(
+			replacePill(
+				'dpHours <time startYear="2026" startMonth="10" startDay="2" startHour="14" startMinute="30">14:30 on Fri, Oct 2, 2026</time>',
+				0,
+				{startYear: 2026, startMonth: 10, startDay: 2},
+			),
+		).toBe('dpHours <time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>');
+	});
+
+	it("leaves every other pill as written", () => {
+		const first = '<time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
+		const second = '<time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>';
+		expect(replacePill(`${first} and ${second}`, 1, null)).toBe(`${first} and `);
 	});
 });

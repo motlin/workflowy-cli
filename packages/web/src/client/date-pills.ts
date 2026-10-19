@@ -113,3 +113,20 @@ export function planDateInsertion(
 		caretOffset: plainLength(before) + 1 + space.length,
 	};
 }
+
+/**
+ * Stored HTML with the `pillIndex`-th `<time>` replaced by markup for `attrs` (dropping any
+ * hours and minutes the old pill had, as upstream does), or removed when `attrs` is null.
+ * Surrounding text, including the space before the pill, is kept and no space is added.
+ */
+export function replacePill(html: string, pillIndex: number, attrs: TimeAttrs | null): string {
+	let index = 0;
+	return html.replaceAll(TIME_PATTERN, (match) => {
+		const current = index;
+		index += 1;
+		if (current !== pillIndex) {
+			return match;
+		}
+		return attrs === null ? "" : toTimeMarkup(attrs);
+	});
+}

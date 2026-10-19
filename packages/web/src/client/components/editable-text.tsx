@@ -31,10 +31,12 @@ import {
 	deletePillBeforeCaret,
 	planDateInsertion,
 	renderDatePills,
+	replacePill,
 	serializeDatePills,
 } from "../date-pills.js";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
+import {usePillDatePicker} from "./pill-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
@@ -287,6 +289,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		onCancel: cancelDate,
 	});
 	const {handleInput: handleDateTrigger} = datePicker;
+
+	// A plain click on a display-mode pill edits or removes just that pill.
+	const pillPicker = usePillDatePicker({
+		dateSettings,
+		onChange: (pillIndex, attrs) => {
+			updateNode({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
+		},
+	});
+	const {open: openPillPicker} = pillPicker;
 
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
@@ -895,6 +906,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return;
 			}
 
+			// Plain click on a date pill opens the picker on it; ⌥click is reserved for date search.
+			const pillEl = target instanceof Element ? target.closest("time.monolith-pill") : null;
+			if (pillEl && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+				event.preventDefault();
+				event.stopPropagation();
+				openPillPicker(pillEl, [...event.currentTarget.querySelectorAll("time.monolith-pill")].indexOf(pillEl));
+				return;
+			}
+
 			// Cmd+click: detect tag at cursor position
 			if (event.metaKey) {
 				const element = event.currentTarget;
@@ -916,7 +936,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			event.stopPropagation();
 			startEditing(nodeId, {x: event.clientX, y: event.clientY});
 		},
-		[nodeId, startEditing, openSearchWithQuery],
+		[nodeId, startEditing, openSearchWithQuery, openPillPicker],
 	);
 
 	// Show the color-trigger caret when hovering a tag; a short hide delay lets the
@@ -1050,6 +1070,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 						top={colorPicker.top}
 					/>
 				)}
+				{pillPicker.popup}
 			</>
 		);
 	}
