@@ -232,6 +232,28 @@ interface ItemTypePickerState {
 	position: {top: number; left: number};
 }
 
+export interface LocationPickerOptions {
+	/** The item being moved or created from; it is never listed as a location. */
+	forItemId: string;
+	/** Step 1 header, e.g. `Move To...`. */
+	headerText: string;
+}
+
+/** `{id}` from a chosen location, `{createdId}` from create-and-move, undefined when closed. */
+type LocationPickerResult = {id: string} | {createdId: string} | undefined;
+
+/** Where editing resumes when the picker closes. */
+export interface CaretReturn {
+	nodeId: string;
+	offset: number;
+}
+
+export interface LocationPickerState extends LocationPickerOptions {
+	/** Caret box bottom-left, in page coordinates. */
+	anchor: {x: number; y: number};
+	returnTo: CaretReturn | null;
+}
+
 interface OutlineState {
 	zoomedNodeId: string | null;
 	expandedIds: Set<string>;
@@ -302,6 +324,8 @@ interface OutlineState {
 	errorNotifications: ErrorNotification[];
 	appMessage: AppMessageState | null;
 	itemTypePicker: ItemTypePickerState | null;
+	/** Upstream's inline location picker (WF.InlineSearch), opened by `openLocationPicker`. */
+	locationPicker: LocationPickerState | null;
 	/** In-flight node mutations; the saving overlay shows while it is above zero (see selectIsMutating). */
 	mutationCount: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
@@ -404,6 +428,14 @@ interface OutlineActions {
 	/** Upstream's `showItemTypePicker`: open the one shared item-type picker for `nodeIds` at `position`. */
 	showItemTypePicker: (picker: ItemTypePickerState) => void;
 	hideItemTypePicker: () => void;
+	/** Upstream's `execute()`: open the location picker at `anchor`; resolves when it closes. */
+	openLocationPicker: (
+		options: LocationPickerOptions,
+		anchor: {x: number; y: number},
+		returnTo?: CaretReturn,
+	) => Promise<LocationPickerResult>;
+	/** Close the picker, resolve its promise with `result` and return the caret to `returnTo`. */
+	closeLocationPicker: (result: LocationPickerResult) => void;
 	beginMutation: () => void;
 	endMutation: () => void;
 }
@@ -411,6 +443,8 @@ interface OutlineActions {
 type OutlineStore = OutlineActions & OutlineState;
 
 let editFlush: (() => void) | null = null;
+
+let resolveLocationPicker: ((result: LocationPickerResult) => void) | null = null;
 
 /**
  * The edited row registers how to save its unsaved text in place, keeping the caret (upstream's
@@ -450,6 +484,7 @@ export function isModalOpen(): boolean {
 		state.linkInsertOpen ||
 		state.jumpMenuOpen ||
 		state.moveAssistantOpen ||
+		state.locationPicker !== null ||
 		state.exportDialogOpen ||
 		state.settingsOpen
 	);
@@ -560,6 +595,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	errorNotifications: [],
 	appMessage: null,
 	itemTypePicker: null,
+	locationPicker: null,
 	mutationCount: 0,
 	nav: initialNavState,
 	urlSearchQuery: null,
@@ -1054,6 +1090,25 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	hideItemTypePicker: () => {
 		set({itemTypePicker: null});
+	},
+
+	openLocationPicker: async (options, anchor, returnTo) => {
+		resolveLocationPicker?.(undefined);
+		return new Promise<LocationPickerResult>((resolve) => {
+			resolveLocationPicker = resolve;
+			set({locationPicker: {...options, anchor, returnTo: returnTo ?? null}});
+		});
+	},
+
+	closeLocationPicker: (result) => {
+		const returnTo = get().locationPicker?.returnTo ?? null;
+		const resolve = resolveLocationPicker;
+		resolveLocationPicker = null;
+		set({locationPicker: null});
+		if (returnTo !== null) {
+			get().resumeEditing(returnTo.nodeId, returnTo.offset);
+		}
+		resolve?.(result);
 	},
 
 	beginMutation: () => {

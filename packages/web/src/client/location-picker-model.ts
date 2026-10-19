@@ -130,7 +130,7 @@ export interface PickerTransition {
 	effect: PickerEffect;
 }
 
-const INITIAL_PICKER_STATE: PickerState = {step: 1, query: "", expanded: false, active: 0, name: ""};
+export const INITIAL_PICKER_STATE: PickerState = {step: 1, query: "", expanded: false, active: 0, name: ""};
 
 const NONE: PickerEffect = {type: "none"};
 
@@ -172,4 +172,26 @@ export function reducePicker(state: PickerState, event: PickerEvent, rows: reado
 		return state.step === 2 ? {state: INITIAL_PICKER_STATE, effect: NONE} : {state, effect: {type: "close"}};
 	}
 	return selectRow(state, state.active, rows);
+}
+
+export interface DefaultLocationInput {
+	/** The newest recent location, if any. */
+	recentId: string | null;
+	/** The account's `notesRootId` (or this session's lazily created Notes). */
+	notesRootId: string | null;
+	/** Whether a node is in the cache. */
+	exists: (id: string) => boolean;
+}
+
+export type DefaultLocation = {id: string} | {create: "Notes"};
+
+/** Footer A's target: the newest recent location, else the account's Notes node, else a Notes to create. */
+export function resolveDefaultLocation({recentId, notesRootId, exists}: DefaultLocationInput): DefaultLocation {
+	if (recentId !== null) {
+		return {id: recentId};
+	}
+	if (notesRootId !== null && exists(notesRootId)) {
+		return {id: notesRootId};
+	}
+	return {create: "Notes"};
 }

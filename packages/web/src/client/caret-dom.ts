@@ -160,3 +160,21 @@ export function placeSelectionAtTextOffsets(element: HTMLElement, start: number,
 export function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
 	placeSelectionAtTextOffsets(element, offset, offset);
 }
+
+export interface AnchorRect {
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+	width: number;
+	height: number;
+}
+
+/** Upstream's inline-picker anchor: the caret box's bottom-left, or the fallback's when the caret box is empty. */
+export function caretAnchor(caret: AnchorRect | null, fallback: AnchorRect): {x: number; y: number} {
+	const empty =
+		caret === null ||
+		(caret.left === 0 && caret.top === 0 && caret.right === 0 && caret.bottom === 0 && caret.width === 0);
+	const box = empty ? fallback : caret;
+	return {x: box.left, y: box.bottom};
+}

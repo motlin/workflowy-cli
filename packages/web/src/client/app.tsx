@@ -13,6 +13,7 @@ import {JumpMenu} from "./components/jump-menu.js";
 import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
 import {LinkInsertModal} from "./components/link-insert-modal.js";
+import {LocationPickerHost} from "./components/location-picker-host.js";
 import {LoadingOverlay} from "./components/loading-spinner.js";
 import {MoveAssistant} from "./components/move-assistant.js";
 import {OfflineBanner} from "./components/offline-banner.js";
@@ -120,6 +121,7 @@ function OutlineView() {
 			<JumpMenu />
 			<LinkInsertModal />
 			<MoveAssistant />
+			<LocationPickerHost />
 			<ExportDialog />
 			<Settings />
 			<PresentationMode />

@@ -1,5 +1,13 @@
-import {describe, expect, it} from "vite-plus/test";
-import {buildPickerRows, firstEnabledIndex, reducePicker} from "../src/client/location-picker-model.js";
+import {QueryClient} from "@tanstack/react-query";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
+import {EMPTY_PREFERENCES} from "../src/client/hooks/use-preferences.js";
+import {
+	buildPickerRows,
+	firstEnabledIndex,
+	reducePicker,
+	resolveDefaultLocation,
+} from "../src/client/location-picker-model.js";
+import {ensureNotesLocation, notesRootIdFor} from "../src/client/notes-location.js";
 import type {PickerRow, PickerState} from "../src/client/location-picker-model.js";
 
 const NAMES: Record<string, string> = {hub: "Qzpick Hub", cal: "📆 Calendar", mover: "Mover"};
@@ -189,5 +197,58 @@ describe("reducePicker", () => {
 			effect: {type: "close"},
 		});
 		expect(reducePicker(STEP1, {type: "focus-leave"}, rows)).toStrictEqual({state: STEP1, effect: {type: "close"}});
+	});
+});
+
+describe("resolveDefaultLocation", () => {
+	const exists = (id: string) => id === "notes";
+
+	it("prefers the newest recent location", () => {
+		expect(resolveDefaultLocation({recentId: "hub", notesRootId: "notes", exists})).toStrictEqual({id: "hub"});
+	});
+
+	it("uses the account's notesRootId when that node exists", () => {
+		expect(resolveDefaultLocation({recentId: null, notesRootId: "notes", exists})).toStrictEqual({id: "notes"});
+	});
+
+	it("creates Notes when notesRootId is unset or points at a missing node", () => {
+		expect(resolveDefaultLocation({recentId: null, notesRootId: null, exists})).toStrictEqual({create: "Notes"});
+		expect(resolveDefaultLocation({recentId: null, notesRootId: "gone", exists})).toStrictEqual({create: "Notes"});
+	});
+});
+
+describe("ensureNotesLocation", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	function stubFetch(patchResponse: () => Response) {
+		const requests: {url: string; method: string; body: unknown}[] = [];
+		vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+			const method = init?.method ?? "GET";
+			requests.push({url, method, body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined});
+			if (method === "POST") {
+				return Promise.resolve(Response.json({node: {id: "n1", name: "Notes"}}));
+			}
+			return Promise.resolve(patchResponse());
+		});
+		return requests;
+	}
+
+	it("creates Notes at the bottom of Home, then records it as notesRootId", async () => {
+		const requests = stubFetch(() => Response.json({...EMPTY_PREFERENCES, notesRootId: "n1"}));
+		const queryClient = new QueryClient();
+		await expect(ensureNotesLocation(queryClient)).resolves.toBe("n1");
+		expect(requests).toStrictEqual([
+			{url: "/api/v1/nodes", method: "POST", body: {parent_id: null, name: "Notes"}},
+			{url: "/api/v1/preferences", method: "PATCH", body: {notesRootId: "n1"}},
+		]);
+	});
+
+	it("keeps the created node for the session when preferences answer 503", async () => {
+		stubFetch(() => Response.json({error: "Workflowy internal API is not configured"}, {status: 503}));
+		await expect(ensureNotesLocation(new QueryClient())).resolves.toBe("n1");
+		expect(notesRootIdFor(EMPTY_PREFERENCES)).toBe("n1");
+		expect(notesRootIdFor({...EMPTY_PREFERENCES, notesRootId: "acct"})).toBe("acct");
 	});
 });
