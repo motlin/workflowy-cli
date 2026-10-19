@@ -257,6 +257,42 @@ describe("OutlineTree zoom root row", () => {
 		}
 	});
 
+	it("gives the zoom root its layout's project class like a row", () => {
+		const classes = ["h2", "todo", "code-block", "quote-block", "divider", "p", "h1", "h3"].map((layoutMode) => {
+			nodesById.set("alice", makeNode({data: {layoutMode}}));
+			return /<div class="(font-custom project[^"]*selected root[^"]*)">/u.exec(render("alice"))?.[1];
+		});
+		expect(classes).toStrictEqual([
+			"font-custom project selected root header2",
+			"font-custom project selected root checkmark",
+			"font-custom project selected root code-block",
+			"font-custom project selected root quote-block",
+			"font-custom project selected root divider",
+			"font-custom project selected root paragraph",
+			"font-custom project selected root header1",
+			"font-custom project selected root header3",
+		]);
+	});
+
+	it("renders a to-do zoom root's checkbox before its title", () => {
+		nodesById.set("alice", makeNode({name: "Delta", data: {layoutMode: "todo"}}));
+		const html = render("alice");
+		const expected =
+			'<div tabindex="-1" class="name name--main"><button aria-label="Complete" aria-pressed="false" class="todo-checkbox" type="button">';
+		const start = html.indexOf('<div tabindex="-1" class="name name--main">');
+		expect(html.slice(start, start + expected.length)).toBe(expected);
+	});
+
+	it("renders a completed to-do zoom root's checkbox as checked", () => {
+		nodesById.set("alice", makeNode({name: "Delta", completedAt: 1_760_745_600, data: {layoutMode: "todo"}}));
+		expect(render("alice").includes('aria-pressed="true" class="todo-checkbox checked"')).toBe(true);
+	});
+
+	it("renders no checkbox on a bullets zoom root", () => {
+		nodesById.set("alice", makeNode({name: "Delta"}));
+		expect(render("alice").includes("todo-checkbox")).toBe(false);
+	});
+
 	it("never renders a note on the unzoomed main-tree root", () => {
 		expect(render().includes("notes--main")).toBe(false);
 	});

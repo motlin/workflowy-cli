@@ -13,7 +13,8 @@ import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
-import {NodeItemMenu, OutlineRow} from "./outline-node.js";
+import {resolveLayoutMode} from "./layout-mode.js";
+import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 
@@ -134,6 +135,12 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const isMainTreeRoot = nodeId === null;
 	const isEditing = !isMainTreeRoot && editingId === nodeId;
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
+	const layout = resolveLayoutMode(node?.data.layoutMode);
+	const handleComplete = () => {
+		if (node) {
+			toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: node.completedAt !== null});
+		}
+	};
 
 	// Like a row, the root's `.notes--main` mounts once noted, note-focused, or title-focused, and stays mounted.
 	const [noteMounted, setNoteMounted] = useState(false);
@@ -163,6 +170,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					hasMirrors: false,
 					highlighted: false,
 					addedToSelection: false,
+					layoutClass: layout.projectClass ?? undefined,
 				}),
 				isMainTreeRoot && "mainTreeRoot",
 			]
@@ -181,6 +189,9 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					setIsHovered(false);
 				}}
 			>
+				{node && layout.isTodo ? (
+					<TodoCheckbox isCompleted={node.completedAt !== null} onComplete={handleComplete} />
+				) : null}
 				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
 					{node && (nameHtml !== "" || isEditing) ? (
 						<EditableText
@@ -195,13 +206,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (
-					<NodeItemMenu
-						node={node}
-						onComplete={() => {
-							toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: node.completedAt !== null});
-						}}
-						onOpenChange={setIsMenuOpen}
-					/>
+					<NodeItemMenu node={node} onComplete={handleComplete} onOpenChange={setIsMenuOpen} />
 				) : null}
 			</div>
 			{node && (noteMounted || shouldMountNote) ? (

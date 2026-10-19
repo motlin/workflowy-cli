@@ -146,7 +146,7 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 	);
 }
 
-function TodoCheckbox({isCompleted, onComplete}: {isCompleted: boolean; onComplete: () => void}) {
+export function TodoCheckbox({isCompleted, onComplete}: {isCompleted: boolean; onComplete: () => void}) {
 	return (
 		<button
 			aria-label="Complete"
