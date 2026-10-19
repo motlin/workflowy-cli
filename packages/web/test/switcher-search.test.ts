@@ -104,4 +104,22 @@ describe("rankSwitcher", () => {
 	it("answers nothing for a query without words", () => {
 		expect(rank("  ..  ")).toStrictEqual({results: [], hasMore: false});
 	});
+
+	it("finds accented and word-start matches through the folded prefilter and pages past word-start misses", () => {
+		const rows = [
+			row("cafe", null, 0, "Café <b>Crème</b>"),
+			row("inside", null, 1, "Sucrèmerie"),
+			row("tagged", null, 2, "Plain", {note: "crème brûlée #dessert"}),
+		];
+		const ranked = rankSwitcher(rows, "creme", [], NOW_SEC, {joinedSec: JOINED_SEC, limit: 1});
+		expect({ids: ranked.results.map((result) => result.id), hasMore: ranked.hasMore}).toStrictEqual({
+			ids: ["cafe"],
+			hasMore: true,
+		});
+		const all = rankSwitcher(rows, "creme", [], NOW_SEC, {joinedSec: JOINED_SEC, limit: 2});
+		expect({ids: all.results.map((result) => result.id), hasMore: all.hasMore}).toStrictEqual({
+			ids: ["cafe", "tagged"],
+			hasMore: false,
+		});
+	});
 });

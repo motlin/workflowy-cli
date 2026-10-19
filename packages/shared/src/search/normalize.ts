@@ -6,6 +6,8 @@ export function normalizeForSearch(s: string): string {
 		.toLowerCase();
 }
 
+const ASCII = /^\p{ASCII}*$/u;
+
 export interface NormalizedText {
 	text: string;
 	/** Original start offset for each normalized code unit. */
@@ -16,6 +18,10 @@ export interface NormalizedText {
 
 /** Normalize `s` while tracking how each normalized code unit maps back to the original string. */
 export function normalizeWithOffsets(s: string): NormalizedText {
+	if (ASCII.test(s)) {
+		// ASCII has no combining marks and lowercases one code unit to one, so offsets are the identity.
+		return {text: s.toLowerCase(), starts: Array.from(s, (_, i) => i), ends: Array.from(s, (_, i) => i + 1)};
+	}
 	let text = "";
 	const starts: number[] = [];
 	const ends: number[] = [];

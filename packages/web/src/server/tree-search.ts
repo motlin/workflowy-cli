@@ -57,7 +57,16 @@ function emptyResult(revealsCompleted: boolean): TreeSearchResult {
 	};
 }
 
+// Rows from the tree snapshot are shared across requests, so their sibling index and search items (whose
+// stripped, folded text `parseQuery` caches per item) are reused rather than rebuilt for every query.
+const childrenCache = new WeakMap<readonly TreeSearchRow[], Map<string | null, TreeSearchRow[]>>();
+const itemCache = new WeakMap<TreeSearchRow, [open?: SearchItem, underCompleted?: SearchItem]>();
+
 function childrenByParent(rows: TreeSearchRow[]): Map<string | null, TreeSearchRow[]> {
+	const cached = childrenCache.get(rows);
+	if (cached) {
+		return cached;
+	}
 	const children = new Map<string | null, TreeSearchRow[]>();
 	for (const row of rows) {
 		const siblings = children.get(row.parentId);
@@ -70,7 +79,35 @@ function childrenByParent(rows: TreeSearchRow[]): Map<string | null, TreeSearchR
 	for (const siblings of children.values()) {
 		siblings.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
 	}
+	childrenCache.set(rows, children);
 	return children;
+}
+
+function searchItem(row: TreeSearchRow, childCount: number, ancestorCompleted: boolean): SearchItem {
+	let slots = itemCache.get(row);
+	if (slots === undefined) {
+		slots = [];
+		itemCache.set(row, slots);
+	}
+	const slot = ancestorCompleted ? 1 : 0;
+	const cached = slots[slot];
+	if (cached?.childCount === childCount) {
+		return cached;
+	}
+	const item: SearchItem = {
+		id: row.id,
+		nameHtml: row.name ?? "",
+		noteHtml: row.note ?? "",
+		completedAt: row.completedAt,
+		createdAt: row.createdAt,
+		modifiedAt: row.modifiedAt,
+		layoutMode: row.layoutMode,
+		childCount,
+		isMirror: row.isMirror,
+		ancestorCompleted,
+	};
+	slots[slot] = item;
+	return item;
 }
 
 /**
@@ -94,19 +131,7 @@ export function computeTreeSearch(
 
 	const walk = (parentId: string | null, ancestorCompleted: boolean): void => {
 		for (const row of children.get(parentId) ?? []) {
-			const item: SearchItem = {
-				id: row.id,
-				nameHtml: row.name ?? "",
-				noteHtml: row.note ?? "",
-				completedAt: row.completedAt,
-				createdAt: row.createdAt,
-				modifiedAt: row.modifiedAt,
-				layoutMode: row.layoutMode,
-				childCount: children.get(row.id)?.length ?? 0,
-				isMirror: row.isMirror,
-				ancestorCompleted,
-			};
-			const match = parsed.matches(item);
+			const match = parsed.matches(searchItem(row, children.get(row.id)?.length ?? 0, ancestorCompleted));
 			const completed = ancestorCompleted || row.completedAt !== null;
 			visits.push({
 				id: row.id,

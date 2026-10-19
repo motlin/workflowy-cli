@@ -1,7 +1,7 @@
 import {Hono} from "hono";
 import type {Context} from "hono";
 import {PathBuilder} from "@workflowy/shared/cache";
-import {nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
+import {nodeContent, nodeMetadata} from "@workflowy/shared/db";
 import {buildSearchConditions, getScoringTerms, parseSearchQuery, resolveJoinedSec} from "@workflowy/shared/search";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {stripHtmlTags} from "@workflowy/shared/html";
@@ -14,6 +14,7 @@ import type {AppEnv} from "../context.js";
 import {rankSwitcher} from "../switcher-search.js";
 import {computeTreeSearch} from "../tree-search.js";
 import type {TreeSearchRow} from "../tree-search.js";
+import {loadTreeRows} from "../tree-snapshot.js";
 
 export const searchRouter = new Hono<AppEnv>();
 
@@ -53,70 +54,9 @@ interface TreeSearchBody {
 	rootId: string | null;
 }
 
-interface TreeSearchSqlRow {
-	id: string;
-	parentId: string | null;
-	priority: number | null;
-	name: string | null;
-	note: string | null;
-	createdAt: number | null;
-	modifiedAt: number | null;
-	completedAt: number | null;
-	layoutMode: string | null;
-	isMirror: number;
-}
-
-/** Epoch seconds as stored by drizzle's timestamp mode, to milliseconds. */
-function toMillis(seconds: number | null): number | null {
-	return seconds === null ? null : seconds * 1000;
-}
-
-/**
- * The live subtree under `rootId` (including the root; every top-level tree when null) for tree search.
- * References roots and their backlink items are skipped. A mirror takes its text from its live original.
- */
-export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, rootId: string | null): TreeSearchRow[] {
-	const rows = database.all<TreeSearchSqlRow>(sql`
-		WITH RECURSIVE subtree(id) AS (
-			SELECT id FROM node_content
-			WHERE ${rootId === null ? sql`parent_id IS NULL` : sql`id = ${rootId}`}
-			AND system_to = ${FAR_FUTURE_DATE}
-			UNION ALL
-			SELECT n.id FROM node_content n
-			INNER JOIN subtree s ON n.parent_id = s.id
-			WHERE n.system_to = ${FAR_FUTURE_DATE}
-		)
-		SELECT
-			c.id AS id,
-			c.parent_id AS parentId,
-			m.priority AS priority,
-			CASE WHEN o.id IS NULL THEN c.name ELSE o.name END AS name,
-			CASE WHEN o.id IS NULL THEN c.note ELSE o.note END AS note,
-			m.created_at AS createdAt,
-			m.modified_at AS modifiedAt,
-			m.completed_at AS completedAt,
-			m.layout_mode AS layoutMode,
-			mi.mirror_id IS NOT NULL AS isMirror
-		FROM subtree s
-		INNER JOIN node_content c ON c.id = s.id AND c.system_to = ${FAR_FUTURE_DATE}
-		LEFT JOIN node_metadata m ON m.node_id = c.id AND m.system_to = ${FAR_FUTURE_DATE}
-		LEFT JOIN mirrors mi ON mi.mirror_id = c.id AND mi.system_to = ${FAR_FUTURE_DATE}
-		LEFT JOIN node_content o ON o.id = mi.original_id AND o.system_to = ${FAR_FUTURE_DATE}
-		WHERE c.id NOT IN (SELECT node_id FROM ${referencesRoots} WHERE system_to = ${FAR_FUTURE_DATE})
-		AND (c.parent_id IS NULL OR c.parent_id NOT IN (SELECT node_id FROM ${referencesRoots} WHERE system_to = ${FAR_FUTURE_DATE}))
-	`);
-	return rows.map((row) => ({
-		...row,
-		createdAt: toMillis(row.createdAt),
-		modifiedAt: toMillis(row.modifiedAt),
-		completedAt: toMillis(row.completedAt),
-		isMirror: row.isMirror === 1,
-	}));
-}
-
 /** Search helper #tags/@tags of the live descendants of `rootId`, excluding the root (whole tree when empty). */
 export function loadHelperTags(database: ReturnType<typeof getDatabase>, rootId: string): HelperTags {
-	const rows = loadTreeSearchRows(database, rootId === "" ? null : rootId);
+	const rows = loadTreeRows(database, rootId === "" ? null : rootId);
 	return collectHelperTags(rows.filter((row) => row.id !== rootId));
 }
 
@@ -126,7 +66,7 @@ searchRouter.get("/helpers", (c) => c.json(loadHelperTags(getDatabase(), c.req.q
 // POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
 searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
-	const rows = loadTreeSearchRows(getDatabase(), rootId);
+	const rows = loadTreeRows(getDatabase(), rootId);
 	return c.json(computeTreeSearch(rows, rootId, query, Date.now()));
 });
 
@@ -166,7 +106,7 @@ async function loadJoinedSec(c: Context<AppEnv>, rows: TreeSearchRow[]): Promise
 // POST /api/search/switcher - Upstream jump-menu search: word-start matches ranked by staticScore x textFactor
 searchRouter.post("/switcher", async (c) => {
 	const {query, offset = 0, limit = 20, starredIds = []} = await c.req.json<SwitcherBody>();
-	const rows = loadTreeSearchRows(getDatabase(), null);
+	const rows = loadTreeRows(getDatabase(), null);
 	const joinedSec = await loadJoinedSec(c, rows);
 	return c.json(rankSwitcher(rows, query, starredIds, Math.floor(Date.now() / 1000), {joinedSec, offset, limit}));
 });

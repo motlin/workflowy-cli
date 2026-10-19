@@ -1,11 +1,22 @@
 import {describe, expect, it} from "vite-plus/test";
-import {normalizeForSearch, parseQuery} from "../src/search/index.js";
+import {normalizeForSearch, normalizeWithOffsets, parseQuery} from "../src/search/index.js";
 import {SO_PLAIN_NAMES as PLAIN_NAMES, SO_ROWS, searchItem as item} from "./helpers/search-so-fixture.js";
 
 function matchingNames(query: string): string[] {
 	const parsed = parseQuery(query);
 	return SO_ROWS.flatMap((row, index) => (parsed.matches(row).matches ? [PLAIN_NAMES[index]!] : []));
 }
+
+describe("normalizeWithOffsets", () => {
+	it("maps ASCII one-to-one and folded accents back to their original span", () => {
+		expect(normalizeWithOffsets("Ab<C")).toStrictEqual({text: "ab<c", starts: [0, 1, 2, 3], ends: [1, 2, 3, 4]});
+		expect(normalizeWithOffsets("Ce\u0301 X")).toStrictEqual({
+			text: "ce x",
+			starts: [0, 1, 3, 4],
+			ends: [1, 3, 4, 5],
+		});
+	});
+});
 
 describe("normalizeForSearch", () => {
 	it("strips diacritics and lowercases", () => {
