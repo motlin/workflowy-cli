@@ -23,14 +23,10 @@ export type CommandRegistry = Readonly<Record<string, Command>>;
 
 export type ComboResult = "claimed" | "unclaimed";
 
-/**
- * Local-only bindings kept until the user decides: in-app history on ⌘[ / ⌘] (upstream binds it only in Electron)
- * and ⌘? for the shortcuts panel beside upstream's ⌘/.
- */
+/** Local-only bindings kept until the user decides: in-app history on ⌘[ / ⌘] (upstream binds it only in Electron). */
 const LOCAL_HOTKEYS = [
 	["meta+[", "navigate_backward"],
 	["meta+]", "navigate_forward"],
-	["meta+shift+/", "toggle_rightbar"],
 ] as const;
 
 const tables = new Map<boolean, ReadonlyMap<string, string>>();

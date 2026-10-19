@@ -59,19 +59,26 @@ describe("processCombo", () => {
 		expect(processCombo("meta+q", {}, ctx, true)).toBe("unclaimed");
 	});
 
-	it("dispatches the local history and help bindings upstream only has in Electron", () => {
+	it("dispatches the local history bindings upstream only has in Electron", () => {
 		const back = vi.fn<(ctx: CommandContext) => void>();
 		const forward = vi.fn<(ctx: CommandContext) => void>();
-		const help = vi.fn<(ctx: CommandContext) => void>();
 		const registry = {
 			navigate_backward: {execute: back},
 			navigate_forward: {execute: forward},
-			toggle_rightbar: {execute: help},
 		};
 		expect({
-			results: ["meta+[", "meta+]", "meta+shift+/"].map((combo) => processCombo(combo, registry, ctx, true)),
-			calls: [back.mock.calls.length, forward.mock.calls.length, help.mock.calls.length],
-		}).toStrictEqual({results: ["claimed", "claimed", "claimed"], calls: [1, 1, 1]});
+			results: ["meta+[", "meta+]"].map((combo) => processCombo(combo, registry, ctx, true)),
+			calls: [back.mock.calls.length, forward.mock.calls.length],
+		}).toStrictEqual({results: ["claimed", "claimed"], calls: [1, 1]});
+	});
+
+	it("toggles the right bar on meta+/ only, leaving meta+shift+/ to the browser", () => {
+		const toggle = vi.fn<(ctx: CommandContext) => void>();
+		const registry = {toggle_rightbar: {execute: toggle}};
+		expect({
+			results: ["meta+/", "meta+shift+/"].map((combo) => processCombo(combo, registry, ctx, true)),
+			calls: toggle.mock.calls,
+		}).toStrictEqual({results: ["claimed", "unclaimed"], calls: [[ctx]]});
 	});
 });
 
@@ -84,7 +91,8 @@ describe("hotkeyTable", () => {
 			today: table.get("ctrl+t"),
 			back: table.get("meta+["),
 			forward: table.get("meta+]"),
-			help: table.get("meta+shift+/"),
+			help: table.get("meta+/"),
+			shiftHelp: table.get("meta+shift+/"),
 			quit: table.get("meta+q"),
 		}).toStrictEqual({
 			save: "save_and_sync",
@@ -93,6 +101,7 @@ describe("hotkeyTable", () => {
 			back: "navigate_backward",
 			forward: "navigate_forward",
 			help: "toggle_rightbar",
+			shiftHelp: undefined,
 			quit: undefined,
 		});
 	});
