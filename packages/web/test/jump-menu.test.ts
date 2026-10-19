@@ -65,6 +65,7 @@ function render(overrides: Partial<SwitcherDialogProps> = {}): ReactElement<Elem
 		onSelect: () => {},
 		onHover: () => {},
 		onClose: () => {},
+		onScrollNearEnd: () => {},
 		...overrides,
 	};
 	const rendered = SwitcherDialog(props);
@@ -79,6 +80,17 @@ function options(root: ReactElement<ElementProps>): ReactElement<ElementProps>[]
 }
 
 describe("SwitcherDialog", () => {
+	it("asks for the next page only when the dialog scrolls within 300px of its bottom", () => {
+		const onScrollNearEnd = vi.fn<() => void>();
+		const box = elements(render({onScrollNearEnd})).find(
+			(element) => element.props.className?.startsWith("wf-dialog ") === true,
+		);
+		const onScroll = box?.props.onScroll as (event: {currentTarget: object}) => void;
+		onScroll({currentTarget: {scrollTop: 0, scrollHeight: 1000, clientHeight: 600}});
+		onScroll({currentTarget: {scrollTop: 200, scrollHeight: 1000, clientHeight: 600}});
+		expect(onScrollNearEnd.mock.calls).toStrictEqual([[]]);
+	});
+
 	it("renders upstream's dialog backdrop at z-index 600", () => {
 		const root = render();
 		expect({className: root.props.className, style: root.props.style}).toStrictEqual({
@@ -142,6 +154,7 @@ describe("SwitcherDialog", () => {
 				onSelect: () => {},
 				onHover: () => {},
 				onClose: () => {},
+				onScrollNearEnd: () => {},
 			}),
 		);
 		expect(html).toContain(
@@ -186,6 +199,7 @@ describe("SwitcherDialog", () => {
 				onSelect: () => {},
 				onHover: () => {},
 				onClose: () => {},
+				onScrollNearEnd: () => {},
 			}),
 		);
 		expect(html).toContain("<span><b><u>Qw</u></b>zx</span>");
@@ -207,6 +221,7 @@ describe("SwitcherDialog", () => {
 				onSelect: () => {},
 				onHover: () => {},
 				onClose: () => {},
+				onScrollNearEnd: () => {},
 			}),
 		);
 		expect(html).toContain(

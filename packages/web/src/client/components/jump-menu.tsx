@@ -1,7 +1,8 @@
 import {useQueries} from "@tanstack/react-query";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import type {KeyboardEvent} from "react";
+import type {KeyboardEvent, UIEvent} from "react";
 import {useNavigate} from "react-router-dom";
+import {isMacPlatform} from "../editable-text-keys.js";
 import {mostRecent} from "@workflowy/shared";
 import type {Star} from "@workflowy/shared";
 import {stripHtmlTags} from "@workflowy/shared/html";
@@ -12,6 +13,7 @@ import {locationUrl} from "../location.js";
 import {nodeKeys} from "../node-cache.js";
 import {readJson} from "../read-json.js";
 import {switcherCrumb} from "../switcher-model.js";
+import {nearScrollEnd, onSwitcherStep, stepSelection, switcherKeyAction} from "../switcher-keys.js";
 import {buildSwitcherRows} from "../switcher-rows.js";
 import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -107,6 +109,8 @@ export interface SwitcherDialogProps {
 	onSelect: (row: SwitcherRow) => void;
 	onHover: (index: number) => void;
 	onClose: () => void;
+	/** The dialog scrolled within 300px of its bottom: time to load the next page. */
+	onScrollNearEnd: () => void;
 }
 
 /** Upstream's switcher dialog DOM: backdrop, scrim, dialog box with the input, close icon and option list. */
@@ -121,12 +125,20 @@ export function SwitcherDialog({
 	onSelect,
 	onHover,
 	onClose,
+	onScrollNearEnd,
 }: SwitcherDialogProps) {
 	return (
 		<div className={BACKDROP_CLASS} style={{zIndex: 600}}>
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Escape in the input closes too */}
 			<div className={SCRIM_CLASS} style={{opacity: 0.2}} onClick={onClose} />
-			<div className={DIALOG_CLASS}>
+			<div
+				className={DIALOG_CLASS}
+				onScroll={(event: UIEvent<HTMLDivElement>) => {
+					if (nearScrollEnd(event.currentTarget)) {
+						onScrollNearEnd();
+					}
+				}}
+			>
 				<div className="p-m flex flex-col gap-m text-s">
 					<div className="flex flex-col w-full">
 						<input
@@ -222,6 +234,9 @@ function JumpMenuDialog() {
 	const starred = useStarredEntries(stars);
 	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<readonly SwitcherResult[]>([]);
+	const [hasMore, setHasMore] = useState(false);
+	const loadingMore = useRef(false);
+	const latestQuery = useRef("");
 	const [status, setStatus] = useState<SwitcherSearchStatus>("idle");
 	const answered = useRef(false);
 	const [selectedIndex, setSelectedIndex] = useState(0);
@@ -234,6 +249,7 @@ function JumpMenuDialog() {
 
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);
+		latestQuery.current = value;
 		setSelectedIndex(0);
 	}, []);
 
@@ -260,12 +276,14 @@ function JumpMenuDialog() {
 				if (!cancelled) {
 					answered.current = true;
 					setResults(data.results);
+					setHasMore(data.hasMore);
 					setSelectedIndex(0);
 					setStatus("done");
 				}
 			} catch {
 				if (!cancelled) {
 					setResults([]);
+					setHasMore(false);
 					setStatus("error");
 				}
 			}
@@ -289,26 +307,33 @@ function JumpMenuDialog() {
 		[navigate, toggleJumpMenu],
 	);
 
+	const rowCount = rows.length;
+	useEffect(
+		() =>
+			onSwitcherStep((step) => {
+				setSelectedIndex((previous) => stepSelection(previous, rowCount, step));
+			}),
+		[rowCount],
+	);
+
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLInputElement>) => {
-			switch (event.key) {
-				case "Escape": {
-					event.preventDefault();
+			const action = switcherKeyAction(event, isMacPlatform());
+			if (action === null) {
+				return;
+			}
+			event.preventDefault();
+			switch (action) {
+				case "close": {
 					toggleJumpMenu();
 					break;
 				}
-				case "ArrowDown": {
-					event.preventDefault();
-					setSelectedIndex((previous) => Math.min(previous + 1, rows.length - 1));
+				case "next":
+				case "prev": {
+					setSelectedIndex((previous) => stepSelection(previous, rowCount, action));
 					break;
 				}
-				case "ArrowUp": {
-					event.preventDefault();
-					setSelectedIndex((previous) => Math.max(previous - 1, 0));
-					break;
-				}
-				case "Enter": {
-					event.preventDefault();
+				case "enter": {
 					const selected = rows[selectedIndex];
 					if (selected !== undefined) {
 						handleSelect(selected);
@@ -317,8 +342,36 @@ function JumpMenuDialog() {
 				}
 			}
 		},
-		[handleSelect, rows, selectedIndex, toggleJumpMenu],
+		[handleSelect, rowCount, rows, selectedIndex, toggleJumpMenu],
 	);
+
+	/** Upstream's infinite scroll: append the next page of server results. */
+	const loadMore = useCallback(() => {
+		if (!hasMore || loadingMore.current || !query.trim()) {
+			return;
+		}
+		loadingMore.current = true;
+		const loadNextPage = async () => {
+			try {
+				const response = await fetch("/api/search/switcher", {
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
+					body: JSON.stringify({query, offset: results.length, limit: SEARCH_LIMIT, starredIds}),
+				});
+				if (response.ok) {
+					const data = await readJson<SwitcherResponse>(response);
+					// A page for a query the user has since changed is dropped.
+					if (latestQuery.current === query) {
+						setResults((previous) => [...previous, ...data.results]);
+						setHasMore(data.hasMore);
+					}
+				}
+			} finally {
+				loadingMore.current = false;
+			}
+		};
+		void loadNextPage();
+	}, [hasMore, query, results.length, starredIds]);
 
 	return (
 		<SwitcherDialog
@@ -332,6 +385,7 @@ function JumpMenuDialog() {
 			onSelect={handleSelect}
 			onHover={setSelectedIndex}
 			onClose={toggleJumpMenu}
+			onScrollNearEnd={loadMore}
 		/>
 	);
 }

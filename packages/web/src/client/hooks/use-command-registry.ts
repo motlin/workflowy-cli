@@ -59,6 +59,7 @@ import {deleteSelectedItems} from "./use-selection-keymap.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
+import {switcherStepCommand} from "../switcher-keys.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
@@ -113,6 +114,10 @@ function singleItemCommand(run: (nodeId: string) => void): Command {
 			}
 		},
 	};
+}
+
+function isJumpMenuOpen(): boolean {
+	return useOutlineStore.getState().jumpMenuOpen;
 }
 
 /**
@@ -836,6 +841,8 @@ export function useCommandRegistry(): CommandRegistry {
 			},
 		},
 		show_switcher: {execute: showSwitcher},
+		_select_next_in_switcher: switcherStepCommand("next", isJumpMenuOpen, toggleJumpMenu),
+		_select_prev_in_switcher: switcherStepCommand("prev", isJumpMenuOpen, toggleJumpMenu),
 		show_export: {
 			execute(ctx) {
 				if (ctx.items.length > 0) {
