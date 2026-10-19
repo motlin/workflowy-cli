@@ -60,7 +60,7 @@ function toggleItem(node: NodeResponse, edited: EditedName | undefined): LayoutT
  * store plain text, escaped back to HTML for the name field.
  */
 export function planLayoutHotkey(
-	command: LayoutHotkeyCommand,
+	command: LayoutToggleCommand,
 	nodes: readonly NodeResponse[],
 	edited?: EditedName,
 ): LayoutHotkeyWrites {

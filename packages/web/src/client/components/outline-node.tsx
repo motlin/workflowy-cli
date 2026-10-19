@@ -10,19 +10,8 @@ import {useBulletDrag} from "../hooks/use-bullet-drag.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useMoveTo} from "../hooks/use-move-to.js";
 import {useQueryClient} from "@tanstack/react-query";
-import {
-	fetchChildren,
-	useCreateNode,
-	useDeleteNode,
-	useExpandAll,
-	useMoveNodes,
-	useToggleComplete,
-	useUpdateNode,
-} from "../hooks/use-nodes.js";
-import {nodeKeys} from "../node-cache.js";
-import {runSortChildren} from "../sort-children.js";
-import type {SortDirection} from "../sort-children.js";
-import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
+import {useCreateNode, useDeleteNode, useExpandAll, useToggleComplete, useUpdateNode} from "../hooks/use-nodes.js";
+import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {deleteDates} from "../date-pills.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
@@ -31,7 +20,7 @@ import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
-import {internalLinkUrl, itemMenuLeft} from "../item-menu-model.js";
+import {itemMenuLeft} from "../item-menu-model.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
@@ -184,47 +173,13 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 	const focusName = useOutlineStore((state) => state.focusName);
 	const openPresentation = useOutlineStore((state) => state.openPresentation);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
-	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
 	const createNode = useCreateNode();
 	const deleteNode = useDeleteNode();
-	const moveNodes = useMoveNodes();
 	const requestDatePicker = useOutlineStore((state) => state.requestDatePicker);
 	const updateNode = useUpdateNode();
 	const moveTo = useMoveTo();
-	const copyLink = async () => {
-		await navigator.clipboard.writeText(internalLinkUrl(node.id));
-		showAppMessage("Link copied.", {timeout: 1000});
-	};
-	const sortChildren = async (direction: SortDirection) => {
-		const children = await queryClient.query({
-			queryKey: nodeKeys.children(node.id),
-			queryFn: async () => fetchChildren(node.id),
-			staleTime: "static",
-		});
-		await runInUndoBatch(captureOutlineView, () => {
-			runSortChildren({
-				parentId: node.id,
-				children: children.map((child) => ({id: child.id, name: child.name ?? "", movable: true})),
-				direction,
-				moveNodes: (request) => {
-					moveNodes.mutate(request);
-				},
-				showToast: ({text, timeout, undoLabel, undo}) => {
-					showAppMessage(text, {
-						timeout,
-						actions: [
-							{
-								label: undoLabel,
-								run: () => {
-									void runInUndoBatch(captureOutlineView, undo);
-								},
-							},
-						],
-					});
-				},
-			});
-		});
-	};
+	const copyLink = useCopyLink();
+	const sortChildren = useSortChildren();
 	return (
 		<ItemMenuTrigger
 			actions={{
@@ -263,7 +218,7 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 					openExportDialog({nodeIds: [node.id]});
 				},
 				onCopyLink: () => {
-					void copyLink();
+					void copyLink(node.id);
 				},
 				onMakeTemplate: () => {
 					updateNode.mutate({nodeId: node.id, name: `${node.name ?? ""} #template`});
@@ -278,7 +233,7 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 					expandAll(node.id, false);
 				},
 				onSort: (direction) => {
-					void sortChildren(direction);
+					void sortChildren(node.id, direction);
 				},
 			}}
 			left={left}

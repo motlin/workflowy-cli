@@ -46,7 +46,10 @@ import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js
 import {saveAndSyncCommand} from "../save-and-sync.js";
 import {renderDatePills, serializeDatePills} from "../date-pills.js";
 import {planLayoutHotkey} from "../layout-hotkeys.js";
-import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
+import type {LayoutToggleCommand} from "../layout-types.js";
+import {toggleBoardOrTable} from "../item-type-select.js";
+import type {ItemTypeSelectDeps} from "../item-type-select.js";
+import {useCopyLink, useSortChildren} from "./use-item-actions.js";
 import {useDateSettings} from "./use-preferences.js";
 import {plainLength} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, whenUndoSettled} from "../undo-batch.js";
@@ -99,6 +102,19 @@ async function sendBlockMoves(moves: readonly BlockMove[], mutate: MoveNodesMuta
 	}
 }
 
+/** A command on the single item, as upstream's palette-only item commands. */
+function singleItemCommand(run: (nodeId: string) => void): Command {
+	return {
+		available: (ctx) => ctx.items.length === 1,
+		execute(ctx) {
+			const [nodeId] = ctx.items;
+			if (nodeId !== undefined) {
+				run(nodeId);
+			}
+		},
+	};
+}
+
 /**
  * The outline's commands, keyed by upstream command id, for the global keymap to dispatch.
  *
@@ -148,6 +164,8 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleCompleteMutation = useToggleComplete();
 	const updateNodeMutation = useUpdateNode();
 	const dateSettings = useDateSettings();
+	const copyLink = useCopyLink();
+	const sortChildren = useSortChildren();
 
 	// The zoomed node's parent and siblings, for zooming out and to its siblings
 	const {data: zoomedNode} = useNode(zoomedNodeId);
@@ -248,7 +266,7 @@ export function useCommandRegistry(): CommandRegistry {
 	 * Upstream's layout toggles (`planLayoutToggle`) over the command targets, in one undo step. While editing, the
 	 * unsaved text is committed first and the editor stays open with the caret in place, showing any rewritten name.
 	 */
-	const toggleLayout = (ctx: CommandContext, command: LayoutHotkeyCommand): void => {
+	const toggleLayout = (ctx: CommandContext, command: LayoutToggleCommand): void => {
 		const nodes = ctx.items.flatMap((id) => readNode(queryClient, id) ?? []);
 		if (nodes.length === 0) {
 			return;
@@ -283,11 +301,31 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
-	const layoutCommand = (command: LayoutHotkeyCommand): Command => ({
+	const layoutCommand = (command: LayoutToggleCommand): Command => ({
 		execute(ctx) {
 			toggleLayout(ctx, command);
 		},
 	});
+
+	const itemTypeDeps: ItemTypeSelectDeps = {
+		update: (nodeId, layoutMode) => {
+			updateNodeMutation.mutate({nodeId, layoutMode});
+		},
+		expandAll: (ids) => {
+			const {expandedIds} = useOutlineStore.getState();
+			replaceExpanded(new Set([...expandedIds, ...ids]));
+		},
+		childIds: (nodeId) => (readChildren(queryClient, nodeId) ?? []).map((child) => child.id),
+		layoutMode: (nodeId) => readNode(queryClient, nodeId)?.data.layoutMode ?? null,
+	};
+
+	/** Upstream `toggle_board` / `toggle_table` on the single item, in one undo step. */
+	const boardOrTableCommand = (command: "toggle_board" | "toggle_table"): Command =>
+		singleItemCommand((nodeId) => {
+			void runInUndoBatch(captureOutlineView, () => {
+				toggleBoardOrTable(command, nodeId, itemTypeDeps);
+			});
+		});
 
 	/**
 	 * Upstream `navigate_to_next_item` / `prev_item`: zoom to the zoomed page's potentially visible sibling `step`
@@ -760,6 +798,33 @@ export function useCommandRegistry(): CommandRegistry {
 		toggle_bullet: layoutCommand("toggle_bullet"),
 		toggle_todo: layoutCommand("toggle_todo"),
 		toggle_numbered: layoutCommand("toggle_numbered"),
+		toggle_divider: layoutCommand("toggle_divider"),
+		toggle_board: boardOrTableCommand("toggle_board"),
+		toggle_table: boardOrTableCommand("toggle_table"),
+		// Upstream: "Add note" from inside the note moves the caret to the end of the name.
+		add_note: singleItemCommand((nodeId) => {
+			const {editingNoteId, focusName, focusNote} = useOutlineStore.getState();
+			if (editingNoteId === nodeId) {
+				focusName(nodeId, "end");
+			} else {
+				focusNote(nodeId);
+			}
+		}),
+		expand_all: singleItemCommand((nodeId) => {
+			expandAll(nodeId, true);
+		}),
+		collapse_all: singleItemCommand((nodeId) => {
+			expandAll(nodeId, false);
+		}),
+		sort_children_asc: singleItemCommand((nodeId) => {
+			void sortChildren(nodeId, "asc");
+		}),
+		sort_children_desc: singleItemCommand((nodeId) => {
+			void sortChildren(nodeId, "desc");
+		}),
+		copy_link: singleItemCommand((nodeId) => {
+			void copyLink(nodeId);
+		}),
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightBar},
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3

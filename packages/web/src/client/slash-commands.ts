@@ -173,3 +173,37 @@ export function resolveSlash(chipText: string, ctx: SlashContext): SlashGroup[] 
 	}
 	return [{name: "=", options: [result === "incomplete" ? {label: "...", noop: true} : {label: result}]}];
 }
+
+/**
+ * The slash commands this app can run (upstream allows hiding a command, never reordering or relabelling one);
+ * every other key stays hidden until its feature lands.
+ */
+const LOCAL_SLASH_KEYS: ReadonlySet<SlashCommandKey> = new Set<SlashCommandKey>([
+	"toggle_bullet",
+	"toggle_board",
+	"toggle_table",
+	"toggle_todo",
+	"toggle_h1",
+	"toggle_h2",
+	"toggle_h3",
+	"toggle_paragraph",
+	"toggle_quote_block",
+	"toggle_code_block",
+	"toggle_divider",
+	"toggle_numbered",
+	"complete",
+	"add_note",
+	"duplicate",
+	"move_to",
+	"show_export",
+	"expand_all",
+	"collapse_all",
+	"sort_children_asc",
+	"sort_children_desc",
+	"copy_link",
+	"delete",
+]);
+
+export function LOCAL_SLASH_AVAILABLE(key: SlashCommandKey): boolean {
+	return LOCAL_SLASH_KEYS.has(key);
+}

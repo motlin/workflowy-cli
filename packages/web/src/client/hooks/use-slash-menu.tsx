@@ -3,7 +3,7 @@ import type {ReactNode} from "react";
 import {placeCaretAtTextOffset, unitsBefore} from "../caret-dom.js";
 import {SlashMenu} from "../components/slash-menu.js";
 import type {CommandContext} from "../keys/dispatch.js";
-import {resolveSlash} from "../slash-commands.js";
+import {LOCAL_SLASH_AVAILABLE, resolveSlash} from "../slash-commands.js";
 import type {SlashCommandKey, SlashCommandOption, SlashGroup, SlashMathOption} from "../slash-commands.js";
 import {slashKeyAction, slashMode} from "../slash-menu-state.js";
 import {planSlashOpen, planSlashRearm, SLASH_CHIP_CLASS} from "../slash-trigger.js";
@@ -36,7 +36,7 @@ function flatOptions(groups: readonly SlashGroup[]): SlashOption[] {
 	return groups.flatMap((group): SlashOption[] => group.options);
 }
 
-/** A slash command is offered when the active registry can run it on this row. */
+/** A slash command is offered when it has a local executor and the active registry can run it on this row. */
 function commandContext(nodeId: string): CommandContext {
 	return {items: [nodeId], zoomedId: useOutlineStore.getState().zoomedNodeId};
 }
@@ -50,7 +50,7 @@ function resolve(chipText: string, nodeId: string): SlashGroup[] | null {
 	const groups = resolveSlash(chipText, {
 		available: (key) => {
 			const command = registry[key];
-			return command !== undefined && command.available?.(ctx) !== false;
+			return LOCAL_SLASH_AVAILABLE(key) && command !== undefined && command.available?.(ctx) !== false;
 		},
 	});
 	return groups !== null && flatOptions(groups).length > 0 ? groups : null;

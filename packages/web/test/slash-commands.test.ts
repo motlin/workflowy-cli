@@ -1,7 +1,8 @@
+import {readFileSync} from "node:fs";
 import {describe, expect, it} from "vite-plus/test";
 import {FA_ICONS} from "../src/client/components/fa-icons.js";
 import type {SlashCommandKey} from "../src/client/slash-commands.js";
-import {SLASH_COMMANDS, SLASH_MENU_KEYS, resolveSlash} from "../src/client/slash-commands.js";
+import {LOCAL_SLASH_AVAILABLE, SLASH_COMMANDS, SLASH_MENU_KEYS, resolveSlash} from "../src/client/slash-commands.js";
 
 const HIDDEN_ON_PLAIN_ROW: ReadonlySet<string> = new Set([
 	"toggle_ai_item",
@@ -144,5 +145,46 @@ describe("resolveSlash", () => {
 	it("returns null when neither commands nor math match", () => {
 		expect(resolveSlash(" /moq", plainRow)).toBeNull();
 		expect(resolveSlash(" /moq", {...plainRow, evalMath: () => null})).toBeNull();
+	});
+});
+
+describe("LOCAL_SLASH_AVAILABLE", () => {
+	it("offers only the commands with a local executor, in upstream order", () => {
+		expect(resolveSlash(" /", {available: LOCAL_SLASH_AVAILABLE})?.[0]?.options.map((o) => o.label)).toStrictEqual([
+			"Bullets",
+			"Board",
+			"Table",
+			"To-do",
+			"Heading 1",
+			"Heading 2",
+			"Heading 3",
+			"Paragraph",
+			"Quote",
+			"Code Block",
+			"Divider",
+			"Number",
+			"Complete",
+			"Add note",
+			"Duplicate",
+			"Move To...",
+			"Export",
+			"Expand all",
+			"Collapse all",
+			"Sort A-Z",
+			"Sort Z-A",
+			"Copy internal link",
+			"Delete",
+		]);
+	});
+
+	it("has a command-registry executor for every locally available key, and the slash hook gates on it", () => {
+		const registry = readFileSync(new URL("../src/client/hooks/use-command-registry.ts", import.meta.url), "utf8");
+		const hook = readFileSync(new URL("../src/client/hooks/use-slash-menu.tsx", import.meta.url), "utf8");
+		expect({
+			missing: SLASH_MENU_KEYS.filter(
+				(key) => LOCAL_SLASH_AVAILABLE(key) && !new RegExp(`^\\t\\t${key}: `, "mu").test(registry),
+			),
+			gated: hook.includes("LOCAL_SLASH_AVAILABLE(key)"),
+		}).toStrictEqual({missing: [], gated: true});
 	});
 });

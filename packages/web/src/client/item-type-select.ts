@@ -49,3 +49,20 @@ export function selectItemType(type: ItemType, nodeIds: readonly string[], deps:
 		deps.update(id, type.layoutModeKey);
 	}
 }
+
+/**
+ * Upstream's palette/slash `toggle_board` and `toggle_table` on one node: Board always sets `board` (no
+ * toggle-off); Table writes `bullets` when the node is already a table. Turning either on expands the children.
+ */
+export function toggleBoardOrTable(
+	command: "toggle_board" | "toggle_table",
+	nodeId: string,
+	deps: ItemTypeSelectDeps,
+): void {
+	if (command === "toggle_table" && deps.layoutMode(nodeId) === "table") {
+		deps.update(nodeId, "bullets");
+		return;
+	}
+	deps.expandAll(deps.childIds(nodeId));
+	deps.update(nodeId, command === "toggle_board" ? "board" : "table");
+}

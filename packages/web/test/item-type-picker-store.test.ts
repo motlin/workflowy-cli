@@ -10,7 +10,7 @@ vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {to
 vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
-const {pickerItemTypes, selectItemType} = await import("../src/client/item-type-select.js");
+const {pickerItemTypes, selectItemType, toggleBoardOrTable} = await import("../src/client/item-type-select.js");
 
 function itemType(key: string): ItemType {
 	const type = ITEM_TYPES.find((candidate) => candidate.key === key);
@@ -92,6 +92,30 @@ describe("selectItemType", () => {
 		selectItemType(itemType("divider"), ["alice"], off.deps);
 		expect([on.calls, off.calls]).toStrictEqual([
 			{updates: [{nodeId: "alice", layoutMode: "divider"}], expanded: []},
+			{updates: [{nodeId: "alice", layoutMode: "bullets"}], expanded: []},
+		]);
+	});
+});
+
+describe("toggleBoardOrTable", () => {
+	it("sets Board without toggling off and expands the children", () => {
+		const on = recordingDeps({alice: ["bob", "carol"]});
+		toggleBoardOrTable("toggle_board", "alice", on.deps);
+		const again = recordingDeps({alice: ["bob"]}, {alice: "board"});
+		toggleBoardOrTable("toggle_board", "alice", again.deps);
+		expect([on.calls, again.calls]).toStrictEqual([
+			{updates: [{nodeId: "alice", layoutMode: "board"}], expanded: [["bob", "carol"]]},
+			{updates: [{nodeId: "alice", layoutMode: "board"}], expanded: [["bob"]]},
+		]);
+	});
+
+	it("toggles Table: on expands the rows, off writes bullets", () => {
+		const on = recordingDeps({alice: ["bob"]});
+		toggleBoardOrTable("toggle_table", "alice", on.deps);
+		const off = recordingDeps({alice: ["bob"]}, {alice: "table"});
+		toggleBoardOrTable("toggle_table", "alice", off.deps);
+		expect([on.calls, off.calls]).toStrictEqual([
+			{updates: [{nodeId: "alice", layoutMode: "table"}], expanded: [["bob"]]},
 			{updates: [{nodeId: "alice", layoutMode: "bullets"}], expanded: []},
 		]);
 	});
