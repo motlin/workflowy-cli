@@ -16,7 +16,7 @@ import {
 } from "../caret-navigation.js";
 import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.js";
 import {caretTextOffset, placeCaretAtTextOffset, selectionTextOffsets, textUnitLength} from "../caret-dom.js";
-import {classifyEditorKey, isMacPlatform} from "../editable-text-keys.js";
+import {classifyEditorKey, classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
 import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
@@ -43,6 +43,7 @@ import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
 import {plainText, splitHtml} from "../rich-text.js";
+import {useInlineFormat} from "../hooks/use-inline-format.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
@@ -77,9 +78,6 @@ function getCharacterOffsetFromClick(element: HTMLElement, event: MouseEvent): n
 }
 
 /**
- * Toggle inline formatting on the current selection.
- */
-/**
  * The caret's client rect at the edge of the current selection that the arrow key
  * moves from, or null when it cannot be measured (e.g. a caret in an empty node).
  */
@@ -112,11 +110,6 @@ function verticalEntryPoint(
 	}
 	const x = Math.min(Math.max(caretX ?? line.left, line.left), line.right - 1);
 	return {x, y: line.top + line.height / 2};
-}
-
-function execFormatCommand(command: "bold" | "italic" | "underline"): void {
-	// oxlint-disable-next-line typescript/no-deprecated -- no standard replacement applies inline formatting to a contenteditable with native undo
-	document.execCommand(command);
 }
 
 /** Stands in for a date pill, one caret unit, in the plain text the tag autocomplete reads. */
@@ -388,6 +381,17 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		handleKeyDown: handleTagAutocompleteKey,
 		detach: detachTagAutocomplete,
 	} = tagAutocomplete;
+
+	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
+	const {applyInlineToggle} = useInlineFormat({
+		editorRef: contentRef,
+		active: isEditing,
+		read: () => serializeDatePills(contentRef.current?.innerHTML ?? ""),
+		render: (html) => renderDatePills(html, dateSettings),
+		onChange: (html) => {
+			nameSaver.change(html);
+		},
+	});
 
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
@@ -765,88 +769,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		releaseEditing();
 	});
 
-	const toggleStrikethrough = useCallback(() => {
-		const selection = globalThis.getSelection();
-		if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-			return;
-		}
-
-		const range = selection.getRangeAt(0);
-
-		// Check if selection is already wrapped in <s> tag
-		let parentS: HTMLElement | null = null;
-		let node: Node | null = range.commonAncestorContainer;
-		while (node && node !== contentRef.current) {
-			if (node instanceof HTMLElement && node.tagName === "S") {
-				parentS = node;
-				break;
-			}
-			node = node.parentNode;
-		}
-
-		if (parentS) {
-			// Remove strikethrough: unwrap the <s> tag
-			if (parentS.parentNode) {
-				while (parentS.firstChild) {
-					parentS.before(parentS.firstChild);
-				}
-				parentS.remove();
-			}
-		} else {
-			// Add strikethrough: wrap selection in <s> tag
-			const sElement = document.createElement("s");
-			sElement.append(range.extractContents());
-			range.insertNode(sElement);
-
-			// Restore selection to the wrapped content
-			selection.removeAllRanges();
-			const newRange = document.createRange();
-			newRange.selectNodeContents(sElement);
-			selection.addRange(newRange);
-		}
-	}, []);
-
-	const toggleCode = useCallback(() => {
-		const selection = globalThis.getSelection();
-		if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-			return;
-		}
-
-		const range = selection.getRangeAt(0);
-
-		// Check if selection is already wrapped in <code> tag
-		let parentCode: HTMLElement | null = null;
-		let node: Node | null = range.commonAncestorContainer;
-		while (node && node !== contentRef.current) {
-			if (node instanceof HTMLElement && node.tagName === "CODE") {
-				parentCode = node;
-				break;
-			}
-			node = node.parentNode;
-		}
-
-		if (parentCode) {
-			// Remove code: unwrap the <code> tag
-			if (parentCode.parentNode) {
-				while (parentCode.firstChild) {
-					parentCode.before(parentCode.firstChild);
-				}
-				parentCode.remove();
-			}
-		} else {
-			// Add code: wrap selection in <code> tag
-			const codeElement = document.createElement("code");
-			codeElement.append(range.extractContents());
-			range.insertNode(codeElement);
-
-			// Restore selection to the wrapped content
-			selection.removeAllRanges();
-			const newRange = document.createRange();
-			newRange.selectNodeContents(codeElement);
-			selection.addRange(newRange);
-		}
-	}, []);
-
 	const handleBlur = useCallback(() => {
 		hideDateAutocomplete();
 		detachTagAutocomplete();
@@ -902,6 +824,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 			const action = classifyEditorKey(event, isMacPlatform());
 			const composing = event.nativeEvent.isComposing;
+			const formatAttr = classifyFormatKey(event, isMacPlatform());
 			const arrow = action === null ? undefined : CARET_ARROWS[action];
 			if (
 				(action === "SELECT_UP" || action === "SELECT_DOWN" || action === "SELECT_ALL") &&
@@ -941,21 +864,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				const caretOffset = contentRef.current ? caretTextOffset(contentRef.current) : 0;
 				saveChanges();
 				openSearchFromEditing(nodeId, caretOffset);
-			} else if (event.key === "b" && event.metaKey && !event.shiftKey) {
+			} else if (formatAttr !== null && !composing) {
 				event.preventDefault();
-				execFormatCommand("bold");
-			} else if (event.key === "i" && event.metaKey && !event.shiftKey) {
-				event.preventDefault();
-				execFormatCommand("italic");
-			} else if (event.key === "u" && event.metaKey && !event.shiftKey) {
-				event.preventDefault();
-				execFormatCommand("underline");
-			} else if (event.key === "x" && event.metaKey && event.shiftKey) {
-				event.preventDefault();
-				toggleStrikethrough();
-			} else if (event.key === "c" && event.metaKey && event.shiftKey) {
-				event.preventDefault();
-				toggleCode();
+				applyInlineToggle(formatAttr);
 			}
 		},
 		[
@@ -972,8 +883,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			saveChanges,
 			selectItemsFromEditor,
 			splitAtSelection,
-			toggleStrikethrough,
-			toggleCode,
+			applyInlineToggle,
 		],
 	);
 

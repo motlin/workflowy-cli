@@ -144,7 +144,7 @@ function rangeAtTextOffset(element: HTMLElement, offset: number): Range {
 }
 
 /** Select plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
-function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number): void {
+export function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number): void {
 	const ordered = orderOffsets(start, end);
 	const range = rangeAtTextOffset(element, ordered.start);
 	if (ordered.end !== ordered.start) {

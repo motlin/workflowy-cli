@@ -1,3 +1,5 @@
+import type {InlineAttr} from "./rich-text.js";
+
 /** The modifier and key fields of a keydown that the editor classifier reads. */
 export interface EditorKeyEvent {
 	key: string;
@@ -76,6 +78,22 @@ export function classifyEditorKey(event: EditorKeyEvent, isMac: boolean): Editor
 		return SHIFT_KEYS[key] ?? null;
 	}
 	return PLAIN_KEYS[key] ?? null;
+}
+
+const FORMAT_CODES: Readonly<Record<string, InlineAttr>> = {KeyB: "b", KeyI: "i", KeyU: "u"};
+const SHIFT_FORMAT_CODES: Readonly<Record<string, InlineAttr>> = {KeyX: "s", KeyC: "code"};
+
+/**
+ * Upstream's format shortcuts (⌘B/⌘I/⌘U, ⇧⌘X strikethrough, ⇧⌘C inline code; Ctrl off mac), matched on the
+ * physical `code` so keyboard layouts never change them. Null for any other keystroke.
+ */
+export function classifyFormatKey(event: EditorKeyEvent & {code: string}, isMac: boolean): InlineAttr | null {
+	const {code, metaKey, ctrlKey, altKey, shiftKey} = event;
+	const mod = isMac ? metaKey && !ctrlKey : ctrlKey && !metaKey;
+	if (!mod || altKey) {
+		return null;
+	}
+	return (shiftKey ? SHIFT_FORMAT_CODES[code] : FORMAT_CODES[code]) ?? null;
 }
 
 /** Whether the browser runs on an Apple platform, where the editor's mod key is meta. */

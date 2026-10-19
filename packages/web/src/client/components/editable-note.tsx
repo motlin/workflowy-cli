@@ -11,8 +11,10 @@ import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
+import {useInlineFormat} from "../hooks/use-inline-format.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
+import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import {plainText} from "../rich-text.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
 
@@ -217,6 +219,18 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 		[handleDateTrigger, handleTagAutocomplete, noteSaver],
 	);
 
+	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
+	const {applyInlineToggle} = useInlineFormat({
+		editorRef: contentRef,
+		active: true,
+		read: () =>
+			contentRef.current === null ? "" : planNoteSave(noteSaver.saved, contentRef.current.innerHTML).note,
+		render: (note) => noteContentHtml(note, dateSettings),
+		onChange: (note) => {
+			noteSaver.change(note);
+		},
+	});
+
 	const handleFocus = useCallback(() => {
 		if (datePickerOpen.current) {
 			return;
@@ -264,6 +278,12 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				openSearchFromEditing(nodeId, Number.MAX_SAFE_INTEGER);
 				return;
 			}
+			const formatAttr = classifyFormatKey(event, isMacPlatform());
+			if (formatAttr !== null && !event.nativeEvent.isComposing) {
+				event.preventDefault();
+				applyInlineToggle(formatAttr);
+				return;
+			}
 			const offsets = selectionOffsets(element);
 			if (offsets === null) {
 				return;
@@ -308,7 +328,16 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				}
 			}
 		},
-		[focusName, focusNextRowName, handleInput, handleTagAutocompleteKey, nodeId, openSearchFromEditing, saveNow],
+		[
+			applyInlineToggle,
+			focusName,
+			focusNextRowName,
+			handleInput,
+			handleTagAutocompleteKey,
+			nodeId,
+			openSearchFromEditing,
+			saveNow,
+		],
 	);
 
 	return (

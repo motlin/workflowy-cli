@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {classifyEditorKey} from "../src/client/editable-text-keys.js";
+import {classifyEditorKey, classifyFormatKey} from "../src/client/editable-text-keys.js";
 import type {EditorKeyEvent} from "../src/client/editable-text-keys.js";
 
 function key(init: Partial<EditorKeyEvent> & {key: string}): EditorKeyEvent {
@@ -57,6 +57,45 @@ describe("classifyEditorKey", () => {
 			["meta+a mac", "SELECT_ALL"],
 			["meta+up", null],
 			["x", null],
+		]);
+	});
+});
+
+describe("classifyFormatKey", () => {
+	it("maps format shortcuts by physical key code so layouts and Option never change them", () => {
+		const event = (code: string, init: Partial<EditorKeyEvent> = {}) => ({
+			...key({key: "?", ...init}),
+			code,
+		});
+		const cases: [string, ReturnType<typeof event>, boolean][] = [
+			["meta+b mac", event("KeyB", {metaKey: true}), true],
+			["meta+i mac", event("KeyI", {metaKey: true}), true],
+			["meta+u mac", event("KeyU", {metaKey: true}), true],
+			["shift+meta+x mac", event("KeyX", {metaKey: true, shiftKey: true}), true],
+			["shift+meta+c mac", event("KeyC", {metaKey: true, shiftKey: true}), true],
+			["meta+x mac (cut)", event("KeyX", {metaKey: true}), true],
+			["meta+c mac (copy)", event("KeyC", {metaKey: true}), true],
+			["shift+meta+b mac", event("KeyB", {metaKey: true, shiftKey: true}), true],
+			["alt+meta+b mac", event("KeyB", {metaKey: true, altKey: true}), true],
+			["ctrl+b mac", event("KeyB", {ctrlKey: true}), true],
+			["ctrl+b non-mac", event("KeyB", {ctrlKey: true}), false],
+			["meta+b non-mac", event("KeyB", {metaKey: true}), false],
+			["b", event("KeyB"), true],
+		];
+		expect(cases.map(([name, input, isMac]) => [name, classifyFormatKey(input, isMac)])).toStrictEqual([
+			["meta+b mac", "b"],
+			["meta+i mac", "i"],
+			["meta+u mac", "u"],
+			["shift+meta+x mac", "s"],
+			["shift+meta+c mac", "code"],
+			["meta+x mac (cut)", null],
+			["meta+c mac (copy)", null],
+			["shift+meta+b mac", null],
+			["alt+meta+b mac", null],
+			["ctrl+b mac", null],
+			["ctrl+b non-mac", "b"],
+			["meta+b non-mac", null],
+			["b", null],
 		]);
 	});
 });
