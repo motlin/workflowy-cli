@@ -1,59 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {normalizeForSearch, parseQuery} from "../src/search/index.js";
-import type {SearchItem} from "../src/search/index.js";
-
-function item(nameHtml: string, noteHtml = "", overrides: Partial<SearchItem> = {}): SearchItem {
-	return {
-		id: nameHtml,
-		nameHtml,
-		noteHtml,
-		completedAt: null,
-		createdAt: null,
-		modifiedAt: null,
-		layoutMode: null,
-		childCount: 0,
-		isMirror: false,
-		ancestorCompleted: false,
-		...overrides,
-	};
-}
-
-// The 15 descendants of the upstream "SO root" fixture (dumps/search-operators-live-results.txt).
-const SO_ROWS: SearchItem[] = [
-	item("Alpha apple pie", "zebra note"),
-	item("applesauce jar"),
-	item('Meeting <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>'),
-	item('Past <time startYear="2026" startMonth="9" startDay="15">Tue, Sep 15, 2026</time>'),
-	item('Future <time startYear="2026" startMonth="12" startDay="25">Fri, Dec 25, 2026</time>'),
-	item("Tagged #soTag item"),
-	item("Mention @soPerson item"),
-	item("<b>Bold word</b> here"),
-	item('<span class="colored c-red">red text</span> line'),
-	item('<span class="colored bc-yellow">hl text</span> line'),
-	item('Link <a href="https://example.com/">example</a>'),
-	item("Parent with kids", "", {childCount: 1}),
-	item("kid one"),
-	item("Todo list", "", {layoutMode: "todo", childCount: 1}),
-	item("todo kid"),
-];
-
-const PLAIN_NAMES = [
-	"Alpha apple pie",
-	"applesauce jar",
-	"Meeting Thu, Oct 1, 2026",
-	"Past Tue, Sep 15, 2026",
-	"Future Fri, Dec 25, 2026",
-	"Tagged #soTag item",
-	"Mention @soPerson item",
-	"Bold word here",
-	"red text line",
-	"hl text line",
-	"Link example",
-	"Parent with kids",
-	"kid one",
-	"Todo list",
-	"todo kid",
-];
+import {SO_PLAIN_NAMES as PLAIN_NAMES, SO_ROWS, searchItem as item} from "./helpers/search-so-fixture.js";
 
 function matchingNames(query: string): string[] {
 	const parsed = parseQuery(query);
