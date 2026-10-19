@@ -9,10 +9,11 @@ vi.mock(import("react-dom"), async (importOriginal) => ({
 	...(await importOriginal()),
 	createPortal: (node: ReactNode): ReactPortal => node as ReactPortal,
 }));
-vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: {getState: () => ({})}}));
+const showItemTypePicker = vi.fn<(picker: {nodeIds: string[]; position: {top: number; left: number}}) => void>();
+vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: {getState: () => ({showItemTypePicker})}}));
 vi.stubGlobal("document", {body: {}});
 
-const {ItemMenuTrigger} = await import("../src/client/components/node-context-menu.js");
+const {ItemMenuTrigger, TurnIntoRow} = await import("../src/client/components/node-context-menu.js");
 const NOOP_ACTIONS: ItemMenuActions = {
 	onComplete: () => {},
 	onAddNote: () => {},
@@ -115,6 +116,21 @@ const ITEM_TOKENS = [
 	"menuItem",
 	"canHover",
 ];
+const TURN_INTO_TOKENS = [
+	"item-type-picker",
+	"flex",
+	"justify-between",
+	"items-center",
+	"px-l",
+	"py-xs",
+	"mobile:py-ml",
+	"leading-base",
+	"hover:bg-secondary",
+	"mobile:landscape:pl-safe-left",
+	"mobile:landscape:pr-safe-right",
+	"cursor-pointer",
+	"desktop:text-xs",
+];
 const SEPARATOR_TOKENS = ["border-t", "border-primary", "border-solid", "my-s"];
 const FOOTER_TOKENS = [
 	"flex",
@@ -151,6 +167,8 @@ describe("item menu surface", () => {
 	it("renders the available rows, separators and footer as scroller children", () => {
 		const children = scrollerChildren(render(node));
 		expect(children.map((child) => classTokens(child))).toStrictEqual([
+			TURN_INTO_TOKENS,
+			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
@@ -171,6 +189,8 @@ describe("item menu surface", () => {
 			FOOTER_TOKENS,
 		]);
 		expect(children.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)).toStrictEqual([
+			"bullet.layout",
+			null,
 			"complete",
 			"add_note",
 			"add_date",
@@ -193,21 +213,21 @@ describe("item menu surface", () => {
 	});
 
 	it("renders the Complete row with its icon, label and shortcut", () => {
-		const complete = scrollerChildren(render(node))[0];
+		const complete = scrollerChildren(render(node))[2];
 		expect(complete).toMatch(
 			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="check"[^>]*><path [^>]*><\/path><\/svg><\/div>Complete<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">⌘↵<\/span><\/span><\/a>$/u,
 		);
 	});
 
 	it("renders the Add note row with its pencil icon, label and shortcut", () => {
-		const addNote = scrollerChildren(render(node))[1];
+		const addNote = scrollerChildren(render(node))[3];
 		expect(addNote).toMatch(
 			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="pencil"[^>]*><path [^>]*><\/path><\/svg><\/div>Add note<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">⇧↵<\/span><\/span><\/a>$/u,
 		);
 	});
 
 	it("renders the Add date row with its calendar icon and !! shortcut", () => {
-		const addDate = scrollerChildren(render(node))[2];
+		const addDate = scrollerChildren(render(node))[4];
 		expect(addDate).toMatch(
 			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="calendar-days"[^>]*><path [^>]*><\/path><\/svg><\/div>Add date<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">!!<\/span><\/span><\/a>$/u,
 		);
@@ -217,7 +237,7 @@ describe("item menu surface", () => {
 		const labels = (target: NodeResponse) =>
 			scrollerChildren(render(target))
 				.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)
-				.slice(0, 4);
+				.slice(2, 6);
 		expect({
 			plain: labels(node),
 			datedName: labels({...node, name: 'Alice <time startYear="2026" startMonth="10" startDay="1">x</time>'}),
@@ -230,7 +250,7 @@ describe("item menu surface", () => {
 	});
 
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[10];
+		const del = scrollerChildren(render(node))[12];
 		expect(del).toContain('data-handbook="delete"');
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
@@ -244,7 +264,7 @@ describe("item menu surface", () => {
 	});
 
 	it("labels Complete as Uncomplete for a completed node and drops the footer without modifiedAt", () => {
-		const children = scrollerChildren(render({...node, completedAt: 1, modifiedAt: null}));
+		const children = scrollerChildren(render({...node, completedAt: 1, modifiedAt: null})).slice(2);
 		expect(children.map((child) => /<\/div>([^<]+)<\/span>/u.exec(child)?.[1] ?? null)).toStrictEqual([
 			"Uncomplete",
 			"Add note",
@@ -263,5 +283,31 @@ describe("item menu surface", () => {
 			"Sort A-Z",
 			"Sort Z-A",
 		]);
+	});
+
+	it("renders upstream's Turn into row first: arrows-cross icon, label, chevron-down at the end", () => {
+		const row = scrollerChildren(render(node))[0];
+		expect(row.replaceAll(/<svg [^>]*data-icon="([^"]*)"[^>]*>.*?<\/svg>/gu, "<icon $1/>")).toBe(
+			'<div data-handbook="bullet.layout" data-handbook-placement="right" class="item-type-picker flex justify-between items-center px-l py-xs mobile:py-ml leading-base hover:bg-secondary mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right cursor-pointer desktop:text-xs"><div class="row-start flex gap-m items-center"><icon arrows-cross/><p>Turn into…</p></div><div class="row-end"><icon chevron-down/></div></div>',
+		);
+	});
+
+	it("closes the menu on click, then opens the shared picker at the click's page coordinates", () => {
+		const onClose = vi.fn<() => void>();
+		const preventDefault = vi.fn<() => void>();
+		const row = TurnIntoRow({nodeId: "alice", onClose});
+		row.props.onMouseDown({preventDefault});
+		row.props.onClick({pageX: 42, pageY: 56});
+		const beforeTimer = {onClose: onClose.mock.calls.length, picker: showItemTypePicker.mock.calls.length};
+		vi.runAllTimers();
+		expect({
+			preventDefault: preventDefault.mock.calls.length,
+			beforeTimer,
+			picker: showItemTypePicker.mock.calls,
+		}).toStrictEqual({
+			preventDefault: 1,
+			beforeTimer: {onClose: 1, picker: 0},
+			picker: [[{nodeIds: ["alice"], position: {top: 56, left: 42}}]],
+		});
 	});
 });

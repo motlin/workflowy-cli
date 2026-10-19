@@ -7,8 +7,11 @@ import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter, localItemMenuContext} from "../item-menu-model.js";
 import type {ItemMenuKey} from "../item-menu-model.js";
 import {formatMenuTimestamp} from "../menu-timestamp.js";
+import {pickerItemTypes} from "../item-type-select.js";
+import {useOutlineStore} from "../stores/outline.js";
 import {hasDates} from "../date-pills.js";
 import type {SortDirection} from "../sort-children.js";
+import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 
@@ -185,6 +188,42 @@ export interface ItemMenuActions {
 	onSort: (direction: SortDirection) => void;
 }
 
+const TURN_INTO_CLASS =
+	"item-type-picker flex justify-between items-center px-l py-xs mobile:py-ml leading-base hover:bg-secondary mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right cursor-pointer desktop:text-xs";
+
+/**
+ * Upstream's bullet-menu "Turn into…" row (`kV`): mousedown keeps focus on the menu; a click
+ * closes the menu, then on the next tick opens the shared item-type picker at the click's page point.
+ */
+export function TurnIntoRow({nodeId, onClose}: {nodeId: string; onClose: () => void}) {
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup; the picker is also reachable by the layout hotkeys
+		<div
+			data-handbook="bullet.layout"
+			data-handbook-placement="right"
+			className={TURN_INTO_CLASS}
+			onClick={(event: {pageX: number; pageY: number}) => {
+				const position = {top: event.pageY, left: event.pageX};
+				onClose();
+				setTimeout(() => {
+					useOutlineStore.getState().showItemTypePicker({nodeIds: [nodeId], position});
+				});
+			}}
+			onMouseDown={(event: {preventDefault: () => void}) => {
+				event.preventDefault();
+			}}
+		>
+			<div className="row-start flex gap-m items-center">
+				<FaIcon fixedWidth icon="fal:arrows-cross" />
+				<p>Turn into…</p>
+			</div>
+			<div className="row-end">
+				<FaIcon icon="fal:chevron-down" />
+			</div>
+		</div>
+	);
+}
+
 function footerTimestamp(label: string, unixSeconds: number | null, now: Date) {
 	return (
 		<div className="flex flex-col gap-s">
@@ -266,6 +305,12 @@ export function ItemMenuBody({
 					}}
 					originalNodeId={node.originalNodeId}
 				/>
+			)}
+			{pickerItemTypes([node.id]).length > 0 && (
+				<>
+					<TurnIntoRow nodeId={node.id} onClose={onClose} />
+					<MenuSeparator />
+				</>
 			)}
 			{entries.map((entry, index) =>
 				entry.kind === "separator" ? (
