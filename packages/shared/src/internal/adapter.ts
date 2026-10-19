@@ -69,6 +69,7 @@ const KEYS = {
 	rootMetadata: "root_metadata",
 	settings: "settings",
 	expandedKeys: "expanded_keys",
+	entropyKey: "entropy_key",
 } as const;
 
 const ExpandedKeysSchema = z.array(z.string());
@@ -589,6 +590,29 @@ export class WorkflowyInternalAdapter {
 			.values({key: KEYS.expandedKeys, json, fetchedAt})
 			.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt}})
 			.run();
+	}
+
+	/**
+	 * The account's `entropyKey`, which upstream mixes into deterministic node
+	 * ids (`calendarNodeId`). It never changes, so it is cached in
+	 * `account_state` with no expiry; undefined when the account data has none.
+	 */
+	async getEntropyKey(): Promise<string | undefined> {
+		const row = this.db.select().from(accountState).where(eq(accountState.key, KEYS.entropyKey)).get();
+		const cached = row && z.string().safeParse(JSON.parse(row.json)).data;
+		if (cached !== undefined) {
+			return cached;
+		}
+		const {entropyKey} = await this.session();
+		if (entropyKey !== undefined) {
+			const json = JSON.stringify(entropyKey);
+			this.db
+				.insert(accountState)
+				.values({key: KEYS.entropyKey, json, fetchedAt: this.now()})
+				.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt: this.now()}})
+				.run();
+		}
+		return entropyKey;
 	}
 
 	async getAccount(): Promise<Account> {

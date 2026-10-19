@@ -150,6 +150,38 @@ describe("WorkflowyInternalAdapter account state", () => {
 		expect(network(api.requests.slice(requestsBefore))).toStrictEqual([["GET", "/get_initialization_data"]]);
 	});
 
+	it("reads the entropy key from the initialization data once, then serves it from account_state", async () => {
+		const {api, adapter, db, clock} = tracked();
+		api.respond("/get_initialization_data", () =>
+			json(
+				{...initializationData(), user: {id: 123, email: "alice@example.com", entropyKey: "k".repeat(64)}},
+				{headers: {wfclientid: FAKE_CLIENT_ID}},
+			),
+		);
+
+		await expect(adapter.getEntropyKey()).resolves.toBe("k".repeat(64));
+		const requestsBefore = api.requests.length;
+		clock.ms += 365 * 24 * 60 * 60 * 1000;
+		const fresh = new WorkflowyInternalAdapter({
+			client: new WorkflowyInternalClient({
+				credentials: {username: "a", password: "b"},
+				fetch: api.fetch,
+				baseUrl: "https://workflowy.test",
+			}),
+			db,
+			now: () => clock.ms,
+		});
+
+		await expect(fresh.getEntropyKey()).resolves.toBe("k".repeat(64));
+		expect(api.requests.slice(requestsBefore)).toStrictEqual([]);
+	});
+
+	it("answers undefined for the entropy key when the account data has none", async () => {
+		const {adapter} = tracked();
+
+		await expect(adapter.getEntropyKey()).resolves.toBeUndefined();
+	});
+
 	it("posts a setting change with yes/no flags and the client id, then caches the new value", async () => {
 		const {api, adapter} = tracked();
 
