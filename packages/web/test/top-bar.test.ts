@@ -101,7 +101,7 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 	};
 });
 
-const {TopBar, shareUrl} = await import("../src/client/components/top-bar.js");
+const {TopBar} = await import("../src/client/components/top-bar.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
@@ -359,10 +359,6 @@ function svgStyled(name: string, width: number, style: string): string {
 }
 
 describe("TopBar share button", () => {
-	it("builds the workflowy.com short-id URL", () => {
-		expect(shareUrl("21757ea6-e49b-4392-aa5b-aeda6fe0c1bb")).toBe("https://workflowy.com/#/aeda6fe0c1bb");
-	});
-
 	it("opens the zoomed node on workflowy.com in a new tab", () => {
 		const open = vi.fn<typeof window.open>();
 		vi.stubGlobal("window", {open});

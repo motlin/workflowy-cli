@@ -2,10 +2,26 @@ import {describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {NodeResponse} from "../src/node-types.js";
+import type {ItemMenuActions} from "../src/client/components/node-context-menu.js";
 
 vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: {getState: () => ({})}}));
 
 const {ItemMenuTrigger} = await import("../src/client/components/node-context-menu.js");
+const NOOP_ACTIONS: ItemMenuActions = {
+	onComplete: () => {},
+	onAddNote: () => {},
+	onAddDate: () => {},
+	onDeleteDates: () => {},
+	onPresent: () => {},
+	onDuplicate: () => {},
+	onExport: () => {},
+	onCopyLink: () => {},
+	onMakeTemplate: () => {},
+	onDelete: () => {},
+	onExpandAll: () => {},
+	onCollapseAll: () => {},
+	onSort: () => {},
+};
 
 const node: NodeResponse = {
 	id: "alice",
@@ -30,13 +46,7 @@ describe("ItemMenuTrigger", () => {
 			createElement(ItemMenuTrigger, {
 				node,
 				left: "calc(var(--name-left-overhang) - 46px)",
-				onCollapseAll: () => {},
-				onComplete: () => {},
-				onAddNote: () => {},
-				onAddDate: () => {},
-				onDeleteDates: () => {},
-				onDelete: () => {},
-				onExpandAll: () => {},
+				actions: NOOP_ACTIONS,
 				onOpenChange: () => {},
 			}),
 		);

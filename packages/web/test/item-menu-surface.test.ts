@@ -3,6 +3,7 @@ import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {NodeResponse} from "../src/node-types.js";
+import type {ItemMenuActions} from "../src/client/components/node-context-menu.js";
 
 vi.mock(import("react-dom"), async (importOriginal) => ({
 	...(await importOriginal()),
@@ -12,6 +13,21 @@ vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: {getState: (
 vi.stubGlobal("document", {body: {}});
 
 const {ItemMenuTrigger} = await import("../src/client/components/node-context-menu.js");
+const NOOP_ACTIONS: ItemMenuActions = {
+	onComplete: () => {},
+	onAddNote: () => {},
+	onAddDate: () => {},
+	onDeleteDates: () => {},
+	onPresent: () => {},
+	onDuplicate: () => {},
+	onExport: () => {},
+	onCopyLink: () => {},
+	onMakeTemplate: () => {},
+	onDelete: () => {},
+	onExpandAll: () => {},
+	onCollapseAll: () => {},
+	onSort: () => {},
+};
 
 function localSeconds(year: number, month: number, day: number, hour: number, minute: number): number {
 	return new Date(year, month - 1, day, hour, minute).getTime() / 1000;
@@ -34,13 +50,7 @@ function render(target: NodeResponse): string {
 		createElement(ItemMenuTrigger, {
 			node: target,
 			expanded: true,
-			onCollapseAll: () => {},
-			onComplete: () => {},
-			onAddNote: () => {},
-			onAddDate: () => {},
-			onDeleteDates: () => {},
-			onDelete: () => {},
-			onExpandAll: () => {},
+			actions: NOOP_ACTIONS,
 			onOpenChange: () => {},
 		}),
 	);
@@ -144,9 +154,17 @@ describe("item menu surface", () => {
 			ITEM_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
+			SEPARATOR_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
+			ITEM_TOKENS,
+			ITEM_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
@@ -156,11 +174,19 @@ describe("item menu surface", () => {
 			"complete",
 			"add_note",
 			"add_date",
+			"present_it",
+			"duplicate",
+			null,
+			"show_export",
+			"copy_link",
+			"make_template",
 			null,
 			"delete",
 			null,
 			"expand_all",
 			"collapse_all",
+			"sort_children_asc",
+			"sort_children_desc",
 			null,
 			null,
 		]);
@@ -197,14 +223,15 @@ describe("item menu surface", () => {
 			datedName: labels({...node, name: 'Alice <time startYear="2026" startMonth="10" startDay="1">x</time>'}),
 			datedNote: labels({...node, note: '<time startYear="2026" startMonth="10" startDay="1">x</time>'}),
 		}).toStrictEqual({
-			plain: ["complete", "add_note", "add_date", null],
+			plain: ["complete", "add_note", "add_date", "present_it"],
 			datedName: ["complete", "add_note", "add_date", "delete_dates"],
 			datedNote: ["complete", "add_note", "add_date", "delete_dates"],
 		});
 	});
 
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[4];
+		const del = scrollerChildren(render(node))[10];
+		expect(del).toContain('data-handbook="delete"');
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
 	});
@@ -222,11 +249,19 @@ describe("item menu surface", () => {
 			"Uncomplete",
 			"Add note",
 			"Add date",
+			"Present",
+			"Duplicate",
+			null,
+			"Export",
+			"Copy internal link",
+			"Make template",
 			null,
 			"Delete",
 			null,
 			"Expand all",
 			"Collapse all",
+			"Sort A-Z",
+			"Sort Z-A",
 		]);
 	});
 });

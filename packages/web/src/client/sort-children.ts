@@ -96,3 +96,51 @@ export function planSortMove(children: readonly SortableChild[], direction: Sort
 	const alreadyLeading = ids.every((id, index) => children[index]?.id === id);
 	return alreadyLeading ? null : {ids, index: 0};
 }
+
+export interface SortMoveRequest {
+	ids: string[];
+	parent_id: string;
+	index: 0;
+}
+
+export interface SortToast {
+	text: string;
+	timeout: number;
+	undoLabel: string;
+	undo: () => void;
+}
+
+const SORT_TOAST_TEXT: Record<SortDirection, string> = {asc: "Sorted A-Z", desc: "Sorted Z-A"};
+
+/**
+ * Upstream Sort A-Z / Z-A: one block move of the sorted children, then a 5s toast whose Undo
+ * moves the movable children back, in their previous order, as one block at index 0.
+ */
+export function runSortChildren({
+	parentId,
+	children,
+	direction,
+	moveNodes,
+	showToast,
+}: {
+	parentId: string;
+	children: readonly SortableChild[];
+	direction: SortDirection;
+	moveNodes: (request: SortMoveRequest) => void;
+	showToast: (toast: SortToast) => void;
+}): void {
+	const plan = planSortMove(children, direction);
+	if (plan === null) {
+		return;
+	}
+	const previous = children.filter((child) => child.movable).map((child) => child.id);
+	moveNodes({ids: plan.ids, parent_id: parentId, index: 0});
+	showToast({
+		text: SORT_TOAST_TEXT[direction],
+		timeout: 5000,
+		undoLabel: "Undo",
+		undo: () => {
+			moveNodes({ids: previous, parent_id: parentId, index: 0});
+		},
+	});
+}

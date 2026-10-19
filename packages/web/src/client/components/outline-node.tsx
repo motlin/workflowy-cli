@@ -7,7 +7,20 @@ import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
-import {useDeleteNode, useExpandAll, useToggleComplete, useUpdateNode} from "../hooks/use-nodes.js";
+import {useQueryClient} from "@tanstack/react-query";
+import {
+	fetchChildren,
+	useCreateNode,
+	useDeleteNode,
+	useExpandAll,
+	useMoveNodes,
+	useToggleComplete,
+	useUpdateNode,
+} from "../hooks/use-nodes.js";
+import {nodeKeys} from "../node-cache.js";
+import {runSortChildren} from "../sort-children.js";
+import type {SortDirection} from "../sort-children.js";
+import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {deleteDates} from "../date-pills.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbItem, BreadcrumbSeparator} from "./breadcrumbs.js";
@@ -15,12 +28,12 @@ import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
-import {itemMenuLeft} from "../item-menu-model.js";
+import {internalLinkUrl, itemMenuLeft} from "../item-menu-model.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
 import {OutlineChildren} from "./outline-tree.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
-import {rowHasChildren} from "../tree-ops.js";
+import {planDuplicate, rowHasChildren} from "../tree-ops.js";
 
 /**
  * Renders a file-attachment indicator beneath a node's text. Live attachments
@@ -181,45 +194,108 @@ interface NodeItemMenuProps {
 
 /** The bullet-menu trigger wired to the node's outline actions. */
 export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMenuProps) {
+	const queryClient = useQueryClient();
+	const {navigateToNode} = useNodeNavigation();
 	const expandAll = useExpandAll();
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const focusName = useOutlineStore((state) => state.focusName);
+	const openPresentation = useOutlineStore((state) => state.openPresentation);
+	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
+	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
+	const createNode = useCreateNode();
 	const deleteNode = useDeleteNode();
+	const moveNodes = useMoveNodes();
 	const requestDatePicker = useOutlineStore((state) => state.requestDatePicker);
 	const updateNode = useUpdateNode();
+	const copyLink = async () => {
+		await navigator.clipboard.writeText(internalLinkUrl(node.id));
+		showAppMessage("Link copied.", {timeout: 1000});
+	};
+	const sortChildren = async (direction: SortDirection) => {
+		const children = await queryClient.query({
+			queryKey: nodeKeys.children(node.id),
+			queryFn: async () => fetchChildren(node.id),
+			staleTime: "static",
+		});
+		await runInUndoBatch(captureOutlineView, () => {
+			runSortChildren({
+				parentId: node.id,
+				children: children.map((child) => ({id: child.id, name: child.name ?? "", movable: true})),
+				direction,
+				moveNodes: (request) => {
+					moveNodes.mutate(request);
+				},
+				showToast: ({text, timeout, undoLabel, undo}) => {
+					showAppMessage(text, {
+						timeout,
+						actions: [
+							{
+								label: undoLabel,
+								run: () => {
+									void runInUndoBatch(captureOutlineView, undo);
+								},
+							},
+						],
+					});
+				},
+			});
+		});
+	};
 	return (
 		<ItemMenuTrigger
+			actions={{
+				onComplete,
+				onAddNote: () => {
+					// Upstream: "Add note" from inside the note moves the caret to the end of the name.
+					if (useOutlineStore.getState().editingNoteId === node.id) {
+						focusName(node.id, "end");
+					} else {
+						focusNote(node.id);
+					}
+				},
+				onAddDate: () => {
+					requestDatePicker(node.id);
+				},
+				onDeleteDates: () => {
+					// Upstream: name and note lose their dates in one undoable edit.
+					updateNode.mutate({
+						nodeId: node.id,
+						name: deleteDates(node.name ?? ""),
+						...(node.note === null ? {} : {note: deleteDates(node.note)}),
+					});
+				},
+				onPresent: () => {
+					navigateToNode(node.id);
+					openPresentation(node.id);
+				},
+				onDuplicate: () => {
+					// Same mutation as ⇧⌘D, without moving focus into the copy.
+					createNode.mutate(planDuplicate(queryClient, node));
+				},
+				onExport: () => {
+					openExportDialog({nodeIds: [node.id]});
+				},
+				onCopyLink: () => {
+					void copyLink();
+				},
+				onMakeTemplate: () => {
+					updateNode.mutate({nodeId: node.id, name: `${node.name ?? ""} #template`});
+				},
+				onDelete: () => {
+					deleteNode.mutate(node.id);
+				},
+				onExpandAll: () => {
+					expandAll(node.id, true);
+				},
+				onCollapseAll: () => {
+					expandAll(node.id, false);
+				},
+				onSort: (direction) => {
+					void sortChildren(direction);
+				},
+			}}
 			left={left}
 			node={node}
-			onAddNote={() => {
-				// Upstream: "Add note" from inside the note moves the caret to the end of the name.
-				if (useOutlineStore.getState().editingNoteId === node.id) {
-					focusName(node.id, "end");
-				} else {
-					focusNote(node.id);
-				}
-			}}
-			onAddDate={() => {
-				requestDatePicker(node.id);
-			}}
-			onCollapseAll={() => {
-				expandAll(node.id, false);
-			}}
-			onComplete={onComplete}
-			onDeleteDates={() => {
-				// Upstream: name and note lose their dates in one undoable edit.
-				updateNode.mutate({
-					nodeId: node.id,
-					name: deleteDates(node.name ?? ""),
-					...(node.note === null ? {} : {note: deleteDates(node.note)}),
-				});
-			}}
-			onDelete={() => {
-				deleteNode.mutate(node.id);
-			}}
-			onExpandAll={() => {
-				expandAll(node.id, true);
-			}}
 			onOpenChange={onOpenChange}
 		/>
 	);

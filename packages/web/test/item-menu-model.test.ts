@@ -1,5 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {buildItemMenu, hasFooter, ITEM_MENU_KEYS, itemMenuLeft} from "../src/client/item-menu-model.js";
+import {
+	buildItemMenu,
+	hasFooter,
+	ITEM_MENU_KEYS,
+	internalLinkUrl,
+	itemMenuLeft,
+	localItemMenuContext,
+} from "../src/client/item-menu-model.js";
 import type {ItemMenuEntry, ItemMenuKey, ItemMenuNode} from "../src/client/item-menu-model.js";
 
 const plain: ItemMenuNode = {completedAt: null, isMirror: false};
@@ -156,6 +163,20 @@ describe("buildItemMenu", () => {
 	});
 });
 
+describe("localItemMenuContext", () => {
+	it("shows only the commands the local app runs", () => {
+		expect(summarize(buildItemMenu(plain, localItemMenuContext({hasDates: false})))).toBe(
+			"Complete;Add note;Add date;Present;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
+		);
+	});
+
+	it("adds Delete dates when the name or note has a date", () => {
+		expect(summarize(buildItemMenu(plain, localItemMenuContext({hasDates: true})))).toBe(
+			"Complete;Add note;Add date;Delete dates;Present;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
+		);
+	});
+});
+
 describe("hasFooter", () => {
 	it("shows the footer only when the node has a modified time", () => {
 		expect(hasFooter({modifiedAt: null})).toBe(false);
@@ -176,5 +197,11 @@ describe("itemMenuLeft", () => {
 			"calc(var(--name-left-overhang) - 46px)",
 			"calc(var(--name-left-overhang) - 55px)",
 		]);
+	});
+});
+
+describe("internalLinkUrl", () => {
+	it("links to the last 12 hex digits of the id", () => {
+		expect(internalLinkUrl("7aed376b-80c8-42c5-8065-ab03ee6d2ae0")).toBe("https://workflowy.com/#/ab03ee6d2ae0");
 	});
 });

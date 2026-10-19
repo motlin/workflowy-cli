@@ -4,10 +4,11 @@ import {createPortal} from "react-dom";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import type {NodeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
-import {buildItemMenu, hasFooter} from "../item-menu-model.js";
+import {buildItemMenu, hasFooter, localItemMenuContext} from "../item-menu-model.js";
 import type {ItemMenuKey} from "../item-menu-model.js";
 import {formatMenuTimestamp} from "../menu-timestamp.js";
 import {hasDates} from "../date-pills.js";
+import type {SortDirection} from "../sort-children.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 
@@ -168,26 +169,21 @@ function MirrorBanner({
 	);
 }
 
-interface ItemMenuActions {
+export interface ItemMenuActions {
 	onComplete: () => void;
 	onAddNote: () => void;
 	onAddDate: () => void;
 	onDeleteDates: () => void;
+	onPresent: () => void;
+	onDuplicate: () => void;
+	onExport: () => void;
+	onCopyLink: () => void;
+	onMakeTemplate: () => void;
 	onDelete: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
+	onSort: (direction: SortDirection) => void;
 }
-
-/** Commands the local app can run today; buildItemMenu filters everything else out (M2-88 adds more). */
-const AVAILABLE_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
-	"complete",
-	"add_note",
-	"add_date",
-	"delete_dates",
-	"delete",
-	"expand_all",
-	"collapse_all",
-]);
 
 function footerTimestamp(label: string, unixSeconds: number | null, now: Date) {
 	return (
@@ -216,38 +212,34 @@ export function ItemMenuBody({
 }) {
 	// The body mounts each time the menu opens, so "now" is the moment it opened.
 	const [now] = useState(() => new Date());
-	const entries = buildItemMenu(node, {
-		available: (key) =>
-			AVAILABLE_ITEM_MENU_KEYS.has(key) &&
-			(key !== "delete_dates" || hasDates(node.name ?? "") || hasDates(node.note ?? "")),
-	});
+	const entries = buildItemMenu(
+		node,
+		localItemMenuContext({hasDates: hasDates(node.name ?? "") || hasDates(node.note ?? "")}),
+	);
+	/** Runs the action, then closes the menu (returning false so MenuItem does not keep it open). */
+	const thenClose = (run: () => void) => (): boolean => {
+		run();
+		onClose();
+		return false;
+	};
+	/** Closes the menu first, for actions that move focus or open another surface. */
+	const closeThen = (run: () => void) => (): boolean => {
+		onClose();
+		run();
+		return false;
+	};
 	// Expand all / Collapse all return true so the menu stays open; the rest close it.
 	const select: Partial<Record<ItemMenuKey, () => boolean>> = {
-		complete: () => {
-			actions.onComplete();
-			onClose();
-			return false;
-		},
-		add_note: () => {
-			onClose();
-			actions.onAddNote();
-			return false;
-		},
-		add_date: () => {
-			onClose();
-			actions.onAddDate();
-			return false;
-		},
-		delete_dates: () => {
-			actions.onDeleteDates();
-			onClose();
-			return false;
-		},
-		delete: () => {
-			actions.onDelete();
-			onClose();
-			return false;
-		},
+		complete: thenClose(actions.onComplete),
+		add_note: closeThen(actions.onAddNote),
+		add_date: closeThen(actions.onAddDate),
+		delete_dates: thenClose(actions.onDeleteDates),
+		present_it: closeThen(actions.onPresent),
+		duplicate: thenClose(actions.onDuplicate),
+		show_export: closeThen(actions.onExport),
+		copy_link: thenClose(actions.onCopyLink),
+		make_template: thenClose(actions.onMakeTemplate),
+		delete: thenClose(actions.onDelete),
 		expand_all: () => {
 			actions.onExpandAll();
 			return true;
@@ -256,6 +248,12 @@ export function ItemMenuBody({
 			actions.onCollapseAll();
 			return true;
 		},
+		sort_children_asc: thenClose(() => {
+			actions.onSort("asc");
+		}),
+		sort_children_desc: thenClose(() => {
+			actions.onSort("desc");
+		}),
 	};
 
 	return (
@@ -305,13 +303,7 @@ interface ItemMenuTriggerProps {
 	node: NodeResponse;
 	/** Upstream `--item-menu-left`, from `itemMenuLeft`; omitted on the zoom title, whose CSS pins it at 65px. */
 	left?: string;
-	onComplete: () => void;
-	onAddNote: () => void;
-	onAddDate: () => void;
-	onDeleteDates: () => void;
-	onDelete: () => void;
-	onExpandAll: () => void;
-	onCollapseAll: () => void;
+	actions: ItemMenuActions;
 	onOpenChange: (open: boolean) => void;
 	/** Upstream fa1's controlled open state; omitted, ButtonMenu keeps its own. */
 	expanded?: boolean;
@@ -334,20 +326,7 @@ function blurActiveElement(): void {
  * Upstream's bullet-menu trigger: a ButtonMenu `div.menu.itemMenu` holding the three-dot
  * button. The row mounts it only while hovered or while its menu is open.
  */
-export function ItemMenuTrigger({
-	node,
-	left,
-	onComplete,
-	onAddNote,
-	onAddDate,
-	onDeleteDates,
-	onDelete,
-	onExpandAll,
-	onCollapseAll,
-	onOpenChange,
-	expanded,
-	setExpanded,
-}: ItemMenuTriggerProps) {
+export function ItemMenuTrigger({node, left, actions, onOpenChange, expanded, setExpanded}: ItemMenuTriggerProps) {
 	const [mirrorsModalData, setMirrorsModalData] = useState<MirrorsResponse | null>(null);
 
 	return (
@@ -377,7 +356,7 @@ export function ItemMenuTrigger({
 				}
 			>
 				<ItemMenuBody
-					actions={{onComplete, onAddNote, onAddDate, onDeleteDates, onDelete, onExpandAll, onCollapseAll}}
+					actions={actions}
 					node={node}
 					onClose={blurActiveElement}
 					onShowMirrors={(data) => {

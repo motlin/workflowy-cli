@@ -579,7 +579,6 @@ const moveNodesUndos = new HeldUndos<NodeResponse[], MoveNodesRequest>();
  * in one call (multi-select, drag, Sort). Splices optimistically, then applies the
  * server's sibling lists for every touched parent.
  */
-// fallow-ignore-next-line unused-export -- callers land with Sort (M2-88) and block moves (M2-108)
 export function useMoveNodes() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);

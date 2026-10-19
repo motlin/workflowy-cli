@@ -153,6 +153,34 @@ export function buildItemMenu<N extends ItemMenuNode>(node: N, ctx: ItemMenuCont
 	return entries;
 }
 
+/** Commands the local app runs; buildItemMenu hides the rest. */
+const LOCAL_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
+	"complete",
+	"add_note",
+	"add_date",
+	"delete_dates",
+	"present_it",
+	"duplicate",
+	"show_export",
+	"copy_link",
+	"make_template",
+	"delete",
+	"expand_all",
+	"collapse_all",
+	"sort_children_asc",
+	"sort_children_desc",
+]);
+
+/** The local availability map; Delete dates also needs a date in the name or note. */
+export function localItemMenuContext({hasDates}: {hasDates: boolean}): ItemMenuContext {
+	return {available: (key) => LOCAL_ITEM_MENU_KEYS.has(key) && (key !== "delete_dates" || hasDates)};
+}
+
+/** A node's workflowy.com URL (upstream's internal link), keyed by the last 12 hex digits of its id. */
+export function internalLinkUrl(nodeId: string): string {
+	return `https://workflowy.com/#/${nodeId.replaceAll("-", "").slice(-12)}`;
+}
+
 export function hasFooter(node: Pick<NodeResponse, "modifiedAt">): boolean {
 	return node.modifiedAt !== null;
 }

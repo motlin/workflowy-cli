@@ -17,16 +17,12 @@ import {StarButton, StarIcon} from "./star-button.js";
 import type {LayoutMode} from "./layout-menu.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {stepNav, useNavStackSync} from "../navigation.js";
+import {internalLinkUrl} from "../item-menu-model.js";
 
 /**
  * Top toolbar matching upstream's div.wf-header.header: flat children (hamburger,
  * pagination, breadcrumbs, right cluster), 48px tall, fixed at the top.
  */
-/** The workflowy.com URL of a node, keyed by the last 12 hex digits of its id. */
-export function shareUrl(id: string): string {
-	return `https://workflowy.com/#/${id.replaceAll("-", "").slice(-12)}`;
-}
-
 interface TopBarProps {
 	onUndo: () => void;
 	onRedo: () => void;
@@ -118,7 +114,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 
 	const handleShare = () => {
 		if (zoomedNodeId !== null) {
-			window.open(shareUrl(zoomedNodeId), "_blank", "noopener");
+			window.open(internalLinkUrl(zoomedNodeId), "_blank", "noopener");
 		}
 	};
 

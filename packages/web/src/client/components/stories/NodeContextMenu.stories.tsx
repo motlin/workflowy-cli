@@ -32,9 +32,15 @@ function ItemMenuInline({isCompleted = false, modifiedAt = true}: {isCompleted?:
 						onAddNote: () => {},
 						onAddDate: () => {},
 						onDeleteDates: () => {},
+						onPresent: () => {},
+						onDuplicate: () => {},
+						onExport: () => {},
+						onCopyLink: () => {},
+						onMakeTemplate: () => {},
 						onDelete: () => {},
 						onExpandAll: () => {},
 						onCollapseAll: () => {},
+						onSort: () => {},
 					}}
 					node={node}
 					onClose={() => {}}

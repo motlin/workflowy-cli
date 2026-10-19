@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
-import {planSortMove, sortChildNames} from "../src/client/sort-children.js";
-import type {SortableChild} from "../src/client/sort-children.js";
+import {planSortMove, runSortChildren, sortChildNames} from "../src/client/sort-children.js";
+import type {SortMoveRequest, SortToast, SortableChild} from "../src/client/sort-children.js";
 
 const DATE_A = '<time startYear="2026" startMonth="3" startDay="5">Mar 5</time> later';
 const DATE_B = '<time startYear="2025" startMonth="12" startDay="1">Dec 1</time> earlier';
@@ -56,5 +56,47 @@ describe("planSortMove", () => {
 
 	it("returns null when there are no movable children", () => {
 		expect(planSortMove([child("u", "u", false)], "asc")).toBeNull();
+	});
+});
+
+describe("runSortChildren", () => {
+	function run(direction: "asc" | "desc", children: SortableChild[]) {
+		const moves: SortMoveRequest[] = [];
+		const toasts: SortToast[] = [];
+		runSortChildren({
+			parentId: "p",
+			children,
+			direction,
+			moveNodes: (request) => {
+				moves.push(request);
+			},
+			showToast: (toast) => {
+				toasts.push(toast);
+			},
+		});
+		return {moves, toasts};
+	}
+
+	it("issues one block move and a toast whose Undo moves the previous order back", () => {
+		const {moves, toasts} = run("asc", [child("b", "b"), child("a", "a")]);
+		expect(moves).toStrictEqual([{ids: ["a", "b"], parent_id: "p", index: 0}]);
+		expect(toasts.map(({text, timeout, undoLabel}) => ({text, timeout, undoLabel}))).toStrictEqual([
+			{text: "Sorted A-Z", timeout: 5000, undoLabel: "Undo"},
+		]);
+		toasts[0]?.undo();
+		expect(moves).toStrictEqual([
+			{ids: ["a", "b"], parent_id: "p", index: 0},
+			{ids: ["b", "a"], parent_id: "p", index: 0},
+		]);
+	});
+
+	it("labels the Z-A toast", () => {
+		const {moves, toasts} = run("desc", [child("a", "a"), child("b", "b")]);
+		expect(moves).toStrictEqual([{ids: ["b", "a"], parent_id: "p", index: 0}]);
+		expect(toasts.map((toast) => toast.text)).toStrictEqual(["Sorted Z-A"]);
+	});
+
+	it("does nothing when already sorted", () => {
+		expect(run("asc", [child("a", "a"), child("b", "b")])).toStrictEqual({moves: [], toasts: []});
 	});
 });
