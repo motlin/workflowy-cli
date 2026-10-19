@@ -19,3 +19,10 @@ export {
 	type SwitcherRowInput,
 	type SwitcherRowMatch,
 } from "./switcher-match.js";
+export {
+	resolveJoinedSec,
+	type ResolveJoinedSecInput,
+	staticScore,
+	type StaticScoreInput,
+	textFactor,
+} from "./switcher-rank.js";
