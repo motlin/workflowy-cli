@@ -1,0 +1,168 @@
+import {describe, expect, it} from "vite-plus/test";
+import DatabaseConstructor from "better-sqlite3";
+import {drizzle} from "drizzle-orm/better-sqlite3";
+import {migrate} from "drizzle-orm/better-sqlite3/migrator";
+import {Hono} from "hono";
+import {join} from "node:path";
+import {CacheService} from "@workflowy/shared/cache";
+import * as schema from "@workflowy/shared/db";
+import {nodeContent} from "@workflowy/shared/db";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {mergeFallback, rankTags} from "../src/server/tag-index.js";
+import type {TagCount} from "../src/server/tag-index.js";
+import {createTagIndexRouter} from "../src/server/routes/tag-index.js";
+
+const FIXTURE_NAMES = [
+	"Alpha #taZebra item",
+	"Beta #taZebra #taApple",
+	"Gamma #taApple @taPerson",
+	"Delta #TaZebra upper, #ta:sub:key end",
+	"Numbers #123 #1234 #12a",
+	"Edge (#taParen) #taDot. foo#taNo",
+	"Bold <b>#taBold</b> tag",
+	"Type here",
+];
+
+const FIXTURE_ROWS = FIXTURE_NAMES.map((name) => ({name, note: null}));
+
+function asPairs(tags: TagCount[]): string[] {
+	return tags.map(({tag, count}) => `${tag}:${count}`);
+}
+
+describe("rankTags", () => {
+	it("ranks every tag by count, then non-digit before digit, then plain string order, capped at the limit", () => {
+		expect(asPairs(rankTags(FIXTURE_ROWS, {prefix: "#", limit: 8}))).toStrictEqual([
+			"#taZebra:3",
+			"#taApple:2",
+			"#ta:sub:key:1",
+			"#taBold:1",
+			"#taDot:1",
+			"#taParen:1",
+			"#1234:1",
+			"#12a:1",
+		]);
+	});
+
+	it("matches the prefix case-insensitively", () => {
+		expect(asPairs(rankTags(FIXTURE_ROWS, {prefix: "#taA", limit: 8}))).toStrictEqual(["#taApple:2"]);
+		expect(asPairs(rankTags(FIXTURE_ROWS, {prefix: "#TA", limit: 8}))).toStrictEqual([
+			"#taZebra:3",
+			"#taApple:2",
+			"#ta:sub:key:1",
+			"#taBold:1",
+			"#taDot:1",
+			"#taParen:1",
+		]);
+	});
+
+	it("counts tags in notes and skips #use-template tags", () => {
+		const rows = [
+			{name: "One", note: "#taNote and #use-template:x"},
+			{name: "Two #taNote", note: null},
+		];
+
+		expect(rankTags(rows, {prefix: "#", limit: 8})).toStrictEqual([{tag: "#taNote", count: 2}]);
+	});
+});
+
+describe("mergeFallback", () => {
+	it("fills from the fallback list with tags not already listed", () => {
+		expect(
+			mergeFallback(
+				[{tag: "#a", count: 2}],
+				[
+					{tag: "#a", count: 5},
+					{tag: "#b", count: 1},
+				],
+				8,
+			),
+		).toStrictEqual([
+			{tag: "#a", count: 2},
+			{tag: "#b", count: 1},
+		]);
+	});
+
+	it("stops at the limit", () => {
+		expect(
+			mergeFallback(
+				[{tag: "#a", count: 2}],
+				[
+					{tag: "#b", count: 5},
+					{tag: "#c", count: 1},
+				],
+				2,
+			),
+		).toStrictEqual([
+			{tag: "#a", count: 2},
+			{tag: "#b", count: 5},
+		]);
+	});
+});
+
+/*
+ * root ("TA root #taRoot")
+ *   one per FIXTURE_NAMES entry
+ * outside ("Outside #taOutside #taZebra")
+ * deleted ("Deleted #taGone", no longer live)
+ */
+function setup() {
+	const sqlite = new DatabaseConstructor(":memory:");
+	const db = drizzle(sqlite, {schema});
+	migrate(db, {migrationsFolder: join(import.meta.dirname, "../../shared/src/db/migrations")});
+	const seededAt = "2026-01-01 00:00:00.000";
+	const rows: {id: string; parentId: string | null; name: string; systemTo?: string}[] = [
+		{id: "root", parentId: null, name: "TA root #taRoot"},
+		...FIXTURE_NAMES.map((name, index) => ({id: `child-${index}`, parentId: "root", name})),
+		{id: "outside", parentId: null, name: "Outside #taOutside #taZebra"},
+		{id: "deleted", parentId: "root", name: "Deleted #taGone", systemTo: "2026-02-01 00:00:00.000"},
+	];
+	for (const {id, parentId, name, systemTo = FAR_FUTURE_DATE} of rows) {
+		db.insert(nodeContent).values({id, name, note: null, parentId, systemFrom: seededAt, systemTo}).run();
+	}
+	const ctx = {db, cacheService: new CacheService(db)} as unknown as ServerContext;
+	const app = new Hono<AppEnv>();
+	app.use("*", async (c, next) => {
+		c.set("ctx", ctx);
+		await next();
+	});
+	app.route("/api/v1/tags/autocomplete", createTagIndexRouter());
+	return app;
+}
+
+async function getTags(app: Hono<AppEnv>, query: string): Promise<string[]> {
+	const response = await app.fetch(new Request(`http://x/api/v1/tags/autocomplete?${query}`));
+	expect(response.status).toBe(200);
+	const body = (await response.json()) as {tags: TagCount[]};
+	return asPairs(body.tags);
+}
+
+describe("GET /api/v1/tags/autocomplete", () => {
+	it("ranks the zoomed subtree including the root's own text, without fallback", async () => {
+		await expect(getTags(setup(), "root=root&prefix=%23&limit=8&fallback=0")).resolves.toStrictEqual([
+			"#taZebra:3",
+			"#taApple:2",
+			"#ta:sub:key:1",
+			"#taBold:1",
+			"#taDot:1",
+			"#taParen:1",
+			"#taRoot:1",
+			"#1234:1",
+		]);
+	});
+
+	it("fills from the whole tree when the subtree has fewer than the limit", async () => {
+		await expect(getTags(setup(), "root=root&prefix=%23taZ&limit=8")).resolves.toStrictEqual(["#taZebra:3"]);
+		await expect(getTags(setup(), "root=child-0&prefix=%23ta&limit=3")).resolves.toStrictEqual([
+			"#taZebra:1",
+			"#taApple:2",
+			"#ta:sub:key:1",
+		]);
+	});
+
+	it("ranks the whole live tree at Home", async () => {
+		await expect(getTags(setup(), "prefix=%23taO")).resolves.toStrictEqual(["#taOutside:1"]);
+		await expect(getTags(setup(), "prefix=%23taZ")).resolves.toStrictEqual(["#taZebra:4"]);
+		await expect(getTags(setup(), "prefix=%23taG")).resolves.toStrictEqual([]);
+	});
+});
