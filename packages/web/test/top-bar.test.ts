@@ -38,7 +38,7 @@ vi.mock("../src/client/hooks/use-starred.js", () => ({
 	useStars: () => ({stars: [], unavailable: false}),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
-vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({})}));
+vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({}), useQuery: () => ({data: undefined})}));
 const toggleState = {toggleCompleted: (): void => {}};
 vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
 	useShowCompletedToggle: () => toggleState.toggleCompleted,
@@ -227,7 +227,7 @@ function clusterHtml(html: string): string {
 /** Ordered identifiers of the right-cluster controls. */
 function clusterSequence(html: string): string[] {
 	const tokens = clusterHtml(html).matchAll(
-		/fa-calendar-day|fa-user-plus|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
+		/fa-calendar-day\b|fa-user-plus|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
 	);
 	return [...tokens].map((match) => {
 		if (match[0].startsWith("data-handbook")) {

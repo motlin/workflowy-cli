@@ -1,0 +1,251 @@
+import {useEffect, useRef} from "react";
+import type {CSSProperties, ReactNode, Ref} from "react";
+import type {HelperSelection} from "../search/helper-keys.js";
+import {FaIcon} from "./fa-icons.js";
+import type {FaIconKey} from "./fa-icons.js";
+
+export interface HelperTagLists {
+	hashTags: readonly string[];
+	atTags: readonly string[];
+}
+
+interface HelperValue {
+	label: string;
+	value: string;
+}
+
+export interface HelperSection {
+	name: string;
+	icon: FaIconKey;
+	values: readonly HelperValue[];
+	/** Shown in place of chips (the jump-to hint). */
+	hint: boolean;
+}
+
+function plain(values: readonly string[]): HelperValue[] {
+	return values.map((value) => ({label: value, value}));
+}
+
+const DATE_VALUES = plain([
+	"date:",
+	"date-before:",
+	"date-after:",
+	"day-of-week:",
+	"today",
+	"tomorrow",
+	"yesterday",
+	"this week",
+	"next week",
+	"last week",
+	"this month",
+	"next month",
+	"last month",
+]);
+
+/**
+ * Upstream's `search-box.helpers.*` sections in order, keeping only those with values or a component. `mentioned:`
+ * is collab-only upstream, so the @TAGS section is just the at-tags.
+ */
+// oxlint-disable-next-line react/only-export-components -- SearchBox reads the same section list for its keyboard model
+export function helperSections(tags: HelperTagLists): HelperSection[] {
+	const sections: HelperSection[] = [
+		{name: "jumpTo", icon: "fal:globe", values: [], hint: true},
+		{name: "tags", icon: "fal:hashtag", values: plain(tags.hashTags), hint: false},
+		{name: "mentions", icon: "fal:at", values: plain(tags.atTags), hint: false},
+		{name: "dates", icon: "fal:calendar-days", values: DATE_VALUES, hint: false},
+		{name: "changes", icon: "fal:clock-rotate-left", values: plain(["changed:", "created:"]), hint: false},
+		{
+			name: "changedBy",
+			icon: "fal:users",
+			values: [
+				{label: "me", value: "changed-by:me"},
+				{label: "others", value: "changed-by:others"},
+			],
+			hint: false,
+		},
+		{
+			name: "searchOperators",
+			icon: "fal:ellipsis",
+			values: plain(["is:", "has:", "in:", "text:", "link:", "highlight:"]),
+			hint: false,
+		},
+	];
+	return sections.filter((section) => section.hint || section.values.length > 0);
+}
+
+const FLYOUT_CLASS =
+	"wf-header flex flex-col border border-solid border-primary font-normal text-xs rounded-md bg-primary shadow-md overflow-x-hidden [transition:200ms_opacity] print:hidden absolute flyout menu !-mt-px !px-[5%] !pt-0 !pb-[2px] !bg-primary";
+const FLYOUT_STYLE: CSSProperties = {
+	pointerEvents: "auto",
+	zIndex: 300,
+	minWidth: "100%",
+	maxWidth: "100%",
+	margin: 0,
+	maxHeight: 280,
+	overflowY: "auto",
+	left: "50%",
+	top: "100%",
+	transform: "scale(1,1) translateX(-50%)",
+	borderTop: "none",
+	boxShadow: "none",
+	borderRadius: "0 0 16px 16px",
+	boxSizing: "border-box",
+	opacity: 1,
+};
+const TAB_ROW_CLASS = "relative py-s shrink-0 flex justify-around overflow-hidden";
+const TAB_ROW_SELECTED_CLASS = `${TAB_ROW_CLASS} after:content-[''] after:absolute after:z-1 after:top-full after:left-0 after:right-0 after:bottom-0 after:h-px after:-mt-px after:bg-header-border`;
+const TAB_CLASS = "py-2xs px-ml rounded-[16px]";
+const CHIP_CLASS =
+	"pl-l py-xs pr-l block !no-underline cursor-pointer whitespace-nowrap leading-base border-solid border-primary text-primary hover:bg-secondary menuItem !py-0 !px-s !flex text-xs rounded-[16px] [&_span]:whitespace-nowrap [&_span]:text-ellipsis [&_span]:overflow-hidden";
+
+/** Upstream's `useDelayedMouseEnter`: the first hover waits 100ms, later ones are instant until the flyout is left. */
+const FIRST_HOVER_DELAY_MS = 100;
+
+export interface SearchHelpersProps {
+	query: string;
+	focused: boolean;
+	autocompletePopulated: boolean;
+	tags: HelperTagLists;
+	selection: HelperSelection;
+	onHoverTab: (tab: number) => void;
+	onInsert: (value: string) => void;
+	/** The jump-menu shortcut named in the hint (`ctrl+k` off mac). */
+	jumpKey?: string;
+	flyoutRef?: Ref<HTMLDivElement>;
+}
+
+function JumpHint({jumpKey}: {jumpKey: string}) {
+	return (
+		<div className="pt-[5px] pb-[3px] text-[12px] leading-[16px] text-center">
+			For the jump to-menu, hit <span className="px-2xs rounded-xs">enter</span> now, <br /> or{" "}
+			<span className="px-2xs rounded-xs">{jumpKey}</span> from anywhere.
+		</div>
+	);
+}
+
+function Chips({
+	values,
+	chip,
+	onInsert,
+}: {
+	values: readonly HelperValue[];
+	chip: number;
+	onInsert: (value: string) => void;
+}) {
+	return (
+		<div className="shrink-0 h-auto flex overflow-hidden [&:not(:last-child)]:mb-ml">
+			<div className="relative min-w-0 flex flex-row flex-wrap items-center">
+				{values.map(({label, value}, index) => (
+					<div className="min-w-0 py-xs px-px" key={value}>
+						{/* oxlint-disable-next-line jsx-a11y/anchor-is-valid, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's chips are href-less anchors driven from the search input's keys */}
+						<a
+							className={`${CHIP_CLASS} ${index === chip ? "!bg-secondary active" : "!text-on-surface !bg-transparent"} canHover`}
+							style={{height: 20}}
+							onClick={() => {
+								onInsert(value);
+							}}
+						>
+							<span className="relative flex justify-between items-center">
+								<span className="grow flex items-center gap-m whitespace-nowrap text-ellipsis overflow-hidden desktop:text-xs">
+									{label}
+								</span>
+							</span>
+						</a>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Upstream's search helper flyout (`Mv4`): a row of icon tabs under the focused search pill whose panels hold the
+ * jump-to hint or value chips that edit and commit the query. Selection state lives in `SearchBox`, which owns the
+ * input's keys.
+ */
+export function SearchHelpers({
+	query,
+	focused,
+	autocompletePopulated,
+	tags,
+	selection,
+	onHoverTab,
+	onInsert,
+	jumpKey = "meta+k",
+	flyoutRef,
+}: SearchHelpersProps) {
+	const sections = helperSections(tags);
+	const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const hoverDelay = useRef(FIRST_HOVER_DELAY_MS);
+	useEffect(
+		() => () => {
+			if (hoverTimer.current !== null) {
+				clearTimeout(hoverTimer.current);
+			}
+		},
+		[],
+	);
+
+	const cancelHover = () => {
+		if (hoverTimer.current !== null) {
+			clearTimeout(hoverTimer.current);
+			hoverTimer.current = null;
+		}
+	};
+	const hoverTab = (tab: number) => {
+		cancelHover();
+		hoverTimer.current = setTimeout(() => {
+			hoverTimer.current = null;
+			hoverDelay.current = 0;
+			onHoverTab(tab);
+		}, hoverDelay.current);
+	};
+
+	const selected = sections[selection.tab];
+	let panel: ReactNode = null;
+	if (selected?.hint === true) {
+		panel = <JumpHint jumpKey={jumpKey} />;
+	} else if (selected !== undefined) {
+		panel = <Chips values={selected.values} chip={selection.chip} onInsert={onInsert} />;
+	}
+	const border = query === "" ? "!border-primary" : "!border-[var(--wf-border-tint)]";
+
+	return (
+		<div className={focused && !autocompletePopulated ? "" : "hidden"}>
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mousedown only keeps focus in the search input */}
+			<div
+				className={`${FLYOUT_CLASS} ${border}`}
+				style={FLYOUT_STYLE}
+				ref={flyoutRef}
+				onMouseDown={(event) => {
+					event.preventDefault();
+				}}
+				onMouseLeave={() => {
+					cancelHover();
+					hoverDelay.current = FIRST_HOVER_DELAY_MS;
+				}}
+			>
+				<div className={selected === undefined ? TAB_ROW_CLASS : TAB_ROW_SELECTED_CLASS}>
+					{sections.map((section, index) => (
+						// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hover-only tab, keyboard goes through the search input
+						<div
+							key={section.name}
+							className={
+								index === selection.tab
+									? `${TAB_CLASS} !bg-secondary`
+									: `${TAB_CLASS} !text-on-surface !bg-transparent`
+							}
+							onMouseEnter={() => {
+								hoverTab(index);
+							}}
+							onMouseLeave={cancelHover}
+						>
+							<FaIcon icon={section.icon} size="sm" />
+						</div>
+					))}
+				</div>
+				<div>{panel}</div>
+			</div>
+		</div>
+	);
+}

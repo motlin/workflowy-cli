@@ -1045,6 +1045,107 @@ body {
 	cursor: pointer;
 }
 
+/* Upstream search helper flyout (Mv4) under the focused pill; computed values pinned from upstream at 1272px.
+   The tab row's ::after underline is not drawn: upstream's bg-header-border has no shipped rule. */
+.searchBox .flyout {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	padding: 0 5% 2px;
+	margin-top: -1px;
+	background: var(--wf-background-primary);
+	border: 1px solid var(--wf-border-primary);
+	border-top: none;
+	border-radius: 0 0 16px 16px;
+	font-size: 0.79rem;
+	font-weight: normal;
+	color: var(--wf-text-primary);
+	max-height: 280px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	z-index: 300;
+}
+
+.searchBox .flyout.\!border-\[var\(--wf-border-tint\)\] {
+	border-color: var(--wf-border-tint);
+}
+
+.searchBox .flyout .justify-around {
+	position: relative;
+	display: flex;
+	flex-shrink: 0;
+	justify-content: space-around;
+	padding: 0.375rem 0;
+	overflow: hidden;
+}
+
+.searchBox .flyout .px-ml {
+	padding: 0.125rem 0.75rem;
+	border-radius: 16px;
+	color: var(--wf-text-primary);
+	background: transparent;
+}
+
+.searchBox .flyout .\!bg-secondary {
+	background: var(--wf-background-secondary);
+}
+
+.searchBox .flyout .fa-sm {
+	width: 0.875em;
+	height: 0.875em;
+}
+
+.searchBox .flyout .flex-wrap {
+	position: relative;
+	display: flex;
+	flex-flow: row wrap;
+	align-items: center;
+	min-width: 0;
+}
+
+.searchBox .flyout .py-xs.px-px {
+	min-width: 0;
+	padding: 0.25rem 1px;
+}
+
+.searchBox .flyout .menuItem {
+	display: flex;
+	box-sizing: border-box;
+	height: 20px;
+	padding: 0 0.375rem;
+	border-radius: 16px;
+	font-size: 0.79rem;
+	line-height: 1.5;
+	white-space: nowrap;
+	text-decoration: none;
+	cursor: pointer;
+	color: var(--wf-text-primary);
+	background: transparent;
+}
+
+.searchBox .flyout .menuItem.canHover:hover,
+.searchBox .flyout .menuItem.active {
+	background: var(--wf-background-secondary);
+}
+
+.searchBox .flyout .menuItem span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.searchBox .flyout .text-center {
+	padding: 5px 0 3px;
+	font-size: 12px;
+	line-height: 16px;
+	text-align: center;
+}
+
+.searchBox .flyout .rounded-xs {
+	padding: 0 0.125rem;
+	border-radius: 0.125rem;
+}
+
 /* Outline view container - upstream's .page with full_width_page on: no max-width, 72px top
    margin, and tl2()'s side padding (80px/136px, or 56px/56px below 720px). */
 .outline-view {

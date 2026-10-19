@@ -103,6 +103,11 @@ describe("FA_ICONS", () => {
 			"fal:arrow-down",
 			"fal:eye",
 			"fal:eye-slash",
+			"fal:globe",
+			"fal:hashtag",
+			"fal:at",
+			"fal:clock-rotate-left",
+			"fal:users",
 		]);
 	});
 

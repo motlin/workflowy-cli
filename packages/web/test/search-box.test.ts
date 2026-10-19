@@ -19,6 +19,7 @@ vi.mock("react-router-dom", () => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
 	useQueryClient: () => ({}),
+	useQuery: () => ({data: undefined}),
 }));
 vi.mock("../src/client/hooks/use-media-query.js", () => ({
 	useMediaQuery: () => media.wide,

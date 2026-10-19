@@ -1,11 +1,18 @@
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
-import {useQueryClient} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useNavigate} from "react-router-dom";
+import {isMacPlatform} from "../editable-text-keys.js";
 import {useMediaQuery} from "../hooks/use-media-query.js";
 import {focusOutline} from "../hooks/use-search-escape.js";
+import {readJson} from "../read-json.js";
 import {createSearchBoxController} from "../search-box-model.js";
+import {insertHelperValue} from "../search/helper-insert.js";
+import {HELPER_NAV_KEYS, NO_HELPER_SELECTION, helperKeyReducer} from "../search/helper-keys.js";
+import type {HelperSelection} from "../search/helper-keys.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {SearchHelpers, helperSections} from "./search-helpers.js";
+import type {HelperTagLists} from "./search-helpers.js";
 import {Tooltip} from "./tooltip.js";
 
 const LABEL_CLASS = "relative shrink-0 max-w-[60vw] transition-[width] duration-300 ease-base searchBox";
@@ -20,6 +27,24 @@ const MAGNIFIER_PATH =
 	"M384 208A176 176 0 1 0 32 208a176 176 0 1 0 352 0zM343.3 366C307 397.2 259.7 416 208 416C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208c0 51.7-18.8 99-50 135.3L507.3 484.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L343.3 366z";
 const CLEAR_PATH =
 	"M14 7C14 10.866 10.8662 14 7 14C3.13379 14 0 10.866 0 7C0 3.134 3.13379 0 7 0C10.8662 0 14 3.134 14 7ZM5.03027 3.96967C4.7373 3.67679 4.2627 3.67679 3.96973 3.96967C3.67676 4.26257 3.67676 4.73743 3.96973 5.03033L5.93945 7L3.96973 8.96967C3.67676 9.26257 3.67676 9.73743 3.96973 10.0303C4.2627 10.3232 4.7373 10.3232 5.03027 10.0303L7 8.06067L8.96973 10.0303C9.2627 10.3232 9.7373 10.3232 10.0303 10.0303C10.3232 9.73743 10.3232 9.26257 10.0303 8.96967L8.06055 7L10.0303 5.03033C10.3232 4.73743 10.3232 4.26257 10.0303 3.96967C9.7373 3.67679 9.2627 3.67679 8.96973 3.96967L7 5.93933L5.03027 3.96967Z";
+
+const NO_HELPER_TAGS: HelperTagLists = {hashTags: [], atTags: []};
+const HELPER_SELECT_KEYS: ReadonlySet<string> = new Set(["Enter", "Tab", " "]);
+
+async function fetchHelperTags(rootId: string | null): Promise<HelperTagLists> {
+	const response = await fetch(`/api/search/helpers?rootId=${encodeURIComponent(rootId ?? "")}`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch search helpers: ${response.statusText}`);
+	}
+	return readJson<HelperTagLists>(response);
+}
+
+/** The visual row of each value chip in the open helper panel, grouped by their rendered top edge. */
+function chipRows(flyout: HTMLElement | null): number[] {
+	const tops = [...(flyout?.querySelectorAll<HTMLElement>("a.menuItem") ?? [])].map((chip) => chip.offsetTop);
+	const distinct = [...new Set(tops)];
+	return tops.map((top) => distinct.indexOf(top));
+}
 
 function borderStyle(color: string): CSSProperties {
 	const side = `var(--wf-border-width-s) solid ${color}`;
@@ -50,6 +75,66 @@ export function SearchBox() {
 	useEffect(() => controller.dispose, [controller]);
 	const wide = useMediaQuery("(min-width: 1000px)");
 	const [armed, setArmed] = useState(false);
+	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
+	const {data: helperTags = NO_HELPER_TAGS} = useQuery({
+		queryKey: ["search-helpers", zoomedNodeId],
+		queryFn: async () => fetchHelperTags(zoomedNodeId),
+		enabled: focused,
+	});
+	const [helper, setHelper] = useState<HelperSelection>(NO_HELPER_SELECTION);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const flyoutRef = useRef<HTMLDivElement>(null);
+	const autocompletePopulated = false;
+	const helperVisible = focused && !autocompletePopulated;
+	const sections = helperSections(helperTags);
+	const jumpTabSelected = helperVisible && sections[helper.tab]?.hint === true;
+
+	useEffect(() => {
+		if (!helperVisible) {
+			return () => {};
+		}
+		const reset = () => {
+			setHelper(NO_HELPER_SELECTION);
+		};
+		window.addEventListener("click", reset);
+		return () => {
+			window.removeEventListener("click", reset);
+		};
+	}, [helperVisible]);
+
+	// Upstream's jump-to tab: Enter opens the jump menu and ArrowDown is swallowed, ahead of every other handler.
+	useEffect(() => {
+		if (!jumpTabSelected) {
+			return () => {};
+		}
+		const onKeyDown = (event: globalThis.KeyboardEvent) => {
+			if (event.key !== "Enter" && event.key !== "ArrowDown") {
+				return;
+			}
+			event.stopImmediatePropagation();
+			event.preventDefault();
+			if (event.key === "Enter") {
+				useOutlineStore.getState().openJumpMenu();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown, true);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown, true);
+		};
+	}, [jumpTabSelected]);
+
+	const insertHelper = (value: string) => {
+		const input = inputRef.current;
+		const result = insertHelperValue(searchInput, input?.selectionStart ?? searchInput.length, value);
+		// Write the DOM value first so React's controlled update leaves the caret where it is placed here.
+		if (input !== null) {
+			input.value = result.query;
+			input.setSelectionRange(result.caret, result.caret);
+		}
+		setSearchInput(result.query);
+		controller.dispose();
+		useOutlineStore.getState().commitSearch(result.query, navigate);
+	};
 
 	const hasText = searchInput !== "";
 	const collapsed = !wide && !focused && !hasText;
@@ -70,7 +155,32 @@ export function SearchBox() {
 			: {}),
 	};
 
+	const handleHelperKey = (event: KeyboardEvent<HTMLInputElement>): boolean => {
+		if (!helperVisible) {
+			return false;
+		}
+		const values = sections[helper.tab]?.values ?? [];
+		const chip = values[helper.chip];
+		if (chip !== undefined && HELPER_SELECT_KEYS.has(event.key)) {
+			event.preventDefault();
+			insertHelper(chip.value);
+			return true;
+		}
+		const ctrlKey = event.ctrlKey && !event.metaKey && !event.altKey;
+		const key =
+			ctrlKey && event.key === "p" ? "ArrowLeft" : ctrlKey && event.key === "n" ? "ArrowRight" : event.key;
+		if (!HELPER_NAV_KEYS.has(key) || (helper.tab === -1 && key !== "ArrowDown")) {
+			return false;
+		}
+		event.preventDefault();
+		setHelper(helperKeyReducer(helper, key, {tabCount: sections.length, chipRows: chipRows(flyoutRef.current)}));
+		return true;
+	};
+
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (handleHelperKey(event)) {
+			return;
+		}
 		const result = controller.key(event.key, searchInput);
 		if (result.preventDefault) {
 			event.preventDefault();
@@ -84,7 +194,19 @@ export function SearchBox() {
 		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- upstream's bare label wraps the input; its placeholder names it
 		<label className={collapsed ? `${LABEL_CLASS} hover:!bg-tertiary` : LABEL_CLASS} style={labelStyle}>
 			<div className={focused ? FOCUSED_INNER_CLASS : "flex items-center "} style={innerStyle}>
-				<div className="hidden" />
+				<SearchHelpers
+					query={searchInput}
+					focused={focused}
+					autocompletePopulated={autocompletePopulated}
+					tags={helperTags}
+					selection={helper}
+					onHoverTab={(tab) => {
+						setHelper({tab, chip: -1});
+					}}
+					onInsert={insertHelper}
+					jumpKey={isMacPlatform() ? "meta+k" : "ctrl+k"}
+					flyoutRef={flyoutRef}
+				/>
 				<input
 					autoComplete="off"
 					autoCorrect="off"
@@ -98,6 +220,7 @@ export function SearchBox() {
 					data-handbook="search.search"
 					id="srch-input"
 					onBlur={() => {
+						setHelper(NO_HELPER_SELECTION);
 						setSearchFocused(false);
 					}}
 					onChange={(event) => {
@@ -106,10 +229,13 @@ export function SearchBox() {
 					}}
 					onFocus={() => {
 						setArmed(true);
+						setHelper(NO_HELPER_SELECTION);
+						void queryClient.invalidateQueries({queryKey: ["search-helpers"]});
 						setSearchFocused(true);
 					}}
 					onKeyDown={handleKeyDown}
 					placeholder="Search"
+					ref={inputRef}
 					readOnly={!armed}
 					type="text"
 					value={searchInput}
