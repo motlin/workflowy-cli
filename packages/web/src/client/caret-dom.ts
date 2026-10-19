@@ -86,11 +86,23 @@ function rawIndex(text: string, units: number): number | null {
 	return null;
 }
 
-/** Collapse the selection to `offset` plain-text units into `element`, clamped to its end. */
-export function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
-	const range = document.createRange();
+/** Plain-text offset of `offset` units into node `nodeIndex`, given each node's unit length. */
+export function offsetsFromPath(textLengths: readonly number[], nodeIndex: number, offset: number): number {
+	let total = offset;
+	for (const length of textLengths.slice(0, nodeIndex)) {
+		total += length;
+	}
+	return total;
+}
+
+/** Orders a possibly reversed (focus before anchor) pair of offsets. */
+export function orderOffsets(anchor: number, focus: number): {start: number; end: number} {
+	return {start: Math.min(anchor, focus), end: Math.max(anchor, focus)};
+}
+
+/** Sets `range`'s start at `offset` plain-text units into `element`; false past its end. */
+function setStartAtTextOffset(range: Range, element: HTMLElement, offset: number): boolean {
 	let remaining = offset;
-	// Sets the range start at the target unit; true once placed.
 	const visit = (node: Node): boolean => {
 		for (const child of node.childNodes) {
 			if (isPill(child)) {
@@ -117,12 +129,34 @@ export function placeCaretAtTextOffset(element: HTMLElement, offset: number): vo
 		}
 		return false;
 	};
-	const placed = visit(element);
+	return visit(element);
+}
+
+/** A collapsed range at `offset` plain-text units into `element`, clamped to its end. */
+function rangeAtTextOffset(element: HTMLElement, offset: number): Range {
+	const range = document.createRange();
+	const placed = setStartAtTextOffset(range, element, offset);
 	if (!placed) {
 		range.selectNodeContents(element);
 	}
 	range.collapse(placed);
+	return range;
+}
+
+/** Select plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
+function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number): void {
+	const ordered = orderOffsets(start, end);
+	const range = rangeAtTextOffset(element, ordered.start);
+	if (ordered.end !== ordered.start) {
+		const endBoundary = rangeAtTextOffset(element, ordered.end);
+		range.setEnd(endBoundary.endContainer, endBoundary.endOffset);
+	}
 	const selection = globalThis.getSelection();
 	selection?.removeAllRanges();
 	selection?.addRange(range);
+}
+
+/** Collapse the selection to `offset` plain-text units into `element`, clamped to its end. */
+export function placeCaretAtTextOffset(element: HTMLElement, offset: number): void {
+	placeSelectionAtTextOffsets(element, offset, offset);
 }
