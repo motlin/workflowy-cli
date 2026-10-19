@@ -11,10 +11,11 @@ import {GearMenu} from "./gear-menu.js";
 import type {GearMenuHeaderItem} from "./gear-menu.js";
 import {useMediaQuery} from "../hooks/use-media-query.js";
 import {IconButton} from "./icon-button.js";
-import {LayoutMenu} from "./layout-menu.js";
+import {ItemTypePicker} from "./layout-menu.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton, StarIcon} from "./star-button.js";
-import type {LayoutMode} from "./layout-menu.js";
+import {ITEM_TYPES} from "../layout-types.js";
+import type {ItemType} from "../layout-types.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {stepNav, useNavStackSync} from "../navigation.js";
 import {internalLinkUrl} from "../item-menu-model.js";
@@ -39,7 +40,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const canGoForward = useOutlineStore((state) => state.nav.forward.length > 0);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
-	const [layoutMenuPosition, setLayoutMenuPosition] = useState({top: 0, right: 0});
+	const [layoutMenuPosition, setLayoutMenuPosition] = useState({top: 0, left: 0});
 	const menuRef = useRef<HTMLDivElement>(null);
 	const layoutButtonRef = useRef<HTMLDivElement>(null);
 	const updateNodeMutation = useUpdateNode();
@@ -79,26 +80,24 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		openPresentation(zoomedNodeId ?? "root");
 	};
 
-	const handleLayoutToggle = (anchor: Element | null) => {
-		if (!layoutMenuOpen && anchor) {
+	// Upstream: showItemTypePicker at {top: rect.bottom + 4, left: rect.left}; the picker centers itself there.
+	const handleLayoutOpen = (anchor: Element | null) => {
+		if (anchor) {
 			const rect = anchor.getBoundingClientRect();
-			setLayoutMenuPosition({
-				top: rect.bottom + 4,
-				right: window.innerWidth - rect.right,
-			});
+			setLayoutMenuPosition({top: rect.bottom + 4, left: rect.left});
 		}
-		setLayoutMenuOpen((prev) => !prev);
+		setLayoutMenuOpen(true);
 	};
 
 	const handleLayoutClose = () => {
 		setLayoutMenuOpen(false);
 	};
 
-	const handleLayoutSelect = (layout: LayoutMode) => {
+	const handleLayoutSelect = (type: ItemType) => {
 		if (zoomedNodeId !== null) {
 			updateNodeMutation.mutate({
 				nodeId: zoomedNodeId,
-				layoutMode: layout,
+				layoutMode: type.layoutModeKey,
 			});
 		}
 	};
@@ -151,18 +150,18 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 				icon: <FaIcon icon="fal:list-ul" />,
 				// The menu item has no element of its own, so anchor under the kebab like upstream.
 				onSelect: () => {
-					handleLayoutToggle(document.querySelector(".wf-header .gearMenu"));
+					handleLayoutOpen(document.querySelector(".wf-header .gearMenu"));
 				},
 			},
 		);
 	}
 
 	const layoutMenu = layoutMenuOpen && (
-		<LayoutMenu
-			currentLayout={null}
+		<ItemTypePicker
 			onClose={handleLayoutClose}
 			onSelect={handleLayoutSelect}
 			position={layoutMenuPosition}
+			types={ITEM_TYPES}
 		/>
 	);
 
@@ -252,7 +251,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 								aria-haspopup="true"
 								data-handbook="bullet.layout"
 								onClick={() => {
-									handleLayoutToggle(layoutButtonRef.current);
+									handleLayoutOpen(layoutButtonRef.current);
 								}}
 								tooltip="Change layout"
 							>

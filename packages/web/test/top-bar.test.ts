@@ -77,7 +77,7 @@ vi.mock("../src/client/components/gear-menu.js", () => ({
 		return null;
 	},
 }));
-vi.mock("../src/client/components/layout-menu.js", () => ({LayoutMenu: () => null}));
+vi.mock("../src/client/components/layout-menu.js", () => ({ItemTypePicker: () => null}));
 
 /** Props of every IconButton rendered, keyed by data-handbook. */
 type IconButtonProps = Parameters<typeof IconButtonModule.IconButton>[0];

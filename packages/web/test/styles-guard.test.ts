@@ -267,3 +267,9 @@ describe("left bar styles guard", () => {
 		}).toStrictEqual({header: [], item: [], label: 1});
 	});
 });
+
+describe("item type picker styles guard", () => {
+	it("drops the old local .layout-menu rules", () => {
+		expect(hasSelector(styles, /\.layout-menu\b/u)).toBe(false);
+	});
+});

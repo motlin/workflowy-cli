@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {createElement} from "react";
+import {Fragment, createElement} from "react";
 import type {ReactNode} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {MenuBody, menuMaxHeight} from "../src/client/components/flyout/menu.js";
@@ -37,6 +37,12 @@ describe("menuMaxHeight", () => {
 });
 
 describe("MenuBody scroller", () => {
+	it("renders a Fragment child (upstream item-type picker) as-is, without treating it as a row", () => {
+		expect(render({}, createElement(Fragment, {key: "f"}, plain))).toBe(
+			`<div style="--menu-max-h:calc(100vh - 50px)" class="${scrollerClass("")}"><div>x</div></div>`,
+		);
+	});
+
 	it("renders maxHeight 700 as px", () => {
 		expect(render({maxHeight: 700}, plain)).toBe(
 			`<div style="--menu-max-h:700px" class="${scrollerClass("")}"><div>x</div></div>`,

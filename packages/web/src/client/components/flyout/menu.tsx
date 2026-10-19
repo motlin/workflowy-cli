@@ -7,7 +7,7 @@ import type {MenuFocusKey, MenuFocusStep, MenuKeyboardState} from "./menu-keyboa
 type MenuItemElement = ReactElement<MenuItemProps>;
 
 function isMenuItem(node: ReactNode): node is MenuItemElement {
-	if (!isValidElement(node) || typeof node.type === "string") {
+	if (!isValidElement(node) || typeof node.type !== "function") {
 		return false;
 	}
 	return "componentType" in node.type && node.type.componentType === "menuItem";
