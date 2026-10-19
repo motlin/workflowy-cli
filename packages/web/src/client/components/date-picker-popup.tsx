@@ -10,6 +10,7 @@ import {IconButton} from "./icon-button.js";
 import {CALENDAR_KEYS, nextCalendarFocus} from "./date-picker-keyboard.js";
 import type {CalendarFocusTarget} from "./date-picker-keyboard.js";
 import type {DatePreset} from "@workflowy/shared";
+import type {CalendarMonth} from "../hooks/use-calendar-event-days.js";
 
 export type DatePickerView = "DATE" | "MONTH" | "YEAR";
 
@@ -27,6 +28,8 @@ export interface DatePickerPopupProps {
 	position?: {left: number; top: number};
 	/** Whether a day has journal content under 📆 Calendar; draws the single-mode event dot (DP10). */
 	hasEvent?: (date: Date) => boolean;
+	/** The DATE grid's month on open and after each offset change, so the caller can load its event days. */
+	onVisibleMonthChange?: (visible: CalendarMonth) => void;
 	onTermChange?: (term: string) => void;
 	/** Enter in the date input (upstream `apply(state.date, true)`). */
 	onEnter?: () => void;
@@ -405,6 +408,7 @@ function Calendar({
 	initialView,
 	renderDayContent,
 	onApply,
+	onVisibleMonthChange,
 }: {
 	selected: Date[];
 	weekStartDay: number;
@@ -412,6 +416,7 @@ function Calendar({
 	initialView: DatePickerView;
 	renderDayContent: DayContent;
 	onApply: (dates: Date[]) => void;
+	onVisibleMonthChange?: ((visible: CalendarMonth) => void) | undefined;
 }) {
 	const [view, setView] = useState<DatePickerView>(initialView);
 	const scope = useRef<HTMLDivElement>(null);
@@ -441,6 +446,11 @@ function Calendar({
 			setOffsetDate(anchor);
 		}
 	}
+	const visibleYear = offsetDate.getFullYear();
+	const visibleMonth = offsetDate.getMonth() + 1;
+	useEffect(() => {
+		onVisibleMonthChange?.({year: visibleYear, month: visibleMonth});
+	}, [onVisibleMonthChange, visibleYear, visibleMonth]);
 	const datepicker = useDatePicker({
 		selectedDates: selected,
 		onDatesChange: () => {},
@@ -513,6 +523,7 @@ export function DatePickerPopup({
 	initialView = "DATE",
 	position,
 	hasEvent = noEvents,
+	onVisibleMonthChange,
 	onTermChange,
 	onEnter,
 	onApply = ignoreDates,
@@ -584,6 +595,7 @@ export function DatePickerPopup({
 					initialView={initialView}
 					renderDayContent={dottedDayContent(hasEvent)}
 					onApply={onApply}
+					onVisibleMonthChange={onVisibleMonthChange}
 				/>
 				<MenuSeparator style={{margin: 0}} />
 				<MenuItem

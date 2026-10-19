@@ -3,6 +3,8 @@
  * workflowy.com recognises them (deterministic ids and calendar metadata).
  *
  * `GET /api/v1/calendar/day/:dateId` -> 200 `{id}` / 404 (read-only lookup).
+ * `GET /api/v1/calendar/days?year=&month=` -> 200 `{days}`: the month's days with
+ * journal content, for the date picker's event dots.
  * `POST /api/v1/calendar/day/:dateId/ensure` -> 200 `{dayId, firstChildId, created}`,
  * or 403 when `CALENDAR_ENSURE_ENABLED=false`.
  */
@@ -10,16 +12,43 @@
 import {CalendarRootMissing, parseDateId} from "@workflowy/shared/internal";
 import {Hono} from "hono";
 import {findCalendarDay} from "../calendar-day.js";
-import type {AppEnv} from "../context.js";
+import type {CalendarDayDeps} from "../calendar-day.js";
+import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
 const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLED=false)";
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
+const INVALID_MONTH = "year and month must be a calendar year and a 1-12 month";
 
 /** A `YYYYMMDD` path segment as a real calendar day's dateId, else undefined. */
 function dayDateId(raw: string): number | undefined {
 	const dateId = Number(raw);
 	return /^\d{8}$/u.test(raw) && parseDateId(dateId) !== undefined ? dateId : undefined;
+}
+
+/** A query parameter as an integer in `[min, max]`, else undefined. */
+function intParam(raw: string | undefined, min: number, max: number): number | undefined {
+	const value = Number(raw);
+	return raw !== undefined && /^\d+$/u.test(raw) && value >= min && value <= max ? value : undefined;
+}
+
+/** The lookup deps, with the account entropy key when the internal API can supply it. */
+async function calendarDayDeps(ctx: ServerContext): Promise<CalendarDayDeps> {
+	try {
+		const entropyKey = await ctx.internalAdapter?.()?.getEntropyKey();
+		return {db: ctx.db, cache: ctx.cacheService, ...(entropyKey === undefined ? {} : {entropyKey})};
+	} catch (error) {
+		// The metadata and name lookups still find most days without it.
+		console.error("Failed to read the account entropy key", error);
+		return {db: ctx.db, cache: ctx.cacheService};
+	}
+}
+
+/** Upstream's event-dot test: two or more children, or a first child with a name or a note. */
+function hasJournalContent(deps: CalendarDayDeps, dayId: string): boolean {
+	const children = deps.cache.getChildren(dayId);
+	const [first] = children;
+	return children.length >= 2 || Boolean(first?.name) || Boolean(first?.note);
 }
 
 export function createCalendarRouter(): Hono<AppEnv> {
@@ -30,19 +59,23 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		if (dateId === undefined) {
 			return c.json({error: INVALID_DATE_ID}, 400);
 		}
-		const ctx = c.get("ctx");
-		let entropyKey: string | undefined;
-		try {
-			entropyKey = await ctx.internalAdapter?.()?.getEntropyKey();
-		} catch (error) {
-			// The metadata and name lookups still find most days without it.
-			console.error("Failed to read the account entropy key", error);
-		}
-		const id = findCalendarDay(
-			{db: ctx.db, cache: ctx.cacheService, ...(entropyKey === undefined ? {} : {entropyKey})},
-			dateId,
-		);
+		const id = findCalendarDay(await calendarDayDeps(c.get("ctx")), dateId);
 		return id === null ? c.json({error: "Calendar day not found"}, 404) : c.json({id});
+	});
+
+	router.get("/days", async (c) => {
+		const year = intParam(c.req.query("year"), 1, 9999);
+		const month = intParam(c.req.query("month"), 1, 12);
+		if (year === undefined || month === undefined) {
+			return c.json({error: INVALID_MONTH}, 400);
+		}
+		const deps = await calendarDayDeps(c.get("ctx"));
+		const length = new Date(Date.UTC(year, month, 0)).getUTCDate();
+		const days = Array.from({length}, (_, index) => index + 1).filter((day) => {
+			const id = findCalendarDay(deps, year * 10_000 + month * 100 + day);
+			return id !== null && hasJournalContent(deps, id);
+		});
+		return c.json({days});
 	});
 
 	router.post("/day/:dateId/ensure", async (c) => {

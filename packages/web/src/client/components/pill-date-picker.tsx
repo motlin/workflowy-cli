@@ -6,6 +6,7 @@ import type {DatePreset, TimeAttrs} from "@workflowy/shared";
 import {timeAttrsFromDates} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
 import {DatePickerPopup} from "./date-picker-popup.js";
 
 interface OpenPill {
@@ -32,6 +33,7 @@ export function usePillDatePicker({dateSettings, onChange}: PillDatePickerOption
 } {
 	const [picker, setPicker] = useState<OpenPill | null>(null);
 	const openSettings = useOutlineStore((state) => state.openSettings);
+	const eventDays = useCalendarEventDays();
 
 	const open = useCallback((pill: Element, pillIndex: number) => {
 		const rect = pill.getBoundingClientRect();
@@ -61,6 +63,8 @@ export function usePillDatePicker({dateSettings, onChange}: PillDatePickerOption
 			<DatePickerPopup
 				selected={guess}
 				weekStartDay={dateSettings.weekStartDay}
+				hasEvent={eventDays.hasEvent}
+				onVisibleMonthChange={eventDays.onVisibleMonthChange}
 				isRange={picker.isRange}
 				showNoDate
 				term={picker.term}

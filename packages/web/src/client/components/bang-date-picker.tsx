@@ -7,6 +7,7 @@ import {caretTextOffset} from "../caret-dom.js";
 import {shouldTriggerDatePopup, timeAttrsFromDates} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
 import {DatePickerPopup} from "./date-picker-popup.js";
 
 const TRIGGER_INPUT_TYPES = new Set(["insertText", "insertCompositionText"]);
@@ -77,6 +78,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 	// The open picker for close callbacks that can fire twice (a preset row selects, then the menu exits).
 	const openRef = useRef<OpenPicker | null>(null);
 	const openSettings = useOutlineStore((state) => state.openSettings);
+	const eventDays = useCalendarEventDays();
 
 	const handleInput = useCallback(
 		(native: Event) => {
@@ -140,6 +142,8 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 					<DatePickerPopup
 						selected={guess}
 						weekStartDay={dateSettings.weekStartDay}
+						hasEvent={eventDays.hasEvent}
+						onVisibleMonthChange={eventDays.onVisibleMonthChange}
 						isRange={picker.isRange}
 						term={picker.term}
 						position={picker.position}
