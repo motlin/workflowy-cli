@@ -87,3 +87,9 @@ export function usePrefetchSearchAncestors(search: SearchFilter | null): void {
 		})),
 	});
 }
+
+/** The committed search's latest result, and whether the result for the current query is still on its way. */
+export function useSearchProgress(): {result: TreeSearchResult | undefined; searching: boolean} {
+	const {data, isPending, isPlaceholderData} = useTreeSearch();
+	return {result: data, searching: isPending || isPlaceholderData};
+}

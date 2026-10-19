@@ -20,6 +20,7 @@ import {OutlineTree} from "./components/outline-tree.js";
 import {PresentationMode} from "./components/presentation-mode.js";
 import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
+import {SearchCountIndicator} from "./components/search-count-indicator.js";
 import {SearchPanel} from "./components/search-panel.js";
 import {Settings} from "./components/settings.js";
 import {TopBar} from "./components/top-bar.js";
@@ -116,6 +117,7 @@ function OutlineView() {
 			<LeftBar />
 			<div className={outlineViewClassName(searchQuery)}>
 				<OutlineTree parentId={zoomedNodeId} />
+				<SearchCountIndicator />
 			</div>
 			<RightBar />
 			<RelatedNodesPanel />

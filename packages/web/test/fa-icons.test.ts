@@ -100,6 +100,8 @@ describe("FA_ICONS", () => {
 			"fal:abacus",
 			"fal:palette",
 			"fal:arrow-down",
+			"fal:eye",
+			"fal:eye-slash",
 		]);
 	});
 
