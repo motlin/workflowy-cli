@@ -3,7 +3,7 @@ import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
 import {initialNavState, navReducer} from "../nav-stack.js";
 import type {NavAction, NavState} from "../nav-stack.js";
-import {emptySelection} from "../item-selection.js";
+import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 
 const StringArraySchema = z.array(z.string());
@@ -317,6 +317,8 @@ interface OutlineActions {
 	/** Replace the expanded set without persisting it (hydration from `/api/v1/expansion`). */
 	setExpanded: (ids: Set<string>) => void;
 	setItemSelection: (selection: SelectionState) => void;
+	/** Reselects the ids an undo step saved, in lead order. */
+	restoreItemSelection: (ids: readonly string[]) => void;
 	clearItemSelection: () => void;
 	/** Record a row's item menu opening or closing; a stale close for another row is ignored. */
 	setItemMenuOpen: (id: string, open: boolean) => void;
@@ -584,6 +586,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setItemSelection: (selection) => {
 		set({itemSelection: selection});
+	},
+
+	restoreItemSelection: (ids) => {
+		set({itemSelection: selectionOf(ids)});
 	},
 
 	clearItemSelection: () => {

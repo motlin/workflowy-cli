@@ -14,32 +14,81 @@ const editing = (nodeId: string, start: number, end = start): ViewState["editing
 describe("planRestore", () => {
 	it("stays on the page when the zoom matches and focuses the saved caret", () => {
 		expect(
-			planRestore({zoomedNodeId: "z", editing: null}, {zoomedNodeId: "z", editing: editing("a", 2, 4)}, 10),
-		).toStrictEqual({navigateTo: null, focus: {nodeId: "a", field: "name", start: 2, end: 4}});
+			planRestore(
+				{zoomedNodeId: "z", editing: null, selectedIds: []},
+				{zoomedNodeId: "z", editing: editing("a", 2, 4), selectedIds: []},
+				10,
+			),
+		).toStrictEqual({navigateTo: null, focus: {nodeId: "a", field: "name", start: 2, end: 4}, selectedIds: []});
 	});
 
 	it("navigates to the saved zoom when it differs", () => {
 		expect(
-			planRestore({zoomedNodeId: "z", editing: null}, {zoomedNodeId: "y", editing: editing("a", 0)}, 3),
-		).toStrictEqual({navigateTo: locationUrl({id: "y"}), focus: {nodeId: "a", field: "name", start: 0, end: 0}});
+			planRestore(
+				{zoomedNodeId: "z", editing: null, selectedIds: []},
+				{zoomedNodeId: "y", editing: editing("a", 0), selectedIds: []},
+				3,
+			),
+		).toStrictEqual({
+			navigateTo: locationUrl({id: "y"}),
+			focus: {nodeId: "a", field: "name", start: 0, end: 0},
+			selectedIds: [],
+		});
 	});
 
 	it("navigates home when the saved zoom is the root", () => {
-		expect(planRestore({zoomedNodeId: "z", editing: null}, {zoomedNodeId: null, editing: null}, 0)).toStrictEqual({
+		expect(
+			planRestore(
+				{zoomedNodeId: "z", editing: null, selectedIds: []},
+				{zoomedNodeId: null, editing: null, selectedIds: []},
+				0,
+			),
+		).toStrictEqual({
 			navigateTo: "/",
 			focus: null,
+			selectedIds: [],
 		});
 	});
 
 	it("clamps a caret past the end of the text", () => {
 		expect(
-			planRestore({zoomedNodeId: null, editing: null}, {zoomedNodeId: null, editing: editing("a", 12)}, 5),
-		).toStrictEqual({navigateTo: null, focus: {nodeId: "a", field: "name", start: 5, end: 5}});
+			planRestore(
+				{zoomedNodeId: null, editing: null, selectedIds: []},
+				{zoomedNodeId: null, editing: editing("a", 12), selectedIds: []},
+				5,
+			),
+		).toStrictEqual({navigateTo: null, focus: {nodeId: "a", field: "name", start: 5, end: 5}, selectedIds: []});
 	});
 
 	it("focuses nothing when nothing was being edited", () => {
 		expect(
-			planRestore({zoomedNodeId: null, editing: editing("a", 1)}, {zoomedNodeId: null, editing: null}, 5),
+			planRestore(
+				{zoomedNodeId: null, editing: editing("a", 1), selectedIds: []},
+				{zoomedNodeId: null, editing: null, selectedIds: []},
+				5,
+			),
+		).toStrictEqual({navigateTo: null, focus: null, selectedIds: []});
+	});
+
+	it("restores the saved selection when no editor has focus", () => {
+		expect(
+			planRestore(
+				{zoomedNodeId: null, editing: null, selectedIds: []},
+				{zoomedNodeId: null, editing: null, selectedIds: ["echo"]},
+				0,
+				false,
+			),
+		).toStrictEqual({navigateTo: null, focus: null, selectedIds: ["echo"]});
+	});
+
+	it("leaves the selection alone while an input has focus", () => {
+		expect(
+			planRestore(
+				{zoomedNodeId: null, editing: null, selectedIds: []},
+				{zoomedNodeId: null, editing: null, selectedIds: ["echo"]},
+				0,
+				true,
+			),
 		).toStrictEqual({navigateTo: null, focus: null});
 	});
 });
@@ -49,8 +98,8 @@ type Call = [string, ...unknown[]];
 const ops: UndoOp[] = [{kind: "uncomplete", nodeId: "a"}];
 const batch: UndoBatch = {
 	ops,
-	before: {zoomedNodeId: "z", editing: editing("b", 1)},
-	after: {zoomedNodeId: "y", editing: editing("a", 9)},
+	before: {zoomedNodeId: "z", editing: editing("b", 1), selectedIds: []},
+	after: {zoomedNodeId: "y", editing: editing("a", 9), selectedIds: []},
 };
 
 function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: Call[]} {
@@ -75,7 +124,13 @@ function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: 
 			return Promise.resolve();
 		},
 		current() {
-			return {zoomedNodeId: "z", editing: null};
+			return {zoomedNodeId: "z", editing: null, selectedIds: []};
+		},
+		editorFocused() {
+			return false;
+		},
+		select(ids) {
+			calls.push(["select", ids]);
 		},
 		textLength(nodeId, field) {
 			calls.push(["textLength", nodeId, field]);
@@ -103,6 +158,7 @@ describe("runUndo", () => {
 			["apply", ops],
 			["textLength", "a", "name"],
 			["zoomTo", "y"],
+			["select", []],
 			["focus", {nodeId: "a", field: "name", start: 4, end: 4}],
 		]);
 	});

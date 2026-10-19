@@ -13,6 +13,7 @@ const outlineState = {
 	editingId: null,
 	editingCaretOffset: null,
 	editingNoteId: null,
+	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	addErrorNotification: () => "id",
 	beginMutation() {},
 	endMutation() {},
@@ -88,7 +89,7 @@ async function settled(queryClient: QueryClient): Promise<void> {
 	});
 }
 
-const view: ViewState = {zoomedNodeId: null, editing: null};
+const view: ViewState = {zoomedNodeId: null, editing: null, selectedIds: []};
 
 beforeEach(() => {
 	undoHistory.clear();

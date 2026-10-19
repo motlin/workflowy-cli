@@ -8,21 +8,29 @@ export interface RestorePlan {
 	navigateTo: string | null;
 	/** The row and caret to focus, clamped to the restored text; null when nothing was being edited. */
 	focus: Editing | null;
+	/** The selection to restore; absent while an editor or input has focus, as upstream. */
+	selectedIds?: string[];
 }
 
-/** Where to go and what to focus to put the user back in `target`, the view saved with an undo step. */
-export function planRestore(current: ViewState, target: ViewState, textLength: number): RestorePlan {
+/** Where to go, what to focus and what to select to put the user back in `target`, the view saved with an undo step. */
+export function planRestore(
+	current: ViewState,
+	target: ViewState,
+	textLength: number,
+	editorFocused = false,
+): RestorePlan {
 	const navigateTo =
 		current.zoomedNodeId === target.zoomedNodeId
 			? null
 			: target.zoomedNodeId === null
 				? "/"
 				: locationUrl({id: target.zoomedNodeId});
-	if (target.editing === null) {
-		return {navigateTo, focus: null};
-	}
 	const clamp = (offset: number): number => Math.max(0, Math.min(offset, textLength));
-	return {navigateTo, focus: {...target.editing, start: clamp(target.editing.start), end: clamp(target.editing.end)}};
+	const focus =
+		target.editing === null
+			? null
+			: {...target.editing, start: clamp(target.editing.start), end: clamp(target.editing.end)};
+	return editorFocused ? {navigateTo, focus} : {navigateTo, focus, selectedIds: target.selectedIds};
 }
 
 export type UndoDirection = "undo" | "redo";
@@ -38,6 +46,9 @@ export interface UndoRunner {
 	blur(): void;
 	apply(ops: readonly UndoOp[]): Promise<void>;
 	current(): ViewState;
+	/** Whether a contentEditable or input has focus, which keeps the selection as it is. */
+	editorFocused(): boolean;
+	select(ids: readonly string[]): void;
 	/** The restored text's plain length, for clamping the caret. */
 	textLength(nodeId: string, field: Editing["field"]): number;
 	/** Pushes the saved zoom (null for home). */
@@ -60,9 +71,12 @@ export async function runUndo(direction: UndoDirection, runner: UndoRunner): Pro
 	await runner.apply(batch.ops);
 	const target = batch.after;
 	const length = target.editing === null ? 0 : runner.textLength(target.editing.nodeId, target.editing.field);
-	const plan = planRestore(runner.current(), target, length);
+	const plan = planRestore(runner.current(), target, length, runner.editorFocused());
 	if (plan.navigateTo !== null) {
 		runner.zoomTo(target.zoomedNodeId);
+	}
+	if (plan.selectedIds !== undefined) {
+		runner.select(plan.selectedIds);
 	}
 	if (plan.focus !== null) {
 		runner.focus(plan.focus);

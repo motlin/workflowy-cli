@@ -539,6 +539,16 @@ export function useCommandRegistry(): CommandRegistry {
 			await queryClient.invalidateQueries();
 		},
 		current: captureOutlineView,
+		editorFocused() {
+			const active = document.activeElement;
+			return (
+				active instanceof HTMLElement &&
+				(active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")
+			);
+		},
+		select(ids) {
+			useOutlineStore.getState().restoreItemSelection(ids);
+		},
 		textLength(nodeId, field) {
 			const node = readNode(queryClient, nodeId);
 			return plainLength((field === "name" ? node?.name : node?.note) ?? "");

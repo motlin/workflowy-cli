@@ -9,8 +9,12 @@ import {
 } from "../src/client/undo-history.js";
 import type {UndoBatch, UndoOp, ViewState} from "../src/client/undo-history.js";
 
-const viewA: ViewState = {zoomedNodeId: null, editing: {nodeId: "a", field: "name", start: 1, end: 1}};
-const viewB: ViewState = {zoomedNodeId: "z", editing: {nodeId: "b", field: "note", start: 2, end: 4}};
+const viewA: ViewState = {zoomedNodeId: null, editing: {nodeId: "a", field: "name", start: 1, end: 1}, selectedIds: []};
+const viewB: ViewState = {
+	zoomedNodeId: "z",
+	editing: {nodeId: "b", field: "note", start: 2, end: 4},
+	selectedIds: ["c"],
+};
 
 function editBatch(nodeId: string, before = viewA, after = viewB): UndoBatch {
 	return {ops: [{kind: "edit", nodeId, field: "name", before: "old", after: "new"}], before, after};

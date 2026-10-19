@@ -1,3 +1,4 @@
+import {selectedIdsOf} from "./item-selection.js";
 import {editorElement, selectionTextOffsets} from "./caret-dom.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {undoHistory} from "./undo-history.js";
@@ -106,19 +107,21 @@ function liveNameSelection(nodeId: string): {start: number; end: number} | null 
 }
 
 /**
- * The outline's zoom and caret: the name editor's live selection when it is rendered (the store's
+ * The outline's zoom, caret and item selection: the name editor's live selection when it is rendered (the store's
  * caret is only where editing started), else the stored caret.
  */
 export function captureOutlineView(readSelection: ReadSelection = liveNameSelection): ViewState {
-	const {zoomedNodeId, editingId, editingCaretOffset, editingNoteId} = useOutlineStore.getState();
+	const {zoomedNodeId, editingId, editingCaretOffset, editingNoteId, itemSelection} = useOutlineStore.getState();
+	const selectedIds = selectedIdsOf(itemSelection);
 	if (editingId !== null) {
 		const caret = editingCaretOffset ?? 0;
 		const {start, end} = readSelection(editingId) ?? {start: caret, end: caret};
-		return {zoomedNodeId, editing: {nodeId: editingId, field: "name", start, end}};
+		return {zoomedNodeId, editing: {nodeId: editingId, field: "name", start, end}, selectedIds};
 	}
 	return {
 		zoomedNodeId,
 		editing: editingNoteId === null ? null : {nodeId: editingNoteId, field: "note", start: 0, end: 0},
+		selectedIds,
 	};
 }
 

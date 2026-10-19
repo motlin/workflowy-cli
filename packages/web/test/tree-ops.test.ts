@@ -962,7 +962,7 @@ function replayMoves(lists: Record<string, string[]>, ops: UndoOp[]): Record<str
 }
 
 function undo(ops: UndoOp[]): UndoOp[] {
-	const view = {zoomedNodeId: null, editing: null};
+	const view = {zoomedNodeId: null, editing: null, selectedIds: []};
 	return invertBatch({ops, before: view, after: view}).ops;
 }
 

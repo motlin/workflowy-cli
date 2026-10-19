@@ -78,6 +78,21 @@ export function selectIds(state: SelectionState, tree: TreeView, ids: readonly s
 	return {...state, entries, counter};
 }
 
+/** The selection's entry ids in lead order: what an undo step saves. */
+export function selectedIdsOf(state: SelectionState): string[] {
+	return state.entries.toSorted((a, b) => a.leadOrder - b.leadOrder).map((entry) => entry.id);
+}
+
+/** A selection of `ids` with leads in the given order, rebuilt from what an undo step saved. */
+export function selectionOf(ids: readonly string[]): SelectionState {
+	return {
+		entries: ids.map((id, index) => ({id, leadOrder: index + 1, subsumedIds: []})),
+		pivotId: null,
+		retractableIds: [],
+		counter: ids.length,
+	};
+}
+
 /** Whether `id` is itself a selection entry: the row that carries `.addedToSelection` (its nested `.project` covers the descendants). */
 export function isEntry(state: SelectionState, id: string): boolean {
 	return state.entries.some((entry) => entry.id === id);

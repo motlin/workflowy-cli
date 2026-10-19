@@ -13,7 +13,16 @@ import {undoHistory} from "../src/client/undo-history.js";
 import type {UndoBatch, UndoOp, ViewState} from "../src/client/undo-history.js";
 
 const notifications = vi.hoisted((): string[][] => []);
-const editingState = vi.hoisted(() => ({editingId: null as string | null, editingCaretOffset: null as number | null}));
+const editingState = vi.hoisted(() => ({
+	editingId: null as string | null,
+	editingCaretOffset: null as number | null,
+	itemSelection: {
+		entries: [] as {id: string; leadOrder: number; subsumedIds: string[]}[],
+		pivotId: null,
+		retractableIds: [] as string[],
+		counter: 0,
+	},
+}));
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: {
 		getState: () => ({
@@ -50,8 +59,8 @@ function fakeAdapter(overrides: Partial<UndoAdapter> = {}): {adapter: UndoAdapte
 	return {adapter, calls};
 }
 
-const viewA: ViewState = {zoomedNodeId: null, editing: null};
-const viewB: ViewState = {zoomedNodeId: "z", editing: {nodeId: "x", field: "name", start: 0, end: 0}};
+const viewA: ViewState = {zoomedNodeId: null, editing: null, selectedIds: []};
+const viewB: ViewState = {zoomedNodeId: "z", editing: {nodeId: "x", field: "name", start: 0, end: 0}, selectedIds: []};
 
 /** Records `ops` as one user command, then pops it back off the undo stack. */
 async function recordAndUndo(...ops: UndoOp[]): Promise<UndoBatch> {
@@ -77,6 +86,7 @@ beforeEach(() => {
 	notifications.length = 0;
 	editingState.editingId = null;
 	editingState.editingCaretOffset = null;
+	editingState.itemSelection.entries = [];
 });
 
 describe("captureOutlineView", () => {
@@ -86,6 +96,7 @@ describe("captureOutlineView", () => {
 		expect(captureOutlineView((nodeId) => (nodeId === "a" ? {start: 7, end: 9} : null))).toStrictEqual({
 			zoomedNodeId: "zoom",
 			editing: {nodeId: "a", field: "name", start: 7, end: 9},
+			selectedIds: [],
 		});
 	});
 
@@ -95,6 +106,19 @@ describe("captureOutlineView", () => {
 		expect(captureOutlineView(() => null)).toStrictEqual({
 			zoomedNodeId: "zoom",
 			editing: {nodeId: "a", field: "name", start: 3, end: 3},
+			selectedIds: [],
+		});
+	});
+
+	it("captures the item selection in lead order", () => {
+		editingState.itemSelection.entries = [
+			{id: "b", leadOrder: 2, subsumedIds: []},
+			{id: "a", leadOrder: 1, subsumedIds: []},
+		];
+		expect(captureOutlineView(() => null)).toStrictEqual({
+			zoomedNodeId: "zoom",
+			editing: null,
+			selectedIds: ["a", "b"],
 		});
 	});
 });
@@ -160,7 +184,7 @@ describe("runInUndoBatch", () => {
 });
 
 describe("holdUndoSlot", () => {
-	const outlineView: ViewState = {zoomedNodeId: "zoom", editing: null};
+	const outlineView: ViewState = {zoomedNodeId: "zoom", editing: null, selectedIds: []};
 
 	it("makes a standalone mutation its own undo step once it settles", () => {
 		const slot = holdUndoSlot();

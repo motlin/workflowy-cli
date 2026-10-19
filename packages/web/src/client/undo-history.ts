@@ -25,6 +25,8 @@ export type UndoOp =
 export interface ViewState {
 	zoomedNodeId: string | null;
 	editing: {nodeId: string; field: "name" | "note"; start: number; end: number} | null;
+	/** The item selection's entry ids in lead order. */
+	selectedIds: string[];
 }
 
 export interface UndoBatch {
