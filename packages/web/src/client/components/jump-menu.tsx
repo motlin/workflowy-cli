@@ -1,47 +1,160 @@
-import {useQuery} from "@tanstack/react-query";
-import {useCallback, useEffect, useState} from "react";
-import {nodeUrl} from "../navigation.js";
-import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
+import {useCallback, useEffect, useMemo, useState} from "react";
+import type {KeyboardEvent} from "react";
 import {useNavigate} from "react-router-dom";
-import {z} from "zod";
-import {useOutlineStore} from "../stores/outline.js";
+import type {SwitcherResponse, SwitcherResult} from "../../server/switcher-search.js";
+import {useStars} from "../hooks/use-starred.js";
+import {nodeUrl} from "../navigation.js";
 import {readJson} from "../read-json.js";
+import {switcherCrumb} from "../switcher-model.js";
+import {useOutlineStore} from "../stores/outline.js";
+import {FaIcon} from "./fa-icons.js";
 
-const StringArraySchema = z.array(z.string());
+const BACKDROP_CLASS =
+	"fixed top-sat left-sal right-sar bottom-sab flex items-start justify-center print:hidden dialog-backdrop";
 
-const RECENT_NODES_STORAGE_KEY = "workflowy-recent-nodes";
-const MAX_RECENT_NODES = 10;
+const SCRIM_CLASS =
+	"absolute inset-0 flex items-center justify-center bg-black transition-opacity duration-300 transition-base";
 
-interface NodeResult {
-	id: string;
-	name: string | null;
-	note: string | null;
+// Upstream WF.DomKit.Dialog box.
+const DIALOG_CLASS =
+	"wf-dialog dialog-box relative mt-[10vh] p-0 !w-[calc(100%-72px)] max-w-[576px] max-h-[80vh] shrink-0 gap-l flex flex-col rounded-m border border-solid border-primary text-primary bg-primary box-border select-text overflow-x-hidden overflow-y-auto overscroll-contain transition-[transform,opacity] duration-300 transition-base desktop:shadow-[var(--wf-box-shadow-m)] mobile:max-w-full mobile:border-0 mobile:!w-[100%] [@media(max-height:700px)]:!mt-0 [@media(max-height:700px)]:!h-full [@media(max-height:700px)]:max-h-none [@media(max-height:700px)]:!rounded-none [@media(max-width:576px)]:mt-0 [@media(max-width:576px)]:!w-full [@media(max-width:576px)]:h-full [@media(max-width:576px)]:max-h-none [@media(max-width:576px)]:!rounded-none [@media(max-width:576px)]:border-none";
+
+// Upstream WF.DomKit.Input with the switcher's py-ml px-l padding.
+const INPUT_CLASS =
+	"block w-full box-border appearance-none p-m rounded-s py-ml px-l outline-none border border-solid border-primary bg-primary focus:border-tint text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected [&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:inherit] [&:-webkit-autofill]:border-tint [&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]";
+
+const SEARCH_LIMIT = 20;
+
+function optionClass(hasCrumbs: boolean, selected: boolean): string {
+	return [
+		"switcher-option grid grid-cols-[auto_1fr] gap-x-m",
+		hasCrumbs ? "grid-rows-[auto_auto] gap-y-xs pb-ml" : "grid-rows-[auto] gap-y-xs pb-m",
+		selected ? "bg-secondary" : "",
+		"pt-m px-l items-center cursor-pointer overflow-hidden whitespace-nowrap rounded-s",
+	]
+		.filter(Boolean)
+		.join(" ");
 }
 
-interface SearchResponse {
-	results: NodeResult[];
+interface SwitcherOptionProps {
+	row: SwitcherResult;
+	selected: boolean;
+	onSelect: () => void;
+	onHover: () => void;
 }
 
-function getRecentNodeIds(): string[] {
-	const stored = localStorage.getItem(RECENT_NODES_STORAGE_KEY);
-	if (stored === null) {
-		return [];
-	}
-	const result = StringArraySchema.safeParse(JSON.parse(stored));
-	return result.success ? result.data : [];
+/** One `.switcher-option` row: star cell, highlighted label, then the ancestor crumbs when there are any. */
+function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps) {
+	const struck = row.completed && !selected;
+	const hasCrumbs = row.ancestors.length > 0;
+	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream rows are plain divs; the input owns the keyboard
+		<div className={optionClass(hasCrumbs, selected)} onClick={onSelect} onMouseMove={onHover}>
+			<div className="w-4">{row.starred && <FaIcon icon="fas:star" className="text-spark" />}</div>
+			<div
+				className={`items-center ${struck ? "line-through opacity-[0.37] " : ""}text-base leading-base truncate`}
+			>
+				<div className="flex justify-between items-center">
+					<div className="overflow-hidden mr-m">
+						<span dangerouslySetInnerHTML={{__html: row.labelHtml}} />
+					</div>
+				</div>
+			</div>
+			{hasCrumbs && (
+				<>
+					<div className="w-4" />
+					<div
+						className={`${struck ? "line-through " : ""}hover:no-underline leading-base opacity-60 truncate`}
+					>
+						{row.ancestors.map((ancestor) => (
+							<span key={ancestor.id}>
+								{switcherCrumb(ancestor.name)}
+								<FaIcon icon="fal:chevron-right" className="px-s" />
+							</span>
+						))}
+					</div>
+				</>
+			)}
+		</div>
+	);
 }
 
-function addRecentNode(nodeId: string): void {
-	const recent = getRecentNodeIds();
-	const filtered = recent.filter((id) => id !== nodeId);
-	const updated = [nodeId, ...filtered].slice(0, MAX_RECENT_NODES);
-	localStorage.setItem(RECENT_NODES_STORAGE_KEY, JSON.stringify(updated));
+export interface SwitcherDialogProps {
+	query: string;
+	rows: readonly SwitcherResult[];
+	selectedIndex: number;
+	/** Plain text shown after the list, or null for none. */
+	emptyText: string | null;
+	onQueryChange: (query: string) => void;
+	onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+	onSelect: (row: SwitcherResult) => void;
+	onHover: (index: number) => void;
+	onClose: () => void;
+}
+
+/** Upstream's switcher dialog DOM: backdrop, scrim, dialog box with the input, close icon and option list. */
+export function SwitcherDialog({
+	query,
+	rows,
+	selectedIndex,
+	emptyText,
+	onQueryChange,
+	onKeyDown,
+	onSelect,
+	onHover,
+	onClose,
+}: SwitcherDialogProps) {
+	return (
+		<div className={BACKDROP_CLASS} style={{zIndex: 600}}>
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Escape in the input closes too */}
+			<div className={SCRIM_CLASS} style={{opacity: 0.2}} onClick={onClose} />
+			<div className={DIALOG_CLASS}>
+				<div className="p-m flex flex-col gap-m text-s">
+					<div className="flex flex-col w-full">
+						<input
+							className={INPUT_CLASS}
+							type="text"
+							placeholder="Jump to..."
+							value={query}
+							// oxlint-disable-next-line jsx-a11y/no-autofocus -- opening the jump menu is a request to type a query
+							autoFocus
+							onChange={(event) => {
+								onQueryChange(event.target.value);
+							}}
+							onKeyDown={onKeyDown}
+						/>
+					</div>
+					<FaIcon
+						icon="fas:circle-xmark"
+						size="lg"
+						className="absolute right-[20px] top-[21px] cursor-pointer text-tertiary"
+						onClick={onClose}
+					/>
+					<div className="flex flex-col gap-s">
+						{rows.map((row, index) => (
+							<SwitcherOption
+								key={row.id}
+								row={row}
+								selected={index === selectedIndex}
+								onSelect={() => {
+									onSelect(row);
+								}}
+								onHover={() => {
+									onHover(index);
+								}}
+							/>
+						))}
+					</div>
+					{emptyText !== null && <div>{emptyText}</div>}
+				</div>
+			</div>
+		</div>
+	);
 }
 
 /**
- * Command palette style jump menu component.
- * Opens with Cmd+K, allows quick navigation to any node.
- * Shows recent nodes by default, or search results when typing.
+ * Upstream's jump menu ("switcher").
+ * Opens with Cmd+K and searches the live tree through `POST /api/search/switcher`.
  */
 export function JumpMenu() {
 	const jumpMenuOpen = useOutlineStore((state) => state.jumpMenuOpen);
@@ -49,89 +162,80 @@ export function JumpMenu() {
 	return jumpMenuOpen ? <JumpMenuDialog /> : null;
 }
 
-async function fetchNodes(ids: string[]): Promise<NodeResult[]> {
-	const nodes = await Promise.all(
-		ids.map(async (id) => {
-			const response = await fetch(`/api/v1/nodes/${encodeURIComponent(id)}`);
-			if (response.ok) {
-				const data = await readJson<{node: NodeResult}>(response);
-				return data.node;
-			}
-			return null;
-		}),
-	);
-	return nodes.filter((node): node is NodeResult => node !== null);
-}
+type SearchStatus = "idle" | "loading" | "done" | "error";
 
 function JumpMenuDialog() {
 	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
+	const {stars} = useStars();
 	const [query, setQuery] = useState("");
-	const [results, setResults] = useState<NodeResult[]>([]);
-	const [isSearching, setIsSearching] = useState(false);
+	const [results, setResults] = useState<readonly SwitcherResult[]>([]);
+	const [status, setStatus] = useState<SearchStatus>("idle");
 	const [selectedIndex, setSelectedIndex] = useState(0);
-	const [recentIds] = useState(getRecentNodeIds);
 	const navigate = useNavigate();
 
-	const {data: recentNodes = [], isLoading: isLoadingRecent} = useQuery({
-		queryKey: ["recent-nodes", recentIds],
-		queryFn: async () => fetchNodes(recentIds),
-		enabled: recentIds.length > 0,
-		staleTime: 0,
-	});
+	const starredIds = useMemo(
+		() => stars.flatMap((star) => (star.nodeId !== null && !star.query ? [star.nodeId] : [])),
+		[stars],
+	);
 
-	// An empty query shows the default list, so clear stale results here rather than in the search effect
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);
+		setSelectedIndex(0);
 		if (!value.trim()) {
 			setResults([]);
-			setSelectedIndex(0);
+			setStatus("idle");
 		}
 	}, []);
 
-	// Perform search when query changes
 	useEffect(() => {
 		if (!query.trim()) {
 			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 			return undefined;
 		}
-
+		let cancelled = false;
 		const runSearch = async () => {
-			setIsSearching(true);
-			const response = await fetch("/api/search", {
-				method: "POST",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({query, limit: 10}),
-			});
-			if (response.ok) {
-				const data = await readJson<SearchResponse>(response);
-				setResults(data.results);
-				setSelectedIndex(0);
+			setStatus("loading");
+			try {
+				const response = await fetch("/api/search/switcher", {
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
+					body: JSON.stringify({query, limit: SEARCH_LIMIT, starredIds}),
+				});
+				if (!response.ok) {
+					throw new Error(`Switcher search failed: ${response.status}`);
+				}
+				const data = await readJson<SwitcherResponse>(response);
+				if (!cancelled) {
+					setResults(data.results);
+					setSelectedIndex(0);
+					setStatus("done");
+				}
+			} catch {
+				if (!cancelled) {
+					setResults([]);
+					setStatus("error");
+				}
 			}
-			setIsSearching(false);
 		};
 		const searchTimeout = setTimeout(() => {
 			void runSearch();
 		}, 150);
-
 		return () => {
+			cancelled = true;
 			clearTimeout(searchTimeout);
 		};
-	}, [query]);
+	}, [query, starredIds]);
 
-	const handleNavigateToNode = useCallback(
-		(node: NodeResult) => {
-			addRecentNode(node.id);
+	const handleSelect = useCallback(
+		(row: SwitcherResult) => {
 			toggleJumpMenu();
-			void navigate(nodeUrl(node.id));
+			void navigate(nodeUrl(row.id));
 		},
 		[navigate, toggleJumpMenu],
 	);
 
-	// Display list: search results if query exists, otherwise recent nodes
-	const displayList = query.trim() ? results : recentNodes;
-
 	const handleKeyDown = useCallback(
-		(event: React.KeyboardEvent) => {
+		(event: KeyboardEvent<HTMLInputElement>) => {
 			switch (event.key) {
 				case "Escape": {
 					event.preventDefault();
@@ -140,7 +244,7 @@ function JumpMenuDialog() {
 				}
 				case "ArrowDown": {
 					event.preventDefault();
-					setSelectedIndex((previous) => Math.min(previous + 1, displayList.length - 1));
+					setSelectedIndex((previous) => Math.min(previous + 1, results.length - 1));
 					break;
 				}
 				case "ArrowUp": {
@@ -150,128 +254,35 @@ function JumpMenuDialog() {
 				}
 				case "Enter": {
 					event.preventDefault();
-					const selected = displayList[selectedIndex];
+					const selected = results[selectedIndex];
 					if (selected !== undefined) {
-						handleNavigateToNode(selected);
+						handleSelect(selected);
 					}
 					break;
 				}
 			}
 		},
-		[displayList, handleNavigateToNode, selectedIndex, toggleJumpMenu],
+		[handleSelect, results, selectedIndex, toggleJumpMenu],
 	);
 
-	const handleBackdropClick = useCallback(
-		(event: React.MouseEvent) => {
-			if (event.target === event.currentTarget) {
-				toggleJumpMenu();
-			}
-		},
-		[toggleJumpMenu],
-	);
-
-	const showingRecent = !query.trim() && recentNodes.length > 0;
-	const showingResults = query.trim() !== "" && results.length > 0;
-	const showNoResults = query.trim() !== "" && !isSearching && results.length === 0;
-	const showEmpty = !query.trim() && !isLoadingRecent && recentNodes.length === 0;
+	const emptyText =
+		status === "error"
+			? "Search is unavailable right now."
+			: status === "done" && results.length === 0
+				? "No matches found. Try adjusting your search."
+				: null;
 
 	return (
-		<div className="jump-menu-overlay" onClick={handleBackdropClick} role="presentation">
-			<div className="jump-menu">
-				<div className="jump-menu-header">
-					<input
-						className="jump-menu-input"
-						onChange={(event) => {
-							handleQueryChange(event.target.value);
-						}}
-						onKeyDown={handleKeyDown}
-						// oxlint-disable-next-line jsx-a11y/no-autofocus -- opening the jump menu is a request to type a query
-						autoFocus
-						placeholder="Jump to node..."
-						type="text"
-						value={query}
-					/>
-					<button
-						aria-label="Close jump menu"
-						className="jump-menu-close"
-						onClick={toggleJumpMenu}
-						type="button"
-					>
-						&times;
-					</button>
-				</div>
-
-				<div className="jump-menu-results">
-					{(isSearching || isLoadingRecent) && <p className="jump-menu-status">Loading...</p>}
-
-					{showNoResults && <p className="jump-menu-status">No results found</p>}
-
-					{showEmpty && (
-						<p className="jump-menu-hint">Type to search or visit some nodes to build your recent list</p>
-					)}
-
-					{showingRecent && !isLoadingRecent && (
-						<>
-							<p className="jump-menu-section-title">Recent</p>
-							<ul className="jump-menu-list">
-								{recentNodes.map((node, index) => (
-									<li key={node.id}>
-										<button
-											className={`jump-menu-result ${index === selectedIndex ? "selected" : ""}`}
-											onClick={() => {
-												handleNavigateToNode(node);
-											}}
-											type="button"
-										>
-											<span className="jump-menu-result-name">
-												{stripHtml(node.name) || "Untitled"}
-											</span>
-											{node.note && (
-												<span className="jump-menu-result-note">{stripHtml(node.note)}</span>
-											)}
-										</button>
-									</li>
-								))}
-							</ul>
-						</>
-					)}
-
-					{showingResults && !isSearching && (
-						<ul className="jump-menu-list">
-							{results.map((node, index) => (
-								<li key={node.id}>
-									<button
-										className={`jump-menu-result ${index === selectedIndex ? "selected" : ""}`}
-										onClick={() => {
-											handleNavigateToNode(node);
-										}}
-										type="button"
-									>
-										<span className="jump-menu-result-name">
-											{stripHtml(node.name) || "Untitled"}
-										</span>
-										{node.note && (
-											<span className="jump-menu-result-note">{stripHtml(node.note)}</span>
-										)}
-									</button>
-								</li>
-							))}
-						</ul>
-					)}
-				</div>
-
-				<div className="jump-menu-footer">
-					<span className="jump-menu-shortcut">
-						<kbd>Esc</kbd> to close
-					</span>
-					<span className="jump-menu-shortcut">
-						<kbd>&uarr;</kbd> <kbd>&darr;</kbd> to navigate
-					</span>
-					<span className="jump-menu-shortcut">
-						<kbd>Enter</kbd> to select
-					</span>
-				</div>
-			</div>
-		</div>
+		<SwitcherDialog
+			query={query}
+			rows={results}
+			selectedIndex={selectedIndex}
+			emptyText={emptyText}
+			onQueryChange={handleQueryChange}
+			onKeyDown={handleKeyDown}
+			onSelect={handleSelect}
+			onHover={setSelectedIndex}
+			onClose={toggleJumpMenu}
+		/>
 	);
 }

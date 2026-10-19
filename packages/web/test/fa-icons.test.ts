@@ -66,6 +66,7 @@ describe("FA_ICONS", () => {
 			"fal:arrow-down-z-a",
 			"fal:xmark",
 			"fas:circle-check",
+			"fas:circle-xmark",
 			"fal:h1",
 			"fal:h2",
 			"fal:h3",

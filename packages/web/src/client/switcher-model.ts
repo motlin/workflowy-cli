@@ -47,3 +47,10 @@ export function createSwitcherSelection(): SwitcherSelection {
 		},
 	};
 }
+
+const CRUMB_LENGTH = 20;
+
+/** Upstream's switcher crumb: the first 20 characters, with an ellipsis once the name reaches 20. */
+export function switcherCrumb(name: string): string {
+	return name.length >= CRUMB_LENGTH ? `${name.slice(0, CRUMB_LENGTH)}…` : name;
+}
