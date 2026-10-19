@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
-import {availableItemTypes, currentTypeIcon, ITEM_TYPES} from "../src/client/layout-types.js";
-import type {ItemTypeContext} from "../src/client/layout-types.js";
+import {availableItemTypes, currentTypeIcon, ITEM_TYPES, planLayoutToggle} from "../src/client/layout-types.js";
+import type {ItemTypeContext, LayoutToggleItem} from "../src/client/layout-types.js";
 
 const NORMAL: ItemTypeContext = {isRoot: false, isMainDocumentRoot: false, readOnly: false, isTableCell: false};
 
@@ -120,5 +120,178 @@ describe("currentTypeIcon", () => {
 			"paragraph",
 			"list-ul",
 		]);
+	});
+});
+
+function item(id: string, overrides: Partial<LayoutToggleItem> = {}): LayoutToggleItem {
+	return {
+		id,
+		layoutMode: null,
+		numberedStart: null,
+		name: id,
+		plainName: id,
+		hasChildren: false,
+		hasNote: false,
+		...overrides,
+	};
+}
+
+describe("planLayoutToggle", () => {
+	it("turns every item back to bullets when all already have the target type", () => {
+		expect(
+			planLayoutToggle("toggle_h1", [item("a", {layoutMode: "h1"}), item("b", {layoutMode: "h1"})]),
+		).toStrictEqual({
+			updates: [
+				{id: "a", layoutMode: "bullets"},
+				{id: "b", layoutMode: "bullets"},
+			],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("turns every item into the target when any item differs", () => {
+		expect(
+			planLayoutToggle("toggle_h1", [item("a", {layoutMode: "h1"}), item("b", {layoutMode: "bullets"})]),
+		).toStrictEqual({
+			updates: [
+				{id: "a", layoutMode: "h1"},
+				{id: "b", layoutMode: "h1"},
+			],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("reads legacy check as to-do", () => {
+		expect(planLayoutToggle("toggle_todo", [item("a", {layoutMode: "check"})])).toStrictEqual({
+			updates: [{id: "a", layoutMode: "bullets"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("reads legacy metadata.fmt over layoutMode", () => {
+		expect(planLayoutToggle("toggle_paragraph", [item("a", {layoutMode: "bullets", fmt: "p"})])).toStrictEqual({
+			updates: [{id: "a", layoutMode: "bullets"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("always sets bullets for toggle_bullet", () => {
+		expect(planLayoutToggle("toggle_bullet", [item("a", {layoutMode: "bullets"})])).toStrictEqual({
+			updates: [{id: "a", layoutMode: "bullets"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("stores a typed start number and strips the prefix when numbering", () => {
+		expect(
+			planLayoutToggle("toggle_numbered", [item("a", {name: "3. Buy milk", plainName: "3. Buy milk"})]),
+		).toStrictEqual({
+			updates: [{id: "a", layoutMode: "numbered", numberedStart: 3, name: "Buy milk"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("clears the start number when un-numbering", () => {
+		expect(
+			planLayoutToggle("toggle_numbered", [item("a", {layoutMode: "numbered", numberedStart: 3})]),
+		).toStrictEqual({
+			updates: [{id: "a", layoutMode: "bullets", numberedStart: null}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("takes the start number from the first item only", () => {
+		expect(
+			planLayoutToggle("toggle_numbered", [
+				item("a", {name: "2. A", plainName: "2. A"}),
+				item("b", {name: "B", plainName: "B"}),
+				item("c", {name: "7. C", plainName: "7. C"}),
+			]),
+		).toStrictEqual({
+			updates: [
+				{id: "a", layoutMode: "numbered", numberedStart: 2, name: "A"},
+				{id: "b", layoutMode: "numbered"},
+				{id: "c", layoutMode: "numbered", name: "C"},
+			],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("leaves prefixes alone when the first item has none", () => {
+		expect(
+			planLayoutToggle("toggle_numbered", [item("a"), item("b", {name: "7. C", plainName: "7. C"})]),
+		).toStrictEqual({
+			updates: [
+				{id: "a", layoutMode: "numbered"},
+				{id: "b", layoutMode: "numbered"},
+			],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("merges a run of leaf items into one code block", () => {
+		expect(
+			planLayoutToggle("toggle_code_block", [
+				item("A", {name: "<b>A</b>", plainName: "A"}),
+				item("B", {name: "B", plainName: "B"}),
+			]),
+		).toStrictEqual({
+			updates: [{id: "A", layoutMode: "code-block", name: "A\nB"}],
+			deletes: ["B"],
+			clearSelection: true,
+		});
+	});
+
+	it("turns a single code block back to bullets", () => {
+		expect(planLayoutToggle("toggle_code_block", [item("a", {layoutMode: "code-block"})])).toStrictEqual({
+			updates: [{id: "a", layoutMode: "bullets"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("sets plain text when turning a single item into a code block", () => {
+		expect(
+			planLayoutToggle("toggle_code_block", [item("a", {name: "<b>x</b>", plainName: "x", hasChildren: true})]),
+		).toStrictEqual({
+			updates: [{id: "a", layoutMode: "code-block", name: "x"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("splits quote runs at items with children or notes and keeps their names", () => {
+		expect(
+			planLayoutToggle("toggle_quote_block", [item("a"), item("b"), item("c", {hasNote: true}), item("d")]),
+		).toStrictEqual({
+			updates: [
+				{id: "a", layoutMode: "quote-block", name: "a\nb"},
+				{id: "c", layoutMode: "quote-block"},
+				{id: "d", layoutMode: "quote-block"},
+			],
+			deletes: ["b"],
+			clearSelection: true,
+		});
+	});
+
+	it("toggles only the first item for a divider", () => {
+		expect(planLayoutToggle("toggle_divider", [item("a"), item("b")])).toStrictEqual({
+			updates: [{id: "a", layoutMode: "divider"}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
+	it("plans nothing for an empty selection", () => {
+		expect(planLayoutToggle("toggle_divider", [])).toStrictEqual({updates: [], deletes: [], clearSelection: false});
 	});
 });

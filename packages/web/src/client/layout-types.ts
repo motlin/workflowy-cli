@@ -81,3 +81,149 @@ export function currentTypeIcon(layoutMode: string | null | undefined, fmt?: str
 	const key = mode ? (LEGACY_LAYOUT_ALIASES[mode] ?? mode) : null;
 	return ITEM_TYPES.find((type) => type.layoutModeKey === key)?.icon ?? "list-ul";
 }
+
+export type LayoutToggleCommand =
+	| "toggle_h1"
+	| "toggle_h2"
+	| "toggle_h3"
+	| "toggle_paragraph"
+	| "toggle_todo"
+	| "toggle_bullet"
+	| "toggle_numbered"
+	| "toggle_code_block"
+	| "toggle_quote_block"
+	| "toggle_divider";
+
+export interface LayoutToggleItem {
+	id: string;
+	layoutMode: string | null;
+	numberedStart: number | null;
+	fmt?: string | null;
+	name: string;
+	plainName: string;
+	hasChildren: boolean;
+	hasNote: boolean;
+}
+
+/** `layoutMode: "bullets"` means the stored layoutMode should be removed. */
+export interface LayoutToggleUpdate {
+	id: string;
+	layoutMode: string;
+	numberedStart?: number | null;
+	name?: string;
+}
+
+export interface LayoutTogglePlan {
+	updates: LayoutToggleUpdate[];
+	deletes: string[];
+	clearSelection: boolean;
+}
+
+type SimpleToggleCommand = "toggle_h1" | "toggle_h2" | "toggle_h3" | "toggle_paragraph" | "toggle_todo";
+
+const SIMPLE_TOGGLE_TARGETS: Record<SimpleToggleCommand, string> = {
+	toggle_h1: "h1",
+	toggle_h2: "h2",
+	toggle_h3: "h3",
+	toggle_paragraph: "p",
+	toggle_todo: "todo",
+};
+
+const NUMBER_PREFIX = /^(\d+)\. /u;
+
+function effectiveType(item: LayoutToggleItem): string {
+	const mode = item.fmt && LEGACY_FMT_TYPES.has(item.fmt) ? item.fmt : item.layoutMode;
+	return mode ? (LEGACY_LAYOUT_ALIASES[mode] ?? mode) : "bullets";
+}
+
+function toggledType(item: LayoutToggleItem, target: string): string {
+	return effectiveType(item) === target ? "bullets" : target;
+}
+
+function planNumbered(items: readonly LayoutToggleItem[]): LayoutToggleUpdate[] {
+	const start = NUMBER_PREFIX.exec(items[0]?.plainName ?? "");
+	return items.map((item, index) => {
+		if (effectiveType(item) === "numbered") {
+			return {id: item.id, layoutMode: "bullets", numberedStart: null};
+		}
+		const update: LayoutToggleUpdate = {id: item.id, layoutMode: "numbered"};
+		if (start) {
+			if (index === 0) {
+				update.numberedStart = Number(start[1]);
+			}
+			if (NUMBER_PREFIX.test(item.plainName)) {
+				update.name = item.name.replace(NUMBER_PREFIX, "");
+			}
+		}
+		return update;
+	});
+}
+
+function planBlock(items: readonly LayoutToggleItem[], target: string): LayoutTogglePlan {
+	const plan: LayoutTogglePlan = {updates: [], deletes: [], clearSelection: false};
+	const runs: [LayoutToggleItem, ...LayoutToggleItem[]][] = [];
+	let mergeable = false;
+	for (const item of items) {
+		const leaf = !item.hasChildren && !item.hasNote;
+		const run = runs.at(-1);
+		if (leaf && mergeable && run) {
+			run.push(item);
+		} else {
+			runs.push([item]);
+		}
+		mergeable = leaf;
+	}
+	for (const [first, ...rest] of runs) {
+		const update: LayoutToggleUpdate = {id: first.id, layoutMode: toggledType(first, target)};
+		if (rest.length > 0) {
+			update.name = [first, ...rest].map((item) => item.plainName).join("\n");
+			plan.deletes.push(...rest.map((item) => item.id));
+			plan.clearSelection = true;
+		} else if (target === "code-block" && update.layoutMode === target) {
+			update.name = first.plainName;
+		}
+		plan.updates.push(update);
+	}
+	return plan;
+}
+
+/**
+ * Plan the layout writes for a handbook toggle over the selected items, cloning
+ * upstream: simple types toggle all-or-nothing, numbering toggles per item and
+ * captures a typed `N. ` start, code/quote blocks merge runs of plain leaves.
+ */
+export function planLayoutToggle(command: LayoutToggleCommand, items: readonly LayoutToggleItem[]): LayoutTogglePlan {
+	switch (command) {
+		case "toggle_bullet":
+			return {
+				updates: items.map((item) => ({id: item.id, layoutMode: "bullets"})),
+				deletes: [],
+				clearSelection: false,
+			};
+		case "toggle_numbered":
+			return {updates: planNumbered(items), deletes: [], clearSelection: false};
+		case "toggle_code_block":
+			return planBlock(items, "code-block");
+		case "toggle_quote_block":
+			return planBlock(items, "quote-block");
+		case "toggle_divider":
+			return {
+				updates: items.slice(0, 1).map((item) => ({id: item.id, layoutMode: toggledType(item, "divider")})),
+				deletes: [],
+				clearSelection: false,
+			};
+		case "toggle_h1":
+		case "toggle_h2":
+		case "toggle_h3":
+		case "toggle_paragraph":
+		case "toggle_todo": {
+			const target = SIMPLE_TOGGLE_TARGETS[command];
+			const layoutMode = items.every((item) => effectiveType(item) === target) ? "bullets" : target;
+			return {updates: items.map((item) => ({id: item.id, layoutMode})), deletes: [], clearSelection: false};
+		}
+		default: {
+			const unknownCommand: never = command;
+			throw new Error(`Unknown layout toggle: ${String(unknownCommand)}`);
+		}
+	}
+}
