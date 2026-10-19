@@ -79,7 +79,7 @@ describe("POST /api/v1/calendar/day/:dateId/ensure", () => {
 		expect({response, calls: adapter.ensureCalendarDay.mock.calls}).toStrictEqual({
 			response: {
 				status: 403,
-				body: {error: "Calendar day ensure is disabled (set CALENDAR_ENSURE_ENABLED=true to enable it)"},
+				body: {error: "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLED=false)"},
 			},
 			calls: [],
 		});

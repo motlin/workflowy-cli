@@ -118,12 +118,12 @@ describe("internalApiRequired", () => {
 });
 
 describe("createServerContext calendarEnsureEnabled", () => {
-	it("reads CALENDAR_ENSURE_ENABLED, off when unset", () => {
+	it("reads CALENDAR_ENSURE_ENABLED, on unless set to false", () => {
 		const read = (value: string | undefined) => {
 			vi.stubEnv("CALENDAR_ENSURE_ENABLED", value);
 			return createServerContext().calendarEnsureEnabled;
 		};
 
-		expect([read(undefined), read("true"), read("false"), read("")]).toStrictEqual([false, true, false, false]);
+		expect([read(undefined), read("true"), read("false"), read("")]).toStrictEqual([true, true, false, true]);
 	});
 });

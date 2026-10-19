@@ -27,7 +27,8 @@ export interface ServerContext {
 	internalAdapter?: () => WorkflowyInternalAdapter | undefined;
 	/**
 	 * Whether `POST /api/v1/calendar/day/:dateId/ensure` may create day nodes
-	 * (`CALENDAR_ENSURE_ENABLED`); see the M2-74 calendar-adopt probe.
+	 * (`CALENDAR_ENSURE_ENABLED`, on unless `false`): the M2-74 calendar-adopt
+	 * probe confirmed workflowy.com adopts ensured day nodes.
 	 */
 	calendarEnsureEnabled?: boolean;
 }
@@ -52,7 +53,7 @@ export function createServerContext(): ServerContext {
 		cacheService,
 		apiKey,
 		internalAuth,
-		calendarEnsureEnabled: process.env.CALENDAR_ENSURE_ENABLED === "true",
+		calendarEnsureEnabled: process.env.CALENDAR_ENSURE_ENABLED !== "false",
 		internalAdapter: () => {
 			if (!adapter && internalAuth) {
 				adapter = new WorkflowyInternalAdapter({

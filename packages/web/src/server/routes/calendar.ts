@@ -4,7 +4,7 @@
  *
  * `GET /api/v1/calendar/day/:dateId` -> 200 `{id}` / 404 (read-only lookup).
  * `POST /api/v1/calendar/day/:dateId/ensure` -> 200 `{dayId, firstChildId, created}`,
- * or 403 unless `CALENDAR_ENSURE_ENABLED` is on.
+ * or 403 when `CALENDAR_ENSURE_ENABLED=false`.
  */
 
 import {CalendarRootMissing, parseDateId} from "@workflowy/shared/internal";
@@ -13,7 +13,7 @@ import {findCalendarDay} from "../calendar-day.js";
 import type {AppEnv} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
-const ENSURE_DISABLED = "Calendar day ensure is disabled (set CALENDAR_ENSURE_ENABLED=true to enable it)";
+const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLED=false)";
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
 
 /** A `YYYYMMDD` path segment as a real calendar day's dateId, else undefined. */
