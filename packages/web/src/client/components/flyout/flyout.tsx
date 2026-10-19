@@ -11,7 +11,7 @@ const DEFAULT_OFFSET = [0, 0] as const;
 export interface FlyoutProps {
 	position?: readonly [number, number];
 	offset?: readonly [number, number];
-	minWidth?: number;
+	minWidth?: number | string;
 	maxWidth?: number;
 	maxHeight?: CSSProperties["maxHeight"];
 	align?: FlyoutAlign;

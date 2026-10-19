@@ -11,6 +11,10 @@ import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
+import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
+import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
+import {plainText} from "../rich-text.js";
+import {spliceAcceptedTag} from "../tag-autocomplete.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -20,6 +24,9 @@ interface EditableNoteProps {
 	/** The zoom root's note (`notes--main`). */
 	isMain?: boolean;
 }
+
+/** Stands in for a date pill, one caret unit, in the plain text the tag autocomplete reads. */
+const PILL_UNIT = "\uFFFC";
 
 const CONTENT_CLASS = "notranslate content text-tertiary whitespace-pre-wrap overflow-hidden";
 
@@ -169,17 +176,45 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	});
 	const {handleInput: handleDateTrigger} = datePicker;
 
+	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
+	const readNotePlain = useCallback(
+		() =>
+			contentRef.current === null
+				? ""
+				: plainText(planNoteSave(noteSaver.saved, contentRef.current.innerHTML).note, PILL_UNIT),
+		[noteSaver],
+	);
+	const acceptTag = useCallback<TagAcceptHandler>(
+		(edit) => {
+			const element = contentRef.current;
+			if (element !== null) {
+				const note = spliceAcceptedTag(planNoteSave(noteSaver.saved, element.innerHTML).note, edit);
+				element.innerHTML = noteContentHtml(note, dateSettings);
+				placeCaretAtTextOffset(element, edit.caret);
+				noteSaver.saveNow(note);
+			}
+		},
+		[dateSettings, noteSaver],
+	);
+	const tagAutocomplete = useTagAutocomplete({editorRef: contentRef, readPlain: readNotePlain, onAccept: acceptTag});
+	const {
+		handleInput: handleTagAutocomplete,
+		handleKeyDown: handleTagAutocompleteKey,
+		detach: detachTagAutocomplete,
+	} = tagAutocomplete;
+
 	const handleInput = useCallback(
 		(event?: React.SyntheticEvent<HTMLDivElement>) => {
 			if (event !== undefined) {
 				handleDateTrigger(event.nativeEvent);
 			}
+			handleTagAutocomplete();
 			const element = contentRef.current;
 			if (element !== null) {
 				noteSaver.change(planNoteSave(noteSaver.saved, element.innerHTML).note);
 			}
 		},
-		[handleDateTrigger, noteSaver],
+		[handleDateTrigger, handleTagAutocomplete, noteSaver],
 	);
 
 	const handleFocus = useCallback(() => {
@@ -194,13 +229,14 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	}, [initialValue, dateSettings, isFocused, nodeId, focusNote, noteSaver]);
 
 	const handleBlur = useCallback(() => {
+		detachTagAutocomplete();
 		if (datePickerOpen.current) {
 			return;
 		}
 		saveNow();
 		setFocusedHtml(null);
 		blurNote(nodeId);
-	}, [saveNow, blurNote, nodeId]);
+	}, [detachTagAutocomplete, saveNow, blurNote, nodeId]);
 
 	const focusNextRowName = useCallback(() => {
 		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
@@ -218,7 +254,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLDivElement>) => {
 			const element = contentRef.current;
-			if (element === null) {
+			if (element === null || handleTagAutocompleteKey(event)) {
 				return;
 			}
 			if (event.key === "Escape") {
@@ -272,7 +308,7 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				}
 			}
 		},
-		[focusName, focusNextRowName, handleInput, nodeId, openSearchFromEditing, saveNow],
+		[focusName, focusNextRowName, handleInput, handleTagAutocompleteKey, nodeId, openSearchFromEditing, saveNow],
 	);
 
 	return (
@@ -288,10 +324,12 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 				onFocus={handleFocus}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
+				onMouseDown={detachTagAutocomplete}
 				ref={contentRef}
 				suppressContentEditableWarning
 			/>
 			{datePicker.popup}
+			{tagAutocomplete.popup}
 		</div>
 	);
 }

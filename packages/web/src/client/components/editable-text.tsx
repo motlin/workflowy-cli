@@ -42,7 +42,10 @@ import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
-import {splitHtml} from "../rich-text.js";
+import {plainText, splitHtml} from "../rich-text.js";
+import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
+import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
+import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset, teaserPosition} from "../tag-render.js";
@@ -115,6 +118,9 @@ function execFormatCommand(command: "bold" | "italic" | "underline"): void {
 	// oxlint-disable-next-line typescript/no-deprecated -- no standard replacement applies inline formatting to a contenteditable with native undo
 	document.execCommand(command);
 }
+
+/** Stands in for a date pill, one caret unit, in the plain text the tag autocomplete reads. */
+const PILL_UNIT = "\uFFFC";
 
 interface EditableTextProps {
 	nodeId: string;
@@ -359,15 +365,40 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	});
 	const {open: openPillPicker} = pillPicker;
 
+	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
+	const readNamePlain = useCallback(
+		() => (contentRef.current ? plainText(serializeDatePills(contentRef.current.innerHTML), PILL_UNIT) : ""),
+		[],
+	);
+	const acceptTag = useCallback<TagAcceptHandler>(
+		(edit) => {
+			const content = contentRef.current;
+			if (content) {
+				const html = spliceAcceptedTag(serializeDatePills(content.innerHTML), edit);
+				content.innerHTML = renderDatePills(html, dateSettings);
+				placeCaretAtTextOffset(content, edit.caret);
+				nameSaver.saveNow(html);
+			}
+		},
+		[dateSettings, nameSaver],
+	);
+	const tagAutocomplete = useTagAutocomplete({editorRef: contentRef, readPlain: readNamePlain, onAccept: acceptTag});
+	const {
+		handleInput: handleTagAutocomplete,
+		handleKeyDown: handleTagAutocompleteKey,
+		detach: detachTagAutocomplete,
+	} = tagAutocomplete;
+
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
 			handleDateTrigger(event.nativeEvent);
 			handleDateAutocomplete();
+			handleTagAutocomplete();
 			if (contentRef.current) {
 				nameSaver.change(serializeDatePills(contentRef.current.innerHTML));
 			}
 		},
-		[handleDateTrigger, handleDateAutocomplete, nameSaver],
+		[handleDateTrigger, handleDateAutocomplete, handleTagAutocomplete, nameSaver],
 	);
 
 	const saveChanges = useCallback(() => {
@@ -818,10 +849,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleBlur = useCallback(() => {
 		hideDateAutocomplete();
+		detachTagAutocomplete();
 		if (shouldCommitOnBlur(useOutlineStore.getState(), nodeId)) {
 			saveChanges();
 		}
-	}, [nodeId, saveChanges, hideDateAutocomplete]);
+	}, [nodeId, saveChanges, hideDateAutocomplete, detachTagAutocomplete]);
 
 	/**
 	 * ⇧↑ at the text start, ⇧↓ at its end, or ⌘A over the already fully selected text: commit the text, stop editing
@@ -865,6 +897,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLSpanElement>) => {
+			if (handleTagAutocompleteKey(event)) {
+				return;
+			}
 			const action = classifyEditorKey(event, isMacPlatform());
 			const composing = event.nativeEvent.isComposing;
 			const arrow = action === null ? undefined : CARET_ARROWS[action];
@@ -928,6 +963,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			deleteIfEmpty,
 			enterRootNote,
 			focusNote,
+			handleTagAutocompleteKey,
 			mergeWithSibling,
 			moveToAdjacentNode,
 			crossRowHorizontally,
@@ -1148,11 +1184,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				onBlur={handleBlur}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
+				onMouseDown={detachTagAutocomplete}
 				ref={contentRef}
 				suppressContentEditableWarning
 			/>
 			{datePicker.popup}
 			{dateAutocomplete.flyout}
+			{tagAutocomplete.popup}
 		</>
 	);
 }

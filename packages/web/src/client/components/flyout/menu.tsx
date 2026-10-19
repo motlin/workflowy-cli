@@ -1,5 +1,5 @@
 import {Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState} from "react";
-import type {CSSProperties, ReactElement, ReactNode} from "react";
+import type {CSSProperties, ReactElement, ReactNode, Ref} from "react";
 import type {MenuItemProps} from "./menu-item.js";
 import {menuFocusStep, menuKeyboard} from "./menu-keyboard.js";
 import type {MenuFocusKey, MenuFocusStep, MenuKeyboardState} from "./menu-keyboard.js";
@@ -239,27 +239,49 @@ export function MenuBody({
 		}
 		return cloneItem(child);
 	});
-	const scrollerStyle: CSSProperties & Record<"--menu-max-h", string> = {"--menu-max-h": menuMaxHeight(maxHeight)};
-
 	return (
 		<>
-			<div
+			<MenuScroller
 				ref={scroller}
+				maxHeight={maxHeight}
+				bordered={sticky.length > 0}
 				onMouseMove={() => {
 					setMouseMovedSinceKey(true);
 				}}
-				style={scrollerStyle}
-				className={`
+			>
+				{body}
+			</MenuScroller>
+			{sticky.map(cloneItem)}
+		</>
+	);
+}
+
+export interface MenuScrollerProps {
+	maxHeight?: number | string;
+	/** A bottom border above bottomSticky rows. */
+	bordered?: boolean;
+	onMouseMove?: () => void;
+	ref?: Ref<HTMLDivElement>;
+	children?: ReactNode;
+}
+
+/** Upstream DomKit Menu's scroller: the rows' capped, scrollable column. */
+export function MenuScroller({maxHeight, bordered = false, onMouseMove, ref, children}: MenuScrollerProps) {
+	const scrollerStyle: CSSProperties & Record<"--menu-max-h", string> = {"--menu-max-h": menuMaxHeight(maxHeight)};
+	return (
+		<div
+			ref={ref}
+			onMouseMove={onMouseMove}
+			style={scrollerStyle}
+			className={`
           scroller overflow-y-auto
           desktop:max-h-[min(var(--menu-max-h),calc(100vh-50px))]
           mobile:max-h-[min(var(--menu-max-h),50vh)]
-          ${sticky.length > 0 ? "border-b border-primary" : ""}
+          ${bordered ? "border-b border-primary" : ""}
           [&>*:first-child]:mt-xs [&>*:last-child]:mb-xs
         `}
-			>
-				{body}
-			</div>
-			{sticky.map(cloneItem)}
-		</>
+		>
+			{children}
+		</div>
 	);
 }

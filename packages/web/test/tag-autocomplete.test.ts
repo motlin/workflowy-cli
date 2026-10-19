@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {applyAccept, attach, currentQuery, shouldShow} from "../src/client/tag-autocomplete.js";
+import {applyAccept, attach, currentQuery, shouldShow, spliceAcceptedTag} from "../src/client/tag-autocomplete.js";
 
 describe("attach", () => {
 	it("attaches at a bare # after a space", () => {
@@ -89,5 +89,11 @@ describe("applyAccept", () => {
 
 	it("replaces only the case-insensitively matching prefix", () => {
 		expect(applyAccept("#TAAx", 0, 5, "#taApple")).toStrictEqual({text: "#taApple x", caret: 9});
+	});
+});
+
+describe("spliceAcceptedTag", () => {
+	it("replaces plain-text units inside rich text, escaping the inserted tag", () => {
+		expect(spliceAcceptedTag("<b>x</b> #ta y", {start: 2, end: 5, inserted: "#a&b "})).toBe("<b>x</b> #a&amp;b  y");
 	});
 });

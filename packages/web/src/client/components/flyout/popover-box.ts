@@ -5,7 +5,7 @@ export const BUTTON_MENU_Z = 1001;
 
 export interface PopoverBoxOptions {
 	surfaceName?: string;
-	minWidth?: number;
+	minWidth?: number | string;
 	maxWidth?: number;
 	// Upstream reads only offset[1]; the horizontal component is ignored.
 	offset?: readonly [number, number];
@@ -14,7 +14,7 @@ export interface PopoverBoxOptions {
 export interface PopoverBoxStyle {
 	pointerEvents: "auto";
 	zIndex: number;
-	minWidth: number | undefined;
+	minWidth: number | string | undefined;
 	maxWidth: number | undefined;
 	marginTop?: number;
 }

@@ -1,4 +1,5 @@
 import {getEndingTagText} from "@workflowy/shared/tags";
+import {splitHtml} from "./rich-text.js";
 
 /**
  * Pure tag-autocomplete rules, mirroring upstream's tagging controller and `autocompleteTagText`.
@@ -47,4 +48,11 @@ export function applyAccept(plain: string, start: number, caret: number, chosen:
 	const needsSpace = (next === undefined || !/\s/u.test(next)) && !chosen.endsWith(":");
 	const inserted = needsSpace ? `${chosen} ` : chosen;
 	return {text: plain.slice(0, start) + inserted + plain.slice(end), caret: start + inserted.length};
+}
+
+/** Stored rich `html` with plain-text units `[start, end)` replaced by the accepted tag text. */
+export function spliceAcceptedTag(html: string, edit: {start: number; end: number; inserted: string}): string {
+	const {before, after} = splitHtml(html, edit.start, edit.end);
+	const escaped = edit.inserted.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+	return before + escaped + after;
 }
