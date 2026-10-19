@@ -132,3 +132,14 @@ export function renderTags(html: string): string {
 export function tagAtOffset(plainText: string, offset: number): string | undefined {
 	return findTags(plainText).find(({index, tag}) => offset >= index && offset <= index + tag.length)?.tag;
 }
+
+/** Upstream's Flyout margin-top under the tag-color teaser. */
+const TEASER_FLYOUT_MARGIN = 4;
+
+/**
+ * Where the tag-color teaser sits for a hovered tag: upstream anchors its Flyout at
+ * `[right - 1, top - 6 + (height - 15) / 2]` and the Flyout adds a 4px top margin.
+ */
+export function teaserPosition(tag: {top: number; right: number; height: number}): {left: number; top: number} {
+	return {left: tag.right - 1, top: tag.top - 6 + (tag.height - 15) / 2 + TEASER_FLYOUT_MARGIN};
+}

@@ -1549,29 +1549,39 @@ body.moving .expand {
 	background-color: var(--wf-tag-bg-gray);
 }
 
-/* Tag color caret - appears at a tag's right edge on hover; opens the picker */
-.tag-color-trigger {
+/* Tag color teaser - upstream's 21x21 hit area holding a 13x13 chevron circle at a hovered tag's right edge; mousedown opens the picker */
+.tag-color-teaser {
 	position: fixed;
 	z-index: 300;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 16px;
-	height: 20px;
-	padding: 0;
-	border: none;
-	background-color: transparent;
-	color: var(--wf-tag-default);
+	width: 21px;
+	height: 21px;
 	cursor: pointer;
 }
 
-.tag-color-trigger svg {
-	width: 9px;
-	height: 6px;
+.tag-color-teaser:hover {
+	color: var(--wf-text-tertiary);
 }
 
-.tag-color-trigger:hover {
-	color: var(--color-text);
+.tag-color-teaser-glyph {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 13px;
+	height: 13px;
+	border: 1px solid var(--wf-border-primary);
+	border-radius: 50%;
+	background-color: var(--wf-background-primary);
+	color: var(--wf-text-link, var(--wf-blue-500));
+	font-size: 8px;
+}
+
+.tag-color-teaser-glyph svg {
+	width: 1em;
+	height: 1em;
 }
 
 /* Tag color picker - floating swatch row shown when a tag is selected */

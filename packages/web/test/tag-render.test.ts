@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {renderTags, tagAtOffset} from "../src/client/tag-render.js";
+import {renderTags, tagAtOffset, teaserPosition} from "../src/client/tag-render.js";
 
 function tagSpan(tag: string): string {
 	return `<span class="contentTag explosive" title="Filter ${tag}" data-val="${tag.toLowerCase()}">${tag.slice(0, 1)}<span class="contentTagText">${tag.slice(1)}</span><span class="contentTagNub"></span></span>`;
@@ -65,5 +65,11 @@ describe("tagAtOffset", () => {
 			"#taZebra",
 			undefined,
 		]);
+	});
+});
+
+describe("teaserPosition", () => {
+	it("places the teaser at the tag's right edge, vertically centred plus the Flyout margin", () => {
+		expect(teaserPosition({top: 146.5, right: 216.92, height: 19})).toStrictEqual({left: 215.92, top: 146.5});
 	});
 });

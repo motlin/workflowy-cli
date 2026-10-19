@@ -28,6 +28,7 @@ import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
 import {TagColorPicker} from "./tag-color-picker.js";
+import {FaIcon} from "./fa-icons.js";
 import {
 	deletePillAfterCaret,
 	deletePillBeforeCaret,
@@ -44,7 +45,7 @@ import {useDateAutocomplete} from "./date-autocomplete.js";
 import {splitHtml} from "../rich-text.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
-import {renderTags, tagAtOffset} from "../tag-render.js";
+import {renderTags, tagAtOffset, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 
@@ -145,6 +146,12 @@ const CARET_ARROWS: Readonly<Partial<Record<EditorKeyAction, "Up" | "Down" | "Le
  *   Up/Left leaving the start of the first child's name enter it at its end
  * - Escape commits the text and opens search; dismissing search resumes editing here
  */
+
+function teaserStyle(tag: {top: number; right: number; bottom: number}): React.CSSProperties {
+	const {left, top} = teaserPosition({top: tag.top, right: tag.right, height: tag.bottom - tag.top});
+	return {top: `${top}px`, left: `${left}px`};
+}
+
 export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
 	const queryClient = useQueryClient();
@@ -989,8 +996,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[nodeId, startEditing, openSearchWithQuery, openPillPicker],
 	);
 
-	// Show the color-trigger caret when hovering a tag; a short hide delay lets the
-	// pointer travel from the tag to the caret without it disappearing.
+	// Show the color teaser when hovering a tag; upstream's 150ms hide delay lets the
+	// pointer travel from the tag to the teaser without it disappearing.
 	const cancelHide = useCallback(() => {
 		if (hideTimer.current !== null) {
 			clearTimeout(hideTimer.current);
@@ -1002,7 +1009,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		cancelHide();
 		hideTimer.current = globalThis.setTimeout(() => {
 			setTagHover(null);
-		}, 200);
+		}, 150);
 	}, [cancelHide]);
 
 	const handleTagHover = useCallback(
@@ -1027,14 +1034,19 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[colorPicker, cancelHide],
 	);
 
-	const openPicker = useCallback(() => {
-		if (!tagHover) {
-			return;
-		}
-		cancelHide();
-		setColorPicker({tag: tagHover.tag, top: tagHover.bottom + 4, left: tagHover.left});
-		setTagHover(null);
-	}, [tagHover, cancelHide]);
+	const openPicker = useCallback(
+		(event: React.MouseEvent<HTMLDivElement>) => {
+			// Upstream opens on mousedown; preventDefault keeps focus where it was.
+			event.preventDefault();
+			if (!tagHover) {
+				return;
+			}
+			cancelHide();
+			setColorPicker({tag: tagHover.tag, top: tagHover.bottom + 4, left: tagHover.left});
+			setTagHover(null);
+		},
+		[tagHover, cancelHide],
+	);
 
 	const applyTagColor = useCallback(
 		(color: TagColorName) => {
@@ -1096,19 +1108,19 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				{tagHover &&
 					!colorPicker &&
 					createPortal(
-						<button
+						// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream's teaser is a pointer-only div
+						<div
 							aria-label="Set tag color"
-							className="tag-color-trigger"
-							onClick={openPicker}
+							className="tag-color-teaser"
+							onMouseDown={openPicker}
 							onMouseEnter={cancelHide}
 							onMouseLeave={scheduleHide}
-							style={{top: `${tagHover.top}px`, left: `${tagHover.right + 1}px`}}
-							type="button"
+							style={teaserStyle(tagHover)}
 						>
-							<svg aria-hidden="true" viewBox="0 0 10 6">
-								<path d="M0 0 L5 6 L10 0 Z" fill="currentColor" />
-							</svg>
-						</button>,
+							<div className="tag-color-teaser-glyph">
+								<FaIcon icon="fal:chevron-down" />
+							</div>
+						</div>,
 						document.body,
 					)}
 				{colorPicker && (
