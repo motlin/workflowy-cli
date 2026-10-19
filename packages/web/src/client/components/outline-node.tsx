@@ -6,6 +6,7 @@ import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
+import {clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useQueryClient} from "@tanstack/react-query";
@@ -68,6 +69,7 @@ interface NodeBulletProps {
  */
 function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBulletProps) {
 	const zoomTo = useZoomTo();
+	const queryClient = useQueryClient();
 	const pressed = useRef(false);
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
 		.filter(Boolean)
@@ -115,6 +117,10 @@ function NodeBullet({nodeId, isMirror, showHalo, onDragStart, onDragEnd}: NodeBu
 					return;
 				}
 				event.preventDefault();
+				// A selected row's bullet clears the selection and stays put.
+				if (clearSelectionFromBullet(queryClient, nodeId)) {
+					return;
+				}
 				void zoomTo(nodeId, "first_child");
 			}}
 			onDragEnd={onDragEnd}
@@ -344,6 +350,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 		handleDragLeave,
 		handleDrop,
 	} = useNodeDragDrop({nodeId: node.id, parentId: node.parent_id, priority: node.priority});
+	const handleContentMouseDown = useContentMouseDown(node.id);
 
 	// Clicking the row outside its text edits the node with the caret at the end;
 	// clicks inside an editor (the text or note being edited) belong to that editor.
@@ -392,7 +399,8 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 				showHalo={hasChildren && !isExpanded}
 			/>
 			{layout.isTodo ? <TodoCheckbox isCompleted={isCompleted} onComplete={handleComplete} /> : null}
-			<div className="notranslate content whitespace-pre-wrap">
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mouse-only item selection (⌘/⌥/⇧-press, drag); keyboard users select with ⇧↑/⇧↓ */}
+			<div className="notranslate content whitespace-pre-wrap" onMouseDown={handleContentMouseDown}>
 				{name !== "" || isEditing ? (
 					<EditableText
 						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}

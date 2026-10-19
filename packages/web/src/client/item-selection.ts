@@ -389,3 +389,61 @@ export function selectionKeyAction(
 	}
 	return PLAIN_SELECTION_KEYS[key] ?? null;
 }
+
+/**
+ * Drag-select: the rows from the drag's start row to the row under the pointer, inclusive in display order, minus
+ * rows whose parent is also in range (the parent's entry covers them). Empty while the pointer stays on the start row.
+ */
+export function rangeFromDrag(
+	flattenedIds: readonly string[],
+	parentOf: (id: string) => string | null,
+	startId: string,
+	pointerId: string,
+): string[] {
+	const start = flattenedIds.indexOf(startId);
+	const pointer = flattenedIds.indexOf(pointerId);
+	if (start === -1 || pointer === -1 || start === pointer) {
+		return [];
+	}
+	const range = flattenedIds.slice(Math.min(start, pointer), Math.max(start, pointer) + 1);
+	const inRange = new Set(range);
+	return range.filter((id) => {
+		const parent = parentOf(id);
+		return parent === null || !inRange.has(parent);
+	});
+}
+
+export type ContentMouseDownAction = "TOGGLE" | "PIVOT" | "DRAG";
+
+/**
+ * Classify a mousedown on a row's `.content`: ⌘/⌥ toggles the row, ⇧ selects from the pivot (except on the edited
+ * row, where it natively extends the text selection), and a plain left press arms drag-select. The bullet owns its
+ * own presses.
+ */
+export function contentMouseDownAction(
+	event: {
+		button: number;
+		metaKey: boolean;
+		ctrlKey: boolean;
+		altKey: boolean;
+		shiftKey: boolean;
+		onBullet: boolean;
+		isEditingRow: boolean;
+	},
+	isMac: boolean,
+): ContentMouseDownAction | null {
+	if (event.button !== 0 || event.onBullet) {
+		return null;
+	}
+	const mod = isMac ? event.metaKey : event.ctrlKey;
+	if (mod || event.altKey) {
+		return "TOGGLE";
+	}
+	if (event.metaKey || event.ctrlKey) {
+		return null;
+	}
+	if (event.shiftKey) {
+		return event.isEditingRow ? null : "PIVOT";
+	}
+	return "DRAG";
+}

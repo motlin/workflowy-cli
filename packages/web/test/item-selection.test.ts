@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
 	caretAfterArrowClear,
+	contentMouseDownAction,
 	deleteCaretTarget,
 	editorSelectAllTakesOver,
 	editorShiftArrowTakesOver,
@@ -10,6 +11,7 @@ import {
 	isEntry,
 	leadId,
 	pivotTo,
+	rangeFromDrag,
 	removeIds,
 	selectIds,
 	selectionKeyAction,
@@ -307,5 +309,58 @@ describe("selectionKeyAction", () => {
 			selectionKeyAction(key("a", {ctrlKey: true}), false),
 			selectionKeyAction(key("a", {metaKey: true}), false),
 		]).toStrictEqual(["SELECT_ALL", null]);
+	});
+});
+
+describe("rangeFromDrag", () => {
+	const ids = tree.visibleOrder.slice(1);
+	const parentOf = (id: string) => tree.parentOf(id);
+	it("selects the rows between the drag start and the pointer, dropping rows whose parent is in range", () => {
+		expect([
+			rangeFromDrag(ids, parentOf, "Bravo", "Delta"),
+			rangeFromDrag(ids, parentOf, "Delta", "A1"),
+			rangeFromDrag(ids, parentOf, "Bravo", "Bravo"),
+			rangeFromDrag(ids, parentOf, "Bravo", "missing"),
+		]).toStrictEqual([["Bravo", "Charlie", "Delta"], ["A1", "A2", "Bravo", "Charlie", "Delta"], [], []]);
+	});
+});
+
+describe("contentMouseDownAction", () => {
+	const press = (
+		mods: Partial<Record<"metaKey" | "ctrlKey" | "altKey" | "shiftKey", boolean>> = {},
+		extra: Partial<{button: number; onBullet: boolean; isEditingRow: boolean}> = {},
+	) => ({
+		button: 0,
+		metaKey: false,
+		ctrlKey: false,
+		altKey: false,
+		shiftKey: false,
+		onBullet: false,
+		isEditingRow: false,
+		...mods,
+		...extra,
+	});
+
+	it("toggles on ⌘/⌥, pivots on ⇧ off the edited row, and arms a drag on a plain left press", () => {
+		expect(
+			[
+				press({metaKey: true}),
+				press({altKey: true}),
+				press({ctrlKey: true}),
+				press({shiftKey: true}),
+				press({shiftKey: true}, {isEditingRow: true}),
+				press(),
+				press({}, {isEditingRow: true}),
+				press({}, {button: 2}),
+				press({metaKey: true}, {onBullet: true}),
+			].map((event) => contentMouseDownAction(event, true)),
+		).toStrictEqual(["TOGGLE", "TOGGLE", null, "PIVOT", null, "DRAG", "DRAG", null, null]);
+	});
+
+	it("toggles with ctrl elsewhere", () => {
+		expect([
+			contentMouseDownAction(press({ctrlKey: true}), false),
+			contentMouseDownAction(press({metaKey: true}), false),
+		]).toStrictEqual(["TOGGLE", null]);
 	});
 });

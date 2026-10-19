@@ -2,10 +2,12 @@
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, NodeResponse} from "../../node-types.js";
 import {useEffect, useRef, useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {useBacklinks, useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
 import {isEntry} from "../item-selection.js";
+import {currentSelectionView} from "../hooks/use-selection-keymap.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
@@ -30,6 +32,9 @@ const ROOT_CHILDREN_CLASS =
 /** Upstream's nested `.children`: indented 36px past the parent bullet, the guide line is its left border. */
 const NESTED_CHILDREN_CLASS =
 	"children relative ml-[10px] pl-[25px] border-l-[length:var(--wf-border-width-s)] border-solid border-l-secondary [.addedToSelection_&]:border-l-transparent [.item--zooming-in-progress_&]:border-l-transparent";
+
+/** The outline's own padding and gutters, not any row: a click there is a blank-space click. */
+const BLANK_OUTLINE_SELECTOR = ".outline-tree-container, .scroller, .project.root, .project.root > .children";
 
 /** Upstream's add-child button wrapper, rendered once after the zoomed page's root `.children`. */
 const ADD_CHILD_CONTAINER_CLASS = "mt-m mobile:ml-[-6px] [.item--zooming-in-progress_&]:hidden print:hidden";
@@ -392,6 +397,22 @@ export function OutlineChildren({
  */
 export function OutlineTree({parentId}: OutlineTreeProps) {
 	const {isLoading, error} = useChildren(parentId);
+	const queryClient = useQueryClient();
+
+	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
+	// last visible row.
+	const handleBlankClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		if (!(event.target instanceof Element) || !event.target.matches(BLANK_OUTLINE_SELECTOR)) {
+			return;
+		}
+		const last = currentSelectionView(queryClient).rows.at(-1);
+		const {clearItemSelection, resumeEditing} = useOutlineStore.getState();
+		if (last === undefined) {
+			clearItemSelection();
+		} else {
+			resumeEditing(last.id, Number.MAX_SAFE_INTEGER);
+		}
+	};
 
 	if (isLoading) {
 		return <div className="outline-tree-loading">Loading...</div>;
@@ -402,7 +423,8 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 	}
 
 	return (
-		<div className="outline-tree-container">
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- a mouse shortcut to the last row; keyboard users move the caret with the arrow keys
+		<div className="outline-tree-container" onClick={handleBlankClick}>
 			<div className="scroller">
 				<ZoomRootRow nodeId={parentId}>
 					<OutlineChildren isRoot parentId={parentId} />
