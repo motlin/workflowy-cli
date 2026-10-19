@@ -25,7 +25,7 @@ export const SEARCH_OPERATORS: SearchOperator[] = [
 	dates.on,
 	dates.before,
 	dates.after,
-	// Bare natural-language dates (M2-150) register here.
+	dates.bareDate,
 	dates.dayOfWeek,
 	meta.textBold,
 	meta.textItalic,

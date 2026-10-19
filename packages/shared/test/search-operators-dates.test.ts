@@ -69,4 +69,28 @@ describe("explicit date operators", () => {
 			["Meeting", "Past", "Future"],
 		]);
 	});
+	it("bare natural-language dates match rows sharing a known date component", () => {
+		expect(
+			[
+				"today",
+				"oct 1",
+				"this month",
+				"Thursday",
+				"last month",
+				"sep 15",
+				"tomorrow",
+				"next week",
+				"yesterday",
+			].map((query) => names(query)),
+		).toStrictEqual([["Meeting"], ["Meeting"], ["Meeting"], ["Meeting"], ["Past"], ["Past"], [], [], []]);
+	});
+
+	it("a bare date claims a multi-word span, combines with terms, and negation requires a date", () => {
+		expect([names("oct 1 meeting"), names("next week -alpha"), names("-today"), names("#today")]).toStrictEqual([
+			["Meeting"],
+			[],
+			["Past", "Future"],
+			[],
+		]);
+	});
 });

@@ -1,3 +1,4 @@
+import * as chrono from "chrono-node";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import {DATE_FORMATS_SHORT, parseTimeAttrs} from "../../dates/date-markup.js";
@@ -132,5 +133,122 @@ export const dayOfWeek: SearchOperator = {
 	create(token) {
 		const day = DAY_NAMES.indexOf(token.slice(DAY_OF_WEEK.length).trim());
 		return dateNode((timestamp) => new Date(timestamp).getDay() === day);
+	},
+};
+
+const UNITS = ["year", "month", "day", "hour", "minute"] as const;
+type Unit = (typeof UNITS)[number];
+
+/** The slice of chrono's ParsingComponents that upstream's overlap test reads. */
+interface Components {
+	isCertain(unit: Unit): boolean;
+	get(unit: Unit): number | null;
+}
+
+interface DateRange {
+	start: Components;
+	end: Components;
+}
+
+function knownComponents(known: Partial<Record<Unit, number>>): Components {
+	return {isCertain: (unit) => known[unit] !== undefined, get: (unit) => known[unit] ?? null};
+}
+
+/** Upstream's `II`: a row `<time>` as known components, the end defaulting to the start. */
+function rowRange(attrs: TimeAttrs): DateRange {
+	const start = knownComponents({
+		year: attrs.startYear,
+		month: attrs.startMonth,
+		day: attrs.startDay,
+		hour: attrs.startHour,
+		minute: attrs.startMinute,
+	});
+	if (attrs.endYear === undefined) {
+		return {start, end: start};
+	}
+	return {
+		start,
+		end: knownComponents({
+			year: attrs.endYear,
+			month: attrs.endMonth,
+			day: attrs.endDay,
+			hour: attrs.endHour,
+			minute: attrs.endMinute,
+		}),
+	};
+}
+
+/** Upstream's `TI`: both ends of the range know the unit. */
+const rangeKnows = (range: DateRange, unit: Unit): boolean => range.start.isCertain(unit) && range.end.isCertain(unit);
+
+/**
+ * Upstream's `ta4`/`la4`: compare `point` against one bound unit by unit, skipping units the range or point leaves
+ * unknown; a strict inequality on an earlier unit settles the comparison.
+ */
+function withinBound(point: Components, range: DateRange, bound: "start" | "end"): boolean {
+	let settled = false;
+	for (const unit of UNITS) {
+		if (!rangeKnows(range, unit) || !point.isCertain(unit)) {
+			continue;
+		}
+		const value = point.get(unit) ?? 0;
+		const edge = range[bound].get(unit) ?? 0;
+		if (bound === "start" ? edge > value : edge < value) {
+			return settled;
+		}
+		settled ||= edge !== value;
+	}
+	return true;
+}
+
+/** Upstream's `PI`. */
+const pointInRange = (point: Components, range: DateRange): boolean =>
+	withinBound(point, range, "start") && withinBound(point, range, "end");
+
+const overlaps = (search: DateRange, row: DateRange): boolean =>
+	UNITS.some((unit) => rangeKnows(search, unit) && rangeKnows(row, unit)) &&
+	(pointInRange(search.start, row) ||
+		pointInRange(row.start, search) ||
+		pointInRange(search.end, row) ||
+		pointInRange(row.end, search));
+
+const PINNED_BY_WEEKDAY: ReadonlySet<Unit> = new Set<Unit>(["year", "month", "day"]);
+
+/** Upstream pins a bare weekday to the day chrono resolved it to, making year, month and day certain. */
+function pinWeekday(components: chrono.ParsedComponents): Components {
+	const pinned = components.isCertain("weekday") && !components.isCertain("day");
+	return {
+		isCertain: (unit) => components.isCertain(unit) || (pinned && PINNED_BY_WEEKDAY.has(unit)),
+		get: (unit) => components.get(unit),
+	};
+}
+
+/** The search range of the chrono result at offset 0 of `text` (casual English, forward dates), if any. */
+function leadingDate(text: string, now: number): {text: string; range: DateRange} | null {
+	const result = chrono.casual
+		.parse(text, new Date(now), {forwardDate: true})
+		.find((candidate) => candidate.index === 0 && !/a[0-9]{1,2}/u.test(candidate.text));
+	if (result === undefined) {
+		return null;
+	}
+	const start = pinWeekday(result.start);
+	return {text: result.text, range: {start, end: result.end ? pinWeekday(result.end) : start}};
+}
+
+export const bareDate: SearchOperator = {
+	name: "bare-date",
+	parseToken(query, start) {
+		const result = leadingDate(query.slice(start), Date.now());
+		return result === null ? null : start + result.text.length;
+	},
+	matchesToken: (token) => leadingDate(token, Date.now()) !== null,
+	create(token, _rawToken, context) {
+		const search = leadingDate(token, context.now)?.range ?? null;
+		return new MetaNode(
+			(item) => search !== null && rowDates(item).some((attrs) => overlaps(search, rowRange(attrs))),
+			{
+				hasSearchTypeValue: hasDate,
+			},
+		);
 	},
 };
