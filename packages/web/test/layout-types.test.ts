@@ -179,6 +179,20 @@ describe("planLayoutToggle", () => {
 		});
 	});
 
+	it.each([
+		["toggle_h1", {layoutMode: "h1"}, "bullets"],
+		["toggle_h1", {layoutMode: "bullets"}, "h1"],
+		["toggle_paragraph", {layoutMode: "h2"}, "p"],
+		["toggle_h1", {layoutMode: "todo", fmt: "h1"}, "bullets"],
+		["toggle_paragraph", {layoutMode: "paragraph"}, "bullets"],
+	] as const)("toggles text type %s over %o to %s, storing p never paragraph", (command, current, layoutMode) => {
+		expect(planLayoutToggle(command, [item("a", current)])).toStrictEqual({
+			updates: [{id: "a", layoutMode}],
+			deletes: [],
+			clearSelection: false,
+		});
+	});
+
 	it("always sets bullets for toggle_bullet", () => {
 		expect(planLayoutToggle("toggle_bullet", [item("a", {layoutMode: "bullets"})])).toStrictEqual({
 			updates: [{id: "a", layoutMode: "bullets"}],
