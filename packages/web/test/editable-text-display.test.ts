@@ -3,7 +3,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 
-const outlineState = {};
+const outlineState = {searchQuery: ""};
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	shouldCommitOnBlur: () => true,

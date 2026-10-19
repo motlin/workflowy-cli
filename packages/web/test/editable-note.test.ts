@@ -10,6 +10,7 @@ import {DEFAULT_DATE_SETTINGS} from "../src/client/date-settings.js";
 import {EMPTY_PREFERENCES, preferenceKeys} from "../src/client/hooks/use-preferences.js";
 
 const outlineState = {
+	searchQuery: "",
 	focusNote: () => {},
 	focusName: () => {},
 	blurNote: () => {},

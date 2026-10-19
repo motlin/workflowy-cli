@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {isModalOpen, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
@@ -23,6 +23,7 @@ import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {stripSlashChip} from "../slash-trigger.js";
 import {withClasses} from "../search-classes.js";
+import {highlightSearchMatches} from "../highlight-html.js";
 
 interface EditableNoteProps {
 	nodeId: string;
@@ -103,6 +104,23 @@ export function EditableNote({
 	const dateSettings = useDateSettings();
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
 	const [focusedHtml, setFocusedHtml] = useState<string | null>(null);
+	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	const restingHtml = noteContentHtml(initialValue, dateSettings);
+	// Search highlights live only in the DOM: React keeps the plain HTML, so focusing never rewrites the DOM
+	// under the caret, and a focused (editing) note never carries .contentMatch spans.
+	const highlightedHtml = focusedHtml === null ? highlightSearchMatches(restingHtml, searchQuery) : null;
+	useLayoutEffect(() => {
+		const element = contentRef.current;
+		if (element !== null && highlightedHtml !== null && element.innerHTML !== highlightedHtml) {
+			element.innerHTML = highlightedHtml;
+		}
+	}, [highlightedHtml]);
+	const clearSearchHighlights = useCallback(() => {
+		const element = contentRef.current;
+		if (element?.querySelector(".contentMatch")) {
+			element.innerHTML = restingHtml;
+		}
+	}, [restingHtml]);
 
 	// Saves the note after each pause in typing; it holds the last note value saved (or loaded).
 	const {mutate: updateNode} = updateNodeMutation;
@@ -293,12 +311,13 @@ export function EditableNote({
 		if (datePickerOpen.current) {
 			return;
 		}
+		clearSearchHighlights();
 		noteSaver.reset(initialValue);
-		setFocusedHtml(noteContentHtml(initialValue, dateSettings));
+		setFocusedHtml(restingHtml);
 		if (!isFocused) {
 			focusNote(nodeId);
 		}
-	}, [initialValue, dateSettings, isFocused, nodeId, focusNote, noteSaver]);
+	}, [clearSearchHighlights, initialValue, restingHtml, isFocused, nodeId, focusNote, noteSaver]);
 
 	const handleBlur = useCallback(() => {
 		detachSlashMenu();
@@ -402,13 +421,17 @@ export function EditableNote({
 				className={isFocused ? `${CONTENT_CLASS} active` : CONTENT_CLASS}
 				contentEditable
 				dangerouslySetInnerHTML={{
-					__html: focusedHtml ?? noteContentHtml(initialValue, dateSettings),
+					__html: focusedHtml ?? restingHtml,
 				}}
 				onBlur={handleBlur}
 				onFocus={handleFocus}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
-				onMouseDown={detachTagAutocomplete}
+				onMouseDown={() => {
+					// Before the browser places the caret, so the click lands in the plain DOM it will edit.
+					clearSearchHighlights();
+					detachTagAutocomplete();
+				}}
 				ref={contentRef}
 				suppressContentEditableWarning
 			/>

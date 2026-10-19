@@ -59,6 +59,7 @@ import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {usePillDatePicker} from "./pill-date-picker.js";
+import {highlightSearchMatches} from "../highlight-html.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {renderTags, tagAtOffset, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
@@ -174,6 +175,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
 	const setItemSelection = useOutlineStore((state) => state.setItemSelection);
 	const openSearchWithQuery = useOutlineStore((state) => state.openSearchWithQuery);
+	const searchQuery = useOutlineStore((state) => state.searchQuery);
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
 	const deleteNodeMutation = useDeleteNode();
@@ -1135,7 +1137,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					className="innerContentContainer"
 					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{
-						__html: renderTags(renderDatePills(renderLinks(initialValue), dateSettings)),
+						__html: highlightSearchMatches(
+							renderTags(renderDatePills(renderLinks(initialValue), dateSettings)),
+							searchQuery,
+						),
 					}}
 					onClick={handleTextClick}
 					onMouseLeave={scheduleHide}

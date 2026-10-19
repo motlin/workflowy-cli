@@ -1080,6 +1080,21 @@ body {
 	height: auto;
 }
 
+/* Upstream's search highlight: every row's matched text gets .contentMatch, colored only in full matches.
+   Kept ahead of the .addedToSelection rules, which clear it on selected rows. */
+.fullMatch :is(.content .contentMatch) {
+	background-color: var(--wf-background-found);
+}
+
+.done .fullMatch :is(.content .contentMatch) {
+	background-color: var(--wf-background-found);
+}
+
+/* A row matched only by a meta operator (is:, date:, ...) highlights its whole name. */
+.project.metaMatches > .name > .content > .innerContentContainer {
+	background-color: var(--wf-background-found);
+}
+
 /* Upstream's `.children` wrapper; its indent and guide border come from the
    wf-tailwind utility classes on the element. */
 .children {
