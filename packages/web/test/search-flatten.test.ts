@@ -1,4 +1,5 @@
 import {describe, expect, it, vi} from "vite-plus/test";
+import {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
 import type {TreeSearchResult} from "../src/server/tree-search.js";
 
@@ -10,6 +11,10 @@ vi.stubGlobal("addEventListener", () => {});
 
 const {flattenTree} = await import("../src/client/hooks/use-flattened-tree.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const {nodeKeys} = await import("../src/client/node-cache.js");
+const {currentExpansionRows, currentNavigableIds} = await import("../src/client/hooks/use-visible-nodes.js");
+const {currentSearchFilter, treeSearchKey} = await import("../src/client/hooks/use-tree-search.js");
+const {searchFilter} = await import("../src/client/search-filter.js");
 
 function node(id: string, parentId: string, name: string, childCount: number, completedAt: number | null = null) {
 	const result: NodeResponse = {
@@ -75,11 +80,15 @@ function visibleNames({
 	result?: TreeSearchResult;
 }) {
 	// The persistent expansion is deliberately empty: search expansion replaces it.
-	return flattenTree(ROOT_CHILDREN, new Set(), showCompleted, 0, CHILDREN, new Set(), {
-		result,
-		createdIds,
-		expansion,
-	}).map((row) => row.node.name);
+	return flattenTree(
+		ROOT_CHILDREN,
+		new Set(),
+		showCompleted,
+		0,
+		CHILDREN,
+		new Set(),
+		searchFilter(result, createdIds, expansion),
+	).map((row) => row.node.name);
 }
 
 describe("flattenTree during a search", () => {
@@ -133,11 +142,15 @@ describe("flattenTree during a search", () => {
 
 	it("reports each row's search expansion", () => {
 		expect(
-			flattenTree(ROOT_CHILDREN, new Set(["veg"]), false, 0, CHILDREN, new Set(), {
-				result: APPLE,
-				createdIds: new Set(),
-				expansion: new Map([["fruit", true]]),
-			}).map((row) => [row.node.id, row.isExpanded]),
+			flattenTree(
+				ROOT_CHILDREN,
+				new Set(["veg"]),
+				false,
+				0,
+				CHILDREN,
+				new Set(),
+				searchFilter(APPLE, new Set(), new Map([["fruit", true]])),
+			).map((row) => [row.node.id, row.isExpanded]),
 		).toStrictEqual([
 			["fruit", true],
 			["green", false],
@@ -159,6 +172,111 @@ describe("toggleSearchExpansion", () => {
 			afterCollapse: new Map([["fruit", false]]),
 			searchExpansion: new Map([["fruit", true]]),
 			expandedIds: new Set(["veg"]),
+		});
+	});
+});
+
+/** A query client holding the fixture's children under zoom root "root" plus the given tree-search results. */
+function searchCache(results: [key: readonly unknown[], result: TreeSearchResult][]) {
+	const queryClient = new QueryClient();
+	queryClient.setQueryData(nodeKeys.children("root"), ROOT_CHILDREN);
+	for (const [id, children] of CHILDREN) {
+		queryClient.setQueryData(nodeKeys.children(id), children);
+	}
+	for (const [key, result] of results) {
+		queryClient.setQueryData(key, result);
+	}
+	return queryClient;
+}
+
+function searchState(searchQuery: string, searchSession = 0) {
+	useOutlineStore.setState({
+		zoomedNodeId: "root",
+		expandedIds: new Set(["veg"]),
+		showCompleted: false,
+		animatingCompletionIds: new Set(),
+		searchQuery,
+		searchRun: 0,
+		searchSession,
+		searchCreatedIds: new Set(),
+		searchExpansion: new Map([["cherry", false]]),
+	});
+}
+
+describe("caret walk during a search", () => {
+	it("visits only the rows the search shows, with search expansion replacing expandedIds", () => {
+		searchState("apple");
+		const queryClient = searchCache([[treeSearchKey(0, "root", "apple", 0), APPLE]]);
+		expect(currentNavigableIds(queryClient)).toStrictEqual(["root", "fruit", "green", "cherry"]);
+	});
+
+	it("builds the expansion rows from the search's rows and expansion", () => {
+		searchState("apple");
+		const queryClient = searchCache([[treeSearchKey(0, "root", "apple", 0), APPLE]]);
+		expect(currentExpansionRows(queryClient)).toStrictEqual([
+			{id: "fruit", depth: 0, hasVisibleChildren: true},
+			{id: "green", depth: 1, hasVisibleChildren: false},
+			{id: "cherry", depth: 1, hasVisibleChildren: true},
+		]);
+	});
+});
+
+describe("currentSearchFilter while a new query loads", () => {
+	const ZEBRA: TreeSearchResult = {...APPLE, matchIds: ["carrot"], ancestorIds: ["veg"]};
+
+	it("keeps the previous result of the same search session until the new one arrives", () => {
+		searchState("apple pie");
+		const queryClient = searchCache([[treeSearchKey(0, "root", "apple", 0), APPLE]]);
+		expect(currentSearchFilter(queryClient)?.result).toBe(APPLE);
+	});
+
+	it("shows the new result once it arrives", () => {
+		searchState("zebra");
+		const queryClient = searchCache([
+			[treeSearchKey(0, "root", "apple", 0), APPLE],
+			[treeSearchKey(0, "root", "zebra", 0), ZEBRA],
+		]);
+		expect(currentSearchFilter(queryClient)?.result).toBe(ZEBRA);
+	});
+
+	it("does not carry a result over a cleared search", () => {
+		searchState("zebra", 1);
+		const queryClient = searchCache([[treeSearchKey(0, "root", "apple", 0), APPLE]]);
+		expect(currentSearchFilter(queryClient)).toBeNull();
+	});
+
+	it("is null when no search is committed", () => {
+		searchState("", 0);
+		const queryClient = searchCache([[treeSearchKey(0, "root", "apple", 0), APPLE]]);
+		expect(currentSearchFilter(queryClient)).toBeNull();
+	});
+});
+
+describe("searchFilter", () => {
+	it("indexes the matches and ancestors as Sets, built once per result", () => {
+		const first = searchFilter(APPLE, new Set(), new Map());
+		const second = searchFilter(APPLE, new Set(["plain"]), new Map());
+		expect({
+			matchIds: first.matchIds,
+			ancestorIds: first.ancestorIds,
+			sameMatchIds: first.matchIds === second.matchIds,
+		}).toStrictEqual({
+			matchIds: new Set(["fruit", "green", "deep", "done"]),
+			ancestorIds: new Set(["fruit", "cherry"]),
+			sameMatchIds: true,
+		});
+	});
+});
+
+describe("setUrlSearchQuery", () => {
+	it("starts a new search session when the search is cleared", () => {
+		useOutlineStore.setState({searchQuery: "apple", searchSession: 3});
+		useOutlineStore.getState().setUrlSearchQuery("zebra");
+		const afterChange = useOutlineStore.getState().searchSession;
+		useOutlineStore.getState().setUrlSearchQuery(null);
+		expect({afterChange, afterClear: useOutlineStore.getState().searchSession}).toStrictEqual({
+			afterChange: 3,
+			afterClear: 4,
 		});
 	});
 });

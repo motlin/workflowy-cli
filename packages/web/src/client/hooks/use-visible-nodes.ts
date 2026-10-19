@@ -5,6 +5,27 @@ import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
 import type {ExpansionRow} from "../expansion.js";
 import {navigableIds} from "../caret-navigation.js";
+import type {SearchFilter} from "../search-filter.js";
+import {isSearchExpanded, searchShowsCompleted, searchShowsNode} from "../search-filter.js";
+import {currentSearchFilter} from "./use-tree-search.js";
+
+/** Whether `node` renders as a row: completion visibility, then the search filter when one is applied. */
+function rendersRow(
+	node: NodeResponse,
+	showCompleted: boolean,
+	animatingCompletionIds: ReadonlySet<string>,
+	search: SearchFilter | null,
+): boolean {
+	return (
+		isPotentiallyVisible(node, searchShowsCompleted(showCompleted, search), animatingCompletionIds) &&
+		(search === null || searchShowsNode(node, search))
+	);
+}
+
+/** Whether `id`'s children render: the search's expansion during a search, else `expandedIds`. */
+function rendersChildren(id: string, expandedIds: ReadonlySet<string>, search: SearchFilter | null): boolean {
+	return search === null ? expandedIds.has(id) : isSearchExpanded(id, search);
+}
 
 /**
  * Builds a flattened list of visible node IDs in display order.
@@ -12,6 +33,7 @@ import {navigableIds} from "../caret-navigation.js";
  * - It's a direct child of the zoomed node (or root if no zoom)
  * - All its ancestors are expanded
  * - It's not completed when showCompleted is false, unless its completion is still animating
+ * - During a search, the search shows it, and expansion comes from the search rather than `expandedIds`
  *
  * Uses TanStack Query's cached data to traverse the tree.
  */
@@ -21,6 +43,7 @@ export function collectVisibleNodeIds(
 	expandedIds: ReadonlySet<string>,
 	showCompleted: boolean,
 	animatingCompletionIds: ReadonlySet<string>,
+	search: SearchFilter | null = currentSearchFilter(queryClient),
 ): string[] {
 	const visibleIds: string[] = [];
 
@@ -32,13 +55,13 @@ export function collectVisibleNodeIds(
 		}
 
 		const filteredChildren = children.filter((node) =>
-			isPotentiallyVisible(node, showCompleted, animatingCompletionIds),
+			rendersRow(node, showCompleted, animatingCompletionIds, search),
 		);
 
 		for (const node of filteredChildren) {
 			visibleIds.push(node.id);
 
-			if (expandedIds.has(node.id)) {
+			if (rendersChildren(node.id, expandedIds, search)) {
 				collectVisibleNodes(node.id);
 			}
 		}
@@ -67,11 +90,12 @@ export function currentNavigableIds(queryClient: QueryClient): string[] {
  */
 export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
 	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	const search = currentSearchFilter(queryClient);
 	const rows: ExpansionRow[] = [];
 	const walk = (parentId: string | null, depth: number) => {
 		const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId)) ?? [];
 		for (const node of children) {
-			if (!isPotentiallyVisible(node, showCompleted, animatingCompletionIds)) {
+			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
 				continue;
 			}
 			const cached = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(node.id));
@@ -80,7 +104,7 @@ export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
 					? cached === undefined || cached.length > 0
 					: rowHasChildren(node, showCompleted);
 			rows.push({id: node.id, depth, hasVisibleChildren});
-			if (expandedIds.has(node.id)) {
+			if (rendersChildren(node.id, expandedIds, search)) {
 				walk(node.id, depth + 1);
 			}
 		}

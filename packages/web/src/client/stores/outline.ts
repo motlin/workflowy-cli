@@ -307,6 +307,8 @@ interface OutlineState {
 	searchQuery: string;
 	/** Bumped when the committed query is re-run unchanged; part of the tree-search query key. */
 	searchRun: number;
+	/** Bumped when the committed search is cleared, so a later search never shows the cleared one's result. */
+	searchSession: number;
 	/** Items created while searching stay visible though they do not match; reset per zoom and query. */
 	searchCreatedIds: Set<string>;
 	/** Per-item expansion overrides while searching; reset per zoom and query. */
@@ -590,6 +592,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	searchFocused: false,
 	searchQuery: "",
 	searchRun: 0,
+	searchSession: 0,
 	searchCreatedIds: new Set(),
 	searchExpansion: new Map(),
 	jumpMenuOpen: false,
@@ -623,13 +626,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			set({urlSearchQuery: query});
 			return;
 		}
-		set({
+		set((state) => ({
 			urlSearchQuery: query,
 			searchQuery,
 			searchInput: searchQuery,
+			searchSession: searchQuery === "" ? state.searchSession + 1 : state.searchSession,
 			searchCreatedIds: new Set(),
 			searchExpansion: new Map(),
-		});
+		}));
 	},
 
 	zoom: (id) => {
