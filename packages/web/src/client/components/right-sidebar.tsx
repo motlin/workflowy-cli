@@ -15,7 +15,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
 			{keys: "⌘]", description: "History forward"},
 			{keys: "⌘'", description: "Navigate home"},
 			{keys: "Esc", description: "Open search"},
-			{keys: "^T", description: "Zoom to Today"},
+			{keys: "⌃T", description: "Zoom to Today"},
 		],
 	},
 	{

@@ -49,8 +49,8 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useCreateNode: () => ({mutate: mutateMock}),
 	useNode: (id: string | null) => ({data: id === null ? undefined : nodesById[id]}),
 }));
-const zoomToTodayMock = vi.fn<(options: {navigate: (path: string) => unknown}) => Promise<void>>(async () => {});
-vi.mock("../src/client/zoom-to-today.js", () => ({zoomToToday: zoomToTodayMock}));
+const navigateToTodayMock = vi.fn<() => Promise<void>>(async () => {});
+vi.mock("../src/client/hooks/use-navigate-to-today.js", () => ({useNavigateToToday: () => navigateToTodayMock}));
 
 const {
 	HomeSectionName,
@@ -230,14 +230,14 @@ describe("TodayRow", () => {
 
 	it("zooms to today instead of navigating to the root", () => {
 		navigateMock.mockClear();
-		zoomToTodayMock.mockClear();
+		navigateToTodayMock.mockClear();
 		const wrapper = TodayRow() as {props: {children: {props: {onClick: () => void}}}};
 		wrapper.props.children.props.onClick();
 		expect({
-			zoom: zoomToTodayMock.mock.calls,
+			today: navigateToTodayMock.mock.calls,
 			navigate: navigateMock.mock.calls,
 		}).toStrictEqual({
-			zoom: [[{navigate: navigateMock}]],
+			today: [[]],
 			navigate: [],
 		});
 	});

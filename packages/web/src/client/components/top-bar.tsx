@@ -15,7 +15,7 @@ import {LayoutMenu} from "./layout-menu.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton, StarIcon} from "./star-button.js";
 import type {LayoutMode} from "./layout-menu.js";
-import {zoomToToday} from "../zoom-to-today.js";
+import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {stepNav, useNavStackSync} from "../navigation.js";
 
 /**
@@ -36,6 +36,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const {zoomedNodeId, toggleLeftBar, showCompleted, openSettings, openPresentation, leftBarOffset, leftBarMode} =
 		useOutlineStore();
 	const navigate = useNavigate();
+	const navigateToToday = useNavigateToToday();
 	const toggleCompleted = useShowCompletedToggle();
 	useNavStackSync();
 	const canGoBack = useOutlineStore((state) => state.nav.back.length > 0);
@@ -207,7 +208,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 				<SearchBox />
 
 				{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
-				<div onClick={() => void zoomToToday({navigate})}>
+				<div onClick={() => void navigateToToday()}>
 					<IconButton shortcut="⌃T" tooltip="Today">
 						<FaIcon icon="fal:calendar-day" />
 					</IconButton>

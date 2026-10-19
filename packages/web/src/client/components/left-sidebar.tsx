@@ -11,7 +11,7 @@ import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {FilesListArrow, FilesListRows, LeftBarRow, RowName, nodeNameHtml} from "./left-bar-files-list.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
-import {zoomToToday} from "../zoom-to-today.js";
+import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 
 const STARRED_CONTEXT = "leftbar__starred__";
 
@@ -259,13 +259,13 @@ export function HomeSectionName() {
 
 /** Upstream's Today row: zooms to today's day node. */
 export function TodayRow() {
-	const navigate = useNavigate();
+	const navigateToToday = useNavigateToToday();
 	return (
 		<div className="my-xl mx-l desktop:mt-m desktop:mb-2xl">
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div */}
 			<div
 				className="relative flex flex-row px-m py-s rounded-m gap-m text-secondary hover:bg-tertiary active:bg-tertiary cursor-pointer"
-				onClick={() => void zoomToToday({navigate})}
+				onClick={() => void navigateToToday()}
 			>
 				<FaIcon className="text-tertiary" icon="fal:calendar-day" />
 				<span>Today</span>

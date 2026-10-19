@@ -36,7 +36,7 @@ import {
 import {collectVisibleNodeIds, currentExpansionRows, currentNavigableIds} from "./use-visible-nodes.js";
 import {createDoublePressDetector, planExpandKey} from "../expansion.js";
 import type {ExpandKey} from "../expansion.js";
-import {zoomToToday} from "../zoom-to-today.js";
+import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
@@ -102,6 +102,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
+	const navigateToToday = useNavigateToToday();
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
 	const deleteNodeMutation = useDeleteNode();
@@ -479,8 +480,7 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		navigate_to_today: {
 			execute() {
-				commitEdit();
-				void zoomToToday({navigate});
+				void navigateToToday();
 			},
 		},
 		navigate_to_prev_item: {
