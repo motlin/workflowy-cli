@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
-import {registerEditFlush, shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
+import {isModalOpen, registerEditFlush, shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
 import {applySplitPlan, planBackspaceAtStart, planDeleteAtEnd, planOutdent, planSplit} from "../tree-ops.js";
 import type {MergeRow} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
@@ -15,10 +15,16 @@ import {
 	planNoteBoundary,
 } from "../caret-navigation.js";
 import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.js";
-import {caretTextOffset, placeCaretAtTextOffset, selectionTextOffsets, textUnitLength} from "../caret-dom.js";
+import {
+	caretTextOffset,
+	placeCaretAtTextOffset,
+	placeSelectionAtTextOffsets,
+	selectionTextOffsets,
+	textUnitLength,
+} from "../caret-dom.js";
 import {classifyEditorKey, classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
 import type {EditorKeyAction} from "../editable-text-keys.js";
-import {nodeKeys, readChildren, readDetail} from "../node-cache.js";
+import {nodeKeys, readChildren, readDetail, readNode} from "../node-cache.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {currentSelectionView, freshSelection, scrollRowIntoView} from "../hooks/use-selection-keymap.js";
 import {editorSelectAllTakesOver, editorShiftArrowTakesOver} from "../item-selection.js";
@@ -44,6 +50,11 @@ import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
 import {plainText, splitHtml} from "../rich-text.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
+import {toolbarFormatAttr, toolbarLayoutCommand, useSelectionToolbar} from "../hooks/use-selection-toolbar.js";
+import {planLayoutHotkey} from "../layout-hotkeys.js";
+import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
+import {SelectionToolbar} from "./selection-toolbar.js";
+import type {SelectionToolbarAction} from "./selection-toolbar.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
@@ -383,15 +394,77 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	} = tagAutocomplete;
 
 	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
+	const readNameHtml = useCallback(() => serializeDatePills(contentRef.current?.innerHTML ?? ""), []);
 	const {applyInlineToggle} = useInlineFormat({
 		editorRef: contentRef,
 		active: isEditing,
-		read: () => serializeDatePills(contentRef.current?.innerHTML ?? ""),
+		read: readNameHtml,
 		render: (html) => renderDatePills(html, dateSettings),
 		onChange: (html) => {
 			nameSaver.change(html);
 		},
 	});
+
+	// Upstream's floating format toolbar over a stretched selection in the edited name.
+	const {view: toolbarView, refresh: refreshToolbar} = useSelectionToolbar({
+		editorRef: contentRef,
+		active: isEditing,
+		read: readNameHtml,
+		modalOpen: isModalOpen,
+	});
+
+	/** A toolbar type button: commit the text, then toggle this row's layout in one undo step, keeping the selection. */
+	const toggleLayoutFromToolbar = useCallback(
+		(command: LayoutHotkeyCommand) => {
+			const content = contentRef.current;
+			const node = readNode(queryClient, nodeId);
+			if (!content || node === undefined) {
+				return;
+			}
+			const name = serializeDatePills(content.innerHTML);
+			const sel = selectionTextOffsets(content);
+			nameSaver.saveNow(name);
+			const plan = planLayoutHotkey(command, [node], {nodeId, name});
+			const renamed = plan.updates.find((update) => update.nodeId === nodeId)?.name;
+			if (renamed !== undefined && renamed !== name) {
+				nameSaver.reset(renamed);
+				content.innerHTML = renderDatePills(renamed, dateSettings);
+				const length = textUnitLength(content);
+				placeSelectionAtTextOffsets(content, Math.min(sel.start, length), Math.min(sel.end, length));
+			}
+			void runInUndoBatch(captureOutlineView, () => {
+				for (const update of plan.updates) {
+					updateNodeMutation.mutate(update);
+				}
+				for (const deleteId of plan.deletes) {
+					deleteNodeMutation.mutate(deleteId);
+				}
+			});
+			refreshToolbar();
+		},
+		[dateSettings, deleteNodeMutation, nameSaver, nodeId, queryClient, refreshToolbar, updateNodeMutation],
+	);
+
+	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
+	const handleToolbarAction = useCallback(
+		(action: SelectionToolbarAction) => {
+			const attr = toolbarFormatAttr(action);
+			const layout = toolbarLayoutCommand(action);
+			const selection = globalThis.getSelection();
+			if (attr !== null) {
+				applyInlineToggle(attr);
+			} else if (layout !== null) {
+				toggleLayoutFromToolbar(layout);
+			} else if (action === "link" && selection !== null && selection.rangeCount > 0) {
+				openLinkInsert({
+					selectedText: selection.toString().trim(),
+					nodeId,
+					range: selection.getRangeAt(0).cloneRange(),
+				});
+			}
+		},
+		[applyInlineToggle, nodeId, openLinkInsert, toggleLayoutFromToolbar],
+	);
 
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
@@ -1101,6 +1174,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			{datePicker.popup}
 			{dateAutocomplete.flyout}
 			{tagAutocomplete.popup}
+			{toolbarView && (
+				<SelectionToolbar
+					activeAttrs={toolbarView.activeAttrs}
+					inNote={false}
+					layoutMode={readNode(queryClient, nodeId)?.data.layoutMode}
+					onAction={handleToolbarAction}
+					rect={toolbarView.rect}
+				/>
+			)}
 		</>
 	);
 }

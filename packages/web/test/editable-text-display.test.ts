@@ -7,6 +7,7 @@ const outlineState = {};
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	shouldCommitOnBlur: () => true,
+	isModalOpen: () => false,
 	useOutlineStore: Object.assign(
 		(selector?: (state: typeof outlineState) => unknown) => (selector ? selector(outlineState) : outlineState),
 		{getState: () => outlineState},

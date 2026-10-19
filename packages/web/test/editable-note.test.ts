@@ -20,6 +20,7 @@ vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
 	registerEditFlush: () => () => {},
+	isModalOpen: () => false,
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useUpdateNode: () => ({mutate: () => {}}),

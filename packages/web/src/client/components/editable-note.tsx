@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {registerEditFlush, useOutlineStore} from "../stores/outline.js";
+import {isModalOpen, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
@@ -12,6 +12,9 @@ import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
+import {toolbarFormatAttr, useSelectionToolbar} from "../hooks/use-selection-toolbar.js";
+import {SelectionToolbar} from "./selection-toolbar.js";
+import type {SelectionToolbarAction} from "./selection-toolbar.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {classifyFormatKey, isMacPlatform} from "../editable-text-keys.js";
@@ -220,16 +223,44 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 	);
 
 	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
+	const readNote = useCallback(
+		() => (contentRef.current === null ? "" : planNoteSave(noteSaver.saved, contentRef.current.innerHTML).note),
+		[noteSaver],
+	);
 	const {applyInlineToggle} = useInlineFormat({
 		editorRef: contentRef,
 		active: true,
-		read: () =>
-			contentRef.current === null ? "" : planNoteSave(noteSaver.saved, contentRef.current.innerHTML).note,
+		read: readNote,
 		render: (note) => noteContentHtml(note, dateSettings),
 		onChange: (note) => {
 			noteSaver.change(note);
 		},
 	});
+
+	// Upstream's floating format toolbar over a stretched selection in the focused note (no type buttons).
+	const {view: toolbarView} = useSelectionToolbar({
+		editorRef: contentRef,
+		active: isFocused,
+		read: readNote,
+		modalOpen: isModalOpen,
+	});
+	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
+	const handleToolbarAction = useCallback(
+		(action: SelectionToolbarAction) => {
+			const attr = toolbarFormatAttr(action);
+			const selection = globalThis.getSelection();
+			if (attr !== null) {
+				applyInlineToggle(attr);
+			} else if (action === "link" && selection !== null && selection.rangeCount > 0) {
+				openLinkInsert({
+					selectedText: selection.toString().trim(),
+					nodeId,
+					range: selection.getRangeAt(0).cloneRange(),
+				});
+			}
+		},
+		[applyInlineToggle, nodeId, openLinkInsert],
+	);
 
 	const handleFocus = useCallback(() => {
 		if (datePickerOpen.current) {
@@ -359,6 +390,15 @@ export function EditableNote({nodeId, initialValue, isFocused, isMain = false}: 
 			/>
 			{datePicker.popup}
 			{tagAutocomplete.popup}
+			{toolbarView && (
+				<SelectionToolbar
+					activeAttrs={toolbarView.activeAttrs}
+					inNote
+					layoutMode={null}
+					onAction={handleToolbarAction}
+					rect={toolbarView.rect}
+				/>
+			)}
 		</div>
 	);
 }

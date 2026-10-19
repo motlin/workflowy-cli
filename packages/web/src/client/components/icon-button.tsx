@@ -1,5 +1,5 @@
 import {useEffect, useRef} from "react";
-import type {HTMLAttributes, KeyboardEvent, MouseEventHandler, ReactNode} from "react";
+import type {HTMLAttributes, KeyboardEvent, MouseEvent, MouseEventHandler, ReactNode} from "react";
 import {useTooltip} from "./tooltip.js";
 
 type IconButtonSize = "sm" | "ms" | "md" | "ml" | "lg" | "xl";
@@ -43,6 +43,7 @@ export function IconButton({
 	tooltip,
 	shortcut,
 	onClick,
+	onMouseDown,
 	children,
 	...rest
 }: IconButtonProps) {
@@ -77,6 +78,13 @@ export function IconButton({
 					iconButtonKeyDown(event, disabled);
 				}}
 				{...(hasTooltip ? triggerProps : {})}
+				// The tooltip hides on mousedown; the caller's handler (e.g. keeping the editor's selection) still runs.
+				onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+					if (hasTooltip) {
+						triggerProps.onMouseDown();
+					}
+					onMouseDown?.(event);
+				}}
 				ref={(element) => {
 					elementRef.current = element;
 					triggerRef(element);

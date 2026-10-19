@@ -29,6 +29,7 @@ const outlineState = {
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
+	isModalOpen: () => false,
 }));
 vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,

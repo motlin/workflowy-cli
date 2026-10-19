@@ -109,7 +109,9 @@ export function SelectionToolbar(props: SelectionToolbarProps) {
 							className={`ctx-menu-item ${isActive(button, props) ? "active" : ""}`}
 							tooltip={button.tooltip}
 							onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+								// Keep the selection, and keep the press from reaching the row's drag-select through the portal.
 								event.preventDefault();
+								event.stopPropagation();
 							}}
 							onClick={(event) => {
 								event.stopPropagation();

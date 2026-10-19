@@ -443,6 +443,18 @@ export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): bo
 	return state.mutationCount > 0;
 }
 
+/** A modal popup is open, which keeps the selection toolbar from opening. */
+export function isModalOpen(): boolean {
+	const state = useOutlineStore.getState();
+	return (
+		state.linkInsertOpen ||
+		state.jumpMenuOpen ||
+		state.moveAssistantOpen ||
+		state.exportDialogOpen ||
+		state.settingsOpen
+	);
+}
+
 /** Upstream's desktop `.moving` flash length. */
 const MOVING_FLASH_MS = 500;
 let movingFlashTimer: ReturnType<typeof setTimeout> | undefined;
