@@ -112,6 +112,17 @@ export function sortedIds(state: SelectionState, tree: TreeView): string[] {
 	return state.entries.map((entry) => entry.id).toSorted((a, b) => position(a) - position(b));
 }
 
+/**
+ * What an item command acts on (upstream's `commandTargets()`): the selection in display order, else the edited row.
+ * `tree` is read only when items are selected, so keystrokes in the editor never walk the outline.
+ */
+export function commandTargets(state: SelectionState, tree: () => TreeView, editingId: string | null): string[] {
+	if (state.entries.length > 0) {
+		return sortedIds(state, tree());
+	}
+	return editingId === null ? [] : [editingId];
+}
+
 /** ⌘/⌥-click: remove the covering entry, else select the row and make it the pivot. */
 export function toggleClick(state: SelectionState, tree: TreeView, id: string): SelectionState {
 	const covering = coveringEntry(state, tree, id);

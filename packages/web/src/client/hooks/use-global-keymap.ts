@@ -1,8 +1,11 @@
 import {useEffect, useRef} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 import {isMacPlatform} from "../editable-text-keys.js";
 import {deferToFocusedControl, keymapCombo, processCombo} from "../keys/dispatch.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
+import {commandTargets} from "../item-selection.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {currentSelectionView} from "./use-selection-keymap.js";
 
 /** Whether keys typed into `target` belong to a form field rather than the outline. */
 function isFormField(target: EventTarget | null): boolean {
@@ -19,9 +22,11 @@ function focusedElement(): HTMLElement | null {
 
 /**
  * Upstream's bubble-phase `window` keydown dispatcher: one listener turns each keydown into a combo and runs the
- * bound command from `registry`, claiming every bound combo but the passthroughs.
+ * bound command from `registry`, claiming every bound combo but the passthroughs. Item commands act on the item
+ * selection in display order when there is one, else on the edited row.
  */
 export function useGlobalKeymap(registry: CommandRegistry): void {
+	const queryClient = useQueryClient();
 	const registryRef = useRef(registry);
 	useEffect(() => {
 		registryRef.current = registry;
@@ -37,9 +42,11 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 			if (combo === null || deferToFocusedControl(combo, focusedElement())) {
 				return;
 			}
-			const {editingId, zoomedNodeId} = useOutlineStore.getState();
+			const {editingId, zoomedNodeId, itemSelection} = useOutlineStore.getState();
 			const ctx: CommandContext = {
-				items: editingId !== null && !isFormField(event.target) ? [editingId] : [],
+				items: isFormField(event.target)
+					? []
+					: commandTargets(itemSelection, () => currentSelectionView(queryClient).tree, editingId),
 				zoomedId: zoomedNodeId,
 			};
 			if (processCombo(combo, registryRef.current, ctx, isMac) === "claimed") {
@@ -50,5 +57,5 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 		return () => {
 			globalThis.removeEventListener("keydown", onKeyDown);
 		};
-	}, []);
+	}, [queryClient]);
 }

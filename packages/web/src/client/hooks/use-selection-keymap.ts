@@ -122,6 +122,34 @@ function resumeAt(target: CaretTarget | null): void {
 }
 
 /**
+ * Delete the selected items (`ordered`, in display order) as one undo step and edit beside them, confirming first
+ * when that removes more than upstream's threshold of items.
+ */
+export function deleteSelectedItems(
+	queryClient: QueryClient,
+	ordered: readonly string[],
+	deleteNode: (id: string) => void,
+): void {
+	// Deleting the zoomed page out from under the view is left to the page's own menu.
+	const {zoomedNodeId} = useOutlineStore.getState();
+	if (zoomedNodeId !== null && ordered.includes(zoomedNodeId)) {
+		return;
+	}
+	if (
+		deletedItemCount(queryClient, ordered) > DELETE_CONFIRM_THRESHOLD &&
+		!globalThis.confirm(`Delete ${ordered.length} selected items and everything inside them?`)
+	) {
+		return;
+	}
+	resumeAt(deleteCaretTarget(ordered, currentSelectionView(queryClient).rows));
+	void runInUndoBatch(captureOutlineView, () => {
+		for (const id of ordered) {
+			deleteNode(id);
+		}
+	});
+}
+
+/**
  * Upstream's item-selection hotkeys, live only while items are selected and focus is off every editor: ⇧↑/⇧↓
  * expand, ⌘A selects the zoom root, plain arrows clear the selection and edit beside it, Backspace/Delete delete
  * every selected item, and Escape clears it and opens search.
@@ -176,23 +204,7 @@ export function useSelectionKeymap(): void {
 					break;
 				}
 				case "DELETE": {
-					// Deleting the zoomed page out from under the view is left to the page's own menu.
-					if (state.zoomedNodeId !== null && ordered.includes(state.zoomedNodeId)) {
-						break;
-					}
-					if (
-						deletedItemCount(queryClient, ordered) > DELETE_CONFIRM_THRESHOLD &&
-						!globalThis.confirm(`Delete ${ordered.length} selected items and everything inside them?`)
-					) {
-						break;
-					}
-					const target = deleteCaretTarget(ordered, view.rows);
-					resumeAt(target);
-					void runInUndoBatch(captureOutlineView, () => {
-						for (const id of ordered) {
-							deleteNode(id);
-						}
-					});
+					deleteSelectedItems(queryClient, ordered, deleteNode);
 					break;
 				}
 				case "ESCAPE": {

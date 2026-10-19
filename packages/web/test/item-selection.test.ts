@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {
 	caretAfterArrowClear,
+	commandTargets,
 	contentMouseDownAction,
 	deleteCaretTarget,
 	editorSelectAllTakesOver,
@@ -362,5 +363,20 @@ describe("contentMouseDownAction", () => {
 			contentMouseDownAction(press({ctrlKey: true}), false),
 			contentMouseDownAction(press({metaKey: true}), false),
 		]).toStrictEqual(["TOGGLE", null]);
+	});
+});
+
+describe("commandTargets", () => {
+	it("returns the selection in display order", () => {
+		const state = selectIds(emptySelection(), tree, ["Bravo", "Alpha"]);
+		expect(commandTargets(state, () => tree, "Charlie")).toStrictEqual(["Alpha", "Bravo"]);
+	});
+
+	it("falls back to the edited row without a selection", () => {
+		expect(commandTargets(emptySelection(), () => tree, "alice")).toStrictEqual(["alice"]);
+	});
+
+	it("is empty with neither a selection nor an edited row", () => {
+		expect(commandTargets(emptySelection(), () => tree, null)).toStrictEqual([]);
 	});
 });

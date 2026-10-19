@@ -42,9 +42,10 @@ import {scheduleCompletionHide} from "../completion-animation.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
 import {plainLength} from "../rich-text.js";
-import {applyOps, captureOutlineView, whenUndoSettled} from "../undo-batch.js";
+import {applyOps, captureOutlineView, runInUndoBatch, whenUndoSettled} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
 import {editPatches, queueUndo} from "../undo-view-state.js";
+import {deleteSelectedItems} from "./use-selection-keymap.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
@@ -63,11 +64,17 @@ function potentiallyVisibleIds(nodes: NodeResponse[] | undefined): string[] {
 		.map((node) => node.id);
 }
 
+/** Whether items are selected, so `ctx.items` is the selection rather than the edited row. */
+function hasItemSelection(): boolean {
+	return useOutlineStore.getState().itemSelection.entries.length > 0;
+}
+
 /**
  * The outline's commands, keyed by upstream command id, for the global keymap to dispatch.
  *
- * Like workflowy.com there is no "selected but not editing" state: the node being edited is the only item, and
- * every item command acts on `ctx.items` (the edited node, or nothing). Moving between nodes is caret movement
+ * Every item command acts on `ctx.items`: the item selection in display order, else the edited node, else nothing.
+ * Complete, delete and export act on every selected item and clear the selection; duplicate keeps it; indent,
+ * outdent and moves leave a selection alone until block moves land. Moving between nodes is caret movement
  * (Up/Down at a node's edge, handled by EditableText, which also owns Enter, Backspace and Escape).
  *
  * Navigation commands commit the edited text before leaving. Structural commands keep the caret and unsaved text
@@ -152,7 +159,7 @@ export function useCommandRegistry(): CommandRegistry {
 	/** Swap with a sibling or cross into the parent's sibling, expanding it. */
 	const moveEditedNodeVertically = (ctx: CommandContext, direction: "up" | "down"): void => {
 		const [nodeId] = ctx.items;
-		if (nodeId === undefined) {
+		if (nodeId === undefined || hasItemSelection()) {
 			return;
 		}
 		const plan = planVerticalMove({
@@ -314,8 +321,37 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
-	/** Toggle complete on the edited node and move the caret as upstream does. */
+	/** Toggle complete on every selected item as one undo step, then clear the selection. */
+	const completeSelection = (ids: readonly string[]): void => {
+		const store = useOutlineStore.getState();
+		store.clearItemSelection();
+		const plan = planToggleComplete(
+			ids.map((id) => readNode(queryClient, id)).filter((node) => node !== undefined),
+		);
+		if (plan.action === "none") {
+			return;
+		}
+		const completing = plan.action === "complete";
+		if (completing && !store.showCompleted) {
+			scheduleCompletionHide(
+				plan.ids,
+				store,
+				(id) => !useOutlineStore.getState().showCompleted && readNode(queryClient, id)?.completedAt !== null,
+			);
+		}
+		void runInUndoBatch(captureOutlineView, () => {
+			for (const nodeId of plan.ids) {
+				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing});
+			}
+		});
+	};
+
+	/** Toggle complete on the edited node and move the caret as upstream does, or on the whole selection. */
 	const complete = (ctx: CommandContext): void => {
+		if (hasItemSelection()) {
+			completeSelection(ctx.items);
+			return;
+		}
 		const node = itemNode(ctx);
 		if (node === undefined) {
 			return;
@@ -557,6 +593,17 @@ export function useCommandRegistry(): CommandRegistry {
 		complete: {execute: complete},
 		duplicate: {
 			execute(ctx) {
+				if (hasItemSelection()) {
+					void runInUndoBatch(captureOutlineView, () => {
+						for (const id of ctx.items) {
+							const selected = readNode(queryClient, id);
+							if (selected !== undefined) {
+								createNodeMutation.mutate(planDuplicate(queryClient, selected));
+							}
+						}
+					});
+					return;
+				}
 				const node = itemNode(ctx);
 				if (node === undefined) {
 					return;
@@ -573,6 +620,10 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 		delete: {
 			execute(ctx) {
+				if (hasItemSelection()) {
+					deleteSelectedItems(queryClient, ctx.items, deleteNodeMutation.mutate);
+					return;
+				}
 				const [nodeId] = ctx.items;
 				if (nodeId !== undefined) {
 					editBesideRemovedNode(nodeId);
@@ -627,6 +678,7 @@ export function useCommandRegistry(): CommandRegistry {
 				if (ctx.items.length > 0) {
 					commitEdit();
 					openExportDialog({nodeIds: [...ctx.items]});
+					useOutlineStore.getState().clearItemSelection();
 				}
 			},
 		},
