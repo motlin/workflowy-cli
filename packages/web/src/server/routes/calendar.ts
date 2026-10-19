@@ -3,7 +3,8 @@
  * workflowy.com recognises them (deterministic ids and calendar metadata).
  *
  * `GET /api/v1/calendar/day/:dateId` -> 200 `{id}` / 404 (read-only lookup).
- * `POST /api/v1/calendar/day/:dateId/ensure` -> 200 `{dayId, firstChildId, created}`.
+ * `POST /api/v1/calendar/day/:dateId/ensure` -> 200 `{dayId, firstChildId, created}`,
+ * or 403 unless `CALENDAR_ENSURE_ENABLED` is on.
  */
 
 import {CalendarRootMissing, parseDateId} from "@workflowy/shared/internal";
@@ -12,6 +13,7 @@ import {findCalendarDay} from "../calendar-day.js";
 import type {AppEnv} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
+const ENSURE_DISABLED = "Calendar day ensure is disabled (set CALENDAR_ENSURE_ENABLED=true to enable it)";
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
 
 /** A `YYYYMMDD` path segment as a real calendar day's dateId, else undefined. */
@@ -45,6 +47,9 @@ export function createCalendarRouter(): Hono<AppEnv> {
 
 	router.post("/day/:dateId/ensure", async (c) => {
 		const ctx = c.get("ctx");
+		if (ctx.calendarEnsureEnabled !== true) {
+			return c.json({error: ENSURE_DISABLED}, 403);
+		}
 		// Tree writes refresh the cache through the public API, so they need its key too.
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 		if (!adapter) {

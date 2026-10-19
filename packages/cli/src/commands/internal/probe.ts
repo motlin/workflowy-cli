@@ -10,7 +10,7 @@ import {
 	editOp,
 	moveOp,
 } from "@workflowy/shared/internal";
-import type {CalendarIdLevel} from "@workflowy/shared/internal";
+import type {CalendarIdLevel, EnsuredCalendarDay} from "@workflowy/shared/internal";
 import {readInternalAuth} from "@workflowy/shared/node";
 import {isDeepStrictEqual} from "node:util";
 import {WorkflowyWriteThroughClient, keptInternalMetadata, normalizeLayoutMode} from "@workflowy/shared/cache";
@@ -34,6 +34,7 @@ const STEPS = [
 	"root-meta-unset",
 	"settings",
 	"calendar-ids",
+	"calendar-adopt",
 ] as const;
 const ROOT_META_WRITES = new Set<string>(["root-meta-set", "root-meta-unset"]);
 /** Account-global root metadata paths whose shapes `root-meta` records (read only). */
@@ -53,12 +54,15 @@ const PROBE_VALUE = {x: "1"};
 const RENAMED = "probe error-shape: renamed";
 /** How far the `index` step backdates the create's client clock, so the node's `createdAt` shows whether `ct` was kept. */
 const CT_SHIFT_SEC = 86_400;
-const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore", "meta", "expansion"]);
+const NEEDS_API_KEY = new Set<string>(["error-shape", "index", "restore", "meta", "expansion", "calendar-adopt"]);
 /** The list start the `meta` step sets, so the rendered numbering shows whether it was honored. */
 const NUMBERED_START = 5;
 /** How many of the most recent cached day nodes the `calendar-ids` step checks one by one. */
 const CALENDAR_SAMPLE = 5;
 const CALENDAR_LEVELS: CalendarIdLevel[] = ["day", "month", "year"];
+/** The far-future day the `calendar-adopt` step ensures (user-approved 2026-10-17), and the earliest it may touch. */
+const ADOPT_DATE_ID = 20_991_231;
+const ADOPT_MIN_DATE_ID = 20_990_101;
 
 /** `order` after moving `ids` (in that order) to insertion slot `index` among the same parent's children. */
 export function expectedMove(order: readonly string[], ids: readonly string[], index: number): string[] {
@@ -76,6 +80,39 @@ export function assertUnderSandbox(ancestorIds: readonly string[]): void {
 	}
 }
 
+/**
+ * Check a `calendar-adopt` ensure result before anything else happens: the
+ * day must be far-future and every created node under the calendar root.
+ * Returns the node whose delete cleans the probe up (the topmost created one).
+ */
+export function planCalendarAdoptProbe(
+	ensured: EnsuredCalendarDay & {dateId: number},
+	calendarRootId: string,
+	ancestorsOf: (id: string) => readonly string[],
+): {deleteId: string} {
+	assertAdoptDateId(ensured.dateId);
+	for (const id of ensured.created) {
+		if (!ancestorsOf(id).includes(calendarRootId)) {
+			throw new Error(
+				`Refusing to continue: created node ${id} is not under the calendar root ${calendarRootId}`,
+			);
+		}
+	}
+	const [deleteId] = ensured.created;
+	if (deleteId === undefined) {
+		throw new Error(`Refusing to continue: ensure created nothing, so ${ensured.dateId} already existed`);
+	}
+	return {deleteId};
+}
+
+function assertAdoptDateId(dateId: number): void {
+	if (dateId < ADOPT_MIN_DATE_ID) {
+		throw new Error(
+			`Refusing to probe ${dateId}: the calendar-adopt probe only touches days from ${ADOPT_MIN_DATE_ID} on`,
+		);
+	}
+}
+
 /** Ancestor ids from `parentId` upward (nearest first, stopping at the sandbox), read from the public API. */
 async function readAncestors(api: WorkflowyApiClient, firstParentId: string | null | undefined): Promise<string[]> {
 	const ancestors: string[] = [];
@@ -89,6 +126,17 @@ async function readAncestors(api: WorkflowyApiClient, firstParentId: string | nu
 	}
 	return ancestors;
 }
+/** Every ancestor id from `firstParentId` up to the top level (nearest first), read from the public API. */
+async function readAllAncestors(api: WorkflowyApiClient, firstParentId: string | null | undefined): Promise<string[]> {
+	const ancestors: string[] = [];
+	let parentId = firstParentId ?? null;
+	while (parentId !== null) {
+		ancestors.push(parentId);
+		parentId = (await api.getNode(parentId)).parent_id ?? null;
+	}
+	return ancestors;
+}
+
 const BODY_PREVIEW_CHARS = 200;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -248,6 +296,7 @@ export default class Probe extends Command {
 		"<%= config.bin %> internal probe root-meta-unset --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe settings --yes-live --yes-account-global",
 		"<%= config.bin %> internal probe calendar-ids --yes-live",
+		"<%= config.bin %> internal probe calendar-adopt --yes-live",
 	];
 
 	static override args = {
@@ -371,6 +420,12 @@ export default class Probe extends Command {
 		}
 		if (step === "calendar-ids") {
 			return this.calendarIds(client, recorded);
+		}
+		if (step === "calendar-adopt") {
+			return this.calendarAdopt(
+				client,
+				new WorkflowyApiClient(apiKey ?? "", undefined, process.env.WORKFLOWY_API_URL),
+			);
 		}
 		return step === "root-meta-set" ? this.rootMetaSet(client) : this.rootMetaUnset(client);
 	}
@@ -783,6 +838,44 @@ export default class Probe extends Command {
 			...sample.map((row) => `  - \`${row.dateId}\`: ${matches(row) ? "MATCH" : "MISMATCH"}`),
 			`- Sample result: ${sample.filter(matches).length} of ${sample.length} match`,
 			`- All cached calendar nodes: ${totals.join(", ")} match`,
+		];
+	}
+
+	/**
+	 * USER-APPROVED write outside the sandbox (2026-10-17): ensure the far-future
+	 * day 2099-12-31 under `📆 Calendar` through the adapter (the code behind
+	 * `POST /api/v1/calendar/day/:dateId/ensure`), check every created node sits
+	 * under the calendar root, and print what to check on workflowy.com and
+	 * which node to delete afterwards. It deletes nothing itself.
+	 */
+	private async calendarAdopt(client: WorkflowyInternalClient, api: WorkflowyApiClient): Promise<string[]> {
+		assertAdoptDateId(ADOPT_DATE_ID);
+		const db = createDatabase();
+		const writeThrough = new WorkflowyWriteThroughClient(api, new CacheService(db));
+		const adapter = new WorkflowyInternalAdapter({client, db, writeThrough});
+		const ensured = await adapter.ensureCalendarDay(ADOPT_DATE_ID);
+		const [root] = db.all<{nodeId: string}>(
+			sql`SELECT node_id AS nodeId FROM node_internal_metadata WHERE json_extract(metadata_json, '$.calendar.root') = 1`,
+		);
+		if (root === undefined) {
+			this.error("No cached calendar root after ensure");
+		}
+		const ancestors = new Map<string, string[]>();
+		for (const id of ensured.created) {
+			ancestors.set(id, await readAllAncestors(api, (await api.getNode(id)).parent_id));
+		}
+		const {deleteId} = planCalendarAdoptProbe(
+			{...ensured, dateId: ADOPT_DATE_ID},
+			root.nodeId,
+			(id) => ancestors.get(id) ?? [],
+		);
+		return [
+			`- Ensured \`${ADOPT_DATE_ID}\` through \`WorkflowyInternalAdapter.ensureCalendarDay\` (write-through to the real cache)`,
+			`- \`dayId\`: \`${ensured.dayId}\`; \`firstChildId\`: \`${ensured.firstChildId}\``,
+			`- \`created\` (outermost first): ${codeList(ensured.created)}`,
+			`- Every created node is under the calendar root \`${root.nodeId}\` (public API ancestors)`,
+			`- Cleanup: \`./bin/run.js node delete --id ${deleteId}\``,
+			"- Next: on workflowy.com jump to 2099-12-31 and check it opens `dayId`, with one `2099`, one `12` and one day under `📆 Calendar`",
 		];
 	}
 

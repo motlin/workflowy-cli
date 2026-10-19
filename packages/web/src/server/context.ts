@@ -25,6 +25,11 @@ export interface ServerContext {
 	 * undefined when internal-API auth is not configured.
 	 */
 	internalAdapter?: () => WorkflowyInternalAdapter | undefined;
+	/**
+	 * Whether `POST /api/v1/calendar/day/:dateId/ensure` may create day nodes
+	 * (`CALENDAR_ENSURE_ENABLED`); see the M2-74 calendar-adopt probe.
+	 */
+	calendarEnsureEnabled?: boolean;
 }
 
 /** Hono environment: routers read the {@link ServerContext} via `c.get('ctx')`. */
@@ -47,6 +52,7 @@ export function createServerContext(): ServerContext {
 		cacheService,
 		apiKey,
 		internalAuth,
+		calendarEnsureEnabled: process.env.CALENDAR_ENSURE_ENABLED === "true",
 		internalAdapter: () => {
 			if (!adapter && internalAuth) {
 				adapter = new WorkflowyInternalAdapter({

@@ -9,7 +9,9 @@ const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
 const ENSURED = {dayId: "day", firstChildId: "child", created: ["month", "day", "child"]};
 
-function setup(options: {configured?: boolean; ensure?: WorkflowyInternalAdapter["ensureCalendarDay"]} = {}) {
+function setup(
+	options: {configured?: boolean; enabled?: boolean; ensure?: WorkflowyInternalAdapter["ensureCalendarDay"]} = {},
+) {
 	const configured = options.configured ?? true;
 	const adapter = {
 		ensureCalendarDay: vi.fn<WorkflowyInternalAdapter["ensureCalendarDay"]>(
@@ -18,6 +20,7 @@ function setup(options: {configured?: boolean; ensure?: WorkflowyInternalAdapter
 	};
 	const ctx = {
 		apiKey: configured ? "key" : undefined,
+		calendarEnsureEnabled: options.enabled ?? true,
 		internalAdapter: () => (configured ? (adapter as unknown as WorkflowyInternalAdapter) : undefined),
 	} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
@@ -65,6 +68,20 @@ describe("POST /api/v1/calendar/day/:dateId/ensure", () => {
 		await expect(ensure("20261017")).resolves.toStrictEqual({
 			status: 409,
 			body: {error: new CalendarRootMissing().message},
+		});
+	});
+
+	it("answers 403 without calling the adapter while ensure is disabled", async () => {
+		const {adapter, ensure} = setup({enabled: false});
+
+		const response = await ensure("20261017");
+
+		expect({response, calls: adapter.ensureCalendarDay.mock.calls}).toStrictEqual({
+			response: {
+				status: 403,
+				body: {error: "Calendar day ensure is disabled (set CALENDAR_ENSURE_ENABLED=true to enable it)"},
+			},
+			calls: [],
 		});
 	});
 
