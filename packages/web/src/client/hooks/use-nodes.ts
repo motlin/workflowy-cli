@@ -5,7 +5,7 @@ import type {MutateOptions, QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
-import {nodeKeys, patchCachedNode, readNode, spliceBlock, spliceChildren} from "../node-cache.js";
+import {nodeKeys, patchCachedNode, readNode, snapshotCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
@@ -451,6 +451,13 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 const updateUndos = new HeldUndos<NodeResponse, UpdateNodeRequest & {nodeId: string}>();
 
 /**
+ * The cache as it stood when `mutate` was called, keyed by its variables. `onMutate` runs a
+ * tick later, after callers may already have previewed the edit in the cache (tag explode does),
+ * so a snapshot taken there would roll a failed save back to the edited value.
+ */
+const preEditSnapshots = new WeakMap<UpdateNodeRequest & {nodeId: string}, () => void>();
+
+/**
  * Updates a node with optimistic update.
  */
 export function useUpdateNode() {
@@ -459,11 +466,12 @@ export function useUpdateNode() {
 
 	const mutation = useMutation({
 		mutationFn: async ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) => updateNode(nodeId, request),
-		async onMutate({nodeId, ...updates}) {
+		async onMutate(variables) {
+			const {nodeId, ...updates} = variables;
 			// Cancel outgoing refetches
 			await queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
 			// Patch the row in its parent's list too: an empty row's name drives whether its editor stays mounted.
-			const restore = patchCachedNode(queryClient, nodeId, (node) => ({
+			const restorePatched = patchCachedNode(queryClient, nodeId, (node) => ({
 				...node,
 				name: updates.name ?? node.name,
 				note: updates.note ?? node.note,
@@ -471,7 +479,14 @@ export function useUpdateNode() {
 				...(updates.numberedStart === undefined ? {} : {numberedStart: updates.numberedStart}),
 				modifiedAt: Math.floor(Date.now() / 1000),
 			}));
-			return {restore};
+			const restorePreEdit = preEditSnapshots.get(variables);
+			preEditSnapshots.delete(variables);
+			return {
+				restore() {
+					restorePatched();
+					restorePreEdit?.();
+				},
+			};
 		},
 		onSuccess(data, variables) {
 			updateUndos.settle(variables, {data});
@@ -518,9 +533,10 @@ export function useUpdateNode() {
 				}
 				return;
 			}
+			preEditSnapshots.set(variables, snapshotCachedNode(queryClient, variables.nodeId));
 			nodeMutate(variables, options);
 		},
-		[homeMutate, nodeMutate],
+		[homeMutate, nodeMutate, queryClient],
 	);
 	return {...mutation, mutate};
 }

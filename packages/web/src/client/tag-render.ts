@@ -1,4 +1,5 @@
 import {findTags} from "@workflowy/shared/tags";
+import {plainLength as caretUnitLength} from "./rich-text.js";
 import {escapeRegExp} from "./search/helper-insert.js";
 
 const ENTITIES: Readonly<Record<string, string>> = {
@@ -213,4 +214,24 @@ export function removeTagFromHtml(html: string, plainStart: number, tag: string)
 			return text.slice(0, htmlOffsets[from]) + text.slice(htmlOffsets[to]);
 		})
 		.join("");
+}
+
+/**
+ * The editor caret offset of the tag at `plainStart`. Tag offsets count a `<time>` pill's
+ * label character by character; caret offsets (`caret-dom.ts`) count each pill as one unit.
+ */
+export function tagCaretUnits(html: string, plainStart: number): number {
+	let htmlBefore = "";
+	for (const token of tokenize(html).tokens) {
+		if (token.kind === "markup") {
+			htmlBefore += token.html;
+			continue;
+		}
+		const {html: text, plainStart: segmentStart, htmlOffsets} = token.segment;
+		if (plainStart < segmentStart + htmlOffsets.length - 1) {
+			return caretUnitLength(htmlBefore + text.slice(0, htmlOffsets[Math.max(plainStart - segmentStart, 0)]));
+		}
+		htmlBefore += text;
+	}
+	return caretUnitLength(html);
 }

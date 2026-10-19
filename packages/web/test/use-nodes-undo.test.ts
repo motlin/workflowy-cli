@@ -3,7 +3,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
-import {nodeKeys} from "../src/client/node-cache.js";
+import {nodeKeys, patchCachedNode} from "../src/client/node-cache.js";
 import {runInUndoBatch} from "../src/client/undo-batch.js";
 import {undoHistory} from "../src/client/undo-history.js";
 import type {ViewState} from "../src/client/undo-history.js";
@@ -182,5 +182,18 @@ describe("creates during a search", () => {
 		captureHooks(queryClient).create.mutate({id: "client-id", parent_id: "p", name: "", index: 1});
 		await settled(queryClient);
 		expect(createdForSearch).toStrictEqual(["client-id", "server-id"]);
+	});
+});
+
+describe("failed updates roll back", () => {
+	it("restores the pre-edit name even when the caller previews the edit right after mutate", async () => {
+		const queryClient = seeded();
+		responses.push(new Response(null, {status: 500, statusText: "Boom"}));
+		captureHooks(queryClient).update.mutate({nodeId: "a", name: "edited"});
+		patchCachedNode(queryClient, "a", (cached) => ({...cached, name: "edited"}));
+		await settled(queryClient);
+		expect(
+			queryClient.getQueryData<NodeResponse[]>(nodeKeys.children("p"))?.map((child) => child.name),
+		).toStrictEqual(["alpha", "beta", "gamma"]);
 	});
 });

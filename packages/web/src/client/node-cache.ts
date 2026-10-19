@@ -78,6 +78,39 @@ export function spliceBlock<T extends Pick<NodeResponse, "id" | "priority">>(
 	}));
 }
 
+/** The cache entries that hold `nodeId`: its detail entry and every cached children list containing its row. */
+function cachedNodeEntries(
+	queryClient: QueryClient,
+	nodeId: string,
+): [readonly unknown[], NodeResponse | NodeResponse[]][] {
+	const entries: [readonly unknown[], NodeResponse | NodeResponse[]][] = [];
+	const detail = readDetail(queryClient, nodeId);
+	if (detail) {
+		entries.push([nodeKeys.detail(nodeId), detail]);
+	}
+	for (const [key, children] of queryClient.getQueriesData<NodeResponse[]>({
+		queryKey: [...nodeKeys.all, "children"],
+	})) {
+		if (children?.some((child) => child.id === nodeId)) {
+			entries.push([key, children]);
+		}
+	}
+	return entries;
+}
+
+function restoring(queryClient: QueryClient, entries: [readonly unknown[], unknown][]): () => void {
+	return () => {
+		for (const [key, value] of entries) {
+			queryClient.setQueryData(key, value);
+		}
+	};
+}
+
+/** Snapshot every cache entry that holds `nodeId` without changing it; returns a function that restores them. */
+export function snapshotCachedNode(queryClient: QueryClient, nodeId: string): () => void {
+	return restoring(queryClient, cachedNodeEntries(queryClient, nodeId));
+}
+
 /**
  * Optimistically apply `patch` to `nodeId` everywhere the outline reads it: its detail
  * entry and its row in every cached children list (rows render from the list, so a
@@ -89,26 +122,12 @@ export function patchCachedNode(
 	nodeId: string,
 	apply: (node: NodeResponse) => NodeResponse,
 ): () => void {
-	const snapshots: [readonly unknown[], NodeResponse | NodeResponse[]][] = [];
-	const detail = readDetail(queryClient, nodeId);
-	if (detail) {
-		snapshots.push([nodeKeys.detail(nodeId), detail]);
-		queryClient.setQueryData<NodeResponse>(nodeKeys.detail(nodeId), apply(detail));
+	const entries = cachedNodeEntries(queryClient, nodeId);
+	for (const [key, value] of entries) {
+		queryClient.setQueryData(
+			key,
+			Array.isArray(value) ? value.map((child) => (child.id === nodeId ? apply(child) : child)) : apply(value),
+		);
 	}
-	for (const [key, children] of queryClient.getQueriesData<NodeResponse[]>({
-		queryKey: [...nodeKeys.all, "children"],
-	})) {
-		if (children?.some((child) => child.id === nodeId)) {
-			snapshots.push([key, children]);
-			queryClient.setQueryData<NodeResponse[]>(
-				key,
-				children.map((child) => (child.id === nodeId ? apply(child) : child)),
-			);
-		}
-	}
-	return () => {
-		for (const [key, value] of snapshots) {
-			queryClient.setQueryData(key, value);
-		}
-	};
+	return restoring(queryClient, entries);
 }

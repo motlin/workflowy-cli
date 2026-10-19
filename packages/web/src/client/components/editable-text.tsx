@@ -67,6 +67,7 @@ import {
 	removeTagFromHtml,
 	renderTags,
 	renderedTagStarts,
+	tagCaretUnits,
 	teaserPosition,
 	toggleTagInQuery,
 } from "../tag-render.js";
@@ -1015,7 +1016,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				updateNodeMutation.mutate({nodeId, name});
 				// The editor captures its HTML when editing starts: show the new name before that.
 				patchCachedNode(queryClient, nodeId, (node) => ({...node, name}));
-				resumeEditing(nodeId, start);
+				resumeEditing(nodeId, tagCaretUnits(name, start));
 			});
 		},
 		[initialValue, nodeId, queryClient, resumeEditing, updateNodeMutation],

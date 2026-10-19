@@ -5,6 +5,7 @@ import {
 	removeTagFromHtml,
 	renderTags,
 	renderedTagStarts,
+	tagCaretUnits,
 	teaserPosition,
 	toggleTagInQuery,
 } from "../src/client/tag-render.js";
@@ -123,6 +124,17 @@ describe("removeTagFromHtml", () => {
 describe("renderedTagStarts", () => {
 	it("lists the plain offsets of the tags renderTags wraps, skipping links and code", () => {
 		expect(renderedTagStarts('#a <a href="x">#b</a> <code>#c</code> @d')).toStrictEqual([0, 9]);
+	});
+});
+
+describe("tagCaretUnits", () => {
+	it("counts a date pill as one caret unit and entities as one, unlike the label-length tag offsets", () => {
+		const pill = '<time startYear="2026" startMonth="10" startDay="19">Oct 19, 2026</time>';
+		expect({
+			afterPill: tagCaretUnits(`${pill} #a #b text`, 16),
+			entities: tagCaretUnits("a &amp; #t", 4),
+			plain: tagCaretUnits("#a #b", 3),
+		}).toStrictEqual({afterPill: 5, entities: 4, plain: 3});
 	});
 });
 
