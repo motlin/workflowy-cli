@@ -163,3 +163,197 @@ export function concatHtml(a: string, b: string): string {
 	}
 	return joinRaw(left) + joinRaw(right);
 }
+
+// ---- Attribute-model inline formatting, like upstream's AttrString.toggleAttribute ----
+
+export type InlineAttr = "b" | "i" | "u" | "s" | "code";
+
+/** A maximal run of plain-text characters inside one tag; `raw` is its opening tag. */
+export interface InlineSpan {
+	start: number;
+	end: number;
+	name: string;
+	raw: string;
+}
+
+/** Plain-text characters (raw markup, so entities and `<time>` pills stay intact) plus tag spans. */
+export interface InlineModel {
+	chars: string[];
+	spans: InlineSpan[];
+	tail: string;
+}
+
+// Outermost first. `a` and `span` (colored text) are opaque: kept with their raw opening tag.
+const NESTING_ORDER = ["code", "a", "span", "i", "u", "s", "b"];
+
+// Non-format tags (other than `<time>` pills) ride along with the next character, or `tail`.
+function charTags(html: string): {chars: string[]; tags: OpenTag[][]; tail: string} {
+	const chars: string[] = [];
+	const tags: OpenTag[][] = [];
+	const stack: OpenTag[] = [];
+	let pendingOther = "";
+	for (const token of tokenize(html)) {
+		if (token.kind === "other") {
+			pendingOther += token.raw;
+		} else if (token.kind === "char") {
+			chars.push(pendingOther + token.raw);
+			pendingOther = "";
+			tags.push(dedupeTags(stack));
+		} else {
+			applyTag(stack, token);
+		}
+	}
+	return {chars, tags, tail: pendingOther};
+}
+
+function isOpaque(name: string): boolean {
+	return name === "a" || name === "span";
+}
+
+function dedupeTags(stack: OpenTag[]): OpenTag[] {
+	const result: OpenTag[] = [];
+	for (const open of stack) {
+		if (isOpaque(open.name) || !result.some((other) => other.name === open.name)) {
+			result.push(isOpaque(open.name) ? open : {name: open.name, raw: `<${open.name}>`});
+		}
+	}
+	return result;
+}
+
+function sameTag(a: OpenTag, b: OpenTag): boolean {
+	return a.name === b.name && a.raw === b.raw;
+}
+
+export function parseInline(html: string): InlineModel {
+	const {chars, tags, tail} = charTags(html);
+	const spans: InlineSpan[] = [];
+	const open: InlineSpan[] = [];
+	for (const [index, current] of tags.entries()) {
+		for (const span of open.splice(0)) {
+			if (current.some((tag) => sameTag(tag, span))) {
+				open.push(span);
+			} else {
+				spans.push(span);
+			}
+		}
+		for (const tag of current) {
+			const running = open.find((span) => sameTag(span, tag));
+			if (running) {
+				running.end = index + 1;
+			} else {
+				open.push({start: index, end: index + 1, name: tag.name, raw: tag.raw});
+			}
+		}
+	}
+	spans.push(...open);
+	return {chars, spans: spans.toSorted((a, b) => a.start - b.start || b.end - a.end), tail};
+}
+
+function nestingRank(tag: OpenTag): number {
+	return NESTING_ORDER.indexOf(tag.name);
+}
+
+/** Serializes `model` with canonical nesting: `code > a > span > i > u > s > b`, outermost first. */
+export function serializeInline(model: InlineModel): string {
+	const tags = model.chars.map((_, index) =>
+		model.spans
+			.filter((span) => span.start <= index && index < span.end)
+			.map(({name, raw}) => ({name, raw}))
+			.toSorted((a, b) => nestingRank(a) - nestingRank(b)),
+	);
+	return serializeTags(model.chars, tags, model.tail);
+}
+
+function serializeTags(chars: string[], tags: OpenTag[][], tail: string): string {
+	let html = "";
+	let stack: OpenTag[] = [];
+	for (const [index, raw] of chars.entries()) {
+		const wanted = (tags[index] ?? []).toSorted((a, b) => nestingRank(a) - nestingRank(b));
+		let common = 0;
+		for (const [position, tag] of wanted.entries()) {
+			const current = stack[position];
+			if (current === undefined || !sameTag(current, tag)) {
+				break;
+			}
+			common = position + 1;
+		}
+		html += closeTags(stack.slice(common));
+		html += wanted
+			.slice(common)
+			.map((tag) => tag.raw)
+			.join("");
+		stack = wanted;
+		html += raw;
+	}
+	return html + closeTags(stack) + tail;
+}
+
+function closeTags(stack: OpenTag[]): string {
+	return stack
+		.toReversed()
+		.map((tag) => `</${tag.name}>`)
+		.join("");
+}
+
+function withAttr(tags: OpenTag[], attr: InlineAttr): boolean {
+	return tags.some((tag) => tag.name === attr);
+}
+
+/** True when every character in `start..end` carries `attr` (false for an empty range). */
+export function hasAttr(html: string, start: number, end: number, attr: InlineAttr): boolean {
+	const {tags} = charTags(html);
+	const range = tags.slice(start, end);
+	return range.length > 0 && range.length === end - start && range.every((current) => withAttr(current, attr));
+}
+
+/** True when any `attr` span overlaps `start..end` (upstream's `spans.touched`), so a collapsed caret inside or at a span's end counts. */
+export function touchesAttr(html: string, start: number, end: number, attr: InlineAttr): boolean {
+	return parseInline(html).spans.some(
+		(span) =>
+			span.name === attr &&
+			((start <= span.start && span.start < end) ||
+				(start < span.end && span.end <= end) ||
+				(span.start <= start && start < span.end) ||
+				(span.start < end && end <= span.end)),
+	);
+}
+
+/** Removes `attr` from `start..end` when the whole range has it, otherwise sets it on the whole range. */
+export function toggleAttr(html: string, start: number, end: number, attr: InlineAttr): string {
+	const remove = hasAttr(html, start, end, attr);
+	const {chars, tags, tail} = charTags(html);
+	const toggled = tags.map((current, index) => {
+		if (index < start || index >= end) {
+			return current;
+		}
+		const without = current.filter((tag) => tag.name !== attr);
+		return remove ? without : [...without, {name: attr, raw: `<${attr}>`}];
+	});
+	return serializeTags(chars, toggled, tail);
+}
+
+export function planInlineToggle(
+	html: string,
+	sel: {start: number; end: number},
+	attr: InlineAttr,
+): {html: string; sel: {start: number; end: number}} {
+	return {html: toggleAttr(html, sel.start, sel.end, attr), sel};
+}
+
+const ESCAPES: Record<string, string> = {"&": "&amp;", "<": "&lt;", ">": "&gt;"};
+
+/**
+ * Inserts the typed `char` at plain-text `pos`. It inherits the simple formatting of the
+ * preceding character, and each pending attribute toggles on top of that.
+ */
+export function pendingFormatApply(html: string, pos: number, attrs: ReadonlySet<InlineAttr>, char: string): string {
+	const {chars, tags, tail} = charTags(html);
+	let inherited = (tags[pos - 1] ?? []).filter((tag) => !isOpaque(tag.name));
+	for (const attr of attrs) {
+		inherited = withAttr(inherited, attr)
+			? inherited.filter((tag) => tag.name !== attr)
+			: [...inherited, {name: attr, raw: `<${attr}>`}];
+	}
+	const escaped = char.replaceAll(/[&<>]/gu, (match) => ESCAPES[match] ?? match);
+	return serializeTags(chars.toSpliced(pos, 0, escaped), tags.toSpliced(pos, 0, inherited), tail);
+}

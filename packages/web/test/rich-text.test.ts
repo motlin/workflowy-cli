@@ -1,5 +1,17 @@
 import {describe, expect, it} from "vite-plus/test";
-import {concatHtml, plainLength, splitHtml, trimmedPlainLength} from "../src/client/rich-text.js";
+import {
+	concatHtml,
+	hasAttr,
+	parseInline,
+	pendingFormatApply,
+	plainLength,
+	planInlineToggle,
+	serializeInline,
+	splitHtml,
+	toggleAttr,
+	touchesAttr,
+	trimmedPlainLength,
+} from "../src/client/rich-text.js";
 
 describe("splitHtml", () => {
 	it("splits plain text at a collapsed caret", () => {
@@ -88,5 +100,92 @@ describe("date pills are one character", () => {
 
 	it("never splits inside a <time> element", () => {
 		expect(splitHtml(`ab ${pill} c`, 4, 4)).toStrictEqual({before: `ab ${pill}`, after: " c"});
+	});
+});
+
+describe("toggleAttr", () => {
+	it("sets an attribute on a plain range and removes it again", () => {
+		const bold = toggleAttr("Bravo plain text here", 6, 11, "b");
+		expect(bold).toBe("Bravo <b>plain</b> text here");
+		expect(toggleAttr(bold, 6, 11, "b")).toBe("Bravo plain text here");
+	});
+
+	it("extends a partial attribute over the whole range, then removes it", () => {
+		const extended = toggleAttr("Bravo <b>text</b> here", 6, 15, "b");
+		expect(extended).toBe("Bravo <b>text here</b>");
+		expect(toggleAttr(extended, 6, 15, "b")).toBe("Bravo text here");
+	});
+
+	it("nests attributes in canonical order regardless of toggle order", () => {
+		const expected = "Bravo <code><i><u><s>plain</s></u></i></code> text here";
+		const forward = ["i", "u", "s", "code"] as const;
+		const backward = ["code", "s", "u", "i"] as const;
+		expect(forward.reduce((html, attr) => toggleAttr(html, 6, 11, attr), "Bravo plain text here")).toStrictEqual(
+			expected,
+		);
+		expect(backward.reduce((html, attr) => toggleAttr(html, 6, 11, attr), "Bravo plain text here")).toStrictEqual(
+			expected,
+		);
+	});
+
+	it("puts bold innermost", () => {
+		expect(toggleAttr(toggleAttr("plain", 0, 5, "b"), 0, 5, "u")).toBe("<u><b>plain</b></u>");
+	});
+
+	it("round trips entities and links unchanged", () => {
+		expect(toggleAttr("a &amp; b", 0, 1, "b")).toBe("<b>a</b> &amp; b");
+		expect(toggleAttr('see <a href="x">link</a> now', 0, 3, "i")).toBe('<i>see</i> <a href="x">link</a> now');
+		expect(toggleAttr('<a href="x">link</a>', 0, 4, "b")).toBe('<a href="x"><b>link</b></a>');
+	});
+});
+
+describe("hasAttr and touchesAttr", () => {
+	it("distinguish a partial overlap from full coverage", () => {
+		expect(touchesAttr("Bravo <b>text</b> here", 6, 15, "b")).toBe(true);
+		expect(hasAttr("Bravo <b>text</b> here", 6, 15, "b")).toBe(false);
+		expect(hasAttr("Bravo <b>text</b> here", 6, 10, "b")).toBe(true);
+		expect(touchesAttr("Bravo <b>text</b> here", 11, 15, "b")).toBe(false);
+	});
+});
+
+describe("parseInline and serializeInline", () => {
+	it("round trip markup with opaque spans", () => {
+		const html = 'x <span class="colored c-red">red</span> <a href="x">&amp;</a> <b>y</b>';
+		expect(serializeInline(parseInline(html))).toStrictEqual(html);
+	});
+
+	it("keeps a trailing non-format tag without counting it as a character", () => {
+		expect(toggleAttr("ab<br>", 0, 2, "b")).toBe("<b>ab</b><br>");
+	});
+
+	it("exposes attribute spans", () => {
+		expect(parseInline("ab<b>cd</b>")).toStrictEqual({
+			chars: ["a", "b", "c", "d"],
+			spans: [{start: 2, end: 4, name: "b", raw: "<b>"}],
+			tail: "",
+		});
+	});
+});
+
+describe("planInlineToggle", () => {
+	it("toggles the selection and keeps it", () => {
+		expect(planInlineToggle("Bravo plain text here", {start: 6, end: 11}, "b")).toStrictEqual({
+			html: "Bravo <b>plain</b> text here",
+			sel: {start: 6, end: 11},
+		});
+	});
+});
+
+describe("pendingFormatApply", () => {
+	it("inserts a typed character carrying the pending attributes", () => {
+		expect(pendingFormatApply("here", 4, new Set(["b"]), "z")).toBe("here<b>z</b>");
+	});
+
+	it("inherits the attributes of the preceding character", () => {
+		expect(pendingFormatApply("<b>z</b>", 1, new Set(["i"]), "y")).toBe("<b>z</b><i><b>y</b></i>");
+	});
+
+	it("escapes the typed character", () => {
+		expect(pendingFormatApply("a", 1, new Set(["b"]), "<")).toBe("a<b>&lt;</b>");
 	});
 });
