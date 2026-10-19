@@ -343,6 +343,8 @@ interface OutlineActions {
 	setUrlSearchQuery: (query: string | null) => void;
 	zoom: (id: string | null) => void;
 	toggleExpand: (id: string) => void;
+	/** Arrow click during a search: record the opposite of the row's current search expansion; `expandedIds` is untouched. */
+	toggleSearchExpansion: (id: string, isExpanded: boolean) => void;
 	expand: (id: string) => void;
 	collapse: (id: string) => void;
 	/** Replace the expanded set and persist the change (Expand all / Collapse all). */
@@ -645,6 +647,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			next.add(id);
 		}
 		commitExpanded(next);
+	},
+
+	toggleSearchExpansion: (id, isExpanded) => {
+		set((state) => ({searchExpansion: new Map(state.searchExpansion).set(id, !isExpanded)}));
 	},
 
 	expand: (id) => {

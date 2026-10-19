@@ -10,6 +10,8 @@ import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
 import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
+import {searchShowsCompleted, searchShowsNode} from "../search-filter.js";
+import {usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
 import {ExpandArrow} from "./expand-arrow.js";
@@ -346,7 +348,8 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
  * `OutlineRow`, then, once every child is rendered, the item's Backlinks section,
  * then (nested only) the add-sibling button.
  * Renders nothing when neither shows, so a collapsed or empty parent has no
- * `.children` in the DOM.
+ * `.children` in the DOM. During a search, rows the search does not show are
+ * removed, and the Backlinks section is left out.
  */
 export function OutlineChildren({
 	parentId,
@@ -367,14 +370,22 @@ export function OutlineChildren({
 	const {data: backlinks} = useBacklinks(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
-	const visibleNodes = nodes?.filter((node) => isPotentiallyVisible(node, showCompleted, animatingCompletionIds));
+	const search = useSearchFilter();
+	const showsCompleted = searchShowsCompleted(showCompleted, search);
+	const visibleNodes = nodes?.filter(
+		(node) =>
+			isPotentiallyVisible(node, showsCompleted, animatingCompletionIds) &&
+			(search === null || searchShowsNode(node, search)),
+	);
 	const [maxToRender, setMaxToRender] = useState(initialMaxToRender);
 	const total = visibleNodes?.length ?? 0;
 	const growWindow = () => {
 		setMaxToRender((current) => nextMaxToRender(current, total));
 	};
 	const backlinksRootId =
-		total <= maxToRender && isBacklinksSectionVisible(backlinks, showCompleted) ? backlinks?.rootId : null;
+		search === null && total <= maxToRender && isBacklinksSectionVisible(backlinks, showCompleted)
+			? backlinks?.rootId
+			: null;
 
 	if (!visibleNodes || (total === 0 && backlinksRootId == null)) {
 		return null;
@@ -401,6 +412,7 @@ export function OutlineChildren({
 export function OutlineTree({parentId}: OutlineTreeProps) {
 	const {isLoading, error} = useChildren(parentId);
 	const queryClient = useQueryClient();
+	usePrefetchSearchAncestors(useSearchFilter());
 
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
 	// last visible row.

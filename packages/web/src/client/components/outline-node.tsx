@@ -14,6 +14,8 @@ import {useCreateNode, useDeleteNode, useExpandAll, useToggleComplete, useUpdate
 import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {deleteDates} from "../date-pills.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {useSearchFilter} from "../hooks/use-tree-search.js";
+import {isSearchExpanded} from "../search-filter.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
 import {BreadcrumbItem} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
@@ -249,6 +251,8 @@ interface NodeNameProps {
 	hasChildren: boolean;
 	depth: number;
 	withEmbedder: boolean;
+	/** Whether a search is filtering the outline; the arrow then writes the search expansion. */
+	searching: boolean;
 }
 
 /**
@@ -256,7 +260,7 @@ interface NodeNameProps {
  * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger,
  * which is mounted only while `.name` is hovered or its menu is open.
  */
-function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeNameProps) {
+function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching}: NodeNameProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const setItemMenuOpen = useOutlineStore((state) => state.setItemMenuOpen);
@@ -267,7 +271,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 		},
 		[node.id, setItemMenuOpen],
 	);
-	const {toggleExpand, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
+	const {toggleExpand, toggleSearchExpansion, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
 	const toggleComplete = useToggleComplete();
 	const expandAll = useExpandAll();
 	const isEditing = editingId === node.id;
@@ -327,8 +331,14 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder}: NodeName
 				hasChildren={hasChildren}
 				isExpanded={isExpanded}
 				nodeId={node.id}
-				onExpandAll={expandAll}
-				onToggle={toggleExpand}
+				onExpandAll={searching ? undefined : expandAll}
+				onToggle={
+					searching
+						? (id) => {
+								toggleSearchExpansion(id, isExpanded);
+							}
+						: toggleExpand
+				}
 			/>
 			{isHovered || isMenuOpen ? (
 				<NodeItemMenu
@@ -423,7 +433,9 @@ export function OutlineRow({
 	/** A backlink item's source crumbs, rendered before `.name`. */
 	backlinkCrumbs?: BacklinkCrumb[];
 }) {
-	const isExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
+	const search = useSearchFilter();
+	const isPersistentlyExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
+	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
 	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
 	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
@@ -503,6 +515,7 @@ export function OutlineRow({
 				hasChildren={hasChildren}
 				isExpanded={isExpanded}
 				node={node}
+				searching={search !== null}
 				withEmbedder={backlinkCrumbs !== undefined}
 			/>
 			{noteMounted || shouldMountNote ? (

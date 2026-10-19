@@ -1,5 +1,7 @@
 import type {NodeResponse} from "../../node-types.js";
 import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
+import type {SearchFilter} from "../search-filter.js";
+import {isSearchExpanded, searchShowsCompleted, searchShowsNode} from "../search-filter.js";
 
 /**
  * A flattened node includes the original node data plus its depth in the tree.
@@ -15,6 +17,7 @@ interface FlattenedNode {
 /**
  * Recursively flattens the tree structure into an array for virtualization.
  * Only includes nodes that are visible (i.e., all ancestors are expanded).
+ * During a search, only rows the search shows are kept and expansion comes from the search, not `expandedIds`.
  */
 export function flattenTree(
 	nodes: NodeResponse[] | undefined,
@@ -23,17 +26,22 @@ export function flattenTree(
 	depth: number,
 	childrenMap: Map<string, NodeResponse[]>,
 	animating: ReadonlySet<string>,
+	search: SearchFilter | null = null,
 ): FlattenedNode[] {
 	if (!nodes || nodes.length === 0) {
 		return [];
 	}
 
-	const visibleNodes = nodes.filter((node) => isPotentiallyVisible(node, showCompleted, animating));
+	const showsCompleted = searchShowsCompleted(showCompleted, search);
+	const visibleNodes = nodes.filter(
+		(node) =>
+			isPotentiallyVisible(node, showsCompleted, animating) && (search === null || searchShowsNode(node, search)),
+	);
 
 	const result: FlattenedNode[] = [];
 
 	for (const node of visibleNodes) {
-		const isExpanded = expandedIds.has(node.id);
+		const isExpanded = search === null ? expandedIds.has(node.id) : isSearchExpanded(node.id, search);
 		const children = childrenMap.get(node.id);
 		// Use the server-provided child flags when available, otherwise fall back to checking fetched children
 		const hasChildren =
@@ -50,7 +58,15 @@ export function flattenTree(
 
 		// Only recurse into expanded nodes that have fetched children
 		if (isExpanded && children && children.length > 0) {
-			const childFlattened = flattenTree(children, expandedIds, showCompleted, depth + 1, childrenMap, animating);
+			const childFlattened = flattenTree(
+				children,
+				expandedIds,
+				showCompleted,
+				depth + 1,
+				childrenMap,
+				animating,
+				search,
+			);
 			result.push(...childFlattened);
 		}
 	}
