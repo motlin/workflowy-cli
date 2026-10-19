@@ -4,10 +4,10 @@ import {fileURLToPath} from "node:url";
 import type {ReactElement, ReactNode} from "react";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import type {SwitcherResult} from "../src/server/switcher-search.js";
 import {SwitcherDialog} from "../src/client/components/jump-menu.js";
 import {switcherCrumb} from "../src/client/switcher-model.js";
 import type {SwitcherDialogProps} from "../src/client/components/jump-menu.js";
+import type {SwitcherRow} from "../src/client/switcher-rows.js";
 import {hasSelector} from "./helpers/css-block.js";
 
 // The outline store reads localStorage at import time; the dialog view never touches it.
@@ -38,8 +38,19 @@ function elements(node: ReactNode): ReactElement<ElementProps>[] {
 	return [node, ...elements(node.props.children)];
 }
 
-function row(overrides: Partial<SwitcherResult> = {}): SwitcherResult {
-	return {id: "a", labelHtml: "Alpha", completed: false, starred: false, ancestors: [], ...overrides};
+function row(overrides: Partial<SwitcherRow> = {}): SwitcherRow {
+	const id = overrides.id ?? "a";
+	return {
+		key: id,
+		id,
+		nodeId: id,
+		query: null,
+		labelHtml: "Alpha",
+		completed: false,
+		starred: false,
+		ancestors: [],
+		...overrides,
+	};
 }
 
 function render(overrides: Partial<SwitcherDialogProps> = {}): ReactElement<ElementProps> {
@@ -48,6 +59,7 @@ function render(overrides: Partial<SwitcherDialogProps> = {}): ReactElement<Elem
 		rows: [],
 		selectedIndex: 0,
 		emptyText: null,
+		indexing: false,
 		onQueryChange: () => {},
 		onKeyDown: () => {},
 		onSelect: () => {},
@@ -109,6 +121,34 @@ describe("SwitcherDialog", () => {
 		expect([stars(starred).length, stars(plain).length]).toStrictEqual([1, 0]);
 	});
 
+	it("shows a magnifier instead of a star on starred searches", () => {
+		const [search] = options(render({rows: [row({id: "a", starred: true, query: "#todo"})]}));
+		const icons = elements(search)
+			.filter((element) => element.type === "svg")
+			.map((element) => element.props["data-icon"]);
+		expect(icons).toStrictEqual(["magnifying-glass"]);
+	});
+
+	it("shows a spinner beside the indexing text", () => {
+		const html = renderToStaticMarkup(
+			createElement(SwitcherDialog, {
+				query: "zz",
+				rows: [],
+				selectedIndex: 0,
+				emptyText: "Indexing your data! One sec \u2026",
+				indexing: true,
+				onQueryChange: () => {},
+				onKeyDown: () => {},
+				onSelect: () => {},
+				onHover: () => {},
+				onClose: () => {},
+			}),
+		);
+		expect(html).toContain(
+			'<div>Indexing your data! One sec \u2026</div><div style="margin:auto;margin-top:8px"><div class="loading-spinner loading-spinner-small">',
+		);
+	});
+
 	it("strikes through a completed row unless it is selected", () => {
 		const rows = options(
 			render({
@@ -140,6 +180,7 @@ describe("SwitcherDialog", () => {
 				],
 				selectedIndex: 0,
 				emptyText: null,
+				indexing: false,
 				onQueryChange: () => {},
 				onKeyDown: () => {},
 				onSelect: () => {},
@@ -160,6 +201,7 @@ describe("SwitcherDialog", () => {
 				rows: [],
 				selectedIndex: 0,
 				emptyText: "No matches found. Try adjusting your search.",
+				indexing: false,
 				onQueryChange: () => {},
 				onKeyDown: () => {},
 				onSelect: () => {},

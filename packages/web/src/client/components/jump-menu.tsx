@@ -1,13 +1,22 @@
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useQueries} from "@tanstack/react-query";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {KeyboardEvent} from "react";
 import {useNavigate} from "react-router-dom";
+import {mostRecent} from "@workflowy/shared";
+import type {Star} from "@workflowy/shared";
+import {stripHtmlTags} from "@workflowy/shared/html";
 import type {SwitcherResponse, SwitcherResult} from "../../server/switcher-search.js";
-import {useStars} from "../hooks/use-starred.js";
-import {nodeUrl} from "../navigation.js";
+import {fetchAncestors} from "../hooks/use-nodes.js";
+import {readLastViewed, useStars} from "../hooks/use-starred.js";
+import {locationUrl} from "../location.js";
+import {nodeKeys} from "../node-cache.js";
 import {readJson} from "../read-json.js";
 import {switcherCrumb} from "../switcher-model.js";
+import {buildSwitcherRows} from "../switcher-rows.js";
+import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
+import {LoadingSpinner} from "./loading-spinner.js";
 
 const BACKDROP_CLASS =
 	"fixed top-sat left-sal right-sar bottom-sab flex items-start justify-center print:hidden dialog-backdrop";
@@ -37,7 +46,7 @@ function optionClass(hasCrumbs: boolean, selected: boolean): string {
 }
 
 interface SwitcherOptionProps {
-	row: SwitcherResult;
+	row: SwitcherRow;
 	selected: boolean;
 	onSelect: () => void;
 	onHover: () => void;
@@ -50,7 +59,13 @@ function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps)
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream rows are plain divs; the input owns the keyboard
 		<div className={optionClass(hasCrumbs, selected)} onClick={onSelect} onMouseMove={onHover}>
-			<div className="w-4">{row.starred && <FaIcon icon="fas:star" className="text-spark" />}</div>
+			<div className="w-4">
+				{row.query === null ? (
+					row.starred && <FaIcon icon="fas:star" className="text-spark" />
+				) : (
+					<FaIcon icon="fas:magnifying-glass" />
+				)}
+			</div>
 			<div
 				className={`items-center ${struck ? "line-through opacity-[0.37] " : ""}text-base leading-base truncate`}
 			>
@@ -81,13 +96,15 @@ function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps)
 
 export interface SwitcherDialogProps {
 	query: string;
-	rows: readonly SwitcherResult[];
+	rows: readonly SwitcherRow[];
 	selectedIndex: number;
 	/** Plain text shown after the list, or null for none. */
 	emptyText: string | null;
+	/** Show a spinner after the empty-state text while the first search is pending. */
+	indexing: boolean;
 	onQueryChange: (query: string) => void;
 	onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
-	onSelect: (row: SwitcherResult) => void;
+	onSelect: (row: SwitcherRow) => void;
 	onHover: (index: number) => void;
 	onClose: () => void;
 }
@@ -98,6 +115,7 @@ export function SwitcherDialog({
 	rows,
 	selectedIndex,
 	emptyText,
+	indexing,
 	onQueryChange,
 	onKeyDown,
 	onSelect,
@@ -133,7 +151,7 @@ export function SwitcherDialog({
 					<div className="flex flex-col gap-s">
 						{rows.map((row, index) => (
 							<SwitcherOption
-								key={row.id}
+								key={row.key}
 								row={row}
 								selected={index === selectedIndex}
 								onSelect={() => {
@@ -146,6 +164,11 @@ export function SwitcherDialog({
 						))}
 					</div>
 					{emptyText !== null && <div>{emptyText}</div>}
+					{indexing && (
+						<div style={{margin: "auto", marginTop: 8}}>
+							<LoadingSpinner size="small" />
+						</div>
+					)}
 				</div>
 			</div>
 		</div>
@@ -162,14 +185,45 @@ export function JumpMenu() {
 	return jumpMenuOpen ? <JumpMenuDialog /> : null;
 }
 
-type SearchStatus = "idle" | "loading" | "done" | "error";
+function safeLastViewed(): Record<string, number> {
+	try {
+		return readLastViewed(globalThis.localStorage);
+	} catch {
+		return {};
+	}
+}
+
+/** Starred locations in `mostRecent` order with their nodes' text and crumbs from the ancestors query. */
+function useStarredEntries(stars: readonly Star[]): readonly StarredEntry[] {
+	const ordered = useMemo(() => mostRecent(stars, safeLastViewed()), [stars]);
+	const ancestorQueries = useQueries({
+		queries: ordered.map((star) => ({
+			queryKey: nodeKeys.ancestors(star.nodeId ?? ""),
+			queryFn: async () => (star.nodeId === null ? [] : fetchAncestors(star.nodeId)),
+			enabled: star.nodeId !== null,
+		})),
+	});
+	return ordered.map((star, index): StarredEntry => {
+		const chain = ancestorQueries[index]?.data ?? [];
+		const self = chain.at(-1);
+		return {
+			star,
+			name: self?.name ?? star.name ?? "",
+			note: self?.note ?? "",
+			completed: (self?.completedAt ?? null) !== null,
+			ancestors: chain.slice(0, -1).map((node) => ({id: node.id, name: stripHtmlTags(node.name ?? "")})),
+		};
+	});
+}
 
 function JumpMenuDialog() {
 	const toggleJumpMenu = useOutlineStore((state) => state.toggleJumpMenu);
 	const {stars} = useStars();
+	const starred = useStarredEntries(stars);
 	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<readonly SwitcherResult[]>([]);
-	const [status, setStatus] = useState<SearchStatus>("idle");
+	const [status, setStatus] = useState<SwitcherSearchStatus>("idle");
+	const answered = useRef(false);
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const navigate = useNavigate();
 
@@ -181,10 +235,6 @@ function JumpMenuDialog() {
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);
 		setSelectedIndex(0);
-		if (!value.trim()) {
-			setResults([]);
-			setStatus("idle");
-		}
 	}, []);
 
 	useEffect(() => {
@@ -194,7 +244,9 @@ function JumpMenuDialog() {
 		}
 		let cancelled = false;
 		const runSearch = async () => {
-			setStatus("loading");
+			if (!answered.current) {
+				setStatus("pending");
+			}
 			try {
 				const response = await fetch("/api/search/switcher", {
 					method: "POST",
@@ -206,6 +258,7 @@ function JumpMenuDialog() {
 				}
 				const data = await readJson<SwitcherResponse>(response);
 				if (!cancelled) {
+					answered.current = true;
 					setResults(data.results);
 					setSelectedIndex(0);
 					setStatus("done");
@@ -226,10 +279,12 @@ function JumpMenuDialog() {
 		};
 	}, [query, starredIds]);
 
+	const {rows, emptyText, indexing} = buildSwitcherRows(starred, {status, results}, query);
+
 	const handleSelect = useCallback(
-		(row: SwitcherResult) => {
+		(row: SwitcherRow) => {
 			toggleJumpMenu();
-			void navigate(nodeUrl(row.id));
+			void navigate(locationUrl({id: row.nodeId, query: row.query}));
 		},
 		[navigate, toggleJumpMenu],
 	);
@@ -244,7 +299,7 @@ function JumpMenuDialog() {
 				}
 				case "ArrowDown": {
 					event.preventDefault();
-					setSelectedIndex((previous) => Math.min(previous + 1, results.length - 1));
+					setSelectedIndex((previous) => Math.min(previous + 1, rows.length - 1));
 					break;
 				}
 				case "ArrowUp": {
@@ -254,7 +309,7 @@ function JumpMenuDialog() {
 				}
 				case "Enter": {
 					event.preventDefault();
-					const selected = results[selectedIndex];
+					const selected = rows[selectedIndex];
 					if (selected !== undefined) {
 						handleSelect(selected);
 					}
@@ -262,22 +317,16 @@ function JumpMenuDialog() {
 				}
 			}
 		},
-		[handleSelect, results, selectedIndex, toggleJumpMenu],
+		[handleSelect, rows, selectedIndex, toggleJumpMenu],
 	);
-
-	const emptyText =
-		status === "error"
-			? "Search is unavailable right now."
-			: status === "done" && results.length === 0
-				? "No matches found. Try adjusting your search."
-				: null;
 
 	return (
 		<SwitcherDialog
 			query={query}
-			rows={results}
+			rows={rows}
 			selectedIndex={selectedIndex}
 			emptyText={emptyText}
+			indexing={indexing}
 			onQueryChange={handleQueryChange}
 			onKeyDown={handleKeyDown}
 			onSelect={handleSelect}
