@@ -67,7 +67,7 @@
 		"vite": "catalog:",
 		"vite-plus": "catalog:",
 		"vitest": "catalog:",
-		"zod": "^4.6.5"
+		"zod": "^4.6.6"
 	},
 	"oclif": {
 		"bin": "workflowy",
