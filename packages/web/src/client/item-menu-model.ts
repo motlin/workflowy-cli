@@ -1,7 +1,8 @@
 /**
  * Pure model of the bullet (item) context menu, matching upstream Workflowy's
- * default `config.item.menu`. Unavailable commands are filtered out rather than
- * shown disabled, and separators are cleaned up after filtering.
+ * default `config.item.menu`, plus upstream's palette-only `delete_dates` after "Add date".
+ * Unavailable commands are filtered out rather than shown disabled, and separators are
+ * cleaned up after filtering.
  */
 import type {NodeResponse} from "../node-types.js";
 import type {FaIconKey} from "./components/fa-icons.js";
@@ -14,6 +15,7 @@ export type ItemMenuKey =
 	| "complete"
 	| "add_note"
 	| "add_date"
+	| "delete_dates"
 	| "present_it"
 	| "comment"
 	| "move_to"
@@ -45,6 +47,7 @@ export const ITEM_MENU_KEYS: readonly ItemMenuSlot[] = [
 	"complete",
 	"add_note",
 	"add_date",
+	"delete_dates",
 	"present_it",
 	"comment",
 	"move_to",
@@ -82,6 +85,7 @@ const ITEM_MENU_DEFS: Record<ItemMenuKey, ItemMenuDef> = {
 	complete: {label: "Complete", icon: "check", shortcut: "⌘↵"},
 	add_note: {label: "Add note", icon: "pencil", shortcut: "⇧↵"},
 	add_date: {label: "Add date", icon: "calendar-days", shortcut: "!!"},
+	delete_dates: {label: "Delete dates", icon: "calendar-days"},
 	present_it: {label: "Present", icon: "play", shortcut: "⇧⌘P"},
 	comment: {label: "Add comment", icon: "message-lines", shortcut: "⌃M"},
 	move_to: {label: "Move To...", icon: "arrow-right-long", shortcut: "⌃⌘M"},

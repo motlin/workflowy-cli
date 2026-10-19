@@ -258,13 +258,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}, [isEditing, saveInPlace, nameSaver]);
 
 	const insertDate = useCallback(
-		(attrs: TimeAttrs, offset: number, replaceEnd?: number) => {
+		(attrs: TimeAttrs, offset: number, replaceEnd?: number, addSpaceBefore?: boolean) => {
 			const content = contentRef.current;
 			if (content) {
 				const html = serializeDatePills(content.innerHTML);
 				const {before, after} =
 					replaceEnd === undefined ? {before: html, after: ""} : splitHtml(html, offset, replaceEnd);
-				const plan = planDateInsertion(before + after, offset, attrs);
+				const plan = planDateInsertion(before + after, offset, attrs, {addSpaceBefore});
 				content.focus();
 				content.innerHTML = renderDatePills(plan.html, dateSettings);
 				placeCaretAtTextOffset(content, plan.caretOffset);
@@ -295,7 +295,20 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		onInsert: insertDate,
 		onCancel: cancelDate,
 	});
-	const {handleInput: handleDateTrigger, openForPhrase, isOpen: isDatePickerOpen} = datePicker;
+	const {handleInput: handleDateTrigger, openForPhrase, openAtCaret, isOpen: isDatePickerOpen} = datePicker;
+
+	// "Add date" from the item menu focuses this name at its end, then opens the picker there.
+	const datePickerRequestId = useOutlineStore((state) => state.datePickerRequestId);
+	useEffect(() => {
+		if (
+			isEditing &&
+			datePickerRequestId === nodeId &&
+			document.activeElement === contentRef.current &&
+			useOutlineStore.getState().takeDatePickerRequest(nodeId)
+		) {
+			openAtCaret();
+		}
+	}, [isEditing, datePickerRequestId, nodeId, openAtCaret]);
 
 	// Typing a natural-language date ("tomorrow") offers a flyout; Tab or a click converts it to a pill.
 	const openSettings = useOutlineStore((state) => state.openSettings);

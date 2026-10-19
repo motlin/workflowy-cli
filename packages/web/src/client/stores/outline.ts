@@ -216,6 +216,8 @@ interface OutlineState {
 	editingHeld: boolean;
 	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
 	lastEditedId: string | null;
+	/** A row whose name editor should open the date picker at its caret once it is focused ("Add date"). */
+	datePickerRequestId: string | null;
 	showCompleted: boolean;
 	/** Completed rows kept visible while their deferred hide runs, though completed rows are hidden. */
 	animatingCompletionIds: Set<string>;
@@ -282,6 +284,10 @@ interface OutlineActions {
 	focusNote: (id: string, caret?: 0 | "end") => void;
 	/** Focus `id`'s name with the caret at its start or end, leaving any note. */
 	focusName: (id: string, caret: 0 | "end") => void;
+	/** Upstream "Add date" on an unfocused item: focus the end of `id`'s name and open the date picker there. */
+	requestDatePicker: (id: string) => void;
+	/** Clear and report whether the pending date-picker request is for `id`. */
+	takeDatePickerRequest: (id: string) => boolean;
 	/** The note `id` lost focus: clear note focus unless it already moved elsewhere. */
 	blurNote: (id: string) => void;
 	/** Edit `id` with the caret `caretOffset` text characters in (clamped to the end). */
@@ -443,6 +449,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingNoteCaret: "end",
 	editingHeld: false,
 	lastEditedId: null,
+	datePickerRequestId: null,
 	showCompleted: getInitialShowCompleted(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
@@ -549,6 +556,19 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingNoteId: null,
 			lastEditedId: id,
 		});
+	},
+
+	requestDatePicker: (id) => {
+		get().focusName(id, "end");
+		set({datePickerRequestId: id});
+	},
+
+	takeDatePickerRequest: (id) => {
+		if (get().datePickerRequestId !== id) {
+			return false;
+		}
+		set({datePickerRequestId: null});
+		return true;
 	},
 
 	blurNote: (id) => {

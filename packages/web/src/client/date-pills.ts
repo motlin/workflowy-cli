@@ -111,12 +111,15 @@ export function planDateInsertion(
 	html: string,
 	caretOffset: number,
 	attrs: TimeAttrs,
+	{addSpaceBefore = false}: {addSpaceBefore?: boolean | undefined} = {},
 ): {html: string; caretOffset: number} {
 	const {before, after} = splitHtml(html, caretOffset, caretOffset);
+	const previous = plainText(before, PILL_CHAR).at(-1);
+	const lead = addSpaceBefore && previous !== undefined && !/\s/u.test(previous) ? " " : "";
 	const space = plainLength(after) === 0 ? " " : "";
 	return {
-		html: `${before}${toTimeMarkup(attrs)}${space}${after}`,
-		caretOffset: plainLength(before) + 1 + space.length,
+		html: `${before}${lead}${toTimeMarkup(attrs)}${space}${after}`,
+		caretOffset: plainLength(before) + lead.length + 1 + space.length,
 	};
 }
 
@@ -135,6 +138,19 @@ export function replacePill(html: string, pillIndex: number, attrs: TimeAttrs | 
 		}
 		return attrs === null ? "" : toTimeMarkup(attrs);
 	});
+}
+
+// A `<time>` element (paired or self-closing) with at most one space before it.
+const SPACED_TIME_PATTERN = /[ \u00A0]?<time\b(?:[^>]*\/>|[^>]*>[\s\S]*?<\/time>)/giu;
+
+/** Upstream's `delete_dates`: stored HTML with every `<time>` removed, each with one preceding space. */
+export function deleteDates(html: string): string {
+	return html.replaceAll(SPACED_TIME_PATTERN, "");
+}
+
+/** Whether stored HTML holds any `<time>` date. */
+export function hasDates(html: string): boolean {
+	return /<time\b/iu.test(html);
 }
 
 /** Stands in for a date pill in `datePhraseText`, one character like the pill's caret unit. */

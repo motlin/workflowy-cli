@@ -37,6 +37,8 @@ function render(target: NodeResponse): string {
 			onCollapseAll: () => {},
 			onComplete: () => {},
 			onAddNote: () => {},
+			onAddDate: () => {},
+			onDeleteDates: () => {},
 			onDelete: () => {},
 			onExpandAll: () => {},
 			onOpenChange: () => {},
@@ -141,6 +143,7 @@ describe("item menu surface", () => {
 		expect(children.map((child) => classTokens(child))).toStrictEqual([
 			ITEM_TOKENS,
 			ITEM_TOKENS,
+			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
@@ -152,6 +155,7 @@ describe("item menu surface", () => {
 		expect(children.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)).toStrictEqual([
 			"complete",
 			"add_note",
+			"add_date",
 			null,
 			"delete",
 			null,
@@ -176,8 +180,31 @@ describe("item menu surface", () => {
 		);
 	});
 
+	it("renders the Add date row with its calendar icon and !! shortcut", () => {
+		const addDate = scrollerChildren(render(node))[2];
+		expect(addDate).toMatch(
+			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="calendar-days"[^>]*><path [^>]*><\/path><\/svg><\/div>Add date<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">!!<\/span><\/span><\/a>$/u,
+		);
+	});
+
+	it("offers Delete dates only when the name or note holds a date", () => {
+		const labels = (target: NodeResponse) =>
+			scrollerChildren(render(target))
+				.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)
+				.slice(0, 4);
+		expect({
+			plain: labels(node),
+			datedName: labels({...node, name: 'Alice <time startYear="2026" startMonth="10" startDay="1">x</time>'}),
+			datedNote: labels({...node, note: '<time startYear="2026" startMonth="10" startDay="1">x</time>'}),
+		}).toStrictEqual({
+			plain: ["complete", "add_note", "add_date", null],
+			datedName: ["complete", "add_note", "add_date", "delete_dates"],
+			datedNote: ["complete", "add_note", "add_date", "delete_dates"],
+		});
+	});
+
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[3];
+		const del = scrollerChildren(render(node))[4];
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
 	});
@@ -194,6 +221,7 @@ describe("item menu surface", () => {
 		expect(children.map((child) => /<\/div>([^<]+)<\/span>/u.exec(child)?.[1] ?? null)).toStrictEqual([
 			"Uncomplete",
 			"Add note",
+			"Add date",
 			null,
 			"Delete",
 			null,

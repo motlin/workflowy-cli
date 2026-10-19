@@ -7,6 +7,7 @@ import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter} from "../item-menu-model.js";
 import type {ItemMenuKey} from "../item-menu-model.js";
 import {formatMenuTimestamp} from "../menu-timestamp.js";
+import {hasDates} from "../date-pills.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 
@@ -170,6 +171,8 @@ function MirrorBanner({
 interface ItemMenuActions {
 	onComplete: () => void;
 	onAddNote: () => void;
+	onAddDate: () => void;
+	onDeleteDates: () => void;
 	onDelete: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
@@ -179,6 +182,8 @@ interface ItemMenuActions {
 const AVAILABLE_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
 	"complete",
 	"add_note",
+	"add_date",
+	"delete_dates",
 	"delete",
 	"expand_all",
 	"collapse_all",
@@ -211,7 +216,11 @@ export function ItemMenuBody({
 }) {
 	// The body mounts each time the menu opens, so "now" is the moment it opened.
 	const [now] = useState(() => new Date());
-	const entries = buildItemMenu(node, {available: (key) => AVAILABLE_ITEM_MENU_KEYS.has(key)});
+	const entries = buildItemMenu(node, {
+		available: (key) =>
+			AVAILABLE_ITEM_MENU_KEYS.has(key) &&
+			(key !== "delete_dates" || hasDates(node.name ?? "") || hasDates(node.note ?? "")),
+	});
 	// Expand all / Collapse all return true so the menu stays open; the rest close it.
 	const select: Partial<Record<ItemMenuKey, () => boolean>> = {
 		complete: () => {
@@ -222,6 +231,16 @@ export function ItemMenuBody({
 		add_note: () => {
 			onClose();
 			actions.onAddNote();
+			return false;
+		},
+		add_date: () => {
+			onClose();
+			actions.onAddDate();
+			return false;
+		},
+		delete_dates: () => {
+			actions.onDeleteDates();
+			onClose();
 			return false;
 		},
 		delete: () => {
@@ -288,6 +307,8 @@ interface ItemMenuTriggerProps {
 	left?: string;
 	onComplete: () => void;
 	onAddNote: () => void;
+	onAddDate: () => void;
+	onDeleteDates: () => void;
 	onDelete: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
@@ -318,6 +339,8 @@ export function ItemMenuTrigger({
 	left,
 	onComplete,
 	onAddNote,
+	onAddDate,
+	onDeleteDates,
 	onDelete,
 	onExpandAll,
 	onCollapseAll,
@@ -354,7 +377,7 @@ export function ItemMenuTrigger({
 				}
 			>
 				<ItemMenuBody
-					actions={{onComplete, onAddNote, onDelete, onExpandAll, onCollapseAll}}
+					actions={{onComplete, onAddNote, onAddDate, onDeleteDates, onDelete, onExpandAll, onCollapseAll}}
 					node={node}
 					onClose={blurActiveElement}
 					onShowMirrors={(data) => {

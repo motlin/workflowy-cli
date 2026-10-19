@@ -131,6 +131,35 @@ describe("name and note share one focus", () => {
 		});
 	});
 
+	it("requestDatePicker focuses the end of the name and queues the picker for that row until taken", () => {
+		useOutlineStore.getState().focusNote("a");
+		useOutlineStore.getState().requestDatePicker("a");
+		const requested = {...nameNoteState(), datePickerRequestId: useOutlineStore.getState().datePickerRequestId};
+		const firstTake = useOutlineStore.getState().takeDatePickerRequest("a");
+		const secondTake = useOutlineStore.getState().takeDatePickerRequest("a");
+		expect({requested, firstTake, secondTake}).toStrictEqual({
+			requested: {
+				editingId: "a",
+				editingNoteId: null,
+				editingCaretOffset: Number.MAX_SAFE_INTEGER,
+				editingClickPosition: null,
+				lastEditedId: "a",
+				datePickerRequestId: "a",
+			},
+			firstTake: true,
+			secondTake: false,
+		});
+	});
+
+	it("takeDatePickerRequest ignores another row's request", () => {
+		useOutlineStore.getState().requestDatePicker("a");
+		expect({
+			taken: useOutlineStore.getState().takeDatePickerRequest("b"),
+			left: useOutlineStore.getState().datePickerRequestId,
+		}).toStrictEqual({taken: false, left: "a"});
+		useOutlineStore.setState({datePickerRequestId: null});
+	});
+
 	it("blurNote clears only its own note's focus", () => {
 		useOutlineStore.getState().focusNote("a");
 		useOutlineStore.getState().blurNote("b");

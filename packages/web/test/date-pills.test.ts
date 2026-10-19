@@ -4,6 +4,8 @@ import {fileURLToPath} from "node:url";
 import {
 	applyDatePhrase,
 	datePhraseText,
+	deleteDates,
+	hasDates,
 	deletePillAfterCaret,
 	findDatePhraseAtCaret,
 	deletePillBeforeCaret,
@@ -204,6 +206,58 @@ describe("planDateInsertion", () => {
 			html: `${SINGLE} <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> `,
 			caretOffset: 18,
 		});
+	});
+
+	it("adds a space before the pill when addSpaceBefore and the previous char is not whitespace", () => {
+		expect(planDateInsertion("abc", 3, OCT_15, {addSpaceBefore: true})).toStrictEqual({
+			html: 'abc <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> ',
+			caretOffset: 6,
+		});
+	});
+
+	it("adds no space before the pill when the previous char is a space or there is none", () => {
+		expect(planDateInsertion("abc ", 4, OCT_15, {addSpaceBefore: true})).toStrictEqual({
+			html: 'abc <time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> ',
+			caretOffset: 6,
+		});
+		expect(planDateInsertion("", 0, OCT_15, {addSpaceBefore: true})).toStrictEqual({
+			html: '<time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time> ',
+			caretOffset: 2,
+		});
+	});
+});
+
+describe("deleteDates", () => {
+	it("removes a range pill and one preceding space, keeping the trailing space", () => {
+		expect(
+			deleteDates(
+				'dpEmpty <time startYear="2026" startMonth="10" startDay="1" endYear="2026" endMonth="10" endDay="3">Thu, Oct 1, 2026 - Sat, Oct 3, 2026</time> ',
+			),
+		).toBe("dpEmpty ");
+	});
+
+	it("removes a leading pill with no preceding space", () => {
+		expect(deleteDates('<time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time> x')).toBe(" x");
+	});
+
+	it("removes every pill, each with only one preceding space", () => {
+		expect(deleteDates("a <time/> b <time/>")).toBe("a b");
+		expect(deleteDates("a  <time>x</time>")).toBe("a ");
+	});
+
+	it("leaves text without dates unchanged", () => {
+		expect(deleteDates("plain <b>text</b>")).toBe("plain <b>text</b>");
+	});
+});
+
+describe("hasDates", () => {
+	it("is true only when the html holds a time element", () => {
+		expect([hasDates(SINGLE), hasDates("a <time/>"), hasDates("plain"), hasDates("")]).toStrictEqual([
+			true,
+			true,
+			false,
+			false,
+		]);
 	});
 });
 

@@ -7,7 +7,8 @@ import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useNodeDragDrop} from "../hooks/use-node-drag-drop.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
-import {useDeleteNode, useExpandAll, useToggleComplete} from "../hooks/use-nodes.js";
+import {useDeleteNode, useExpandAll, useToggleComplete, useUpdateNode} from "../hooks/use-nodes.js";
+import {deleteDates} from "../date-pills.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbItem, BreadcrumbSeparator} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
@@ -184,6 +185,8 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 	const focusNote = useOutlineStore((state) => state.focusNote);
 	const focusName = useOutlineStore((state) => state.focusName);
 	const deleteNode = useDeleteNode();
+	const requestDatePicker = useOutlineStore((state) => state.requestDatePicker);
+	const updateNode = useUpdateNode();
 	return (
 		<ItemMenuTrigger
 			left={left}
@@ -196,10 +199,21 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 					focusNote(node.id);
 				}
 			}}
+			onAddDate={() => {
+				requestDatePicker(node.id);
+			}}
 			onCollapseAll={() => {
 				expandAll(node.id, false);
 			}}
 			onComplete={onComplete}
+			onDeleteDates={() => {
+				// Upstream: name and note lose their dates in one undoable edit.
+				updateNode.mutate({
+					nodeId: node.id,
+					name: deleteDates(node.name ?? ""),
+					...(node.note === null ? {} : {note: deleteDates(node.note)}),
+				});
+			}}
 			onDelete={() => {
 				deleteNode.mutate(node.id);
 			}}

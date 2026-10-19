@@ -23,6 +23,7 @@ describe("ITEM_MENU_KEYS", () => {
 			"complete",
 			"add_note",
 			"add_date",
+			"delete_dates",
 			"present_it",
 			"comment",
 			"move_to",
@@ -54,7 +55,7 @@ describe("ITEM_MENU_KEYS", () => {
 describe("buildItemMenu", () => {
 	it("renders the full upstream list for a non-mirror node with everything available", () => {
 		expect(summarize(buildItemMenu(plain, everything))).toBe(
-			"Open in Pane;Complete;Add note;Add date;Present;Add comment;Move To...;Move to Today;Move to Tomorrow;Move to Next Week;Move to Date...;Upload file;Mirror To...;Mirror;Duplicate|Share;Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
+			"Open in Pane;Complete;Add note;Add date;Delete dates;Present;Add comment;Move To...;Move to Today;Move to Tomorrow;Move to Next Week;Move to Date...;Upload file;Mirror To...;Mirror;Duplicate|Share;Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
 		);
 	});
 
@@ -62,7 +63,7 @@ describe("buildItemMenu", () => {
 		const labels = buildItemMenu({completedAt: null, isMirror: true}, everything).map((entry) =>
 			entry.kind === "item" ? entry.label : "|",
 		);
-		expect(labels.slice(13, 16)).toStrictEqual(["Mirror", "Detach Mirror", "Duplicate"]);
+		expect(labels.slice(14, 17)).toStrictEqual(["Mirror", "Detach Mirror", "Duplicate"]);
 	});
 
 	it("drops leading, trailing and doubled separators after filtering", () => {
@@ -83,7 +84,7 @@ describe("buildItemMenu", () => {
 			},
 		});
 		expect(seen.every((node) => node === plain)).toBe(true);
-		expect(seen).toHaveLength(24);
+		expect(seen).toHaveLength(25);
 	});
 
 	it("labels complete as Uncomplete for a completed node", () => {
@@ -129,6 +130,7 @@ describe("buildItemMenu", () => {
 			complete: "check",
 			add_note: "pencil",
 			add_date: "calendar-days",
+			delete_dates: "calendar-days",
 			present_it: "play",
 			comment: "message-lines",
 			move_to: "arrow-right-long",
