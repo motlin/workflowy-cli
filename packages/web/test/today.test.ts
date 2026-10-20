@@ -40,8 +40,10 @@ function harness(replies: Reply[]) {
 }
 
 describe("navigateToToday", () => {
-	it("commits the edit, then zooms to the found day node", async () => {
-		const {calls, deps} = harness([{status: 200, body: {id: "aaaaaaaa-0000-0000-0000-day000000001"}}]);
+	it("commits the edit, then zooms to a found day node that has no children", async () => {
+		const {calls, deps} = harness([
+			{status: 200, body: {id: "aaaaaaaa-0000-0000-0000-day000000001", firstChildId: null}},
+		]);
 		await navigateToToday(deps);
 		expect(calls).toStrictEqual([
 			["commitEdit"],
@@ -50,7 +52,7 @@ describe("navigateToToday", () => {
 		]);
 	});
 
-	it("edits the found day's first child when the response carries one", async () => {
+	it("edits the found day's first child", async () => {
 		const {calls, deps} = harness([{status: 200, body: {id: "day000000001", firstChildId: "kid000000001"}}]);
 		await navigateToToday(deps);
 		expect(calls).toStrictEqual([

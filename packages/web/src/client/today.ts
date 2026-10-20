@@ -33,10 +33,10 @@ export async function navigateToToday({
 	commitEdit();
 	const url = `/api/v1/calendar/day/${dateId("day", now)}`;
 	const found = await fetch(url);
-	let target: {dayId: string; firstChildId?: string};
+	let target: {dayId: string; firstChildId: string | null};
 	if (found.ok) {
-		const {id, firstChildId} = await readJson<{id: string; firstChildId?: string}>(found);
-		target = {dayId: id, ...(firstChildId === undefined ? {} : {firstChildId})};
+		const {id, firstChildId} = await readJson<{id: string; firstChildId: string | null}>(found);
+		target = {dayId: id, firstChildId};
 	} else {
 		const ensured = await fetch(`${url}/ensure`, {method: "POST"});
 		if (!ensured.ok) {
@@ -46,7 +46,7 @@ export async function navigateToToday({
 		target = await readJson<{dayId: string; firstChildId: string}>(ensured);
 	}
 	void navigate(locationUrl({id: target.dayId}));
-	if (target.firstChildId !== undefined) {
+	if (target.firstChildId !== null) {
 		startEditing(target.firstChildId, 0);
 	}
 }

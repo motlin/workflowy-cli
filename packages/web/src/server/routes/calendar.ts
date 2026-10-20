@@ -2,7 +2,8 @@
  * 📆 Calendar date nodes, created the way upstream's Today does so
  * workflowy.com recognises them (deterministic ids and calendar metadata).
  *
- * `GET /api/v1/calendar/day/:dateId` -> 200 `{id}` / 404 (read-only lookup).
+ * `GET /api/v1/calendar/day/:dateId` -> 200 `{id, firstChildId}` / 404 (read-only lookup; `firstChildId` is the
+ * first live, non-references-root child, or null when the day has none).
  * `GET /api/v1/calendar/days?year=&month=` -> 200 `{days}`: the month's days with
  * journal content, for the date picker's event dots.
  * `POST /api/v1/calendar/day/:dateId/ensure` -> 200 `{dayId, firstChildId, created}`,
@@ -51,6 +52,11 @@ function hasJournalContent(deps: CalendarDayDeps, dayId: string): boolean {
 	return children.length >= 2 || Boolean(first?.name) || Boolean(first?.note);
 }
 
+/** The day's first live child that is not its references root, or null; Today puts the caret there. */
+function firstDayChild(deps: CalendarDayDeps, dayId: string): string | null {
+	return deps.cache.getChildrenWithMergedData(dayId).find((child) => child.referencesRoot == null)?.id ?? null;
+}
+
 export function createCalendarRouter(): Hono<AppEnv> {
 	const router = new Hono<AppEnv>();
 
@@ -59,8 +65,11 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		if (dateId === undefined) {
 			return c.json({error: INVALID_DATE_ID}, 400);
 		}
-		const id = findCalendarDay(await calendarDayDeps(c.get("ctx")), dateId);
-		return id === null ? c.json({error: "Calendar day not found"}, 404) : c.json({id});
+		const deps = await calendarDayDeps(c.get("ctx"));
+		const id = findCalendarDay(deps, dateId);
+		return id === null
+			? c.json({error: "Calendar day not found"}, 404)
+			: c.json({id, firstChildId: firstDayChild(deps, id)});
 	});
 
 	router.get("/days", async (c) => {

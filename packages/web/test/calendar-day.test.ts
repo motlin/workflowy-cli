@@ -42,6 +42,14 @@ const TREE: [string, string | null, string, unknown?][] = [
 	[D1017, "m10", "Today"],
 ];
 
+/** [id, priority, kind]: today's children, inserted out of priority order; the references root and the deleted child sort first. */
+const D1017_CHILDREN: [string, number, "live" | "referencesRoot" | "deleted"][] = [
+	["second", 3, "live"],
+	["refs", 0, "referencesRoot"],
+	["deleted", 1, "deleted"],
+	["first", 2, "live"],
+];
+
 const open: DatabaseConstructor.Database[] = [];
 afterEach(() => {
 	for (const sqlite of open.splice(0)) {
@@ -62,6 +70,14 @@ function setup() {
 			db.insert(schema.nodeInternalMetadata)
 				.values({nodeId: id, metadataJson: JSON.stringify(metadata), fetchedAt: 0})
 				.run();
+		}
+	}
+	for (const [id, priority, kind] of D1017_CHILDREN) {
+		const systemTo = kind === "deleted" ? "2026-02-01" : FAR_FUTURE_DATE;
+		db.insert(schema.nodeContent).values({id, name: id, parentId: D1017, systemFrom: "2026-01-01", systemTo}).run();
+		db.insert(schema.nodeMetadata).values({nodeId: id, priority, systemFrom: "2026-01-01", systemTo}).run();
+		if (kind === "referencesRoot") {
+			db.insert(schema.referencesRoots).values({nodeId: id, systemFrom: "2026-01-01", systemTo}).run();
 		}
 	}
 	return {db, cache: new CacheService(db)};
@@ -105,11 +121,11 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 		};
 	}
 
-	it("answers the day's id, using the account entropy key when the internal API is configured", async () => {
+	it("answers the day's id and first live, non-references-root child, using the account entropy key when the internal API is configured", async () => {
 		const get = app(KEY);
 
 		await expect(Promise.all([get("20261017"), get("20261005"), get("20260230")])).resolves.toStrictEqual([
-			{status: 200, body: {id: D1017}},
+			{status: 200, body: {id: D1017, firstChildId: "first"}},
 			{status: 404, body: {error: "Calendar day not found"}},
 			{status: 400, body: {error: "dateId must be a YYYYMMDD calendar day"}},
 		]);
@@ -120,7 +136,7 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 
 		await expect(Promise.all([get("20261017"), get("20260930")])).resolves.toStrictEqual([
 			{status: 404, body: {error: "Calendar day not found"}},
-			{status: 200, body: {id: "d0930"}},
+			{status: 200, body: {id: "d0930", firstChildId: null}},
 		]);
 	});
 });
