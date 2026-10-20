@@ -100,7 +100,8 @@ function calendarMetadataMatches(current: CalendarMetadata, incoming: Normalized
 		current.value === (incoming.value ?? null) &&
 		current.dateId === (incoming.dateId ?? null) &&
 		current.timestamp === (incoming.timestamp ?? null) &&
-		current.foundDates === (incoming.foundDates ?? null)
+		current.foundDates === (incoming.foundDates ?? null) &&
+		current.dayPrefix === (incoming.dayPrefix ?? null)
 	);
 }
 

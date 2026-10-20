@@ -403,6 +403,7 @@ export async function importBackup(
 		dateId: number | null;
 		timestamp: number | null;
 		foundDates: number | null;
+		dayPrefix: number | null;
 	}[] = [];
 	const calendarLevelsRecords: {
 		nodeId: string;
@@ -471,6 +472,7 @@ export async function importBackup(
 					dateId: cal.dateId ?? null,
 					timestamp: cal.timestamp ?? null,
 					foundDates: cal.found_dates ? 1 : cal.found_dates === false ? 0 : null,
+					dayPrefix: optionalBooleanToInt(cal.day_prefix),
 				});
 				if (cal.levels) {
 					calendarLevelsRecords.push({

@@ -91,6 +91,7 @@ export const calendarMetadata = sqliteTable(
 		dateId: integer("date_id"),
 		timestamp: integer("timestamp"),
 		foundDates: integer("found_dates"),
+		dayPrefix: integer("day_prefix"),
 
 		systemFrom: text("system_from").notNull(),
 		systemTo: text("system_to").notNull(),

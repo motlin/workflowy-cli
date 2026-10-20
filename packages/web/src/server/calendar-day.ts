@@ -4,14 +4,15 @@
  * ids and calendar metadata; older days only carry a `<time>` name.
  */
 
-import {and, eq, like} from "drizzle-orm";
+import {and, eq, inArray, like, sql} from "drizzle-orm";
 import {parseTimeAttrs} from "@workflowy/shared";
 import type {CacheService} from "@workflowy/shared/cache";
-import {nodeContent, nodeInternalMetadata} from "@workflowy/shared/db";
+import {calendarMetadata, nodeContent, nodeInternalMetadata} from "@workflowy/shared/db";
 import {calendarNodeId, parseDateId} from "@workflowy/shared/internal";
 import type {CalendarDate} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {z} from "zod";
+import type {CalendarInfo} from "../node-types.js";
 import type {ServerContext} from "./context.js";
 
 export interface CalendarDayDeps {
@@ -27,6 +28,16 @@ const CalendarSchema = z.object({
 		.object({root: z.boolean().optional(), level: z.string().optional(), dateId: z.number().optional()})
 		.loose(),
 });
+/** The `metadata.calendar` fields the node DTO carries. */
+const CalendarInfoSchema = z
+	.object({
+		root: z.boolean().optional(),
+		level: z.string().optional(),
+		dateId: z.number().optional(),
+		found_dates: z.boolean().optional(),
+		day_prefix: z.boolean().optional(),
+	})
+	.loose();
 const DAY_NAME = /^<time\b([^>]*)>[^<]*<\/time>$/iu;
 
 /**
@@ -99,25 +110,108 @@ function walkNames(cache: CacheService, root: string, date: CalendarDate): strin
 }
 
 /**
- * Whether `name` is exactly one date-only `<time>` on `date`, as upstream names
- * a day. Journal entries that sit beside the days (a timed `<time>` or extra
- * text) are not day nodes.
+ * The date `name` names when it is exactly one date-only `<time>`, as upstream
+ * names a day. Journal entries that sit beside the days (a timed `<time>` or
+ * extra text) name no day.
  */
-function namesDate(name: string | null, date: CalendarDate): boolean {
+function dayNameDate(name: string | null): CalendarDate | undefined {
 	const attrText = DAY_NAME.exec(name?.trim() ?? "")?.[1];
 	if (attrText === undefined) {
-		return false;
+		return undefined;
 	}
 	try {
-		const attrs = parseTimeAttrs(attrText);
-		return (
-			Object.keys(attrs).length === 3 &&
-			attrs.startYear === date.year &&
-			attrs.startMonth === date.month &&
-			attrs.startDay === date.day
-		);
+		const {startYear, startMonth, startDay, ...rest} = parseTimeAttrs(attrText);
+		return Object.keys(rest).length === 0 ? {year: startYear, month: startMonth, day: startDay} : undefined;
 	} catch {
 		// A <time> without start attributes names no date.
-		return false;
+		return undefined;
 	}
+}
+
+/** Whether `name` is exactly one date-only `<time>` on `date`. */
+function namesDate(name: string | null, date: CalendarDate): boolean {
+	const named = dayNameDate(name);
+	return named?.year === date.year && named.month === date.month && named.day === date.day;
+}
+
+/**
+ * Each node's 📆 Calendar role for the node DTO; nodes with none are absent.
+ * Tried in order: the internal-API metadata (fresh), the backup-imported
+ * `calendar_metadata` row, then for days created since the last backup a
+ * date-only `<time>` name under root > `YYYY` > `MM` (or `M`).
+ */
+export function loadCalendarInfo(
+	deps: Pick<CalendarDayDeps, "db" | "cache">,
+	nodes: readonly {id: string; parentId: string | null; name: string | null}[],
+): Map<string, CalendarInfo> {
+	const map = new Map<string, CalendarInfo>();
+	const ids = nodes.map(({id}) => id);
+	if (ids.length === 0) {
+		return map;
+	}
+	const internalRows = deps.db
+		.select({
+			nodeId: nodeInternalMetadata.nodeId,
+			calendar: sql<string | null>`json_extract(${nodeInternalMetadata.metadataJson}, '$.calendar')`,
+		})
+		.from(nodeInternalMetadata)
+		.where(inArray(nodeInternalMetadata.nodeId, ids))
+		.all();
+	for (const {nodeId, calendar} of internalRows) {
+		const parsed = calendar === null ? undefined : CalendarInfoSchema.safeParse(JSON.parse(calendar));
+		if (parsed?.success === true) {
+			const {root, level, dateId, found_dates: foundDates, day_prefix: dayPrefix} = parsed.data;
+			map.set(nodeId, {
+				level: level ?? null,
+				dateId: dateId ?? null,
+				root: root === true,
+				foundDates: foundDates ?? null,
+				dayPrefix: dayPrefix ?? null,
+			});
+		}
+	}
+	const backupRows = deps.db
+		.select()
+		.from(calendarMetadata)
+		.where(and(inArray(calendarMetadata.nodeId, ids), eq(calendarMetadata.systemTo, FAR_FUTURE_DATE)))
+		.all();
+	for (const row of backupRows) {
+		if (!map.has(row.nodeId)) {
+			map.set(row.nodeId, {
+				level: row.level,
+				dateId: row.dateId,
+				root: row.root === 1,
+				foundDates: intToBoolean(row.foundDates),
+				dayPrefix: intToBoolean(row.dayPrefix),
+			});
+		}
+	}
+	let root: string | undefined;
+	for (const node of nodes) {
+		const date = map.has(node.id) ? undefined : dayNameDate(node.name);
+		if (date !== undefined) {
+			root ??= findCalendarRoot(deps);
+			if (root !== undefined && sitsInMonth(deps.cache, node.parentId, root, date)) {
+				const dateId = date.year * 10_000 + date.month * 100 + date.day;
+				map.set(node.id, {level: "day", dateId, root: false, foundDates: null, dayPrefix: null});
+			}
+		}
+	}
+	return map;
+}
+
+/** A nullable 0/1 column as a boolean, keeping null. */
+function intToBoolean(value: number | null): boolean | null {
+	return value === null ? null : value === 1;
+}
+
+/** Whether `parentId` is the `MM` (or `M`) month node of `date` under its `YYYY` year under the calendar root. */
+function sitsInMonth(cache: CacheService, parentId: string | null, root: string, date: CalendarDate): boolean {
+	const month = parentId === null ? undefined : cache.getNode(parentId);
+	const year = month?.parentId == null ? undefined : cache.getNode(month.parentId);
+	return (
+		year?.parentId === root &&
+		year.name === String(date.year) &&
+		(month?.name === String(date.month) || month?.name === String(date.month).padStart(2, "0"))
+	);
 }

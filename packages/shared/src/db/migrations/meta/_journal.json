@@ -239,6 +239,13 @@
 			"when": 1779408000000,
 			"tag": "0033_add_system_time_indexes",
 			"breakpoints": true
+		},
+		{
+			"idx": 34,
+			"version": "6",
+			"when": 1779494400000,
+			"tag": "0034_add_calendar_day_prefix",
+			"breakpoints": true
 		}
 	]
 }

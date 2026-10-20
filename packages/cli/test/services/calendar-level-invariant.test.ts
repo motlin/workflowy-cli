@@ -89,6 +89,27 @@ describe("calendar level/levels invariant", () => {
 		]);
 	});
 
+	it("stores the root's found_dates and day_prefix settings", async () => {
+		const backupContent = [
+			{
+				id: "calendar-root",
+				nm: "📆 Calendar",
+				metadata: {calendar: {root: true, levels: {day: true}, found_dates: true, day_prefix: false}},
+			},
+		];
+
+		await importBackup(testDatabase.db, writeBackupFile(backupContent), "backup.json");
+
+		const rows = testDatabase.db
+			.select()
+			.from(calendarMetadata)
+			.where(eq(calendarMetadata.systemTo, FAR_FUTURE_DATE))
+			.all();
+		expect(rows.map(({nodeId, foundDates, dayPrefix}) => ({nodeId, foundDates, dayPrefix}))).toStrictEqual([
+			{nodeId: "calendar-root", foundDates: 1, dayPrefix: 0},
+		]);
+	});
+
 	it("writes level (not a levels row) for a date node", async () => {
 		const backupContent = [
 			{

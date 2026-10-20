@@ -53,6 +53,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 		originalNodeId: null,
 		attachment: null,
 		defaultToBottom: false,
+		calendar: null,
 	};
 }
 

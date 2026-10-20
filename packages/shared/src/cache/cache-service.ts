@@ -108,6 +108,7 @@ export interface NodeWithRelations {
 		dateId: number | null;
 		timestamp: number | null;
 		foundDates: number | null;
+		dayPrefix: number | null;
 		levels?: {
 			day: number | null;
 			week: number | null;
@@ -428,6 +429,7 @@ export class CacheService {
 							dateId: true,
 							timestamp: true,
 							foundDates: true,
+							dayPrefix: true,
 						},
 						with: {
 							levels: true,
@@ -526,6 +528,7 @@ export class CacheService {
 							dateId: true,
 							timestamp: true,
 							foundDates: true,
+							dayPrefix: true,
 						},
 						with: {levels: true},
 					},
@@ -740,6 +743,7 @@ export class CacheService {
 							dateId: true,
 							timestamp: true,
 							foundDates: true,
+							dayPrefix: true,
 						},
 						with: {
 							levels: true,

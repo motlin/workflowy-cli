@@ -1,5 +1,5 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import type {BacklinkCrumb, BacklinksResponse, NodeAttachment, NodeResponse} from "../../node-types.js";
+import type {BacklinkCrumb, BacklinksResponse, CalendarInfo, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {ExactMover} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
@@ -13,6 +13,7 @@ import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import type {Context} from "hono";
 import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoot} from "../backlinks.js";
+import {loadCalendarInfo} from "../calendar-day.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
@@ -58,6 +59,7 @@ function nodeToRestDto(
 		note: string | null;
 		attachment?: NodeAttachment | null;
 		metadata?: InternalMetadataFields;
+		calendar?: CalendarInfo;
 	},
 ): NodeResponse {
 	return {
@@ -77,6 +79,7 @@ function nodeToRestDto(
 		originalNodeId: node.mirror.originalNodeId,
 		attachment: derived.attachment ?? null,
 		defaultToBottom: derived.metadata?.defaultToBottom ?? false,
+		calendar: derived.calendar ?? null,
 	};
 }
 
@@ -192,6 +195,7 @@ async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse
 	const flags = childFlags(ctx.db, [node.mirror.originalNodeId ?? id]);
 	const attachment = loadAttachments(ctx, [id]).get(id) ?? null;
 	const metadata = loadInternalMetadataFields(ctx, [id]).get(id);
+	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, [node]).get(id);
 	return nodeToRestDto(node, {
 		hasChildren: flags.withChildren.size > 0,
 		hasUncompletedChildren: flags.withUncompletedChildren.size > 0,
@@ -199,6 +203,7 @@ async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse
 		note: node.note,
 		attachment,
 		metadata,
+		calendar,
 	});
 }
 
@@ -223,6 +228,7 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 		ctx,
 		nodes.map((node) => node.id),
 	);
+	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, nodes);
 	return nodes.map((node) =>
 		nodeToRestDto(node, {
 			hasChildren: flags.withChildren.has(node.mirror.originalNodeId ?? node.id),
@@ -231,6 +237,7 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 			note: node.note,
 			attachment: attachments.get(node.id) ?? null,
 			metadata: metadata.get(node.id),
+			calendar: calendar.get(node.id),
 		}),
 	);
 }
@@ -442,6 +449,7 @@ nodesRouter.post("/", async (c) => {
 		originalNodeId: null,
 		attachment: null,
 		defaultToBottom: false,
+		calendar: null,
 	};
 
 	return c.json({node: nodeResponse}, 201);
@@ -597,6 +605,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		originalNodeId: null,
 		attachment: null,
 		defaultToBottom: false,
+		calendar: null,
 	};
 
 	return c.json({node: nodeResponse});
@@ -673,6 +682,7 @@ nodesRouter.post("/:id/complete", async (c) => {
 		originalNodeId: null,
 		attachment: null,
 		defaultToBottom: false,
+		calendar: null,
 	};
 
 	return c.json({node: nodeResponse});
@@ -956,6 +966,7 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 		originalNodeId: null,
 		attachment: null,
 		defaultToBottom: false,
+		calendar: null,
 	};
 
 	return c.json({node: nodeResponse});

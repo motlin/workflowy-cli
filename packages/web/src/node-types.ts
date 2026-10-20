@@ -37,6 +37,21 @@ export interface NodeResponse {
 	attachment?: NodeAttachment | null;
 	/** Upstream `metadata.priority.defaultToBottom`: nodes dropped or moved into this one land at the bottom. */
 	defaultToBottom?: boolean;
+	/** The node's 📆 Calendar role (root or date node), or null for any other node. */
+	calendar?: CalendarInfo | null;
+}
+
+/** A 📆 Calendar node's role and settings, from its upstream `metadata.calendar`. */
+export interface CalendarInfo {
+	/** `day` / `week` / `month` / `year` on a date node, null on the root. */
+	level: string | null;
+	/** `YYYYMMDD` (`YYYYMM00` for a month, `YYYY0000` for a year), null on the root. */
+	dateId: number | null;
+	root: boolean;
+	/** Root setting: show Found Dates on day pages; null when unset (upstream treats it as on). */
+	foundDates: boolean | null;
+	/** Root setting: Friendly day names (Yesterday, Today, Tomorrow); null when unset (on). */
+	dayPrefix: boolean | null;
 }
 
 /** One crumb in a backlink source's ancestor path, root first. */

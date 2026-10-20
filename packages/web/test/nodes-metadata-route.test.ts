@@ -62,6 +62,7 @@ function dto(id: string, layoutMode: string | null, numberedStart: number | null
 		originalNodeId: null,
 		attachment: null,
 		defaultToBottom,
+		calendar: null,
 	};
 }
 
