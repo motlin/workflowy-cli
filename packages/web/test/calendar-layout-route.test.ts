@@ -1,0 +1,161 @@
+import DatabaseConstructor from "better-sqlite3";
+import {drizzle} from "drizzle-orm/better-sqlite3";
+import {migrate} from "drizzle-orm/better-sqlite3/migrator";
+import {Hono} from "hono";
+import {join} from "node:path";
+import {afterEach, describe, expect, it} from "vite-plus/test";
+import {CacheService} from "@workflowy/shared/cache";
+import * as schema from "@workflowy/shared/db";
+import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
+import type {AppEnv, ServerContext} from "../src/server/context.js";
+import {createCalendarRouter} from "../src/server/routes/calendar.js";
+
+const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
+
+function time(year: number, month: number, day: number): string {
+	return `<time startYear="${year}" startMonth="${month}" startDay="${day}">x</time>`;
+}
+
+/** [id, parent, name] in sibling order: one month of the calendar plus a dated note outside it. */
+const TREE: [string, string | null, string][] = [
+	["cal", null, "📆 Calendar"],
+	["y2026", "cal", "2026"],
+	["m09", "y2026", "09"],
+	["d0910", "m09", time(2026, 9, 10)],
+	["entry", "d0910", "Journal entry"],
+	["notes", "cal", "Notes"],
+	["call", "notes", `Call ${time(2026, 9, 11)}`],
+];
+
+const METADATA: Record<string, unknown> = {
+	cal: {calendar: {root: true, levels: {year: true, month: true, day: true}}},
+	y2026: {calendar: {level: "year", value: "2026", timestamp: 1, dateId: 20_260_000}},
+	m09: {calendar: {level: "month", value: "9", timestamp: 1, dateId: 20_260_900}},
+	d0910: {calendar: {level: "day", value: "10", timestamp: 1, dateId: 20_260_910}},
+};
+
+const open: DatabaseConstructor.Database[] = [];
+afterEach(() => {
+	for (const sqlite of open.splice(0)) {
+		sqlite.close();
+	}
+});
+
+function app({names = {}, rootTagged = true}: {names?: Record<string, string>; rootTagged?: boolean} = {}) {
+	const sqlite = new DatabaseConstructor(":memory:");
+	open.push(sqlite);
+	const db = drizzle(sqlite, {schema});
+	migrate(db, {migrationsFolder});
+	for (const [id, parentId, name] of TREE) {
+		db.insert(schema.nodeContent)
+			.values({
+				id,
+				name: names[id] ?? name,
+				parentId,
+				systemFrom: "2026-01-01",
+				systemTo: FAR_FUTURE_DATE,
+			})
+			.run();
+	}
+	for (const [nodeId, metadata] of Object.entries(METADATA)) {
+		if (nodeId !== "cal" || rootTagged) {
+			db.insert(schema.nodeInternalMetadata)
+				.values({nodeId, metadataJson: JSON.stringify(metadata), fetchedAt: 1})
+				.run();
+		}
+	}
+	const calls: string[] = [];
+	const fake = {
+		getEntropyKey: async () => Promise.resolve("k"),
+		getRootMeta: async (path: string[]) => {
+			calls.push(`getRootMeta ${path.join(".")}`);
+			return Promise.resolve(path[0] === "dateFormat" ? "YYYY-MM-DD ddd" : undefined);
+		},
+	};
+	const ctx = {
+		db,
+		cacheService: new CacheService(db),
+		apiKey: "key",
+		internalAdapter: () => fake as unknown as WorkflowyInternalAdapter,
+	} as unknown as ServerContext;
+	const hono = new Hono<AppEnv>();
+	hono.use("*", async (c, next) => {
+		c.set("ctx", ctx);
+		await next();
+	});
+	hono.route("/api/v1/calendar", createCalendarRouter());
+	const request = async (path: string, init?: RequestInit) => {
+		const res = await hono.fetch(new Request(`http://x/api/v1/calendar/${path}`, init));
+		return {status: res.status, body: (await res.json()) as unknown};
+	};
+	const preview = async (body: unknown) =>
+		request("layout/preview", {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify(body),
+		});
+	return {request, preview, calls};
+}
+
+describe("GET /api/v1/calendar/layout", () => {
+	it("returns the root's levels, the levels with custom text, and whether Update Layout must confirm", async () => {
+		const {request} = app();
+		await expect(request("layout")).resolves.toStrictEqual({
+			status: 200,
+			body: {levels: {year: true, month: true, day: true}, customLevels: [], needsConfirm: true},
+		});
+	});
+
+	it("flags a month renamed away from the date format's name", async () => {
+		const {request} = app({names: {m09: "September plans"}});
+		await expect(request("layout")).resolves.toStrictEqual({
+			status: 200,
+			body: {levels: {year: true, month: true, day: true}, customLevels: ["month"], needsConfirm: true},
+		});
+	});
+
+	it("is 409 when the calendar root's internal metadata is not cached", async () => {
+		const {request} = app({rootTagged: false});
+		await expect(request("layout")).resolves.toStrictEqual({
+			status: 409,
+			body: {error: "The 📆 Calendar root's internal metadata is not cached"},
+		});
+	});
+});
+
+describe("POST /api/v1/calendar/layout/preview", () => {
+	it("plans the restructure without writing anything", async () => {
+		const {preview, calls} = app();
+		await expect(preview({levels: {year: true, month: false, week: false}})).resolves.toStrictEqual({
+			status: 200,
+			body: {
+				steps: [
+					{
+						op: "set-calendar",
+						id: "call",
+						calendar: {
+							level: "day",
+							value: "11",
+							timestamp: new Date(2026, 8, 11).getTime(),
+							dateId: 20_260_911,
+						},
+					},
+					{op: "set-levels", id: "cal", levels: {year: true, day: true}},
+					{op: "move", id: "d0910", parentId: "y2026", index: 0, from: {parentId: "m09", index: 0}},
+					{op: "move", id: "call", parentId: "y2026", index: 1, from: {parentId: "notes", index: 0}},
+					{op: "delete", id: "m09", from: {parentId: "y2026", index: 2}},
+				],
+			},
+		});
+		expect(calls).toStrictEqual(["getRootMeta dateFormat"]);
+	});
+
+	it("is 422 for week levels and 400 for a malformed body", async () => {
+		const {preview} = app();
+		expect([await preview({levels: {week: true}}), await preview({levels: "year"})]).toStrictEqual([
+			{status: 422, body: {error: "Calendar week levels are not supported"}},
+			{status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
+		]);
+	});
+});

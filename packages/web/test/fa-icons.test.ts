@@ -108,6 +108,10 @@ describe("FA_ICONS", () => {
 			"fal:at",
 			"fal:clock-rotate-left",
 			"fal:users",
+			"fal:square",
+			"fad:square-check",
+			"fal:calendar-lines-pen",
+			"fal:triangle-exclamation",
 		]);
 	});
 
@@ -192,6 +196,16 @@ describe("TriangleSvg", () => {
 		);
 		expect(TRIANGLE_PATH).toBe(
 			"M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z",
+		);
+	});
+});
+
+describe("FaIcon duotone", () => {
+	it("draws a fad icon's secondary layer under its primary one, like FontAwesome's duotone markup", () => {
+		const html = renderToStaticMarkup(createElement(FaIcon, {icon: "fad:square-check"}));
+		const definition = FA_ICONS["fad:square-check"];
+		expect(html).toBe(
+			`<svg aria-hidden="true" focusable="false" data-prefix="fad" data-icon="square-check" class="svg-inline--fa fa-square-check fa-1x " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><g class="fa-duotone-group"><path class="fa-secondary" fill="currentColor" d="${definition.secondary}"></path><path class="fa-primary" fill="currentColor" d="${definition.d}"></path></g></svg>`,
 		);
 	});
 });

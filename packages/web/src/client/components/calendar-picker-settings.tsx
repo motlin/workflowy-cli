@@ -13,14 +13,15 @@ export interface CalendarSettings {
 const ROW_CLASS = "[&_.menuItemIcon]:w-[26px] mobile:[&_.menuItemIcon]:w-[54px]";
 
 /**
- * Upstream `F10` (without the Calendar Layout row): the strip picker's rows after the calendar, a separator then a
- * Toggle row for Found Dates (`A10`) and for Friendly day names (`_10`). Selecting one flips that setting and keeps
- * the picker open. Like upstream this is an array, not a component, so the menu body sees each row and keyboard
- * navigation reaches them.
+ * Upstream `F10`: the strip picker's rows after the calendar, each after a separator: a Toggle row for Found Dates
+ * (`A10`) and for Friendly day names (`_10`), then Calendar Layout. Selecting a toggle flips that setting, and
+ * Calendar Layout swaps the picker body for the layout view; both keep the picker open. Like upstream this is an
+ * array, not a component, so the menu body sees each row and keyboard navigation reaches them.
  */
 export function calendarPickerSettingsRows(
 	settings: CalendarSettings,
 	onToggle: (key: keyof CalendarSettings) => void,
+	onLayout: () => void,
 ): ReactElement[] {
 	return [
 		<MenuSeparator key="calendar-found-dates-separator" style={{margin: 0}} />,
@@ -44,6 +45,17 @@ export function calendarPickerSettingsRows(
 			className={ROW_CLASS}
 			onSelect={() => {
 				onToggle("dayPrefix");
+				return true;
+			}}
+		/>,
+		<MenuSeparator key="calendar-layout-separator" style={{margin: 0}} />,
+		<MenuItem
+			key="calendar-layout"
+			label="Calendar Layout"
+			icon="fal:gear"
+			className={ROW_CLASS}
+			onSelect={() => {
+				onLayout();
 				return true;
 			}}
 		/>,

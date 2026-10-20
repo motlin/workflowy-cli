@@ -37,6 +37,8 @@ export interface DatePickerPopupProps {
 	renderDayContent?: (day: DPDay) => ReactNode;
 	/** Rows after the calendar (upstream `renderAfterCalendar`), such as the strip picker's settings toggles. */
 	afterCalendar?: ReactElement[];
+	/** Replaces the whole body, input and calendar included (upstream `renderContent`): the strip's Calendar Layout view. */
+	content?: ReactNode;
 	/** The DATE grid's month on open and after each offset change, so the caller can load its event days. */
 	onVisibleMonthChange?: (visible: CalendarMonth) => void;
 	onTermChange?: (term: string) => void;
@@ -538,6 +540,7 @@ export function DatePickerPopup({
 	hasEvent = noEvents,
 	renderDayContent,
 	afterCalendar,
+	content,
 	onVisibleMonthChange,
 	onTermChange,
 	onEnter,
@@ -590,59 +593,68 @@ export function DatePickerPopup({
 			style={{...box.style, ...(position ? {left: position.left, top: position.top} : {})}}
 		>
 			<MenuBody keyboardMode focusNavigation initialSelect={-1} selectOnTab={false} exit={onClose}>
-				{showControls ? (
+				{content ?? (
 					<>
-						<div className="flex items-center px-l py-m bg-secondary">{input}</div>
-						<MenuSeparator style={{margin: 0}} />
-					</>
-				) : (
-					input
-				)}
-				{PRESETS.map(({label, preset, icon}) => (
-					<MenuItem
-						key={preset}
-						label={label}
-						icon={icon}
-						className={PRESET_ROW_CLASS}
-						onSelect={() => {
-							onPreset?.(preset);
-						}}
-					/>
-				))}
-				<MenuSeparator style={{margin: 0}} />
-				<Calendar
-					selected={selected}
-					weekStartDay={weekStartDay}
-					isRange={isRange}
-					initialView={initialView}
-					renderDayContent={renderDayContent ?? dottedDayContent(hasEvent)}
-					onApply={onApply}
-					onVisibleMonthChange={onVisibleMonthChange}
-				/>
-				{afterCalendar}
-				{showControls ? (
-					<>
-						<MenuSeparator style={{margin: 0}} />
-						<MenuItem
-							label="Range"
-							icon={<Toggle on={isRange} />}
-							className={CONTROL_ROW_CLASS}
-							onSelect={() => {
-								onToggleRange?.();
-								return true;
-							}}
-						/>
-						<MenuItem label="Format" icon="fal:gear" className={CONTROL_ROW_CLASS} onSelect={onFormat} />
-						{showNoDate && (
-							<MenuItem
-								label="Remove date"
-								icon="fal:ban"
-								className={CONTROL_ROW_CLASS}
-								onSelect={onRemove}
-							/>
+						{showControls ? (
+							<>
+								<div className="flex items-center px-l py-m bg-secondary">{input}</div>
+								<MenuSeparator style={{margin: 0}} />
+							</>
+						) : (
+							input
 						)}
+						{PRESETS.map(({label, preset, icon}) => (
+							<MenuItem
+								key={preset}
+								label={label}
+								icon={icon}
+								className={PRESET_ROW_CLASS}
+								onSelect={() => {
+									onPreset?.(preset);
+								}}
+							/>
+						))}
+						<MenuSeparator style={{margin: 0}} />
+						<Calendar
+							selected={selected}
+							weekStartDay={weekStartDay}
+							isRange={isRange}
+							initialView={initialView}
+							renderDayContent={renderDayContent ?? dottedDayContent(hasEvent)}
+							onApply={onApply}
+							onVisibleMonthChange={onVisibleMonthChange}
+						/>
+						{afterCalendar}
+						{showControls ? (
+							<>
+								<MenuSeparator style={{margin: 0}} />
+								<MenuItem
+									label="Range"
+									icon={<Toggle on={isRange} />}
+									className={CONTROL_ROW_CLASS}
+									onSelect={() => {
+										onToggleRange?.();
+										return true;
+									}}
+								/>
+								<MenuItem
+									label="Format"
+									icon="fal:gear"
+									className={CONTROL_ROW_CLASS}
+									onSelect={onFormat}
+								/>
+								{showNoDate && (
+									<MenuItem
+										label="Remove date"
+										icon="fal:ban"
+										className={CONTROL_ROW_CLASS}
+										onSelect={onRemove}
+									/>
+								)}
+							</>
+						) : null}
 					</>
-				) : null}
+				)}
 			</MenuBody>
 		</div>
 	);

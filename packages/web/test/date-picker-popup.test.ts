@@ -152,7 +152,11 @@ describe("DatePickerPopup", () => {
 			showControls: false,
 			selected: [new Date(2026, 9, 7)],
 			renderDayContent: calendarDayContent((date) => date.getMonth() === 9 && [1, 5, 7].includes(date.getDate())),
-			afterCalendar: calendarPickerSettingsRows({foundDates: true, dayPrefix: false}, () => {}),
+			afterCalendar: calendarPickerSettingsRows(
+				{foundDates: true, dayPrefix: false},
+				() => {},
+				() => {},
+			),
 		});
 		expect({
 			rows: menuRows(html),
@@ -174,6 +178,7 @@ describe("DatePickerPopup", () => {
 				"Next week",
 				"Found DatesShows all matching dates",
 				"Friendly day namesYesterday, Today, Tomorrow",
+				"Calendar Layout",
 			],
 			dotted: [
 				["1", "text-tint"],
@@ -181,8 +186,18 @@ describe("DatePickerPopup", () => {
 				["7", "!text-on-color"],
 			],
 			toggles: ["on", "off"],
-			rowClasses: 2,
+			rowClasses: 3,
 		});
+	});
+
+	it("replaces the whole body with `content` (upstream `renderContent`), input and calendar included", () => {
+		const html = render({showControls: false, content: createElement("p", {className: "replaced"}, "Layout")});
+		expect({
+			replaced: html.includes('<p class="replaced">Layout</p>'),
+			input: html.includes("<input"),
+			days: dayCells(html).length,
+			rows: menuRows(html),
+		}).toStrictEqual({replaced: true, input: false, days: 0, rows: []});
 	});
 
 	it("labels the YEAR view with its decade window", () => {

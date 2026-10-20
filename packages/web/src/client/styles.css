@@ -662,6 +662,50 @@ body {
 	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
 }
 
+/* Upstream's bare .primary / .secondary, scoped to .button so local classes of the same name are untouched. */
+.button.primary {
+	background: var(--wf-background-tint);
+	color: var(--wf-text-on-color);
+}
+
+.button.primary:focus,
+.button.primary:hover,
+.button.primary:active {
+	background-color: color-mix(in srgb, var(--wf-background-tint) 85%, black);
+}
+
+.button.secondary {
+	background: transparent;
+	color: var(--gray-3);
+}
+
+.button.secondary:focus,
+.button.secondary:hover,
+.button.secondary:active {
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+/*
+ * Upstream reset.css (margin, padding, font-size) for the Calendar Layout view's h1 and p, which the local reset
+ * (border only) leaves at browser defaults. Zero specificity, so the view's mb-xs / mb-m utilities still apply.
+ */
+:where([data-calendar-layout]) :where(h1, p) {
+	margin: 0;
+	padding: 0;
+	font-size: 100%;
+}
+
+/* FontAwesome duotone layers (fad icons such as the Calendar Layout checkbox's square-check). */
+.svg-inline--fa .fa-primary {
+	fill: var(--fa-primary-color, currentColor);
+	opacity: var(--fa-primary-opacity, 1);
+}
+
+.svg-inline--fa .fa-secondary {
+	fill: var(--fa-secondary-color, currentColor);
+	opacity: var(--fa-secondary-opacity, 0.4);
+}
+
 /* Scrollbars (upstream themes_design) */
 ::-webkit-scrollbar {
 	width: 7px;

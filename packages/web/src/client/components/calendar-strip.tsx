@@ -6,6 +6,7 @@ import {dateId, dayTimestamp, formatPillLabel, guessDates, presetDate, stripMode
 import type {CalendarLevel, DatePreset} from "@workflowy/shared";
 import type {NodeResponse} from "../../node-types.js";
 import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
+import {previewCalendarLayout, useCalendarLayout} from "../hooks/use-calendar-layout.js";
 import {useCalendarSettings} from "../hooks/use-calendar-settings.js";
 import {activeCommandRegistry} from "../hooks/use-global-keymap.js";
 import {useNavigateToCalendarDate} from "../hooks/use-navigate-to-today.js";
@@ -27,10 +28,13 @@ import {
 } from "../calendar-strip-model.js";
 import type {StripDropDetail, StripLevel} from "../calendar-strip-model.js";
 import {CalendarStripView} from "./calendar-strip-view.js";
+import {layoutPreviewMessage} from "../calendar-layout-model.js";
+import {CalendarLayoutView} from "./calendar-layout-view.js";
 import {calendarDayContent, calendarPickerSettingsRows} from "./calendar-picker-settings.js";
 import {DatePickerPopup} from "./date-picker-popup.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {LoadingSpinner} from "./loading-spinner.js";
 
 async function fetchDots(from: number, to: number): Promise<number[]> {
 	const response = await fetch(`/api/v1/calendar/dots?from=${from}&to=${to}`);
@@ -52,8 +56,10 @@ function useCalendarDots(from: number | null, to: number | null): ReadonlySet<nu
 
 /**
  * Upstream's `GuiCalendar.CalendarButton` (`v10`): the calendar-days button opens the
- * date picker without its input row or controls, with Found Dates dots and the
- * Found Dates / Friendly day names toggles; picking a day zooms to it.
+ * date picker without its input row or controls, with Found Dates dots, the
+ * Found Dates / Friendly day names toggles and the Calendar Layout row, which
+ * swaps the body for the layout view; picking a day zooms to it. Update Layout
+ * only previews the restructure until applying it is approved.
  */
 function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => void}) {
 	const anchor = useRef<HTMLDivElement | null>(null);
@@ -62,9 +68,14 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	const {dateFormat, weekStartDay} = useDateSettings();
 	const eventDays = useCalendarEventDays({found: true});
 	const calendarSettings = useCalendarSettings();
+	const [layoutView, setLayoutView] = useState(false);
+	const layout = useCalendarLayout(layoutView);
+	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
+	const openSettings = useOutlineStore((state) => state.openSettings);
 	const close = () => {
 		setOpen(null);
 		setTerm("");
+		setLayoutView(false);
 	};
 	const select = (day: Date | undefined) => {
 		close();
@@ -99,7 +110,42 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 							afterCalendar={calendarPickerSettingsRows(
 								calendarSettings.settings,
 								calendarSettings.toggle,
+								() => {
+									setLayoutView(true);
+								},
 							)}
+							content={
+								layoutView ? (
+									layout === undefined ? (
+										<div className="p-ml">
+											<LoadingSpinner size="small" />
+										</div>
+									) : (
+										<CalendarLayoutView
+											layout={layout}
+											onCancel={() => {
+												setLayoutView(false);
+											}}
+											onDateFormat={() => {
+												close();
+												openSettings("Dates");
+											}}
+											onUpdate={async (levels) => {
+												try {
+													showAppMessage(
+														layoutPreviewMessage(await previewCalendarLayout(levels)),
+													);
+													close();
+												} catch (error) {
+													showAppMessage(
+														error instanceof Error ? error.message : String(error),
+													);
+												}
+											}}
+										/>
+									)
+								) : undefined
+							}
 							onVisibleMonthChange={eventDays.onVisibleMonthChange}
 							term={term}
 							position={open}

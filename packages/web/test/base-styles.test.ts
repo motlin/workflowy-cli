@@ -196,3 +196,40 @@ describe("upstream base styles", () => {
 		expect(indexHtml).toContain('<body class="is-desktop font-system">');
 	});
 });
+
+describe("upstream button variants and duotone icons", () => {
+	it("styles .button.primary / .button.secondary like upstream's .primary / .secondary", () => {
+		expect({
+			primary: cssBlock(styles, ".button.primary"),
+			primaryHover: cssBlock(styles, ".button.primary:focus, .button.primary:hover, .button.primary:active"),
+			secondary: cssBlock(styles, ".button.secondary"),
+			secondaryHover: cssBlock(
+				styles,
+				".button.secondary:focus, .button.secondary:hover, .button.secondary:active",
+			),
+		}).toStrictEqual({
+			primary: {background: "var(--wf-background-tint)", color: "var(--wf-text-on-color)"},
+			primaryHover: {"background-color": "color-mix(in srgb, var(--wf-background-tint) 85%, black)"},
+			secondary: {background: "transparent", color: "var(--gray-3)"},
+			secondaryHover: {"background-color": "color-mix(in srgb, var(--wf-background-quaternary) 85%, black)"},
+		});
+	});
+
+	it("applies upstream reset.css to the Calendar Layout view's heading and paragraphs at zero specificity", () => {
+		expect(cssBlock(styles, ":where([data-calendar-layout]) :where(h1, p)")).toStrictEqual({
+			margin: "0",
+			padding: "0",
+			"font-size": "100%",
+		});
+	});
+
+	it("colors duotone layers from FontAwesome's custom properties", () => {
+		expect({
+			primary: cssBlock(styles, ".svg-inline--fa .fa-primary"),
+			secondary: cssBlock(styles, ".svg-inline--fa .fa-secondary"),
+		}).toStrictEqual({
+			primary: {fill: "var(--fa-primary-color, currentColor)", opacity: "var(--fa-primary-opacity, 1)"},
+			secondary: {fill: "var(--fa-secondary-color, currentColor)", opacity: "var(--fa-secondary-opacity, 0.4)"},
+		});
+	});
+});

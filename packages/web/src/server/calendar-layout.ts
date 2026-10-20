@@ -1,0 +1,74 @@
+/**
+ * The 📆 Calendar root's subtree as the snapshot upstream's Calendar Layout
+ * restructure (`JX4`) walks, read from the cache. Level nodes are read in
+ * full; a day's children only as placeholders (the restructure never looks
+ * inside a day, but files nodes at its end); the root's other children are
+ * read in full, since dated nodes are searched for inside them.
+ */
+
+import {eq} from "drizzle-orm";
+import {nodeInternalMetadata} from "@workflowy/shared/db";
+import type {CalendarLayoutLevels, LayoutNode} from "@workflowy/shared/internal";
+import type {Node} from "@workflowy/shared/types";
+import {z} from "zod";
+import {findTaggedCalendarRoot, loadCalendarInfo} from "./calendar-day.js";
+import type {CalendarDayDeps} from "./calendar-day.js";
+
+export interface CalendarLayoutSnapshot {
+	root: LayoutNode;
+	/** The root's `calendar.levels`, or undefined for upstream's default. */
+	levels: CalendarLayoutLevels | undefined;
+}
+
+const RootLevelsSchema = z.object({
+	calendar: z.object({levels: z.record(z.string(), z.boolean()).optional()}).loose(),
+});
+
+function rootLevels(deps: Pick<CalendarDayDeps, "db">, rootId: string): CalendarLayoutLevels | undefined {
+	const row = deps.db
+		.select({metadataJson: nodeInternalMetadata.metadataJson})
+		.from(nodeInternalMetadata)
+		.where(eq(nodeInternalMetadata.nodeId, rootId))
+		.get();
+	const parsed = row === undefined ? undefined : RootLevelsSchema.safeParse(JSON.parse(row.metadataJson));
+	return parsed?.success === true ? parsed.data.calendar.levels : undefined;
+}
+
+/** The calendar snapshot, or undefined when no root is tagged in the cached internal metadata. */
+export function loadCalendarLayout(deps: Pick<CalendarDayDeps, "db" | "cache">): CalendarLayoutSnapshot | undefined {
+	const rootId = findTaggedCalendarRoot(deps);
+	const rootNode = rootId === undefined ? undefined : deps.cache.getNode(rootId);
+	if (rootId === undefined || rootNode === undefined) {
+		return undefined;
+	}
+	const toLayout = (nodes: Node[]): LayoutNode[] => {
+		const info = loadCalendarInfo(deps, nodes);
+		return nodes.map((node) => {
+			const calendar = info.get(node.id);
+			const level = calendar?.level ?? undefined;
+			const dateId = calendar?.dateId ?? undefined;
+			const isLevel = level !== undefined && dateId !== undefined;
+			const children = deps.cache.getChildren(node.id);
+			return {
+				id: node.id,
+				name: node.name ?? "",
+				note: node.note ?? "",
+				...(isLevel ? {calendar: {level, dateId}} : {}),
+				...(node.mirror.isMirror ? {isMirror: true} : {}),
+				children:
+					isLevel && level === "day"
+						? children.map((child) => ({id: child.id, name: "", note: "", children: []}))
+						: toLayout(children),
+			};
+		});
+	};
+	return {
+		root: {
+			id: rootId,
+			name: rootNode.name ?? "",
+			note: rootNode.note ?? "",
+			children: toLayout(deps.cache.getChildren(rootId)),
+		},
+		levels: rootLevels(deps, rootId),
+	};
+}

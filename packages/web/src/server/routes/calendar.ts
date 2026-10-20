@@ -11,6 +11,11 @@
  * `GET /api/v1/calendar/settings` -> 200 `{foundDates, dayPrefix}`: the root's picker toggles, each default true.
  * `PUT /api/v1/calendar/settings` `{foundDates?, dayPrefix?}` -> 200 the new settings; writes the root's
  * `calendar.found_dates` / `calendar.day_prefix` metadata (409 when its internal metadata is not cached).
+ * `GET /api/v1/calendar/layout` -> 200 `{levels, customLevels, needsConfirm}`: what the Calendar Layout dialog opens
+ * with (upstream `P10`): the root's levels, the levels whose nodes hold custom text or notes, and whether Update
+ * Layout first asks "Move nodes into your Calendar?" (409 without the root's cached internal metadata).
+ * `POST /api/v1/calendar/layout/preview` `{levels}` -> 200 `{steps}`: the tree writes upstream's restructure (`JX4`)
+ * would make for those levels, planned from the cache; nothing is written (422 for week levels).
  * `GET /api/v1/calendar/dots?from=YYYYMMDD&to=YYYYMMDD` -> 200 `{dateIds}`: the days in the range with journal
  * content, for the day strip's dots.
  * `POST /api/v1/calendar/day/:dateId/ensure[?level=month|year][&createChild=false]` -> 200
@@ -18,12 +23,20 @@
  * `CALENDAR_ENSURE_ENABLED=false`.
  */
 
-import {CalendarRootMissing, parseDateId} from "@workflowy/shared/internal";
+import {
+	CalendarRootMissing,
+	CalendarWeekUnsupported,
+	calendarLayoutCustomLevels,
+	calendarLayoutNeedsConfirm,
+	parseDateId,
+	planCalendarLayout,
+} from "@workflowy/shared/internal";
 import type {CalendarLevel} from "@workflowy/shared/internal";
 import {Hono} from "hono";
 import {z} from "zod";
 import {findCalendarDay, findTaggedCalendarRoot, readCalendarSettings} from "../calendar-day.js";
 import {foundDaysInMonth} from "../calendar-found.js";
+import {loadCalendarLayout} from "../calendar-layout.js";
 import type {CalendarDayDeps} from "../calendar-day.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
@@ -38,6 +51,23 @@ const MAX_DOT_RANGE_DAYS = 100;
 const INVALID_RANGE = `from and to must be YYYYMMDD days at most ${MAX_DOT_RANGE_DAYS} days apart, from first`;
 const DAY_MS = 86_400_000;
 const SettingsBody = z.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()});
+const INVALID_LEVELS = "levels must be an object of year, month, week and day booleans";
+const LayoutBody = z.object({
+	levels: z.strictObject({
+		year: z.boolean().optional(),
+		month: z.boolean().optional(),
+		week: z.boolean().optional(),
+		day: z.boolean().optional(),
+	}),
+});
+/** Upstream `I10`'s levels when the root has none. */
+const DEFAULT_LAYOUT_LEVELS = {year: true, month: true, day: true};
+
+/** The account date format, which names year and month nodes; empty (upstream's defaults) without the internal API. */
+async function accountDateFormat(ctx: ServerContext): Promise<string> {
+	const dateFormat = await ctx.internalAdapter?.()?.getRootMeta(["dateFormat"]);
+	return typeof dateFormat === "string" ? dateFormat : "";
+}
 
 /** The `?level=` query parameter (default day), else undefined. */
 function levelParam(raw: string | undefined): CalendarLevel | undefined {
@@ -168,6 +198,45 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		}
 		await adapter.setNodeMetaValues(rootId, changes);
 		return c.json(readCalendarSettings({db: ctx.db, cache: ctx.cacheService}));
+	});
+
+	router.get("/layout", async (c) => {
+		const ctx = c.get("ctx");
+		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService});
+		if (snapshot === undefined) {
+			return c.json({error: ROOT_METADATA_MISSING}, 409);
+		}
+		return c.json({
+			levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
+			customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
+			needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
+		});
+	});
+
+	router.post("/layout/preview", async (c) => {
+		const ctx = c.get("ctx");
+		const body = LayoutBody.safeParse(await c.req.json().catch(() => null));
+		if (!body.success) {
+			return c.json({error: INVALID_LEVELS}, 400);
+		}
+		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService});
+		if (snapshot === undefined) {
+			return c.json({error: ROOT_METADATA_MISSING}, 409);
+		}
+		const {entropyKey} = await calendarDayDeps(ctx);
+		try {
+			const steps = planCalendarLayout(snapshot.root, body.data.levels, {
+				...(snapshot.levels === undefined ? {} : {currentLevels: snapshot.levels}),
+				dateFormat: await accountDateFormat(ctx),
+				...(entropyKey === undefined ? {} : {entropyKey}),
+			});
+			return c.json({steps});
+		} catch (error) {
+			if (error instanceof CalendarWeekUnsupported) {
+				return c.json({error: error.message}, 422);
+			}
+			throw error;
+		}
 	});
 
 	router.get("/dots", async (c) => {
