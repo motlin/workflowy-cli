@@ -1,15 +1,20 @@
-import {useEffect, useLayoutEffect, useRef, useState} from "react";
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, MouseEvent, ReactElement, ReactNode} from "react";
 import {createPortal} from "react-dom";
+import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js";
+import type {LayoutCrumb} from "../breadcrumb-layout.js";
+import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
 import type {PickerIcon, PickerRow} from "../location-picker-model.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
 import {FaIcon} from "./fa-icons.js";
 import type {FaIconKey} from "./fa-icons.js";
+import {ButtonMenu} from "./flyout/button-menu.js";
 import {Flyout} from "./flyout/flyout.js";
 import {FlyoutAlign} from "./flyout/flyout-style.js";
 import {MenuBody} from "./flyout/menu.js";
 import {MenuItem, MenuSectionHeader} from "./flyout/menu-item.js";
 import {placePopper} from "./flyout/place-popper.js";
+import {IconButton} from "./icon-button.js";
 import {POPUP_Z} from "./flyout/popover-box.js";
 
 /** One ancestor shown in a location row's subtext, top-down, Home excluded. */
@@ -78,24 +83,78 @@ function rowIcon(icon: PickerIcon): FaIconKey | ReactElement | undefined {
 	return icon === null ? undefined : STRING_ICONS[icon];
 }
 
-/** Upstream GuiCrumbs.Widget with hideCurrent, showLastSeparator and itemsDisabled: plain divs, Home for top level. */
+const CRUMB_CLASS = `breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate opacity-70
+    data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`;
+const OVERFLOW_MENU_GUTTER = 48;
+
+// Upstream's location rows pass `sizes: {minItemWidth: 80}` and `threeDotPosition: "left"`.
+const layout = createBreadcrumbLayout({minItemWidth: 80, threeDotPosition: "left"}, (label) =>
+	measureCrumbLabel(label),
+);
+
+/** A disabled upstream `.breadcrumb-item`: a plain div, narrowed to its truncation width. */
+function LocationCrumbItem({item}: {item: LayoutCrumb}) {
+	return (
+		<div style={{maxWidth: item.truncateWidth ?? undefined}} className={CRUMB_CLASS}>
+			{item.label}
+		</div>
+	);
+}
+
+/**
+ * Upstream GuiCrumbs.Widget with hideCurrent, showLastSeparator and itemsDisabled: plain divs, Home for top level,
+ * the widest crumbs truncated and the leftmost collapsed into an ellipsis menu to fit the row.
+ */
 function LocationCrumbs({crumbs}: {crumbs: readonly LocationCrumb[]}) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [containerLeft, containerWidth] = useContainerRect(containerRef);
+	const windowWidth = useWindowWidth();
 	const shown = crumbs.length === 0 ? [{id: "None", name: "Home"}] : crumbs;
+	const inputs = shown.map(({id, name}) => ({id, label: name}));
+	const inputsKey = inputs.map(({id, label}) => `${id}\u0000${label}`).join("/");
+	const visible = useMemo(
+		() => layout.calculateVisibleItems(inputs, containerWidth, []),
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialized trail; inputs is rebuilt every render
+		[containerWidth, inputsKey],
+	);
+	const chunks = layout.getItemGroupsWithLeftOffset(layout.getItemGroups(visible));
 	return (
 		<div
+			ref={containerRef}
 			className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden"
 			style={{height: 24, color: "var(--wf-text-primary)"}}
 		>
-			{shown.flatMap((crumb) => [
-				<div
-					key={crumb.id}
-					className={`breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate opacity-70
-    data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`}
-				>
-					{crumb.name}
-				</div>,
-				<BreadcrumbSeparator key={`${crumb.id}-separator`} />,
-			])}
+			{chunks.flatMap(({items, leftOffset}) => {
+				if (items[0]?.group === 1) {
+					return [
+						<ButtonMenu
+							key={`more-${leftOffset}`}
+							actOnHover
+							button={
+								<IconButton size="md">
+									<FaIcon icon="fal:ellipsis" />
+								</IconButton>
+							}
+						>
+							<div
+								className="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu"
+								style={{maxWidth: windowWidth - leftOffset - containerLeft - OVERFLOW_MENU_GUTTER}}
+							>
+								{items.map((item) => (
+									<div key={item.id}>
+										<LocationCrumbItem item={item} />
+									</div>
+								))}
+							</div>
+						</ButtonMenu>,
+						<BreadcrumbSeparator key={`breadcrumb-icon-${leftOffset}`} />,
+					];
+				}
+				return items.flatMap((item) => [
+					<LocationCrumbItem key={item.id} item={item} />,
+					<BreadcrumbSeparator key={`${item.id}-separator`} />,
+				]);
+			})}
 		</div>
 	);
 }

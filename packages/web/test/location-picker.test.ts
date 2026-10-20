@@ -10,6 +10,10 @@ vi.mock(import("react-dom"), async (importOriginal) => ({
 	...(await importOriginal()),
 	createPortal: (node: ReactNode): ReactPortal => node as ReactPortal,
 }));
+vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => ({
+	...(await importOriginal()),
+	measureCrumbLabel: (label: string) => label.length * 7,
+}));
 vi.stubGlobal("document", {body: {}});
 
 const {LocationPicker} = await import("../src/client/components/location-picker.js");
@@ -57,6 +61,10 @@ const ARROW_UP =
 
 const CRUMBS_BY_ID: Record<string, {id: string; name: string}[]> = {
 	hub: [{id: "sandbox", name: "🧪 Sync sandbox"}],
+	deep: ["Alpha", "Bravo", "Charlie", "Delta", "Echo"].map((name) => ({
+		id: name.toLowerCase(),
+		name: `${name} ${"x".repeat(14 - name.length)}`,
+	})),
 	t0: [{id: "t1", name: "T1"}],
 	r1: [{id: "sandbox", name: "🧪 Sync sandbox"}],
 	r2: [{id: "hub", name: "Qzpick Hub"}],
@@ -243,6 +251,33 @@ describe("LocationPicker markup", () => {
 			rows: [{kind: "recent", id: "top", labelHtml: "Top", disabled: false, icon: "clock"}],
 		});
 		expect(html).toContain(`<span class="${SUBTEXT}ml-xl">${crumbs("Home")}</span>`);
+	});
+
+	it("collapses the leftmost crumbs and truncates the rest to fit a narrow window", () => {
+		vi.stubGlobal("window", {innerWidth: 400});
+		const html = render({
+			query: "",
+			rows: [{kind: "recent", id: "deep", labelHtml: "Deep", disabled: false, icon: "clock"}],
+		});
+		vi.stubGlobal("window", undefined);
+		const trail = html.slice(html.indexOf(CRUMBS) + CRUMBS.length);
+		expect({
+			menus: html.split('<div tabindex="0" class="relative outline-none menu ">').length - 1,
+			ellipsis: trail.startsWith(
+				'<div tabindex="0" class="relative outline-none menu "><div><div role="button" tabindex="0" class="iconButton md shape-circle"><svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="ellipsis"',
+			),
+			visible: [
+				...trail.matchAll(/<div style="max-width:(\d+)px" class="breadcrumb-item [^"]*">([^<]*)<\/div><svg/gu),
+			].map(([, width, name]) => [name, Number(width)]),
+		}).toStrictEqual({
+			menus: 1,
+			ellipsis: true,
+			visible: [
+				["Charlie xxxxxxx", 94],
+				["Delta xxxxxxxxx", 94],
+				["Echo xxxxxxxxxx", 95],
+			],
+		});
 	});
 
 	it("starts the keyboard selection on the reducer's active enabled row", () => {

@@ -1,8 +1,9 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useMemo, useRef, useState} from "react";
 import type {MouseEvent} from "react";
 import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
+import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -164,7 +165,6 @@ export function BreadcrumbItem({
 }
 
 const HOME_LABEL = "Home";
-const RESIZE_DEBOUNCE_MS = 200;
 const OVERFLOW_MENU_GUTTER = 48;
 
 // Upstream header sizes are the layout defaults; measuring goes through the module export so tests can stub it.
@@ -209,54 +209,6 @@ export function BreadcrumbOverflowMenu({
 			})}
 		</div>
 	);
-}
-
-function initialWindowWidth(): number {
-	return typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth;
-}
-
-/** Upstream tracks the container's `[left, width]` through a ResizeObserver debounced by 200ms. */
-function useContainerRect(ref: React.RefObject<HTMLDivElement | null>): [number, number] {
-	const [rect, setRect] = useState<[number, number]>(() => [0, initialWindowWidth()]);
-	useEffect(() => {
-		const element = ref.current;
-		if (!element) {
-			return () => {};
-		}
-		let timer: number | undefined;
-		const schedule = () => {
-			if (timer !== undefined) {
-				return;
-			}
-			timer = window.setTimeout(() => {
-				const {left, width} = element.getBoundingClientRect();
-				setRect([left, width]);
-				timer = undefined;
-			}, RESIZE_DEBOUNCE_MS);
-		};
-		schedule();
-		const observer = new ResizeObserver(schedule);
-		observer.observe(element);
-		return () => {
-			window.clearTimeout(timer);
-			observer.disconnect();
-		};
-	}, [ref]);
-	return rect;
-}
-
-function useWindowWidth(): number {
-	const [width, setWidth] = useState(initialWindowWidth);
-	useEffect(() => {
-		const onResize = () => {
-			setWidth(document.body.clientWidth);
-		};
-		window.addEventListener("resize", onResize);
-		return () => {
-			window.removeEventListener("resize", onResize);
-		};
-	}, []);
-	return width;
 }
 
 /** Upstream zoomedIds: ids zoomed into while mounted that are still on the trail, plus the current one. */
