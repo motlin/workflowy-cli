@@ -23,7 +23,7 @@ export const BACK_STACK_CAP = 100;
 
 export const initialNavState: NavState = {current: null, back: [], forward: []};
 
-function locEquals(a: Loc | null, b: Loc | null): boolean {
+export function locEquals(a: Loc | null, b: Loc | null): boolean {
 	return a !== null && b !== null && a.id === b.id && a.query === b.query;
 }
 

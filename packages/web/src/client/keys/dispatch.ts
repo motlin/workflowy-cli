@@ -5,6 +5,7 @@
  */
 import {buildHotkeys, comboFromEvent, currentPlatform} from "./keymap.js";
 import type {KeyComboEvent} from "./keymap.js";
+import type {AppMessageAction} from "../stores/outline.js";
 
 /** What a command acts on: the row holding the caret (upstream's focused item) and the zoomed node. */
 export interface CommandContext {
@@ -79,6 +80,19 @@ export function processCombo(
 		return "claimed";
 	}
 	return passesThrough(combo, isMac) ? "unclaimed" : "claimed";
+}
+
+/**
+ * Upstream `Fe4`'s keydown handler: while an app message is shown, a combo matching one of its actions' shortcuts runs
+ * that action (without hiding the message) and is claimed before the hotkey table sees it.
+ */
+export function processAppMessageCombo(combo: string, actions: readonly AppMessageAction[]): ComboResult {
+	const action = actions.find(({shortcut}) => shortcut === combo);
+	if (action === undefined) {
+		return "unclaimed";
+	}
+	action.run();
+	return "claimed";
 }
 
 /** Combos a focused button, input or menu keeps for itself. */

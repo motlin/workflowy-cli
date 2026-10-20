@@ -1,7 +1,8 @@
 import {useEffect, useRef} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {isMacPlatform} from "../editable-text-keys.js";
-import {deferToFocusedControl, keymapCombo, processCombo} from "../keys/dispatch.js";
+import {deferToFocusedControl, keymapCombo, processAppMessageCombo, processCombo} from "../keys/dispatch.js";
+import {comboFromEvent} from "../keys/keymap.js";
 import type {CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {commandTargets} from "../item-selection.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -30,7 +31,8 @@ export function activeCommandRegistry(): CommandRegistry {
 /**
  * Upstream's bubble-phase `window` keydown dispatcher: one listener turns each keydown into a combo and runs the
  * bound command from `registry`, claiming every bound combo but the passthroughs. Item commands act on the item
- * selection in display order when there is one, else on the edited row.
+ * selection in display order when there is one, else on the edited row. A shown app message's action shortcuts
+ * take precedence, as upstream's capture-phase toast listener does.
  */
 export function useGlobalKeymap(registry: CommandRegistry): void {
 	const queryClient = useQueryClient();
@@ -44,6 +46,11 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 		const isMac = isMacPlatform();
 		const onKeyDown = (event: KeyboardEvent): void => {
 			if (event.isComposing) {
+				return;
+			}
+			const {appMessage} = useOutlineStore.getState();
+			if (appMessage && processAppMessageCombo(comboFromEvent(event), appMessage.actions) === "claimed") {
+				event.preventDefault();
 				return;
 			}
 			const combo = keymapCombo(event, isMac, isFormField(event.target));

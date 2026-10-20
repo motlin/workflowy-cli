@@ -110,3 +110,63 @@ describe("showAppMessage", () => {
 		expect(store.getState().appMessage).toBeNull();
 	});
 });
+
+describe("hide on navigation", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("hides the message when the location changes", async () => {
+		const store = await loadStore();
+		store.getState().dispatchNav({type: "navigate", loc: {id: "a", query: null}});
+		store.getState().showAppMessage("Moved to 'b'");
+		store.getState().dispatchNav({type: "navigate", loc: {id: "b", query: null}});
+		expect(store.getState().appMessage).toBeNull();
+	});
+
+	it("keeps the message when the location is unchanged", async () => {
+		const store = await loadStore();
+		store.getState().dispatchNav({type: "navigate", loc: {id: "a", query: null}});
+		store.getState().showAppMessage("Link copied.");
+		store.getState().dispatchNav({type: "popstate", loc: {id: "a", query: null}});
+		expect(store.getState().appMessage).toStrictEqual({text: "Link copied.", actions: []});
+	});
+});
+
+describe("dismissOn", () => {
+	let target: EventTarget;
+
+	async function loadStoreWithWindow() {
+		const store = await loadStore();
+		target = new EventTarget();
+		vi.stubGlobal("addEventListener", target.addEventListener.bind(target));
+		vi.stubGlobal("removeEventListener", target.removeEventListener.bind(target));
+		return store;
+	}
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("hides the message on one of its dismissOn window events", async () => {
+		const store = await loadStoreWithWindow();
+		store.getState().showAppMessage("Mirror(s) copied.", {dismissOn: ["copy", "paste"]});
+		target.dispatchEvent(new Event("paste"));
+		expect(store.getState().appMessage).toBeNull();
+	});
+
+	it("ignores events outside dismissOn", async () => {
+		const store = await loadStoreWithWindow();
+		store.getState().showAppMessage("Mirror(s) copied.", {dismissOn: ["copy"]});
+		target.dispatchEvent(new Event("paste"));
+		expect(store.getState().appMessage).toStrictEqual({text: "Mirror(s) copied.", actions: []});
+	});
+
+	it("drops the previous message's dismissOn listeners when replaced", async () => {
+		const store = await loadStoreWithWindow();
+		store.getState().showAppMessage("Mirror(s) copied.", {dismissOn: ["copy"]});
+		store.getState().showAppMessage("Link copied.");
+		target.dispatchEvent(new Event("copy"));
+		expect(store.getState().appMessage).toStrictEqual({text: "Link copied.", actions: []});
+	});
+});

@@ -4,6 +4,7 @@ import {
 	deferToFocusedControl,
 	hotkeyTable,
 	keymapCombo,
+	processAppMessageCombo,
 	processCombo,
 } from "../src/client/keys/dispatch.js";
 import type {CommandContext} from "../src/client/keys/dispatch.js";
@@ -218,5 +219,28 @@ describe("keymapCombo", () => {
 			"expand_selection_down",
 			"focus_or_unfocus_search",
 		]);
+	});
+});
+
+describe("processAppMessageCombo", () => {
+	it("runs the shown message's action bound to the combo once and claims it", () => {
+		const view = vi.fn<() => void>();
+		const undo = vi.fn<() => void>();
+		expect({
+			result: processAppMessageCombo("shift+return", [
+				{label: "View", shortcut: "shift+return", run: view},
+				{label: "Undo", run: undo},
+			]),
+			view: view.mock.calls,
+			undo: undo.mock.calls,
+		}).toStrictEqual({result: "claimed", view: [[]], undo: []});
+	});
+
+	it("leaves a combo no action binds to the keymap", () => {
+		const view = vi.fn<() => void>();
+		expect({
+			result: processAppMessageCombo("return", [{label: "View", shortcut: "shift+return", run: view}]),
+			view: view.mock.calls,
+		}).toStrictEqual({result: "unclaimed", view: []});
 	});
 });

@@ -1,7 +1,7 @@
 import {create} from "zustand";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
-import {initialNavState, navReducer} from "../nav-stack.js";
+import {initialNavState, locEquals, navReducer} from "../nav-stack.js";
 import type {NavAction, NavState} from "../nav-stack.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
@@ -200,9 +200,24 @@ interface ShowAppMessageOptions {
 	/** Milliseconds before the message hides itself; omitted keeps it until hidden. */
 	timeout?: number;
 	actions?: readonly AppMessageAction[];
+	/** Window event names (e.g. "copy", "paste") that hide the message, as upstream's `dismissOn`. */
+	dismissOn?: readonly string[];
 }
 
 let appMessageTimer: ReturnType<typeof setTimeout> | undefined;
+let removeAppMessageDismissListeners = (): void => {};
+
+/** Listen for each `dismissOn` window event until the message is hidden or replaced. */
+function listenForDismiss(dismissOn: readonly string[], hide: () => void): () => void {
+	for (const type of dismissOn) {
+		globalThis.addEventListener(type, hide);
+	}
+	return () => {
+		for (const type of dismissOn) {
+			globalThis.removeEventListener(type, hide);
+		}
+	};
+}
 
 interface ClickPosition {
 	x: number;
@@ -614,7 +629,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	urlSearchQuery: null,
 
 	dispatchNav: (action) => {
-		set((state) => ({nav: navReducer(state.nav, action)}));
+		const {nav, appMessage, hideAppMessage} = get();
+		const next = navReducer(nav, action);
+		set({nav: next});
+		// Upstream hides the app message on `location.change.before`.
+		if (appMessage !== null && !locEquals(nav.current, next.current)) {
+			hideAppMessage();
+		}
 	},
 
 	setUrlSearchQuery: (query) => {
@@ -1097,8 +1118,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({errorNotifications: []});
 	},
 
-	showAppMessage(text, {timeout, actions = []} = {}) {
+	showAppMessage(text, {timeout, actions = [], dismissOn = []} = {}) {
 		clearTimeout(appMessageTimer);
+		removeAppMessageDismissListeners();
+		removeAppMessageDismissListeners = listenForDismiss(dismissOn, () => {
+			get().hideAppMessage();
+		});
 		appMessageTimer =
 			timeout === undefined
 				? undefined
@@ -1111,6 +1136,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	hideAppMessage() {
 		clearTimeout(appMessageTimer);
 		appMessageTimer = undefined;
+		removeAppMessageDismissListeners();
+		removeAppMessageDismissListeners = () => {};
 		set({appMessage: null});
 	},
 
