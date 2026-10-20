@@ -166,3 +166,26 @@ describe("GET /api/v1/tags/autocomplete", () => {
 		await expect(getTags(setup(), "prefix=%23taG")).resolves.toStrictEqual([]);
 	});
 });
+
+describe("GET /api/v1/tags/autocomplete with the edited item's live text", () => {
+	it("counts the edited item's live name instead of its saved one, as upstream's per-keystroke tag counts do", async () => {
+		const live = new URLSearchParams({
+			root: "root",
+			prefix: "#taZ",
+			fallback: "0",
+			item: "child-0",
+			name: "Alpha #taZoo",
+		});
+		await expect(getTags(setup(), live.toString())).resolves.toStrictEqual(["#taZebra:2", "#taZoo:1"]);
+	});
+
+	it("counts the edited item's live note alongside its saved name", async () => {
+		const live = new URLSearchParams({prefix: "#taZ", item: "child-0", note: "#taZoo"});
+		await expect(getTags(setup(), live.toString())).resolves.toStrictEqual(["#taZebra:4", "#taZoo:1"]);
+	});
+
+	it("swaps a saved tag for the in-progress one the live name has instead", async () => {
+		const live = new URLSearchParams({prefix: "#taA", item: "child-1", name: "Beta #taZebra #taA"});
+		await expect(getTags(setup(), live.toString())).resolves.toStrictEqual(["#taA:1", "#taApple:1"]);
+	});
+});

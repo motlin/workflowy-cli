@@ -19,6 +19,24 @@ export interface AcceptedText {
 	caret: number;
 }
 
+/** The editor the autocomplete runs in: its item, which field, and that field's live plain text. */
+export interface LiveField {
+	item: string;
+	field: "name" | "note";
+	text: string;
+}
+
+/** The autocomplete endpoint's query, carrying the live field so the server counts it as upstream does. */
+export function autocompleteSearch({
+	root,
+	prefix,
+	item,
+	field,
+	text,
+}: {root: string; prefix: string} & LiveField): string {
+	return new URLSearchParams({root, prefix, limit: "8", fallback: "1", item, [field]: text}).toString();
+}
+
 export function attach(textBeforeCaret: string): {start: number} | null {
 	const ending = getEndingTagText(textBeforeCaret);
 	return ending === undefined ? null : {start: textBeforeCaret.length - ending.length};

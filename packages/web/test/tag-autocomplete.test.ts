@@ -1,5 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {applyAccept, attach, currentQuery, shouldShow, spliceAcceptedTag} from "../src/client/tag-autocomplete.js";
+import {
+	applyAccept,
+	attach,
+	autocompleteSearch,
+	currentQuery,
+	shouldShow,
+	spliceAcceptedTag,
+} from "../src/client/tag-autocomplete.js";
 
 describe("attach", () => {
 	it("attaches at a bare # after a space", () => {
@@ -95,5 +102,17 @@ describe("applyAccept", () => {
 describe("spliceAcceptedTag", () => {
 	it("replaces plain-text units inside rich text, escaping the inserted tag", () => {
 		expect(spliceAcceptedTag("<b>x</b> #ta y", {start: 2, end: 5, inserted: "#a&b "})).toBe("<b>x</b> #a&amp;b  y");
+	});
+});
+
+describe("autocompleteSearch", () => {
+	it("sends the edited field's live text so the server counts it in place of the saved text", () => {
+		expect([
+			autocompleteSearch({root: "z", prefix: "#me", item: "n1", field: "name", text: "Plan #me"}),
+			autocompleteSearch({root: "", prefix: "#", item: "n2", field: "note", text: "x #"}),
+		]).toStrictEqual([
+			"root=z&prefix=%23me&limit=8&fallback=1&item=n1&name=Plan+%23me",
+			"root=&prefix=%23&limit=8&fallback=1&item=n2&note=x+%23",
+		]);
 	});
 });

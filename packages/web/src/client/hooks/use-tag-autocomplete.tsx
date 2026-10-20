@@ -4,16 +4,16 @@ import {useQuery} from "@tanstack/react-query";
 import {caretTextOffset} from "../caret-dom.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {applyAccept, attach, currentQuery, shouldShow} from "../tag-autocomplete.js";
+import {applyAccept, attach, autocompleteSearch, currentQuery, shouldShow} from "../tag-autocomplete.js";
 import type {AutocompleteResult} from "../tag-autocomplete.js";
 import {TagAutocompletePopup, tagPopupInput, tagPopupKey} from "../components/tag-autocomplete-popup.js";
 import type {TagPopupState} from "../components/tag-autocomplete-popup.js";
 
-const LIMIT = 8;
-
 interface Attached {
 	start: number;
 	query: string;
+	/** The field's plain text when `query` was read. */
+	text: string;
 	visible: boolean;
 	active: number;
 	/** Viewport point just after the `#`: its left and bottom. */
@@ -26,14 +26,16 @@ export type TagAcceptHandler = (edit: {start: number; end: number; inserted: str
 
 interface TagAutocompleteOptions {
 	editorRef: React.RefObject<HTMLElement | null>;
+	/** The edited item; its live text replaces its saved text in the counts. */
+	nodeId: string;
+	field: "name" | "note";
 	/** The editor's plain text in caret units (a date pill is one unit). */
 	readPlain: () => string;
 	onAccept: TagAcceptHandler;
 }
 
-async function fetchAutocomplete(root: string, prefix: string): Promise<AutocompleteResult[]> {
-	const params = new URLSearchParams({root, prefix, limit: String(LIMIT), fallback: "1"});
-	const response = await fetch(`/api/v1/tags/autocomplete?${params.toString()}`);
+async function fetchAutocomplete(search: string): Promise<AutocompleteResult[]> {
+	const response = await fetch(`/api/v1/tags/autocomplete?${search}`);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch tag autocomplete: ${response.statusText}`);
 	}
@@ -62,7 +64,7 @@ function anchorBefore(back: number): {left: number; top: number} | null {
  * popup that Tab/Enter or a row mousedown accepts. Call `handleKeyDown` first in the editor's
  * keydown handler; it returns true when the popup took the key. Blur or a click detaches.
  */
-export function useTagAutocomplete({editorRef, readPlain, onAccept}: TagAutocompleteOptions): {
+export function useTagAutocomplete({editorRef, nodeId, field, readPlain, onAccept}: TagAutocompleteOptions): {
 	handleInput: () => void;
 	handleKeyDown: (event: React.KeyboardEvent) => boolean;
 	detach: () => void;
@@ -82,9 +84,10 @@ export function useTagAutocomplete({editorRef, readPlain, onAccept}: TagAutocomp
 
 	const root = useOutlineStore((state) => state.zoomedNodeId) ?? "";
 	const query = attached?.query ?? null;
+	const search = autocompleteSearch({root, prefix: query ?? "#", item: nodeId, field, text: attached?.text ?? ""});
 	const {data: results = []} = useQuery({
-		queryKey: ["tag-autocomplete", root, query],
-		queryFn: async () => fetchAutocomplete(root, query ?? "#"),
+		queryKey: ["tag-autocomplete", search],
+		queryFn: async () => fetchAutocomplete(search),
 		enabled: query !== null,
 		staleTime: 5000,
 	});
@@ -116,7 +119,7 @@ export function useTagAutocomplete({editorRef, readPlain, onAccept}: TagAutocomp
 			visible: current?.visible ?? true,
 			active: current !== null && kept !== null && current.query === nextQuery ? current.active : 0,
 		});
-		setAttached({start, query: nextQuery, visible: state.visible, active: state.active, ...anchor});
+		setAttached({start, query: nextQuery, text: plain, visible: state.visible, active: state.active, ...anchor});
 	}, [editorRef, readPlain, detach, setAttached]);
 
 	const accept = useCallback(

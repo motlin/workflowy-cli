@@ -440,7 +440,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		},
 		[dateSettings, nameSaver],
 	);
-	const tagAutocomplete = useTagAutocomplete({editorRef: contentRef, readPlain: readNamePlain, onAccept: acceptTag});
+	const tagAutocomplete = useTagAutocomplete({
+		editorRef: contentRef,
+		nodeId,
+		field: "name",
+		readPlain: readNamePlain,
+		onAccept: acceptTag,
+	});
 	const {
 		handleInput: handleTagAutocomplete,
 		handleKeyDown: handleTagAutocompleteKey,

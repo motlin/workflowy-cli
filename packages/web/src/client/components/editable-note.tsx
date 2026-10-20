@@ -273,7 +273,13 @@ export function EditableNote({
 		},
 		[dateSettings, noteSaver],
 	);
-	const tagAutocomplete = useTagAutocomplete({editorRef: contentRef, readPlain: readNotePlain, onAccept: acceptTag});
+	const tagAutocomplete = useTagAutocomplete({
+		editorRef: contentRef,
+		nodeId,
+		field: "note",
+		readPlain: readNotePlain,
+		onAccept: acceptTag,
+	});
 	const {
 		handleInput: handleTagAutocomplete,
 		handleKeyDown: handleTagAutocompleteKey,
