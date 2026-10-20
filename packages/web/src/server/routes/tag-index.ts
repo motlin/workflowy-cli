@@ -15,9 +15,9 @@
 import {Hono} from "hono";
 import {nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import {eq, sql} from "drizzle-orm";
+import {and, eq, sql} from "drizzle-orm";
 import type {AppEnv, ServerContext} from "../context.js";
-import {mergeFallback, rankTags} from "../tag-index.js";
+import {mergeFallback, rankCounts, rankTags, swapItemText, wholeTreeTagCounts} from "../tag-index.js";
 import type {TagRow} from "../tag-index.js";
 
 const DEFAULT_LIMIT = 8;
@@ -54,12 +54,21 @@ function subtreeRows(ctx: ServerContext, rootId: string): IdRow[] {
 	`);
 }
 
-function allRows(ctx: ServerContext): IdRow[] {
-	return ctx.db
-		.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
+/** The whole live tree's tag counts, with the edited item's saved text swapped for its live text. */
+function wholeTreeCounts(ctx: ServerContext, live: LiveText | null): ReturnType<typeof wholeTreeTagCounts> {
+	const counts = wholeTreeTagCounts(ctx.db);
+	if (live === null) {
+		return counts;
+	}
+	const saved = ctx.db
+		.select({name: nodeContent.name, note: nodeContent.note})
 		.from(nodeContent)
-		.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-		.all();
+		.where(and(eq(nodeContent.id, live.id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+		.get();
+	if (saved === undefined) {
+		return counts;
+	}
+	return swapItemText(counts, saved, {name: live.name ?? saved.name, note: live.note ?? saved.note});
 }
 
 function parseLimit(raw: string | undefined): number {
@@ -86,7 +95,7 @@ export function createTagIndexRouter(): Hono<AppEnv> {
 					};
 
 		if (rawRoot === "") {
-			return c.json({tags: rankTags(withLive(allRows(ctx), live), {prefix, limit})});
+			return c.json({tags: rankCounts(wholeTreeCounts(ctx, live), {prefix, limit})});
 		}
 
 		const rootId = ctx.cacheService.resolveShortIdToUuid(rawRoot) ?? rawRoot;
@@ -94,7 +103,7 @@ export function createTagIndexRouter(): Hono<AppEnv> {
 		if (tags.length >= limit || c.req.query("fallback") === "0") {
 			return c.json({tags});
 		}
-		const global = rankTags(withLive(allRows(ctx), live), {prefix, limit: limit * 2});
+		const global = rankCounts(wholeTreeCounts(ctx, live), {prefix, limit: limit * 2});
 		return c.json({tags: mergeFallback(tags, global, limit)});
 	});
 

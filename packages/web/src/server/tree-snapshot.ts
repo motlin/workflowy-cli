@@ -4,7 +4,7 @@ import {sql} from "drizzle-orm";
 import type {getDatabase} from "./db.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
-type Database = ReturnType<typeof getDatabase>;
+export type Database = ReturnType<typeof getDatabase>;
 
 interface TreeSearchSqlRow {
 	id: string;
@@ -80,7 +80,7 @@ const snapshots = new WeakMap<Database, TreeSnapshot>();
  * Changes whenever any connection commits to the file (`data_version`) or this connection writes
  * (`total_changes()`), so a snapshot never outlives a write however it was made.
  */
-function changeToken(database: Database): string {
+export function changeToken(database: Database): string {
 	const dataVersion: unknown = database.$client.pragma("data_version", {simple: true});
 	const {changes} = database.get<{changes: number}>(sql`SELECT total_changes() AS changes`);
 	return `${String(dataVersion)}:${changes}`;

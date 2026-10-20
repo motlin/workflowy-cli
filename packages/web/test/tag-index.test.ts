@@ -9,7 +9,7 @@ import * as schema from "@workflowy/shared/db";
 import {nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {mergeFallback, rankTags} from "../src/server/tag-index.js";
+import {mergeFallback, rankTags, wholeTreeTagCounts} from "../src/server/tag-index.js";
 import type {TagCount} from "../src/server/tag-index.js";
 import {createTagIndexRouter} from "../src/server/routes/tag-index.js";
 
@@ -106,7 +106,7 @@ describe("mergeFallback", () => {
  * outside ("Outside #taOutside #taZebra")
  * deleted ("Deleted #taGone", no longer live)
  */
-function setup() {
+function setupDb() {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder: join(import.meta.dirname, "../../shared/src/db/migrations")});
@@ -120,6 +120,10 @@ function setup() {
 	for (const {id, parentId, name, systemTo = FAR_FUTURE_DATE} of rows) {
 		db.insert(nodeContent).values({id, name, note: null, parentId, systemFrom: seededAt, systemTo}).run();
 	}
+	return db;
+}
+
+function setup(db = setupDb()) {
 	const ctx = {db, cacheService: new CacheService(db)} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
@@ -187,5 +191,30 @@ describe("GET /api/v1/tags/autocomplete with the edited item's live text", () =>
 	it("swaps a saved tag for the in-progress one the live name has instead", async () => {
 		const live = new URLSearchParams({prefix: "#taA", item: "child-1", name: "Beta #taZebra #taA"});
 		await expect(getTags(setup(), live.toString())).resolves.toStrictEqual(["#taA:1", "#taApple:1"]);
+	});
+});
+
+describe("wholeTreeTagCounts", () => {
+	it("reuses one whole-tree count across autocompletes until a write, so per-keystroke requests do not stall saves", async () => {
+		const db = setupDb();
+		const app = setup(db);
+		const first = wholeTreeTagCounts(db);
+
+		await expect(getTags(app, "prefix=%23taZ")).resolves.toStrictEqual(["#taZebra:4"]);
+		expect(wholeTreeTagCounts(db)).toBe(first);
+
+		db.insert(nodeContent)
+			.values({
+				id: "added",
+				name: "Added #taZebra",
+				note: null,
+				parentId: null,
+				systemFrom: "2026-03-01 00:00:00.000",
+				systemTo: FAR_FUTURE_DATE,
+			})
+			.run();
+
+		expect(wholeTreeTagCounts(db)).not.toBe(first);
+		await expect(getTags(app, "prefix=%23taZ")).resolves.toStrictEqual(["#taZebra:5"]);
 	});
 });
