@@ -41,6 +41,33 @@ function isDayFirst(format: string): boolean {
 	return day < month;
 }
 
+const MONTHS = [
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December",
+];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const CANONICAL_NAMES = new Map(
+	[...MONTHS, ...WEEKDAYS].flatMap((name) => [
+		[name.toLowerCase(), name],
+		[name.slice(0, 3).toLowerCase(), name.slice(0, 3)],
+	]),
+);
+
+/** dayjs matches month and weekday names case-sensitively; upstream's moment does not, so canonicalize their case first. */
+function canonicalizeNames(term: string): string {
+	return term.replaceAll(/\p{L}+/gu, (word) => CANONICAL_NAMES.get(word.toLowerCase()) ?? word);
+}
+
 const PADDED_MONTH = /\bMM(?!M)\b/u;
 const PADDED_DAY = /\bDD(?!D)\b/u;
 
@@ -68,7 +95,7 @@ function twoDigitYear(result: Dayjs): Dayjs {
 }
 
 function parseDayjs(input: string, dateFormat: string, now: Date): {start: Dayjs; end?: Dayjs} | undefined {
-	const term = input.trim();
+	const term = canonicalizeNames(input.trim());
 	const strict = (text: string, format: string): Dayjs => {
 		const result = dayjs(text, format, true);
 		return result.isValid() && !/Y/u.test(format) ? result.year(now.getFullYear()) : result;

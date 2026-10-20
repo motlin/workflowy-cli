@@ -21,6 +21,16 @@ describe("guessDates", () => {
 		expect(guessDates("14:30 on 2026-10-02 Fri", isoDay)).toStrictEqual([new Date(2026, 9, 2)]);
 	});
 
+	it("keeps a past lowercase short-month date in the current year, as upstream's case-insensitive moment parse does", () => {
+		const afterIt = new Date(2026, 9, 18, 9, 0);
+		expect(guessDates("oct 15", {now: afterIt})).toStrictEqual([new Date(2026, 9, 15)]);
+	});
+
+	it("rolls a past full-month date the format cannot read forward a year via chrono's forwardDate", () => {
+		const afterIt = new Date(2026, 9, 18, 9, 0);
+		expect(guessDates("October 15", {now: afterIt})).toStrictEqual([new Date(2027, 9, 15)]);
+	});
+
 	it("returns a range for two dates joined by a dash", () => {
 		expect(guessDates("oct 5 - oct 9", {now})).toStrictEqual([new Date(2026, 9, 5), new Date(2026, 9, 9)]);
 	});
@@ -29,6 +39,11 @@ describe("guessDates", () => {
 describe("parseWithFormat", () => {
 	it("drops the leading weekday from the format", () => {
 		expect(parseWithFormat("Oct 15", "ddd, MMM D", now)).toStrictEqual({start: new Date(2026, 9, 15)});
+	});
+
+	it("matches month and weekday names case-insensitively", () => {
+		expect(parseWithFormat("thu, oct 15", "ddd, MMM D", now)).toStrictEqual({start: new Date(2026, 9, 15)});
+		expect(parseWithFormat("15th of OCTOBER", "Do [of] MMMM", now)).toStrictEqual({start: new Date(2026, 9, 15)});
 	});
 
 	it("accepts single-digit month and day without a year for a padded numeric format", () => {
