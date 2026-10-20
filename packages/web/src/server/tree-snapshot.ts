@@ -1,6 +1,7 @@
 import {referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
+import type {MiddlewareHandler} from "hono";
 import type {getDatabase} from "./db.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
@@ -68,22 +69,39 @@ export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, roo
 }
 
 interface TreeSnapshot {
-	token: string;
+	dataVersion: string;
+	changes: number;
 	rows: TreeSearchRow[];
 	byId: Map<string, TreeSearchRow>;
 	children: Map<string | null, TreeSearchRow[]>;
 }
 
+/** How long after the last write the background rebuild waits, so a burst of edits costs one reload. */
+const REBUILD_DEBOUNCE_MS = 500;
+
 const snapshots = new WeakMap<Database, TreeSnapshot>();
+const rebuildTimers = new WeakMap<Database, ReturnType<typeof setTimeout>>();
+
+interface ChangeState {
+	/** Bumped by commits from any other connection (another process's cache refresh). */
+	dataVersion: string;
+	/** Rows this connection has written, so this server's own edits. */
+	changes: number;
+}
+
+function changeState(database: Database): ChangeState {
+	const dataVersion: unknown = database.$client.pragma("data_version", {simple: true});
+	const {changes} = database.get<{changes: number}>(sql`SELECT total_changes() AS changes`);
+	return {dataVersion: String(dataVersion), changes};
+}
 
 /**
  * Changes whenever any connection commits to the file (`data_version`) or this connection writes
  * (`total_changes()`), so a snapshot never outlives a write however it was made.
  */
 export function changeToken(database: Database): string {
-	const dataVersion: unknown = database.$client.pragma("data_version", {simple: true});
-	const {changes} = database.get<{changes: number}>(sql`SELECT total_changes() AS changes`);
-	return `${String(dataVersion)}:${changes}`;
+	const {dataVersion, changes} = changeState(database);
+	return `${dataVersion}:${changes}`;
 }
 
 const ROW_FIELDS = [
@@ -108,13 +126,15 @@ function unchangedRow(previous: TreeSnapshot | undefined, row: TreeSearchRow): T
 	return ROW_FIELDS.every((field) => old[field] === row[field]) ? old : undefined;
 }
 
-function wholeTreeSnapshot(database: Database): TreeSnapshot {
-	const token = changeToken(database);
-	const cached = snapshots.get(database);
-	if (cached?.token === token) {
-		return cached;
-	}
-	const rows = loadTreeSearchRows(database, null).map((row) => unchangedRow(cached, row) ?? row);
+function isCurrent(snapshot: TreeSnapshot, state: ChangeState): boolean {
+	return snapshot.dataVersion === state.dataVersion && snapshot.changes === state.changes;
+}
+
+function rebuildSnapshot(database: Database, state: ChangeState): TreeSnapshot {
+	clearTimeout(rebuildTimers.get(database));
+	rebuildTimers.delete(database);
+	const previous = snapshots.get(database);
+	const rows = loadTreeSearchRows(database, null).map((row) => unchangedRow(previous, row) ?? row);
 	const children = new Map<string | null, TreeSearchRow[]>();
 	for (const row of rows) {
 		const siblings = children.get(row.parentId);
@@ -124,13 +144,86 @@ function wholeTreeSnapshot(database: Database): TreeSnapshot {
 			children.set(row.parentId, [row]);
 		}
 	}
-	const snapshot = {token, rows, byId: new Map(rows.map((row) => [row.id, row])), children};
+	const snapshot = {...state, rows, byId: new Map(rows.map((row) => [row.id, row])), children};
 	snapshots.set(database, snapshot);
 	return snapshot;
 }
 
+/** Rebuild the snapshot now unless it is already current. Called at server start so the first search is warm. */
+export function warmTreeSnapshot(database: Database): void {
+	const state = changeState(database);
+	const cached = snapshots.get(database);
+	if (cached === undefined || !isCurrent(cached, state)) {
+		rebuildSnapshot(database, state);
+	}
+}
+
 /**
- * {@link loadTreeSearchRows} served from one whole-tree snapshot per database, reloaded only after a write.
+ * Rebuild the snapshot {@link REBUILD_DEBOUNCE_MS} after the last call, off the request path.
+ * `restart: false` keeps an already pending rebuild's deadline, so repeated stale reads cannot postpone it forever.
+ */
+export function scheduleTreeSnapshotRebuild(database: Database, {restart = true}: {restart?: boolean} = {}): void {
+	const pending = rebuildTimers.get(database);
+	if (pending !== undefined) {
+		if (!restart) {
+			return;
+		}
+		clearTimeout(pending);
+	}
+	const timer = setTimeout(() => {
+		rebuildTimers.delete(database);
+		if (database.$client.open) {
+			warmTreeSnapshot(database);
+		}
+	}, REBUILD_DEBOUNCE_MS);
+	timer.unref();
+	rebuildTimers.set(database, timer);
+}
+
+/** The current snapshot's rows without checking for writes or rebuilding, for tests. */
+export function peekTreeSnapshotRows(database: Database): TreeSearchRow[] | undefined {
+	return snapshots.get(database)?.rows;
+}
+
+/**
+ * Middleware scheduling a background rebuild after every request that wrote through this server,
+ * so the next search usually finds the snapshot already warm.
+ */
+export function rebuildTreeSnapshotAfterWrites(getDatabase: () => Database): MiddlewareHandler {
+	return async (c, next) => {
+		if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS") {
+			await next();
+			return;
+		}
+		const database = getDatabase();
+		const before = changeState(database).changes;
+		await next();
+		if (changeState(database).changes !== before) {
+			scheduleTreeSnapshotRebuild(database);
+		}
+	};
+}
+
+/**
+ * The snapshot a request may read. A write this server made since the snapshot rebuilds it right away
+ * (read-your-writes for the edited node); a write only from another connection, such as the background cache
+ * refresh, serves the previous snapshot while a debounced rebuild runs off the request path.
+ */
+function wholeTreeSnapshot(database: Database): TreeSnapshot {
+	const state = changeState(database);
+	const cached = snapshots.get(database);
+	if (cached === undefined || cached.changes !== state.changes) {
+		return rebuildSnapshot(database, state);
+	}
+	if (cached.dataVersion !== state.dataVersion) {
+		scheduleTreeSnapshotRebuild(database, {restart: false});
+	}
+	return cached;
+}
+
+/**
+ * {@link loadTreeSearchRows} served from one whole-tree snapshot per database, reloaded only after a write
+ * (see {@link wholeTreeSnapshot} for when a request may read the previous one).
  * A subtree is the root plus the snapshot rows reachable from it, in snapshot order; a root outside the snapshot
  * (a references root, or a node cut off from Home) falls back to the SQL subtree query.
  */

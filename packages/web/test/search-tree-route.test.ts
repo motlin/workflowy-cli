@@ -4,12 +4,20 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {mkdtempSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-import {afterEach, describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
+import {Hono} from "hono";
 import * as schema from "@workflowy/shared/db";
 import {mirrors, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {eq} from "drizzle-orm";
-import {loadTreeRows, loadTreeSearchRows} from "../src/server/tree-snapshot.js";
+import {
+	loadTreeRows,
+	loadTreeSearchRows,
+	peekTreeSnapshotRows,
+	rebuildTreeSnapshotAfterWrites,
+	scheduleTreeSnapshotRebuild,
+	warmTreeSnapshot,
+} from "../src/server/tree-snapshot.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
@@ -40,13 +48,22 @@ const TREE: [id: string, parentId: string | null, name: string][] = [
 const open: DatabaseConstructor.Database[] = [];
 const tempDirs: string[] = [];
 afterEach(() => {
+	vi.useRealTimers();
 	for (const sqlite of open.splice(0)) {
-		sqlite.close();
+		if (sqlite.open) {
+			sqlite.close();
+		}
 	}
 	for (const dir of tempDirs.splice(0)) {
 		rmSync(dir, {recursive: true, force: true});
 	}
 });
+
+function tempPath(): string {
+	const dir = mkdtempSync(join(tmpdir(), "tree-snapshot-"));
+	tempDirs.push(dir);
+	return join(dir, "cache.sqlite");
+}
 
 function connect(path: string) {
 	const sqlite = new DatabaseConstructor(path);
@@ -179,14 +196,82 @@ describe("loadTreeRows", () => {
 		expect(byId(second, "a")?.name).toBe("Alpha renamed");
 	});
 
-	it("reloads after a write from another connection", () => {
-		const dir = mkdtempSync(join(tmpdir(), "tree-snapshot-"));
-		tempDirs.push(dir);
-		const path = join(dir, "cache.sqlite");
+	it("serves the previous snapshot after another connection writes and rebuilds it 500ms later off the request path", () => {
+		vi.useFakeTimers();
+		const path = tempPath();
 		const db = setup(path);
 		const first = loadTreeRows(db, null);
 		insertNode(connect(path), "new", "root", "New");
+		expect(loadTreeRows(db, null)).toBe(first);
+		vi.advanceTimersByTime(499);
+		expect(loadTreeRows(db, null)).toBe(first);
+		vi.advanceTimersByTime(1);
 		expect(idSet(loadTreeRows(db, null))).toStrictEqual(new Set(["a", "a1", "mirror", "new", "other", "root"]));
-		expect(loadTreeRows(db, null)).not.toBe(first);
+	});
+
+	it("debounces scheduled rebuilds to 500ms after the last write", () => {
+		vi.useFakeTimers();
+		const path = tempPath();
+		const db = setup(path);
+		const first = loadTreeRows(db, null);
+		const other = connect(path);
+		insertNode(other, "new", "root", "New");
+		scheduleTreeSnapshotRebuild(db);
+		vi.advanceTimersByTime(300);
+		insertNode(other, "newer", "root", "Newer");
+		scheduleTreeSnapshotRebuild(db);
+		vi.advanceTimersByTime(300);
+		expect(loadTreeRows(db, null)).toBe(first);
+		vi.advanceTimersByTime(200);
+		expect(idSet(loadTreeRows(db, null))).toStrictEqual(
+			new Set(["a", "a1", "mirror", "new", "newer", "other", "root"]),
+		);
+	});
+
+	it("warms the snapshot before the first request", () => {
+		vi.useFakeTimers();
+		const path = tempPath();
+		const db = setup(path);
+		warmTreeSnapshot(db);
+		insertNode(connect(path), "new", "root", "New");
+		expect(idSet(loadTreeRows(db, null))).toStrictEqual(new Set(["a", "a1", "mirror", "other", "root"]));
+	});
+
+	it("schedules a rebuild after a request that wrote, not after one that only read", async () => {
+		vi.useFakeTimers();
+		const path = tempPath();
+		const db = setup(path);
+		const other = connect(path);
+		const app = new Hono();
+		app.use(
+			"/*",
+			rebuildTreeSnapshotAfterWrites(() => db),
+		);
+		app.post("/read", (c) => c.json(loadTreeRows(db, null).length));
+		app.post("/write", (c) => {
+			insertNode(db, "mine", "root", "Mine");
+			return c.body(null, 204);
+		});
+		const first = loadTreeRows(db, null);
+		insertNode(other, "theirs", "root", "Theirs");
+		await app.request("/read", {method: "POST"});
+		vi.advanceTimersByTime(400);
+		await app.request("/write", {method: "POST"});
+		vi.advanceTimersByTime(400);
+		expect(peekTreeSnapshotRows(db)).toBe(first);
+		vi.advanceTimersByTime(100);
+		expect(idSet(peekTreeSnapshotRows(db) ?? [])).toStrictEqual(
+			new Set(["a", "a1", "mine", "mirror", "other", "root", "theirs"]),
+		);
+	});
+
+	it("skips a scheduled rebuild once the database is closed", () => {
+		vi.useFakeTimers();
+		const db = setup();
+		loadTreeRows(db, null);
+		insertNode(db, "new", "root", "New");
+		scheduleTreeSnapshotRebuild(db);
+		db.$client.close();
+		expect(() => vi.advanceTimersByTime(500)).not.toThrow();
 	});
 });

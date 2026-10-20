@@ -19,6 +19,8 @@ import {searchRouter} from "./routes/search.js";
 import {createStarsRouter} from "./routes/stars.js";
 import {createTagIndexRouter} from "./routes/tag-index.js";
 import {createTagsRouter} from "./routes/tags.js";
+import {getDatabase} from "./db.js";
+import {rebuildTreeSnapshotAfterWrites, warmTreeSnapshot} from "./tree-snapshot.js";
 
 process.title = "workflowy-web-server";
 
@@ -40,6 +42,9 @@ app.use("/*", async (c, next) => {
 	c.set("ctx", serverContext);
 	await next();
 });
+
+// Rebuild the search tree snapshot in the background after each write, so searches rarely wait on the ~800ms reload.
+app.use("/api/*", rebuildTreeSnapshotAfterWrites(getDatabase));
 
 // Mount API routes
 app.route("/api/changes", changesRouter);
@@ -76,5 +81,9 @@ const port = resolvePort(process.env);
 // instead of a "Server running" line that was never true.
 const server = serve({fetch: app.fetch, hostname: "127.0.0.1", port}, (info) => {
 	console.log(`Server running at http://127.0.0.1:${info.port}`);
+	// After listening, so the first search/switcher request finds the whole-tree snapshot already built.
+	setImmediate(() => {
+		warmTreeSnapshot(getDatabase());
+	});
 });
 nodeWebSocket.injectWebSocket(server);
