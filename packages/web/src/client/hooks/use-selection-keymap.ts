@@ -1,24 +1,21 @@
-import {useEffect} from "react";
-import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
-import {isMacPlatform} from "../editable-text-keys.js";
 import {
 	caretAfterArrowClear,
-	deleteCaretTarget,
 	emptySelection,
 	expand,
 	isEntry,
 	leadId,
 	selectIds,
-	selectionKeyAction,
+	selectionDeletePlan,
 	sortedIds,
 } from "../item-selection.js";
-import type {CaretTarget, FlatRow, SelectionState, TreeView} from "../item-selection.js";
+import type {CaretTarget, FlatRow, SelectionKeyAction, SelectionState, TreeView} from "../item-selection.js";
+import {goToNode} from "../navigation.js";
 import {readChildren, readNode} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
+import type {NavigateFn} from "../stores/outline.js";
 import {nextPotentiallyVisibleSibling} from "../tree-ops.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
-import {useDeleteNode} from "./use-nodes.js";
 import {collectVisibleNodeIds} from "./use-visible-nodes.js";
 
 /** Stands in for Home as the selection's zoom root; it is never a row, so it is never selected. */
@@ -91,7 +88,8 @@ export function scrollRowIntoView(id: string | null): void {
 		?.scrollIntoView({block: "nearest"});
 }
 
-function isTextTarget(target: EventTarget | null): boolean {
+/** Whether keys typed into `target` go to text (a form field or an editor) rather than the item selection. */
+export function isTextTarget(target: EventTarget | null): boolean {
 	return (
 		target instanceof HTMLInputElement ||
 		target instanceof HTMLTextAreaElement ||
@@ -122,27 +120,35 @@ function resumeAt(target: CaretTarget | null): void {
 }
 
 /**
- * Delete the selected items (`ordered`, in display order) as one undo step and edit beside them, confirming first
- * when that removes more than upstream's threshold of items.
+ * Delete the selected items (`ordered`, in display order) as one undo step, confirming first when that removes more
+ * than upstream's threshold of items. Editing resumes beside them, or, when the selected zoom root itself goes, the
+ * view zooms out to its parent as upstream's `np` does.
  */
 export function deleteSelectedItems(
 	queryClient: QueryClient,
 	ordered: readonly string[],
 	deleteNode: (id: string) => void,
+	navigate: NavigateFn,
 ): void {
-	// Deleting the zoomed page out from under the view is left to the page's own menu.
-	const {zoomedNodeId} = useOutlineStore.getState();
-	if (zoomedNodeId !== null && ordered.includes(zoomedNodeId)) {
-		return;
-	}
 	if (
 		deletedItemCount(queryClient, ordered) > DELETE_CONFIRM_THRESHOLD &&
 		!globalThis.confirm(`Delete ${ordered.length} selected items and everything inside them?`)
 	) {
 		return;
 	}
-	resumeAt(deleteCaretTarget(ordered, currentSelectionView(queryClient).rows));
+	const plan = selectionDeletePlan(
+		ordered,
+		currentSelectionView(queryClient).rows,
+		useOutlineStore.getState().zoomedNodeId,
+		(id) => readNode(queryClient, id)?.parent_id ?? null,
+	);
 	void runInUndoBatch(captureOutlineView, () => {
+		if (plan.kind === "zoom-out") {
+			useOutlineStore.getState().clearItemSelection();
+			goToNode(navigate, plan.parentId);
+		} else {
+			resumeAt(plan.target);
+		}
 		for (const id of ordered) {
 			deleteNode(id);
 		}
@@ -150,68 +156,48 @@ export function deleteSelectedItems(
 }
 
 /**
- * Upstream's item-selection hotkeys, live only while items are selected and focus is off every editor: ⇧↑/⇧↓
- * expand, ⌘A selects the zoom root, plain arrows clear the selection and edit beside it, Backspace/Delete delete
- * every selected item. Escape is the global search Escape's, which clears the selection as it focuses search.
+ * Run one of upstream's item-selection hotkeys (the global keymap dispatches them while items are selected and focus
+ * is off every editor): ⇧↑/⇧↓ expand, ⌘A selects the zoom root, plain arrows clear the selection and edit beside it,
+ * Backspace/Delete delete every selected item. Escape is the global search Escape's, which clears the selection as it
+ * focuses search.
  */
-export function useSelectionKeymap(): void {
-	const queryClient = useQueryClient();
-	const {mutate: deleteNode} = useDeleteNode();
-
-	useEffect(() => {
-		const isMac = isMacPlatform();
-		const onKeyDown = (event: KeyboardEvent): void => {
-			const state = useOutlineStore.getState();
-			// An editor that just turned this keydown into a selection already handled it.
-			if (
-				event.defaultPrevented ||
-				event.isComposing ||
-				state.itemSelection.entries.length === 0 ||
-				isTextTarget(event.target)
-			) {
-				return;
+export function runSelectionKey(
+	action: SelectionKeyAction,
+	queryClient: QueryClient,
+	deleteNode: (id: string) => void,
+	navigate: NavigateFn,
+): void {
+	const state = useOutlineStore.getState();
+	const view = currentSelectionView(queryClient);
+	const selection = state.itemSelection;
+	const ordered = sortedIds(selection, view.tree);
+	switch (action) {
+		case "EXPAND_UP":
+		case "EXPAND_DOWN": {
+			const next = expand(selection, view.tree, action === "EXPAND_UP" ? "up" : "down");
+			if (!isEntry(next, HOME_ROOT)) {
+				state.setItemSelection(next);
+				scrollRowIntoView(leadId(next));
 			}
-			const action = selectionKeyAction(event, isMac);
-			if (action === null) {
-				return;
-			}
-			event.preventDefault();
-			const view = currentSelectionView(queryClient);
-			const selection = state.itemSelection;
-			const ordered = sortedIds(selection, view.tree);
-			switch (action) {
-				case "EXPAND_UP":
-				case "EXPAND_DOWN": {
-					const next = expand(selection, view.tree, action === "EXPAND_UP" ? "up" : "down");
-					if (!isEntry(next, HOME_ROOT)) {
-						state.setItemSelection(next);
-						scrollRowIntoView(leadId(next));
-					}
-					break;
-				}
-				case "SELECT_ALL": {
-					state.setItemSelection(freshSelection(view, view.allIds));
-					break;
-				}
-				case "CLEAR_LEFT":
-				case "CLEAR_RIGHT":
-				case "CLEAR_UP":
-				case "CLEAR_DOWN": {
-					const dir = (
-						{CLEAR_LEFT: "left", CLEAR_RIGHT: "right", CLEAR_UP: "up", CLEAR_DOWN: "down"} as const
-					)[action];
-					resumeAt(caretAfterArrowClear(dir, ordered, view.rows));
-					break;
-				}
-				case "DELETE": {
-					deleteSelectedItems(queryClient, ordered, deleteNode);
-					break;
-				}
-			}
-		};
-		globalThis.addEventListener("keydown", onKeyDown);
-		return () => {
-			globalThis.removeEventListener("keydown", onKeyDown);
-		};
-	}, [queryClient, deleteNode]);
+			break;
+		}
+		case "SELECT_ALL": {
+			state.setItemSelection(freshSelection(view, view.allIds));
+			break;
+		}
+		case "CLEAR_LEFT":
+		case "CLEAR_RIGHT":
+		case "CLEAR_UP":
+		case "CLEAR_DOWN": {
+			const dir = ({CLEAR_LEFT: "left", CLEAR_RIGHT: "right", CLEAR_UP: "up", CLEAR_DOWN: "down"} as const)[
+				action
+			];
+			resumeAt(caretAfterArrowClear(dir, ordered, view.rows));
+			break;
+		}
+		case "DELETE": {
+			deleteSelectedItems(queryClient, ordered, deleteNode, navigate);
+			break;
+		}
+	}
 }

@@ -6,8 +6,10 @@ import {
 	keymapCombo,
 	processAppMessageCombo,
 	processCombo,
+	processSelectionKey,
 } from "../src/client/keys/dispatch.js";
-import type {CommandContext} from "../src/client/keys/dispatch.js";
+import type {CommandContext, SelectionKeyEvent} from "../src/client/keys/dispatch.js";
+import type {SelectionKeyAction} from "../src/client/item-selection.js";
 
 const ctx: CommandContext = {items: ["a"], zoomedId: null};
 
@@ -242,5 +244,48 @@ describe("processAppMessageCombo", () => {
 			result: processAppMessageCombo("return", [{label: "View", shortcut: "shift+return", run: view}]),
 			view: view.mock.calls,
 		}).toStrictEqual({result: "unclaimed", view: []});
+	});
+});
+
+describe("processSelectionKey", () => {
+	const keydown = (key: string, extra: Partial<SelectionKeyEvent> = {}): SelectionKeyEvent => ({
+		key,
+		metaKey: false,
+		ctrlKey: false,
+		altKey: false,
+		shiftKey: false,
+		defaultPrevented: false,
+		isComposing: false,
+		...extra,
+	});
+	const selected = {hasSelection: true, inText: false};
+
+	it("runs and claims a key the item selection owns", () => {
+		const run = vi.fn<(action: SelectionKeyAction) => void>();
+		expect({
+			results: [
+				processSelectionKey(keydown("ArrowDown", {shiftKey: true}), true, selected, run),
+				processSelectionKey(keydown("Backspace"), true, selected, run),
+			],
+			calls: run.mock.calls,
+		}).toStrictEqual({results: ["claimed", "claimed"], calls: [["EXPAND_DOWN"], ["DELETE"]]});
+	});
+
+	it("leaves a keydown alone when nothing is selected, focus is in text, an editor already handled it, or it is composing", () => {
+		const run = vi.fn<(action: SelectionKeyAction) => void>();
+		const shiftDown = keydown("ArrowDown", {shiftKey: true});
+		expect({
+			results: [
+				processSelectionKey(shiftDown, true, {hasSelection: false, inText: false}, run),
+				processSelectionKey(shiftDown, true, {hasSelection: true, inText: true}, run),
+				processSelectionKey({...shiftDown, defaultPrevented: true}, true, selected, run),
+				processSelectionKey({...shiftDown, isComposing: true}, true, selected, run),
+				processSelectionKey(keydown("x"), true, selected, run),
+			],
+			calls: run.mock.calls,
+		}).toStrictEqual({
+			results: ["unclaimed", "unclaimed", "unclaimed", "unclaimed", "unclaimed"],
+			calls: [],
+		});
 	});
 });

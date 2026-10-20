@@ -5,6 +5,8 @@
  */
 import {buildHotkeys, comboFromEvent, currentPlatform} from "./keymap.js";
 import type {KeyComboEvent} from "./keymap.js";
+import {selectionKeyAction} from "../item-selection.js";
+import type {SelectionKeyAction} from "../item-selection.js";
 import type {AppMessageAction} from "../stores/outline.js";
 
 /** What a command acts on: the row holding the caret (upstream's focused item) and the zoomed node. */
@@ -92,6 +94,38 @@ export function processAppMessageCombo(combo: string, actions: readonly AppMessa
 		return "unclaimed";
 	}
 	action.run();
+	return "claimed";
+}
+
+export interface SelectionKeyEvent {
+	key: string;
+	metaKey: boolean;
+	ctrlKey: boolean;
+	altKey: boolean;
+	shiftKey: boolean;
+	defaultPrevented: boolean;
+	isComposing: boolean;
+}
+
+/**
+ * The item selection's keys (upstream's hotkeys enabled while it has entries), dispatched before the hotkey table:
+ * run and claim one while items are selected and focus is off every text field. A keydown an editor already turned
+ * into a selection (defaultPrevented) is left alone, so one ⇧↓ never also expands it.
+ */
+export function processSelectionKey(
+	event: SelectionKeyEvent,
+	isMac: boolean,
+	{hasSelection, inText}: {hasSelection: boolean; inText: boolean},
+	run: (action: SelectionKeyAction) => void,
+): ComboResult {
+	if (event.defaultPrevented || event.isComposing || !hasSelection || inText) {
+		return "unclaimed";
+	}
+	const action = selectionKeyAction(event, isMac);
+	if (action === null) {
+		return "unclaimed";
+	}
+	run(action);
 	return "claimed";
 }
 

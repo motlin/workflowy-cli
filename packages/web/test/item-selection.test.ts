@@ -15,6 +15,7 @@ import {
 	rangeFromDrag,
 	removeIds,
 	selectIds,
+	selectionDeletePlan,
 	selectionKeyAction,
 	sortedIds,
 	toggleClick,
@@ -258,6 +259,26 @@ describe("deleteCaretTarget", () => {
 			deleteCaretTarget(["Alpha"], rows),
 			deleteCaretTarget(["Alpha", "Bravo", "Charlie", "Delta", "Echo"], rows),
 		]).toStrictEqual([{id: "Bravo", offset: 0}, null]);
+	});
+});
+
+describe("selectionDeletePlan", () => {
+	it("zooms out to the zoom root's parent when the zoom root itself is deleted, as upstream's np does", () => {
+		const parentOf = (id: string) => ({Alpha: "R", R: null})[id] ?? null;
+		expect([
+			selectionDeletePlan(["Alpha"], flattened, "Alpha", parentOf),
+			selectionDeletePlan(["R"], flattened, "R", parentOf),
+		]).toStrictEqual([
+			{kind: "zoom-out", parentId: "R"},
+			{kind: "zoom-out", parentId: null},
+		]);
+	});
+
+	it("edits beside the deleted rows otherwise", () => {
+		expect(selectionDeletePlan(["Charlie", "Echo"], flattened, "R", () => null)).toStrictEqual({
+			kind: "edit-beside",
+			target: {id: "Bravo", offset: "end"},
+		});
 	});
 });
 

@@ -369,6 +369,26 @@ export function deleteCaretTarget(ordered: readonly string[], rows: readonly Fla
 	return after === undefined ? null : {id: after.id, offset: 0};
 }
 
+export type SelectionDeletePlan =
+	| {kind: "zoom-out"; parentId: string | null}
+	| {kind: "edit-beside"; target: CaretTarget | null};
+
+/**
+ * What the view does when the selected items (`ordered`) are deleted. Upstream's `np` zooms out to the parent when
+ * the selected zoom root itself goes (Home when it is top-level); otherwise editing resumes beside the deleted rows.
+ */
+export function selectionDeletePlan(
+	ordered: readonly string[],
+	rows: readonly FlatRow[],
+	zoomedId: string | null,
+	parentOf: (id: string) => string | null,
+): SelectionDeletePlan {
+	if (zoomedId !== null && ordered.includes(zoomedId)) {
+		return {kind: "zoom-out", parentId: parentOf(zoomedId)};
+	}
+	return {kind: "edit-beside", target: deleteCaretTarget(ordered, rows)};
+}
+
 /** The keys an item selection owns while focus is off the editors (upstream's hotkeys enabled while it has entries). */
 export type SelectionKeyAction =
 	| "EXPAND_UP"

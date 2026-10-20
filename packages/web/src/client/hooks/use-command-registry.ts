@@ -783,7 +783,7 @@ export function useCommandRegistry(): CommandRegistry {
 		delete: {
 			execute(ctx) {
 				if (hasItemSelection()) {
-					deleteSelectedItems(queryClient, ctx.items, deleteNodeMutation.mutate);
+					deleteSelectedItems(queryClient, ctx.items, deleteNodeMutation.mutate, navigate);
 					return;
 				}
 				const [nodeId] = ctx.items;
