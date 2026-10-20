@@ -33,6 +33,8 @@ type AdapterDatabase = BaseSQLiteDatabase<"sync", any, any>;
 
 /** Account state older than this is refreshed from the server before a read. */
 const FRESHNESS_MS = 30_000;
+/** A `fresh` expanded-ids read waits on `/get_tree_data/` at most this often. */
+const FRESH_EXPANSION_THROTTLE_MS = 5000;
 
 /** Settings the server stores; every other setting is client-only upstream. */
 export type ServerSetting = "show_completed" | "show_keyboard_shortcuts" | "theme" | "font" | "saved_views_json_delta";
@@ -856,11 +858,15 @@ export class WorkflowyInternalAdapter {
 	 * The keys are cached in `account_state`: only the first read ever waits
 	 * on `/get_tree_data/`; a read of keys older than 30s answers from the
 	 * cache and refreshes them in the background (see {@link expandedKeysRefreshed}).
+	 * A `fresh` read (tab focus) instead waits on the refresh once the keys are
+	 * 5s old, so a change made on workflowy.com shows on that read.
 	 */
-	async getExpandedIds(): Promise<string[]> {
+	async getExpandedIds({fresh = false}: {fresh?: boolean} = {}): Promise<string[]> {
 		const cached = this.loadExpandedKeys();
 		let keys: Set<string>;
-		if (cached) {
+		if (cached && fresh && cached.fetchedAt <= this.now() - FRESH_EXPANSION_THROTTLE_MS) {
+			keys = await this.refreshExpandedKeys();
+		} else if (cached) {
 			keys = cached.keys;
 			if (cached.fetchedAt < this.now() - FRESHNESS_MS) {
 				void this.refreshExpandedKeys().catch((error: unknown) => {

@@ -50,10 +50,11 @@ export async function refreshExpansion(now = Date.now()): Promise<void> {
 	await fetchExpansion(now, local.count);
 }
 
+/** Page load takes the server's cached keys; a focus refresh (`localCount` set) asks for fresh ones. */
 async function fetchExpansion(now: number, localCount?: number): Promise<void> {
 	lastFetchAt = now;
 	try {
-		const response = await fetch("/api/v1/expansion");
+		const response = await fetch(localCount === undefined ? "/api/v1/expansion" : "/api/v1/expansion?fresh=1");
 		if (response.status === 503) {
 			disableExpansionPersistence();
 			return;

@@ -24,9 +24,9 @@ function setup(configured: boolean) {
 		await next();
 	});
 	app.route("/api/v1/expansion", createExpansionRouter());
-	const request = async (method: string, body?: unknown) => {
+	const request = async (method: string, body?: unknown, query = "") => {
 		const res = await app.fetch(
-			new Request("http://x/api/v1/expansion", {
+			new Request(`http://x/api/v1/expansion${query}`, {
 				method,
 				headers: {"content-type": "application/json"},
 				...(body === undefined ? {} : {body: JSON.stringify(body)}),
@@ -47,10 +47,26 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/expansion", () => {
-	it("returns the adapter's resolved expanded ids", async () => {
-		const {request} = setup(true);
+	it("returns the adapter's resolved expanded ids, allowing cached keys", async () => {
+		const {adapter, request} = setup(true);
 
-		await expect(request("GET")).resolves.toStrictEqual({status: 200, body: {expandedIds: [ALPHA]}});
+		const res = await request("GET");
+
+		expect({res, calls: adapter.getExpandedIds.mock.calls}).toStrictEqual({
+			res: {status: 200, body: {expandedIds: [ALPHA]}},
+			calls: [[{fresh: false}]],
+		});
+	});
+
+	it("asks the adapter for fresh keys with ?fresh=1", async () => {
+		const {adapter, request} = setup(true);
+
+		const res = await request("GET", undefined, "?fresh=1");
+
+		expect({res, calls: adapter.getExpandedIds.mock.calls}).toStrictEqual({
+			res: {status: 200, body: {expandedIds: [ALPHA]}},
+			calls: [[{fresh: true}]],
+		});
 	});
 
 	it("answers 503 without the internal API", async () => {

@@ -123,7 +123,8 @@ describe("loadExpansion", () => {
 });
 
 describe("refreshExpansion", () => {
-	const GET = {url: "/api/v1/expansion", method: undefined, body: undefined};
+	/** Focus asks for fresh keys so a change made on workflowy.com shows on the first focus. */
+	const GET = {url: "/api/v1/expansion?fresh=1", method: undefined, body: undefined};
 
 	async function loaded(ids: string[]) {
 		const modules = await loadModules();

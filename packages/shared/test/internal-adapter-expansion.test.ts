@@ -151,6 +151,45 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		});
 	});
 
+	it("waits on get_tree_data for a fresh read once the cached keys are 5s old", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		api.respond("/get_tree_data/", () => treeData(["9c9c9c9c"]));
+		await adapter.getExpandedIds();
+		clock.ms += 5000;
+
+		const fresh = await adapter.getExpandedIds({fresh: true});
+		const cached = await adapter.getExpandedIds();
+
+		expect({fresh, cached, network: network(api.requests)}).toStrictEqual({
+			fresh: [CHARLIE],
+			cached: [CHARLIE],
+			network: [
+				["POST", "/ajax_login"],
+				["GET", "/get_tree_data/"],
+				["GET", "/get_tree_data/"],
+			],
+		});
+	});
+
+	it("answers a fresh read from the cache within 5s of the last fetch", async () => {
+		const {api, adapter, clock} = tracked();
+		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+		api.respond("/get_tree_data/", () => treeData(["9c9c9c9c"]));
+		await adapter.getExpandedIds();
+		clock.ms += 4999;
+
+		const fresh = await adapter.getExpandedIds({fresh: true});
+
+		expect({fresh, network: network(api.requests)}).toStrictEqual({
+			fresh: [ALPHA, ALPHA_TWIN],
+			network: [
+				["POST", "/ajax_login"],
+				["GET", "/get_tree_data/"],
+			],
+		});
+	});
+
 	it("applies pushed changes to the cached keys, including ones pushed during a refresh", async () => {
 		const {api, adapter, clock} = tracked();
 		api.respondOnce("/get_tree_data/", () => treeData(["1a2b3c4d"]));

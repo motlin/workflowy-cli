@@ -1,7 +1,8 @@
 /**
  * Expansion state, synced with workflowy.com through the internal API.
  *
- * `GET /api/v1/expansion` -> `{expandedIds}`; `PATCH /api/v1/expansion` with
+ * `GET /api/v1/expansion` -> `{expandedIds}`, possibly from cached keys;
+ * `?fresh=1` waits on a re-read of upstream's keys (throttled by the adapter). `PATCH /api/v1/expansion` with
  * `{changes: {[nodeId]: boolean}}` -> 204. PATCHes are debounced like
  * upstream: one push 500ms after the last PATCH, the latest value per id winning.
  */
@@ -34,7 +35,7 @@ export function createExpansionRouter(): Hono<AppEnv> {
 		if (!adapter) {
 			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 		}
-		return c.json({expandedIds: await adapter.getExpandedIds()});
+		return c.json({expandedIds: await adapter.getExpandedIds({fresh: c.req.query("fresh") === "1"})});
 	});
 
 	router.patch("/", async (c) => {
