@@ -18,6 +18,7 @@ import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js
 import {ExpandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {DayTitlePrefix} from "./day-title-prefix.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
@@ -207,6 +208,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				{node && layout.isTodo ? (
 					<TodoCheckbox isCompleted={node.completedAt !== null} onComplete={handleComplete} />
 				) : null}
+				{node ? <DayTitlePrefix node={node} /> : null}
 				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
 					{node && (nameHtml !== "" || isEditing) ? (
 						<EditableText

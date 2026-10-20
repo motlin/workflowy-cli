@@ -59,6 +59,7 @@ vi.mock("../src/client/navigation.js", () => ({
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useExpandAll: () => () => {},
+	useAncestors: () => ({data: undefined}),
 	useBacklinks: () => ({data: undefined}),
 	useChildren: (parentId: string | null) => ({
 		data: childrenByParent.get(parentId) ?? [],

@@ -120,4 +120,17 @@ describe("node DTO calendar info", () => {
 
 		await expect(get("/nodes/elsewhere")).resolves.toMatchObject({node: {calendar: null}});
 	});
+
+	it("carries each ancestor's calendar role, so a day page can read the root's settings", async () => {
+		const get = setup();
+
+		const body = (await get("/nodes/d1001/ancestors")) as {ancestors: {id: string; calendar: unknown}[]};
+
+		expect(body.ancestors.map(({id, calendar}) => ({id, calendar}))).toStrictEqual([
+			{id: "cal", calendar: {level: null, dateId: null, root: true, foundDates: true, dayPrefix: false}},
+			{id: "y2026", calendar: null},
+			{id: "m10", calendar: null},
+			{id: "d1001", calendar: day(20_261_001)},
+		]);
+	});
 });

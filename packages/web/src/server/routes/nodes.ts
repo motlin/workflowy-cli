@@ -770,7 +770,7 @@ nodesRouter.get("/:id/ancestors", (c) => {
 	const reader = new NodeReader(ctx.db);
 
 	// Build ancestor chain by following parent_id pointers
-	const ancestors: NodeResponse[] = [];
+	const chain: NonNullable<ReturnType<NodeReader["getById"]>>[] = [];
 	let currentId: string | null = id;
 
 	while (currentId !== null) {
@@ -778,16 +778,23 @@ nodesRouter.get("/:id/ancestors", (c) => {
 		if (!node) {
 			break;
 		}
-
-		const nodeResponse: NodeResponse = {
-			...nodeToRestDto(node, {hasChildren: true, hasUncompletedChildren: true, name: node.name, note: node.note}),
-			isMirror: false,
-			originalNodeId: null,
-		};
-
-		ancestors.unshift(nodeResponse);
+		chain.unshift(node);
 		currentId = node.parentId;
 	}
+
+	// A day page reads the calendar root's settings (Friendly day names) from its ancestors.
+	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, chain);
+	const ancestors: NodeResponse[] = chain.map((node) => ({
+		...nodeToRestDto(node, {
+			hasChildren: true,
+			hasUncompletedChildren: true,
+			name: node.name,
+			note: node.note,
+			calendar: calendar.get(node.id),
+		}),
+		isMirror: false,
+		originalNodeId: null,
+	}));
 
 	return c.json({ancestors});
 });
