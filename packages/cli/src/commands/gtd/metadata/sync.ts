@@ -59,6 +59,15 @@ interface MetadataOutput {
 	};
 }
 
+/**
+ * Context tags suggested to GTD prompts. No #work/#personal (they only repeat a
+ * task's Work or Personal area) and no #computer.
+ */
+export const GTD_CONTEXTS: MetadataOutput["contexts"] = {
+	location: ["#home", "#errands", "#anywhere"],
+	mode: ["#call", "#email", "#read", "#buy", "#waiting"],
+};
+
 // EnhancedNode type for future API mode support
 // interface EnhancedNode extends WorkflowyNode {
 // 	linkTargets?: WorkflowyNode[];
@@ -127,10 +136,7 @@ export default class Sync extends Command {
 			reviewNodeName: review.name,
 			projects,
 			people,
-			contexts: {
-				location: ["#home", "#work", "#errands", "#anywhere"],
-				mode: ["#call", "#email", "#computer", "#read", "#buy", "#waiting"],
-			},
+			contexts: GTD_CONTEXTS,
 			destinations: {
 				nextActions,
 				waitingFor,
