@@ -18,6 +18,7 @@ import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js
 import {ExpandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
+import {CalendarStrip} from "./calendar-strip.js";
 import {DayTitlePrefix} from "./day-title-prefix.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
@@ -229,6 +230,8 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 			{node && (noteMounted || shouldMountNote) ? (
 				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} isMain nodeId={node.id} />
 			) : null}
+			{/* Upstream renders the day strip at `ui.item.note.afterend` for the zoomed calendar node, never a mirror. */}
+			{node && node.isMirror !== true ? <CalendarStrip node={node} /> : null}
 			<div className="drop-line">
 				<div className="line" />
 			</div>

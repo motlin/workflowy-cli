@@ -8,8 +8,8 @@ import {and, eq, inArray, like, sql} from "drizzle-orm";
 import {parseTimeAttrs} from "@workflowy/shared";
 import type {CacheService} from "@workflowy/shared/cache";
 import {calendarMetadata, nodeContent, nodeInternalMetadata} from "@workflowy/shared/db";
-import {calendarNodeId, parseDateId} from "@workflowy/shared/internal";
-import type {CalendarDate} from "@workflowy/shared/internal";
+import {calendarDateId, calendarNodeId, parseDateId} from "@workflowy/shared/internal";
+import type {CalendarDate, CalendarLevel} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {z} from "zod";
 import type {CalendarInfo} from "../node-types.js";
@@ -41,28 +41,31 @@ const CalendarInfoSchema = z
 const DAY_NAME = /^<time\b([^>]*)>[^<]*<\/time>$/iu;
 
 /**
- * The day's node id, or null when the cache has none. Tried in order: the
- * deterministic id `calendarNodeId(entropyKey, "day", dateId)`, a node whose
- * cached `calendar` metadata is this day, then the name walk
- * root > `YYYY` > `MM` (or `M`) > a child whose `<time>` is this date. Only
- * nodes under the calendar root count.
+ * The node id of the `level` node holding the day `dateId` (the day itself by
+ * default, or its month or year), or null when the cache has none. Tried in
+ * order: the deterministic id `calendarNodeId(entropyKey, level, levelDateId)`,
+ * a node whose cached `calendar` metadata is that level and dateId, then the
+ * name walk root > `YYYY` > `MM` (or `M`) > a child whose `<time>` is this
+ * date. Only nodes under the calendar root count.
  */
-export function findCalendarDay(deps: CalendarDayDeps, dateId: number): string | null {
+export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: CalendarLevel = "day"): string | null {
 	const date = parseDateId(dateId);
 	const root = findCalendarRoot(deps);
 	if (date === undefined || root === undefined) {
 		return null;
 	}
+	const levelDateId = calendarDateId(level, date);
 	if (deps.entropyKey !== undefined) {
-		const id = calendarNodeId(deps.entropyKey, "day", dateId);
+		const id = calendarNodeId(deps.entropyKey, level, levelDateId);
 		if (isUnder(deps.cache, id, root)) {
 			return id;
 		}
 	}
-	const tagged = calendarRows(deps, `%"dateId":${dateId}%`).find(
-		({id, calendar}) => calendar.level === "day" && calendar.dateId === dateId && isUnder(deps.cache, id, root),
+	const tagged = calendarRows(deps, `%"dateId":${levelDateId}%`).find(
+		({id, calendar}) =>
+			calendar.level === level && calendar.dateId === levelDateId && isUnder(deps.cache, id, root),
 	);
-	return tagged?.id ?? walkNames(deps.cache, root, date);
+	return tagged?.id ?? walkNames(deps.cache, root, date, level);
 }
 
 /** The node whose cached metadata marks it the calendar root, else the Home child named `📆 Calendar`. */
@@ -99,12 +102,18 @@ function isUnder(cache: CacheService, id: string, ancestor: string): boolean {
 	return false;
 }
 
-function walkNames(cache: CacheService, root: string, date: CalendarDate): string | null {
+function walkNames(cache: CacheService, root: string, date: CalendarDate, level: CalendarLevel): string | null {
 	const year = cache.getChildByName(root, String(date.year));
+	if (level === "year") {
+		return year?.id ?? null;
+	}
 	const month =
 		year &&
 		(cache.getChildByName(year.id, String(date.month).padStart(2, "0")) ??
 			cache.getChildByName(year.id, String(date.month)));
+	if (level === "month") {
+		return month?.id ?? null;
+	}
 	const day = month && cache.getChildren(month.id).find((child) => namesDate(child.name, date));
 	return day?.id ?? null;
 }

@@ -29,8 +29,10 @@ function setup(
 		await next();
 	});
 	app.route("/api/v1/calendar", createCalendarRouter());
-	const ensure = async (dateId: string) => {
-		const res = await app.fetch(new Request(`http://x/api/v1/calendar/day/${dateId}/ensure`, {method: "POST"}));
+	const ensure = async (dateId: string, query = "") => {
+		const res = await app.fetch(
+			new Request(`http://x/api/v1/calendar/day/${dateId}/ensure${query}`, {method: "POST"}),
+		);
 		return {status: res.status, body: (await res.json()) as unknown};
 	};
 	return {adapter, ensure};
@@ -44,7 +46,28 @@ describe("POST /api/v1/calendar/day/:dateId/ensure", () => {
 
 		expect({response, calls: adapter.ensureCalendarDay.mock.calls}).toStrictEqual({
 			response: {status: 200, body: ENSURED},
-			calls: [[20_261_017]],
+			calls: [[20_261_017, {stopAt: "day", createChild: true}]],
+		});
+	});
+
+	it("passes ?level= as the level to stop at and ?createChild=false through", async () => {
+		const {adapter, ensure} = setup();
+
+		const responses = [
+			await ensure("20261001", "?level=month&createChild=false"),
+			await ensure("20261001", "?level=year"),
+			await ensure("20261001", "?level=week"),
+		];
+
+		expect({
+			statuses: responses.map(({status}) => status),
+			calls: adapter.ensureCalendarDay.mock.calls,
+		}).toStrictEqual({
+			statuses: [200, 200, 400],
+			calls: [
+				[20_261_001, {stopAt: "month", createChild: false}],
+				[20_261_001, {stopAt: "year", createChild: true}],
+			],
 		});
 	});
 

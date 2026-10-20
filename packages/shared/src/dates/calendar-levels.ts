@@ -1,6 +1,8 @@
 import {calendarDateId} from "../internal/calendar-day.js";
 import type {CalendarLevel} from "../internal/calendar-day.js";
 
+export type {CalendarLevel};
+
 /** A calendar page level, including upstream's optional week level. */
 export type CalendarPageLevel = CalendarLevel | "week";
 

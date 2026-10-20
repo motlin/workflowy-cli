@@ -92,6 +92,17 @@ describe("findCalendarDay", () => {
 		).toStrictEqual([D1017, "d0930", "d1001", "d0902", null]);
 	});
 
+	it("finds the month or year node holding a day by the name walk", () => {
+		const deps = {...setup(), entropyKey: KEY};
+
+		expect([
+			findCalendarDay(deps, 20_261_017, "month"),
+			findCalendarDay(deps, 20_260_902, "month"),
+			findCalendarDay(deps, 20_261_017, "year"),
+			findCalendarDay(deps, 20_271_017, "year"),
+		]).toStrictEqual(["m10", "m09", "y2026", null]);
+	});
+
 	it("skips the deterministic id without an entropy key and still walks names", () => {
 		const deps = setup();
 
@@ -115,8 +126,8 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 			await next();
 		});
 		hono.route("/api/v1/calendar", createCalendarRouter());
-		return async (dateId: string) => {
-			const res = await hono.fetch(new Request(`http://x/api/v1/calendar/day/${dateId}`));
+		return async (dateId: string, query = "") => {
+			const res = await hono.fetch(new Request(`http://x/api/v1/calendar/day/${dateId}${query}`));
 			return {status: res.status, body: (await res.json()) as unknown};
 		};
 	}
@@ -137,6 +148,22 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 		await expect(Promise.all([get("20261017"), get("20260930")])).resolves.toStrictEqual([
 			{status: 404, body: {error: "Calendar day not found"}},
 			{status: 200, body: {id: "d0930", firstChildId: null}},
+		]);
+	});
+
+	it("answers the month or year node holding the day for ?level=, and rejects other levels", async () => {
+		const get = app(KEY);
+
+		await expect(
+			Promise.all([
+				get("20260902", "?level=month"),
+				get("20260902", "?level=year"),
+				get("20260902", "?level=week"),
+			]),
+		).resolves.toStrictEqual([
+			{status: 200, body: {id: "m09", firstChildId: "d0902"}},
+			{status: 200, body: {id: "y2026", firstChildId: "m09"}},
+			{status: 400, body: {error: "level must be day, month or year"}},
 		]);
 	});
 });

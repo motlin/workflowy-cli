@@ -135,6 +135,17 @@ describe("DatePickerPopup", () => {
 		expect(menuRows(render({showNoDate: true})).at(-1)).toBe("Remove date");
 	});
 
+	it("hides the input and drops Range and Format for the day strip's calendar button (showControls false)", () => {
+		const html = render({showControls: false});
+		expect({
+			input: html.includes(
+				'<input type="text" autofocus="" placeholder="Type date" class="absolute w-0 h-0 overflow-hidden" value=""/>',
+			),
+			inputRow: html.includes('<div class="flex items-center px-l py-m bg-secondary">'),
+			rows: menuRows(html),
+		}).toStrictEqual({input: true, inputRow: false, rows: ["Today", "Tomorrow", "Next week"]});
+	});
+
 	it("labels the YEAR view with its decade window", () => {
 		const html = render({initialView: "YEAR"});
 		expect({

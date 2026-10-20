@@ -246,6 +246,54 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 		});
 	});
 
+	it("stops at the month level when asked, creating the missing month without a day or a child", async () => {
+		const {adapter, calls} = tracked({
+			children: {home: [CAL], [CAL]: [Y2026], [Y2026]: [M09]},
+			metadata: {[CAL]: ROOT_META, [Y2026]: yearMeta, [M09]: sepMeta},
+		});
+
+		const result = await adapter.ensureCalendarDay(20_261_001, {stopAt: "month", createChild: false});
+
+		expect({result, calls}).toStrictEqual({
+			result: {dayId: M10, firstChildId: null, created: [M10]},
+			calls: [
+				[
+					"createAt",
+					{
+						parentId: Y2026,
+						index: 1,
+						id: M10,
+						name: "10",
+						metadata: {
+							restorableUniqueNode: true,
+							calendar: {
+								level: "month",
+								value: "10",
+								timestamp: new Date(2026, 9, 1).getTime(),
+								dateId: 20_261_000,
+							},
+						},
+					},
+				],
+			],
+		});
+	});
+
+	it("adds one empty child to an empty month when stopping there with createChild", async () => {
+		const octMeta = {calendar: {level: "month", value: "10", timestamp: 0, dateId: 20_261_000}};
+		const {adapter, calls} = tracked({
+			children: {home: [CAL], [CAL]: [Y2026], [Y2026]: ["oct"]},
+			metadata: {[CAL]: ROOT_META, [Y2026]: yearMeta, oct: octMeta},
+		});
+
+		const result = await adapter.ensureCalendarDay(20_261_001, {stopAt: "month"});
+
+		expect({result, calls}).toStrictEqual({
+			result: {dayId: "oct", firstChildId: "random-1", created: ["random-1"]},
+			calls: [["createAt", {parentId: "oct", index: 0, name: ""}]],
+		});
+	});
+
 	it("refuses when no calendar root is cached", async () => {
 		const {adapter} = tracked({children: {home: ["a"]}, metadata: {}});
 

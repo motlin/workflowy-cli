@@ -19,6 +19,7 @@ import {
 	calendarLevelName,
 	parseDateId,
 } from "./calendar-day.js";
+import type {CalendarLevel} from "./calendar-day.js";
 import {calendarNodeId} from "./calendar-ids.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
@@ -124,9 +125,10 @@ export interface CreateMirrorAtInput {
 }
 
 export interface EnsuredCalendarDay {
+	/** The ensured node: the day, or the month or year when `stopAt` says so. */
 	dayId: string;
-	/** The day's first child (the empty one created for a new or empty day). */
-	firstChildId: string;
+	/** The node's first child (the empty one created for a new or empty node), or null when `createChild` is false and it has none. */
+	firstChildId: string | null;
 	/** Ids created by this call, outermost first. */
 	created: string[];
 }
@@ -532,9 +534,14 @@ export class WorkflowyInternalAdapter {
 	 * id `calendarNodeId(entropyKey, level, dateId)` is moved back under the
 	 * parent when it exists elsewhere, or created there with
 	 * `{restorableUniqueNode, calendar}` metadata at the timestamp-sorted slot.
-	 * A new or empty day gets one empty child.
+	 * `stopAt` ends the walk at that level (upstream's strip arrows and month
+	 * cells). With `createChild` (the default) a new or empty final node gets
+	 * one empty child.
 	 */
-	async ensureCalendarDay(dateId: number): Promise<EnsuredCalendarDay> {
+	async ensureCalendarDay(
+		dateId: number,
+		{stopAt = "day", createChild = true}: {stopAt?: CalendarLevel; createChild?: boolean} = {},
+	): Promise<EnsuredCalendarDay> {
 		const date = parseDateId(dateId);
 		if (date === undefined) {
 			throw new RangeError(`${dateId} is not a YYYYMMDD date`);
@@ -543,7 +550,9 @@ export class WorkflowyInternalAdapter {
 		if (root.levels.week === true) {
 			throw new Error("calendar week levels are not supported");
 		}
-		const levels = CALENDAR_LEVELS.filter((level) => root.levels[level] ?? true);
+		const levels = CALENDAR_LEVELS.slice(0, CALENDAR_LEVELS.indexOf(stopAt) + 1).filter(
+			(level) => root.levels[level] ?? true,
+		);
 		const session = await this.session();
 		const dateFormat = await this.getRootMeta(["dateFormat"]);
 		const tree = this.tree();
@@ -579,8 +588,8 @@ export class WorkflowyInternalAdapter {
 			created.push(node.id);
 			parentId = node.id;
 		}
-		let [firstChildId] = (await tree.liveChildren(parentId)).map((child) => child.id);
-		if (firstChildId === undefined) {
+		let [firstChildId = null] = (await tree.liveChildren(parentId)).map((child) => child.id);
+		if (firstChildId === null && createChild) {
 			firstChildId = (await this.createAt({parentId, index: 0, name: ""})).id;
 			created.push(firstChildId);
 		}

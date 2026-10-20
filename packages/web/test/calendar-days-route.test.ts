@@ -69,8 +69,8 @@ function app() {
 		await next();
 	});
 	hono.route("/api/v1/calendar", createCalendarRouter());
-	return async (query: string) => {
-		const res = await hono.fetch(new Request(`http://x/api/v1/calendar/days?${query}`));
+	return async (query: string, path = "days") => {
+		const res = await hono.fetch(new Request(`http://x/api/v1/calendar/${path}?${query}`));
 		return {status: res.status, body: (await res.json()) as unknown};
 	};
 }
@@ -97,6 +97,37 @@ describe("GET /api/v1/calendar/days", () => {
 			Array.from({length: 3}, () => ({
 				status: 400,
 				body: {error: "year and month must be a calendar year and a 1-12 month"},
+			})),
+		);
+	});
+});
+
+describe("GET /api/v1/calendar/dots", () => {
+	it("lists the dateIds in [from, to] whose day has journal content, across months", async () => {
+		const get = app();
+
+		await expect(
+			Promise.all([get("from=20260926&to=20261002", "dots"), get("from=20261002&to=20261002", "dots")]),
+		).resolves.toStrictEqual([
+			{status: 200, body: {dateIds: [20_260_928, 20_260_929, 20_260_930, 20_261_001]}},
+			{status: 200, body: {dateIds: []}},
+		]);
+	});
+
+	it("rejects a missing, invalid, reversed or over-long range", async () => {
+		const get = app();
+
+		await expect(
+			Promise.all([
+				get("from=20260926", "dots"),
+				get("from=20260230&to=20260301", "dots"),
+				get("from=20261002&to=20260926", "dots"),
+				get("from=20260101&to=20270101", "dots"),
+			]),
+		).resolves.toStrictEqual(
+			Array.from({length: 4}, () => ({
+				status: 400,
+				body: {error: "from and to must be YYYYMMDD days at most 100 days apart, from first"},
 			})),
 		);
 	});

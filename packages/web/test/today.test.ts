@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {navigateToToday} from "../src/client/today.js";
+import {navigateToCalendarDate, navigateToToday} from "../src/client/today.js";
 
 interface Reply {
 	status: number;
@@ -90,5 +90,45 @@ describe("navigateToToday", () => {
 			["fetch", "/api/v1/calendar/day/20261017/ensure", "POST"],
 			["notify", "No calendar page for 2026-10-17 yet", "info"],
 		]);
+	});
+});
+
+describe("navigateToCalendarDate", () => {
+	it("finds the month node holding a date with ?level=, then ensures it without a child when asked", async () => {
+		const {calls, deps} = harness([
+			{status: 404, body: {error: "Calendar day not found"}},
+			{status: 200, body: {dayId: "month0000001", firstChildId: null, created: ["month0000001"]}},
+		]);
+		await navigateToCalendarDate({date: new Date(2026, 10, 1), level: "month", createChild: false}, deps);
+		expect(calls).toStrictEqual([
+			["commitEdit"],
+			["fetch", "/api/v1/calendar/day/20261101?level=month", "GET"],
+			["fetch", "/api/v1/calendar/day/20261101/ensure?level=month&createChild=false", "POST"],
+			["navigate", "/#/month0000001"],
+		]);
+	});
+
+	it("zooms to another day and names the month or year in the notification", async () => {
+		const day = harness([{status: 200, body: {id: "day000000003", firstChildId: "kid000000003"}}]);
+		await navigateToCalendarDate({date: new Date(2026, 8, 30)}, day.deps);
+		const year = harness([
+			{status: 404, body: {error: "Calendar day not found"}},
+			{status: 403, body: {error: "disabled"}},
+		]);
+		await navigateToCalendarDate({date: new Date(2027, 0, 1), level: "year"}, year.deps);
+		expect({day: day.calls, year: year.calls}).toStrictEqual({
+			day: [
+				["commitEdit"],
+				["fetch", "/api/v1/calendar/day/20260930", "GET"],
+				["navigate", "/#/day000000003"],
+				["startEditing", "kid000000003", 0],
+			],
+			year: [
+				["commitEdit"],
+				["fetch", "/api/v1/calendar/day/20270101?level=year", "GET"],
+				["fetch", "/api/v1/calendar/day/20270101/ensure?level=year", "POST"],
+				["notify", "No calendar page for 2027 yet", "info"],
+			],
+		});
 	});
 });

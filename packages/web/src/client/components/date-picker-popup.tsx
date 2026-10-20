@@ -24,6 +24,11 @@ export interface DatePickerPopupProps {
 	showNoDate?: boolean;
 	term?: string;
 	initialView?: DatePickerView;
+	/**
+	 * Upstream `showControls`: false for the day strip's calendar button, which also hides the date input
+	 * (still focused, so typing works) and drops the Range, Format and Remove date rows.
+	 */
+	showControls?: boolean;
 	/** Viewport position of the popup's top-left corner, before the shell's 4px margin-top. */
 	position?: {left: number; top: number};
 	/** Whether a day has journal content under 📆 Calendar; draws the single-mode event dot (DP10). */
@@ -513,6 +518,9 @@ const PRESETS: {label: string; preset: DatePreset; icon: "fal:sun-bright" | "fal
 	{label: "Next week", preset: "next week", icon: "fal:calendar-week"},
 ];
 
+const INPUT_CLASS = "date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary";
+const HIDDEN_INPUT_CLASS = "absolute w-0 h-0 overflow-hidden";
+
 /** Upstream's `!!` / pill date popup (`gP.for`): input row, presets, calendar, then Range / Format / Remove date. */
 export function DatePickerPopup({
 	selected,
@@ -521,6 +529,7 @@ export function DatePickerPopup({
 	showNoDate = false,
 	term = "",
 	initialView = "DATE",
+	showControls = true,
 	position,
 	hasEvent = noEvents,
 	onVisibleMonthChange,
@@ -549,33 +558,40 @@ export function DatePickerPopup({
 			window.removeEventListener("keydown", onKeyDown, true);
 		};
 	}, [onEscape]);
+	const input = (
+		<input
+			type="text"
+			// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream focuses the date input as soon as the popup opens
+			autoFocus
+			placeholder="Type date"
+			className={showControls ? INPUT_CLASS : HIDDEN_INPUT_CLASS}
+			value={term}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+					onEnter?.();
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}}
+			onChange={(event) => {
+				onTermChange?.(event.currentTarget.value);
+			}}
+		/>
+	);
 	return (
 		<div
 			className={`${box.className} absolute flyout menu [&.menu]:py-0`}
 			style={{...box.style, ...(position ? {left: position.left, top: position.top} : {})}}
 		>
 			<MenuBody keyboardMode focusNavigation initialSelect={-1} selectOnTab={false} exit={onClose}>
-				<div className="flex items-center px-l py-m bg-secondary">
-					<input
-						type="text"
-						// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream focuses the date input as soon as the popup opens
-						autoFocus
-						placeholder="Type date"
-						className="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary"
-						value={term}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-								onEnter?.();
-								event.preventDefault();
-								event.stopPropagation();
-							}
-						}}
-						onChange={(event) => {
-							onTermChange?.(event.currentTarget.value);
-						}}
-					/>
-				</div>
-				<MenuSeparator style={{margin: 0}} />
+				{showControls ? (
+					<>
+						<div className="flex items-center px-l py-m bg-secondary">{input}</div>
+						<MenuSeparator style={{margin: 0}} />
+					</>
+				) : (
+					input
+				)}
 				{PRESETS.map(({label, preset, icon}) => (
 					<MenuItem
 						key={preset}
@@ -597,20 +613,29 @@ export function DatePickerPopup({
 					onApply={onApply}
 					onVisibleMonthChange={onVisibleMonthChange}
 				/>
-				<MenuSeparator style={{margin: 0}} />
-				<MenuItem
-					label="Range"
-					icon={<Toggle on={isRange} />}
-					className={CONTROL_ROW_CLASS}
-					onSelect={() => {
-						onToggleRange?.();
-						return true;
-					}}
-				/>
-				<MenuItem label="Format" icon="fal:gear" className={CONTROL_ROW_CLASS} onSelect={onFormat} />
-				{showNoDate && (
-					<MenuItem label="Remove date" icon="fal:ban" className={CONTROL_ROW_CLASS} onSelect={onRemove} />
-				)}
+				{showControls ? (
+					<>
+						<MenuSeparator style={{margin: 0}} />
+						<MenuItem
+							label="Range"
+							icon={<Toggle on={isRange} />}
+							className={CONTROL_ROW_CLASS}
+							onSelect={() => {
+								onToggleRange?.();
+								return true;
+							}}
+						/>
+						<MenuItem label="Format" icon="fal:gear" className={CONTROL_ROW_CLASS} onSelect={onFormat} />
+						{showNoDate && (
+							<MenuItem
+								label="Remove date"
+								icon="fal:ban"
+								className={CONTROL_ROW_CLASS}
+								onSelect={onRemove}
+							/>
+						)}
+					</>
+				) : null}
 			</MenuBody>
 		</div>
 	);
