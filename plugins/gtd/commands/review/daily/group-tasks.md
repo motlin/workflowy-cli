@@ -108,7 +108,7 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 			"kind": "group",
 			"rootKey": "work",
 			"theme": "Onboarding @Alice",
-			"anchor": {"type": "new", "name": "Onboarding @Alice #work", "tier": 2, "tierId": "<tier-2-uuid>"},
+			"anchor": {"type": "new", "name": "Onboarding @Alice", "tier": 2, "tierId": "<tier-2-uuid>"},
 			"insertion": {"targetTier": 2, "targetId": "<tier-2-uuid>", "createTiers": []},
 			"members": [
 				{"nodeId": "<uuid>", "name": "Set up 1:1 with @Alice", "fromTier": 2},

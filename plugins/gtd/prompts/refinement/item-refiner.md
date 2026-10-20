@@ -109,7 +109,7 @@ Now apply text-composer, which reads both Phase A results AND the destination fr
 ${CLAUDE_PLUGIN_ROOT}/prompts/refinement/text-composer.md -> returns JSON with {composedText, changes, confidence}
 ```
 
-**Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda`, `#work`, and the target `@person` mention so the filed task stays findable by person and tag, and any mirror in 📋 Meeting agendas matches the existing topic shape.
+**Agenda text:** When `agendaDetector.isAgendaItem` is true, ensure the composed `✏️ Text:` carries `#agenda` and the target `@person` mention so the filed task stays findable by person and tag, and any mirror in 📋 Meeting agendas matches the existing topic shape.
 
 The text-composer reads `.llm/gtd/refinement/$ITEM_ID-with-dest.json` to get both Phase A tagger results and the destination.
 
@@ -140,7 +140,7 @@ done
     {"name": "🏷️ New tag: #onewheel → add to 🎮 Hobbies Registry? (420 nodes)"},
     {"name": "🗑️ Drop tag: #s (one-off, resolves nowhere)"},
     {"name": "⚠️ Invalid @mention: @Bobb"},
-    {"name": "🗣️ Agenda: raise with <@Name> #agenda #work"},
+    {"name": "🗣️ Agenda: raise with <@Name> #agenda"},
     {"name": "📤 Delegate: <@Name or unknown> -> Work > 📤 Delegate"},
     {"name": "✅ Evidence: <path>: <what is already there>"},
     {"name": "📍 Move to: <full path, or Already done, complete it>", "children": [

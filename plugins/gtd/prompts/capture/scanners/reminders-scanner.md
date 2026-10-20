@@ -193,12 +193,13 @@ The `📜 Provenance` and `➕ Added` children and the `<time>` date format foll
 
 **Tag mapping from list names and content:**
 
-- List "Work" or work keywords → #work
-- List "Personal" or "Home" → #home
+- List "Home" → #home
 - Contains "bill", "pay" → #bills
 - Contains "call", "phone" → #calls
 - Category overdue → #overdue #urgent
 - Category dueToday → #today
+
+Never add `#work` or `#personal` for the source list — the item is filed under the matching Work or Personal area, so the tag only repeats its location. Never add `#computer` either; nearly every task happens at a computer, so it distinguishes nothing.
 
 **ID Generation:**
 

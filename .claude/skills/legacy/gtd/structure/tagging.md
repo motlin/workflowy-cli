@@ -30,19 +30,18 @@ This skill defines the tagging system for GTD in Workflowy, based on David Allen
 | Tag         | When to use             |
 | ----------- | ----------------------- |
 | `#home`     | Must be at home         |
-| `#work`     | Must be at workplace    |
+| `#office`   | Must be at the office   |
 | `#errands`  | While out and about     |
 | `#anywhere` | Location doesn't matter |
 
 ### Mode Tags
 
-| Tag         | When to use             |
-| ----------- | ----------------------- |
-| `#call`     | Make a phone call       |
-| `#email`    | Send an email           |
-| `#computer` | Needs a computer/device |
-| `#read`     | Reading/review material |
-| `#buy`      | Purchase something      |
+| Tag      | When to use             |
+| -------- | ----------------------- |
+| `#call`  | Make a phone call       |
+| `#email` | Send an email           |
+| `#read`  | Reading/review material |
+| `#buy`   | Purchase something      |
 
 ### People Tags
 
@@ -149,7 +148,7 @@ Format names based on relationship type:
 
 ```
 #call @Alice about the #kitchen-renovation timeline #home
-Ask @Bob to review #quarterly-report #work
+Ask @Bob to review #quarterly-report
 #buy new drill for #kitchen-renovation #errands
 ```
 
@@ -293,15 +292,15 @@ When moving an item from Inbox to Next Actions, add relevant tags:
 
 ### Determine Tags Needed
 
-- **Location**: Where can this be done? (`#home`, `#work`, `#errands`, `#anywhere`)
-- **Mode**: How is it done? (`#call`, `#email`, `#computer`, `#read`)
+- **Location**: Where can this be done? (`#home`, `#office`, `#errands`, `#anywhere`)
+- **Mode**: How is it done? (`#call`, `#email`, `#read`)
 - **People**: Who's involved? (`@Alice`, `@Bob`)
 - **Project**: Part of a larger outcome? (`#birthday-party-alice`)
 
 ### Update Node with Tags
 
 ```bash
-./bin/run.js node update --id <node-id> --name "#call venue to confirm reservation #birthday-party-alice #work"
+./bin/run.js node update --id <node-id> --name "#call venue to confirm reservation #birthday-party-alice"
 ```
 
 ### Move to Appropriate List

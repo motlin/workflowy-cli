@@ -98,7 +98,7 @@ For each loose task, pick a recommended destination from signals already on the 
 
 - **Lean `⏰ due-dates`** when any holds: an explicit date / `<time>` or deadline language ("by Fri", "EOD", "before the meeting"); `#agenda`; a senior person asked (`@AliceBrown`, `@BobBrown`, manager); someone is waiting on the user ("blocked on", "waiting", "follow up … report back"); `#next-action`. Then propose a timeframe — explicit/near date → `Today` or `This week`; soft urgency → `This week` or `This month`. **Resolve the timeframe to a concrete date** with `resolveTimeframe` from `${CLAUDE_PLUGIN_ROOT}/scripts/collect-due-items.mts` (`Today` → today, `This week` → the upcoming Friday, `This month` → the last day of the month) and build its `<time>` element with `buildTimeElement`. Never compute the date or its weekday by hand.
 - **Lean `📌 asap` + a tier** otherwise. The tier is a **rank against what is already on the ladder**, not a topic: recommend `1st` or `2nd` only for a task the user would trade against the items already sitting there, and the **bottom tier** for everything else. Default to the bottom tier when the signal is weak — promotion is cheap, and the user reranks during rebalance. Run `planInsertion(ladder, tier)` for the recommended tier and carry its `createTiers` into the proposal. Filing into a tier only inserts the task; it never moves any other item, even when the tier is full.
-- **Topic goes on the text, not in a container.** An asap proposal also carries any missing category `#tag` implied by the task — `#code` for build / PR work, `#drafts` for a draft to write, `#document` for a doc review, `#meeting` for 1:1 setup, `#jira` for admin, `#home`, `#personal`, `#read`, `#llm-task`. Append only tags the task does not already carry, and only ones already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry — except `#drafts`, which every draft gets, and always every task collected from `📄 Drafts`.
+- **Topic goes on the text, not in a container.** An asap proposal also carries any missing category `#tag` implied by the task — `#code` for build / PR work, `#drafts` for a draft to write, `#document` for a doc review, `#meeting` for 1:1 setup, `#jira` for admin, `#home`, `#read`, `#llm-task`. Never add `#work` or `#personal` — the ladder a task sits on already says which area it belongs to — and never add `#computer`, which every task would carry. Append only tags the task does not already carry, and only ones already in `.llm/gtd/metadata/tag-frequency.json` or the `🏷️ Context Tags` registry — except `#drafts`, which every draft gets, and always every task collected from `📄 Drafts`.
 
 Keep the driving signal as a short `reason` string for the walk to show.
 
@@ -118,7 +118,7 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 			"rootKey": "work",
 			"nodeId": "<full-uuid-of-the-loose-task>",
 			"header": "OpenRewrite legal",
-			"name": "Follow up with Legal on OpenRewrite contribution approval, report back #openrewrite #work",
+			"name": "Follow up with Legal on OpenRewrite contribution approval, report back #openrewrite",
 			"recommended": {
 				"destLabel": "⏰ due-dates → This week (2026-08-14)",
 				"destUuid": "<due-bucket-uuid>",
@@ -129,7 +129,7 @@ Write `.llm/gtd/review/proposals/file-tasks.json` following `${CLAUDE_PLUGIN_ROO
 			"reason": "\"report back\" — someone is waiting",
 			"related": {
 				"nodeId": "<full-uuid-of-the-related-filed-task>",
-				"name": "OpenRewrite contribution plan #openrewrite #work",
+				"name": "OpenRewrite contribution plan #openrewrite",
 				"destLabel": "📌 asap → 3rd",
 				"reason": "same distinctive noun phrase: \"OpenRewrite contribution\""
 			},

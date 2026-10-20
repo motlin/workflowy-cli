@@ -148,12 +148,12 @@ Metadata > 📁 Projects > Personal 📁 Projects
 
 Each registry entry is a **link node** (the node itself links to the actual project), with children for metadata:
 
-| Child               | Required | Description                                            |
-| ------------------- | -------- | ------------------------------------------------------ |
-| `Status:`           | Yes      | `active`, `on-hold`, `completed`                       |
-| `Default contexts:` | No       | Common context tags for actions (`#home`, `#computer`) |
-| `Tag:`              | No       | Category or type tag for the project                   |
-| `People:`           | No       | People involved (`@Alice, @Bob`)                       |
+| Child               | Required | Description                                        |
+| ------------------- | -------- | -------------------------------------------------- |
+| `Status:`           | Yes      | `active`, `on-hold`, `completed`                   |
+| `Default contexts:` | No       | Common context tags for actions (`#home`, `#call`) |
+| `Tag:`              | No       | Category or type tag for the project               |
+| `People:`           | No       | People involved (`@Alice, @Bob`)                   |
 
 **Note:** The project name and link are embedded in the entry node itself (e.g., `<a href="...">Kitchen Renovation #kitchen-renovation</a>`), so no separate "Full name" or "Link" children are needed.
 

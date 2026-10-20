@@ -255,7 +255,7 @@ For each confirmed project, create a link node in the 📁 Projects registry wit
 ./bin/run.js node create --parent-path "Metadata,📁 Projects,Personal 📁 Projects,Project Name #project-tag" \
   --name "Status: active"
 ./bin/run.js node create --parent-path "Metadata,📁 Projects,Personal 📁 Projects,Project Name #project-tag" \
-  --name "Default contexts: #home #computer"
+  --name "Default contexts: #home #call"
 ./bin/run.js node create --parent-path "Metadata,📁 Projects,Personal 📁 Projects,Project Name #project-tag" \
   --name "People: @relevant-people"
 ```
@@ -399,7 +399,7 @@ For each idea provided:
 Common options:
 
 - Home office (`#home`)
-- Corporate office (`#work` or `#office`)
+- Corporate office (`#office`)
 - Specific locations (`#downtown`, `#client-site`)
 - Mobile/anywhere (`#anywhere`)
 
@@ -409,7 +409,6 @@ Common options:
 
 Confirm which mode tags are relevant:
 
-- `#computer` - Has a computer/laptop
 - `#phone` or `#call` - Can make calls
 - `#email` - Can send emails
 - `#read` - Has reading material
@@ -432,8 +431,8 @@ Create a context reference in Metadata:
 
 ```bash
 ./bin/run.js node create --parent-path "Metadata" --name "🏷️ Context Tags"
-./bin/run.js node create --parent-path "Metadata,🏷️ Context Tags" --name "Locations: #home, #work, #errands, #anywhere"
-./bin/run.js node create --parent-path "Metadata,🏷️ Context Tags" --name "Modes: #call, #email, #computer, #read"
+./bin/run.js node create --parent-path "Metadata,🏷️ Context Tags" --name "Locations: #home, #office, #errands, #anywhere"
+./bin/run.js node create --parent-path "Metadata,🏷️ Context Tags" --name "Modes: #call, #email, #read"
 ./bin/run.js node create --parent-path "Metadata,🏷️ Context Tags" --name "Energy: #deep-work, #low-energy"
 ```
 
@@ -493,8 +492,8 @@ Content Pipeline:
   Ideas: 5 | Drafts: 2 | Scheduled: 1
 
 🏷️ Context Tags:
-  Locations: #home, #work, #errands, #anywhere
-  Modes: #call, #email, #computer, #read
+  Locations: #home, #office, #errands, #anywhere
+  Modes: #call, #email, #read
 
 ════════════════════════════════════════
 

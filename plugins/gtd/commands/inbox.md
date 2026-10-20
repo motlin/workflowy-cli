@@ -100,7 +100,7 @@ Call John about project
     ├── 👤 Person: @JohnSmith (found "John")
     ├── 💡 Project: #home-renovation (high confidence)
     ├── 📅 Due: Fri, Jan 3, 2025
-    ├── 🗣️ Agenda: raise with @JohnSmith #agenda #work   <- only on agenda topics
+    ├── 🗣️ Agenda: raise with @JohnSmith #agenda   <- only on agenda topics
     ├── 📤 Delegate: @JohnSmith -> Work > 📤 Delegate    <- only on meeting-derived handoffs
     ├── 📍 Move to: Personal > ☑️ Next > Work
     │   └── 📊 Confidence: high

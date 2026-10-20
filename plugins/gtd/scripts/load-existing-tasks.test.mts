@@ -38,10 +38,10 @@ test("nextActions includes open tasks on the asap ladder tiers and skips tiers a
 			node("ladder", "📌 Tasks (asap) (work)", [
 				node("done", "Done", [node("t-old", "Shipped last week", [], "2026-10-01T00:00:00Z")]),
 				node("tier1", "1st", [
-					node("t-open", "Arrange Dev Practice work into Arcs #work"),
-					node("t-finished", "Finished but not yet moved #work", [], "2026-10-06T00:00:00Z"),
+					node("t-open", "Arrange Dev Practice work into Arcs"),
+					node("t-finished", "Finished but not yet moved", [], "2026-10-06T00:00:00Z"),
 				]),
-				node("tier2", "2nd", [node("t-two", "Set up a weekly Dev Practice meeting #work")]),
+				node("tier2", "2nd", [node("t-two", "Set up a weekly Dev Practice meeting")]),
 			]),
 		]),
 	]);
@@ -62,8 +62,8 @@ test("nextActions includes open tasks on the asap ladder tiers and skips tiers a
 			})
 			.toSorted((a, b) => a.id.localeCompare(b.id)),
 		[
-			{id: "t-open", name: "Arrange Dev Practice work into Arcs #work"},
-			{id: "t-two", name: "Set up a weekly Dev Practice meeting #work"},
+			{id: "t-open", name: "Arrange Dev Practice work into Arcs"},
+			{id: "t-two", name: "Set up a weekly Dev Practice meeting"},
 		],
 	);
 });
