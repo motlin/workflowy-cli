@@ -22,14 +22,31 @@ export async function syncBacklinksIfLinked(
 	if (sourceIds.length === 0 || !hasInternalLink(texts.join(" "))) {
 		return undefined;
 	}
-	const auth = readInternalAuth();
-	if (!auth) {
-		return undefined;
+	return internalAdapter(database, writeThrough)?.syncBacklinks(sourceIds);
+}
+
+/**
+ * After a delete, remove the backlink items of the deleted `sourceIds`, as
+ * upstream's client does; pass `linkedSourcesInSubtree` read before the
+ * delete. Needs the internal API; does nothing without it or without a source.
+ */
+export async function deleteBacklinksOfDeleted(
+	sourceIds: string[],
+	database: ReturnType<typeof createDatabase>,
+	writeThrough: WorkflowyWriteThroughClient,
+): Promise<string[]> {
+	if (sourceIds.length === 0) {
+		return [];
 	}
-	const adapter = new WorkflowyInternalAdapter({
-		client: new WorkflowyInternalClient(auth),
-		db: database,
-		writeThrough,
-	});
-	return adapter.syncBacklinks(sourceIds);
+	return (await internalAdapter(database, writeThrough)?.deleteBacklinksOf(sourceIds)) ?? [];
+}
+
+function internalAdapter(
+	database: ReturnType<typeof createDatabase>,
+	writeThrough: WorkflowyWriteThroughClient,
+): WorkflowyInternalAdapter | undefined {
+	const auth = readInternalAuth();
+	return auth
+		? new WorkflowyInternalAdapter({client: new WorkflowyInternalClient(auth), db: database, writeThrough})
+		: undefined;
 }

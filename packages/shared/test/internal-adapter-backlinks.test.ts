@@ -9,7 +9,7 @@ import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
-import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
+import {linkedSourcesInSubtree, WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import {applyMetadataPatches} from "../src/internal/metadata-patch.js";
 import type {MetadataPatch} from "../src/internal/metadata-patch.js";
 import {hasInternalLink, internalLinkShortIds} from "../src/workflowy/internal-links.js";
@@ -27,6 +27,9 @@ const OTHER = "33333333-3333-4333-8333-333333333333";
 const OLD_ROOT = "44444444-4444-4444-8444-444444444444";
 const OLD_ITEM = "55555555-5555-4555-8555-555555555555";
 const OTHER_ROOT = "66666666-6666-4666-8666-666666666666";
+const CHILD = "77777777-7777-4777-8777-777777777777";
+const CHILD_ITEM = "88888888-8888-4888-8888-888888888888";
+const OTHER_ITEM = "99999999-9999-4999-8999-999999999999";
 
 const link = (id: string) => `<a href="https://workflowy.com/#/${id.replaceAll("-", "").slice(-12)}">x</a>`;
 
@@ -218,7 +221,7 @@ async function setup(initial: [string, ServerNode][], trashed: [string, ServerNo
 	const parents = [...new Set(initial.map(([, value]) => value.parent))];
 	await writeThrough.refreshChildren(parents.map((parent) => (parent === ROOT ? null : parent)));
 	const rows = (sql: string) => sqlite.prepare(sql).all();
-	return {sqlite, adapter, pushes, server, cacheService, rows};
+	return {sqlite, db, adapter, pushes, server, cacheService, rows};
 }
 
 const ID1 = "00000000-0000-4000-8000-000000000001";
@@ -432,5 +435,70 @@ describe("WorkflowyInternalAdapter.syncBacklinks", () => {
 			pushTypes: [["undelete"], ["bulk_create", "bulk_create", "edit"]],
 			targetChildren: [ID1],
 		});
+	});
+
+	it("deletes the backlink items of every deleted linked source in a subtree in one push, keeping other sources' items", async () => {
+		const backlinkItem = (sourceId: string) =>
+			node("", OLD_ROOT, {
+				mirror: {originalId: sourceId, isMirrorRoot: true},
+				backlink: {sourceID: sourceId, targetID: TARGET},
+			});
+		const {adapter, pushes, server, sqlite, db, rows} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+			[CHILD, node("child", SOURCE, {mirror: {backlinkMirrorRootIds: {[CHILD_ITEM]: true}}}, link(TARGET))],
+			[OTHER, node(`also ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OTHER_ITEM]: true}}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+			[OLD_ITEM, backlinkItem(SOURCE)],
+			[CHILD_ITEM, backlinkItem(CHILD)],
+			[OTHER_ITEM, backlinkItem(OTHER)],
+		]);
+		sqlite.exec(
+			`INSERT INTO references_roots VALUES ('${OLD_ROOT}', '${SEEDED}', '9999-12-31 23:59:59');
+			 INSERT INTO backlinks VALUES ('${OLD_ITEM}', '${SOURCE}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59'), ('${CHILD_ITEM}', '${CHILD}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59'), ('${OTHER_ITEM}', '${OTHER}', '${TARGET}', '${SEEDED}', '9999-12-31 23:59:59');`,
+		);
+		const linked = linkedSourcesInSubtree(db, SOURCE);
+		server.apply("delete", {projectid: CHILD});
+		server.apply("delete", {projectid: SOURCE});
+
+		const deleted = await adapter.deleteBacklinksOf(linked);
+
+		expect({
+			linked,
+			deleted,
+			pushes: pushes.map((ops) => ops.map((op) => [op.type, op.data.projectid])),
+			referencesChildren: server.children(OLD_ROOT),
+			current: rows("SELECT node_id FROM backlinks WHERE system_to = '9999-12-31 23:59:59' ORDER BY node_id"),
+		}).toStrictEqual({
+			linked: [SOURCE, CHILD],
+			deleted: [OLD_ITEM, CHILD_ITEM],
+			pushes: [
+				[
+					["delete", OLD_ITEM],
+					["delete", CHILD_ITEM],
+				],
+			],
+			referencesChildren: [OTHER_ITEM],
+			current: [{node_id: OTHER_ITEM}],
+		});
+	});
+
+	it("pushes nothing when the linked sources are still in the tree, as when a mirror was removed instead", async () => {
+		const {adapter, pushes} = await tracked([
+			[SOURCE, node(`see ${link(TARGET)}`, ROOT, {mirror: {backlinkMirrorRootIds: {[OLD_ITEM]: true}}})],
+			[TARGET, node("target", ROOT)],
+			[OLD_ROOT, node("", TARGET, {isReferencesRoot: true})],
+			[
+				OLD_ITEM,
+				node("", OLD_ROOT, {
+					mirror: {originalId: SOURCE, isMirrorRoot: true},
+					backlink: {sourceID: SOURCE, targetID: TARGET},
+				}),
+			],
+		]);
+
+		const deleted = await adapter.deleteBacklinksOf([SOURCE]);
+
+		expect({deleted, pushes}).toStrictEqual({deleted: [], pushes: []});
 	});
 });

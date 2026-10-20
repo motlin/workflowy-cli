@@ -5,6 +5,7 @@ import type {ExactMover} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import {hasInternalLink, isShortId} from "@workflowy/shared/workflowy";
@@ -621,7 +622,14 @@ nodesRouter.delete("/:id", async (c) => {
 		return c.json({error: "Node not found"}, 404);
 	}
 
+	// Upstream's client deletes a deleted source's backlink items; read the linked
+	// sources before the delete drops the subtree from the cache.
+	const adapter = getAdapter(ctx);
+	const linked = adapter ? linkedSourcesInSubtree(ctx.db, id) : [];
 	await client.deleteNode(id);
+	if (adapter && linked.length > 0) {
+		await adapter.deleteBacklinksOf(linked);
+	}
 
 	return c.body(null, 204);
 });

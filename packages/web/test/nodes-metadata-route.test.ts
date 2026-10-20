@@ -11,6 +11,7 @@ import type {WorkflowyNode} from "@workflowy/shared/types";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 
 const updateNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["updateNode"]>());
+const deleteNode = vi.hoisted(() => vi.fn<SharedCache.WorkflowyWriteThroughClient["deleteNode"]>());
 
 vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 	const actual = await importOriginal<typeof SharedCache>();
@@ -18,6 +19,7 @@ vi.mock("@workflowy/shared/cache", async (importOriginal) => {
 		...actual,
 		WorkflowyWriteThroughClient: class {
 			updateNode = updateNode;
+			deleteNode = deleteNode;
 		},
 	};
 });
@@ -66,6 +68,7 @@ function dto(id: string, layoutMode: string | null, numberedStart: number | null
 interface FakeAdapter {
 	setNodeMetaValues: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["setNodeMetaValues"]>>;
 	syncBacklinks: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["syncBacklinks"]>>;
+	deleteBacklinksOf: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["deleteBacklinksOf"]>>;
 	getRootMeta: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["getRootMeta"]>>;
 }
 
@@ -101,6 +104,7 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 		syncBacklinks: vi.fn<WorkflowyInternalAdapter["syncBacklinks"]>(async () =>
 			Promise.resolve({created: [], referencesRoots: [], deleted: []}),
 		),
+		deleteBacklinksOf: vi.fn<WorkflowyInternalAdapter["deleteBacklinksOf"]>(async () => Promise.resolve([])),
 	};
 	const ctx = {
 		db,
@@ -124,13 +128,51 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 				...(body === undefined ? {} : {body: JSON.stringify(body)}),
 			}),
 		);
-		return {status: res.status, body: await res.json()};
+		return {status: res.status, body: res.status === 204 ? null : await res.json()};
 	};
 	return {adapter, request, writeMetadata, cacheService};
 }
 
 beforeEach(() => {
 	updateNode.mockReset();
+	deleteNode.mockReset();
+});
+
+describe("DELETE /api/v1/nodes/:id backlinks", () => {
+	const LINK = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
+
+	it("deletes the backlink items of the linked sources in the subtree after the node is deleted", async () => {
+		const {adapter, request, cacheService} = setup(true);
+		cacheService.insertNode({...apiNode("n1"), name: LINK}, null);
+		cacheService.insertNode({...apiNode("c1"), parent_id: "n1", name: "plain"}, "n1");
+		cacheService.insertNode({...apiNode("c2"), parent_id: "n1", note: LINK}, "n1");
+		const order: string[] = [];
+		deleteNode.mockImplementation(async () => {
+			order.push("delete");
+			return Promise.resolve({mirrorIds: [], promotions: [], nodeId: "n1"});
+		});
+		adapter.deleteBacklinksOf.mockImplementation(async () => {
+			order.push("backlinks");
+			return Promise.resolve([]);
+		});
+
+		const {status} = await request("DELETE", "/nodes/n1");
+
+		expect({status, order, calls: adapter.deleteBacklinksOf.mock.calls}).toStrictEqual({
+			status: 204,
+			order: ["delete", "backlinks"],
+			calls: [[["n1", "c2"]]],
+		});
+	});
+
+	it("leaves backlinks alone when nothing in the subtree links anywhere", async () => {
+		const {adapter, request} = setup(true);
+		deleteNode.mockResolvedValue({mirrorIds: [], promotions: [], nodeId: "n1"});
+
+		const {status} = await request("DELETE", "/nodes/n1");
+
+		expect({status, calls: adapter.deleteBacklinksOf.mock.calls}).toStrictEqual({status: 204, calls: []});
+	});
 });
 
 describe("PATCH /api/v1/nodes/home", () => {

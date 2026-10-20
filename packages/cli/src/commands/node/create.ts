@@ -2,7 +2,7 @@ import {text} from "node:stream/consumers";
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {createNodeTree, NodeTreeSpecSchema, PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {CreatedNodeTree, NodeTreeSpec} from "@workflowy/shared/cache";
-import {getWorkflowyUrl} from "@workflowy/shared/workflowy";
+import {getWorkflowyUrl, hasInternalLink} from "@workflowy/shared/workflowy";
 import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import {createDatabase} from "../../db/index.js";
@@ -282,6 +282,13 @@ export default class Create extends Command {
 
 		const client = new WorkflowyWriteThroughClient(apiClient, cacheService);
 		const result = await createNodeTree(nodeTree, parentId, client, flags.position);
+		const linked = linkedCreatedNodes(nodeTree, result);
+		await syncBacklinksIfLinked(
+			linked.map(({id}) => id),
+			linked.map((node) => node.text),
+			database,
+			client,
+		);
 
 		// Output results
 		this.log("Successfully created node tree:");
@@ -385,4 +392,16 @@ export default class Create extends Command {
 		}
 		return count;
 	}
+}
+
+/** Each created node whose spec text holds an internal link, with that text, depth-first. */
+function linkedCreatedNodes(spec: NodeTreeSpec, created: CreatedNodeTree): {id: string; text: string}[] {
+	const specText = `${spec.name} ${spec.note ?? ""}`;
+	return [
+		...(hasInternalLink(specText) ? [{id: created.id, text: specText}] : []),
+		...(spec.children ?? []).flatMap((child, index) => {
+			const createdChild = created.children[index];
+			return createdChild === undefined ? [] : linkedCreatedNodes(child, createdChild);
+		}),
+	];
 }

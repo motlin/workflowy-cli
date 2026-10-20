@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
+import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import Delete from "../../../src/commands/node/delete.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
@@ -35,6 +36,7 @@ describe("node delete command", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		process.env = originalEnv;
 
 		cleanupTestDatabase(testDatabase);
@@ -123,6 +125,62 @@ describe("node delete command", () => {
 
 			expect(capturedUrl).toBe("https://workflowy.com/api/v1/nodes/delete-id");
 			expect(capturedMethod).toBe("DELETE");
+		});
+	});
+
+	describe("backlinks", () => {
+		const LINK = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
+
+		beforeEach(() => {
+			process.env.WORKFLOWY_USERNAME = "alice@example.com";
+			process.env.WORKFLOWY_PASSWORD = "hunter2";
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+		});
+
+		it("deletes the backlink items of the subtree's linked sources after the node is deleted", async () => {
+			seedTestData(
+				testDatabase,
+				nodeFixtures([
+					createTestNode({id: "delete-id", name: `see ${LINK}`, parentId: null}),
+					createTestNode({id: "plain-id", name: "plain", parentId: "delete-id"}),
+					createTestNode({id: "linked-id", name: "child", note: LINK, parentId: "delete-id"}),
+				]),
+			);
+			const order: string[] = [];
+			fetchStub.mockImplementation(async (_url: RequestInfo | URL, init?: RequestInit) => {
+				order.push(init?.method ?? "GET");
+				return Promise.resolve(Response.json({}, {status: 200}));
+			});
+			const deleteBacklinks = vi
+				.spyOn(WorkflowyInternalAdapter.prototype, "deleteBacklinksOf")
+				.mockImplementation(async () => {
+					order.push("backlinks");
+					return Promise.resolve([]);
+				});
+
+			await captureOutput(async () => {
+				await Delete.run(["--id", "delete-id"]);
+			});
+
+			expect({order, calls: deleteBacklinks.mock.calls}).toStrictEqual({
+				order: ["DELETE", "backlinks"],
+				calls: [[["delete-id", "linked-id"]]],
+			});
+		});
+
+		it("leaves the internal API alone when nothing in the subtree links anywhere", async () => {
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "delete-id", name: "plain", parentId: null})]),
+			);
+			fetchStub.mockImplementation(async () => Promise.resolve(Response.json({}, {status: 200})));
+			const deleteBacklinks = vi.spyOn(WorkflowyInternalAdapter.prototype, "deleteBacklinksOf");
+
+			await captureOutput(async () => {
+				await Delete.run(["--id", "delete-id"]);
+			});
+
+			expect(deleteBacklinks.mock.calls).toStrictEqual([]);
 		});
 	});
 

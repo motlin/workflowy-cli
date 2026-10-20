@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type {MockInstance} from "vite-plus/test";
 import {z} from "zod";
+import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import Create from "../../../src/commands/node/create.js";
 import {cleanupTestDatabase, createTestDatabase, nodeFixtures, seedTestData} from "../../db/migration-helper.js";
 import type {TestDatabase} from "../../db/migration-helper.js";
@@ -36,6 +37,7 @@ describe("node create command", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		vi.useRealTimers();
 		process.env = originalEnv;
 
@@ -300,6 +302,49 @@ describe("node create command", () => {
 				"POST https://workflowy.com/ajax_login",
 				"GET https://workflowy.com/get_tree_data/",
 			]);
+		});
+		it("syncs the backlinks of every node a --json tree creates with a link, in one call", async () => {
+			process.env.WORKFLOWY_USERNAME = "alice@example.com";
+			process.env.WORKFLOWY_PASSWORD = "hunter2";
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
+			fakeCreates("root-id", "plain-id", "linked-id");
+			const sync = vi
+				.spyOn(WorkflowyInternalAdapter.prototype, "syncBacklinks")
+				.mockResolvedValue({created: [], referencesRoots: [], deleted: []});
+			const link = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
+
+			await captureOutput(async () => {
+				await Create.run([
+					"--parent-id",
+					"parent-id",
+					"--json",
+					JSON.stringify({
+						name: `root ${link}`,
+						children: [{name: "plain"}, {name: "linked", note: link}],
+					}),
+				]);
+			});
+
+			expect(sync.mock.calls).toStrictEqual([[["root-id", "linked-id"]]]);
+		});
+
+		it("leaves the internal API alone when no node of a --json tree links anywhere", async () => {
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
+			fakeCreates("root-id");
+			const sync = vi.spyOn(WorkflowyInternalAdapter.prototype, "syncBacklinks");
+
+			await captureOutput(async () => {
+				await Create.run(["--parent-id", "parent-id", "--json", JSON.stringify({name: "plain"})]);
+			});
+
+			expect(sync.mock.calls).toStrictEqual([]);
 		});
 	});
 

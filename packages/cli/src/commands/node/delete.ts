@@ -1,7 +1,9 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
 import {deletePlanCalls, PathBuilder, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import {Command, Flags} from "@oclif/core";
+import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import {createDatabase} from "../../db/index.js";
+import {deleteBacklinksOfDeleted} from "../../services/backlinks.js";
 import {CacheService} from "../../services/cache.js";
 import {logger} from "../../services/logger.js";
 import {resolveNodeId} from "@workflowy/shared/utils";
@@ -107,7 +109,11 @@ export default class Delete extends Command {
 			return;
 		}
 
+		// Upstream's client deletes a deleted source's backlink items; read the
+		// linked sources before the delete drops the subtree from the cache.
+		const linked = linkedSourcesInSubtree(database, nodeId);
 		await client.deleteNode(nodeId, plan);
+		await deleteBacklinksOfDeleted(linked, database, client);
 
 		this.log("");
 		if (removingMirror) {

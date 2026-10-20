@@ -207,6 +207,32 @@ function backlinkOf(metadata: Metadata | undefined): {sourceID: string; targetID
 }
 
 /**
+ * The cached nodes in `rootId`'s subtree (itself included) whose name or note
+ * holds an internal link: the only ones that can be backlink sources. Read
+ * before a delete, since the cache drops the subtree with it.
+ */
+export function linkedSourcesInSubtree(db: AdapterDatabase, rootId: string): string[] {
+	const linked: string[] = [];
+	for (let level = [rootId]; level.length > 0;) {
+		const rows = db
+			.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
+			.from(nodeContent)
+			.where(and(inArray(nodeContent.id, level), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+			.all();
+		linked.push(
+			...rows.filter((row) => hasInternalLink(`${row.name ?? ""} ${row.note ?? ""}`)).map((row) => row.id),
+		);
+		level = db
+			.select({id: nodeContent.id})
+			.from(nodeContent)
+			.where(and(inArray(nodeContent.parentId, level), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+			.all()
+			.map((row) => row.id);
+	}
+	return linked;
+}
+
+/**
  * The internal-API write path behind a purpose-built API. It is the only
  * module that speaks in upstream ops and `/push_and_poll`; callers see account
  * state, root metadata and settings.
@@ -668,26 +694,64 @@ export class WorkflowyInternalAdapter {
 
 	/** Upstream re-syncs the backlinks of every undeleted item; only cached nodes with a link can have any to create. */
 	private async syncRestoredBacklinks(rootId: string): Promise<void> {
-		const linked: string[] = [];
-		for (let level = [rootId]; level.length > 0;) {
-			const rows = this.db
-				.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
-				.from(nodeContent)
-				.where(and(inArray(nodeContent.id, level), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-				.all();
-			linked.push(
-				...rows.filter((row) => hasInternalLink(`${row.name ?? ""} ${row.note ?? ""}`)).map((row) => row.id),
-			);
-			level = this.db
-				.select({id: nodeContent.id})
-				.from(nodeContent)
-				.where(and(inArray(nodeContent.parentId, level), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
-				.all()
-				.map((row) => row.id);
-		}
+		const linked = linkedSourcesInSubtree(this.db, rootId);
 		if (linked.length > 0) {
 			await this.syncBacklinks(linked);
 		}
+	}
+
+	/**
+	 * After a delete, remove the backlink items of each of `sourceIds` that
+	 * left the tree, as upstream's client does when it deletes an item
+	 * (`item.delete-iteration.backlink` in wf-base): every item whose
+	 * `backlink.sourceID` is a deleted source goes in one push, and the target's
+	 * references root stays, even when emptied. Sources still in the tree, such
+	 * as an original whose mirror was the one removed, keep theirs. Pass
+	 * {@link linkedSourcesInSubtree} read before the delete.
+	 */
+	async deleteBacklinksOf(sourceIds: string[]): Promise<string[]> {
+		if (sourceIds.length === 0) {
+			return [];
+		}
+		const items = await this.client.getTreeData();
+		const live = new Set(items.map((item) => item.id));
+		const deletedSources = new Set(sourceIds.filter((id) => !live.has(id)));
+		const itemIds = items
+			.filter((item) => {
+				const backlink = backlinkOf(item.metadata);
+				return backlink !== undefined && deletedSources.has(backlink.sourceID);
+			})
+			.map((item) => item.id);
+		if (itemIds.length === 0) {
+			return [];
+		}
+		const tree = this.tree();
+		const session = await this.session();
+		const clock = {now: this.now(), dateJoinedSec: session.dateJoinedSec};
+		const orders = new Map<string, string[]>();
+		const ops: InternalOp[] = [];
+		const deleted: string[] = [];
+		for (const itemId of itemIds) {
+			const parentId = (await tree.liveNode(itemId)).parent_id ?? null;
+			if (parentId === null) {
+				continue;
+			}
+			let siblings = orders.get(parentId);
+			if (siblings === undefined) {
+				siblings = (await tree.liveChildren(parentId)).map((child) => child.id);
+				orders.set(parentId, siblings);
+			}
+			const index = siblings.indexOf(itemId);
+			ops.push(deleteOp({...clock, id: itemId, from: {parentId, index}}));
+			siblings.splice(index, 1);
+			deleted.push(itemId);
+		}
+		if (ops.length === 0) {
+			return [];
+		}
+		await this.pusher.pushAndPoll({ops});
+		await tree.refreshBacklinks([...orders.keys()], {referencesRoots: [], backlinks: [], deleted});
+		return deleted;
 	}
 
 	/** Set (or, with `undefined`, remove) one node metadata value; see {@link setNodeMetaValues}. */
