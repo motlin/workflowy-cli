@@ -697,6 +697,8 @@ export function useMoveNodes() {
 		},
 		onSuccess(nodes, variables, snapshots) {
 			moveNodesUndos.settle(variables, {data: nodes});
+			// A move can bring a dated node into or out of a day, so Found Dates lists are refetched.
+			void queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "found-dates"]});
 			for (const {parentId} of snapshots.filter((snapshot) => snapshot.kind === "children")) {
 				queryClient.setQueryData<NodeResponse[]>(
 					nodeKeys.children(parentId),

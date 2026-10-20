@@ -9,12 +9,13 @@ import {
 	dropBulletDrag,
 	dropClearsSelection,
 	dropIndicatorFor,
+	isFoundDateRow,
 } from "../bullet-drag-state.js";
 import type {BulletDragAction, BulletDragState, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
 import {STRIP_DROP_EVENT, stripDropCellOf, stripDropKey} from "../calendar-strip-model.js";
 import type {StripDropCell, StripDropDetail} from "../calendar-strip-model.js";
 import {emptySelection} from "../item-selection.js";
-import {readChildren, readNode} from "../node-cache.js";
+import {readChildren, readNode, removeFoundDates} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows} from "../outline-drop-target.js";
 import {edgeAutoscrollSpeed, stepAutoscroll} from "../pointer-drag.js";
@@ -32,6 +33,7 @@ const GHOST_OFFSET_PX = 9;
 const HIT_INSET_PX = 6;
 const ROW_BULLET = "a.bullet[data-item-id]:not(.bullet--backlink-root)";
 const ROTATE_ANIMATION_MS = 400;
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function childIdsOf(queryClient: QueryClient, id: string): string[] {
@@ -143,8 +145,11 @@ function animateUnderParent(ghostRect: DOMRect, parentId: string): void {
 	}, ROTATE_ANIMATION_MS);
 }
 
-/** Upstream's after-drop effects: expand a leaf, or keep a collapsed parent shut and flash it; flash the moved rows. */
-function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null): void {
+/**
+ * Upstream's after-drop effects: expand a leaf, or keep a collapsed parent shut and flash it; flash the moved rows.
+ * A drop out of Found Dates also clears the selection (`item.move-under.calendar_mirrors`).
+ */
+function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null, fromFoundDates: boolean): void {
 	const {move, expandId, flashParentId, animate} = plan;
 	if (move === null) {
 		return;
@@ -153,7 +158,7 @@ function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null): void {
 	if (expandId !== null) {
 		expand(expandId);
 	}
-	if (dropClearsSelection(plan)) {
+	if (dropClearsSelection(plan) || fromFoundDates) {
 		setTimeout(() => {
 			setItemSelection(emptySelection());
 		}, 0);
@@ -304,6 +309,8 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			if (node === undefined || sourceRow === null) {
 				return;
 			}
+			// Upstream (whats-new 2025.20): a found item dragged onto the day moves the original there.
+			const fromFoundDates = isFoundDateRow(sourceRow);
 			const items = dragItems({
 				sourceId: nodeId,
 				selection: useOutlineStore.getState().itemSelection,
@@ -444,13 +451,16 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				state = IDLE_BULLET_DRAG;
 				finish();
 				if (plan.move !== null) {
+					if (fromFoundDates) {
+						removeFoundDates(queryClient, plan.move.ids);
+					}
 					moveNodes.mutate({
 						ids: [...plan.move.ids],
 						parent_id: plan.move.parentId === HOME_ROOT ? null : plan.move.parentId,
 						index: plan.move.index,
 					});
 				}
-				runDropEffects(plan, ghostRect);
+				runDropEffects(plan, ghostRect, fromFoundDates);
 			};
 
 			const onKeyDown = (keyEvent: KeyboardEvent) => {

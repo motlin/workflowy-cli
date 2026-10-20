@@ -317,3 +317,75 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 		</div>
 	);
 }
+
+// Upstream's Found Dates crumbs pass `sizes: {minItemWidth: 80}` and `threeDotPosition: "left"`.
+const leftCollapseLayout = createBreadcrumbLayout({minItemWidth: 80, threeDotPosition: "left"}, (label) =>
+	measureCrumbLabel(label),
+);
+
+/**
+ * Upstream GuiCrumbs.Widget with hideCurrent and threeDotPosition "left": the ancestors of an item, the widest
+ * truncated and the leftmost collapsed into an ellipsis menu to fit the row, with no separator after the last.
+ */
+export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
+	const {navigateToNode} = useNodeNavigation();
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [containerLeft, containerWidth] = useContainerRect(containerRef);
+	const windowWidth = useWindowWidth();
+	const inputs = crumbs.map((crumb) => ({id: crumb.id, label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name)}));
+	const inputsKey = inputs.map(({id, label}) => `${id}\u0000${label}`).join("/");
+	const visible = useMemo(
+		() => leftCollapseLayout.calculateVisibleItems(inputs, containerWidth, []),
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialized trail; inputs is rebuilt every render
+		[containerWidth, inputsKey],
+	);
+	const chunks = leftCollapseLayout.getItemGroupsWithLeftOffset(leftCollapseLayout.getItemGroups(visible));
+	const crumbsById = new Map(crumbs.map((crumb) => [crumb.id, crumb]));
+	const elements = chunks.flatMap(({items, leftOffset}) => {
+		if (items[0]?.group === 1) {
+			return [
+				<ButtonMenu
+					key={`more-${leftOffset}`}
+					actOnHover
+					button={
+						<IconButton size="md">
+							<FaIcon icon="fal:ellipsis" />
+						</IconButton>
+					}
+				>
+					<BreadcrumbOverflowMenu
+						items={items}
+						crumbs={crumbsById}
+						currentId=""
+						maxWidth={windowWidth - leftOffset - containerLeft - OVERFLOW_MENU_GUTTER}
+						onNavigate={navigateToNode}
+					/>
+				</ButtonMenu>,
+			];
+		}
+		return items.flatMap((item) => {
+			const crumb = crumbsById.get(item.id);
+			return crumb === undefined
+				? []
+				: [
+						<BreadcrumbItem
+							key={crumb.id}
+							crumb={crumb}
+							current={false}
+							truncateWidth={item.truncateWidth}
+							onNavigate={navigateToNode}
+						/>,
+					];
+		});
+	});
+	return (
+		<div
+			ref={containerRef}
+			className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden"
+		>
+			{elements.flatMap((element, index) =>
+				index === 0 ? [element] : [<BreadcrumbSeparator key={`separator-${element.key}`} />, element],
+			)}
+		</div>
+	);
+}

@@ -78,8 +78,9 @@ function compareTreeOrder(a: number[], b: number[]): number {
 
 /**
  * The Found Dates of the day node `dayId` (dateId `dateId`), or none when the
- * calendar root turns Found Dates off. A `LIKE` on the day's year prefilters
- * the rows, so a range that neither starts nor ends in that year is missed.
+ * calendar root turns Found Dates off. A `LIKE` prefilters the rows: a `<time>`
+ * covering the day either starts or ends in its year, or spans years and so
+ * carries an `endYear`.
  */
 export function findFoundDates(
 	deps: Pick<CalendarDayDeps, "db" | "cache">,
@@ -92,13 +93,19 @@ export function findFoundDates(
 		return [];
 	}
 	const yearPattern = `%Year="${Math.floor(dateId / 10_000)}"%`;
+	const spanPattern = '%endYear="%';
 	const candidates = deps.db
 		.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
 		.from(nodeContent)
 		.where(
 			and(
 				eq(nodeContent.systemTo, FAR_FUTURE_DATE),
-				or(like(nodeContent.name, yearPattern), like(nodeContent.note, yearPattern)),
+				or(
+					like(nodeContent.name, yearPattern),
+					like(nodeContent.note, yearPattern),
+					like(nodeContent.name, spanPattern),
+					like(nodeContent.note, spanPattern),
+				),
 			),
 		)
 		.all()

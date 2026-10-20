@@ -18,7 +18,7 @@ import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
 import {searchClasses, withClasses} from "../search-classes.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
-import {BreadcrumbItem} from "./breadcrumbs.js";
+import {BreadcrumbItem, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
@@ -394,28 +394,32 @@ function rowProjectClassName(
 /**
  * Upstream's backlink breadcrumbs (`ui.item.name.beforebegin.backlink_breadcrumbs`):
  * the source's ancestors in gray above the backlink row, with Home only for a
- * top-level source. A local adaptation lays the crumbs out flat, without the
- * header's truncation engine.
+ * top-level source. A local adaptation lays backlink crumbs out flat, without the
+ * header's truncation engine; Found Dates crumbs (`fitted`) collapse from the left to fit.
  */
-function BacklinkCrumbs({crumbs}: {crumbs: BacklinkCrumb[]}) {
+function BacklinkCrumbs({crumbs, fitted}: {crumbs: BacklinkCrumb[]; fitted: boolean}) {
 	const {navigateToNode} = useNodeNavigation();
 	const items =
 		crumbs.length === 0 ? [{id: "None", isRoot: true}] : crumbs.map(({id, name}) => ({id, name, isRoot: false}));
 	return (
 		<div className="text-xs mobile:text-s text-tertiary mt-m ml-xl mobile:ml-2xl leading-s">
-			<div className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden">
-				{items.map((crumb, index) => (
-					<Fragment key={crumb.id}>
-						{index > 0 ? <BreadcrumbSeparator /> : null}
-						<BreadcrumbItem
-							crumb={crumb}
-							current={false}
-							truncateWidth={null}
-							onNavigate={navigateToNode}
-						/>
-					</Fragment>
-				))}
-			</div>
+			{fitted ? (
+				<LeftCollapsingCrumbs crumbs={items} />
+			) : (
+				<div className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden">
+					{items.map((crumb, index) => (
+						<Fragment key={crumb.id}>
+							{index > 0 ? <BreadcrumbSeparator /> : null}
+							<BreadcrumbItem
+								crumb={crumb}
+								current={false}
+								truncateWidth={null}
+								onNavigate={navigateToNode}
+							/>
+						</Fragment>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -430,11 +434,14 @@ export function OutlineRow({
 	node,
 	depth = 1,
 	backlinkCrumbs,
+	fitCrumbs = false,
 }: {
 	node: NodeResponse;
 	depth?: number;
 	/** A backlink item's source crumbs, rendered before `.name`. */
 	backlinkCrumbs?: BacklinkCrumb[];
+	/** Collapse the crumbs from the left to fit the row, as Found Dates rows do. */
+	fitCrumbs?: boolean;
 }) {
 	const search = useSearchFilter();
 	const isPersistentlyExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
@@ -516,7 +523,7 @@ export function OutlineRow({
 			)}
 			onTransitionEnd={handleTransitionEnd}
 		>
-			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} /> : null}
+			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} fitted={fitCrumbs} /> : null}
 			<NodeName
 				depth={depth}
 				hasChildren={hasChildren}

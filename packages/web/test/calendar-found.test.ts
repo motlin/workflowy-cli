@@ -19,6 +19,10 @@ function time(year: number, month: number, day: number): string {
 const RANGE =
 	'<time startYear="2026" endYear="2026" startMonth="9" endMonth="10" startDay="29" endDay="1">Sep 29 - Oct 1</time>';
 
+/** A range that neither starts nor ends in 2026 but covers all of it. */
+const SPANNING =
+	'<time startYear="2025" endYear="2027" startMonth="12" endMonth="1" startDay="20" endDay="5">Dec 20 - Jan 5</time>';
+
 /**
  * [id, parent, name, note?, priority]: the Sep 30 day page and nodes elsewhere that name a date.
  */
@@ -38,6 +42,7 @@ const TREE: [string, string | null, string, string | null, number][] = [
 	["later", "projects", `Later ${time(2026, 10, 5)}`, null, 2],
 	["lastyear", "projects", `Old ${time(2025, 9, 30)}`, null, 3],
 	["mirror", "projects", "", null, 4],
+	["sabbatical", "projects", `Sabbatical ${SPANNING}`, null, 5],
 	["top", null, `Top ${time(2026, 9, 30)}`, null, 2],
 ];
 
@@ -98,6 +103,7 @@ describe("GET /api/v1/nodes/:id/found-dates", () => {
 				found("noted", ["projects", "alpha"]),
 				found("due", ["projects", "alpha"]),
 				found("trip", ["projects"]),
+				found("sabbatical", ["projects"]),
 				found("top", []),
 			],
 		});
@@ -108,7 +114,7 @@ describe("GET /api/v1/nodes/:id/found-dates", () => {
 
 		const {items} = await get("d0929");
 
-		expect(items.map(({id}) => id)).toStrictEqual(["trip"]);
+		expect(items.map(({id}) => id)).toStrictEqual(["trip", "sabbatical"]);
 	});
 
 	it("lists nothing for a node that is not a day", async () => {

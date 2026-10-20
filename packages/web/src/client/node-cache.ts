@@ -1,5 +1,5 @@
 import type {QueryClient} from "@tanstack/react-query";
-import type {NodeResponse} from "../node-types.js";
+import type {FoundDatesResponse, NodeResponse} from "../node-types.js";
 import {sortByPriority} from "./tree-position.js";
 
 /**
@@ -33,9 +33,12 @@ export function readDetail(queryClient: QueryClient, nodeId: string): NodeRespon
 	return queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
 }
 
+const FOUND_DATES_KEY = [...nodeKeys.all, "found-dates"] as const;
+
 /**
- * A node from its detail cache, else from whichever cached children list holds it.
- * Rows render from children lists, so most visible nodes have no detail entry.
+ * A node from its detail cache, else from whichever cached children list holds it, else from a
+ * cached Found Dates list. Rows render from children lists, so most visible nodes have no detail
+ * entry; a Found Dates row is a mirror of itself, read here as the original it shows.
  */
 export function readNode(queryClient: QueryClient, nodeId: string): NodeResponse | undefined {
 	const detail = readDetail(queryClient, nodeId);
@@ -48,7 +51,21 @@ export function readNode(queryClient: QueryClient, nodeId: string): NodeResponse
 			return found;
 		}
 	}
+	for (const [, response] of queryClient.getQueriesData<FoundDatesResponse>({queryKey: FOUND_DATES_KEY})) {
+		const item = response?.items.find(({node}) => node.id === nodeId);
+		if (item) {
+			return {...item.node, isMirror: false, originalNodeId: null};
+		}
+	}
 	return undefined;
+}
+
+/** Drop the rows `ids` from every cached Found Dates list, as when they move onto a day. */
+export function removeFoundDates(queryClient: QueryClient, ids: readonly string[]): void {
+	const removed = new Set(ids);
+	queryClient.setQueriesData<FoundDatesResponse>({queryKey: FOUND_DATES_KEY}, (response) =>
+		response === undefined ? response : {items: response.items.filter(({node}) => !removed.has(node.id))},
+	);
 }
 
 /**

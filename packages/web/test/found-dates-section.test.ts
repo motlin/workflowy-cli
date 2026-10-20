@@ -78,6 +78,10 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
 }));
+vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => ({
+	...(await importOriginal()),
+	measureCrumbLabel: (label: string) => label.length * 7,
+}));
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
@@ -167,6 +171,37 @@ describe("OutlineChildren Found Dates section", () => {
 	it("renders nothing for an empty list", () => {
 		foundByDay.set("day", {items: []});
 		expect(render("day").includes("Found Dates")).toBe(false);
+	});
+
+	it("collapses a found row's leftmost crumbs into an ellipsis and truncates the rest to fit, like upstream's GuiCrumbs", () => {
+		const deep = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"].map((name) => ({
+			id: name.toLowerCase(),
+			name: `${name} ${"x".repeat(14 - name.length)}`,
+		}));
+		foundByDay.set("day", {items: [foundItem("due", deep)]});
+		vi.stubGlobal("window", {innerWidth: 400});
+		const html = render("day");
+		vi.unstubAllGlobals();
+		const trail = html.slice(html.indexOf(CRUMBS_WRAPPER) + CRUMBS_WRAPPER.length);
+		expect({
+			ellipsis: trail.includes(
+				'<div tabindex="0" class="relative outline-none menu "><div><div role="button" tabindex="0" class="iconButton md shape-circle"><svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="ellipsis"',
+			),
+			ellipsisFirst: trail.indexOf('data-icon="ellipsis"') < trail.indexOf("breadcrumb-item"),
+			visible: [
+				...trail.matchAll(
+					/<a class="breadcrumb-item [^"]*" style="max-width:(\d+)px" href="[^"]*" data-item-id="(\w+)"/gu,
+				),
+			].map(([, width, id]) => [id, Number(width)]),
+		}).toStrictEqual({
+			ellipsis: true,
+			ellipsisFirst: true,
+			visible: [
+				["charlie", 94],
+				["delta", 94],
+				["echo", 95],
+			],
+		});
 	});
 
 	it("does not ask for Found Dates of a node that is not a day, nor of nested children", () => {

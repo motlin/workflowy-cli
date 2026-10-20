@@ -6,6 +6,8 @@ import {
 	readChildren,
 	readDetail,
 	readItemNode,
+	readNode,
+	removeFoundDates,
 	spliceBlock,
 	spliceChildren,
 } from "../src/client/node-cache.js";
@@ -170,5 +172,45 @@ describe("readItemNode", () => {
 			undefined,
 			undefined,
 		]);
+	});
+});
+
+describe("Found Dates rows", () => {
+	const found = (id: string): NodeResponse => ({...row(id, 1), isMirror: true, originalNodeId: id});
+
+	it("readNode falls back to a cached Found Dates row, read as its original", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.foundDates("day"), {items: [{node: found("due"), crumbs: []}]});
+
+		expect({due: readNode(qc, "due"), absent: readNode(qc, "absent")}).toStrictEqual({
+			due: {...row("due", 1), isMirror: false, originalNodeId: null},
+			absent: undefined,
+		});
+	});
+
+	it("readNode prefers the node's own row to its Found Dates row", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.children("p"), [row("due", 1)]);
+		qc.setQueryData(nodeKeys.foundDates("day"), {items: [{node: found("due"), crumbs: []}]});
+
+		expect(readNode(qc, "due")).toStrictEqual(row("due", 1));
+	});
+
+	it("removeFoundDates drops the rows from every cached Found Dates list", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.foundDates("d1"), {
+			items: [
+				{node: found("a"), crumbs: []},
+				{node: found("b"), crumbs: []},
+			],
+		});
+		qc.setQueryData(nodeKeys.foundDates("d2"), {items: [{node: found("a"), crumbs: []}]});
+
+		removeFoundDates(qc, ["a"]);
+
+		expect({
+			d1: qc.getQueryData(nodeKeys.foundDates("d1")),
+			d2: qc.getQueryData(nodeKeys.foundDates("d2")),
+		}).toStrictEqual({d1: {items: [{node: found("b"), crumbs: []}]}, d2: {items: []}});
 	});
 });

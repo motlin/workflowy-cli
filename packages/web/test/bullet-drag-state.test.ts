@@ -8,6 +8,7 @@ import {
 	dragItems,
 	dropClearsSelection,
 	dropIndicatorFor,
+	isFoundDateRow,
 	planDrop,
 } from "../src/client/bullet-drag-state.js";
 import type {BulletDragState} from "../src/client/bullet-drag-state.js";
@@ -419,5 +420,41 @@ describe("drop rotate animation CSS", () => {
 				"@keyframesanimateMovedBulletUnderneathNewParent{0%{transform:rotate(0deg)}100%{transform:rotate(-180deg)}}",
 			),
 		}).toStrictEqual({rule: true, keyframes: true});
+	});
+});
+
+describe("Found Dates drag", () => {
+	/** A row whose nearest enclosing `.project` carries `classes`. */
+	const rowUnder = (classes: string[] | null) => ({
+		parentElement: {
+			closest: () =>
+				classes === null ? null : {classList: {contains: (name: string) => classes.includes(name)}},
+		},
+	});
+
+	it("recognises a row listed under the Found Dates container by its upstream class", () => {
+		expect({
+			found: isFoundDateRow(rowUnder(["font-custom", "project", "open", "[&_>.name>.itemMenu]:hidden"])),
+			nested: isFoundDateRow(rowUnder(["project", "open"])),
+			top: isFoundDateRow(rowUnder(null)),
+		}).toStrictEqual({found: true, nested: false, top: false});
+	});
+
+	// Day > [Lunch]; the Found Dates rows (Ship, from elsewhere) render after it but are not in the day's tree.
+	const rows = buildDropRows({
+		order: ["day", "lunch"],
+		parentOf: (id) => ({lunch: "day", ship: "alpha", alpha: "projects"})[id] ?? null,
+		childIdsOf: (id) => (id === "day" ? ["lunch"] : id === "alpha" ? ["ship"] : []),
+		isCollapsed: () => false,
+		left: (id) => (id === "day" ? 80 : 116),
+	});
+
+	it("drops a found row onto the day among its children, never into Found Dates", () => {
+		const target = (predecessorId: string) =>
+			resolveDropTarget({x: 120, rows, predecessorId, movingIds: new Set(["ship"]), zoomRootId: "day"});
+		expect({onDay: target("lunch"), onFound: target("ship")}).toStrictEqual({
+			onDay: {parentId: "day", index: 1, ambiguous: false},
+			onFound: null,
+		});
 	});
 });

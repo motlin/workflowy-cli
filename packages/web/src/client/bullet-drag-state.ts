@@ -6,6 +6,20 @@ import type {SelectionState, TreeView} from "./item-selection.js";
 import type {DropRows, DropTarget} from "./outline-drop-target.js";
 import {defaultIndexIn} from "./tree-ops.js";
 
+/** A class only upstream's Found Dates container (`calendar_mirrors`) carries. */
+const FOUND_DATES_CLASS = "[&_>.name>.itemMenu]:hidden";
+
+interface RowElement {
+	readonly parentElement: {
+		closest(selector: string): {readonly classList: {contains(name: string): boolean}} | null;
+	} | null;
+}
+
+/** Whether the `.project` `row` is a Found Dates row: a mirror of a node elsewhere, listed under a day page. */
+export function isFoundDateRow(row: RowElement): boolean {
+	return row.parentElement?.closest(".project")?.classList.contains(FOUND_DATES_CLASS) === true;
+}
+
 /** A press becomes a drag once the pointer has moved this far (Euclidean) from the mousedown point. */
 const DRAG_START_THRESHOLD_PX = 3;
 

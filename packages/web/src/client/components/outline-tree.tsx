@@ -449,6 +449,7 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 						<OutlineRow
 							key={item.node.id}
 							backlinkCrumbs={item.crumbs}
+							fitCrumbs
 							depth={depth + 1}
 							node={item.node}
 						/>
