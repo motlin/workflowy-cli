@@ -2,6 +2,7 @@
 // a filter lists the starred entries that match it, then the server's results without their duplicates.
 
 import {label} from "@workflowy/shared";
+import {stripHtmlTags} from "@workflowy/shared/html";
 import type {Star} from "@workflowy/shared";
 import {matchSwitcherRow} from "@workflowy/shared/search";
 import type {SwitcherAncestor, SwitcherResult} from "../server/switcher-search.js";
@@ -62,7 +63,7 @@ function starredRow(entry: StarredEntry, filter: string): SwitcherRow | null {
 		return null;
 	}
 	const isSearch = star.query !== null && star.query !== "";
-	const self = star.nodeId === null ? [] : [{id: star.nodeId, name: entry.name}];
+	const self = star.nodeId === null ? [] : [{id: star.nodeId, name: stripHtmlTags(entry.name)}];
 	return {
 		key: star.key,
 		id: star.nodeId ?? "",

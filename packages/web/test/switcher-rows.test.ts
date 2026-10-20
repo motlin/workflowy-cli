@@ -53,6 +53,35 @@ describe("buildSwitcherRows", () => {
 		});
 	});
 
+	it("ends a starred search's crumbs in its page's plain-text name", () => {
+		const starred = [
+			entry({
+				star: star("a", "#todo", "Todos"),
+				name: '<span class="colored c-red">Bat</span> mitzvah',
+				ancestors: [{id: "p", name: "Parent"}],
+			}),
+		];
+		expect(buildSwitcherRows(starred, IDLE, "")).toStrictEqual({
+			rows: [
+				{
+					key: "a_#todo",
+					id: "a",
+					nodeId: "a",
+					query: "#todo",
+					labelHtml: "Todos",
+					completed: false,
+					starred: true,
+					ancestors: [
+						{id: "p", name: "Parent"},
+						{id: "a", name: "Bat mitzvah"},
+					],
+				},
+			],
+			emptyText: null,
+			indexing: false,
+		});
+	});
+
 	it("shows the starred-pages hint with no stars and an empty filter", () => {
 		expect(buildSwitcherRows([], IDLE, "")).toStrictEqual({
 			rows: [],
