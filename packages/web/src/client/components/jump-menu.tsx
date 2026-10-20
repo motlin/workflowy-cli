@@ -15,7 +15,7 @@ import {readJson} from "../read-json.js";
 import {applySpecial, isSpecialFilter, specialRows, switcherCrumb} from "../switcher-model.js";
 import type {SpecialRow} from "../switcher-model.js";
 import {nearScrollEnd, onSwitcherStep, stepSelection, switcherKeyAction} from "../switcher-keys.js";
-import {buildSwitcherRows} from "../switcher-rows.js";
+import {buildSwitcherRows, starredNodeIds} from "../switcher-rows.js";
 import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
@@ -254,15 +254,15 @@ function safeLastViewed(): Record<string, number> {
 /** Starred locations in `mostRecent` order with their nodes' text and crumbs from the ancestors query. */
 function useStarredEntries(stars: readonly Star[]): readonly StarredEntry[] {
 	const ordered = useMemo(() => mostRecent(stars, safeLastViewed()), [stars]);
+	const nodeIds = useMemo(() => starredNodeIds(ordered), [ordered]);
 	const ancestorQueries = useQueries({
-		queries: ordered.map((star) => ({
-			queryKey: nodeKeys.ancestors(star.nodeId ?? ""),
-			queryFn: async () => (star.nodeId === null ? [] : fetchAncestors(star.nodeId)),
-			enabled: star.nodeId !== null,
+		queries: nodeIds.map((nodeId) => ({
+			queryKey: nodeKeys.ancestors(nodeId),
+			queryFn: async () => fetchAncestors(nodeId),
 		})),
 	});
-	return ordered.map((star, index): StarredEntry => {
-		const chain = ancestorQueries[index]?.data ?? [];
+	return ordered.map((star): StarredEntry => {
+		const chain = star.nodeId === null ? [] : (ancestorQueries[nodeIds.indexOf(star.nodeId)]?.data ?? []);
 		const self = chain.at(-1);
 		return {
 			star,

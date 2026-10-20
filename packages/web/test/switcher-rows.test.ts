@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import type {Star} from "@workflowy/shared";
 import type {SwitcherResult} from "../src/server/switcher-search.js";
-import {buildSwitcherRows} from "../src/client/switcher-rows.js";
+import {buildSwitcherRows, starredNodeIds} from "../src/client/switcher-rows.js";
 import type {StarredEntry} from "../src/client/switcher-rows.js";
 
 function star(nodeId: string | null, query: string | null = null, name: string | null = null): Star {
@@ -132,5 +132,13 @@ describe("buildSwitcherRows", () => {
 				ancestors: [],
 			},
 		]);
+	});
+});
+
+describe("starredNodeIds", () => {
+	it("lists each starred node once in first-seen order, skipping home stars, so useQueries gets no duplicate keys", () => {
+		expect(
+			starredNodeIds([star("a"), star(null, "#todo"), star("b"), star("a", "#todo"), star(null)]),
+		).toStrictEqual(["a", "b"]);
 	});
 });

@@ -17,6 +17,14 @@ export interface StarredEntry {
 	ancestors: SwitcherAncestor[];
 }
 
+/**
+ * Each starred node id once, in first-seen order, without Home. A node can be starred both bare and with a query, and
+ * `useQueries` warns about duplicate keys when the ancestor queries repeat one.
+ */
+export function starredNodeIds(stars: readonly Star[]): string[] {
+	return [...new Set(stars.flatMap((star) => (star.nodeId === null ? [] : [star.nodeId])))];
+}
+
 /** `pending` is the first request of this opening; later requests keep the previous results. */
 export type SwitcherSearchStatus = "idle" | "pending" | "done" | "error";
 

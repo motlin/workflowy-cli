@@ -1,3 +1,5 @@
+import {readFileSync} from "node:fs";
+import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
@@ -5,6 +7,9 @@ import {SearchHelpers} from "../src/client/components/search-helpers.js";
 import type {SearchHelpersProps} from "../src/client/components/search-helpers.js";
 import {helperKeyReducer} from "../src/client/search/helper-keys.js";
 import type {HelperLayout, HelperSelection} from "../src/client/search/helper-keys.js";
+import {cssBlock} from "./helpers/css-block.js";
+
+const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
 const TAB_CLASS = 'class="py-2xs px-ml rounded-[16px] !text-on-surface !bg-transparent"';
 const SELECTED_TAB_CLASS = 'class="py-2xs px-ml rounded-[16px] !bg-secondary"';
@@ -214,5 +219,30 @@ describe("helperKeyReducer", () => {
 
 	it("ignores other keys", () => {
 		expect(helperKeyReducer({tab: 2, chip: -1}, "a", layout)).toStrictEqual({tab: 2, chip: -1});
+	});
+});
+
+describe("search helper flyout CSS", () => {
+	it("matches upstream's computed line-height, icon box and selected-tab underline", () => {
+		expect({
+			lineHeight: cssBlock(styles, ".searchBox .flyout")["line-height"],
+			icon: cssBlock(styles, ".searchBox .flyout .fa-sm"),
+			underline: cssBlock(styles, String.raw`.searchBox .flyout .justify-around.after\:absolute::after`),
+		}).toStrictEqual({
+			lineHeight: "1",
+			icon: {height: "1em", width: "auto"},
+			underline: {
+				content: '""',
+				position: "absolute",
+				"z-index": "1",
+				top: "100%",
+				right: "0",
+				bottom: "0",
+				left: "0",
+				height: "1px",
+				"margin-top": "-1px",
+				"background-color": "transparent",
+			},
+		});
 	});
 });
