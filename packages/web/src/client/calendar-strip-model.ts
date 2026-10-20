@@ -1,6 +1,9 @@
 import {navTooltips, nextOf, prevOf} from "@workflowy/shared";
 import type {CalendarLevel} from "@workflowy/shared";
+import {moveToastText} from "./move-to.js";
+import type {MoveToToast} from "./move-to.js";
 import type {CalendarTarget} from "./today.js";
+import type {BlockMove} from "./tree-ops.js";
 
 /** Upstream's strip levels this app can zoom to (the account has no week level). */
 export type StripLevel = CalendarLevel;
@@ -144,5 +147,168 @@ export function attachDragScroll(scroller: DragScroller, doc: EventTarget): () =
 		scroller.removeEventListener("mousedown", onDown);
 		doc.removeEventListener("mousemove", onMove);
 		doc.removeEventListener("mouseup", onUp);
+	};
+}
+
+/** Upstream autoscrolls the strip while a drag's pointer is within this many pixels of either edge. */
+const DROP_AUTOSCROLL_ZONE = 80;
+const DROP_AUTOSCROLL_MIN = 2;
+const DROP_AUTOSCROLL_RANGE = 8;
+const STRIP_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MOVE_TOAST_TIMEOUT = 5000;
+
+/**
+ * Upstream's strip autoscroll during an item drag, in px per frame: `2 + min(1, depth/80) * 8` toward the edge
+ * the pointer is within 80px of (negative is left), else 0.
+ */
+export function stripAutoscrollSpeed(clientX: number, rect: {left: number; right: number}): number {
+	const speed = (inset: number) =>
+		DROP_AUTOSCROLL_MIN +
+		Math.min(1, (DROP_AUTOSCROLL_ZONE - inset) / DROP_AUTOSCROLL_ZONE) * DROP_AUTOSCROLL_RANGE;
+	const fromLeft = clientX - rect.left;
+	const fromRight = rect.right - clientX;
+	if (fromLeft < DROP_AUTOSCROLL_ZONE) {
+		return -speed(fromLeft);
+	}
+	return fromRight < DROP_AUTOSCROLL_ZONE ? speed(fromRight) : 0;
+}
+
+/** A strip card items can be dropped on: a day card (the Today card too) or a month card, by its `data-ts`. */
+export interface StripDropCell {
+	kind: "day" | "month";
+	ts: number;
+}
+
+/** The element attribute marking a strip card as a drop target; its value is the cell kind. */
+const STRIP_DROP_ATTRIBUTE = "data-strip-drop";
+/** The event a bullet drag dispatches on the strip card it was released over. */
+export const STRIP_DROP_EVENT = "calendar-strip-drop";
+
+export interface StripDropDetail {
+	itemIds: readonly string[];
+	cell: StripDropCell;
+}
+
+/** The store key of a hovered strip card, unique across day and month cells that share a timestamp. */
+export function stripDropKey(cell: StripDropCell): string {
+	return `${cell.kind}:${cell.ts}`;
+}
+
+/** The strip card at or around `element`, or null when it is not one. */
+export function stripDropCellOf(element: Element): {card: Element; cell: StripDropCell} | null {
+	const card = element.closest(`[${STRIP_DROP_ATTRIBUTE}]`);
+	const ts = Number(card?.closest("[data-ts]")?.getAttribute("data-ts") ?? Number.NaN);
+	const kind = card?.getAttribute(STRIP_DROP_ATTRIBUTE);
+	if (card === null || Number.isNaN(ts) || (kind !== "day" && kind !== "month")) {
+		return null;
+	}
+	return {card, cell: {kind, ts}};
+}
+
+/** Upstream's drop page: a day card's day; a month card's month node on month and year pages, else its 1st day. */
+export function stripDropTarget(level: StripLevel, cell: StripDropCell): CalendarTarget {
+	const date = new Date(cell.ts);
+	return {date, level: cell.kind === "month" && level !== "day" ? "month" : "day", createChild: false};
+}
+
+/**
+ * Upstream's strip drop (`C9(date, {createChild:false}).moveUnder(items)`): find or create the dropped-on page,
+ * clear the selection, move the items to its end as one block, and toast `Moved to '<day>'` (or `Moved to Oct 2026`
+ * for a month) with View and Undo. Returns whether the items moved.
+ */
+export async function runStripDrop({
+	items,
+	level,
+	cell,
+	dayName,
+	ensure,
+	clearSelection,
+	moveNodes,
+	showToast,
+	view,
+	undo,
+}: {
+	/** The dragged item ids in document order. */
+	items: readonly string[];
+	level: StripLevel;
+	cell: StripDropCell;
+	/** A day's name as its page title shows it (the account date format). */
+	dayName: (date: Date) => string;
+	/** Find or create the page; null when it cannot. */
+	ensure: (target: CalendarTarget) => Promise<{id: string; childCount: number} | null>;
+	clearSelection: () => void;
+	moveNodes: (moves: BlockMove[]) => void;
+	showToast: (toast: MoveToToast) => void;
+	view: (id: string) => void;
+	undo: () => void;
+}): Promise<boolean> {
+	const target = stripDropTarget(level, cell);
+	const {date} = target;
+	const page = await ensure(target);
+	if (page === null) {
+		return false;
+	}
+	const text =
+		target.level === "month"
+			? `Moved to ${STRIP_MONTHS[date.getMonth()]} ${date.getFullYear()}`
+			: moveToastText("moved", dayName(date));
+	if (items.includes(page.id)) {
+		showToast({text: moveToastText("cant", dayName(date)), timeout: MOVE_TOAST_TIMEOUT, actions: []});
+		return false;
+	}
+	clearSelection();
+	moveNodes([{ids: [...items], parentId: page.id, index: page.childCount}]);
+	showToast({
+		text,
+		timeout: MOVE_TOAST_TIMEOUT,
+		actions: [
+			{
+				label: "View",
+				shortcut: "shift+return",
+				run: () => {
+					view(page.id);
+				},
+			},
+			{label: "Undo", run: undo},
+		],
+	});
+	return true;
+}
+
+/**
+ * Upstream's strip autoscroll during an item drag: while `isDragging()` and the pointer is over the strip's rows
+ * near an edge, a rAF loop scrolls it at `stripAutoscrollSpeed`. Returns the cleanup.
+ */
+export function attachDropAutoscroll(scroller: HTMLElement, isDragging: () => boolean): () => void {
+	let pointer: {x: number; y: number} | null = null;
+	let frame: number | null = null;
+	const speed = () => {
+		if (pointer === null || !isDragging()) {
+			return 0;
+		}
+		const rect = scroller.getBoundingClientRect();
+		return pointer.y < rect.top || pointer.y > rect.bottom ? 0 : stripAutoscrollSpeed(pointer.x, rect);
+	};
+	const tick = () => {
+		const current = speed();
+		if (current === 0) {
+			frame = null;
+			return;
+		}
+		scroller.scrollLeft += current;
+		frame = requestAnimationFrame(tick);
+	};
+	const onMove = (event: MouseEvent) => {
+		pointer = {x: event.clientX, y: event.clientY};
+		if (frame === null && speed() !== 0) {
+			frame = requestAnimationFrame(tick);
+		}
+	};
+	globalThis.addEventListener("mousemove", onMove, true);
+	return () => {
+		globalThis.removeEventListener("mousemove", onMove, true);
+		if (frame !== null) {
+			cancelAnimationFrame(frame);
+		}
 	};
 }

@@ -11,6 +11,8 @@ import {
 	dropIndicatorFor,
 } from "../bullet-drag-state.js";
 import type {BulletDragAction, BulletDragState, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
+import {STRIP_DROP_EVENT, stripDropCellOf, stripDropKey} from "../calendar-strip-model.js";
+import type {StripDropCell, StripDropDetail} from "../calendar-strip-model.js";
 import {emptySelection} from "../item-selection.js";
 import {readChildren, readNode} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
@@ -77,6 +79,17 @@ function hitRowId(x: number, y: number, container: Element, zoomRootId: string):
 			return project.classList.contains("root")
 				? zoomRootId
 				: (project.querySelector(`:scope > .name > ${ROW_BULLET}`)?.getAttribute("data-item-id") ?? null);
+		}
+	}
+	return null;
+}
+
+/** The calendar strip card under the pointer, which takes the drop instead of the outline. */
+function stripCardAt(x: number, y: number): {card: Element; cell: StripDropCell} | null {
+	for (const element of document.elementsFromPoint(x, y)) {
+		const hit = stripDropCellOf(element);
+		if (hit !== null) {
+			return hit;
 		}
 	}
 	return null;
@@ -311,9 +324,15 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			let pointer = {x: startX, y: startY};
 			const {setBulletDrag} = useOutlineStore.getState();
 
+			let stripHit: {card: Element; cell: StripDropCell} | null = null;
+
 			const dispatch = (action: BulletDragAction) => {
 				state = bulletDragReducer(state, action);
-				setBulletDrag(state.draggingIds, state.indicator);
+				setBulletDrag(
+					state.draggingIds,
+					state.indicator,
+					stripHit === null ? null : stripDropKey(stripHit.cell),
+				);
 			};
 
 			const begin = () => {
@@ -331,6 +350,12 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			};
 
 			const hover = (x: number, y: number) => {
+				// Upstream `WF.Moving.target`: a strip card under the pointer itself takes the drop.
+				stripHit = stripCardAt(x, y);
+				if (stripHit !== null) {
+					dispatch({type: "hover", target: null, indicator: null});
+					return;
+				}
 				const bounds = container.getBoundingClientRect();
 				const hitX = Math.min(Math.max(x, bounds.left + HIT_INSET_PX), bounds.right - HIT_INSET_PX);
 				const hitY = rowTop + (y - startY) - 1;
@@ -396,6 +421,20 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			};
 
 			const onUp = () => {
+				if (state.phase === "dragging") {
+					// The strip may have autoscrolled under a still pointer.
+					stripHit = stripCardAt(pointer.x, pointer.y);
+				}
+				if (stripHit !== null) {
+					const detail: StripDropDetail = {itemIds: state.draggingIds, cell: stripHit.cell};
+					const {card} = stripHit;
+					swallowNextClick();
+					state = IDLE_BULLET_DRAG;
+					stripHit = null;
+					finish();
+					card.dispatchEvent(new CustomEvent(STRIP_DROP_EVENT, {bubbles: true, detail}));
+					return;
+				}
 				const collapsed = state.target?.ambiguous === true;
 				const {plan} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
 				const ghostRect = ghost?.querySelector(ROW_BULLET)?.getBoundingClientRect() ?? null;

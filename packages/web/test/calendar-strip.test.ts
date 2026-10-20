@@ -5,9 +5,16 @@ import {
 	attachDragScroll,
 	calendarPageDate,
 	monthCellTarget,
+	runStripDrop,
 	scrollDelta,
+	stripAutoscrollSpeed,
+	stripDropTarget,
 	stripNav,
 } from "../src/client/calendar-strip-model.js";
+import type {StripDropCell, StripLevel} from "../src/client/calendar-strip-model.js";
+import type {MoveToToast} from "../src/client/move-to.js";
+import type {CalendarTarget} from "../src/client/today.js";
+import type {BlockMove} from "../src/client/tree-ops.js";
 import {CalendarStripView} from "../src/client/components/calendar-strip-view.js";
 import type {CalendarStripViewProps} from "../src/client/components/calendar-strip-view.js";
 
@@ -32,7 +39,7 @@ function render(props: Partial<CalendarStripViewProps> = {}): string {
 function cells(html: string) {
 	return [
 		...html.matchAll(
-			/<div data-ts="(\d+)" class="[^"]*"><div class="h-\[18px\] flex items-start justify-center">(?:<span class="text-2xs uppercase">([^<]*)<\/span>)?<\/div><div class="([^"]*)">(.*?)<\/div><\/div>(?=<div data-ts|<div class="flex-shrink-0"|<div><div|<\/div><\/div><\/div>$)/gu,
+			/<div data-ts="(\d+)" class="[^"]*"><div class="h-\[18px\] flex items-start justify-center">(?:<span class="text-2xs uppercase">([^<]*)<\/span>)?<\/div><div class="([^"]*)"(?: data-strip-drop="\w+")?>(.*?)<\/div><\/div>(?=<div data-ts|<div class="flex-shrink-0"|<div><div|<\/div><\/div><\/div>$)/gu,
 		),
 	].map((m) => ({
 		ts: Number(m[1]),
@@ -326,5 +333,166 @@ describe("attachDragScroll", () => {
 			rightDrag: 50,
 			detached: 50,
 		});
+	});
+});
+
+describe("strip drag-and-drop", () => {
+	const RECT = {left: 100, right: 500};
+
+	it("autoscrolls 2-10px per frame within 80px of either edge, and not in the middle", () => {
+		expect([
+			stripAutoscrollSpeed(100, RECT),
+			stripAutoscrollSpeed(140, RECT),
+			stripAutoscrollSpeed(180, RECT),
+			stripAutoscrollSpeed(300, RECT),
+			stripAutoscrollSpeed(420, RECT),
+			stripAutoscrollSpeed(460, RECT),
+			stripAutoscrollSpeed(500, RECT),
+			stripAutoscrollSpeed(40, RECT),
+		]).toStrictEqual([-10, -6, 0, 0, 0, 6, 10, -10]);
+	});
+
+	it("drops on a day cell into that day, and on a month cell into that month on month and year pages, else its 1st", () => {
+		const day = new Date(2026, 9, 5).getTime();
+		const month = new Date(2026, 10, 1).getTime();
+		expect([
+			stripDropTarget("day", {kind: "day", ts: day}),
+			stripDropTarget("month", {kind: "day", ts: day}),
+			stripDropTarget("day", {kind: "month", ts: month}),
+			stripDropTarget("month", {kind: "month", ts: month}),
+			stripDropTarget("year", {kind: "month", ts: month}),
+		]).toStrictEqual([
+			{date: new Date(day), level: "day", createChild: false},
+			{date: new Date(day), level: "day", createChild: false},
+			{date: new Date(month), level: "day", createChild: false},
+			{date: new Date(month), level: "month", createChild: false},
+			{date: new Date(month), level: "month", createChild: false},
+		]);
+	});
+
+	interface DropRecord {
+		ensured: CalendarTarget[];
+		moves: BlockMove[][];
+		toasts: MoveToToast[];
+		cleared: number;
+		views: string[];
+		undos: number;
+	}
+
+	interface DropInput {
+		level?: StripLevel;
+		cell?: StripDropCell;
+		items?: string[];
+		ensured?: {id: string; childCount: number} | null;
+	}
+
+	async function drop({
+		level = "day",
+		cell = {kind: "day", ts: new Date(2026, 9, 5).getTime()},
+		items = ["a", "b"],
+		ensured = {id: "day-5", childCount: 3},
+	}: DropInput = {}): Promise<DropRecord & {moved: boolean}> {
+		const record: DropRecord = {ensured: [], moves: [], toasts: [], cleared: 0, views: [], undos: 0};
+		const moved = await runStripDrop({
+			items,
+			level,
+			cell,
+			dayName: (date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} day`,
+			ensure: async (target) => {
+				record.ensured.push(target);
+				return Promise.resolve(ensured);
+			},
+			clearSelection: () => {
+				record.cleared++;
+			},
+			moveNodes: (moves) => {
+				record.moves.push(moves);
+			},
+			showToast: (toast) => {
+				record.toasts.push(toast);
+			},
+			view: (id) => {
+				record.views.push(id);
+			},
+			undo: () => {
+				record.undos++;
+			},
+		});
+		for (const action of record.toasts[0]?.actions ?? []) {
+			action.run();
+		}
+		return {...record, moved};
+	}
+
+	it("moves the dragged items to the end of the ensured day, clears the selection, and toasts View and Undo", async () => {
+		const result = await drop();
+		expect({
+			...result,
+			toasts: result.toasts.map(({text, timeout, actions}) => ({
+				text,
+				timeout,
+				actions: actions.map(({label, shortcut}) => ({label, shortcut})),
+			})),
+		}).toStrictEqual({
+			moved: true,
+			ensured: [{date: new Date(2026, 9, 5), level: "day", createChild: false}],
+			moves: [[{ids: ["a", "b"], parentId: "day-5", index: 3}]],
+			cleared: 1,
+			toasts: [
+				{
+					text: "Moved to '2026-10-5 day'",
+					timeout: 5000,
+					actions: [
+						{label: "View", shortcut: "shift+return"},
+						{label: "Undo", shortcut: undefined},
+					],
+				},
+			],
+			views: ["day-5"],
+			undos: 1,
+		});
+	});
+
+	it("names a month node `Oct 2026` in the toast", async () => {
+		const result = await drop({
+			level: "year",
+			cell: {kind: "month", ts: new Date(2026, 9, 1).getTime()},
+			ensured: {id: "oct", childCount: 0},
+		});
+		expect({moves: result.moves, text: result.toasts.map((toast) => toast.text)}).toStrictEqual({
+			moves: [[{ids: ["a", "b"], parentId: "oct", index: 0}]],
+			text: ["Moved to Oct 2026"],
+		});
+	});
+
+	it("moves nothing when the page cannot be found or created, or when it is one of the dragged items", async () => {
+		const missing = await drop({ensured: null});
+		const self = await drop({items: ["day-5"]});
+		expect(
+			[missing, self].map(({moved, moves, cleared, toasts}) => ({moved, moves, cleared, toasts})),
+		).toStrictEqual([
+			{moved: false, moves: [], cleared: 0, toasts: []},
+			{
+				moved: false,
+				moves: [],
+				cleared: 0,
+				toasts: [{text: "Can't move to '2026-10-5 day'", timeout: 5000, actions: []}],
+			},
+		]);
+	});
+
+	it("marks day and month cards as drop targets and highlights the hovered one", () => {
+		const day = new Date(2026, 8, 30).getTime();
+		const html = render({level: "day", dragging: true, dropHoverKey: `day:${day}`});
+		const all = cells(html);
+		const hovered = all.find((cell) => cell.ts === day);
+		const firstMonth = all.find((cell) => cell.card.includes("px-s"));
+		expect({
+			dayDrops: (html.match(/data-strip-drop="day"/gu) ?? []).length,
+			monthDrops: (html.match(/data-strip-drop="month"/gu) ?? []).length,
+			hovered: ["bg-tertiary", "border", "border-solid", "border-strong"].every((c) => hovered?.card.includes(c)),
+			hoveredPlain: hovered?.card.includes("!bg-secondary"),
+			monthWhileDragging: ["bg-secondary", "hover:bg-tertiary"].every((c) => firstMonth?.card.includes(c)),
+		}).toStrictEqual({dayDrops: 31, monthDrops: 12, hovered: true, hoveredPlain: false, monthWhileDragging: true});
 	});
 });

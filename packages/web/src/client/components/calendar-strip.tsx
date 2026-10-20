@@ -1,15 +1,30 @@
-import {useQuery} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
-import {dateId, dayTimestamp, guessDates, presetDate, stripModel} from "@workflowy/shared";
+import {useNavigate} from "react-router-dom";
+import {dateId, dayTimestamp, formatPillLabel, guessDates, presetDate, stripModel} from "@workflowy/shared";
 import type {CalendarLevel, DatePreset} from "@workflowy/shared";
 import type {NodeResponse} from "../../node-types.js";
 import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
+import {activeCommandRegistry} from "../hooks/use-global-keymap.js";
 import {useNavigateToCalendarDate} from "../hooks/use-navigate-to-today.js";
+import {fetchChildren, sendBlockMoves, useMoveNodes} from "../hooks/use-nodes.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
+import {goToNode} from "../navigation.js";
 import {readJson} from "../read-json.js";
+import {useOutlineStore} from "../stores/outline.js";
+import {findOrEnsureCalendarNode} from "../today.js";
 import type {CalendarTarget} from "../today.js";
-import {attachDragScroll, calendarPageDate, scrollStripOnMount} from "../calendar-strip-model.js";
+import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
+import {
+	STRIP_DROP_EVENT,
+	attachDragScroll,
+	attachDropAutoscroll,
+	calendarPageDate,
+	runStripDrop,
+	scrollStripOnMount,
+} from "../calendar-strip-model.js";
+import type {StripDropDetail, StripLevel} from "../calendar-strip-model.js";
 import {CalendarStripView} from "./calendar-strip-view.js";
 import {DatePickerPopup} from "./date-picker-popup.js";
 import {FaIcon} from "./fa-icons.js";
@@ -99,6 +114,75 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	);
 }
 
+function noCleanup(): void {}
+
+function isStripDrop(event: Event): event is CustomEvent<StripDropDetail> {
+	return event instanceof CustomEvent;
+}
+
+/**
+ * Upstream's strip drop target (`WF.Moving.target`): a bullet drag released over a card moves its items to the end
+ * of that page, creating it when missing, and toasts View and Undo; near an edge the strip autoscrolls.
+ */
+function useStripDrop(scroller: HTMLDivElement | null, level: StripLevel): void {
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const {mutate: moveNodes} = useMoveNodes();
+	const {dateFormat} = useDateSettings();
+	useEffect(() => {
+		if (scroller === null) {
+			return noCleanup;
+		}
+		const onDrop = (event: Event) => {
+			if (!isStripDrop(event)) {
+				return;
+			}
+			const {itemIds, cell} = event.detail;
+			const store = useOutlineStore.getState();
+			void runStripDrop({
+				items: itemIds,
+				level,
+				cell,
+				dayName: (date) =>
+					formatPillLabel(
+						{startYear: date.getFullYear(), startMonth: date.getMonth() + 1, startDay: date.getDate()},
+						{dateFormat},
+					),
+				ensure: async (target) => {
+					const node = await findOrEnsureCalendarNode(target, globalThis.fetch);
+					return node === null
+						? null
+						: {id: node.dayId, childCount: (await fetchChildren(node.dayId)).length};
+				},
+				clearSelection: store.clearItemSelection,
+				moveNodes: (moves) => {
+					void runInUndoBatch(captureOutlineView, async () => sendBlockMoves(moves, moveNodes)).then(
+						async () => queryClient.invalidateQueries({queryKey: ["calendar-dots"]}),
+					);
+				},
+				showToast: ({text, timeout, actions}) => {
+					useOutlineStore.getState().showAppMessage(text, {timeout, actions});
+				},
+				view: (id) => {
+					goToNode(navigate, id);
+				},
+				undo: () => {
+					activeCommandRegistry().undo?.execute({items: [], zoomedId: null});
+				},
+			});
+		};
+		scroller.addEventListener(STRIP_DROP_EVENT, onDrop);
+		const detachAutoscroll = attachDropAutoscroll(
+			scroller,
+			() => useOutlineStore.getState().draggingIds.length > 0,
+		);
+		return () => {
+			scroller.removeEventListener(STRIP_DROP_EVENT, onDrop);
+			detachAutoscroll();
+		};
+	}, [scroller, level, dateFormat, moveNodes, navigate, queryClient]);
+}
+
 /** A strip page's level and first day. */
 interface StripPage {
 	level: CalendarLevel;
@@ -130,6 +214,9 @@ function StripForPage({level, date}: StripPage) {
 	}, [scroller, scrollTarget, level]);
 
 	useEffect(() => (scroller === null ? undefined : attachDragScroll(scroller, document)), [scroller]);
+	useStripDrop(scroller, level);
+	const dragging = useOutlineStore((state) => state.draggingIds.length > 0);
+	const dropHoverKey = useOutlineStore((state) => state.stripDropKey);
 
 	const onNavigate = (target: CalendarTarget) => {
 		void navigateTo(target);
@@ -144,6 +231,8 @@ function StripForPage({level, date}: StripPage) {
 			todayDot={todayId !== null && todayDots.has(todayId)}
 			onNavigate={onNavigate}
 			scrollerRef={setScroller}
+			dragging={dragging}
+			dropHoverKey={dropHoverKey}
 			calendarButton={
 				<CalendarButton
 					date={date}

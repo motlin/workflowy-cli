@@ -32,37 +32,47 @@ function pageLabel(date: Date, level: CalendarLevel): string {
 }
 
 /**
- * Upstream `C9` + zoom (the day strip, its arrows and month cells, and Today):
- * zoom to the 📆 Calendar node for `target`, creating it through the ensure
- * route when it is missing, and edit its first child. When ensure is disabled
- * or the internal API is not configured, it notifies instead of navigating.
+ * Upstream `C9`: the 📆 Calendar node for `target`, looked up and created
+ * through the ensure route when it is missing; null when ensure is disabled
+ * or the internal API is not configured.
  */
-export async function navigateToCalendarDate(
+export async function findOrEnsureCalendarNode(
 	{date, level = "day", createChild = true}: CalendarTarget,
-	{fetch, navigate, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
-): Promise<void> {
-	commitEdit();
+	fetch: NavigateToCalendarDeps["fetch"],
+): Promise<{dayId: string; firstChildId: string | null} | null> {
 	const url = `/api/v1/calendar/day/${dateId("day", date)}`;
 	const levelQuery = level === "day" ? [] : [`level=${level}`];
 	const lookupQuery = levelQuery.length === 0 ? "" : `?${levelQuery.join("&")}`;
 	const ensureParams = [...levelQuery, ...(createChild ? [] : ["createChild=false"])];
 	const ensureQuery = ensureParams.length === 0 ? "" : `?${ensureParams.join("&")}`;
 	const found = await fetch(`${url}${lookupQuery}`);
-	let target: {dayId: string; firstChildId: string | null};
 	if (found.ok) {
 		const {id, firstChildId} = await readJson<{id: string; firstChildId: string | null}>(found);
-		target = {dayId: id, firstChildId};
-	} else {
-		const ensured = await fetch(`${url}/ensure${ensureQuery}`, {method: "POST"});
-		if (!ensured.ok) {
-			notify(`No calendar page for ${pageLabel(date, level)} yet`, "info");
-			return;
-		}
-		target = await readJson<{dayId: string; firstChildId: string | null}>(ensured);
+		return {dayId: id, firstChildId};
 	}
-	void navigate(locationUrl({id: target.dayId}));
-	if (target.firstChildId !== null) {
-		startEditing(target.firstChildId, 0);
+	const ensured = await fetch(`${url}/ensure${ensureQuery}`, {method: "POST"});
+	return ensured.ok ? readJson<{dayId: string; firstChildId: string | null}>(ensured) : null;
+}
+
+/**
+ * Upstream `C9` + zoom (the day strip, its arrows and month cells, and Today):
+ * zoom to the 📆 Calendar node for `target`, creating it through the ensure
+ * route when it is missing, and edit its first child. When ensure is disabled
+ * or the internal API is not configured, it notifies instead of navigating.
+ */
+export async function navigateToCalendarDate(
+	target: CalendarTarget,
+	{fetch, navigate, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
+): Promise<void> {
+	commitEdit();
+	const node = await findOrEnsureCalendarNode(target, fetch);
+	if (node === null) {
+		notify(`No calendar page for ${pageLabel(target.date, target.level ?? "day")} yet`, "info");
+		return;
+	}
+	void navigate(locationUrl({id: node.dayId}));
+	if (node.firstChildId !== null) {
+		startEditing(node.firstChildId, 0);
 	}
 }
 

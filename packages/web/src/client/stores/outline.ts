@@ -288,6 +288,8 @@ interface OutlineState {
 	draggingIds: readonly string[];
 	/** Where the bullet drag's drop line goes, or null when there is no target. */
 	dropIndicator: DropIndicator | null;
+	/** The `stripDropKey` of the calendar strip card a bullet drag hovers, or null. */
+	stripDropKey: string | null;
 	/** The row whose item (bullet) menu is open; it carries upstream's `.highlighted` tint over its subtree. */
 	itemMenuOpenId: string | null;
 	leftBarMode: LeftBarMode;
@@ -393,7 +395,11 @@ interface OutlineActions {
 	endCompletionAnimation: (ids: string[]) => void;
 	/** Flash `.moving` on the moved row for 500ms, restarting for each move. */
 	flashMoving: (ids: readonly string[]) => void;
-	setBulletDrag: (draggingIds: readonly string[], dropIndicator: DropIndicator | null) => void;
+	setBulletDrag: (
+		draggingIds: readonly string[],
+		dropIndicator: DropIndicator | null,
+		stripDropKey?: string | null,
+	) => void;
 	toggleLeftBar: () => void;
 	openLeftBarDrawer: () => void;
 	closeLeftBarDrawer: () => void;
@@ -598,6 +604,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	movingIds: [],
 	draggingIds: [],
 	dropIndicator: null,
+	stripDropKey: null,
 	itemMenuOpenId: null,
 	...getInitialLeftBarState(),
 	leftBarHovered: false,
@@ -846,8 +853,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		});
 	},
 
-	setBulletDrag: (draggingIds, dropIndicator) => {
-		set({draggingIds, dropIndicator});
+	setBulletDrag: (draggingIds, dropIndicator, stripDropKey = null) => {
+		set({draggingIds, dropIndicator, stripDropKey});
 	},
 
 	flashMoving: (ids) => {

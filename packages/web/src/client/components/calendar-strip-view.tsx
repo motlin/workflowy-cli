@@ -1,6 +1,6 @@
 import type {ReactNode, Ref} from "react";
 import {dateId, dayTimestamp, stripModel} from "@workflowy/shared";
-import {monthCellTarget, rememberScrollLeft, stripNav} from "../calendar-strip-model.js";
+import {monthCellTarget, rememberScrollLeft, stripDropKey, stripNav} from "../calendar-strip-model.js";
 import type {StripLevel} from "../calendar-strip-model.js";
 import type {CalendarTarget} from "../today.js";
 import {FaIcon} from "./fa-icons.js";
@@ -14,8 +14,11 @@ const DAY_CARD_LAYOUT =
 const TODAY_CARD_COLORS = "bg-tertiary hover:bg-quaternary";
 const DAY_CARD_COLORS = "!bg-secondary hover:!bg-tertiary";
 const MONTH_CELL = "min-w-[28px] mobile:min-w-[32px] flex-shrink-0";
+const DROP_HOVER_COLORS = "bg-tertiary border border-solid border-strong";
+const MONTH_CARD_COLORS = "bg-primary hover:bg-secondary";
+const MONTH_CARD_DRAGGING_COLORS = "bg-secondary hover:bg-tertiary";
 const MONTH_CARD =
-	"bg-primary hover:bg-secondary box-border rounded-s px-s min-w-[28px] mobile:min-w-[32px] h-[38px] mobile:h-[44px] flex justify-center items-center cursor-pointer transition-transform";
+	"box-border rounded-s px-s min-w-[28px] mobile:min-w-[32px] h-[38px] mobile:h-[44px] flex justify-center items-center cursor-pointer transition-transform";
 const SCROLLER =
 	"[&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex gap-m mobile:gap-ml overflow-x-auto text-s mobile:text-base pl-m desktop:cursor-grab";
 
@@ -30,6 +33,13 @@ function Separator({className}: {className?: string}) {
 	);
 }
 
+function monthCardColors(dragging: boolean, dropHover: boolean): string {
+	if (dropHover) {
+		return DROP_HOVER_COLORS;
+	}
+	return dragging ? MONTH_CARD_DRAGGING_COLORS : MONTH_CARD_COLORS;
+}
+
 interface DayCellProps {
 	ts: number;
 	label: string | undefined;
@@ -37,15 +47,28 @@ interface DayCellProps {
 	day: number;
 	isToday: boolean;
 	hasDot: boolean;
+	/** A dragged item hovers this card. */
+	dropHover: boolean;
 	onClick: () => void;
 }
 
-function DayCell({ts, label, weekday, day, isToday, hasDot, onClick}: DayCellProps) {
+function dayCardColors(isToday: boolean, dropHover: boolean): string {
+	if (dropHover) {
+		return DROP_HOVER_COLORS;
+	}
+	return isToday ? TODAY_CARD_COLORS : DAY_CARD_COLORS;
+}
+
+function DayCell({ts, label, weekday, day, isToday, hasDot, dropHover, onClick}: DayCellProps) {
 	return (
 		<div data-ts={ts} className={DAY_CELL}>
 			<div className={LABEL_ROW}>{label === undefined ? null : <span className={LABEL}>{label}</span>}</div>
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's strip cards are plain divs; keyboard users have ⌃T and the calendar button */}
-			<div className={`${isToday ? TODAY_CARD_COLORS : DAY_CARD_COLORS} ${DAY_CARD_LAYOUT}`} onClick={onClick}>
+			<div
+				className={`${dayCardColors(isToday, dropHover)} ${DAY_CARD_LAYOUT}`}
+				data-strip-drop="day"
+				onClick={onClick}
+			>
 				<div className="flex flex-col items-center justify-center gap-2xs text-secondary">
 					<span className="text-2xs leading-none font-light">{weekday}</span>
 					<span className="text-s leading-none font-medium">{day}</span>
@@ -72,6 +95,10 @@ export interface CalendarStripViewProps {
 	scrollerRef?: Ref<HTMLDivElement>;
 	/** The calendar-days button; a plain icon button when absent. */
 	calendarButton?: ReactNode;
+	/** An item drag is in progress (month cards darken, upstream `bg-secondary hover:bg-tertiary`). */
+	dragging?: boolean;
+	/** The `stripDropKey` of the card a dragged item hovers. */
+	dropHoverKey?: string | null;
 }
 
 /** Upstream's day strip (`wS2`) markup for a calendar page. */
@@ -85,6 +112,8 @@ export function CalendarStripView({
 	onNavigate,
 	scrollerRef,
 	calendarButton,
+	dragging = false,
+	dropHoverKey = null,
 }: CalendarStripViewProps) {
 	const model = stripModel(level, date, now, weekStartDay);
 	const {prev, next} = stripNav(level, date, now, weekStartDay);
@@ -133,7 +162,8 @@ export function CalendarStripView({
 								</div>
 								{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's strip cards are plain divs */}
 								<div
-									className={`${TODAY_CARD_COLORS} ${DAY_CARD_LAYOUT}`}
+									className={`${dayCardColors(true, dropHoverKey === stripDropKey({kind: "day", ts: today.getTime()}))} ${DAY_CARD_LAYOUT}`}
+									data-strip-drop="day"
 									onClick={() => {
 										onNavigate({date: today});
 									}}
@@ -163,6 +193,7 @@ export function CalendarStripView({
 							day={day.day}
 							isToday={day.isToday}
 							hasDot={dots.has(dateId("day", new Date(day.ts)))}
+							dropHover={dropHoverKey === stripDropKey({kind: "day", ts: day.ts})}
 							onClick={() => {
 								onNavigate({date: new Date(day.ts)});
 							}}
@@ -176,7 +207,8 @@ export function CalendarStripView({
 							</div>
 							{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's strip cards are plain divs */}
 							<div
-								className={MONTH_CARD}
+								className={`${monthCardColors(dragging, dropHoverKey === stripDropKey({kind: "month", ts: month.ts}))} ${MONTH_CARD}`}
+								data-strip-drop="month"
 								onClick={(event) => {
 									// The card's cell sits directly in the scroller.
 									rememberScrollLeft(
