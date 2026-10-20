@@ -27,25 +27,34 @@ export function storedAnchorTag(href: string): string {
 
 /**
  * Render every stored `<a>` with upstream's link markup: `class="contentLink"`,
- * `target="_blank"`, `rel="noreferrer"`, and the stored href. Like upstream, a
- * `javascript:` link renders as nothing, text included.
+ * `target="_blank"`, `rel="noreferrer"`, and the stored href. A `javascript:` link renders
+ * as its plain text, so editing the text around it never deletes that text.
  */
 export function renderLinks(html: string): string {
 	let out = "";
 	let cursor = 0;
+	let droppedClose: {start: number; end: number} | undefined;
 	for (const match of html.matchAll(ANCHOR_OPEN_PATTERN)) {
-		if (match.index < cursor) {
-			continue;
+		if (droppedClose !== undefined && droppedClose.start < match.index) {
+			out += html.slice(cursor, droppedClose.start);
+			cursor = droppedClose.end;
+			droppedClose = undefined;
 		}
 		out += html.slice(cursor, match.index);
 		cursor = match.index + match[0].length;
 		const href = anchorHref(match[0]);
 		if (JAVASCRIPT_HREF_PATTERN.test(href)) {
 			const close = ANCHOR_CLOSE_PATTERN.exec(html.slice(cursor));
-			cursor = close ? cursor + close.index + close[0].length : html.length;
+			droppedClose = close
+				? {start: cursor + close.index, end: cursor + close.index + close[0].length}
+				: undefined;
 			continue;
 		}
 		out += `<a class="contentLink" target="_blank" rel="noreferrer" href="${escapeAttribute(href)}">`;
+	}
+	if (droppedClose !== undefined) {
+		out += html.slice(cursor, droppedClose.start);
+		cursor = droppedClose.end;
 	}
 	return autoLink(out + html.slice(cursor));
 }

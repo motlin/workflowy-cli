@@ -20,8 +20,10 @@ describe("renderLinks", () => {
 		);
 	});
 
-	it("drops javascript: links and their text like upstream", () => {
-		expect(renderLinks('a <a href=" JavaScript:alert(1)">bad <b>x</b></a> b')).toBe("a  b");
+	it("renders a javascript: link's text as plain text without the anchor", () => {
+		expect(renderLinks('a <a href=" JavaScript:alert(1)">bad <b>x</b></a> b <a href="https://x.test/">y</a>')).toBe(
+			'a bad <b>x</b> b <a class="contentLink" target="_blank" rel="noreferrer" href="https://x.test/">y</a>',
+		);
 	});
 
 	it("leaves text without anchors untouched", () => {

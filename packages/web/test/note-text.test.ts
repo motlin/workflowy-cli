@@ -109,6 +109,12 @@ describe("noteContentHtml", () => {
 		expect(editorHtmlToNote(html)).toBe('see <a href="https://example.com/">site</a>');
 	});
 
+	it("keeps a javascript: link's text when the note is edited and saved", () => {
+		const note = 'keep <a href="javascript:alert(1)">this text</a> here';
+		const edited = `${noteContentHtml(note)} more`;
+		expect(planNoteSave(note, edited)).toStrictEqual({save: true, note: "keep this text here more"});
+	});
+
 	it("renders stored <time> as monolith pills only when given date settings", () => {
 		const note = 'due <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time> #tag';
 		const settings = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
