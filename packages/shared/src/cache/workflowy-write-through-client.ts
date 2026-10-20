@@ -163,8 +163,12 @@ export class WorkflowyWriteThroughClient {
 	 * writes call it because Workflowy may renumber every sibling's priority when
 	 * the gap at the top runs out; use it too after a write made outside this
 	 * client, such as an internal-API push.
+	 *
+	 * Each of `subtreeRoots` also has its whole subtree re-read level by level
+	 * and stored in the same transaction, for writes such as a restore that
+	 * bring back descendants the parent's children alone do not show.
 	 */
-	async refreshChildren(parentIds: (string | null)[]): Promise<void> {
+	async refreshChildren(parentIds: (string | null)[], subtreeRoots: string[] = []): Promise<void> {
 		const unique = [...new Set(parentIds)];
 		for (const parentId of unique) {
 			await this.ensureParentInCache(parentId);
@@ -172,6 +176,14 @@ export class WorkflowyWriteThroughClient {
 		const batches = await Promise.all(
 			unique.map(async (parentId) => ({parentId, nodes: await this.liveChildren(parentId)})),
 		);
+		let level = subtreeRoots;
+		while (level.length > 0) {
+			const levelBatches = await Promise.all(
+				level.map(async (parentId) => ({parentId, nodes: await this.liveChildren(parentId)})),
+			);
+			batches.push(...levelBatches);
+			level = levelBatches.flatMap((batch) => batch.nodes.map((node) => node.id));
+		}
 		this.cacheService.storeApiResponses(batches);
 	}
 

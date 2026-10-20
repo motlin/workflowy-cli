@@ -43,7 +43,8 @@ interface ServerNode {
 /**
  * One server state behind both fakes: the internal `/push_and_poll` applies
  * ops to it, and the public `/api/v1/nodes*` reads it. Home holds `a,b,c`;
- * `a` holds `x`; `gone` was deleted from slot 1 of Home.
+ * `a` holds `x`; `gone` was deleted from slot 1 of Home with its child `kid`
+ * and grandchild `grandkid`, which come back with it.
  */
 function createServer() {
 	const nodes = new Map<string, ServerNode>([
@@ -56,9 +57,25 @@ function createServer() {
 		[ROOT, ["a", "b", "c"]],
 		["a", ["x"]],
 	]);
-	const trash = new Map<string, {node: ServerNode; index: number}>([
-		["gone", {node: {name: "gone", parent: ROOT}, index: 1}],
+	const trash = new Map<string, {node: ServerNode; index: number; descendants: [string, ServerNode][]}>([
+		[
+			"gone",
+			{
+				node: {name: "gone", parent: ROOT},
+				index: 1,
+				descendants: [
+					["kid", {name: "kid", parent: "gone"}],
+					["grandkid", {name: "grandkid", parent: "kid"}],
+				],
+			},
+		],
 	]);
+	const bringBackDescendants = (deleted: {descendants: [string, ServerNode][]} | undefined) => {
+		for (const [id, node] of deleted?.descendants ?? []) {
+			nodes.set(id, node);
+			order.set(node.parent, [...children(node.parent), id]);
+		}
+	};
 	const children = (parent: string) => order.get(parent) ?? [];
 	const insert = (parent: string, index: number, ids: string[]) => {
 		const list = [...children(parent)];
@@ -108,6 +125,7 @@ function createServer() {
 			trash.delete(data.projectid);
 			nodes.set(data.projectid, {name: deleted?.node.name ?? data.projectid, parent});
 			insert(parent, data.priority ?? 0, [data.projectid]);
+			bringBackDescendants(deleted);
 		}
 	}
 
@@ -119,6 +137,7 @@ function createServer() {
 		trash.delete(id);
 		nodes.set(id, deleted.node);
 		insert(deleted.node.parent, deleted.index, [id]);
+		bringBackDescendants(deleted);
 		return true;
 	}
 
@@ -379,7 +398,11 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 			restores: [],
 			pushes: [[["undelete", {projectid: "gone", parentid: "None", priority: 0}]]],
 		});
-		expect(order(null)).toStrictEqual(["gone", "a", "b", "c"]);
+		expect({home: order(null), gone: order("gone"), kid: order("kid")}).toStrictEqual({
+			home: ["gone", "a", "b", "c"],
+			gone: ["kid"],
+			kid: ["grandkid"],
+		});
 	});
 
 	it("restores to the original place through /trash/restore when no slot is given", async () => {
@@ -388,7 +411,11 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		await adapter.restore({id: "gone"});
 
 		expect({restores, pushes}).toStrictEqual({restores: ["gone"], pushes: []});
-		expect(order(null)).toStrictEqual(["a", "gone", "b", "c"]);
+		expect({home: order(null), gone: order("gone"), kid: order("kid")}).toStrictEqual({
+			home: ["a", "gone", "b", "c"],
+			gone: ["kid"],
+			kid: ["grandkid"],
+		});
 	});
 
 	it("sets node metadata with one edit, and maps home to None", async () => {

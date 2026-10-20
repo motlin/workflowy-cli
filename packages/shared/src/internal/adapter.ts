@@ -450,6 +450,8 @@ export class WorkflowyInternalAdapter {
 	/**
 	 * Bring back a deleted node with its original id: an `undelete` into the
 	 * given slot, or `POST /trash/restore/<id>/` (back where it was) without one.
+	 * The descendants come back too, so the cache re-reads the restored subtree
+	 * along with the parent's children.
 	 */
 	async restore(input: RestoreInput): Promise<void> {
 		const tree = this.tree();
@@ -457,7 +459,7 @@ export class WorkflowyInternalAdapter {
 			await this.session();
 			await this.postOk(`/trash/restore/${input.id}/`, new URLSearchParams(), true);
 			const restored = await tree.liveNode(input.id);
-			await tree.refreshChildren([restored.parent_id ?? null]);
+			await tree.refreshChildren([restored.parent_id ?? null], [input.id]);
 			return;
 		}
 		const parent = publicParent(input.parentId);
@@ -471,7 +473,7 @@ export class WorkflowyInternalAdapter {
 			dateJoinedSec: session.dateJoinedSec,
 		});
 		await this.pusher.pushAndPoll({ops: [op]});
-		await tree.refreshChildren([parent]);
+		await tree.refreshChildren([parent], [input.id]);
 	}
 
 	/** Set (or, with `undefined`, remove) one node metadata value; see {@link setNodeMetaValues}. */
