@@ -11,6 +11,7 @@ import {FaIcon, TriangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {FilesListArrow, FilesListRows, LeftBarRow, RowName, nodeNameHtml} from "./left-bar-files-list.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
+import {rowHasChildren} from "../tree-ops.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 
 const STARRED_CONTEXT = "leftbar__starred__";
@@ -83,6 +84,7 @@ function StarredPageRow({star}: {star: Star}) {
 	const expanded =
 		useLeftBarExpansionStore((state) => state.expansions[STARRED_CONTEXT])?.includes(expansionKey) ?? false;
 	const toggle = useLeftBarExpansionStore((state) => state.toggle);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const customName = star.name !== null && star.name !== "";
 	const name =
 		customName || star.nodeId === null ? (
@@ -95,7 +97,9 @@ function StarredPageRow({star}: {star: Star}) {
 			<LeftBarRow
 				arrow={
 					<FilesListArrow
+						current={current}
 						expanded={expanded}
+						noChildren={star.nodeId !== null && node !== undefined && !rowHasChildren(node, showCompleted)}
 						onToggle={() => {
 							toggle(STARRED_CONTEXT, expansionKey);
 						}}

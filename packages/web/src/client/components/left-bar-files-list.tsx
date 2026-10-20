@@ -6,12 +6,21 @@ import {useChildren} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {rowHasChildren} from "../tree-ops.js";
 import {TriangleSvg} from "./fa-icons.js";
 
-const ARROW_STYLE: CSSProperties & Record<"--opacity" | "--hover-opacity", number> = {
-	"--opacity": 0.45,
-	"--hover-opacity": 1,
-};
+type ArrowStyle = CSSProperties & Record<"--opacity" | "--hover-opacity", number>;
+
+/**
+ * Upstream's FilesList arrow opacities (`kx4` k1/y1): a row with no potentially visible
+ * children is dimmer, and the current row is brighter than its siblings.
+ */
+function filesListArrowStyle(noChildren: boolean, current: boolean): ArrowStyle {
+	if (noChildren) {
+		return {"--opacity": current ? 0.2 : 0.15, "--hover-opacity": current ? 0.65 : 0.45};
+	}
+	return {"--opacity": current ? 0.65 : 0.45, "--hover-opacity": 1};
+}
 
 function isListed(node: NodeResponse, showCompleted: boolean): boolean {
 	if (node.completedAt !== null && !showCompleted) {
@@ -43,7 +52,17 @@ export function nodeNameHtml(name: string | null | undefined): string {
 }
 
 /** The expand triangle; clicks toggle without following the row's link. */
-export function FilesListArrow({expanded, onToggle}: {expanded: boolean; onToggle: () => void}) {
+export function FilesListArrow({
+	expanded,
+	noChildren,
+	current,
+	onToggle,
+}: {
+	expanded: boolean;
+	noChildren: boolean;
+	current: boolean;
+	onToggle: () => void;
+}) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable div arrow
 		<div
@@ -54,7 +73,7 @@ export function FilesListArrow({expanded, onToggle}: {expanded: boolean; onToggl
 				event.preventDefault();
 				onToggle();
 			}}
-			style={ARROW_STYLE}
+			style={filesListArrowStyle(noChildren, current)}
 		>
 			<div>
 				<TriangleSvg className="block transition-transform duration-200 ease-base [.expanded_&]:rotate-90" />
@@ -144,9 +163,17 @@ function FilesListRow({
 	onToggle: () => void;
 }) {
 	const current = useOutlineStore((state) => state.zoomedNodeId) === node.id;
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	return (
 		<LeftBarRow
-			arrow={<FilesListArrow expanded={expanded} onToggle={onToggle} />}
+			arrow={
+				<FilesListArrow
+					current={current}
+					expanded={expanded}
+					noChildren={!rowHasChildren(node, showCompleted)}
+					onToggle={onToggle}
+				/>
+			}
 			completed={node.completedAt !== null}
 			current={current}
 			depth={depth}

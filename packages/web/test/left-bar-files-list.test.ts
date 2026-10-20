@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {NodeResponse} from "../src/node-types.js";
@@ -126,6 +126,51 @@ describe("FilesListRows", () => {
 			labels: ['<span class="colored c-blue">A</span>', "B"],
 			anchor: '<a class="flex justify-between items-center pr-m hover:cursor-pointer hover:line-through left-bar-section-item font-custom " draggable="false" href="/#/B" style="padding-left:12px;color:var(--wf-text-tertiary);text-decoration:line-through;opacity:0.5">',
 		});
+	});
+});
+
+describe("FilesListRows arrow opacity", () => {
+	const originalRoot = children.root;
+	afterEach(() => {
+		children.root = originalRoot;
+	});
+
+	function arrowStyle(row: string): string {
+		return (
+			/class="flex shrink-0 items-center justify-center opacity-\[var\(--opacity\)\][^"]*"[^>]*style="([^"]*)"/u.exec(
+				row,
+			)?.[1] ?? ""
+		);
+	}
+
+	it("dims rows without visible children like upstream's noChildren and brightens the current row", () => {
+		children.root = [
+			node("P", "P"),
+			node("L", "L", {hasChildren: false}),
+			node("D", "D", {hasChildren: true, hasUncompletedChildren: false}),
+			node("Q", "Q"),
+			node("M", "M", {hasChildren: false}),
+		];
+		storeState.zoomedNodeId = "Q";
+		const current = rows().map(arrowStyle);
+		storeState.zoomedNodeId = "M";
+		const currentLeaf = rows().map(arrowStyle)[4];
+		expect({current, currentLeaf}).toStrictEqual({
+			current: [
+				"--opacity:0.45;--hover-opacity:1",
+				"--opacity:0.15;--hover-opacity:0.45",
+				"--opacity:0.15;--hover-opacity:0.45",
+				"--opacity:0.65;--hover-opacity:1",
+				"--opacity:0.15;--hover-opacity:0.45",
+			],
+			currentLeaf: "--opacity:0.2;--hover-opacity:0.65",
+		});
+	});
+
+	it("counts completed children once show-completed is on", () => {
+		children.root = [node("D", "D", {hasChildren: true, hasUncompletedChildren: false})];
+		storeState.showCompleted = true;
+		expect(rows().map(arrowStyle)).toStrictEqual(["--opacity:0.45;--hover-opacity:1"]);
 	});
 });
 
