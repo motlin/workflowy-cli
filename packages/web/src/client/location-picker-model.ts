@@ -1,3 +1,5 @@
+import {stripHtmlTags} from "@workflowy/shared/html";
+
 // Upstream's location-picker row list (results list `KM` + the bottomSticky create footer).
 // An empty query lists recent then starred locations above two disabled create rows; a query
 // lists up to `limit` results (with `More results` when cut, or a help row when empty) above
@@ -194,4 +196,9 @@ export function resolveDefaultLocation({recentId, notesRootId, exists}: DefaultL
 		return {id: notesRootId};
 	}
 	return {create: "Notes"};
+}
+
+/** A location's subtext crumbs from its root-first ancestor chain (itself last): ancestors only, as plain text. */
+export function ancestorCrumbs(chain: readonly {id: string; name: string | null}[]): {id: string; name: string}[] {
+	return chain.slice(0, -1).map(({id, name}) => ({id, name: stripHtmlTags(name ?? "")}));
 }

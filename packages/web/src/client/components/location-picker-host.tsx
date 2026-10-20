@@ -1,11 +1,17 @@
-import {useQueryClient} from "@tanstack/react-query";
-import {useEffect, useMemo, useState} from "react";
+import {useQueries, useQueryClient} from "@tanstack/react-query";
+import {useEffect, useState} from "react";
 import {usePreferences} from "../hooks/use-preferences.js";
-import {useCreateNode} from "../hooks/use-nodes.js";
+import {fetchAncestors, useCreateNode} from "../hooks/use-nodes.js";
 import {useStarredLocations} from "../hooks/use-starred.js";
-import {INITIAL_PICKER_STATE, buildPickerRows, reducePicker, resolveDefaultLocation} from "../location-picker-model.js";
+import {
+	INITIAL_PICKER_STATE,
+	ancestorCrumbs,
+	buildPickerRows,
+	reducePicker,
+	resolveDefaultLocation,
+} from "../location-picker-model.js";
 import type {PickerEffect, PickerEvent, PickerResult, PickerState} from "../location-picker-model.js";
-import {readNode} from "../node-cache.js";
+import {nodeKeys, readNode} from "../node-cache.js";
 import {ensureNotesLocation, notesRootIdFor} from "../notes-location.js";
 import {readJson} from "../read-json.js";
 import {createRecentLocations} from "../recent-locations.js";
@@ -16,10 +22,11 @@ import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {LocationPicker} from "./location-picker.js";
 import type {LocationCrumb} from "./location-picker.js";
 
+/** One `/api/search/locations` hit: upstream's `<b><u>` word-start label and root-first ancestors without Home. */
 interface SearchHit {
 	id: string;
-	name: string | null;
-	parentPath: string;
+	labelHtml: string;
+	ancestors: LocationCrumb[];
 }
 
 const SEARCH_DEBOUNCE_MS = 150;
@@ -38,7 +45,7 @@ function escapeHtml(text: string): string {
 	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-/** Debounced `/api/search` hits for `query`; empty for an empty query. */
+/** Debounced `/api/search/locations` hits for `query`; empty for an empty query. */
 function useSearchHits(query: string): readonly SearchHit[] {
 	const [found, setFound] = useState<{query: string; hits: readonly SearchHit[]}>({query: "", hits: []});
 	useEffect(() => {
@@ -49,7 +56,7 @@ function useSearchHits(query: string): readonly SearchHit[] {
 		let live = true;
 		const timer = setTimeout(() => {
 			void (async () => {
-				const response = await fetch("/api/search", {
+				const response = await fetch("/api/search/locations", {
 					method: "POST",
 					headers: {"Content-Type": "application/json"},
 					body: JSON.stringify({query, limit: SEARCH_LIMIT}),
@@ -86,19 +93,21 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 		exists: (id) => readNode(queryClient, id) !== undefined,
 	});
 	const starredIds = stars.flatMap((star) => (star.nodeId !== null && star.query === null ? [star.nodeId] : []));
-	const results: PickerResult[] = hits.map((hit) => ({id: hit.id, labelHtml: escapeHtml(hit.name ?? "")}));
-	const crumbsById = useMemo(
-		() =>
-			new Map(
-				hits.map((hit) => [
-					hit.id,
-					hit.parentPath === ""
-						? []
-						: hit.parentPath.split(" > ").map((name, index) => ({id: `${hit.id}-${index}`, name})),
-				]),
-			),
-		[hits],
-	);
+	const results: PickerResult[] = hits.map(({id, labelHtml}) => ({id, labelHtml}));
+	const listedIds = [...new Set([...recentIds, ...starredIds])];
+	const chains = useQueries({
+		queries: listedIds.map((id) => ({
+			queryKey: nodeKeys.ancestors(id),
+			queryFn: async () => fetchAncestors(id),
+		})),
+	});
+	const crumbsById = new Map<string, readonly LocationCrumb[]>([
+		...listedIds.map((id, index): [string, readonly LocationCrumb[]] => [
+			id,
+			ancestorCrumbs(chains[index]?.data ?? []),
+		]),
+		...hits.map((hit): [string, readonly LocationCrumb[]] => [hit.id, hit.ancestors]),
+	]);
 	const rows = buildPickerRows({
 		query: state.query,
 		results,

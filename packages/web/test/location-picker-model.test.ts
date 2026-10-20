@@ -2,6 +2,7 @@ import {QueryClient} from "@tanstack/react-query";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {EMPTY_PREFERENCES} from "../src/client/hooks/use-preferences.js";
 import {
+	ancestorCrumbs,
 	buildPickerRows,
 	firstEnabledIndex,
 	reducePicker,
@@ -214,6 +215,25 @@ describe("resolveDefaultLocation", () => {
 	it("creates Notes when notesRootId is unset or points at a missing node", () => {
 		expect(resolveDefaultLocation({recentId: null, notesRootId: null, exists})).toStrictEqual({create: "Notes"});
 		expect(resolveDefaultLocation({recentId: null, notesRootId: "gone", exists})).toStrictEqual({create: "Notes"});
+	});
+});
+
+describe("ancestorCrumbs", () => {
+	it("drops the location itself and strips markup from each ancestor name", () => {
+		const chain = [
+			{id: "sandbox", name: "🧪 <b>Sync</b> sandbox"},
+			{id: "hub", name: null},
+			{id: "deep", name: "Deep"},
+		];
+		expect(ancestorCrumbs(chain)).toStrictEqual([
+			{id: "sandbox", name: "🧪 Sync sandbox"},
+			{id: "hub", name: ""},
+		]);
+	});
+
+	it("is empty for a top-level location or an unloaded chain", () => {
+		expect(ancestorCrumbs([{id: "hub", name: "Hub"}])).toStrictEqual([]);
+		expect(ancestorCrumbs([])).toStrictEqual([]);
 	});
 });
 
