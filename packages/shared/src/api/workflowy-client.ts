@@ -233,6 +233,19 @@ export class WorkflowyApiClient {
 	 * Get a single node by ID.
 	 */
 	async getNode(nodeId: string): Promise<WorkflowyNode> {
+		const node = await this.findNode(nodeId);
+		if (node === null) {
+			throw new Error(`Failed to get node: 404 Not Found (${nodeId})`);
+		}
+		return node;
+	}
+
+	/**
+	 * Get a single node by ID, or `null` when Workflowy answers 404 (the node
+	 * is deleted or never existed). Use it to check liveness against a cache
+	 * that may be stale.
+	 */
+	async findNode(nodeId: string): Promise<WorkflowyNode | null> {
 		const url = `${this.baseUrl}/api/v1/nodes/${nodeId}`;
 		const startTime = performance.now();
 		this.logger?.logRequest(url, "GET");
@@ -242,6 +255,17 @@ export class WorkflowyApiClient {
 				headers: this.getHeaders(),
 			});
 
+			if (response.status === 404) {
+				this.logger?.logResponse(
+					url,
+					"GET",
+					response.status,
+					response.statusText,
+					null,
+					performance.now() - startTime,
+				);
+				return null;
+			}
 			if (!response.ok) {
 				throw await this.describeFailure("Failed to get node", response);
 			}

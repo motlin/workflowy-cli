@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import DatabaseConstructor from "better-sqlite3";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
@@ -104,7 +104,7 @@ function setup(configured: boolean) {
 				body: JSON.stringify(body),
 			}),
 		);
-	return {adapter, post};
+	return {adapter, cacheService, post};
 }
 
 beforeEach(() => {
@@ -228,18 +228,39 @@ describe("POST /api/v1/nodes/move with the internal API", () => {
 });
 
 describe("POST /api/v1/nodes/:id/restore", () => {
+	/** The public API's GET /api/v1/nodes/<id>: the `live` ids answer with the node, any other id 404s. */
+	function liveApi(live: string[]) {
+		const fetchMock = vi.fn<(url: string) => Promise<Response>>(async (url) => {
+			const id = url.split("/api/v1/nodes/")[1] ?? "";
+			return Promise.resolve(
+				live.includes(id)
+					? Response.json({node: apiNode(id, null, 0)})
+					: new Response("Not Found", {status: 404, statusText: "Not Found"}),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		return fetchMock;
+	}
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("restores into the given slot and returns the node under its original id", async () => {
 		const {adapter, post} = setup(true);
+		const fetchMock = liveApi([]);
 
 		const res = await post("/gone/restore", {parent_id: "home", index: 0});
 
 		expect(res.status).toBe(200);
+		expect(fetchMock.mock.calls.map(([url]) => url)).toStrictEqual(["https://workflowy.com/api/v1/nodes/gone"]);
 		expect(adapter.restore.mock.calls).toStrictEqual([[{id: "gone", parentId: "home", index: 0}]]);
 		await expect(res.json()).resolves.toStrictEqual({node: dto("gone", null, 0)});
 	});
 
 	it("restores to the original location without a slot", async () => {
 		const {adapter, post} = setup(true);
+		liveApi([]);
 
 		await post("/gone/restore", {});
 
@@ -248,12 +269,37 @@ describe("POST /api/v1/nodes/:id/restore", () => {
 
 	it("answers 409 when the node is not deleted", async () => {
 		const {adapter, post} = setup(true);
+		liveApi(["a"]);
 
 		const res = await post("/a/restore", {});
 
 		expect(res.status).toBe(409);
 		await expect(res.json()).resolves.toStrictEqual({error: "Node is not deleted"});
 		expect(adapter.restore.mock.calls).toStrictEqual([]);
+	});
+
+	it("answers 409 when the node is live upstream though missing from the cache", async () => {
+		const {adapter, post} = setup(true);
+		liveApi(["fresh"]);
+
+		const res = await post("/fresh/restore", {});
+
+		expect(res.status).toBe(409);
+		await expect(res.json()).resolves.toStrictEqual({error: "Node is not deleted"});
+		expect(adapter.restore.mock.calls).toStrictEqual([]);
+	});
+
+	it("restores a node deleted upstream though still cached, ending its stale rows", async () => {
+		const {adapter, cacheService, post} = setup(true);
+		cacheService.insertNode(apiNode("a1", "a", 0), "a");
+		liveApi([]);
+
+		const res = await post("/a/restore", {});
+
+		expect(res.status).toBe(200);
+		expect(adapter.restore.mock.calls).toStrictEqual([[{id: "a"}]]);
+		expect(cacheService.getNode("a1")).toBeUndefined();
+		await expect(res.json()).resolves.toStrictEqual({node: dto("a", null, 0)});
 	});
 
 	it("answers 503 when the internal API is not configured", async () => {

@@ -155,11 +155,15 @@ function loadInternalMetadataFields(ctx: ServerContext, nodeIds: string[]): Map<
  * Build the write-through client from the context, or undefined when no API key
  * is configured (read-only mode).
  */
+function getApiClient(ctx: ServerContext): WorkflowyApiClient | undefined {
+	return ctx.apiKey ? new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL) : undefined;
+}
+
 function getWriteClient(ctx: ServerContext): WorkflowyWriteThroughClient | undefined {
-	if (!ctx.apiKey) {
+	const apiClient = getApiClient(ctx);
+	if (!apiClient) {
 		return undefined;
 	}
-	const apiClient = new WorkflowyApiClient(ctx.apiKey, undefined, process.env.WORKFLOWY_API_URL);
 	// With the internal API, a mirror-delete promotion is one exact-index move instead of a sibling rotation.
 	const adapter = getAdapter(ctx);
 	const exactMover: ExactMover | undefined = adapter && {
@@ -968,12 +972,14 @@ nodesRouter.post("/:id/move", async (c) => {
 nodesRouter.post("/:id/restore", async (c) => {
 	const ctx = c.get("ctx");
 	const adapter = getAdapter(ctx);
-	if (!adapter) {
+	const apiClient = getApiClient(ctx);
+	if (!adapter || !apiClient) {
 		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 	}
 
 	const id = c.req.param("id");
-	if (ctx.cacheService.getNode(id)) {
+	// Ask Workflowy, not the cache: a node deleted on workflowy.com lingers in a stale cache.
+	if ((await apiClient.findNode(id)) !== null) {
 		return c.json({error: "Node is not deleted"}, 409);
 	}
 	const body = await c.req.json<{parent_id?: string | null; index?: number}>().catch(() => ({}) as const);
@@ -993,6 +999,10 @@ nodesRouter.post("/:id/restore", async (c) => {
 		input.index = slot.index;
 	}
 
+	// End the stale rows (the whole cached subtree) so the restore's refresh stores only what came back.
+	if (ctx.cacheService.getNode(id)) {
+		ctx.cacheService.deleteNode(id);
+	}
 	await adapter.restore(input);
 	const node = await readNodeDto(ctx, id);
 	if (node === undefined) {
