@@ -59,15 +59,15 @@ describe("cache:vacuum command", () => {
 		testDatabase.sqlite.exec("PRAGMA foreign_keys = ON");
 
 		const freelistBeforeRow = testDatabase.db.get<{freelist_count: number}>(sql.raw("PRAGMA freelist_count"));
-		expect(freelistBeforeRow).toStrictEqual({freelist_count: 2076});
+		expect(freelistBeforeRow).toStrictEqual({freelist_count: 2091});
 
 		const result = await Vacuum.run(["--json"]);
 
 		expect(result).toStrictEqual({
 			path: testDbPath,
-			sizeBeforeBytes: 8_765_440,
-			sizeAfterBytes: 262_144,
-			freelistBefore: 2076,
+			sizeBeforeBytes: 8_843_264,
+			sizeAfterBytes: 278_528,
+			freelistBefore: 2091,
 			freelistAfter: 0,
 		});
 
@@ -81,13 +81,13 @@ describe("cache:vacuum command", () => {
 		expect(stdout).toBe(
 			`🧹 Vacuuming cache database...\n  File: ${
 				testDbPath
-			}\n  Size before: 276.00 KB\n  Size after:  256.00 KB\n  Reclaimed:   20.00 KB\n  Freelist pages: 5 → 0\n`,
+			}\n  Size before: 276.00 KB\n  Size after:  272.00 KB\n  Reclaimed:   4.00 KB\n  Freelist pages: 1 → 0\n`,
 		);
 		expect(result).toStrictEqual({
 			path: testDbPath,
 			sizeBeforeBytes: 282_624,
-			sizeAfterBytes: 262_144,
-			freelistBefore: 5,
+			sizeAfterBytes: 278_528,
+			freelistBefore: 1,
 			freelistAfter: 0,
 		});
 	});

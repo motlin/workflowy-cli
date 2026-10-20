@@ -8,11 +8,12 @@ import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
 import * as schema from "@workflowy/shared/db";
 import {mirrors, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
-import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import {eq} from "drizzle-orm";
+import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
+import {and, eq} from "drizzle-orm";
 import {
 	loadTreeRows,
 	loadTreeSearchRows,
+	peekTreeSnapshotBuild,
 	peekTreeSnapshotRows,
 	rebuildTreeSnapshotAfterWrites,
 	scheduleTreeSnapshotRebuild,
@@ -159,6 +160,56 @@ function idSet(rows: {id: string}[]): Set<string> {
 	return new Set(rows.map((row) => row.id));
 }
 
+let systemMs = Date.parse("2026-05-01T00:00:00Z");
+
+/** A system time later than every one written before it, as the cache's system clock issues them. */
+function nextSystemTime(): string {
+	systemMs += 1;
+	return formatTemporalTimestamp(new Date(systemMs));
+}
+
+type Db = ReturnType<typeof setup>;
+
+/** Version a node's content as the cache does: close the live row and open a changed copy. */
+function rewriteContent(db: Db, id: string, changes: {name?: string; note?: string | null; parentId?: string | null}) {
+	const at = nextSystemTime();
+	const live = and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE));
+	const current = db.select().from(nodeContent).where(live).get();
+	if (current === undefined) {
+		throw new Error(`no live content for ${id}`);
+	}
+	db.update(nodeContent).set({systemTo: at}).where(live).run();
+	db.insert(nodeContent)
+		.values({...current, ...changes, systemFrom: at, systemTo: FAR_FUTURE_DATE})
+		.run();
+}
+
+function rewriteMetadata(db: Db, id: string, changes: {priority?: number; completedAt?: Date | null}) {
+	const at = nextSystemTime();
+	const live = and(eq(nodeMetadata.nodeId, id), eq(nodeMetadata.systemTo, FAR_FUTURE_DATE));
+	const current = db.select().from(nodeMetadata).where(live).get();
+	if (current === undefined) {
+		throw new Error(`no live metadata for ${id}`);
+	}
+	db.update(nodeMetadata).set({systemTo: at}).where(live).run();
+	db.insert(nodeMetadata)
+		.values({...current, ...changes, systemFrom: at, systemTo: FAR_FUTURE_DATE})
+		.run();
+}
+
+function createNode(db: Db, id: string, parentId: string | null, name: string) {
+	db.insert(nodeContent)
+		.values({id, name, note: null, parentId, systemFrom: nextSystemTime(), systemTo: FAR_FUTURE_DATE})
+		.run();
+}
+
+function endContent(db: Db, id: string) {
+	db.update(nodeContent)
+		.set({systemTo: nextSystemTime()})
+		.where(and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+		.run();
+}
+
 describe("loadTreeRows", () => {
 	it("answers the same rows as loadTreeSearchRows for the whole tree and for a subtree", () => {
 		const db = setup();
@@ -188,7 +239,7 @@ describe("loadTreeRows", () => {
 	it("keeps unchanged row objects across a reload so their derived search text stays cached", () => {
 		const db = setup();
 		const first = loadTreeRows(db, null);
-		db.update(nodeContent).set({name: "Alpha renamed"}).where(eq(nodeContent.id, "a")).run();
+		rewriteContent(db, "a", {name: "Alpha renamed"});
 		const second = loadTreeRows(db, null);
 		const byId = (rows: typeof first, id: string) => rows.find((row) => row.id === id);
 		expect(byId(second, "a1")).toBe(byId(first, "a1"));
@@ -273,5 +324,159 @@ describe("loadTreeRows", () => {
 		scheduleTreeSnapshotRebuild(db);
 		db.$client.close();
 		expect(() => vi.advanceTimersByTime(500)).not.toThrow();
+	});
+});
+
+describe("incremental snapshot patches", () => {
+	it("patches every kind of write into the same rows, in the same order, as a full rebuild", () => {
+		const db = setup();
+		loadTreeRows(db, null);
+		expect(peekTreeSnapshotBuild(db)).toBe("full");
+		const writes: [step: string, write: () => unknown][] = [
+			[
+				"rename",
+				() => {
+					rewriteContent(db, "a", {name: "Alpha #renamed"});
+				},
+			],
+			[
+				"edit note",
+				() => {
+					rewriteContent(db, "a1", {note: "a note"});
+				},
+			],
+			[
+				"complete",
+				() => {
+					rewriteMetadata(db, "a1", {completedAt: COMPLETED});
+				},
+			],
+			[
+				"reorder",
+				() => {
+					rewriteMetadata(db, "a", {priority: 9});
+				},
+			],
+			[
+				"create",
+				() => {
+					createNode(db, "b", "a1", "Beta");
+				},
+			],
+			[
+				"create under the new node",
+				() => {
+					createNode(db, "b1", "b", "Beta child");
+				},
+			],
+			[
+				"create top-level",
+				() => {
+					createNode(db, "top", null, "Top");
+				},
+			],
+			[
+				"move a subtree",
+				() => {
+					rewriteContent(db, "a", {parentId: "other"});
+				},
+			],
+			[
+				"move under a new node",
+				() => {
+					rewriteContent(db, "a1", {parentId: "top"});
+				},
+			],
+			[
+				"rename a mirror's original",
+				() => {
+					rewriteContent(db, "other", {name: "Other renamed"});
+				},
+			],
+			[
+				"unmirror",
+				() => db.update(mirrors).set({systemTo: nextSystemTime()}).where(eq(mirrors.mirrorId, "mirror")).run(),
+			],
+			[
+				"mirror again",
+				() =>
+					db
+						.insert(mirrors)
+						.values({
+							mirrorId: "mirror",
+							originalId: "top",
+							systemFrom: nextSystemTime(),
+							systemTo: FAR_FUTURE_DATE,
+						})
+						.run(),
+			],
+			[
+				"make a references root",
+				() =>
+					db
+						.insert(referencesRoots)
+						.values({nodeId: "top", systemFrom: nextSystemTime(), systemTo: FAR_FUTURE_DATE})
+						.run(),
+			],
+			[
+				"end a references root",
+				() =>
+					db
+						.update(referencesRoots)
+						.set({systemTo: nextSystemTime()})
+						.where(eq(referencesRoots.nodeId, "refs"))
+						.run(),
+			],
+			[
+				"delete a parent, cutting off its children",
+				() => {
+					endContent(db, "top");
+				},
+			],
+			[
+				"restore the parent",
+				() => {
+					createNode(db, "top", "root", "Top again");
+				},
+			],
+			[
+				"delete a leaf",
+				() => {
+					endContent(db, "b1");
+				},
+			],
+		];
+		for (const [step, write] of writes) {
+			write();
+			expect({step, rows: loadTreeRows(db, null)}).toStrictEqual({step, rows: loadTreeSearchRows(db, null)});
+			expect({step, build: peekTreeSnapshotBuild(db)}).toStrictEqual({step, build: "patch"});
+			for (const rootId of ["root", "a", "top", "other"]) {
+				expect({step, rootId, rows: idSet(loadTreeRows(db, rootId))}).toStrictEqual({
+					step,
+					rootId,
+					rows: idSet(loadTreeSearchRows(db, rootId)),
+				});
+			}
+		}
+	});
+
+	it("keeps the rows array when a write changes nothing the snapshot holds", () => {
+		const db = setup();
+		const first = loadTreeRows(db, null);
+		rewriteMetadata(db, "a", {});
+		expect(loadTreeRows(db, null)).toBe(first);
+		expect(peekTreeSnapshotBuild(db)).toBe("patch");
+	});
+
+	it("falls back to a full rebuild when a write burst changes too many rows", () => {
+		const db = setup();
+		loadTreeRows(db, null);
+		db.$client.transaction(() => {
+			for (let index = 0; index < 1001; index++) {
+				createNode(db, `bulk-${index}`, "root", `Bulk ${index}`);
+			}
+		})();
+		expect(loadTreeRows(db, null)).toStrictEqual(loadTreeSearchRows(db, null));
+		expect(peekTreeSnapshotBuild(db)).toBe("full");
 	});
 });

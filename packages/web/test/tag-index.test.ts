@@ -7,9 +7,16 @@ import {join} from "node:path";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import {nodeContent} from "@workflowy/shared/db";
+import {and, eq} from "drizzle-orm";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
-import {mergeFallback, rankTags, wholeTreeTagCounts} from "../src/server/tag-index.js";
+import {
+	mergeFallback,
+	peekWholeTreeTagCountsBuild,
+	rankCounts,
+	rankTags,
+	wholeTreeTagCounts,
+} from "../src/server/tag-index.js";
 import type {TagCount} from "../src/server/tag-index.js";
 import {createTagIndexRouter} from "../src/server/routes/tag-index.js";
 
@@ -216,5 +223,61 @@ describe("wholeTreeTagCounts", () => {
 
 		expect(wholeTreeTagCounts(db)).not.toBe(first);
 		await expect(getTags(app, "prefix=%23taZ")).resolves.toStrictEqual(["#taZebra:5"]);
+	});
+});
+
+describe("wholeTreeTagCounts patches", () => {
+	function liveRows(db: ReturnType<typeof setupDb>) {
+		return db
+			.select({name: nodeContent.name, note: nodeContent.note})
+			.from(nodeContent)
+			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+			.all();
+	}
+
+	function rename(db: ReturnType<typeof setupDb>, id: string, name: string, at: string) {
+		const live = and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE));
+		const current = db.select().from(nodeContent).where(live).get();
+		db.update(nodeContent).set({systemTo: at}).where(live).run();
+		if (current !== undefined && name !== "") {
+			db.insert(nodeContent)
+				.values({...current, name, systemFrom: at, systemTo: FAR_FUTURE_DATE})
+				.run();
+		}
+	}
+
+	it("patches the counts after each write to equal a full recount", () => {
+		const db = setupDb();
+		wholeTreeTagCounts(db);
+		expect(peekWholeTreeTagCountsBuild(db)).toBe("full");
+		const writes: [step: string, write: () => void][] = [
+			[
+				"drop a tag",
+				() => {
+					rename(db, "child-0", "Alpha item", "2026-03-01 00:00:00.001");
+				},
+			],
+			[
+				"add a tag",
+				() => {
+					rename(db, "child-7", "Type here #taNew #taApple", "2026-03-01 00:00:00.002");
+				},
+			],
+			[
+				"delete a tagged item",
+				() => {
+					rename(db, "child-1", "", "2026-03-01 00:00:00.003");
+				},
+			],
+		];
+		const all = {prefix: "#", limit: 100};
+		for (const [step, write] of writes) {
+			write();
+			expect({step, tags: rankCounts(wholeTreeTagCounts(db), all)}).toStrictEqual({
+				step,
+				tags: rankTags(liveRows(db), all),
+			});
+			expect({step, build: peekWholeTreeTagCountsBuild(db)}).toStrictEqual({step, build: "patch"});
+		}
 	});
 });

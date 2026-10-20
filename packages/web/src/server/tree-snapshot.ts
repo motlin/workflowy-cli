@@ -1,13 +1,15 @@
 import {referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
+import type {SQL} from "drizzle-orm";
 import type {MiddlewareHandler} from "hono";
 import type {getDatabase} from "./db.js";
+import {changedNodeIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
 export type Database = ReturnType<typeof getDatabase>;
 
-interface TreeSearchSqlRow {
+interface TreeSqlRow {
 	id: string;
 	parentId: string | null;
 	priority: number | null;
@@ -18,6 +20,10 @@ interface TreeSearchSqlRow {
 	completedAt: number | null;
 	layoutMode: string | null;
 	isMirror: number;
+	/** Distance from the seed rows' depth, so whole-tree rows count from a top-level node at 0. */
+	depth: number;
+	isReferencesRoot: number;
+	underReferencesRoot: number;
 }
 
 /** Epoch seconds as stored by drizzle's timestamp mode, to milliseconds. */
@@ -25,21 +31,45 @@ function toMillis(seconds: number | null): number | null {
 	return seconds === null ? null : seconds * 1000;
 }
 
+function toSearchRow(row: TreeSqlRow): TreeSearchRow {
+	return {
+		id: row.id,
+		parentId: row.parentId,
+		priority: row.priority,
+		name: row.name,
+		note: row.note,
+		createdAt: toMillis(row.createdAt),
+		modifiedAt: toMillis(row.modifiedAt),
+		completedAt: toMillis(row.completedAt),
+		layoutMode: row.layoutMode,
+		isMirror: row.isMirror === 1,
+	};
+}
+
+/** References roots and their backlink items are never search rows, though the tree continues below them. */
+function isSearchable(row: TreeSqlRow): boolean {
+	return row.isReferencesRoot === 0 && row.underReferencesRoot === 0;
+}
+
+const LIVE_REFERENCES_ROOTS = sql`(SELECT node_id FROM ${referencesRoots} WHERE system_to = ${FAR_FUTURE_DATE})`;
+
 /**
- * The live subtree under `rootId` (including the root; every top-level tree when null) for tree search.
- * References roots and their backlink items are skipped. A mirror takes its text from its live original.
+ * The live rows `seeds` (an `(id, depth)` select) names, and with `recursive` every live row below them,
+ * ordered by depth then id. References roots and their children are included, flagged, since live rows
+ * further down are still reachable through them. A mirror takes its text from its live original.
  */
-export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, rootId: string | null): TreeSearchRow[] {
-	const rows = database.all<TreeSearchSqlRow>(sql`
-		WITH RECURSIVE subtree(id) AS (
-			SELECT id FROM node_content
-			WHERE ${rootId === null ? sql`parent_id IS NULL` : sql`id = ${rootId}`}
-			AND system_to = ${FAR_FUTURE_DATE}
+function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): TreeSqlRow[] {
+	const subtree = recursive
+		? sql`WITH RECURSIVE subtree(id, depth) AS (
+			${seeds}
 			UNION ALL
-			SELECT n.id FROM node_content n
+			SELECT n.id, s.depth + 1 FROM node_content n
 			INNER JOIN subtree s ON n.parent_id = s.id
 			WHERE n.system_to = ${FAR_FUTURE_DATE}
-		)
+		)`
+		: sql`WITH subtree(id, depth) AS (${seeds})`;
+	return database.all<TreeSqlRow>(sql`
+		${subtree}
 		SELECT
 			c.id AS id,
 			c.parent_id AS parentId,
@@ -50,34 +80,65 @@ export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, roo
 			m.modified_at AS modifiedAt,
 			m.completed_at AS completedAt,
 			m.layout_mode AS layoutMode,
-			mi.mirror_id IS NOT NULL AS isMirror
+			mi.mirror_id IS NOT NULL AS isMirror,
+			s.depth AS depth,
+			c.id IN ${LIVE_REFERENCES_ROOTS} AS isReferencesRoot,
+			coalesce(c.parent_id IN ${LIVE_REFERENCES_ROOTS}, 0) AS underReferencesRoot
 		FROM subtree s
 		INNER JOIN node_content c ON c.id = s.id AND c.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN node_metadata m ON m.node_id = c.id AND m.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN mirrors mi ON mi.mirror_id = c.id AND mi.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN node_content o ON o.id = mi.original_id AND o.system_to = ${FAR_FUTURE_DATE}
-		WHERE c.id NOT IN (SELECT node_id FROM ${referencesRoots} WHERE system_to = ${FAR_FUTURE_DATE})
-		AND (c.parent_id IS NULL OR c.parent_id NOT IN (SELECT node_id FROM ${referencesRoots} WHERE system_to = ${FAR_FUTURE_DATE}))
+		ORDER BY s.depth, c.id
 	`);
-	return rows.map((row) => ({
-		...row,
-		createdAt: toMillis(row.createdAt),
-		modifiedAt: toMillis(row.modifiedAt),
-		completedAt: toMillis(row.completedAt),
-		isMirror: row.isMirror === 1,
-	}));
+}
+
+const TOP_LEVEL_SEEDS = sql`SELECT id, 0 FROM node_content WHERE parent_id IS NULL AND system_to = ${FAR_FUTURE_DATE}`;
+
+/** `(id, depth)` seeds from a list of pairs. */
+function seedsOf(pairs: [id: string, depth: number][]): SQL {
+	return sql`SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(${JSON.stringify(pairs)})`;
+}
+
+/**
+ * The live subtree under `rootId` (including the root; every top-level tree when null) for tree search,
+ * ordered by depth then id. References roots and their backlink items are skipped. A mirror takes its text
+ * from its live original.
+ */
+export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, rootId: string | null): TreeSearchRow[] {
+	const seeds =
+		rootId === null
+			? TOP_LEVEL_SEEDS
+			: sql`SELECT id, 0 FROM node_content WHERE id = ${rootId} AND system_to = ${FAR_FUTURE_DATE}`;
+	return selectTreeRows(database, seeds, true).filter(isSearchable).map(toSearchRow);
+}
+
+/** Where a live node reachable from a top-level node sits, searchable or not. */
+interface TreeNode {
+	parentId: string | null;
+	depth: number;
+	isReferencesRoot: boolean;
 }
 
 interface TreeSnapshot {
 	dataVersion: string;
 	changes: number;
+	/** The newest system time the snapshot has read, from which the next patch looks for changes. */
+	latest: string;
+	build: "full" | "patch";
+	/** The searchable rows, ordered by depth then id like {@link loadTreeSearchRows}. */
 	rows: TreeSearchRow[];
 	byId: Map<string, TreeSearchRow>;
-	children: Map<string | null, TreeSearchRow[]>;
+	/** Every live node reachable from a top-level node, including references roots and their children. */
+	nodes: Map<string, TreeNode>;
+	childIds: Map<string | null, Set<string>>;
 }
 
 /** How long after the last write the background rebuild waits, so a burst of edits costs one reload. */
 const REBUILD_DEBOUNCE_MS = 500;
+
+/** Above this many changed nodes, a patch would cost about as much as reloading the whole tree. */
+const PATCH_LIMIT = 1000;
 
 const snapshots = new WeakMap<Database, TreeSnapshot>();
 const rebuildTimers = new WeakMap<Database, ReturnType<typeof setTimeout>>();
@@ -117,34 +178,228 @@ const ROW_FIELDS = [
 	"isMirror",
 ] as const satisfies readonly (keyof TreeSearchRow)[];
 
-/** The previous snapshot's object for `row` when every field is unchanged, keeping caches keyed on it warm. */
-function unchangedRow(previous: TreeSnapshot | undefined, row: TreeSearchRow): TreeSearchRow | undefined {
-	const old = previous?.byId.get(row.id);
-	if (old === undefined) {
-		return undefined;
-	}
-	return ROW_FIELDS.every((field) => old[field] === row[field]) ? old : undefined;
+/** `old` when every field of `row` is unchanged, keeping caches keyed on the row object warm. */
+function reuseRow(old: TreeSearchRow | undefined, row: TreeSearchRow): TreeSearchRow {
+	return old !== undefined && ROW_FIELDS.every((field) => old[field] === row[field]) ? old : row;
 }
 
 function isCurrent(snapshot: TreeSnapshot, state: ChangeState): boolean {
 	return snapshot.dataVersion === state.dataVersion && snapshot.changes === state.changes;
 }
 
-function rebuildSnapshot(database: Database, state: ChangeState): TreeSnapshot {
+function addNode(snapshot: TreeSnapshot, row: TreeSqlRow): void {
+	snapshot.nodes.set(row.id, {
+		parentId: row.parentId,
+		depth: row.depth,
+		isReferencesRoot: row.isReferencesRoot === 1,
+	});
+	const siblings = snapshot.childIds.get(row.parentId);
+	if (siblings) {
+		siblings.add(row.id);
+	} else {
+		snapshot.childIds.set(row.parentId, new Set([row.id]));
+	}
+}
+
+function removeNode(snapshot: TreeSnapshot, id: string): void {
+	const node = snapshot.nodes.get(id);
+	if (node === undefined) {
+		return;
+	}
+	snapshot.nodes.delete(id);
+	snapshot.byId.delete(id);
+	const siblings = snapshot.childIds.get(node.parentId);
+	siblings?.delete(id);
+	if (siblings?.size === 0) {
+		snapshot.childIds.delete(node.parentId);
+	}
+}
+
+/** `id` and every node below it in the snapshot. */
+function subtreeIds(snapshot: TreeSnapshot, id: string): string[] {
+	const ids = [id];
+	// The array iterator sees ids pushed during the loop, so this walks the subtree breadth-first.
+	for (const member of ids) {
+		ids.push(...(snapshot.childIds.get(member) ?? []));
+	}
+	return ids;
+}
+
+function fullSnapshot(database: Database, state: ChangeState): TreeSnapshot {
+	const previous = snapshots.get(database);
+	const {latest, tree} = readConsistently(database, () => ({
+		latest: latestSystemTime(database),
+		tree: selectTreeRows(database, TOP_LEVEL_SEEDS, true),
+	}));
+	const snapshot: TreeSnapshot = {
+		...state,
+		latest,
+		build: "full",
+		rows: [],
+		byId: new Map(),
+		nodes: new Map(),
+		childIds: new Map(),
+	};
+	for (const row of tree) {
+		addNode(snapshot, row);
+		if (isSearchable(row)) {
+			const searchRow = reuseRow(previous?.byId.get(row.id), toSearchRow(row));
+			snapshot.rows.push(searchRow);
+			snapshot.byId.set(row.id, searchRow);
+		}
+	}
+	return snapshot;
+}
+
+/** Orders rows by depth, then id, as {@link selectTreeRows} does. */
+function compareRows(snapshot: TreeSnapshot, a: string, b: string): number {
+	const depthA = snapshot.nodes.get(a)?.depth ?? 0;
+	const depthB = snapshot.nodes.get(b)?.depth ?? 0;
+	if (depthA !== depthB) {
+		return depthA - depthB;
+	}
+	if (a === b) {
+		return 0;
+	}
+	return a < b ? -1 : 1;
+}
+
+/** The index of the first row in `rows` ordered at or after `id`. */
+function rowPosition(snapshot: TreeSnapshot, rows: TreeSearchRow[], id: string): number {
+	let low = 0;
+	let high = rows.length;
+	while (low < high) {
+		const middle = (low + high) >>> 1;
+		if (compareRows(snapshot, rows[middle]?.id ?? id, id) < 0) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
+	}
+	return low;
+}
+
+/**
+ * Patch `snapshot` in place with the nodes that changed since it was read, or null when too many did.
+ * A node whose parent, liveness or references-root flag changed is a move: its old subtree leaves the snapshot
+ * and its new one is reloaded. Any other changed node keeps its place, so only its row is replaced.
+ */
+function patchSnapshot(database: Database, snapshot: TreeSnapshot, state: ChangeState): TreeSnapshot | null {
+	return readConsistently(database, () => {
+		const latest = latestSystemTime(database);
+		const changed = changedNodeIds(database, changesSince(snapshot.latest), PATCH_LIMIT);
+		if (changed === undefined) {
+			return null;
+		}
+		const current = new Map(
+			selectTreeRows(database, seedsOf([...changed].map((id) => [id, 0])), false).map((row) => [row.id, row]),
+		);
+		const edited: TreeSqlRow[] = [];
+		const moved: string[] = [];
+		for (const id of changed) {
+			const before = snapshot.nodes.get(id);
+			const after = current.get(id);
+			if (before === undefined && after === undefined) {
+				continue;
+			}
+			if (
+				before !== undefined &&
+				after !== undefined &&
+				before.parentId === after.parentId &&
+				before.isReferencesRoot === (after.isReferencesRoot === 1)
+			) {
+				edited.push(after);
+			} else {
+				moved.push(id);
+			}
+		}
+
+		const removed = new Map<string, TreeSearchRow | undefined>();
+		for (const id of moved) {
+			if (snapshot.nodes.has(id)) {
+				for (const member of subtreeIds(snapshot, id)) {
+					removed.set(member, snapshot.byId.get(member));
+				}
+			}
+		}
+		for (const id of removed.keys()) {
+			removeNode(snapshot, id);
+		}
+
+		const roots: [id: string, depth: number][] = [];
+		for (const id of moved) {
+			const parentId = current.get(id)?.parentId;
+			if (parentId === null) {
+				roots.push([id, 0]);
+			} else if (parentId !== undefined) {
+				const parent = snapshot.nodes.get(parentId);
+				if (parent !== undefined) {
+					roots.push([id, parent.depth + 1]);
+				}
+			}
+		}
+		const added: TreeSearchRow[] = [];
+		for (const row of roots.length > 0 ? selectTreeRows(database, seedsOf(roots), true) : []) {
+			if (snapshot.nodes.has(row.id)) {
+				continue;
+			}
+			addNode(snapshot, row);
+			if (isSearchable(row)) {
+				const searchRow = reuseRow(removed.get(row.id), toSearchRow(row));
+				added.push(searchRow);
+				snapshot.byId.set(row.id, searchRow);
+			}
+		}
+
+		const replacements: TreeSearchRow[] = [];
+		for (const row of edited) {
+			const old = snapshot.byId.get(row.id);
+			const searchRow = old === undefined || removed.has(row.id) ? old : reuseRow(old, toSearchRow(row));
+			if (searchRow !== old && searchRow !== undefined) {
+				replacements.push(searchRow);
+				snapshot.byId.set(row.id, searchRow);
+			}
+		}
+		let rows = snapshot.rows;
+		if (removed.size > 0) {
+			rows = rows.filter((row) => !removed.has(row.id));
+		} else if (replacements.length > 0) {
+			rows = [...rows];
+		}
+		for (const row of replacements) {
+			rows[rowPosition(snapshot, rows, row.id)] = row;
+		}
+		if (added.length > 0) {
+			// `added` is already in row order, so each lands at or after the previous one's position.
+			// Flatten slices rather than spreading them into push(), which overflows the stack on a large slice.
+			const pieces: (TreeSearchRow | TreeSearchRow[])[] = [];
+			let from = 0;
+			for (const row of added) {
+				const to = rowPosition(snapshot, rows, row.id);
+				pieces.push(rows.slice(from, to), row);
+				from = to;
+			}
+			pieces.push(rows.slice(from));
+			rows = pieces.flat();
+		}
+
+		return {
+			...snapshot,
+			...state,
+			latest: latest > snapshot.latest ? latest : snapshot.latest,
+			build: "patch",
+			rows,
+		};
+	});
+}
+
+/** Bring the snapshot up to date: patch it when there is one, else (or when the patch is too big) reload it. */
+function refreshSnapshot(database: Database, state: ChangeState): TreeSnapshot {
 	clearTimeout(rebuildTimers.get(database));
 	rebuildTimers.delete(database);
 	const previous = snapshots.get(database);
-	const rows = loadTreeSearchRows(database, null).map((row) => unchangedRow(previous, row) ?? row);
-	const children = new Map<string | null, TreeSearchRow[]>();
-	for (const row of rows) {
-		const siblings = children.get(row.parentId);
-		if (siblings) {
-			siblings.push(row);
-		} else {
-			children.set(row.parentId, [row]);
-		}
-	}
-	const snapshot = {...state, rows, byId: new Map(rows.map((row) => [row.id, row])), children};
+	const snapshot =
+		(previous === undefined ? null : patchSnapshot(database, previous, state)) ?? fullSnapshot(database, state);
 	snapshots.set(database, snapshot);
 	return snapshot;
 }
@@ -154,13 +409,13 @@ export function warmTreeSnapshot(database: Database): void {
 	const state = changeState(database);
 	const cached = snapshots.get(database);
 	if (cached === undefined || !isCurrent(cached, state)) {
-		rebuildSnapshot(database, state);
+		refreshSnapshot(database, state);
 	}
 }
 
 /**
- * Rebuild the snapshot {@link REBUILD_DEBOUNCE_MS} after the last call, off the request path.
- * `restart: false` keeps an already pending rebuild's deadline, so repeated stale reads cannot postpone it forever.
+ * Refresh the snapshot {@link REBUILD_DEBOUNCE_MS} after the last call, off the request path.
+ * `restart: false` keeps an already pending refresh's deadline, so repeated stale reads cannot postpone it forever.
  */
 export function scheduleTreeSnapshotRebuild(database: Database, {restart = true}: {restart?: boolean} = {}): void {
 	const pending = rebuildTimers.get(database);
@@ -185,8 +440,13 @@ export function peekTreeSnapshotRows(database: Database): TreeSearchRow[] | unde
 	return snapshots.get(database)?.rows;
 }
 
+/** Whether the current snapshot was last reloaded whole or patched, for tests. */
+export function peekTreeSnapshotBuild(database: Database): TreeSnapshot["build"] | undefined {
+	return snapshots.get(database)?.build;
+}
+
 /**
- * Middleware scheduling a background rebuild after every request that wrote through this server,
+ * Middleware scheduling a background refresh after every request that wrote through this server,
  * so the next search usually finds the snapshot already warm.
  */
 export function rebuildTreeSnapshotAfterWrites(getDatabase: () => Database): MiddlewareHandler {
@@ -205,15 +465,15 @@ export function rebuildTreeSnapshotAfterWrites(getDatabase: () => Database): Mid
 }
 
 /**
- * The snapshot a request may read. A write this server made since the snapshot rebuilds it right away
+ * The snapshot a request may read. A write this server made since the snapshot refreshes it right away
  * (read-your-writes for the edited node); a write only from another connection, such as the background cache
- * refresh, serves the previous snapshot while a debounced rebuild runs off the request path.
+ * refresh, serves the previous snapshot while a debounced refresh runs off the request path.
  */
 function wholeTreeSnapshot(database: Database): TreeSnapshot {
 	const state = changeState(database);
 	const cached = snapshots.get(database);
 	if (cached === undefined || cached.changes !== state.changes) {
-		return rebuildSnapshot(database, state);
+		return refreshSnapshot(database, state);
 	}
 	if (cached.dataVersion !== state.dataVersion) {
 		scheduleTreeSnapshotRebuild(database, {restart: false});
@@ -222,10 +482,10 @@ function wholeTreeSnapshot(database: Database): TreeSnapshot {
 }
 
 /**
- * {@link loadTreeSearchRows} served from one whole-tree snapshot per database, reloaded only after a write
+ * {@link loadTreeSearchRows} served from one whole-tree snapshot per database, patched after each write
  * (see {@link wholeTreeSnapshot} for when a request may read the previous one).
- * A subtree is the root plus the snapshot rows reachable from it, in snapshot order; a root outside the snapshot
- * (a references root, or a node cut off from Home) falls back to the SQL subtree query.
+ * A subtree is the root plus the searchable snapshot rows below it, in snapshot order;
+ * a root outside the snapshot (a references root, or a node cut off from Home) falls back to the SQL subtree query.
  */
 export function loadTreeRows(database: Database, rootId: string | null): TreeSearchRow[] {
 	const snapshot = wholeTreeSnapshot(database);
@@ -236,12 +496,7 @@ export function loadTreeRows(database: Database, rootId: string | null): TreeSea
 	if (root === undefined) {
 		return loadTreeSearchRows(database, rootId);
 	}
-	const members = new Set([root]);
-	for (const member of members) {
-		for (const child of snapshot.children.get(member.id) ?? []) {
-			members.add(child);
-		}
-	}
+	const members = new Set(subtreeIds(snapshot, rootId));
 	// Keep the whole-tree row order, which matches the SQL subtree query's (first-seen tag casing depends on it).
-	return snapshot.rows.filter((row) => members.has(row));
+	return snapshot.rows.filter((row) => members.has(row.id));
 }

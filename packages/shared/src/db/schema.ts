@@ -1,5 +1,5 @@
 import type {InferInsertModel, InferSelectModel} from "drizzle-orm";
-import {relations} from "drizzle-orm";
+import {relations, sql} from "drizzle-orm";
 import {blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex} from "drizzle-orm/sqlite-core";
 
 /**
@@ -21,6 +21,11 @@ export const nodeContent = sqliteTable(
 		primaryKey({columns: [table.id, table.systemFrom]}),
 		uniqueIndex("node_content_system_to_idx").on(table.id, table.systemTo),
 		uniqueIndex("node_content_parent_idx").on(table.parentId, table.systemFrom, table.systemTo, table.id),
+		index("node_content_system_from_idx").on(table.systemFrom),
+		// Partial: a full system_to index would win every live-row lookup (system_to = far future).
+		index("node_content_closed_at_idx")
+			.on(table.systemTo)
+			.where(sql`system_to < '9999-12-31 23:59:59'`),
 	],
 );
 
@@ -50,6 +55,11 @@ export const nodeMetadata = sqliteTable(
 		primaryKey({columns: [table.nodeId, table.systemFrom]}),
 		index("node_metadata_system_to_idx").on(table.nodeId, table.systemTo),
 		index("node_metadata_short_id_idx").on(table.shortId, table.systemTo),
+		index("node_metadata_system_from_idx").on(table.systemFrom),
+		// Partial: a full system_to index would win every live-row lookup (system_to = far future).
+		index("node_metadata_closed_at_idx")
+			.on(table.systemTo)
+			.where(sql`system_to < '9999-12-31 23:59:59'`),
 	],
 );
 

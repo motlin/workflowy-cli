@@ -7,7 +7,8 @@ import {stripHtmlTags} from "@workflowy/shared/html";
 import {nodeContent} from "@workflowy/shared/db";
 import {findTags} from "@workflowy/shared/tags";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import {eq} from "drizzle-orm";
+import {and, eq, inArray, sql} from "drizzle-orm";
+import {changedContentIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
 import type {Database} from "./tree-snapshot.js";
 import {changeToken} from "./tree-snapshot.js";
 
@@ -71,10 +72,132 @@ export function swapItemText(counts: TagCounts, saved: TagRow, live: TagRow): Ta
 	return swapped;
 }
 
-const wholeTreeCounts = new WeakMap<Database, {token: string; counts: TagCounts}>();
+/** Above this many changed items, a patch would cost about as much as recounting the whole tree. */
+const PATCH_LIMIT = 1000;
+
+interface TagHolder {
+	/** The item row's rowid: a recount reads rows in rowid order, so the lowest one's casing is first seen. */
+	rowid: number;
+	tag: string;
+}
+
+interface WholeTreeCounts {
+	token: string;
+	/** The newest system time counted, from which the next patch looks for changes. */
+	latest: string;
+	build: "full" | "patch";
+	counts: TagCounts;
+	/** Each counted item's tags (lowercase), so a patch can take them back out. Items without tags are left out. */
+	tagsById: Map<string, string[]>;
+	/** Each tag's items, keyed by lowercase tag then item id, to recompute its count and first-seen casing. */
+	holders: Map<string, Map<string, TagHolder>>;
+}
+
+const wholeTreeCounts = new WeakMap<Database, WholeTreeCounts>();
+
+/** Live items in rowid order, all of them or only `ids`. */
+function liveTagRows(database: Database, ids?: Set<string>) {
+	const live = eq(nodeContent.systemTo, FAR_FUTURE_DATE);
+	const rowid = sql<number>`rowid`;
+	return database
+		.select({rowid, id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
+		.from(nodeContent)
+		.where(ids === undefined ? live : and(live, inArray(nodeContent.id, [...ids])))
+		.orderBy(rowid)
+		.all();
+}
+
+function holdTags(cache: WholeTreeCounts, row: TagRow & {id: string; rowid: number}): Set<string> {
+	const tags = itemTags(row);
+	if (tags.size > 0) {
+		cache.tagsById.set(row.id, [...tags.keys()]);
+	}
+	for (const [lower, tag] of tags) {
+		const holders = cache.holders.get(lower);
+		if (holders) {
+			holders.set(row.id, {rowid: row.rowid, tag});
+		} else {
+			cache.holders.set(lower, new Map([[row.id, {rowid: row.rowid, tag}]]));
+		}
+	}
+	return new Set(tags.keys());
+}
+
+/** Set `lower`'s count and first-seen casing from its holders. */
+function settleTag(cache: WholeTreeCounts, counts: Map<string, TagCount>, lower: string): void {
+	const holders = cache.holders.get(lower);
+	if (holders === undefined || holders.size === 0) {
+		cache.holders.delete(lower);
+		counts.delete(lower);
+		return;
+	}
+	let first: TagHolder | undefined;
+	for (const holder of holders.values()) {
+		if (first === undefined || holder.rowid < first.rowid) {
+			first = holder;
+		}
+	}
+	counts.set(lower, {tag: first?.tag ?? lower, count: holders.size});
+}
+
+function recount(database: Database, token: string): WholeTreeCounts {
+	return readConsistently(database, () => {
+		const counts = new Map<string, TagCount>();
+		const cache: WholeTreeCounts = {
+			token,
+			latest: latestSystemTime(database),
+			build: "full",
+			counts,
+			tagsById: new Map(),
+			holders: new Map(),
+		};
+		for (const row of liveTagRows(database)) {
+			holdTags(cache, row);
+		}
+		for (const lower of cache.holders.keys()) {
+			settleTag(cache, counts, lower);
+		}
+		return cache;
+	});
+}
+
+/** Patch `cached` in place with the items that changed since it was counted, or null when too many did. */
+function patchCounts(database: Database, cached: WholeTreeCounts, token: string): WholeTreeCounts | null {
+	return readConsistently(database, () => {
+		const latest = latestSystemTime(database);
+		const changed = changedContentIds(database, changesSince(cached.latest), PATCH_LIMIT);
+		if (changed === undefined) {
+			return null;
+		}
+		const touched = new Set<string>();
+		for (const id of changed) {
+			for (const lower of cached.tagsById.get(id) ?? []) {
+				cached.holders.get(lower)?.delete(id);
+				touched.add(lower);
+			}
+			cached.tagsById.delete(id);
+		}
+		for (const row of changed.size > 0 ? liveTagRows(database, changed) : []) {
+			for (const lower of holdTags(cached, row)) {
+				touched.add(lower);
+			}
+		}
+		const counts = new Map(cached.counts);
+		for (const lower of touched) {
+			settleTag(cached, counts, lower);
+		}
+		return {
+			...cached,
+			token,
+			latest: latest > cached.latest ? latest : cached.latest,
+			build: "patch",
+			counts,
+		};
+	});
+}
 
 /**
- * The whole live tree's tag counts, recounted only after a write. Autocomplete asks on every
+ * The whole live tree's tag counts, patched with the items changed by each write. Autocomplete asks on every
  * keystroke, and a synchronous whole-tree recount each time queued the editor's saves behind it.
  */
 export function wholeTreeTagCounts(database: Database): TagCounts {
@@ -83,14 +206,14 @@ export function wholeTreeTagCounts(database: Database): TagCounts {
 	if (cached?.token === token) {
 		return cached.counts;
 	}
-	const rows = database
-		.select({name: nodeContent.name, note: nodeContent.note})
-		.from(nodeContent)
-		.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-		.all();
-	const counts = countTags(rows);
-	wholeTreeCounts.set(database, {token, counts});
-	return counts;
+	const next = (cached === undefined ? null : patchCounts(database, cached, token)) ?? recount(database, token);
+	wholeTreeCounts.set(database, next);
+	return next.counts;
+}
+
+/** Whether the cached whole-tree counts were last recounted or patched, for tests. */
+export function peekWholeTreeTagCountsBuild(database: Database): WholeTreeCounts["build"] | undefined {
+	return wholeTreeCounts.get(database)?.build;
 }
 
 function startsWithDigit(tag: string): boolean {
