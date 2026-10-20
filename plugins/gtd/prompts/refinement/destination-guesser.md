@@ -23,7 +23,7 @@ If no child matches, create it under that parent with the substituted name and r
 
 **Journal short-circuit:** A capture shaped `<date> - <past-tense verb> <thing>` ("9/14 - Replaced the furnace filter", "Sep 12 - Met @Alice for lunch") records something that already happened. It is a journal entry, not a task, so it never goes to a Next-Actions bucket, a project, or a reference node. When the text matches this shape, return the day node for that date in the matching journal calendar. The shape alone decides that the destination is a journal day node; the other signals only pick which calendar:
 
-- `Work > 📅 Calendar > 📍 Current` when the tagger signals (project, people, context) say work — day nodes sit under `📍 Current`, and the returned `path` includes it.
+- `Work > 📅 Calendar` when the tagger signals (project, people, context) say work — day nodes sit directly under it, next to its `🗃️ Archive` child.
 - `Personal > 📅 Calendar` otherwise — day nodes sit directly under it.
 - Never the root `📆 Calendar`; that one belongs to the Otter meeting journal.
 
@@ -31,7 +31,7 @@ Resolve the date to the most recent past occurrence when the year is missing, th
 
 ```bash
 # Work
-./bin/run.js node get --path "Work,📅 Calendar,📍 Current" --depth 1 --json --fields name,shortId,children
+./bin/run.js node get --path "Work,📅 Calendar" --depth 1 --json --fields name,shortId,children
 # Personal
 ./bin/run.js node get --path "Personal,📅 Calendar" --depth 1 --json --fields name,shortId,children
 ```

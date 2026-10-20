@@ -185,6 +185,8 @@ Match each Step 6 candidate against both arrays. Normalize both sides first: low
 
 Otter text is misheard, so match on the distinctive nouns rather than the phrasing, and prefer reporting a weak match over reporting none — the user judges it in Step 8.
 
+Only open tasks are matches. A task with a non-null `completedAt` is never an `existingMatch`: filing context under a finished task buries it. The script already drops completed tasks; when you supplement the snapshot with live reads (the `📌` ladder, the Inbox), filter out every node whose `completedAt` is set before matching.
+
 Record on each candidate either `existingMatch: null` or a single best match `{id, name, source: "nextActions" | "projectTasks", projectName}` plus a one-line reason for the match. Never drop a candidate just because it matched.
 
 Before starting Step 8, compare candidates against each other across **all meetings in this run**, using the same normalization and distinctive noun-phrase rules above. Group candidates describing the same action into one merged candidate, even when their source meetings differ. Retain every source meeting's name, link, date, transcript context, reason, and name resolutions; combine distinct details without inventing agreement where the sources conflict. Match the merged candidate against existing tasks as well. A shared person, product, or broad topic alone is not enough to combine different actions. Surface weak matches and conflicting scope or unresolved identities for the user's decision instead of silently collapsing them.
@@ -302,14 +304,14 @@ A finished follow-up is a journal entry, not a task. Write it to the calendar un
 
 - `📆 Calendar` (root level) — the native Workflowy calendar feature, where Otter journals meetings. Never write follow-ups here.
 - `Personal > 📅 Calendar` — the personal journal. Day nodes sit directly under it.
-- `Work > 📅 Calendar` — the work journal. Day nodes sit under its `📍 Current` child.
+- `Work > 📅 Calendar` — the work journal. Day nodes sit directly under it, next to its `🗃️ Archive` child.
 
 Meeting follow-ups are work, so default to `Work > 📅 Calendar`. Use `Personal > 📅 Calendar` only when the meeting itself was clearly personal, and say so in the Step 8 option label.
 
 Find the day node for the meeting date:
 
 ```bash
-./bin/run.js node get --path "Work,📅 Calendar,📍 Current" --depth 1 --json --fields name,shortId,children
+./bin/run.js node get --path "Work,📅 Calendar" --depth 1 --json --fields name,shortId,children
 ```
 
 Match the child whose `<time>` element carries the meeting's `startYear`, `startMonth`, and `startDay`. If no child matches, create the day node — compute the `<time>` element with `date` per `${CLAUDE_PLUGIN_ROOT}/skills/review-date-updates.md`, never hand-type the weekday:
@@ -319,7 +321,7 @@ ISO=<meeting date as YYYY-MM-DD>
 TIME_EL=$(printf '<time startYear="%s" startMonth="%s" startDay="%s">%s</time>' \
   "$(date -j -f %Y-%m-%d "$ISO" +%Y)" "$(date -j -f %Y-%m-%d "$ISO" +%-m)" \
   "$(date -j -f %Y-%m-%d "$ISO" +%-d)" "$(date -j -f %Y-%m-%d "$ISO" '+%a, %b %-d, %Y')")
-./bin/run.js node create --parent-path "Work,📅 Calendar,📍 Current" --name "$TIME_EL"
+./bin/run.js node create --parent-path "Work,📅 Calendar" --name "$TIME_EL"
 ```
 
 Then add the entry under the day node, with the meeting as a provenance child:
