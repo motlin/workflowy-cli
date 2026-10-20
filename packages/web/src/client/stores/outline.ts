@@ -334,8 +334,10 @@ interface OutlineState {
 	itemTypePicker: ItemTypePickerState | null;
 	/** Upstream's inline location picker (WF.InlineSearch), opened by `openLocationPicker`. */
 	locationPicker: LocationPickerState | null;
-	/** In-flight node mutations; the saving overlay shows while it is above zero (see selectIsMutating). */
+	/** In-flight node mutations; the main menu's autosave footer reads "Saving..." while it is above zero (see selectIsMutating). */
 	mutationCount: number;
+	/** When the last in-flight mutation settled (page load until then), for the footer's "Autosaved: <ago>". */
+	lastSavedAt: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
 	nav: NavState;
 	/** The committed search from the URL's `?q=` (null when absent); the hash route keeps it in sync. */
@@ -625,6 +627,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	itemTypePicker: null,
 	locationPicker: null,
 	mutationCount: 0,
+	lastSavedAt: Date.now(),
 	nav: initialNavState,
 	urlSearchQuery: null,
 
@@ -1173,7 +1176,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	endMutation: () => {
-		set((state) => ({mutationCount: Math.max(0, state.mutationCount - 1)}));
+		set((state) => {
+			const mutationCount = Math.max(0, state.mutationCount - 1);
+			return mutationCount === 0 ? {mutationCount, lastSavedAt: Date.now()} : {mutationCount};
+		});
 	},
 }));
 

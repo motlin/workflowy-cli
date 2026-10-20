@@ -5,14 +5,3 @@ export function LoadingSpinner({size = "medium"}: {size?: "small" | "medium" | "
 		</div>
 	);
 }
-
-export function LoadingOverlay({message}: {message?: string}) {
-	return (
-		<div className="loading-overlay">
-			<div className="loading-overlay-content">
-				<LoadingSpinner size="large" />
-				{message && <p className="loading-overlay-message">{message}</p>}
-			</div>
-		</div>
-	);
-}

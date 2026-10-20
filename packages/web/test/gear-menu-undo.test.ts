@@ -3,8 +3,10 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 
 vi.mock("../src/client/stores/outline.js", () => ({
-	useOutlineStore: (selector: (state: {openExportDialog: () => void}) => unknown) =>
-		selector({openExportDialog: () => {}}),
+	useOutlineStore: (
+		selector: (state: {openExportDialog: () => void; mutationCount: number; lastSavedAt: number}) => unknown,
+	) => selector({openExportDialog: () => {}, mutationCount: 0, lastSavedAt: 0}),
+	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
 }));
 
 /** renderToStaticMarkup reads zustand's initial state, so the seeded stack state comes through a mock. */
@@ -64,9 +66,10 @@ describe("GearMenu undo/redo rows", () => {
 
 	it("has no Save row", () => {
 		const html = render();
-		expect({save: row(html, "Save"), autosaved: html.includes("Autosaved")}).toStrictEqual({
+		// "Autosaved" belongs to the status footer only, never a Save row's subtitle.
+		expect({save: row(html, "Save"), autosavedSubtitle: html.includes('subtitle">Autosaved')}).toStrictEqual({
 			save: undefined,
-			autosaved: false,
+			autosavedSubtitle: false,
 		});
 	});
 });

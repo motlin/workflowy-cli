@@ -1,6 +1,8 @@
-import {useEffect, useRef} from "react";
-import {useOutlineStore} from "../stores/outline.js";
+import {useEffect, useRef, useState} from "react";
+import {selectIsMutating, useOutlineStore} from "../stores/outline.js";
+import {autosaveText} from "../time-ago.js";
 import {useUndoStore} from "../undo-history.js";
+import {LoadingSpinner} from "./loading-spinner.js";
 
 /** A compacted header action prepended to the menu under 701px, like upstream's `more-menu.menu.header.*`. */
 export interface GearMenuHeaderItem {
@@ -62,6 +64,20 @@ function MenuItem({
 
 function MenuDivider() {
 	return <div className="gear-menu-divider" />;
+}
+
+/** Upstream's `status.autosave` footer (KY): the only save-state UI, so writes never block the outline. */
+function AutosaveStatus() {
+	const saving = useOutlineStore(selectIsMutating);
+	const lastSavedAt = useOutlineStore((state) => state.lastSavedAt);
+	// The footer mounts with the open menu, so its age is measured from when the menu opened.
+	const [openedAt] = useState(() => Date.now());
+	return (
+		<div className="gear-menu-autosave">
+			{saving && <LoadingSpinner size="small" />}
+			{autosaveText({saving, lastSavedAt, now: Math.max(openedAt, lastSavedAt)})}
+		</div>
+	);
 }
 
 // Icon components
@@ -314,6 +330,10 @@ export function GearMenu({
 				<MenuDivider />
 
 				<MenuItem icon={<LogoutIcon />} label="Log out" subtitle="user@example.com" />
+
+				<MenuDivider />
+
+				<AutosaveStatus />
 			</div>
 		</div>
 	);

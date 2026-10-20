@@ -3,8 +3,10 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 
 vi.mock("../src/client/stores/outline.js", () => ({
-	useOutlineStore: (selector: (state: {openExportDialog: () => void}) => unknown) =>
-		selector({openExportDialog: () => {}}),
+	useOutlineStore: (
+		selector: (state: {openExportDialog: () => void; mutationCount: number; lastSavedAt: number}) => unknown,
+	) => selector({openExportDialog: () => {}, mutationCount: 0, lastSavedAt: 0}),
+	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
 }));
 
 const {GearMenu} = await import("../src/client/components/gear-menu.js");

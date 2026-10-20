@@ -14,7 +14,6 @@ import {LadderView} from "./components/ladder-view.js";
 import {LeftBar} from "./components/left-sidebar.js";
 import {LinkInsertModal} from "./components/link-insert-modal.js";
 import {LocationPickerHost} from "./components/location-picker-host.js";
-import {LoadingOverlay} from "./components/loading-spinner.js";
 import {OfflineBanner} from "./components/offline-banner.js";
 import {OutlineTree} from "./components/outline-tree.js";
 import {PresentationMode} from "./components/presentation-mode.js";
@@ -36,7 +35,7 @@ import {nodeUrl, resolveZoomTarget} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
 import {readJson} from "./read-json.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
-import {selectIsMutating, useOutlineStore} from "./stores/outline.js";
+import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
 import "./wf-tailwind.css";
 import "./styles.css";
@@ -90,7 +89,6 @@ const queryClient = new QueryClient({
 
 function OutlineView() {
 	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery} = useOutlineStore();
-	const isMutating = useOutlineStore(selectIsMutating);
 
 	// Register keyboard shortcuts
 	const commands = useCommandRegistry();
@@ -126,7 +124,6 @@ function OutlineView() {
 			<PresentationMode />
 			<ErrorNotifications />
 			<AppMessages />
-			{isMutating && <LoadingOverlay message="Saving changes..." />}
 		</div>
 	);
 }

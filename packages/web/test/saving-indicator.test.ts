@@ -1,0 +1,53 @@
+import {readFileSync} from "node:fs";
+import {createElement} from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import {describe, expect, it, vi} from "vite-plus/test";
+
+/** Upstream never blocks input while saving; its only save state is the main menu's autosave footer (KY). */
+
+const outlineState = {openExportDialog: () => {}, mutationCount: 0, lastSavedAt: 0};
+vi.mock("../src/client/stores/outline.js", () => ({
+	useOutlineStore: (selector: (state: typeof outlineState) => unknown) => selector(outlineState),
+	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
+}));
+
+const {GearMenu} = await import("../src/client/components/gear-menu.js");
+
+function autosaveFooter(mutationCount: number): string | undefined {
+	Object.assign(outlineState, {mutationCount, lastSavedAt: Date.now()});
+	const html = renderToStaticMarkup(
+		createElement(GearMenu, {
+			isOpen: true,
+			onClose: () => {},
+			onOpenSettings: () => {},
+			onExpandAll: () => {},
+			onCollapseAll: () => {},
+			onUndo: () => {},
+			onRedo: () => {},
+		}),
+	);
+	// The footer is the menu's last row, so it runs up to the closing scroller and menu divs.
+	const start = html.indexOf('<div class="gear-menu-autosave">');
+	return start === -1 ? undefined : html.slice(start, -"</div></div>".length);
+}
+
+describe("saving indicator", () => {
+	it("has no full-screen overlay that could swallow clicks", () => {
+		const app = readFileSync(new URL("../src/client/app.tsx", import.meta.url), "utf8");
+		const styles = readFileSync(new URL("../src/client/styles.css", import.meta.url), "utf8");
+		expect({
+			appOverlay: app.includes("LoadingOverlay") || app.includes("Saving changes..."),
+			overlayCss: styles.includes(".loading-overlay"),
+		}).toStrictEqual({appOverlay: false, overlayCss: false});
+	});
+
+	it("shows a spinner and Saving... in the main menu footer while writes are in flight", () => {
+		expect(autosaveFooter(2)).toBe(
+			'<div class="gear-menu-autosave"><div class="loading-spinner loading-spinner-small"><div class="loading-spinner-circle"></div></div>Saving...</div>',
+		);
+	});
+
+	it("shows Autosaved: Just now once writes settle", () => {
+		expect(autosaveFooter(0)).toBe('<div class="gear-menu-autosave">Autosaved: Just now</div>');
+	});
+});

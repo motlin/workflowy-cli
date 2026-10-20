@@ -31,6 +31,20 @@ describe("the saving overlay counts in-flight mutations", () => {
 		});
 	});
 
+	it("stamps lastSavedAt only when the last overlapping mutation settles", () => {
+		useOutlineStore.setState({lastSavedAt: 0});
+		vi.spyOn(Date, "now").mockReturnValue(5000);
+		const {beginMutation, endMutation} = useOutlineStore.getState();
+		beginMutation();
+		beginMutation();
+		endMutation();
+		const oneLeft = useOutlineStore.getState().lastSavedAt;
+		endMutation();
+		const allSettled = useOutlineStore.getState().lastSavedAt;
+		vi.restoreAllMocks();
+		expect({oneLeft, allSettled}).toStrictEqual({oneLeft: 0, allSettled: 5000});
+	});
+
 	it("never counts below zero on an extra end", () => {
 		useOutlineStore.getState().endMutation();
 		expect(mutationState()).toStrictEqual({mutationCount: 0, isMutating: false});
