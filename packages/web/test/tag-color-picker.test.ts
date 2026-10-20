@@ -8,12 +8,20 @@ vi.mock(import("react-dom"), async (importOriginal) => ({
 	createPortal: (node: ReactNode): ReactPortal => node as ReactPortal,
 }));
 vi.stubGlobal("document", {body: {}});
+const closeHooks = vi.hoisted(() => [] as (() => void)[]);
+vi.mock(import("../src/client/hooks/use-close-on-location-change.js"), () => ({
+	useCloseOnLocationChange: (close: () => void) => {
+		closeHooks.push(close);
+	},
+}));
 
 const {TagColorPicker, swatchClick} = await import("../src/client/components/tag-color-picker.js");
 
-function render(currentColor?: string): string {
+const noop = () => {};
+
+function render(currentColor?: string, onClose: () => void = noop): string {
 	return renderToStaticMarkup(
-		createElement(TagColorPicker, {currentColor, left: 148, top: 165, onSelect: () => {}, onRemove: () => {}}),
+		createElement(TagColorPicker, {currentColor, left: 148, top: 165, onSelect: noop, onRemove: noop, onClose}),
 	);
 }
 
@@ -85,6 +93,15 @@ describe("TagColorPicker", () => {
 			"pointer-events:auto;z-index:300;max-width:384px;margin-top:4px;position:fixed;left:148px;top:165px",
 			"w-full mobile:overflow-x-auto scrollbar-hide [&amp;::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
 		]);
+	});
+});
+
+describe("TagColorPicker location change", () => {
+	it("closes through onClose when the location changes, as upstream's flyout does", () => {
+		closeHooks.length = 0;
+		const onClose = () => {};
+		render("green", onClose);
+		expect(closeHooks).toStrictEqual([onClose]);
 	});
 });
 

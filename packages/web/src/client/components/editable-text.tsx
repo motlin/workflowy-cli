@@ -1178,6 +1178,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		setColorPicker(null);
 	}, [colorPicker, removeTagColorMutation]);
 
+	const closeColorPicker = useCallback(() => {
+		setColorPicker(null);
+	}, []);
+
 	// Close the open picker on a click/escape outside of it.
 	useEffect(() => {
 		if (!colorPicker) {
@@ -1244,6 +1248,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					<TagColorPicker
 						currentColor={tagColors[colorPicker.tag.toLowerCase()]}
 						left={colorPicker.left}
+						onClose={closeColorPicker}
 						onRemove={clearTagColor}
 						onSelect={applyTagColor}
 						top={colorPicker.top}

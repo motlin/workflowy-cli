@@ -1,5 +1,6 @@
 import {createPortal} from "react-dom";
 import {TAG_COLORS} from "../../tag-colors.js";
+import {useCloseOnLocationChange} from "../hooks/use-close-on-location-change.js";
 import type {TagColorName} from "../../tag-colors.js";
 import {FaIcon} from "./fa-icons.js";
 import {POPUP_Z, popoverBox} from "./flyout/popover-box.js";
@@ -24,6 +25,8 @@ interface TagColorPickerProps {
 	currentColor?: string;
 	onSelect: (color: TagColorName) => void;
 	onRemove: () => void;
+	/** Upstream closes the flyout when the location changes. */
+	onClose: () => void;
 }
 
 /** Clicking the already-selected color removes it (upstream sends -1); any other swatch picks its color. */
@@ -44,7 +47,8 @@ function capitalize(color: string): string {
 	return color.slice(0, 1).toUpperCase() + color.slice(1);
 }
 
-export function TagColorPicker({top, left, currentColor, onSelect, onRemove}: TagColorPickerProps) {
+export function TagColorPicker({top, left, currentColor, onSelect, onRemove, onClose}: TagColorPickerProps) {
+	useCloseOnLocationChange(onClose);
 	const box = popoverBox({maxWidth: MAX_WIDTH});
 	const surface = box.className.replaceAll(/\s+/gu, " ");
 	return createPortal(
