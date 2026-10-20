@@ -31,7 +31,7 @@ import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {installWindowBlurredClass} from "./window-blurred.js";
 import {locationUrl, parseLocationHash} from "./location.js";
-import {nodeUrl, resolveZoomTarget} from "./navigation.js";
+import {nodeUrl, resolveZoomTarget, useEmptyDayCleanup} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
 import {readJson} from "./read-json.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
@@ -160,6 +160,7 @@ function HashLocationRoute() {
 	const unknown = resolved.data === null;
 	const target = resolveZoomTarget(id, () => resolved.data ?? null);
 	const currentUrl = location.pathname + location.hash;
+	useEmptyDayCleanup();
 
 	useEffect(() => {
 		if (unknown) {

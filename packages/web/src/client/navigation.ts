@@ -1,7 +1,11 @@
 import {isShortId} from "@workflowy/shared/workflowy";
-import {useEffect} from "react";
+import {useQueryClient} from "@tanstack/react-query";
+import {useEffect, useRef} from "react";
 import {NavigationType, useLocation, useNavigate, useNavigationType} from "react-router-dom";
+import type {NodeResponse} from "../node-types.js";
+import {useDeleteNode} from "./hooks/use-nodes.js";
 import {locationUrl, shortId} from "./location.js";
+import {readChildren, readNode} from "./node-cache.js";
 import {locFromHash} from "./nav-stack.js";
 import {useOutlineStore} from "./stores/outline.js";
 import type {NavigateFn} from "./stores/outline.js";
@@ -129,6 +133,52 @@ export function stepNav(navigate: NavigateFn, direction: "back" | "forward"): vo
 export function syncNavLocation(hash: string, isPop: boolean): void {
 	const loc = locFromHash(hash);
 	useOutlineStore.getState().dispatchNav(isPop ? {type: "popstate", loc} : {type: "navigate", loc});
+}
+
+export interface EmptyDayCleanupDeps {
+	getNode: (id: string) => NodeResponse | undefined;
+	getChildren: (id: string) => readonly NodeResponse[] | undefined;
+	deleteNode: (id: string) => unknown;
+}
+
+/**
+ * Upstream `ZX4` (`location.change.before`): leaving a 📆 Calendar day page for a
+ * node not inside it deletes the day's child when it is the only one and is
+ * empty (no name, note or children) and writable, so a visited-and-left day keeps
+ * no blank row. A childless lone child means the day's only descendant is that
+ * child, so "not inside" is "not the day and not the child".
+ */
+export function cleanupEmptyDayOnLeave(fromId: string | null, toId: string | null, deps: EmptyDayCleanupDeps): void {
+	if (fromId === null || fromId === toId || deps.getNode(fromId)?.calendar?.level !== "day") {
+		return;
+	}
+	const children = deps.getChildren(fromId);
+	const child = children?.length === 1 ? children[0] : undefined;
+	if (child === undefined) {
+		return;
+	}
+	const empty = (child.name ?? "") === "" && (child.note ?? "") === "" && child.hasChildren !== true;
+	if (empty && child.isMirror !== true && child.id !== toId) {
+		deps.deleteNode(child.id);
+	}
+}
+
+/** Run the empty-day cleanup whenever the zoomed node changes. Mount once (the outline route owns it). */
+export function useEmptyDayCleanup(): void {
+	const queryClient = useQueryClient();
+	const {mutate: deleteNode} = useDeleteNode();
+	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
+	const previous = useRef(zoomedNodeId);
+
+	useEffect(() => {
+		const fromId = previous.current;
+		previous.current = zoomedNodeId;
+		cleanupEmptyDayOnLeave(fromId, zoomedNodeId, {
+			getNode: (id) => readNode(queryClient, id),
+			getChildren: (id) => readChildren(queryClient, id),
+			deleteNode,
+		});
+	}, [deleteNode, queryClient, zoomedNodeId]);
 }
 
 /** Keep the in-app stacks in step with the outline route's URL. Mount once (the top bar owns it). */
