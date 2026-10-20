@@ -1,6 +1,7 @@
 import {useImperativeHandle, useLayoutEffect, useRef, useState} from "react";
 import type {CSSProperties, ReactNode, Ref} from "react";
 import {createPortal} from "react-dom";
+import {claimEscape} from "../../menu-escape.js";
 import {createButtonMenuController} from "./button-menu-controller.js";
 import {MenuBody} from "./menu.js";
 import {placePopper} from "./place-popper.js";
@@ -195,9 +196,13 @@ export function ButtonMenu({
 				}
 			}}
 			onKeyDown={(event) => {
-				if (event.key === "Escape" && controller.escape() === "blur") {
+				claimEscape(event, () => {
+					if (controller.escape() !== "blur") {
+						return false;
+					}
 					triggerRef.current?.blur();
-				}
+					return true;
+				});
 			}}
 		>
 			<div ref={referenceRef}>{button}</div>

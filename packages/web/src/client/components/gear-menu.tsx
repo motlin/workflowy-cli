@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react";
 import {selectIsMutating, useOutlineStore} from "../stores/outline.js";
+import {closeOnEscape} from "../menu-escape.js";
 import {autosaveText} from "../time-ago.js";
 import {useUndoStore} from "../undo-history.js";
 import {LoadingSpinner} from "./loading-spinner.js";
@@ -227,11 +228,7 @@ export function GearMenu({
 			}
 		}
 
-		function handleEscape(event: KeyboardEvent) {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		}
+		const handleEscape = closeOnEscape(onClose);
 
 		if (isOpen) {
 			document.addEventListener("mousedown", handleClickOutside);

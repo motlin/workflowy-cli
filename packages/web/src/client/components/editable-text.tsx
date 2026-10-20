@@ -33,6 +33,7 @@ import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
 import type {TagColors} from "../hooks/use-tag-colors.js";
+import {closeOnEscape} from "../menu-escape.js";
 import {TagColorPicker} from "./tag-color-picker.js";
 import {FaIcon} from "./fa-icons.js";
 import {
@@ -1199,11 +1200,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				setColorPicker(null);
 			}
 		};
-		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				setColorPicker(null);
-			}
-		};
+		const onKey = closeOnEscape(() => {
+			setColorPicker(null);
+		});
 		document.addEventListener("pointerdown", onPointerDown);
 		document.addEventListener("keydown", onKey);
 		return () => {

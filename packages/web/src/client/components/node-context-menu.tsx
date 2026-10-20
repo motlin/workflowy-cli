@@ -7,6 +7,7 @@ import {readJson} from "../read-json.js";
 import {buildItemMenu, hasFooter, localItemMenuContext} from "../item-menu-model.js";
 import type {ItemMenuKey} from "../item-menu-model.js";
 import {formatMenuTimestamp} from "../menu-timestamp.js";
+import {closeOnEscape} from "../menu-escape.js";
 import {pickerItemTypes} from "../item-type-select.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {hasDates} from "../date-pills.js";
@@ -53,11 +54,7 @@ function MirrorsModal({data, onClose}: {data: MirrorsResponse; onClose: () => vo
 				onClose();
 			}
 		}
-		function handleEscape(event: KeyboardEvent) {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		}
+		const handleEscape = closeOnEscape(onClose);
 		document.addEventListener("mousedown", handleClickOutside);
 		document.addEventListener("keydown", handleEscape);
 		return () => {
