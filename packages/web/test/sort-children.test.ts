@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {planSortMove, runSortChildren, sortChildNames} from "../src/client/sort-children.js";
-import type {SortMoveRequest, SortToast, SortableChild} from "../src/client/sort-children.js";
+import type {SortToast, SortableChild} from "../src/client/sort-children.js";
 
 const DATE_A = '<time startYear="2026" startMonth="3" startDay="5">Mar 5</time> later';
 const DATE_B = '<time startYear="2025" startMonth="12" startDay="1">Dec 1</time> earlier';
@@ -61,42 +61,65 @@ describe("planSortMove", () => {
 
 describe("runSortChildren", () => {
 	function run(direction: "asc" | "desc", children: SortableChild[]) {
-		const moves: SortMoveRequest[] = [];
+		const log: string[] = [];
 		const toasts: SortToast[] = [];
 		runSortChildren({
 			parentId: "p",
 			children,
 			direction,
 			moveNodes: (request) => {
-				moves.push(request);
+				log.push(`move ${request.ids.join(",")} ${request.parent_id} ${request.index}`);
 			},
 			showToast: (toast) => {
 				toasts.push(toast);
 			},
+			undo: () => {
+				log.push("undo");
+			},
 		});
-		return {moves, toasts};
+		return {log, toasts};
 	}
 
-	it("issues one block move and a toast whose Undo moves the previous order back", () => {
-		const {moves, toasts} = run("asc", [child("b", "b"), child("a", "a")]);
-		expect(moves).toStrictEqual([{ids: ["a", "b"], parent_id: "p", index: 0}]);
+	it("issues one block move and a toast whose Undo pops the undo stack, as upstream's WF.Undo.undo", () => {
+		const {log, toasts} = run("asc", [child("b", "b"), child("a", "a")]);
 		expect(toasts.map(({text, timeout, undoLabel}) => ({text, timeout, undoLabel}))).toStrictEqual([
 			{text: "Sorted A-Z", timeout: 5000, undoLabel: "Undo"},
 		]);
 		toasts[0]?.undo();
-		expect(moves).toStrictEqual([
-			{ids: ["a", "b"], parent_id: "p", index: 0},
-			{ids: ["b", "a"], parent_id: "p", index: 0},
-		]);
+		expect(log).toStrictEqual(["move a,b p 0", "undo"]);
+	});
+
+	it("Undo while the sort move is still in flight pops the undo stack instead of racing it with a move back", () => {
+		const log: string[] = [];
+		const toasts: SortToast[] = [];
+		const sent = runSortChildren({
+			parentId: "p",
+			children: [child("b", "b"), child("a", "a")],
+			direction: "asc",
+			moveNodes: async (request) => {
+				log.push(`move ${request.ids.join(",")} pending`);
+				return new Promise<void>(() => {});
+			},
+			showToast: (toast) => {
+				toasts.push(toast);
+			},
+			undo: () => {
+				log.push("undo");
+			},
+		});
+		toasts[0]?.undo();
+		expect({log, sent: sent instanceof Promise}).toStrictEqual({log: ["move a,b pending", "undo"], sent: true});
 	});
 
 	it("labels the Z-A toast", () => {
-		const {moves, toasts} = run("desc", [child("a", "a"), child("b", "b")]);
-		expect(moves).toStrictEqual([{ids: ["b", "a"], parent_id: "p", index: 0}]);
-		expect(toasts.map((toast) => toast.text)).toStrictEqual(["Sorted Z-A"]);
+		const {log, toasts} = run("desc", [child("a", "a"), child("b", "b")]);
+		expect({log, texts: toasts.map((toast) => toast.text)}).toStrictEqual({
+			log: ["move b,a p 0"],
+			texts: ["Sorted Z-A"],
+		});
 	});
 
 	it("does nothing when already sorted", () => {
-		expect(run("asc", [child("a", "a"), child("b", "b")])).toStrictEqual({moves: [], toasts: []});
+		expect(run("asc", [child("a", "a"), child("b", "b")])).toStrictEqual({log: [], toasts: []});
 	});
 });

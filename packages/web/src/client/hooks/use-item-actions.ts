@@ -6,7 +6,8 @@ import {runSortChildren} from "../sort-children.js";
 import type {SortDirection} from "../sort-children.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
-import {fetchChildren, useMoveNodes} from "./use-nodes.js";
+import {activeCommandRegistry} from "./use-global-keymap.js";
+import {fetchChildren, sendBlockMoves, useMoveNodes} from "./use-nodes.js";
 
 /** Upstream `copy_link`: copy the item's internal link and confirm with a brief toast. */
 export function useCopyLink(): (nodeId: string) => Promise<void> {
@@ -20,10 +21,10 @@ export function useCopyLink(): (nodeId: string) => Promise<void> {
 	);
 }
 
-/** Upstream `sort_children_asc` / `sort_children_desc`: sort the item's children in one undo step, with an undo toast. */
+/** Upstream `sort_children_asc` / `sort_children_desc`: sort the item's children in one undo step, with a toast whose Undo pops the undo stack. */
 export function useSortChildren(): (nodeId: string, direction: SortDirection) => Promise<void> {
 	const queryClient = useQueryClient();
-	const moveNodes = useMoveNodes();
+	const {mutate: moveNodes} = useMoveNodes();
 	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
 	return useCallback(
 		async (nodeId, direction) => {
@@ -32,29 +33,21 @@ export function useSortChildren(): (nodeId: string, direction: SortDirection) =>
 				queryFn: async () => fetchChildren(nodeId),
 				staleTime: "static",
 			});
-			await runInUndoBatch(captureOutlineView, () => {
+			await runInUndoBatch(captureOutlineView, async () =>
 				runSortChildren({
 					parentId: nodeId,
 					children: children.map((child) => ({id: child.id, name: child.name ?? "", movable: true})),
 					direction,
-					moveNodes: (request) => {
-						moveNodes.mutate(request);
-					},
+					moveNodes: async ({ids, parent_id: parentId, index}) =>
+						sendBlockMoves([{ids, parentId, index}], moveNodes),
 					showToast: ({text, timeout, undoLabel, undo}) => {
-						showAppMessage(text, {
-							timeout,
-							actions: [
-								{
-									label: undoLabel,
-									run: () => {
-										void runInUndoBatch(captureOutlineView, undo);
-									},
-								},
-							],
-						});
+						showAppMessage(text, {timeout, actions: [{label: undoLabel, run: undo}]});
 					},
-				});
-			});
+					undo: () => {
+						activeCommandRegistry().undo?.execute({items: [], zoomedId: null});
+					},
+				}),
+			);
 		},
 		[queryClient, moveNodes, showAppMessage],
 	);

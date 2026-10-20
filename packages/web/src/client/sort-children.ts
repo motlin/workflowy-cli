@@ -113,34 +113,30 @@ export interface SortToast {
 const SORT_TOAST_TEXT: Record<SortDirection, string> = {asc: "Sorted A-Z", desc: "Sorted Z-A"};
 
 /**
- * Upstream Sort A-Z / Z-A: one block move of the sorted children, then a 5s toast whose Undo
- * moves the movable children back, in their previous order, as one block at index 0.
+ * Upstream Sort A-Z / Z-A: one block move of the sorted children, then a 5s toast whose Undo pops the undo stack
+ * (upstream `WF.Undo.undo`, which waits for the move to land). Returns what `moveNodes` returned (the in-flight move).
  */
-export function runSortChildren({
+export function runSortChildren<T>({
 	parentId,
 	children,
 	direction,
 	moveNodes,
 	showToast,
+	undo,
 }: {
 	parentId: string;
 	children: readonly SortableChild[];
 	direction: SortDirection;
-	moveNodes: (request: SortMoveRequest) => void;
+	moveNodes: (request: SortMoveRequest) => T;
 	showToast: (toast: SortToast) => void;
-}): void {
+	/** Pops the undo stack (the toast's Undo). */
+	undo: () => void;
+}): T | undefined {
 	const plan = planSortMove(children, direction);
 	if (plan === null) {
-		return;
+		return undefined;
 	}
-	const previous = children.filter((child) => child.movable).map((child) => child.id);
-	moveNodes({ids: plan.ids, parent_id: parentId, index: 0});
-	showToast({
-		text: SORT_TOAST_TEXT[direction],
-		timeout: 5000,
-		undoLabel: "Undo",
-		undo: () => {
-			moveNodes({ids: previous, parent_id: parentId, index: 0});
-		},
-	});
+	const sent = moveNodes({ids: plan.ids, parent_id: parentId, index: 0});
+	showToast({text: SORT_TOAST_TEXT[direction], timeout: 5000, undoLabel: "Undo", undo});
+	return sent;
 }
