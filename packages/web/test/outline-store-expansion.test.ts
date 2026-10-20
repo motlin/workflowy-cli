@@ -121,3 +121,92 @@ describe("loadExpansion", () => {
 		});
 	});
 });
+
+describe("refreshExpansion", () => {
+	const GET = {url: "/api/v1/expansion", method: undefined, body: undefined};
+
+	async function loaded(ids: string[]) {
+		const modules = await loadModules();
+		const {refreshExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ids})));
+		await modules.loadExpansion(0);
+		fetchMock.mockClear();
+		return {...modules, refreshExpansion};
+	}
+
+	function serve(ids: string[]): void {
+		fetchMock.mockImplementation(async () => Promise.resolve(Response.json({expandedIds: ids})));
+	}
+
+	it("applies server-side changes without PATCHing them back", async () => {
+		const {store, refreshExpansion} = await loaded(["a", "b"]);
+		serve(["b", "c"]);
+		await refreshExpansion(30_000);
+		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
+			expandedIds: new Set(["b", "c"]),
+			calls: [GET],
+		});
+	});
+
+	it("keeps the same set instance when nothing changed", async () => {
+		const {store, refreshExpansion} = await loaded(["a"]);
+		const before = store.getState().expandedIds;
+		await refreshExpansion(30_000);
+		expect({same: store.getState().expandedIds === before, calls: calls()}).toStrictEqual({
+			same: true,
+			calls: [GET],
+		});
+	});
+
+	it("fetches at most once per 30s, counting the initial load", async () => {
+		const {refreshExpansion} = await loaded(["a"]);
+		await refreshExpansion(29_999);
+		await refreshExpansion(30_000);
+		await refreshExpansion(59_999);
+		await refreshExpansion(60_000);
+		expect(calls()).toStrictEqual([GET, GET]);
+	});
+
+	it("discards a response when a local change happened while it was in flight", async () => {
+		const {store, refreshExpansion} = await loaded(["a"]);
+		let resolve: (response: Response) => void = () => {};
+		fetchMock.mockImplementationOnce(
+			async () =>
+				new Promise<Response>((r) => {
+					resolve = r;
+				}),
+		);
+		const refreshing = refreshExpansion(30_000);
+		store.getState().expand("z");
+		resolve(Response.json({expandedIds: []}));
+		await refreshing;
+		expect(store.getState().expandedIds).toStrictEqual(new Set(["a", "z"]));
+	});
+
+	it("skips the fetch shortly after a local change the server may not have pushed yet", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(28_000);
+		const {store, refreshExpansion} = await loaded(["a"]);
+		store.getState().expand("z");
+		fetchMock.mockClear();
+		await refreshExpansion(30_000);
+		vi.restoreAllMocks();
+		expect({expandedIds: store.getState().expandedIds, calls: calls()}).toStrictEqual({
+			expandedIds: new Set(["a", "z"]),
+			calls: [],
+		});
+	});
+
+	it("does nothing once expansion persistence is disabled", async () => {
+		const {refreshExpansion} = await loadModules().then(async (m) => ({
+			...m,
+			...(await import("../src/client/hooks/use-expansion-sync.js")),
+		}));
+		fetchMock.mockImplementation(async () =>
+			Promise.resolve(Response.json({error: "not configured"}, {status: 503})),
+		);
+		await refreshExpansion(0);
+		fetchMock.mockClear();
+		await refreshExpansion(60_000);
+		expect(calls()).toStrictEqual([]);
+	});
+});

@@ -502,6 +502,17 @@ export function disableExpansionPersistence(): void {
 	expansionPersisted = false;
 }
 
+export function isExpansionPersisted(): boolean {
+	return expansionPersisted;
+}
+
+/** How many local expansion changes have been committed, and when the latest was (ms epoch). */
+let localExpansionChanges = {count: 0, at: Number.NEGATIVE_INFINITY};
+
+export function localExpansionChangeState(): {count: number; at: number} {
+	return localExpansionChanges;
+}
+
 /** `{[id]: boolean}` for every id whose expansion differs between `previous` and `next`. */
 function expansionDelta(previous: ReadonlySet<string>, next: ReadonlySet<string>): Record<string, boolean> {
 	const changes: Record<string, boolean> = {};
@@ -543,6 +554,7 @@ function commitExpanded(next: Set<string>): void {
 		return;
 	}
 	useOutlineStore.setState({expandedIds: next});
+	localExpansionChanges = {count: localExpansionChanges.count + 1, at: Date.now()};
 	if (expansionPersisted) {
 		void patchExpansion(changes);
 	}
