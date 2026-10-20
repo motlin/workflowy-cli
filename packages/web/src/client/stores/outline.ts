@@ -421,6 +421,8 @@ interface OutlineActions {
 	commitSearch: (query: string, navigate: NavigateFn) => void;
 	/** Clear the input, push the URL without `?q=` when a search is committed, then leave the search box. */
 	cancelSearch: (navigate: NavigateFn) => void;
+	/** Clear the input and leave the search box without a URL push, for a navigation that drops `?q=` itself. */
+	leaveSearch: () => void;
 	/** Open the jump menu, committing the edit by blurring and remembering its caret. */
 	openJumpMenu: () => void;
 	/** Close the jump menu; `cancel` returns the caret to where it was, `navigate` leaves placing it to the caller. */
@@ -970,6 +972,11 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (get().searchQuery !== "") {
 			get().pushSearchLocation("", navigate);
 		}
+		get().blurSearch();
+	},
+
+	leaveSearch: () => {
+		set({searchInput: ""});
 		get().blurSearch();
 	},
 

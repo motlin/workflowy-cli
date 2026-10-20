@@ -87,16 +87,12 @@ describe("SearchHelpers", () => {
 		});
 	});
 
-	it("omits the @TAGS tab when there are no at tags", () => {
-		const html = render({tags: {hashTags: ["#soTag"], atTags: []}});
-		expect(icons(html)).toStrictEqual([
-			"globe",
-			"hashtag",
-			"calendar-days",
-			"clock-rotate-left",
-			"users",
-			"ellipsis",
-		]);
+	it("keeps the @TAGS tab with upstream's constant mentioned: chip when there are no at tags", () => {
+		const html = render({tags: {hashTags: ["#soTag"], atTags: []}, selection: {tab: 2, chip: -1}});
+		expect({icons: icons(html), chips: chipTexts(html)}).toStrictEqual({
+			icons: ["globe", "hashtag", "at", "calendar-days", "clock-rotate-left", "users", "ellipsis"],
+			chips: ["mentioned:"],
+		});
 	});
 
 	it("shows the dates chips in order and selects the fourth tab", () => {
@@ -145,7 +141,7 @@ describe("SearchHelpers", () => {
 			operators: chipTexts(render({selection: {tab: 6, chip: -1}})),
 		}).toStrictEqual({
 			hash: ["#soTag"],
-			at: ["@soPerson"],
+			at: ["mentioned:", "@soPerson"],
 			operators: ["is:", "has:", "in:", "text:", "link:", "highlight:"],
 		});
 	});

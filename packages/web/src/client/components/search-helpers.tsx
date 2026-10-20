@@ -43,15 +43,15 @@ const DATE_VALUES = plain([
 ]);
 
 /**
- * Upstream's `search-box.helpers.*` sections in order, keeping only those with values or a component. `mentioned:`
- * is collab-only upstream, so the @TAGS section is just the at-tags.
+ * Upstream's `search-box.helpers.*` sections in order, keeping only those with values or a component. The @TAGS
+ * section always leads with upstream's constant `mentioned:` chip, so it shows even when the zoom has no at-tags.
  */
 // oxlint-disable-next-line react/only-export-components -- SearchBox reads the same section list for its keyboard model
 export function helperSections(tags: HelperTagLists): HelperSection[] {
 	const sections: HelperSection[] = [
 		{name: "jumpTo", icon: "fal:globe", values: [], hint: true},
 		{name: "tags", icon: "fal:hashtag", values: plain(tags.hashTags), hint: false},
-		{name: "mentions", icon: "fal:at", values: plain(tags.atTags), hint: false},
+		{name: "mentions", icon: "fal:at", values: plain(["mentioned:", ...tags.atTags]), hint: false},
 		{name: "dates", icon: "fal:calendar-days", values: DATE_VALUES, hint: false},
 		{name: "changes", icon: "fal:clock-rotate-left", values: plain(["changed:", "created:"]), hint: false},
 		{

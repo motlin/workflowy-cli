@@ -39,20 +39,23 @@ interface CrumbClickState {
 interface CrumbClickDeps {
 	navigateToNode: (nodeId: string | null) => void;
 	cancelSearch: () => void;
+	/** Leave the search without its own URL push, since the crumb navigation drops `?q=`. */
+	leaveSearch: () => void;
 	scrollToTop: () => void;
 	focusWindow: () => void;
 }
 
 /**
- * Plain clicks focus the window, exit any committed search, navigate in-app and scroll to the top; modified and
- * middle clicks fall through to the anchor's href. The root Home is only clickable during a search, which it exits.
+ * Plain clicks focus the window, exit any committed search, navigate in-app and scroll to the top, pushing one history
+ * entry so a single Back returns to the search; modified and middle clicks fall through to the anchor's href. The root
+ * Home is only clickable during a search, which it exits.
  */
 // oxlint-disable-next-line react/only-export-components -- pure click handler exported for tests and reuse by other crumb renderers
 export function handleCrumbClick(
 	event: CrumbClickEvent,
 	crumb: Crumb,
 	{current, searchActive}: CrumbClickState,
-	{navigateToNode, cancelSearch, scrollToTop, focusWindow}: CrumbClickDeps,
+	{navigateToNode, cancelSearch, leaveSearch, scrollToTop, focusWindow}: CrumbClickDeps,
 ): void {
 	if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
 		return;
@@ -63,11 +66,13 @@ export function handleCrumbClick(
 		event.stopPropagation();
 	}
 	focusWindow();
-	if (searchActive) {
-		cancelSearch();
-	}
 	if (!rootDuringSearch) {
+		if (searchActive) {
+			leaveSearch();
+		}
 		navigateToNode(crumb.isRoot ? null : crumb.id);
+	} else if (searchActive) {
+		cancelSearch();
 	}
 	scrollToTop();
 }
@@ -114,6 +119,7 @@ export function BreadcrumbItem({
 	searchActive = false,
 	onCancelSearch = noop,
 }: CrumbProps) {
+	const leaveSearch = useOutlineStore((state) => state.leaveSearch);
 	const disabled = crumb.isRoot && current && !searchActive;
 	const className = `breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate ${current ? "current opacity-100" : "opacity-70"}
     data-hj-suppress hover:pointer-fine:opacity-100 hover:pointer-fine:underline cursor-pointer`;
@@ -153,6 +159,7 @@ export function BreadcrumbItem({
 					{
 						navigateToNode: onNavigate,
 						cancelSearch: onCancelSearch,
+						leaveSearch,
 						scrollToTop: scrollOutlineToTop,
 						focusWindow: focusBrowserWindow,
 					},

@@ -9,7 +9,6 @@ export interface SearchCountIndicatorProps {
 	matchCount: number;
 	completedMatchCount: number;
 	showCompleted: boolean;
-	editingId: string | null;
 	/** The current query's result has not arrived yet. */
 	searching: boolean;
 	onToggleCompleted: () => void;
@@ -24,13 +23,9 @@ export function SearchCountIndicatorView({
 	matchCount,
 	completedMatchCount,
 	showCompleted,
-	editingId,
 	searching,
 	onToggleCompleted,
 }: SearchCountIndicatorProps) {
-	if (editingId !== null) {
-		return null;
-	}
 	const done = !searching;
 	const hasToggle = completedMatchCount > 0;
 	return (
@@ -58,10 +53,9 @@ export function SearchCountIndicatorView({
 	);
 }
 
-/** The count pill for the committed search, hidden while a row is being edited. */
+/** The count pill for the committed search; upstream keeps it while the caret is in a row. */
 export function SearchCountIndicator() {
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
-	const editingId = useOutlineStore((state) => state.editingId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const toggleShowCompleted = useOutlineStore((state) => state.toggleShowCompleted);
 	const {result, searching} = useSearchProgress();
@@ -73,7 +67,6 @@ export function SearchCountIndicator() {
 			matchCount={result?.matchCount ?? 0}
 			completedMatchCount={result?.completedMatchCount ?? 0}
 			showCompleted={showCompleted}
-			editingId={editingId}
 			searching={searching}
 			onToggleCompleted={toggleShowCompleted}
 		/>

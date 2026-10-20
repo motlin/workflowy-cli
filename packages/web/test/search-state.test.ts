@@ -7,6 +7,7 @@ vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
+const {goToNode, stepNav} = await import("../src/client/navigation.js");
 
 const SANDBOX_ID = "7aed376b-80c8-42c5-8065-ab03ee6d2ae0";
 
@@ -50,6 +51,25 @@ describe("committed search state", () => {
 		expect({urls: navigate.mock.calls, searchInput: useOutlineStore.getState().searchInput}).toStrictEqual({
 			urls: [["/#/ab03ee6d2ae0"]],
 			searchInput: "",
+		});
+	});
+
+	it("a crumb click during a search pushes once, so one Back returns to the search", () => {
+		useOutlineStore.getState().commitSearch("apple", () => {});
+		useOutlineStore.getState().setUrlSearchQuery("apple");
+		const crumbClick = vi.fn<(to: string) => void>();
+		useOutlineStore.getState().leaveSearch();
+		goToNode(crumbClick, "4f2c1d3e-0000-4000-8000-0a1b2c3d4e5f");
+		const back = vi.fn<(to: string) => void>();
+		stepNav(back, "back");
+		expect({
+			crumbClick: crumbClick.mock.calls,
+			searchInput: useOutlineStore.getState().searchInput,
+			back: back.mock.calls,
+		}).toStrictEqual({
+			crumbClick: [["/#/0a1b2c3d4e5f"]],
+			searchInput: "",
+			back: [["/#/ab03ee6d2ae0?q=apple"]],
 		});
 	});
 

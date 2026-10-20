@@ -4,10 +4,21 @@ import type {ReactNode} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {SearchCountIndicatorProps} from "../src/client/components/search-count-indicator.js";
 
-vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: () => {}}));
-vi.mock("../src/client/hooks/use-tree-search.js", () => ({useSearchProgress: () => {}}));
+const outlineState = {
+	searchQuery: "apple",
+	editingId: "row-with-caret" as string | null,
+	showCompleted: false,
+	toggleShowCompleted: () => {},
+};
+vi.mock("../src/client/stores/outline.js", () => ({
+	useOutlineStore: (select: (state: typeof outlineState) => unknown) => select(outlineState),
+}));
+vi.mock("../src/client/hooks/use-tree-search.js", () => ({
+	useSearchProgress: () => ({result: {matchCount: 4, completedMatchCount: 0}, searching: false}),
+}));
 
-const {SearchCountIndicatorView} = await import("../src/client/components/search-count-indicator.js");
+const {SearchCountIndicator, SearchCountIndicatorView} =
+	await import("../src/client/components/search-count-indicator.js");
 
 const PILL_CLASS =
 	" matching-node fixed mobile:bottom-[64px] desktop:bottom-l min-w-[256px] flex items-center justify-center px-l py-m rounded-pill bg-secondary whitespace-nowrap text-secondary overflow-hidden text-s ";
@@ -17,7 +28,6 @@ function props(overrides: Partial<SearchCountIndicatorProps>): SearchCountIndica
 		matchCount: 4,
 		completedMatchCount: 1,
 		showCompleted: false,
-		editingId: null,
 		searching: false,
 		onToggleCompleted: () => {},
 		...overrides,
@@ -85,10 +95,6 @@ describe("SearchCountIndicatorView", () => {
 		});
 	});
 
-	it("renders nothing while a row is being edited", () => {
-		expect(render({editingId: "x"})).toBe("");
-	});
-
 	it("shows only the spinner and 'Still searching' while the search runs", () => {
 		const html = render({searching: true});
 		expect({
@@ -104,5 +110,12 @@ describe("SearchCountIndicatorView", () => {
 		const tree = SearchCountIndicatorView(props({onToggleCompleted}));
 		findByClass(tree, "flex cursor-pointer h-full items-center ")?.onClick?.();
 		expect(onToggleCompleted).toHaveBeenCalledOnce();
+	});
+});
+
+describe("SearchCountIndicator", () => {
+	it("keeps the pill while the caret is in a row, as upstream does after Tab or browser Back restores ?q=", () => {
+		const html = renderToStaticMarkup(createElement(SearchCountIndicator));
+		expect(html.includes("<span>4 Matches</span>")).toBe(true);
 	});
 });

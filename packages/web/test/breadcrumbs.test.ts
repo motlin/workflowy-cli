@@ -219,6 +219,7 @@ function clickDeps() {
 	return {
 		navigateToNode: vi.fn<(nodeId: string | null) => void>(),
 		cancelSearch: vi.fn<() => void>(),
+		leaveSearch: vi.fn<() => void>(),
 		scrollToTop: vi.fn<() => void>(),
 		focusWindow: vi.fn<() => void>(),
 	};
@@ -233,6 +234,7 @@ function calls(event: ClickEvent, deps: ClickDeps) {
 		stopPropagation: event.stopPropagation.mock.calls,
 		focusWindow: deps.focusWindow.mock.calls,
 		cancelSearch: deps.cancelSearch.mock.calls,
+		leaveSearch: deps.leaveSearch.mock.calls,
 		navigate: deps.navigateToNode.mock.calls,
 		scrollToTop: deps.scrollToTop.mock.calls,
 	};
@@ -243,6 +245,7 @@ const NOTHING = {
 	stopPropagation: [],
 	focusWindow: [],
 	cancelSearch: [],
+	leaveSearch: [],
 	navigate: [],
 	scrollToTop: [],
 };
@@ -264,7 +267,7 @@ describe("handleCrumbClick", () => {
 		expect(calls(event, deps)).toStrictEqual(NOTHING);
 	});
 
-	it("focuses the window, exits search, navigates and scrolls to top on a plain click", () => {
+	it("focuses the window, leaves search without its own URL push, navigates and scrolls to top on a plain click", () => {
 		const event = clickEvent({});
 		const deps = clickDeps();
 		handleCrumbClick(event, ALICE, {current: false, searchActive: true}, deps);
@@ -272,13 +275,13 @@ describe("handleCrumbClick", () => {
 			...NOTHING,
 			preventDefault: [[]],
 			focusWindow: [[]],
-			cancelSearch: [[]],
+			leaveSearch: [[]],
 			navigate: [["alice-uuid"]],
 			scrollToTop: [[]],
 		});
 	});
 
-	it("exits search and navigates when the current crumb is clicked", () => {
+	it("leaves search and navigates in one push when the current crumb is clicked", () => {
 		const event = clickEvent({});
 		const deps = clickDeps();
 		handleCrumbClick(event, ALICE, {current: true, searchActive: true}, deps);
@@ -286,7 +289,7 @@ describe("handleCrumbClick", () => {
 			...NOTHING,
 			preventDefault: [[]],
 			focusWindow: [[]],
-			cancelSearch: [[]],
+			leaveSearch: [[]],
 			navigate: [["alice-uuid"]],
 			scrollToTop: [[]],
 		});
