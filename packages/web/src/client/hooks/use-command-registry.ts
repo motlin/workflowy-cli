@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {goToNode, nodeUrl, stepNav} from "../navigation.js";
-import {nodeKeys, patchCachedNode, readChildren, readNode} from "../node-cache.js";
+import {nodeKeys, patchCachedNode, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
 import {flushEditing, useOutlineStore} from "../stores/outline.js";
@@ -180,10 +180,8 @@ export function useCommandRegistry(): CommandRegistry {
 	const {data: editedNode} = useNode(editingId);
 
 	/** The loaded node of the command's item, or undefined with no item. */
-	const itemNode = (ctx: CommandContext): NodeResponse | undefined => {
-		const [itemId] = ctx.items;
-		return itemId !== undefined && editedNode?.id === itemId ? editedNode : undefined;
-	};
+	const itemNode = (ctx: CommandContext): NodeResponse | undefined =>
+		readItemNode(queryClient, ctx.items[0], editedNode);
 
 	/** Commit the edited text and stop editing, exactly as clicking away would. */
 	const commitEdit = useCallback(() => {

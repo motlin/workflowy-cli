@@ -50,6 +50,22 @@ export function readNode(queryClient: QueryClient, nodeId: string): NodeResponse
 }
 
 /**
+ * A command's item node: the fetched edited node when it is the item, else the cached row. Right after a
+ * click or Enter the edited node's fetch has not returned (a new row's waits for its create), and the
+ * cached row keeps hotkeys pressed then from being dropped.
+ */
+export function readItemNode(
+	queryClient: QueryClient,
+	itemId: string | undefined,
+	editedNode: NodeResponse | undefined,
+): NodeResponse | undefined {
+	if (itemId === undefined) {
+		return undefined;
+	}
+	return editedNode?.id === itemId ? editedNode : readNode(queryClient, itemId);
+}
+
+/**
  * Upstream move/insert splice: sort `children` by priority, drop any copy of `row`,
  * insert it at `index` (a move slot, see `spliceBlock`), and renumber priorities `(i+1)*100`.
  */

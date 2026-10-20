@@ -5,6 +5,7 @@ import {
 	patchCachedNode,
 	readChildren,
 	readDetail,
+	readItemNode,
 	spliceBlock,
 	spliceChildren,
 } from "../src/client/node-cache.js";
@@ -140,5 +141,34 @@ describe("patchCachedNode", () => {
 		const restore = patchCachedNode(qc, "a", (node) => ({...node, name: "alpha"}));
 		restore();
 		expect(qc.getQueryData<NodeResponse[]>(nodeKeys.children("p"))?.map((r) => r.name)).toStrictEqual(["a"]);
+	});
+});
+
+describe("readItemNode", () => {
+	it("falls back to the cached row while the edited node's fetch is still pending", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.children("p"), [row("a", 100), row("b", 200)]);
+		expect(readItemNode(qc, "b", undefined)).toStrictEqual(row("b", 200));
+	});
+
+	it("prefers the fetched edited node when it is the item", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.children("p"), [row("a", 100)]);
+		const fetched = {...row("a", 100), name: "fetched"};
+		expect(readItemNode(qc, "a", fetched)).toStrictEqual(fetched);
+	});
+
+	it("reads the cache when the edited node is another row", () => {
+		const qc = new QueryClient();
+		qc.setQueryData(nodeKeys.children("p"), [row("a", 100), row("b", 200)]);
+		expect(readItemNode(qc, "b", row("a", 100))).toStrictEqual(row("b", 200));
+	});
+
+	it("is undefined with no item or an uncached item", () => {
+		const qc = new QueryClient();
+		expect([readItemNode(qc, undefined, row("a", 100)), readItemNode(qc, "x", undefined)]).toStrictEqual([
+			undefined,
+			undefined,
+		]);
 	});
 });
