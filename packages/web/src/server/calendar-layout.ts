@@ -34,9 +34,15 @@ function rootLevels(deps: Pick<CalendarDayDeps, "db">, rootId: string): Calendar
 	return parsed?.success === true ? parsed.data.calendar.levels : undefined;
 }
 
-/** The calendar snapshot, or undefined when no root is tagged in the cached internal metadata. */
-export function loadCalendarLayout(deps: Pick<CalendarDayDeps, "db" | "cache">): CalendarLayoutSnapshot | undefined {
-	const rootId = findTaggedCalendarRoot(deps);
+/**
+ * The calendar snapshot under `explicitRootId` (a sandbox copy), else under the tagged root; undefined when that root
+ * is not cached or no root is tagged in the cached internal metadata.
+ */
+export function loadCalendarLayout(
+	deps: Pick<CalendarDayDeps, "db" | "cache">,
+	explicitRootId?: string,
+): CalendarLayoutSnapshot | undefined {
+	const rootId = explicitRootId ?? findTaggedCalendarRoot(deps);
 	const rootNode = rootId === undefined ? undefined : deps.cache.getNode(rootId);
 	if (rootId === undefined || rootNode === undefined) {
 		return undefined;

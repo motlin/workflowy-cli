@@ -38,3 +38,32 @@ export async function previewCalendarLayout(levels: LayoutLevels): Promise<Calen
 	}
 	return body.steps;
 }
+
+/** What `PUT /api/v1/calendar/layout` and its undo report. */
+export interface AppliedCalendarLayout {
+	rootId: string;
+	writes: number;
+}
+
+async function layoutWrite(path: string, method: string, body?: unknown): Promise<AppliedCalendarLayout> {
+	const response = await fetch(`${LAYOUT_URL}${path}`, {
+		method,
+		headers: {"content-type": "application/json"},
+		...(body === undefined ? {} : {body: JSON.stringify(body)}),
+	});
+	const result = await readJson<Partial<AppliedCalendarLayout> & {error?: string}>(response);
+	if (!response.ok || result.rootId === undefined || result.writes === undefined) {
+		throw new Error(result.error ?? `Failed to update the calendar layout: ${response.statusText}`);
+	}
+	return {rootId: result.rootId, writes: result.writes};
+}
+
+/** Restructure the calendar for `levels`; rejects with the server's error. */
+export async function applyCalendarLayout(levels: LayoutLevels): Promise<AppliedCalendarLayout> {
+	return layoutWrite("", "PUT", {levels});
+}
+
+/** Undo the last applied layout; rejects with the server's error. */
+export async function undoCalendarLayout(): Promise<AppliedCalendarLayout> {
+	return layoutWrite("/undo", "POST");
+}

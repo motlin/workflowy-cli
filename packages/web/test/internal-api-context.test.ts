@@ -127,3 +127,14 @@ describe("createServerContext calendarEnsureEnabled", () => {
 		expect([read(undefined), read("true"), read("false"), read("")]).toStrictEqual([true, true, false, true]);
 	});
 });
+
+describe("createServerContext calendarLayoutEnabled", () => {
+	it("reads CALENDAR_LAYOUT_ENABLED, off unless set to true", () => {
+		const read = (value: string | undefined) => {
+			vi.stubEnv("CALENDAR_LAYOUT_ENABLED", value);
+			return createServerContext().calendarLayoutEnabled;
+		};
+
+		expect([read(undefined), read("true"), read("false"), read("")]).toStrictEqual([false, true, false, false]);
+	});
+});

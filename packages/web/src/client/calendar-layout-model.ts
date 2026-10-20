@@ -13,6 +13,8 @@ export interface CalendarLayout {
 	customLevels: string[];
 	/** Whether Update Layout first asks to move dated nodes into the calendar. */
 	needsConfirm: boolean;
+	/** Whether Update Layout applies the restructure (`CALENDAR_LAYOUT_ENABLED`) or only previews it. */
+	applyEnabled?: boolean;
 }
 
 /** The text of upstream's "Move nodes into your Calendar?" dialog, for the local confirm. */
@@ -26,12 +28,19 @@ export const MOVE_NODES_CONFIRM = [
 
 /**
  * The message for a layout preview (`POST /api/v1/calendar/layout/preview`): how many nodes upstream's restructure
- * would move, create, delete and retag (calendar metadata set or removed). Update Layout only previews until
- * applying is approved.
+ * would move, create, delete and retag (calendar metadata set or removed). Update Layout only previews while
+ * applying is disabled.
  */
 export function layoutPreviewMessage(steps: readonly {op: string}[]): string {
 	const count = (op: string) => steps.filter((step) => step.op === op).length;
 	return `Calendar Layout would move ${count("move")} nodes, create ${count("create")}, delete ${count("delete")} and retag ${count("set-calendar")}. Applying layouts is not enabled yet.`;
+}
+
+/** The message after `PUT /api/v1/calendar/layout`, which offers Undo when anything changed. */
+export function layoutAppliedMessage(writes: number): string {
+	return writes === 0
+		? "Calendar layout already up to date."
+		: `Calendar layout updated (${writes} ${writes === 1 ? "change" : "changes"}).`;
 }
 
 /** The custom levels the checked state turns off (upstream P10's `Object.keys(l).filter(i => !c[i])`), in level order. */

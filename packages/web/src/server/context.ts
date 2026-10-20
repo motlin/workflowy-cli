@@ -31,6 +31,12 @@ export interface ServerContext {
 	 * probe confirmed workflowy.com adopts ensured day nodes.
 	 */
 	calendarEnsureEnabled?: boolean;
+	/**
+	 * Whether `PUT /api/v1/calendar/layout` may restructure the calendar
+	 * (`CALENDAR_LAYOUT_ENABLED`, off unless `true`): it moves, creates and
+	 * deletes level nodes account-wide.
+	 */
+	calendarLayoutEnabled?: boolean;
 }
 
 /** Hono environment: routers read the {@link ServerContext} via `c.get('ctx')`. */
@@ -54,6 +60,7 @@ export function createServerContext(): ServerContext {
 		apiKey,
 		internalAuth,
 		calendarEnsureEnabled: process.env.CALENDAR_ENSURE_ENABLED !== "false",
+		calendarLayoutEnabled: process.env.CALENDAR_LAYOUT_ENABLED === "true",
 		internalAdapter: () => {
 			if (!adapter && internalAuth) {
 				adapter = new WorkflowyInternalAdapter({

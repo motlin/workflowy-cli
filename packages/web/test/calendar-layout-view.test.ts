@@ -1,7 +1,7 @@
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {describe, expect, it} from "vite-plus/test";
-import {layoutPreviewMessage, layoutWarningLevels} from "../src/client/calendar-layout-model.js";
+import {layoutAppliedMessage, layoutPreviewMessage, layoutWarningLevels} from "../src/client/calendar-layout-model.js";
 import type {CalendarLayout} from "../src/client/calendar-layout-model.js";
 import {CalendarLayoutView} from "../src/client/components/calendar-layout-view.js";
 
@@ -88,6 +88,14 @@ describe("CalendarLayoutView (upstream P10)", () => {
 		]).toStrictEqual([
 			"Calendar Layout would move 2 nodes, create 1, delete 1 and retag 1. Applying layouts is not enabled yet.",
 			"Calendar Layout would move 0 nodes, create 0, delete 0 and retag 0. Applying layouts is not enabled yet.",
+		]);
+	});
+
+	it("reports an applied layout, or that it was already in place", () => {
+		expect([layoutAppliedMessage(5), layoutAppliedMessage(1), layoutAppliedMessage(0)]).toStrictEqual([
+			"Calendar layout updated (5 changes).",
+			"Calendar layout updated (1 change).",
+			"Calendar layout already up to date.",
 		]);
 	});
 });

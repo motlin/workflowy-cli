@@ -21,6 +21,10 @@ import {
 } from "./calendar-day.js";
 import type {CalendarLevel} from "./calendar-day.js";
 import {calendarNodeId} from "./calendar-ids.js";
+import {calendarLayoutWrites, layoutWriteParents} from "./calendar-layout-apply.js";
+import type {LayoutWrite} from "./calendar-layout-apply.js";
+import {planCalendarLayout} from "./calendar-layout.js";
+import type {CalendarLayoutLevels, LayoutNode} from "./calendar-layout.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
 import type {MetadataChange} from "./metadata-patch.js";
@@ -76,7 +80,15 @@ const KEYS = {
 	settings: "settings",
 	expandedKeys: "expanded_keys",
 	entropyKey: "entropy_key",
+	calendarLayoutUndo: "calendar_layout_undo",
 } as const;
+
+/** The writes that undo the last applied calendar layout, with the metadata the edited and restored nodes go back to. */
+const LayoutUndoSchema = z.object({
+	rootId: z.string(),
+	writes: z.array(z.custom<LayoutWrite>()),
+	metadata: z.record(z.string(), MetadataSchema),
+});
 
 const ExpandedKeysSchema = z.array(z.string());
 
@@ -131,6 +143,13 @@ export interface EnsuredCalendarDay {
 	firstChildId: string | null;
 	/** Ids created by this call, outermost first. */
 	created: string[];
+}
+
+/** What {@link WorkflowyInternalAdapter.applyCalendarLayout} (or its undo) pushed. */
+export interface AppliedCalendarLayout {
+	rootId: string;
+	/** Tree writes pushed; 0 when the layout was already in place. */
+	writes: number;
 }
 
 export interface MoveToInput {
@@ -594,6 +613,185 @@ export class WorkflowyInternalAdapter {
 			created.push(firstChildId);
 		}
 		return {dayId: parentId, firstChildId, created};
+	}
+
+	/**
+	 * Restructure a calendar to show `levels` the way upstream's Calendar Layout
+	 * Update Layout does (`JX4`), in one push. State is read fresh: metadata
+	 * from `/get_tree_data/`, children through the public API (a day's children
+	 * only when something moves into it). The tagged 📆 Calendar root is the
+	 * default; an explicit `rootId` (a sandbox copy) gets random ids for new
+	 * level nodes, since the account's deterministic ids belong to the real
+	 * calendar. Every touched parent is then re-read into the cache, and the
+	 * inverse writes are stored for {@link undoCalendarLayout}.
+	 */
+	async applyCalendarLayout(
+		levels: CalendarLayoutLevels,
+		{rootId}: {rootId?: string} = {},
+	): Promise<AppliedCalendarLayout> {
+		const calendarRootId = rootId ?? this.findCalendarRoot().id;
+		const items = await this.client.getTreeData();
+		const metadataById = new Map(items.map((item) => [item.id, item.metadata ?? {}]));
+		const rootMetadata = CalendarMetadataSchema.safeParse(metadataById.get(calendarRootId));
+		const tagged = rootMetadata.success && rootMetadata.data.calendar.root === true;
+		const currentLevels = rootMetadata.success ? rootMetadata.data.calendar.levels : undefined;
+		const entropyKey = tagged ? (await this.session()).entropyKey : undefined;
+		const dateFormat = await this.getRootMeta(["dateFormat"]);
+		const tree = this.tree();
+
+		const readLayout = async (parentId: string): Promise<LayoutNode[]> =>
+			Promise.all(
+				(await tree.liveChildren(parentId)).map(async (child): Promise<LayoutNode> => {
+					const parsed = CalendarMetadataSchema.safeParse(metadataById.get(child.id));
+					const calendar = parsed.success ? parsed.data.calendar : undefined;
+					const level = calendar?.level;
+					const dateId = calendar?.dateId;
+					const isLevel = level !== undefined && dateId !== undefined;
+					const isMirror = typeof getPath(metadataById.get(child.id), ["mirror", "originalId"]) === "string";
+					return {
+						id: child.id,
+						name: child.name,
+						note: child.note ?? "",
+						...(isLevel ? {calendar: {level, dateId}} : {}),
+						...(isMirror ? {isMirror: true} : {}),
+						// Inside a day only the count matters, and only for days something moves into.
+						children: level === "day" && isLevel ? [] : await readLayout(child.id),
+					};
+				}),
+			);
+		const snapshot: LayoutNode = {
+			id: calendarRootId,
+			name: "",
+			note: "",
+			children: await readLayout(calendarRootId),
+		};
+		const days = new Map<string, LayoutNode>();
+		const indexDays = (nodes: LayoutNode[]): void => {
+			for (const child of nodes) {
+				if (child.calendar?.level === "day") {
+					days.set(child.id, child);
+				}
+				indexDays(child.children);
+			}
+		};
+		indexDays(snapshot.children);
+		const plan = () =>
+			planCalendarLayout(snapshot, levels, {
+				...(currentLevels === undefined ? {} : {currentLevels}),
+				dateFormat: typeof dateFormat === "string" ? dateFormat : "",
+				...(entropyKey === undefined ? {} : {entropyKey}),
+				generateId: this.generateId,
+			});
+		let steps = plan();
+		const targets = [
+			...new Set(steps.flatMap((step) => (step.op === "move" && days.has(step.parentId) ? [step.parentId] : []))),
+		];
+		if (targets.length > 0) {
+			// Moves go to the end of a day, so re-plan once those days' children are known.
+			for (const dayId of targets) {
+				const day = days.get(dayId);
+				if (day !== undefined) {
+					day.children = (await tree.liveChildren(dayId)).map((child) => ({
+						id: child.id,
+						name: "",
+						note: "",
+						children: [],
+					}));
+				}
+			}
+			steps = plan();
+		}
+		for (const step of steps) {
+			if (step.op === "create" && metadataById.has(step.id)) {
+				throw new Error(`calendar layout: new level node ${step.id} already exists outside the calendar`);
+			}
+		}
+		const {writes, undo, touchedParents, metadata} = calendarLayoutWrites(steps, metadataById);
+		if (writes.length === 0) {
+			return {rootId: calendarRootId, writes: 0};
+		}
+		await this.pushLayoutWrites(writes);
+		const restored = Object.fromEntries(
+			undo.flatMap((write) =>
+				write.op === "edit" || write.op === "undelete" ? [[write.id, metadataById.get(write.id) ?? {}]] : [],
+			),
+		);
+		// Stored before the cache refresh, so a failed read-back still leaves the pushed layout undoable.
+		this.storeAccountValue(KEYS.calendarLayoutUndo, {rootId: calendarRootId, writes: undo, metadata: restored});
+		await this.refreshLayout(touchedParents, metadata);
+		return {rootId: calendarRootId, writes: writes.length};
+	}
+
+	/**
+	 * Undo the last {@link applyCalendarLayout} with the inverse writes it
+	 * stored, in one push; undefined when there is nothing to undo. Once used,
+	 * the undo is cleared.
+	 */
+	async undoCalendarLayout(): Promise<AppliedCalendarLayout | undefined> {
+		const row = this.db.select().from(accountState).where(eq(accountState.key, KEYS.calendarLayoutUndo)).get();
+		const stored = row && LayoutUndoSchema.safeParse(JSON.parse(row.json)).data;
+		if (!stored) {
+			return undefined;
+		}
+		await this.pushLayoutWrites(stored.writes);
+		this.db.delete(accountState).where(eq(accountState.key, KEYS.calendarLayoutUndo)).run();
+		await this.refreshLayout(layoutWriteParents(stored.writes), new Map(Object.entries(stored.metadata)));
+		return {rootId: stored.rootId, writes: stored.writes.length};
+	}
+
+	/** Push layout writes as one batch of ops. */
+	private async pushLayoutWrites(writes: LayoutWrite[]): Promise<void> {
+		const session = await this.session();
+		const clock = {now: this.now(), dateJoinedSec: session.dateJoinedSec};
+		const ops = writes.map((write): InternalOp => {
+			if (write.op === "edit") {
+				return editOp({
+					...clock,
+					id: write.id,
+					metadataPatches: write.patches,
+					metadataInversePatches: write.inverse,
+				});
+			}
+			if (write.op === "create") {
+				const {id, name, metadata: treeMetadata} = write;
+				return bulkCreateOp({
+					...clock,
+					parentId: write.parentId,
+					index: write.index,
+					trees: [{id, name, metadata: treeMetadata}],
+					userId: session.userId,
+				}).op;
+			}
+			if (write.op === "move") {
+				return moveOp({...clock, id: write.id, parentId: write.parentId, index: write.index, from: write.from});
+			}
+			if (write.op === "delete") {
+				return deleteOp({...clock, id: write.id, from: write.from});
+			}
+			return undeleteOp({...clock, id: write.id, parentId: write.parentId, index: write.index});
+		});
+		await this.pusher.pushAndPoll({ops});
+	}
+
+	/** Re-read the touched parents into the cache, then cache the edited and created nodes' metadata. */
+	private async refreshLayout(touchedParents: string[], metadata: ReadonlyMap<string, Metadata>): Promise<void> {
+		// Parents come first-touched first, so a created level node is cached before the days moved into it.
+		await this.tree().refreshChildren(touchedParents);
+		for (const [id, value] of metadata) {
+			if (this.isCached(id)) {
+				this.writeNodeMetadata(id, keptInternalMetadata(value));
+			}
+		}
+	}
+
+	private storeAccountValue(key: string, value: unknown): void {
+		const json = JSON.stringify(value);
+		const fetchedAt = this.now();
+		this.db
+			.insert(accountState)
+			.values({key, json, fetchedAt})
+			.onConflictDoUpdate({target: accountState.key, set: {json, fetchedAt}})
+			.run();
 	}
 
 	private findCalendarRoot(): {id: string; levels: Record<string, boolean>} {

@@ -11,11 +11,17 @@
  * `GET /api/v1/calendar/settings` -> 200 `{foundDates, dayPrefix}`: the root's picker toggles, each default true.
  * `PUT /api/v1/calendar/settings` `{foundDates?, dayPrefix?}` -> 200 the new settings; writes the root's
  * `calendar.found_dates` / `calendar.day_prefix` metadata (409 when its internal metadata is not cached).
- * `GET /api/v1/calendar/layout` -> 200 `{levels, customLevels, needsConfirm}`: what the Calendar Layout dialog opens
- * with (upstream `P10`): the root's levels, the levels whose nodes hold custom text or notes, and whether Update
- * Layout first asks "Move nodes into your Calendar?" (409 without the root's cached internal metadata).
- * `POST /api/v1/calendar/layout/preview` `{levels}` -> 200 `{steps}`: the tree writes upstream's restructure (`JX4`)
- * would make for those levels, planned from the cache; nothing is written (422 for week levels).
+ * `GET /api/v1/calendar/layout` -> 200 `{levels, customLevels, needsConfirm, applyEnabled}`: what the Calendar Layout
+ * dialog opens with (upstream `P10`): the root's levels, the levels whose nodes hold custom text or notes, whether
+ * Update Layout first asks "Move nodes into your Calendar?", and whether Update Layout applies or only previews (409
+ * without the root's cached internal metadata).
+ * `PUT /api/v1/calendar/layout` `{levels, rootId?}` -> 200 `{rootId, writes}`: restructure the calendar (the tagged
+ * root, or `rootId`, such as a sandbox copy) in one push, read fresh from Workflowy (403 unless
+ * `CALENDAR_LAYOUT_ENABLED=true`, 422 for week levels).
+ * `POST /api/v1/calendar/layout/undo` -> 200 `{rootId, writes}`: undo the last applied layout once (409 when there is
+ * none; 403 like PUT).
+ * `POST /api/v1/calendar/layout/preview` `{levels, rootId?}` -> 200 `{steps}`: the tree writes upstream's restructure
+ * (`JX4`) would make for those levels, planned from the cache (under `rootId` when given); nothing is written (422 for week levels).
  * `GET /api/v1/calendar/dots?from=YYYYMMDD&to=YYYYMMDD` -> 200 `{dateIds}`: the days in the range with journal
  * content, for the day strip's dots.
  * `POST /api/v1/calendar/day/:dateId/ensure[?level=month|year][&createChild=false]` -> 200
@@ -51,6 +57,8 @@ const MAX_DOT_RANGE_DAYS = 100;
 const INVALID_RANGE = `from and to must be YYYYMMDD days at most ${MAX_DOT_RANGE_DAYS} days apart, from first`;
 const DAY_MS = 86_400_000;
 const SettingsBody = z.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()});
+const LAYOUT_DISABLED = "Applying calendar layouts is disabled (CALENDAR_LAYOUT_ENABLED)";
+const NOTHING_TO_UNDO = "There is no calendar layout to undo";
 const INVALID_LEVELS = "levels must be an object of year, month, week and day booleans";
 const LayoutBody = z.object({
 	levels: z.strictObject({
@@ -59,6 +67,7 @@ const LayoutBody = z.object({
 		week: z.boolean().optional(),
 		day: z.boolean().optional(),
 	}),
+	rootId: z.string().min(1).optional(),
 });
 /** Upstream `I10`'s levels when the root has none. */
 const DEFAULT_LAYOUT_LEVELS = {year: true, month: true, day: true};
@@ -210,7 +219,48 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
 			customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
 			needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
+			applyEnabled: ctx.calendarLayoutEnabled === true,
 		});
+	});
+
+	router.put("/layout", async (c) => {
+		const ctx = c.get("ctx");
+		if (ctx.calendarLayoutEnabled !== true) {
+			return c.json({error: LAYOUT_DISABLED}, 403);
+		}
+		const body = LayoutBody.safeParse(await c.req.json().catch(() => null));
+		if (!body.success) {
+			return c.json({error: INVALID_LEVELS}, 400);
+		}
+		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
+		if (!adapter) {
+			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+		}
+		const {levels, rootId} = body.data;
+		try {
+			return c.json(await adapter.applyCalendarLayout(levels, rootId === undefined ? {} : {rootId}));
+		} catch (error) {
+			if (error instanceof CalendarWeekUnsupported) {
+				return c.json({error: error.message}, 422);
+			}
+			if (error instanceof CalendarRootMissing) {
+				return c.json({error: error.message}, 409);
+			}
+			throw error;
+		}
+	});
+
+	router.post("/layout/undo", async (c) => {
+		const ctx = c.get("ctx");
+		if (ctx.calendarLayoutEnabled !== true) {
+			return c.json({error: LAYOUT_DISABLED}, 403);
+		}
+		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
+		if (!adapter) {
+			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+		}
+		const undone = await adapter.undoCalendarLayout();
+		return undone === undefined ? c.json({error: NOTHING_TO_UNDO}, 409) : c.json(undone);
 	});
 
 	router.post("/layout/preview", async (c) => {
@@ -219,11 +269,13 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		if (!body.success) {
 			return c.json({error: INVALID_LEVELS}, 400);
 		}
-		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService});
+		const {rootId} = body.data;
+		const snapshot = loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId);
 		if (snapshot === undefined) {
 			return c.json({error: ROOT_METADATA_MISSING}, 409);
 		}
-		const {entropyKey} = await calendarDayDeps(ctx);
+		// An explicit (sandbox) root gets random ids, as applying it does: deterministic ids belong to the real calendar.
+		const {entropyKey} = rootId === undefined ? await calendarDayDeps(ctx) : {entropyKey: undefined};
 		try {
 			const steps = planCalendarLayout(snapshot.root, body.data.levels, {
 				...(snapshot.levels === undefined ? {} : {currentLevels: snapshot.levels}),

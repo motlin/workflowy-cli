@@ -6,7 +6,12 @@ import {dateId, dayTimestamp, formatPillLabel, guessDates, presetDate, stripMode
 import type {CalendarLevel, DatePreset} from "@workflowy/shared";
 import type {NodeResponse} from "../../node-types.js";
 import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
-import {previewCalendarLayout, useCalendarLayout} from "../hooks/use-calendar-layout.js";
+import {
+	applyCalendarLayout,
+	previewCalendarLayout,
+	undoCalendarLayout,
+	useCalendarLayout,
+} from "../hooks/use-calendar-layout.js";
 import {useCalendarSettings} from "../hooks/use-calendar-settings.js";
 import {activeCommandRegistry} from "../hooks/use-global-keymap.js";
 import {useNavigateToCalendarDate} from "../hooks/use-navigate-to-today.js";
@@ -28,7 +33,7 @@ import {
 } from "../calendar-strip-model.js";
 import type {StripDropDetail, StripLevel} from "../calendar-strip-model.js";
 import {CalendarStripView} from "./calendar-strip-view.js";
-import {layoutPreviewMessage} from "../calendar-layout-model.js";
+import {layoutAppliedMessage, layoutPreviewMessage} from "../calendar-layout-model.js";
 import {CalendarLayoutView} from "./calendar-layout-view.js";
 import {calendarDayContent, calendarPickerSettingsRows} from "./calendar-picker-settings.js";
 import {DatePickerPopup} from "./date-picker-popup.js";
@@ -59,7 +64,8 @@ function useCalendarDots(from: number | null, to: number | null): ReadonlySet<nu
  * date picker without its input row or controls, with Found Dates dots, the
  * Found Dates / Friendly day names toggles and the Calendar Layout row, which
  * swaps the body for the layout view; picking a day zooms to it. Update Layout
- * only previews the restructure until applying it is approved.
+ * applies the restructure (with an Undo action) when the server enables it,
+ * and otherwise only previews it.
  */
 function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => void}) {
 	const anchor = useRef<HTMLDivElement | null>(null);
@@ -72,6 +78,39 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	const layout = useCalendarLayout(layoutView);
 	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
 	const openSettings = useOutlineStore((state) => state.openSettings);
+	const queryClient = useQueryClient();
+	const reportError = (error: unknown) => {
+		showAppMessage(error instanceof Error ? error.message : String(error));
+	};
+	/** Apply the layout, then refetch everything it may have moved and offer Undo when anything changed. */
+	const applyLayout = async (levels: Parameters<typeof applyCalendarLayout>[0]) => {
+		const {writes} = await applyCalendarLayout(levels);
+		await queryClient.invalidateQueries();
+		const undo = async () => {
+			try {
+				await undoCalendarLayout();
+				await queryClient.invalidateQueries();
+				showAppMessage("Calendar layout restored.", {timeout: 5000});
+			} catch (error) {
+				reportError(error);
+			}
+		};
+		showAppMessage(
+			layoutAppliedMessage(writes),
+			writes === 0
+				? {timeout: 5000}
+				: {
+						actions: [
+							{
+								label: "Undo",
+								run: () => {
+									void undo();
+								},
+							},
+						],
+					},
+		);
+	};
 	const close = () => {
 		setOpen(null);
 		setTerm("");
@@ -132,14 +171,16 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 											}}
 											onUpdate={async (levels) => {
 												try {
-													showAppMessage(
-														layoutPreviewMessage(await previewCalendarLayout(levels)),
-													);
+													if (layout.applyEnabled === true) {
+														await applyLayout(levels);
+													} else {
+														showAppMessage(
+															layoutPreviewMessage(await previewCalendarLayout(levels)),
+														);
+													}
 													close();
 												} catch (error) {
-													showAppMessage(
-														error instanceof Error ? error.message : String(error),
-													);
+													reportError(error);
 												}
 											}}
 										/>

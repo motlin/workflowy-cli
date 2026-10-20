@@ -4,8 +4,10 @@ import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {Hono} from "hono";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vite-plus/test";
+import {z} from "zod";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
+import {CalendarWeekUnsupported, calendarNodeId} from "@workflowy/shared/internal";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
@@ -42,7 +44,11 @@ afterEach(() => {
 	}
 });
 
-function app({names = {}, rootTagged = true}: {names?: Record<string, string>; rootTagged?: boolean} = {}) {
+function app({
+	names = {},
+	rootTagged = true,
+	layoutEnabled = false,
+}: {names?: Record<string, string>; rootTagged?: boolean; layoutEnabled?: boolean} = {}) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
@@ -72,11 +78,24 @@ function app({names = {}, rootTagged = true}: {names?: Record<string, string>; r
 			calls.push(`getRootMeta ${path.join(".")}`);
 			return Promise.resolve(path[0] === "dateFormat" ? "YYYY-MM-DD ddd" : undefined);
 		},
+		applyCalendarLayout: async (levels: unknown, options: unknown) => {
+			calls.push(`applyCalendarLayout ${JSON.stringify(levels)} ${JSON.stringify(options)}`);
+			if (JSON.stringify(levels).includes("week")) {
+				throw new CalendarWeekUnsupported();
+			}
+			return Promise.resolve({rootId: "cal", writes: 3});
+		},
+		undoCalendarLayout: async () => {
+			calls.push("undoCalendarLayout");
+			return Promise.resolve(undoes++ === 0 ? {rootId: "cal", writes: 3} : undefined);
+		},
 	};
+	let undoes = 0;
 	const ctx = {
 		db,
 		cacheService: new CacheService(db),
 		apiKey: "key",
+		calendarLayoutEnabled: layoutEnabled,
 		internalAdapter: () => fake as unknown as WorkflowyInternalAdapter,
 	} as unknown as ServerContext;
 	const hono = new Hono<AppEnv>();
@@ -95,7 +114,13 @@ function app({names = {}, rootTagged = true}: {names?: Record<string, string>; r
 			headers: {"content-type": "application/json"},
 			body: JSON.stringify(body),
 		});
-	return {request, preview, calls};
+	const send = async (method: string, path: string, body?: unknown) =>
+		request(path, {
+			method,
+			headers: {"content-type": "application/json"},
+			...(body === undefined ? {} : {body: JSON.stringify(body)}),
+		});
+	return {request, preview, send, calls};
 }
 
 describe("GET /api/v1/calendar/layout", () => {
@@ -103,7 +128,12 @@ describe("GET /api/v1/calendar/layout", () => {
 		const {request} = app();
 		await expect(request("layout")).resolves.toStrictEqual({
 			status: 200,
-			body: {levels: {year: true, month: true, day: true}, customLevels: [], needsConfirm: true},
+			body: {
+				levels: {year: true, month: true, day: true},
+				customLevels: [],
+				needsConfirm: true,
+				applyEnabled: false,
+			},
 		});
 	});
 
@@ -111,7 +141,12 @@ describe("GET /api/v1/calendar/layout", () => {
 		const {request} = app({names: {m09: "September plans"}});
 		await expect(request("layout")).resolves.toStrictEqual({
 			status: 200,
-			body: {levels: {year: true, month: true, day: true}, customLevels: ["month"], needsConfirm: true},
+			body: {
+				levels: {year: true, month: true, day: true},
+				customLevels: ["month"],
+				needsConfirm: true,
+				applyEnabled: false,
+			},
 		});
 	});
 
@@ -151,11 +186,83 @@ describe("POST /api/v1/calendar/layout/preview", () => {
 		expect(calls).toStrictEqual(["getRootMeta dateFormat"]);
 	});
 
+	it("plans under an explicit root with random ids for new level nodes, not the account's deterministic ones", async () => {
+		const {preview} = app();
+		const {status, body} = await preview({levels: {year: true, month: true}, rootId: "notes"});
+		const steps = z.object({steps: z.array(z.object({op: z.string(), id: z.string()}).loose())}).parse(body).steps;
+		const created = steps.filter((step) => step.op === "create").map((step) => step.id);
+		expect({
+			status,
+			ops: steps.map((step) => `${step.op} ${step.op === "create" ? "" : step.id}`),
+			deterministic: created.filter(
+				(id) =>
+					id === calendarNodeId("k", "year", 20_260_000) || id === calendarNodeId("k", "month", 20_260_900),
+			),
+		}).toStrictEqual({
+			status: 200,
+			ops: ["set-calendar call", "set-levels notes", "create ", "create ", "move call"],
+			deterministic: [],
+		});
+	});
+
 	it("is 422 for week levels and 400 for a malformed body", async () => {
 		const {preview} = app();
 		expect([await preview({levels: {week: true}}), await preview({levels: "year"})]).toStrictEqual([
 			{status: 422, body: {error: "Calendar week levels are not supported"}},
 			{status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
 		]);
+	});
+});
+
+describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", () => {
+	it("are 403 while CALENDAR_LAYOUT_ENABLED is off, and write nothing", async () => {
+		const {send, calls} = app();
+		const disabled = {
+			status: 403,
+			body: {error: "Applying calendar layouts is disabled (CALENDAR_LAYOUT_ENABLED)"},
+		};
+		expect({
+			put: await send("PUT", "layout", {levels: {year: true}}),
+			undo: await send("POST", "layout/undo"),
+			calls,
+		}).toStrictEqual({put: disabled, undo: disabled, calls: []});
+	});
+
+	it("applies the levels (to an explicit root when given), reports enabled, and undoes once", async () => {
+		const {request, send, calls} = app({layoutEnabled: true});
+		expect({
+			layout: await request("layout"),
+			tagged: await send("PUT", "layout", {levels: {year: true, month: false}}),
+			sandbox: await send("PUT", "layout", {levels: {year: true}, rootId: "sandbox-cal"}),
+			week: await send("PUT", "layout", {levels: {week: true}}),
+			bad: await send("PUT", "layout", {levels: {year: true}, rootId: 7}),
+			undo: await send("POST", "layout/undo"),
+			nothing: await send("POST", "layout/undo"),
+			calls,
+		}).toStrictEqual({
+			layout: {
+				status: 200,
+				body: {
+					levels: {year: true, month: true, day: true},
+					customLevels: [],
+					needsConfirm: true,
+					applyEnabled: true,
+				},
+			},
+			tagged: {status: 200, body: {rootId: "cal", writes: 3}},
+			sandbox: {status: 200, body: {rootId: "cal", writes: 3}},
+			week: {status: 422, body: {error: "Calendar week levels are not supported"}},
+			bad: {status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
+			undo: {status: 200, body: {rootId: "cal", writes: 3}},
+			nothing: {status: 409, body: {error: "There is no calendar layout to undo"}},
+			calls: [
+				"getRootMeta dateFormat",
+				'applyCalendarLayout {"year":true,"month":false} {}',
+				'applyCalendarLayout {"year":true} {"rootId":"sandbox-cal"}',
+				'applyCalendarLayout {"week":true} {}',
+				"undoCalendarLayout",
+				"undoCalendarLayout",
+			],
+		});
 	});
 });
