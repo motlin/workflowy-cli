@@ -1,12 +1,6 @@
 import type {AppMessageAction} from "./stores/outline.js";
 import {defaultIndexIn} from "./tree-ops.js";
-
-/** One exact-index `POST /api/v1/nodes/:id/move` (the `useMoveNode` payload). */
-export interface MoveToRequest {
-	nodeId: string;
-	parent_id: string | null;
-	index: number;
-}
+import type {BlockMove} from "./tree-ops.js";
 
 export interface MoveToTarget {
 	id: string;
@@ -32,17 +26,17 @@ export function canMoveUnder(parentOf: (id: string) => string | null, itemId: st
 	return true;
 }
 
-/** The move into `target` at upstream's `WF.Priority.defaultIn` slot (top unless `defaultToBottom`). */
+/** One block move of `items` (document order) into `target` at upstream's `WF.Priority.defaultIn` slot (top unless `defaultToBottom`). */
 export function planMoveTo({
-	item,
+	items,
 	target,
 	childCount,
 }: {
-	item: string;
+	items: readonly string[];
 	target: Pick<MoveToTarget, "id" | "defaultToBottom">;
 	childCount: number;
-}): MoveToRequest {
-	return {nodeId: item, parent_id: target.id, index: defaultIndexIn(target, childCount)};
+}): BlockMove {
+	return {ids: [...items], parentId: target.id, index: defaultIndexIn(target, childCount)};
 }
 
 export function moveToastText(kind: "moved" | "cant", name: string): string {
@@ -50,41 +44,42 @@ export function moveToastText(kind: "moved" | "cant", name: string): string {
 }
 
 /**
- * Upstream Move To (`WF.SendTo`): move the item into the chosen location without expanding it,
- * then toast `Moved to '<name>'` with View (zoom to the target) and Undo (move it back to `from`).
- * A target at or under the item stays listed upstream; choosing it only toasts `Can't move to`.
- * Returns whether the item moved.
+ * Upstream Move To (`WF.SendTo`): move the items (the selection in document order, or the one row) into the chosen
+ * location as one block without expanding it, then toast `Moved to '<name>'` with View (zoom to the target) and Undo
+ * (upstream `WF.Undo.undo`: the undo stack, which waits for the move to land). A target at or under any item stays
+ * listed upstream; choosing it only toasts `Can't move to`. Returns whether the items moved.
  */
 export function runMoveTo({
-	itemId,
-	from,
+	items,
 	target,
 	childCount,
 	parentOf,
-	moveNode,
+	moveNodes,
 	showToast,
 	view,
+	undo,
 	leaveItem,
 }: {
-	itemId: string;
-	/** The item's current slot, for Undo. */
-	from: {parentId: string | null; index: number};
+	/** The item ids in document order. */
+	items: readonly string[];
 	target: MoveToTarget;
 	/** The target's current child count. */
 	childCount: number;
 	parentOf: (id: string) => string | null;
-	moveNode: (request: MoveToRequest) => void;
+	moveNodes: (moves: BlockMove[]) => void;
 	showToast: (toast: MoveToToast) => void;
 	view: (targetId: string) => void;
+	/** Pops the undo stack (the toast's Undo). */
+	undo: () => void;
 	/** Runs just before the move, while the item's row is still in place (caret to the previous visible row). */
 	leaveItem?: () => void;
 }): boolean {
-	if (!canMoveUnder(parentOf, itemId, target.id)) {
+	if (!items.every((item) => canMoveUnder(parentOf, item, target.id))) {
 		showToast({text: moveToastText("cant", target.name), timeout: MOVE_TOAST_TIMEOUT, actions: []});
 		return false;
 	}
 	leaveItem?.();
-	moveNode(planMoveTo({item: itemId, target, childCount}));
+	moveNodes([planMoveTo({items, target, childCount})]);
 	showToast({
 		text: moveToastText("moved", target.name),
 		timeout: MOVE_TOAST_TIMEOUT,
@@ -98,9 +93,7 @@ export function runMoveTo({
 			},
 			{
 				label: "Undo",
-				run: () => {
-					moveNode({nodeId: itemId, parent_id: from.parentId, index: from.index});
-				},
+				run: undo,
 			},
 		],
 	});

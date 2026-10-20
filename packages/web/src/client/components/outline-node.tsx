@@ -211,7 +211,7 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 					openPresentation(node.id);
 				},
 				onMoveTo: () => {
-					void moveTo(node.id);
+					void moveTo([node.id]);
 				},
 				onDuplicate: () => {
 					// Same mutation as ⇧⌘D, without moving focus into the copy.

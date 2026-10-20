@@ -171,11 +171,26 @@ export interface AnchorRect {
 	height: number;
 }
 
-/** Upstream's inline-picker anchor: the caret box's bottom-left, or the fallback's when the caret box is empty. */
-export function caretAnchor(caret: AnchorRect | null, fallback: AnchorRect): {x: number; y: number} {
-	const empty =
-		caret === null ||
-		(caret.left === 0 && caret.top === 0 && caret.right === 0 && caret.bottom === 0 && caret.width === 0);
-	const box = empty ? fallback : caret;
+function isEmptyRect(rect: AnchorRect): boolean {
+	return rect.left === 0 && rect.top === 0 && rect.right === 0 && rect.bottom === 0 && rect.width === 0;
+}
+
+/**
+ * Upstream's inline-picker anchor: the bottom-left of the first non-empty caret box among `candidates` (upstream's
+ * `Caret.rect`: the text-offset range, then the selection's focus node), else of `fallback`.
+ */
+export function caretAnchor(candidates: readonly (AnchorRect | null)[], fallback: AnchorRect): {x: number; y: number} {
+	const box = candidates.find((rect): rect is AnchorRect => rect !== null && !isEmptyRect(rect)) ?? fallback;
 	return {x: box.left, y: box.bottom};
+}
+
+/**
+ * The caret's box candidates in `element`, in upstream's order: a range rebuilt at the caret's plain-text offset over
+ * the text nodes (`DomEditableText.rectOf`, real even after a programmatic caret Chrome reports as an empty rect), then
+ * the selection focus node's box when it is an element.
+ */
+export function caretBoxes(element: HTMLElement): (AnchorRect | null)[] {
+	const offsetRange = rangeAtTextOffset(element, caretTextOffset(element)).getBoundingClientRect();
+	const focus = globalThis.getSelection()?.focusNode;
+	return [offsetRange, focus instanceof Element ? focus.getBoundingClientRect() : null];
 }

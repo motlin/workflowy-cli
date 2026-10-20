@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {canMoveUnder, executeMoveTo, moveToastText, planMoveTo, runMoveTo} from "../src/client/move-to.js";
-import type {MoveToRequest, MoveToToast} from "../src/client/move-to.js";
+import type {MoveToToast} from "../src/client/move-to.js";
+import type {BlockMove} from "../src/client/tree-ops.js";
 
 // home > grandpa > {dad > {item > {child > {grandchild}}}, uncle}
 const PARENTS: Record<string, string | null> = {
@@ -28,18 +29,20 @@ describe("canMoveUnder", () => {
 });
 
 describe("planMoveTo", () => {
-	it("lands at the top of the target by default", () => {
-		expect(planMoveTo({item: "a2", target: {id: "bravo", defaultToBottom: false}, childCount: 2})).toStrictEqual({
-			nodeId: "a2",
-			parent_id: "bravo",
+	it("lands the items as one block at the top of the target by default", () => {
+		expect(
+			planMoveTo({items: ["a2", "a4"], target: {id: "bravo", defaultToBottom: false}, childCount: 2}),
+		).toStrictEqual({
+			ids: ["a2", "a4"],
+			parentId: "bravo",
 			index: 0,
 		});
 	});
 
 	it("lands at the bottom when the target defaults to bottom", () => {
-		expect(planMoveTo({item: "a2", target: {id: "bravo", defaultToBottom: true}, childCount: 2})).toStrictEqual({
-			nodeId: "a2",
-			parent_id: "bravo",
+		expect(planMoveTo({items: ["a2"], target: {id: "bravo", defaultToBottom: true}, childCount: 2})).toStrictEqual({
+			ids: ["a2"],
+			parentId: "bravo",
 			index: 2,
 		});
 	});
@@ -53,27 +56,33 @@ describe("moveToastText", () => {
 });
 
 interface Recorded {
-	moves: MoveToRequest[];
+	moves: BlockMove[][];
 	toasts: MoveToToast[];
 	views: string[];
+	undos: string[];
 }
 
-function run(targetId: string, defaultToBottom = false): Recorded & {moved: boolean} {
-	const recorded: Recorded = {moves: [], toasts: [], views: []};
+function run(
+	targetId: string,
+	{defaultToBottom = false, items = ["item"]}: {defaultToBottom?: boolean; items?: string[]} = {},
+): Recorded & {moved: boolean} {
+	const recorded: Recorded = {moves: [], toasts: [], views: [], undos: []};
 	const moved = runMoveTo({
-		itemId: "item",
-		from: {parentId: "dad", index: 3},
+		items,
 		target: {id: targetId, name: "Uncle", defaultToBottom},
 		childCount: 4,
 		parentOf,
-		moveNode: (request) => {
-			recorded.moves.push(request);
+		moveNodes: (moves) => {
+			recorded.moves.push(moves);
 		},
 		showToast: (toast) => {
 			recorded.toasts.push(toast);
 		},
 		view: (id) => {
 			recorded.views.push(id);
+		},
+		undo: () => {
+			recorded.undos.push("undo");
 		},
 	});
 	return {...recorded, moved};
@@ -92,7 +101,7 @@ describe("runMoveTo", () => {
 			})),
 		}).toStrictEqual({
 			moved: true,
-			moves: [{nodeId: "item", parent_id: "uncle", index: 0}],
+			moves: [[{ids: ["item"], parentId: "uncle", index: 0}]],
 			toasts: [
 				{
 					text: "Moved to 'Uncle'",
@@ -107,20 +116,28 @@ describe("runMoveTo", () => {
 	});
 
 	it("uses the bottom slot for a defaultToBottom target", () => {
-		expect(run("uncle", true).moves).toStrictEqual([{nodeId: "item", parent_id: "uncle", index: 4}]);
+		expect(run("uncle", {defaultToBottom: true}).moves).toStrictEqual([
+			[{ids: ["item"], parentId: "uncle", index: 4}],
+		]);
 	});
 
-	it("View zooms to the target and Undo moves the item back to its old slot", () => {
+	it("View zooms to the target and Undo pops the undo stack, as upstream's WF.Undo.undo", () => {
 		const result = run("uncle");
 		for (const action of result.toasts[0]?.actions ?? []) {
 			action.run();
 		}
-		expect({views: result.views, moves: result.moves}).toStrictEqual({
+		expect({views: result.views, undos: result.undos, moves: result.moves}).toStrictEqual({
 			views: ["uncle"],
-			moves: [
-				{nodeId: "item", parent_id: "uncle", index: 0},
-				{nodeId: "item", parent_id: "dad", index: 3},
-			],
+			undos: ["undo"],
+			moves: [[{ids: ["item"], parentId: "uncle", index: 0}]],
+		});
+	});
+
+	it("moves a multi-selection as one block in document order", () => {
+		const result = run("grandpa", {items: ["item", "sibling", "nephew"]});
+		expect({moved: result.moved, moves: result.moves}).toStrictEqual({
+			moved: true,
+			moves: [[{ids: ["item", "sibling", "nephew"], parentId: "grandpa", index: 0}]],
 		});
 	});
 
@@ -132,13 +149,21 @@ describe("runMoveTo", () => {
 			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: []}],
 		});
 	});
+
+	it("refuses the whole selection when the target is under any selected item", () => {
+		const result = run("child", {items: ["sibling", "item"]});
+		expect({moved: result.moved, moves: result.moves, toasts: result.toasts}).toStrictEqual({
+			moved: false,
+			moves: [],
+			toasts: [{text: "Can't move to 'Uncle'", timeout: 5000, actions: []}],
+		});
+	});
 });
 
 async function execute(picked: {id: string} | {createdId: string} | undefined) {
 	const log: string[] = [];
 	const moved = await executeMoveTo({
-		itemId: "item",
-		from: {parentId: "dad", index: 3},
+		items: ["item"],
 		pick: async () => Promise.resolve(picked),
 		loadTarget: async (id) => {
 			log.push(`load ${id}`);
@@ -147,17 +172,19 @@ async function execute(picked: {id: string} | {createdId: string} | undefined) {
 		leaveItem: () => {
 			log.push("leave");
 		},
-		moveNode: (request) => {
-			log.push(`move ${request.nodeId} ${String(request.parent_id)} ${request.index}`);
+		moveNodes: (moves) => {
+			for (const move of moves) {
+				log.push(`move ${move.ids.join(",")} ${String(move.parentId)} ${String(move.index)}`);
+			}
 		},
 		showToast: (toast) => {
 			log.push(`toast ${toast.text}`);
 		},
 		view: () => {},
+		undo: () => {},
 	});
 	return {moved, log};
 }
-
 describe("executeMoveTo", () => {
 	it("does nothing when the picker closes without a choice", async () => {
 		await expect(execute(undefined)).resolves.toStrictEqual({moved: false, log: []});

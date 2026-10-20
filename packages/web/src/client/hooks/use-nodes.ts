@@ -10,7 +10,7 @@ import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
 import {toUndoOps} from "../tree-ops.js";
-import type {UndoableMutation} from "../tree-ops.js";
+import type {BlockMove, UndoableMutation} from "../tree-ops.js";
 import {RequestStatusError, holdUndoSlot} from "../undo-batch.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
@@ -938,4 +938,29 @@ export function useExpandAll(): (rootId: string | null, open: boolean) => void {
 		},
 		[addErrorNotification],
 	);
+}
+
+export type MoveNodesMutate = ReturnType<typeof useMoveNodes>["mutate"];
+
+/** Send each block move once the previous one lands, so every planned slot matches the server's outline; stop at a failure. */
+export async function sendBlockMoves(moves: readonly BlockMove[], mutate: MoveNodesMutate): Promise<void> {
+	for (const {ids, parentId, index} of moves) {
+		// oxlint-disable-next-line no-await-in-loop -- each move's slot is planned against the outline the previous one left
+		const landed = await new Promise<boolean>((resolve) => {
+			mutate(
+				{ids, parent_id: parentId, ...(index === undefined ? {} : {index})},
+				{
+					onSuccess: () => {
+						resolve(true);
+					},
+					onError: () => {
+						resolve(false);
+					},
+				},
+			);
+		});
+		if (!landed) {
+			return;
+		}
+	}
 }

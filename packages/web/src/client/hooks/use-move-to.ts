@@ -1,33 +1,28 @@
 import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate} from "react-router-dom";
-import {caretAnchor, caretTextOffset, editorElement} from "../caret-dom.js";
+import {caretAnchor, caretBoxes, caretTextOffset, editorElement} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
 import {editingAfterRemoval} from "../caret-navigation.js";
 import {executeMoveTo} from "../move-to.js";
 import type {LoadedMoveTarget} from "../move-to.js";
 import {goToNode} from "../navigation.js";
-import {readChildren, readNode} from "../node-cache.js";
+import {readNode} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import type {CaretReturn} from "../stores/outline.js";
-import {sortByPriority} from "../tree-position.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
-import {fetchAncestors, fetchChildren, fetchNode, useMoveNode} from "./use-nodes.js";
+import {fetchAncestors, fetchChildren, fetchNode, sendBlockMoves, useMoveNodes} from "./use-nodes.js";
+import {activeCommandRegistry} from "./use-global-keymap.js";
 import {currentNavigableIds} from "./use-visible-nodes.js";
 
 const NO_RECT: AnchorRect = {left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0};
 
-/** The picker anchor in page coordinates: the caret box when editing `itemId`, else the row's `.name`. */
-function moveToAnchor(itemId: string, editing: boolean): {x: number; y: number} {
-	const selection = globalThis.getSelection();
-	const caret =
-		editing && selection !== null && selection.rangeCount > 0
-			? selection.getRangeAt(0).getBoundingClientRect()
-			: null;
+/** The picker anchor in page coordinates: the caret box in `editor` when editing, else the row's `.name`. */
+function moveToAnchor(itemId: string, editor: HTMLElement | null): {x: number; y: number} {
 	const row = document
 		.querySelector(`.innerContentContainer[data-node-id="${CSS.escape(itemId)}"]`)
 		?.closest(".name")
 		?.getBoundingClientRect();
-	const {x, y} = caretAnchor(caret, row ?? NO_RECT);
+	const {x, y} = caretAnchor(editor === null ? [] : caretBoxes(editor), row ?? NO_RECT);
 	return {x: x + window.scrollX, y: y + window.scrollY};
 }
 
@@ -43,62 +38,58 @@ async function loadMoveTarget(id: string): Promise<LoadedMoveTarget> {
 }
 
 /**
- * Upstream Move To (`⌃⌘M`, bullet menu `Move To...`): open the location picker at the caret (or the row), move the
- * item into the chosen location without expanding it, and move the caret to the previous visible row.
+ * Upstream Move To (`⌃⌘M`, bullet menu `Move To...`): clear the item selection, open the location picker at the caret
+ * (or the first item's row), move the items (document order) into the chosen location as one block without expanding
+ * it, and move the caret to the previous visible row.
  */
-export function useMoveTo(): (itemId: string) => Promise<void> {
+export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const {mutate: moveNode} = useMoveNode();
+	const {mutate: moveNodes} = useMoveNodes();
 
-	return async (itemId) => {
-		const node = readNode(queryClient, itemId);
-		if (node === undefined) {
+	return async (itemIds) => {
+		const items = itemIds.filter((id) => readNode(queryClient, id) !== undefined);
+		const [first] = items;
+		if (first === undefined) {
 			return;
 		}
 		const store = useOutlineStore.getState();
-		const editor = store.editingId === itemId ? editorElement(itemId) : null;
+		store.clearItemSelection();
+		const editor = store.editingId === first ? editorElement(first) : null;
 		const returnTo: CaretReturn | undefined =
-			editor === null ? undefined : {nodeId: itemId, offset: caretTextOffset(editor)};
-		const siblings = sortByPriority(readChildren(queryClient, node.parent_id) ?? []);
+			editor === null ? undefined : {nodeId: first, offset: caretTextOffset(editor)};
 		await executeMoveTo({
-			itemId,
-			from: {
-				parentId: node.parent_id,
-				index: Math.max(
-					0,
-					siblings.findIndex((sibling) => sibling.id === itemId),
-				),
-			},
+			items,
 			pick: async () =>
 				store.openLocationPicker(
-					{forItemId: itemId, headerText: "Move To..."},
-					moveToAnchor(itemId, editor !== null),
+					{forItemId: first, headerText: "Move To..."},
+					moveToAnchor(first, editor),
 					returnTo,
 				),
 			loadTarget: loadMoveTarget,
 			leaveItem: () => {
 				const outline = useOutlineStore.getState();
-				if (outline.editingId !== itemId) {
+				if (outline.editingId !== first) {
 					return;
 				}
-				const next = editingAfterRemoval(currentNavigableIds(queryClient), itemId);
+				const next = editingAfterRemoval(currentNavigableIds(queryClient), first);
 				if (next === null) {
 					outline.stopEditing();
 				} else {
 					outline.resumeEditing(next.nodeId, next.caretOffset);
 				}
 			},
-			moveNode: (request) => {
-				void runInUndoBatch(captureOutlineView, () => {
-					moveNode(request);
-				});
+			moveNodes: (moves) => {
+				void runInUndoBatch(captureOutlineView, async () => sendBlockMoves(moves, moveNodes));
 			},
 			showToast: ({text, timeout, actions}) => {
 				useOutlineStore.getState().showAppMessage(text, {timeout, actions});
 			},
 			view: (targetId) => {
 				goToNode(navigate, targetId);
+			},
+			undo: () => {
+				activeCommandRegistry().undo?.execute({items: [], zoomedId: null});
 			},
 		});
 	};

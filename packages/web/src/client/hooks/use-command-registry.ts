@@ -21,9 +21,10 @@ import {
 	planToggleComplete,
 	planVerticalMove,
 } from "../tree-ops.js";
-import type {BlockMove, BlockMoveDirection, MoveNodePayload} from "../tree-ops.js";
+import type {BlockMoveDirection, MoveNodePayload} from "../tree-ops.js";
 import {
 	fetchChildren,
+	sendBlockMoves,
 	useChildren,
 	useCreateNode,
 	useDeleteNode,
@@ -76,31 +77,6 @@ function potentiallyVisibleIds(nodes: NodeResponse[] | undefined): string[] {
 /** Whether items are selected, so `ctx.items` is the selection rather than the edited row. */
 function hasItemSelection(): boolean {
 	return useOutlineStore.getState().itemSelection.entries.length > 0;
-}
-
-type MoveNodesMutate = ReturnType<typeof useMoveNodes>["mutate"];
-
-/** Send each block move once the previous one lands, so every planned slot matches the server's outline; stop at a failure. */
-async function sendBlockMoves(moves: readonly BlockMove[], mutate: MoveNodesMutate): Promise<void> {
-	for (const {ids, parentId, index} of moves) {
-		// oxlint-disable-next-line no-await-in-loop -- each move's slot is planned against the outline the previous one left
-		const landed = await new Promise<boolean>((resolve) => {
-			mutate(
-				{ids, parent_id: parentId, ...(index === undefined ? {} : {index})},
-				{
-					onSuccess: () => {
-						resolve(true);
-					},
-					onError: () => {
-						resolve(false);
-					},
-				},
-			);
-		});
-		if (!landed) {
-			return;
-		}
-	}
 }
 
 /** A command on the single item, as upstream's palette-only item commands. */
@@ -744,12 +720,9 @@ export function useCommandRegistry(): CommandRegistry {
 			},
 		},
 		move_to: {
-			available: (ctx) => ctx.items.length === 1 && ctx.items[0] !== ctx.zoomedId,
+			available: (ctx) => ctx.items.length > 0 && ctx.items.every((id) => id !== ctx.zoomedId),
 			execute(ctx) {
-				const [itemId] = ctx.items;
-				if (itemId !== undefined) {
-					void moveTo(itemId);
-				}
+				void moveTo(ctx.items);
 			},
 		},
 		complete: {execute: complete},

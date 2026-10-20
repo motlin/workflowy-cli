@@ -27,22 +27,34 @@ describe("orderOffsets", () => {
 
 describe("caretAnchor", () => {
 	const fallback = {left: 40, bottom: 60, top: 40, right: 200, width: 160, height: 20};
+	const empty = {left: 0, bottom: 0, top: 0, right: 0, width: 0, height: 0};
 
 	it("anchors at the caret box's bottom-left", () => {
-		expect(caretAnchor({left: 10, bottom: 20, top: 2, right: 11, width: 1, height: 18}, fallback)).toStrictEqual({
+		expect(caretAnchor([{left: 10, bottom: 20, top: 2, right: 11, width: 1, height: 18}], fallback)).toStrictEqual({
 			x: 10,
 			y: 20,
 		});
 	});
 
-	it("falls back to the row's name box when the caret box is all zeros", () => {
-		expect(caretAnchor({left: 0, bottom: 0, top: 0, right: 0, width: 0, height: 0}, fallback)).toStrictEqual({
-			x: 40,
-			y: 60,
-		});
+	it("uses the first non-empty candidate, as upstream's text-offset range then focus-node box", () => {
+		expect(
+			caretAnchor(
+				[
+					empty,
+					null,
+					{left: 15, bottom: 30, top: 12, right: 15, width: 0, height: 18},
+					{...fallback, left: 99},
+				],
+				fallback,
+			),
+		).toStrictEqual({x: 15, y: 30});
+	});
+
+	it("falls back to the row's name box when every candidate is all zeros", () => {
+		expect(caretAnchor([empty, empty], fallback)).toStrictEqual({x: 40, y: 60});
 	});
 
 	it("falls back when there is no caret box", () => {
-		expect(caretAnchor(null, fallback)).toStrictEqual({x: 40, y: 60});
+		expect(caretAnchor([], fallback)).toStrictEqual({x: 40, y: 60});
 	});
 });
