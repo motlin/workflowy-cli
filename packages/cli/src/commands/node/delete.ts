@@ -3,7 +3,7 @@ import {deletePlanCalls, PathBuilder, WorkflowyWriteThroughClient} from "@workfl
 import {Command, Flags} from "@oclif/core";
 import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import {createDatabase} from "../../db/index.js";
-import {deleteBacklinksOfDeleted} from "../../services/backlinks.js";
+import {deleteBacklinksOfDeleted} from "@workflowy/shared/node";
 import {CacheService} from "../../services/cache.js";
 import {logger} from "../../services/logger.js";
 import {resolveNodeId} from "@workflowy/shared/utils";

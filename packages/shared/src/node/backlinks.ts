@@ -1,10 +1,11 @@
-import {WorkflowyInternalClient} from "@workflowy/shared/api";
-import type {WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
-import {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
-import type {BacklinkSync} from "@workflowy/shared/internal";
-import {readInternalAuth} from "@workflowy/shared/node";
-import {hasInternalLink} from "@workflowy/shared/workflowy";
-import type {createDatabase} from "../db/index.js";
+import {WorkflowyInternalClient} from "../api/workflowy-internal-client.js";
+import type {WorkflowyWriteThroughClient} from "../cache/workflowy-write-through-client.js";
+import {WorkflowyInternalAdapter} from "../internal/adapter.js";
+import type {BacklinkSync, WorkflowyInternalAdapterOptions} from "../internal/adapter.js";
+import {hasInternalLink} from "../workflowy/internal-links.js";
+import {readInternalAuth} from "./session-store.js";
+
+type Database = WorkflowyInternalAdapterOptions["db"];
 
 /**
  * Bring the backlinks of `sourceIds` in line with their internal links, as
@@ -16,7 +17,7 @@ import type {createDatabase} from "../db/index.js";
 export async function syncBacklinksIfLinked(
 	sourceIds: string[],
 	texts: (string | null | undefined)[],
-	database: ReturnType<typeof createDatabase>,
+	database: Database,
 	writeThrough: WorkflowyWriteThroughClient,
 ): Promise<BacklinkSync | undefined> {
 	if (sourceIds.length === 0 || !hasInternalLink(texts.join(" "))) {
@@ -32,7 +33,7 @@ export async function syncBacklinksIfLinked(
  */
 export async function deleteBacklinksOfDeleted(
 	sourceIds: string[],
-	database: ReturnType<typeof createDatabase>,
+	database: Database,
 	writeThrough: WorkflowyWriteThroughClient,
 ): Promise<string[]> {
 	if (sourceIds.length === 0) {
@@ -42,7 +43,7 @@ export async function deleteBacklinksOfDeleted(
 }
 
 function internalAdapter(
-	database: ReturnType<typeof createDatabase>,
+	database: Database,
 	writeThrough: WorkflowyWriteThroughClient,
 ): WorkflowyInternalAdapter | undefined {
 	const auth = readInternalAuth();

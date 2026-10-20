@@ -7,7 +7,7 @@ import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
-import {syncBacklinksIfLinked} from "../../services/backlinks.js";
+import {syncBacklinksIfLinked} from "@workflowy/shared/node";
 import {logger} from "../../services/logger.js";
 import {resolveOrCreateNodePath, resolveParent} from "@workflowy/shared/utils";
 

@@ -1,7 +1,9 @@
 import {NodeTreeReader} from "@workflowy/shared/cache";
+import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
+import {deleteBacklinksOfDeleted, syncBacklinksIfLinked} from "@workflowy/shared/node";
 import {resolveNodeId, resolveOrCreateNodePath, resolveParent} from "@workflowy/shared/utils";
 import {z} from "zod";
-import {getApiClient, getCacheService, getWriteThroughClient} from "../services.js";
+import {getApiClient, getCacheService, getDatabase, getWriteThroughClient} from "../services.js";
 import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerNodeTools(server: McpServer): void {
@@ -97,6 +99,7 @@ export function registerNodeTools(server: McpServer): void {
 				note,
 				position,
 			});
+			await syncBacklinksIfLinked([newNode.id], [name, note], getDatabase(), writeThroughClient);
 
 			return {
 				content: [
@@ -145,7 +148,14 @@ export function registerNodeTools(server: McpServer): void {
 			const writeThroughClient = getWriteThroughClient();
 
 			const nodeId = await resolveNodeId({id, path}, cacheService, apiClient);
+			const before = cacheService.getNode(nodeId);
 			const updatedNode = await writeThroughClient.updateNode(nodeId, {name, note});
+			await syncBacklinksIfLinked(
+				[nodeId],
+				[before?.name, before?.note, name, note],
+				getDatabase(),
+				writeThroughClient,
+			);
 
 			return {
 				content: [
@@ -185,7 +195,11 @@ export function registerNodeTools(server: McpServer): void {
 			const writeThroughClient = getWriteThroughClient();
 
 			const nodeId = await resolveNodeId({id, path}, cacheService, apiClient);
+			// Upstream's client deletes a deleted source's backlink items; read the
+			// linked sources before the delete drops the subtree from the cache.
+			const linked = linkedSourcesInSubtree(getDatabase(), nodeId);
 			await writeThroughClient.deleteNode(nodeId);
+			await deleteBacklinksOfDeleted(linked, getDatabase(), writeThroughClient);
 
 			return {content: [{type: "text", text: `Successfully deleted node: ${nodeId}`}]};
 		},
