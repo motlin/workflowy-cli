@@ -41,6 +41,7 @@ import {
 	applyDatePhrase,
 	planDateInsertion,
 	renderDatePills,
+	planPillReplacement,
 	replacePill,
 	serializeDatePills,
 } from "../date-pills.js";
@@ -59,7 +60,7 @@ import {useCommitSearch} from "../hooks/use-commit-search.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
-import {usePillDatePicker} from "./pill-date-picker.js";
+import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
 import {highlightSearchMatches} from "../highlight-html.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {
@@ -379,14 +380,48 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	});
 	const {handleInput: handleDateAutocomplete, hide: hideDateAutocomplete} = dateAutocomplete;
 
-	// A plain click on a display-mode pill edits or removes just that pill.
+	// A plain click on a pill edits or removes just that pill. At rest it saves the stored name; while editing,
+	// holding editing keeps the picker's focus from committing, and the change lands in the live editor.
+	const pillCaret = useRef(0);
 	const pillPicker = usePillDatePicker({
 		dateSettings,
 		onChange: (pillIndex, attrs) => {
-			updateNode({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
+			const content = contentRef.current;
+			if (content === null) {
+				updateNode({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
+				return;
+			}
+			const plan = planPillReplacement(serializeDatePills(content.innerHTML), pillIndex, attrs);
+			content.focus();
+			content.innerHTML = renderDatePills(plan.html, dateSettings);
+			placeCaretAtTextOffset(content, plan.caretOffset);
+			nameSaver.saveNow(plan.html);
+			releaseEditing();
+		},
+		onDismiss: () => {
+			const content = contentRef.current;
+			if (content !== null) {
+				content.focus();
+				placeCaretAtTextOffset(content, pillCaret.current);
+				releaseEditing();
+			}
 		},
 	});
 	const {open: openPillPicker} = pillPicker;
+	const handleEditingClick = useCallback(
+		(event: React.MouseEvent<HTMLSpanElement>) => {
+			const clicked = clickedPill(event, event.currentTarget);
+			if (clicked === null) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			pillCaret.current = offsetAfterPill(event.currentTarget, clicked.pill);
+			holdEditing(pillCaret.current);
+			openPillPicker(clicked.pill, clicked.index);
+		},
+		[holdEditing, openPillPicker],
+	);
 
 	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
 	const readNamePlain = useCallback(
@@ -1057,11 +1092,11 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			}
 
 			// Plain click on a date pill opens the picker on it; ⌥click is reserved for date search.
-			const pillEl = target instanceof Element ? target.closest("time.monolith-pill") : null;
-			if (pillEl && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+			const clicked = clickedPill(event, event.currentTarget);
+			if (clicked !== null) {
 				event.preventDefault();
 				event.stopPropagation();
-				openPillPicker(pillEl, [...event.currentTarget.querySelectorAll("time.monolith-pill")].indexOf(pillEl));
+				openPillPicker(clicked.pill, clicked.index);
 				return;
 			}
 
@@ -1235,6 +1270,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				contentEditable
 				dangerouslySetInnerHTML={{__html: editorHtml}}
 				onBlur={handleBlur}
+				onClick={handleEditingClick}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
 				onMouseDown={detachTagAutocomplete}
@@ -1242,6 +1278,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				suppressContentEditableWarning
 			/>
 			{datePicker.popup}
+			{pillPicker.popup}
 			{dateAutocomplete.flyout}
 			{tagAutocomplete.popup}
 			{slashMenu.menu}

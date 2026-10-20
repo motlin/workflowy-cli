@@ -11,6 +11,7 @@ import {
 	deletePillBeforeCaret,
 	planDateInsertion,
 	renderDatePills,
+	planPillReplacement,
 	replacePill,
 	serializeDatePills,
 	shouldTriggerDatePopup,
@@ -300,6 +301,28 @@ describe("replacePill", () => {
 		const first = '<time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
 		const second = '<time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>';
 		expect(replacePill(`${first} and ${second}`, 1, null)).toBe(`${first} and `);
+	});
+});
+
+describe("planPillReplacement", () => {
+	const first = '<time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>';
+	const second = '<time startYear="2026" startMonth="10" startDay="2">Fri, Oct 2, 2026</time>';
+
+	it("replaces the indexed pill and puts the caret right after it", () => {
+		expect(
+			planPillReplacement(`a ${first} b ${second} c`, 1, {startYear: 2026, startMonth: 10, startDay: 5}),
+		).toStrictEqual({
+			html: `a ${first} b <time startYear="2026" startMonth="10" startDay="5">Mon, Oct 5, 2026</time> c`,
+			caretOffset: 7,
+		});
+	});
+
+	it("removes the indexed pill and puts the caret where it was", () => {
+		expect(planPillReplacement(`a&amp; ${first} b`, 0, null)).toStrictEqual({html: "a&amp;  b", caretOffset: 3});
+	});
+
+	it("leaves html unchanged with the caret at the end when no pill has that index", () => {
+		expect(planPillReplacement(`a ${first}`, 3, null)).toStrictEqual({html: `a ${first}`, caretOffset: 3});
 	});
 });
 

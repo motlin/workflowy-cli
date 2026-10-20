@@ -6,9 +6,10 @@ import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
-import {planDateInsertion} from "../date-pills.js";
+import {planDateInsertion, planPillReplacement} from "../date-pills.js";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
+import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
@@ -81,6 +82,7 @@ function insertAtSelection(text: string, caretInText: number): void {
  * - A click places the caret at the click point and focuses the note; while focused, `.content` is `active` (unclamped)
  * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused
  * - Stored `<time>` dates render as monolith pills only at rest; the focused editor holds the raw `<time>` so pills are never saved
+ * - A plain click on a date pill opens the date picker on it to change or remove that date
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
  * - Edits are never reverted: Escape is left to the global search Escape, which saves, exits the note, and focuses search
  * - Enter inserts a line break (two at the very end, the second a sentinel); Tab inserts a tab; Shift+Tab does nothing
@@ -210,6 +212,46 @@ export function EditableNote({
 		onCancel: cancelDate,
 	});
 	const {handleInput: handleDateTrigger} = datePicker;
+
+	// A plain click on a pill (the note at rest or focused) edits or removes just that pill in the live note, which
+	// keeps focus: like the `!!` picker, the picker's focus neither saves nor re-renders the note.
+	const pillCaret = useRef(0);
+	const pillPicker = usePillDatePicker({
+		dateSettings,
+		onChange: (pillIndex, attrs) => {
+			const element = contentRef.current;
+			if (element !== null) {
+				const plan = planPillReplacement(
+					planNoteSave(noteSaver.saved, element.innerHTML).note,
+					pillIndex,
+					attrs,
+				);
+				element.focus();
+				element.innerHTML = noteContentHtml(plan.html, dateSettings);
+				placeCaretAtTextOffset(element, plan.caretOffset);
+				noteSaver.saveNow(plan.html);
+			}
+			datePickerOpen.current = false;
+		},
+		onDismiss: () => {
+			cancelDate(pillCaret.current);
+		},
+	});
+	const {open: openPillPicker} = pillPicker;
+	const handleClick = useCallback(
+		(event: React.MouseEvent<HTMLDivElement>) => {
+			const clicked = clickedPill(event, event.currentTarget);
+			if (clicked === null) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			pillCaret.current = offsetAfterPill(event.currentTarget, clicked.pill);
+			datePickerOpen.current = true;
+			openPillPicker(clicked.pill, clicked.index);
+		},
+		[openPillPicker],
+	);
 
 	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
 	const readNotePlain = useCallback(
@@ -424,6 +466,7 @@ export function EditableNote({
 					__html: focusedHtml ?? restingHtml,
 				}}
 				onBlur={handleBlur}
+				onClick={handleClick}
 				onFocus={handleFocus}
 				onInput={handleInput}
 				onKeyDown={handleKeyDown}
@@ -436,6 +479,7 @@ export function EditableNote({
 				suppressContentEditableWarning
 			/>
 			{datePicker.popup}
+			{pillPicker.popup}
 			{tagAutocomplete.popup}
 			{slashMenu.menu}
 			{toolbarView && (

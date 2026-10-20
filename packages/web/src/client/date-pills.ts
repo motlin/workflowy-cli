@@ -140,6 +140,26 @@ export function replacePill(html: string, pillIndex: number, attrs: TimeAttrs | 
 	});
 }
 
+/**
+ * `replacePill` for a live editor: the new stored HTML plus the plain-text caret offset (a pill
+ * counting one) right after the replacement pill, or where the removed pill was. With no pill at
+ * `pillIndex` the HTML is unchanged and the caret goes to the end.
+ */
+export function planPillReplacement(
+	html: string,
+	pillIndex: number,
+	attrs: TimeAttrs | null,
+): {html: string; caretOffset: number} {
+	const match = [...html.matchAll(TIME_PATTERN)][pillIndex];
+	if (match === undefined) {
+		return {html, caretOffset: plainLength(html)};
+	}
+	return {
+		html: replacePill(html, pillIndex, attrs),
+		caretOffset: plainLength(html.slice(0, match.index)) + (attrs === null ? 0 : 1),
+	};
+}
+
 // A `<time>` element (paired or self-closing) with at most one space before it.
 const SPACED_TIME_PATTERN = /[ \u00A0]?<time\b(?:[^>]*\/>|[^>]*>[\s\S]*?<\/time>)/giu;
 
