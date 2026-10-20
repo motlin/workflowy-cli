@@ -15,6 +15,8 @@ export const nodeKeys = {
 	detail: (nodeId: string) => [...nodeKeys.all, "detail", nodeId] as const,
 	ancestors: (nodeId: string) => [...nodeKeys.all, "ancestors", nodeId] as const,
 	backlinks: (nodeId: string) => [...nodeKeys.all, "backlinks", nodeId] as const,
+	/** A day page's Found Dates; under `nodes` so any tree write refreshes it. */
+	foundDates: (dayId: string) => [...nodeKeys.all, "found-dates", dayId] as const,
 	/** Home's own metadata (`GET /api/v1/home`): its layoutMode. */
 	home: () => [...nodeKeys.all, "home"] as const,
 	/** A location id (short or full) resolved to the full uuid, or null when the server has no such node. */

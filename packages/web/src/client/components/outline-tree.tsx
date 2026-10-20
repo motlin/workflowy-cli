@@ -1,10 +1,17 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode, Ref} from "react";
-import type {BacklinkItem, NodeResponse} from "../../node-types.js";
+import type {BacklinkItem, FoundDateItem, NodeResponse} from "../../node-types.js";
 import {useEffect, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
-import {useBacklinks, useChildren, useCreateNode, useNode, useToggleComplete} from "../hooks/use-nodes.js";
+import {
+	useBacklinks,
+	useChildren,
+	useCreateNode,
+	useFoundDates,
+	useNode,
+	useToggleComplete,
+} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
 import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
@@ -351,6 +358,107 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
 	);
 }
 
+/** Upstream's Found Dates project classes, copied literally (`open` swaps for `collapsed`). */
+const FOUND_DATES_CLASS = "font-custom project open [&_>.name>.itemMenu]:hidden [&_>.name]:text-tertiary";
+
+/**
+ * Upstream's Found Dates (`calendar.non-calendar-mirrors.wire`): a virtual,
+ * collapsible project after a day page's children, named "Found Dates" with an
+ * invisible mirror bullet, whose children are the found items as mirror rows
+ * under their crumbs. Its name is not editable; Enter on it adds an empty item
+ * at the end of the day, as upstream does.
+ */
+function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDateItem[]; depth: number}) {
+	const [isExpanded, setIsExpanded] = useState(true);
+	const createNode = useCreateNode();
+	const {data: dayChildren} = useChildren(dayId);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+	const addItemToDay = () => {
+		const children = dayChildren ?? [];
+		const plan = planAddChild({
+			childCount: children.length,
+			zoomedId: dayId,
+			prevVisibleLayout: children.at(-1)?.data.layoutMode,
+		});
+		const id = crypto.randomUUID();
+		createNode.mutate({
+			id,
+			parent_id: plan.parent_id,
+			name: plan.name,
+			index: plan.index,
+			...(plan.layoutMode === null ? {} : {layoutMode: plan.layoutMode}),
+		});
+		resumeEditing(id, 0);
+	};
+	return (
+		<div className={isExpanded ? FOUND_DATES_CLASS : FOUND_DATES_CLASS.replace(" open ", " collapsed ")}>
+			<div tabIndex={-1} className="name" role="presentation">
+				<span
+					data-handbook="bullet.handle"
+					className="bullet diamond"
+					style={{
+						left: "calc(var(--name-left-overhang) + 1px)",
+						width: "18px",
+						opacity: 1e-8,
+						["--bullet-size" as string]: "18px",
+					}}
+					aria-hidden="true"
+				>
+					<span className="bulletHalo">
+						<svg
+							width="100%"
+							height="100%"
+							viewBox="0 0 16 16"
+							fill="currentColor"
+							className="mirrorDiamondIcon"
+						>
+							<path d="M8 4 L4 8 L8 12 L12 8" />
+						</svg>
+					</span>
+				</span>
+				<div
+					className="notranslate content whitespace-pre-wrap"
+					// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- upstream's name is a `.content` div that takes the caret but not edits; Enter there adds an item to the day
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") {
+							event.preventDefault();
+							addItemToDay();
+						}
+					}}
+				>
+					<span className="innerContentContainer">Found Dates</span>
+				</div>
+				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+				<ExpandArrow
+					hasChildren
+					isExpanded={isExpanded}
+					nodeId={`found-dates-${dayId}`}
+					onToggle={() => {
+						setIsExpanded((open) => !open);
+					}}
+				/>
+			</div>
+			<div className="drop-line">
+				<div className="line" />
+			</div>
+			{isExpanded ? (
+				<div className={NESTED_CHILDREN_CLASS}>
+					{items.map((item) => (
+						<OutlineRow
+							key={item.node.id}
+							backlinkCrumbs={item.crumbs}
+							depth={depth + 1}
+							node={item.node}
+						/>
+					))}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 /**
  * Upstream's `div.children`: the visible children of `parentId`, each a recursive
  * `OutlineRow`, then, once every child is rendered, the item's Backlinks section,
@@ -394,8 +502,16 @@ export function OutlineChildren({
 		search === null && total <= maxToRender && isBacklinksSectionVisible(backlinks, showCompleted)
 			? backlinks?.rootId
 			: null;
+	// Only the zoomed day page shows Found Dates, after every child is rendered and outside a search.
+	const {data: zoomed} = useNode(isRoot ? parentId : null);
+	const dayId = isRoot && zoomed?.calendar?.level === "day" ? zoomed.id : null;
+	const {data: foundDates} = useFoundDates(dayId);
+	const foundItems =
+		search === null && total <= maxToRender
+			? (foundDates?.items ?? []).filter((item) => showCompleted || item.node.completedAt === null)
+			: [];
 
-	if (!visibleNodes || (total === 0 && backlinksRootId == null)) {
+	if (!visibleNodes || (total === 0 && backlinksRootId == null && foundItems.length === 0)) {
 		return null;
 	}
 
@@ -407,6 +523,9 @@ export function OutlineChildren({
 			{total > maxToRender && <RenderSentinel onReached={growWindow} />}
 			{backlinksRootId == null ? null : (
 				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
+			)}
+			{dayId === null || foundItems.length === 0 ? null : (
+				<FoundDatesSection dayId={dayId} depth={depth} items={foundItems} />
 			)}
 			{isRoot || owner === undefined ? null : <AddSiblingButton owner={owner} />}
 		</div>

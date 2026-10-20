@@ -61,6 +61,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useExpandAll: () => () => {},
 	useAncestors: () => ({data: undefined}),
 	useBacklinks: () => ({data: undefined}),
+	useFoundDates: () => ({data: undefined}),
 	useChildren: (parentId: string | null) => ({
 		data: childrenByParent.get(parentId) ?? [],
 		isLoading: false,

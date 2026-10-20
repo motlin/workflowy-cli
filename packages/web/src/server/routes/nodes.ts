@@ -1,5 +1,12 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
-import type {BacklinkCrumb, BacklinksResponse, CalendarInfo, NodeAttachment, NodeResponse} from "../../node-types.js";
+import type {
+	BacklinkCrumb,
+	BacklinksResponse,
+	CalendarInfo,
+	FoundDatesResponse,
+	NodeAttachment,
+	NodeResponse,
+} from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {ExactMover} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
@@ -14,6 +21,7 @@ import {Hono} from "hono";
 import type {Context} from "hono";
 import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoot} from "../backlinks.js";
 import {loadCalendarInfo} from "../calendar-day.js";
+import {findFoundDates} from "../calendar-found.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
@@ -867,6 +875,49 @@ nodesRouter.get("/:id/backlinks", async (c) => {
 					crumbs: crumbsOf(sourceId),
 				},
 			];
+		}),
+	};
+	return c.json(body);
+});
+
+// GET /api/v1/nodes/:id/found-dates - A day page's Found Dates section: the nodes
+// elsewhere whose <time> covers the day, each as a mirror row of itself with its crumbs.
+nodesRouter.get("/:id/found-dates", async (c) => {
+	const ctx = c.get("ctx");
+	const id = resolveNodeId(ctx, c.req.param("id"));
+	const node = id === null ? undefined : ctx.cacheService.getNode(id);
+	if (!node) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	const deps = {db: ctx.db, cache: ctx.cacheService};
+	const calendar = loadCalendarInfo(deps, [node]).get(node.id);
+	const found =
+		calendar?.level === "day" && calendar.dateId !== null ? findFoundDates(deps, node.id, calendar.dateId) : [];
+	const ids = found.map((item) => item.id);
+	const trees = new Map(
+		(await new NodeTreeReader(ctx.cacheService).readNodes(ids, {depth: 0})).map((tree) => [tree.id, tree]),
+	);
+	const flags = childFlags(ctx.db, ids);
+	const body: FoundDatesResponse = {
+		items: found.flatMap(({id: foundId, crumbs}) => {
+			const tree = trees.get(foundId);
+			return tree
+				? [
+						{
+							node: {
+								...nodeToRestDto(tree, {
+									hasChildren: flags.withChildren.has(foundId),
+									hasUncompletedChildren: flags.withUncompletedChildren.has(foundId),
+									name: tree.name,
+									note: tree.note,
+								}),
+								isMirror: true,
+								originalNodeId: foundId,
+							},
+							crumbs,
+						},
+					]
+				: [];
 		}),
 	};
 	return c.json(body);

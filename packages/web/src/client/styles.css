@@ -1566,6 +1566,15 @@ body.moving .expand {
 	background-color: transparent;
 }
 
+/* Upstream's Found Dates project: arbitrary classes its Tailwind build has but the cloned layer lacks. */
+.\[\&_\>\.name\]\:text-tertiary > .name {
+	color: var(--wf-text-tertiary);
+}
+
+.\[\&_\>\.name\>\.itemMenu\]\:hidden > .name > .itemMenu {
+	display: none;
+}
+
 /* Upstream's Backlinks section: the references root's label and bullet are tertiary gray. */
 .references > .name > .content {
 	color: var(--wf-text-tertiary);

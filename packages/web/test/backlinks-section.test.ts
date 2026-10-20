@@ -75,6 +75,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 		error: null,
 	}),
 	useBacklinks: (nodeId: string | null) => ({data: nodeId === null ? undefined : backlinksByNode.get(nodeId)}),
+	useFoundDates: () => ({data: undefined}),
 	useNode: () => ({data: undefined}),
 	useCreateNode: () => ({mutate: () => {}}),
 	useDeleteNode: () => ({mutate: () => {}}),

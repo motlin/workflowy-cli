@@ -2,7 +2,7 @@ import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-
 import {useCallback} from "react";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import type {MutateOptions, QueryClient} from "@tanstack/react-query";
-import type {BacklinksResponse, NodeResponse} from "../../node-types.js";
+import type {BacklinksResponse, FoundDatesResponse, NodeResponse} from "../../node-types.js";
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
 import {nodeKeys, patchCachedNode, readNode, snapshotCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
@@ -228,6 +228,22 @@ export function useBacklinks(nodeId: string | null) {
 	return useQuery({
 		queryKey: nodeKeys.backlinks(nodeId ?? ""),
 		queryFn: nodeId === null ? skipToken : async () => fetchBacklinks(nodeId),
+	});
+}
+
+async function fetchFoundDates(dayId: string): Promise<FoundDatesResponse> {
+	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(dayId)}/found-dates`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch found dates: ${response.statusText}`);
+	}
+	return readJson<FoundDatesResponse>(response);
+}
+
+/** Fetches a day page's Found Dates (disabled when `dayId` is null). */
+export function useFoundDates(dayId: string | null) {
+	return useQuery({
+		queryKey: nodeKeys.foundDates(dayId ?? ""),
+		queryFn: dayId === null ? skipToken : async () => fetchFoundDates(dayId),
 	});
 }
 

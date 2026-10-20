@@ -73,3 +73,15 @@ export interface BacklinksResponse {
 	rootId: string | null;
 	items: BacklinkItem[];
 }
+
+/** A Found Dates item: the found node shown as a mirror of itself, and its ancestor crumbs. */
+export interface FoundDateItem {
+	node: NodeResponse;
+	/** The node's ancestors, root first, excluding the node; empty when it is top level. */
+	crumbs: BacklinkCrumb[];
+}
+
+/** A day page's Found Dates section: nodes elsewhere whose `<time>` covers the day, in tree order. */
+export interface FoundDatesResponse {
+	items: FoundDateItem[];
+}

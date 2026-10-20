@@ -38,6 +38,7 @@ vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () 
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useExpandAll: () => () => {},
 	useBacklinks: () => ({data: undefined}),
+	useFoundDates: () => ({data: undefined}),
 	useChildren: () => ({data: [], isLoading: false, error: null}),
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),

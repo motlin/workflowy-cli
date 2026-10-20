@@ -69,7 +69,7 @@ export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: Ca
 }
 
 /** The node whose cached metadata marks it the calendar root, else the Home child named `📆 Calendar`. */
-function findCalendarRoot(deps: CalendarDayDeps): string | undefined {
+export function findCalendarRoot(deps: CalendarDayDeps): string | undefined {
 	const tagged = calendarRows(deps, '%"root":true%').find(({calendar}) => calendar.root === true);
 	return tagged?.id ?? deps.cache.getChildByName(null, CALENDAR_ROOT_NAME)?.id;
 }
