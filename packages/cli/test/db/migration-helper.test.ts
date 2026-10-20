@@ -1,6 +1,8 @@
 import {beforeEach, afterEach, describe, expect, inject, it} from "vite-plus/test";
 import Database from "better-sqlite3";
+import {nextSystemTime} from "@workflowy/shared/cache";
 import {nodeContent} from "@workflowy/shared/db";
+import {formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -140,6 +142,30 @@ describe("migration-helper", () => {
 				},
 			],
 		});
+	});
+
+	it("advances the system clock past every seeded version, so the next write never reuses a seeded system_from", () => {
+		// Fixtures stamp wall-clock times; a write in the same millisecond collided with the seeded (id, system_from) key.
+		const database = createInMemoryTestDatabase();
+		const seededFrom = new Date(Date.now() + 60_000);
+
+		try {
+			seedTestData(
+				database,
+				nodeFixtures([
+					createTestNode({
+						id: "node",
+						name: "Node",
+						parentId: null,
+						systemFrom: formatTemporalTimestamp(seededFrom),
+					}),
+				]),
+			);
+
+			expect(nextSystemTime(database.db)).toStrictEqual(new Date(seededFrom.getTime() + 1));
+		} finally {
+			cleanupTestDatabase(database);
+		}
 	});
 
 	it("leaves no journal sidecar files behind after cleanup", () => {

@@ -146,4 +146,34 @@ export function seedTestData(testDb: TestDatabase, fixtures: TestFixtures): void
 	if (fixtures.backupImports && fixtures.backupImports.length > 0) {
 		testDb.db.insert(schema.backupImports).values(fixtures.backupImports).run();
 	}
+
+	advanceSystemClockPastSeededVersions(testDb);
+}
+
+/**
+ * Advance the system clock past the newest seeded system_from, as migration 0029 does
+ * for an existing cache. Fixtures stamp wall-clock times outside the clock, so without
+ * this a write in the same millisecond would reuse a seeded (id, system_from) key.
+ */
+function advanceSystemClockPastSeededVersions(testDb: TestDatabase): void {
+	const seededTables = [
+		"node_content",
+		"node_metadata",
+		"mirrors",
+		"backlinks",
+		"virtual_root_ids",
+		"ai_metadata",
+		"s3_files",
+		"changes_metadata",
+		"references_roots",
+		"backup_imports",
+	];
+	const newest = seededTables
+		.map((table) => `SELECT MAX(julianday(system_from)) AS newest FROM ${table}`)
+		.join(" UNION ALL ");
+	testDb.sqlite.exec(
+		`UPDATE system_clock SET last_ms = max(last_ms, COALESCE((
+			SELECT CAST(ROUND((MAX(newest) - 2440587.5) * 86400000) AS INTEGER) FROM (${newest})
+		), 0))`,
+	);
 }
