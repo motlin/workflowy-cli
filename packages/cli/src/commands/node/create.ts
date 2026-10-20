@@ -7,6 +7,7 @@ import {Command, Flags} from "@oclif/core";
 import fs from "node:fs";
 import {createDatabase} from "../../db/index.js";
 import {CacheService} from "../../services/cache.js";
+import {syncBacklinksIfLinked} from "../../services/backlinks.js";
 import {logger} from "../../services/logger.js";
 import {resolveOrCreateNodePath, resolveParent} from "@workflowy/shared/utils";
 
@@ -212,6 +213,7 @@ export default class Create extends Command {
 				layoutMode: flags["layout-mode"],
 				position: flags.position,
 			});
+			await syncBacklinksIfLinked([newNode.id], [name, flags.note], database, client);
 
 			this.log("");
 			this.log("Successfully created node");

@@ -7,7 +7,7 @@ import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
-import {isShortId} from "@workflowy/shared/workflowy";
+import {hasInternalLink, isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import type {Context} from "hono";
@@ -546,10 +546,18 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 			...(numberedStart === undefined ? [] : [{path: ["numbered_start"], value: numberedStart ?? undefined}]),
 		];
 		if (name !== undefined || note !== undefined) {
+			// Text lives on a mirror's original, which is the backlink source.
+			const sourceId = cacheService.getMirrorOriginal(id) ?? id;
+			const before = cacheService.getNode(sourceId);
 			await client.updateNode(id, {
 				...(name === undefined ? {} : {name}),
 				...(note === undefined ? {} : {note}),
 			});
+			// Upstream's client keeps backlinks in step with a source's links; only a
+			// link added or removed can change them.
+			if (hasInternalLink(`${before?.name ?? ""} ${before?.note ?? ""} ${name ?? ""} ${note ?? ""}`)) {
+				await adapter.syncBacklinks([sourceId]);
+			}
 		}
 		if (changes.length > 0) {
 			await adapter.setNodeMetaValues(id, changes);

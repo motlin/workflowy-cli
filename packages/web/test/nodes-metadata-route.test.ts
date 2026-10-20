@@ -65,6 +65,7 @@ function dto(id: string, layoutMode: string | null, numberedStart: number | null
 
 interface FakeAdapter {
 	setNodeMetaValues: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["setNodeMetaValues"]>>;
+	syncBacklinks: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["syncBacklinks"]>>;
 	getRootMeta: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["getRootMeta"]>>;
 }
 
@@ -97,6 +98,9 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 			return Promise.resolve();
 		}),
 		getRootMeta: vi.fn<WorkflowyInternalAdapter["getRootMeta"]>(async () => Promise.resolve(rootLayoutMode)),
+		syncBacklinks: vi.fn<WorkflowyInternalAdapter["syncBacklinks"]>(async () =>
+			Promise.resolve({created: [], referencesRoots: [], deleted: []}),
+		),
 	};
 	const ctx = {
 		db,
@@ -122,7 +126,7 @@ function setup(configured: boolean, rootLayoutMode?: string) {
 		);
 		return {status: res.status, body: await res.json()};
 	};
-	return {adapter, request, writeMetadata};
+	return {adapter, request, writeMetadata, cacheService};
 }
 
 beforeEach(() => {
@@ -245,6 +249,34 @@ describe("PATCH /api/v1/nodes/:id metadata", () => {
 			calls: [["n1", [{path: ["numbered_start"], value: 3}]]],
 			updates: [["n1", {name: "Buy milk"}]],
 		});
+	});
+
+	it("syncs backlinks after a text edit that adds an internal link", async () => {
+		const {adapter, request} = setup(true);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		await request("PATCH", "/nodes/n1", {note: 'see <a href="https://workflowy.com/#/0123456789ab">t</a>'});
+
+		expect(adapter.syncBacklinks.mock.calls).toStrictEqual([[["n1"]]]);
+	});
+
+	it("syncs backlinks after a text edit that removes the last internal link", async () => {
+		const {adapter, request, cacheService} = setup(true);
+		cacheService.insertNode({...apiNode("n1"), name: '<a href="https://workflowy.com/#/0123456789ab">t</a>'}, null);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		await request("PATCH", "/nodes/n1", {name: "plain"});
+
+		expect(adapter.syncBacklinks.mock.calls).toStrictEqual([[["n1"]]]);
+	});
+
+	it("leaves backlinks alone when neither the old nor the new text links anywhere", async () => {
+		const {adapter, request} = setup(true);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		await request("PATCH", "/nodes/n1", {name: "plain"});
+
+		expect(adapter.syncBacklinks.mock.calls).toStrictEqual([]);
 	});
 
 	it("rejects a numberedStart that is not an integer or null", async () => {

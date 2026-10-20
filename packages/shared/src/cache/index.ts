@@ -1,4 +1,11 @@
-export {CacheService, type SubtreeMirrors, type TextSearchOptions, type TextSearchRow} from "./cache-service.js";
+export {
+	CacheService,
+	type BacklinkItem,
+	type BacklinkSyncRecord,
+	type SubtreeMirrors,
+	type TextSearchOptions,
+	type TextSearchRow,
+} from "./cache-service.js";
 export {
 	type CreatedNodeTree,
 	createNodeTree,

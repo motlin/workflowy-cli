@@ -1,5 +1,5 @@
 import type * as schema from "../db/schema.js";
-import {backlinks, mirrors, nodeContent, nodeMetadata, virtualRootIds} from "../db/schema.js";
+import {backlinks, mirrors, nodeContent, nodeMetadata, referencesRoots, virtualRootIds} from "../db/schema.js";
 import {stripHtmlTags} from "../html/strip-tags.js";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "../temporal/constants.js";
 import type {Node} from "../types/node.js";
@@ -224,6 +224,100 @@ function upsertNodeVersion(
 			.run();
 		insertMetadata(db, node, systemTime);
 	}
+}
+
+/**
+ * Store one parent's full child list as the API returned it, at `systemTime`:
+ * upsert each child, then phase out cached children missing from the list.
+ * A parent missing from the cache gets a blank placeholder row.
+ */
+function storeChildren(
+	tx: TemporalTransaction,
+	apiNodes: WorkflowyNode[],
+	parentId: string | null,
+	systemTime: string,
+): void {
+	if (parentId !== null) {
+		const parentExists = tx
+			.select({id: nodeContent.id})
+			.from(nodeContent)
+			.where(and(eq(nodeContent.id, parentId), currentVersion(nodeContent)))
+			.get();
+		if (!parentExists) {
+			tx.insert(nodeContent)
+				.values({
+					id: parentId,
+					name: null,
+					note: null,
+					parentId: null,
+					systemFrom: systemTime,
+					systemTo: FAR_FUTURE_DATE,
+				})
+				.run();
+			tx.insert(nodeMetadata)
+				.values({
+					nodeId: parentId,
+					shortId: uuidToShortId(parentId),
+					priority: null,
+					createdAt: null,
+					modifiedAt: null,
+					completedAt: null,
+					layoutMode: null,
+					systemFrom: systemTime,
+					systemTo: FAR_FUTURE_DATE,
+				})
+				.run();
+		}
+	}
+
+	// The public API carries none of the node's attribute tables (mirrors, backlinks,
+	// virtual roots, references roots, ai, s3, changes), so closing them here would be
+	// permanent data loss, not a refresh (#1712). import-api's /get_tree_data/ merge,
+	// backup imports and deleteNode() own their lifecycle.
+	for (const apiNode of apiNodes) {
+		upsertNodeVersion(tx, apiNode, parentId, systemTime);
+	}
+
+	if (parentId === null) {
+		return;
+	}
+	// Phase out cached children that are no longer in the API response (deleted nodes):
+	// the third leg of the merge list pattern. nodeMetadata has no parentId, so scope its
+	// phase-out to this parent's children via a subquery against nodeContent, and run it
+	// FIRST, while those content rows still hold the current version the subquery matches on.
+	const apiNodeIds = apiNodes.map((n) => n.id);
+	const metadataUnderParent = sql`${nodeMetadata.nodeId} IN (
+		SELECT id FROM node_content WHERE parent_id = ${parentId} AND system_to = ${FAR_FUTURE_DATE}
+	)`;
+	const keptMetadata = apiNodeIds.length > 0 ? notInArray(nodeMetadata.nodeId, apiNodeIds) : undefined;
+	const keptContent = apiNodeIds.length > 0 ? notInArray(nodeContent.id, apiNodeIds) : undefined;
+	tx.update(nodeMetadata)
+		.set({systemTo: systemTime})
+		.where(and(currentVersion(nodeMetadata), keptMetadata, metadataUnderParent))
+		.run();
+	tx.update(nodeContent)
+		.set({systemTo: systemTime})
+		.where(and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent), keptContent))
+		.run();
+}
+
+/** A backlink item: a mirror of `sourceId` under `targetId`'s references root. */
+export interface BacklinkItem {
+	nodeId: string;
+	sourceId: string;
+	targetId: string;
+}
+
+/** What one backlink sync changed upstream, for {@link CacheService.recordBacklinkSync}. */
+export interface BacklinkSyncRecord {
+	/** Each changed parent's full child list, read back from the API; parents before their new children. */
+	children: {parentId: string; nodes: WorkflowyNode[]}[];
+	/** References roots created. */
+	referencesRoots: string[];
+	/** Backlink items created. */
+	backlinks: BacklinkItem[];
+	/** Backlink items deleted. */
+	deleted: string[];
 }
 
 /** The cached subtree under a node, as {@link CacheService.getSubtreeMirrors} returns it. */
@@ -465,101 +559,9 @@ export class CacheService {
 	 * @param parentId The parent ID these nodes belong to (null for root)
 	 */
 	storeApiResponse(apiNodes: WorkflowyNode[], parentId: string | null): void {
-		const fetchTimestamp = nextSystemTime(this.database);
-
-		if (parentId) {
-			const parentExists = this.database
-				.select({id: nodeContent.id})
-				.from(nodeContent)
-				.where(and(eq(nodeContent.id, parentId), currentVersion(nodeContent)))
-				.get();
-
-			if (!parentExists) {
-				const systemFromStr = formatTemporalTimestamp(fetchTimestamp);
-				this.database
-					.insert(nodeContent)
-					.values({
-						id: parentId,
-						name: null,
-						note: null,
-						parentId: null,
-						systemFrom: systemFromStr,
-						systemTo: FAR_FUTURE_DATE,
-					})
-					.run();
-				this.database
-					.insert(nodeMetadata)
-					.values({
-						nodeId: parentId,
-						shortId: uuidToShortId(parentId),
-						priority: null,
-						createdAt: null,
-						modifiedAt: null,
-						completedAt: null,
-						layoutMode: null,
-						systemFrom: systemFromStr,
-						systemTo: FAR_FUTURE_DATE,
-					})
-					.run();
-			}
-		}
-
+		const systemTime = formatTemporalTimestamp(nextSystemTime(this.database));
 		this.database.transaction((tx) => {
-			for (const apiNode of apiNodes) {
-				const systemTimestampStr = formatTemporalTimestamp(fetchTimestamp);
-
-				upsertNodeVersion(tx, apiNode, parentId, systemTimestampStr);
-
-				// The public API carries none of the node's attribute tables (mirrors, backlinks,
-				// virtual roots, references roots, ai, s3, changes), so closing them here would be
-				// permanent data loss, not a refresh (#1712). import-api's /get_tree_data/ merge,
-				// backup imports and deleteNode() own their lifecycle.
-			}
-
-			// Phase out cached children that are no longer in API response (deleted nodes)
-			// This is the third leg of the merge list pattern
-			if (parentId !== null) {
-				const phaseOutSystemToStr = formatTemporalTimestamp(fetchTimestamp);
-				const apiNodeIds = apiNodes.map((n) => n.id);
-				// nodeMetadata has no parentId, so scope its phase-out to this parent's children
-				// via a subquery against nodeContent — and run it FIRST, while those content rows
-				// still hold the current version the subquery matches on.
-				const metadataUnderParent = sql`${nodeMetadata.nodeId} IN (
-					SELECT id FROM node_content WHERE parent_id = ${parentId} AND system_to = ${FAR_FUTURE_DATE}
-				)`;
-				if (apiNodeIds.length > 0) {
-					tx.update(nodeMetadata)
-						.set({systemTo: phaseOutSystemToStr})
-						.where(
-							and(
-								currentVersion(nodeMetadata),
-								notInArray(nodeMetadata.nodeId, apiNodeIds),
-								metadataUnderParent,
-							),
-						)
-						.run();
-					tx.update(nodeContent)
-						.set({systemTo: phaseOutSystemToStr})
-						.where(
-							and(
-								eq(nodeContent.parentId, parentId),
-								currentVersion(nodeContent),
-								notInArray(nodeContent.id, apiNodeIds),
-							),
-						)
-						.run();
-				} else {
-					// API returned 0 children: phase out all cached children of this parent.
-					tx.update(nodeMetadata)
-						.set({systemTo: phaseOutSystemToStr})
-						.where(and(currentVersion(nodeMetadata), metadataUnderParent))
-						.run();
-					tx.update(nodeContent)
-						.set({systemTo: phaseOutSystemToStr})
-						.where(and(eq(nodeContent.parentId, parentId), currentVersion(nodeContent)))
-						.run();
-				}
-			}
+			storeChildren(tx, apiNodes, parentId, systemTime);
 		});
 	}
 
@@ -568,6 +570,37 @@ export class CacheService {
 		this.database.transaction(() => {
 			for (const {nodes, parentId} of batches) {
 				this.storeApiResponse(nodes, parentId);
+			}
+		});
+	}
+
+	/**
+	 * Record a backlink sync the server accepted, as one unit of work at one
+	 * system time: deleted backlink items end their whole composite, the
+	 * changed parents' children are replaced, and each created references root
+	 * and backlink item gets its `references_roots`, `backlinks` and `mirrors`
+	 * row.
+	 */
+	recordBacklinkSync(record: BacklinkSyncRecord): void {
+		runUnitOfWork(this.database, (unitOfWork) => {
+			const {tx, systemTime} = unitOfWork;
+			endNodeComposites(unitOfWork, record.deleted);
+			for (const {parentId, nodes} of record.children) {
+				storeChildren(tx, nodes, parentId, systemTime);
+			}
+			const current = {systemFrom: systemTime, systemTo: FAR_FUTURE_DATE};
+			for (const nodeId of record.referencesRoots) {
+				tx.insert(referencesRoots)
+					.values({nodeId, ...current})
+					.run();
+			}
+			for (const {nodeId, sourceId, targetId} of record.backlinks) {
+				tx.insert(backlinks)
+					.values({nodeId, sourceId, targetId, ...current})
+					.run();
+				tx.insert(mirrors)
+					.values({mirrorId: nodeId, originalId: sourceId, ...current})
+					.run();
 			}
 		});
 	}

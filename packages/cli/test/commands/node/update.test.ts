@@ -92,6 +92,84 @@ describe("node update command", () => {
 		});
 	});
 
+	describe("backlinks", () => {
+		const TARGET_LINK = '<a href="https://workflowy.com/#/0123456789ab">t</a>';
+
+		/** Answers the public update and read-back, and the internal login, init and an empty tree; records each path. */
+		function stubApis(): string[] {
+			const paths: string[] = [];
+			fetchStub.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(input instanceof Request ? input.url : String(input));
+				paths.push(`${init?.method ?? "GET"} ${url.pathname}`);
+				if (url.pathname === "/ajax_login") {
+					return Promise.resolve(
+						new Response("", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}}),
+					);
+				}
+				if (url.pathname === "/get_tree_data/") {
+					return Promise.resolve(Response.json({items: [], server_expanded_projects_list: []}));
+				}
+				if (init?.method === "POST") {
+					return Promise.resolve(Response.json({status: "ok"}));
+				}
+				return Promise.resolve(
+					Response.json({
+						node: {id: "source-id", name: "x", note: null, priority: 0, createdAt: 0, modifiedAt: 0},
+					}),
+				);
+			});
+			return paths;
+		}
+
+		beforeEach(() => {
+			process.env.WORKFLOWY_USERNAME = "alice@example.com";
+			process.env.WORKFLOWY_PASSWORD = "hunter2";
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+		});
+
+		it("syncs the source's backlinks through the internal API when the new text links to a node", async () => {
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "source-id", name: "Old", parentId: null})]));
+			const paths = stubApis();
+
+			await captureOutput(async () => {
+				await Update.run(["--id", "source-id", "--name", `see ${TARGET_LINK}`]);
+			});
+
+			expect(paths.filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([
+				"POST /ajax_login",
+				"GET /get_tree_data/",
+			]);
+		});
+
+		it("syncs when the old text linked to a node and the new one does not", async () => {
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "source-id", name: `see ${TARGET_LINK}`, parentId: null})]),
+			);
+			const paths = stubApis();
+
+			await captureOutput(async () => {
+				await Update.run(["--id", "source-id", "--name", "plain"]);
+			});
+
+			expect(paths.filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([
+				"POST /ajax_login",
+				"GET /get_tree_data/",
+			]);
+		});
+
+		it("leaves the internal API alone when no link is added or removed", async () => {
+			seedTestData(testDatabase, nodeFixtures([createTestNode({id: "source-id", name: "Old", parentId: null})]));
+			const paths = stubApis();
+
+			await captureOutput(async () => {
+				await Update.run(["--id", "source-id", "--name", "plain"]);
+			});
+
+			expect(paths.filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([]);
+		});
+	});
+
 	describe("dry run mode", () => {
 		it("shows API call without executing for name update", async () => {
 			seedTestData(

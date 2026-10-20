@@ -1,4 +1,4 @@
-import {and, eq, like} from "drizzle-orm";
+import {and, eq, inArray, like} from "drizzle-orm";
 import type {BaseSQLiteDatabase} from "drizzle-orm/sqlite-core";
 import {z} from "zod";
 import type {CreateMirrorResult} from "../api/workflowy-client.js";
@@ -8,6 +8,8 @@ import {keptInternalMetadata} from "../cache/importer.js";
 import {accountState, nodeContent, nodeInternalMetadata} from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
 import {HOME_TARGET} from "../types/targets.js";
+import {hasInternalLink, internalLinkShortIds} from "../workflowy/internal-links.js";
+import {uuidToShortId} from "../workflowy/constants.js";
 import {
 	CALENDAR_LEVELS,
 	CalendarRootMissing,
@@ -21,10 +23,10 @@ import {calendarNodeId} from "./calendar-ids.js";
 import {LoggedOut, OperationRejected, TransportError} from "./errors.js";
 import {applyMetadataPatches, buildMetadataChanges} from "./metadata-patch.js";
 import type {MetadataChange} from "./metadata-patch.js";
-import {bulkCreateOp, bulkMoveOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
+import {bulkCreateOp, bulkMoveOp, deleteOp, editOp, moveOp, ROOT_PROJECT_ID, undeleteOp} from "./ops.js";
 import type {Location, NewTree} from "./ops.js";
 import {PushAndPoll} from "./push-and-poll.js";
-import type {PushAndPollOptions} from "./push-and-poll.js";
+import type {InternalOp, PushAndPollOptions} from "./push-and-poll.js";
 
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any
 type AdapterDatabase = BaseSQLiteDatabase<"sync", any, any>;
@@ -148,6 +150,16 @@ export interface RestoreInput {
 	index?: number;
 }
 
+/** What {@link WorkflowyInternalAdapter.syncBacklinks} changed upstream. */
+export interface BacklinkSync {
+	/** Backlink items created: a mirror of `sourceId` under `targetId`'s references root. */
+	created: {id: string; sourceId: string; targetId: string}[];
+	/** References roots created under targets that had none. */
+	referencesRoots: string[];
+	/** Backlink items deleted because their source no longer links to their target. */
+	deleted: string[];
+}
+
 export interface WorkflowyInternalAdapterOptions {
 	client: WorkflowyInternalClient;
 	db: AdapterDatabase;
@@ -181,6 +193,17 @@ function getPath(value: unknown, path: string[]): unknown {
 		current = Reflect.get(current, key);
 	}
 	return current;
+}
+
+function stringKeys(value: unknown): string[] {
+	return typeof value === "object" && value !== null ? Object.keys(value) : [];
+}
+
+/** A backlink item's `{sourceID, targetID}`, from its metadata. */
+function backlinkOf(metadata: Metadata | undefined): {sourceID: string; targetID: string} | undefined {
+	const sourceID = getPath(metadata, ["backlink", "sourceID"]);
+	const targetID = getPath(metadata, ["backlink", "targetID"]);
+	return typeof sourceID === "string" && typeof targetID === "string" ? {sourceID, targetID} : undefined;
 }
 
 /**
@@ -251,7 +274,172 @@ export class WorkflowyInternalAdapter {
 			this.writeNodeMetadata(id, kept);
 		}
 		await tree.refreshChildren([parent]);
+		if (hasInternalLink(`${input.name} ${input.note ?? ""}`)) {
+			await this.syncBacklinks([id]);
+		}
 		return {id};
+	}
+
+	/**
+	 * Bring each source's backlinks in line with the internal links in its
+	 * name and note, as upstream's client does after an edit, create or
+	 * undelete (`Ui1` in wf-base). For each linked target without a backlink
+	 * from the source: create the target's references root (a last child with
+	 * `isReferencesRoot`) when it has none, and a mirror of the source at its
+	 * top carrying `backlink: {sourceID, targetID}`. Each backlink item of the
+	 * source whose target is no longer linked is deleted. The source's
+	 * `mirror.backlinkMirrorRootIds` follows with one edit.
+	 *
+	 * Mirrors and references roots are never sources, and links to the
+	 * source itself or to nodes outside the tree are skipped. A link to a
+	 * mirror targets its original. Everything goes out in one push; the
+	 * changed parents are then read back and recorded as one unit of work.
+	 */
+	async syncBacklinks(sourceIds: string[]): Promise<BacklinkSync> {
+		const result: BacklinkSync = {created: [], referencesRoots: [], deleted: []};
+		const tree = this.tree();
+		const items = await this.client.getTreeData();
+		const metadataById = new Map(items.map((item) => [item.id, item.metadata ?? {}]));
+		const idByShortId = new Map(items.map((item) => [uuidToShortId(item.id), item.id]));
+		const originalOf = (id: string): string => {
+			const original = getPath(metadataById.get(id), ["mirror", "originalId"]);
+			return typeof original === "string" && metadataById.has(original) ? original : id;
+		};
+		// The session is read only once there is an op to build.
+		let sessionRead: Promise<InternalSession> | undefined;
+		const opContext = async () => {
+			const {userId, dateJoinedSec} = await (sessionRead ??= this.session());
+			return {userId, clock: {now: this.now(), dateJoinedSec}};
+		};
+		const childOrders = new Map<string, string[]>();
+		const childOrder = async (parentId: string): Promise<string[]> => {
+			let order = childOrders.get(parentId);
+			if (order === undefined) {
+				order = (await tree.liveChildren(parentId)).map((child) => child.id);
+				childOrders.set(parentId, order);
+			}
+			return order;
+		};
+		const rootOf = new Map<string, string>();
+		const changedParents = new Set<string>();
+		const ops: InternalOp[] = [];
+
+		for (const sourceId of new Set(sourceIds)) {
+			const metadata = metadataById.get(sourceId);
+			if (metadata === undefined || metadata.isReferencesRoot === true || originalOf(sourceId) !== sourceId) {
+				continue;
+			}
+			const source = await tree.liveNode(sourceId);
+			const targets = [
+				...new Set(
+					internalLinkShortIds(`${source.name} ${source.note ?? ""}`).flatMap((shortId) => {
+						const id = idByShortId.get(shortId);
+						return id === undefined ? [] : [originalOf(id)];
+					}),
+				),
+			].filter((id) => id !== sourceId);
+			const changes: MetadataChange[] = [];
+
+			for (const itemId of stringKeys(getPath(metadata, ["mirror", "backlinkMirrorRootIds"]))) {
+				const backlink = backlinkOf(metadataById.get(itemId));
+				if (backlink?.sourceID !== sourceId) {
+					continue;
+				}
+				const kept = targets.indexOf(backlink.targetID);
+				if (kept !== -1) {
+					targets.splice(kept, 1);
+					continue;
+				}
+				const parentId = (await tree.liveNode(itemId)).parent_id ?? null;
+				if (parentId === null) {
+					continue;
+				}
+				const siblings = await childOrder(parentId);
+				const {clock} = await opContext();
+				ops.push(deleteOp({...clock, id: itemId, from: {parentId, index: siblings.indexOf(itemId)}}));
+				siblings.splice(siblings.indexOf(itemId), 1);
+				changes.push({path: ["mirror", "backlinkMirrorRootIds", itemId], value: undefined});
+				changedParents.add(parentId);
+				result.deleted.push(itemId);
+			}
+
+			for (const targetId of targets) {
+				let rootId = rootOf.get(targetId);
+				if (rootId === undefined) {
+					const children = await childOrder(targetId);
+					rootId = children.find((child) => metadataById.get(child)?.isReferencesRoot === true);
+					if (rootId === undefined) {
+						const {userId, clock} = await opContext();
+						const created = bulkCreateOp({
+							...clock,
+							parentId: targetId,
+							index: children.length,
+							trees: [{name: "", metadata: {isReferencesRoot: true}}],
+							userId,
+							generateId: this.generateId,
+						});
+						[rootId] = created.ids;
+						if (rootId === undefined) {
+							throw new Error("bulk_create produced no id");
+						}
+						ops.push(created.op);
+						children.push(rootId);
+						childOrders.set(rootId, []);
+						changedParents.add(targetId);
+						result.referencesRoots.push(rootId);
+					}
+					rootOf.set(targetId, rootId);
+				}
+				const {userId, clock} = await opContext();
+				const created = bulkCreateOp({
+					...clock,
+					parentId: rootId,
+					index: 0,
+					trees: [
+						{
+							name: "",
+							metadata: {
+								mirror: {originalId: sourceId, isMirrorRoot: true},
+								backlink: {sourceID: sourceId, targetID: targetId},
+							},
+						},
+					],
+					userId,
+					generateId: this.generateId,
+				});
+				const [itemId] = created.ids;
+				if (itemId === undefined) {
+					throw new Error("bulk_create produced no id");
+				}
+				ops.push(created.op);
+				(await childOrder(rootId)).unshift(itemId);
+				changes.push({path: ["mirror", "backlinkMirrorRootIds", itemId], value: true});
+				changedParents.add(rootId);
+				result.created.push({id: itemId, sourceId, targetId});
+			}
+
+			if (changes.length > 0) {
+				const {patches, inverse} = buildMetadataChanges(metadata, changes);
+				const {clock} = await opContext();
+				ops.push(editOp({...clock, id: sourceId, metadataPatches: patches, metadataInversePatches: inverse}));
+			}
+		}
+
+		if (ops.length === 0) {
+			return result;
+		}
+		await this.pusher.pushAndPoll({ops});
+		// A new references root is read back after its target, which first caches it.
+		const newRoots = new Set(result.referencesRoots);
+		await tree.refreshBacklinks(
+			[...changedParents].toSorted((a, b) => Number(newRoots.has(a)) - Number(newRoots.has(b))),
+			{
+				referencesRoots: result.referencesRoots,
+				backlinks: result.created.map(({id, sourceId, targetId}) => ({nodeId: id, sourceId, targetId})),
+				deleted: result.deleted,
+			},
+		);
+		return result;
 	}
 
 	/**
@@ -460,6 +648,7 @@ export class WorkflowyInternalAdapter {
 			await this.postOk(`/trash/restore/${input.id}/`, new URLSearchParams(), true);
 			const restored = await tree.liveNode(input.id);
 			await tree.refreshChildren([restored.parent_id ?? null], [input.id]);
+			await this.syncRestoredBacklinks(input.id);
 			return;
 		}
 		const parent = publicParent(input.parentId);
@@ -474,6 +663,31 @@ export class WorkflowyInternalAdapter {
 		});
 		await this.pusher.pushAndPoll({ops: [op]});
 		await tree.refreshChildren([parent], [input.id]);
+		await this.syncRestoredBacklinks(input.id);
+	}
+
+	/** Upstream re-syncs the backlinks of every undeleted item; only cached nodes with a link can have any to create. */
+	private async syncRestoredBacklinks(rootId: string): Promise<void> {
+		const linked: string[] = [];
+		for (let level = [rootId]; level.length > 0;) {
+			const rows = this.db
+				.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
+				.from(nodeContent)
+				.where(and(inArray(nodeContent.id, level), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.all();
+			linked.push(
+				...rows.filter((row) => hasInternalLink(`${row.name ?? ""} ${row.note ?? ""}`)).map((row) => row.id),
+			);
+			level = this.db
+				.select({id: nodeContent.id})
+				.from(nodeContent)
+				.where(and(inArray(nodeContent.parentId, level), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+				.all()
+				.map((row) => row.id);
+		}
+		if (linked.length > 0) {
+			await this.syncBacklinks(linked);
+		}
 	}
 
 	/** Set (or, with `undefined`, remove) one node metadata value; see {@link setNodeMetaValues}. */

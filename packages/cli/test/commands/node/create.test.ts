@@ -263,6 +263,46 @@ describe("node create command", () => {
 		});
 	});
 
+	describe("backlinks", () => {
+		it("syncs the new node's backlinks through the internal API when its text links to a node", async () => {
+			process.env.WORKFLOWY_USERNAME = "alice@example.com";
+			process.env.WORKFLOWY_PASSWORD = "hunter2";
+			process.env.WORKFLOWY_SESSION_FILE = path.join(tempDir, "workflowy-session");
+			seedTestData(
+				testDatabase,
+				nodeFixtures([createTestNode({id: "parent-id", name: "Parent", parentId: null})]),
+			);
+			fakeCreates("new-id");
+			const publicApi = fetchStub.getMockImplementation()!;
+			fetchStub.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+				const {pathname} = new URL(url instanceof Request ? url.url : url.toString());
+				if (pathname === "/ajax_login") {
+					return Promise.resolve(
+						new Response("", {status: 200, headers: {"set-cookie": "sessionid=abc; Path=/"}}),
+					);
+				}
+				if (pathname === "/get_tree_data/") {
+					return Promise.resolve(Response.json({items: [], server_expanded_projects_list: []}));
+				}
+				return publicApi(url, init);
+			});
+
+			await captureOutput(async () => {
+				await Create.run([
+					"--parent-id",
+					"parent-id",
+					"--name",
+					'see <a href="https://workflowy.com/#/0123456789ab">t</a>',
+				]);
+			});
+
+			expect(requests().filter((entry) => !entry.includes("/api/v1/"))).toStrictEqual([
+				"POST https://workflowy.com/ajax_login",
+				"GET https://workflowy.com/get_tree_data/",
+			]);
+		});
+	});
+
 	describe("parent resolution", () => {
 		it("resolves parent by ID", async () => {
 			seedTestData(

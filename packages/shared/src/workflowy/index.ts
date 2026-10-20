@@ -8,3 +8,4 @@ export {
 	unixToBackupTime,
 	uuidToShortId,
 } from "./constants.js";
+export {hasInternalLink, internalLinkShortIds} from "./internal-links.js";

@@ -6,7 +6,7 @@ import type {
 } from "../api/workflowy-client.js";
 import {isSystemTarget} from "../types/targets.js";
 import type {WorkflowyNode} from "../types/workflowy.js";
-import type {CacheService} from "./cache-service.js";
+import type {BacklinkSyncRecord, CacheService} from "./cache-service.js";
 import {planSubtreeDelete} from "./delete-plan.js";
 import type {DeletePlan} from "./delete-plan.js";
 
@@ -185,6 +185,19 @@ export class WorkflowyWriteThroughClient {
 			level = levelBatches.flatMap((batch) => batch.nodes.map((node) => node.id));
 		}
 		this.cacheService.storeApiResponses(batches);
+	}
+
+	/**
+	 * After an internal-API push that changed backlinks, re-read each changed
+	 * parent's children (in the given order: parents before the references
+	 * roots created under them) and record the sync in the cache as one unit
+	 * of work.
+	 */
+	async refreshBacklinks(parentIds: string[], record: Omit<BacklinkSyncRecord, "children">): Promise<void> {
+		const children = await Promise.all(
+			parentIds.map(async (parentId) => ({parentId, nodes: await this.liveChildren(parentId)})),
+		);
+		this.cacheService.recordBacklinkSync({...record, children});
 	}
 
 	/**
