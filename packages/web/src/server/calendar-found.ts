@@ -12,7 +12,7 @@ import {nodeContent} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {Node} from "@workflowy/shared/types";
 import type {BacklinkCrumb} from "../node-types.js";
-import {findCalendarRoot, loadCalendarInfo} from "./calendar-day.js";
+import {loadCalendarInfo, readCalendarSettings} from "./calendar-day.js";
 import type {CalendarDayDeps} from "./calendar-day.js";
 
 export interface FoundDate {
@@ -23,12 +23,12 @@ export interface FoundDate {
 
 const TIME_OPEN_TAG = /<time\b([^>]*)>/giu;
 
-/** Whether any `<time>` in `html` starts on or before `dateId` and ends on or after it. */
-function coversDay(html: string | null, dateId: number): boolean {
+/** Each `<time>` in `html` as its `[start, end]` day dateIds; a single date starts and ends on its day. */
+function timeSpans(html: string | null): [number, number][] {
 	if (html === null) {
-		return false;
+		return [];
 	}
-	for (const [, attrText = ""] of html.matchAll(TIME_OPEN_TAG)) {
+	return [...html.matchAll(TIME_OPEN_TAG)].flatMap(([, attrText = ""]): [number, number][] => {
 		try {
 			const attrs = parseTimeAttrs(attrText);
 			const start = attrs.startYear * 10_000 + attrs.startMonth * 100 + attrs.startDay;
@@ -38,14 +38,41 @@ function coversDay(html: string | null, dateId: number): boolean {
 					: (attrs.endYear ?? attrs.startYear) * 10_000 +
 						(attrs.endMonth ?? attrs.startMonth) * 100 +
 						attrs.endDay;
-			if (start <= dateId && dateId <= end) {
-				return true;
-			}
+			return [[start, end]];
 		} catch {
 			// A <time> without start attributes names no date.
+			return [];
 		}
-	}
-	return false;
+	});
+}
+
+/** Whether any `<time>` in `html` starts on or before `dateId` and ends on or after it. */
+function coversDay(html: string | null, dateId: number): boolean {
+	return timeSpans(html).some(([start, end]) => start <= dateId && dateId <= end);
+}
+
+/**
+ * Live nodes whose name or note may hold a `<time>` in `year`: one that starts or ends in that year, or spans
+ * years and so carries an `endYear`.
+ */
+function datedCandidates(deps: Pick<CalendarDayDeps, "db">, year: number) {
+	const yearPattern = `%Year="${year}"%`;
+	const spanPattern = '%endYear="%';
+	return deps.db
+		.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
+		.from(nodeContent)
+		.where(
+			and(
+				eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+				or(
+					like(nodeContent.name, yearPattern),
+					like(nodeContent.note, yearPattern),
+					like(nodeContent.name, spanPattern),
+					like(nodeContent.note, spanPattern),
+				),
+			),
+		)
+		.all();
 }
 
 /** The node's ancestors root first, or undefined when the chain leaves the cache (an orphan). */
@@ -87,29 +114,12 @@ export function findFoundDates(
 	dayId: string,
 	dateId: number,
 ): FoundDate[] {
-	const rootId = findCalendarRoot(deps);
-	const rootNode = rootId === undefined ? undefined : deps.cache.getNode(rootId);
-	if (rootNode !== undefined && loadCalendarInfo(deps, [rootNode]).get(rootNode.id)?.foundDates === false) {
+	if (!readCalendarSettings(deps).foundDates) {
 		return [];
 	}
-	const yearPattern = `%Year="${Math.floor(dateId / 10_000)}"%`;
-	const spanPattern = '%endYear="%';
-	const candidates = deps.db
-		.select({id: nodeContent.id, name: nodeContent.name, note: nodeContent.note})
-		.from(nodeContent)
-		.where(
-			and(
-				eq(nodeContent.systemTo, FAR_FUTURE_DATE),
-				or(
-					like(nodeContent.name, yearPattern),
-					like(nodeContent.note, yearPattern),
-					like(nodeContent.name, spanPattern),
-					like(nodeContent.note, spanPattern),
-				),
-			),
-		)
-		.all()
-		.filter(({name, note}) => coversDay(name, dateId) || coversDay(note, dateId));
+	const candidates = datedCandidates(deps, Math.floor(dateId / 10_000)).filter(
+		({name, note}) => coversDay(name, dateId) || coversDay(note, dateId),
+	);
 	const nodes = candidates.flatMap(({id}) => {
 		const node = deps.cache.getNode(id);
 		return node === undefined || node.mirror.isMirror ? [] : [node];
@@ -132,4 +142,44 @@ export function findFoundDates(
 			id: node.id,
 			crumbs: ancestors.map(({id, name}) => ({id, name: name ?? ""})),
 		}));
+}
+
+/**
+ * The days of `month` (1-12) in `year` that a live node's `<time>` covers, for the strip picker's Found Dates dots
+ * (upstream `w10` over `WF.Date.fromItem`): calendar level nodes and nodes outside the tree do not count, and a
+ * range counts for each day it spans.
+ */
+export function foundDaysInMonth(
+	deps: Pick<CalendarDayDeps, "db" | "cache">,
+	year: number,
+	month: number,
+): Set<number> {
+	const first = year * 10_000 + month * 100 + 1;
+	const last = year * 10_000 + month * 100 + new Date(Date.UTC(year, month, 0)).getUTCDate();
+	const spansById = new Map(
+		datedCandidates(deps, year).flatMap(({id, name, note}) => {
+			const spans = [...timeSpans(name), ...timeSpans(note)].filter(
+				([start, end]) => start <= last && end >= first,
+			);
+			return spans.length === 0 ? [] : [[id, spans] as const];
+		}),
+	);
+	const nodes = [...spansById.keys()].flatMap((id) => {
+		const node = deps.cache.getNode(id);
+		return node === undefined || ancestorsOf(deps.cache, node) === undefined ? [] : [node];
+	});
+	const calendarInfo = loadCalendarInfo(deps, nodes);
+	const days = new Set<number>();
+	for (const node of nodes) {
+		const info = calendarInfo.get(node.id);
+		if (info?.root === true || info?.level != null) {
+			continue;
+		}
+		for (const [start, end] of spansById.get(node.id) ?? []) {
+			for (let dateId = Math.max(start, first); dateId <= Math.min(end, last); dateId++) {
+				days.add(dateId % 100);
+			}
+		}
+	}
+	return days;
 }

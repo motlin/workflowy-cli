@@ -69,13 +69,35 @@ export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: Ca
 }
 
 /** The node whose cached metadata marks it the calendar root, else the Home child named `📆 Calendar`. */
-export function findCalendarRoot(deps: CalendarDayDeps): string | undefined {
-	const tagged = calendarRows(deps, '%"root":true%').find(({calendar}) => calendar.root === true);
-	return tagged?.id ?? deps.cache.getChildByName(null, CALENDAR_ROOT_NAME)?.id;
+function findCalendarRoot(deps: Pick<CalendarDayDeps, "db" | "cache">): string | undefined {
+	return findTaggedCalendarRoot(deps) ?? deps.cache.getChildByName(null, CALENDAR_ROOT_NAME)?.id;
+}
+
+/** The 📆 Calendar root's picker settings (upstream `T10`/`k10`): each is true unless the root sets it false. */
+export interface CalendarSettings {
+	foundDates: boolean;
+	dayPrefix: boolean;
+}
+
+/** The calendar root's Found Dates and Friendly day names settings, each defaulting to true. */
+export function readCalendarSettings(deps: Pick<CalendarDayDeps, "db" | "cache">): CalendarSettings {
+	const rootId = findCalendarRoot(deps);
+	const rootNode = rootId === undefined ? undefined : deps.cache.getNode(rootId);
+	const info = rootNode === undefined ? undefined : loadCalendarInfo(deps, [rootNode]).get(rootNode.id);
+	return {foundDates: info?.foundDates !== false, dayPrefix: info?.dayPrefix !== false};
+}
+
+/**
+ * The calendar root whose cached internal metadata marks it `calendar.root`, or undefined. Metadata
+ * patches are built against that cached row, so without it a `calendar.*` write would replace the
+ * root's whole `calendar` object.
+ */
+export function findTaggedCalendarRoot(deps: Pick<CalendarDayDeps, "db">): string | undefined {
+	return calendarRows(deps, '%"root":true%').find(({calendar}) => calendar.root === true)?.id;
 }
 
 /** Live nodes whose metadata JSON matches `pattern` and parses as calendar metadata. */
-function calendarRows(deps: CalendarDayDeps, pattern: string) {
+function calendarRows(deps: Pick<CalendarDayDeps, "db">, pattern: string) {
 	return deps.db
 		.select({id: nodeInternalMetadata.nodeId, metadataJson: nodeInternalMetadata.metadataJson})
 		.from(nodeInternalMetadata)

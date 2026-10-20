@@ -1,7 +1,7 @@
 import {useDatePicker} from "@rehookify/datepicker";
 import type {DPDay, DPDayInteger, DPPropGetter} from "@rehookify/datepicker";
 import {useEffect, useLayoutEffect, useRef, useState} from "react";
-import type {ReactNode, RefObject} from "react";
+import type {ReactElement, ReactNode, RefObject} from "react";
 import {FaIcon} from "./fa-icons.js";
 import {MenuBody} from "./flyout/menu.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
@@ -33,6 +33,10 @@ export interface DatePickerPopupProps {
 	position?: {left: number; top: number};
 	/** Whether a day has journal content under 📆 Calendar; draws the single-mode event dot (DP10). */
 	hasEvent?: (date: Date) => boolean;
+	/** Overrides the single-mode day content (upstream `renderDayContent`); the strip passes {@link calendarDayContent}. */
+	renderDayContent?: (day: DPDay) => ReactNode;
+	/** Rows after the calendar (upstream `renderAfterCalendar`), such as the strip picker's settings toggles. */
+	afterCalendar?: ReactElement[];
 	/** The DATE grid's month on open and after each offset change, so the caller can load its event days. */
 	onVisibleMonthChange?: (visible: CalendarMonth) => void;
 	onTermChange?: (term: string) => void;
@@ -49,7 +53,7 @@ export interface DatePickerPopupProps {
 }
 
 /** Upstream `WF.DomKit.Toggle` (`HY2`) without children or secondary text, byte-for-byte class templates. */
-function Toggle({on, className = "", disabled = false}: {on: boolean; className?: string; disabled?: boolean}) {
+export function Toggle({on, className = "", disabled = false}: {on: boolean; className?: string; disabled?: boolean}) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- verbatim upstream Toggle markup; the menu row carries the text
 		<label
@@ -94,7 +98,7 @@ const HEADER_BUTTON_CLASS = `!bg-transparent hover:!bg-secondary focus:!bg-trans
                 text-primary hover:text-primary`;
 const CHEVRON_BUTTON_CLASS = "hover:!bg-secondary focus:!bg-secondary active:!bg-secondary";
 
-type DayContent = (day: DPDay) => ReactNode;
+export type DayContent = (day: DPDay) => ReactNode;
 
 /** Upstream `Ed4`: the plain day number with leading zeros stripped. */
 function plainDayContent(day: DPDay): ReactNode {
@@ -532,6 +536,8 @@ export function DatePickerPopup({
 	showControls = true,
 	position,
 	hasEvent = noEvents,
+	renderDayContent,
+	afterCalendar,
 	onVisibleMonthChange,
 	onTermChange,
 	onEnter,
@@ -609,10 +615,11 @@ export function DatePickerPopup({
 					weekStartDay={weekStartDay}
 					isRange={isRange}
 					initialView={initialView}
-					renderDayContent={dottedDayContent(hasEvent)}
+					renderDayContent={renderDayContent ?? dottedDayContent(hasEvent)}
 					onApply={onApply}
 					onVisibleMonthChange={onVisibleMonthChange}
 				/>
+				{afterCalendar}
 				{showControls ? (
 					<>
 						<MenuSeparator style={{margin: 0}} />

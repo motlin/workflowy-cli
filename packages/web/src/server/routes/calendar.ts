@@ -5,8 +5,12 @@
  * `GET /api/v1/calendar/day/:dateId[?level=month|year]` -> 200 `{id, firstChildId}` / 404 (read-only lookup of the
  * day, or the month or year node holding it; `firstChildId` is the first live, non-references-root child, or null
  * when the node has none).
- * `GET /api/v1/calendar/days?year=&month=` -> 200 `{days}`: the month's days with
- * journal content, for the date picker's event dots.
+ * `GET /api/v1/calendar/days?year=&month=[&found=1]` -> 200 `{days}`: the month's days with
+ * journal content, for the date picker's event dots; with `found=1` (the strip's picker) also the existing days a
+ * dated node elsewhere covers, unless the root turns Found Dates off.
+ * `GET /api/v1/calendar/settings` -> 200 `{foundDates, dayPrefix}`: the root's picker toggles, each default true.
+ * `PUT /api/v1/calendar/settings` `{foundDates?, dayPrefix?}` -> 200 the new settings; writes the root's
+ * `calendar.found_dates` / `calendar.day_prefix` metadata (409 when its internal metadata is not cached).
  * `GET /api/v1/calendar/dots?from=YYYYMMDD&to=YYYYMMDD` -> 200 `{dateIds}`: the days in the range with journal
  * content, for the day strip's dots.
  * `POST /api/v1/calendar/day/:dateId/ensure[?level=month|year][&createChild=false]` -> 200
@@ -17,7 +21,9 @@
 import {CalendarRootMissing, parseDateId} from "@workflowy/shared/internal";
 import type {CalendarLevel} from "@workflowy/shared/internal";
 import {Hono} from "hono";
-import {findCalendarDay} from "../calendar-day.js";
+import {z} from "zod";
+import {findCalendarDay, findTaggedCalendarRoot, readCalendarSettings} from "../calendar-day.js";
+import {foundDaysInMonth} from "../calendar-found.js";
 import type {CalendarDayDeps} from "../calendar-day.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
@@ -26,9 +32,12 @@ const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLE
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
 const INVALID_MONTH = "year and month must be a calendar year and a 1-12 month";
 const INVALID_LEVEL = "level must be day, month or year";
+const INVALID_SETTINGS = "foundDates and dayPrefix must be booleans, and at least one is required";
+const ROOT_METADATA_MISSING = "The 📆 Calendar root's internal metadata is not cached";
 const MAX_DOT_RANGE_DAYS = 100;
 const INVALID_RANGE = `from and to must be YYYYMMDD days at most ${MAX_DOT_RANGE_DAYS} days apart, from first`;
 const DAY_MS = 86_400_000;
+const SettingsBody = z.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()});
 
 /** The `?level=` query parameter (default day), else undefined. */
 function levelParam(raw: string | undefined): CalendarLevel | undefined {
@@ -115,12 +124,50 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			return c.json({error: INVALID_MONTH}, 400);
 		}
 		const deps = await calendarDayDeps(c.get("ctx"));
+		// Upstream `S10`: a found date dots only a day whose node exists.
+		const found =
+			c.req.query("found") === "1" && readCalendarSettings(deps).foundDates
+				? foundDaysInMonth(deps, year, month)
+				: new Set<number>();
 		const length = new Date(Date.UTC(year, month, 0)).getUTCDate();
 		const days = Array.from({length}, (_, index) => index + 1).filter((day) => {
 			const id = findCalendarDay(deps, year * 10_000 + month * 100 + day);
-			return id !== null && hasJournalContent(deps, id);
+			return id !== null && (hasJournalContent(deps, id) || found.has(day));
 		});
 		return c.json({days});
+	});
+
+	router.get("/settings", (c) => {
+		const ctx = c.get("ctx");
+		return c.json(readCalendarSettings({db: ctx.db, cache: ctx.cacheService}));
+	});
+
+	router.put("/settings", async (c) => {
+		const ctx = c.get("ctx");
+		const body = SettingsBody.safeParse(await c.req.json().catch(() => null));
+		const changes = body.success
+			? [
+					...(body.data.foundDates === undefined
+						? []
+						: [{path: ["calendar", "found_dates"], value: body.data.foundDates}]),
+					...(body.data.dayPrefix === undefined
+						? []
+						: [{path: ["calendar", "day_prefix"], value: body.data.dayPrefix}]),
+				]
+			: [];
+		if (changes.length === 0) {
+			return c.json({error: INVALID_SETTINGS}, 400);
+		}
+		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;
+		if (!adapter) {
+			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+		}
+		const rootId = findTaggedCalendarRoot({db: ctx.db});
+		if (rootId === undefined) {
+			return c.json({error: ROOT_METADATA_MISSING}, 409);
+		}
+		await adapter.setNodeMetaValues(rootId, changes);
+		return c.json(readCalendarSettings({db: ctx.db, cache: ctx.cacheService}));
 	});
 
 	router.get("/dots", async (c) => {

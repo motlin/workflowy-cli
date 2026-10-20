@@ -1,6 +1,7 @@
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {calendarDayContent, calendarPickerSettingsRows} from "../src/client/components/calendar-picker-settings.js";
 import {DatePickerPopup} from "../src/client/components/date-picker-popup.js";
 import type {DatePickerPopupProps} from "../src/client/components/date-picker-popup.js";
 import {nextCalendarFocus} from "../src/client/components/date-picker-keyboard.js";
@@ -144,6 +145,44 @@ describe("DatePickerPopup", () => {
 			inputRow: html.includes('<div class="flex items-center px-l py-m bg-secondary">'),
 			rows: menuRows(html),
 		}).toStrictEqual({input: true, inputRow: false, rows: ["Today", "Tomorrow", "Next week"]});
+	});
+
+	it("renders the strip picker's calendar-mode day dots and its Found Dates / Friendly day names rows", () => {
+		const html = render({
+			showControls: false,
+			selected: [new Date(2026, 9, 7)],
+			renderDayContent: calendarDayContent((date) => date.getMonth() === 9 && [1, 5, 7].includes(date.getDate())),
+			afterCalendar: calendarPickerSettingsRows({foundDates: true, dayPrefix: false}, () => {}),
+		});
+		expect({
+			rows: menuRows(html),
+			dotted: [
+				...html.matchAll(
+					/>(\d+)<svg[^>]*data-icon="circle-small"[^>]*class="[^"]*absolute bottom-\[0px\] w-s h-s ([^"]*)"/gu,
+				),
+			].map((m) => [m[1], m[2]]),
+			toggles: [...html.matchAll(/class="toggle (on|off) /gu)].map((m) => m[1]),
+			rowClasses: [
+				...html.matchAll(
+					/class="[^"]*menuItem \[&amp;_\.menuItemIcon\]:w-\[26px\] mobile:\[&amp;_\.menuItemIcon\]:w-\[54px\] /gu,
+				),
+			].length,
+		}).toStrictEqual({
+			rows: [
+				"Today",
+				"Tomorrow",
+				"Next week",
+				"Found DatesShows all matching dates",
+				"Friendly day namesYesterday, Today, Tomorrow",
+			],
+			dotted: [
+				["1", "text-tint"],
+				["5", "text-tertiary"],
+				["7", "!text-on-color"],
+			],
+			toggles: ["on", "off"],
+			rowClasses: 2,
+		});
 	});
 
 	it("labels the YEAR view with its decade window", () => {

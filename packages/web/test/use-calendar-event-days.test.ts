@@ -19,4 +19,10 @@ describe("calendarDaysUrl", () => {
 	it("asks the server for one month", () => {
 		expect(calendarDaysUrl({year: 2026, month: 9})).toBe("/api/v1/calendar/days?year=2026&month=9");
 	});
+
+	it("also asks for Found Dates days for the strip's picker", () => {
+		expect(calendarDaysUrl({year: 2026, month: 9}, {found: true})).toBe(
+			"/api/v1/calendar/days?year=2026&month=9&found=1",
+		);
+	});
 });

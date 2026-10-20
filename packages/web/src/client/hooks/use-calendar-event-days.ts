@@ -8,12 +8,17 @@ export interface CalendarMonth {
 	month: number;
 }
 
-export function calendarDaysUrl({year, month}: CalendarMonth): string {
-	return `/api/v1/calendar/days?year=${year}&month=${month}`;
+/** Which days the picker dots: `found` (the strip's picker) adds existing days that Found Dates cover. */
+export interface EventDayOptions {
+	found?: boolean;
 }
 
-async function fetchCalendarDays(visible: CalendarMonth): Promise<number[]> {
-	const response = await fetch(calendarDaysUrl(visible));
+export function calendarDaysUrl({year, month}: CalendarMonth, {found = false}: EventDayOptions = {}): string {
+	return `/api/v1/calendar/days?year=${year}&month=${month}${found ? "&found=1" : ""}`;
+}
+
+async function fetchCalendarDays(visible: CalendarMonth, options: EventDayOptions): Promise<number[]> {
+	const response = await fetch(calendarDaysUrl(visible, options));
 	if (!response.ok) {
 		throw new Error(`Failed to fetch calendar days: ${response.statusText}`);
 	}
@@ -31,14 +36,14 @@ export function eventDayPredicate(visible: CalendarMonth, days: number[] | undef
  * The date picker's event dots (upstream DP10): fetches which days of the
  * visible month have journal content under 📆 Calendar, one query per month.
  */
-export function useCalendarEventDays(): {
+export function useCalendarEventDays({found = false}: EventDayOptions = {}): {
 	hasEvent: (date: Date) => boolean;
 	onVisibleMonthChange: (visible: CalendarMonth) => void;
 } {
 	const [visible, setVisible] = useState<CalendarMonth | null>(null);
 	const {data} = useQuery({
-		queryKey: ["calendar-days", visible?.year, visible?.month],
-		queryFn: async () => (visible === null ? [] : fetchCalendarDays(visible)),
+		queryKey: ["calendar-days", visible?.year, visible?.month, found],
+		queryFn: async () => (visible === null ? [] : fetchCalendarDays(visible, {found})),
 		enabled: visible !== null,
 	});
 	const onVisibleMonthChange = useCallback((next: CalendarMonth) => {
