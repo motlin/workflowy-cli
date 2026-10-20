@@ -70,15 +70,9 @@ const LEGACY_LAYOUT_ALIASES: Record<string, string> = {
 	quote: "quote-block",
 };
 
-const LEGACY_FMT_TYPES = new Set(["h1", "h2", "h3", "p"]);
-
-/**
- * Icon for the item's current type. A legacy `metadata.fmt` of h1/h2/h3/p wins
- * over `layoutMode`; anything unrecognized shows the bullets icon.
- */
-export function currentTypeIcon(layoutMode: string | null | undefined, fmt?: string | null): string {
-	const mode = fmt && LEGACY_FMT_TYPES.has(fmt) ? fmt : layoutMode;
-	const key = mode ? (LEGACY_LAYOUT_ALIASES[mode] ?? mode) : null;
+/** Icon for the item's current type; anything unrecognized shows the bullets icon. */
+export function currentTypeIcon(layoutMode: string | null | undefined): string {
+	const key = layoutMode ? (LEGACY_LAYOUT_ALIASES[layoutMode] ?? layoutMode) : null;
 	return ITEM_TYPES.find((type) => type.layoutModeKey === key)?.icon ?? "list-ul";
 }
 
@@ -98,7 +92,6 @@ export interface LayoutToggleItem {
 	id: string;
 	layoutMode: string | null;
 	numberedStart: number | null;
-	fmt?: string | null;
 	name: string;
 	plainName: string;
 	hasChildren: boolean;
@@ -132,8 +125,7 @@ const SIMPLE_TOGGLE_TARGETS: Record<SimpleToggleCommand, string> = {
 const NUMBER_PREFIX = /^(\d+)\. /u;
 
 function effectiveType(item: LayoutToggleItem): string {
-	const mode = item.fmt && LEGACY_FMT_TYPES.has(item.fmt) ? item.fmt : item.layoutMode;
-	return mode ? (LEGACY_LAYOUT_ALIASES[mode] ?? mode) : "bullets";
+	return item.layoutMode ? (LEGACY_LAYOUT_ALIASES[item.layoutMode] ?? item.layoutMode) : "bullets";
 }
 
 function toggledType(item: LayoutToggleItem, target: string): string {

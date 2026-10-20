@@ -112,15 +112,6 @@ describe("currentTypeIcon", () => {
 			"block-quote",
 		]);
 	});
-
-	it("lets legacy metadata.fmt h1/h2/h3/p win over layoutMode", () => {
-		expect(["h1", "h3", "p", null].map((fmt) => currentTypeIcon("bullets", fmt))).toStrictEqual([
-			"h1",
-			"h3",
-			"paragraph",
-			"list-ul",
-		]);
-	});
 });
 
 function item(id: string, overrides: Partial<LayoutToggleItem> = {}): LayoutToggleItem {
@@ -171,19 +162,10 @@ describe("planLayoutToggle", () => {
 		});
 	});
 
-	it("reads legacy metadata.fmt over layoutMode", () => {
-		expect(planLayoutToggle("toggle_paragraph", [item("a", {layoutMode: "bullets", fmt: "p"})])).toStrictEqual({
-			updates: [{id: "a", layoutMode: "bullets"}],
-			deletes: [],
-			clearSelection: false,
-		});
-	});
-
 	it.each([
 		["toggle_h1", {layoutMode: "h1"}, "bullets"],
 		["toggle_h1", {layoutMode: "bullets"}, "h1"],
 		["toggle_paragraph", {layoutMode: "h2"}, "p"],
-		["toggle_h1", {layoutMode: "todo", fmt: "h1"}, "bullets"],
 		["toggle_paragraph", {layoutMode: "paragraph"}, "bullets"],
 	] as const)("toggles text type %s over %o to %s, storing p never paragraph", (command, current, layoutMode) => {
 		expect(planLayoutToggle(command, [item("a", current)])).toStrictEqual({
