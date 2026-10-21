@@ -1,6 +1,6 @@
 import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate} from "react-router-dom";
-import {caretAnchor, caretBoxes, caretTextOffset, editorElement} from "../caret-dom.js";
+import {caretAnchor, caretBoxes, caretTextOffset, editorElement, rowContent} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
 import {editingAfterRemoval} from "../caret-navigation.js";
 import {executeMoveTo} from "../move-to.js";
@@ -18,10 +18,7 @@ const NO_RECT: AnchorRect = {left: 0, top: 0, right: 0, bottom: 0, width: 0, hei
 
 /** The picker anchor in page coordinates: the caret box in `editor` when editing, else the row's `.name`. */
 function moveToAnchor(itemId: string, editor: HTMLElement | null): {x: number; y: number} {
-	const row = document
-		.querySelector(`.innerContentContainer[data-node-id="${CSS.escape(itemId)}"]`)
-		?.closest(".name")
-		?.getBoundingClientRect();
+	const row = rowContent(itemId)?.closest(".name")?.getBoundingClientRect();
 	const {x, y} = caretAnchor(editor === null ? [] : caretBoxes(editor), row ?? NO_RECT);
 	return {x: x + window.scrollX, y: y + window.scrollY};
 }

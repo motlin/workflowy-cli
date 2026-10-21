@@ -1,7 +1,7 @@
 import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {activePaneView} from "../stores/outline.js";
 import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
 import type {ExpansionRow} from "../expansion.js";
 import {navigableIds} from "../caret-navigation.js";
@@ -77,7 +77,7 @@ export function collectVisibleNodeIds(
  * time, so commands see rows created since the last render.
  */
 export function currentNavigableIds(queryClient: QueryClient): string[] {
-	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 	return navigableIds(
 		zoomedNodeId,
 		collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
@@ -89,7 +89,7 @@ export function currentNavigableIds(queryClient: QueryClient): string[] {
  * cache at call time, for the zoom root's level-by-level ⌘↓ / ⌘↑ and page-wide ⌃Space.
  */
 export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
-	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 	const search = currentSearchFilter(queryClient);
 	const rows: ExpansionRow[] = [];
 	const walk = (parentId: string | null, depth: number) => {

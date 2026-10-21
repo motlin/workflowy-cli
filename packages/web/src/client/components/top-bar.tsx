@@ -18,6 +18,7 @@ import {currentTypeIcon} from "../layout-types.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {stepNav, useNavStackSync} from "../navigation.js";
 import {internalLinkUrl} from "../item-menu-model.js";
+import {PANE_HEADER_ACTIVE_BORDER} from "./pane-context.js";
 
 /** Upstream's hamburger hover peek: the drawer closes this long after the pointer leaves the hamburger. */
 const PEEK_CLOSE_DELAY_MS = 200;
@@ -236,7 +237,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 
 	return (
 		<div
-			className="wf-header header bg-primary border-b border-solid border-primary"
+			className={`wf-header header bg-primary border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER}`}
 			style={{left: leftBarOffset(), zIndex: 200}}
 		>
 			{/* Upstream swaps the hamburger for a 16px spacer while the left bar is pinned. */}

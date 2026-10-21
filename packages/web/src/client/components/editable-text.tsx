@@ -1,7 +1,13 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
-import {isModalOpen, registerEditFlush, shouldCommitOnBlur, useOutlineStore} from "../stores/outline.js";
+import {
+	activePaneView,
+	isModalOpen,
+	registerEditFlush,
+	shouldCommitOnBlur,
+	useOutlineStore,
+} from "../stores/outline.js";
 import {applySplitPlan, planBackspaceAtStart, planDeleteAtEnd, planOutdent, planSplit} from "../tree-ops.js";
 import type {MergeRow} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
@@ -18,6 +24,7 @@ import type {HorizontalDirection, VerticalDirection} from "../caret-navigation.j
 import {
 	caretTextOffset,
 	placeCaretAtTextOffset,
+	rowContent,
 	placeSelectionAtTextOffsets,
 	selectionTextOffsets,
 	textUnitLength,
@@ -103,7 +110,7 @@ function verticalEntryPoint(
 	direction: VerticalDirection,
 	caretX: number | null,
 ): {x: number; y: number} | null {
-	const target = document.querySelector(`.innerContentContainer[data-node-id="${CSS.escape(targetId)}"]`);
+	const target = rowContent(targetId);
 	const lines = target ? [...target.getClientRects()] : [];
 	const line = direction === "up" ? lines.at(-1) : lines[0];
 	if (!line || line.width === 0) {
@@ -584,7 +591,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (!isCaretOnBoundaryLine(direction, caret, content.getBoundingClientRect())) {
 				return false;
 			}
-			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 			const visibleIds = navigableIds(
 				zoomedNodeId,
 				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
@@ -617,7 +624,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (caretTextOffset(content) !== edgeOffset) {
 				return false;
 			}
-			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 			const visibleIds = navigableIds(
 				zoomedNodeId,
 				collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
@@ -641,7 +648,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const enterRootNote = useCallback(
 		(key: "Up" | "Down" | "Left" | "Right"): boolean => {
 			const content = contentRef.current;
-			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 			if (!content || zoomedNodeId === null || globalThis.getSelection()?.isCollapsed !== true) {
 				return false;
 			}
@@ -688,7 +695,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		if (!content) {
 			return;
 		}
-		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 		const visible = new Set(
 			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
 		);
@@ -786,7 +793,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const children = readChildren(queryClient, nodeId);
 		const listed = readChildren(queryClient, parentId)?.find((sibling) => sibling.id === nodeId);
 		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
-		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 		const visibleIds = navigableIds(
 			zoomedNodeId,
 			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),
@@ -811,7 +818,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	const mergeWithSibling = useCallback(
 		(direction: "backward" | "forward"): boolean => {
 			const content = contentRef.current;
-			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+			const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 			if (!content || nodeId === zoomedNodeId || globalThis.getSelection()?.isCollapsed !== true) {
 				return false;
 			}

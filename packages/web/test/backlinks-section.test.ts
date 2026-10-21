@@ -8,6 +8,7 @@ import type {BacklinkItem, BacklinksResponse, NodeResponse} from "../src/node-ty
 import {cssBlock} from "./helpers/css-block.js";
 
 const outlineState = {
+	activePaneId: "main",
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),

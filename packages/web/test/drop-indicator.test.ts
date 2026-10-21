@@ -7,6 +7,7 @@ import type * as Navigation from "../src/client/navigation.js";
 import type {DropIndicator} from "../src/client/bullet-drag-state.js";
 
 const outlineState = {
+	activePaneId: "main",
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),

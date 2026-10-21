@@ -64,3 +64,80 @@ describe("side pane store", () => {
 		expect(store.getState().sidePane).toBeNull();
 	});
 });
+
+describe("active pane", () => {
+	it("starts on the main pane", async () => {
+		const store = await loadStore();
+		expect(store.getState().activePaneId).toBe("main");
+	});
+
+	it("activates a new side pane and stops editing in the main one", async () => {
+		const store = await loadStore();
+		store.getState().resumeEditing("carol", 3);
+		store.getState().openSidePane("alice");
+		const {activePaneId, editingId, editingCaretOffset} = store.getState();
+		expect({activePaneId, editingId, editingCaretOffset}).toStrictEqual({
+			activePaneId: "side",
+			editingId: null,
+			editingCaretOffset: null,
+		});
+	});
+
+	it("switches the active pane", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().setActivePane("main");
+		expect(store.getState().activePaneId).toBe("main");
+	});
+
+	it("returns to the main pane and stops editing when the active side pane closes", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().resumeEditing("bob", 0);
+		store.getState().closeSidePane();
+		const {activePaneId, editingId} = store.getState();
+		expect({activePaneId, editingId}).toStrictEqual({activePaneId: "main", editingId: null});
+	});
+
+	it("keeps main editing when an inactive side pane closes", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().setActivePane("main");
+		store.getState().resumeEditing("bob", 0);
+		store.getState().closeSidePane();
+		const {activePaneId, editingId} = store.getState();
+		expect({activePaneId, editingId}).toStrictEqual({activePaneId: "main", editingId: "bob"});
+	});
+
+	it("ignores activating the side pane when none is open", async () => {
+		const store = await loadStore();
+		store.getState().setActivePane("side");
+		expect(store.getState().activePaneId).toBe("main");
+	});
+
+	it("reads the active pane's zoom", async () => {
+		vi.resetModules();
+		const {
+			activeZoomedId,
+			activePaneView,
+			useOutlineStore: store,
+		} = await import("../src/client/stores/outline.js");
+		store.getState().zoom("main-node");
+		const mainZoom = activeZoomedId(store.getState());
+		store.getState().openSidePane("alice");
+		const sideZoom = activeZoomedId(store.getState());
+		const view = activePaneView();
+		store.getState().setActivePane("main");
+		expect({
+			mainZoom,
+			sideZoom,
+			viewZoom: view.zoomedNodeId,
+			backToMain: activeZoomedId(store.getState()),
+		}).toStrictEqual({
+			mainZoom: "main-node",
+			sideZoom: "alice",
+			viewZoom: "alice",
+			backToMain: "main-node",
+		});
+	});
+});

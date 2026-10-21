@@ -6,9 +6,13 @@ import {renderToStaticMarkup} from "react-dom/server";
 import type * as IconButtonModule from "../src/client/components/icon-button.js";
 import {cssBlock} from "./helpers/css-block.js";
 
-const calls: {close: number; zoom: (string | null)[]} = {close: 0, zoom: []};
-const storeState: {sidePane: {zoomedId: string | null} | null} & Record<string, unknown> = {
+const calls: {close: number; zoom: (string | null)[]; activate: string[]} = {close: 0, zoom: [], activate: []};
+const storeState: {sidePane: {zoomedId: string | null} | null; activePaneId: string} & Record<string, unknown> = {
 	sidePane: {zoomedId: "bob"},
+	activePaneId: "side",
+	setActivePane: (paneId: string) => {
+		calls.activate.push(paneId);
+	},
 	closeSidePane: () => {
 		calls.close++;
 	},
@@ -22,15 +26,17 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		selector === undefined ? storeState : selector(storeState),
 }));
 
-const {PaneContext, sidePaneWidth} = await import("../src/client/components/pane-context.js");
+const {PaneContext, paneActivation, sidePaneWidth} = await import("../src/client/components/pane-context.js");
 
 /** Records the pane context each OutlineTree sees, so tests can check bullet zooms stay in the pane. */
 const seenPaneZooms: ((id: string | null) => void)[] = [];
+const seenPaneIds: string[] = [];
 vi.mock("../src/client/components/outline-tree.js", () => ({
 	OutlineTree: ({parentId}: {parentId: string | null}) => {
 		const pane = useContext(PaneContext);
 		if (pane !== null) {
 			seenPaneZooms.push(pane.zoom);
+			seenPaneIds.push(pane.id);
 		}
 		return createElement("div", {className: "outline-tree-mock", "data-parent": parentId ?? "home"});
 	},
@@ -51,7 +57,7 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 	};
 });
 
-const {SidePane} = await import("../src/client/components/side-pane.js");
+const {MainPane, SidePane} = await import("../src/client/components/side-pane.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
@@ -74,10 +80,23 @@ describe("SidePane", () => {
 		);
 	});
 
+	it("marks the pane inactive while the main pane is active", () => {
+		storeState.activePaneId = "main";
+		const html = render();
+		storeState.activePaneId = "side";
+		expect(html).toContain('data-pane-active="false"');
+	});
+
+	it("tells its outline it renders in the side pane", () => {
+		seenPaneIds.length = 0;
+		render();
+		expect(seenPaneIds).toStrictEqual(["side"]);
+	});
+
 	it("renders a wf-pane-header with Home and Close pane", () => {
 		const html = render();
 		expect(html).toContain(
-			'<div class="wf-header header bg-primary wf-pane-header border-b border-solid border-primary flex-shrink-0">',
+			'<div class="wf-header header bg-primary wf-pane-header border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint flex-shrink-0">',
 		);
 		expect([...buttons.keys()]).toStrictEqual(["Home", "Close pane"]);
 	});
@@ -115,6 +134,46 @@ describe("SidePane", () => {
 		render();
 		seenPaneZooms[0]?.("carol");
 		expect(calls.zoom).toStrictEqual(["carol"]);
+	});
+});
+
+describe("MainPane", () => {
+	function renderMain(): string {
+		return renderToStaticMarkup(createElement(MainPane, null, createElement("i")));
+	}
+
+	it("wraps the main outline in a layout-free pane, active while a side pane is open and focused out of", () => {
+		storeState.activePaneId = "main";
+		const html = renderMain();
+		storeState.activePaneId = "side";
+		expect(html).toBe(
+			'<div data-pane-id="main" data-pane-type="item-tree" data-pane-active="true" class="main-pane group/pane contents"><i></i></div>',
+		);
+	});
+
+	it("is inactive while the side pane is active", () => {
+		expect(renderMain()).toContain('data-pane-active="false"');
+	});
+
+	it("is never active without a side pane, so its header keeps the plain border", () => {
+		storeState.activePaneId = "main";
+		storeState.sidePane = null;
+		const html = renderMain();
+		storeState.activePaneId = "side";
+		storeState.sidePane = {zoomedId: "bob"};
+		expect(html).toContain('data-pane-active="false"');
+	});
+});
+
+describe("paneActivation", () => {
+	it("activates the pane on pointerdown and focusin inside it, like upstream", () => {
+		const activated: string[] = [];
+		const handlers = paneActivation("side", (paneId) => {
+			activated.push(paneId);
+		});
+		handlers.onPointerDown();
+		handlers.onFocus();
+		expect(activated).toStrictEqual(["side", "side"]);
 	});
 });
 
@@ -157,7 +216,7 @@ describe("side pane layout CSS", () => {
 	it("narrows the main outline and header by the pane width", () => {
 		expect({
 			view: cssBlock(styles, ".outline-container.with-side-pane .outline-view"),
-			header: cssBlock(styles, ".outline-container.with-side-pane > .header"),
+			header: cssBlock(styles, ".outline-container.with-side-pane > .main-pane > .header"),
 		}).toStrictEqual({
 			view: {"margin-right": "var(--side-pane-width)", "padding-right": "40px"},
 			header: {right: "var(--side-pane-width)"},

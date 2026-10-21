@@ -27,7 +27,7 @@ import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
 import {OutlineChildren} from "./outline-tree.js";
-import {PaneContext} from "./pane-context.js";
+import {PaneContext, useInActivePane} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 import {planDuplicate, rowHasChildren} from "../tree-ops.js";
@@ -286,7 +286,8 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching
 	const {toggleExpand, toggleSearchExpansion, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
 	const toggleComplete = useToggleComplete();
 	const expandAll = useExpandAll();
-	const isEditing = editingId === node.id;
+	const inActivePane = useInActivePane();
+	const isEditing = inActivePane && editingId === node.id;
 	const isCompleted = node.completedAt !== null;
 	const layout = resolveLayoutMode(node.data.layoutMode);
 	const name = node.name ?? "";
@@ -439,13 +440,15 @@ export function OutlineRow({
 	const isPersistentlyExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
 	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
 	const rowSearchClasses = searchClasses({id: node.id, parentId: node.parent_id}, search);
-	const isEditingNote = useOutlineStore((state) => state.editingNoteId === node.id);
-	const isEditingName = useOutlineStore((state) => state.editingId === node.id);
+	// Editing and the item selection show only in the active pane, so a row visible in both panes edits in one.
+	const inActivePane = useInActivePane();
+	const isEditingNote = useOutlineStore((state) => inActivePane && state.editingNoteId === node.id);
+	const isEditingName = useOutlineStore((state) => inActivePane && state.editingId === node.id);
 	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
 	const isMoving = useOutlineStore(
 		(state) => state.movingIds.includes(node.id) || state.draggingIds.includes(node.id),
 	);
-	const isAddedToSelection = useOutlineStore((state) => isEntry(state.itemSelection, node.id));
+	const isAddedToSelection = useOutlineStore((state) => inActivePane && isEntry(state.itemSelection, node.id));
 	// Upstream tints the row and its nested `.children` while the row's item menu is open.
 	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);
 	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));

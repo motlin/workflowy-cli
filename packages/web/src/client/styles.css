@@ -4206,6 +4206,6 @@ label.toggle > div {
 	padding-right: 40px;
 }
 
-.outline-container.with-side-pane > .header {
+.outline-container.with-side-pane > .main-pane > .header {
 	right: var(--side-pane-width);
 }

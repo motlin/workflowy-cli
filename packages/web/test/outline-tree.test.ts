@@ -8,6 +8,7 @@ import type {NodeResponse} from "../src/node-types.js";
 import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 
 const outlineState = {
+	activePaneId: "main" as string,
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
@@ -101,6 +102,7 @@ vi.mock("../src/client/components/editable-note.js", async () => {
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
 const {AddChildButton, AddSiblingButton, OutlineTree} = await import("../src/client/components/outline-tree.js");
+const {PaneContext} = await import("../src/client/components/pane-context.js");
 
 function render(parentId: string | null = null): string {
 	return renderToStaticMarkup(
@@ -303,6 +305,49 @@ describe("OutlineTree zoom root row", () => {
 
 const ADD_BUTTON_MARKUP =
 	'<div class="mt-m mobile:ml-[-6px] [.item--zooming-in-progress_&amp;]:hidden print:hidden"><div role="button" tabindex="0" aria-label="Add new item" class="addChildButton cursor-pointer desktop:hover:!bg-tertiary iconButton ms shape-circle"><svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="plus" class="svg-inline--fa fa-plus fa-1x " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor" d="M240 64c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 176L32 240c-8.8 0-16 7.2-16 16s7.2 16 16 16l176 0 0 176c0 8.8 7.2 16 16 16s16-7.2 16-16l0-176 176 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-176 0 0-176z"></path></svg></div></div>';
+
+describe("OutlineTree active pane editing", () => {
+	const editor = 'class="innerContentContainer editing" data-node-id="alice"';
+
+	function renderInPane(paneId: string | null): string {
+		const tree = createElement(OutlineTree, {parentId: "alice"});
+		return renderToStaticMarkup(
+			createElement(
+				QueryClientProvider,
+				{client: new QueryClient()},
+				paneId === null
+					? tree
+					: createElement(PaneContext.Provider, {value: {id: paneId, zoom: () => {}}}, tree),
+			),
+		);
+	}
+
+	function editingAlice(activePaneId: string, paneId: string | null): boolean {
+		nodesById.set("alice", makeNode({name: "Alice"}));
+		outlineState.editingId = "alice";
+		outlineState.activePaneId = activePaneId;
+		try {
+			return renderInPane(paneId).includes(editor);
+		} finally {
+			outlineState.editingId = null;
+			outlineState.activePaneId = "main";
+		}
+	}
+
+	it("edits the node only in the active pane, so a node shown in both panes edits in one", () => {
+		expect({
+			mainWhileMainActive: editingAlice("main", null),
+			mainWhileSideActive: editingAlice("side", null),
+			sideWhileSideActive: editingAlice("side", "side"),
+			sideWhileMainActive: editingAlice("main", "side"),
+		}).toStrictEqual({
+			mainWhileMainActive: true,
+			mainWhileSideActive: false,
+			sideWhileSideActive: true,
+			sideWhileMainActive: false,
+		});
+	});
+});
 
 describe("OutlineTree add-child button", () => {
 	beforeEach(() => {

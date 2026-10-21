@@ -31,6 +31,7 @@ import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
+import {useInActivePane} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 
@@ -150,11 +151,15 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const editingId = useOutlineStore((state) => state.editingId);
 	const editingClickPosition = useOutlineStore((state) => state.editingClickPosition);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
-	const isEditingNote = useOutlineStore((state) => nodeId !== null && state.editingNoteId === nodeId);
-	const isAddedToSelection = useOutlineStore((state) => nodeId !== null && isEntry(state.itemSelection, nodeId));
+	// Editing and the item selection show only in the active pane, as for rows.
+	const inActivePane = useInActivePane();
+	const isEditingNote = useOutlineStore((state) => inActivePane && nodeId !== null && state.editingNoteId === nodeId);
+	const isAddedToSelection = useOutlineStore(
+		(state) => inActivePane && nodeId !== null && isEntry(state.itemSelection, nodeId),
+	);
 	const isMainTreeRoot = nodeId === null;
 	const isDragHoveredIn = useOutlineStore((state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT) === "in");
-	const isEditing = !isMainTreeRoot && editingId === nodeId;
+	const isEditing = inActivePane && !isMainTreeRoot && editingId === nodeId;
 	const searchRootClasses = rootSearchClasses(useSearchFilter());
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 	const layout = resolveLayoutMode(node?.data.layoutMode);

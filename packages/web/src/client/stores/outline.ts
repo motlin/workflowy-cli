@@ -1,4 +1,5 @@
 import {create} from "zustand";
+import {MAIN_PANE_ID, SIDE_PANE_ID} from "../pane-ids.js";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
 import {initialNavState, locEquals, navReducer} from "../nav-stack.js";
@@ -245,12 +246,12 @@ export interface LocationPickerOptions {
 /** `{id}` from a chosen location, `{createdId}` from create-and-move, undefined when closed. */
 type LocationPickerResult = {id: string} | {createdId: string} | undefined;
 
-/** Where editing resumes when the picker closes. */
 interface SidePaneState {
 	/** The pane's zoomed node; null is Home. */
 	zoomedId: string | null;
 }
 
+/** Where editing resumes when the picker closes. */
 export interface CaretReturn {
 	nodeId: string;
 	offset: number;
@@ -329,6 +330,11 @@ interface OutlineState {
 	relatedNodesPanelOpen: boolean;
 	/** Upstream's second item-tree pane (New pane ⌃R): its own zoom, independent of the main outline's. */
 	sidePane: SidePaneState | null;
+	/**
+	 * Upstream's `activePaneId`: the pane that last saw a pointerdown or focusin. Editing, the item selection and keyboard
+	 * navigation act in it only; it is the main pane whenever no side pane is open.
+	 */
+	activePaneId: string;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
 	presentationOpen: boolean;
@@ -447,6 +453,8 @@ interface OutlineActions {
 	/** Zoom the open side pane; a no-op when none is open. */
 	zoomSidePane: (zoomedId: string | null) => void;
 	closeSidePane: () => void;
+	/** Make `paneId` the active pane; a no-op for the side pane while none is open. */
+	setActivePane: (paneId: string) => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
 	openPresentation: (nodeId: string) => void;
@@ -509,6 +517,19 @@ export function flushEditing(): void {
  */
 export function shouldCommitOnBlur(state: Pick<OutlineState, "editingId" | "editingHeld">, nodeId: string): boolean {
 	return state.editingId === nodeId && !state.editingHeld;
+}
+
+/** The active pane's zoomed node: the side pane's while it is active, else the main outline's. */
+export function activeZoomedId(state: Pick<OutlineState, "activePaneId" | "sidePane" | "zoomedNodeId">): string | null {
+	return state.activePaneId === SIDE_PANE_ID && state.sidePane !== null
+		? state.sidePane.zoomedId
+		: state.zoomedNodeId;
+}
+
+/** The store's state as the active pane sees it: `zoomedNodeId` is that pane's zoom, for keyboard navigation. */
+export function activePaneView(): OutlineStore {
+	const state = useOutlineStore.getState();
+	return {...state, zoomedNodeId: activeZoomedId(state)};
 }
 
 export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): boolean {
@@ -635,6 +656,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	linkInsertContext: null,
 	relatedNodesPanelOpen: false,
 	sidePane: null,
+	activePaneId: MAIN_PANE_ID,
 	exportDialogOpen: false,
 	exportContext: null,
 	presentationOpen: false,
@@ -1036,8 +1058,15 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set((state) => ({relatedNodesPanelOpen: !state.relatedNodesPanelOpen}));
 	},
 
+	// Upstream focuses a new pane: editing in the main pane ends.
 	openSidePane: (zoomedId) => {
-		set({sidePane: {zoomedId}});
+		set({
+			sidePane: {zoomedId},
+			activePaneId: SIDE_PANE_ID,
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+		});
 	},
 
 	zoomSidePane: (zoomedId) => {
@@ -1046,8 +1075,25 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 	},
 
+	// Editing in the closing pane ends with it; editing in the main pane carries on.
 	closeSidePane: () => {
-		set({sidePane: null});
+		if (get().activePaneId === SIDE_PANE_ID) {
+			set({
+				sidePane: null,
+				activePaneId: MAIN_PANE_ID,
+				editingId: null,
+				editingClickPosition: null,
+				editingCaretOffset: null,
+			});
+		} else {
+			set({sidePane: null});
+		}
+	},
+
+	setActivePane: (paneId) => {
+		if (paneId === MAIN_PANE_ID || get().sidePane !== null) {
+			set({activePaneId: paneId});
+		}
 	},
 
 	openExportDialog: (context) => {

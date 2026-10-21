@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {isModalOpen, registerEditFlush, useOutlineStore} from "../stores/outline.js";
+import {activePaneView, isModalOpen, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
@@ -379,7 +379,7 @@ export function EditableNote({
 	}, [detachSlashMenu, detachTagAutocomplete, saveNow, blurNote, nodeId]);
 
 	const focusNextRowName = useCallback(() => {
-		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+		const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 		const visibleIds = navigableIds(
 			zoomedNodeId,
 			collectVisibleNodeIds(queryClient, zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds),

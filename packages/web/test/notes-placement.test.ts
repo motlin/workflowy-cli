@@ -7,6 +7,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
 
 const outlineState = {
+	activePaneId: "main",
 	searchQuery: "",
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),

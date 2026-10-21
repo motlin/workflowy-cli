@@ -21,7 +21,7 @@ import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
 import {SearchCountIndicator} from "./components/search-count-indicator.js";
 import {Settings} from "./components/settings.js";
-import {SidePane} from "./components/side-pane.js";
+import {MainPane, SidePane} from "./components/side-pane.js";
 import {sidePaneWidth} from "./components/pane-context.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
@@ -113,12 +113,14 @@ function OutlineView() {
 	return (
 		<div className={containerClasses} style={paneStyle}>
 			<OfflineBanner />
-			<TopBar onRedo={runCommand("redo")} onUndo={runCommand("undo")} />
-			<LeftBar />
-			<div className={outlineViewClassName(searchQuery)}>
-				<OutlineTree parentId={zoomedNodeId} />
-				<SearchCountIndicator />
-			</div>
+			<MainPane>
+				<TopBar onRedo={runCommand("redo")} onUndo={runCommand("undo")} />
+				<LeftBar />
+				<div className={outlineViewClassName(searchQuery)}>
+					<OutlineTree parentId={zoomedNodeId} />
+					<SearchCountIndicator />
+				</div>
+			</MainPane>
 			<SidePane />
 			<RightBar />
 			<RelatedNodesPanel />

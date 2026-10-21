@@ -12,7 +12,8 @@ import {
 import type {CaretTarget, FlatRow, SelectionKeyAction, SelectionState, TreeView} from "../item-selection.js";
 import {goToNode} from "../navigation.js";
 import {readChildren, readNode} from "../node-cache.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {activePaneView, activeZoomedId, useOutlineStore} from "../stores/outline.js";
+import {rowContent} from "../caret-dom.js";
 import type {NavigateFn} from "../stores/outline.js";
 import {nextPotentiallyVisibleSibling} from "../tree-ops.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
@@ -34,7 +35,7 @@ export interface SelectionView {
 }
 
 export function currentSelectionView(queryClient: QueryClient): SelectionView {
-	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = useOutlineStore.getState();
+	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 	const visible = collectVisibleNodeIds(
 		queryClient,
 		zoomedNodeId,
@@ -83,9 +84,7 @@ export function scrollRowIntoView(id: string | null): void {
 	if (id === null) {
 		return;
 	}
-	document
-		.querySelector(`.innerContentContainer[data-node-id="${CSS.escape(id)}"]`)
-		?.scrollIntoView({block: "nearest"});
+	rowContent(id)?.scrollIntoView({block: "nearest"});
 }
 
 /** Whether keys typed into `target` go to text (a form field or an editor) rather than the item selection. */
@@ -139,7 +138,7 @@ export function deleteSelectedItems(
 	const plan = selectionDeletePlan(
 		ordered,
 		currentSelectionView(queryClient).rows,
-		useOutlineStore.getState().zoomedNodeId,
+		activeZoomedId(useOutlineStore.getState()),
 		(id) => readNode(queryClient, id)?.parent_id ?? null,
 	);
 	void runInUndoBatch(captureOutlineView, () => {

@@ -152,7 +152,7 @@ describe("TopBar markup", () => {
 
 	it("renders upstream's wf-header root", () => {
 		expect(html.slice(0, html.indexOf(">") + 1)).toBe(
-			'<div class="wf-header header bg-primary border-b border-solid border-primary" style="left:0;z-index:200">',
+			'<div class="wf-header header bg-primary border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint" style="left:0;z-index:200">',
 		);
 	});
 
@@ -161,7 +161,7 @@ describe("TopBar markup", () => {
 		const pinned = renderToStaticMarkup(createElement(TopBar));
 		storeState.leftBarOffset = () => 0;
 		expect(pinned.slice(0, pinned.indexOf(">") + 1)).toBe(
-			'<div class="wf-header header bg-primary border-b border-solid border-primary" style="left:296px;z-index:200">',
+			'<div class="wf-header header bg-primary border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint" style="left:296px;z-index:200">',
 		);
 	});
 

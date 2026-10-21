@@ -4,7 +4,7 @@ import {goToNode, nodeUrl, stepNav} from "../navigation.js";
 import {nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
-import {flushEditing, useOutlineStore} from "../stores/outline.js";
+import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement, placeCaretAtTextOffset} from "../caret-dom.js";
 import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../caret-navigation.js";
@@ -116,7 +116,7 @@ function isJumpMenuOpen(): boolean {
 export function useCommandRegistry(): CommandRegistry {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
+	const zoomedNodeId = useOutlineStore(activeZoomedId);
 	const editingId = useOutlineStore((state) => state.editingId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
@@ -357,7 +357,7 @@ export function useCommandRegistry(): CommandRegistry {
 
 	/** Upstream `focus_first` / `focus_last`: caret at the start of the first navigable node or the end of the last. */
 	const focusEdge = (edge: "first" | "last"): void => {
-		const state = useOutlineStore.getState();
+		const state = activePaneView();
 		const visibleIds = collectVisibleNodeIds(
 			queryClient,
 			state.zoomedNodeId,

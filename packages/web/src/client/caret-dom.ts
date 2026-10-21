@@ -3,9 +3,24 @@
 
 const BOM = "﻿";
 
-/** The contenteditable of the node being edited, when it is rendered. */
+/**
+ * Where row lookups search: the active pane (`[data-pane-active="true"]`, set only while a side pane is open), else the
+ * whole document. A row visible in both panes resolves to the active pane's copy.
+ */
+function activePaneScope(): Pick<ParentNode, "querySelector"> {
+	return document.querySelector('[data-pane-active="true"]') ?? document;
+}
+
+/** The contenteditable of the node being edited, when it is rendered in the active pane. */
 export function editorElement(nodeId: string): HTMLElement | null {
-	return document.querySelector<HTMLElement>(`.innerContentContainer.editing[data-node-id="${CSS.escape(nodeId)}"]`);
+	return activePaneScope().querySelector<HTMLElement>(
+		`.innerContentContainer.editing[data-node-id="${CSS.escape(nodeId)}"]`,
+	);
+}
+
+/** The node's name content (`.innerContentContainer`) in the active pane, edited or not. */
+export function rowContent(nodeId: string): HTMLElement | null {
+	return activePaneScope().querySelector<HTMLElement>(`.innerContentContainer[data-node-id="${CSS.escape(nodeId)}"]`);
 }
 
 function isPill(node: Node): node is Element {

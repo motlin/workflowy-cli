@@ -8,6 +8,7 @@ import type {NodeResponse} from "../src/node-types.js";
 import type * as Navigation from "../src/client/navigation.js";
 
 const outlineState = {
+	activePaneId: "main",
 	expandedIds: new Set<string>(),
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
