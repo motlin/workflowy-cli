@@ -1,6 +1,9 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
+import {readFileSync} from "node:fs";
+import {fileURLToPath} from "node:url";
+import {cssBlock} from "./helpers/css-block.js";
 
 const state = {
 	showKeyboardShortcuts: false,
@@ -151,5 +154,17 @@ describe("bodyPaddingRight", () => {
 			bodyPaddingRight({show: true, collapsed: true, width: 400}),
 			bodyPaddingRight({show: true, collapsed: false, width: 400}),
 		]).toStrictEqual([0, 16, 400]);
+	});
+});
+
+describe("page scroll container", () => {
+	const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
+	const app = readFileSync(fileURLToPath(new URL("../src/client/app.tsx", import.meta.url)), "utf8");
+
+	it("lets the document scroll like upstream's .pageContainer, so the page scrollbar sits at the window edge past the padded-out hotkeys panel", () => {
+		expect({
+			css: cssBlock(styles, ".outline-container"),
+			classes: /"outline-container[^"]*"/u.exec(app)?.[0],
+		}).toStrictEqual({css: {"min-height": "100vh"}, classes: '"outline-container"'});
 	});
 });

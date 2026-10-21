@@ -2143,9 +2143,10 @@ body.moving .expand {
 }
 
 /* Outline container; the pinned left bar offset is body padding set by LeftBar */
+/* Upstream's .pageContainer: the document scrolls, so the page scrollbar sits at the window edge and the
+   fixed hotkeys panel (inset by the body's padding-right) scrolls on its own. */
 .outline-container {
-	height: 100vh;
-	overflow-y: auto;
+	min-height: 100vh;
 }
 
 @media print {

@@ -87,10 +87,9 @@ function focusBrowserWindow(): void {
 	window.focus();
 }
 
-/** Upstream scrolls the window; the local outline scrolls inside `.outline-container`, so reset both. */
+/** The outline scrolls the window, like upstream. */
 function scrollOutlineToTop(): void {
 	window.scrollTo(0, 0);
-	document.querySelector(".outline-container")?.scrollTo(0, 0);
 }
 
 function noop(): void {}

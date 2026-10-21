@@ -65,7 +65,7 @@ export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Prom
 			}
 			goToNode(navigate, destination);
 			if (plan.scrollTop) {
-				document.querySelector(".outline-container")?.scrollTo(0, 0);
+				globalThis.scrollTo(0, 0);
 			}
 			if (plan.editId === null) {
 				stopEditing();

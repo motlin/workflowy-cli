@@ -10,16 +10,12 @@ import {collectVisibleNodeIds} from "./use-visible-nodes.js";
 
 const SEARCH_INPUT_ID = "srch-input";
 
-/** `.outline-container`'s scroll position when Escape focused search, restored when focus returns. */
+/** The window's scroll position when Escape focused search, restored when focus returns. */
 let savedScrollTop: number | null = null;
 
 function searchInputElement(): HTMLInputElement | null {
 	const input = document.getElementById(SEARCH_INPUT_ID);
 	return input instanceof HTMLInputElement ? input : null;
-}
-
-function outlineContainer(): HTMLElement | null {
-	return document.querySelector<HTMLElement>(".outline-container");
 }
 
 function editFirstVisibleRow(queryClient: QueryClient): void {
@@ -55,9 +51,8 @@ export function focusOutline(
 	}
 	const scrollTop = savedScrollTop;
 	savedScrollTop = null;
-	const container = outlineContainer();
-	if (scrollTop !== null && container !== null) {
-		container.scrollTop = scrollTop;
+	if (scrollTop !== null) {
+		globalThis.scrollTo(globalThis.scrollX, scrollTop);
 	}
 }
 
@@ -135,7 +130,7 @@ export function useSearchEscape(): void {
 				}
 				case "focus": {
 					const from = leaveEditor();
-					savedScrollTop = outlineContainer()?.scrollTop ?? null;
+					savedScrollTop = globalThis.scrollY;
 					state.focusSearch(from);
 					searchInputElement()?.focus();
 					break;
