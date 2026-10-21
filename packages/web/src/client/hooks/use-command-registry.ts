@@ -45,7 +45,7 @@ import {useMoveTo} from "./use-move-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
-import {renderDatePills, serializeDatePills} from "../date-pills.js";
+import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
 import {planLayoutHotkey} from "../layout-hotkeys.js";
 import type {LayoutToggleCommand} from "../layout-types.js";
 import {toggleBoardOrTable} from "../item-type-select.js";
@@ -255,7 +255,7 @@ export function useCommandRegistry(): CommandRegistry {
 		const editor = editingId !== null && !hasItemSelection() ? editorElement(editingId) : null;
 		const edited =
 			editor !== null && editingId !== null
-				? {nodeId: editingId, name: serializeDatePills(editor.innerHTML)}
+				? {nodeId: editingId, name: serializeEditorHtml(editor.innerHTML)}
 				: undefined;
 		const plan = planLayoutHotkey(command, nodes, edited);
 		if (editor !== null && edited !== undefined) {
@@ -264,7 +264,7 @@ export function useCommandRegistry(): CommandRegistry {
 			const renamed = plan.updates.find((update) => update.nodeId === edited.nodeId)?.name;
 			if (renamed !== undefined) {
 				caret = Math.max(0, caret - (plainLength(edited.name) - plainLength(renamed)));
-				editor.innerHTML = renderDatePills(renamed, dateSettings);
+				editor.innerHTML = renderEditorHtml(renamed, dateSettings);
 				placeCaretAtTextOffset(editor, caret);
 			}
 			holdEditing(caret);
@@ -750,7 +750,8 @@ export function useCommandRegistry(): CommandRegistry {
 					return;
 				}
 				// Copy the unsaved text too
-				const name = editorElement(node.id)?.innerHTML ?? node.name;
+				const editor = editorElement(node.id);
+				const name = editor === null ? node.name : serializeEditorHtml(editor.innerHTML);
 				commitEdit();
 				createNodeMutation.mutate(planDuplicate(queryClient, {...node, name}), {
 					onSuccess(createdNode) {

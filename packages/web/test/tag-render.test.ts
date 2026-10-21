@@ -5,6 +5,7 @@ import {
 	removeTagFromHtml,
 	renderTags,
 	renderedTagStarts,
+	stripTagMarkup,
 	tagCaretUnits,
 	teaserPosition,
 	toggleTagInQuery,
@@ -147,5 +148,16 @@ describe("isTagDeleteClick", () => {
 			otherMeta: isTagDeleteClick({metaKey: true, altKey: false}, false),
 			plain: isTagDeleteClick({metaKey: false, altKey: false}, false),
 		}).toStrictEqual({macMeta: true, macAlt: false, otherAlt: true, otherMeta: true, plain: false});
+	});
+});
+
+describe("stripTagMarkup", () => {
+	it("unwraps rendered tags back to stored html, keeping other spans", () => {
+		const html = 'Hi <b><span class="colored c-red">x</span> #taBold</b> @Ellen&nbsp;';
+		expect(stripTagMarkup(renderTags(html))).toBe(html);
+	});
+
+	it("unwraps a tag span the browser left holding extra typed text", () => {
+		expect(stripTagMarkup(`${tagSpan("#taZeb").replace("Zeb<", "Zebra<")} end`)).toBe("#taZebra end");
 	});
 });

@@ -48,11 +48,10 @@ import {
 	deletePillBeforeCaret,
 	applyDatePhrase,
 	planDateInsertion,
-	renderDatePills,
 	planPillReplacement,
 	replacePill,
-	serializeDatePills,
 } from "../date-pills.js";
+import {inputMayRetag, renderEditorHtml, retagEditor, serializeEditorHtml} from "../editor-html.js";
 import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
@@ -74,7 +73,6 @@ import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {
 	isTagDeleteClick,
 	removeTagFromHtml,
-	renderTags,
 	renderedTagStarts,
 	tagCaretUnits,
 	teaserPosition,
@@ -231,7 +229,10 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}
 	const storedEditorHtml = editingHtml ?? initialValue;
 	// Pills are atomic in edit mode too; every save path serializes them back to stored `<time>` markup.
-	const editorHtml = useMemo(() => renderDatePills(storedEditorHtml, dateSettings), [storedEditorHtml, dateSettings]);
+	const editorHtml = useMemo(
+		() => renderEditorHtml(storedEditorHtml, dateSettings),
+		[storedEditorHtml, dateSettings],
+	);
 
 	// Saves the name after each 500ms pause in typing (upstream `saveLater`): one undo step per pause.
 	// One saver per node, so a pending save flushed after a node change still targets its own node.
@@ -288,7 +289,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return false;
 		}
 
-		nameSaver.saveNow(stripSlashChip(serializeDatePills(contentRef.current.innerHTML)));
+		nameSaver.saveNow(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML)));
 		return true;
 	}, [nameSaver]);
 
@@ -309,12 +310,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		(attrs: TimeAttrs, offset: number, replaceEnd?: number, addSpaceBefore?: boolean) => {
 			const content = contentRef.current;
 			if (content) {
-				const html = serializeDatePills(content.innerHTML);
+				const html = serializeEditorHtml(content.innerHTML);
 				const {before, after} =
 					replaceEnd === undefined ? {before: html, after: ""} : splitHtml(html, offset, replaceEnd);
 				const plan = planDateInsertion(before + after, offset, attrs, {addSpaceBefore});
 				content.focus();
-				content.innerHTML = renderDatePills(plan.html, dateSettings);
+				content.innerHTML = renderEditorHtml(plan.html, dateSettings);
 				placeCaretAtTextOffset(content, plan.caretOffset);
 				nameSaver.saveNow(plan.html);
 			}
@@ -367,8 +368,8 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		onApply: (phrase) => {
 			const content = contentRef.current;
 			if (content) {
-				const plan = applyDatePhrase(serializeDatePills(content.innerHTML), phrase);
-				content.innerHTML = renderDatePills(plan.html, dateSettings);
+				const plan = applyDatePhrase(serializeEditorHtml(content.innerHTML), phrase);
+				content.innerHTML = renderEditorHtml(plan.html, dateSettings);
 				placeCaretAtTextOffset(content, plan.caretOffset);
 				nameSaver.saveNow(plan.html);
 			}
@@ -399,9 +400,9 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				updateNode({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
 				return;
 			}
-			const plan = planPillReplacement(serializeDatePills(content.innerHTML), pillIndex, attrs);
+			const plan = planPillReplacement(serializeEditorHtml(content.innerHTML), pillIndex, attrs);
 			content.focus();
-			content.innerHTML = renderDatePills(plan.html, dateSettings);
+			content.innerHTML = renderEditorHtml(plan.html, dateSettings);
 			placeCaretAtTextOffset(content, plan.caretOffset);
 			nameSaver.saveNow(plan.html);
 			releaseEditing();
@@ -433,15 +434,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	// Typing a #tag or @mention offers the zoom subtree's matching tags; Tab, Enter or a click accepts one.
 	const readNamePlain = useCallback(
-		() => (contentRef.current ? plainText(serializeDatePills(contentRef.current.innerHTML), PILL_UNIT) : ""),
+		() => (contentRef.current ? plainText(serializeEditorHtml(contentRef.current.innerHTML), PILL_UNIT) : ""),
 		[],
 	);
 	const acceptTag = useCallback<TagAcceptHandler>(
 		(edit) => {
 			const content = contentRef.current;
 			if (content) {
-				const html = spliceAcceptedTag(serializeDatePills(content.innerHTML), edit);
-				content.innerHTML = renderDatePills(html, dateSettings);
+				const html = spliceAcceptedTag(serializeEditorHtml(content.innerHTML), edit);
+				content.innerHTML = renderEditorHtml(html, dateSettings);
 				placeCaretAtTextOffset(content, edit.caret);
 				nameSaver.saveNow(html);
 			}
@@ -462,12 +463,12 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	} = tagAutocomplete;
 
 	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
-	const readNameHtml = useCallback(() => serializeDatePills(contentRef.current?.innerHTML ?? ""), []);
+	const readNameHtml = useCallback(() => serializeEditorHtml(contentRef.current?.innerHTML ?? ""), []);
 	const {applyInlineToggle} = useInlineFormat({
 		editorRef: contentRef,
 		active: isEditing,
 		read: readNameHtml,
-		render: (html) => renderDatePills(html, dateSettings),
+		render: (html) => renderEditorHtml(html, dateSettings),
 		onChange: (html) => {
 			nameSaver.change(html);
 		},
@@ -489,14 +490,14 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			if (!content || node === undefined) {
 				return;
 			}
-			const name = serializeDatePills(content.innerHTML);
+			const name = serializeEditorHtml(content.innerHTML);
 			const sel = selectionTextOffsets(content);
 			nameSaver.saveNow(name);
 			const plan = planLayoutHotkey(command, [node], {nodeId, name});
 			const renamed = plan.updates.find((update) => update.nodeId === nodeId)?.name;
 			if (renamed !== undefined && renamed !== name) {
 				nameSaver.reset(renamed);
-				content.innerHTML = renderDatePills(renamed, dateSettings);
+				content.innerHTML = renderEditorHtml(renamed, dateSettings);
 				const length = textUnitLength(content);
 				placeSelectionAtTextOffsets(content, Math.min(sel.start, length), Math.min(sel.end, length));
 			}
@@ -537,7 +538,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	// Typing a first or standalone "/" opens the slash command menu under a chip; it never schedules a save while open.
 	const changeName = useCallback(() => {
 		if (contentRef.current) {
-			nameSaver.change(stripSlashChip(serializeDatePills(contentRef.current.innerHTML)));
+			nameSaver.change(stripSlashChip(serializeEditorHtml(contentRef.current.innerHTML)));
 		}
 	}, [nameSaver]);
 	const saveName = useCallback(() => {
@@ -554,6 +555,14 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
+			const content = contentRef.current;
+			if (content !== null && event.nativeEvent instanceof InputEvent) {
+				const anchor = globalThis.getSelection()?.anchorNode;
+				const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement;
+				if (inputMayRetag(event.nativeEvent, anchorElement?.closest(".contentTag") != null)) {
+					retagEditor(content, dateSettings);
+				}
+			}
 			handleSlashInput(event.nativeEvent);
 			handleDateTrigger(event.nativeEvent);
 			handleDateAutocomplete();
@@ -562,7 +571,15 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				changeName();
 			}
 		},
-		[changeName, handleSlashInput, isSlashOpen, handleDateTrigger, handleDateAutocomplete, handleTagAutocomplete],
+		[
+			changeName,
+			dateSettings,
+			handleSlashInput,
+			isSlashOpen,
+			handleDateTrigger,
+			handleDateAutocomplete,
+			handleTagAutocomplete,
+		],
 	);
 
 	const saveChanges = useCallback(() => {
@@ -706,7 +723,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		const children = readChildren(queryClient, nodeId);
 		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
 		const note = readDetail(queryClient, nodeId)?.note ?? listed?.note ?? "";
-		const html = serializeDatePills(content.innerHTML);
+		const html = serializeEditorHtml(content.innerHTML);
 		const outdent = planOutdent(queryClient, {id: nodeId, parent_id: parentId, priority}, zoomedNodeId);
 		const plan = planSplit({
 			node: {
@@ -738,7 +755,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 
 		// Show the kept text now, so the blur commit and the re-render agree with the plan.
 		if (html !== plan.currentName) {
-			content.innerHTML = renderDatePills(plan.currentName, dateSettings);
+			content.innerHTML = renderEditorHtml(plan.currentName, dateSettings);
 		}
 		// The new row carries a client-generated id, so the caret moves into it now,
 		// before the create round-trip; writes to it wait for the create (pendingCreates).
@@ -804,7 +821,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 			return false;
 		}
 		// The row is going away: never save its pending text.
-		nameSaver.reset(serializeDatePills(content.innerHTML));
+		nameSaver.reset(serializeEditorHtml(content.innerHTML));
 		resumeEditing(targetId, Number.MAX_SAFE_INTEGER);
 		deleteNodeMutation.mutate(nodeId);
 		return true;
@@ -850,7 +867,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					layoutMode: node.data.layoutMode,
 				};
 			};
-			const currentRow = toRow(current, serializeDatePills(content.innerHTML));
+			const currentRow = toRow(current, serializeEditorHtml(content.innerHTML));
 			const neighbor = siblings[direction === "backward" ? index - 1 : index + 1];
 			const neighborRow = neighbor === undefined ? null : toRow(neighbor, neighbor.name ?? "");
 			const plan =
@@ -868,7 +885,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
 				// The held editor never re-renders its text: show the merged row and its caret here.
 				if (plan.keepId === nodeId) {
-					content.innerHTML = renderDatePills(plan.name, dateSettings);
+					content.innerHTML = renderEditorHtml(plan.name, dateSettings);
 					placeCaretAtTextOffset(content, plan.caret);
 				}
 				deleteNodeMutation.mutate(plan.deleteId);
@@ -895,13 +912,13 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 				return false;
 			}
 			const offset = caretTextOffset(content);
-			const html = serializeDatePills(content.innerHTML);
+			const html = serializeEditorHtml(content.innerHTML);
 			const next =
 				direction === "backward" ? deletePillBeforeCaret(html, offset) : deletePillAfterCaret(html, offset);
 			if (next === null) {
 				return false;
 			}
-			content.innerHTML = renderDatePills(next, dateSettings);
+			content.innerHTML = renderEditorHtml(next, dateSettings);
 			placeCaretAtTextOffset(content, direction === "backward" ? offset - 1 : offset);
 			nameSaver.change(next);
 			return true;
@@ -1227,7 +1244,7 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 					data-node-id={nodeId}
 					dangerouslySetInnerHTML={{
 						__html: highlightSearchMatches(
-							renderTags(renderDatePills(renderLinks(initialValue), dateSettings)),
+							renderEditorHtml(renderLinks(initialValue), dateSettings),
 							searchQuery,
 						),
 					}}

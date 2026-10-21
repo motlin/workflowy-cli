@@ -235,3 +235,27 @@ export function tagCaretUnits(html: string, plainStart: number): number {
 	}
 	return caretUnitLength(html);
 }
+
+const SPAN_PATTERN = /<(\/?)span\b([^>]*)>/giu;
+const TAG_MARKUP_CLASS = /\bclass="[^"]*\bcontentTag(?:Text|Nub)?\b/u;
+
+/**
+ * Undo `renderTags`: unwrap every `.contentTag`, `.contentTagText`, and `.contentTagNub` span,
+ * keeping their text and any other spans. Reads the live editor's innerHTML, so a tag span the
+ * browser grew while typing still unwraps to its plain text.
+ */
+export function stripTagMarkup(html: string): string {
+	if (!html.includes("contentTag")) {
+		return html;
+	}
+	// For each open span, whether it is tag markup (and so dropped along with its close tag).
+	const open: boolean[] = [];
+	return html.replaceAll(SPAN_PATTERN, (tag, slash: string, attributes: string) => {
+		if (slash === "/") {
+			return open.pop() === true ? "" : tag;
+		}
+		const isTagMarkup = TAG_MARKUP_CLASS.test(attributes);
+		open.push(isTagMarkup);
+		return isTagMarkup ? "" : tag;
+	});
+}
