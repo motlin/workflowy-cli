@@ -44,6 +44,9 @@ export interface UndoRunner {
 	pop(direction: UndoDirection): UndoBatch | undefined;
 	/** Leaves the editor so the replay does not write under the caret. */
 	blur(): void;
+	/** Writes the ops into the cache at once, so the outline shows the undo before the server answers. */
+	preview(ops: readonly UndoOp[]): void;
+	/** Replays the ops on the server and reconciles the cache with its answer. */
 	apply(ops: readonly UndoOp[]): Promise<void>;
 	current(): ViewState;
 	/** Whether a contentEditable or input has focus, which keeps the selection as it is. */
@@ -57,8 +60,9 @@ export interface UndoRunner {
 }
 
 /**
- * Upstream undo/redo: flush the pending text, pop, blur, replay the ops, then restore the view saved
- * with the step (the pre-command view for undo, the post-command view for redo), not the current one.
+ * Upstream undo/redo: flush the pending text, pop, blur, apply the ops to the cache, restore the view
+ * saved with the step (the pre-command view for undo, the post-command view for redo), not the current
+ * one, and only then wait for the server replay, so the outline updates without a round trip.
  */
 export async function runUndo(direction: UndoDirection, runner: UndoRunner): Promise<void> {
 	runner.flush();
@@ -68,7 +72,7 @@ export async function runUndo(direction: UndoDirection, runner: UndoRunner): Pro
 		return;
 	}
 	runner.blur();
-	await runner.apply(batch.ops);
+	runner.preview(batch.ops);
 	const target = batch.after;
 	const length = target.editing === null ? 0 : runner.textLength(target.editing.nodeId, target.editing.field);
 	const plan = planRestore(runner.current(), target, length, runner.editorFocused());
@@ -81,6 +85,7 @@ export async function runUndo(direction: UndoDirection, runner: UndoRunner): Pro
 	if (plan.focus !== null) {
 		runner.focus(plan.focus);
 	}
+	await runner.apply(batch.ops);
 }
 
 let chain: Promise<void> = Promise.resolve();
@@ -90,18 +95,4 @@ export async function queueUndo(direction: UndoDirection, runner: UndoRunner): P
 	const next = chain.then(async () => runUndo(direction, runner));
 	chain = next.catch(() => {});
 	return next;
-}
-
-export interface EditPatch {
-	nodeId: string;
-	field: "name" | "note";
-	value: string;
-}
-
-/**
- * The text each replayed edit writes, for patching the cache before focus returns: a focused name
- * editor keeps its own HTML, so a later refetch would never reach the row the caret lands in.
- */
-export function editPatches(ops: readonly UndoOp[]): EditPatch[] {
-	return ops.flatMap((op) => (op.kind === "edit" ? [{nodeId: op.nodeId, field: op.field, value: op.after}] : []));
 }

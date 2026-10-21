@@ -51,6 +51,7 @@ describe("runUndo with the outline store", () => {
 			},
 			pop: () => undoHistory.popUndo(),
 			blur() {},
+			preview() {},
 			async apply(applied) {
 				return applyOps(applied, adapter);
 			},

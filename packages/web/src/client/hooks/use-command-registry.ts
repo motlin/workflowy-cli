@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {goToNode, nodeUrl, stepNav} from "../navigation.js";
-import {nodeKeys, patchCachedNode, readChildren, readItemNode, readNode} from "../node-cache.js";
+import {nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useNavigate} from "react-router-dom";
 import {flushEditing, useOutlineStore} from "../stores/outline.js";
@@ -55,7 +55,8 @@ import {useDateSettings} from "./use-preferences.js";
 import {plainLength} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, whenUndoSettled} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
-import {editPatches, queueUndo} from "../undo-view-state.js";
+import {queueUndo} from "../undo-view-state.js";
+import {previewUndoOps} from "../undo-cache.js";
 import {deleteSelectedItems} from "./use-selection-keymap.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
@@ -551,12 +552,17 @@ export function useCommandRegistry(): CommandRegistry {
 			}
 			stopEditing();
 		},
+		preview(ops) {
+			// A refetch still in flight from the forward action would land over the previewed rows.
+			void queryClient.cancelQueries({queryKey: nodeKeys.all});
+			previewUndoOps(queryClient, ops);
+		},
 		async apply(ops) {
-			await applyOps(ops, undoAdapter);
-			for (const {nodeId, field, value} of editPatches(ops)) {
-				patchCachedNode(queryClient, nodeId, (node) => ({...node, [field]: value}));
+			try {
+				await applyOps(ops, undoAdapter);
+			} finally {
+				await queryClient.invalidateQueries();
 			}
-			await queryClient.invalidateQueries();
 		},
 		current: captureOutlineView,
 		editorFocused() {

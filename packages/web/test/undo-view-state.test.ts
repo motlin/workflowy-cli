@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vite-plus/test";
 import {locationUrl} from "../src/client/location.js";
-import {editPatches, planRestore, runUndo} from "../src/client/undo-view-state.js";
+import {planRestore, runUndo} from "../src/client/undo-view-state.js";
 import type {UndoRunner} from "../src/client/undo-view-state.js";
 import type {UndoBatch, UndoOp, ViewState} from "../src/client/undo-history.js";
 
@@ -119,6 +119,9 @@ function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: 
 		blur() {
 			calls.push(["blur"]);
 		},
+		preview(previewed) {
+			calls.push(["preview", previewed]);
+		},
 		async apply(applied) {
 			calls.push(["apply", applied]);
 			return Promise.resolve();
@@ -147,7 +150,7 @@ function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: 
 }
 
 describe("runUndo", () => {
-	it("flushes and waits before popping, then applies and restores the batch's saved view", async () => {
+	it("flushes and waits before popping, previews the ops in the cache and restores the saved view before the server replay", async () => {
 		const {runner, calls} = fakeRunner(batch);
 		await runUndo("undo", runner);
 		expect(calls).toStrictEqual([
@@ -155,11 +158,12 @@ describe("runUndo", () => {
 			["settled"],
 			["pop", "undo"],
 			["blur"],
-			["apply", ops],
+			["preview", ops],
 			["textLength", "a", "name"],
 			["zoomTo", "y"],
 			["select", []],
 			["focus", {nodeId: "a", field: "name", start: 4, end: 4}],
+			["apply", ops],
 		]);
 	});
 
@@ -167,20 +171,5 @@ describe("runUndo", () => {
 		const {runner, calls} = fakeRunner(undefined);
 		await runUndo("redo", runner);
 		expect(calls).toStrictEqual([["flush"], ["settled"], ["pop", "redo"]]);
-	});
-});
-
-describe("editPatches", () => {
-	it("lists the final text each edited field takes, in replay order, skipping other ops", () => {
-		expect(
-			editPatches([
-				{kind: "edit", nodeId: "a", field: "name", before: "x", after: "y"},
-				{kind: "complete", nodeId: "b"},
-				{kind: "edit", nodeId: "a", field: "note", before: "", after: "n"},
-			]),
-		).toStrictEqual([
-			{nodeId: "a", field: "name", value: "y"},
-			{nodeId: "a", field: "note", value: "n"},
-		]);
 	});
 });
