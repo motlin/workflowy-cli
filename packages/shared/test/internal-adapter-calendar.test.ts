@@ -1,4 +1,5 @@
 import DatabaseConstructor from "better-sqlite3";
+import {eq} from "drizzle-orm";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
@@ -7,7 +8,7 @@ import type {InternalSession, WorkflowyInternalClient} from "../src/api/workflow
 import type {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
-import type {CreateAtInput, MoveToInput} from "../src/internal/adapter.js";
+import type {MoveToInput} from "../src/internal/adapter.js";
 import {
 	CalendarRootMissing,
 	calendarDateId,
@@ -16,6 +17,7 @@ import {
 	parseDateId,
 } from "../src/internal/calendar-day.js";
 import {calendarNodeId} from "../src/internal/calendar-ids.js";
+import {PushAndPoll} from "../src/internal/push-and-poll.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
 
 const migrationsFolder = join(import.meta.dirname, "../src/db/migrations");
@@ -39,13 +41,34 @@ const SESSION: InternalSession = {
 	entropyKey: ENTROPY,
 };
 
+/** A pushed `bulk_create` tree, without its clock fields. */
+interface PushedTree {
+	id: string;
+	nm: string;
+	metadata?: unknown;
+	ch: PushedTree[];
+}
+
+function pushedTrees(json: string): PushedTree[] {
+	const strip = ({id, nm, metadata, ch}: PushedTree): PushedTree => ({
+		id,
+		nm,
+		...(metadata === undefined ? {} : {metadata}),
+		ch: ch.map(strip),
+	});
+	return (JSON.parse(json) as PushedTree[]).map(strip);
+}
+
 /**
  * A fake adapter world: `children` is the live tree the public API would
- * return, `node_internal_metadata` holds cached calendar metadata, and
- * `createAt`/`moveTo` are spies that edit the live tree.
+ * return, `cached` (default `children`) the cache's copy, and
+ * `node_internal_metadata` holds cached calendar metadata. Live reads, pushes
+ * (applied to the live tree), cache refreshes and `moveTo` are recorded in
+ * `calls`.
  */
 function setup(options: {
 	children: Record<string, string[]>;
+	cached?: Record<string, string[]>;
 	metadata: Record<string, unknown>;
 	session?: InternalSession;
 }) {
@@ -72,22 +95,50 @@ function setup(options: {
 			.values({nodeId, metadataJson: JSON.stringify(metadata), fetchedAt: 0})
 			.run();
 	}
+	const cached = new Map(
+		Object.entries(options.cached ?? options.children).map(([parent, ids]) => [parent, [...ids]]),
+	);
 	const session = options.session ?? SESSION;
 	const client = {session, bootstrap: async () => Promise.resolve(session)} as unknown as WorkflowyInternalClient;
-	const writeThrough = {
-		liveChildren: async (parent: string | null) =>
-			Promise.resolve((children.get(parent ?? "home") ?? []).map((id) => ({id}))),
-	} as unknown as WorkflowyWriteThroughClient;
-	const adapter = new WorkflowyInternalAdapter({client, db, writeThrough, now: () => 1_800_000_000_000});
 	const calls: unknown[] = [];
+	const writeThrough = {
+		liveChildren: async (parent: string | null) => {
+			calls.push(["live", parent]);
+			return Promise.resolve((children.get(parent ?? "home") ?? []).map((id) => ({id})));
+		},
+		cachedChildIds: (parent: string | null) => cached.get(parent ?? "home") ?? [],
+		refreshChain: async (parentIds: string[]) => {
+			calls.push(["refresh", parentIds]);
+			for (const parent of parentIds) {
+				cached.set(parent, [...(children.get(parent) ?? [])]);
+			}
+			return Promise.resolve();
+		},
+	} as unknown as WorkflowyWriteThroughClient;
 	let generated = 0;
-	vi.spyOn(adapter, "createAt").mockImplementation(async (input: CreateAtInput) => {
-		calls.push(["createAt", input]);
-		const id = input.id ?? `random-${++generated}`;
-		const list = children.get(input.parentId) ?? [];
-		list.splice(input.index, 0, id);
-		children.set(input.parentId, list);
-		return Promise.resolve({id});
+	const adapter = new WorkflowyInternalAdapter({
+		client,
+		db,
+		writeThrough,
+		now: () => 1_800_000_000_000,
+		generateId: () => `random-${++generated}`,
+	});
+	const insert = (parentId: string, index: number, trees: PushedTree[]) => {
+		const list = children.get(parentId) ?? [];
+		list.splice(index, 0, ...trees.map((tree) => tree.id));
+		children.set(parentId, list);
+		for (const tree of trees) {
+			insert(tree.id, 0, tree.ch);
+		}
+	};
+	vi.spyOn(PushAndPoll.prototype, "pushAndPoll").mockImplementation(async ({ops = []} = {}) => {
+		for (const op of ops) {
+			const data = op.data as {parentid: string; starting_priority: number; project_trees: string};
+			const trees = pushedTrees(data.project_trees);
+			calls.push([op.type, {parentId: data.parentid, index: data.starting_priority, trees}]);
+			insert(data.parentid, data.starting_priority, trees);
+		}
+		return Promise.resolve({txId: "2", serverRun: [], remote: [], needsRefresh: false});
 	});
 	vi.spyOn(adapter, "moveTo").mockImplementation(async (input: MoveToInput) => {
 		calls.push(["moveTo", input]);
@@ -103,9 +154,20 @@ function setup(options: {
 		const list = children.get(input.parentId) ?? [];
 		list.splice(input.index, 0, ...input.ids);
 		children.set(input.parentId, list);
+		for (const [parent, ids] of children) {
+			cached.set(parent, [...ids]);
+		}
 		return Promise.resolve();
 	});
-	return {sqlite, adapter, calls, children};
+	const cachedMetadata = (nodeId: string): unknown => {
+		const row = db
+			.select({json: schema.nodeInternalMetadata.metadataJson})
+			.from(schema.nodeInternalMetadata)
+			.where(eq(schema.nodeInternalMetadata.nodeId, nodeId))
+			.get();
+		return row === undefined ? undefined : JSON.parse(row.json);
+	};
+	return {sqlite, adapter, calls, children, cachedMetadata};
 }
 
 const ROOT_META = {
@@ -186,6 +248,7 @@ describe("calendar day helpers", () => {
 describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 	let open: DatabaseConstructor.Database[] = [];
 	afterEach(() => {
+		vi.restoreAllMocks();
 		for (const sqlite of open) {
 			sqlite.close();
 		}
@@ -197,60 +260,58 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 		return result;
 	}
 
-	it("creates the missing month, the day and one empty child with deterministic ids in timestamp order", async () => {
-		const {adapter, calls, children} = tracked({
+	const octMetadata = {
+		restorableUniqueNode: true,
+		calendar: {level: "month", value: "10", timestamp: new Date(2026, 9, 1).getTime(), dateId: 20_261_000},
+	};
+	const d1017Metadata = {
+		restorableUniqueNode: true,
+		calendar: {level: "day", value: "17", timestamp: new Date(2026, 9, 17).getTime(), dateId: 20_261_017},
+	};
+	const D1017_NAME = '<time startYear="2026" startMonth="10" startDay="17">Sat, Oct 17, 2026</time>';
+
+	it("walks the cache, confirms the miss with one live read, then creates the month, day and empty child in one push", async () => {
+		const {adapter, calls, children, cachedMetadata} = tracked({
 			children: {home: [CAL], [CAL]: ["note", Y2026], [Y2026]: [M09, "loose", "nov"]},
 			metadata: {[CAL]: ROOT_META, [Y2026]: yearMeta, [M09]: sepMeta, nov: novMeta},
 		});
 
 		const result = await adapter.ensureCalendarDay(20_261_017);
 
-		expect({result, calls, months: children.get(Y2026)}).toStrictEqual({
+		expect({result, calls, months: children.get(Y2026), cachedDay: cachedMetadata(D1017)}).toStrictEqual({
 			result: {dayId: D1017, firstChildId: "random-1", created: [M10, D1017, "random-1"]},
 			calls: [
+				["live", Y2026],
 				[
-					"createAt",
+					"bulk_create",
 					{
 						parentId: Y2026,
 						index: 2,
-						id: M10,
-						name: "10",
-						metadata: {
-							restorableUniqueNode: true,
-							calendar: {
-								level: "month",
-								value: "10",
-								timestamp: new Date(2026, 9, 1).getTime(),
-								dateId: 20_261_000,
+						trees: [
+							{
+								id: M10,
+								nm: "10",
+								metadata: octMetadata,
+								ch: [
+									{
+										id: D1017,
+										nm: D1017_NAME,
+										metadata: d1017Metadata,
+										ch: [{id: "random-1", nm: "", ch: []}],
+									},
+								],
 							},
-						},
+						],
 					},
 				],
-				[
-					"createAt",
-					{
-						parentId: M10,
-						index: 0,
-						id: D1017,
-						name: '<time startYear="2026" startMonth="10" startDay="17">Sat, Oct 17, 2026</time>',
-						metadata: {
-							restorableUniqueNode: true,
-							calendar: {
-								level: "day",
-								value: "17",
-								timestamp: new Date(2026, 9, 17).getTime(),
-								dateId: 20_261_017,
-							},
-						},
-					},
-				],
-				["createAt", {parentId: D1017, index: 0, name: ""}],
+				["refresh", [Y2026, M10, D1017]],
 			],
 			months: [M09, "loose", M10, "nov"],
+			cachedDay: {calendar: d1017Metadata.calendar},
 		});
 	});
 
-	it("creates nothing when the day already has children", async () => {
+	it("reads nothing live and creates nothing when the cached day already has children", async () => {
 		const dayMeta = {calendar: {level: "day", value: "17", timestamp: 0, dateId: 20_261_017}};
 		const octMeta = {calendar: {level: "month", value: "10", timestamp: 0, dateId: 20_261_000}};
 		const {adapter, calls} = tracked({
@@ -272,6 +333,24 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 		});
 	});
 
+	it("reuses a day the stale cache misses once the live read shows it", async () => {
+		const {adapter, calls} = tracked({
+			children: {home: [CAL], [CAL]: [Y2026], [Y2026]: [M10], [M10]: [D1017], [D1017]: ["entry"]},
+			cached: {home: [CAL], [CAL]: [Y2026], [Y2026]: [M10]},
+			metadata: {[CAL]: ROOT_META, [Y2026]: yearMeta},
+		});
+
+		const result = await adapter.ensureCalendarDay(20_261_017);
+
+		expect({result, calls}).toStrictEqual({
+			result: {dayId: D1017, firstChildId: "entry", created: []},
+			calls: [
+				["live", M10],
+				["live", D1017],
+			],
+		});
+	});
+
 	it("moves a deterministic node that exists elsewhere back under its parent instead of creating it", async () => {
 		const {adapter, calls} = tracked({
 			children: {home: [CAL, M10], [CAL]: [Y2026], [Y2026]: [M09], [M10]: [D1017], [D1017]: ["entry"]},
@@ -282,7 +361,12 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 
 		expect({result, calls}).toStrictEqual({
 			result: {dayId: D1017, firstChildId: "entry", created: []},
-			calls: [["moveTo", {ids: [M10], parentId: Y2026, index: 1}]],
+			calls: [
+				["live", Y2026],
+				["moveTo", {ids: [M10], parentId: Y2026, index: 1}],
+				["live", M10],
+				["live", D1017],
+			],
 		});
 	});
 
@@ -297,24 +381,12 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 		expect({result, calls}).toStrictEqual({
 			result: {dayId: M10, firstChildId: null, created: [M10]},
 			calls: [
+				["live", Y2026],
 				[
-					"createAt",
-					{
-						parentId: Y2026,
-						index: 1,
-						id: M10,
-						name: "10",
-						metadata: {
-							restorableUniqueNode: true,
-							calendar: {
-								level: "month",
-								value: "10",
-								timestamp: new Date(2026, 9, 1).getTime(),
-								dateId: 20_261_000,
-							},
-						},
-					},
+					"bulk_create",
+					{parentId: Y2026, index: 1, trees: [{id: M10, nm: "10", metadata: octMetadata, ch: []}]},
 				],
+				["refresh", [Y2026]],
 			],
 		});
 	});
@@ -330,7 +402,11 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 
 		expect({result, calls}).toStrictEqual({
 			result: {dayId: "oct", firstChildId: "random-1", created: ["random-1"]},
-			calls: [["createAt", {parentId: "oct", index: 0, name: ""}]],
+			calls: [
+				["live", "oct"],
+				["bulk_create", {parentId: "oct", index: 0, trees: [{id: "random-1", nm: "", ch: []}]}],
+				["refresh", ["oct"]],
+			],
 		});
 	});
 
@@ -351,42 +427,56 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 			week: {dayId: w1012, firstChildId: null, created: [w1012]},
 			day: {dayId: d1015, firstChildId: null, created: [d1015]},
 			calls: [
+				["live", Y2026],
 				[
-					"createAt",
+					"bulk_create",
 					{
 						parentId: Y2026,
 						index: 0,
-						id: w1012,
-						name: "Week 42",
-						metadata: {
-							restorableUniqueNode: true,
-							calendar: {
-								level: "week",
-								value: "42",
-								timestamp: new Date(2026, 9, 12).getTime(),
-								dateId: 20_261_012,
+						trees: [
+							{
+								id: w1012,
+								nm: "Week 42",
+								metadata: {
+									restorableUniqueNode: true,
+									calendar: {
+										level: "week",
+										value: "42",
+										timestamp: new Date(2026, 9, 12).getTime(),
+										dateId: 20_261_012,
+									},
+								},
+								ch: [],
 							},
-						},
+						],
 					},
 				],
+				["refresh", [Y2026]],
+				["live", w1012],
 				[
-					"createAt",
+					"bulk_create",
 					{
 						parentId: w1012,
 						index: 0,
-						id: d1015,
-						name: '<time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time>',
-						metadata: {
-							restorableUniqueNode: true,
-							calendar: {
-								level: "day",
-								value: "15",
-								timestamp: new Date(2026, 9, 15).getTime(),
-								dateId: 20_261_015,
+						trees: [
+							{
+								id: d1015,
+								nm: '<time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time>',
+								metadata: {
+									restorableUniqueNode: true,
+									calendar: {
+										level: "day",
+										value: "15",
+										timestamp: new Date(2026, 9, 15).getTime(),
+										dateId: 20_261_015,
+									},
+								},
+								ch: [],
 							},
-						},
+						],
 					},
 				],
+				["refresh", [w1012]],
 			],
 		});
 	});

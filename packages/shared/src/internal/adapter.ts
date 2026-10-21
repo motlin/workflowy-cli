@@ -146,6 +146,13 @@ export interface EnsuredCalendarDay {
 	created: string[];
 }
 
+/** A calendar level node {@link WorkflowyInternalAdapter.ensureCalendarDay} creates. */
+interface CalendarChainNode {
+	id: string;
+	name: string;
+	metadata: Metadata;
+}
+
 /** What {@link WorkflowyInternalAdapter.applyCalendarLayout} (or its undo) pushed. */
 export interface AppliedCalendarLayout {
 	rootId: string;
@@ -557,6 +564,11 @@ export class WorkflowyInternalAdapter {
 	 * `stopAt` ends the walk at that level (upstream's strip arrows and month
 	 * cells). With `createChild` (the default) a new or empty final node gets
 	 * one empty child.
+	 *
+	 * The walk reads the cache. Workflowy is read only to confirm a miss before
+	 * writing, and for the rest of the walk after one, since the cache can lag
+	 * it. The missing levels and the empty child go in one nested `bulk_create`
+	 * push, then one parallel re-read caches them.
 	 */
 	async ensureCalendarDay(
 		dateId: number,
@@ -571,50 +583,128 @@ export class WorkflowyInternalAdapter {
 		const shown = root.levels ?? DEFAULT_CALENDAR_LEVELS;
 		const levels = CALENDAR_LEVELS.slice(0, CALENDAR_LEVELS.indexOf(stopAt) + 1).filter((level) => shown[level]);
 		const session = await this.session();
-		const dateFormat = await this.getRootMeta(["dateFormat"]);
-		const weekStartDay = await this.getRootMeta(["weekStartDay"]);
+		const rootMetadata = await this.getRootMeta([]);
+		const dateFormat = getPath(rootMetadata, ["dateFormat"]);
+		const weekStartDay = getPath(rootMetadata, ["weekStartDay"]);
 		const weekStart = typeof weekStartDay === "number" ? weekStartDay : 0;
-		const tree = this.tree();
-		const created: string[] = [];
-		let parentId = root.id;
-		for (const level of levels) {
+		const specs = levels.map((level) => {
 			const levelDateId = calendarDateId(level, date, weekStart);
 			const id =
 				session.entropyKey === undefined
 					? undefined
 					: calendarNodeId(session.entropyKey, level, levelDateId, date.year);
+			return {level, levelDateId, id};
+		});
+		const toCreate = ({level, id}: (typeof specs)[number]): CalendarChainNode => ({
+			id: id ?? this.generateId(),
+			name: calendarLevelName(level, date, typeof dateFormat === "string" ? dateFormat : "", weekStart),
+			metadata: {restorableUniqueNode: true, calendar: calendarLevelMetadata(level, date, weekStart)},
+		});
+		const tree = this.tree();
+		let live = false;
+		const lookUp = async (
+			parentId: string,
+			matches: (ids: string[]) => string | undefined,
+		): Promise<{found: string | undefined; children: string[]}> => {
+			if (!live) {
+				const cached = tree.cachedChildIds(parentId);
+				const found = matches(cached);
+				if (found !== undefined) {
+					return {found, children: cached};
+				}
+				live = true;
+			}
 			const children = (await tree.liveChildren(parentId)).map((child) => child.id);
-			const calendars = children.map((child) => this.readCalendar(child));
-			const match = children.find((child, position) => {
-				const calendar = calendars[position];
-				return child === id || (calendar?.level === level && calendar.dateId === levelDateId);
-			});
-			if (match !== undefined) {
-				parentId = match;
+			return {found: matches(children), children};
+		};
+
+		const created: string[] = [];
+		let parentId = root.id;
+		for (let position = 0; position < specs.length; position += 1) {
+			const spec = specs[position];
+			if (spec === undefined) {
+				break;
+			}
+			const {level, levelDateId, id} = spec;
+			const {found, children} = await lookUp(parentId, (ids) =>
+				ids.find((child) => {
+					const calendar = this.readCalendar(child);
+					return child === id || (calendar?.level === level && calendar.dateId === levelDateId);
+				}),
+			);
+			if (found !== undefined) {
+				parentId = found;
 				continue;
 			}
-			const index = calendarInsertIndex(calendars, level, levelDateId);
+			const index = calendarInsertIndex(
+				children.map((child) => this.readCalendar(child)),
+				level,
+				levelDateId,
+			);
 			if (id !== undefined && this.isCached(id)) {
 				await this.moveTo({ids: [id], parentId, index});
 				parentId = id;
 				continue;
 			}
-			const node = await this.createAt({
-				parentId,
-				index,
-				...(id === undefined ? {} : {id}),
-				name: calendarLevelName(level, date, typeof dateFormat === "string" ? dateFormat : "", weekStart),
-				metadata: {restorableUniqueNode: true, calendar: calendarLevelMetadata(level, date, weekStart)},
-			});
-			created.push(node.id);
-			parentId = node.id;
+			// This level and each deeper one whose deterministic node is not elsewhere are created together.
+			let end = position + 1;
+			while (end < specs.length && !this.isCachedLevel(specs[end]?.id)) {
+				end += 1;
+			}
+			const chain = specs.slice(position, end).map(toCreate);
+			const childId = end === specs.length && createChild ? this.generateId() : undefined;
+			await this.createCalendarChain(parentId, index, chain, childId);
+			created.push(...chain.map((node) => node.id), ...(childId === undefined ? [] : [childId]));
+			parentId = chain.at(-1)?.id ?? parentId;
+			if (end === specs.length) {
+				return {dayId: parentId, firstChildId: childId ?? null, created};
+			}
+			position = end - 1;
 		}
-		let [firstChildId = null] = (await tree.liveChildren(parentId)).map((child) => child.id);
+		let {found: firstChildId = null} = await lookUp(parentId, (ids) => ids[0]);
 		if (firstChildId === null && createChild) {
-			firstChildId = (await this.createAt({parentId, index: 0, name: ""})).id;
+			firstChildId = this.generateId();
+			await this.createCalendarChain(parentId, 0, [], firstChildId);
 			created.push(firstChildId);
 		}
 		return {dayId: parentId, firstChildId, created};
+	}
+
+	/** Whether a level's deterministic node is cached (so it is moved, not created). */
+	private isCachedLevel(id: string | undefined): boolean {
+		return id !== undefined && this.isCached(id);
+	}
+
+	/**
+	 * Create `chain` (each node nesting the next) at `index` under `parentId`,
+	 * with an empty `childId` under its last node (or under `parentId` for an
+	 * empty chain), in one push; then cache their calendar metadata and re-read
+	 * the parent and every new node with children at once.
+	 */
+	private async createCalendarChain(
+		parentId: string,
+		index: number,
+		chain: CalendarChainNode[],
+		childId: string | undefined,
+	): Promise<void> {
+		const leaf: NewTree[] = childId === undefined ? [] : [{id: childId, name: ""}];
+		const trees = chain.reduceRight<NewTree[]>((children, node) => [{...node, children}], leaf);
+		const session = await this.session();
+		const {op} = bulkCreateOp({
+			parentId,
+			index,
+			trees,
+			userId: session.userId,
+			now: this.now(),
+			dateJoinedSec: session.dateJoinedSec,
+			generateId: this.generateId,
+		});
+		await this.pusher.pushAndPoll({ops: [op]});
+		for (const node of chain) {
+			this.writeNodeMetadata(node.id, keptInternalMetadata(node.metadata));
+		}
+		const parents = childId === undefined ? chain.slice(0, -1) : chain;
+		await this.tree().refreshChain([parentId, ...parents.map((node) => node.id)]);
 	}
 
 	/**

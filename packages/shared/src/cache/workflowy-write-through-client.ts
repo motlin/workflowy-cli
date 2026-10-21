@@ -152,6 +152,23 @@ export class WorkflowyWriteThroughClient {
 		return children.toSorted((a, b) => a.priority - b.priority);
 	}
 
+	/** A parent's children ids (Home's for `null`) in the cache's order, with no API call. */
+	cachedChildIds(parentId: string | null): string[] {
+		return this.cacheService.getChildren(parentId).map((node) => node.id);
+	}
+
+	/**
+	 * Re-read a chain of parents at once, such as a cached parent and the
+	 * nested nodes just created under it, and store their children in the
+	 * given order so each new node is cached before its own children.
+	 */
+	async refreshChain(parentIds: string[]): Promise<void> {
+		const batches = await Promise.all(
+			parentIds.map(async (parentId) => ({parentId, nodes: await this.liveChildren(parentId)})),
+		);
+		this.cacheService.storeApiResponses(batches);
+	}
+
 	/** One node as Workflowy has it now, read from the API. */
 	async liveNode(nodeId: string): Promise<WorkflowyNode> {
 		return this.apiClient.getNode(nodeId);
