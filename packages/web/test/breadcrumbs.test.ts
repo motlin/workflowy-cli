@@ -28,9 +28,18 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}, cancelSearch: () => {}}),
 }));
 
+const dateSettingsState = {dateFormat: "ddd, MMM D", timeFormat: "h:mma", weekStartDay: 0};
+vi.mock("../src/client/hooks/use-preferences.js", () => ({
+	useDateSettings: () => dateSettingsState,
+}));
+const calendarSettingsState = {foundDates: true, dayPrefix: true};
+vi.mock("../src/client/hooks/use-calendar-settings.js", () => ({
+	useCalendarSettings: () => ({settings: calendarSettingsState, toggle: () => {}}),
+}));
+
 vi.stubGlobal("window", {innerWidth: 1272});
 
-const {Breadcrumbs, BreadcrumbOverflowMenu, handleCrumbClick, preventCrumbMouseDown} =
+const {Breadcrumbs, BreadcrumbOverflowMenu, LeftCollapsingCrumbs, handleCrumbClick, preventCrumbMouseDown} =
 	await import("../src/client/components/breadcrumbs.js");
 
 const CRUMB_CLASS =
@@ -60,6 +69,19 @@ function render(nodeId: string | null, ancestors: Ancestor[] | undefined, isLoad
 }
 
 const ROOT_MARKUP = `${CONTAINER_OPEN}<div class="${crumbClass(true)}"><div role="button" tabindex="-1" aria-disabled="true" data-handbook="nav.home" class="homeButton disabled iconButton lg shape-circle disabled">${HOUSE_SVG}</div></div></div>`;
+
+function todayName(): string {
+	const now = new Date();
+	return `<time startYear="${now.getFullYear()}" startMonth="${now.getMonth() + 1}" startDay="${now.getDate()}">today</time>`;
+}
+
+/** Today in the account default "ddd, MMM D". */
+function todayLabel(): string {
+	const now = new Date();
+	const weekday = now.toLocaleDateString("en-US", {weekday: "short"});
+	const month = now.toLocaleDateString("en-US", {month: "short"});
+	return `${weekday}, ${month} ${now.getDate()}`;
+}
 
 describe("Breadcrumbs markup", () => {
 	it("renders a disabled current Home crumb at the root", () => {
@@ -101,25 +123,25 @@ describe("Breadcrumbs markup", () => {
 		);
 	});
 
-	it("labels a date-node ancestor with its formatted date", () => {
+	it("labels a date-node ancestor in the default account date format, like its pill", () => {
 		const html = render("day-uuid", [
 			{id: "day-uuid", name: '<time startYear="2020" startMonth="3" startDay="5">Thu, Mar 5, 2020</time>'},
 		]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
-			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">2020-03-05 Thu</a></div>`,
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">Thu, Mar 5, 2020</a></div>`,
 		);
 	});
 
-	function todayName(): string {
-		const now = new Date();
-		return `<time startYear="${now.getFullYear()}" startMonth="${now.getMonth() + 1}" startDay="${now.getDate()}">today</time>`;
-	}
-
-	function todayLabel(): string {
-		const now = new Date();
-		const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-		return `${iso} ${now.toLocaleDateString("en-US", {weekday: "short"})}`;
-	}
+	it("formats a date-node ancestor with the account's date format", () => {
+		dateSettingsState.dateFormat = "MM/DD/YYYY";
+		const html = render("day-uuid", [
+			{id: "day-uuid", name: '<time startYear="2020" startMonth="3" startDay="5">Thu, Mar 5, 2020</time>'},
+		]);
+		dateSettingsState.dateFormat = "ddd, MMM D";
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">03/05/2020</a></div>`,
+		);
+	});
 
 	it("prefixes today's day crumb with Today when the calendar root keeps Friendly day names", () => {
 		const html = render("day-uuid", [
@@ -169,6 +191,40 @@ function childTags(html: string): string[] {
 	}
 	return tags;
 }
+
+function renderLeft(crumbs: {id: string; isRoot: boolean; name?: string | null}[]): string {
+	return renderToStaticMarkup(createElement(LeftCollapsingCrumbs, {crumbs}));
+}
+
+describe("LeftCollapsingCrumbs labels", () => {
+	it("prefixes a today crumb with Today when the calendar keeps Friendly day names", () => {
+		calendarSettingsState.dayPrefix = true;
+		const html = renderLeft([{id: "day-uuid", isRoot: false, name: todayName()}]);
+		expect(html.slice(html.indexOf("<a "))).toBe(
+			`<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">Today, ${todayLabel()}</a></div>`,
+		);
+	});
+
+	it("drops the Today prefix when the calendar turns Friendly day names off", () => {
+		calendarSettingsState.dayPrefix = false;
+		const html = renderLeft([{id: "day-uuid", isRoot: false, name: todayName()}]);
+		calendarSettingsState.dayPrefix = true;
+		expect(html.slice(html.indexOf("<a "))).toBe(
+			`<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
+		);
+	});
+
+	it("formats a date crumb with the account's date format", () => {
+		dateSettingsState.dateFormat = "MM/DD/YYYY";
+		const html = renderLeft([
+			{id: "day-uuid", isRoot: false, name: '<time startYear="2020" startMonth="3" startDay="5">x</time>'},
+		]);
+		dateSettingsState.dateFormat = "ddd, MMM D";
+		expect(html.slice(html.indexOf("<a "))).toBe(
+			`<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">03/05/2020</a></div>`,
+		);
+	});
+});
 
 describe("Breadcrumbs overflow", () => {
 	it("truncates and collapses a deep trail into one ellipsis menu at 675px", () => {

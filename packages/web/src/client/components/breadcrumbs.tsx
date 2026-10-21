@@ -4,7 +4,9 @@ import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
+import {useCalendarSettings} from "../hooks/use-calendar-settings.js";
 import {useAncestors} from "../hooks/use-nodes.js";
+import {useDateSettings} from "../hooks/use-preferences.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
@@ -94,11 +96,23 @@ function scrollOutlineToTop(): void {
 
 function noop(): void {}
 
-/** `dayPrefix` is the 📆 Calendar root's Friendly day names setting, which upstream's crumb decorator honors too. */
-function crumbLabel(name: string | null | undefined, dayPrefix = true): string {
-	const label = formatCrumbLabel(name ?? "", {now: new Date(), dayPrefix});
+/**
+ * How crumbs render dates: the account's date format, like the pills, and the 📆 Calendar root's Friendly day names
+ * setting, which upstream's crumb decorator honors too.
+ */
+interface CrumbDateOptions {
+	dateFormat?: string;
+	dayPrefix?: boolean;
+}
+
+function crumbLabel(name: string | null | undefined, {dateFormat, dayPrefix = true}: CrumbDateOptions): string {
+	const label = formatCrumbLabel(name ?? "", {now: new Date(), dateFormat, dayPrefix});
 	return label === "" ? "Untitled" : label;
 }
+
+function noLog(): void {}
+
+const NO_DATE_OPTIONS: CrumbDateOptions = {};
 
 interface CrumbProps {
 	crumb: Crumb;
@@ -108,8 +122,7 @@ interface CrumbProps {
 	/** A search is committed; enables the root Home so it can exit the search. */
 	searchActive?: boolean;
 	onCancelSearch?: () => void;
-	/** Prefix a day within one day of today with Yesterday/Today/Tomorrow. */
-	dayPrefix?: boolean;
+	dateOptions?: CrumbDateOptions;
 }
 
 /** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
@@ -120,7 +133,7 @@ export function BreadcrumbItem({
 	onNavigate,
 	searchActive = false,
 	onCancelSearch = noop,
-	dayPrefix = true,
+	dateOptions = NO_DATE_OPTIONS,
 }: CrumbProps) {
 	const leaveSearch = useOutlineStore((state) => state.leaveSearch);
 	const disabled = crumb.isRoot && current && !searchActive;
@@ -136,7 +149,7 @@ export function BreadcrumbItem({
 			<FaIcon icon="fal:house" size="lg" />
 		</IconButton>
 	) : (
-		crumbLabel(crumb.name, dayPrefix)
+		crumbLabel(crumb.name, dateOptions)
 	);
 	const style = {maxWidth: truncateWidth === null ? undefined : truncateWidth};
 
@@ -188,7 +201,7 @@ interface BreadcrumbOverflowMenuProps {
 	onNavigate: (nodeId: string | null) => void;
 	searchActive?: boolean;
 	onCancelSearch?: () => void;
-	dayPrefix?: boolean;
+	dateOptions?: CrumbDateOptions;
 }
 
 /** The ellipsis flyout's body: collapsed crumbs stacked vertically, each in a div, without separators. */
@@ -200,7 +213,7 @@ export function BreadcrumbOverflowMenu({
 	onNavigate,
 	searchActive,
 	onCancelSearch,
-	dayPrefix,
+	dateOptions,
 }: BreadcrumbOverflowMenuProps) {
 	return (
 		<div className="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style={{maxWidth}}>
@@ -215,7 +228,7 @@ export function BreadcrumbOverflowMenu({
 							onNavigate={onNavigate}
 							searchActive={searchActive}
 							onCancelSearch={onCancelSearch}
-							dayPrefix={dayPrefix}
+							dateOptions={dateOptions}
 						/>
 					</div>
 				);
@@ -247,16 +260,20 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();
+	const {dateFormat} = useDateSettings();
 
 	const crumbs: Crumb[] =
 		nodeId === null || isLoading || ancestors === undefined
 			? [ROOT_CRUMB]
 			: [ROOT_CRUMB, ...ancestors.map((node) => ({id: node.id, isRoot: false, name: node.name}))];
 	const currentId = crumbs.at(-1)?.id ?? ROOT_CRUMB.id;
-	const dayPrefix = ancestors?.find((node) => node.calendar?.root === true)?.calendar?.dayPrefix !== false;
+	const dateOptions = {
+		dateFormat,
+		dayPrefix: ancestors?.find((node) => node.calendar?.root === true)?.calendar?.dayPrefix !== false,
+	};
 	const inputs = crumbs.map((crumb) => ({
 		id: crumb.id,
-		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dayPrefix),
+		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dateOptions),
 	}));
 
 	const zoomedIds = useZoomedIds(
@@ -299,7 +316,7 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 								onNavigate={navigateToNode}
 								searchActive={searchActive}
 								onCancelSearch={cancelSearch}
-								dayPrefix={dayPrefix}
+								dateOptions={dateOptions}
 							/>
 						</ButtonMenu>,
 						<BreadcrumbSeparator key={`breadcrumb-icon-${leftOffset}`} />,
@@ -320,7 +337,7 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 							onNavigate={navigateToNode}
 							searchActive={searchActive}
 							onCancelSearch={cancelSearch}
-							dayPrefix={dayPrefix}
+							dateOptions={dateOptions}
 						/>
 					);
 					return current ? [element] : [element, <BreadcrumbSeparator key={`${crumb.id}-separator`} />];
@@ -344,7 +361,13 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();
-	const inputs = crumbs.map((crumb) => ({id: crumb.id, label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name)}));
+	const {dateFormat} = useDateSettings();
+	const {dayPrefix} = useCalendarSettings(noLog).settings;
+	const dateOptions = {dateFormat, dayPrefix};
+	const inputs = crumbs.map((crumb) => ({
+		id: crumb.id,
+		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dateOptions),
+	}));
 	const inputsKey = inputs.map(({id, label}) => `${id}\u0000${label}`).join("/");
 	const visible = useMemo(
 		() => leftCollapseLayout.calculateVisibleItems(inputs, containerWidth, []),
@@ -371,6 +394,7 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 						currentId=""
 						maxWidth={windowWidth - leftOffset - containerLeft - OVERFLOW_MENU_GUTTER}
 						onNavigate={navigateToNode}
+						dateOptions={dateOptions}
 					/>
 				</ButtonMenu>,
 			];
@@ -386,6 +410,7 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 							current={false}
 							truncateWidth={item.truncateWidth}
 							onNavigate={navigateToNode}
+							dateOptions={dateOptions}
 						/>,
 					];
 		});
