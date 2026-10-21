@@ -27,7 +27,7 @@ import {
 	STRIP_DROP_EVENT,
 	attachDragScroll,
 	attachDropAutoscroll,
-	calendarPageDate,
+	stripPage,
 	runStripDrop,
 	scrollStripOnMount,
 } from "../calendar-strip-model.js";
@@ -341,16 +341,12 @@ function StripForPage({level, date}: StripPage) {
 }
 
 /**
- * The day strip under a zoomed 📆 Calendar day, month or year page's title
+ * The day strip under a zoomed 📆 Calendar day, week, month or year page's title
  * (upstream `ui.item.note.afterend.calendar_navigation`): arrows, the calendar
  * button, and the scrollable day and month cells, each zooming to its page.
  * Other nodes render nothing.
  */
 export function CalendarStrip({node}: {node: Pick<NodeResponse, "id" | "calendar">}) {
-	const level = node.calendar?.level;
-	const pageDateId = node.calendar?.dateId ?? null;
-	if ((level !== "day" && level !== "month" && level !== "year") || pageDateId === null) {
-		return null;
-	}
-	return <StripForPage key={node.id} level={level} date={calendarPageDate(pageDateId)} />;
+	const page = stripPage(node.calendar);
+	return page === null ? null : <StripForPage key={node.id} level={page.level} date={page.date} />;
 }

@@ -10,6 +10,7 @@ import {
 	stripAutoscrollSpeed,
 	stripDropTarget,
 	stripNav,
+	stripPage,
 } from "../src/client/calendar-strip-model.js";
 import type {StripDropCell, StripLevel} from "../src/client/calendar-strip-model.js";
 import type {MoveToToast} from "../src/client/move-to.js";
@@ -223,6 +224,7 @@ describe("calendar strip navigation", () => {
 			stripNav("day", new Date(2026, 8, 30), NOW, 0),
 			stripNav("day", new Date(2026, 9, 1), NOW, 0),
 			stripNav("month", new Date(2026, 9, 1), NOW, 0),
+			stripNav("week", new Date(2026, 9, 11), NOW, 0),
 		]).toStrictEqual([
 			{
 				prev: {tooltip: "Previous day", target: {date: new Date(2026, 8, 29), level: "day"}},
@@ -236,6 +238,10 @@ describe("calendar strip navigation", () => {
 				prev: {tooltip: "Previous month", target: {date: new Date(2026, 8, 1), level: "month"}},
 				next: {tooltip: "Next month", target: {date: new Date(2026, 10, 1), level: "month"}},
 			},
+			{
+				prev: {tooltip: "Previous week", target: {date: new Date(2026, 9, 4), level: "week"}},
+				next: {tooltip: "Next week", target: {date: new Date(2026, 9, 18), level: "week"}},
+			},
 		]);
 	});
 
@@ -245,8 +251,10 @@ describe("calendar strip navigation", () => {
 			monthCellTarget("day", nov),
 			monthCellTarget("month", nov),
 			monthCellTarget("year", nov),
+			monthCellTarget("week", nov),
 		]).toStrictEqual([
 			{date: nov},
+			{date: nov, level: "month", createChild: false},
 			{date: nov, level: "month", createChild: false},
 			{date: nov, level: "month", createChild: false},
 		]);
@@ -258,6 +266,22 @@ describe("calendar strip navigation", () => {
 			calendarPageDate(20_261_000),
 			calendarPageDate(20_260_000),
 		]).toStrictEqual([new Date(2026, 8, 30), new Date(2026, 9, 1), new Date(2026, 0, 1)]);
+	});
+
+	it("shows a strip on day, week, month and year pages only, starting at the page's first day", () => {
+		expect([
+			stripPage({level: "week", dateId: 20_261_011}),
+			stripPage({level: "month", dateId: 20_261_000}),
+			stripPage({level: "root", dateId: null}),
+			stripPage({level: "day", dateId: null}),
+			stripPage(undefined),
+		]).toStrictEqual([
+			{level: "week", date: new Date(2026, 9, 11)},
+			{level: "month", date: new Date(2026, 9, 1)},
+			null,
+			null,
+			null,
+		]);
 	});
 
 	it("scrolls by the offset of the cell from the scroller's left edge", () => {

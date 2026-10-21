@@ -57,16 +57,18 @@ describe("POST /api/v1/calendar/day/:dateId/ensure", () => {
 			await ensure("20261001", "?level=month&createChild=false"),
 			await ensure("20261001", "?level=year"),
 			await ensure("20261001", "?level=week"),
+			await ensure("20261001", "?level=hour"),
 		];
 
 		expect({
 			statuses: responses.map(({status}) => status),
 			calls: adapter.ensureCalendarDay.mock.calls,
 		}).toStrictEqual({
-			statuses: [200, 200, 400],
+			statuses: [200, 200, 200, 400],
 			calls: [
 				[20_261_001, {stopAt: "month", createChild: false}],
 				[20_261_001, {stopAt: "year", createChild: true}],
+				[20_261_001, {stopAt: "week", createChild: true}],
 			],
 		});
 	});

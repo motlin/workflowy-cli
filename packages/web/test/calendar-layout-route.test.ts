@@ -7,7 +7,7 @@ import {afterEach, describe, expect, it} from "vite-plus/test";
 import {z} from "zod";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
-import {CalendarWeekUnsupported, calendarNodeId} from "@workflowy/shared/internal";
+import {calendarNodeId} from "@workflowy/shared/internal";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
@@ -87,9 +87,6 @@ function app({
 		},
 		applyCalendarLayout: async (levels: unknown, options: unknown) => {
 			calls.push(`applyCalendarLayout ${JSON.stringify(levels)} ${JSON.stringify(options)}`);
-			if (JSON.stringify(levels).includes("week")) {
-				throw new CalendarWeekUnsupported();
-			}
 			return Promise.resolve({rootId: "cal", writes: 3});
 		},
 		undoCalendarLayout: async () => {
@@ -190,7 +187,7 @@ describe("POST /api/v1/calendar/layout/preview", () => {
 				],
 			},
 		});
-		expect(calls).toStrictEqual(["getRootMeta dateFormat"]);
+		expect(calls).toStrictEqual(["getRootMeta weekStartDay", "getRootMeta dateFormat"]);
 	});
 
 	it("plans under an explicit root with random ids for new level nodes, not the account's deterministic ones", async () => {
@@ -236,12 +233,17 @@ describe("POST /api/v1/calendar/layout/preview", () => {
 		});
 	});
 
-	it("is 422 for week levels and 400 for a malformed body", async () => {
+	it("plans week levels and is 400 for a malformed body", async () => {
 		const {preview} = app();
-		expect([await preview({levels: {week: true}}), await preview({levels: "year"})]).toStrictEqual([
-			{status: 422, body: {error: "Calendar week levels are not supported"}},
-			{status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
-		]);
+		const week = await preview({levels: {year: true, week: true}});
+		const steps = (week.body as {steps: {op: string}[]}).steps;
+		expect({
+			week: [week.status, steps.find((step) => step.op === "set-levels")],
+			malformed: await preview({levels: "year"}),
+		}).toStrictEqual({
+			week: [200, {op: "set-levels", id: "cal", levels: {year: true, week: true, day: true}}],
+			malformed: {status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
+		});
 	});
 });
 
@@ -282,7 +284,7 @@ describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", ()
 			},
 			tagged: {status: 200, body: {rootId: "cal", writes: 3}},
 			sandbox: {status: 200, body: {rootId: "cal", writes: 3}},
-			week: {status: 422, body: {error: "Calendar week levels are not supported"}},
+			week: {status: 200, body: {rootId: "cal", writes: 3}},
 			bad: {status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
 			undo: {status: 200, body: {rootId: "cal", writes: 3}},
 			nothing: {status: 409, body: {error: "There is no calendar layout to undo"}},

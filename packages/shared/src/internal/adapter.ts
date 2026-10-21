@@ -12,6 +12,7 @@ import {hasInternalLink, internalLinkShortIds} from "../workflowy/internal-links
 import {uuidToShortId} from "../workflowy/constants.js";
 import {
 	CALENDAR_LEVELS,
+	DEFAULT_CALENDAR_LEVELS,
 	CalendarRootMissing,
 	calendarDateId,
 	calendarInsertIndex,
@@ -566,21 +567,22 @@ export class WorkflowyInternalAdapter {
 			throw new RangeError(`${dateId} is not a YYYYMMDD date`);
 		}
 		const root = this.findCalendarRoot();
-		if (root.levels.week === true) {
-			throw new Error("calendar week levels are not supported");
-		}
-		const levels = CALENDAR_LEVELS.slice(0, CALENDAR_LEVELS.indexOf(stopAt) + 1).filter(
-			(level) => root.levels[level] ?? true,
-		);
+		// Upstream `GO`: the root's levels (a missing key is off), else year, month and day.
+		const shown = root.levels ?? DEFAULT_CALENDAR_LEVELS;
+		const levels = CALENDAR_LEVELS.slice(0, CALENDAR_LEVELS.indexOf(stopAt) + 1).filter((level) => shown[level]);
 		const session = await this.session();
 		const dateFormat = await this.getRootMeta(["dateFormat"]);
+		const weekStartDay = await this.getRootMeta(["weekStartDay"]);
+		const weekStart = typeof weekStartDay === "number" ? weekStartDay : 0;
 		const tree = this.tree();
 		const created: string[] = [];
 		let parentId = root.id;
 		for (const level of levels) {
-			const levelDateId = calendarDateId(level, date);
+			const levelDateId = calendarDateId(level, date, weekStart);
 			const id =
-				session.entropyKey === undefined ? undefined : calendarNodeId(session.entropyKey, level, levelDateId);
+				session.entropyKey === undefined
+					? undefined
+					: calendarNodeId(session.entropyKey, level, levelDateId, date.year);
 			const children = (await tree.liveChildren(parentId)).map((child) => child.id);
 			const calendars = children.map((child) => this.readCalendar(child));
 			const match = children.find((child, position) => {
@@ -601,8 +603,8 @@ export class WorkflowyInternalAdapter {
 				parentId,
 				index,
 				...(id === undefined ? {} : {id}),
-				name: calendarLevelName(level, date, typeof dateFormat === "string" ? dateFormat : ""),
-				metadata: {restorableUniqueNode: true, calendar: calendarLevelMetadata(level, date)},
+				name: calendarLevelName(level, date, typeof dateFormat === "string" ? dateFormat : "", weekStart),
+				metadata: {restorableUniqueNode: true, calendar: calendarLevelMetadata(level, date, weekStart)},
 			});
 			created.push(node.id);
 			parentId = node.id;
@@ -637,6 +639,7 @@ export class WorkflowyInternalAdapter {
 		const currentLevels = rootMetadata.success ? rootMetadata.data.calendar.levels : undefined;
 		const entropyKey = tagged ? (await this.session()).entropyKey : undefined;
 		const dateFormat = await this.getRootMeta(["dateFormat"]);
+		const weekStartDay = await this.getRootMeta(["weekStartDay"]);
 		const tree = this.tree();
 
 		const readLayout = async (parentId: string): Promise<LayoutNode[]> =>
@@ -679,6 +682,7 @@ export class WorkflowyInternalAdapter {
 			planCalendarLayout(snapshot, levels, {
 				...(currentLevels === undefined ? {} : {currentLevels}),
 				dateFormat: typeof dateFormat === "string" ? dateFormat : "",
+				...(typeof weekStartDay === "number" ? {weekStartDay} : {}),
 				...(entropyKey === undefined ? {} : {entropyKey}),
 				generateId: this.generateId,
 			});
@@ -794,7 +798,7 @@ export class WorkflowyInternalAdapter {
 			.run();
 	}
 
-	private findCalendarRoot(): {id: string; levels: Record<string, boolean>} {
+	private findCalendarRoot(): {id: string; levels: Record<string, boolean> | undefined} {
 		const rows = this.db
 			.select({nodeId: nodeInternalMetadata.nodeId, metadataJson: nodeInternalMetadata.metadataJson})
 			.from(nodeInternalMetadata)
@@ -809,7 +813,7 @@ export class WorkflowyInternalAdapter {
 		for (const row of rows) {
 			const parsed = CalendarMetadataSchema.safeParse(JSON.parse(row.metadataJson));
 			if (parsed.success && parsed.data.calendar.root === true) {
-				return {id: row.nodeId, levels: parsed.data.calendar.levels ?? {}};
+				return {id: row.nodeId, levels: parsed.data.calendar.levels};
 			}
 		}
 		throw new CalendarRootMissing();

@@ -10,6 +10,8 @@
 
 import {parseTimeAttrs} from "../dates/date-markup.js";
 import {
+	CALENDAR_LEVELS,
+	DEFAULT_CALENDAR_LEVELS,
 	calendarDateId,
 	calendarInsertIndex,
 	calendarLevelMetadata,
@@ -60,52 +62,47 @@ export type CalendarLayoutStep =
 export interface CalendarLayoutOptions {
 	/** The root's levels before the change; upstream's default (year, month, day) when absent. */
 	currentLevels?: CalendarLayoutLevels;
-	/** The account's date format, which names new year and month nodes. */
+	/** The account's date format, which names new year, month and week nodes. */
 	dateFormat: string;
+	/** The account's `weekStartDay` (1 is Monday, else Sunday), which places and numbers weeks. */
+	weekStartDay?: number;
 	/** The account entropy key behind upstream's deterministic level ids; without it ids come from `generateId`. */
 	entropyKey?: string;
 	generateId?: () => string;
 }
 
-/** Week levels: upstream supports them, the local calendar does not yet. */
-export class CalendarWeekUnsupported extends Error {
-	constructor() {
-		super("Calendar week levels are not supported");
-		this.name = "CalendarWeekUnsupported";
-	}
-}
-
-const DEFAULT_LEVELS: CalendarLayoutLevels = {year: true, month: true, week: false, day: true};
-const LEVEL_ORDER: readonly CalendarLevel[] = ["year", "month", "day"];
 const TIME_TAG = /<time\b([^>]*)>/giu;
 
 /** The enabled levels in upstream order (`GO`); day is always last when enabled. */
 function enabledLevels(levels: CalendarLayoutLevels | undefined): CalendarLevel[] {
-	const resolved = levels ?? DEFAULT_LEVELS;
-	if (resolved.week === true) {
-		throw new CalendarWeekUnsupported();
-	}
-	return LEVEL_ORDER.filter((level) => resolved[level] === true);
+	const resolved = levels ?? DEFAULT_CALENDAR_LEVELS;
+	return CALENDAR_LEVELS.filter((level) => resolved[level] === true);
 }
 
-/** A node's level as a supported calendar level (week levels were rejected up front). */
+/** A node's level as a calendar level. */
 function toLevel(level: string): CalendarLevel {
-	const known = LEVEL_ORDER.find((candidate) => candidate === level);
+	const known = CALENDAR_LEVELS.find((candidate) => candidate === level);
 	if (known === undefined) {
-		throw new CalendarWeekUnsupported();
+		throw new Error(`calendar layout: unknown level ${level}`);
 	}
 	return known;
 }
 
-/** Whether two dateIds fall in the same `level` period (upstream `level.matches(node, date)`). */
-function samePeriod(level: string, a: number, b: number): boolean {
+/**
+ * Whether the `level` node with dateId `nodeDateId` holds the date `dateId` (upstream `level.matches(node, date)`):
+ * same year or month, the week starting on the node's first day, or the same day.
+ */
+function samePeriod(level: string, nodeDateId: number, dateId: number, weekStartDay: number): boolean {
 	if (level === "year") {
-		return Math.floor(a / 10_000) === Math.floor(b / 10_000);
+		return Math.floor(nodeDateId / 10_000) === Math.floor(dateId / 10_000);
 	}
 	if (level === "month") {
-		return Math.floor(a / 100) === Math.floor(b / 100);
+		return Math.floor(nodeDateId / 100) === Math.floor(dateId / 100);
 	}
-	return a === b;
+	if (level === "week") {
+		return nodeDateId === calendarDateId("week", toDate(dateId), weekStartDay);
+	}
+	return nodeDateId === dateId;
 }
 
 /** The first `<time>` date in `html` (upstream `WF.Date.fromContentText(text)[0]`) and whether it has a time of day. */
@@ -132,7 +129,7 @@ function nodeDate(node: {name: string; note: string}): {dateId: number; hasTime:
 	return firstDate(node.name) ?? firstDate(node.note);
 }
 
-/** A level dateId (`YYYY0000`, `YYYYMM00` or `YYYYMMDD`) as the first day it covers, like upstream's level timestamps. */
+/** A level dateId (`YYYY0000`, `YYYYMM00` or a week's or day's `YYYYMMDD`) as the first day it covers, like upstream's level timestamps. */
 function toDate(dateId: number): CalendarDate {
 	const month = Math.floor(dateId / 100) % 100;
 	const date = parseDateId(dateId + (month === 0 ? 100 : 0) + (dateId % 100 === 0 ? 1 : 0));
@@ -160,7 +157,7 @@ export function calendarLayoutCustomLevels(root: LayoutNode, dateFormat: string)
 		node.children.forEach(visit);
 	};
 	root.children.forEach(visit);
-	return LEVEL_ORDER.filter((level) => custom.has(level));
+	return CALENDAR_LEVELS.filter((level) => custom.has(level));
 }
 
 /**
@@ -312,6 +309,7 @@ export function planCalendarLayout(
 	const current = enabledLevels(options.currentLevels);
 	const next = enabledLevels({...levels, day: true});
 	const generateId = options.generateId ?? (() => crypto.randomUUID());
+	const weekStartDay = options.weekStartDay ?? 0;
 	const sim = new LayoutSim(root);
 	const rootId = root.id;
 	const prune = new Set<string>();
@@ -326,7 +324,11 @@ export function planCalendarLayout(
 		for (const level of current) {
 			const match = sim
 				.children(node.id)
-				.find((child) => child.calendar?.level === level && samePeriod(level, child.calendar.dateId, dateId));
+				.find(
+					(child) =>
+						child.calendar?.level === level &&
+						samePeriod(level, child.calendar.dateId, dateId, weekStartDay),
+				);
 			if (match === undefined) {
 				return undefined;
 			}
@@ -340,10 +342,12 @@ export function planCalendarLayout(
 		const date = toDate(dateId);
 		let parentId = rootId;
 		for (const level of next) {
-			const levelDateId = calendarDateId(level, date);
+			const levelDateId = calendarDateId(level, date, weekStartDay);
 			const children = sim.children(parentId);
 			const match = children.find(
-				(child) => child.calendar?.level === level && samePeriod(level, child.calendar.dateId, levelDateId),
+				(child) =>
+					child.calendar?.level === level &&
+					samePeriod(level, child.calendar.dateId, levelDateId, weekStartDay),
 			);
 			if (match === undefined) {
 				const index = calendarInsertIndex(
@@ -354,7 +358,7 @@ export function planCalendarLayout(
 				const id =
 					options.entropyKey === undefined
 						? generateId()
-						: calendarNodeId(options.entropyKey, level, levelDateId);
+						: calendarNodeId(options.entropyKey, level, levelDateId, date.year);
 				if (sim.nodes.has(id)) {
 					sim.move(id, parentId, index);
 				} else {
@@ -363,8 +367,11 @@ export function planCalendarLayout(
 						id,
 						parentId,
 						index,
-						name: calendarLevelName(level, date, options.dateFormat),
-						metadata: {restorableUniqueNode: true, calendar: calendarLevelMetadata(level, date)},
+						name: calendarLevelName(level, date, options.dateFormat, weekStartDay),
+						metadata: {
+							restorableUniqueNode: true,
+							calendar: calendarLevelMetadata(level, date, weekStartDay),
+						},
 					});
 				}
 				parentId = id;

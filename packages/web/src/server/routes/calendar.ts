@@ -2,8 +2,8 @@
  * 📆 Calendar date nodes, created the way upstream's Today does so
  * workflowy.com recognises them (deterministic ids and calendar metadata).
  *
- * `GET /api/v1/calendar/day/:dateId[?level=month|year]` -> 200 `{id, firstChildId}` / 404 (read-only lookup of the
- * day, or the month or year node holding it; `firstChildId` is the first live, non-references-root child, or null
+ * `GET /api/v1/calendar/day/:dateId[?level=week|month|year]` -> 200 `{id, firstChildId}` / 404 (read-only lookup of the
+ * day, or the week, month or year node holding it; `firstChildId` is the first live, non-references-root child, or null
  * when the node has none).
  * `GET /api/v1/calendar/days?year=&month=[&found=1]` -> 200 `{days}`: the month's days with
  * journal content, for the date picker's event dots; with `found=1` (the strip's picker) also the existing days a
@@ -17,21 +17,21 @@
  * without the root's cached internal metadata).
  * `PUT /api/v1/calendar/layout` `{levels, rootId?}` -> 200 `{rootId, writes}`: restructure the calendar (the tagged
  * root, or `rootId`, such as a sandbox copy) in one push, read fresh from Workflowy (403 unless
- * `CALENDAR_LAYOUT_ENABLED=true`, 422 for week levels).
+ * `CALENDAR_LAYOUT_ENABLED=true`).
  * `POST /api/v1/calendar/layout/undo` -> 200 `{rootId, writes}`: undo the last applied layout once (409 when there is
  * none; 403 like PUT).
  * `POST /api/v1/calendar/layout/preview` `{levels, rootId?}` -> 200 `{steps}`: the tree writes upstream's restructure
- * (`JX4`) would make for those levels, planned from the cache (under `rootId` when given); nothing is written (422 for week levels).
+ * (`JX4`) would make for those levels, planned from the cache (under `rootId` when given); nothing is written.
  * `GET /api/v1/calendar/dots?from=YYYYMMDD&to=YYYYMMDD` -> 200 `{dateIds}`: the days in the range with journal
  * content, for the day strip's dots.
- * `POST /api/v1/calendar/day/:dateId/ensure[?level=month|year][&createChild=false]` -> 200
- * `{dayId, firstChildId, created}` (`dayId` is the month or year node with `level`), or 403 when
+ * `POST /api/v1/calendar/day/:dateId/ensure[?level=week|month|year][&createChild=false]` -> 200
+ * `{dayId, firstChildId, created}` (`dayId` is the week, month or year node with `level`), or 403 when
  * `CALENDAR_ENSURE_ENABLED=false`.
  */
 
 import {
+	CALENDAR_LEVELS,
 	CalendarRootMissing,
-	CalendarWeekUnsupported,
 	calendarLayoutCustomLevels,
 	calendarLayoutNeedsConfirm,
 	parseDateId,
@@ -50,7 +50,7 @@ import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 const ENSURE_DISABLED = "Calendar day ensure is disabled (CALENDAR_ENSURE_ENABLED=false)";
 const INVALID_DATE_ID = "dateId must be a YYYYMMDD calendar day";
 const INVALID_MONTH = "year and month must be a calendar year and a 1-12 month";
-const INVALID_LEVEL = "level must be day, month or year";
+const INVALID_LEVEL = "level must be day, week, month or year";
 const INVALID_SETTINGS = "foundDates and dayPrefix must be booleans, and at least one is required";
 const ROOT_METADATA_MISSING = "The 📆 Calendar root's internal metadata is not cached";
 const MAX_DOT_RANGE_DAYS = 100;
@@ -78,9 +78,15 @@ async function accountDateFormat(ctx: ServerContext): Promise<string> {
 	return typeof dateFormat === "string" ? dateFormat : "";
 }
 
+/** The account's `weekStartDay`, which places weeks; undefined (Sunday) when unset or without the internal API. */
+async function accountWeekStartDay(ctx: ServerContext): Promise<number | undefined> {
+	const weekStartDay = await ctx.internalAdapter?.()?.getRootMeta(["weekStartDay"]);
+	return typeof weekStartDay === "number" ? weekStartDay : undefined;
+}
+
 /** The `?level=` query parameter (default day), else undefined. */
 function levelParam(raw: string | undefined): CalendarLevel | undefined {
-	return raw === undefined ? "day" : raw === "day" || raw === "month" || raw === "year" ? raw : undefined;
+	return raw === undefined ? "day" : CALENDAR_LEVELS.find((level) => level === raw);
 }
 
 /** A day dateId's UTC midnight. */
@@ -149,8 +155,10 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		if (level === undefined) {
 			return c.json({error: INVALID_LEVEL}, 400);
 		}
-		const deps = await calendarDayDeps(c.get("ctx"));
-		const id = findCalendarDay(deps, dateId, level);
+		const ctx = c.get("ctx");
+		const deps = await calendarDayDeps(ctx);
+		const weekStartDay = level === "week" ? await accountWeekStartDay(ctx) : undefined;
+		const id = findCalendarDay(weekStartDay === undefined ? deps : {...deps, weekStartDay}, dateId, level);
 		return id === null
 			? c.json({error: "Calendar day not found"}, 404)
 			: c.json({id, firstChildId: firstDayChild(deps, id)});
@@ -240,9 +248,6 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		try {
 			return c.json(await adapter.applyCalendarLayout(levels, rootId === undefined ? {} : {rootId}));
 		} catch (error) {
-			if (error instanceof CalendarWeekUnsupported) {
-				return c.json({error: error.message}, 422);
-			}
 			if (error instanceof CalendarRootMissing) {
 				return c.json({error: error.message}, 409);
 			}
@@ -276,19 +281,14 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		}
 		// An explicit (sandbox) root gets random ids, as applying it does: deterministic ids belong to the real calendar.
 		const {entropyKey} = rootId === undefined ? await calendarDayDeps(ctx) : {entropyKey: undefined};
-		try {
-			const steps = planCalendarLayout(snapshot.root, body.data.levels, {
-				...(snapshot.levels === undefined ? {} : {currentLevels: snapshot.levels}),
-				dateFormat: await accountDateFormat(ctx),
-				...(entropyKey === undefined ? {} : {entropyKey}),
-			});
-			return c.json({steps});
-		} catch (error) {
-			if (error instanceof CalendarWeekUnsupported) {
-				return c.json({error: error.message}, 422);
-			}
-			throw error;
-		}
+		const weekStartDay = await accountWeekStartDay(ctx);
+		const steps = planCalendarLayout(snapshot.root, body.data.levels, {
+			...(snapshot.levels === undefined ? {} : {currentLevels: snapshot.levels}),
+			dateFormat: await accountDateFormat(ctx),
+			...(weekStartDay === undefined ? {} : {weekStartDay}),
+			...(entropyKey === undefined ? {} : {entropyKey}),
+		});
+		return c.json({steps});
 	});
 
 	router.get("/dots", async (c) => {

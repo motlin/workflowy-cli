@@ -20,6 +20,8 @@ export interface CalendarDayDeps {
 	cache: CacheService;
 	/** The account's entropy key; without it the deterministic-id lookup is skipped. */
 	entropyKey?: string;
+	/** The account's `weekStartDay` (1 is Monday, else Sunday), which places weeks. */
+	weekStartDay?: number;
 }
 
 const CALENDAR_ROOT_NAME = "📆 Calendar";
@@ -42,11 +44,12 @@ const DAY_NAME = /^<time\b([^>]*)>[^<]*<\/time>$/iu;
 
 /**
  * The node id of the `level` node holding the day `dateId` (the day itself by
- * default, or its month or year), or null when the cache has none. Tried in
- * order: the deterministic id `calendarNodeId(entropyKey, level, levelDateId)`,
- * a node whose cached `calendar` metadata is that level and dateId, then the
- * name walk root > `YYYY` > `MM` (or `M`) > a child whose `<time>` is this
- * date. Only nodes under the calendar root count.
+ * default, or its week, month or year), or null when the cache has none. Tried
+ * in order: the deterministic id `calendarNodeId(entropyKey, level, levelDateId)`,
+ * a node whose cached `calendar` metadata is that level and dateId, then
+ * (except for weeks, which upstream always tags) the name walk root > `YYYY` >
+ * `MM` (or `M`) > a child whose `<time>` is this date. Only nodes under the
+ * calendar root count.
  */
 export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: CalendarLevel = "day"): string | null {
 	const date = parseDateId(dateId);
@@ -54,9 +57,9 @@ export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: Ca
 	if (date === undefined || root === undefined) {
 		return null;
 	}
-	const levelDateId = calendarDateId(level, date);
+	const levelDateId = calendarDateId(level, date, deps.weekStartDay);
 	if (deps.entropyKey !== undefined) {
-		const id = calendarNodeId(deps.entropyKey, level, levelDateId);
+		const id = calendarNodeId(deps.entropyKey, level, levelDateId, date.year);
 		if (isUnder(deps.cache, id, root)) {
 			return id;
 		}
@@ -65,7 +68,7 @@ export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: Ca
 		({id, calendar}) =>
 			calendar.level === level && calendar.dateId === levelDateId && isUnder(deps.cache, id, root),
 	);
-	return tagged?.id ?? walkNames(deps.cache, root, date, level);
+	return tagged?.id ?? (level === "week" ? null : walkNames(deps.cache, root, date, level));
 }
 
 /** The node whose cached metadata marks it the calendar root, else the Home child named `📆 Calendar`. */
@@ -124,7 +127,12 @@ function isUnder(cache: CacheService, id: string, ancestor: string): boolean {
 	return false;
 }
 
-function walkNames(cache: CacheService, root: string, date: CalendarDate, level: CalendarLevel): string | null {
+function walkNames(
+	cache: CacheService,
+	root: string,
+	date: CalendarDate,
+	level: Exclude<CalendarLevel, "week">,
+): string | null {
 	const year = cache.getChildByName(root, String(date.year));
 	if (level === "year") {
 		return year?.id ?? null;

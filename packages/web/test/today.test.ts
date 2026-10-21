@@ -116,7 +116,12 @@ describe("navigateToCalendarDate", () => {
 			{status: 403, body: {error: "disabled"}},
 		]);
 		await navigateToCalendarDate({date: new Date(2027, 0, 1), level: "year"}, year.deps);
-		expect({day: day.calls, year: year.calls}).toStrictEqual({
+		const week = harness([
+			{status: 404, body: {error: "Calendar day not found"}},
+			{status: 403, body: {error: "disabled"}},
+		]);
+		await navigateToCalendarDate({date: new Date(2026, 9, 11), level: "week"}, week.deps);
+		expect({day: day.calls, year: year.calls, week: week.calls}).toStrictEqual({
 			day: [
 				["commitEdit"],
 				["fetch", "/api/v1/calendar/day/20260930", "GET"],
@@ -128,6 +133,12 @@ describe("navigateToCalendarDate", () => {
 				["fetch", "/api/v1/calendar/day/20270101?level=year", "GET"],
 				["fetch", "/api/v1/calendar/day/20270101/ensure?level=year", "POST"],
 				["notify", "No calendar page for 2027 yet", "info"],
+			],
+			week: [
+				["commitEdit"],
+				["fetch", "/api/v1/calendar/day/20261011?level=week", "GET"],
+				["fetch", "/api/v1/calendar/day/20261011/ensure?level=week", "POST"],
+				["notify", "No calendar page for the week of 2026-10-11 yet", "info"],
 			],
 		});
 	});

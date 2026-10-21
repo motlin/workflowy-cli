@@ -1,11 +1,11 @@
-import {navTooltips, nextOf, prevOf} from "@workflowy/shared";
+import {CALENDAR_LEVELS, navTooltips, nextOf, prevOf} from "@workflowy/shared";
 import type {CalendarLevel} from "@workflowy/shared";
 import {moveToastText} from "./move-to.js";
 import type {MoveToToast} from "./move-to.js";
 import type {CalendarTarget} from "./today.js";
 import type {BlockMove} from "./tree-ops.js";
 
-/** Upstream's strip levels this app can zoom to (the account has no week level). */
+/** Upstream's strip levels: the calendar levels a page can be. */
 export type StripLevel = CalendarLevel;
 
 /** Upstream drag-to-scroll starts after this many pixels of horizontal movement. */
@@ -22,10 +22,19 @@ export function rememberScrollLeft(scroller: HTMLElement | null, ts: number): vo
 	}
 }
 
-/** The local date a `YYYYMMDD` / `YYYYMM00` / `YYYY0000` calendar dateId starts on. */
+/** The local date a `YYYYMMDD` (day or week) / `YYYYMM00` / `YYYY0000` calendar dateId starts on. */
 export function calendarPageDate(pageDateId: number): Date {
 	const month = Math.floor(pageDateId / 100) % 100;
 	return new Date(Math.floor(pageDateId / 10_000), Math.max(month, 1) - 1, Math.max(pageDateId % 100, 1));
+}
+
+/** A zoomed node's strip page: its level and first day, or null when it is no day, week, month or year page. */
+export function stripPage(
+	calendar: {level: string | null; dateId: number | null} | null | undefined,
+): {level: StripLevel; date: Date} | null {
+	const level = CALENDAR_LEVELS.find((candidate) => candidate === calendar?.level);
+	const pageDateId = calendar?.dateId ?? null;
+	return level === undefined || pageDateId === null ? null : {level, date: calendarPageDate(pageDateId)};
 }
 
 export interface StripArrow {

@@ -16,4 +16,11 @@ describe("calendarNodeId", () => {
 		expect(calendarNodeId("k", "day", 20_261_017)).toBe("e7a88667-b0da-5b51-b5ca-0da96853dc1e");
 		expect(calendarNodeId("k", "month", 20_261_000)).toBe("fec3b740-fe77-561b-a470-4abe9b1ecd66");
 	});
+
+	it("names a week `calendar-week-${year}-${dateId}`, the year being the date's, not the week start's", () => {
+		expect([
+			calendarNodeId("k", "week", 20_261_011, 2026),
+			calendarNodeId("k", "week", 20_261_227, 2027),
+		]).toStrictEqual(["230a80db-d497-5344-89bd-f6bf3274ddf1", "f3ea7c80-7d8d-5b92-980e-6db0ea8914d5"]);
+	});
 });

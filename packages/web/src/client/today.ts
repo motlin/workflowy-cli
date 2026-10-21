@@ -24,11 +24,12 @@ export interface CalendarTarget {
 	createChild?: boolean;
 }
 
-/** The page's name in the notification: `YYYY-MM-DD`, `YYYY-MM` or `YYYY`. */
+/** The page's name in the notification: `YYYY-MM-DD`, `the week of YYYY-MM-DD`, `YYYY-MM` or `YYYY`. */
 function pageLabel(date: Date, level: CalendarLevel): string {
 	const parts = [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((n) => String(n).padStart(2, "0"));
-	const count = {year: 1, month: 2, day: 3}[level];
-	return parts.slice(0, count).join("-");
+	const count = {year: 1, month: 2, week: 3, day: 3}[level];
+	const label = parts.slice(0, count).join("-");
+	return level === "week" ? `the week of ${label}` : label;
 }
 
 /**

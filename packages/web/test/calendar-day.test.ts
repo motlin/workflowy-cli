@@ -17,6 +17,7 @@ const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migratio
 const KEY = "k";
 const D1017 = calendarNodeId(KEY, "day", 20_261_017);
 const D1005_ELSEWHERE = calendarNodeId(KEY, "day", 20_261_005);
+const W0906 = calendarNodeId(KEY, "week", 20_260_906, 2026);
 
 function time(year: number, month: number, day: number): string {
 	return `<time startYear="${year}" startMonth="${month}" startDay="${day}">${month}/${day}/${year}</time>`;
@@ -31,6 +32,7 @@ const TREE: [string, string | null, string, unknown?][] = [
 	["m09", "y2026", "9"],
 	["d0902", "m09", time(2026, 9, 2)],
 	["d0930", "m09", "Sept 30", {calendar: {level: "day", value: "30", timestamp: 0, dateId: 20_260_930}}],
+	[W0906, "m09", "Week 37"],
 	["m10", "y2026", "10"],
 	[
 		"a-entry-1001",
@@ -40,6 +42,7 @@ const TREE: [string, string | null, string, unknown?][] = [
 	["b-kickoff-1001", "m10", `Kickoff ${time(2026, 10, 1)}`],
 	["d1001", "m10", time(2026, 10, 1)],
 	[D1017, "m10", "Today"],
+	["w1011", "m10", "Week 42", {calendar: {level: "week", value: "42", timestamp: 0, dateId: 20_261_011}}],
 ];
 
 /** [id, priority, kind]: today's children, inserted out of priority order; the references root and the deleted child sort first. */
@@ -103,6 +106,17 @@ describe("findCalendarDay", () => {
 		]).toStrictEqual(["m10", "m09", "y2026", null]);
 	});
 
+	it("finds the week holding a day by deterministic id or calendar metadata, its start per weekStartDay", () => {
+		const deps = {...setup(), entropyKey: KEY};
+
+		expect([
+			findCalendarDay(deps, 20_260_909, "week"),
+			findCalendarDay(deps, 20_261_015, "week"),
+			findCalendarDay({...deps, weekStartDay: 1}, 20_261_015, "week"),
+			findCalendarDay(deps, 20_261_020, "week"),
+		]).toStrictEqual([W0906, "w1011", null, null]);
+	});
+
 	it("skips the deterministic id without an entropy key and still walks names", () => {
 		const deps = setup();
 
@@ -113,7 +127,10 @@ describe("findCalendarDay", () => {
 describe("GET /api/v1/calendar/day/:dateId", () => {
 	function app(entropyKey: string | undefined) {
 		const {db, cache} = setup();
-		const adapter = {getEntropyKey: async () => Promise.resolve(entropyKey)};
+		const adapter = {
+			getEntropyKey: async () => Promise.resolve(entropyKey),
+			getRootMeta: async () => Promise.resolve(undefined),
+		};
 		const ctx = {
 			db,
 			cacheService: cache,
@@ -151,19 +168,21 @@ describe("GET /api/v1/calendar/day/:dateId", () => {
 		]);
 	});
 
-	it("answers the month or year node holding the day for ?level=, and rejects other levels", async () => {
+	it("answers the week, month or year node holding the day for ?level=, and rejects other levels", async () => {
 		const get = app(KEY);
 
 		await expect(
 			Promise.all([
 				get("20260902", "?level=month"),
 				get("20260902", "?level=year"),
-				get("20260902", "?level=week"),
+				get("20261015", "?level=week"),
+				get("20260902", "?level=hour"),
 			]),
 		).resolves.toStrictEqual([
 			{status: 200, body: {id: "m09", firstChildId: "d0902"}},
 			{status: 200, body: {id: "y2026", firstChildId: "m09"}},
-			{status: 400, body: {error: "level must be day, month or year"}},
+			{status: 200, body: {id: "w1011", firstChildId: null}},
+			{status: 400, body: {error: "level must be day, week, month or year"}},
 		]);
 	});
 });

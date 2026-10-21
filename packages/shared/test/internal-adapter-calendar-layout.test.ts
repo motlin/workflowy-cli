@@ -11,7 +11,6 @@ import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import {calendarLayoutWrites, layoutWriteParents} from "../src/internal/calendar-layout-apply.js";
-import {CalendarWeekUnsupported} from "../src/internal/calendar-layout.js";
 import {applyMetadataPatches} from "../src/internal/metadata-patch.js";
 import type {MetadataPatch} from "../src/internal/metadata-patch.js";
 import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
@@ -417,8 +416,8 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 		});
 	});
 
-	it("pushes nothing when the layout is already in place, and rejects week levels", async () => {
-		const {adapter, pushes} = await tracked([
+	it("pushes nothing when the layout is already in place, and adds a week level around the days", async () => {
+		const {adapter, pushes, server} = await tracked([
 			[SANDBOX, node("🧪 Sync", ROOT)],
 			[CAL, node("📆 Calendar copy", SANDBOX, {calendar: {levels: {day: true}}})],
 			[D1019, node(time(19), CAL, level("day", 20_261_019))],
@@ -431,8 +430,7 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 			pushes: [],
 			undo: undefined,
 		});
-		await expect(adapter.applyCalendarLayout({week: true, day: true}, {rootId: CAL})).rejects.toThrow(
-			CalendarWeekUnsupported,
-		);
+		await adapter.applyCalendarLayout({week: true, day: true}, {rootId: CAL});
+		expect(server.outline(CAL)).toStrictEqual([{"Week 43": [time(19)]}]);
 	});
 });

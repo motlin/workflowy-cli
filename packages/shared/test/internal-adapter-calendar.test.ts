@@ -8,7 +8,13 @@ import type {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-thr
 import * as schema from "../src/db/schema.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
 import type {CreateAtInput, MoveToInput} from "../src/internal/adapter.js";
-import {CalendarRootMissing, calendarLevelName, parseDateId} from "../src/internal/calendar-day.js";
+import {
+	CalendarRootMissing,
+	calendarDateId,
+	calendarLevelMetadata,
+	calendarLevelName,
+	parseDateId,
+} from "../src/internal/calendar-day.js";
 import {calendarNodeId} from "../src/internal/calendar-ids.js";
 import {FAR_FUTURE_DATE} from "../src/temporal/constants.js";
 
@@ -140,6 +146,40 @@ describe("calendar day helpers", () => {
 			"26",
 			'<time startYear="2026" startMonth="9" startDay="8">Tue, Sep 8, 2026</time>',
 		]);
+	});
+
+	it("gives a week (upstream DC1) its first day as dateId and timestamp and its week number as value", () => {
+		const thursday = {year: 2026, month: 10, day: 15};
+		const newYear = {year: 2027, month: 1, day: 1};
+		expect([
+			calendarDateId("week", thursday),
+			calendarDateId("week", thursday, 1),
+			calendarDateId("week", newYear),
+			calendarLevelMetadata("week", thursday),
+			calendarLevelMetadata("week", thursday, 1),
+			calendarLevelMetadata("week", newYear),
+			calendarLevelMetadata("week", newYear, 1),
+		]).toStrictEqual([
+			20_261_011,
+			20_261_012,
+			20_261_227,
+			{level: "week", value: "42", timestamp: new Date(2026, 9, 11).getTime(), dateId: 20_261_011},
+			{level: "week", value: "42", timestamp: new Date(2026, 9, 12).getTime(), dateId: 20_261_012},
+			{level: "week", value: "1", timestamp: new Date(2026, 11, 27).getTime(), dateId: 20_261_227},
+			{level: "week", value: "53", timestamp: new Date(2026, 11, 28).getTime(), dateId: 20_261_228},
+		]);
+	});
+
+	it("names a week from the date format's week token like upstream, else `Week N`", () => {
+		const january = {year: 2026, month: 1, day: 7};
+		expect([
+			calendarLevelName("week", january, "YYYY-MM-DD ddd"),
+			calendarLevelName("week", january, "[Week] ww"),
+			calendarLevelName("week", january, "wo"),
+			calendarLevelName("week", {year: 2026, month: 1, day: 1}, "wo"),
+			calendarLevelName("week", {year: 2026, month: 3, day: 10}, "wo"),
+			calendarLevelName("week", january, "W", 1),
+		]).toStrictEqual(["Week 2", "02", "2nd", "1st", "11th", "2"]);
 	});
 });
 
@@ -291,6 +331,63 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 		expect({result, calls}).toStrictEqual({
 			result: {dayId: "oct", firstChildId: "random-1", created: ["random-1"]},
 			calls: [["createAt", {parentId: "oct", index: 0, name: ""}]],
+		});
+	});
+
+	it("walks a week level between year and day when the root shows weeks, starting weeks per weekStartDay", async () => {
+		const weekRoot = {calendar: {root: true, levels: {year: true, week: true, day: true}}};
+		const w1012 = calendarNodeId(ENTROPY, "week", 20_261_012, 2026);
+		const d1015 = calendarNodeId(ENTROPY, "day", 20_261_015);
+		const {adapter, calls} = tracked({
+			children: {home: [CAL], [CAL]: [Y2026], [Y2026]: []},
+			metadata: {[CAL]: weekRoot, [Y2026]: yearMeta},
+			session: {...SESSION, rootMetadata: {dateFormat: "YYYY-MM-DD ddd", weekStartDay: 1}},
+		});
+
+		const week = await adapter.ensureCalendarDay(20_261_015, {stopAt: "week", createChild: false});
+		const day = await adapter.ensureCalendarDay(20_261_015, {createChild: false});
+
+		expect({week, day, calls}).toStrictEqual({
+			week: {dayId: w1012, firstChildId: null, created: [w1012]},
+			day: {dayId: d1015, firstChildId: null, created: [d1015]},
+			calls: [
+				[
+					"createAt",
+					{
+						parentId: Y2026,
+						index: 0,
+						id: w1012,
+						name: "Week 42",
+						metadata: {
+							restorableUniqueNode: true,
+							calendar: {
+								level: "week",
+								value: "42",
+								timestamp: new Date(2026, 9, 12).getTime(),
+								dateId: 20_261_012,
+							},
+						},
+					},
+				],
+				[
+					"createAt",
+					{
+						parentId: w1012,
+						index: 0,
+						id: d1015,
+						name: '<time startYear="2026" startMonth="10" startDay="15">Thu, Oct 15, 2026</time>',
+						metadata: {
+							restorableUniqueNode: true,
+							calendar: {
+								level: "day",
+								value: "15",
+								timestamp: new Date(2026, 9, 15).getTime(),
+								dateId: 20_261_015,
+							},
+						},
+					},
+				],
+			],
 		});
 	});
 

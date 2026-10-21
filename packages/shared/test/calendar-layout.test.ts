@@ -2,7 +2,6 @@ import {describe, expect, it} from "vite-plus/test";
 import {calendarLevelMetadata, calendarLevelName} from "../src/internal/calendar-day.js";
 import {calendarNodeId} from "../src/internal/calendar-ids.js";
 import {
-	CalendarWeekUnsupported,
 	calendarLayoutCustomLevels,
 	calendarLayoutNeedsConfirm,
 	planCalendarLayout,
@@ -197,9 +196,62 @@ describe("planCalendarLayout (upstream JX4)", () => {
 		).toStrictEqual([{op: "set-levels", id: "cal", levels: {year: true, month: true, day: true}}]);
 	});
 
-	it("rejects week levels, which the local calendar does not support", () => {
-		expect(() =>
-			planCalendarLayout(root([]), {year: true, week: true, day: true}, {dateFormat: DATE_FORMAT}),
-		).toThrow(CalendarWeekUnsupported);
+	it("turns week on: creates each day's week (per weekStartDay) under its month in date order", () => {
+		const tree = root([
+			yearNode("y2026", 2026, [
+				monthNode("m10", 2026, 10, [dayNode("d1010", 2026, 10, 10), dayNode("d1012", 2026, 10, 12)]),
+			]),
+		]);
+		const w1004 = calendarNodeId(ENTROPY, "week", 20_261_004, 2026);
+		const w1011 = calendarNodeId(ENTROPY, "week", 20_261_011, 2026);
+		const weekMeta = (day: number) => ({
+			restorableUniqueNode: true,
+			calendar: calendarLevelMetadata("week", {year: 2026, month: 10, day}),
+		});
+		expect(
+			planCalendarLayout(
+				tree,
+				{year: true, month: true, week: true, day: true},
+				{dateFormat: DATE_FORMAT, entropyKey: ENTROPY, weekStartDay: 0},
+			),
+		).toStrictEqual([
+			{op: "set-levels", id: "cal", levels: {year: true, month: true, week: true, day: true}},
+			{op: "create", id: w1004, parentId: "m10", index: 0, name: "Week 41", metadata: weekMeta(10)},
+			{op: "move", id: "d1010", parentId: w1004, index: 0, from: {parentId: "m10", index: 1}},
+			{op: "create", id: w1011, parentId: "m10", index: 1, name: "Week 42", metadata: weekMeta(12)},
+			{op: "move", id: "d1012", parentId: w1011, index: 0, from: {parentId: "m10", index: 2}},
+		]);
+	});
+
+	it("turns week off: days rise into their month and the emptied weeks are deleted", () => {
+		const tree = root([
+			yearNode("y2026", 2026, [
+				monthNode("m10", 2026, 10, [
+					node("w1004", "Week 41", [dayNode("d1010", 2026, 10, 10)], {
+						calendar: {level: "week", dateId: 20_261_004},
+					}),
+					node("w1011", "Week 42", [dayNode("d1012", 2026, 10, 12)], {
+						calendar: {level: "week", dateId: 20_261_011},
+					}),
+				]),
+			]),
+		]);
+		expect(
+			planCalendarLayout(
+				tree,
+				{year: true, month: true, day: true},
+				{
+					currentLevels: {year: true, month: true, week: true, day: true},
+					dateFormat: DATE_FORMAT,
+					entropyKey: ENTROPY,
+				},
+			),
+		).toStrictEqual([
+			{op: "set-levels", id: "cal", levels: {year: true, month: true, day: true}},
+			{op: "move", id: "d1010", parentId: "m10", index: 0, from: {parentId: "w1004", index: 0}},
+			{op: "move", id: "d1012", parentId: "m10", index: 1, from: {parentId: "w1011", index: 0}},
+			{op: "delete", id: "w1004", from: {parentId: "m10", index: 2}},
+			{op: "delete", id: "w1011", from: {parentId: "m10", index: 2}},
+		]);
 	});
 });

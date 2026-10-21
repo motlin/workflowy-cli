@@ -1,10 +1,11 @@
 import {calendarDateId} from "../internal/calendar-day.js";
 import type {CalendarLevel} from "../internal/calendar-day.js";
 
+export {CALENDAR_LEVELS} from "../internal/calendar-day.js";
 export type {CalendarLevel};
 
-/** A calendar page level, including upstream's optional week level. */
-export type CalendarPageLevel = CalendarLevel | "week";
+/** A calendar page level: year, month, week or day. */
+export type CalendarPageLevel = CalendarLevel;
 
 export type FriendlyDayName = "Yesterday" | "Today" | "Tomorrow";
 
@@ -43,9 +44,13 @@ export const levelTooltips: Record<CalendarPageLevel, readonly [string, string]>
 	year: ["Previous year", "Next year"],
 };
 
-/** Upstream's calendar `dateId` for a local date: `YYYYMMDD` (day), `YYYYMM00` (month) or `YYYY0000` (year). */
-export function dateId(level: CalendarLevel, date: Date): number {
-	return calendarDateId(level, {year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate()});
+/** Upstream's calendar `dateId` for a local date: `YYYYMMDD` (day, or a week's first day), `YYYYMM00` (month) or `YYYY0000` (year). */
+export function dateId(level: CalendarLevel, date: Date, weekStartDay = 0): number {
+	return calendarDateId(
+		level,
+		{year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate()},
+		weekStartDay,
+	);
 }
 
 /** The local midnight of the date. */
