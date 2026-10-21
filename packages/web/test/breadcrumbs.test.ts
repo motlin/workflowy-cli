@@ -5,6 +5,7 @@ import {renderToStaticMarkup} from "react-dom/server";
 interface Ancestor {
 	id: string;
 	name: string | null;
+	calendar?: {root?: boolean; dayPrefix?: boolean};
 }
 
 const ancestorsState: {data: Ancestor[] | undefined; isLoading: boolean} = {data: undefined, isLoading: false};
@@ -106,6 +107,37 @@ describe("Breadcrumbs markup", () => {
 		]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
 			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">2020-03-05 Thu</a></div>`,
+		);
+	});
+
+	function todayName(): string {
+		const now = new Date();
+		return `<time startYear="${now.getFullYear()}" startMonth="${now.getMonth() + 1}" startDay="${now.getDate()}">today</time>`;
+	}
+
+	function todayLabel(): string {
+		const now = new Date();
+		const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+		return `${iso} ${now.toLocaleDateString("en-US", {weekday: "short"})}`;
+	}
+
+	it("prefixes today's day crumb with Today when the calendar root keeps Friendly day names", () => {
+		const html = render("day-uuid", [
+			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: true}},
+			{id: "day-uuid", name: todayName()},
+		]);
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">Today, ${todayLabel()}</a></div>`,
+		);
+	});
+
+	it("drops the Today prefix when the calendar root turns Friendly day names off", () => {
+		const html = render("day-uuid", [
+			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: false}},
+			{id: "day-uuid", name: todayName()},
+		]);
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
 		);
 	});
 });

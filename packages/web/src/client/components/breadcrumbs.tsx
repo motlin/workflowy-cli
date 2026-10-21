@@ -95,8 +95,9 @@ function scrollOutlineToTop(): void {
 
 function noop(): void {}
 
-function crumbLabel(name: string | null | undefined): string {
-	const label = formatCrumbLabel(name ?? "", {now: new Date()});
+/** `dayPrefix` is the 📆 Calendar root's Friendly day names setting, which upstream's crumb decorator honors too. */
+function crumbLabel(name: string | null | undefined, dayPrefix = true): string {
+	const label = formatCrumbLabel(name ?? "", {now: new Date(), dayPrefix});
 	return label === "" ? "Untitled" : label;
 }
 
@@ -108,6 +109,8 @@ interface CrumbProps {
 	/** A search is committed; enables the root Home so it can exit the search. */
 	searchActive?: boolean;
 	onCancelSearch?: () => void;
+	/** Prefix a day within one day of today with Yesterday/Today/Tomorrow. */
+	dayPrefix?: boolean;
 }
 
 /** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
@@ -118,6 +121,7 @@ export function BreadcrumbItem({
 	onNavigate,
 	searchActive = false,
 	onCancelSearch = noop,
+	dayPrefix = true,
 }: CrumbProps) {
 	const leaveSearch = useOutlineStore((state) => state.leaveSearch);
 	const disabled = crumb.isRoot && current && !searchActive;
@@ -133,7 +137,7 @@ export function BreadcrumbItem({
 			<FaIcon icon="fal:house" size="lg" />
 		</IconButton>
 	) : (
-		crumbLabel(crumb.name)
+		crumbLabel(crumb.name, dayPrefix)
 	);
 	const style = {maxWidth: truncateWidth === null ? undefined : truncateWidth};
 
@@ -185,6 +189,7 @@ interface BreadcrumbOverflowMenuProps {
 	onNavigate: (nodeId: string | null) => void;
 	searchActive?: boolean;
 	onCancelSearch?: () => void;
+	dayPrefix?: boolean;
 }
 
 /** The ellipsis flyout's body: collapsed crumbs stacked vertically, each in a div, without separators. */
@@ -196,6 +201,7 @@ export function BreadcrumbOverflowMenu({
 	onNavigate,
 	searchActive,
 	onCancelSearch,
+	dayPrefix,
 }: BreadcrumbOverflowMenuProps) {
 	return (
 		<div className="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style={{maxWidth}}>
@@ -210,6 +216,7 @@ export function BreadcrumbOverflowMenu({
 							onNavigate={onNavigate}
 							searchActive={searchActive}
 							onCancelSearch={onCancelSearch}
+							dayPrefix={dayPrefix}
 						/>
 					</div>
 				);
@@ -247,7 +254,11 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 			? [ROOT_CRUMB]
 			: [ROOT_CRUMB, ...ancestors.map((node) => ({id: node.id, isRoot: false, name: node.name}))];
 	const currentId = crumbs.at(-1)?.id ?? ROOT_CRUMB.id;
-	const inputs = crumbs.map((crumb) => ({id: crumb.id, label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name)}));
+	const dayPrefix = ancestors?.find((node) => node.calendar?.root === true)?.calendar?.dayPrefix !== false;
+	const inputs = crumbs.map((crumb) => ({
+		id: crumb.id,
+		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dayPrefix),
+	}));
 
 	const zoomedIds = useZoomedIds(
 		crumbs.map((crumb) => crumb.id),
@@ -289,6 +300,7 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 								onNavigate={navigateToNode}
 								searchActive={searchActive}
 								onCancelSearch={cancelSearch}
+								dayPrefix={dayPrefix}
 							/>
 						</ButtonMenu>,
 						<BreadcrumbSeparator key={`breadcrumb-icon-${leftOffset}`} />,
@@ -309,6 +321,7 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 							onNavigate={navigateToNode}
 							searchActive={searchActive}
 							onCancelSearch={cancelSearch}
+							dayPrefix={dayPrefix}
 						/>
 					);
 					return current ? [element] : [element, <BreadcrumbSeparator key={`${crumb.id}-separator`} />];
