@@ -31,6 +31,18 @@ function insertRow(queryClient: QueryClient, row: NodeResponse, parentId: string
 	);
 }
 
+/**
+ * Removes a deleted row from the cache at once, keeping it so restoring the same id (the delete's
+ * undo) puts the same row back without waiting on a refetch.
+ */
+export function removeDeletedRow(queryClient: QueryClient, nodeId: string): void {
+	const row = readNode(queryClient, nodeId);
+	if (row !== undefined) {
+		removedRows.set(nodeId, row);
+		removeRow(queryClient, nodeId);
+	}
+}
+
 function previewOp(queryClient: QueryClient, op: UndoOp): void {
 	switch (op.kind) {
 		case "edit":
@@ -50,14 +62,9 @@ function previewOp(queryClient: QueryClient, op: UndoOp): void {
 			}
 			return;
 		}
-		case "delete": {
-			const row = readNode(queryClient, op.nodeId);
-			if (row !== undefined) {
-				removedRows.set(op.nodeId, row);
-				removeRow(queryClient, op.nodeId);
-			}
+		case "delete":
+			removeDeletedRow(queryClient, op.nodeId);
 			return;
-		}
 		case "create":
 		case "undelete":
 		default: {

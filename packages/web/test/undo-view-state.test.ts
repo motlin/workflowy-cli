@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vite-plus/test";
+import {describe, expect, it, vi} from "vite-plus/test";
 import {locationUrl} from "../src/client/location.js";
-import {planRestore, runUndo} from "../src/client/undo-view-state.js";
+import {planRestore, queueUndo} from "../src/client/undo-view-state.js";
 import type {UndoRunner} from "../src/client/undo-view-state.js";
 import type {UndoBatch, UndoOp, ViewState} from "../src/client/undo-history.js";
 
@@ -126,6 +126,10 @@ function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: 
 			calls.push(["apply", applied]);
 			return Promise.resolve();
 		},
+		async reconcile() {
+			calls.push(["reconcile"]);
+			return Promise.resolve();
+		},
 		current() {
 			return {zoomedNodeId: "z", editing: null, selectedIds: []};
 		},
@@ -149,10 +153,10 @@ function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: 
 	return {runner, calls};
 }
 
-describe("runUndo", () => {
+describe("queueUndo", () => {
 	it("flushes and waits before popping, previews the ops in the cache and restores the saved view before the server replay", async () => {
 		const {runner, calls} = fakeRunner(batch);
-		await runUndo("undo", runner);
+		await queueUndo("undo", runner);
 		expect(calls).toStrictEqual([
 			["flush"],
 			["settled"],
@@ -164,12 +168,59 @@ describe("runUndo", () => {
 			["select", []],
 			["focus", {nodeId: "a", field: "name", start: 4, end: 4}],
 			["apply", ops],
+			["reconcile"],
 		]);
 	});
 
 	it("does nothing past the pop when the stack is empty", async () => {
 		const {runner, calls} = fakeRunner(undefined);
-		await runUndo("redo", runner);
+		await queueUndo("redo", runner);
 		expect(calls).toStrictEqual([["flush"], ["settled"], ["pop", "redo"]]);
+	});
+
+	it("previews rapid presses at once, serializes only the server replays and reconciles once they drain", async () => {
+		const first: UndoOp[] = [{kind: "uncomplete", nodeId: "a"}];
+		const second: UndoOp[] = [{kind: "complete", nodeId: "b"}];
+		const stack = [second, first];
+		const events: string[] = [];
+		const releases: (() => void)[] = [];
+		const {runner} = fakeRunner(batch);
+		runner.pop = () => {
+			const popped = stack.pop();
+			return popped === undefined ? undefined : {...batch, ops: popped};
+		};
+		runner.preview = (previewed) => {
+			events.push(`preview ${previewed[0]?.nodeId}`);
+		};
+		runner.apply = async (applied) => {
+			events.push(`apply ${applied[0]?.nodeId}`);
+			await new Promise<void>((resolve) => {
+				releases.push(resolve);
+			});
+			events.push(`applied ${applied[0]?.nodeId}`);
+		};
+		runner.reconcile = async () => {
+			events.push("reconcile");
+			return Promise.resolve();
+		};
+		const done = Promise.all([queueUndo("undo", runner), queueUndo("undo", runner)]);
+		await vi.waitFor(() => {
+			expect(events).toStrictEqual(["preview a", "apply a", "preview b"]);
+		});
+		releases.shift()?.();
+		await vi.waitFor(() => {
+			expect(events.at(-1)).toBe("apply b");
+		});
+		releases.shift()?.();
+		await done;
+		expect(events).toStrictEqual([
+			"preview a",
+			"apply a",
+			"preview b",
+			"applied a",
+			"apply b",
+			"applied b",
+			"reconcile",
+		]);
 	});
 });

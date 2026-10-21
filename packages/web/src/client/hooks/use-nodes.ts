@@ -7,6 +7,7 @@ import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
 import {nodeKeys, patchCachedNode, readNode, snapshotCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {removeDeletedRow} from "../undo-cache.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
 import {toUndoOps} from "../tree-ops.js";
@@ -572,25 +573,16 @@ export function useDeleteNode() {
 		mutationFn: deleteNode,
 		async onMutate(nodeId) {
 			beginMutation();
-			// Get the node to find its parent
-			const node = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
-
-			// We need to find which children query contains this node
-			// Since we do not have parentId in NodeResponse, we invalidate all
-			// Cancel outgoing refetches
+			// Cancel first: a cancelled refetch reverts to the data it started from, row included.
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
-
-			return {nodeId, previousNode: node};
+			removeDeletedRow(queryClient, nodeId);
 		},
 		onSuccess(data, nodeId) {
 			deleteUndos.settle(nodeId, {data});
 		},
-		async onError(error, nodeId, context) {
+		onError(error, nodeId) {
 			deleteUndos.settle(nodeId, "failed");
-			// On error, we just refetch everything since rollback is complex
-			if (context?.previousNode !== undefined) {
-				await queryClient.invalidateQueries({queryKey: nodeKeys.all});
-			}
+			// onSettled's refetch puts the optimistically removed row back.
 			addErrorNotification(`Failed to delete node: ${error.message}`);
 		},
 		async onSettled() {

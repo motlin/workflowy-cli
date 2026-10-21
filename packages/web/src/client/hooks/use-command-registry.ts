@@ -558,11 +558,10 @@ export function useCommandRegistry(): CommandRegistry {
 			previewUndoOps(queryClient, ops);
 		},
 		async apply(ops) {
-			try {
-				await applyOps(ops, undoAdapter);
-			} finally {
-				await queryClient.invalidateQueries();
-			}
+			await applyOps(ops, undoAdapter);
+		},
+		async reconcile() {
+			await queryClient.invalidateQueries();
 		},
 		current: captureOutlineView,
 		editorFocused() {

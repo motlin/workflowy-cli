@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys, patchCachedNode} from "../src/client/node-cache.js";
 import {runInUndoBatch} from "../src/client/undo-batch.js";
+import {previewUndoOps} from "../src/client/undo-cache.js";
 import {undoHistory} from "../src/client/undo-history.js";
 import type {ViewState} from "../src/client/undo-history.js";
 
@@ -119,6 +120,27 @@ describe("mutation hooks record undo ops", () => {
 		captureHooks(queryClient).remove.mutate("b");
 		await settled(queryClient);
 		expect(undoHistory.popUndo()?.ops).toStrictEqual([{kind: "undelete", nodeId: "b", parentId: "p", index: 1}]);
+	});
+
+	it("removes a deleted row from the cache at once and previews its undo back into the same slot", async () => {
+		const queryClient = seeded();
+		captureHooks(queryClient).remove.mutate("b");
+		await settled(queryClient);
+		const afterDelete = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children("p"))?.map((child) => child.id);
+		previewUndoOps(queryClient, undoHistory.popUndo()?.ops ?? []);
+		expect({
+			afterDelete,
+			afterUndo: queryClient
+				.getQueryData<NodeResponse[]>(nodeKeys.children("p"))
+				?.map((child) => [child.id, child.name, child.parent_id]),
+		}).toStrictEqual({
+			afterDelete: ["a", "c"],
+			afterUndo: [
+				["a", "alpha", "p"],
+				["b", "beta", "p"],
+				["c", "gamma", "p"],
+			],
+		});
 	});
 
 	it("records nothing when the mutation fails", async () => {

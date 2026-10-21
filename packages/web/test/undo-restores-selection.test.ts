@@ -11,9 +11,9 @@ const {selectedIdsOf} = await import("../src/client/item-selection.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {applyOps} = await import("../src/client/undo-batch.js");
 const {undoHistory} = await import("../src/client/undo-history.js");
-const {runUndo} = await import("../src/client/undo-view-state.js");
+const {queueUndo} = await import("../src/client/undo-view-state.js");
 
-describe("runUndo with the outline store", () => {
+describe("queueUndo with the outline store", () => {
 	it("undoing a delete restores the original id and reselects it", async () => {
 		const restored: [string, {parent_id: string | null; index: number}][] = [];
 		const adapter: UndoAdapter = {
@@ -55,6 +55,9 @@ describe("runUndo with the outline store", () => {
 			async apply(applied) {
 				return applyOps(applied, adapter);
 			},
+			async reconcile() {
+				return Promise.resolve();
+			},
 			current: () => ({zoomedNodeId: null, editing: null, selectedIds: []}),
 			editorFocused: () => false,
 			textLength: () => 0,
@@ -64,7 +67,7 @@ describe("runUndo with the outline store", () => {
 			},
 			focus() {},
 		};
-		await runUndo("undo", runner);
+		await queueUndo("undo", runner);
 		expect({restored, selection: selectedIdsOf(useOutlineStore.getState().itemSelection)}).toStrictEqual({
 			restored: [["echo", {parent_id: "p", index: 2}]],
 			selection: ["echo"],
