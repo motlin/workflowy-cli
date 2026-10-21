@@ -8,6 +8,7 @@ import type {TreeIndex} from "../expansion.js";
 import {nodeKeys, patchCachedNode, readNode, snapshotCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow} from "../undo-cache.js";
+import {createChildrenBatcher} from "../children-batcher.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
 import {toUndoOps} from "../tree-ops.js";
@@ -37,9 +38,24 @@ interface UpdateNodeRequest {
 	numberedStart?: number | null;
 }
 
+const loadChildren = createChildrenBatcher(async (parentIds) => {
+	const response = await fetch("/api/v1/nodes/children", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify({parentIds}),
+	});
+	if (!response.ok) {
+		throw new Error(`Failed to fetch children: ${response.statusText}`);
+	}
+	return (await readJson<{children: Record<string, NodeResponse[]>}>(response)).children;
+});
+
+/** A parent's children (Home's for `null`); loads requested in the same tick share one batch request. */
 export async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
-	const url = parentId === null ? "/api/v1/nodes" : `/api/v1/nodes?parent_id=${encodeURIComponent(parentId)}`;
-	const response = await fetch(url);
+	if (parentId !== null) {
+		return pendingCreates.withPending(parentId, await loadChildren(parentId));
+	}
+	const response = await fetch("/api/v1/nodes");
 	if (!response.ok) {
 		throw new Error(`Failed to fetch children: ${response.statusText}`);
 	}

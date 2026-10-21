@@ -1,8 +1,9 @@
 import type {QueryClient} from "@tanstack/react-query";
-import {useQueries, useQuery, useQueryClient} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {useEffect} from "react";
 import type {TreeSearchResult} from "../../server/tree-search.js";
-import {nodeKeys} from "../node-cache.js";
 import {readJson} from "../read-json.js";
+import {prefetchSearchAncestors} from "../search-prefetch.js";
 import type {SearchFilter} from "../search-filter.js";
 import {searchFilter} from "../search-filter.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -37,22 +38,38 @@ function latestSessionResult(queryClient: QueryClient, session: number): TreeSea
 	return latest?.result;
 }
 
+interface SearchState {
+	zoomedNodeId: string | null;
+	searchQuery: string;
+	searchRun: number;
+	searchSession: number;
+}
+
 /**
- * The committed search's matches under the zoomed node, re-fetched when the query is re-run. While a new result
- * loads, the session's previous result stays in place so the unfiltered outline never flashes.
+ * The tree-search query: the committed search's matches under the zoomed node, re-fetched when the query is re-run.
+ * While a new result loads, the session's previous result stays in place so the unfiltered outline never flashes.
+ * Every row reads this query and that lookup scans the whole query cache, so it is left out once the search is
+ * cleared: run per row on Back, it froze the tab for seconds.
  */
+export function treeSearchOptions(
+	queryClient: QueryClient,
+	{zoomedNodeId, searchQuery, searchRun, searchSession}: SearchState,
+) {
+	return {
+		queryKey: treeSearchKey(searchSession, zoomedNodeId, searchQuery, searchRun),
+		queryFn: async () => fetchTreeSearch(searchQuery, zoomedNodeId),
+		enabled: searchQuery !== "",
+		placeholderData: searchQuery === "" ? undefined : () => latestSessionResult(queryClient, searchSession),
+	};
+}
+
 function useTreeSearch() {
 	const queryClient = useQueryClient();
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
 	const searchRun = useOutlineStore((state) => state.searchRun);
 	const searchSession = useOutlineStore((state) => state.searchSession);
-	return useQuery({
-		queryKey: treeSearchKey(searchSession, zoomedNodeId, searchQuery, searchRun),
-		queryFn: async () => fetchTreeSearch(searchQuery, zoomedNodeId),
-		enabled: searchQuery !== "",
-		placeholderData: () => latestSessionResult(queryClient, searchSession),
-	});
+	return useQuery(treeSearchOptions(queryClient, {zoomedNodeId, searchQuery, searchRun, searchSession}));
 }
 
 /** The in-place filter for the outline, or null when no search is committed or no result has arrived yet. */
@@ -78,14 +95,20 @@ export function currentSearchFilter(queryClient: QueryClient): SearchFilter | nu
 	return result === undefined ? null : searchFilter(result, searchCreatedIds, searchExpansion);
 }
 
-/** Fetch the children of every search-expanded ancestor at once rather than level by level as rows render. */
+/**
+ * Prefetch the children of the first search-expanded ancestors, a few at a time, rather than level by level as rows
+ * render. Runs in an effect without subscribing, so a resolved prefetch re-renders only the rows that show it.
+ */
 export function usePrefetchSearchAncestors(search: SearchFilter | null): void {
-	useQueries({
-		queries: (search?.result.ancestorIds ?? []).map((id) => ({
-			queryKey: nodeKeys.children(id),
-			queryFn: async () => fetchChildren(id),
-		})),
-	});
+	const queryClient = useQueryClient();
+	const result = search?.result;
+	useEffect(() => {
+		const controller = new AbortController();
+		void prefetchSearchAncestors(queryClient, result?.ancestorIds ?? [], fetchChildren, controller.signal);
+		return () => {
+			controller.abort();
+		};
+	}, [queryClient, result]);
 }
 
 /** The committed search's latest result, and whether the result for the current query is still on its way. */

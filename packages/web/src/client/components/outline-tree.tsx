@@ -489,10 +489,11 @@ export function OutlineChildren({
 	depth?: number;
 }) {
 	const {data: nodes} = useChildren(parentId);
-	const {data: backlinks} = useBacklinks(parentId);
+	const search = useSearchFilter();
+	// A search leaves the Backlinks section out, so its rows skip the fetch.
+	const {data: backlinks} = useBacklinks(search === null ? parentId : null);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
-	const search = useSearchFilter();
 	const showsCompleted = searchShowsCompleted(showCompleted, search);
 	const visibleNodes = nodes?.filter(
 		(node) =>

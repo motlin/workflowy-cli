@@ -344,6 +344,26 @@ nodesRouter.get("/", async (c) => {
 	return c.json({nodes: await readChildDtos(ctx, parentId)});
 });
 
+// POST /api/v1/nodes/children - The children of many parents in one round trip, keyed by the requested id. A
+// mirror lists its original's children; an unresolvable short id is left out. Spares the client one GET per expanded row.
+nodesRouter.post("/children", async (c) => {
+	const ctx = c.get("ctx");
+	const body = await c.req.json<{parentIds?: unknown}>();
+	const {parentIds} = body;
+	if (!Array.isArray(parentIds) || !parentIds.every((id) => typeof id === "string")) {
+		return c.json({error: "parentIds must be an array of strings"}, 400);
+	}
+	const entries = await Promise.all(
+		[...new Set(parentIds)].map(async (requested) => {
+			const resolved = resolveNodeId(ctx, requested);
+			return resolved === null
+				? undefined
+				: ([requested, await readChildDtos(ctx, resolveMirrorToOriginal(ctx, resolved))] as const);
+		}),
+	);
+	return c.json({children: Object.fromEntries(entries.filter((entry) => entry !== undefined))});
+});
+
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
 nodesRouter.get("/:id", async (c) => {
 	const ctx = c.get("ctx");

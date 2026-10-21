@@ -16,6 +16,7 @@ import {deleteDates} from "../date-pills.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
+import {expansionSlide} from "../children-slide.js";
 import {searchClasses, withClasses} from "../search-classes.js";
 import {FlatCrumbs, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
@@ -469,12 +470,13 @@ export function OutlineRow({
 	}
 
 	// Expanding slides `.children` down; collapsing removes `open` at once but keeps `.children` mounted while it
-	// slides up. A row that mounts expanded does not slide.
-	const [prevExpanded, setPrevExpanded] = useState(isExpanded);
+	// slides up. A row that mounts expanded, or whose expansion a search entering or leaving changed, does not slide.
+	const expansion = {expanded: isExpanded, searching: search !== null};
+	const [prevExpansion, setPrevExpansion] = useState(expansion);
 	const [childrenSlide, setChildrenSlide] = useState<"down" | "up" | null>(null);
-	if (isExpanded !== prevExpanded) {
-		setPrevExpanded(isExpanded);
-		setChildrenSlide(isExpanded ? "down" : "up");
+	if (expansion.expanded !== prevExpansion.expanded || expansion.searching !== prevExpansion.searching) {
+		setPrevExpansion(expansion);
+		setChildrenSlide(expansionSlide(prevExpansion, expansion));
 	}
 	const childrenRef = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
