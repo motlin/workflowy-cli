@@ -62,6 +62,7 @@ import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherStepCommand} from "../switcher-keys.js";
+import {paneCommands} from "../pane-commands.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
@@ -809,6 +810,7 @@ export function useCommandRegistry(): CommandRegistry {
 		}),
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightBar},
+		...paneCommands({getState: useOutlineStore.getState}),
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3
 		show_or_hide_completed: showCompletedCommand(
 			toggleShowCompleted,
