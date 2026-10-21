@@ -1,6 +1,6 @@
 import type {ReactNode, Ref} from "react";
 import {dateId, dayTimestamp, stripModel} from "@workflowy/shared";
-import {monthCellTarget, rememberScrollLeft, stripDropKey, stripNav} from "../calendar-strip-model.js";
+import {monthCellTarget, stripDropKey, stripNav} from "../calendar-strip-model.js";
 import type {StripLevel} from "../calendar-strip-model.js";
 import type {CalendarTarget} from "../today.js";
 import {FaIcon} from "./fa-icons.js";
@@ -209,12 +209,7 @@ export function CalendarStripView({
 							<div
 								className={`${monthCardColors(dragging, dropHoverKey === stripDropKey({kind: "month", ts: month.ts}))} ${MONTH_CARD}`}
 								data-strip-drop="month"
-								onClick={(event) => {
-									// The card's cell sits directly in the scroller.
-									rememberScrollLeft(
-										event.currentTarget.parentElement?.parentElement ?? null,
-										month.ts,
-									);
+								onClick={() => {
 									onNavigate(monthCellTarget(level, new Date(month.ts)));
 								}}
 							>

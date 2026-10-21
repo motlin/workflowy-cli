@@ -7,6 +7,7 @@ import {
 	monthCellTarget,
 	runStripDrop,
 	scrollDelta,
+	scrollStripOnMount,
 	stripAutoscrollSpeed,
 	stripDropTarget,
 	stripNav,
@@ -291,6 +292,42 @@ describe("calendar strip navigation", () => {
 			querySelector: (selector: string) => (selector === '[data-ts="5"]' ? cell : null),
 		};
 		expect([scrollDelta(scroller, 5), scrollDelta(scroller, 6)]).toStrictEqual([240, null]);
+	});
+});
+
+/** A strip scroller at viewport x 100 whose `[data-ts]` cells sit at the given content offsets. */
+function stripScroller(offsets: Partial<Record<number, number>>, scrollLeft = 0) {
+	const scroller = {
+		scrollLeft,
+		getBoundingClientRect: () => ({left: 100}),
+		querySelector: (selector: string) => {
+			const ts = Number(/data-ts="(\d+)"/u.exec(selector)?.[1]);
+			const offset = offsets[ts];
+			return offset === undefined
+				? null
+				: {getBoundingClientRect: () => ({left: 100 + offset - scroller.scrollLeft})};
+		},
+	};
+	return scroller;
+}
+
+describe("scrollStripOnMount", () => {
+	it("puts a month page's own first day at the left edge wherever the scroller starts", () => {
+		const month = stripScroller({1: 0, 11: 400}, 400);
+		scrollStripOnMount(month, {level: "month", pageTs: 1, todayTs: 99});
+		const day = stripScroller({5: 240}, 30);
+		scrollStripOnMount(day, {level: "day", pageTs: 5, todayTs: 99});
+		const missing = stripScroller({}, 70);
+		scrollStripOnMount(missing, {level: "week", pageTs: 5, todayTs: 99});
+		expect([month.scrollLeft, day.scrollLeft, missing.scrollLeft]).toStrictEqual([0, 240, 0]);
+	});
+
+	it("scrolls a year page home, then to today's cell when the strip has one", () => {
+		const year = stripScroller({1: 0, 9: 400}, 400);
+		scrollStripOnMount(year, {level: "year", pageTs: 1, todayTs: 99});
+		const withToday = stripScroller({1: 0, 99: 300}, 50);
+		scrollStripOnMount(withToday, {level: "year", pageTs: 1, todayTs: 99});
+		expect([year.scrollLeft, withToday.scrollLeft]).toStrictEqual([0, 300]);
 	});
 });
 

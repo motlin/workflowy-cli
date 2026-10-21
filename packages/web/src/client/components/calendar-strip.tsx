@@ -298,15 +298,15 @@ function StripForPage({level, date}: StripPage) {
 	);
 	const todayId = model.todayCard ? dateId("day", now) : null;
 	const todayDots = useCalendarDots(todayId, todayId);
-	// Day and month pages scroll their own cell to the left edge; year pages scroll to today.
-	const scrollTarget = level === "year" ? dayTimestamp(now) : dayTimestamp(date);
+	const pageTs = dayTimestamp(date);
+	const todayTs = dayTimestamp(now);
 
-	// A month click's remembered offset wins; like upstream, this re-runs only when the zoomed page changes.
+	// Like upstream, this re-runs only when the zoomed page changes.
 	useLayoutEffect(() => {
 		if (scroller !== null) {
-			scrollStripOnMount(scroller, scrollTarget, level === "year");
+			scrollStripOnMount(scroller, {level, pageTs, todayTs});
 		}
-	}, [scroller, scrollTarget, level]);
+	}, [scroller, level, pageTs, todayTs]);
 
 	useEffect(() => (scroller === null ? undefined : attachDragScroll(scroller, document)), [scroller]);
 	useStripDrop(scroller, level);

@@ -11,17 +11,6 @@ export type StripLevel = CalendarLevel;
 /** Upstream drag-to-scroll starts after this many pixels of horizontal movement. */
 const DRAG_THRESHOLD = 4;
 
-/** Upstream remembers a clicked month cell's scroll offset (`u21`) so the next page's strip keeps its position. */
-let pendingScrollLeft: number | null = null;
-
-/** Remember a clicked month cell's offset in `scroller` for the next page's strip. */
-export function rememberScrollLeft(scroller: HTMLElement | null, ts: number): void {
-	const delta = scroller === null ? null : scrollDelta(scroller, ts);
-	if (scroller !== null && delta !== null) {
-		pendingScrollLeft = delta + scroller.scrollLeft;
-	}
-}
-
 /** The local date a `YYYYMMDD` (day or week) / `YYYYMM00` / `YYYY0000` calendar dateId starts on. */
 export function calendarPageDate(pageDateId: number): Date {
 	const month = Math.floor(pageDateId / 100) % 100;
@@ -62,21 +51,24 @@ export function monthCellTarget(level: StripLevel, month: Date): CalendarTarget 
 }
 
 /**
- * Upstream's strip scroll on mount: a month click's remembered offset wins;
- * otherwise the `targetTs` cell goes to the left edge, and without one a day
- * or month page scrolls home while a year page stays put.
+ * Upstream's strip scroll on mount (`wS2`'s layout effects): a day, week or month page scrolls its own first-day cell
+ * to the left edge (home without one), while a year page scrolls home and then to today's cell when the strip has
+ * one. Upstream's remembered month-click offset (`u21`) is always overridden by these on mount, so a year page's Sep
+ * click lands on Sep 1, not on the day under the clicked card.
  */
-export function scrollStripOnMount(scroller: HTMLElement, targetTs: number, isYear: boolean): void {
-	if (pendingScrollLeft !== null) {
-		scroller.scrollLeft = pendingScrollLeft;
-		pendingScrollLeft = null;
+export function scrollStripOnMount(
+	scroller: ScrollGeometry & {scrollLeft: number},
+	{level, pageTs, todayTs}: {level: StripLevel; pageTs: number; todayTs: number},
+): void {
+	const pageDelta = level === "year" ? null : scrollDelta(scroller, pageTs);
+	if (pageDelta !== null) {
+		scroller.scrollLeft += pageDelta;
 		return;
 	}
-	const delta = scrollDelta(scroller, targetTs);
-	if (delta !== null) {
-		scroller.scrollLeft += delta;
-	} else if (!isYear) {
-		scroller.scrollLeft = 0;
+	scroller.scrollLeft = 0;
+	const todayDelta = level === "year" ? scrollDelta(scroller, todayTs) : null;
+	if (todayDelta !== null) {
+		scroller.scrollLeft += todayDelta;
 	}
 }
 
