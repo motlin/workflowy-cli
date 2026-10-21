@@ -131,6 +131,27 @@ export function decodeSidePane(value: string | null | undefined): (SidePaneUrl &
 	return {mainPaneId: main[0], paneId: pane[0], location: id === HOME_ID ? null : id, query};
 }
 
+/** The side pane as the URL should name it, from the store's pane and its URL ids; null with no side pane. */
+export function storeSidePaneUrl(
+	sidePane: {zoomedId: string | null} | null,
+	ids: PaneUrlIds | null,
+): SidePaneUrl | null {
+	return sidePane === null || ids === null ? null : {...ids, location: sidePane.zoomedId};
+}
+
+/**
+ * The `panes` fragment naming the store's side pane, empty with none. A main-pane navigation carries it so the pane
+ * sync never has to replace the pushed URL a frame later.
+ */
+export function sidePaneFragments(
+	sidePane: {zoomedId: string | null} | null,
+	ids: PaneUrlIds | null,
+): Record<string, string> {
+	const store = storeSidePaneUrl(sidePane, ids);
+	const value = store === null ? undefined : encodeSidePane(store);
+	return value === undefined ? {} : {[PANES_FRAGMENT]: value};
+}
+
 /** The URL for `hash` with its `panes` param set to `value`, or dropped for null. */
 export function withPanesFragment(hash: string, value: string | null): string {
 	const {id, query, fragments} = parseLocationHash(hash);

@@ -10,6 +10,7 @@ const {cleanupEmptyDayOnLeave, goToNode, navigateToSearch, nodeUrl, resolveZoomT
 	await import("../src/client/navigation.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
+const {encodeSidePane} = await import("../src/client/pane-url.js");
 
 const FULL_ID = "4823cefa-5fc0-478c-88ac-35035d443bf1";
 
@@ -125,9 +126,71 @@ describe("in-app navigation stacks", () => {
 	});
 });
 
+describe("goToNode in one frame", () => {
+	const A = "aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa";
+	const ids = {mainPaneId: "AAAAAAAAAAA", paneId: "BBBBBBBBBBB"};
+
+	beforeEach(() => {
+		useOutlineStore.setState({nav: initialNavState, zoomedNodeId: null, sidePane: null, paneUrlIds: null});
+	});
+
+	it("zooms the store before pushing the URL, so the outline swaps without waiting for the route", () => {
+		const zoomedWhenPushed: (string | null)[] = [];
+		goToNode(() => {
+			zoomedWhenPushed.push(useOutlineStore.getState().zoomedNodeId);
+		}, A);
+		expect(zoomedWhenPushed).toStrictEqual([A]);
+	});
+
+	it("carries the open side pane's panes param so the pane sync has nothing to restore", () => {
+		useOutlineStore.setState({
+			sidePane: {zoomedId: null, backLocations: [], forwardLocations: []},
+			paneUrlIds: ids,
+		});
+		const navigate = vi.fn<(to: string) => void>();
+		goToNode(navigate, A);
+		expect(navigate.mock.calls).toStrictEqual([
+			[`/#/aaaaaaaaaaaa?panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
+		]);
+	});
+
+	it("carries the side pane on an in-app Back", () => {
+		goToNode(() => {}, null);
+		goToNode(() => {}, A);
+		useOutlineStore.setState({
+			sidePane: {zoomedId: null, backLocations: [], forwardLocations: []},
+			paneUrlIds: ids,
+		});
+		const navigate = vi.fn<(to: string) => void>();
+		stepNav(navigate, "back");
+		expect(navigate.mock.calls).toStrictEqual([
+			[`/#?panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
+		]);
+	});
+
+	it("carries the side pane on a search push too", () => {
+		useOutlineStore.setState({
+			zoomedNodeId: A,
+			sidePane: {zoomedId: null, backLocations: [], forwardLocations: []},
+			paneUrlIds: ids,
+		});
+		const navigate = vi.fn<(to: string) => void>();
+		navigateToSearch(navigate, "x");
+		expect(navigate.mock.calls).toStrictEqual([
+			[`/#/aaaaaaaaaaaa?q=x&panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
+		]);
+	});
+});
+
 describe("navigateToSearch", () => {
 	beforeEach(() => {
-		useOutlineStore.setState({nav: initialNavState, zoomedNodeId: FULL_ID, urlSearchQuery: null});
+		useOutlineStore.setState({
+			nav: initialNavState,
+			zoomedNodeId: FULL_ID,
+			urlSearchQuery: null,
+			sidePane: null,
+			paneUrlIds: null,
+		});
 	});
 
 	it("pushes the zoomed node's URL with ?q= and records a non-deduped navigation", () => {

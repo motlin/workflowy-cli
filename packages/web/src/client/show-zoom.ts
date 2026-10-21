@@ -16,3 +16,16 @@ export function showZoom(destination: string | null, scrollTop: boolean, deps: S
 		deps.scrollToTop(deps.inSidePane ? "side" : "main");
 	}
 }
+
+/**
+ * The root an outline renders: the requested zoom, except while its children are still loading, when the previously
+ * shown root (Home is null) stays on screen so the swap lands in one frame instead of flashing "Loading...". With
+ * nothing shown yet (`undefined`) the requested root renders its loading state.
+ */
+export function outlineRootToShow(
+	requested: string | null,
+	loading: boolean,
+	lastShown: string | null | undefined,
+): string | null {
+	return loading && lastShown !== undefined ? lastShown : requested;
+}

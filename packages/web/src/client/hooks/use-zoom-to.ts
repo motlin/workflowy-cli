@@ -3,7 +3,7 @@ import {useNavigate} from "react-router-dom";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {goToNode, planZoomFocus} from "../navigation.js";
 import type {ZoomFocus} from "../navigation.js";
-import {nodeKeys, readNode} from "../node-cache.js";
+import {nodeKeys, readNode, seedResolvedId} from "../node-cache.js";
 import {SIDE_PANE_ID} from "../pane-ids.js";
 import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
@@ -76,6 +76,9 @@ export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Prom
 				inSidePane,
 				zoomSidePane,
 				goToNode: (id) => {
+					if (id !== null) {
+						seedResolvedId(queryClient, id);
+					}
 					goToNode(navigate, id);
 				},
 				scrollToTop: (pane) => {

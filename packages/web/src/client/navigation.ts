@@ -7,6 +7,7 @@ import {useDeleteNode} from "./hooks/use-nodes.js";
 import {locationUrl, shortId} from "./location.js";
 import {readChildren, readNode} from "./node-cache.js";
 import {locFromHash} from "./nav-stack.js";
+import {sidePaneFragments} from "./pane-url.js";
 import {useOutlineStore} from "./stores/outline.js";
 import type {NavigateFn} from "./stores/outline.js";
 
@@ -92,12 +93,16 @@ export function planZoomFocus(
 	};
 }
 
-/** Record a move to `nodeId` (null for home) on the in-app stacks, then push its URL. */
+/**
+ * Record a move to `nodeId` (null for home) on the in-app stacks, zoom the outline, then push its URL carrying any
+ * open side pane. Zooming here rather than after the route resolves the URL's short id swaps the outline in the same
+ * frame as the click, and keeping the `panes` param spares the pane sync a second, replacing navigation.
+ */
 export function goToNode(navigate: NavigateFn, nodeId: string | null): void {
-	useOutlineStore
-		.getState()
-		.dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query: null}});
-	void navigate(nodeId === null ? "/" : nodeUrl(nodeId));
+	const {dispatchNav, zoom, sidePane, paneUrlIds} = useOutlineStore.getState();
+	dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query: null}});
+	zoom(nodeId);
+	void navigate(locationUrl({id: nodeId, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
 }
 
 /**
@@ -114,14 +119,14 @@ export function navigateToSearch(navigate: NavigateFn, query: string): void {
  * for the target (never `history.back()`); a no-op when that stack is empty.
  */
 export function stepNav(navigate: NavigateFn, direction: "back" | "forward"): void {
-	const {nav, dispatchNav} = useOutlineStore.getState();
-	if ((direction === "back" ? nav.back : nav.forward).length === 0) {
+	const {nav: before, dispatchNav} = useOutlineStore.getState();
+	if ((direction === "back" ? before.back : before.forward).length === 0) {
 		return;
 	}
 	dispatchNav({type: direction});
-	const {current} = useOutlineStore.getState().nav;
-	if (current !== null) {
-		void navigate(locationUrl(current));
+	const {nav, sidePane, paneUrlIds} = useOutlineStore.getState();
+	if (nav.current !== null) {
+		void navigate(locationUrl({...nav.current, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
 	}
 }
 

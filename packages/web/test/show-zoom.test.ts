@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {showZoom} from "../src/client/show-zoom.js";
+import {outlineRootToShow, showZoom} from "../src/client/show-zoom.js";
 
 function run(inSidePane: boolean, scrollTop: boolean): string[] {
 	const calls: string[] = [];
@@ -29,5 +29,23 @@ describe("showZoom", () => {
 
 	it("keeps the scroll position when the zoom does not scroll to the top", () => {
 		expect(run(true, false)).toStrictEqual(["pane:alice"]);
+	});
+});
+
+describe("outlineRootToShow", () => {
+	it("shows the requested root once its children are loaded", () => {
+		expect(outlineRootToShow("bob", false, "alice")).toBe("bob");
+	});
+
+	it("keeps the previous root on screen while the requested root's children load", () => {
+		expect(outlineRootToShow("bob", true, "alice")).toBe("alice");
+	});
+
+	it("keeps Home on screen while a zoom away from it loads", () => {
+		expect(outlineRootToShow("bob", true, null)).toBeNull();
+	});
+
+	it("shows the requested root (and its loading state) when nothing was shown yet", () => {
+		expect(outlineRootToShow("bob", true, undefined)).toBe("bob");
 	});
 });

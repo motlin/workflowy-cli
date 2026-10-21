@@ -8,7 +8,7 @@ import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
-import {createPaneId} from "../pane-url.js";
+import {createPaneId, sidePaneFragments} from "../pane-url.js";
 import type {PaneUrlIds} from "../pane-url.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {closeSwitcher} from "../switcher-close.js";
@@ -1024,10 +1024,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	pushSearchLocation: (query, navigate) => {
-		const {zoomedNodeId, dispatchNav} = get();
+		const {zoomedNodeId, dispatchNav, sidePane, paneUrlIds} = get();
 		const q = query === "" ? null : query;
 		dispatchNav({type: "navigate", loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q}});
-		void navigate(locationUrl({id: zoomedNodeId, query: q}));
+		void navigate(locationUrl({id: zoomedNodeId, query: q, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
 	},
 
 	commitSearch: (query, navigate) => {

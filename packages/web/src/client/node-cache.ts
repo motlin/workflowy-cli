@@ -1,5 +1,6 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {FoundDatesResponse, NodeResponse} from "../node-types.js";
+import {shortId} from "./location.js";
 import {sortByPriority} from "./tree-position.js";
 
 /**
@@ -22,6 +23,11 @@ export const nodeKeys = {
 	/** A location id (short or full) resolved to the full uuid, or null when the server has no such node. */
 	resolvedId: (locationId: string) => [...nodeKeys.all, "resolved-id", locationId] as const,
 };
+
+/** Record that `nodeId`'s short URL id resolves to it, so navigating to its URL needs no `GET /nodes/:id` lookup. */
+export function seedResolvedId(queryClient: QueryClient, nodeId: string): void {
+	queryClient.setQueryData(nodeKeys.resolvedId(shortId(nodeId)), nodeId);
+}
 
 /** Read a parent's cached children, or undefined if not cached. */
 export function readChildren(queryClient: QueryClient, parentId: string | null): NodeResponse[] | undefined {

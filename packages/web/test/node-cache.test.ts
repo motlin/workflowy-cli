@@ -8,6 +8,7 @@ import {
 	readItemNode,
 	readNode,
 	removeFoundDates,
+	seedResolvedId,
 	spliceBlock,
 	spliceChildren,
 } from "../src/client/node-cache.js";
@@ -212,5 +213,15 @@ describe("Found Dates rows", () => {
 			d1: qc.getQueryData(nodeKeys.foundDates("d1")),
 			d2: qc.getQueryData(nodeKeys.foundDates("d2")),
 		}).toStrictEqual({d1: {items: [{node: found("b"), crumbs: []}]}, d2: {items: []}});
+	});
+});
+
+describe("seedResolvedId", () => {
+	it("caches the node's short URL id as resolved, so the hash route zooms without a lookup request", () => {
+		const queryClient = new QueryClient();
+		seedResolvedId(queryClient, "4823cefa-5fc0-478c-88ac-35035d443bf1");
+		expect(queryClient.getQueryData(nodeKeys.resolvedId("35035d443bf1"))).toBe(
+			"4823cefa-5fc0-478c-88ac-35035d443bf1",
+		);
 	});
 });

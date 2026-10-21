@@ -13,6 +13,7 @@ import {
 	useToggleComplete,
 } from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
+import {outlineRootToShow} from "../show-zoom.js";
 import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
@@ -543,8 +544,14 @@ export function OutlineChildren({
  * Renders the outline under `parentId` as nested `.project` / `.children` elements,
  * matching upstream's DOM: each expanded row holds its children inline.
  */
-export function OutlineTree({parentId}: OutlineTreeProps) {
-	const {isLoading, error} = useChildren(parentId);
+export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
+	const {isLoading, error} = useChildren(requestedId);
+	const [lastShown, setLastShown] = useState<string | null | undefined>(undefined);
+	const parentId = outlineRootToShow(requestedId, isLoading, lastShown);
+	const shownLoading = isLoading && parentId === requestedId;
+	if (!shownLoading && lastShown !== parentId) {
+		setLastShown(parentId);
+	}
 	const queryClient = useQueryClient();
 	usePrefetchSearchAncestors(useSearchFilter());
 	const showsAddChild = shouldRenderAddChildButton(useOutlineStore((state) => state.searchQuery));
@@ -564,7 +571,7 @@ export function OutlineTree({parentId}: OutlineTreeProps) {
 		}
 	};
 
-	if (isLoading) {
+	if (shownLoading) {
 		return <div className="outline-tree-loading">Loading...</div>;
 	}
 

@@ -13,14 +13,10 @@ import {
 	reconcilePaneUrl,
 	restoredActivePane,
 	sameSidePane,
+	storeSidePaneUrl,
 	withPanesFragment,
 } from "../pane-url.js";
-import type {PaneUrlIds, SidePaneUrl} from "../pane-url.js";
 import {useOutlineStore} from "../stores/outline.js";
-
-function storeSidePaneUrl(sidePane: {zoomedId: string | null} | null, ids: PaneUrlIds | null): SidePaneUrl | null {
-	return sidePane === null || ids === null ? null : {...ids, location: sidePane.zoomedId};
-}
 
 function readRuntimeState(): string | null {
 	try {
