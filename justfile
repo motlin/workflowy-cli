@@ -49,7 +49,7 @@ format: install
 
 # Run checks (format + lint + typecheck)
 [group('lint')]
-check *args: install
+check *args: build-shared
     vp run --cache check {{ if ci != "" { "" } else { "--fix" } }} {{ args }}
 
 # Run tests

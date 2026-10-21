@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {readFileSync} from "node:fs";
+import {existsSync, readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
@@ -21,9 +21,9 @@ vi.stubGlobal("document", {activeElement: new FakeElement(), body: {classList: {
 
 const {ItemTypePicker, itemTypePickerItems} = await import("../src/client/components/layout-menu.js");
 
-const dump = readFileSync(
-	fileURLToPath(new URL("../../../.llm/upstream-sync/dumps/layout-modes-upstream-dom.html", import.meta.url)),
-	"utf8",
+// The upstream dump lives under the gitignored .llm/ tree, so it exists only in the main checkout.
+const dumpPath = fileURLToPath(
+	new URL("../../../.llm/upstream-sync/dumps/layout-modes-upstream-dom.html", import.meta.url),
 );
 
 function tokens(className: string): string[] {
@@ -82,8 +82,10 @@ describe("ItemTypePicker items", () => {
 		);
 	});
 
-	it("renders the Bullets row exactly as the upstream dump", () => {
-		const upstream = dump.split("\n").find((line) => line.includes('data-handbook="toggle_bullet"'));
+	it.skipIf(!existsSync(dumpPath))("renders the Bullets row exactly as the upstream dump", () => {
+		const upstream = readFileSync(dumpPath, "utf8")
+			.split("\n")
+			.find((line) => line.includes('data-handbook="toggle_bullet"'));
 		expect(normalize(renderItems()[0] ?? "")).toBe(normalize(upstream?.trim() ?? ""));
 	});
 
