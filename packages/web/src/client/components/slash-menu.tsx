@@ -1,5 +1,6 @@
 import {useCallback} from "react";
 import {createPortal} from "react-dom";
+import {revealInScroller} from "../reveal-in-scroller.js";
 import type {SlashCommandOption, SlashGroup, SlashMathOption} from "../slash-commands.js";
 import {Flyout} from "./flyout/flyout.js";
 import {FlyoutAlign} from "./flyout/flyout-style.js";
@@ -31,9 +32,11 @@ function isCommand(option: SlashCommandOption | SlashMathOption): option is Slas
  * className `" undefined"`, which lands verbatim in every row's class list.
  */
 export function SlashMenu({groups, index, keyboardMode, left, top, onSelect, onHover, onMouseMove}: SlashMenuProps) {
-	// Attaching the ref to a newly active row scrolls it into view, like upstream's keyboard-mode effect.
+	// Attaching the ref to a newly active row reveals it inside the menu's scroller, like upstream's keyboard-mode effect.
 	const scrollActive = useCallback((element: HTMLAnchorElement | null) => {
-		element?.scrollIntoView({block: "nearest"});
+		if (element !== null) {
+			revealInScroller(element);
+		}
 	}, []);
 
 	if (!groups.some((group) => group.options.length > 0)) {
