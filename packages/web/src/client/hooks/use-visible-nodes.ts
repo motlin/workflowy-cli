@@ -2,30 +2,12 @@ import type {QueryClient} from "@tanstack/react-query";
 import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {activePaneView} from "../stores/outline.js";
-import {isPotentiallyVisible, rowHasChildren} from "../tree-ops.js";
+import {rowHasChildren} from "../tree-ops.js";
+import {rendersChildren, rendersRow} from "../render-window.js";
 import type {ExpansionRow} from "../expansion.js";
 import {navigableIds} from "../caret-navigation.js";
 import type {SearchFilter} from "../search-filter.js";
-import {isSearchExpanded, searchShowsCompleted, searchShowsNode} from "../search-filter.js";
 import {currentSearchFilter} from "./use-tree-search.js";
-
-/** Whether `node` renders as a row: completion visibility, then the search filter when one is applied. */
-function rendersRow(
-	node: NodeResponse,
-	showCompleted: boolean,
-	animatingCompletionIds: ReadonlySet<string>,
-	search: SearchFilter | null,
-): boolean {
-	return (
-		isPotentiallyVisible(node, searchShowsCompleted(showCompleted, search), animatingCompletionIds) &&
-		(search === null || searchShowsNode(node, search))
-	);
-}
-
-/** Whether `id`'s children render: the search's expansion during a search, else `expandedIds`. */
-function rendersChildren(id: string, expandedIds: ReadonlySet<string>, search: SearchFilter | null): boolean {
-	return search === null ? expandedIds.has(id) : isSearchExpanded(id, search);
-}
 
 /**
  * Builds a flattened list of visible node IDs in display order.

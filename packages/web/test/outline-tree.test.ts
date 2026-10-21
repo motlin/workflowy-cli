@@ -5,6 +5,10 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
+import type {TreeSearchResult} from "../src/server/tree-search.js";
+import {nodeKeys} from "../src/client/node-cache.js";
+import {searchFilter} from "../src/client/search-filter.js";
+import type {SearchFilter} from "../src/client/search-filter.js";
 import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 
 const outlineState = {
@@ -73,6 +77,12 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useDeleteNode: () => ({mutate: () => {}}),
 	useToggleComplete: () => ({mutate: () => {}}),
 }));
+let currentSearch: SearchFilter | null = null;
+vi.mock("../src/client/hooks/use-tree-search.js", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
+	useSearchFilter: () => currentSearch,
+	usePrefetchSearchAncestors: () => {},
+}));
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
@@ -104,10 +114,8 @@ vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger
 const {AddChildButton, AddSiblingButton, OutlineTree} = await import("../src/client/components/outline-tree.js");
 const {PaneContext} = await import("../src/client/components/pane-context.js");
 
-function render(parentId: string | null = null): string {
-	return renderToStaticMarkup(
-		createElement(QueryClientProvider, {client: new QueryClient()}, createElement(OutlineTree, {parentId})),
-	);
+function render(parentId: string | null = null, client = new QueryClient()): string {
+	return renderToStaticMarkup(createElement(QueryClientProvider, {client}, createElement(OutlineTree, {parentId})));
 }
 
 interface OpenTag {
@@ -453,23 +461,69 @@ describe("OutlineTree add-sibling button", () => {
 	});
 });
 
-describe("OutlineTree chunked child rendering", () => {
-	it("renders the first 200 of 250 children plus a growth sentinel", () => {
+describe("OutlineTree row windowing", () => {
+	it("renders the first rows of a long list up to the budget, then a growth sentinel and no add-child button", () => {
 		const original = childrenByParent.get(null);
-		childrenByParent.set(
-			null,
-			Array.from({length: 250}, (_, index) =>
-				makeNode({id: `n${index}`, name: `Node ${index}`, hasChildren: false}),
-			),
+		const rows = Array.from({length: 250}, (_, index) =>
+			makeNode({id: `n${index}`, name: `Node ${index}`, hasChildren: false}),
 		);
+		childrenByParent.set(null, rows);
+		const client = new QueryClient();
+		client.setQueryData(nodeKeys.children(null), rows);
 		try {
-			const html = render();
+			const html = render(null, client);
+			// No viewport in tests, so the budget is one 24-row step.
 			expect({
 				projects: html.split('class="font-custom project task').length - 1,
 				sentinels: html.split('<div class="render-sentinel"').length - 1,
-			}).toStrictEqual({projects: 200, sentinels: 1});
+				addChild: html.includes("addChildButton"),
+			}).toStrictEqual({projects: 24, sentinels: 1, addChild: false});
 		} finally {
 			childrenByParent.set(null, original ?? []);
+		}
+	});
+});
+
+describe("OutlineTree search windowing", () => {
+	it("mounts a viewport of rows, not every match, for a search with thousands of matches", () => {
+		const original = childrenByParent.get(null);
+		const topLevel = Array.from({length: 3000}, (_, index) =>
+			makeNode({id: `t${index}`, name: `Top ${index}`, hasChildren: index === 0}),
+		);
+		const nested = Array.from({length: 3000}, (_, index) =>
+			makeNode({id: `c${index}`, parent_id: "t0", name: `Child ${index}`, hasChildren: false}),
+		);
+		childrenByParent.set(null, topLevel);
+		childrenByParent.set("t0", nested);
+		const client = new QueryClient();
+		client.setQueryData(nodeKeys.children(null), topLevel);
+		client.setQueryData(nodeKeys.children("t0"), nested);
+		const matchIds = [...topLevel, ...nested].map((node) => node.id);
+		const result: TreeSearchResult = {
+			matchIds,
+			nameMatchIds: matchIds,
+			noteMatchIds: [],
+			metaMatchIds: [],
+			ancestorIds: ["t0"],
+			halfExpandedIds: [],
+			rootHalfExpanded: false,
+			completedMatchCount: 0,
+			matchCount: matchIds.length,
+			revealsCompleted: false,
+		};
+		currentSearch = searchFilter(result, new Set(), new Map());
+		try {
+			const html = render(null, client);
+			// The zoom root plus a 24-row budget (no viewport in tests): t0 and its first 23 children.
+			expect({
+				projects: html.split('class="font-custom project').length - 1,
+				nestedRows: html.split("Child ").length - 1,
+				sentinels: html.split('<div class="render-sentinel"').length - 1,
+			}).toStrictEqual({projects: 1 + 24, nestedRows: 23, sentinels: 1});
+		} finally {
+			currentSearch = null;
+			childrenByParent.set(null, original ?? []);
+			childrenByParent.delete("t0");
 		}
 	});
 });

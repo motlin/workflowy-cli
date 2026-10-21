@@ -1,7 +1,7 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, FoundDateItem, NodeResponse} from "../../node-types.js";
-import {useEffect, useRef, useState} from "react";
+import {useContext, useEffect, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {
@@ -17,12 +17,12 @@ import {outlineRootToShow} from "../show-zoom.js";
 import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
-import {initialMaxToRender, nextMaxToRender} from "../render-window.js";
-import {searchShowsCompleted, searchShowsNode} from "../search-filter.js";
+import {rendersRow, rowLimit} from "../render-window.js";
 import {usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
+import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
 import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {isPotentiallyVisible, planAddChild, planAddSibling} from "../tree-ops.js";
+import {planAddChild, planAddSibling} from "../tree-ops.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -254,8 +254,9 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 }
 
 /**
- * Zero-height marker after the last rendered row; scrolling it into view raises the
- * container's render limit. Local adaptation with no upstream class equivalent.
+ * Zero-height marker after the outline's last rendered row while the row budget is spent; scrolling it into view
+ * raises the budget. Keyed by the budget, so each step re-arms it while it stays in view. Local adaptation with no
+ * upstream class equivalent.
  */
 function RenderSentinel({onReached}: {onReached: () => void}) {
 	const ref = useRef<HTMLDivElement>(null);
@@ -467,11 +468,11 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 }
 
 /**
- * Upstream's `div.children`: the visible children of `parentId`, each a recursive
- * `OutlineRow`, then, once every child is rendered, the item's Backlinks section,
- * then (nested only) the add-sibling button.
- * Renders nothing when neither shows, so a collapsed or empty parent has no
- * `.children` in the DOM. During a search, rows the search does not show are
+ * Upstream's `div.children`: the visible children of `parentId` that the outline's row
+ * budget reaches, each a recursive `OutlineRow`, then, once every child is rendered,
+ * the item's Backlinks section and (nested only) the add-sibling button.
+ * Renders nothing when no row shows, so a collapsed or empty parent, or one past the
+ * budget, has no `.children` in the DOM. During a search, rows the search does not show are
  * removed, and the Backlinks section is left out.
  */
 export function OutlineChildren({
@@ -495,19 +496,13 @@ export function OutlineChildren({
 	const {data: backlinks} = useBacklinks(search === null ? parentId : null);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
-	const showsCompleted = searchShowsCompleted(showCompleted, search);
-	const visibleNodes = nodes?.filter(
-		(node) =>
-			isPotentiallyVisible(node, showsCompleted, animatingCompletionIds) &&
-			(search === null || searchShowsNode(node, search)),
-	);
-	const [maxToRender, setMaxToRender] = useState(initialMaxToRender);
+	const visibleNodes = nodes?.filter((node) => rendersRow(node, showCompleted, animatingCompletionIds, search));
+	// The outline spends one row budget across the whole tree (see render-window.ts).
+	const rowLimits = useContext(RowLimitsContext);
 	const total = visibleNodes?.length ?? 0;
-	const growWindow = () => {
-		setMaxToRender((current) => nextMaxToRender(current, total));
-	};
+	const limit = rowLimits === null ? total : rowLimit(rowLimits, parentId);
 	const backlinksRootId =
-		search === null && total <= maxToRender && isBacklinksSectionVisible(backlinks, showCompleted)
+		search === null && total <= limit && isBacklinksSectionVisible(backlinks, showCompleted)
 			? backlinks?.rootId
 			: null;
 	// Only the zoomed day page shows Found Dates, after every child is rendered and outside a search.
@@ -515,27 +510,30 @@ export function OutlineChildren({
 	const dayId = isRoot && zoomed?.calendar?.level === "day" ? zoomed.id : null;
 	const {data: foundDates} = useFoundDates(dayId);
 	const foundItems =
-		search === null && total <= maxToRender
+		search === null && total <= limit
 			? (foundDates?.items ?? []).filter((item) => showCompleted || item.node.completedAt === null)
 			: [];
 
-	if (!visibleNodes || (total === 0 && backlinksRootId == null && foundItems.length === 0)) {
+	if (
+		!visibleNodes ||
+		(total > 0 && limit === 0) ||
+		(total === 0 && backlinksRootId == null && foundItems.length === 0)
+	) {
 		return null;
 	}
 
 	return (
 		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
-			{visibleNodes.slice(0, maxToRender).map((node) => (
+			{visibleNodes.slice(0, limit).map((node) => (
 				<OutlineRow key={node.id} depth={depth} node={node} />
 			))}
-			{total > maxToRender && <RenderSentinel onReached={growWindow} />}
 			{backlinksRootId == null ? null : (
 				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
 			)}
 			{dayId === null || foundItems.length === 0 ? null : (
 				<FoundDatesSection dayId={dayId} depth={depth} items={foundItems} />
 			)}
-			{isRoot || owner === undefined ? null : <AddSiblingButton owner={owner} />}
+			{isRoot || owner === undefined || limit < total ? null : <AddSiblingButton owner={owner} />}
 		</div>
 	);
 }
@@ -553,7 +551,9 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 		setLastShown(parentId);
 	}
 	const queryClient = useQueryClient();
-	usePrefetchSearchAncestors(useSearchFilter());
+	const search = useSearchFilter();
+	usePrefetchSearchAncestors(search);
+	const {rowLimits, budgetRows, growBudget} = useRowLimits(parentId, search);
 	const showsAddChild = shouldRenderAddChildButton(useOutlineStore((state) => state.searchQuery));
 
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
@@ -583,10 +583,13 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- a mouse shortcut to the last row; keyboard users move the caret with the arrow keys
 		<div className="outline-tree-container" onClick={handleBlankClick}>
 			<div className="scroller">
-				<ZoomRootRow nodeId={parentId}>
-					<OutlineChildren isRoot parentId={parentId} />
-					{showsAddChild ? <AddChildButton parentId={parentId} /> : null}
-				</ZoomRootRow>
+				<RowLimitsContext.Provider value={rowLimits}>
+					<ZoomRootRow nodeId={parentId}>
+						<OutlineChildren isRoot parentId={parentId} />
+						{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
+					</ZoomRootRow>
+				</RowLimitsContext.Provider>
+				{rowLimits.remaining === 0 ? <RenderSentinel key={budgetRows} onReached={growBudget} /> : null}
 			</div>
 		</div>
 	);

@@ -1,18 +1,111 @@
 import {describe, expect, it} from "vite-plus/test";
-import {initialMaxToRender, nextMaxToRender} from "../src/client/render-window.js";
+import type {NodeResponse} from "../src/node-types.js";
+import type {TreeSearchResult} from "../src/server/tree-search.js";
+import {searchFilter} from "../src/client/search-filter.js";
+import type {RowView} from "../src/client/render-window.js";
+import {initialRowBudget, nextRowBudget, rowLimit, rowLimits} from "../src/client/render-window.js";
 
-describe("render window", () => {
-	it("starts at 200 like upstream useMaxToRender", () => {
-		expect(initialMaxToRender).toBe(200);
-	});
+function node(id: string, parentId: string | null, completed = false): NodeResponse {
+	return {
+		id,
+		parent_id: parentId,
+		name: id,
+		note: null,
+		priority: 0,
+		data: {layoutMode: null},
+		createdAt: null,
+		modifiedAt: null,
+		completedAt: completed ? 1 : null,
+	};
+}
 
-	it("grows by one step, clamped to the total", () => {
-		expect([nextMaxToRender(200, 1000), nextMaxToRender(400, 450), nextMaxToRender(450, 450)]).toStrictEqual([
-			400, 450, 450,
+function result(matchIds: string[], ancestorIds: string[]): TreeSearchResult {
+	return {
+		matchIds,
+		nameMatchIds: matchIds,
+		noteMatchIds: [],
+		metaMatchIds: [],
+		ancestorIds,
+		halfExpandedIds: [],
+		rootHalfExpanded: false,
+		completedMatchCount: 0,
+		matchCount: matchIds.length,
+		revealsCompleted: false,
+	};
+}
+
+// Root holds alice then bob then carol; alice holds dave, erin and a completed frank.
+const children = new Map<string | null, NodeResponse[]>([
+	[null, [node("alice", null), node("bob", null), node("carol", null)]],
+	["alice", [node("dave", "alice"), node("erin", "alice"), node("frank", "alice", true)]],
+]);
+
+const outlineView: RowView = {
+	expandedIds: new Set(["alice"]),
+	showCompleted: false,
+	animatingCompletionIds: new Set(),
+	search: null,
+};
+
+// The search matches bob, dave, erin and the completed frank; alice is their ancestor, carol does not show.
+const searchView: RowView = {
+	...outlineView,
+	expandedIds: new Set(),
+	search: searchFilter(result(["bob", "dave", "erin", "frank"], ["alice"]), new Set(), new Map()),
+};
+
+function limitsFor(view: RowView, budget: number) {
+	const computed = rowLimits((id) => children.get(id), null, budget, view);
+	return {limits: Object.fromEntries(computed.limits), remaining: computed.remaining};
+}
+
+describe("rowLimits", () => {
+	it("hands each parent its rows in document order until the budget runs out", () => {
+		expect([10, 3, 2, 1].map((budget) => limitsFor(outlineView, budget))).toStrictEqual([
+			{limits: {alice: 2, null: 3}, remaining: 5},
+			{limits: {alice: 2, null: 1}, remaining: 0},
+			{limits: {alice: 1, null: 1}, remaining: 0},
+			{limits: {alice: 0, null: 1}, remaining: 0},
 		]);
 	});
 
-	it("honors a custom step", () => {
-		expect(nextMaxToRender(10, 100, 5)).toBe(15);
+	it("takes rows and expansion from the search during a search", () => {
+		expect([10, 3].map((budget) => limitsFor(searchView, budget))).toStrictEqual([
+			{limits: {alice: 2, null: 2}, remaining: 6},
+			{limits: {alice: 2, null: 1}, remaining: 0},
+		]);
+	});
+
+	it("gives an expanded parent whose children are not loaded yet the remaining budget", () => {
+		const rootOnly = rowLimits((id) => (id === null ? children.get(null) : undefined), null, 10, outlineView);
+		const exhausted = rowLimits(() => {}, null, 0, outlineView);
+		expect({
+			limits: Object.fromEntries(rootOnly.limits),
+			alice: rowLimit(rootOnly, "alice"),
+			exhausted: rowLimit(exhausted, "alice"),
+		}).toStrictEqual({limits: {null: 3}, alice: 7, exhausted: 0});
+	});
+
+	it("bounds a search with thousands of matches to the budget", () => {
+		const many = Array.from({length: 5000}, (_, index) => node(`m${index}`, null));
+		const wide: RowView = {
+			...outlineView,
+			search: searchFilter(
+				result(
+					many.map((item) => item.id),
+					[],
+				),
+				new Set(),
+				new Map(),
+			),
+		};
+		const computed = rowLimits(() => many, null, initialRowBudget(900), wide);
+		expect({root: rowLimit(computed, null), remaining: computed.remaining}).toStrictEqual({root: 62, remaining: 0});
+	});
+});
+
+describe("row budget", () => {
+	it("starts at a viewport of 24px rows plus one 24-row step, like upstream useMaxToRender, and grows a step at a time", () => {
+		expect([initialRowBudget(900), initialRowBudget(0), nextRowBudget(62)]).toStrictEqual([62, 24, 86]);
 	});
 });

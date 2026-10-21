@@ -95,6 +95,7 @@ vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger
 
 const {OutlineChildren} = await import("../src/client/components/outline-tree.js");
 const {backlinksLabel, isBacklinksSectionVisible} = await import("../src/client/backlinks.js");
+const {RowLimitsContext} = await import("../src/client/hooks/use-row-limits.js");
 
 function render(parentId: string): string {
 	return renderToStaticMarkup(
@@ -179,12 +180,24 @@ describe("OutlineChildren Backlinks section", () => {
 		expect(render("target").includes('<span class="innerContentContainer">2 Backlinks</span>')).toBe(true);
 	});
 
-	it("waits until every child is rendered before showing the section", () => {
+	it("waits until the row budget reaches every child before showing the section", () => {
 		childrenByParent.set(
 			"target",
 			Array.from({length: 250}, (_, index) => makeNode({id: `n${index}`, parent_id: "target"})),
 		);
-		expect(render("target").includes("references")).toBe(false);
+		const withLimit = (limit: number) =>
+			renderToStaticMarkup(
+				createElement(
+					QueryClientProvider,
+					{client: new QueryClient()},
+					createElement(
+						RowLimitsContext.Provider,
+						{value: {limits: new Map([["target", limit]]), remaining: 0}},
+						createElement(OutlineChildren, {parentId: "target"}),
+					),
+				),
+			).includes("references");
+		expect({partial: withLimit(249), every: withLimit(250)}).toStrictEqual({partial: false, every: true});
 	});
 
 	it("lists each backlink as a mirror row preceded by its source's ancestor crumbs when expanded", () => {
