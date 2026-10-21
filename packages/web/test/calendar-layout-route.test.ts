@@ -46,14 +46,21 @@ afterEach(() => {
 
 function app({
 	names = {},
+	extra = [],
 	rootTagged = true,
 	layoutEnabled = false,
-}: {names?: Record<string, string>; rootTagged?: boolean; layoutEnabled?: boolean} = {}) {
+}: {
+	names?: Record<string, string>;
+	/** More [id, parent, name] nodes after {@link TREE}, with no internal metadata. */
+	extra?: [string, string | null, string][];
+	rootTagged?: boolean;
+	layoutEnabled?: boolean;
+} = {}) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
-	for (const [id, parentId, name] of TREE) {
+	for (const [id, parentId, name] of [...TREE, ...extra]) {
 		db.insert(schema.nodeContent)
 			.values({
 				id,
@@ -202,6 +209,30 @@ describe("POST /api/v1/calendar/layout/preview", () => {
 			status: 200,
 			ops: ["set-calendar call", "set-levels notes", "create ", "create ", "move call"],
 			deterministic: [],
+		});
+	});
+
+	it("leaves a day-named node without calendar metadata where it is, as applying does", async () => {
+		// Applying reads metadata from the internal API, where a day-named node inside a month is no day unless tagged.
+		const {preview} = app({extra: [["sept8", "m09", time(2026, 9, 8)]]});
+		await expect(preview({levels: {year: true, month: true, day: true}})).resolves.toStrictEqual({
+			status: 200,
+			body: {
+				steps: [
+					{
+						op: "set-calendar",
+						id: "call",
+						calendar: {
+							level: "day",
+							value: "11",
+							timestamp: new Date(2026, 8, 11).getTime(),
+							dateId: 20_260_911,
+						},
+					},
+					{op: "set-levels", id: "cal", levels: {year: true, month: true, day: true}},
+					{op: "move", id: "call", parentId: "m09", index: 1, from: {parentId: "notes", index: 0}},
+				],
+			},
 		});
 	});
 

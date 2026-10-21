@@ -169,11 +169,13 @@ function namesDate(name: string | null, date: CalendarDate): boolean {
  * Each node's 📆 Calendar role for the node DTO; nodes with none are absent.
  * Tried in order: the internal-API metadata (fresh), the backup-imported
  * `calendar_metadata` row, then for days created since the last backup a
- * date-only `<time>` name under root > `YYYY` > `MM` (or `M`).
+ * date-only `<time>` name under root > `YYYY` > `MM` (or `M`) unless
+ * `fromNames` is false.
  */
 export function loadCalendarInfo(
 	deps: Pick<CalendarDayDeps, "db" | "cache">,
 	nodes: readonly {id: string; parentId: string | null; name: string | null}[],
+	{fromNames = true}: {fromNames?: boolean} = {},
 ): Map<string, CalendarInfo> {
 	const map = new Map<string, CalendarInfo>();
 	const ids = nodes.map(({id}) => id);
@@ -216,6 +218,9 @@ export function loadCalendarInfo(
 				dayPrefix: intToBoolean(row.dayPrefix),
 			});
 		}
+	}
+	if (!fromNames) {
+		return map;
 	}
 	let root: string | undefined;
 	for (const node of nodes) {

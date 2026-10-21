@@ -48,7 +48,8 @@ export function loadCalendarLayout(
 		return undefined;
 	}
 	const toLayout = (nodes: Node[]): LayoutNode[] => {
-		const info = loadCalendarInfo(deps, nodes);
+		// Only stored metadata: applying reads it from the internal API, where a day-named node is no day unless tagged.
+		const info = loadCalendarInfo(deps, nodes, {fromNames: false});
 		return nodes.map((node) => {
 			const calendar = info.get(node.id);
 			const level = calendar?.level ?? undefined;
