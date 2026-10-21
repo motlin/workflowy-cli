@@ -16,8 +16,8 @@
  * Update Layout first asks "Move nodes into your Calendar?", and whether Update Layout applies or only previews (409
  * without the root's cached internal metadata).
  * `PUT /api/v1/calendar/layout` `{levels, rootId?}` -> 200 `{rootId, writes}`: restructure the calendar (the tagged
- * root, or `rootId`, such as a sandbox copy) in one push, read fresh from Workflowy (403 unless
- * `CALENDAR_LAYOUT_ENABLED=true`).
+ * root, or `rootId`, such as a sandbox copy) in one push, read fresh from Workflowy (403 when
+ * `CALENDAR_LAYOUT_ENABLED=false`).
  * `POST /api/v1/calendar/layout/undo` -> 200 `{rootId, writes}`: undo the last applied layout once (409 when there is
  * none; 403 like PUT).
  * `POST /api/v1/calendar/layout/preview` `{levels, rootId?}` -> 200 `{steps}`: the tree writes upstream's restructure
@@ -227,13 +227,13 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			levels: snapshot.levels ?? DEFAULT_LAYOUT_LEVELS,
 			customLevels: calendarLayoutCustomLevels(snapshot.root, await accountDateFormat(ctx)),
 			needsConfirm: calendarLayoutNeedsConfirm(snapshot.root),
-			applyEnabled: ctx.calendarLayoutEnabled === true,
+			applyEnabled: ctx.calendarLayoutEnabled !== false,
 		});
 	});
 
 	router.put("/layout", async (c) => {
 		const ctx = c.get("ctx");
-		if (ctx.calendarLayoutEnabled !== true) {
+		if (ctx.calendarLayoutEnabled === false) {
 			return c.json({error: LAYOUT_DISABLED}, 403);
 		}
 		const body = LayoutBody.safeParse(await c.req.json().catch(() => null));
@@ -257,7 +257,7 @@ export function createCalendarRouter(): Hono<AppEnv> {
 
 	router.post("/layout/undo", async (c) => {
 		const ctx = c.get("ctx");
-		if (ctx.calendarLayoutEnabled !== true) {
+		if (ctx.calendarLayoutEnabled === false) {
 			return c.json({error: LAYOUT_DISABLED}, 403);
 		}
 		const adapter = ctx.apiKey ? ctx.internalAdapter?.() : undefined;

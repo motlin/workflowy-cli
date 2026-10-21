@@ -33,8 +33,8 @@ export interface ServerContext {
 	calendarEnsureEnabled?: boolean;
 	/**
 	 * Whether `PUT /api/v1/calendar/layout` may restructure the calendar
-	 * (`CALENDAR_LAYOUT_ENABLED`, off unless `true`): it moves, creates and
-	 * deletes level nodes account-wide.
+	 * (`CALENDAR_LAYOUT_ENABLED`, on unless `false`): it moves, creates and
+	 * deletes level nodes account-wide, behind a confirm dialog and a one-shot Undo.
 	 */
 	calendarLayoutEnabled?: boolean;
 }
@@ -60,7 +60,7 @@ export function createServerContext(): ServerContext {
 		apiKey,
 		internalAuth,
 		calendarEnsureEnabled: process.env.CALENDAR_ENSURE_ENABLED !== "false",
-		calendarLayoutEnabled: process.env.CALENDAR_LAYOUT_ENABLED === "true",
+		calendarLayoutEnabled: process.env.CALENDAR_LAYOUT_ENABLED !== "false",
 		internalAdapter: () => {
 			if (!adapter && internalAuth) {
 				adapter = new WorkflowyInternalAdapter({

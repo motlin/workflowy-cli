@@ -48,12 +48,13 @@ function app({
 	names = {},
 	extra = [],
 	rootTagged = true,
-	layoutEnabled = false,
+	layoutEnabled,
 }: {
 	names?: Record<string, string>;
 	/** More [id, parent, name] nodes after {@link TREE}, with no internal metadata. */
 	extra?: [string, string | null, string][];
 	rootTagged?: boolean;
+	/** `ctx.calendarLayoutEnabled`; undefined leaves the route's default (on). */
 	layoutEnabled?: boolean;
 } = {}) {
 	const sqlite = new DatabaseConstructor(":memory:");
@@ -136,7 +137,7 @@ describe("GET /api/v1/calendar/layout", () => {
 				levels: {year: true, month: true, day: true},
 				customLevels: [],
 				needsConfirm: true,
-				applyEnabled: false,
+				applyEnabled: true,
 			},
 		});
 	});
@@ -149,7 +150,7 @@ describe("GET /api/v1/calendar/layout", () => {
 				levels: {year: true, month: true, day: true},
 				customLevels: ["month"],
 				needsConfirm: true,
-				applyEnabled: false,
+				applyEnabled: true,
 			},
 		});
 	});
@@ -248,21 +249,22 @@ describe("POST /api/v1/calendar/layout/preview", () => {
 });
 
 describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", () => {
-	it("are 403 while CALENDAR_LAYOUT_ENABLED is off, and write nothing", async () => {
-		const {send, calls} = app();
+	it("are 403 when CALENDAR_LAYOUT_ENABLED=false turns applying off, and write nothing", async () => {
+		const {request, send, calls} = app({layoutEnabled: false});
 		const disabled = {
 			status: 403,
 			body: {error: "Applying calendar layouts is disabled (CALENDAR_LAYOUT_ENABLED)"},
 		};
 		expect({
+			applyEnabled: ((await request("layout")).body as {applyEnabled: boolean}).applyEnabled,
 			put: await send("PUT", "layout", {levels: {year: true}}),
 			undo: await send("POST", "layout/undo"),
 			calls,
-		}).toStrictEqual({put: disabled, undo: disabled, calls: []});
+		}).toStrictEqual({applyEnabled: false, put: disabled, undo: disabled, calls: ["getRootMeta dateFormat"]});
 	});
 
-	it("applies the levels (to an explicit root when given), reports enabled, and undoes once", async () => {
-		const {request, send, calls} = app({layoutEnabled: true});
+	it("applies the levels by default (to an explicit root when given), reports enabled, and undoes once", async () => {
+		const {request, send, calls} = app();
 		expect({
 			layout: await request("layout"),
 			tagged: await send("PUT", "layout", {levels: {year: true, month: false}}),
