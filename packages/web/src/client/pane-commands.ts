@@ -1,4 +1,5 @@
 import type {CommandRegistry} from "./keys/dispatch.js";
+import {SIDE_PANE_ID} from "./pane-ids.js";
 
 /** The slice of the outline store the pane commands read and drive. */
 export interface PaneCommandStore {
@@ -33,4 +34,25 @@ export function paneCommands(store: PaneCommandStore): CommandRegistry {
 			},
 		},
 	};
+}
+
+/** The slice of the outline store Open in Pane drives. */
+export interface OpenInPaneState {
+	sidePane: {zoomedId: string | null} | null;
+	openSidePane: (zoomedId: string | null) => void;
+	zoomSidePane: (zoomedId: string | null) => void;
+	setActivePane: (paneId: string) => void;
+}
+
+/**
+ * Upstream's `open_in_pane` (bullet menu, ⌘-click on an internal link): open a pane on the item next to the source pane
+ * and focus it. The first slice supports one side pane, so an open pane is zoomed to the item and focused instead.
+ */
+export function openInPane(state: OpenInPaneState, nodeId: string): void {
+	if (state.sidePane === null) {
+		state.openSidePane(nodeId);
+		return;
+	}
+	state.zoomSidePane(nodeId);
+	state.setActivePane(SIDE_PANE_ID);
 }

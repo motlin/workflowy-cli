@@ -38,6 +38,7 @@ function ItemMenuInline({isCompleted = false, modifiedAt = true}: {isCompleted?:
 						onExport: () => {},
 						onCopyLink: () => {},
 						onMakeTemplate: () => {},
+						onOpenInPane: () => {},
 						onDelete: () => {},
 						onExpandAll: () => {},
 						onCollapseAll: () => {},

@@ -28,6 +28,7 @@ import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
+import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
@@ -174,6 +175,7 @@ function HashLocationRoute() {
 	const currentUrl = location.pathname + location.hash;
 	useEmptyDayCleanup();
 	usePaneUrlSync(fetchResolvedId);
+	useContentLinkClicks(fetchResolvedId);
 
 	useEffect(() => {
 		if (unknown) {

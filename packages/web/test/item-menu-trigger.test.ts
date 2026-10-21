@@ -8,6 +8,7 @@ vi.mock("../src/client/stores/outline.js", () => ({useOutlineStore: {getState: (
 
 const {ItemMenuTrigger} = await import("../src/client/components/node-context-menu.js");
 const NOOP_ACTIONS: ItemMenuActions = {
+	onOpenInPane: () => {},
 	onComplete: () => {},
 	onAddNote: () => {},
 	onAddDate: () => {},

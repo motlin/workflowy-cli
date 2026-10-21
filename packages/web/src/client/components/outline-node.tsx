@@ -23,6 +23,7 @@ import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {itemMenuLeft} from "../item-menu-model.js";
+import {openInPane} from "../pane-commands.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
@@ -195,6 +196,9 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 	return (
 		<ItemMenuTrigger
 			actions={{
+				onOpenInPane: () => {
+					openInPane(useOutlineStore.getState(), node.id);
+				},
 				onComplete,
 				onAddNote: () => {
 					// Upstream: "Add note" from inside the note moves the caret to the end of the name.

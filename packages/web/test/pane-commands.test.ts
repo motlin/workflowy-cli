@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {processCombo} from "../src/client/keys/dispatch.js";
-import {paneCommands} from "../src/client/pane-commands.js";
-import type {PaneCommandStore} from "../src/client/pane-commands.js";
+import {openInPane, paneCommands} from "../src/client/pane-commands.js";
+import type {OpenInPaneState, PaneCommandStore} from "../src/client/pane-commands.js";
 
 function fakeStore(sidePane: {zoomedId: string | null} | null) {
 	const state = {sidePane};
@@ -48,5 +48,36 @@ describe("pane commands", () => {
 		const {state, store} = fakeStore(null);
 		const result = processCombo("ctrl+meta+w", paneCommands(store), {items: [], zoomedId: "alice"}, true);
 		expect({result, sidePane: state.sidePane}).toStrictEqual({result: "claimed", sidePane: null});
+	});
+});
+
+function fakeOpenInPaneState(sidePane: {zoomedId: string | null} | null) {
+	const calls: string[] = [];
+	const state: OpenInPaneState = {
+		sidePane,
+		openSidePane: (zoomedId) => {
+			calls.push(`open:${zoomedId ?? "home"}`);
+		},
+		zoomSidePane: (zoomedId) => {
+			calls.push(`zoom:${zoomedId ?? "home"}`);
+		},
+		setActivePane: (paneId) => {
+			calls.push(`activate:${paneId}`);
+		},
+	};
+	return {calls, state};
+}
+
+describe("openInPane", () => {
+	it("opens a pane zoomed into the item when none is open", () => {
+		const {calls, state} = fakeOpenInPaneState(null);
+		openInPane(state, "alice");
+		expect(calls).toStrictEqual(["open:alice"]);
+	});
+
+	it("zooms and focuses the one side pane when it is already open", () => {
+		const {calls, state} = fakeOpenInPaneState({zoomedId: "bob"});
+		openInPane(state, "alice");
+		expect(calls).toStrictEqual(["zoom:alice", "activate:side"]);
 	});
 });

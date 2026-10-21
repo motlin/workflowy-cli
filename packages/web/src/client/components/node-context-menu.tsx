@@ -170,6 +170,7 @@ function MirrorBanner({
 }
 
 export interface ItemMenuActions {
+	onOpenInPane: () => void;
 	onComplete: () => void;
 	onAddNote: () => void;
 	onAddDate: () => void;
@@ -267,6 +268,7 @@ export function ItemMenuBody({
 	};
 	// Expand all / Collapse all return true so the menu stays open; the rest close it.
 	const select: Partial<Record<ItemMenuKey, () => boolean>> = {
+		open_in_pane: closeThen(actions.onOpenInPane),
 		complete: thenClose(actions.onComplete),
 		add_note: closeThen(actions.onAddNote),
 		add_date: closeThen(actions.onAddDate),

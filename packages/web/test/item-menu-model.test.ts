@@ -166,13 +166,13 @@ describe("buildItemMenu", () => {
 describe("localItemMenuContext", () => {
 	it("shows only the commands the local app runs", () => {
 		expect(summarize(buildItemMenu(plain, localItemMenuContext({hasDates: false})))).toBe(
-			"Complete;Add note;Add date;Present;Move To...;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
+			"Open in Pane;Complete;Add note;Add date;Present;Move To...;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
 		);
 	});
 
 	it("adds Delete dates when the name or note has a date", () => {
 		expect(summarize(buildItemMenu(plain, localItemMenuContext({hasDates: true})))).toBe(
-			"Complete;Add note;Add date;Delete dates;Present;Move To...;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
+			"Open in Pane;Complete;Add note;Add date;Delete dates;Present;Move To...;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
 		);
 	});
 });

@@ -155,6 +155,7 @@ export function buildItemMenu<N extends ItemMenuNode>(node: N, ctx: ItemMenuCont
 
 /** Commands the local app runs; buildItemMenu hides the rest. */
 const LOCAL_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
+	"open_in_pane",
 	"complete",
 	"add_note",
 	"add_date",

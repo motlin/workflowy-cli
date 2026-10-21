@@ -15,6 +15,7 @@ vi.stubGlobal("document", {body: {}});
 
 const {ItemMenuTrigger, TurnIntoRow} = await import("../src/client/components/node-context-menu.js");
 const NOOP_ACTIONS: ItemMenuActions = {
+	onOpenInPane: () => {},
 	onComplete: () => {},
 	onAddNote: () => {},
 	onAddDate: () => {},
@@ -176,6 +177,7 @@ describe("item menu surface", () => {
 			ITEM_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
+			ITEM_TOKENS,
 			SEPARATOR_TOKENS,
 			ITEM_TOKENS,
 			ITEM_TOKENS,
@@ -193,6 +195,7 @@ describe("item menu surface", () => {
 		expect(children.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)).toStrictEqual([
 			"bullet.layout",
 			null,
+			"open_in_pane",
 			"complete",
 			"add_note",
 			"add_date",
@@ -215,22 +218,29 @@ describe("item menu surface", () => {
 		]);
 	});
 
+	it("renders Open in Pane first with upstream's columns icon and no shortcut", () => {
+		const openInPane = scrollerChildren(render(node))[2];
+		expect(openInPane).toMatch(
+			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="table-columns"[^>]*><path [^>]*><\/path><\/svg><\/div>Open in Pane<\/span><\/span><\/a>$/u,
+		);
+	});
+
 	it("renders the Complete row with its icon, label and shortcut", () => {
-		const complete = scrollerChildren(render(node))[2];
+		const complete = scrollerChildren(render(node))[3];
 		expect(complete).toMatch(
 			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="check"[^>]*><path [^>]*><\/path><\/svg><\/div>Complete<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">⌘↵<\/span><\/span><\/a>$/u,
 		);
 	});
 
 	it("renders the Add note row with its pencil icon, label and shortcut", () => {
-		const addNote = scrollerChildren(render(node))[3];
+		const addNote = scrollerChildren(render(node))[4];
 		expect(addNote).toMatch(
 			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="pencil"[^>]*><path [^>]*><\/path><\/svg><\/div>Add note<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">⇧↵<\/span><\/span><\/a>$/u,
 		);
 	});
 
 	it("renders the Add date row with its calendar icon and !! shortcut", () => {
-		const addDate = scrollerChildren(render(node))[4];
+		const addDate = scrollerChildren(render(node))[5];
 		expect(addDate).toMatch(
 			/<div class="menuItemIcon flex items-center text-secondary"><svg [^>]*data-icon="calendar-days"[^>]*><path [^>]*><\/path><\/svg><\/div>Add date<\/span><span class="text ml-l min-w-\[22px\] text-xs text-tertiary">!!<\/span><\/span><\/a>$/u,
 		);
@@ -240,7 +250,7 @@ describe("item menu surface", () => {
 		const labels = (target: NodeResponse) =>
 			scrollerChildren(render(target))
 				.map((child) => /data-handbook="([^"]*)"/u.exec(child)?.[1] ?? null)
-				.slice(2, 6);
+				.slice(3, 7);
 		expect({
 			plain: labels(node),
 			datedName: labels({...node, name: 'Alice <time startYear="2026" startMonth="10" startDay="1">x</time>'}),
@@ -253,7 +263,7 @@ describe("item menu surface", () => {
 	});
 
 	it("renders Delete in the plain text color", () => {
-		const del = scrollerChildren(render(node))[13];
+		const del = scrollerChildren(render(node))[14];
 		expect(del).toContain('data-handbook="delete"');
 		expect(classTokens(del)).toStrictEqual(ITEM_TOKENS);
 		expect(del).not.toContain("danger");
@@ -269,6 +279,7 @@ describe("item menu surface", () => {
 	it("labels Complete as Uncomplete for a completed node and drops the footer without modifiedAt", () => {
 		const children = scrollerChildren(render({...node, completedAt: 1, modifiedAt: null})).slice(2);
 		expect(children.map((child) => /<\/div>([^<]+)<\/span>/u.exec(child)?.[1] ?? null)).toStrictEqual([
+			"Open in Pane",
 			"Uncomplete",
 			"Add note",
 			"Add date",
