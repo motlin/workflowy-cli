@@ -1,7 +1,8 @@
 import {isShortId} from "@workflowy/shared/workflowy";
 import {useQueryClient} from "@tanstack/react-query";
 import {useEffect, useRef} from "react";
-import {NavigationType, useLocation, useNavigate, useNavigationType} from "react-router-dom";
+import {NavigationType, useLocation, useNavigationType} from "react-router-dom";
+import {useStableNavigate} from "./hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../node-types.js";
 import {useDeleteNode} from "./hooks/use-nodes.js";
 import {locationUrl, shortId} from "./location.js";
@@ -199,7 +200,7 @@ export function useNavStackSync(): void {
 }
 
 export function useNodeNavigation() {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 
 	return {
 		navigateToNode: (nodeId: string | null) => {

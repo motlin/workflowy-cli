@@ -349,15 +349,15 @@ class HeldUndos<TData, TVariables> {
 function useUndoableMutate<TData, TVariables, TContext>(
 	mutate: Mutate<TData, TVariables, TContext>,
 	held: HeldUndos<TData, TVariables>,
-	plan: (variables: TVariables) => (data: TData) => UndoOp[],
+	plan: (variables: TVariables, queryClient: QueryClient) => (data: TData) => UndoOp[],
 ): Mutate<TData, TVariables, TContext> {
+	const queryClient = useQueryClient();
 	return useCallback<Mutate<TData, TVariables, TContext>>(
 		(variables, options) => {
-			held.hold(variables, plan(variables));
+			held.hold(variables, plan(variables, queryClient));
 			mutate(variables, options);
 		},
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- `plan` reads only its arguments and the stable query client
-		[mutate, held],
+		[mutate, held, plan, queryClient],
 	);
 }
 
@@ -368,6 +368,13 @@ function cachedOps(queryClient: QueryClient, mutation: UndoableMutation): () => 
 }
 
 const createUndos = new HeldUndos<NodeResponse, CreateNodeRequest>();
+
+function planCreate(request: CreateNodeRequest, queryClient: QueryClient): (created: NodeResponse) => UndoOp[] {
+	const parentId = request.parent_id ?? null;
+	const [op] = toUndoOps({kind: "create", nodeId: "", parentId, index: exactIndex(request)}, queryClient);
+	// The public-API fallback may answer another id than the client one.
+	return (created) => (op === undefined ? [] : [{...op, nodeId: created.id}]);
+}
 
 /**
  * Creates a new node with optimistic update.
@@ -434,12 +441,7 @@ export function useCreateNode() {
 		[mutate, queryClient],
 	);
 	// Outermost, so the slot is read before `mutateNow`'s optimistic insert.
-	const undoableMutate = useUndoableMutate(mutateNow, createUndos, (request) => {
-		const parentId = request.parent_id ?? null;
-		const [op] = toUndoOps({kind: "create", nodeId: "", parentId, index: exactIndex(request)}, queryClient);
-		// The public-API fallback may answer another id than the client one.
-		return (created) => (op === undefined ? [] : [{...op, nodeId: created.id}]);
-	});
+	const undoableMutate = useUndoableMutate(mutateNow, createUndos, planCreate);
 	return {...mutation, mutate: undoableMutate};
 }
 
@@ -482,6 +484,13 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 }
 
 const updateUndos = new HeldUndos<NodeResponse, UpdateNodeRequest & {nodeId: string}>();
+
+function planEdit(
+	{nodeId, name, note}: UpdateNodeRequest & {nodeId: string},
+	queryClient: QueryClient,
+): () => UndoOp[] {
+	return cachedOps(queryClient, {kind: "edit", nodeId, name, note});
+}
 
 /**
  * The cache as it stood when `mutate` was called, keyed by its variables. `onMutate` runs a
@@ -537,9 +546,7 @@ export function useUpdateNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
-	const nodeMutate = useUndoableMutate(mutation.mutate, updateUndos, ({nodeId, name, note}) =>
-		cachedOps(queryClient, {kind: "edit", nodeId, name, note}),
-	);
+	const nodeMutate = useUndoableMutate(mutation.mutate, updateUndos, planEdit);
 	const homeMutation = useMutation({
 		mutationFn: updateHome,
 		async onMutate(layoutMode) {
@@ -576,6 +583,10 @@ export function useUpdateNode() {
 
 const deleteUndos = new HeldUndos<void, string>();
 
+function planDelete(nodeId: string, queryClient: QueryClient): () => UndoOp[] {
+	return cachedOps(queryClient, {kind: "delete", nodeId});
+}
+
 /**
  * Deletes a node with optimistic update.
  */
@@ -607,13 +618,20 @@ export function useDeleteNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
-	const mutate = useUndoableMutate(mutation.mutate, deleteUndos, (nodeId) =>
-		cachedOps(queryClient, {kind: "delete", nodeId}),
-	);
+	const mutate = useUndoableMutate(mutation.mutate, deleteUndos, planDelete);
 	return {...mutation, mutate};
 }
 
 const moveUndos = new HeldUndos<MoveNodeResponse, MoveNodeRequest & {nodeId: string}>();
+
+function planMove(request: MoveNodeRequest & {nodeId: string}, queryClient: QueryClient): () => UndoOp[] {
+	return cachedOps(queryClient, {
+		kind: "move",
+		ids: [request.nodeId],
+		parentId: request.parent_id,
+		index: exactIndex(request),
+	});
+}
 
 /**
  * Moves a node to `index` under `parent_id` (same parent or another) with an
@@ -648,14 +666,7 @@ export function useMoveNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
-	const mutate = useUndoableMutate(mutation.mutate, moveUndos, (request) =>
-		cachedOps(queryClient, {
-			kind: "move",
-			ids: [request.nodeId],
-			parentId: request.parent_id,
-			index: exactIndex(request),
-		}),
-	);
+	const mutate = useUndoableMutate(mutation.mutate, moveUndos, planMove);
 	return {...mutation, mutate};
 }
 
@@ -681,6 +692,10 @@ async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
 }
 
 const moveNodesUndos = new HeldUndos<NodeResponse[], MoveNodesRequest>();
+
+function planMoveNodes({ids, parent_id: parentId, index}: MoveNodesRequest, queryClient: QueryClient): () => UndoOp[] {
+	return cachedOps(queryClient, {kind: "move", ids, parentId, index});
+}
 
 /**
  * Moves a contiguous block of nodes, in the given order, to `index` under `parent_id`
@@ -727,9 +742,7 @@ export function useMoveNodes() {
 			endMutation();
 		},
 	});
-	const mutate = useUndoableMutate(mutation.mutate, moveNodesUndos, ({ids, parent_id: parentId, index}) =>
-		cachedOps(queryClient, {kind: "move", ids, parentId, index}),
-	);
+	const mutate = useUndoableMutate(mutation.mutate, moveNodesUndos, planMoveNodes);
 	return {...mutation, mutate};
 }
 
@@ -794,6 +807,13 @@ function restoreSnapshots(queryClient: QueryClient, snapshots: CacheSnapshot[] |
 }
 
 const toggleUndos = new HeldUndos<NodeResponse, {nodeId: string; isCurrentlyCompleted: boolean}>();
+
+function planToggle(
+	{nodeId, isCurrentlyCompleted}: {nodeId: string; isCurrentlyCompleted: boolean},
+	queryClient: QueryClient,
+): () => UndoOp[] {
+	return cachedOps(queryClient, {kind: isCurrentlyCompleted ? "uncomplete" : "complete", nodeId});
+}
 
 /**
  * Toggles node completion status with optimistic update.
@@ -861,13 +881,18 @@ export function useToggleComplete() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
-	const mutate = useUndoableMutate(mutation.mutate, toggleUndos, ({nodeId, isCurrentlyCompleted}) =>
-		cachedOps(queryClient, {kind: isCurrentlyCompleted ? "uncomplete" : "complete", nodeId}),
-	);
+	const mutate = useUndoableMutate(mutation.mutate, toggleUndos, planToggle);
 	return {...mutation, mutate};
 }
 
 const restoreUndos = new HeldUndos<NodeResponse, RestoreNodeRequest & {nodeId: string}>();
+
+function planRestore(
+	{nodeId, parent_id: parentId, index}: RestoreNodeRequest & {nodeId: string},
+	queryClient: QueryClient,
+): () => UndoOp[] {
+	return cachedOps(queryClient, {kind: "restore", nodeId, parentId, index});
+}
 
 /** Restores a deleted node under its original id, then refetches every node query. */
 // fallow-ignore-next-line unused-export -- callers land with undo/redo commands (M2-60, M2-61)
@@ -894,9 +919,7 @@ export function useRestoreNode() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
-	const mutate = useUndoableMutate(mutation.mutate, restoreUndos, ({nodeId, parent_id: parentId, index}) =>
-		cachedOps(queryClient, {kind: "restore", nodeId, parentId, index}),
-	);
+	const mutate = useUndoableMutate(mutation.mutate, restoreUndos, planRestore);
 	return {...mutation, mutate};
 }
 

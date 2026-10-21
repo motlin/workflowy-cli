@@ -1,7 +1,7 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
-import {useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {memo, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
@@ -13,6 +13,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {useCreateNode, useDeleteNode, useExpandAll, useToggleComplete, useUpdateNode} from "../hooks/use-nodes.js";
 import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {deleteDates} from "../date-pills.js";
+import {useNodeEditing} from "../hooks/use-node-editing.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
@@ -288,11 +289,14 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching
 		},
 		[node.id, setItemMenuOpen],
 	);
-	const {toggleExpand, toggleSearchExpansion, resumeEditing, editingId, editingClickPosition} = useOutlineStore();
+	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
+	const toggleSearchExpansion = useOutlineStore((state) => state.toggleSearchExpansion);
+	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
+	const {editing, clickPosition: editingClickPosition} = useNodeEditing(node.id);
 	const toggleComplete = useToggleComplete();
 	const expandAll = useExpandAll();
 	const inActivePane = useInActivePane();
-	const isEditing = inActivePane && editingId === node.id;
+	const isEditing = inActivePane && editing;
 	const isCompleted = node.completedAt !== null;
 	const layout = resolveLayoutMode(node.data.layoutMode);
 	const name = node.name ?? "";
@@ -426,9 +430,10 @@ function BacklinkCrumbs({crumbs, fitted}: {crumbs: BacklinkCrumb[]; fitted: bool
  * Upstream's `div.project`: `.name`, `.notes`, `.drop-line`, then, when expanded,
  * the node's `.children`. Indentation and guide lines come from the enclosing
  * `.children` container, so the row carries no inline style. `depth` is the
- * visual depth below the zoom root, 1 for its children.
+ * visual depth below the zoom root, 1 for its children. Memoized: the cache keeps an unchanged node's object, so a
+ * sibling list that changes elsewhere does not re-render this row.
  */
-export function OutlineRow({
+export const OutlineRow = memo(function OutlineRow({
 	node,
 	depth = 1,
 	backlinkCrumbs,
@@ -550,4 +555,4 @@ export function OutlineRow({
 			) : null}
 		</div>
 	);
-}
+});

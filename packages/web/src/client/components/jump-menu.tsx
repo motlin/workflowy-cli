@@ -1,7 +1,7 @@
 import {useQueries, useQueryClient} from "@tanstack/react-query";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {KeyboardEvent, UIEvent} from "react";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {isMacPlatform} from "../editable-text-keys.js";
 import {mostRecent} from "@workflowy/shared";
 import type {Star} from "@workflowy/shared";
@@ -37,6 +37,24 @@ const INPUT_CLASS =
 	"block w-full box-border appearance-none p-m rounded-s py-ml px-l outline-none border border-solid border-primary bg-primary focus:border-tint text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected [&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:inherit] [&:-webkit-autofill]:border-tint [&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]";
 
 const SEARCH_LIMIT = 20;
+
+/** One page of `/api/search/switcher`; throws on a failed answer. */
+async function fetchSwitcherPage(body: {
+	query: string;
+	offset?: number;
+	limit: number;
+	starredIds: string[];
+}): Promise<SwitcherResponse> {
+	const response = await fetch("/api/search/switcher", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		throw new Error(`Switcher search failed: ${response.status}`);
+	}
+	return readJson<SwitcherResponse>(response);
+}
 
 /** How long later keystrokes wait for the typing to pause before searching. */
 const SEARCH_DEBOUNCE_MS = 150;
@@ -300,7 +318,7 @@ function JumpMenuDialog() {
 	const [status, setStatus] = useState<SwitcherSearchStatus>("idle");
 	const answered = useRef(false);
 	const [selectedIndex, setSelectedIndex] = useState(0);
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 
 	const starredIds = useMemo(
 		() => stars.flatMap((star) => (star.nodeId !== null && !star.query ? [star.nodeId] : [])),
@@ -324,15 +342,7 @@ function JumpMenuDialog() {
 		let cancelled = false;
 		const runSearch = async () => {
 			try {
-				const response = await fetch("/api/search/switcher", {
-					method: "POST",
-					headers: {"Content-Type": "application/json"},
-					body: JSON.stringify({query: listQuery, limit: SEARCH_LIMIT, starredIds}),
-				});
-				if (!response.ok) {
-					throw new Error(`Switcher search failed: ${response.status}`);
-				}
-				const data = await readJson<SwitcherResponse>(response);
+				const data = await fetchSwitcherPage({query: listQuery, limit: SEARCH_LIMIT, starredIds});
 				if (!cancelled) {
 					answered.current = true;
 					setResults(data.results);
@@ -447,26 +457,22 @@ function JumpMenuDialog() {
 			return;
 		}
 		loadingMore.current = true;
-		const loadNextPage = async () => {
-			try {
-				const response = await fetch("/api/search/switcher", {
-					method: "POST",
-					headers: {"Content-Type": "application/json"},
-					body: JSON.stringify({query: listQuery, offset: results.length, limit: SEARCH_LIMIT, starredIds}),
-				});
-				if (response.ok) {
-					const data = await readJson<SwitcherResponse>(response);
-					// A page for a query the user has since changed is dropped.
-					if (latestQuery.current === listQuery) {
-						setResults((previous) => [...previous, ...data.results]);
-						setHasMore(data.hasMore);
-					}
+		const nextPage = fetchSwitcherPage({query: listQuery, offset: results.length, limit: SEARCH_LIMIT, starredIds});
+		void nextPage
+			.then((data) => {
+				// A page for a query the user has since changed is dropped.
+				if (latestQuery.current === listQuery) {
+					setResults((previous) => [...previous, ...data.results]);
+					setHasMore(data.hasMore);
 				}
-			} finally {
+				return data;
+			})
+			.catch(() => {
+				// A failed page leaves the list as it is; the next scroll to the end asks again.
+			})
+			.finally(() => {
 				loadingMore.current = false;
-			}
-		};
-		void loadNextPage();
+			});
 	}, [hasMore, listQuery, results.length, starredIds]);
 
 	return (

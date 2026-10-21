@@ -1,4 +1,4 @@
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "./use-stable-navigate.js";
 import {editorElement} from "../caret-dom.js";
 import {locationUrl} from "../location.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -10,7 +10,7 @@ import type {CalendarTarget, NavigateToCalendarDeps} from "../today.js";
  * main outline's URL otherwise.
  */
 function useCalendarDeps(zoomTo?: (id: string) => void): () => NavigateToCalendarDeps {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	return () => {
 		const store = useOutlineStore.getState();
 		return {

@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider, skipToken, useQuery} from "@tanstack/react-query";
-import {useEffect} from "react";
+import {memo, useCallback, useEffect} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams} from "react-router-dom";
 import type {NodeResponse} from "../node-types.js";
 
@@ -26,7 +26,8 @@ import {sidePaneWidth} from "./components/pane-context.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
-import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
+import {StableNavigateProvider} from "./hooks/use-stable-navigate.js";
+import {activeCommandRegistry, useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
 import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
@@ -41,6 +42,7 @@ import {PANES_FRAGMENT} from "./pane-url.js";
 import {readJson} from "./read-json.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineStore} from "./stores/outline.js";
+import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {outlineViewClassName} from "./search-classes.js";
 import "./wf-tailwind.css";
 import "./styles.css";
@@ -92,32 +94,41 @@ const queryClient = new QueryClient({
 	},
 });
 
-function OutlineView() {
-	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery, sidePane, leftBarOffset} = useOutlineStore();
-
-	// Register keyboard shortcuts
-	const commands = useCommandRegistry();
-	useGlobalKeymap(commands);
+/**
+ * Registers the keyboard shortcuts. The command registry follows the edited and zoomed nodes, so it lives in this
+ * empty leaf: its re-renders on every edit and save stay here instead of re-rendering the whole page.
+ */
+function GlobalCommands() {
+	useGlobalKeymap(useCommandRegistry());
 	useSearchEscape();
-	const runCommand = (commandId: "undo" | "redo") => () => {
-		commands[commandId]?.execute({items: [], zoomedId: zoomedNodeId});
-	};
+	return null;
+}
+
+/** The page shell. Memoized, so a URL change re-renders it only through the store fields it selects. */
+export const OutlineView = memo(function OutlineView() {
+	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery, sidePaneOpen, leftBarOffset} = useOutlineViewState();
+	const onUndo = useCallback(() => {
+		activeCommandRegistry().undo?.execute({items: [], zoomedId: zoomedNodeId});
+	}, [zoomedNodeId]);
+	const onRedo = useCallback(() => {
+		activeCommandRegistry().redo?.execute({items: [], zoomedId: zoomedNodeId});
+	}, [zoomedNodeId]);
 
 	const containerClasses = [
 		"outline-container",
 		relatedNodesPanelOpen && "with-related-panel",
-		sidePane !== null && "with-side-pane",
+		sidePaneOpen && "with-side-pane",
 	]
 		.filter(Boolean)
 		.join(" ");
 	// Upstream's rebalanceWidths: each pane gets half the width beside the left bar, at least 350px.
-	const paneStyle = sidePane === null ? undefined : {["--side-pane-width" as string]: sidePaneWidth(leftBarOffset())};
+	const paneStyle = sidePaneOpen ? {["--side-pane-width" as string]: sidePaneWidth(leftBarOffset)} : undefined;
 
 	return (
 		<div className={containerClasses} style={paneStyle}>
 			<OfflineBanner />
 			<MainPane>
-				<TopBar onRedo={runCommand("redo")} onUndo={runCommand("undo")} />
+				<TopBar onRedo={onRedo} onUndo={onUndo} />
 				<LeftBar />
 				<div className={outlineViewClassName(searchQuery)}>
 					<OutlineTree parentId={zoomedNodeId} />
@@ -135,9 +146,11 @@ function OutlineView() {
 			<PresentationMode />
 			<ErrorNotifications />
 			<AppMessages />
+			{/* Last, so its window keydown listeners register after every other pane's, as when the page shell held them. */}
+			<GlobalCommands />
 		</div>
 	);
-}
+});
 
 /** Resolve a location id (short or full) to the node's full uuid; null when the server has no such node. */
 async function fetchResolvedId(locationId: string): Promise<string | null> {
@@ -251,14 +264,16 @@ export function App() {
 				<ExpansionSync />
 				<ItemTypePickerHost />
 				<BrowserRouter>
-					<div className="app">
-						<Routes>
-							<Route element={<HashLocationRoute />} path="/" />
-							<Route element={<ChangesView />} path="/changes" />
-							<Route element={<LadderView />} path="/ladder" />
-							<Route element={<NodeRedirect />} path="/node/:id" />
-						</Routes>
-					</div>
+					<StableNavigateProvider>
+						<div className="app">
+							<Routes>
+								<Route element={<HashLocationRoute />} path="/" />
+								<Route element={<ChangesView />} path="/changes" />
+								<Route element={<LadderView />} path="/ladder" />
+								<Route element={<NodeRedirect />} path="/node/:id" />
+							</Routes>
+						</div>
+					</StableNavigateProvider>
 				</BrowserRouter>
 			</QueryClientProvider>
 		</ErrorBoundary>

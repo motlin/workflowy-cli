@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react";
+import {useShallow} from "zustand/react/shallow";
 import {locationKey} from "@workflowy/shared";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {useChildren, useExpandAll, useHome, useNode} from "../hooks/use-nodes.js";
 import {useStarActions, useStars} from "../hooks/use-starred.js";
 import {useShowCompletedToggle} from "../hooks/use-show-completed-toggle.js";
@@ -112,7 +113,23 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		sidePane,
 		openSidePane,
 		closeSidePane,
-	} = useOutlineStore();
+	} = useOutlineStore(
+		useShallow((state) => ({
+			zoomedNodeId: state.zoomedNodeId,
+			toggleLeftBar: state.toggleLeftBar,
+			showCompleted: state.showCompleted,
+			openSettings: state.openSettings,
+			openPresentation: state.openPresentation,
+			leftBarOffset: state.leftBarOffset(),
+			leftBarMode: state.leftBarMode,
+			showItemTypePicker: state.showItemTypePicker,
+			openLeftBarDrawer: state.openLeftBarDrawer,
+			closeLeftBarDrawer: state.closeLeftBarDrawer,
+			sidePane: state.sidePane,
+			openSidePane: state.openSidePane,
+			closeSidePane: state.closeSidePane,
+		})),
+	);
 	const [peek] = useState(() =>
 		createPeekController({
 			open: openLeftBarDrawer,
@@ -121,7 +138,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		}),
 	);
 	useEffect(() => peek.dispose, [peek]);
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const navigateToToday = useNavigateToToday();
 	const toggleCompleted = useShowCompletedToggle();
 	useNavStackSync();
@@ -239,7 +256,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	return (
 		<div
 			className={`wf-header header bg-primary border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER}`}
-			style={{left: leftBarOffset(), zIndex: 200}}
+			style={{left: leftBarOffset, zIndex: 200}}
 		>
 			{/* Upstream swaps the hamburger for a 16px spacer while the left bar is pinned. */}
 			{leftBarMode === "alwaysOpen" ? (

@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo} from "react";
+import {useShallow} from "zustand/react/shallow";
 import {useChildren, useNode} from "../hooks/use-nodes.js";
 import {useOutlineStore} from "../stores/outline.js";
 
@@ -110,7 +111,15 @@ function PresentationHeader({parentName, onClose}: {parentName: string | null; o
  * - Close with X button or Escape key
  */
 export function PresentationMode() {
-	const {presentationOpen, presentationContext, closePresentation, nextSlide, previousSlide} = useOutlineStore();
+	const {presentationOpen, presentationContext, closePresentation, nextSlide, previousSlide} = useOutlineStore(
+		useShallow((state) => ({
+			presentationOpen: state.presentationOpen,
+			presentationContext: state.presentationContext,
+			closePresentation: state.closePresentation,
+			nextSlide: state.nextSlide,
+			previousSlide: state.previousSlide,
+		})),
+	);
 
 	// Fetch the root node of the presentation
 	const {data: rootNode} = useNode(presentationContext?.nodeId ?? null);

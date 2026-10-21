@@ -73,11 +73,9 @@ export function CalendarLayoutView({
 			return;
 		}
 		setLoading(true);
-		try {
-			await onUpdate({...checked, day: true});
-		} finally {
+		await Promise.resolve(onUpdate({...checked, day: true})).finally(() => {
 			setLoading(false);
-		}
+		});
 	};
 	return (
 		<div className="flex flex-col gap-xs p-ml text-primary desktop:w-[220px]" data-calendar-layout>

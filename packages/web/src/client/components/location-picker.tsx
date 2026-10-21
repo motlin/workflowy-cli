@@ -1,7 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, MouseEvent, ReactElement, ReactNode} from "react";
 import {createPortal} from "react-dom";
-import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js";
+import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
 import type {PickerIcon, PickerRow} from "../location-picker-model.js";
@@ -111,10 +111,9 @@ function LocationCrumbs({crumbs}: {crumbs: readonly LocationCrumb[]}) {
 	const windowWidth = useWindowWidth();
 	const shown = crumbs.length === 0 ? [{id: "None", name: "Home"}] : crumbs;
 	const inputs = shown.map(({id, name}) => ({id, label: name}));
-	const inputsKey = inputs.map(({id, label}) => `${id}\u0000${label}`).join("/");
+	const inputsKey = crumbInputsKey(inputs);
 	const visible = useMemo(
-		() => layout.calculateVisibleItems(inputs, containerWidth, []),
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialized trail; inputs is rebuilt every render
+		() => layout.calculateVisibleItems(crumbInputsFromKey(inputsKey), containerWidth, []),
 		[containerWidth, inputsKey],
 	);
 	const chunks = layout.getItemGroupsWithLeftOffset(layout.getItemGroups(visible));

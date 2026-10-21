@@ -1,8 +1,9 @@
 import {skipToken, useQuery} from "@tanstack/react-query";
+import {useShallow} from "zustand/react/shallow";
 import {useCallback} from "react";
 import {nodeUrl} from "../navigation.js";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
 
@@ -50,8 +51,14 @@ async function fetchRelatedNodes(nodeId: string): Promise<RelatedNode[]> {
  * Click a result to navigate to that node.
  */
 export function RelatedNodesPanel() {
-	const {lastEditedId, relatedNodesPanelOpen, toggleRelatedNodesPanel} = useOutlineStore();
-	const navigate = useNavigate();
+	const {lastEditedId, relatedNodesPanelOpen, toggleRelatedNodesPanel} = useOutlineStore(
+		useShallow((state) => ({
+			lastEditedId: state.lastEditedId,
+			relatedNodesPanelOpen: state.relatedNodesPanelOpen,
+			toggleRelatedNodesPanel: state.toggleRelatedNodesPanel,
+		})),
+	);
+	const navigate = useStableNavigate();
 
 	const {
 		data: relatedNodes = [],

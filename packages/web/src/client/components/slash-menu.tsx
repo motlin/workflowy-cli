@@ -31,6 +31,17 @@ function isCommand(option: SlashCommandOption | SlashMathOption): option is Slas
  * bottom-left, portaled to the body, with one section header per group. Upstream's Suggest passes
  * className `" undefined"`, which lands verbatim in every row's class list.
  */
+/** Each group's first row in the menu's flat row order. */
+function groupStarts(groups: readonly {options: readonly unknown[]}[]): number[] {
+	const starts: number[] = [];
+	let next = 0;
+	for (const group of groups) {
+		starts.push(next);
+		next += group.options.length;
+	}
+	return starts;
+}
+
 export function SlashMenu({groups, index, keyboardMode, left, top, onSelect, onHover, onMouseMove}: SlashMenuProps) {
 	// Attaching the ref to a newly active row reveals it inside the menu's scroller, like upstream's keyboard-mode effect.
 	const scrollActive = useCallback((element: HTMLAnchorElement | null) => {
@@ -43,7 +54,7 @@ export function SlashMenu({groups, index, keyboardMode, left, top, onSelect, onH
 		return null;
 	}
 
-	let flatIndex = 0;
+	const starts = groupStarts(groups);
 	return createPortal(
 		<Flyout
 			align={FlyoutAlign.None}
@@ -54,14 +65,14 @@ export function SlashMenu({groups, index, keyboardMode, left, top, onSelect, onH
 			removeFromDom={false}
 		>
 			<MenuScroller onMouseMove={onMouseMove}>
-				{groups.map((group) => [
+				{groups.map((group, groupIndex) => [
 					<MenuSectionHeader key={`header-${group.name}`}>
 						<span data-ascii={`# ${group.name}`} className={`mention-group-${group.name.toLowerCase()}`}>
 							{group.name}
 						</span>
 					</MenuSectionHeader>,
-					...group.options.map((option: SlashCommandOption | SlashMathOption) => {
-						const itemIndex = flatIndex++;
+					...group.options.map((option: SlashCommandOption | SlashMathOption, optionIndex) => {
+						const itemIndex = (starts[groupIndex] ?? 0) + optionIndex;
 						const active = itemIndex === index;
 						const command = isCommand(option) ? option : undefined;
 						return (

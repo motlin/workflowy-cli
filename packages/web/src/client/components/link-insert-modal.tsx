@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
+import {useShallow} from "zustand/react/shallow";
 import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useOutlineStore} from "../stores/outline.js";
 import {readJson} from "../read-json.js";
@@ -39,7 +40,13 @@ function formatSimilarityScore(distance: number): string {
  * 2. The link format follows Workflowy's internal link format
  */
 export function LinkInsertModal() {
-	const {linkInsertOpen, linkInsertContext, closeLinkInsert} = useOutlineStore();
+	const {linkInsertOpen, linkInsertContext, closeLinkInsert} = useOutlineStore(
+		useShallow((state) => ({
+			linkInsertOpen: state.linkInsertOpen,
+			linkInsertContext: state.linkInsertContext,
+			closeLinkInsert: state.closeLinkInsert,
+		})),
+	);
 	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<NodeResult[]>([]);
 	const [relatedNodes, setRelatedNodes] = useState<RelatedNode[]>([]);
@@ -61,26 +68,25 @@ export function LinkInsertModal() {
 			// These appear automatically without typing - our differentiating feature
 			setIsLoadingRelated(true);
 			const {nodeId} = linkInsertContext;
-			void (async () => {
-				try {
-					const response = await fetch("/api/related", {
-						method: "POST",
-						headers: {"Content-Type": "application/json"},
-						body: JSON.stringify({
-							nodeId,
-							type: "link-targets",
-							limit: 8,
-							threshold: 0.6,
-						}),
-					});
-					if (response.ok) {
-						const data = await readJson<RelatedResponse>(response);
-						setRelatedNodes(data.results);
-					}
-				} finally {
-					setIsLoadingRelated(false);
+			const loadRelated = async () => {
+				const response = await fetch("/api/related", {
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
+					body: JSON.stringify({
+						nodeId,
+						type: "link-targets",
+						limit: 8,
+						threshold: 0.6,
+					}),
+				});
+				if (response.ok) {
+					const data = await readJson<RelatedResponse>(response);
+					setRelatedNodes(data.results);
 				}
-			})();
+			};
+			void loadRelated().finally(() => {
+				setIsLoadingRelated(false);
+			});
 		}
 	}, [linkInsertOpen, linkInsertContext]);
 

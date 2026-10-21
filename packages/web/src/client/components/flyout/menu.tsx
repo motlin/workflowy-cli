@@ -17,6 +17,19 @@ function isBottomSticky(node: ReactNode): node is MenuItemElement {
 	return isMenuItem(node) && node.props.bottomSticky === true;
 }
 
+/** Each enabled menu item's place among the keyboard-navigable rows, in order. */
+function navigableIndices(children: readonly ReactNode[]): number[] {
+	const indices: number[] = [];
+	let next = 0;
+	for (const child of children) {
+		indices.push(next);
+		if (isMenuItem(child) && child.props.disabled !== true) {
+			next++;
+		}
+	}
+	return indices;
+}
+
 /** Runs an item's onSelect; upstream keeps the menu open only when it returns a truthy value. */
 function keepsOpen(onSelect: (() => unknown) | undefined): boolean {
 	return Boolean(onSelect?.());
@@ -204,16 +217,16 @@ export function MenuBody({
 		focusNavigation,
 	]);
 
-	let navigableIndex = 0;
-	const cloneItem = (child: ReactNode): ReactNode => {
+	const items = Children.toArray(children);
+	const sticky = items.filter(isBottomSticky);
+	const ordered = [...items.filter((child) => !isBottomSticky(child)), ...sticky];
+	const indices = navigableIndices(ordered);
+	const cloneItem = (child: ReactNode, position: number): ReactNode => {
 		if (!isMenuItem(child)) {
 			return child;
 		}
-		const index = navigableIndex;
+		const index = indices[position] ?? -1;
 		const enabled = child.props.disabled !== true;
-		if (enabled) {
-			navigableIndex++;
-		}
 		return cloneElement(child, {
 			isSelected: state.keyboardMode && enabled && state.index === index,
 			isInKeyboardMode: state.keyboardMode,
@@ -231,14 +244,8 @@ export function MenuBody({
 		});
 	};
 
-	const sticky: MenuItemElement[] = [];
-	const body = Children.map(children, (child): ReactNode => {
-		if (isBottomSticky(child)) {
-			sticky.push(child);
-			return null;
-		}
-		return cloneItem(child);
-	});
+	const cloned = ordered.map(cloneItem);
+	const body = cloned.slice(0, ordered.length - sticky.length);
 	return (
 		<>
 			<MenuScroller
@@ -251,7 +258,7 @@ export function MenuBody({
 			>
 				{body}
 			</MenuScroller>
-			{sticky.map(cloneItem)}
+			{cloned.slice(ordered.length - sticky.length)}
 		</>
 	);
 }

@@ -1,7 +1,7 @@
 import {useEffect} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {escapeAction} from "../search-escape.js";
 import {isModalOpen, useOutlineStore} from "../stores/outline.js";
@@ -87,7 +87,7 @@ function popupOwnsEscape(): boolean {
  */
 export function useSearchEscape(): void {
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent): void => {

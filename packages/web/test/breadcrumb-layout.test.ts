@@ -1,5 +1,10 @@
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
-import {createBreadcrumbLayout, measureCrumbLabel} from "../src/client/breadcrumb-layout.js";
+import {
+	createBreadcrumbLayout,
+	crumbInputsFromKey,
+	crumbInputsKey,
+	measureCrumbLabel,
+} from "../src/client/breadcrumb-layout.js";
 import type {CrumbInput} from "../src/client/breadcrumb-layout.js";
 
 const measure = (label: string): number => label.length * 7;
@@ -141,5 +146,21 @@ describe("measureCrumbLabel", () => {
 			calls: context.measureText.mock.calls.length,
 			fonts,
 		}).toStrictEqual({first: label.length * 8, second: label.length * 8, calls: 1, fonts: ["14.22px Test Sans"]});
+	});
+});
+
+describe("crumbInputsKey", () => {
+	it("round-trips a trail whose labels hold slashes and spaces", () => {
+		const items = crumbs(["Home", "a/b", "", "x y"]);
+		expect(crumbInputsFromKey(crumbInputsKey(items))).toStrictEqual(items);
+	});
+
+	it("round-trips an empty trail", () => {
+		expect(crumbInputsFromKey(crumbInputsKey([]))).toStrictEqual([]);
+	});
+
+	it("gives equal trails equal keys and different trails different keys", () => {
+		expect(crumbInputsKey(crumbs(["Home", "a"]))).toBe(crumbInputsKey(crumbs(["Home", "a"])));
+		expect(crumbInputsKey(crumbs(["Home", "a"]))).not.toBe(crumbInputsKey(crumbs(["Home", "b"])));
 	});
 });

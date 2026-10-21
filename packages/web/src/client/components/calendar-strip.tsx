@@ -1,7 +1,7 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {dateId, dayTimestamp, formatPillLabel, guessDates, presetDate, stripModel} from "@workflowy/shared";
 import type {CalendarLevel, DatePreset} from "@workflowy/shared";
 import type {NodeResponse} from "../../node-types.js";
@@ -221,7 +221,7 @@ function isStripDrop(event: Event): event is CustomEvent<StripDropDetail> {
  */
 function useStripDrop(scroller: HTMLDivElement | null, level: StripLevel): void {
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const {mutate: moveNodes} = useMoveNodes();
 	const {dateFormat} = useDateSettings();
 	useEffect(() => {

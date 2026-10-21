@@ -1,5 +1,8 @@
 import {useQueryClient} from "@tanstack/react-query";
-import {useNavigate} from "react-router-dom";
+import type {QueryClient} from "@tanstack/react-query";
+import {useCallback} from "react";
+import {useStableNavigate} from "./use-stable-navigate.js";
+import type {NavigateFunction} from "react-router-dom";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {goToNode, planZoomFocus} from "../navigation.js";
 import type {ZoomFocus} from "../navigation.js";
@@ -22,86 +25,95 @@ import {scrollSidePaneToTop} from "../components/pane-context.js";
  * the zoom animation (which finds rows document-wide).
  */
 export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Promise<void> {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const queryClient = useQueryClient();
+	return useCallback(
+		async (targetId: string | null, focus: ZoomFocus) => zoomTo(queryClient, navigate, targetId, focus),
+		[queryClient, navigate],
+	);
+}
 
-	return async (targetId, focus) => {
-		const state = useOutlineStore.getState();
-		const {editingId, showCompleted, animatingCompletionIds, resumeEditing, stopEditing, zoomSidePane} = state;
-		const zoomedNodeId = activeZoomedId(state);
-		const inSidePane = state.activePaneId === SIDE_PANE_ID && state.sidePane !== null;
-		const editor = editingId === null ? null : editorElement(editingId);
-		const previousOffset = editor ? caretTextOffset(editor) : 0;
-		const parentOfZoomed = zoomedNodeId === null ? null : (readNode(queryClient, zoomedNodeId)?.parent_id ?? null);
-		const zoomingInto = focus === "first_child" && targetId !== zoomedNodeId;
-		const children = zoomingInto
-			? await queryClient.query({
-					queryKey: nodeKeys.children(targetId),
-					queryFn: async () => fetchChildren(targetId),
-					staleTime: "static",
-				})
-			: undefined;
-		const firstChild = sortByPriority(children ?? []).find((node) =>
-			isPotentiallyVisible(node, showCompleted, animatingCompletionIds),
-		);
-		const plan = planZoomFocus(focus, {
-			zoomedId: zoomedNodeId,
-			targetId,
-			firstChildId: firstChild?.id ?? null,
-			parentOfZoomed,
-			previousEditingId: editingId,
-			previousOffset,
+async function zoomTo(
+	queryClient: QueryClient,
+	navigate: NavigateFunction,
+	targetId: string | null,
+	focus: ZoomFocus,
+): Promise<void> {
+	const state = useOutlineStore.getState();
+	const {editingId, showCompleted, animatingCompletionIds, resumeEditing, stopEditing, zoomSidePane} = state;
+	const zoomedNodeId = activeZoomedId(state);
+	const inSidePane = state.activePaneId === SIDE_PANE_ID && state.sidePane !== null;
+	const editor = editingId === null ? null : editorElement(editingId);
+	const previousOffset = editor ? caretTextOffset(editor) : 0;
+	const parentOfZoomed = zoomedNodeId === null ? null : (readNode(queryClient, zoomedNodeId)?.parent_id ?? null);
+	const zoomingInto = focus === "first_child" && targetId !== zoomedNodeId;
+	const children = zoomingInto
+		? await queryClient.query({
+				queryKey: nodeKeys.children(targetId),
+				queryFn: async () => fetchChildren(targetId),
+				staleTime: "static",
+			})
+		: undefined;
+	const firstChild = sortByPriority(children ?? []).find((node) =>
+		isPotentiallyVisible(node, showCompleted, animatingCompletionIds),
+	);
+	const plan = planZoomFocus(focus, {
+		zoomedId: zoomedNodeId,
+		targetId,
+		firstChildId: firstChild?.id ?? null,
+		parentOfZoomed,
+		previousEditingId: editingId,
+		previousOffset,
+	});
+	if (plan === null) {
+		return;
+	}
+	editor?.blur();
+	const destination = focus === "first_child" ? targetId : parentOfZoomed;
+	// Upstream `isOut`: the zoomed node is a descendant of the destination. Bullet zooms only reach rows below the
+	// zoomed node, so zooming out is `last_selected` or zooming home from a node.
+	const isOut = focus === "last_selected" || (destination === null && zoomedNodeId !== null);
+	const movingId = isOut ? zoomedNodeId : targetId;
+	const isBoard = (id: string | null) => id !== null && readNode(queryClient, id)?.data.layoutMode === "board";
+	const animate =
+		!inSidePane && movingId !== null && zoomAnimationEnabled(isBoard(zoomedNodeId) || isBoard(destination));
+	if (animate) {
+		document.body.classList.add(ZOOMING_CLASS);
+	}
+	try {
+		// Zooming in animates first, then navigates; zooming out navigates, then animates.
+		if (animate && !isOut) {
+			await runZoomAnimation(false, movingId);
+		}
+		showZoom(destination, plan.scrollTop, {
+			inSidePane,
+			zoomSidePane,
+			goToNode: (id) => {
+				if (id !== null) {
+					seedResolvedId(queryClient, id);
+				}
+				goToNode(navigate, id);
+			},
+			scrollToTop: (pane) => {
+				if (pane === "side") {
+					scrollSidePaneToTop();
+				} else {
+					globalThis.scrollTo(0, 0);
+				}
+			},
 		});
-		if (plan === null) {
-			return;
+		if (plan.editId === null) {
+			stopEditing();
+		} else {
+			resumeEditing(plan.editId, plan.offset);
 		}
-		editor?.blur();
-		const destination = focus === "first_child" ? targetId : parentOfZoomed;
-		// Upstream `isOut`: the zoomed node is a descendant of the destination. Bullet zooms only reach rows below the
-		// zoomed node, so zooming out is `last_selected` or zooming home from a node.
-		const isOut = focus === "last_selected" || (destination === null && zoomedNodeId !== null);
-		const movingId = isOut ? zoomedNodeId : targetId;
-		const isBoard = (id: string | null) => id !== null && readNode(queryClient, id)?.data.layoutMode === "board";
-		const animate =
-			!inSidePane && movingId !== null && zoomAnimationEnabled(isBoard(zoomedNodeId) || isBoard(destination));
+		if (animate && isOut) {
+			await waitForZoomRow(movingId);
+			await runZoomAnimation(true, movingId);
+		}
+	} finally {
 		if (animate) {
-			document.body.classList.add(ZOOMING_CLASS);
+			document.body.classList.remove(ZOOMING_CLASS);
 		}
-		try {
-			// Zooming in animates first, then navigates; zooming out navigates, then animates.
-			if (animate && !isOut) {
-				await runZoomAnimation(false, movingId);
-			}
-			showZoom(destination, plan.scrollTop, {
-				inSidePane,
-				zoomSidePane,
-				goToNode: (id) => {
-					if (id !== null) {
-						seedResolvedId(queryClient, id);
-					}
-					goToNode(navigate, id);
-				},
-				scrollToTop: (pane) => {
-					if (pane === "side") {
-						scrollSidePaneToTop();
-					} else {
-						globalThis.scrollTo(0, 0);
-					}
-				},
-			});
-			if (plan.editId === null) {
-				stopEditing();
-			} else {
-				resumeEditing(plan.editId, plan.offset);
-			}
-			if (animate && isOut) {
-				await waitForZoomRow(movingId);
-				await runZoomAnimation(true, movingId);
-			}
-		} finally {
-			if (animate) {
-				document.body.classList.remove(ZOOMING_CLASS);
-			}
-		}
-	};
+	}
 }

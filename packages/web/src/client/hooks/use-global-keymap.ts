@@ -1,6 +1,6 @@
 import {useEffect, useRef} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "./use-stable-navigate.js";
 import {isMacPlatform} from "../editable-text-keys.js";
 import {
 	deferToFocusedControl,
@@ -45,7 +45,7 @@ export function activeCommandRegistry(): CommandRegistry {
  */
 export function useGlobalKeymap(registry: CommandRegistry): void {
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const {mutate: deleteNode} = useDeleteNode();
 	const registryRef = useRef(registry);
 	useEffect(() => {

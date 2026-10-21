@@ -43,6 +43,7 @@
 		"@types/react-dom": "^19.3.0",
 		"@vitejs/plugin-react": "^6.1.2",
 		"concurrently": "^10.0.6",
+		"happy-dom": "^21.0.4",
 		"storybook": "^10.6.1",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",

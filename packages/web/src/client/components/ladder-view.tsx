@@ -64,6 +64,58 @@ function previewList(items: LadderItem[]): React.ReactNode {
 /** The server answered and refused the write, so the page knows it did not land. */
 class WriteRejected extends Error {}
 
+function errorMessage(cause: unknown): string {
+	return cause instanceof Error ? cause.message : String(cause);
+}
+
+async function fetchLadders(): Promise<Ladders> {
+	const response = await fetch("/api/v1/ladder");
+	if (!response.ok) {
+		throw new Error(`ladder request failed: ${response.status}`);
+	}
+	const body = await readJson<{ladders: Ladders}>(response);
+	return body.ladders;
+}
+
+type LadderWriteResult = {kind: "saved"; event: LadderEvent} | {kind: "reconcile"; error: string};
+
+/** POSTs one ladder write; throws WriteRejected when the server refuses it without asking to reconcile. */
+async function postLadderWrite(path: string, body: Record<string, string>): Promise<LadderWriteResult> {
+	const response = await fetch(path, {
+		method: "POST",
+		headers: {"content-type": "application/json"},
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		const failure = await readJson<{error?: string; reconcile?: boolean}>(response);
+		if (failure.reconcile) {
+			return {kind: "reconcile", error: failure.error ?? "Move failed"};
+		}
+		throw new WriteRejected(failure.error ?? `write failed: ${response.status}`);
+	}
+	const {event} = await readJson<{event: LadderEvent}>(response);
+	return {kind: "saved", event};
+}
+
+/** Creates the next tier at the top of `bucketId`, then rereads the ladder; `onCreated` runs between the two. */
+async function addTierAndRefresh(bucketId: string, tier: number, onCreated: () => void): Promise<Ladders> {
+	const response = await fetch("/api/v1/nodes", {
+		method: "POST",
+		headers: {"content-type": "application/json"},
+		body: JSON.stringify({parent_id: bucketId, name: tierLabel(tier), position: 0}),
+	});
+	if (!response.ok) {
+		throw new Error(`Could not add a tier: ${response.status}`);
+	}
+	onCreated();
+	const refreshed = await fetch("/api/v1/ladder");
+	if (!refreshed.ok) {
+		throw new Error(`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`);
+	}
+	const body = await readJson<{ladders: Ladders}>(refreshed);
+	return body.ladders;
+}
+
 export function LadderView() {
 	const [ladders, setLadders] = useState<Ladders>();
 	const [root, setRoot] = useState("personal");
@@ -104,19 +156,16 @@ export function LadderView() {
 	}, []);
 
 	useEffect(() => {
-		void (async () => {
+		const load = async () => {
 			try {
-				const response = await fetch("/api/v1/ladder");
-				if (!response.ok) {
-					throw new Error(`ladder request failed: ${response.status}`);
-				}
-				const body = await readJson<{ladders: Ladders}>(response);
-				laddersRef.current = body.ladders;
-				setLadders(body.ladders);
+				const loaded = await fetchLadders();
+				laddersRef.current = loaded;
+				setLadders(loaded);
 			} catch (cause) {
-				setError(cause instanceof Error ? cause.message : String(cause));
+				setError(errorMessage(cause));
 			}
-		})();
+		};
+		void load();
 	}, []);
 
 	// Every write, from this tab or any other, arrives here as one frame.
@@ -176,21 +225,13 @@ export function LadderView() {
 			setRowErrors((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== nodeId)));
 			updateLadders(optimistic);
 			try {
-				const response = await fetch(path, {
-					method: "POST",
-					headers: {"content-type": "application/json"},
-					body: JSON.stringify(body),
-				});
-				if (!response.ok) {
-					const failure = await readJson<{error?: string; reconcile?: boolean}>(response);
-					if (failure.reconcile) {
-						setRowErrors((current) => ({...current, [nodeId]: failure.error ?? "Move failed"}));
-						await reread();
-						return false;
-					}
-					throw new WriteRejected(failure.error ?? `write failed: ${response.status}`);
+				const result = await postLadderWrite(path, body);
+				if (result.kind === "reconcile") {
+					setRowErrors((current) => ({...current, [nodeId]: result.error}));
+					await reread();
+					return false;
 				}
-				const {event} = await readJson<{event: LadderEvent}>(response);
+				const {event} = result;
 				if (receivedWrites.current.get(nodeId) === lastReceived) {
 					updateLadders((current) => applyLadderEvent(current, event));
 				}
@@ -206,10 +247,7 @@ export function LadderView() {
 					return false;
 				}
 				updateLadders((current) => restoreRow(current, before, nodeId));
-				setRowErrors((current) => ({
-					...current,
-					[nodeId]: cause instanceof Error ? cause.message : String(cause),
-				}));
+				setRowErrors((current) => ({...current, [nodeId]: errorMessage(cause)}));
 				return false;
 			}
 		},
@@ -229,32 +267,31 @@ export function LadderView() {
 			const stepping = typeof placement === "object";
 			const beforeNodeId = stepping ? stepBeforeId(ladder, toTier, placement.step, ids) : placement;
 			claim(ids);
-			void (async () => {
-				try {
-					for (const id of ids) {
-						const current = laddersRef.current;
-						const alreadyThere = current && tierOf(current, root, id) === toTier;
-						if (!current || (alreadyThere && (stepping || beforeNodeId === undefined))) {
-							continue;
-						}
-						const saved = await write(
-							"/api/v1/ladder/move",
-							{
-								root,
-								node_id: id,
-								to_tier: toTier,
-								...(beforeNodeId === undefined ? {} : {before_id: beforeNodeId}),
-							},
-							(state) => moveWithin(state, root, id, toTier, beforeNodeId),
-						);
-						if (!saved) {
-							break;
-						}
+			const moveEach = async () => {
+				for (const id of ids) {
+					const current = laddersRef.current;
+					const alreadyThere = current && tierOf(current, root, id) === toTier;
+					if (!current || (alreadyThere && (stepping || beforeNodeId === undefined))) {
+						continue;
 					}
-				} finally {
-					release(ids);
+					const saved = await write(
+						"/api/v1/ladder/move",
+						{
+							root,
+							node_id: id,
+							to_tier: toTier,
+							...(beforeNodeId === undefined ? {} : {before_id: beforeNodeId}),
+						},
+						(state) => moveWithin(state, root, id, toTier, beforeNodeId),
+					);
+					if (!saved) {
+						break;
+					}
 				}
-			})();
+			};
+			void moveEach().finally(() => {
+				release(ids);
+			});
 		},
 		[root, selected, write, needsReload, claim, release],
 	);
@@ -361,43 +398,6 @@ export function LadderView() {
 		[move, cancelDrag],
 	);
 
-	const onRowClick = (event: React.MouseEvent, nodeId: string) => {
-		if (!(event.target instanceof Element) || event.target.closest("button, a, input, select")) {
-			return;
-		}
-		if (suppressClick.current) {
-			suppressClick.current = false;
-			return;
-		}
-		if (
-			!event.shiftKey &&
-			event.target.closest(".ladder-text") &&
-			globalThis.getSelection()?.isCollapsed === false
-		) {
-			return;
-		}
-		select(nodeId, event.shiftKey, event.metaKey || event.ctrlKey);
-	};
-
-	const complete = useCallback(
-		(nodeId: string) => {
-			if (busy.current || inFlight.current.has(nodeId)) {
-				return;
-			}
-			claim([nodeId]);
-			void (async () => {
-				try {
-					await write("/api/v1/ladder/complete", {root, node_id: nodeId}, (current) =>
-						removeRow(current, nodeId),
-					);
-				} finally {
-					release([nodeId]);
-				}
-			})();
-		},
-		[root, write, claim, release],
-	);
-
 	const select = (nodeId: string, range: boolean, additive = false) => {
 		if (busy.current) {
 			return;
@@ -422,6 +422,39 @@ export function LadderView() {
 			});
 		}
 	};
+	const onRowClick = (event: React.MouseEvent, nodeId: string) => {
+		if (!(event.target instanceof Element) || event.target.closest("button, a, input, select")) {
+			return;
+		}
+		if (suppressClick.current) {
+			suppressClick.current = false;
+			return;
+		}
+		if (
+			!event.shiftKey &&
+			event.target.closest(".ladder-text") &&
+			globalThis.getSelection()?.isCollapsed === false
+		) {
+			return;
+		}
+		select(nodeId, event.shiftKey, event.metaKey || event.ctrlKey);
+	};
+
+	const complete = useCallback(
+		(nodeId: string) => {
+			if (busy.current || inFlight.current.has(nodeId)) {
+				return;
+			}
+			claim([nodeId]);
+			const saved = write("/api/v1/ladder/complete", {root, node_id: nodeId}, (current) =>
+				removeRow(current, nodeId),
+			);
+			void saved.finally(() => {
+				release([nodeId]);
+			});
+		},
+		[root, write, claim, release],
+	);
 
 	const addTier = async () => {
 		const ladder = laddersRef.current?.[root];
@@ -432,35 +465,17 @@ export function LadderView() {
 		setSaving(true);
 		setError(undefined);
 		try {
-			const response = await fetch("/api/v1/nodes", {
-				method: "POST",
-				headers: {"content-type": "application/json"},
-				body: JSON.stringify({
-					parent_id: ladder.bucketId,
-					name: tierLabel((ladder.tiers.at(-1)?.tier ?? 0) + 1),
-					position: 0,
-				}),
+			const refreshed = await addTierAndRefresh(ladder.bucketId, (ladder.tiers.at(-1)?.tier ?? 0) + 1, () => {
+				setNeedsReload(true);
 			});
-			if (!response.ok) {
-				throw new Error(`Could not add a tier: ${response.status}`);
-			}
-			setNeedsReload(true);
-			const refreshed = await fetch("/api/v1/ladder");
-			if (!refreshed.ok) {
-				throw new Error(
-					`Tier created; could not refresh ladder: ${refreshed.status}. Reload before adding another.`,
-				);
-			}
-			const body = await readJson<{ladders: Ladders}>(refreshed);
-			laddersRef.current = body.ladders;
-			setLadders(body.ladders);
+			laddersRef.current = refreshed;
+			setLadders(refreshed);
 			setNeedsReload(false);
 		} catch (cause) {
-			setError(cause instanceof Error ? cause.message : String(cause));
-		} finally {
-			busy.current = false;
-			setSaving(false);
+			setError(errorMessage(cause));
 		}
+		busy.current = false;
+		setSaving(false);
 	};
 
 	const roots = useMemo(() => Object.keys(ladders ?? {}), [ladders]);

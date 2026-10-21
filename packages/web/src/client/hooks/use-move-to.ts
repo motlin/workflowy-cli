@@ -1,5 +1,5 @@
 import {useQueryClient} from "@tanstack/react-query";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretAnchor, caretBoxes, caretTextOffset, editorElement, rowContent} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
 import {editingAfterRemoval} from "../caret-navigation.js";
@@ -41,7 +41,7 @@ async function loadMoveTarget(id: string): Promise<LoadedMoveTarget> {
  */
 export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const {mutate: moveNodes} = useMoveNodes();
 
 	return async (itemIds) => {

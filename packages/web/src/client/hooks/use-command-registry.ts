@@ -3,7 +3,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {goToNode, nodeUrl, stepNav} from "../navigation.js";
 import {nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "./use-stable-navigate.js";
 import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {caretTextOffset, editorElement, placeCaretAtTextOffset} from "../caret-dom.js";
@@ -114,7 +114,7 @@ function isJumpMenuOpen(): boolean {
  * layout commands set the layout rather than toggling it.
  */
 export function useCommandRegistry(): CommandRegistry {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const queryClient = useQueryClient();
 	const zoomedNodeId = useOutlineStore(activeZoomedId);
 	const editingId = useOutlineStore((state) => state.editingId);

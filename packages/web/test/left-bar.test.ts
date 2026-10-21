@@ -43,6 +43,7 @@ vi.mock("../src/client/hooks/use-starred.js", () => ({
 	useStars: () => ({stars: [], unavailable: false}),
 }));
 vi.mock("react-router-dom", () => ({useNavigate: () => navigateMock}));
+vi.mock("../src/client/hooks/use-stable-navigate.js", () => ({useStableNavigate: () => navigateMock}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: () => ({data: rootChildren}),
 	useCreateNode: () => ({mutate: mutateMock}),

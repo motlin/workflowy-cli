@@ -36,6 +36,25 @@ export interface BreadcrumbLayout {
 	getItemGroupsWithLeftOffset(groups: LayoutCrumb[][]): CrumbChunkWithOffset[];
 }
 
+const FIELD_SEPARATOR = "\u0000";
+const ITEM_SEPARATOR = "\u0001";
+
+/** A string that is equal for equal trails, so a memo can key on the trail instead of a rebuilt array. */
+export function crumbInputsKey(items: readonly CrumbInput[]): string {
+	return items.map(({id, label}) => `${id}${FIELD_SEPARATOR}${label}`).join(ITEM_SEPARATOR);
+}
+
+/** The trail `crumbInputsKey` encoded. */
+export function crumbInputsFromKey(key: string): CrumbInput[] {
+	if (key === "") {
+		return [];
+	}
+	return key.split(ITEM_SEPARATOR).map((item) => {
+		const [id = "", label = ""] = item.split(FIELD_SEPARATOR);
+		return {id, label};
+	});
+}
+
 const MIN_WIDTH_WHEN_TWO_LEFT = 48;
 
 /** Number of collapsed runs that are followed by a visible crumb. */

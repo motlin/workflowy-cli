@@ -1,9 +1,10 @@
 import {useEffect, useRef} from "react";
+import {useShallow} from "zustand/react/shallow";
 import type {ReactNode, PointerEvent as ReactPointerEvent} from "react";
 import {label} from "@workflowy/shared";
 import type {Star} from "@workflowy/shared";
 import {locationUrl} from "../location.js";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useRecordStarViews, useStarActions, useStarredLocations} from "../hooks/use-starred.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -34,7 +35,7 @@ function swallow(event: {preventDefault: () => void; stopPropagation: () => void
  * opens the page and adds an empty first child. Clicks never follow the row's link.
  */
 export function StarredRowControls({star}: {star: Star}) {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const {toggleStar} = useStarActions();
 	const createNode = useCreateNode();
 	const startEditing = useOutlineStore((state) => state.startEditing);
@@ -246,7 +247,7 @@ export function LeftBarSection({
 
 /** Upstream's Home section label: a root link that does not toggle the section. */
 export function HomeSectionName() {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a plain clickable span
 		<span
@@ -339,7 +340,17 @@ export function LeftBar() {
 		closeLeftBarDrawer,
 		setLeftBarHovered,
 		setLeftBarWidth,
-	} = useOutlineStore();
+	} = useOutlineStore(
+		useShallow((state) => ({
+			leftBarMode: state.leftBarMode,
+			leftBarWidth: state.leftBarWidth,
+			leftBarHovered: state.leftBarHovered,
+			toggleLeftBar: state.toggleLeftBar,
+			closeLeftBarDrawer: state.closeLeftBarDrawer,
+			setLeftBarHovered: state.setLeftBarHovered,
+			setLeftBarWidth: state.setLeftBarWidth,
+		})),
+	);
 	const pinned = mode === "alwaysOpen";
 	const drawerOpen = mode === "drawerOpen";
 	const closed = mode === "drawerClosed";

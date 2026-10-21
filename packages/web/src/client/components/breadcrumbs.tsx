@@ -1,6 +1,6 @@
 import {Fragment, useMemo, useRef, useState} from "react";
 import type {MouseEvent} from "react";
-import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js";
+import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
@@ -296,11 +296,11 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 	);
 
 	// Upstream memoizes on width and the joined id path, not on array identity.
-	const inputsKey = inputs.map(({id, label}) => `${id}\u0000${label}`).join("/");
+	const inputsKey = crumbInputsKey(inputs);
+	const zoomedKey = zoomedIds.join("/");
 	const visible = useMemo(
-		() => layout.calculateVisibleItems(inputs, containerWidth, zoomedIds),
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialized trail; inputs and zoomedIds are rebuilt every render
-		[containerWidth, inputsKey],
+		() => layout.calculateVisibleItems(crumbInputsFromKey(inputsKey), containerWidth, zoomedKey.split("/")),
+		[containerWidth, inputsKey, zoomedKey],
 	);
 	const chunks = layout.getItemGroupsWithLeftOffset(layout.getItemGroups(visible));
 	const crumbsById = new Map(crumbs.map((crumb) => [crumb.id, crumb]));
@@ -411,10 +411,9 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 		id: crumb.id,
 		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dateOptions),
 	}));
-	const inputsKey = inputs.map(({id, label}) => `${id}\u0000${label}`).join("/");
+	const inputsKey = crumbInputsKey(inputs);
 	const visible = useMemo(
-		() => leftCollapseLayout.calculateVisibleItems(inputs, containerWidth, []),
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialized trail; inputs is rebuilt every render
+		() => leftCollapseLayout.calculateVisibleItems(crumbInputsFromKey(inputsKey), containerWidth, []),
 		[containerWidth, inputsKey],
 	);
 	const chunks = leftCollapseLayout.getItemGroupsWithLeftOffset(leftCollapseLayout.getItemGroups(visible));

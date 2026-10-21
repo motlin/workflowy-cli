@@ -97,25 +97,26 @@ function FlyoutSurface({
 		[ref],
 	);
 
+	// Upstream runs this once on mount, so later scrollIntoView changes are ignored.
+	const [scrollOnMount] = useState(scrollIntoView);
 	useEffect(() => {
 		document.body.classList.add("fly");
-		if (scrollIntoView) {
+		if (scrollOnMount) {
 			elementRef.current?.scrollIntoView({block: "nearest"});
 		}
 		return () => {
 			document.body.classList.remove("fly");
 		};
-		// Upstream runs this once on mount.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	}, [scrollOnMount]);
 
+	const shifts = expanded !== false && align !== FlyoutAlign.None;
+	// A hidden or unaligned flyout drops its shift, so the next showing measures from zero.
+	if (!shifts && shiftY !== 0) {
+		setShiftY(0);
+	}
 	useLayoutEffect(() => {
 		const element = elementRef.current;
-		if (!element) {
-			return;
-		}
-		if (expanded === false || align === FlyoutAlign.None) {
-			setShiftY(0);
+		if (!element || !shifts) {
 			return;
 		}
 		// Upstream leaves the previous shift in place when the flyout already fits.
@@ -123,7 +124,7 @@ function FlyoutSurface({
 		if (shift !== 0) {
 			setShiftY(shift);
 		}
-	}, [align, expanded]);
+	}, [shifts]);
 
 	const box = popoverBox({surfaceName: surfaceClassName || undefined, minWidth, maxWidth, offset});
 	const positioning = flyoutStyle({position, offset, align, expanded, rounded, dense, maxHeight, shiftY});

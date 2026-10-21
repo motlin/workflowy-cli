@@ -1,6 +1,6 @@
 import {useState} from "react";
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useChildren} from "../hooks/use-nodes.js";
 import {nodeUrl} from "../navigation.js";
@@ -102,7 +102,7 @@ export function LeftBarRow({
 	label: ReactNode;
 	controls?: ReactNode;
 }) {
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const [hovered, setHovered] = useState(false);
 
 	const handleClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {

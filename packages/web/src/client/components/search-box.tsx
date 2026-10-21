@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
-import {useNavigate} from "react-router-dom";
+import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {isMacPlatform} from "../editable-text-keys.js";
 import {useMediaQuery} from "../hooks/use-media-query.js";
 import {focusOutline} from "../hooks/use-search-escape.js";
@@ -60,7 +60,7 @@ export function SearchBox() {
 	const setSearchInput = useOutlineStore((state) => state.setSearchInput);
 	const focused = useOutlineStore((state) => state.searchFocused);
 	const setSearchFocused = useOutlineStore((state) => state.setSearchFocused);
-	const navigate = useNavigate();
+	const navigate = useStableNavigate();
 	const queryClient = useQueryClient();
 	const controller = useMemo(
 		() =>
