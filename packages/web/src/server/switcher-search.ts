@@ -112,6 +112,23 @@ function matchFields(row: TreeSearchRow, text: RowText): [string, string, string
 	return text.fields;
 }
 
+/**
+ * Fill every row's text caches, the tree index and each row's placement ahead of the first jump-menu keystroke. Run off the request path
+ * after each snapshot refresh: cold, these cost about a second on a large tree, which the first query would pay.
+ */
+export function warmSwitcher(rows: readonly TreeSearchRow[]): void {
+	const index = rowIndex(rows);
+	for (const row of rows) {
+		matchFields(row, rowText(row));
+		placement(row, index);
+	}
+}
+
+/** A row's cached jump-menu text, or undefined before it is computed, for tests. */
+export function peekSwitcherText(row: TreeSearchRow): RowText | undefined {
+	return textCache.get(row);
+}
+
 /** Depth below Home and whether any ancestor is completed, memoised per tree. */
 function placement(row: TreeSearchRow, index: RowIndex): Placement {
 	const cached = index.placements.get(row.id);

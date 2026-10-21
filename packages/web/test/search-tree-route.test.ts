@@ -19,6 +19,7 @@ import {
 	scheduleTreeSnapshotRebuild,
 	warmTreeSnapshot,
 } from "../src/server/tree-snapshot.js";
+import {peekSwitcherText} from "../src/server/switcher-search.js";
 
 const migrationsFolder = join(import.meta.dirname, "../../shared/src/db/migrations");
 const SEEDED_AT = "2026-01-01 00:00:00.000";
@@ -218,6 +219,13 @@ describe("loadTreeRows", () => {
 		expect(idSet(loadTreeRows(db, "a"))).toStrictEqual(new Set(["a", "a1"]));
 		expect(idSet(loadTreeRows(db, "refs"))).toStrictEqual(idSet(loadTreeSearchRows(db, "refs")));
 		expect(loadTreeRows(db, "missing")).toStrictEqual([]);
+	});
+
+	it("warms the jump-menu text of every row when it warms the snapshot", () => {
+		const db = setup();
+		warmTreeSnapshot(db);
+		const rows = peekTreeSnapshotRows(db) ?? [];
+		expect(rows.filter((row) => peekSwitcherText(row)?.fields === undefined)).toStrictEqual([]);
 	});
 
 	it("reuses one snapshot while the database is unchanged", () => {

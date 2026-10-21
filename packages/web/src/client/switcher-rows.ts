@@ -26,7 +26,10 @@ export function starredNodeIds(stars: readonly Star[]): string[] {
 	return [...new Set(stars.flatMap((star) => (star.nodeId === null ? [] : [star.nodeId])))];
 }
 
-/** `pending` is the first request of this opening; later requests keep the previous results. */
+/**
+ * `idle` until the first request of this opening answers; `pending` once that request is slow enough to say so.
+ * Later requests keep the previous results.
+ */
 export type SwitcherSearchStatus = "idle" | "pending" | "done" | "error";
 
 export interface SwitcherServerResults {
@@ -84,7 +87,10 @@ function emptyState(filter: string, rows: readonly SwitcherRow[], status: Switch
 	if (status === "error") {
 		return {emptyText: SEARCH_UNAVAILABLE, indexing: false};
 	}
-	if (status === "pending" || status === "idle") {
+	if (status === "idle") {
+		return {emptyText: null, indexing: false};
+	}
+	if (status === "pending") {
 		return {emptyText: INDEXING, indexing: true};
 	}
 	return {emptyText: rows.length === 0 ? NO_MATCHES : null, indexing: false};

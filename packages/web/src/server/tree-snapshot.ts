@@ -4,6 +4,7 @@ import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
 import type {MiddlewareHandler} from "hono";
 import type {getDatabase} from "./db.js";
+import {warmSwitcher} from "./switcher-search.js";
 import {changedNodeIds, changesSince, latestSystemTime, readConsistently} from "./system-changes.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
@@ -404,13 +405,15 @@ function refreshSnapshot(database: Database, state: ChangeState): TreeSnapshot {
 	return snapshot;
 }
 
-/** Rebuild the snapshot now unless it is already current. Called at server start so the first search is warm. */
+/**
+ * Rebuild the snapshot now unless it is already current, then warm the jump menu's per-row caches for it.
+ * Called at server start and by the debounced background rebuild, so the first search is warm.
+ */
 export function warmTreeSnapshot(database: Database): void {
 	const state = changeState(database);
 	const cached = snapshots.get(database);
-	if (cached === undefined || !isCurrent(cached, state)) {
-		refreshSnapshot(database, state);
-	}
+	const snapshot = cached === undefined || !isCurrent(cached, state) ? refreshSnapshot(database, state) : cached;
+	warmSwitcher(snapshot.rows);
 }
 
 /**

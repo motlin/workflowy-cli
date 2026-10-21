@@ -98,7 +98,11 @@ describe("buildSwitcherRows", () => {
 		});
 	});
 
-	it("shows the indexing message while the first request is pending", () => {
+	it("says nothing while the first request is in flight but not yet slow", () => {
+		expect(buildSwitcherRows([], IDLE, "qwzx")).toStrictEqual({rows: [], emptyText: null, indexing: false});
+	});
+
+	it("shows the indexing message once the first request is slow", () => {
 		expect(buildSwitcherRows([], {status: "pending", results: []}, "qwzx")).toStrictEqual({
 			rows: [],
 			emptyText: "Indexing your data! One sec …",

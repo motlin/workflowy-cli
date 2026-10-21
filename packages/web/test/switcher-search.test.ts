@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {rankSwitcher} from "../src/server/switcher-search.js";
+import {peekSwitcherText, rankSwitcher, warmSwitcher} from "../src/server/switcher-search.js";
 import type {TreeSearchRow} from "../src/server/tree-search.js";
 
 const NOW_SEC = Date.UTC(2026, 9, 1) / 1000;
@@ -120,6 +120,21 @@ describe("rankSwitcher", () => {
 		expect({ids: all.results.map((result) => result.id), hasMore: all.hasMore}).toStrictEqual({
 			ids: ["cafe", "tagged"],
 			hasMore: false,
+		});
+	});
+});
+
+describe("warmSwitcher", () => {
+	it("precomputes each row's stripped and folded text, so the first jump-menu keystroke does no per-row work", () => {
+		const rows = [row("warm", null, 0, "<b>Alpha</b> Page", {note: "Beta Note"})];
+		expect(peekSwitcherText(rows[0])).toBeUndefined();
+		warmSwitcher(rows);
+		expect(peekSwitcherText(rows[0])).toStrictEqual({
+			plainName: "Alpha Page",
+			plainNote: "Beta Note",
+			foldedName: "alpha page",
+			foldedNote: "beta note",
+			fields: ["alpha page", "<b>alpha</b> page", "beta note"],
 		});
 	});
 });

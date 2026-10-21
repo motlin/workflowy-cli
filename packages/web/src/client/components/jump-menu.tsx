@@ -38,6 +38,12 @@ const INPUT_CLASS =
 
 const SEARCH_LIMIT = 20;
 
+/** How long later keystrokes wait for the typing to pause before searching. */
+const SEARCH_DEBOUNCE_MS = 150;
+
+/** How long the opening's first search may take before the indexing message shows. */
+const SLOW_FIRST_SEARCH_MS = 300;
+
 const NO_SPECIALS: readonly SpecialRow[] = [];
 
 function optionClass(hasCrumbs: boolean, selected: boolean): string {
@@ -317,9 +323,6 @@ function JumpMenuDialog() {
 		}
 		let cancelled = false;
 		const runSearch = async () => {
-			if (!answered.current) {
-				setStatus("pending");
-			}
 			try {
 				const response = await fetch("/api/search/switcher", {
 					method: "POST",
@@ -339,18 +342,33 @@ function JumpMenuDialog() {
 				}
 			} catch {
 				if (!cancelled) {
+					// An error answers too, so the slow-search timer cannot replace it with the indexing message.
+					answered.current = true;
 					setResults([]);
 					setHasMore(false);
 					setStatus("error");
 				}
 			}
 		};
-		const searchTimeout = setTimeout(() => {
-			void runSearch();
-		}, 150);
+		// The opening's first search goes out at once; later keystrokes wait for the typing to pause.
+		const searchTimeout = setTimeout(
+			() => {
+				void runSearch();
+			},
+			answered.current ? SEARCH_DEBOUNCE_MS : 0,
+		);
+		// Upstream's indexing message only for a first answer slow enough to notice, not on every opening.
+		const slowTimeout = answered.current
+			? undefined
+			: setTimeout(() => {
+					if (!answered.current) {
+						setStatus("pending");
+					}
+				}, SLOW_FIRST_SEARCH_MS);
 		return () => {
 			cancelled = true;
 			clearTimeout(searchTimeout);
+			clearTimeout(slowTimeout);
 		};
 	}, [listQuery, starredIds]);
 
