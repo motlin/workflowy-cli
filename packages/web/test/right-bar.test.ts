@@ -161,11 +161,11 @@ describe("page scroll container", () => {
 	const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 	const app = readFileSync(fileURLToPath(new URL("../src/client/app.tsx", import.meta.url)), "utf8");
 
-	it("lets the document scroll like upstream's .pageContainer, so the page scrollbar sits at the window edge past the padded-out hotkeys panel", () => {
+	it("lets the document scroll like upstream's .pageContainer, so the page scrollbar sits at the window edge past the padded-out hotkeys panel, and contains the outline view's 72px top margin so it cannot collapse through and leave a short page 72px taller than the viewport", () => {
 		expect({
 			css: cssBlock(styles, ".outline-container"),
 			classes: /"outline-container[^"]*"/u.exec(app)?.[0],
-		}).toStrictEqual({css: {"min-height": "100vh"}, classes: '"outline-container"'});
+		}).toStrictEqual({css: {"min-height": "100vh", display: "flow-root"}, classes: '"outline-container"'});
 	});
 
 	it("always shows the page scrollbar, so a body-portaled flyout that grows the document, like the slash menu, cannot toggle the scrollbar and re-wrap row text", () => {
