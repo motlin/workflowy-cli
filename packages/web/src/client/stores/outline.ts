@@ -249,7 +249,14 @@ type LocationPickerResult = {id: string} | {createdId: string} | undefined;
 interface SidePaneState {
 	/** The pane's zoomed node; null is Home. */
 	zoomedId: string | null;
+	/** Upstream's item-tree payload `backLocations`: earlier pane zooms, oldest first. */
+	backLocations: (string | null)[];
+	/** Upstream's payload `forwardLocations`: zooms stepped back from, nearest first. */
+	forwardLocations: (string | null)[];
 }
+
+/** Upstream caps each pane history at 100 locations. */
+const PANE_HISTORY_LIMIT = 100;
 
 /** Where editing resumes when the picker closes. */
 export interface CaretReturn {
@@ -452,6 +459,9 @@ interface OutlineActions {
 	openSidePane: (zoomedId: string | null) => void;
 	/** Zoom the open side pane; a no-op when none is open. */
 	zoomSidePane: (zoomedId: string | null) => void;
+	/** The side pane's Back: zoom to its previous location, keeping the current one for Forward. */
+	sidePaneBack: () => void;
+	sidePaneForward: () => void;
 	closeSidePane: () => void;
 	/** Make `paneId` the active pane; a no-op for the side pane while none is open. */
 	setActivePane: (paneId: string) => void;
@@ -1061,7 +1071,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	// Upstream focuses a new pane: editing in the main pane ends.
 	openSidePane: (zoomedId) => {
 		set({
-			sidePane: {zoomedId},
+			sidePane: {zoomedId, backLocations: [], forwardLocations: []},
 			activePaneId: SIDE_PANE_ID,
 			editingId: null,
 			editingClickPosition: null,
@@ -1070,8 +1080,41 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	zoomSidePane: (zoomedId) => {
-		if (get().sidePane !== null) {
-			set({sidePane: {zoomedId}});
+		const {sidePane} = get();
+		if (sidePane !== null && sidePane.zoomedId !== zoomedId) {
+			set({
+				sidePane: {
+					zoomedId,
+					backLocations: [...sidePane.backLocations, sidePane.zoomedId].slice(-PANE_HISTORY_LIMIT),
+					forwardLocations: [],
+				},
+			});
+		}
+	},
+
+	sidePaneBack: () => {
+		const {sidePane} = get();
+		if (sidePane !== null && sidePane.backLocations.length > 0) {
+			set({
+				sidePane: {
+					zoomedId: sidePane.backLocations.at(-1) ?? null,
+					backLocations: sidePane.backLocations.slice(0, -1),
+					forwardLocations: [sidePane.zoomedId, ...sidePane.forwardLocations],
+				},
+			});
+		}
+	},
+
+	sidePaneForward: () => {
+		const {sidePane} = get();
+		if (sidePane !== null && sidePane.forwardLocations.length > 0) {
+			set({
+				sidePane: {
+					zoomedId: sidePane.forwardLocations[0] ?? null,
+					backLocations: [...sidePane.backLocations, sidePane.zoomedId],
+					forwardLocations: sidePane.forwardLocations.slice(1),
+				},
+			});
 		}
 	},
 

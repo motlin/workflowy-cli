@@ -1,11 +1,11 @@
 import {dateId} from "@workflowy/shared";
 import type {CalendarLevel} from "@workflowy/shared";
-import {locationUrl} from "./location.js";
 import {readJson} from "./read-json.js";
 
 export interface NavigateToTodayDeps {
 	fetch: (url: string, init?: {method?: string}) => Promise<Response>;
-	navigate: (path: string) => unknown;
+	/** Zoom the target pane to `id`: the main outline's URL, or the side pane's own zoom. */
+	zoomTo: (id: string) => unknown;
 	notify: (message: string, type: "info") => unknown;
 	/** Edit `id` with the caret at `offset`. */
 	startEditing: (id: string, offset: number) => unknown;
@@ -63,7 +63,7 @@ export async function findOrEnsureCalendarNode(
  */
 export async function navigateToCalendarDate(
 	target: CalendarTarget,
-	{fetch, navigate, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
+	{fetch, zoomTo, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
 ): Promise<void> {
 	commitEdit();
 	const node = await findOrEnsureCalendarNode(target, fetch);
@@ -71,7 +71,7 @@ export async function navigateToCalendarDate(
 		notify(`No calendar page for ${pageLabel(target.date, target.level ?? "day")} yet`, "info");
 		return;
 	}
-	void navigate(locationUrl({id: node.dayId}));
+	void zoomTo(node.dayId);
 	if (node.firstChildId !== null) {
 		startEditing(node.firstChildId, 0);
 	}

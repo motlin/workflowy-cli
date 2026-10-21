@@ -123,6 +123,7 @@ interface CrumbProps {
 	searchActive?: boolean;
 	onCancelSearch?: () => void;
 	dateOptions?: CrumbDateOptions;
+	scrollToTop?: () => void;
 }
 
 /** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
@@ -134,6 +135,7 @@ function BreadcrumbItem({
 	searchActive = false,
 	onCancelSearch = noop,
 	dateOptions = NO_DATE_OPTIONS,
+	scrollToTop = scrollOutlineToTop,
 }: CrumbProps) {
 	const leaveSearch = useOutlineStore((state) => state.leaveSearch);
 	const disabled = crumb.isRoot && current && !searchActive;
@@ -176,7 +178,7 @@ function BreadcrumbItem({
 						navigateToNode: onNavigate,
 						cancelSearch: onCancelSearch,
 						leaveSearch,
-						scrollToTop: scrollOutlineToTop,
+						scrollToTop,
 						focusWindow: focusBrowserWindow,
 					},
 				);
@@ -202,6 +204,7 @@ interface BreadcrumbOverflowMenuProps {
 	searchActive?: boolean;
 	onCancelSearch?: () => void;
 	dateOptions?: CrumbDateOptions;
+	scrollToTop?: () => void;
 }
 
 /** The ellipsis flyout's body: collapsed crumbs stacked vertically, each in a div, without separators. */
@@ -214,6 +217,7 @@ export function BreadcrumbOverflowMenu({
 	searchActive,
 	onCancelSearch,
 	dateOptions,
+	scrollToTop,
 }: BreadcrumbOverflowMenuProps) {
 	return (
 		<div className="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style={{maxWidth}}>
@@ -229,6 +233,7 @@ export function BreadcrumbOverflowMenu({
 							searchActive={searchActive}
 							onCancelSearch={onCancelSearch}
 							dateOptions={dateOptions}
+							scrollToTop={scrollToTop}
 						/>
 					</div>
 				);
@@ -250,12 +255,21 @@ function useZoomedIds(trailIds: string[], currentId: string): string[] {
 
 interface BreadcrumbsProps {
 	nodeId: string | null;
+	/**
+	 * A side pane's zoom: crumbs zoom the pane instead of navigating the main outline, and ignore the main outline's
+	 * search, which the pane does not show.
+	 */
+	onNavigate?: (nodeId: string | null) => void;
+	/** The scroller a crumb click returns to the top; the window by default. */
+	scrollToTop?: () => void;
 }
 
 /** Upstream's header breadcrumbs: flat crumbs from Home to the zoomed node, truncated and middle-collapsed to fit. */
-export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
-	const {navigateToNode, cancelSearch} = useNodeNavigation();
-	const searchActive = useOutlineStore((state) => state.searchQuery !== "");
+export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps) {
+	const {navigateToNode: navigateMain, cancelSearch} = useNodeNavigation();
+	const navigateToNode = onNavigate ?? navigateMain;
+	const mainSearchActive = useOutlineStore((state) => state.searchQuery !== "");
+	const searchActive = onNavigate === undefined && mainSearchActive;
 	const {data: ancestors, isLoading} = useAncestors(nodeId);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
@@ -317,6 +331,7 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 								searchActive={searchActive}
 								onCancelSearch={cancelSearch}
 								dateOptions={dateOptions}
+								scrollToTop={scrollToTop}
 							/>
 						</ButtonMenu>,
 						<BreadcrumbSeparator key={`breadcrumb-icon-${leftOffset}`} />,
@@ -338,6 +353,7 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 							searchActive={searchActive}
 							onCancelSearch={cancelSearch}
 							dateOptions={dateOptions}
+							scrollToTop={scrollToTop}
 						/>
 					);
 					return current ? [element] : [element, <BreadcrumbSeparator key={`${crumb.id}-separator`} />];

@@ -1,5 +1,5 @@
 import {createContext, useContext} from "react";
-import {MAIN_PANE_ID} from "../pane-ids.js";
+import {MAIN_PANE_ID, SIDE_PANE_ID} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
 
 /** The pane an outline renders in; bullet zooms inside a side pane zoom that pane instead of the main outline. */
@@ -37,4 +37,9 @@ export function paneActivation(
 /** The side pane's CSS width: half the window beside the left bar, never under upstream's 350px pane minimum. */
 export function sidePaneWidth(leftOffset: number): string {
 	return `max(350px, calc((100vw - ${leftOffset}px) / 2))`;
+}
+
+/** The side pane scrolls its own outline, so its zooms scroll that scroller rather than the window. */
+export function scrollSidePaneToTop(): void {
+	document.querySelector(`[data-pane-id="${SIDE_PANE_ID}"] .side-pane-scroller`)?.scrollTo(0, 0);
 }

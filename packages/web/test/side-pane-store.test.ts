@@ -31,13 +31,13 @@ describe("side pane store", () => {
 	it("opens a side pane zoomed to the given node", async () => {
 		const store = await loadStore();
 		store.getState().openSidePane("alice");
-		expect(store.getState().sidePane).toStrictEqual({zoomedId: "alice"});
+		expect(store.getState().sidePane).toStrictEqual({zoomedId: "alice", backLocations: [], forwardLocations: []});
 	});
 
 	it("opens a side pane at Home for a null zoom", async () => {
 		const store = await loadStore();
 		store.getState().openSidePane(null);
-		expect(store.getState().sidePane).toStrictEqual({zoomedId: null});
+		expect(store.getState().sidePane).toStrictEqual({zoomedId: null, backLocations: [], forwardLocations: []});
 	});
 
 	it("zooms the open side pane independently of the main zoom", async () => {
@@ -47,8 +47,48 @@ describe("side pane store", () => {
 		store.getState().zoomSidePane("bob");
 		expect({main: store.getState().zoomedNodeId, pane: store.getState().sidePane}).toStrictEqual({
 			main: "main-node",
-			pane: {zoomedId: "bob"},
+			pane: {zoomedId: "bob", backLocations: ["alice"], forwardLocations: []},
 		});
+	});
+
+	it("keeps its own back and forward stacks, like upstream's payload backLocations/forwardLocations", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane(null);
+		store.getState().zoomSidePane("alice");
+		store.getState().zoomSidePane("bob");
+		store.getState().sidePaneBack();
+		const afterBack = store.getState().sidePane;
+		store.getState().sidePaneBack();
+		const atStart = store.getState().sidePane;
+		store.getState().sidePaneForward();
+		const afterForward = store.getState().sidePane;
+		expect({afterBack, atStart, afterForward}).toStrictEqual({
+			afterBack: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"]},
+			atStart: {zoomedId: null, backLocations: [], forwardLocations: ["alice", "bob"]},
+			afterForward: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"]},
+		});
+	});
+
+	it("clears the forward stack on a new pane zoom and skips re-zooming to the same node", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().zoomSidePane("bob");
+		store.getState().sidePaneBack();
+		store.getState().zoomSidePane("carol");
+		store.getState().zoomSidePane("carol");
+		expect(store.getState().sidePane).toStrictEqual({
+			zoomedId: "carol",
+			backLocations: ["alice"],
+			forwardLocations: [],
+		});
+	});
+
+	it("ignores back and forward with empty stacks", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().sidePaneBack();
+		store.getState().sidePaneForward();
+		expect(store.getState().sidePane).toStrictEqual({zoomedId: "alice", backLocations: [], forwardLocations: []});
 	});
 
 	it("ignores a pane zoom when no pane is open", async () => {

@@ -6,9 +6,20 @@ import {renderToStaticMarkup} from "react-dom/server";
 import type * as IconButtonModule from "../src/client/components/icon-button.js";
 import {cssBlock} from "./helpers/css-block.js";
 
-const calls: {close: number; zoom: (string | null)[]; activate: string[]} = {close: 0, zoom: [], activate: []};
-const storeState: {sidePane: {zoomedId: string | null} | null; activePaneId: string} & Record<string, unknown> = {
-	sidePane: {zoomedId: "bob"},
+interface PaneState {
+	zoomedId: string | null;
+	backLocations: (string | null)[];
+	forwardLocations: (string | null)[];
+}
+const calls: {close: number; zoom: (string | null)[]; activate: string[]; history: string[]} = {
+	close: 0,
+	zoom: [],
+	activate: [],
+	history: [],
+};
+const BOB: PaneState = {zoomedId: "bob", backLocations: [], forwardLocations: []};
+const storeState: {sidePane: PaneState | null; activePaneId: string} & Record<string, unknown> = {
+	sidePane: BOB,
 	activePaneId: "side",
 	setActivePane: (paneId: string) => {
 		calls.activate.push(paneId);
@@ -18,6 +29,12 @@ const storeState: {sidePane: {zoomedId: string | null} | null; activePaneId: str
 	},
 	zoomSidePane: (zoomedId: string | null) => {
 		calls.zoom.push(zoomedId);
+	},
+	sidePaneBack: () => {
+		calls.history.push("back");
+	},
+	sidePaneForward: () => {
+		calls.history.push("forward");
 	},
 };
 
@@ -57,6 +74,24 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 	};
 });
 
+/** The pane header's breadcrumbs: records the zoom they show and where their clicks go. */
+const crumbProps: {nodeId: string | null; onNavigate?: (id: string | null) => void; scrollToTop?: () => void}[] = [];
+vi.mock("../src/client/components/breadcrumbs.js", () => ({
+	Breadcrumbs: (props: (typeof crumbProps)[number]) => {
+		crumbProps.push(props);
+		return createElement("div", {className: "breadcrumbs-mock"});
+	},
+}));
+
+/** Today in the pane header: records the zoom it targets. */
+const today: {zoomTo: ((id: string) => void) | undefined} = {zoomTo: undefined};
+vi.mock("../src/client/hooks/use-navigate-to-today.js", () => ({
+	useNavigateToToday: (zoomTo?: (id: string) => void) => {
+		today.zoomTo = zoomTo;
+		return async () => Promise.resolve();
+	},
+}));
+
 const {MainPane, SidePane} = await import("../src/client/components/side-pane.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
@@ -69,7 +104,7 @@ describe("SidePane", () => {
 	it("renders nothing when no pane is open", () => {
 		storeState.sidePane = null;
 		const html = render();
-		storeState.sidePane = {zoomedId: "bob"};
+		storeState.sidePane = BOB;
 		expect(html).toBe("");
 	});
 
@@ -93,12 +128,60 @@ describe("SidePane", () => {
 		expect(seenPaneIds).toStrictEqual(["side"]);
 	});
 
-	it("renders a wf-pane-header with Home and Close pane", () => {
+	it("renders a wf-pane-header with upstream's Back, breadcrumbs, Today and Close pane", () => {
+		buttons.clear();
 		const html = render();
 		expect(html).toContain(
 			'<div class="wf-header header bg-primary wf-pane-header border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint flex-shrink-0">',
 		);
-		expect([...buttons.keys()]).toStrictEqual(["Home", "Close pane"]);
+		expect({
+			buttons: [...buttons.keys()],
+			backDisabled: buttons.get("Back")?.disabled,
+			crumbsAfterBack: html.indexOf("breadcrumbs-mock") > html.indexOf("chevron-left"),
+		}).toStrictEqual({buttons: ["Back", "Today", "Close pane"], backDisabled: true, crumbsAfterBack: true});
+	});
+
+	it("enables Back and shows Forward when the pane has history", () => {
+		buttons.clear();
+		storeState.sidePane = {zoomedId: "bob", backLocations: [null], forwardLocations: ["carol"]};
+		render();
+		storeState.sidePane = BOB;
+		calls.history.length = 0;
+		buttons.get("Back")?.onClick?.({} as never);
+		buttons.get("Forward")?.onClick?.({} as never);
+		expect({
+			buttons: [...buttons.keys()],
+			backDisabled: buttons.get("Back")?.disabled,
+			history: calls.history,
+		}).toStrictEqual({
+			buttons: ["Back", "Forward", "Today", "Close pane"],
+			backDisabled: false,
+			history: ["back", "forward"],
+		});
+	});
+
+	it("shows the pane's zoom in breadcrumbs that zoom the pane", () => {
+		crumbProps.length = 0;
+		calls.zoom.length = 0;
+		render();
+		const crumbs = crumbProps.at(-1);
+		crumbs?.onNavigate?.("alice");
+		crumbs?.onNavigate?.(null);
+		expect({nodeId: crumbs?.nodeId, zoom: calls.zoom, scrolls: typeof crumbs?.scrollToTop}).toStrictEqual({
+			nodeId: "bob",
+			zoom: ["alice", null],
+			scrolls: "function",
+		});
+	});
+
+	it("zooms the pane, not the main outline, to today", () => {
+		calls.zoom.length = 0;
+		const html = render();
+		today.zoomTo?.("day1");
+		expect({zoom: calls.zoom, hasTodayTarget: html.includes("calendar-day")}).toStrictEqual({
+			zoom: ["day1"],
+			hasTodayTarget: true,
+		});
 	});
 
 	it("renders the outline zoomed to the pane's node inside its own scroller", () => {
@@ -108,9 +191,9 @@ describe("SidePane", () => {
 	});
 
 	it("renders Home's outline for a null pane zoom", () => {
-		storeState.sidePane = {zoomedId: null};
+		storeState.sidePane = {...BOB, zoomedId: null};
 		const html = render();
-		storeState.sidePane = {zoomedId: "bob"};
+		storeState.sidePane = BOB;
 		expect(html).toContain('data-parent="home"');
 	});
 
@@ -119,13 +202,6 @@ describe("SidePane", () => {
 		render();
 		buttons.get("Close pane")?.onClick?.({} as never);
 		expect(calls.close).toBe(1);
-	});
-
-	it("zooms the pane to Home from its house button", () => {
-		calls.zoom.length = 0;
-		render();
-		buttons.get("Home")?.onClick?.({} as never);
-		expect(calls.zoom).toStrictEqual([null]);
 	});
 
 	it("routes bullet zooms inside the pane to the pane", () => {
@@ -160,7 +236,7 @@ describe("MainPane", () => {
 		storeState.sidePane = null;
 		const html = renderMain();
 		storeState.activePaneId = "side";
-		storeState.sidePane = {zoomedId: "bob"};
+		storeState.sidePane = BOB;
 		expect(html).toContain('data-pane-active="false"');
 	});
 });

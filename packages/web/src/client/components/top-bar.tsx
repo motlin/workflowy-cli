@@ -16,7 +16,7 @@ import {SearchBox} from "./search-box.js";
 import {StarButton, StarIcon} from "./star-button.js";
 import {currentTypeIcon} from "../layout-types.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
-import {stepNav, useNavStackSync} from "../navigation.js";
+import {goToNode, stepNav, useNavStackSync} from "../navigation.js";
 import {internalLinkUrl} from "../item-menu-model.js";
 import {PANE_HEADER_ACTIVE_BORDER} from "./pane-context.js";
 
@@ -111,6 +111,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		closeLeftBarDrawer,
 		sidePane,
 		openSidePane,
+		closeSidePane,
 	} = useOutlineStore();
 	const [peek] = useState(() =>
 		createPeekController({
@@ -361,6 +362,20 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 				</div>
 
 				{/* Upstream's header.controls.new-pane: shown until a pane is open, on any zoom including Home. */}
+				{/* While a pane is open the main header is a pane header too: its xmark closes the main pane, so the
+				    side pane's zoom becomes the main outline's. */}
+				{sidePane !== null && (
+					<IconButton
+						className="text-tertiary hover:text-on-surface flex-shrink-0"
+						onClick={() => {
+							goToNode(navigate, sidePane.zoomedId);
+							closeSidePane();
+						}}
+						tooltip="Close pane"
+					>
+						<FaIcon icon="fal:xmark" />
+					</IconButton>
+				)}
 				{sidePane === null && (
 					<>
 						<div className="self-stretch border-l border-solid border-primary mx-s" />

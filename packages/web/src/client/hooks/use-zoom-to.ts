@@ -11,6 +11,7 @@ import {isPotentiallyVisible} from "../tree-ops.js";
 import {ZOOMING_CLASS, runZoomAnimation, waitForZoomRow, zoomAnimationEnabled} from "../zoom-animation.js";
 import {fetchChildren} from "./use-nodes.js";
 import {showZoom} from "../show-zoom.js";
+import {scrollSidePaneToTop} from "../components/pane-context.js";
 
 /**
  * Upstream `zoomTo(target, focus)`: commit the edited text, navigate, then edit the row `planZoomFocus` picks and,
@@ -79,7 +80,7 @@ export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Prom
 				},
 				scrollToTop: (pane) => {
 					if (pane === "side") {
-						document.querySelector(`[data-pane-id="${SIDE_PANE_ID}"] .side-pane-scroller`)?.scrollTo(0, 0);
+						scrollSidePaneToTop();
 					} else {
 						globalThis.scrollTo(0, 0);
 					}

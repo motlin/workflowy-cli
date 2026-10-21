@@ -9,12 +9,16 @@ import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
 const pickerCalls: unknown[] = [];
 const openSidePaneCalls: (string | null)[] = [];
+const closePaneCalls: unknown[][] = [];
 const storeState: {zoomedNodeId: string | null; sidePane: {zoomedId: string | null} | null} & Record<string, unknown> =
 	{
 		zoomedNodeId: "alice",
 		sidePane: null,
 		openSidePane: (zoomedId: string | null) => {
 			openSidePaneCalls.push(zoomedId);
+		},
+		closeSidePane: () => {
+			closePaneCalls.push(["closeSidePane"]);
 		},
 		toggleLeftBar: () => {},
 		searchInput: "",
@@ -49,7 +53,13 @@ const toggleState = {toggleCompleted: (): void => {}};
 vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
 	useShowCompletedToggle: () => toggleState.toggleCompleted,
 }));
-vi.mock("../src/client/navigation.js", () => ({stepNav: () => {}, useNavStackSync: () => {}}));
+vi.mock("../src/client/navigation.js", () => ({
+	stepNav: () => {},
+	useNavStackSync: () => {},
+	goToNode: (_navigate: unknown, nodeId: string | null) => {
+		closePaneCalls.push(["goToNode", nodeId]);
+	},
+}));
 const nodeState: {hasChildren: boolean; rootChildren: {id: string}[]; layoutMode: string | null} = {
 	hasChildren: true,
 	rootChildren: [{id: "r1"}],
@@ -115,6 +125,9 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 			}
 			if (props.tooltip === "New pane") {
 				iconButtonProps.set("new_pane", props);
+			}
+			if (props.tooltip === "Close pane") {
+				iconButtonProps.set("close_pane", props);
 			}
 			return actual.IconButton(props);
 		},
@@ -236,7 +249,7 @@ function clusterHtml(html: string): string {
 /** Ordered identifiers of the right-cluster controls. */
 function clusterSequence(html: string): string[] {
 	const tokens = clusterHtml(html).matchAll(
-		/fa-calendar-day\b|fa-user-plus|viewBox="0 0 33 30"|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
+		/fa-calendar-day\b|fa-user-plus|fa-xmark\b|viewBox="0 0 33 30"|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
 	);
 	return [...tokens].map((match) => {
 		if (match[0] === 'viewBox="0 0 33 30"') {
@@ -247,6 +260,9 @@ function clusterSequence(html: string): string[] {
 		}
 		if (match[0] === "fa-user-plus") {
 			return "share";
+		}
+		if (match[0] === "fa-xmark") {
+			return "close_pane";
 		}
 		return match[0] === "fa-calendar-day" ? "today" : "gearMenu";
 	});
@@ -374,8 +390,22 @@ describe("TopBar New pane", () => {
 		expect(openSidePaneCalls).toStrictEqual([null]);
 	});
 
-	it("hides New pane and compacts the cluster while a pane is open", () => {
-		expect(clusterSequence(renderWithSidePane())).toStrictEqual(["search", "today", "gearMenu"]);
+	it("swaps New pane for Close pane and compacts the cluster while a pane is open", () => {
+		expect(clusterSequence(renderWithSidePane())).toStrictEqual(["search", "today", "gearMenu", "close_pane"]);
+	});
+
+	it("renders Close pane as upstream's tertiary xmark", () => {
+		const cluster = clusterHtml(renderWithSidePane()).replaceAll(/ d="[^"]*"/gu, "");
+		expect(cluster).toContain(
+			`<div role="button" tabindex="0" class="text-tertiary hover:text-on-surface flex-shrink-0 iconButton lg shape-circle">${svg("xmark", 384)}</div>`,
+		);
+	});
+
+	it("closes the main pane by moving the side pane's zoom into it", () => {
+		closePaneCalls.length = 0;
+		renderWithSidePane();
+		iconButtonProps.get("close_pane")?.onClick?.({} as never);
+		expect(closePaneCalls).toStrictEqual([["goToNode", "bob"], ["closeSidePane"]]);
 	});
 
 	it("moves the compactable actions into the more menu while a pane is open", () => {
