@@ -615,8 +615,8 @@ describe("API Sync with Cache", () => {
 			});
 		}
 
-		function tooManyRequests(retryAfter?: string): Response {
-			return new Response(null, {
+		function tooManyRequests(retryAfter?: string, body: string | null = null): Response {
+			return new Response(body, {
 				status: 429,
 				statusText: "Too Many Requests",
 				headers: new Headers(retryAfter === undefined ? {} : {"retry-after": retryAfter}),
@@ -694,6 +694,34 @@ describe("API Sync with Cache", () => {
 			]);
 			expect(fetchStub).toHaveBeenCalledTimes(2);
 		});
+
+		it("honors the retry_after seconds in the 429 body when there is no Retry-After header", async () => {
+			const client = new WorkflowyApiClient("test-api-key", undefined, undefined, {
+				maxRetries: 3,
+				baseDelayMs: 999_999,
+				maxDelayMs: 999_999,
+			});
+
+			fetchStub.mockResolvedValueOnce(tooManyRequests(undefined, JSON.stringify({retry_after: 0})));
+			fetchStub.mockResolvedValueOnce(successResponse());
+
+			const nodes = await client.getChildNodes("parent-id");
+
+			expect(nodes).toStrictEqual([
+				{
+					id: "n1",
+					name: "N1",
+					note: null,
+					priority: 0,
+					completed: false,
+					createdAt: 1_700_000_000,
+					modifiedAt: 1_700_001_000,
+					completedAt: null,
+					data: {},
+				},
+			]);
+			expect(fetchStub).toHaveBeenCalledTimes(2);
+		}, 5000);
 
 		it("honors the Retry-After header when present", async () => {
 			const client = new WorkflowyApiClient("test-api-key", undefined, undefined, {

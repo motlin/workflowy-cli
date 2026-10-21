@@ -131,7 +131,7 @@ describe("WorkflowyInternalAdapter account state", () => {
 		expect(db.select().from(accountState).all()).toStrictEqual(before);
 	});
 
-	it("serves reads from the cache for 30s, then refreshes with one initialization GET", async () => {
+	it("serves reads from the cache for 30s, then answers from the cache while one initialization GET refreshes it in the background", async () => {
 		const {api, adapter, clock} = tracked();
 		await expect(adapter.getSetting("theme")).resolves.toBe("dark");
 		api.respond("/get_initialization_data", () =>
@@ -142,12 +142,50 @@ describe("WorkflowyInternalAdapter account state", () => {
 		);
 
 		clock.ms += 30_000;
-		await expect(adapter.getSetting("theme")).resolves.toBe("dark");
+		const fresh = await adapter.getSetting("theme");
 		const requestsBefore = api.requests.length;
 
 		clock.ms += 1000;
-		await expect(adapter.getSetting("theme")).resolves.toBe("light");
-		expect(network(api.requests.slice(requestsBefore))).toStrictEqual([["GET", "/get_initialization_data"]]);
+		const stale = await adapter.getSetting("theme");
+		const staleAgain = await adapter.getSetting("theme");
+		await adapter.accountRefreshed();
+		const refreshed = await adapter.getSetting("theme");
+
+		expect({
+			fresh,
+			stale,
+			staleAgain,
+			refreshed,
+			network: network(api.requests.slice(requestsBefore)),
+		}).toStrictEqual({
+			fresh: "dark",
+			stale: "dark",
+			staleAgain: "dark",
+			refreshed: "light",
+			network: [["GET", "/get_initialization_data"]],
+		});
+	});
+
+	it("keeps a root metadata write made during a background refresh over the refresh's older snapshot", async () => {
+		const {api, adapter, clock} = tracked();
+		await adapter.getRootMeta([]);
+		clock.ms += 31_000;
+		api.respond("/push_and_poll", pushOk);
+		let releaseRefresh = () => {};
+		const refreshReleased = new Promise<void>((resolve) => {
+			releaseRefresh = resolve;
+		});
+		api.respondOnce("/get_initialization_data", async () => {
+			await refreshReleased;
+			return json(initializationData(), {headers: {wfclientid: FAKE_CLIENT_ID}});
+		});
+
+		await adapter.getRootMeta([]);
+		await adapter.setRootMeta(["color", "tags", "alice"], 3);
+		releaseRefresh();
+		await adapter.accountRefreshed();
+
+		await expect(adapter.getRootMeta(["color", "tags"])).resolves.toStrictEqual({alice: 3});
 	});
 
 	it("reads the entropy key from the initialization data once, then serves it from account_state", async () => {

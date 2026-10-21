@@ -37,7 +37,7 @@ import type {InternalOp, PushAndPollOptions} from "./push-and-poll.js";
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any
 type AdapterDatabase = BaseSQLiteDatabase<"sync", any, any>;
 
-/** Account state older than this is refreshed from the server before a read. */
+/** Cached state older than this is refreshed from the server in the background on a read. */
 const FRESHNESS_MS = 30_000;
 /** A `fresh` expanded-ids read waits on `/get_tree_data/` at most this often. */
 const FRESH_EXPANSION_THROTTLE_MS = 5000;
@@ -268,8 +268,10 @@ export function linkedSourcesInSubtree(db: AdapterDatabase, rootId: string): str
  * module that speaks in upstream ops and `/push_and_poll`; callers see account
  * state, root metadata and settings.
  *
- * Account state is cached in `account_state` and refreshed (one initialization
- * GET) when older than 30s, so changes made on workflowy.com show up locally.
+ * Account state is cached in `account_state`; a read of state older than 30s
+ * answers from the cache and refreshes it (one initialization GET) in the
+ * background, so changes made on workflowy.com show up locally without
+ * stalling the read.
  * The cache is written only after the server accepts a change.
  *
  * Tree writes (exact-index create and move, restore, node metadata) read the
@@ -285,6 +287,9 @@ export class WorkflowyInternalAdapter {
 	private readonly writeThrough: WorkflowyWriteThroughClient | undefined;
 	private readonly generateId: () => string;
 	private expandedKeysRefresh: Promise<Set<string>> | undefined;
+	private accountRefresh: Promise<void> | undefined;
+	/** Bumped on every account snapshot store, so a background refresh never overwrites a newer write. */
+	private accountStores = 0;
 	private pushedDuringRefresh: Record<string, boolean>[] | undefined;
 
 	constructor(options: WorkflowyInternalAdapterOptions) {
@@ -1320,15 +1325,46 @@ export class WorkflowyInternalAdapter {
 		this.store({...current, settings: {...current.settings, [name]: value}});
 	}
 
-	/** The cached account state, refreshed first when missing or older than 30s. */
+	/**
+	 * The cached account state. Only a missing snapshot waits on a bootstrap;
+	 * one older than 30s is answered from the cache and refreshed in the
+	 * background (see {@link accountRefreshed}), since date format, week start
+	 * and settings rarely change and the bootstrap costs 0.3-1.1s.
+	 */
 	private async snapshot(): Promise<AccountSnapshot> {
 		const cached = this.load();
-		if (cached) {
-			return cached;
+		if (!cached) {
+			const fresh = this.fromSession(await this.client.bootstrap());
+			this.store(fresh);
+			return fresh;
 		}
-		const fresh = this.fromSession(await this.client.bootstrap());
-		this.store(fresh);
-		return fresh;
+		if (cached.fetchedAt < this.now() - FRESHNESS_MS) {
+			void this.refreshAccount().catch((error: unknown) => {
+				console.error("Failed to refresh account state", error);
+			});
+		}
+		return cached.snapshot;
+	}
+
+	/** One background bootstrap at a time; its result is dropped if a write stored a newer snapshot meanwhile. */
+	private async refreshAccount(): Promise<void> {
+		this.accountRefresh ??= (async () => {
+			try {
+				const storesBefore = this.accountStores;
+				const fresh = this.fromSession(await this.client.bootstrap());
+				if (this.accountStores === storesBefore) {
+					this.store(fresh);
+				}
+			} finally {
+				this.accountRefresh = undefined;
+			}
+		})();
+		return this.accountRefresh;
+	}
+
+	/** Settles once the in-flight account refresh, if any, has finished. */
+	async accountRefreshed(): Promise<void> {
+		await this.accountRefresh?.catch(() => {});
 	}
 
 	private fromSession(session: InternalSession): AccountSnapshot {
@@ -1339,13 +1375,18 @@ export class WorkflowyInternalAdapter {
 		};
 	}
 
-	private load(): AccountSnapshot | undefined {
+	/** The cached snapshot with the fetch time of its oldest part, if every part is cached. */
+	private load(): {snapshot: AccountSnapshot; fetchedAt: number} | undefined {
 		const rows = this.db.select().from(accountState).all();
 		const byKey = new Map(rows.map((row) => [row.key, row]));
-		const oldestAllowed = this.now() - FRESHNESS_MS;
+		let fetchedAt = Number.POSITIVE_INFINITY;
 		const read = <T>(key: string, schema: z.ZodType<T>): T | undefined => {
 			const row = byKey.get(key);
-			return row && row.fetchedAt >= oldestAllowed ? schema.safeParse(JSON.parse(row.json)).data : undefined;
+			if (!row) {
+				return undefined;
+			}
+			fetchedAt = Math.min(fetchedAt, row.fetchedAt);
+			return schema.safeParse(JSON.parse(row.json)).data;
 		};
 		const account = read(KEYS.account, StoredAccountSchema);
 		const rootMetadata = read(KEYS.rootMetadata, MetadataSchema);
@@ -1353,10 +1394,11 @@ export class WorkflowyInternalAdapter {
 		if (!account || !rootMetadata || !settings) {
 			return undefined;
 		}
-		return {account, rootMetadata, settings};
+		return {snapshot: {account, rootMetadata, settings}, fetchedAt};
 	}
 
 	private store(snapshot: AccountSnapshot): void {
+		this.accountStores += 1;
 		const fetchedAt = this.now();
 		const rows = [
 			{key: KEYS.account, json: JSON.stringify(snapshot.account), fetchedAt},

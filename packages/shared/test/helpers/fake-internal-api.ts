@@ -20,7 +20,7 @@ export type FakeRoute =
 	| "/push_and_poll"
 	| "/change_settings";
 
-type Responder = (request: RecordedRequest) => Response;
+type Responder = (request: RecordedRequest) => Response | Promise<Response>;
 
 export const FAKE_SESSION_ID = "fake-session-1";
 export const FAKE_CLIENT_ID = "2026-10-17 12:00:00.000000_fakeclient";

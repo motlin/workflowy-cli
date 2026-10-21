@@ -46,6 +46,26 @@ async function sleep(ms: number): Promise<void> {
 	});
 }
 
+function retryAfterSeconds(value: unknown): number | undefined {
+	if (value === null || value === undefined || value === "") {
+		return undefined;
+	}
+	const seconds = Number(value);
+	return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
+}
+
+/** The `retry_after` seconds in a throttled response's JSON body, if any. */
+async function bodyRetryAfterSeconds(response: Response): Promise<number | undefined> {
+	try {
+		const body: unknown = await response.json();
+		return typeof body === "object" && body !== null && "retry_after" in body
+			? retryAfterSeconds(body.retry_after)
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 /**
  * Request object for creating a new node.
  */
@@ -140,16 +160,15 @@ export class WorkflowyApiClient {
 	}
 
 	/**
-	 * Delay before the next retry: the Retry-After header if the server sent one,
-	 * otherwise exponential backoff from baseDelayMs, capped at maxDelayMs.
+	 * Delay before the next retry: the server's own wait (the Retry-After header,
+	 * else the body's `retry_after` seconds, e.g. `{"retry_after": 9}`), otherwise
+	 * exponential backoff from baseDelayMs, capped at maxDelayMs.
 	 */
-	private retryDelayMs(response: Response, attempt: number): number {
-		const retryAfter = response.headers.get("retry-after");
-		if (retryAfter !== null) {
-			const seconds = Number(retryAfter);
-			if (Number.isFinite(seconds)) {
-				return seconds * 1000;
-			}
+	private async retryDelayMs(response: Response, attempt: number): Promise<number> {
+		const seconds =
+			retryAfterSeconds(response.headers.get("retry-after")) ?? (await bodyRetryAfterSeconds(response));
+		if (seconds !== undefined) {
+			return seconds * 1000;
 		}
 		return Math.min(this.baseDelayMs * 2 ** attempt, this.maxDelayMs);
 	}
@@ -169,7 +188,7 @@ export class WorkflowyApiClient {
 				return response;
 			}
 
-			await sleep(this.retryDelayMs(response, attempt));
+			await sleep(await this.retryDelayMs(response, attempt));
 			attempt += 1;
 		}
 	}
