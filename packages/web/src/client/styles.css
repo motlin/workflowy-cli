@@ -4012,6 +4012,13 @@ body.moving .itemMenu {
 	box-sizing: content-box;
 }
 
+/* DomKit Toggle (date-picker-popup.tsx). Upstream's track is content-box: w-[20px] h-[10px] plus p-2xs
+   is a 24x14 track holding the 10px knob, which slides exactly 10px when on. Under the local border-box
+   reset the knob overflows a 16x6 content box and the switch reads as a blank pill. */
+label.toggle > div {
+	box-sizing: content-box;
+}
+
 /* The page's .scroller bottom padding must not leak into the MenuBody scroller. */
 .wf-menu .scroller {
 	padding: 0;

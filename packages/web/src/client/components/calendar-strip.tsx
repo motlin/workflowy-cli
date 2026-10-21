@@ -73,7 +73,6 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	const [term, setTerm] = useState("");
 	const {dateFormat, weekStartDay} = useDateSettings();
 	const eventDays = useCalendarEventDays({found: true});
-	const calendarSettings = useCalendarSettings();
 	const [layoutView, setLayoutView] = useState(false);
 	const layout = useCalendarLayout(layoutView);
 	const showAppMessage = useOutlineStore((state) => state.showAppMessage);
@@ -82,6 +81,7 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	const reportError = (error: unknown) => {
 		showAppMessage(error instanceof Error ? error.message : String(error));
 	};
+	const calendarSettings = useCalendarSettings(reportError);
 	/** Apply the layout, then refetch everything it may have moved and offer Undo when anything changed. */
 	const applyLayout = async (levels: Parameters<typeof applyCalendarLayout>[0]) => {
 		const {writes} = await applyCalendarLayout(levels);
