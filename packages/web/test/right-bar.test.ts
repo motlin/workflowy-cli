@@ -167,4 +167,8 @@ describe("page scroll container", () => {
 			classes: /"outline-container[^"]*"/u.exec(app)?.[0],
 		}).toStrictEqual({css: {"min-height": "100vh"}, classes: '"outline-container"'});
 	});
+
+	it("always shows the page scrollbar, so a body-portaled flyout that grows the document, like the slash menu, cannot toggle the scrollbar and re-wrap row text", () => {
+		expect(cssBlock(styles, "html")).toStrictEqual({"overflow-y": "scroll"});
+	});
 });

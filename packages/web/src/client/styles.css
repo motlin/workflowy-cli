@@ -2149,6 +2149,14 @@ body.moving .expand {
 	min-height: 100vh;
 }
 
+/* Flyouts portal to the body and can grow the document (the slash menu before it filters down). An
+   always-on page scrollbar keeps the page width fixed, so a flyout never re-wraps the rows under it.
+   scrollbar-gutter: stable would not do: Chrome ignores it where the platform scrollbar is overlay, as on
+   macOS, even with this file's classic ::-webkit-scrollbar styling. */
+html {
+	overflow-y: scroll;
+}
+
 @media print {
 	body {
 		padding-left: 0 !important;
