@@ -33,16 +33,20 @@ function labels(html: string): string[] {
 }
 
 describe("GearMenu header items", () => {
-	it("prepends header items and a separator before What's New", () => {
+	it("prepends header items and a separator before Learn WorkFlowy", () => {
 		const html = render([
 			{label: "Share", icon: "S", onSelect: () => {}},
 			{label: "Present", icon: "P", onSelect: () => {}, disabled: true},
 		]);
-		expect(labels(html).slice(0, 4)).toStrictEqual(["Share", "Present", "------------", "What&#x27;s New"]);
+		expect(labels(html).slice(0, 4)).toStrictEqual(["Share", "Present", "------------", "Learn WorkFlowy"]);
 		expect(html).toContain('<button class="gear-menu-item disabled" disabled="" type="button">');
 	});
 
 	it("renders no leading separator without header items", () => {
-		expect(labels(render([]))[0]).toBe("What&#x27;s New");
+		expect(labels(render([]))[0]).toBe("Learn WorkFlowy");
+	});
+
+	it("hides the rows that have no local backend (What's New, Connect Apps with Zapier)", () => {
+		expect(labels(render([])).slice(0, 4)).toStrictEqual(["Learn WorkFlowy", "------------", "Undo", "Redo"]);
 	});
 });
