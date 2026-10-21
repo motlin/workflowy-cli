@@ -136,15 +136,15 @@ describe("DatePickerPopup", () => {
 		expect(menuRows(render({showNoDate: true})).at(-1)).toBe("Remove date");
 	});
 
-	it("hides the input and drops Range and Format for the day strip's calendar button (showControls false)", () => {
+	it("keeps the visible Type date row but drops Range and Format for the day strip's calendar button (showControls false)", () => {
 		const html = render({showControls: false});
 		expect({
-			input: html.includes(
-				'<input type="text" autofocus="" placeholder="Type date" class="absolute w-0 h-0 overflow-hidden" value=""/>',
+			inputRow: html.includes(
+				'<div class="flex items-center px-l py-m bg-secondary"><input type="text" autofocus="" placeholder="Type date" class="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary" value=""/></div>',
 			),
-			inputRow: html.includes('<div class="flex items-center px-l py-m bg-secondary">'),
+			hiddenInput: html.includes("absolute w-0 h-0 overflow-hidden"),
 			rows: menuRows(html),
-		}).toStrictEqual({input: true, inputRow: false, rows: ["Today", "Tomorrow", "Next week"]});
+		}).toStrictEqual({inputRow: true, hiddenInput: false, rows: ["Today", "Tomorrow", "Next week"]});
 	});
 
 	it("renders the strip picker's calendar-mode day dots and its Found Dates / Friendly day names rows", () => {

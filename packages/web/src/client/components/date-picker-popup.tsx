@@ -24,10 +24,7 @@ export interface DatePickerPopupProps {
 	showNoDate?: boolean;
 	term?: string;
 	initialView?: DatePickerView;
-	/**
-	 * Upstream `showControls`: false for the day strip's calendar button, which also hides the date input
-	 * (still focused, so typing works) and drops the Range, Format and Remove date rows.
-	 */
+	/** Upstream `showControls`: false for the day strip's calendar button, which drops the Range, Format and Remove date rows. */
 	showControls?: boolean;
 	/** Viewport position of the popup's top-left corner, before the shell's 4px margin-top. */
 	position?: {left: number; top: number};
@@ -525,7 +522,6 @@ const PRESETS: {label: string; preset: DatePreset; icon: "fal:sun-bright" | "fal
 ];
 
 const INPUT_CLASS = "date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary";
-const HIDDEN_INPUT_CLASS = "absolute w-0 h-0 overflow-hidden";
 
 /** Upstream's `!!` / pill date popup (`gP.for`): input row, presets, calendar, then Range / Format / Remove date. */
 export function DatePickerPopup({
@@ -573,7 +569,7 @@ export function DatePickerPopup({
 			// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream focuses the date input as soon as the popup opens
 			autoFocus
 			placeholder="Type date"
-			className={showControls ? INPUT_CLASS : HIDDEN_INPUT_CLASS}
+			className={INPUT_CLASS}
 			value={term}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -595,14 +591,8 @@ export function DatePickerPopup({
 			<MenuBody keyboardMode focusNavigation initialSelect={-1} selectOnTab={false} exit={onClose}>
 				{content ?? (
 					<>
-						{showControls ? (
-							<>
-								<div className="flex items-center px-l py-m bg-secondary">{input}</div>
-								<MenuSeparator style={{margin: 0}} />
-							</>
-						) : (
-							input
-						)}
+						<div className="flex items-center px-l py-m bg-secondary">{input}</div>
+						<MenuSeparator style={{margin: 0}} />
 						{PRESETS.map(({label, preset, icon}) => (
 							<MenuItem
 								key={preset}

@@ -593,6 +593,12 @@ body {
 	font-size: 1em;
 }
 
+/* Upstream injects this FA core ahead of tailwind, so `h-s` (0.375rem) beats its 1em height on the
+   circle-small found-date dots; styles.css loads after wf-tailwind.css, so restore that here. */
+.svg-inline--fa.h-s {
+	height: 0.375rem;
+}
+
 .fa-lg {
 	font-size: 1.25em;
 	line-height: 0.05em;
@@ -660,6 +666,42 @@ body {
 .button:active {
 	text-decoration: none;
 	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+/* Upstream's bare `button` base for the date picker's calendar (header, day, month and year buttons), at
+   element specificity so the markup's utilities still win. Without it they keep the browser's outset border. */
+:where([data-keyboard-focus-scope]) button {
+	display: inline-block;
+	position: relative;
+	-webkit-appearance: none;
+	appearance: none;
+	border: none;
+	outline: none;
+	box-sizing: border-box;
+	border-radius: var(--wf-radius-pill);
+	padding: var(--wf-space-s) var(--wf-space-l);
+	font-weight: var(--wf-font-weight-regular);
+	line-height: var(--wf-line-height-s);
+	font-family: inherit;
+	font-size: var(--wf-font-size-s);
+	background: var(--wf-background-tertiary);
+	text-align: center;
+	text-decoration: none;
+	color: var(--wf-text-primary);
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+:where([data-keyboard-focus-scope]) button:focus,
+:where([data-keyboard-focus-scope]) button:hover,
+:where([data-keyboard-focus-scope]) button:active {
+	text-decoration: none;
+	background-color: color-mix(in srgb, var(--wf-background-quaternary) 85%, black);
+}
+
+/* Upstream's day cell is content-box: w-[24px] h-[24px] plus the 1px today border is a 26x26 cell. */
+.date-picker-day-cell {
+	box-sizing: content-box;
 }
 
 /* Upstream's bare .primary / .secondary, scoped to .button so local classes of the same name are untouched. */
