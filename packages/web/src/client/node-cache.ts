@@ -29,6 +29,62 @@ export function seedResolvedId(queryClient: QueryClient, nodeId: string): void {
 	queryClient.setQueryData(nodeKeys.resolvedId(shortId(nodeId)), nodeId);
 }
 
+/** Every node the cache holds as a detail entry, a children row or an ancestor-chain link (duplicates included). */
+function* cachedNodes(queryClient: QueryClient): Generator<NodeResponse> {
+	for (const [, detail] of queryClient.getQueriesData<NodeResponse>({queryKey: [...nodeKeys.all, "detail"]})) {
+		if (detail !== undefined) {
+			yield detail;
+		}
+	}
+	for (const kind of ["children", "ancestors"]) {
+		for (const [, rows] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, kind]})) {
+			yield* rows ?? [];
+		}
+	}
+}
+
+/**
+ * The full id a location id (short or full) names, read from whatever the cache already holds; undefined when no
+ * cached node has it. Back, Forward and every link to a node the outline has shown resolve without a lookup request.
+ */
+export function cachedResolvedId(queryClient: QueryClient, locationId: string): string | undefined {
+	const seeded = queryClient.getQueryData<string | null>(nodeKeys.resolvedId(locationId));
+	if (typeof seeded === "string") {
+		return seeded;
+	}
+	for (const node of cachedNodes(queryClient)) {
+		if (node.id === locationId || shortId(node.id) === locationId) {
+			return node.id;
+		}
+	}
+	return undefined;
+}
+
+/** A node as `GET /nodes/:id/ancestors` lists it: always a parent, never a mirror. */
+function asAncestor(node: NodeResponse): NodeResponse {
+	return {...node, hasChildren: true, hasUncompletedChildren: true, isMirror: false, originalNodeId: null};
+}
+
+/**
+ * `nodeId`'s ancestor chain (root first, the node last) built from the cache: cut from any cached chain that passes
+ * through it, else its parent's chain plus its own cached row. Undefined when neither is cached, so the breadcrumbs
+ * and title of a zoom target the outline has shown render with the swap instead of after a request.
+ */
+export function cachedAncestors(queryClient: QueryClient, nodeId: string): NodeResponse[] | undefined {
+	for (const [, chain] of queryClient.getQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "ancestors"]})) {
+		const index = chain?.findIndex((node) => node.id === nodeId) ?? -1;
+		if (chain !== undefined && index !== -1) {
+			return chain.slice(0, index + 1);
+		}
+	}
+	const node = readNode(queryClient, nodeId);
+	if (node === undefined) {
+		return undefined;
+	}
+	const parentChain = node.parent_id === null ? [] : cachedAncestors(queryClient, node.parent_id);
+	return parentChain === undefined ? undefined : [...parentChain, asAncestor(node)];
+}
+
 /** Read a parent's cached children, or undefined if not cached. */
 export function readChildren(queryClient: QueryClient, parentId: string | null): NodeResponse[] | undefined {
 	return queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));

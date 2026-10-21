@@ -19,6 +19,7 @@ const outlineState = {
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
+	outlineActions: () => outlineState,
 	registerEditFlush: () => () => {},
 	isModalOpen: () => false,
 }));

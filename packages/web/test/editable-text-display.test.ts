@@ -12,6 +12,7 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		(selector?: (state: typeof outlineState) => unknown) => (selector ? selector(outlineState) : outlineState),
 		{getState: () => outlineState},
 	),
+	outlineActions: () => outlineState,
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useCreateNode: () => ({mutate: () => {}}),

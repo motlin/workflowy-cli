@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {goToNode, nodeUrl, stepNav} from "../navigation.js";
-import {nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
+import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
@@ -632,13 +632,13 @@ export function useCommandRegistry(): CommandRegistry {
 		navigate_backward: {
 			execute() {
 				commitEdit();
-				stepNav(navigate, "back");
+				stepNav(navigate, "back", (id) => cachedResolvedId(queryClient, id));
 			},
 		},
 		navigate_forward: {
 			execute() {
 				commitEdit();
-				stepNav(navigate, "forward");
+				stepNav(navigate, "forward", (id) => cachedResolvedId(queryClient, id));
 			},
 		},
 		navigate_to_today: {

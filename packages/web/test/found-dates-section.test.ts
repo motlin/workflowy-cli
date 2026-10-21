@@ -56,6 +56,7 @@ const foundDatesCalls: (string | null)[] = [];
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
+	outlineActions: () => outlineState,
 }));
 vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId}`,
@@ -94,14 +95,14 @@ vi.mock("../src/client/components/editable-text.js", async () => {
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
-const {OutlineChildren} = await import("../src/client/components/outline-tree.js");
+const {OutlineChildren, RootOutlineChildren} = await import("../src/client/components/outline-tree.js");
 
 function render(parentId: string, isRoot = true): string {
 	return renderToStaticMarkup(
 		createElement(
 			QueryClientProvider,
 			{client: new QueryClient()},
-			createElement(OutlineChildren, {parentId, isRoot}),
+			isRoot ? createElement(RootOutlineChildren, {parentId}) : createElement(OutlineChildren, {parentId}),
 		),
 	);
 }
@@ -203,6 +204,12 @@ describe("OutlineChildren Found Dates section", () => {
 				["echo", 95],
 			],
 		});
+	});
+
+	it("leaves nested children without a Found Dates query, even a disabled one, so expanded rows mount lighter", () => {
+		foundDatesCalls.length = 0;
+		render("day", false);
+		expect(foundDatesCalls).toStrictEqual([]);
 	});
 
 	it("does not ask for Found Dates of a node that is not a day, nor of nested children", () => {

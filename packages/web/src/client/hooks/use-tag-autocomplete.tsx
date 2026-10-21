@@ -14,6 +14,8 @@ interface Attached {
 	query: string;
 	/** The field's plain text when `query` was read. */
 	text: string;
+	/** The zoomed node whose subtree ranks the tags, read when `query` was. */
+	root: string;
 	visible: boolean;
 	active: number;
 	/** Viewport point just after the `#`: its left and bottom. */
@@ -82,9 +84,18 @@ export function useTagAutocomplete({editorRef, nodeId, field, readPlain, onAccep
 		}
 	}, [setAttached]);
 
-	const root = useOutlineStore((state) => state.zoomedNodeId) ?? "";
+	// Read only while attached, so a resting row neither subscribes to the zoom nor builds a search it never sends.
 	const query = attached?.query ?? null;
-	const search = autocompleteSearch({root, prefix: query ?? "#", item: nodeId, field, text: attached?.text ?? ""});
+	const search =
+		attached === null
+			? ""
+			: autocompleteSearch({
+					root: attached.root,
+					prefix: attached.query,
+					item: nodeId,
+					field,
+					text: attached.text,
+				});
 	const {data: results = []} = useQuery({
 		queryKey: ["tag-autocomplete", search],
 		queryFn: async () => fetchAutocomplete(search),
@@ -119,7 +130,16 @@ export function useTagAutocomplete({editorRef, nodeId, field, readPlain, onAccep
 			visible: current?.visible ?? true,
 			active: current !== null && kept !== null && current.query === nextQuery ? current.active : 0,
 		});
-		setAttached({start, query: nextQuery, text: plain, visible: state.visible, active: state.active, ...anchor});
+		const root = useOutlineStore.getState().zoomedNodeId ?? "";
+		setAttached({
+			start,
+			query: nextQuery,
+			text: plain,
+			root,
+			visible: state.visible,
+			active: state.active,
+			...anchor,
+		});
 	}, [editorRef, readPlain, detach, setAttached]);
 
 	const accept = useCallback(

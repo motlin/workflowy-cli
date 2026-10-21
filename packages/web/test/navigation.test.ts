@@ -6,8 +6,16 @@ vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}})
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
 
-const {cleanupEmptyDayOnLeave, goToNode, navigateToSearch, nodeUrl, resolveZoomTarget, stepNav, syncNavLocation} =
-	await import("../src/client/navigation.js");
+const {
+	cleanupEmptyDayOnLeave,
+	goToNode,
+	navigateToSearch,
+	nodeUrl,
+	resolveZoomTarget,
+	stepNav,
+	syncNavLocation,
+	zoomToCachedLocation,
+} = await import("../src/client/navigation.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
 const {encodeSidePane} = await import("../src/client/pane-url.js");
@@ -56,6 +64,9 @@ describe("nodeUrl", () => {
 	});
 });
 
+const noCachedNodes = new Map<string, string>();
+const unresolved = (locationId: string) => noCachedNodes.get(locationId);
+
 describe("in-app navigation stacks", () => {
 	const A = "aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa";
 	const B = "bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb";
@@ -82,17 +93,30 @@ describe("in-app navigation stacks", () => {
 	it("stepNav back pops the stack and pushes a new browser entry", () => {
 		visitAB();
 		const navigate = vi.fn<(to: string) => void>();
-		stepNav(navigate, "back");
+		stepNav(navigate, "back", unresolved);
 		expect({urls: navigate.mock.calls, nav: useOutlineStore.getState().nav}).toStrictEqual({
 			urls: [["/#/aaaaaaaaaaaa"]],
 			nav: {current: {id: "aaaaaaaaaaaa", query: null}, back: [], forward: [{id: "bbbbbbbbbbbb", query: null}]},
 		});
 	});
 
+	it("stepNav zooms the outline to a target the cache resolves before it pushes the URL", () => {
+		visitAB();
+		const zoomedWhenPushed: (string | null)[] = [];
+		stepNav(
+			() => {
+				zoomedWhenPushed.push(useOutlineStore.getState().zoomedNodeId);
+			},
+			"back",
+			(id) => (id === "aaaaaaaaaaaa" ? A : undefined),
+		);
+		expect(zoomedWhenPushed).toStrictEqual([A]);
+	});
+
 	it("stepNav does nothing when the stack in that direction is empty", () => {
 		visitAB();
 		const navigate = vi.fn<(to: string) => void>();
-		stepNav(navigate, "forward");
+		stepNav(navigate, "forward", unresolved);
 		expect(navigate.mock.calls).toStrictEqual([]);
 	});
 
@@ -100,7 +124,7 @@ describe("in-app navigation stacks", () => {
 		const navigate = vi.fn<(to: string) => void>();
 		goToNode(navigate, null);
 		goToNode(navigate, A);
-		stepNav(navigate, "back");
+		stepNav(navigate, "back", unresolved);
 		expect(navigate.mock.calls.at(-1)).toStrictEqual(["/"]);
 	});
 
@@ -162,7 +186,7 @@ describe("goToNode in one frame", () => {
 			paneUrlIds: ids,
 		});
 		const navigate = vi.fn<(to: string) => void>();
-		stepNav(navigate, "back");
+		stepNav(navigate, "back", unresolved);
 		expect(navigate.mock.calls).toStrictEqual([
 			[`/#?panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
 		]);
@@ -289,5 +313,22 @@ describe("cleanupEmptyDayOnLeave", () => {
 			leave(day, undefined, OTHER),
 			leave(undefined, undefined, OTHER),
 		]).toStrictEqual([[], [], [], [], []]);
+	});
+});
+
+describe("zoomToCachedLocation", () => {
+	const A = "aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa";
+	const resolve = (id: string) => (id === "aaaaaaaaaaaa" ? A : undefined);
+
+	it("zooms to the node a browser Back lands on when the cache resolves it, home for no id, and waits otherwise", () => {
+		const zoomed: (string | null)[] = [];
+		useOutlineStore.setState({zoomedNodeId: "other"});
+		zoomToCachedLocation("#/aaaaaaaaaaaa?q=x", resolve);
+		zoomed.push(useOutlineStore.getState().zoomedNodeId);
+		zoomToCachedLocation("", resolve);
+		zoomed.push(useOutlineStore.getState().zoomedNodeId);
+		zoomToCachedLocation("#/cccccccccccc", resolve);
+		zoomed.push(useOutlineStore.getState().zoomedNodeId);
+		expect(zoomed).toStrictEqual([A, null, null]);
 	});
 });

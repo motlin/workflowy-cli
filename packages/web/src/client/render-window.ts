@@ -18,6 +18,15 @@ export function initialRowBudget(viewportHeight: number): number {
 	return Math.ceil(viewportHeight / MINIMAL_ROW_HEIGHT) + ROW_STEP;
 }
 
+/**
+ * The rows a new view mounts in the commit that swaps it in: just a viewport of minimal-height rows. The step of
+ * slack below the fold (`initialRowBudget`) mounts after that paint, so the swap's frame does not pay for rows
+ * nobody sees yet. An unknown viewport (no window) gets one step.
+ */
+export function firstPaintRowBudget(viewportHeight: number): number {
+	return Math.max(ROW_STEP, Math.ceil(viewportHeight / MINIMAL_ROW_HEIGHT));
+}
+
 export function nextRowBudget(current: number): number {
 	return current + ROW_STEP;
 }
@@ -87,6 +96,38 @@ export function rowLimits(
 	};
 	visit(rootId);
 	return {limits, remaining: budget - used};
+}
+
+/**
+ * The budget that renders `targetId`'s row: `budget` grown a step at a time until it reaches the row's place in
+ * document order, or `budget` itself when the row already renders or does not show at all. Arrow keys move the caret
+ * through cached rows, not mounted ones, so a move past the last mounted row grows the budget instead of waiting for
+ * a scroll to reach the sentinel.
+ */
+export function rowBudgetToShow(
+	getChildren: (parentId: string | null) => NodeResponse[] | undefined,
+	rootId: string | null,
+	budget: number,
+	{expandedIds, showCompleted, animatingCompletionIds, search}: RowView,
+	targetId: string,
+): number {
+	let position = 0;
+	const find = (parentId: string | null): boolean => {
+		for (const node of getChildren(parentId) ?? []) {
+			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
+				continue;
+			}
+			position += 1;
+			if (node.id === targetId || (rendersChildren(node.id, expandedIds, search) && find(node.id))) {
+				return true;
+			}
+		}
+		return false;
+	};
+	if (!find(rootId) || position <= budget) {
+		return budget;
+	}
+	return budget + Math.ceil((position - budget) / ROW_STEP) * ROW_STEP;
 }
 
 /** The rows `parentId` may render: its share when loaded, else whatever budget is left. */

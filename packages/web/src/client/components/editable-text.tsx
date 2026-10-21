@@ -4,6 +4,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {
 	activePaneView,
 	isModalOpen,
+	outlineActions,
 	registerEditFlush,
 	shouldCommitOnBlur,
 	useOutlineStore,
@@ -188,37 +189,25 @@ function preventTagMouseDown(event: React.MouseEvent<HTMLSpanElement>): void {
 	}
 }
 
-export function EditableText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
+function EditingText({nodeId, initialValue, parentId, priority, isEditing, clickPosition}: EditableTextProps) {
 	const contentRef = useRef<HTMLSpanElement>(null);
 	const queryClient = useQueryClient();
-	const stopEditing = useOutlineStore((state) => state.stopEditing);
-	const startEditing = useOutlineStore((state) => state.startEditing);
-	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
-	const focusNote = useOutlineStore((state) => state.focusNote);
-	const releaseEditing = useOutlineStore((state) => state.releaseEditing);
-	const setItemSelection = useOutlineStore((state) => state.setItemSelection);
-	const commitSearch = useCommitSearch();
-	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	const {
+		stopEditing,
+		startEditing,
+		resumeEditing,
+		focusNote,
+		releaseEditing,
+		setItemSelection,
+		holdEditing,
+		openSettings,
+		openLinkInsert,
+	} = outlineActions();
 	const updateNodeMutation = useUpdateNode();
 	const createNodeMutation = useCreateNode();
 	const deleteNodeMutation = useDeleteNode();
 	const moveNodeMutation = useMoveNode();
-	const holdEditing = useOutlineStore((state) => state.holdEditing);
-	const tagColors = useTagColors();
 	const dateSettings = useDateSettings();
-	const setTagColorMutation = useSetTagColor();
-	const removeTagColorMutation = useRemoveTagColor();
-
-	// Tag color affordances: a caret appears on tag hover; clicking it opens the picker.
-	const [tagHover, setTagHover] = useState<{
-		tag: string;
-		top: number;
-		right: number;
-		bottom: number;
-		left: number;
-	} | null>(null);
-	const [colorPicker, setColorPicker] = useState<{tag: string; top: number; left: number} | null>(null);
-	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// The HTML as of editing start, held while editing so saves and refetches never rewrite the DOM under the caret.
 	const [editingHtml, setEditingHtml] = useState<string | null>(null);
@@ -360,7 +349,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 	}, [isEditing, datePickerRequestId, nodeId, openAtCaret]);
 
 	// Typing a natural-language date ("tomorrow") offers a flyout; Tab or a click converts it to a pill.
-	const openSettings = useOutlineStore((state) => state.openSettings);
 	const dateAutocomplete = useDateAutocomplete({
 		editorRef: contentRef,
 		dateSettings,
@@ -514,7 +502,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[dateSettings, deleteNodeMutation, nameSaver, nodeId, queryClient, refreshToolbar, updateNodeMutation],
 	);
 
-	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
 	const handleToolbarAction = useCallback(
 		(action: SelectionToolbarAction) => {
 			const attr = toolbarFormatAttr(action);
@@ -1063,6 +1050,110 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		],
 	);
 
+	return (
+		<>
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model */}
+			<span
+				className="innerContentContainer editing"
+				data-node-id={nodeId}
+				// The CSS `:empty` rule shows it only while the editor is empty.
+				data-placeholder={placeholderFor({
+					focused: true,
+					empty: true,
+					layoutMode: readNode(queryClient, nodeId)?.data.layoutMode,
+					slashDiscovered,
+				})}
+				contentEditable
+				dangerouslySetInnerHTML={{__html: editorHtml}}
+				onBlur={handleBlur}
+				onClick={handleEditingClick}
+				onInput={handleInput}
+				onKeyDown={handleKeyDown}
+				onMouseDown={detachTagAutocomplete}
+				ref={contentRef}
+				suppressContentEditableWarning
+			/>
+			{datePicker.popup}
+			{pillPicker.popup}
+			{dateAutocomplete.flyout}
+			{tagAutocomplete.popup}
+			{slashMenu.menu}
+			{toolbarView && (
+				<SelectionToolbar
+					activeAttrs={toolbarView.activeAttrs}
+					inNote={false}
+					layoutMode={readNode(queryClient, nodeId)?.data.layoutMode}
+					onAction={handleToolbarAction}
+					rect={toolbarView.rect}
+				/>
+			)}
+		</>
+	);
+}
+
+interface RestingTagColorPickerProps {
+	tag: string;
+	top: number;
+	left: number;
+	onClose: () => void;
+}
+
+/** The tag color picker with its color mutations, mounted only while open so a resting row holds none of them. */
+function RestingTagColorPicker({tag, top, left, onClose}: RestingTagColorPickerProps) {
+	const tagColors = useTagColors();
+	const setTagColorMutation = useSetTagColor();
+	const removeTagColorMutation = useRemoveTagColor();
+	return (
+		<TagColorPicker
+			currentColor={tagColors[tag.toLowerCase()]}
+			left={left}
+			onClose={onClose}
+			onRemove={() => {
+				removeTagColorMutation.mutate(tag);
+				onClose();
+			}}
+			onSelect={(color: TagColorName) => {
+				setTagColorMutation.mutate({name: tag, color});
+				onClose();
+			}}
+			top={top}
+		/>
+	);
+}
+
+/**
+ * A row's name while it is not being edited: its rendered HTML, a click that starts editing where it lands, tag
+ * clicks and hovers, and date pill clicks. It holds none of the editor's hooks, effects or store subscriptions, so
+ * swapping in a view's rows stays cheap; the row becomes an `EditingText` when editing starts.
+ */
+function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | "initialValue">) {
+	const queryClient = useQueryClient();
+	const {startEditing, resumeEditing} = outlineActions();
+	const commitSearch = useCommitSearch();
+	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	const updateNodeMutation = useUpdateNode();
+	const dateSettings = useDateSettings();
+	// Tag color affordances: a caret appears on tag hover; clicking it opens the picker.
+	const [tagHover, setTagHover] = useState<{
+		tag: string;
+		top: number;
+		right: number;
+		bottom: number;
+		left: number;
+	} | null>(null);
+	const [colorPicker, setColorPicker] = useState<{tag: string; top: number; left: number} | null>(null);
+	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// A plain click on a pill edits or removes just that pill, saving the stored name.
+	const pillPicker = usePillDatePicker({
+		dateSettings,
+		onChange: (pillIndex, attrs) => {
+			updateNodeMutation.mutate({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
+		},
+		onDismiss: () => {},
+	});
+	const {open: openPillPicker} = pillPicker;
+
 	/**
 	 * Upstream tag explode: drop the clicked tag and its following spaces from the stored
 	 * name in one undo step, then edit this node with the caret at the tag's start.
@@ -1192,23 +1283,6 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		[tagHover, cancelHide],
 	);
 
-	const applyTagColor = useCallback(
-		(color: TagColorName) => {
-			if (colorPicker) {
-				setTagColorMutation.mutate({name: colorPicker.tag, color});
-			}
-			setColorPicker(null);
-		},
-		[colorPicker, setTagColorMutation],
-	);
-
-	const clearTagColor = useCallback(() => {
-		if (colorPicker) {
-			removeTagColorMutation.mutate(colorPicker.tag);
-		}
-		setColorPicker(null);
-	}, [colorPicker, removeTagColorMutation]);
-
 	const closeColorPicker = useCallback(() => {
 		setColorPicker(null);
 	}, []);
@@ -1235,96 +1309,61 @@ export function EditableText({nodeId, initialValue, parentId, priority, isEditin
 		};
 	}, [colorPicker]);
 
-	if (!isEditing) {
-		return (
-			<>
-				{/* Pointer entry point: a click places the caret for editing, and clicks on rendered .contentTag spans are delegated here. */}
-				<span
-					className="innerContentContainer"
-					data-node-id={nodeId}
-					dangerouslySetInnerHTML={{
-						__html: highlightSearchMatches(
-							renderEditorHtml(renderLinks(initialValue), dateSettings),
-							searchQuery,
-						),
-					}}
-					onClick={handleTextClick}
-					onMouseDown={preventTagMouseDown}
-					onMouseLeave={scheduleHide}
-					// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance; the span is not focusable
-					onMouseOver={handleTagHover}
-					role="presentation"
-				/>
-				{tagHover &&
-					!colorPicker &&
-					createPortal(
-						// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream's teaser is a pointer-only div
-						<div
-							aria-label="Set tag color"
-							className="tag-color-teaser"
-							onMouseDown={openPicker}
-							onMouseEnter={cancelHide}
-							onMouseLeave={scheduleHide}
-							style={teaserStyle(tagHover)}
-						>
-							<div className="tag-color-teaser-glyph">
-								<FaIcon icon="fal:chevron-down" />
-							</div>
-						</div>,
-						document.body,
-					)}
-				{colorPicker && (
-					<TagColorPicker
-						currentColor={tagColors[colorPicker.tag.toLowerCase()]}
-						left={colorPicker.left}
-						onClose={closeColorPicker}
-						onRemove={clearTagColor}
-						onSelect={applyTagColor}
-						top={colorPicker.top}
-					/>
-				)}
-				{pillPicker.popup}
-			</>
-		);
-	}
-
 	return (
 		<>
-			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- contentEditable makes this an implicit textbox, which the rule does not model */}
+			{/* Pointer entry point: a click places the caret for editing, and clicks on rendered .contentTag spans are delegated here. */}
 			<span
-				className="innerContentContainer editing"
+				className="innerContentContainer"
 				data-node-id={nodeId}
-				// The CSS `:empty` rule shows it only while the editor is empty.
-				data-placeholder={placeholderFor({
-					focused: true,
-					empty: true,
-					layoutMode: readNode(queryClient, nodeId)?.data.layoutMode,
-					slashDiscovered,
-				})}
-				contentEditable
-				dangerouslySetInnerHTML={{__html: editorHtml}}
-				onBlur={handleBlur}
-				onClick={handleEditingClick}
-				onInput={handleInput}
-				onKeyDown={handleKeyDown}
-				onMouseDown={detachTagAutocomplete}
-				ref={contentRef}
-				suppressContentEditableWarning
+				dangerouslySetInnerHTML={{
+					__html: highlightSearchMatches(
+						renderEditorHtml(renderLinks(initialValue), dateSettings),
+						searchQuery,
+					),
+				}}
+				onClick={handleTextClick}
+				onMouseDown={preventTagMouseDown}
+				onMouseLeave={scheduleHide}
+				// oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- the tag-color trigger is a pointer-only affordance; the span is not focusable
+				onMouseOver={handleTagHover}
+				role="presentation"
 			/>
-			{datePicker.popup}
-			{pillPicker.popup}
-			{dateAutocomplete.flyout}
-			{tagAutocomplete.popup}
-			{slashMenu.menu}
-			{toolbarView && (
-				<SelectionToolbar
-					activeAttrs={toolbarView.activeAttrs}
-					inNote={false}
-					layoutMode={readNode(queryClient, nodeId)?.data.layoutMode}
-					onAction={handleToolbarAction}
-					rect={toolbarView.rect}
+			{tagHover &&
+				!colorPicker &&
+				createPortal(
+					// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream's teaser is a pointer-only div
+					<div
+						aria-label="Set tag color"
+						className="tag-color-teaser"
+						onMouseDown={openPicker}
+						onMouseEnter={cancelHide}
+						onMouseLeave={scheduleHide}
+						style={teaserStyle(tagHover)}
+					>
+						<div className="tag-color-teaser-glyph">
+							<FaIcon icon="fal:chevron-down" />
+						</div>
+					</div>,
+					document.body,
+				)}
+			{colorPicker && (
+				<RestingTagColorPicker
+					left={colorPicker.left}
+					onClose={closeColorPicker}
+					tag={colorPicker.tag}
+					top={colorPicker.top}
 				/>
 			)}
+			{pillPicker.popup}
 		</>
+	);
+}
+
+/** A row's name: the full contenteditable `EditingText` while editing, else the light `RestingText`. */
+export function EditableText(props: EditableTextProps) {
+	return props.isEditing ? (
+		<EditingText {...props} />
+	) : (
+		<RestingText initialValue={props.initialValue} nodeId={props.nodeId} />
 	);
 }

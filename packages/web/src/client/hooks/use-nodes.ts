@@ -5,7 +5,15 @@ import type {MutateOptions, QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, FoundDatesResponse, NodeResponse} from "../../node-types.js";
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
-import {nodeKeys, patchCachedNode, readNode, snapshotCachedNode, spliceBlock, spliceChildren} from "../node-cache.js";
+import {
+	cachedAncestors,
+	nodeKeys,
+	patchCachedNode,
+	readNode,
+	snapshotCachedNode,
+	spliceBlock,
+	spliceChildren,
+} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
@@ -277,9 +285,12 @@ export function useChildren(parentId: string | null) {
  * Returns null data if nodeId is empty (disabled query).
  */
 export function useNode(nodeId: string | null) {
+	const queryClient = useQueryClient();
 	return useQuery({
 		queryKey: nodeKeys.detail(nodeId ?? ""),
 		queryFn: nodeId === null || nodeId === "" ? skipToken : async () => fetchNode(nodeId),
+		// A row the outline has shown already holds the detail: the zoomed title renders with the swap.
+		initialData: () => (nodeId === null || nodeId === "" ? undefined : readNode(queryClient, nodeId)),
 	});
 }
 
@@ -293,10 +304,38 @@ export function useHome() {
  * Returns empty array if nodeId is null (at root level).
  */
 export function useAncestors(nodeId: string | null) {
+	const queryClient = useQueryClient();
 	return useQuery({
 		queryKey: nodeKeys.ancestors(nodeId ?? ""),
 		queryFn: nodeId === null || nodeId === "" ? skipToken : async () => fetchAncestors(nodeId),
+		// Built from cached chains and rows, so the breadcrumbs render with the swap.
+		initialData: () => (nodeId === null || nodeId === "" ? undefined : cachedAncestors(queryClient, nodeId)),
 	});
+}
+
+function ignoreFailure(): void {}
+
+/**
+ * Load what a zoom into `nodeId` renders besides its children, so the new view lands in one commit: its Backlinks
+ * section, and its detail and ancestor chain unless the cache already holds them (`useNode` and `useAncestors` then
+ * seed from it). Failures are left to the hooks to retry; this never rejects.
+ */
+export async function prefetchZoomView(queryClient: QueryClient, nodeId: string): Promise<void> {
+	await Promise.all([
+		queryClient
+			.query({queryKey: nodeKeys.backlinks(nodeId), queryFn: async () => fetchBacklinks(nodeId)})
+			.catch(ignoreFailure),
+		readNode(queryClient, nodeId) === undefined
+			? queryClient
+					.query({queryKey: nodeKeys.detail(nodeId), queryFn: async () => fetchNode(nodeId)})
+					.catch(ignoreFailure)
+			: undefined,
+		cachedAncestors(queryClient, nodeId) === undefined
+			? queryClient
+					.query({queryKey: nodeKeys.ancestors(nodeId), queryFn: async () => fetchAncestors(nodeId)})
+					.catch(ignoreFailure)
+			: undefined,
+	]);
 }
 
 /** The slot a create/move lands in: the exact `index`, else the legacy hint (negative = top, else bottom). */

@@ -1,7 +1,6 @@
-import {QueryClient, QueryClientProvider, skipToken, useQuery} from "@tanstack/react-query";
+import {QueryClient, QueryClientProvider, timeoutManager} from "@tanstack/react-query";
 import {memo, useCallback, useEffect} from "react";
-import {BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams} from "react-router-dom";
-import type {NodeResponse} from "../node-types.js";
+import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
 import {ItemTypePickerHost} from "./components/item-type-picker-host.js";
 import {AppMessages} from "./components/app-message.js";
@@ -29,19 +28,16 @@ import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {StableNavigateProvider} from "./hooks/use-stable-navigate.js";
 import {activeCommandRegistry, useGlobalKeymap} from "./hooks/use-global-keymap.js";
 import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
+import {fetchResolvedId, useHashLocationZoom} from "./hooks/use-hash-location-zoom.js";
 import {useContentLinkClicks} from "./hooks/use-content-link-clicks.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {installWindowBlurredClass} from "./window-blurred.js";
-import {locationUrl, parseLocationHash} from "./location.js";
-import {nodeUrl, resolveZoomTarget, useEmptyDayCleanup} from "./navigation.js";
-import {nodeKeys} from "./node-cache.js";
-import {PANES_FRAGMENT} from "./pane-url.js";
-import {readJson} from "./read-json.js";
+import {createCoalescingTimeoutProvider} from "./coalescing-timers.js";
+import {nodeUrl, useEmptyDayCleanup} from "./navigation.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
-import {useOutlineStore} from "./stores/outline.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {outlineViewClassName} from "./search-classes.js";
 import "./wf-tailwind.css";
@@ -78,6 +74,9 @@ function getRetryDelay(attemptIndex: number): number {
 	// Exponential backoff: 1s, 2s, 4s
 	return Math.min(1000 * 2 ** attemptIndex, 4000);
 }
+
+// Before any query exists: a navigation mounts hundreds of observers, each arming a stale timer.
+timeoutManager.setTimeoutProvider(createCoalescingTimeoutProvider());
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -152,69 +151,12 @@ export const OutlineView = memo(function OutlineView() {
 	);
 });
 
-/** Resolve a location id (short or full) to the node's full uuid; null when the server has no such node. */
-async function fetchResolvedId(locationId: string): Promise<string | null> {
-	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(locationId)}`);
-	if (response.status === 404) {
-		return null;
-	}
-	if (!response.ok) {
-		throw new Error(`Failed to resolve node: ${response.statusText}`);
-	}
-	const data = await readJson<{node: NodeResponse}>(response);
-	return data.node.id;
-}
-
-/**
- * The `/` route: zooms to the node named by the `#/<id>?q=` hash and, like
- * upstream, pushes the canonical URL when it differs (`#/<full uuid>` becomes
- * `#/<12hex>`; an unknown id becomes `/` and drops `?q=`). A `panes=v2.` param
- * survives canonicalization and drives the side pane through `usePaneUrlSync`.
- */
+/** The `/` route: the outline zoomed to the node the `#/<id>?q=` hash names (see `useHashLocationZoom`). */
 function HashLocationRoute() {
-	const location = useLocation();
-	const navigate = useNavigate();
-	const zoom = useOutlineStore((state) => state.zoom);
-	const setUrlSearchQuery = useOutlineStore((state) => state.setUrlSearchQuery);
-	const {id, query, fragments} = parseLocationHash(location.hash);
-	const panes = fragments[PANES_FRAGMENT];
-	const resolved = useQuery({
-		queryKey: nodeKeys.resolvedId(id ?? ""),
-		queryFn: id === null ? skipToken : async () => fetchResolvedId(id),
-		staleTime: Number.POSITIVE_INFINITY,
-	});
-	const unknown = resolved.data === null;
-	const target = resolveZoomTarget(id, () => resolved.data ?? null);
-	const currentUrl = location.pathname + location.hash;
+	useHashLocationZoom();
 	useEmptyDayCleanup();
 	usePaneUrlSync(fetchResolvedId);
 	useContentLinkClicks(fetchResolvedId);
-
-	useEffect(() => {
-		if (unknown) {
-			zoom(null);
-			void navigate("/");
-			return;
-		}
-		if (target === null) {
-			return;
-		}
-		const fullId = target === "home" ? null : target;
-		zoom(fullId);
-		const canonical = locationUrl({
-			id: fullId,
-			query,
-			fragments: panes === undefined ? {} : {[PANES_FRAGMENT]: panes},
-		});
-		if (canonical !== currentUrl) {
-			void navigate(canonical);
-		}
-	}, [currentUrl, navigate, panes, query, target, unknown, zoom]);
-
-	useEffect(() => {
-		setUrlSearchQuery(query);
-	}, [query, setUrlSearchQuery]);
-
 	return <OutlineView />;
 }
 
@@ -263,7 +205,8 @@ export function App() {
 				<ShowKeyboardShortcutsSync />
 				<ExpansionSync />
 				<ItemTypePickerHost />
-				<BrowserRouter>
+				{/* Location updates render synchronously, in the same commit as the zoom a navigation sets in the store. */}
+				<BrowserRouter useTransitions={false}>
 					<StableNavigateProvider>
 						<div className="app">
 							<Routes>

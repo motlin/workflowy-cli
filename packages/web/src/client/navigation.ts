@@ -5,7 +5,9 @@ import {NavigationType, useLocation, useNavigationType} from "react-router-dom";
 import {useStableNavigate} from "./hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../node-types.js";
 import {useDeleteNode} from "./hooks/use-nodes.js";
-import {locationUrl, shortId} from "./location.js";
+import {afterNextPaint} from "./after-paint.js";
+import {caretTextOffset, editorElement} from "./caret-dom.js";
+import {locationUrl, parseLocationHash, shortId} from "./location.js";
 import {readChildren, readNode} from "./node-cache.js";
 import {locFromHash} from "./nav-stack.js";
 import {sidePaneFragments} from "./pane-url.js";
@@ -95,6 +97,28 @@ export function planZoomFocus(
 }
 
 /**
+ * Keep the edited row from focusing inside the frame that swaps the outline: stop editing for the swap, then resume at
+ * the same caret after the paint (when nothing else took the edit meanwhile). A row that mounts editing focuses in its
+ * commit, which forces a style and layout pass of the whole new view inside that frame; after the paint it is cheap.
+ */
+function holdEditingAcrossSwap(): void {
+	const {editingId, editingCaretOffset, stopEditing} = useOutlineStore.getState();
+	if (editingId === null) {
+		return;
+	}
+	const editor = editorElement(editingId);
+	const offset = editor === null ? (editingCaretOffset ?? 0) : caretTextOffset(editor);
+	stopEditing();
+	void (async () => {
+		await afterNextPaint();
+		const state = useOutlineStore.getState();
+		if (state.editingId === null) {
+			state.resumeEditing(editingId, offset);
+		}
+	})();
+}
+
+/**
  * Record a move to `nodeId` (null for home) on the in-app stacks, zoom the outline, then push its URL carrying any
  * open side pane. Zooming here rather than after the route resolves the URL's short id swaps the outline in the same
  * frame as the click, and keeping the `panes` param spares the pane sync a second, replacing navigation.
@@ -102,6 +126,9 @@ export function planZoomFocus(
 export function goToNode(navigate: NavigateFn, nodeId: string | null): void {
 	const {dispatchNav, zoom, sidePane, paneUrlIds} = useOutlineStore.getState();
 	dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query: null}});
+	if (nodeId !== useOutlineStore.getState().zoomedNodeId) {
+		holdEditingAcrossSwap();
+	}
 	zoom(nodeId);
 	void navigate(locationUrl({id: nodeId, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
 }
@@ -116,10 +143,32 @@ export function navigateToSearch(navigate: NavigateFn, query: string): void {
 }
 
 /**
+ * Zoom the outline to the node `hash` names when `resolve` finds its full id in the cache (home for no id), so the
+ * outline swaps in the same render as the URL change rather than after the hash route resolves it. An id the cache
+ * cannot resolve leaves the zoom to the route.
+ */
+export function zoomToCachedLocation(hash: string, resolve: (locationId: string) => string | undefined): void {
+	zoomToCachedId(parseLocationHash(hash).id, resolve);
+}
+
+function zoomToCachedId(locationId: string | null, resolve: (locationId: string) => string | undefined): void {
+	const target = locationId === null ? null : resolve(locationId);
+	if (target !== undefined && target !== useOutlineStore.getState().zoomedNodeId) {
+		holdEditingAcrossSwap();
+		useOutlineStore.getState().zoom(target);
+	}
+}
+
+/**
  * Upstream's Back/Forward: step the in-app stacks and push a new browser entry
  * for the target (never `history.back()`); a no-op when that stack is empty.
+ * A target `resolve` finds in the cache is zoomed before the push, as `goToNode` does.
  */
-export function stepNav(navigate: NavigateFn, direction: "back" | "forward"): void {
+export function stepNav(
+	navigate: NavigateFn,
+	direction: "back" | "forward",
+	resolve: (locationId: string) => string | undefined,
+): void {
 	const {nav: before, dispatchNav} = useOutlineStore.getState();
 	if ((direction === "back" ? before.back : before.forward).length === 0) {
 		return;
@@ -127,6 +176,7 @@ export function stepNav(navigate: NavigateFn, direction: "back" | "forward"): vo
 	dispatchNav({type: direction});
 	const {nav, sidePane, paneUrlIds} = useOutlineStore.getState();
 	if (nav.current !== null) {
+		zoomToCachedId(nav.current.id, resolve);
 		void navigate(locationUrl({...nav.current, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
 	}
 }

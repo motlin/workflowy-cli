@@ -14,7 +14,7 @@ import {useCreateNode, useDeleteNode, useExpandAll, useToggleComplete, useUpdate
 import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {deleteDates} from "../date-pills.js";
 import {useNodeEditing} from "../hooks/use-node-editing.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {outlineActions, useOutlineStore} from "../stores/outline.js";
 import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
 import {expansionSlide} from "../children-slide.js";
@@ -184,13 +184,9 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 	const queryClient = useQueryClient();
 	const {navigateToNode} = useNodeNavigation();
 	const expandAll = useExpandAll();
-	const focusNote = useOutlineStore((state) => state.focusNote);
-	const focusName = useOutlineStore((state) => state.focusName);
-	const openPresentation = useOutlineStore((state) => state.openPresentation);
-	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
+	const {focusNote, focusName, openPresentation, openExportDialog, requestDatePicker} = outlineActions();
 	const createNode = useCreateNode();
 	const deleteNode = useDeleteNode();
-	const requestDatePicker = useOutlineStore((state) => state.requestDatePicker);
 	const updateNode = useUpdateNode();
 	const moveTo = useMoveTo();
 	const copyLink = useCopyLink();
@@ -281,7 +277,7 @@ interface NodeNameProps {
 function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching, searchNameClasses}: NodeNameProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
-	const setItemMenuOpen = useOutlineStore((state) => state.setItemMenuOpen);
+	const {setItemMenuOpen, toggleExpand, toggleSearchExpansion, resumeEditing} = outlineActions();
 	// A row unmounted with its menu open (collapsed parent, deleted row) must not leave a stale highlight.
 	useEffect(
 		() => () => {
@@ -289,9 +285,6 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching
 		},
 		[node.id, setItemMenuOpen],
 	);
-	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
-	const toggleSearchExpansion = useOutlineStore((state) => state.toggleSearchExpansion);
-	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
 	const {editing, clickPosition: editingClickPosition} = useNodeEditing(node.id);
 	const toggleComplete = useToggleComplete();
 	const expandAll = useExpandAll();
@@ -463,7 +456,7 @@ export const OutlineRow = memo(function OutlineRow({
 	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);
 	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));
 	const dragHover = useOutlineStore((state) => dropHoverOf(state.dropIndicator, node.id));
-	const endCompletionAnimation = useOutlineStore((state) => state.endCompletionAnimation);
+	const {endCompletionAnimation} = outlineActions();
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const hasChildren = rowHasChildren(node, showCompleted);
 

@@ -6,9 +6,8 @@ import type {DatePreset, TimeAttrs} from "@workflowy/shared";
 import {unitsBefore} from "../caret-dom.js";
 import {timeAttrsFromDates} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
-import {useOutlineStore} from "../stores/outline.js";
-import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
-import {DatePickerPopup} from "./date-picker-popup.js";
+import {outlineActions} from "../stores/outline.js";
+import {CalendarDatePickerPopup} from "./date-picker-popup.js";
 
 interface OpenPill {
 	pillIndex: number;
@@ -55,8 +54,7 @@ export function usePillDatePicker({dateSettings, onChange, onDismiss}: PillDateP
 	const [picker, setPicker] = useState<OpenPill | null>(null);
 	// Applying refocuses the editor, whose blur of the picker input would otherwise report a dismissal too.
 	const isOpen = useRef(false);
-	const openSettings = useOutlineStore((state) => state.openSettings);
-	const eventDays = useCalendarEventDays();
+	const {openSettings} = outlineActions();
 
 	const open = useCallback((pill: Element, pillIndex: number) => {
 		const rect = pill.getBoundingClientRect();
@@ -93,11 +91,9 @@ export function usePillDatePicker({dateSettings, onChange, onDismiss}: PillDateP
 			onChange(picker.pillIndex, timeAttrsFromDates(dates));
 		};
 		return createPortal(
-			<DatePickerPopup
+			<CalendarDatePickerPopup
 				selected={guess}
 				weekStartDay={dateSettings.weekStartDay}
-				hasEvent={eventDays.hasEvent}
-				onVisibleMonthChange={eventDays.onVisibleMonthChange}
 				isRange={picker.isRange}
 				showNoDate
 				term={picker.term}

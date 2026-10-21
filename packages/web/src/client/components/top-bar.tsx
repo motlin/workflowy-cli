@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 import {useShallow} from "zustand/react/shallow";
 import {locationKey} from "@workflowy/shared";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
@@ -18,6 +19,7 @@ import {StarButton, StarIcon} from "./star-button.js";
 import {currentTypeIcon} from "../layout-types.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {goToNode, stepNav, useNavStackSync} from "../navigation.js";
+import {cachedResolvedId} from "../node-cache.js";
 import {internalLinkUrl} from "../item-menu-model.js";
 import {PANE_HEADER_ACTIVE_BORDER} from "./pane-context.js";
 
@@ -139,6 +141,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	);
 	useEffect(() => peek.dispose, [peek]);
 	const navigate = useStableNavigate();
+	const queryClient = useQueryClient();
 	const navigateToToday = useNavigateToToday();
 	const toggleCompleted = useShowCompletedToggle();
 	useNavStackSync();
@@ -167,11 +170,12 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const narrow = !useMediaQuery("(min-width: 701px)");
 	const compact = narrow || sidePane !== null;
 
+	const resolveCached = (locationId: string) => cachedResolvedId(queryClient, locationId);
 	const handleNavigateBack = () => {
-		stepNav(navigate, "back");
+		stepNav(navigate, "back", resolveCached);
 	};
 	const handleNavigateForward = () => {
-		stepNav(navigate, "forward");
+		stepNav(navigate, "forward", resolveCached);
 	};
 
 	const handleMenuToggle = () => {

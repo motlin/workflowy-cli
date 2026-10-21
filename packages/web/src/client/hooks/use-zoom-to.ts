@@ -12,7 +12,8 @@ import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {isPotentiallyVisible} from "../tree-ops.js";
 import {ZOOMING_CLASS, runZoomAnimation, waitForZoomRow, zoomAnimationEnabled} from "../zoom-animation.js";
-import {fetchChildren} from "./use-nodes.js";
+import {fetchChildren, prefetchZoomView} from "./use-nodes.js";
+import {afterNextPaint} from "../after-paint.js";
 import {showZoom} from "../show-zoom.js";
 import {scrollSidePaneToTop} from "../components/pane-context.js";
 
@@ -47,6 +48,11 @@ async function zoomTo(
 	const previousOffset = editor ? caretTextOffset(editor) : 0;
 	const parentOfZoomed = zoomedNodeId === null ? null : (readNode(queryClient, zoomedNodeId)?.parent_id ?? null);
 	const zoomingInto = focus === "first_child" && targetId !== zoomedNodeId;
+	// Load the new view's title, breadcrumbs and Backlinks alongside its children and during the zoom animation, so
+	// the swap renders all of it in one commit.
+	const viewTarget = focus === "first_child" ? targetId : parentOfZoomed;
+	const viewLoaded =
+		viewTarget === null || viewTarget === zoomedNodeId ? undefined : prefetchZoomView(queryClient, viewTarget);
 	const children = zoomingInto
 		? await queryClient.query({
 				queryKey: nodeKeys.children(targetId),
@@ -85,6 +91,10 @@ async function zoomTo(
 		if (animate && !isOut) {
 			await runZoomAnimation(false, movingId);
 		}
+		await viewLoaded;
+		// The new view paints first; focusing its edited row inside that frame would force a style and layout pass of
+		// the whole outline before the paint. After it, style and layout are clean and the focus costs next to nothing.
+		stopEditing();
 		showZoom(destination, plan.scrollTop, {
 			inSidePane,
 			zoomSidePane,
@@ -102,10 +112,12 @@ async function zoomTo(
 				}
 			},
 		});
-		if (plan.editId === null) {
-			stopEditing();
-		} else {
-			resumeEditing(plan.editId, plan.offset);
+		if (plan.editId !== null) {
+			await afterNextPaint();
+			const after = useOutlineStore.getState();
+			if (after.editingId === null && activeZoomedId(after) === destination) {
+				resumeEditing(plan.editId, plan.offset);
+			}
 		}
 		if (animate && isOut) {
 			await waitForZoomRow(movingId);

@@ -555,6 +555,14 @@ export function activeZoomedId(state: Pick<OutlineState, "activePaneId" | "sideP
 		: state.zoomedNodeId;
 }
 
+/**
+ * The store's state for its actions, which never change. A component reads its actions here once per render instead
+ * of selecting each one, which would subscribe every mounted row to the store once per action for nothing.
+ */
+export function outlineActions(): OutlineStore {
+	return useOutlineStore.getState();
+}
+
 /** The store's state as the active pane sees it: `zoomedNodeId` is that pane's zoom, for keyboard navigation. */
 export function activePaneView(): OutlineStore {
 	const state = useOutlineStore.getState();

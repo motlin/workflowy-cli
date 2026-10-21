@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {activePaneView, isModalOpen, registerEditFlush, useOutlineStore} from "../stores/outline.js";
+import {activePaneView, isModalOpen, outlineActions, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
@@ -98,9 +98,7 @@ export function EditableNote({
 	extraClasses = NO_EXTRA_CLASSES,
 }: EditableNoteProps) {
 	const contentRef = useRef<HTMLDivElement>(null);
-	const focusNote = useOutlineStore((state) => state.focusNote);
-	const focusName = useOutlineStore((state) => state.focusName);
-	const blurNote = useOutlineStore((state) => state.blurNote);
+	const {focusNote, focusName, blurNote} = outlineActions();
 	const updateNodeMutation = useUpdateNode();
 	const queryClient = useQueryClient();
 	const dateSettings = useDateSettings();
@@ -337,7 +335,7 @@ export function EditableNote({
 		read: readNote,
 		modalOpen: isModalOpen,
 	});
-	const openLinkInsert = useOutlineStore((state) => state.openLinkInsert);
+	const {openLinkInsert} = outlineActions();
 	const handleToolbarAction = useCallback(
 		(action: SelectionToolbarAction) => {
 			const attr = toolbarFormatAttr(action);

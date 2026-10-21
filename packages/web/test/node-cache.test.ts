@@ -1,6 +1,8 @@
 import {QueryClient} from "@tanstack/react-query";
 import {describe, expect, it} from "vite-plus/test";
 import {
+	cachedAncestors,
+	cachedResolvedId,
 	nodeKeys,
 	patchCachedNode,
 	readChildren,
@@ -223,5 +225,67 @@ describe("seedResolvedId", () => {
 		expect(queryClient.getQueryData(nodeKeys.resolvedId("35035d443bf1"))).toBe(
 			"4823cefa-5fc0-478c-88ac-35035d443bf1",
 		);
+	});
+});
+
+const ALICE = "4823cefa-5fc0-478c-88ac-35035d443bf1";
+const BOB = "9a1f6c2e-0b7d-4e5a-8c3f-aaaaaaaaaaaa";
+const CAROL = "1b2c3d4e-5f60-4718-9a0b-bbbbbbbbbbbb";
+
+function treeRow(id: string, parentId: string | null, fields: Partial<NodeResponse> = {}): NodeResponse {
+	return {...row(id, 100), parent_id: parentId, ...fields};
+}
+
+function asAncestor(node: NodeResponse): NodeResponse {
+	return {...node, hasChildren: true, hasUncompletedChildren: true, isMirror: false, originalNodeId: null};
+}
+
+describe("cachedResolvedId", () => {
+	it("resolves a short URL id from any cached row, detail or ancestor chain, and misses an unknown one", () => {
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(nodeKeys.children(null), [treeRow(ALICE, null)]);
+		queryClient.setQueryData(nodeKeys.detail(BOB), treeRow(BOB, ALICE));
+		queryClient.setQueryData(nodeKeys.ancestors("x"), [treeRow(CAROL, null)]);
+		expect([
+			cachedResolvedId(queryClient, "35035d443bf1"),
+			cachedResolvedId(queryClient, "aaaaaaaaaaaa"),
+			cachedResolvedId(queryClient, "bbbbbbbbbbbb"),
+			cachedResolvedId(queryClient, ALICE),
+			cachedResolvedId(queryClient, "cccccccccccc"),
+		]).toStrictEqual([ALICE, BOB, CAROL, ALICE, undefined]);
+	});
+});
+
+describe("cachedAncestors", () => {
+	const alice = treeRow(ALICE, null);
+	const bob = treeRow(BOB, ALICE, {isMirror: true, originalNodeId: "orig", hasChildren: false});
+	const carol = treeRow(CAROL, BOB);
+
+	it("extends the parent's cached chain with the node's cached row, as the ancestors route returns it", () => {
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(nodeKeys.ancestors(ALICE), [asAncestor(alice)]);
+		queryClient.setQueryData(nodeKeys.children(ALICE), [bob]);
+		expect(cachedAncestors(queryClient, BOB)).toStrictEqual([asAncestor(alice), asAncestor(bob)]);
+	});
+
+	it("cuts an ancestor's chain out of any cached chain that passes through it", () => {
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(nodeKeys.ancestors(CAROL), [asAncestor(alice), asAncestor(bob), asAncestor(carol)]);
+		expect(cachedAncestors(queryClient, BOB)).toStrictEqual([asAncestor(alice), asAncestor(bob)]);
+	});
+
+	it("builds a top-level node's chain from its row alone", () => {
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(nodeKeys.children(null), [alice]);
+		expect(cachedAncestors(queryClient, ALICE)).toStrictEqual([asAncestor(alice)]);
+	});
+
+	it("misses when the node or its parent's chain is not cached", () => {
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(nodeKeys.children(ALICE), [bob]);
+		expect([cachedAncestors(queryClient, BOB), cachedAncestors(queryClient, CAROL)]).toStrictEqual([
+			undefined,
+			undefined,
+		]);
 	});
 });

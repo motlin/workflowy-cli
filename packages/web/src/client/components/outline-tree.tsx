@@ -1,6 +1,6 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode, Ref} from "react";
-import type {BacklinkItem, FoundDateItem, NodeResponse} from "../../node-types.js";
+import type {BacklinkItem, FoundDateItem, FoundDatesResponse, NodeResponse} from "../../node-types.js";
 import {useContext, useEffect, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
@@ -480,6 +480,7 @@ export function OutlineChildren({
 	owner,
 	isRoot = false,
 	depth = 1,
+	found = null,
 	containerRef,
 }: {
 	parentId: string | null;
@@ -489,6 +490,8 @@ export function OutlineChildren({
 	owner?: NodeResponse;
 	isRoot?: boolean;
 	depth?: number;
+	/** The zoomed day page's Found Dates (root only): its day id and the cached list, or null elsewhere. */
+	found?: {dayId: string; response: FoundDatesResponse | undefined} | null;
 }) {
 	const {data: nodes} = useChildren(parentId);
 	const search = useSearchFilter();
@@ -506,9 +509,8 @@ export function OutlineChildren({
 			? backlinks?.rootId
 			: null;
 	// Only the zoomed day page shows Found Dates, after every child is rendered and outside a search.
-	const {data: zoomed} = useNode(isRoot ? parentId : null);
-	const dayId = isRoot && zoomed?.calendar?.level === "day" ? zoomed.id : null;
-	const {data: foundDates} = useFoundDates(dayId);
+	const dayId = found?.dayId ?? null;
+	const foundDates = found?.response;
 	const foundItems =
 		search === null && total <= limit
 			? (foundDates?.items ?? []).filter((item) => showCompleted || item.node.completedAt === null)
@@ -536,6 +538,17 @@ export function OutlineChildren({
 			{isRoot || owner === undefined || limit < total ? null : <AddSiblingButton owner={owner} />}
 		</div>
 	);
+}
+
+/**
+ * The zoom root's `.children`, with the zoomed day page's Found Dates. Only the root reads the zoomed node and its
+ * Found Dates, so the nested `.children` of every expanded row hold no query for them.
+ */
+export function RootOutlineChildren({parentId}: {parentId: string | null}) {
+	const {data: zoomed} = useNode(parentId);
+	const dayId = zoomed?.calendar?.level === "day" ? zoomed.id : null;
+	const {data: response} = useFoundDates(dayId);
+	return <OutlineChildren found={dayId === null ? null : {dayId, response}} isRoot parentId={parentId} />;
 }
 
 /**
@@ -585,7 +598,7 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 			<div className="scroller">
 				<RowLimitsContext.Provider value={rowLimits}>
 					<ZoomRootRow nodeId={parentId}>
-						<OutlineChildren isRoot parentId={parentId} />
+						<RootOutlineChildren parentId={parentId} />
 						{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
 					</ZoomRootRow>
 				</RowLimitsContext.Provider>

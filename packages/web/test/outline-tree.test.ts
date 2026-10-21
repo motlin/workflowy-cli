@@ -56,6 +56,7 @@ const createMutate = vi.fn<(payload: unknown, options?: {onSuccess?: (node: {id:
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
+	outlineActions: () => outlineState,
 }));
 vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,

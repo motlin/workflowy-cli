@@ -62,6 +62,7 @@ const backlinksByNode = new Map<string, BacklinksResponse>();
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof outlineState) => unknown) =>
 		selector ? selector(outlineState) : outlineState,
+	outlineActions: () => outlineState,
 }));
 vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId}`,

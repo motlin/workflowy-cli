@@ -3,7 +3,14 @@ import type {NodeResponse} from "../src/node-types.js";
 import type {TreeSearchResult} from "../src/server/tree-search.js";
 import {searchFilter} from "../src/client/search-filter.js";
 import type {RowView} from "../src/client/render-window.js";
-import {initialRowBudget, nextRowBudget, rowLimit, rowLimits} from "../src/client/render-window.js";
+import {
+	firstPaintRowBudget,
+	initialRowBudget,
+	nextRowBudget,
+	rowBudgetToShow,
+	rowLimit,
+	rowLimits,
+} from "../src/client/render-window.js";
 
 function node(id: string, parentId: string | null, completed = false): NodeResponse {
 	return {
@@ -107,5 +114,26 @@ describe("rowLimits", () => {
 describe("row budget", () => {
 	it("starts at a viewport of 24px rows plus one 24-row step, like upstream useMaxToRender, and grows a step at a time", () => {
 		expect([initialRowBudget(900), initialRowBudget(0), nextRowBudget(62)]).toStrictEqual([62, 24, 86]);
+	});
+
+	it("paints a new view with a viewport of 24px rows, leaving the step of slack below the fold for after the paint", () => {
+		expect([firstPaintRowBudget(900), firstPaintRowBudget(0)]).toStrictEqual([38, 24]);
+	});
+});
+
+describe("rowBudgetToShow", () => {
+	const budgetFor = (budget: number, targetId: string, view: RowView = outlineView) =>
+		rowBudgetToShow((id) => children.get(id), null, budget, view, targetId);
+
+	it("grows the budget a step at a time until a keyboard move's target row renders, and leaves it otherwise", () => {
+		// Document order: alice, dave, erin, bob, carol; carol is the fifth row.
+		expect([
+			budgetFor(2, "carol"),
+			budgetFor(5, "carol"),
+			budgetFor(2, "dave"),
+			budgetFor(2, "frank"),
+			budgetFor(2, "nobody"),
+			budgetFor(1, "bob", searchView),
+		]).toStrictEqual([26, 5, 2, 2, 2, 25]);
 	});
 });

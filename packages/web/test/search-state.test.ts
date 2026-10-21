@@ -61,7 +61,7 @@ describe("committed search state", () => {
 		useOutlineStore.getState().leaveSearch();
 		goToNode(crumbClick, "4f2c1d3e-0000-4000-8000-0a1b2c3d4e5f");
 		const back = vi.fn<(to: string) => void>();
-		stepNav(back, "back");
+		stepNav(back, "back", (locationId) => new Map<string, string>().get(locationId));
 		expect({
 			crumbClick: crumbClick.mock.calls,
 			searchInput: useOutlineStore.getState().searchInput,

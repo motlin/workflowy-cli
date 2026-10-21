@@ -1,0 +1,99 @@
+// @vitest-environment happy-dom
+import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {act, createElement} from "react";
+import {createRoot} from "react-dom/client";
+import type {Root} from "react-dom/client";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {MemoryRouter} from "react-router-dom";
+import type {NodeResponse} from "../src/node-types.js";
+import {nodeKeys} from "../src/client/node-cache.js";
+import {useHashLocationZoom} from "../src/client/hooks/use-hash-location-zoom.js";
+import {useOutlineStore} from "../src/client/stores/outline.js";
+
+declare global {
+	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+const ALICE = "4823cefa-5fc0-478c-88ac-aaaaaaaaaaaa";
+const BOB = "9a1f6c2e-0b7d-4e5a-8c3f-bbbbbbbbbbbb";
+
+function treeRow(id: string): NodeResponse {
+	return {
+		id,
+		parent_id: null,
+		name: id,
+		note: null,
+		priority: 100,
+		data: {layoutMode: null},
+		createdAt: null,
+		modifiedAt: null,
+		completedAt: null,
+	};
+}
+
+let root: Root | undefined;
+let requests: string[] = [];
+
+beforeEach(() => {
+	globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+	useOutlineStore.setState(useOutlineStore.getInitialState(), true);
+	requests = [];
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async (url: string) => {
+			requests.push(url);
+			return Promise.resolve(new Response("{}", {status: 404}));
+		}),
+	);
+});
+
+afterEach(() => {
+	act(() => {
+		root?.unmount();
+	});
+	root = undefined;
+	vi.unstubAllGlobals();
+});
+
+function mountAt(url: string): void {
+	const queryClient = new QueryClient();
+	queryClient.setQueryData(nodeKeys.children(null), [treeRow(ALICE), treeRow(BOB)]);
+	function Probe() {
+		useHashLocationZoom();
+		return null;
+	}
+	root = createRoot(document.createElement("div"));
+	act(() => {
+		root?.render(
+			createElement(
+				QueryClientProvider,
+				{client: queryClient},
+				createElement(MemoryRouter, {initialEntries: [url]}, createElement(Probe)),
+			),
+		);
+	});
+}
+
+describe("useHashLocationZoom", () => {
+	it("zooms to a short id any cached row carries without a lookup request", () => {
+		mountAt("/#/aaaaaaaaaaaa");
+		expect({zoomed: useOutlineStore.getState().zoomedNodeId, requests}).toStrictEqual({
+			zoomed: ALICE,
+			requests: [],
+		});
+	});
+
+	it("zooms from the popstate event itself when the cache resolves the new hash", () => {
+		mountAt("/#/aaaaaaaaaaaa");
+		globalThis.location.hash = "#/bbbbbbbbbbbb";
+		const zoomed: (string | null)[] = [];
+		// Read inside the event, before React renders anything for it.
+		globalThis.addEventListener("popstate", () => {
+			zoomed.push(useOutlineStore.getState().zoomedNodeId);
+		});
+		act(() => {
+			globalThis.dispatchEvent(new PopStateEvent("popstate"));
+		});
+		expect({zoomed, requests}).toStrictEqual({zoomed: [BOB], requests: []});
+	});
+});

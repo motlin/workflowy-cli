@@ -6,9 +6,8 @@ import type {DatePreset, TimeAttrs} from "@workflowy/shared";
 import {caretTextOffset} from "../caret-dom.js";
 import {shouldTriggerDatePopup, timeAttrsFromDates} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
-import {useOutlineStore} from "../stores/outline.js";
-import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
-import {DatePickerPopup} from "./date-picker-popup.js";
+import {outlineActions} from "../stores/outline.js";
+import {CalendarDatePickerPopup} from "./date-picker-popup.js";
 
 const TRIGGER_INPUT_TYPES = new Set(["insertText", "insertCompositionText"]);
 const TRIGGER_DATA = new Set(["!", "！"]);
@@ -111,8 +110,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 	const [picker, setPicker] = useState<OpenPicker | null>(null);
 	// The open picker for close callbacks that can fire twice (a preset row selects, then the menu exits).
 	const openRef = useRef<OpenPicker | null>(null);
-	const openSettings = useOutlineStore((state) => state.openSettings);
-	const eventDays = useCalendarEventDays();
+	const {openSettings} = outlineActions();
 
 	const handleInput = useCallback(
 		(native: Event) => {
@@ -193,11 +191,9 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 		picker === null
 			? null
 			: createPortal(
-					<DatePickerPopup
+					<CalendarDatePickerPopup
 						selected={guess}
 						weekStartDay={dateSettings.weekStartDay}
-						hasEvent={eventDays.hasEvent}
-						onVisibleMonthChange={eventDays.onVisibleMonthChange}
 						isRange={picker.isRange}
 						term={picker.term}
 						position={picker.position}

@@ -10,6 +10,7 @@ import {IconButton} from "./icon-button.js";
 import {CALENDAR_KEYS, nextCalendarFocus} from "./date-picker-keyboard.js";
 import type {CalendarFocusTarget} from "./date-picker-keyboard.js";
 import type {DatePreset} from "@workflowy/shared";
+import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
 import type {CalendarMonth} from "../hooks/use-calendar-event-days.js";
 
 export type DatePickerView = "DATE" | "MONTH" | "YEAR";
@@ -648,4 +649,13 @@ export function DatePickerPopup({
 			</MenuBody>
 		</div>
 	);
+}
+
+/**
+ * The popup with event dots for the visible month (upstream DP10). Holding the month query here, rather than in the
+ * hook of every row that can open a picker, keeps a closed picker from costing each row a query subscription.
+ */
+export function CalendarDatePickerPopup(props: Omit<DatePickerPopupProps, "hasEvent" | "onVisibleMonthChange">) {
+	const {hasEvent, onVisibleMonthChange} = useCalendarEventDays();
+	return <DatePickerPopup {...props} hasEvent={hasEvent} onVisibleMonthChange={onVisibleMonthChange} />;
 }
