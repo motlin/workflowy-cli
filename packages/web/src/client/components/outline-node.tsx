@@ -1,7 +1,7 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
-import {Fragment, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
@@ -17,8 +17,7 @@ import {useOutlineStore} from "../stores/outline.js";
 import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
 import {searchClasses, withClasses} from "../search-classes.js";
-import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
-import {BreadcrumbItem, LeftCollapsingCrumbs} from "./breadcrumbs.js";
+import {FlatCrumbs, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {ExpandArrow} from "./expand-arrow.js";
@@ -408,28 +407,11 @@ function rowProjectClassName(
  * header's truncation engine; Found Dates crumbs (`fitted`) collapse from the left to fit.
  */
 function BacklinkCrumbs({crumbs, fitted}: {crumbs: BacklinkCrumb[]; fitted: boolean}) {
-	const {navigateToNode} = useNodeNavigation();
 	const items =
 		crumbs.length === 0 ? [{id: "None", isRoot: true}] : crumbs.map(({id, name}) => ({id, name, isRoot: false}));
 	return (
 		<div className="text-xs mobile:text-s text-tertiary mt-m ml-xl mobile:ml-2xl leading-s">
-			{fitted ? (
-				<LeftCollapsingCrumbs crumbs={items} />
-			) : (
-				<div className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden">
-					{items.map((crumb, index) => (
-						<Fragment key={crumb.id}>
-							{index > 0 ? <BreadcrumbSeparator /> : null}
-							<BreadcrumbItem
-								crumb={crumb}
-								current={false}
-								truncateWidth={null}
-								onNavigate={navigateToNode}
-							/>
-						</Fragment>
-					))}
-				</div>
-			)}
+			{fitted ? <LeftCollapsingCrumbs crumbs={items} /> : <FlatCrumbs crumbs={items} />}
 		</div>
 	);
 }

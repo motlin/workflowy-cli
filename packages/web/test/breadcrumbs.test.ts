@@ -39,7 +39,7 @@ vi.mock("../src/client/hooks/use-calendar-settings.js", () => ({
 
 vi.stubGlobal("window", {innerWidth: 1272});
 
-const {Breadcrumbs, BreadcrumbOverflowMenu, LeftCollapsingCrumbs, handleCrumbClick, preventCrumbMouseDown} =
+const {Breadcrumbs, BreadcrumbOverflowMenu, FlatCrumbs, LeftCollapsingCrumbs, handleCrumbClick, preventCrumbMouseDown} =
 	await import("../src/client/components/breadcrumbs.js");
 
 const CRUMB_CLASS =
@@ -222,6 +222,50 @@ describe("LeftCollapsingCrumbs labels", () => {
 		dateSettingsState.dateFormat = "ddd, MMM D";
 		expect(html.slice(html.indexOf("<a "))).toBe(
 			`<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">03/05/2020</a></div>`,
+		);
+	});
+});
+
+function renderFlat(crumbs: {id: string; isRoot: boolean; name?: string | null}[]): string {
+	return renderToStaticMarkup(createElement(FlatCrumbs, {crumbs}));
+}
+
+describe("FlatCrumbs labels", () => {
+	it("prefixes a today crumb with Today when the calendar keeps Friendly day names", () => {
+		calendarSettingsState.dayPrefix = true;
+		expect(renderFlat([{id: "day-uuid", isRoot: false, name: todayName()}])).toBe(
+			`${CONTAINER_OPEN}<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">Today, ${todayLabel()}</a></div>`,
+		);
+	});
+
+	it("drops the Today prefix when the calendar turns Friendly day names off", () => {
+		calendarSettingsState.dayPrefix = false;
+		const html = renderFlat([{id: "day-uuid", isRoot: false, name: todayName()}]);
+		calendarSettingsState.dayPrefix = true;
+		expect(html).toBe(
+			`${CONTAINER_OPEN}<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
+		);
+	});
+
+	it("formats a date crumb with the account's date format", () => {
+		dateSettingsState.dateFormat = "MM/DD/YYYY";
+		const html = renderFlat([
+			{id: "day-uuid", isRoot: false, name: '<time startYear="2020" startMonth="3" startDay="5">x</time>'},
+		]);
+		dateSettingsState.dateFormat = "ddd, MMM D";
+		expect(html).toBe(
+			`${CONTAINER_OPEN}<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">03/05/2020</a></div>`,
+		);
+	});
+
+	it("separates crumbs with a chevron", () => {
+		expect(
+			renderFlat([
+				{id: "a-uuid", isRoot: false, name: "A"},
+				{id: "b-uuid", isRoot: false, name: "B"},
+			]),
+		).toBe(
+			`${CONTAINER_OPEN}<a class="${crumbClass(false)}" href="/#/a-uuid" data-item-id="a-uuid">A</a>${SEPARATOR}<a class="${crumbClass(false)}" href="/#/b-uuid" data-item-id="b-uuid">B</a></div>`,
 		);
 	});
 });

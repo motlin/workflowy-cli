@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react";
+import {Fragment, useMemo, useRef, useState} from "react";
 import type {MouseEvent} from "react";
 import {createBreadcrumbLayout, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
@@ -126,7 +126,7 @@ interface CrumbProps {
 }
 
 /** One upstream `.breadcrumb-item`: an anchor when enabled, a div for the disabled Home at the root. */
-export function BreadcrumbItem({
+function BreadcrumbItem({
 	crumb,
 	current,
 	truncateWidth,
@@ -347,6 +347,35 @@ export function Breadcrumbs({nodeId}: BreadcrumbsProps) {
 	);
 }
 
+/** Crumbs outside the header trail: the account's date format and the 📆 Calendar's Friendly day names setting. */
+function useCrumbDateOptions(): CrumbDateOptions {
+	const {dateFormat} = useDateSettings();
+	const {dayPrefix} = useCalendarSettings(noLog).settings;
+	return {dateFormat, dayPrefix};
+}
+
+/** A backlink's ancestors laid out flat, without the header's truncation engine. */
+export function FlatCrumbs({crumbs}: {crumbs: Crumb[]}) {
+	const {navigateToNode} = useNodeNavigation();
+	const dateOptions = useCrumbDateOptions();
+	return (
+		<div className="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden">
+			{crumbs.map((crumb, index) => (
+				<Fragment key={crumb.id}>
+					{index > 0 ? <BreadcrumbSeparator /> : null}
+					<BreadcrumbItem
+						crumb={crumb}
+						current={false}
+						truncateWidth={null}
+						onNavigate={navigateToNode}
+						dateOptions={dateOptions}
+					/>
+				</Fragment>
+			))}
+		</div>
+	);
+}
+
 // Upstream's Found Dates crumbs pass `sizes: {minItemWidth: 80}` and `threeDotPosition: "left"`.
 const leftCollapseLayout = createBreadcrumbLayout({minItemWidth: 80, threeDotPosition: "left"}, (label) =>
 	measureCrumbLabel(label),
@@ -361,9 +390,7 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();
-	const {dateFormat} = useDateSettings();
-	const {dayPrefix} = useCalendarSettings(noLog).settings;
-	const dateOptions = {dateFormat, dayPrefix};
+	const dateOptions = useCrumbDateOptions();
 	const inputs = crumbs.map((crumb) => ({
 		id: crumb.id,
 		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dateOptions),
