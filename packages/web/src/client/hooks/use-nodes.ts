@@ -12,6 +12,7 @@ import {createChildrenBatcher} from "../children-batcher.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
 import {toUndoOps} from "../tree-ops.js";
+import {serializeWrite} from "../write-order.js";
 import type {BlockMove, UndoableMutation} from "../tree-ops.js";
 import {RequestStatusError, holdUndoSlot} from "../undo-batch.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
@@ -507,7 +508,9 @@ export function useUpdateNode() {
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
 
 	const mutation = useMutation({
-		mutationFn: async ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) => updateNode(nodeId, request),
+		// In line with undo replays: a save and a replay of the same text must land in issue order.
+		mutationFn: async ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) =>
+			serializeWrite(async () => updateNode(nodeId, request)),
 		async onMutate(variables) {
 			const {nodeId, ...updates} = variables;
 			// Cancel outgoing refetches

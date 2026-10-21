@@ -1,4 +1,5 @@
 import {locationUrl} from "./location.js";
+import {serializeWrite} from "./write-order.js";
 import type {UndoBatch, UndoOp, ViewState} from "./undo-history.js";
 
 type Editing = NonNullable<ViewState["editing"]>;
@@ -92,14 +93,12 @@ async function previewUndo(direction: UndoDirection, runner: UndoRunner): Promis
 
 /** Presses still popping and previewing, one at a time so each pops the step after the last. */
 let previews: Promise<unknown> = Promise.resolve();
-/** Server replays, one at a time in pop order. */
-let replays: Promise<void> = Promise.resolve();
 /** Replays queued or running; the cache reconciles with the server once this drops to 0. */
 let pendingReplays = 0;
 
 /**
  * Runs an undo or redo: each press previews at once, even while earlier presses still replay, so
- * rapid ⌘Z steps back without waiting on the server; only the replays are serialized, and the cache
+ * rapid ⌘Z steps back without waiting on the server; only the replays are serialized (in line with text saves, see `serializeWrite`), and the cache
  * refetches once after the last of them so a middle refetch never lands over a later preview.
  */
 export async function queueUndo(direction: UndoDirection, runner: UndoRunner): Promise<void> {
@@ -110,10 +109,8 @@ export async function queueUndo(direction: UndoDirection, runner: UndoRunner): P
 		return;
 	}
 	pendingReplays++;
-	const replay = replays.then(async () => runner.apply(batch.ops));
-	replays = replay.catch(() => {});
 	try {
-		await replay;
+		await serializeWrite(async () => runner.apply(batch.ops));
 	} finally {
 		pendingReplays--;
 		if (pendingReplays === 0) {

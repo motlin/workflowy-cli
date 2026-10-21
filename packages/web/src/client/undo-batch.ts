@@ -53,7 +53,11 @@ interface PendingBatch {
 let open: {batch: PendingBatch; depth: number} | undefined;
 /** Batches in the order their commands ran, so they push in that order however they settle. */
 const queue: PendingBatch[] = [];
-/** Above 0 while `applyOps` replays: what it issues is the undo itself, never a new step. */
+/**
+ * Above 0 only while `applyOps` synchronously issues one replay request: anything recorded then is
+ * the undo itself. It drops back before the request is awaited, so a command the user runs while a
+ * slow replay is still on the wire records its own undo step.
+ */
 let replaying = 0;
 
 function enqueue(before: ViewState): PendingBatch {
@@ -221,16 +225,27 @@ async function applyOp(op: UndoOp, adapter: UndoAdapter): Promise<unknown> {
 	}
 }
 
+/** Issues one replay request with recording suppressed, then awaits it with recording back on. */
+async function issueReplay(op: UndoOp, adapter: UndoAdapter): Promise<unknown> {
+	replaying++;
+	let request: Promise<unknown>;
+	try {
+		request = applyOp(op, adapter);
+	} finally {
+		replaying--;
+	}
+	return request;
+}
+
 /**
  * Replays a popped (already inverted) batch in order. A 404, 409 or 503 means the outline no longer
  * matches the history: report it, drop the rest of the batch and clear both stacks.
  */
 export async function applyOps(ops: readonly UndoOp[], adapter: UndoAdapter): Promise<void> {
-	replaying++;
 	try {
 		for (const op of ops) {
 			// oxlint-disable-next-line no-await-in-loop -- inverses depend on the previous op's result (slots, parents)
-			await applyOp(op, adapter);
+			await issueReplay(op, adapter);
 		}
 	} catch (error) {
 		const message = error instanceof RequestStatusError ? INVALIDATING_FAILURES.get(error.status) : undefined;
@@ -240,7 +255,5 @@ export async function applyOps(ops: readonly UndoOp[], adapter: UndoAdapter): Pr
 			return;
 		}
 		throw error;
-	} finally {
-		replaying--;
 	}
 }
