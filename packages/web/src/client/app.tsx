@@ -27,6 +27,7 @@ import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
 import {useGlobalKeymap} from "./hooks/use-global-keymap.js";
+import {usePaneUrlSync} from "./hooks/use-pane-url-sync.js";
 import {useSearchEscape} from "./hooks/use-search-escape.js";
 import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
@@ -35,6 +36,7 @@ import {installWindowBlurredClass} from "./window-blurred.js";
 import {locationUrl, parseLocationHash} from "./location.js";
 import {nodeUrl, resolveZoomTarget, useEmptyDayCleanup} from "./navigation.js";
 import {nodeKeys} from "./node-cache.js";
+import {PANES_FRAGMENT} from "./pane-url.js";
 import {readJson} from "./read-json.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineStore} from "./stores/outline.js";
@@ -152,14 +154,16 @@ async function fetchResolvedId(locationId: string): Promise<string | null> {
 /**
  * The `/` route: zooms to the node named by the `#/<id>?q=` hash and, like
  * upstream, pushes the canonical URL when it differs (`#/<full uuid>` becomes
- * `#/<12hex>`; an unknown id becomes `/` and drops `?q=`).
+ * `#/<12hex>`; an unknown id becomes `/` and drops `?q=`). A `panes=v2.` param
+ * survives canonicalization and drives the side pane through `usePaneUrlSync`.
  */
 function HashLocationRoute() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const zoom = useOutlineStore((state) => state.zoom);
 	const setUrlSearchQuery = useOutlineStore((state) => state.setUrlSearchQuery);
-	const {id, query} = parseLocationHash(location.hash);
+	const {id, query, fragments} = parseLocationHash(location.hash);
+	const panes = fragments[PANES_FRAGMENT];
 	const resolved = useQuery({
 		queryKey: nodeKeys.resolvedId(id ?? ""),
 		queryFn: id === null ? skipToken : async () => fetchResolvedId(id),
@@ -169,6 +173,7 @@ function HashLocationRoute() {
 	const target = resolveZoomTarget(id, () => resolved.data ?? null);
 	const currentUrl = location.pathname + location.hash;
 	useEmptyDayCleanup();
+	usePaneUrlSync(fetchResolvedId);
 
 	useEffect(() => {
 		if (unknown) {
@@ -181,11 +186,15 @@ function HashLocationRoute() {
 		}
 		const fullId = target === "home" ? null : target;
 		zoom(fullId);
-		const canonical = locationUrl({id: fullId, query});
+		const canonical = locationUrl({
+			id: fullId,
+			query,
+			fragments: panes === undefined ? {} : {[PANES_FRAGMENT]: panes},
+		});
 		if (canonical !== currentUrl) {
 			void navigate(canonical);
 		}
-	}, [currentUrl, navigate, query, target, unknown, zoom]);
+	}, [currentUrl, navigate, panes, query, target, unknown, zoom]);
 
 	useEffect(() => {
 		setUrlSearchQuery(query);

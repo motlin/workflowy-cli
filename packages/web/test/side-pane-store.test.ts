@@ -181,3 +181,65 @@ describe("active pane", () => {
 		});
 	});
 });
+
+describe("pane URL ids", () => {
+	it("starts with none", async () => {
+		const store = await loadStore();
+		expect(store.getState().paneUrlIds).toBeNull();
+	});
+
+	it("gives a new side pane and the main pane distinct 11-character ids", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		const ids = store.getState().paneUrlIds;
+		expect({
+			main: /^[A-Za-z0-9_-]{11}$/u.test(ids?.mainPaneId ?? ""),
+			side: /^[A-Za-z0-9_-]{11}$/u.test(ids?.paneId ?? ""),
+			distinct: ids?.mainPaneId !== ids?.paneId,
+		}).toStrictEqual({main: true, side: true, distinct: true});
+	});
+
+	it("drops them when the side pane closes", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().closeSidePane();
+		expect(store.getState().paneUrlIds).toBeNull();
+	});
+});
+
+describe("restoreSidePane", () => {
+	const ids = {mainPaneId: "AAAAAAAAAAA", paneId: "BBBBBBBBBBB"};
+
+	it("opens the pane from the URL with its ids, inactive, keeping main editing", async () => {
+		const store = await loadStore();
+		store.getState().resumeEditing("bob", 0);
+		store.getState().restoreSidePane({zoomedId: "alice", ids, active: false});
+		const {sidePane, paneUrlIds, activePaneId, editingId} = store.getState();
+		expect({sidePane, paneUrlIds, activePaneId, editingId}).toStrictEqual({
+			sidePane: {zoomedId: "alice", backLocations: [], forwardLocations: []},
+			paneUrlIds: ids,
+			activePaneId: "main",
+			editingId: "bob",
+		});
+	});
+
+	it("activates the restored pane and stops editing when asked", async () => {
+		const store = await loadStore();
+		store.getState().resumeEditing("bob", 0);
+		store.getState().restoreSidePane({zoomedId: null, ids, active: true});
+		const {activePaneId, editingId} = store.getState();
+		expect({activePaneId, editingId}).toStrictEqual({activePaneId: "side", editingId: null});
+	});
+
+	it("re-zooms an open pane without touching its history", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().zoomSidePane("bob");
+		store.getState().restoreSidePane({zoomedId: "alice", ids, active: true});
+		const {sidePane, paneUrlIds} = store.getState();
+		expect({sidePane, paneUrlIds}).toStrictEqual({
+			sidePane: {zoomedId: "alice", backLocations: ["alice"], forwardLocations: []},
+			paneUrlIds: ids,
+		});
+	});
+});

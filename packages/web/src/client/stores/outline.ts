@@ -8,6 +8,8 @@ import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
+import {createPaneId} from "../pane-url.js";
+import type {PaneUrlIds} from "../pane-url.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {closeSwitcher} from "../switcher-close.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
@@ -255,6 +257,16 @@ interface SidePaneState {
 	forwardLocations: (string | null)[];
 }
 
+/** Opening the first extra pane gives the main pane a fresh random id too. */
+function newPaneUrlIds(): PaneUrlIds {
+	const mainPaneId = createPaneId();
+	let paneId = createPaneId();
+	while (paneId === mainPaneId) {
+		paneId = createPaneId();
+	}
+	return {mainPaneId, paneId};
+}
+
 /** Upstream caps each pane history at 100 locations. */
 const PANE_HISTORY_LIMIT = 100;
 
@@ -337,6 +349,8 @@ interface OutlineState {
 	relatedNodesPanelOpen: boolean;
 	/** Upstream's second item-tree pane (New pane ⌃R): its own zoom, independent of the main outline's. */
 	sidePane: SidePaneState | null;
+	/** The workspace's upstream pane ids (`panes=v2.` in the URL) while the side pane is open. */
+	paneUrlIds: PaneUrlIds | null;
 	/**
 	 * Upstream's `activePaneId`: the pane that last saw a pointerdown or focusin. Editing, the item selection and keyboard
 	 * navigation act in it only; it is the main pane whenever no side pane is open.
@@ -463,6 +477,11 @@ interface OutlineActions {
 	sidePaneBack: () => void;
 	sidePaneForward: () => void;
 	closeSidePane: () => void;
+	/**
+	 * Apply a side pane named by the URL (reload, Back/Forward): open it with the URL's pane ids, or re-zoom the open
+	 * one without touching its history; `active` comes from `pane-workspace-runtime:v1`.
+	 */
+	restoreSidePane: (pane: {zoomedId: string | null; ids: PaneUrlIds; active: boolean}) => void;
 	/** Make `paneId` the active pane; a no-op for the side pane while none is open. */
 	setActivePane: (paneId: string) => void;
 	openExportDialog: (context: ExportContext) => void;
@@ -666,6 +685,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	linkInsertContext: null,
 	relatedNodesPanelOpen: false,
 	sidePane: null,
+	paneUrlIds: null,
 	activePaneId: MAIN_PANE_ID,
 	exportDialogOpen: false,
 	exportContext: null,
@@ -1072,6 +1092,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	openSidePane: (zoomedId) => {
 		set({
 			sidePane: {zoomedId, backLocations: [], forwardLocations: []},
+			paneUrlIds: newPaneUrlIds(),
 			activePaneId: SIDE_PANE_ID,
 			editingId: null,
 			editingClickPosition: null,
@@ -1123,13 +1144,25 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (get().activePaneId === SIDE_PANE_ID) {
 			set({
 				sidePane: null,
+				paneUrlIds: null,
 				activePaneId: MAIN_PANE_ID,
 				editingId: null,
 				editingClickPosition: null,
 				editingCaretOffset: null,
 			});
 		} else {
-			set({sidePane: null});
+			set({sidePane: null, paneUrlIds: null});
+		}
+	},
+
+	restoreSidePane: ({zoomedId, ids, active}) => {
+		const {sidePane} = get();
+		set({
+			sidePane: sidePane === null ? {zoomedId, backLocations: [], forwardLocations: []} : {...sidePane, zoomedId},
+			paneUrlIds: ids,
+		});
+		if (active && get().activePaneId !== SIDE_PANE_ID) {
+			set({activePaneId: SIDE_PANE_ID, editingId: null, editingClickPosition: null, editingCaretOffset: null});
 		}
 	},
 
