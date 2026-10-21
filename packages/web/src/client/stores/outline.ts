@@ -246,6 +246,11 @@ export interface LocationPickerOptions {
 type LocationPickerResult = {id: string} | {createdId: string} | undefined;
 
 /** Where editing resumes when the picker closes. */
+interface SidePaneState {
+	/** The pane's zoomed node; null is Home. */
+	zoomedId: string | null;
+}
+
 export interface CaretReturn {
 	nodeId: string;
 	offset: number;
@@ -322,6 +327,8 @@ interface OutlineState {
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
 	relatedNodesPanelOpen: boolean;
+	/** Upstream's second item-tree pane (New pane ⌃R): its own zoom, independent of the main outline's. */
+	sidePane: SidePaneState | null;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
 	presentationOpen: boolean;
@@ -436,6 +443,10 @@ interface OutlineActions {
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
 	toggleRelatedNodesPanel: () => void;
+	openSidePane: (zoomedId: string | null) => void;
+	/** Zoom the open side pane; a no-op when none is open. */
+	zoomSidePane: (zoomedId: string | null) => void;
+	closeSidePane: () => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
 	openPresentation: (nodeId: string) => void;
@@ -623,6 +634,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	linkInsertOpen: false,
 	linkInsertContext: null,
 	relatedNodesPanelOpen: false,
+	sidePane: null,
 	exportDialogOpen: false,
 	exportContext: null,
 	presentationOpen: false,
@@ -1022,6 +1034,20 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	toggleRelatedNodesPanel: () => {
 		set((state) => ({relatedNodesPanelOpen: !state.relatedNodesPanelOpen}));
+	},
+
+	openSidePane: (zoomedId) => {
+		set({sidePane: {zoomedId}});
+	},
+
+	zoomSidePane: (zoomedId) => {
+		if (get().sidePane !== null) {
+			set({sidePane: {zoomedId}});
+		}
+	},
+
+	closeSidePane: () => {
+		set({sidePane: null});
 	},
 
 	openExportDialog: (context) => {

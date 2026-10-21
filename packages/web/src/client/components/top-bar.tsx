@@ -61,6 +61,32 @@ function canHover(): boolean {
 	return globalThis.matchMedia("(any-hover: hover) and (pointer: fine)").matches;
 }
 
+/** Upstream's custom 30x27 "columns +" New pane icon (ZC4). */
+function NewPaneIcon() {
+	return (
+		<svg
+			aria-hidden
+			focusable="false"
+			width="30"
+			height="27"
+			viewBox="0 0 33 30"
+			fill="none"
+			xmlns="http://www.w3.org/2000/svg"
+		>
+			<path
+				fillRule="evenodd"
+				clipRule="evenodd"
+				d="M7.125 11.875V9.625C7.125 8.39453 8.14453 7.375 9.375 7.375H20.625C21.8555 7.375 22.875 8.39453 22.875 9.625V13H21.75H15.5625V22H20.625C21.2578 22 21.75 21.5078 21.75 20.875H22.875C22.875 22.1055 21.8555 23.125 20.625 23.125H9.375C8.14453 23.125 7.125 22.1055 7.125 20.875V11.875ZM9.375 8.5H20.625C21.2578 8.5 21.75 8.99219 21.75 9.625V11.875H8.25V9.625C8.25 8.99219 8.74219 8.5 9.375 8.5ZM14.4375 13V22H9.375C8.74219 22 8.25 21.5078 8.25 20.875V13H14.4375Z"
+				fill="currentColor"
+			/>
+			<path
+				d="M25.5714 13.5714V16.4286H28.4286C28.75 16.4286 29 16.6786 29 17C29 17.3214 28.75 17.5714 28.4286 17.5714H25.5714V20.4286C25.5714 20.75 25.3214 21 25 21C24.6786 21 24.4286 20.75 24.4286 20.4286V17.5714H21.5714C21.25 17.5714 21 17.3214 21 17C21 16.6786 21.25 16.4286 21.5714 16.4286H24.4286V13.5714C24.4286 13.25 24.6786 13 25 13C25.3214 13 25.5714 13.25 25.5714 13.5714Z"
+				fill="currentColor"
+			/>
+		</svg>
+	);
+}
+
 /**
  * Top toolbar matching upstream's div.wf-header.header: flat children (hamburger,
  * pagination, breadcrumbs, right cluster), 48px tall, fixed at the top.
@@ -82,6 +108,8 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		showItemTypePicker,
 		openLeftBarDrawer,
 		closeLeftBarDrawer,
+		sidePane,
+		openSidePane,
 	} = useOutlineStore();
 	const [peek] = useState(() =>
 		createPeekController({
@@ -116,8 +144,9 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const rootChildren = useChildren(null);
 	const canPresent =
 		zoomedNodeId === null ? (rootChildren.data?.length ?? 0) > 0 : zoomedNode.data?.hasChildren === true;
-	// Upstream's zv4: under 701px the compactable actions move into the more menu.
-	const compact = !useMediaQuery("(min-width: 701px)");
+	// Upstream's zv4: under 701px, or while a pane is open, the compactable actions move into the more menu.
+	const narrow = !useMediaQuery("(min-width: 701px)");
+	const compact = narrow || sidePane !== null;
 
 	const handleNavigateBack = () => {
 		stepNav(navigate, "back");
@@ -329,6 +358,22 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 						onUndo={onUndo}
 					/>
 				</div>
+
+				{/* Upstream's header.controls.new-pane: shown until a pane is open, on any zoom including Home. */}
+				{sidePane === null && (
+					<>
+						<div className="self-stretch border-l border-solid border-primary mx-s" />
+						<IconButton
+							onClick={() => {
+								openSidePane(zoomedNodeId);
+							}}
+							shortcut="⌃R"
+							tooltip="New pane"
+						>
+							<NewPaneIcon />
+						</IconButton>
+					</>
+				)}
 			</div>
 		</div>
 	);

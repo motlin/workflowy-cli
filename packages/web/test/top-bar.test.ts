@@ -8,23 +8,29 @@ import type {GearMenuHeaderItem} from "../src/client/components/gear-menu.js";
 import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
 const pickerCalls: unknown[] = [];
-const storeState: {zoomedNodeId: string | null} & Record<string, unknown> = {
-	zoomedNodeId: "alice",
-	toggleLeftBar: () => {},
-	searchInput: "",
-	setSearchInput: () => {},
-	searchFocused: false,
-	setSearchFocused: () => {},
-	showCompleted: false,
-	openSettings: () => {},
-	openPresentation: () => {},
-	leftBarOffset: () => 0,
-	leftBarMode: "drawerClosed",
-	nav: {current: null, back: [], forward: []},
-	showItemTypePicker: (picker: unknown) => {
-		pickerCalls.push(picker);
-	},
-};
+const openSidePaneCalls: (string | null)[] = [];
+const storeState: {zoomedNodeId: string | null; sidePane: {zoomedId: string | null} | null} & Record<string, unknown> =
+	{
+		zoomedNodeId: "alice",
+		sidePane: null,
+		openSidePane: (zoomedId: string | null) => {
+			openSidePaneCalls.push(zoomedId);
+		},
+		toggleLeftBar: () => {},
+		searchInput: "",
+		setSearchInput: () => {},
+		searchFocused: false,
+		setSearchFocused: () => {},
+		showCompleted: false,
+		openSettings: () => {},
+		openPresentation: () => {},
+		leftBarOffset: () => 0,
+		leftBarMode: "drawerClosed",
+		nav: {current: null, back: [], forward: []},
+		showItemTypePicker: (picker: unknown) => {
+			pickerCalls.push(picker);
+		},
+	};
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
@@ -106,6 +112,9 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 			}
 			if (props.tooltip === "Share") {
 				iconButtonProps.set("share", props);
+			}
+			if (props.tooltip === "New pane") {
+				iconButtonProps.set("new_pane", props);
 			}
 			return actual.IconButton(props);
 		},
@@ -227,9 +236,12 @@ function clusterHtml(html: string): string {
 /** Ordered identifiers of the right-cluster controls. */
 function clusterSequence(html: string): string[] {
 	const tokens = clusterHtml(html).matchAll(
-		/fa-calendar-day\b|fa-user-plus|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
+		/fa-calendar-day\b|fa-user-plus|viewBox="0 0 33 30"|data-handbook="([^"]+)"|class="[^"]*\bgearMenu\b/gu,
 	);
 	return [...tokens].map((match) => {
+		if (match[0] === 'viewBox="0 0 33 30"') {
+			return "new_pane";
+		}
 		if (match[0].startsWith("data-handbook")) {
 			return match[1] === "search.search" ? "search" : match[1];
 		}
@@ -262,6 +274,7 @@ describe("TopBar right cluster", () => {
 			"complete.toggle",
 			"bullet.layout",
 			"gearMenu",
+			"new_pane",
 		]);
 	});
 
@@ -273,6 +286,7 @@ describe("TopBar right cluster", () => {
 			"complete.toggle",
 			"bullet.layout",
 			"gearMenu",
+			"new_pane",
 		]);
 	});
 
@@ -286,11 +300,14 @@ describe("TopBar right cluster", () => {
 
 	it("renders the kebab wrapper without a tooltip or blue dot", () => {
 		const cluster = clusterHtml(renderCluster("alice", true, []));
-		const kebab = cluster.slice(cluster.indexOf('<div tabindex="0" class="relative outline-none menu gearMenu">'));
+		const kebab = cluster.slice(
+			cluster.indexOf('<div tabindex="0" class="relative outline-none menu gearMenu">'),
+			cluster.indexOf('<div class="self-stretch border-l'),
+		);
 		expect(kebab.replaceAll(/ d="[^"]*"/gu, "")).toBe(
 			'<div tabindex="0" class="relative outline-none menu gearMenu"><div><div role="button" tabindex="0" class="iconButton lg shape-circle">' +
 				'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="ellipsis-vertical" class="svg-inline--fa fa-ellipsis-vertical fa-lg " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 512"><path fill="currentColor"></path></svg>' +
-				"</div></div></div></div></div>",
+				"</div></div></div>",
 		);
 		expect(cluster).not.toContain("w-[7px]");
 		expect(cluster).not.toContain('role="tooltip"');
@@ -303,11 +320,73 @@ describe("TopBar right cluster", () => {
 		);
 	});
 
-	it("renders no New pane separator and no Calendar popover", () => {
+	it("renders no Calendar popover", () => {
 		const html = renderCluster("alice", true, []);
-		expect(html).not.toMatch(/class="[^"]*\bborder-l\b/u);
 		expect(html).not.toContain("top-bar-calendar-container");
 		expect(html).not.toContain("calendar-panel");
+	});
+});
+
+function renderWithSidePane(): string {
+	storeState.sidePane = {zoomedId: "bob"};
+	const html = renderCluster("alice", true, [{id: "r1"}]);
+	storeState.sidePane = null;
+	return html;
+}
+
+/** Outer HTML of the New pane separator and IconButton, svg path data stripped. */
+function newPaneHtml(html: string): string {
+	const start = html.indexOf('<div class="self-stretch border-l border-solid border-primary mx-s">');
+	const end = html.indexOf("</svg></div>", start) + "</svg></div>".length;
+	return html.slice(start, end).replaceAll(/ d="[^"]*"/gu, "");
+}
+
+describe("TopBar New pane", () => {
+	it("renders upstream's separator and 30x27 columns-plus IconButton after the kebab", () => {
+		expect(newPaneHtml(renderCluster("alice", true, []))).toBe(
+			'<div class="self-stretch border-l border-solid border-primary mx-s"></div>' +
+				'<div role="button" tabindex="0" class="iconButton lg shape-circle">' +
+				'<svg aria-hidden="true" focusable="false" width="30" height="27" viewBox="0 0 33 30" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+				'<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor"></path><path fill="currentColor"></path></svg></div>',
+		);
+	});
+
+	it("shows the ⌃R shortcut in its New pane tooltip", () => {
+		renderCluster("alice", true, []);
+		const props = iconButtonProps.get("new_pane");
+		expect({tooltip: props?.tooltip, shortcut: props?.shortcut}).toStrictEqual({
+			tooltip: "New pane",
+			shortcut: "⌃R",
+		});
+	});
+
+	it("opens a side pane on the zoomed node", () => {
+		openSidePaneCalls.length = 0;
+		renderCluster("alice", true, []);
+		iconButtonProps.get("new_pane")?.onClick?.({} as never);
+		expect(openSidePaneCalls).toStrictEqual(["alice"]);
+	});
+
+	it("opens a side pane on Home at root", () => {
+		openSidePaneCalls.length = 0;
+		renderCluster(null, true, [{id: "r1"}]);
+		iconButtonProps.get("new_pane")?.onClick?.({} as never);
+		expect(openSidePaneCalls).toStrictEqual([null]);
+	});
+
+	it("hides New pane and compacts the cluster while a pane is open", () => {
+		expect(clusterSequence(renderWithSidePane())).toStrictEqual(["search", "today", "gearMenu"]);
+	});
+
+	it("moves the compactable actions into the more menu while a pane is open", () => {
+		renderWithSidePane();
+		expect(gearMenuProps.headerItems?.map((item) => item.label)).toStrictEqual([
+			"Share",
+			"Present",
+			"Star",
+			"Show completed",
+			"Change layout",
+		]);
 	});
 });
 
@@ -319,8 +398,8 @@ function renderCompact(zoomedNodeId: string | null): string {
 }
 
 describe("TopBar compact mode under 701px", () => {
-	it("keeps only search, Today and the kebab in the cluster", () => {
-		expect(clusterSequence(renderCompact("alice"))).toStrictEqual(["search", "today", "gearMenu"]);
+	it("keeps only search, Today, the kebab and New pane in the cluster", () => {
+		expect(clusterSequence(renderCompact("alice"))).toStrictEqual(["search", "today", "gearMenu", "new_pane"]);
 	});
 
 	it("prepends the compactable actions to the more menu", () => {

@@ -21,6 +21,8 @@ import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
 import {SearchCountIndicator} from "./components/search-count-indicator.js";
 import {Settings} from "./components/settings.js";
+import {SidePane} from "./components/side-pane.js";
+import {sidePaneWidth} from "./components/pane-context.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
@@ -88,7 +90,7 @@ const queryClient = new QueryClient({
 });
 
 function OutlineView() {
-	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery} = useOutlineStore();
+	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery, sidePane, leftBarOffset} = useOutlineStore();
 
 	// Register keyboard shortcuts
 	const commands = useCommandRegistry();
@@ -98,12 +100,18 @@ function OutlineView() {
 		commands[commandId]?.execute({items: [], zoomedId: zoomedNodeId});
 	};
 
-	const containerClasses = ["outline-container", relatedNodesPanelOpen && "with-related-panel"]
+	const containerClasses = [
+		"outline-container",
+		relatedNodesPanelOpen && "with-related-panel",
+		sidePane !== null && "with-side-pane",
+	]
 		.filter(Boolean)
 		.join(" ");
+	// Upstream's rebalanceWidths: each pane gets half the width beside the left bar, at least 350px.
+	const paneStyle = sidePane === null ? undefined : {["--side-pane-width" as string]: sidePaneWidth(leftBarOffset())};
 
 	return (
-		<div className={containerClasses}>
+		<div className={containerClasses} style={paneStyle}>
 			<OfflineBanner />
 			<TopBar onRedo={runCommand("redo")} onUndo={runCommand("undo")} />
 			<LeftBar />
@@ -111,6 +119,7 @@ function OutlineView() {
 				<OutlineTree parentId={zoomedNodeId} />
 				<SearchCountIndicator />
 			</div>
+			<SidePane />
 			<RightBar />
 			<RelatedNodesPanel />
 			<JumpMenu />

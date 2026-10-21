@@ -1,7 +1,7 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
-import {Fragment, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {Fragment, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
@@ -28,6 +28,7 @@ import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
 import {OutlineChildren} from "./outline-tree.js";
+import {PaneContext} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 import {planDuplicate, rowHasChildren} from "../tree-ops.js";
@@ -62,7 +63,16 @@ interface NodeBulletProps {
  * become a drag, or Enter, zooms in.
  */
 function NodeBullet({nodeId, isMirror, showHalo}: NodeBulletProps) {
-	const zoomTo = useZoomTo();
+	const mainZoomTo = useZoomTo();
+	const pane = useContext(PaneContext);
+	// Inside a side pane a bullet zooms that pane; the main outline zooms by navigating.
+	const zoomTo = async (id: string, focus: "first_child") => {
+		if (pane === null) {
+			await mainZoomTo(id, focus);
+		} else {
+			pane.zoom(id);
+		}
+	};
 	const queryClient = useQueryClient();
 	const handleMouseDown = useBulletDrag(nodeId);
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
