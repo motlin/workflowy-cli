@@ -70,20 +70,23 @@ const homeState: {layoutMode: string | undefined} = {layoutMode: undefined};
 
 const expandAllCalls: [string | null, boolean][] = [];
 
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => (rootId: string | null, open: boolean) => {
-		expandAllCalls.push([rootId, open]);
-	},
-	useUpdateNode: () => ({mutate: () => {}}),
-	useNode: (nodeId: string | null) => ({
-		data:
-			nodeId === null
-				? undefined
-				: {id: nodeId, hasChildren: nodeState.hasChildren, data: {layoutMode: nodeState.layoutMode}},
-	}),
-	useHome: () => ({data: homeState.layoutMode === undefined ? undefined : {layoutMode: homeState.layoutMode}}),
-	useChildren: () => ({data: nodeState.rootChildren}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => (rootId: string | null, open: boolean) => {
+			expandAllCalls.push([rootId, open]);
+		},
+		useUpdateNode: () => noopMutation,
+		useNode: (nodeId: string | null) => ({
+			data:
+				nodeId === null
+					? undefined
+					: {id: nodeId, hasChildren: nodeState.hasChildren, data: {layoutMode: nodeState.layoutMode}},
+		}),
+		useHome: () => ({data: homeState.layoutMode === undefined ? undefined : {layoutMode: homeState.layoutMode}}),
+		useChildren: () => ({data: nodeState.rootChildren}),
+	};
+});
 vi.mock("../src/client/components/breadcrumbs.js", () => ({
 	Breadcrumbs: () => createElement("div", {className: "breadcrumbs-mock"}),
 }));

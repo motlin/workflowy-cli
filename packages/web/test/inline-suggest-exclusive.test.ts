@@ -7,15 +7,14 @@ declare global {
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-// One `mutate` for every render, like react-query's. A fresh one per render rebuilds the name editor's saver each
-// render, which re-runs its editing-start effect each render: a render loop the real app never forms.
-vi.mock("../src/client/hooks/use-nodes.js", () => {
-	const mutation = {mutate: () => {}};
+// One `mutate` for every render, like react-query's.
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
 	return {
-		useCreateNode: () => mutation,
-		useDeleteNode: () => mutation,
-		useMoveNode: () => mutation,
-		useUpdateNode: () => mutation,
+		useCreateNode: () => noopMutation,
+		useDeleteNode: () => noopMutation,
+		useMoveNode: () => noopMutation,
+		useUpdateNode: () => noopMutation,
 	};
 });
 vi.mock("../src/client/hooks/use-commit-search.js", () => ({usePaneTagSearch: () => () => {}}));

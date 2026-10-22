@@ -38,12 +38,15 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => () => {},
-	useDeleteNode: () => ({mutate: () => {}}),
-	useToggleComplete: () => ({mutate: () => {}}),
-	useUpdateNode: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => () => {},
+		useDeleteNode: () => noopMutation,
+		useToggleComplete: () => noopMutation,
+		useUpdateNode: () => noopMutation,
+	};
+});
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");

@@ -64,22 +64,25 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => () => {},
-	useAncestors: () => ({data: undefined}),
-	useBacklinks: () => ({data: undefined}),
-	useFoundDates: () => ({data: undefined}),
-	useChildren: (parentId: string | null) => ({
-		data: childrenByParent.get(parentId) ?? [],
-		isLoading: false,
-		isPending: false,
-		error: null,
-	}),
-	useNode: (nodeId: string) => ({data: nodesById.get(nodeId)}),
-	useCreateNode: () => ({mutate: createMutate}),
-	useDeleteNode: () => ({mutate: () => {}}),
-	useToggleComplete: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => () => {},
+		useAncestors: () => ({data: undefined}),
+		useBacklinks: () => ({data: undefined}),
+		useFoundDates: () => ({data: undefined}),
+		useChildren: (parentId: string | null) => ({
+			data: childrenByParent.get(parentId) ?? [],
+			isLoading: false,
+			isPending: false,
+			error: null,
+		}),
+		useNode: (nodeId: string) => ({data: nodesById.get(nodeId)}),
+		useCreateNode: () => ({mutate: createMutate}),
+		useDeleteNode: () => noopMutation,
+		useToggleComplete: () => noopMutation,
+	};
+});
 let currentSearch: SearchFilter | null = null;
 vi.mock("../src/client/hooks/use-tree-search.js", async (importOriginal) => ({
 	...(await importOriginal<Record<string, unknown>>()),

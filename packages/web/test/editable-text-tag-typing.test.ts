@@ -7,12 +7,15 @@ declare global {
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useCreateNode: () => ({mutate: () => {}}),
-	useDeleteNode: () => ({mutate: () => {}}),
-	useMoveNode: () => ({mutate: () => {}}),
-	useUpdateNode: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useCreateNode: () => noopMutation,
+		useDeleteNode: () => noopMutation,
+		useMoveNode: () => noopMutation,
+		useUpdateNode: () => noopMutation,
+	};
+});
 vi.mock("../src/client/hooks/use-commit-search.js", () => ({usePaneTagSearch: () => () => {}}));
 vi.mock("../src/client/hooks/use-tag-colors.js", () => ({
 	useRemoveTagColor: () => ({mutate: () => {}}),

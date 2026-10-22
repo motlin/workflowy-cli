@@ -63,23 +63,26 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => () => {},
-	useChildren: (parentId: string | null) => ({
-		data: childrenByParent.get(parentId) ?? [],
-		isLoading: false,
-		error: null,
-	}),
-	useBacklinks: () => ({data: undefined}),
-	useFoundDates: (dayId: string | null) => {
-		foundDatesCalls.push(dayId);
-		return {data: dayId === null ? undefined : foundByDay.get(dayId)};
-	},
-	useNode: (nodeId: string | null) => ({data: nodeId === null ? undefined : nodesById.get(nodeId)}),
-	useCreateNode: () => ({mutate: () => {}}),
-	useDeleteNode: () => ({mutate: () => {}}),
-	useToggleComplete: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => () => {},
+		useChildren: (parentId: string | null) => ({
+			data: childrenByParent.get(parentId) ?? [],
+			isLoading: false,
+			error: null,
+		}),
+		useBacklinks: () => ({data: undefined}),
+		useFoundDates: (dayId: string | null) => {
+			foundDatesCalls.push(dayId);
+			return {data: dayId === null ? undefined : foundByDay.get(dayId)};
+		},
+		useNode: (nodeId: string | null) => ({data: nodeId === null ? undefined : nodesById.get(nodeId)}),
+		useCreateNode: () => noopMutation,
+		useDeleteNode: () => noopMutation,
+		useToggleComplete: () => noopMutation,
+	};
+});
 vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => ({
 	...(await importOriginal()),
 	measureCrumbLabel: (label: string) => label.length * 7,

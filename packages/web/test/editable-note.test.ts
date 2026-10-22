@@ -23,9 +23,12 @@ vi.mock("../src/client/stores/outline.js", () => ({
 	registerEditFlush: () => () => {},
 	isModalOpen: () => false,
 }));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useUpdateNode: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useUpdateNode: () => noopMutation,
+	};
+});
 
 const {EditableNote} = await import("../src/client/components/editable-note.js");
 

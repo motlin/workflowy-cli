@@ -3,6 +3,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
 import {activePaneView, isModalOpen, outlineActions, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
+import {useLatest} from "../hooks/use-latest.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
@@ -133,14 +134,15 @@ export function EditableNote({
 	}, [restingHtml]);
 
 	// Saves the note after each pause in typing; it holds the last note value saved (or loaded).
-	const {mutate: updateNode} = updateNodeMutation;
+	// The latest mutate, so the saver never depends on its identity.
+	const updateNode = useLatest(updateNodeMutation.mutate);
 	// One saver per node, so a pending save flushed after a node change still targets its own node.
 	const noteSaver = useMemo(
 		() =>
 			createEditDebouncer({
 				delay: TEXT_SAVE_DEBOUNCE_MS,
 				save: ({after}) => {
-					updateNode({nodeId, note: after});
+					updateNode.current({nodeId, note: after});
 				},
 			}),
 		[nodeId, updateNode],

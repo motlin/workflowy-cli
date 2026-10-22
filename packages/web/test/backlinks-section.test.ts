@@ -69,20 +69,23 @@ vi.mock("../src/client/navigation.js", () => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => () => {},
-	useChildren: (parentId: string | null) => ({
-		data: childrenByParent.get(parentId) ?? [],
-		isLoading: false,
-		error: null,
-	}),
-	useBacklinks: (nodeId: string | null) => ({data: nodeId === null ? undefined : backlinksByNode.get(nodeId)}),
-	useFoundDates: () => ({data: undefined}),
-	useNode: () => ({data: undefined}),
-	useCreateNode: () => ({mutate: () => {}}),
-	useDeleteNode: () => ({mutate: () => {}}),
-	useToggleComplete: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => () => {},
+		useChildren: (parentId: string | null) => ({
+			data: childrenByParent.get(parentId) ?? [],
+			isLoading: false,
+			error: null,
+		}),
+		useBacklinks: (nodeId: string | null) => ({data: nodeId === null ? undefined : backlinksByNode.get(nodeId)}),
+		useFoundDates: () => ({data: undefined}),
+		useNode: () => ({data: undefined}),
+		useCreateNode: () => noopMutation,
+		useDeleteNode: () => noopMutation,
+		useToggleComplete: () => noopMutation,
+	};
+});
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");

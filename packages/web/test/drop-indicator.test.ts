@@ -37,14 +37,17 @@ vi.mock("../src/client/navigation.js", async (importOriginal) => ({
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => () => {},
-	useBacklinks: () => ({data: undefined}),
-	useFoundDates: () => ({data: undefined}),
-	useChildren: () => ({data: [], isLoading: false, error: null}),
-	useDeleteNode: () => ({mutate: () => {}}),
-	useToggleComplete: () => ({mutate: () => {}}),
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => () => {},
+		useBacklinks: () => ({data: undefined}),
+		useFoundDates: () => ({data: undefined}),
+		useChildren: () => ({data: [], isLoading: false, error: null}),
+		useDeleteNode: () => noopMutation,
+		useToggleComplete: () => noopMutation,
+	};
+});
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", () => ({editableText: () => null}));
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));

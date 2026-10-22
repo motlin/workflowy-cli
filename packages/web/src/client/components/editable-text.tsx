@@ -37,6 +37,7 @@ import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {currentSelectionView, freshSelection, scrollRowIntoView} from "../hooks/use-selection-keymap.js";
 import {editorSelectAllTakesOver, editorShiftArrowTakesOver} from "../item-selection.js";
 import {useCreateNode, useDeleteNode, useMoveNode, useUpdateNode} from "../hooks/use-nodes.js";
+import {useLatest} from "../hooks/use-latest.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useRemoveTagColor, useSetTagColor, useTagColors} from "../hooks/use-tag-colors.js";
@@ -220,13 +221,14 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 
 	// Saves the name after each 500ms pause in typing (upstream `saveLater`): one undo step per pause.
 	// One saver per node, so a pending save flushed after a node change still targets its own node.
-	const {mutate: updateNode} = updateNodeMutation;
+	// The latest mutate, so the saver (and the editing-start effect that resets it) never depend on its identity.
+	const updateNode = useLatest(updateNodeMutation.mutate);
 	const nameSaver = useMemo(
 		() =>
 			createEditDebouncer({
 				delay: TEXT_SAVE_DEBOUNCE_MS,
 				save: ({after}) => {
-					updateNode({nodeId, name: after});
+					updateNode.current({nodeId, name: after});
 				},
 			}),
 		[nodeId, updateNode],
@@ -380,7 +382,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		onChange: (pillIndex, attrs) => {
 			const content = contentRef.current;
 			if (content === null) {
-				updateNode({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
+				updateNodeMutation.mutate({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
 				return;
 			}
 			const plan = planPillReplacement(serializeEditorHtml(content.innerHTML), pillIndex, attrs);

@@ -47,19 +47,22 @@ vi.mock("../src/client/hooks/use-tree-search.js", () => ({
 	},
 }));
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useExpandAll: () => () => {},
-	useBacklinks: () => ({data: undefined}),
-	useChildren: () => ({data: [], isLoading: false, error: null}),
-	useToggleComplete: () => {
-		hooks.toggleComplete += 1;
-		return {mutate: () => {}};
-	},
-	useMoveNodes: () => {
-		hooks.moveNodes += 1;
-		return {mutate: () => {}};
-	},
-}));
+vi.mock("../src/client/hooks/use-nodes.js", async () => {
+	const {noopMutation} = await import("./helpers/stable-mutation.js");
+	return {
+		useExpandAll: () => () => {},
+		useBacklinks: () => ({data: undefined}),
+		useChildren: () => ({data: [], isLoading: false, error: null}),
+		useToggleComplete: () => {
+			hooks.toggleComplete += 1;
+			return noopMutation;
+		},
+		useMoveNodes: () => {
+			hooks.moveNodes += 1;
+			return noopMutation;
+		},
+	};
+});
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
 	return {
