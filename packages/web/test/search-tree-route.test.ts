@@ -7,7 +7,7 @@ import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {Hono} from "hono";
 import * as schema from "@workflowy/shared/db";
-import {mirrors, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
+import {aiMetadata, mirrors, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE, formatTemporalTimestamp} from "@workflowy/shared/temporal";
 import {and, eq} from "drizzle-orm";
 import {
@@ -210,6 +210,30 @@ function endContent(db: Db, id: string) {
 		.where(and(eq(nodeContent.id, id), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
 		.run();
 }
+
+describe("AI chat nodes", () => {
+	/** An `ai.inChat` mailbox under root with a message under it, as upstream's AI chat creates. */
+	function setupWithChat() {
+		const db = setup();
+		insertNode(db, "chat", "root", "AI Messages");
+		insertNode(db, "message", "chat", "Hello");
+		db.insert(aiMetadata)
+			.values({nodeId: "chat", inChat: 1, systemFrom: SEEDED_AT, systemTo: FAR_FUTURE_DATE})
+			.run();
+		return db;
+	}
+
+	it("leaves ai.inChat nodes and everything below them out of the search rows, like upstream's inline_search ignore", () => {
+		const db = setupWithChat();
+		const expected = new Set(["a", "a1", "mirror", "other", "root"]);
+
+		expect({
+			sql: idSet(loadTreeSearchRows(db, null)),
+			snapshot: idSet(loadTreeRows(db, null)),
+			subtree: idSet(loadTreeRows(db, "root")),
+		}).toStrictEqual({sql: expected, snapshot: expected, subtree: new Set(["a", "a1", "mirror", "root"])});
+	});
+});
 
 describe("loadTreeRows", () => {
 	it("answers the same rows as loadTreeSearchRows for the whole tree and for a subtree", () => {
@@ -451,6 +475,34 @@ describe("incremental snapshot patches", () => {
 				"delete a leaf",
 				() => {
 					endContent(db, "b1");
+				},
+			],
+			[
+				"put a node in an AI chat, past the change lookback of its last content write",
+				() => {
+					systemMs += 60_000;
+					db.insert(aiMetadata)
+						.values({nodeId: "top", inChat: 1, systemFrom: nextSystemTime(), systemTo: FAR_FUTURE_DATE})
+						.run();
+				},
+			],
+			[
+				"move a subtree under the AI chat node",
+				() => {
+					rewriteContent(db, "other", {parentId: "top"});
+				},
+			],
+			[
+				"create under the AI chat node",
+				() => {
+					createNode(db, "chat-child", "top", "Chat child");
+				},
+			],
+			[
+				"take the node out of the AI chat",
+				() => {
+					systemMs += 60_000;
+					db.update(aiMetadata).set({systemTo: nextSystemTime()}).where(eq(aiMetadata.nodeId, "top")).run();
 				},
 			],
 		];

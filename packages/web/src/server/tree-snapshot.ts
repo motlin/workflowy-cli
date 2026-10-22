@@ -1,4 +1,4 @@
-import {referencesRoots} from "@workflowy/shared/db";
+import {aiMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
@@ -25,6 +25,8 @@ interface TreeSqlRow {
 	depth: number;
 	isReferencesRoot: number;
 	underReferencesRoot: number;
+	/** An `ai.inChat` item (upstream's "AI Messages" mailbox), whose subtree the tree does not descend into. */
+	isInChat: number;
 }
 
 /** Epoch seconds as stored by drizzle's timestamp mode, to milliseconds. */
@@ -47,17 +49,22 @@ function toSearchRow(row: TreeSqlRow): TreeSearchRow {
 	};
 }
 
-/** References roots and their backlink items are never search rows, though the tree continues below them. */
+/**
+ * References roots and their backlink items are never search rows, though the tree continues below them.
+ * Nor is an `ai.inChat` item, below which the tree stops, like upstream's `inline_search.ignore` rule.
+ */
 function isSearchable(row: TreeSqlRow): boolean {
-	return row.isReferencesRoot === 0 && row.underReferencesRoot === 0;
+	return row.isReferencesRoot === 0 && row.underReferencesRoot === 0 && row.isInChat === 0;
 }
 
 const LIVE_REFERENCES_ROOTS = sql`(SELECT node_id FROM ${referencesRoots} WHERE system_to = ${FAR_FUTURE_DATE})`;
+const LIVE_IN_CHAT = sql`(SELECT node_id FROM ${aiMetadata} WHERE in_chat = 1 AND system_to = ${FAR_FUTURE_DATE})`;
 
 /**
  * The live rows `seeds` (an `(id, depth)` select) names, and with `recursive` every live row below them,
  * ordered by depth then id. References roots and their children are included, flagged, since live rows
- * further down are still reachable through them. A mirror takes its text from its live original.
+ * further down are still reachable through them. An `ai.inChat` row is included, flagged, but nothing below it.
+ * A mirror takes its text from its live original.
  */
 function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): TreeSqlRow[] {
 	const subtree = recursive
@@ -66,7 +73,7 @@ function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): Tre
 			UNION ALL
 			SELECT n.id, s.depth + 1 FROM node_content n
 			INNER JOIN subtree s ON n.parent_id = s.id
-			WHERE n.system_to = ${FAR_FUTURE_DATE}
+			WHERE n.system_to = ${FAR_FUTURE_DATE} AND s.id NOT IN ${LIVE_IN_CHAT}
 		)`
 		: sql`WITH subtree(id, depth) AS (${seeds})`;
 	return database.all<TreeSqlRow>(sql`
@@ -84,7 +91,8 @@ function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): Tre
 			mi.mirror_id IS NOT NULL AS isMirror,
 			s.depth AS depth,
 			c.id IN ${LIVE_REFERENCES_ROOTS} AS isReferencesRoot,
-			coalesce(c.parent_id IN ${LIVE_REFERENCES_ROOTS}, 0) AS underReferencesRoot
+			coalesce(c.parent_id IN ${LIVE_REFERENCES_ROOTS}, 0) AS underReferencesRoot,
+			c.id IN ${LIVE_IN_CHAT} AS isInChat
 		FROM subtree s
 		INNER JOIN node_content c ON c.id = s.id AND c.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN node_metadata m ON m.node_id = c.id AND m.system_to = ${FAR_FUTURE_DATE}
@@ -103,8 +111,8 @@ function seedsOf(pairs: [id: string, depth: number][]): SQL {
 
 /**
  * The live subtree under `rootId` (including the root; every top-level tree when null) for tree search,
- * ordered by depth then id. References roots and their backlink items are skipped. A mirror takes its text
- * from its live original.
+ * ordered by depth then id. References roots and their backlink items are skipped, as are `ai.inChat` items
+ * and everything below them. A mirror takes its text from its live original.
  */
 export function loadTreeSearchRows(database: ReturnType<typeof getDatabase>, rootId: string | null): TreeSearchRow[] {
 	const seeds =
@@ -119,6 +127,7 @@ interface TreeNode {
 	parentId: string | null;
 	depth: number;
 	isReferencesRoot: boolean;
+	isInChat: boolean;
 }
 
 interface TreeSnapshot {
@@ -130,7 +139,7 @@ interface TreeSnapshot {
 	/** The searchable rows, ordered by depth then id like {@link loadTreeSearchRows}. */
 	rows: TreeSearchRow[];
 	byId: Map<string, TreeSearchRow>;
-	/** Every live node reachable from a top-level node, including references roots and their children. */
+	/** Every live node reachable from a top-level node, including references roots, their children and `ai.inChat` items. */
 	nodes: Map<string, TreeNode>;
 	childIds: Map<string | null, Set<string>>;
 }
@@ -193,6 +202,7 @@ function addNode(snapshot: TreeSnapshot, row: TreeSqlRow): void {
 		parentId: row.parentId,
 		depth: row.depth,
 		isReferencesRoot: row.isReferencesRoot === 1,
+		isInChat: row.isInChat === 1,
 	});
 	const siblings = snapshot.childIds.get(row.parentId);
 	if (siblings) {
@@ -282,7 +292,7 @@ function rowPosition(snapshot: TreeSnapshot, rows: TreeSearchRow[], id: string):
 
 /**
  * Patch `snapshot` in place with the nodes that changed since it was read, or null when too many did.
- * A node whose parent, liveness or references-root flag changed is a move: its old subtree leaves the snapshot
+ * A node whose parent, liveness, references-root or `ai.inChat` flag changed is a move: its old subtree leaves the snapshot
  * and its new one is reloaded. Any other changed node keeps its place, so only its row is replaced.
  */
 function patchSnapshot(database: Database, snapshot: TreeSnapshot, state: ChangeState): TreeSnapshot | null {
@@ -307,7 +317,8 @@ function patchSnapshot(database: Database, snapshot: TreeSnapshot, state: Change
 				before !== undefined &&
 				after !== undefined &&
 				before.parentId === after.parentId &&
-				before.isReferencesRoot === (after.isReferencesRoot === 1)
+				before.isReferencesRoot === (after.isReferencesRoot === 1) &&
+				before.isInChat === (after.isInChat === 1)
 			) {
 				edited.push(after);
 			} else {
@@ -334,7 +345,7 @@ function patchSnapshot(database: Database, snapshot: TreeSnapshot, state: Change
 				roots.push([id, 0]);
 			} else if (parentId !== undefined) {
 				const parent = snapshot.nodes.get(parentId);
-				if (parent !== undefined) {
+				if (parent !== undefined && !parent.isInChat) {
 					roots.push([id, parent.depth + 1]);
 				}
 			}

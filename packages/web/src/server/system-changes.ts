@@ -25,9 +25,9 @@ const LOOKBACK_MS = 5000;
  */
 const CLOSED = sql.raw(`system_to < '${FAR_FUTURE_DATE}'`);
 
-/** The newest system time any node, metadata, mirror or references-root row was opened or closed at. */
+/** The newest system time any node, metadata, mirror, references-root or AI-metadata row was opened or closed at. */
 export function latestSystemTime(database: Database): string {
-	const tables = ["node_content", "node_metadata", "mirrors", "references_roots"].map(
+	const tables = ["node_content", "node_metadata", "mirrors", "references_roots", "ai_metadata"].map(
 		(table) => sql`
 			SELECT max(system_from) AS at FROM ${sql.identifier(table)}
 			UNION ALL SELECT max(system_to) FROM ${sql.identifier(table)} WHERE ${CLOSED}
@@ -71,7 +71,7 @@ export function changedContentIds(database: Database, since: string, limit: numb
 
 /**
  * Ids of nodes whose search row may have changed after `since`, or undefined when more than `limit` did:
- * changed content, metadata, mirror links or references roots, plus live mirrors of a changed original
+ * changed content, metadata, mirror links, references roots or AI metadata, plus live mirrors of a changed original
  * (a mirror shows its original's text).
  */
 export function changedNodeIds(database: Database, since: string, limit: number): Set<string> | undefined {
@@ -85,6 +85,7 @@ export function changedNodeIds(database: Database, since: string, limit: number)
 			UNION ALL ${changedIn("node_metadata", "node_id", since)}
 			UNION ALL ${changedIn("mirrors", "mirror_id", since)}
 			UNION ALL ${changedIn("references_roots", "node_id", since)}
+			UNION ALL ${changedIn("ai_metadata", "node_id", since)}
 		`,
 		limit,
 	);
