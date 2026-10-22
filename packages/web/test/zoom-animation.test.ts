@@ -2,7 +2,14 @@ import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vite-plus/test";
 import type {Animatable} from "../src/client/zoom-animation.js";
-import {ZOOM_MS, play, zoomAnimationAllowed, zoomOffset, zoomPhases} from "../src/client/zoom-animation.js";
+import {
+	ZOOM_MS,
+	crossfadeClones,
+	play,
+	zoomAnimationAllowed,
+	zoomOffset,
+	zoomPhases,
+} from "../src/client/zoom-animation.js";
 
 /** An element whose `animate` records its keyframes and options, and whose animation finishes with `finished`. */
 function fakeAnimatable(calls: unknown[], finished: Promise<unknown>): Animatable {
@@ -40,22 +47,52 @@ describe("zoom animation", () => {
 		]).toStrictEqual([true, false, false, false]);
 	});
 
-	it("zooming in moves the row out by the offset and brings the children in from it", () => {
+	it("zooming in moves the title, the row and its siblings out by the offset fading, and the children with them shown", () => {
 		expect(zoomPhases(false, {dx: -72, dy: -70})).toStrictEqual({
 			row: {from: {opacity: "1", transform: ""}, to: {opacity: "0", transform: "translate(-72px, -70px)"}},
-			children: {from: {opacity: "0", transform: "translate(-72px, -70px)"}, to: {opacity: "1", transform: ""}},
-			siblings: {from: {opacity: "1", transform: ""}, to: {opacity: "0", transform: ""}},
-			title: {from: {opacity: "1", transform: ""}, to: {opacity: "0", transform: ""}},
+			children: {from: {opacity: "1", transform: ""}, to: {opacity: "1", transform: "translate(-72px, -70px)"}},
+			siblings: {from: {opacity: "1", transform: ""}, to: {opacity: "0", transform: "translate(-72px, -70px)"}},
+			title: {from: {opacity: "1", transform: ""}, to: {opacity: "0", transform: "translate(-72px, -70px)"}},
 		});
 	});
 
-	it("zooming out brings the row back from the offset and sends the children out to it", () => {
+	it("zooming out brings the title, the row and its siblings back from the offset, and the children with them shown", () => {
 		expect(zoomPhases(true, {dx: 10, dy: 20})).toStrictEqual({
 			row: {from: {opacity: "0", transform: "translate(10px, 20px)"}, to: {opacity: "1", transform: ""}},
-			children: {from: {opacity: "1", transform: ""}, to: {opacity: "0", transform: "translate(10px, 20px)"}},
-			siblings: {from: {opacity: "0", transform: ""}, to: {opacity: "1", transform: ""}},
-			title: {from: {opacity: "0", transform: ""}, to: {opacity: "1", transform: ""}},
+			children: {from: {opacity: "1", transform: "translate(10px, 20px)"}, to: {opacity: "1", transform: ""}},
+			siblings: {from: {opacity: "0", transform: "translate(10px, 20px)"}, to: {opacity: "1", transform: ""}},
+			title: {from: {opacity: "0", transform: "translate(10px, 20px)"}, to: {opacity: "1", transform: ""}},
 		});
+	});
+
+	it("zooming in crossfades the row-styled text under the title-styled text, both sliding from the row to the title", () => {
+		expect(crossfadeClones(false, {x: -24, y: -160}, 16, 32)).toStrictEqual([
+			{
+				style: "row",
+				from: {opacity: "1", transform: ""},
+				to: {opacity: "0", transform: "translate(-24px, -160px) scale(2)"},
+			},
+			{
+				style: "title",
+				from: {opacity: "1", transform: "scale(0.5)"},
+				to: {opacity: "1", transform: "translate(-24px, -160px)"},
+			},
+		]);
+	});
+
+	it("zooming out crossfades the title-styled text under the row-styled text, both sliding from the title to the row", () => {
+		expect(crossfadeClones(true, {x: -24, y: -160}, 16, 32)).toStrictEqual([
+			{
+				style: "title",
+				from: {opacity: "1", transform: "translate(-24px, -160px)"},
+				to: {opacity: "0", transform: "scale(0.5)"},
+			},
+			{
+				style: "row",
+				from: {opacity: "1", transform: "translate(-24px, -160px) scale(2)"},
+				to: {opacity: "1", transform: ""},
+			},
+		]);
 	});
 
 	it("plays each step as a Web Animation holding its end look, so no row fires transitionend", async () => {

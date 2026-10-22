@@ -40,22 +40,59 @@ export interface ZoomPhases {
 	children: Phase;
 	/** The rows beside the moving row, off the zoom path. */
 	siblings: Phase;
-	/** The crossfade clone of the title. */
+	/** The title row's `.name`. */
 	title: Phase;
 }
 
-/** Each element group's start and end look for a zoom in or out: zooming out plays zooming in backwards. */
+/**
+ * Each element group's start and end look for a zoom in or out, as upstream's moveBullets transitions them (measured
+ * on workflowy.com): zooming in slides everything by the offset, fading all but the moving row's children; zooming out
+ * plays zooming in backwards.
+ */
 export function zoomPhases(isOut: boolean, {dx, dy}: Offset): ZoomPhases {
 	const shown: Look = {opacity: "1", transform: ""};
-	const hidden: Look = {opacity: "0", transform: ""};
-	const away: Look = {opacity: "0", transform: `translate(${dx}px, ${dy}px)`};
+	const translate = `translate(${dx}px, ${dy}px)`;
+	const away: Look = {opacity: "0", transform: translate};
+	const carried: Look = {opacity: "1", transform: translate};
 	const phase = (inFrom: Look, inTo: Look): Phase => (isOut ? {from: inTo, to: inFrom} : {from: inFrom, to: inTo});
 	return {
 		row: phase(shown, away),
-		children: phase(away, shown),
-		siblings: phase(shown, hidden),
-		title: phase(shown, hidden),
+		children: phase(shown, carried),
+		siblings: phase(shown, away),
+		title: phase(shown, away),
 	};
+}
+
+/** Which font a crossfade clone of the moving row's text copies: the row's or the title's. */
+export type CloneStyle = "row" | "title";
+
+export interface CloneStep extends Phase {
+	style: CloneStyle;
+}
+
+/**
+ * Upstream's crossfade of the moving row's text: two clones anchored on the row's text, one in the row's font and one
+ * in the title's, both sliding by `to` (the row's text to the title's) and scaling so each matches the other's size at
+ * the far end. The clone in the source's font sits underneath and fades out; the clone in the destination's font stays
+ * opaque on top. In append order (later on top).
+ */
+export function crossfadeClones(
+	isOut: boolean,
+	to: {x: number; y: number},
+	rowFont: number,
+	titleFont: number,
+): CloneStep[] {
+	const translate = `translate(${to.x}px, ${to.y}px)`;
+	const row = {atRow: "", atTitle: `${translate} scale(${titleFont / rowFont})`};
+	const title = {atRow: `scale(${rowFont / titleFont})`, atTitle: translate};
+	const step = (style: CloneStyle, at: {atRow: string; atTitle: string}, fades: boolean): CloneStep => {
+		const start: Look = {opacity: "1", transform: isOut ? at.atTitle : at.atRow};
+		const end: Look = {opacity: fades ? "0" : "1", transform: isOut ? at.atRow : at.atTitle};
+		return {style, from: start, to: end};
+	};
+	return isOut
+		? [step("title", title, true), step("row", row, false)]
+		: [step("row", row, true), step("title", title, false)];
 }
 
 interface AnimateZoomInput {
@@ -81,10 +118,13 @@ function nameContent(row: HTMLElement): HTMLElement | null {
 	return row.querySelector<HTMLElement>(":scope > .name > .content");
 }
 
-/** A copy of `.name > .content` on `<body>`, positioned over the original with its font copied inline. */
-function contentClone(content: HTMLElement): HTMLElement {
+/**
+ * A copy of the moving row's `.name > .content` on `<body>`, positioned over it with `fontOf`'s font copied inline
+ * and at most `fontOf`'s width.
+ */
+function contentClone(content: HTMLElement, fontOf: HTMLElement): HTMLElement {
 	const rect = content.getBoundingClientRect();
-	const computed = getComputedStyle(content);
+	const computed = getComputedStyle(fontOf);
 	const clone = content.cloneNode(true);
 	if (!(clone instanceof HTMLElement)) {
 		throw new TypeError("cloned content is not an element");
@@ -93,7 +133,7 @@ function contentClone(content: HTMLElement): HTMLElement {
 		clone.style.setProperty(prop, computed.getPropertyValue(prop));
 	}
 	Object.assign(clone.style, {
-		maxWidth: `${rect.width}px`,
+		maxWidth: `${fontOf.getBoundingClientRect().width}px`,
 		padding: "0",
 		margin: "0",
 		zIndex: "1000",
@@ -156,10 +196,9 @@ export async function play(steps: Step[]): Promise<void> {
 }
 
 /**
- * Upstream's zoom animation, in parallel: a crossfade of `.name > .content` clones (the moving row's text slides
- * and scales between its row and the title while the title fades), and moveBullets (the moving row's bullet and
- * note slide by the offset and fade, its children slide the other way, and its siblings fade). The real contents
- * are hidden meanwhile; every animation and clone is cleared afterwards.
+ * Upstream's zoom animation, in parallel: a crossfade of two clones of the moving row's `.name > .content` (see
+ * `crossfadeClones`) sliding between its row and the title, and moveBullets (see `zoomPhases`). The moving row's
+ * real text is hidden meanwhile; every animation and clone is cleared afterwards.
  */
 async function animateZoom({isOut, rowEl, otherEl, childEls}: AnimateZoomInput): Promise<void> {
 	const rowName = rowEl.querySelector<HTMLElement>(":scope > .name");
@@ -169,19 +208,21 @@ async function animateZoom({isOut, rowEl, otherEl, childEls}: AnimateZoomInput):
 	if (rowName === null || titleName === null || rowContent === null || titleContent === null) {
 		return;
 	}
-	const phases = zoomPhases(isOut, zoomOffset(rowName.getBoundingClientRect(), titleName.getBoundingClientRect()));
+	// The rows' own boxes, not their `.name`s: a `.name` spans out to the left by a margin that differs between the
+	// title and a row, which would slide everything sideways.
+	const phases = zoomPhases(isOut, zoomOffset(rowEl.getBoundingClientRect(), otherEl.getBoundingClientRect()));
 
 	const rowRect = rowContent.getBoundingClientRect();
 	const titleRect = titleContent.getBoundingClientRect();
 	const rowFont = Number(getComputedStyle(rowContent).fontSize.replace("px", "")) || 16;
 	const titleFont = Number(getComputedStyle(titleContent).fontSize.replace("px", "")) || rowFont;
-	const atTitle = `translate(${titleRect.left - rowRect.left}px, ${titleRect.top - rowRect.top}px) scale(${titleFont / rowFont})`;
-	const atRow = "";
-
-	const movingClone = contentClone(rowContent);
-	const titleClone = contentClone(titleContent);
+	const clones = crossfadeClones(
+		isOut,
+		{x: titleRect.left - rowRect.left, y: titleRect.top - rowRect.top},
+		rowFont,
+		titleFont,
+	).map((clone) => ({...clone, el: contentClone(rowContent, clone.style === "row" ? rowContent : titleContent)}));
 	rowContent.style.visibility = "hidden";
-	titleContent.style.visibility = "hidden";
 
 	const rowParts = [rowName, rowEl.querySelector<HTMLElement>(":scope > .notes")].filter(
 		(el): el is HTMLElement => el !== null,
@@ -190,12 +231,8 @@ async function animateZoom({isOut, rowEl, otherEl, childEls}: AnimateZoomInput):
 		(el): el is HTMLElement => el instanceof HTMLElement && el !== rowEl && el.classList.contains("project"),
 	);
 	const steps: Step[] = [
-		{
-			el: movingClone,
-			from: {opacity: "1", transform: isOut ? atTitle : atRow},
-			to: {opacity: "1", transform: isOut ? atRow : atTitle},
-		},
-		{el: titleClone, ...phases.title},
+		...clones.map(({el, from, to}) => ({el, from, to})),
+		{el: titleName, ...phases.title},
 		...rowParts.map((el) => ({el, ...phases.row})),
 		...childEls.map((el) => ({el, ...phases.children})),
 		...siblings.map((el) => ({el, ...phases.siblings})),
@@ -203,10 +240,10 @@ async function animateZoom({isOut, rowEl, otherEl, childEls}: AnimateZoomInput):
 	try {
 		await play(steps);
 	} finally {
-		movingClone.remove();
-		titleClone.remove();
+		for (const {el} of clones) {
+			el.remove();
+		}
 		rowContent.style.visibility = "";
-		titleContent.style.visibility = "";
 	}
 }
 
