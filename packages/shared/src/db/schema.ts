@@ -328,26 +328,6 @@ export const config = sqliteTable("config", {
 });
 
 /**
- * tags: Local store of per-tag color assignments (e.g. `@Ellen` → `green`).
- *
- * Workflowy lets you color a #tag/@mention in its UI but exposes no API for it, so this
- * is our own feature — entirely local, never ingested from Workflowy.com. Like `config`
- * it is intentionally non-bitemporal: it is operator-set, upserted (current value is the
- * only one that matters), and excluded from temporal rollback.
- *
- * `name` is the full tag text including the leading `#`/`@`. `color` is a Workflowy color
- * name (red/orange/yellow/green/teal/sky/blue/purple/pink/gray).
- */
-export const tags = sqliteTable("tags", {
-	name: text("name").primaryKey(),
-	color: text("color").notNull(),
-	createdAt: text("created_at").notNull(),
-	updatedAt: text("updated_at").notNull(),
-});
-
-export type Tag = typeof tags.$inferSelect;
-
-/**
  * system_clock: The single row holding the last system time, in Unix ms, issued to
  * any temporal write (see `cache/system-clock.ts`). Keeping it in the database
  * orders writes across connections and processes sharing one cache file. It is

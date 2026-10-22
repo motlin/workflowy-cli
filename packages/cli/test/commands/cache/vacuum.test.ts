@@ -65,8 +65,8 @@ describe("cache:vacuum command", () => {
 
 		expect(result).toStrictEqual({
 			path: testDbPath,
-			sizeBeforeBytes: 8_843_264,
-			sizeAfterBytes: 278_528,
+			sizeBeforeBytes: 8_835_072,
+			sizeAfterBytes: 270_336,
 			freelistBefore: 2091,
 			freelistAfter: 0,
 		});
@@ -81,13 +81,13 @@ describe("cache:vacuum command", () => {
 		expect(stdout).toBe(
 			`🧹 Vacuuming cache database...\n  File: ${
 				testDbPath
-			}\n  Size before: 276.00 KB\n  Size after:  272.00 KB\n  Reclaimed:   4.00 KB\n  Freelist pages: 1 → 0\n`,
+			}\n  Size before: 276.00 KB\n  Size after:  264.00 KB\n  Reclaimed:   12.00 KB\n  Freelist pages: 3 → 0\n`,
 		);
 		expect(result).toStrictEqual({
 			path: testDbPath,
 			sizeBeforeBytes: 282_624,
-			sizeAfterBytes: 278_528,
-			freelistBefore: 1,
+			sizeAfterBytes: 270_336,
+			freelistBefore: 3,
 			freelistAfter: 0,
 		});
 	});

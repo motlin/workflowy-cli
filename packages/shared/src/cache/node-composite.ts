@@ -19,7 +19,6 @@ import {
 	referencesRoots,
 	s3Files,
 	systemClock,
-	tags,
 	virtualRootIds,
 } from "../db/schema.js";
 import {FAR_FUTURE_DATE} from "../temporal/constants.js";
@@ -80,7 +79,6 @@ export const NON_NODE_TABLES: Readonly<Record<string, string>> = {
 	[getTableName(backupImports)]: "import bookkeeping keyed by backup filename",
 	[getTableName(apiImportTimestamp)]: "import bookkeeping keyed by pipeline name",
 	[getTableName(config)]: "local key-value settings",
-	[getTableName(tags)]: "keyed by tag name",
 	[getTableName(systemClock)]: "single-row clock for system times",
 	[getTableName(accountState)]: "account-level key-value state",
 };

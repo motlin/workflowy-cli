@@ -56,6 +56,16 @@ describe("migration-helper", () => {
 		}
 	});
 
+	it("drops the dead local tags table, since tag colors live in root metadata.color.tags", () => {
+		const database = createTestDatabase(path.join(tempDir, "schema.sqlite"));
+
+		try {
+			expect(tableNames(database).filter((name) => name === "tags")).toStrictEqual([]);
+		} finally {
+			cleanupTestDatabase(database);
+		}
+	});
+
 	it("migrates the shared template once per run in global setup, before any test file opens a database", () => {
 		// With per-file module isolation a module-level cache rebuilt the template in every database-backed file,
 		// replaying all migrations inside the first beforeEach; under a loaded parallel run that blew the 10s hook timeout.
