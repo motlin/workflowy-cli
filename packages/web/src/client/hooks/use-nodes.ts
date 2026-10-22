@@ -1,6 +1,7 @@
 import {
 	MutationObserver,
 	mutationOptions,
+	notifyManager,
 	skipToken,
 	useMutation,
 	useQuery,
@@ -28,6 +29,7 @@ import {removeDeletedRow} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
+import {pendingMoves} from "../pending-moves.js";
 import {toUndoOps} from "../tree-ops.js";
 import {serializeWrite} from "../write-order.js";
 import type {BlockMove, UndoableMutation} from "../tree-ops.js";
@@ -70,6 +72,7 @@ const loadChildren = createChildrenBatcher(async (parentIds) => {
 
 /** A parent's children (Home's for `null`); loads requested in the same tick share one batch request. */
 export async function fetchChildren(parentId: string | null): Promise<NodeResponse[]> {
+	await pendingMoves.settled(parentId);
 	if (parentId !== null) {
 		return pendingCreates.withPending(parentId, await loadChildren(parentId));
 	}
@@ -476,6 +479,7 @@ export function useCreateNode() {
 			if (context?.previousChildren !== undefined) {
 				queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
 			}
+			context?.restoreParentFlags();
 			addErrorNotification(`Failed to create node: ${error.message}`);
 		},
 		async onSettled(_data, _error, variables) {
@@ -512,6 +516,7 @@ export function useCreateNode() {
 interface CreateContext {
 	previousChildren: NodeResponse[] | undefined;
 	parentId: string | null;
+	restoreParentFlags: () => void;
 }
 
 /** Optimistic inserts `mutate` already made, handed to `onMutate` by request identity. */
@@ -532,6 +537,10 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 		createdAt: now,
 		modifiedAt: now,
 		completedAt: null,
+		// A new bullet is a plain leaf: without the flags its row would render as a parent until the refetch.
+		hasChildren: false,
+		hasUncompletedChildren: false,
+		isMirror: false,
 	};
 	const siblings = previousChildren ?? [];
 	const index = requestedIndex(newNode, siblings.length);
@@ -540,11 +549,15 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 		// The editor mounts on this row at once, so a search must show it before the server answers.
 		useOutlineStore.getState().markCreatedForSearch(newNode.id);
 	}
-	queryClient.setQueryData<NodeResponse[]>(
-		nodeKeys.children(parentId),
-		spliceChildren(siblings, optimisticNode, index),
-	);
-	return {previousChildren, parentId};
+	// One notification for the row and its parent's flags, so the outline never renders one without the other.
+	const restoreParentFlags = notifyManager.batch(() => {
+		queryClient.setQueryData<NodeResponse[]>(
+			nodeKeys.children(parentId),
+			spliceChildren(siblings, optimisticNode, index),
+		);
+		return syncParentFlags(queryClient, parentId);
+	});
+	return {previousChildren, parentId, restoreParentFlags};
 }
 
 const updateUndos = new HeldUndos<NodeResponse, UpdateNodeRequest & {nodeId: string}>();
@@ -730,10 +743,15 @@ export function useMoveNode() {
 		mutationFn: async ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
 		async onMutate(request) {
 			beginMutation();
+			pendingMoves.begin(request, [readNode(queryClient, request.nodeId)?.parent_id ?? null, request.parent_id]);
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const node = readNode(queryClient, request.nodeId);
 			return node
-				? spliceMovedRows(queryClient, [node], request.parent_id, (count) => requestedIndex(request, count))
+				? notifyManager.batch(() =>
+						spliceMovedRows(queryClient, [node], request.parent_id, (count) =>
+							requestedIndex(request, count),
+						),
+					)
 				: [];
 		},
 		onSuccess(data, variables) {
@@ -744,8 +762,9 @@ export function useMoveNode() {
 			restoreSnapshots(queryClient, snapshots);
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
-		async onSettled() {
+		async onSettled(_data, _error, variables) {
 			endMutation();
+			pendingMoves.end(variables);
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
@@ -790,13 +809,17 @@ function moveNodesOptions(queryClient: QueryClient) {
 		mutationFn: moveNodes,
 		async onMutate(request: MoveNodesRequest) {
 			useOutlineStore.getState().beginMutation();
-			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const rows = request.ids
 				.map((id) => readNode(queryClient, id))
 				.filter((row): row is NodeResponse => row !== undefined);
-			return spliceMovedRows(queryClient, rows, request.parent_id, (count) => request.index ?? count);
+			pendingMoves.begin(request, [...rows.map((row) => row.parent_id), request.parent_id]);
+			await queryClient.cancelQueries({queryKey: nodeKeys.all});
+			return notifyManager.batch(() =>
+				spliceMovedRows(queryClient, rows, request.parent_id, (count) => request.index ?? count),
+			);
 		},
 		onSuccess(nodes, variables, snapshots) {
+			pendingMoves.end(variables);
 			moveNodesUndos.settle(variables, {data: nodes});
 			// A move can bring a dated node into or out of a day, so Found Dates lists are refetched.
 			void queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "found-dates"]});
@@ -811,6 +834,7 @@ function moveNodesOptions(queryClient: QueryClient) {
 			}
 		},
 		async onError(error, variables, snapshots) {
+			pendingMoves.end(variables);
 			moveNodesUndos.settle(variables, "failed");
 			restoreSnapshots(queryClient, snapshots);
 			useOutlineStore.getState().addErrorNotification(`Failed to move nodes: ${error.message}`);
@@ -836,7 +860,28 @@ export function moveNodesNow(queryClient: QueryClient, request: MoveNodesRequest
 
 type CacheSnapshot =
 	| {kind: "children"; parentId: string | null; previous: NodeResponse[] | undefined}
-	| {kind: "detail"; nodeId: string; previous: NodeResponse | undefined};
+	| {kind: "detail"; nodeId: string; previous: NodeResponse | undefined}
+	| {kind: "flags"; restore: () => void};
+
+/**
+ * Set `parentId`'s children flags, everywhere its row is cached, from its cached children list, so
+ * a parent that gained its first child or lost its last one renders as the server will answer it.
+ * Returns a function that restores the touched entries (a no-op when the list is not cached).
+ */
+function syncParentFlags(queryClient: QueryClient, parentId: string | null): () => void {
+	const children =
+		parentId === null ? undefined : queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
+	if (parentId === null || children === undefined) {
+		return () => {};
+	}
+	const hasChildren = children.length > 0;
+	const hasUncompletedChildren = children.some((child) => child.completedAt === null);
+	return patchCachedNode(queryClient, parentId, (node) =>
+		node.hasChildren === hasChildren && node.hasUncompletedChildren === hasUncompletedChildren
+			? node
+			: {...node, hasChildren, hasUncompletedChildren},
+	);
+}
 
 /**
  * Optimistically move `rows` under `newParentId` at `indexFor(siblingCount)`: remove them
@@ -865,7 +910,11 @@ function spliceMovedRows(
 		}
 	}
 	const moved = rows.map((row) => ({...row, parent_id: newParentId}));
-	const target = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(newParentId));
+	// A leaf gaining its first child has no list to splice into: seed it, so the expanded row shows
+	// the moved rows at once instead of an empty list until the refetch.
+	const target =
+		queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(newParentId)) ??
+		(newParentId !== null && readNode(queryClient, newParentId)?.hasChildren === false ? [] : undefined);
 	if (target) {
 		queryClient.setQueryData<NodeResponse[]>(
 			nodeKeys.children(newParentId),
@@ -879,12 +928,20 @@ function spliceMovedRows(
 			queryClient.setQueryData<NodeResponse>(nodeKeys.detail(row.id), {...previous, parent_id: newParentId});
 		}
 	}
+	for (const parentId of parentIds) {
+		snapshots.push({kind: "flags", restore: syncParentFlags(queryClient, parentId)});
+	}
 	return snapshots;
 }
 
 /** Roll every snapshotted cache entry back to its pre-mutation value. */
 function restoreSnapshots(queryClient: QueryClient, snapshots: CacheSnapshot[] | undefined): void {
-	for (const snapshot of snapshots ?? []) {
+	// Newest first: a flags restore writes back lists as they stood after the splice.
+	for (const snapshot of (snapshots ?? []).toReversed()) {
+		if (snapshot.kind === "flags") {
+			snapshot.restore();
+			continue;
+		}
 		if (snapshot.previous === undefined) {
 			continue;
 		}
