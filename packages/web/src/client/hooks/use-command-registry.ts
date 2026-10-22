@@ -1,5 +1,6 @@
 import {useCallback} from "react";
-import {useQueryClient} from "@tanstack/react-query";
+import {flushSync} from "react-dom";
+import {notifyManager, useQueryClient} from "@tanstack/react-query";
 import {goToNode, nodeUrl, stepNav} from "../navigation.js";
 import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
@@ -555,11 +556,15 @@ export function useCommandRegistry(): CommandRegistry {
 		settled: whenUndoSettled,
 		pop: (direction) => (direction === "undo" ? undoHistory.popUndo() : undoHistory.popRedo()),
 		blur() {
-			const editedId = useOutlineStore.getState().editingId;
-			if (editedId !== null) {
-				editorElement(editedId)?.blur();
-			}
-			stopEditing();
+			// Committed at once, so the editor unmounts: a row edited both before and after the undo would otherwise keep
+			// its held text, since stopping and resuming in one render never leaves editing.
+			flushSync(() => {
+				const editedId = useOutlineStore.getState().editingId;
+				if (editedId !== null) {
+					editorElement(editedId)?.blur();
+				}
+				stopEditing();
+			});
 		},
 		preview(ops) {
 			// A refetch still in flight from the forward action would land over the previewed rows.
@@ -591,11 +596,14 @@ export function useCommandRegistry(): CommandRegistry {
 			goToNode(navigate, nodeId);
 		},
 		focus({nodeId, field, start}) {
-			if (field === "name") {
-				resumeEditing(nodeId, start);
-			} else {
-				useOutlineStore.getState().focusNote(nodeId, start === 0 ? 0 : "end");
-			}
+			// Queued behind the preview's cache notifications, so the editor mounts on the restored text.
+			notifyManager.schedule(() => {
+				if (field === "name") {
+					resumeEditing(nodeId, start);
+				} else {
+					useOutlineStore.getState().focusNote(nodeId, start === 0 ? 0 : "end");
+				}
+			});
 		},
 	};
 
