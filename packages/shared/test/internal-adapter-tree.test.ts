@@ -290,6 +290,18 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		expect(order(null)).toStrictEqual(["a", "new", "b", "c"]);
 	});
 
+	it.each([
+		{afterId: "b", index: 0, expected: ["a", "b", "new", "c"]},
+		{afterId: null, index: 2, expected: ["new", "a", "b", "c"]},
+		{afterId: "gone", index: 1, expected: ["a", "new", "b", "c"]},
+	])("creates below the live sibling $afterId over the stale index $index", async ({afterId, index, expected}) => {
+		const {adapter, order} = await tracked();
+
+		await adapter.createAt({parentId: "home", index, afterId, name: ""});
+
+		expect(order(null)).toStrictEqual(expected);
+	});
+
 	it("clamps a create index past the end to the fresh sibling count", async () => {
 		const {adapter, pushes, order} = await tracked();
 

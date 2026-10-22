@@ -490,6 +490,11 @@ nodesRouter.post("/", async (c) => {
 		/** Legacy: negative = top, anything else = bottom. */
 		position?: number;
 		/**
+		 * The sibling the client saw right above the new node (null: first). While it is still a sibling it decides
+		 * the slot over `index`, which counts the client's possibly stale list.
+		 */
+		after_id?: unknown;
+		/**
 		 * A client-generated lowercase UUID for the new node, so the client can edit the
 		 * optimistic row before this reply. Honored through the internal API only; the
 		 * public-API fallback assigns its own id (the reply carries the real one).
@@ -515,6 +520,10 @@ nodesRouter.post("/", async (c) => {
 	if (body.id !== undefined && (typeof body.id !== "string" || !CLIENT_ID_PATTERN.test(body.id))) {
 		return c.json({error: "id must be a lowercase UUID"}, 400);
 	}
+	const afterId = body.after_id;
+	if (afterId !== undefined && afterId !== null && typeof afterId !== "string") {
+		return c.json({error: "after_id must be a node id or null"}, 400);
+	}
 	if (typeof body.id === "string" && ctx.cacheService.getNode(body.id)) {
 		return c.json({error: `Node already exists: ${body.id}`}, 409);
 	}
@@ -525,6 +534,7 @@ nodesRouter.post("/", async (c) => {
 		const {id} = await adapter.createAt({
 			parentId: adapterParent(parentId),
 			index: slot.index ?? count,
+			...(afterId === undefined || slot.index === undefined ? {} : {afterId}),
 			name,
 			...(typeof body.id === "string" ? {id: body.id} : {}),
 			...(note === undefined ? {} : {note}),

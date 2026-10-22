@@ -156,11 +156,14 @@ function entryDifferences(cached: ComparableEntry, server: ComparableEntry): str
 			? ["shape: list -> detail"]
 			: rowDifferences(cached, server);
 	}
-	if (idOrder(cached) !== idOrder(server)) {
-		return [`order: ${idOrder(cached)} -> ${idOrder(server)}`];
+	// A row the cache never held is another client's write (the CLI, another tab), not an optimistic error.
+	const held = new Set(cached.map((row) => row.id));
+	const known = server.filter((row) => held.has(row.id));
+	if (idOrder(cached) !== idOrder(known)) {
+		return [`order: ${idOrder(cached)} -> ${idOrder(known)}`];
 	}
 	return cached.flatMap((row, index) => {
-		const answer = server[index];
+		const answer = known[index];
 		return answer === undefined ? [] : rowDifferences(row, answer);
 	});
 }

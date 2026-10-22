@@ -128,10 +128,11 @@ export async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 
 async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 	await pendingCreates.prior(request.id);
+	const afterId = createAnchors.get(request);
 	const response = await fetch("/api/v1/nodes", {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
-		body: JSON.stringify(request),
+		body: JSON.stringify(afterId === undefined ? request : {...request, after_id: afterId}),
 	});
 	if (!response.ok) {
 		throw new Error(`Failed to create node: ${response.statusText}`);
@@ -554,6 +555,12 @@ interface CreateContext {
 /** Optimistic inserts `mutate` already made, handed to `onMutate` by request identity. */
 const earlyCreates = new WeakMap<CreateNodeRequest, CreateContext>();
 
+/**
+ * The row an exact-index create's optimistic row landed below (null: first), by request identity. The server places
+ * the node below it, so a sibling another client added that this cache has not seen does not shift the slot.
+ */
+const createAnchors = new WeakMap<CreateNodeRequest, string | null>();
+
 /** Splice the optimistic row for `newNode` into its parent's cached children (tracking it when it has a client id). */
 function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeRequest): CreateContext {
 	const parentId = newNode.parent_id ?? null;
@@ -582,11 +589,15 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 		useOutlineStore.getState().markCreatedForSearch(newNode.id);
 	}
 	// One notification for the row and its parent's flags, so the outline never renders one without the other.
-	const restoreParentFlags = notifyManager.batch(() => {
-		queryClient.setQueryData<NodeResponse[]>(
-			nodeKeys.children(parentId),
-			spliceChildren(siblings, optimisticNode, index),
+	const children = spliceChildren(siblings, optimisticNode, index);
+	if (exactIndex(newNode) !== undefined) {
+		createAnchors.set(
+			newNode,
+			children[children.findIndex((child) => child.id === optimisticNode.id) - 1]?.id ?? null,
 		);
+	}
+	const restoreParentFlags = notifyManager.batch(() => {
+		queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), children);
 		return syncParentFlags(queryClient, parentId);
 	});
 	return {previousChildren, parentId, restoreParentFlags};

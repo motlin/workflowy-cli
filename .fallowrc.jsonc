@@ -9,6 +9,8 @@
 		"packages/cli/src/commands/**/*.tsx",
 		"packages/web/src/client/app.tsx",
 		"packages/web/src/client/main.tsx",
+		// Injected as a dev-only <script> by the stale-module-reload plugin in packages/web/vite.config.ts.
+		"packages/web/src/client/dev-reload.ts",
 		"bin/**/*.js",
 		"plugins/gtd/scripts/**/*.mts",
 		"test/evals/**/*.eval.ts",

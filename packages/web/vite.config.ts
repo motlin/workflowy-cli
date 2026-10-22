@@ -36,5 +36,15 @@ export default defineConfig({
 			},
 		},
 	},
-	plugins: [react()],
+	plugins: [
+		react(),
+		{
+			// Dev only, ahead of main.tsx: a page whose module graph failed to link mid-checkout reloads itself.
+			name: "stale-module-reload",
+			apply: "serve",
+			transformIndexHtml: () => [
+				{tag: "script", attrs: {type: "module", src: "/dev-reload.ts"}, injectTo: "head-prepend"},
+			],
+		},
+	],
 });

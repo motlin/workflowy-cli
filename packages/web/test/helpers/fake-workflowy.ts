@@ -1,5 +1,6 @@
 import type {CacheService} from "@workflowy/shared/cache";
-import type {RestoreInput} from "@workflowy/shared/internal";
+import {anchoredIndex} from "@workflowy/shared/internal";
+import type {CreateAtInput, RestoreInput} from "@workflowy/shared/internal";
 import type {Node, WorkflowyNode} from "@workflowy/shared/types";
 
 /**
@@ -132,8 +133,13 @@ export class FakeApiClient {
 /** The internal-API adapter methods the routes write exact-index changes through. */
 export function fakeAdapter(cache: CacheService) {
 	return {
-		async createAt(input: {parentId: string; index: number; name: string; id?: string; note?: string}) {
+		async createAt(input: CreateAtInput) {
 			const parentId = home(input.parentId);
+			const index = anchoredIndex(
+				cache.getChildren(parentId).map((child) => child.id),
+				input.afterId,
+				input.index,
+			);
 			const id = input.id ?? `new-${now()}`;
 			const at = now();
 			cache.insertNode(
@@ -148,7 +154,7 @@ export function fakeAdapter(cache: CacheService) {
 				},
 				parentId,
 			);
-			place(cache, [id], parentId, input.index);
+			place(cache, [id], parentId, index);
 			return Promise.resolve({id});
 		},
 		async moveTo(input: {ids: string[]; parentId: string; index: number}) {

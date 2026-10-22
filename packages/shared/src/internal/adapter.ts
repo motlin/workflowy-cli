@@ -116,6 +116,22 @@ function clampIndex(index: number, length: number): number {
 	return Math.min(Math.max(Math.trunc(index), 0), length);
 }
 
+/**
+ * The slot right after `afterId` among `siblingIds` (0 for null) while it is still one of them, else `index`
+ * clamped: a client whose sibling list missed another client's write still lands the row below the one it saw.
+ */
+export function anchoredIndex(
+	siblingIds: readonly string[],
+	afterId: string | null | undefined,
+	index: number,
+): number {
+	if (afterId === null) {
+		return 0;
+	}
+	const anchor = afterId === undefined ? -1 : siblingIds.indexOf(afterId);
+	return anchor === -1 ? clampIndex(index, siblingIds.length) : anchor + 1;
+}
+
 export interface CreateAtInput {
 	/** The new node's id; generated when absent. */
 	id?: string;
@@ -123,6 +139,8 @@ export interface CreateAtInput {
 	parentId: string;
 	/** 0-based slot among all siblings, completed ones included; clamped to `[0, siblings]`. */
 	index: number;
+	/** The sibling the new node follows (null: first); while it is a live sibling it decides the slot over `index`. */
+	afterId?: string | null;
 	name: string;
 	note?: string;
 	metadata?: Record<string, unknown>;
@@ -380,7 +398,11 @@ export class WorkflowyInternalAdapter {
 		}
 		const {op, ids} = bulkCreateOp({
 			parentId: internalParent(parent),
-			index: clampIndex(input.index, siblings.length),
+			index: anchoredIndex(
+				siblings.map((sibling) => sibling.id),
+				input.afterId,
+				input.index,
+			),
 			trees: [newTree],
 			userId: session.userId,
 			now: this.now(),

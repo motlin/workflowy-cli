@@ -296,6 +296,27 @@ describe("the optimistic cache matches the server's round trip", () => {
 		).resolves.toStrictEqual({forward: NO_MISMATCH, undo: NO_MISMATCH});
 	});
 
+	it("creates a bullet after the sibling the user saw when another client added a row the cache lacks", async () => {
+		const queryClient = await loadedClient();
+		const hooks = captureHooks(queryClient);
+		// Another client (the CLI, another tab) adds a first child the loaded cache never sees.
+		await fetch("/api/v1/nodes", {
+			method: "POST",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify({parent_id: "alpha", name: "outside", index: 0}),
+		});
+		const forward = await roundTrip(queryClient, () => {
+			hooks.create.mutate({id: CLIENT_ID, parent_id: "alpha", name: "", index: 1});
+		});
+		expect({
+			forward,
+			order: queryClient.getQueryData<NodeResponse[]>(nodeKeys.children("alpha"))?.map((row) => row.name),
+		}).toStrictEqual({
+			forward: NO_MISMATCH,
+			order: ["outside", "alpha1", "", "alpha2"],
+		});
+	});
+
 	it("creates the first child of a leaf that a mirror shows", async () => {
 		await expect(
 			withUndo(({create}) => {
