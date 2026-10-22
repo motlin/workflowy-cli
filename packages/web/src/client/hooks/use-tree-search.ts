@@ -131,10 +131,18 @@ export function useSearchFilter(): SearchFilter | null {
 	return searchQuery === "" || data === undefined ? null : searchFilter(data, createdIds, expansion);
 }
 
-/** `useSearchFilter` read from the store and cache at call time, for commands such as the caret walk. */
-export function currentSearchFilter(queryClient: QueryClient): SearchFilter | null {
-	const {zoomedNodeId, searchQuery, searchRun, searchSession, searchCreatedIds, searchExpansion} =
-		useOutlineStore.getState();
+/**
+ * `useSearchFilter` read from the store and cache at call time, for commands such as the caret walk: the search of
+ * `paneId`, by default the active pane the keyboard acts in.
+ */
+export function currentSearchFilter(
+	queryClient: QueryClient,
+	paneId: string = useOutlineStore.getState().activePaneId,
+): SearchFilter | null {
+	const {zoomedNodeId, searchQuery, searchRun, searchSession, createdIds, expansion} = paneSearchState(
+		useOutlineStore.getState(),
+		paneId,
+	);
 	if (searchQuery === "") {
 		return null;
 	}
@@ -142,7 +150,7 @@ export function currentSearchFilter(queryClient: QueryClient): SearchFilter | nu
 		queryClient.getQueryData<TreeSearchResult>(
 			treeSearchKey(searchSession, zoomedNodeId, searchQuery, searchRun),
 		) ?? latestSessionResult(queryClient, searchSession);
-	return result === undefined ? null : searchFilter(result, searchCreatedIds, searchExpansion);
+	return result === undefined ? null : searchFilter(result, createdIds, expansion);
 }
 
 /**

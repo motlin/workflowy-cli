@@ -227,6 +227,16 @@ function searchState(searchQuery: string, searchSession = 0) {
 		searchSession,
 		searchCreatedIds: new Set(),
 		searchExpansion: new Map([["cherry", false]]),
+		sidePane: null,
+		activePaneId: "main",
+	});
+}
+
+/** A side pane zoomed to the fixture root with its own `query`; `active` makes it the pane keyboard commands act in. */
+function sidePaneState(query: string, active: boolean) {
+	useOutlineStore.setState({
+		sidePane: {zoomedId: "root", backLocations: [], forwardLocations: [], query, expandedIds: new Set()},
+		activePaneId: active ? "side" : "main",
 	});
 }
 
@@ -235,6 +245,20 @@ describe("caret walk during a search", () => {
 		searchState("apple");
 		const queryClient = searchCache([[treeSearchKey(0, "root", "apple", 0), APPLE]]);
 		expect(currentNavigableIds(queryClient)).toStrictEqual(["root", "fruit", "green", "cherry"]);
+	});
+
+	it("walks the side pane's own search when the side pane is active", () => {
+		searchState("");
+		sidePaneState("apple", true);
+		const queryClient = searchCache([[treeSearchKey(-1, "root", "apple", 0), APPLE]]);
+		expect(currentNavigableIds(queryClient)).toStrictEqual(["root", "fruit", "green", "cherry", "deep"]);
+	});
+
+	it("walks the main search, not the side pane's, when the main pane is active", () => {
+		searchState("");
+		sidePaneState("apple", false);
+		const queryClient = searchCache([[treeSearchKey(-1, "root", "apple", 0), APPLE]]);
+		expect(currentNavigableIds(queryClient)).toStrictEqual(["root", "fruit", "veg", "carrot", "potato", "plain"]);
 	});
 
 	it("builds the expansion rows from the search's rows and expansion", () => {

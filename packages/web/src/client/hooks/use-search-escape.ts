@@ -7,6 +7,8 @@ import {escapeAction} from "../search-escape.js";
 import {isModalOpen, useOutlineStore} from "../stores/outline.js";
 import type {SearchReturn} from "../stores/outline.js";
 import {collectVisibleNodeIds} from "./use-visible-nodes.js";
+import {currentSearchFilter} from "./use-tree-search.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 
 const SEARCH_INPUT_ID = "srch-input";
 
@@ -27,6 +29,7 @@ function editFirstVisibleRow(queryClient: QueryClient): void {
 		expandedIds,
 		showCompleted,
 		animatingCompletionIds,
+		currentSearchFilter(queryClient, MAIN_PANE_ID),
 	);
 	if (firstId !== undefined) {
 		resumeEditing(firstId, 0);

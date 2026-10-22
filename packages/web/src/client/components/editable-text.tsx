@@ -64,7 +64,7 @@ import {planLayoutHotkey} from "../layout-hotkeys.js";
 import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
 import type {SelectionToolbarAction} from "./selection-toolbar.js";
-import {useCommitSearch} from "../hooks/use-commit-search.js";
+import {usePaneTagSearch} from "../hooks/use-commit-search.js";
 import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
@@ -72,14 +72,7 @@ import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
 import {highlightSearchMatches} from "../highlight-html.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
-import {
-	isTagDeleteClick,
-	removeTagFromHtml,
-	renderedTagStarts,
-	tagCaretUnits,
-	teaserPosition,
-	toggleTagInQuery,
-} from "../tag-render.js";
+import {isTagDeleteClick, removeTagFromHtml, renderedTagStarts, tagCaretUnits, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
@@ -1126,7 +1119,7 @@ function RestingTagColorPicker({tag, top, left, onClose}: RestingTagColorPickerP
 function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | "initialValue">) {
 	const queryClient = useQueryClient();
 	const {startEditing, resumeEditing} = outlineActions();
-	const commitSearch = useCommitSearch();
+	const toggleTagSearch = usePaneTagSearch();
 	const searchQuery = usePaneSearchQuery();
 	const updateNodeMutation = useUpdateNode();
 	const dateSettings = useDateSettings();
@@ -1205,7 +1198,7 @@ function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | 
 						document.activeElement.blur();
 					}
 					tagEl.classList.add("tapped");
-					commitSearch(toggleTagInQuery(useOutlineStore.getState().searchQuery, tagText));
+					toggleTagSearch(tagText);
 				}
 				return;
 			}
@@ -1223,7 +1216,7 @@ function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | 
 			event.stopPropagation();
 			startEditing(nodeId, {x: event.clientX, y: event.clientY});
 		},
-		[nodeId, startEditing, commitSearch, openPillPicker, explodeTag],
+		[nodeId, startEditing, toggleTagSearch, openPillPicker, explodeTag],
 	);
 
 	// Show the color teaser when hovering a tag; upstream's 150ms hide delay lets the

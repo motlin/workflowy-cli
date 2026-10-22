@@ -13,7 +13,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useMoveNode: () => ({mutate: () => {}}),
 	useUpdateNode: () => ({mutate: () => {}}),
 }));
-vi.mock("../src/client/hooks/use-commit-search.js", () => ({useCommitSearch: () => () => {}}));
+vi.mock("../src/client/hooks/use-commit-search.js", () => ({usePaneTagSearch: () => () => {}}));
 vi.mock("../src/client/hooks/use-tag-colors.js", () => ({
 	useRemoveTagColor: () => ({mutate: () => {}}),
 	useSetTagColor: () => ({mutate: () => {}}),

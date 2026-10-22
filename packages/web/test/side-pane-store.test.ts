@@ -434,3 +434,46 @@ describe("per-pane expansion", () => {
 		expect(store.getState().sidePane?.expandedIds).toStrictEqual(new Set(["alice"]));
 	});
 });
+
+describe("tag clicks route to the clicked pane's search", () => {
+	async function load() {
+		const store = await loadStore();
+		const {togglePaneTagSearch} = await import("../src/client/hooks/use-commit-search.js");
+		return {store, togglePaneTagSearch};
+	}
+
+	it("toggles a tag clicked in the side pane into the side pane's query, leaving the main search alone", async () => {
+		const {store, togglePaneTagSearch} = await load();
+		store.getState().openSidePane("alice");
+		store.getState().setSidePaneQuery("#work ");
+		const navigate = vi.fn<(to: string) => void>();
+		togglePaneTagSearch("side", "@bob", navigate);
+		expect({
+			pane: store.getState().sidePane?.query,
+			main: store.getState().searchQuery,
+			navigated: navigate.mock.calls,
+		}).toStrictEqual({
+			pane: "#work @bob ",
+			main: "",
+			navigated: [],
+		});
+	});
+
+	it("removes a tag clicked again in the side pane from the side pane's query", async () => {
+		const {store, togglePaneTagSearch} = await load();
+		store.getState().openSidePane("alice");
+		store.getState().setSidePaneQuery("#work @bob ");
+		togglePaneTagSearch("side", "@bob", vi.fn<(to: string) => void>());
+		expect(store.getState().sidePane?.query).toBe("#work ");
+	});
+
+	it("commits a tag clicked in the main pane as the main search, leaving the side pane's query alone", async () => {
+		const {store, togglePaneTagSearch} = await load();
+		store.getState().openSidePane("alice");
+		store.getState().setSidePaneQuery("#work ");
+		const navigate = vi.fn<(to: string) => void>();
+		togglePaneTagSearch("main", "@bob", navigate);
+		const queries = navigate.mock.calls.map(([url]) => new URLSearchParams(url.split("#")[1]).get("q"));
+		expect({pane: store.getState().sidePane?.query, queries}).toStrictEqual({pane: "#work ", queries: ["@bob "]});
+	});
+});
