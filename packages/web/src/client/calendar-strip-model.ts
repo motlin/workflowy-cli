@@ -103,6 +103,26 @@ interface DragScroller extends EventTarget {
 }
 
 /**
+ * Upstream's popover outside-click dismissal: a pointerdown on any target that `inside` rejects calls `dismiss`. It listens in the
+ * capture phase so handlers that stop propagation cannot keep the popup open. Returns the detach function.
+ */
+export function attachOutsideDismiss(
+	doc: EventTarget,
+	inside: (target: EventTarget | null) => boolean,
+	dismiss: () => void,
+): () => void {
+	const onDown = (event: Event) => {
+		if (!inside(event.target)) {
+			dismiss();
+		}
+	};
+	doc.addEventListener("pointerdown", onDown, {capture: true});
+	return () => {
+		doc.removeEventListener("pointerdown", onDown, {capture: true});
+	};
+}
+
+/**
  * Upstream's mouse drag-to-scroll: a left-button drag past 4px scrolls the
  * strip with `cursor: grabbing`, and the click that ends it is swallowed so no
  * cell navigates. Returns the cleanup.

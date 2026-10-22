@@ -26,6 +26,7 @@ import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {
 	STRIP_DROP_EVENT,
 	attachDragScroll,
+	attachOutsideDismiss,
 	attachDropAutoscroll,
 	stripPage,
 	runStripDrop,
@@ -69,6 +70,7 @@ function useCalendarDots(from: number | null, to: number | null): ReadonlySet<nu
  */
 function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => void}) {
 	const anchor = useRef<HTMLDivElement | null>(null);
+	const popup = useRef<HTMLDivElement | null>(null);
 	const [open, setOpen] = useState<{left: number; top: number} | null>(null);
 	const [term, setTerm] = useState("");
 	const {dateFormat, weekStartDay} = useDateSettings();
@@ -128,6 +130,24 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 		setTerm("");
 		setLayoutView(false);
 	};
+	const isOpen = open !== null;
+	// Upstream closes the picker on a pointerdown outside it; the button itself toggles it in its click handler.
+	useEffect(() => {
+		if (!isOpen) {
+			return noCleanup;
+		}
+		return attachOutsideDismiss(
+			document,
+			(target) =>
+				target instanceof Node &&
+				((anchor.current?.contains(target) ?? false) || (popup.current?.contains(target) ?? false)),
+			() => {
+				setOpen(null);
+				setTerm("");
+				setLayoutView(false);
+			},
+		);
+	}, [isOpen]);
 	const select = (day: Date | undefined) => {
 		close();
 		if (day !== undefined) {
@@ -142,6 +162,14 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 			onPointerEnter={prefetchDots}
 			onClick={(event) => {
 				event.stopPropagation();
+				// Clicks inside the portaled popup bubble here through the React tree; only the button's own toggle.
+				if (!(event.target instanceof Node && (anchor.current?.contains(event.target) ?? false))) {
+					return;
+				}
+				if (open !== null) {
+					close();
+					return;
+				}
 				const rect = anchor.current?.getBoundingClientRect();
 				if (rect) {
 					setOpen({left: rect.left + globalThis.scrollX, top: rect.bottom + globalThis.scrollY});
@@ -154,68 +182,72 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 			{open === null
 				? null
 				: createPortal(
-						<DatePickerPopup
-							selected={[date]}
-							weekStartDay={weekStartDay}
-							showControls={false}
-							renderDayContent={calendarDayContent(eventDays.hasEvent)}
-							afterCalendar={calendarPickerSettingsRows(
-								calendarSettings.settings,
-								calendarSettings.toggle,
-								() => {
-									setLayoutView(true);
-								},
-							)}
-							content={
-								layoutView ? (
-									layout === undefined ? (
-										<div className="p-ml">
-											<LoadingSpinner size="small" />
-										</div>
-									) : (
-										<CalendarLayoutView
-											layout={layout}
-											onCancel={() => {
-												setLayoutView(false);
-											}}
-											onDateFormat={() => {
-												close();
-												openSettings("Dates");
-											}}
-											onUpdate={async (levels) => {
-												try {
-													if (layout.applyEnabled === true) {
-														await applyLayout(levels);
-													} else {
-														showAppMessage(
-															layoutPreviewMessage(await previewCalendarLayout(levels)),
-														);
-													}
+						<div ref={popup} className="contents">
+							<DatePickerPopup
+								selected={[date]}
+								weekStartDay={weekStartDay}
+								showControls={false}
+								renderDayContent={calendarDayContent(eventDays.hasEvent)}
+								afterCalendar={calendarPickerSettingsRows(
+									calendarSettings.settings,
+									calendarSettings.toggle,
+									() => {
+										setLayoutView(true);
+									},
+								)}
+								content={
+									layoutView ? (
+										layout === undefined ? (
+											<div className="p-ml">
+												<LoadingSpinner size="small" />
+											</div>
+										) : (
+											<CalendarLayoutView
+												layout={layout}
+												onCancel={() => {
+													setLayoutView(false);
+												}}
+												onDateFormat={() => {
 													close();
-												} catch (error) {
-													reportError(error);
-												}
-											}}
-										/>
-									)
-								) : undefined
-							}
-							onVisibleMonthChange={eventDays.onVisibleMonthChange}
-							term={term}
-							position={open}
-							onTermChange={setTerm}
-							onEnter={() => {
-								select(guessDates(term, {dateFormat})[0]);
-							}}
-							onApply={(dates) => {
-								select(dates[0]);
-							}}
-							onPreset={(preset: DatePreset) => {
-								select(presetDate(preset, {weekStartDay}));
-							}}
-							onEscape={close}
-							onClose={close}
-						/>,
+													openSettings("Dates");
+												}}
+												onUpdate={async (levels) => {
+													try {
+														if (layout.applyEnabled === true) {
+															await applyLayout(levels);
+														} else {
+															showAppMessage(
+																layoutPreviewMessage(
+																	await previewCalendarLayout(levels),
+																),
+															);
+														}
+														close();
+													} catch (error) {
+														reportError(error);
+													}
+												}}
+											/>
+										)
+									) : undefined
+								}
+								onVisibleMonthChange={eventDays.onVisibleMonthChange}
+								term={term}
+								position={open}
+								onTermChange={setTerm}
+								onEnter={() => {
+									select(guessDates(term, {dateFormat})[0]);
+								}}
+								onApply={(dates) => {
+									select(dates[0]);
+								}}
+								onPreset={(preset: DatePreset) => {
+									select(presetDate(preset, {weekStartDay}));
+								}}
+								onEscape={close}
+								onClose={close}
+							/>
+						</div>,
 						document.body,
 					)}
 		</div>

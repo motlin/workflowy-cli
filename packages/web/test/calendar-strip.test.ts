@@ -3,6 +3,7 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {describe, expect, it} from "vite-plus/test";
 import {
 	attachDragScroll,
+	attachOutsideDismiss,
 	calendarPageDate,
 	monthCellTarget,
 	runStripDrop,
@@ -394,6 +395,44 @@ describe("attachDragScroll", () => {
 			rightDrag: 50,
 			detached: 50,
 		});
+	});
+});
+
+describe("attachOutsideDismiss", () => {
+	function pointerDownOn(target: EventTarget): Event {
+		const event = new Event("pointerdown");
+		Object.defineProperty(event, "target", {value: target});
+		return event;
+	}
+
+	it("dismisses on a pointerdown outside the popup and its button, and detaches on cleanup", () => {
+		const doc = new EventTarget();
+		const popup = new EventTarget();
+		const button = new EventTarget();
+		const outside = new EventTarget();
+		const dismissals: string[] = [];
+		let current = "";
+		const detach = attachOutsideDismiss(
+			doc,
+			(target) => target === popup || target === button,
+			() => {
+				dismissals.push(current);
+			},
+		);
+
+		for (const [name, target] of [
+			["popup", popup],
+			["button", button],
+			["outside", outside],
+		] as const) {
+			current = name;
+			doc.dispatchEvent(pointerDownOn(target));
+		}
+		detach();
+		current = "after detach";
+		doc.dispatchEvent(pointerDownOn(outside));
+
+		expect(dismissals).toStrictEqual(["outside"]);
 	});
 });
 
