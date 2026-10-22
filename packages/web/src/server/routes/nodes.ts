@@ -6,6 +6,8 @@ import type {
 	FoundDatesResponse,
 	NodeAttachment,
 	NodeResponse,
+	OutlineViewList,
+	OutlineViewResponse,
 } from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {ExactMover} from "@workflowy/shared/cache";
@@ -18,6 +20,7 @@ import {HOME_TARGET} from "@workflowy/shared/types";
 import {hasInternalLink, isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
+import {z} from "zod";
 import type {Context} from "hono";
 import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoot} from "../backlinks.js";
 import {loadCalendarInfo} from "../calendar-day.js";
@@ -363,6 +366,52 @@ nodesRouter.post("/children", async (c) => {
 		}),
 	);
 	return c.json({children: Object.fromEntries(entries.filter((entry) => entry !== undefined))});
+});
+
+// POST /api/v1/nodes/view - Everything an outline view under `rootId` first renders, in one round trip: the root's
+// children and, depth-first in document order, those of every expanded row the row budget reaches, each with its
+// Backlinks section (Home has none). Spares the client one children request per depth level and one backlinks GET
+// per expanded row, so a zoom swaps in the whole expanded view at once.
+const ViewSchema = z.object({
+	rootId: z.string().nullable(),
+	expandedIds: z.array(z.string()),
+	limit: z.number().int().nonnegative(),
+	showCompleted: z.boolean(),
+});
+
+nodesRouter.post("/view", async (c) => {
+	const ctx = c.get("ctx");
+	const body = ViewSchema.safeParse(await c.req.json().catch(() => {}));
+	if (!body.success) {
+		return c.json({error: "body must be {rootId, expandedIds, limit, showCompleted}"}, 400);
+	}
+	const {rootId, limit, showCompleted} = body.data;
+	const resolvedRoot = rootId === null ? null : resolveNodeId(ctx, rootId);
+	if (rootId !== null && resolvedRoot === null) {
+		return c.json({error: "Node not found"}, 404);
+	}
+	const expandedIds = new Set(body.data.expandedIds);
+	const lists: OutlineViewList[] = [];
+	let used = 0;
+	const visit = async (parentId: string | null, resolved: string | null): Promise<void> => {
+		const nodes = await readChildDtos(ctx, resolved === null ? null : resolveMirrorToOriginal(ctx, resolved));
+		lists.push({parentId, nodes, backlinks: resolved === null ? null : await readBacklinks(ctx, resolved)});
+		for (const node of nodes) {
+			if (used >= limit) {
+				return;
+			}
+			if (!showCompleted && node.completedAt !== null) {
+				continue;
+			}
+			used += 1;
+			if (expandedIds.has(node.id)) {
+				await visit(node.id, node.id);
+			}
+		}
+	};
+	await visit(rootId, resolvedRoot);
+	const response: OutlineViewResponse = {lists};
+	return c.json(response);
 });
 
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
@@ -836,11 +885,15 @@ nodesRouter.get("/:id/backlinks", async (c) => {
 	if (!id) {
 		return c.json({error: "Node not found"}, 404);
 	}
+	return c.json(await readBacklinks(ctx, id));
+});
+
+/** The Backlinks section of the resolved node `id` (a mirror shows its original's). */
+async function readBacklinks(ctx: ServerContext, id: string): Promise<BacklinksResponse> {
 	const {db} = ctx;
 	const rootId = findReferencesRoot(db, resolveMirrorToOriginal(ctx, id));
 	if (rootId === null) {
-		const empty: BacklinksResponse = {rootId: null, items: []};
-		return c.json(empty);
+		return {rootId: null, items: []};
 	}
 
 	const sourceByItem = currentBacklinkSources(db, rootId);
@@ -898,8 +951,8 @@ nodesRouter.get("/:id/backlinks", async (c) => {
 			];
 		}),
 	};
-	return c.json(body);
-});
+	return body;
+}
 
 // GET /api/v1/nodes/:id/found-dates - A day page's Found Dates section: the nodes
 // elsewhere whose <time> covers the day, each as a mirror row of itself with its crumbs.

@@ -20,6 +20,7 @@ import {dropHoverOf} from "../bullet-drag-state.js";
 import {rendersRow, rowLimit} from "../render-window.js";
 import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
+import {useOutlineViewPending} from "../hooks/use-outline-view.js";
 import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
@@ -562,7 +563,11 @@ export function RootOutlineChildren({parentId}: {parentId: string | null}) {
  * matching upstream's DOM: each expanded row holds its children inline.
  */
 export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
-	const {isLoading, error} = useChildren(requestedId);
+	// The whole expanded view loads in one request before the swap; the root's own query then reads the cache.
+	const viewPending = useOutlineViewPending(requestedId);
+	const children = useChildren(requestedId, !viewPending);
+	const {error} = children;
+	const isLoading = viewPending || children.isPending;
 	const [lastShown, setLastShown] = useState<string | null | undefined>(undefined);
 	const parentId = outlineRootToShow(requestedId, isLoading, lastShown);
 	const shownLoading = isLoading && parentId === requestedId;

@@ -10,7 +10,8 @@ import {
 import {useCallback} from "react";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import type {MutateOptions, MutationObserverOptions, QueryClient} from "@tanstack/react-query";
-import type {BacklinksResponse, FoundDatesResponse, NodeResponse} from "../../node-types.js";
+import type {BacklinksResponse, FoundDatesResponse, NodeResponse, OutlineViewResponse} from "../../node-types.js";
+import type {OutlineViewRequest} from "../outline-view.js";
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
 import {
@@ -85,6 +86,19 @@ export async function fetchChildren(parentId: string | null): Promise<NodeRespon
 	}
 	const data = await readJson<{nodes: NodeResponse[]}>(response);
 	return pendingCreates.withPending(parentId, data.nodes);
+}
+
+/** Everything an outline view first renders, in one round trip (see `loadOutlineView`). */
+export async function fetchOutlineView(request: OutlineViewRequest): Promise<OutlineViewResponse> {
+	const response = await fetch("/api/v1/nodes/view", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(request),
+	});
+	if (!response.ok) {
+		throw new Error(`Failed to fetch outline view: ${response.statusText}`);
+	}
+	return readJson<OutlineViewResponse>(response);
 }
 
 export async function fetchNode(nodeId: string): Promise<NodeResponse> {
@@ -288,10 +302,11 @@ export function useFoundDates(dayId: string | null) {
 	});
 }
 
-export function useChildren(parentId: string | null) {
+export function useChildren(parentId: string | null, enabled = true) {
 	return useQuery({
 		queryKey: nodeKeys.children(parentId),
 		queryFn: async () => fetchChildren(parentId),
+		enabled,
 	});
 }
 

@@ -8,11 +8,12 @@ import {goToNode, planZoomFocus} from "../navigation.js";
 import type {ZoomFocus} from "../navigation.js";
 import {nodeKeys, readNode, seedResolvedId} from "../node-cache.js";
 import {SIDE_PANE_ID} from "../pane-ids.js";
-import {activeZoomedId, useOutlineStore} from "../stores/outline.js";
+import {activePaneView, activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {isPotentiallyVisible} from "../tree-ops.js";
 import {ZOOMING_CLASS, runZoomAnimation, waitForZoomRow, zoomAnimationEnabled} from "../zoom-animation.js";
 import {fetchChildren, prefetchZoomView} from "./use-nodes.js";
+import {outlineViewShape, queryOutlineView} from "./use-outline-view.js";
 import {afterNextPaint} from "../after-paint.js";
 import {showZoom} from "../show-zoom.js";
 import {scrollSidePaneToTop} from "../components/pane-context.js";
@@ -53,6 +54,14 @@ async function zoomTo(
 	const viewTarget = focus === "first_child" ? targetId : parentOfZoomed;
 	const viewLoaded =
 		viewTarget === null || viewTarget === zoomedNodeId ? undefined : prefetchZoomView(queryClient, viewTarget);
+	// The new view's whole expanded tree loads in one request, so its rows land in the swap instead of a level at a time.
+	const treeLoaded =
+		viewTarget === zoomedNodeId
+			? undefined
+			: queryOutlineView(queryClient, viewTarget, outlineViewShape(activePaneView().expandedIds, showCompleted));
+	if (zoomingInto) {
+		await treeLoaded;
+	}
 	const children = zoomingInto
 		? await queryClient.query({
 				queryKey: nodeKeys.children(targetId),
@@ -91,7 +100,7 @@ async function zoomTo(
 		if (animate && !isOut) {
 			await runZoomAnimation(false, movingId);
 		}
-		await viewLoaded;
+		await Promise.all([viewLoaded, treeLoaded]);
 		// The new view paints first; focusing its edited row inside that frame would force a style and layout pass of
 		// the whole outline before the paint. After it, style and layout are clean and the focus costs next to nothing.
 		stopEditing();

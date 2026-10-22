@@ -21,6 +21,11 @@ class PendingMoves {
 		this.#moves.delete(key);
 	}
 
+	/** Whether a move into or out of `parentId` is still pending. */
+	has(parentId: string | null): boolean {
+		return [...this.#moves.values()].some((move) => move.parentIds.has(parentId));
+	}
+
 	/** Wait until no move into or out of `parentId` is still pending. */
 	async settled(parentId: string | null): Promise<void> {
 		await Promise.all(

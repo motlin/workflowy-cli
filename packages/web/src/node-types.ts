@@ -74,6 +74,18 @@ export interface BacklinksResponse {
 	items: BacklinkItem[];
 }
 
+/** One parent's children in an outline view (`POST /api/v1/nodes/view`), with its Backlinks section (null for Home). */
+export interface OutlineViewList {
+	parentId: string | null;
+	nodes: NodeResponse[];
+	backlinks: BacklinksResponse | null;
+}
+
+/** An outline view's lists, the root's first, then each expanded row's in document order. */
+export interface OutlineViewResponse {
+	lists: OutlineViewList[];
+}
+
 /** A Found Dates item: the found node shown as a mirror of itself, and its ancestor crumbs. */
 export interface FoundDateItem {
 	node: NodeResponse;

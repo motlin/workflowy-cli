@@ -99,6 +99,41 @@ export function rowLimits(
 }
 
 /**
+ * The parents whose children the view under `rootId` renders within `budget` rows, in document order (the root first),
+ * filtering rows as `rowLimits` does; undefined when one of them has not loaded its children yet.
+ */
+export function viewParentIds(
+	getChildren: (parentId: string | null) => NodeResponse[] | undefined,
+	rootId: string | null,
+	budget: number,
+	{expandedIds, showCompleted, animatingCompletionIds, search}: RowView,
+): (string | null)[] | undefined {
+	const parentIds: (string | null)[] = [];
+	let used = 0;
+	const visit = (parentId: string | null): boolean => {
+		parentIds.push(parentId);
+		const children = getChildren(parentId);
+		if (children === undefined) {
+			return false;
+		}
+		for (const node of children) {
+			if (used >= budget) {
+				return true;
+			}
+			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
+				continue;
+			}
+			used += 1;
+			if (rendersChildren(node.id, expandedIds, search) && !visit(node.id)) {
+				return false;
+			}
+		}
+		return true;
+	};
+	return visit(rootId) ? parentIds : undefined;
+}
+
+/**
  * The budget that renders `targetId`'s row: `budget` grown a step at a time until it reaches the row's place in
  * document order, or `budget` itself when the row already renders or does not show at all. Arrow keys move the caret
  * through cached rows, not mounted ones, so a move past the last mounted row grows the budget instead of waiting for

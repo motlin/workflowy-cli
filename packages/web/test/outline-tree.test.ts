@@ -72,6 +72,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: (parentId: string | null) => ({
 		data: childrenByParent.get(parentId) ?? [],
 		isLoading: false,
+		isPending: false,
 		error: null,
 	}),
 	useNode: (nodeId: string) => ({data: nodesById.get(nodeId)}),
@@ -85,6 +86,7 @@ vi.mock("../src/client/hooks/use-tree-search.js", async (importOriginal) => ({
 	useSearchFilter: () => currentSearch,
 	usePrefetchSearchAncestors: () => {},
 }));
+vi.mock("../src/client/hooks/use-outline-view.js", () => ({useOutlineViewPending: () => false}));
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");

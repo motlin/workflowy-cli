@@ -10,6 +10,7 @@ import {
 	rowBudgetToShow,
 	rowLimit,
 	rowLimits,
+	viewParentIds,
 } from "../src/client/render-window.js";
 
 function node(id: string, parentId: string | null, completed = false): NodeResponse {
@@ -135,5 +136,25 @@ describe("rowBudgetToShow", () => {
 			budgetFor(2, "nobody"),
 			budgetFor(1, "bob", searchView),
 		]).toStrictEqual([26, 5, 2, 2, 2, 25]);
+	});
+});
+
+describe("viewParentIds", () => {
+	it("lists the root and every expanded rendered row the budget reaches, in document order", () => {
+		const view = {...outlineView, expandedIds: new Set(["alice", "bob", "dave"])};
+		expect(viewParentIds((id) => children.get(id) ?? [], null, 100, view)).toStrictEqual([
+			null,
+			"alice",
+			"dave",
+			"bob",
+		]);
+	});
+
+	it("stops at the budget and is undefined while a reached parent's children have not loaded", () => {
+		const view = {...outlineView, expandedIds: new Set(["alice", "bob"])};
+		expect({
+			budgeted: viewParentIds((id) => children.get(id) ?? [], null, 2, view),
+			unloaded: viewParentIds((id) => children.get(id), null, 100, view),
+		}).toStrictEqual({budgeted: [null, "alice"], unloaded: undefined});
 	});
 });
