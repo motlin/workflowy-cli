@@ -13,6 +13,7 @@ import {
 	rowLimitsKey,
 } from "../render-window.js";
 import {afterNextPaint} from "../after-paint.js";
+import {poppedScrollY} from "../scroll-restoration.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {usePaneExpandedIds} from "../components/pane-context.js";
 
@@ -43,9 +44,11 @@ export function useRowLimits(
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
 	const result = search?.result;
 
-	const [budget, setBudget] = useState({rootId, result, rows: firstPaintRowBudget(viewportHeight())});
+	// A view Back/Forward restores scrolled down mounts rows down to that scroll, so it lands on rows.
+	const firstRows = () => firstPaintRowBudget(viewportHeight() + poppedScrollY(rootId));
+	const [budget, setBudget] = useState(() => ({rootId, result, rows: firstRows()}));
 	if (budget.rootId !== rootId || budget.result !== result) {
-		setBudget({rootId, result, rows: firstPaintRowBudget(viewportHeight())});
+		setBudget({rootId, result, rows: firstRows()});
 	}
 	useEffect(() => {
 		const run = {cancelled: false};

@@ -2,6 +2,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {goToNode, zoomToCachedLocation} from "../src/client/navigation.js";
 import {useOutlineStore} from "../src/client/stores/outline.js";
+import {focusScrolls} from "../src/client/quiet-focus.js";
 
 const ALICE = "4823cefa-5fc0-478c-88ac-aaaaaaaaaaaa";
 const BOB = "9a1f6c2e-0b7d-4e5a-8c3f-bbbbbbbbbbbb";
@@ -47,5 +48,12 @@ describe("navigation while editing", () => {
 		const atSwap = useOutlineStore.getState().editingId;
 		await paint();
 		expect({atSwap, editingId: useOutlineStore.getState().editingId}).toStrictEqual({atSwap: null, editingId: BOB});
+	});
+
+	it("resumes the edited row after a swap without scrolling to it, as upstream keeps the restored scroll", async () => {
+		useOutlineStore.getState().resumeEditing(BOB, 2);
+		zoomToCachedLocation("#/aaaaaaaaaaaa", (id) => (id === "aaaaaaaaaaaa" ? ALICE : undefined));
+		await paint();
+		expect({resumed: focusScrolls(BOB), later: focusScrolls(BOB)}).toStrictEqual({resumed: false, later: true});
 	});
 });

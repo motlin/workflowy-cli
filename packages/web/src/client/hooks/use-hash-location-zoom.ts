@@ -1,5 +1,5 @@
 import {skipToken, useQuery, useQueryClient} from "@tanstack/react-query";
-import {useLayoutEffect} from "react";
+import {useLayoutEffect, useRef} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import type {NodeResponse} from "../../node-types.js";
 import {locationUrl, parseLocationHash} from "../location.js";
@@ -8,6 +8,9 @@ import {cachedResolvedId, nodeKeys} from "../node-cache.js";
 import {PANES_FRAGMENT} from "../pane-url.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {setZoomViewLoader, zoomWhenViewReady} from "../zoom-gate.js";
+import {installScrollRestoration, restorePoppedScroll} from "../scroll-restoration.js";
+import {loadMainZoomView, mainZoomViewCached} from "./use-outline-view.js";
 
 /** Resolve a location id (short or full) to the node's full uuid; null when the server has no such node. */
 export async function fetchResolvedId(locationId: string): Promise<string | null> {
@@ -30,6 +33,8 @@ export async function fetchResolvedId(locationId: string): Promise<string | null
  * An id any cached node carries resolves without a request, and the zoom lands before paint: browser Back/Forward
  * and plain link clicks zoom from the `popstate` event itself, in the same render as the router's location update,
  * and every other URL change zooms in a layout effect. Only an id the cache has never seen waits for the lookup.
+ * After the first zoom, a view the cache lacks loads before the zoom lands (`zoomWhenViewReady`), so the outline,
+ * title and breadcrumbs swap together in one commit, as for a cached view.
  */
 export function useHashLocationZoom(): void {
 	const location = useLocation();
@@ -48,14 +53,32 @@ export function useHashLocationZoom(): void {
 	const unknown = resolved.data === null;
 	const target = resolveZoomTarget(id, () => resolved.data ?? null);
 	const currentUrl = location.pathname + location.hash;
+	const zoomedOnce = useRef(false);
+
+	useLayoutEffect(
+		() =>
+			setZoomViewLoader({
+				cached: (viewRoot) => mainZoomViewCached(queryClient, viewRoot),
+				load: async (viewRoot) => loadMainZoomView(queryClient, viewRoot),
+			}),
+		[queryClient],
+	);
 
 	useLayoutEffect(() => {
+		// Installed first, so its `popstate` listener notes the entry's scroll before the zoom below reads it.
+		const uninstallScroll = installScrollRestoration(globalThis.window);
 		const zoomFromHistory = () => {
+			const shown = useOutlineStore.getState().zoomedNodeId;
 			zoomToCachedLocation(globalThis.location.hash, (locationId) => cachedResolvedId(queryClient, locationId));
+			// An entry on the shown view swaps nothing, so its scroll restores now; a swap restores it in its own commit.
+			if (useOutlineStore.getState().zoomedNodeId === shown) {
+				restorePoppedScroll(shown);
+			}
 		};
 		globalThis.addEventListener("popstate", zoomFromHistory);
 		return () => {
 			globalThis.removeEventListener("popstate", zoomFromHistory);
+			uninstallScroll();
 		};
 	}, [queryClient]);
 
@@ -69,7 +92,15 @@ export function useHashLocationZoom(): void {
 			return;
 		}
 		const fullId = target === "home" ? null : target;
-		zoom(fullId);
+		// The page load's zoom shows its own loading state; every later one holds the shown view until its view loads.
+		if (zoomedOnce.current) {
+			zoomWhenViewReady(fullId, () => {
+				zoom(fullId);
+			});
+		} else {
+			zoomedOnce.current = true;
+			zoom(fullId);
+		}
 		const canonical = locationUrl({
 			id: fullId,
 			query,

@@ -14,6 +14,8 @@ import type {Loc} from "./nav-stack.js";
 import {workspaceFragments} from "./pane-url.js";
 import {useOutlineStore} from "./stores/outline.js";
 import type {NavigateFn} from "./stores/outline.js";
+import {zoomWhenViewReady} from "./zoom-gate.js";
+import {focusQuietlyNext} from "./quiet-focus.js";
 
 /**
  * The client URL for a node view: upstream's `/#/<last 12 chars of uuid>`.
@@ -99,7 +101,7 @@ export function planZoomFocus(
 
 /**
  * Keep the edited row from focusing inside the frame that swaps the outline: stop editing for the swap, then resume at
- * the same caret after the paint (when nothing else took the edit meanwhile). A row that mounts editing focuses in its
+ * the same caret after the paint (when nothing else took the edit meanwhile), without scrolling to the row. A row that mounts editing focuses in its
  * commit, which forces a style and layout pass of the whole new view inside that frame; after the paint it is cheap.
  */
 function holdEditingAcrossSwap(): void {
@@ -114,6 +116,7 @@ function holdEditingAcrossSwap(): void {
 		await afterNextPaint();
 		const state = useOutlineStore.getState();
 		if (state.editingId === null) {
+			focusQuietlyNext(editingId);
 			state.resumeEditing(editingId, offset);
 		}
 	})();
@@ -122,15 +125,18 @@ function holdEditingAcrossSwap(): void {
 /**
  * Record a move to `nodeId` (null for home) on the in-app stacks, zoom the outline, then push its URL carrying any
  * open panes. Zooming here rather than after the route resolves the URL's short id swaps the outline in the same
- * frame as the click, and keeping the `panes` param spares the pane sync a second, replacing navigation.
+ * frame as the click, and keeping the `panes` param spares the pane sync a second, replacing navigation. A view the
+ * cache lacks holds the zoom until it loads (`zoomWhenViewReady`), so it swaps whole like a cached one.
  */
 export function goToNode(navigate: NavigateFn, nodeId: string | null, query: string | null = null): void {
 	const {dispatchNav, zoom, panes, mainPaneUrlId} = useOutlineStore.getState();
 	dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query}});
-	if (nodeId !== useOutlineStore.getState().zoomedNodeId) {
-		holdEditingAcrossSwap();
-	}
-	zoom(nodeId);
+	zoomWhenViewReady(nodeId, () => {
+		if (nodeId !== useOutlineStore.getState().zoomedNodeId) {
+			holdEditingAcrossSwap();
+		}
+		zoom(nodeId);
+	});
 	void navigate(locationUrl({id: nodeId, query, fragments: workspaceFragments(panes, mainPaneUrlId)}));
 }
 
@@ -168,8 +174,8 @@ export function navigateToSearch(navigate: NavigateFn, query: string): void {
 
 /**
  * Zoom the outline to the node `hash` names when `resolve` finds its full id in the cache (home for no id), so the
- * outline swaps in the same render as the URL change rather than after the hash route resolves it. An id the cache
- * cannot resolve leaves the zoom to the route.
+ * outline swaps in the same render as the URL change rather than after the hash route resolves it, or, when its view
+ * is not cached, in the render after the view loads. An id the cache cannot resolve leaves the zoom to the route.
  */
 export function zoomToCachedLocation(hash: string, resolve: (locationId: string) => string | undefined): void {
 	zoomToCachedId(parseLocationHash(hash).id, resolve);
@@ -177,10 +183,15 @@ export function zoomToCachedLocation(hash: string, resolve: (locationId: string)
 
 function zoomToCachedId(locationId: string | null, resolve: (locationId: string) => string | undefined): void {
 	const target = locationId === null ? null : resolve(locationId);
-	if (target !== undefined && target !== useOutlineStore.getState().zoomedNodeId) {
-		holdEditingAcrossSwap();
-		useOutlineStore.getState().zoom(target);
+	if (target === undefined) {
+		return;
 	}
+	zoomWhenViewReady(target, () => {
+		if (target !== useOutlineStore.getState().zoomedNodeId) {
+			holdEditingAcrossSwap();
+			useOutlineStore.getState().zoom(target);
+		}
+	});
 }
 
 /**

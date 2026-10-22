@@ -3,18 +3,27 @@ import type {QueryClient} from "@tanstack/react-query";
 import {loadOutlineView, outlineViewCached, outlineViewKey} from "../outline-view.js";
 import type {OutlineViewShape} from "../outline-view.js";
 import {initialRowBudget} from "../render-window.js";
+import {poppedScrollY} from "../scroll-restoration.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {usePaneExpandedIds, usePaneId} from "../components/pane-context.js";
-import {paneExpandedIds} from "../pane-ids.js";
+import {MAIN_PANE_ID, paneExpandedIds} from "../pane-ids.js";
+import {cachedAncestors, readNode} from "../node-cache.js";
 import {adoptViewExpansion, initialExpansionPending} from "./use-expansion-sync.js";
-import {fetchOutlineView} from "./use-nodes.js";
+import {fetchOutlineView, prefetchZoomView} from "./use-nodes.js";
 
-/** The view a pane with `expandedIds` shows now: the first row budget a new view reaches after its first paint. */
-export function outlineViewShape(expandedIds: ReadonlySet<string>, showCompleted: boolean): OutlineViewShape {
+/**
+ * The view a pane with `expandedIds` shows now: the first row budget a new view reaches after its first paint, down
+ * to `scrollY` below the top when Back/Forward will restore the view scrolled there.
+ */
+export function outlineViewShape(
+	expandedIds: ReadonlySet<string>,
+	showCompleted: boolean,
+	scrollY = 0,
+): OutlineViewShape {
 	return {
 		expandedIds,
 		showCompleted,
-		budget: initialRowBudget(typeof window === "undefined" ? 0 : window.innerHeight),
+		budget: initialRowBudget((typeof window === "undefined" ? 0 : window.innerHeight) + scrollY),
 	};
 }
 
@@ -64,13 +73,35 @@ export function useOutlineViewPending(rootId: string | null): boolean {
 	const paneId = usePaneId();
 	const expandedIds = usePaneExpandedIds();
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
-	const shape = outlineViewShape(expandedIds, showCompleted);
+	const shape = outlineViewShape(expandedIds, showCompleted, poppedScrollY(rootId));
 	const currentShape = () => {
 		const state = useOutlineStore.getState();
-		return outlineViewShape(paneExpandedIds(state, paneId), state.showCompleted);
+		return outlineViewShape(paneExpandedIds(state, paneId), state.showCompleted, poppedScrollY(rootId));
 	};
 	return useQuery({
 		...viewQuery(queryClient, rootId, currentShape),
 		initialData: () => (outlineViewCached(queryClient, rootId, shape) ? true : undefined),
 	}).isPending;
+}
+
+/** The main outline's view zoomed into `target`, rows down to the scroll Back/Forward will restore there. */
+function mainZoomShape(target: string | null): OutlineViewShape {
+	const state = useOutlineStore.getState();
+	return outlineViewShape(paneExpandedIds(state, MAIN_PANE_ID), state.showCompleted, poppedScrollY(target));
+}
+
+/** Whether the cache holds everything the main outline renders zoomed into `target`: tree, title and breadcrumbs. */
+export function mainZoomViewCached(queryClient: QueryClient, target: string | null): boolean {
+	const headerCached =
+		target === null ||
+		(readNode(queryClient, target) !== undefined && cachedAncestors(queryClient, target) !== undefined);
+	return headerCached && outlineViewCached(queryClient, target, mainZoomShape(target));
+}
+
+/** Load everything the main outline renders zoomed into `target`, as a bullet click's zoom does; never rejects. */
+export async function loadMainZoomView(queryClient: QueryClient, target: string | null): Promise<void> {
+	await Promise.all([
+		target === null ? undefined : prefetchZoomView(queryClient, target),
+		queryOutlineView(queryClient, target, mainZoomShape(target)),
+	]);
 }

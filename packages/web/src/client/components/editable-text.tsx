@@ -78,6 +78,7 @@ import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
 import {savePaneCaretOnBlur} from "./pane-context.js";
+import {focusScrolls} from "../quiet-focus.js";
 
 /**
  * The caret's client rect at the edge of the current selection that the arrow key
@@ -235,7 +236,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	// Focus and position cursor when entering edit mode
 	useEffect(() => {
 		if (isEditing && contentRef.current) {
-			contentRef.current.focus();
+			contentRef.current.focus({preventScroll: !focusScrolls(nodeId)});
 			nameSaver.reset(storedEditorHtml);
 
 			const {editingId, editingCaretOffset} = useOutlineStore.getState();

@@ -1,7 +1,7 @@
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {ReactNode, Ref} from "react";
 import type {BacklinkItem, FoundDateItem, FoundDatesResponse, NodeResponse} from "../../node-types.js";
-import {useContext, useEffect, useRef, useState} from "react";
+import {useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {backlinksLabel, isBacklinksSectionVisible} from "../backlinks.js";
 import {
@@ -21,6 +21,8 @@ import {rendersRow, rowLimit} from "../render-window.js";
 import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
 import {useOutlineViewPending} from "../hooks/use-outline-view.js";
+import {restorePoppedScroll} from "../scroll-restoration.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
@@ -35,7 +37,7 @@ import {EditableNote} from "./editable-note.js";
 import {editableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
-import {useInActivePane, usePaneExpandedIds} from "./pane-context.js";
+import {useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 
@@ -578,6 +580,15 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 	const search = useSearchFilter();
 	usePrefetchSearchAncestors(search);
 	const {rowLimits, budgetRows, growBudget} = useRowLimits(parentId, search);
+	// The main outline scrolls the document while no pane is open: Back/Forward restore its scroll in the swap's frame.
+	const paneId = usePaneId();
+	const panesClosed = useOutlineStore((state) => state.panes.length === 0);
+	const scrollsWindow = paneId === MAIN_PANE_ID && panesClosed;
+	useLayoutEffect(() => {
+		if (scrollsWindow && !shownLoading) {
+			restorePoppedScroll(parentId);
+		}
+	}, [parentId, scrollsWindow, shownLoading]);
 	const showsAddChild = shouldRenderAddChildButton(usePaneSearchQuery());
 
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the

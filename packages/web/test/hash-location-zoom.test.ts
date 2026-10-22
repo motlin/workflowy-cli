@@ -55,7 +55,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-function mountAt(url: string): void {
+function mountAt(url: string): QueryClient {
 	const queryClient = new QueryClient();
 	queryClient.setQueryData(nodeKeys.children(null), [treeRow(ALICE), treeRow(BOB)]);
 	function Probe() {
@@ -72,6 +72,7 @@ function mountAt(url: string): void {
 			),
 		);
 	});
+	return queryClient;
 }
 
 describe("useHashLocationZoom", () => {
@@ -83,8 +84,10 @@ describe("useHashLocationZoom", () => {
 		});
 	});
 
-	it("zooms from the popstate event itself when the cache resolves the new hash", () => {
-		mountAt("/#/aaaaaaaaaaaa");
+	it("zooms from the popstate event itself when the cache resolves the new hash and holds its view", () => {
+		const queryClient = mountAt("/#/aaaaaaaaaaaa");
+		queryClient.setQueryData(nodeKeys.children(BOB), []);
+		queryClient.setQueryData(nodeKeys.backlinks(BOB), {rootId: BOB, items: []});
 		globalThis.location.hash = "#/bbbbbbbbbbbb";
 		const zoomed: (string | null)[] = [];
 		// Read inside the event, before React renders anything for it.
