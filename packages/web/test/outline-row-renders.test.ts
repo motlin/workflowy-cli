@@ -15,6 +15,7 @@ const {QueryClient, QueryClientProvider} = await import("@tanstack/react-query")
 const {MemoryRouter} = await import("react-router-dom");
 const {OutlineRow} = await import("../src/client/components/outline-node.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const {nodeKeys} = await import("../src/client/node-cache.js");
 
 function restingRow(hasChildren: boolean): NodeResponse {
 	return {
@@ -88,5 +89,109 @@ describe("resting OutlineRow components", () => {
 			NodeName: 1,
 			RestingText: 1,
 		});
+	});
+});
+
+describe("calendar day OutlineRow", () => {
+	const PREFIX_CLASS =
+		"flex h-[var(--line-height)] whitespace-nowrap items-center pr-m pt-[--wf-content-padding-top] pb-[--wf-content-padding-bottom]";
+
+	beforeEach(() => {
+		vi.useFakeTimers({toFake: ["Date"]});
+		vi.setSystemTime(new Date(2026, 9, 22, 10, 0));
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	function dayRow(dateId: number): NodeResponse {
+		return {
+			...restingRow(false),
+			id: `d${dateId}`,
+			parent_id: "m10",
+			name: "day",
+			calendar: {level: "day", dateId, root: false, foundDates: null, dayPrefix: null},
+		};
+	}
+
+	/** Mount `node` under a cached 📆 Calendar > 2026 > 10 chain whose root sets `dayPrefix`; its prefix span, components and ancestor requests. */
+	function mountDay(
+		node: NodeResponse,
+		dayPrefix: boolean,
+	): {
+		html: string;
+		components: Record<string, number>;
+		ancestorRequests: string[];
+	} {
+		const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}});
+		const chainNode = (id: string, parent: string | null, calendar: NodeResponse["calendar"]): NodeResponse => ({
+			...restingRow(true),
+			id,
+			parent_id: parent,
+			calendar,
+		});
+		queryClient.setQueryData(nodeKeys.ancestors("m10"), [
+			chainNode("cal", null, {level: null, dateId: null, root: true, foundDates: true, dayPrefix}),
+			chainNode("y2026", "cal", {
+				level: "year",
+				dateId: 20_260_000,
+				root: false,
+				foundDates: null,
+				dayPrefix: null,
+			}),
+			chainNode("m10", "y2026", {
+				level: "month",
+				dateId: 20_261_000,
+				root: false,
+				foundDates: null,
+				dayPrefix: null,
+			}),
+		]);
+		queryClient.setQueryData(nodeKeys.children("m10"), [node]);
+		act(() => {
+			root?.unmount();
+		});
+		const container = document.createElement("div");
+		root = createRoot(container);
+		renders.clear();
+		act(() => {
+			root?.render(
+				createElement(
+					QueryClientProvider,
+					{client: queryClient},
+					createElement(MemoryRouter, null, createElement(OutlineRow, {node})),
+				),
+			);
+		});
+		const span = container.querySelector(`span[class="${PREFIX_CLASS}"]`);
+		return {
+			html: span?.outerHTML ?? "",
+			components: Object.fromEntries(renders),
+			ancestorRequests: vi
+				.mocked(fetch)
+				.mock.calls.map(([url]) => (url instanceof Request ? url.url : url.toString()))
+				.filter((url) => url.includes("ancestors")),
+		};
+	}
+
+	it("renders upstream's friendly day name before yesterday's, today's and tomorrow's date, mounting one prefix component and building its ancestors from the cache", () => {
+		expect([
+			mountDay(dayRow(20_261_021), true),
+			mountDay(dayRow(20_261_022), true),
+			mountDay(dayRow(20_261_023), true),
+		]).toStrictEqual(
+			["Yesterday,", "Today,", "Tomorrow,"].map((prefix) => ({
+				html: `<span class="${PREFIX_CLASS}">${prefix}</span>`,
+				components: {...PROVIDERS, OutlineRow: 1, NodeName: 1, RestingText: 1, DayTitlePrefix: 1},
+				ancestorRequests: [],
+			})),
+		);
+	});
+
+	it("renders no prefix on other days or when the root turns Friendly day names off", () => {
+		expect([mountDay(dayRow(20_261_020), true).html, mountDay(dayRow(20_261_021), false).html]).toStrictEqual([
+			"",
+			"",
+		]);
 	});
 });

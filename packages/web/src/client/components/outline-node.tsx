@@ -21,6 +21,7 @@ import {expansionSlide} from "../children-slide.js";
 import {searchClasses, withClasses} from "../search-classes.js";
 import {FlatCrumbs, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
+import {DayTitlePrefix} from "./day-title-prefix.js";
 import {editableText} from "./editable-text.js";
 import {expandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
@@ -347,6 +348,8 @@ function NodeName({
 				onClearSelection: () => clearSelectionFromBullet(queryClient, node.id),
 			})}
 			{layout.isTodo ? <TodoCheckbox isCompleted={isCompleted} onComplete={handleComplete} /> : null}
+			{/* Upstream's `ui.item.name.afterbegin` friendly day name; mounted only on day rows to keep other rows cheap. */}
+			{node.calendar?.level === "day" ? <DayTitlePrefix node={node} /> : null}
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mouse-only item selection (⌘/⌥/⇧-press, drag); keyboard users select with ⇧↑/⇧↓ */}
 			<div className="notranslate content whitespace-pre-wrap" onMouseDown={handleContentMouseDown}>
 				{/* Called, not mounted: it only picks the editing or resting text, so it needs no fiber of its own. */}
