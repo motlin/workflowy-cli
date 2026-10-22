@@ -229,6 +229,62 @@ export function patchCachedNode(
 	return restoring(queryClient, entries);
 }
 
+/**
+ * Apply `apply` to every cached row and detail entry that mirrors `originalId`: a mirror shows its original's text
+ * and children, so their optimistic writes must reach it too. Returns a function that restores every touched entry.
+ */
+export function patchMirrors(
+	queryClient: QueryClient,
+	originalId: string,
+	apply: (node: NodeResponse) => NodeResponse,
+): () => void {
+	const isMirror = (node: NodeResponse) => node.originalNodeId === originalId;
+	const entries: [readonly unknown[], NodeResponse | NodeResponse[]][] = [];
+	for (const [key, detail] of queryClient.getQueriesData<NodeResponse>({queryKey: [...nodeKeys.all, "detail"]})) {
+		if (detail !== undefined && isMirror(detail)) {
+			entries.push([key, detail]);
+		}
+	}
+	for (const [key, children] of queryClient.getQueriesData<NodeResponse[]>({
+		queryKey: [...nodeKeys.all, "children"],
+	})) {
+		if (children?.some(isMirror) === true) {
+			entries.push([key, children]);
+		}
+	}
+	for (const [key, value] of entries) {
+		queryClient.setQueryData(
+			key,
+			Array.isArray(value) ? value.map((child) => (isMirror(child) ? apply(child) : child)) : apply(value),
+		);
+	}
+	return restoring(queryClient, entries);
+}
+
+/**
+ * Set `parentId`'s children flags, on its own rows and its mirrors' wherever they are cached, from its cached
+ * children list, so a parent that gained its first child or lost its last uncompleted one renders as the server will
+ * answer it. Returns a function that restores the touched entries (a no-op when the list is not cached).
+ */
+export function syncParentFlags(queryClient: QueryClient, parentId: string | null): () => void {
+	const children = parentId === null ? undefined : readChildren(queryClient, parentId);
+	if (parentId === null || children === undefined) {
+		return () => {};
+	}
+	const hasChildren = children.length > 0;
+	const hasUncompletedChildren = children.some((child) => child.completedAt === null);
+	const flag = (node: NodeResponse) =>
+		node.hasChildren === hasChildren && node.hasUncompletedChildren === hasUncompletedChildren
+			? node
+			: {...node, hasChildren, hasUncompletedChildren};
+	const restoreRows = patchCachedNode(queryClient, parentId, flag);
+	const restoreMirrors = patchMirrors(queryClient, parentId, flag);
+	return () => {
+		restoreMirrors();
+		restoreRows();
+	};
+}
+
 /** `node` with the fields a text save writes taken from `saved`; its children flags and mirror links stay. */
 function withSavedText(node: NodeResponse, saved: NodeResponse): NodeResponse {
 	return {
@@ -247,6 +303,7 @@ function withSavedText(node: NodeResponse, saved: NodeResponse): NodeResponse {
  */
 export function applySavedText(queryClient: QueryClient, saved: NodeResponse): void {
 	patchCachedNode(queryClient, saved.id, (node) => withSavedText(node, saved));
+	patchMirrors(queryClient, saved.id, (node) => ({...node, name: saved.name, note: saved.note}));
 	queryClient.setQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "ancestors"]}, (chain) =>
 		chain?.some((node) => node.id === saved.id)
 			? chain.map((node) => (node.id === saved.id ? withSavedText(node, saved) : node))

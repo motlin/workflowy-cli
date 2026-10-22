@@ -19,11 +19,14 @@ import {
 	invalidateSavedText,
 	nodeKeys,
 	patchCachedNode,
+	patchMirrors,
 	readNode,
 	snapshotCachedNode,
 	spliceBlock,
 	spliceChildren,
+	syncParentFlags,
 } from "../node-cache.js";
+import {affectedKeys, verifyAgainstServer} from "../cache-verify.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
@@ -482,13 +485,16 @@ export function useCreateNode() {
 			context?.restoreParentFlags();
 			addErrorNotification(`Failed to create node: ${error.message}`);
 		},
-		async onSettled(_data, _error, variables) {
+		async onSettled(data, error, variables) {
 			endMutation();
 			if (variables.id !== undefined) {
 				pendingCreates.end(variables.id);
 			}
 			// Refetch to get the real data from server
 			const parentId = variables.parent_id ?? null;
+			if (error === null && data !== undefined) {
+				verifyAgainstServer(queryClient, "create", affectedKeys(queryClient, [data.id], [parentId]));
+			}
 			await queryClient.invalidateQueries({queryKey: nodeKeys.children(parentId)});
 		},
 	});
@@ -604,10 +610,17 @@ export function useUpdateNode() {
 				...(updates.numberedStart === undefined ? {} : {numberedStart: updates.numberedStart}),
 				modifiedAt: Math.floor(Date.now() / 1000),
 			}));
+			// A mirror's row shows its original's text.
+			const restoreMirrors = patchMirrors(queryClient, nodeId, (node) => ({
+				...node,
+				name: updates.name ?? node.name,
+				note: updates.note ?? node.note,
+			}));
 			const restorePreEdit = preEditSnapshots.get(variables);
 			preEditSnapshots.delete(variables);
 			return {
 				restore() {
+					restoreMirrors();
 					restorePatched();
 					restorePreEdit?.();
 				},
@@ -638,6 +651,7 @@ export function useUpdateNode() {
 			// A later save of the same node still in flight owns the cached text until it answers.
 			if (pending === 0) {
 				applySavedText(queryClient, data);
+				verifyAgainstServer(queryClient, "update", affectedKeys(queryClient, [nodeId], []));
 			}
 			await invalidateSavedText(queryClient, nodeId);
 		},
@@ -698,7 +712,9 @@ export function useDeleteNode() {
 			beginMutation();
 			// Cancel first: a cancelled refetch reverts to the data it started from, row included.
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
+			const parentId = readNode(queryClient, nodeId)?.parent_id ?? null;
 			removeDeletedRow(queryClient, nodeId);
+			return {parentId};
 		},
 		onSuccess(data, nodeId) {
 			deleteUndos.settle(nodeId, {data});
@@ -708,8 +724,11 @@ export function useDeleteNode() {
 			// onSettled's refetch puts the optimistically removed row back.
 			addErrorNotification(`Failed to delete node: ${error.message}`);
 		},
-		async onSettled() {
+		async onSettled(_data, error, _nodeId, context) {
 			endMutation();
+			if (error === null && context !== undefined) {
+				verifyAgainstServer(queryClient, "delete", affectedKeys(queryClient, [], [context.parentId]));
+			}
 			// Refetch all node queries to reflect deletion
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
@@ -762,9 +781,16 @@ export function useMoveNode() {
 			restoreSnapshots(queryClient, snapshots);
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
-		async onSettled(_data, _error, variables) {
+		async onSettled(data, error, variables) {
 			endMutation();
 			pendingMoves.end(variables);
+			if (error === null && data !== undefined) {
+				verifyAgainstServer(
+					queryClient,
+					"move",
+					affectedKeys(queryClient, [variables.nodeId], [data.oldParentId, variables.parent_id]),
+				);
+			}
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
@@ -840,8 +866,14 @@ function moveNodesOptions(queryClient: QueryClient) {
 			useOutlineStore.getState().addErrorNotification(`Failed to move nodes: ${error.message}`);
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
-		onSettled() {
+		onSettled(_nodes, error, variables, snapshots) {
 			useOutlineStore.getState().endMutation();
+			if (error === null) {
+				const parentIds = (snapshots ?? []).flatMap((snapshot) =>
+					snapshot.kind === "children" ? [snapshot.parentId] : [],
+				);
+				verifyAgainstServer(queryClient, "move nodes", affectedKeys(queryClient, variables.ids, parentIds));
+			}
 		},
 	});
 }
@@ -862,26 +894,6 @@ type CacheSnapshot =
 	| {kind: "children"; parentId: string | null; previous: NodeResponse[] | undefined}
 	| {kind: "detail"; nodeId: string; previous: NodeResponse | undefined}
 	| {kind: "flags"; restore: () => void};
-
-/**
- * Set `parentId`'s children flags, everywhere its row is cached, from its cached children list, so
- * a parent that gained its first child or lost its last one renders as the server will answer it.
- * Returns a function that restores the touched entries (a no-op when the list is not cached).
- */
-function syncParentFlags(queryClient: QueryClient, parentId: string | null): () => void {
-	const children =
-		parentId === null ? undefined : queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
-	if (parentId === null || children === undefined) {
-		return () => {};
-	}
-	const hasChildren = children.length > 0;
-	const hasUncompletedChildren = children.some((child) => child.completedAt === null);
-	return patchCachedNode(queryClient, parentId, (node) =>
-		node.hasChildren === hasChildren && node.hasUncompletedChildren === hasUncompletedChildren
-			? node
-			: {...node, hasChildren, hasUncompletedChildren},
-	);
-}
 
 /**
  * Optimistically move `rows` under `newParentId` at `indexFor(siblingCount)`: remove them
@@ -970,38 +982,26 @@ function toggleCompleteOptions(queryClient: QueryClient) {
 			isCurrentlyCompleted ? uncompleteNode(nodeId) : completeNode(nodeId),
 		async onMutate({nodeId, isCurrentlyCompleted}) {
 			// Cancel outgoing refetches
-			await queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
-
-			// Snapshot previous values
-			const previousNode = queryClient.getQueryData<NodeResponse>(nodeKeys.detail(nodeId));
-
-			// Optimistically update the node
-			const newCompletedAt = isCurrentlyCompleted ? null : Math.floor(Date.now() / 1000);
-
-			if (previousNode) {
-				queryClient.setQueryData<NodeResponse>(nodeKeys.detail(nodeId), {
-					...previousNode,
-					completedAt: newCompletedAt,
-					modifiedAt: Math.floor(Date.now() / 1000),
-				});
-			}
-
-			// Also update the node in its parent's children list
-			const parentId = previousNode?.parent_id ?? null;
-			const previousChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
-			if (previousChildren) {
-				queryClient.setQueryData<NodeResponse[]>(
-					nodeKeys.children(parentId),
-					previousChildren.map((node) =>
-						node.id === nodeId
-							? {...node, completedAt: newCompletedAt, modifiedAt: Math.floor(Date.now() / 1000)}
-							: node,
-					),
-				);
-			}
-
-			return {nodeId, previousNode, parentId, previousChildren};
+			const now = Math.floor(Date.now() / 1000);
+			const completedAt = isCurrentlyCompleted ? null : now;
+			const parentId = readNode(queryClient, nodeId)?.parent_id ?? null;
+			// Every cached copy of the row, then its parent's flags: completing the last open child makes it a done parent.
+			return notifyManager.batch(() => {
+				const restoreRow = patchCachedNode(queryClient, nodeId, (node) => ({
+					...node,
+					completedAt,
+					modifiedAt: now,
+				}));
+				const restoreFlags = syncParentFlags(queryClient, parentId);
+				return {
+					parentId,
+					restore() {
+						restoreFlags();
+						restoreRow();
+					},
+				};
+			});
 		},
 		onSuccess(data, variables) {
 			toggleUndos.settle(variables, {data});
@@ -1009,15 +1009,17 @@ function toggleCompleteOptions(queryClient: QueryClient) {
 		onError(error, variables, context) {
 			toggleUndos.settle(variables, "failed");
 			// Roll back to previous values on error
-			if (context?.previousNode !== undefined) {
-				queryClient.setQueryData(nodeKeys.detail(context.nodeId), context.previousNode);
-			}
-			if (context?.previousChildren !== undefined) {
-				queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
-			}
+			context?.restore();
 			useOutlineStore.getState().addErrorNotification(`Failed to toggle completion: ${error.message}`);
 		},
-		async onSettled(_data, _error, variables) {
+		async onSettled(_data, error, variables, context) {
+			if (error === null && context !== undefined) {
+				verifyAgainstServer(
+					queryClient,
+					"complete",
+					affectedKeys(queryClient, [variables.nodeId], [context.parentId]),
+				);
+			}
 			// Refetch to get the real data from server
 			await queryClient.invalidateQueries({queryKey: nodeKeys.detail(variables.nodeId)});
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});

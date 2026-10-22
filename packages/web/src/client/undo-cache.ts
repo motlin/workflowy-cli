@@ -1,10 +1,40 @@
 import type {QueryClient} from "@tanstack/react-query";
 import type {NodeResponse} from "../node-types.js";
-import {nodeKeys, patchCachedNode, readNode, spliceChildren} from "./node-cache.js";
+import {
+	nodeKeys,
+	patchCachedNode,
+	patchMirrors,
+	readChildren,
+	readNode,
+	spliceChildren,
+	syncParentFlags,
+} from "./node-cache.js";
 import type {UndoOp} from "./undo-history.js";
 
-/** Rows an undo or redo removed, so restoring the same id puts the same row back at once. */
-const removedRows = new Map<string, NodeResponse>();
+/** A removed row with the cached children lists of its subtree, as they stood before the delete. */
+interface RemovedRow {
+	row: NodeResponse;
+	lists: [ReturnType<typeof nodeKeys.children>, NodeResponse[]][];
+}
+
+/** Rows an undo or redo removed, so restoring the same id puts the same row (and its loaded subtree) back at once. */
+const removedRows = new Map<string, RemovedRow>();
+
+/** The cached children lists under `nodeId`, its own first; the delete's settle refetch empties them. */
+function subtreeLists(queryClient: QueryClient, nodeId: string): RemovedRow["lists"] {
+	const lists: RemovedRow["lists"] = [];
+	const visit = (id: string) => {
+		const children = readChildren(queryClient, id);
+		if (children !== undefined) {
+			lists.push([nodeKeys.children(id), children]);
+			for (const child of children) {
+				visit(child.id);
+			}
+		}
+	};
+	visit(nodeId);
+	return lists;
+}
 
 /** Drops `nodeId`'s row from every cached children list except `keepParentId`'s. */
 function removeRow(queryClient: QueryClient, nodeId: string, keepParentId?: string | null): void {
@@ -20,12 +50,15 @@ function removeRow(queryClient: QueryClient, nodeId: string, keepParentId?: stri
 	}
 }
 
-/** Splices `row` into `parentId`'s cached list at the endpoint's slot and repoints its detail entry. */
+/** Splices `row` into `parentId`'s cached list at the endpoint's slot (seeding a leaf's) and repoints its detail entry. */
 function insertRow(queryClient: QueryClient, row: NodeResponse, parentId: string | null, index: number): void {
 	const moved = {...row, parent_id: parentId};
-	queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), (children) =>
-		children === undefined ? children : spliceChildren(children, moved, index),
-	);
+	const target =
+		readChildren(queryClient, parentId) ??
+		(parentId !== null && readNode(queryClient, parentId)?.hasChildren === false ? [] : undefined);
+	if (target !== undefined) {
+		queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), spliceChildren(target, moved, index));
+	}
 	queryClient.setQueryData<NodeResponse>(nodeKeys.detail(row.id), (detail) =>
 		detail === undefined ? detail : {...detail, parent_id: parentId},
 	);
@@ -33,13 +66,14 @@ function insertRow(queryClient: QueryClient, row: NodeResponse, parentId: string
 
 /**
  * Removes a deleted row from the cache at once, keeping it so restoring the same id (the delete's
- * undo) puts the same row back without waiting on a refetch.
+ * undo) puts the same row back without waiting on a refetch; its parent's children flags follow.
  */
 export function removeDeletedRow(queryClient: QueryClient, nodeId: string): void {
 	const row = readNode(queryClient, nodeId);
 	if (row !== undefined) {
-		removedRows.set(nodeId, row);
+		removedRows.set(nodeId, {row, lists: subtreeLists(queryClient, nodeId)});
 		removeRow(queryClient, nodeId);
+		syncParentFlags(queryClient, row.parent_id);
 	}
 }
 
@@ -47,11 +81,14 @@ function previewOp(queryClient: QueryClient, op: UndoOp): void {
 	switch (op.kind) {
 		case "edit":
 			patchCachedNode(queryClient, op.nodeId, (node) => ({...node, [op.field]: op.after}));
+			// A mirror's row shows its original's text.
+			patchMirrors(queryClient, op.nodeId, (node) => ({...node, [op.field]: op.after}));
 			return;
 		case "complete":
 		case "uncomplete": {
 			const completedAt = op.kind === "complete" ? Math.floor(Date.now() / 1000) : null;
 			patchCachedNode(queryClient, op.nodeId, (node) => ({...node, completedAt}));
+			syncParentFlags(queryClient, readNode(queryClient, op.nodeId)?.parent_id ?? null);
 			return;
 		}
 		case "move": {
@@ -59,6 +96,8 @@ function previewOp(queryClient: QueryClient, op: UndoOp): void {
 			if (row !== undefined) {
 				removeRow(queryClient, op.nodeId, op.to.parentId);
 				insertRow(queryClient, row, op.to.parentId, op.to.index);
+				syncParentFlags(queryClient, row.parent_id);
+				syncParentFlags(queryClient, op.to.parentId);
 			}
 			return;
 		}
@@ -68,10 +107,14 @@ function previewOp(queryClient: QueryClient, op: UndoOp): void {
 		case "create":
 		case "undelete":
 		default: {
-			const row = removedRows.get(op.nodeId);
-			if (row !== undefined) {
+			const removed = removedRows.get(op.nodeId);
+			if (removed !== undefined) {
 				removedRows.delete(op.nodeId);
-				insertRow(queryClient, row, op.parentId, op.index);
+				for (const [key, children] of removed.lists) {
+					queryClient.setQueryData(key, children);
+				}
+				insertRow(queryClient, removed.row, op.parentId, op.index);
+				syncParentFlags(queryClient, op.parentId);
 			}
 		}
 	}
