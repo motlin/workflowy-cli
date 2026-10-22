@@ -29,7 +29,6 @@ interface SearchHit {
 	ancestors: LocationCrumb[];
 }
 
-const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 50;
 const EMPTY_HITS: readonly SearchHit[] = [];
 
@@ -45,7 +44,7 @@ function escapeHtml(text: string): string {
 	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-/** Debounced `/api/search/locations` hits for `query`; empty for an empty query. */
+/** Undebounced `/api/search/locations` hits for `query`; empty for an empty query. */
 function useSearchHits(query: string): readonly SearchHit[] {
 	const [found, setFound] = useState<{query: string; hits: readonly SearchHit[]}>({query: "", hits: []});
 	useEffect(() => {
@@ -53,22 +52,29 @@ function useSearchHits(query: string): readonly SearchHit[] {
 			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
 			return undefined;
 		}
-		let live = true;
-		const timer = setTimeout(() => {
-			void (async () => {
-				const response = await fetch("/api/search/locations", {
-					method: "POST",
-					headers: {"Content-Type": "application/json"},
-					body: JSON.stringify({query, limit: SEARCH_LIMIT}),
-				});
-				if (live && response.ok) {
-					setFound({query, hits: (await readJson<{results: SearchHit[]}>(response)).results});
-				}
-			})();
-		}, SEARCH_DEBOUNCE_MS);
+		// Upstream requests on every keystroke; a superseded query's request is aborted so a late reply cannot win.
+		const controller = new AbortController();
+		void (async () => {
+			const response = await fetch("/api/search/locations", {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
+				body: JSON.stringify({query, limit: SEARCH_LIMIT}),
+				signal: controller.signal,
+			});
+			if (!response.ok) {
+				return;
+			}
+			const {results} = await readJson<{results: SearchHit[]}>(response);
+			if (!controller.signal.aborted) {
+				setFound({query, hits: results});
+			}
+		})().catch((error: unknown) => {
+			if (!controller.signal.aborted) {
+				throw error;
+			}
+		});
 		return () => {
-			live = false;
-			clearTimeout(timer);
+			controller.abort();
 		};
 	}, [query]);
 	return found.query === query ? found.hits : EMPTY_HITS;
