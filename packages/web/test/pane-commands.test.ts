@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {processCombo} from "../src/client/keys/dispatch.js";
-import {openInPane, paneCommands, paneNavCommands} from "../src/client/pane-commands.js";
-import type {OpenInPaneState, PaneCommandStore, PaneNavDeps} from "../src/client/pane-commands.js";
+import {openInPane, paneCommands, paneNavCommands, paneNumberCommands} from "../src/client/pane-commands.js";
+import type {OpenInPaneState, PaneCommandStore, PaneNavDeps, PaneNumberDeps} from "../src/client/pane-commands.js";
 
 const A = "AAAAAAAAAAA";
 const B = "BBBBBBBBBBB";
@@ -259,5 +259,105 @@ describe("pane navigation commands", () => {
 		registry.navigate_backward.execute(ctx);
 		registry.navigate_forward.execute(ctx);
 		expect(calls).toStrictEqual(["commit", "main-back", "commit", "main-forward"]);
+	});
+});
+
+function fakeNumbered(panes: {id: string; zoomedId: string | null}[], activePaneId = "main") {
+	const calls: string[] = [];
+	const deps: PaneNumberDeps = {
+		getState: () => ({
+			panes,
+			activePaneId,
+			openPane: (zoomedId, options) => {
+				calls.push(`open:${zoomedId ?? "home"}:${options?.sourcePaneId ?? "?"}:${options?.index ?? "end"}`);
+				return "NEW";
+			},
+		}),
+		focusPane: (paneId, caret) => {
+			calls.push(`focus:${paneId}:${caret}`);
+		},
+		zoomPaneTo: (paneId, nodeId) => {
+			calls.push(`zoom:${paneId}:${nodeId ?? "home"}`);
+		},
+	};
+	return {calls, registry: paneNumberCommands(deps)};
+}
+
+const twoPanes = [
+	{id: A, zoomedId: "alice"},
+	{id: B, zoomedId: "bob"},
+];
+const onItem = {items: ["item"], zoomedId: "zoom"};
+const atZoom = {items: [], zoomedId: "zoom"};
+const atHome = {items: [], zoomedId: null};
+
+describe("focus_or_open_pane_N (⌃1–8)", () => {
+	it("binds ⌃1–8 to pane N, counting the main pane as 1", () => {
+		const {calls, registry} = fakeNumbered(twoPanes, B);
+		expect(
+			["ctrl+1", "ctrl+2", "ctrl+3"].map((combo) => processCombo(combo, registry, onItem, true)),
+		).toStrictEqual(["claimed", "claimed", "claimed"]);
+		expect(calls).toStrictEqual(["focus:main:first", `focus:${A}:first`]);
+	});
+
+	it("leaves the already active pane alone", () => {
+		const {calls, registry} = fakeNumbered(twoPanes, A);
+		registry.focus_or_open_pane_2.execute(onItem);
+		const main = fakeNumbered(twoPanes);
+		main.registry.focus_or_open_pane_1.execute(onItem);
+		expect([...calls, ...main.calls]).toStrictEqual([]);
+	});
+
+	it("⌃1 with no pane open puts the caret on the main outline's first child", () => {
+		const {calls, registry} = fakeNumbered([]);
+		registry.focus_or_open_pane_1.execute(onItem);
+		expect(calls).toStrictEqual(["focus:main:first_child"]);
+	});
+
+	it("past the last pane opens the focused item in a new last pane, from the active pane", () => {
+		const {calls, registry} = fakeNumbered(twoPanes, A);
+		registry.focus_or_open_pane_5.execute(onItem);
+		expect(calls).toStrictEqual([`open:item:${A}:end`]);
+	});
+
+	it("opens the zoomed item without a focused one, Home included", () => {
+		const {calls, registry} = fakeNumbered([]);
+		registry.focus_or_open_pane_2.execute(atZoom);
+		registry.focus_or_open_pane_2.execute(atHome);
+		expect(calls).toStrictEqual(["open:zoom:main:end", "open:home:main:end"]);
+	});
+});
+
+describe("open_in_pane_N (⌃⇧1–8)", () => {
+	it("binds ⌃⇧1–8", () => {
+		const {calls, registry} = fakeNumbered(twoPanes, A);
+		expect(processCombo("ctrl+shift+1", registry, onItem, true)).toBe("claimed");
+		expect(calls).toStrictEqual(["zoom:main:item"]);
+	});
+
+	it("pane 1 zooms the main outline to the item, with or without panes open", () => {
+		const {calls, registry} = fakeNumbered([]);
+		registry.open_in_pane_1.execute(atHome);
+		expect(calls).toStrictEqual(["zoom:main:home"]);
+	});
+
+	it("zooms open pane N to the item and focuses it", () => {
+		const {calls, registry} = fakeNumbered(twoPanes);
+		registry.open_in_pane_3.execute(onItem);
+		expect(calls).toStrictEqual([`zoom:${B}:item`]);
+	});
+
+	it("only focuses pane N when it already shows the item", () => {
+		const {calls, registry} = fakeNumbered(twoPanes);
+		registry.open_in_pane_2.execute({items: ["alice"], zoomedId: "zoom"});
+		expect(calls).toStrictEqual([`focus:${A}:first`]);
+	});
+
+	it("past the last pane opens the item in a new last pane", () => {
+		const {calls, registry} = fakeNumbered(twoPanes, B);
+		registry.open_in_pane_8.execute(atZoom);
+		const none = fakeNumbered([]);
+		none.registry.open_in_pane_2.execute(onItem);
+		expect([...calls, ...none.calls]).toStrictEqual([`open:zoom:${B}:end`, "open:item:main:end"]);
 	});
 });

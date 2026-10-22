@@ -63,7 +63,7 @@ import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherStepCommand} from "../switcher-keys.js";
-import {paneCommands, paneNavCommands} from "../pane-commands.js";
+import {paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
 import {scrollPaneToTop} from "../components/pane-context.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
@@ -369,8 +369,11 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 	};
 
-	/** Upstream `focus_first` / `focus_last`: caret at the start of the first navigable node or the end of the last. */
-	const focusEdge = (edge: "first" | "last"): void => {
+	/**
+	 * Upstream `focus_first` / `focus_last`: caret at the start of the first navigable node or the end of the last.
+	 * `skipTitle` skips the zoomed title, for upstream's `WF.Focus.firstChildOfSelected`.
+	 */
+	const focusEdge = (edge: "first" | "last", skipTitle = false): void => {
 		const state = activePaneView();
 		const visibleIds = collectVisibleNodeIds(
 			queryClient,
@@ -381,7 +384,9 @@ export function useCommandRegistry(): CommandRegistry {
 		);
 		const targets = firstLastNavigable(
 			visibleIds,
-			state.zoomedNodeId === null ? {titleEditable: false} : {titleEditable: true, zoomedId: state.zoomedNodeId},
+			state.zoomedNodeId === null || skipTitle
+				? {titleEditable: false}
+				: {titleEditable: true, zoomedId: state.zoomedNodeId},
 		);
 		if (targets === null) {
 			return;
@@ -806,6 +811,17 @@ export function useCommandRegistry(): CommandRegistry {
 			},
 			movePane: (paneId, index) => {
 				movePane(navigate, paneId, index);
+			},
+		}),
+		...paneNumberCommands({
+			getState: useOutlineStore.getState,
+			focusPane: (paneId, caret) => {
+				useOutlineStore.getState().setActivePane(paneId);
+				focusEdge("first", caret === "first_child");
+			},
+			zoomPaneTo: (paneId, nodeId) => {
+				useOutlineStore.getState().setActivePane(paneId);
+				void zoomTo(nodeId, "first_child");
 			},
 		}),
 		...paneNavCommands({

@@ -1,4 +1,4 @@
-import type {CommandRegistry} from "./keys/dispatch.js";
+import type {Command, CommandContext, CommandRegistry} from "./keys/dispatch.js";
 import {MAIN_PANE_ID, findPane, paneMoveIndex} from "./pane-ids.js";
 import type {OpenPaneOptions} from "./stores/outline.js";
 
@@ -158,4 +158,77 @@ export function paneNavCommands(deps: PaneNavDeps): CommandRegistry {
 		navigate_to_prev_item: jump(-1),
 		navigate_to_next_item: jump(1),
 	};
+}
+
+/** The command's item: upstream's `items[0] || WF.Item.focused || WF.Item.zoomed` (null is Home). */
+function commandItem(ctx: CommandContext): string | null {
+	return ctx.items[0] ?? ctx.zoomedId;
+}
+
+/** What `focus_or_open_pane_N` / `open_in_pane_N` read and drive. */
+export interface PaneNumberDeps {
+	getState: () => {
+		panes: readonly {id: string; zoomedId: string | null}[];
+		activePaneId: string;
+		openPane: (zoomedId: string | null, options?: OpenPaneOptions) => string;
+	};
+	/**
+	 * Upstream's `WF.Panes.focus`: make `paneId` (`main` for the main pane) active and put the caret in it, on its first
+	 * row (`first`) or, upstream's `WF.Focus.firstChildOfSelected`, on the zoom's first child (`first_child`).
+	 */
+	focusPane: (paneId: string, caret: "first" | "first_child") => void;
+	/** Make `paneId` (`main` for the main outline) active and zoom it to `nodeId` (null for Home), caret in the new view. */
+	zoomPaneTo: (paneId: string, nodeId: string | null) => void;
+}
+
+/**
+ * Upstream's `focus_or_open_pane_1`..`8` (⌃1–8) and `open_in_pane_1`..`8` (⌃⇧1–8). Pane N counts the main pane as 1.
+ * Focus-or-open focuses pane N (the main outline's first child for ⌃1 with no pane open), and past the last pane opens
+ * the focused item (else the zoomed one) in a new last pane. Open in pane N zooms pane N to that item (the main outline
+ * for 1), only focusing it when it already shows the item, and past the last pane opens it in a new last pane.
+ */
+export function paneNumberCommands(deps: PaneNumberDeps): CommandRegistry {
+	const workspace = () => {
+		const {panes} = deps.getState();
+		return panes.length === 0 ? [] : [{id: MAIN_PANE_ID, zoomedId: null}, ...panes];
+	};
+	const openLast = (ctx: CommandContext): void => {
+		const {activePaneId, panes, openPane} = deps.getState();
+		openPane(commandItem(ctx), {sourcePaneId: findPane(panes, activePaneId)?.id ?? MAIN_PANE_ID});
+	};
+	const commands: Record<string, Command> = {};
+	for (let number = 1; number <= 8; number++) {
+		commands[`focus_or_open_pane_${number}`] = {
+			execute(ctx) {
+				const pane = workspace()[number - 1];
+				if (pane === undefined) {
+					if (number === 1) {
+						deps.focusPane(MAIN_PANE_ID, "first_child");
+					} else {
+						openLast(ctx);
+					}
+				} else if (pane.id !== deps.getState().activePaneId) {
+					deps.focusPane(pane.id, "first");
+				}
+			},
+		};
+		commands[`open_in_pane_${number}`] = {
+			execute(ctx) {
+				const nodeId = commandItem(ctx);
+				if (number === 1) {
+					deps.zoomPaneTo(MAIN_PANE_ID, nodeId);
+					return;
+				}
+				const pane = workspace()[number - 1];
+				if (pane === undefined) {
+					openLast(ctx);
+				} else if (pane.zoomedId === nodeId) {
+					deps.focusPane(pane.id, "first");
+				} else {
+					deps.zoomPaneTo(pane.id, nodeId);
+				}
+			},
+		};
+	}
+	return commands;
 }
