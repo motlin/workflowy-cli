@@ -23,7 +23,7 @@ vi.mock("../src/client/hooks/use-tag-colors.js", () => ({
 const {act, createElement} = await import("react");
 const {createRoot} = await import("react-dom/client");
 const {QueryClient, QueryClientProvider} = await import("@tanstack/react-query");
-const {EditableText} = await import("../src/client/components/editable-text.js");
+const {editableText} = await import("../src/client/components/editable-text.js");
 const {EditableNote} = await import("../src/client/components/editable-note.js");
 const {caretTextOffset, placeCaretAtTextOffset} = await import("../src/client/caret-dom.js");
 
@@ -49,7 +49,7 @@ function mountEditor(initialValue: string): HTMLElement {
 			createElement(
 				QueryClientProvider,
 				{client: new QueryClient()},
-				createElement(EditableText, {
+				createElement(editableText, {
 					nodeId: "alice",
 					initialValue,
 					parentId: null,

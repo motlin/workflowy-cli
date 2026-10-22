@@ -4,7 +4,7 @@ import {act, createElement} from "react";
 import {createRoot} from "react-dom/client";
 import type {Root} from "react-dom/client";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {EditableText} from "../src/client/components/editable-text.js";
+import {editableText} from "../src/client/components/editable-text.js";
 import {useOutlineStore} from "../src/client/stores/outline.js";
 
 declare global {
@@ -39,7 +39,7 @@ function mountedQueryKeys(isEditing: boolean): string[] {
 			createElement(
 				QueryClientProvider,
 				{client: queryClient},
-				createElement(EditableText, {
+				createElement(editableText, {
 					nodeId: "alice",
 					initialValue: "Alice",
 					parentId: null,

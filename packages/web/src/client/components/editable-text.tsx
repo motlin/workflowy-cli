@@ -1349,8 +1349,11 @@ function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | 
 	);
 }
 
-/** A row's name: the full contenteditable `EditingText` while editing, else the light `RestingText`. */
-export function EditableText(props: EditableTextProps) {
+/**
+ * A row's name: the full contenteditable `EditingText` while editing, else the light `RestingText`. Called as a
+ * plain function, so a row mounts no fiber of its own for the choice.
+ */
+export function editableText(props: EditableTextProps) {
 	return props.isEditing ? (
 		<EditingText {...props} />
 	) : (

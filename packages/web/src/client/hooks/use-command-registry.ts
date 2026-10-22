@@ -105,7 +105,7 @@ function isJumpMenuOpen(): boolean {
  * Every item command acts on `ctx.items`: the item selection in display order, else the edited node, else nothing.
  * Complete, delete and export act on every selected item and clear the selection; duplicate keeps it; indent,
  * outdent and moves move the selection as blocks and keep it. Moving between nodes is caret movement
- * (Up/Down at a node's edge, handled by EditableText, which also owns Enter, Backspace and Escape).
+ * (Up/Down at a node's edge, handled by editableText, which also owns Enter, Backspace and Escape).
  *
  * Navigation commands commit the edited text before leaving. Structural commands keep the caret and unsaved text
  * in place: they hold editing across the re-render so the edited row keeps (or regains) focus.

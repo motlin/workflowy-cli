@@ -48,7 +48,7 @@ vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => (
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
 	return {
-		EditableText: ({initialValue}: {initialValue: string}) =>
+		editableText: ({initialValue}: {initialValue: string}) =>
 			h("span", {className: "innerContentContainer"}, initialValue),
 	};
 });

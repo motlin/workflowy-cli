@@ -52,7 +52,7 @@ vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => (
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
 	return {
-		EditableText: ({initialValue}: {initialValue: string}) =>
+		editableText: ({initialValue}: {initialValue: string}) =>
 			h("span", {className: "innerContentContainer"}, initialValue),
 	};
 });
@@ -60,7 +60,7 @@ vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () =>
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 
 const {OutlineRow} = await import("../src/client/components/outline-node.js");
-const {ExpandArrow} = await import("../src/client/components/expand-arrow.js");
+const {expandArrow} = await import("../src/client/components/expand-arrow.js");
 
 function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
 	return {
@@ -204,7 +204,7 @@ describe("expand arrow", () => {
 		const event = {preventDefault: () => {}, stopPropagation: () => {}};
 		const click = (hasChildren: boolean) => {
 			(
-				ExpandArrow({nodeId: "alice", hasChildren, isExpanded: false, onToggle: toggleExpand}).props as {
+				expandArrow({nodeId: "alice", hasChildren, isExpanded: false, onToggle: toggleExpand}).props as {
 					onClick: (e: typeof event) => void;
 				}
 			).onClick(event);
@@ -221,7 +221,7 @@ describe("expand arrow", () => {
 		const click = (timeStamp: number, isExpanded: boolean) => {
 			const event = {preventDefault: () => {}, stopPropagation: () => {}, timeStamp};
 			(
-				ExpandArrow({
+				expandArrow({
 					nodeId: "double",
 					hasChildren: true,
 					isExpanded,

@@ -21,8 +21,8 @@ import {expansionSlide} from "../children-slide.js";
 import {searchClasses, withClasses} from "../search-classes.js";
 import {FlatCrumbs, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
-import {EditableText} from "./editable-text.js";
-import {ExpandArrow} from "./expand-arrow.js";
+import {editableText} from "./editable-text.js";
+import {expandArrow} from "./expand-arrow.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {itemMenuLeft} from "../item-menu-model.js";
 import {openInPane} from "../pane-commands.js";
@@ -56,26 +56,18 @@ interface NodeBulletProps {
 	nodeId: string;
 	isMirror: boolean;
 	showHalo: boolean;
+	onMouseDown: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+	/** A plain press that did not become a drag; a selected row's bullet clears the selection instead. */
+	onZoom: () => void;
+	onClearSelection: () => boolean;
 }
 
 /**
  * The zoom bullet: upstream's `a.bullet > span.bulletHalo > svg`. A collapsed
  * parent shows the halo; a mirror renders a diamond. A press that does not
- * become a drag, or Enter, zooms in.
+ * become a drag, or Enter, zooms in. A plain element, not a component, so a resting row mounts no fiber for it.
  */
-function NodeBullet({nodeId, isMirror, showHalo}: NodeBulletProps) {
-	const mainZoomTo = useZoomTo();
-	const pane = useContext(PaneContext);
-	// Inside a side pane a bullet zooms that pane; the main outline zooms by navigating.
-	const zoomTo = async (id: string, focus: "first_child") => {
-		if (pane === null) {
-			await mainZoomTo(id, focus);
-		} else {
-			pane.zoom(id);
-		}
-	};
-	const queryClient = useQueryClient();
-	const handleMouseDown = useBulletDrag(nodeId);
+function nodeBullet({nodeId, isMirror, showHalo, onMouseDown, onZoom, onClearSelection}: NodeBulletProps) {
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
 		.filter(Boolean)
 		.join(" ");
@@ -86,7 +78,7 @@ function NodeBullet({nodeId, isMirror, showHalo}: NodeBulletProps) {
 			data-item-id={nodeId}
 			className={className}
 			style={{left: "calc(var(--name-left-overhang) + 1px)", width: "18px", ["--bullet-size" as string]: "18px"}}
-			onMouseDown={handleMouseDown}
+			onMouseDown={onMouseDown}
 			onClick={(event) => {
 				event.stopPropagation();
 				if (bulletClickAction(event) === "browser") {
@@ -99,15 +91,15 @@ function NodeBullet({nodeId, isMirror, showHalo}: NodeBulletProps) {
 				}
 				delete event.currentTarget.dataset.preDragClick;
 				// A selected row's bullet clears the selection and stays put.
-				if (clearSelectionFromBullet(queryClient, nodeId)) {
+				if (onClearSelection()) {
 					return;
 				}
-				void zoomTo(nodeId, "first_child");
+				onZoom();
 			}}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
-					void zoomTo(nodeId, "first_child");
+					onZoom();
 				}
 			}}
 		>
@@ -300,6 +292,17 @@ function NodeName({
 	);
 	const queryClient = useQueryClient();
 	const expandAll = useExpandAll();
+	const mainZoomTo = useZoomTo();
+	const pane = useContext(PaneContext);
+	const handleBulletMouseDown = useBulletDrag(node.id);
+	// Inside a side pane a bullet zooms that pane; the main outline zooms by navigating.
+	const zoomIn = () => {
+		if (pane === null) {
+			void mainZoomTo(node.id, "first_child");
+		} else {
+			pane.zoom(node.id);
+		}
+	};
 	const isCompleted = node.completedAt !== null;
 	const layout = resolveLayoutMode(node.data.layoutMode);
 	const name = node.name ?? "";
@@ -335,36 +338,43 @@ function NodeName({
 			}}
 			role="presentation"
 		>
-			<NodeBullet isMirror={node.isMirror === true} nodeId={node.id} showHalo={hasChildren && !isExpanded} />
+			{nodeBullet({
+				nodeId: node.id,
+				isMirror: node.isMirror === true,
+				showHalo: hasChildren && !isExpanded,
+				onMouseDown: handleBulletMouseDown,
+				onZoom: zoomIn,
+				onClearSelection: () => clearSelectionFromBullet(queryClient, node.id),
+			})}
 			{layout.isTodo ? <TodoCheckbox isCompleted={isCompleted} onComplete={handleComplete} /> : null}
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mouse-only item selection (⌘/⌥/⇧-press, drag); keyboard users select with ⇧↑/⇧↓ */}
 			<div className="notranslate content whitespace-pre-wrap" onMouseDown={handleContentMouseDown}>
-				{name !== "" || isEditing ? (
-					<EditableText
-						clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
-						initialValue={name}
-						isEditing={isEditing}
-						nodeId={node.id}
-						parentId={node.parent_id}
-						priority={node.priority}
-					/>
-				) : null}
+				{/* Called, not mounted: it only picks the editing or resting text, so it needs no fiber of its own. */}
+				{name !== "" || isEditing
+					? editableText({
+							clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
+							initialValue: name,
+							isEditing,
+							nodeId: node.id,
+							parentId: node.parent_id,
+							priority: node.priority,
+						})
+					: null}
 				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 			</div>
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
-			<ExpandArrow
-				hasChildren={hasChildren}
-				isExpanded={isExpanded}
-				nodeId={node.id}
-				onExpandAll={searching ? undefined : expandAll}
-				onToggle={
-					searching
-						? (id) => {
-								toggleSearchExpansion(id, isExpanded);
-							}
-						: toggleExpand
-				}
-			/>
+			{/* Hook-free, so called as a plain element rather than mounted as a component. */}
+			{expandArrow({
+				hasChildren,
+				isExpanded,
+				nodeId: node.id,
+				onExpandAll: searching ? undefined : expandAll,
+				onToggle: searching
+					? (id) => {
+							toggleSearchExpansion(id, isExpanded);
+						}
+					: toggleExpand,
+			})}
 			{isHovered || isMenuOpen ? (
 				<NodeItemMenu
 					left={itemMenuLeft(hasChildren, depth)}

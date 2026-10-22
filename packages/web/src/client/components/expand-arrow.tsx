@@ -17,9 +17,10 @@ const EXPAND_CLASS =
 
 /**
  * Upstream's expand toggle (`a.expand`, kept a button for a11y). A parent shows
- * the triangle, rotated by the `.open` row; a leaf renders it empty and inert.
+ * the triangle, rotated by the `.open` row; a leaf renders it empty and inert. Hook-free and called as a plain
+ * function, so a row mounts no fiber for it.
  */
-export function ExpandArrow({nodeId, hasChildren, isExpanded, onToggle, onExpandAll}: ExpandArrowProps) {
+export function expandArrow({nodeId, hasChildren, isExpanded, onToggle, onExpandAll}: ExpandArrowProps) {
 	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation" | "timeStamp">) => {
 		event.preventDefault();
 		event.stopPropagation();

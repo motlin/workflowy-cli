@@ -46,7 +46,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useToggleComplete: () => ({mutate: () => {}}),
 }));
 vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => () => {}}));
-vi.mock("../src/client/components/editable-text.js", () => ({EditableText: () => null}));
+vi.mock("../src/client/components/editable-text.js", () => ({editableText: () => null}));
 vi.mock("../src/client/components/editable-note.js", () => ({EditableNote: () => null}));
 vi.mock("../src/client/components/node-context-menu.js", () => ({ItemMenuTrigger: () => null}));
 

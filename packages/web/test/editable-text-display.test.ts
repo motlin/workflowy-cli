@@ -27,7 +27,7 @@ vi.mock("../src/client/hooks/use-tag-colors.js", () => ({
 	useTagColors: () => ({}),
 }));
 
-const {EditableText} = await import("../src/client/components/editable-text.js");
+const {editableText} = await import("../src/client/components/editable-text.js");
 const {renderDatePills} = await import("../src/client/date-pills.js");
 const {DEFAULT_DATE_SETTINGS} = await import("../src/client/date-settings.js");
 
@@ -36,7 +36,7 @@ function render(initialValue: string, isEditing: boolean): string {
 		createElement(
 			QueryClientProvider,
 			{client: new QueryClient()},
-			createElement(EditableText, {nodeId: "alice", initialValue, parentId: null, priority: 0, isEditing}),
+			createElement(editableText, {nodeId: "alice", initialValue, parentId: null, priority: 0, isEditing}),
 		),
 	);
 }

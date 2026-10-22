@@ -26,13 +26,13 @@ import {useOutlineStore} from "../stores/outline.js";
 import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
 import {useShallow} from "zustand/react/shallow";
 import {planAddChild, planAddSibling} from "../tree-ops.js";
-import {ExpandArrow} from "./expand-arrow.js";
+import {expandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
 import {CalendarStrip} from "./calendar-strip.js";
 import {DayTitlePrefix} from "./day-title-prefix.js";
 import {EditableNote} from "./editable-note.js";
-import {EditableText} from "./editable-text.js";
+import {editableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
 import {useInActivePane, usePaneExpandedIds} from "./pane-context.js";
@@ -227,16 +227,16 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				) : null}
 				{node ? <DayTitlePrefix node={node} /> : null}
 				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
-					{node && (nameHtml !== "" || isEditing) ? (
-						<EditableText
-							clickPosition={isEditing ? (editingClickPosition ?? undefined) : undefined}
-							initialValue={nameHtml}
-							isEditing={isEditing}
-							nodeId={node.id}
-							parentId={node.parent_id}
-							priority={node.priority}
-						/>
-					) : null}
+					{node && (nameHtml !== "" || isEditing)
+						? editableText({
+								clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
+								initialValue: nameHtml,
+								isEditing,
+								nodeId: node.id,
+								parentId: node.parent_id,
+								priority: node.priority,
+							})
+						: null}
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (
@@ -347,7 +347,7 @@ function BacklinksSection({rootId, items, depth}: {rootId: string; items: Backli
 					<span className="innerContentContainer">{backlinksLabel(items.length)}</span>
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
-				<ExpandArrow hasChildren isExpanded={isExpanded} nodeId={rootId} onToggle={toggleExpand} />
+				{expandArrow({hasChildren: true, isExpanded, nodeId: rootId, onToggle: toggleExpand})}
 			</div>
 			<div className="drop-line">
 				<div className="line" />
@@ -441,14 +441,14 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 					<span className="innerContentContainer">Found Dates</span>
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
-				<ExpandArrow
-					hasChildren
-					isExpanded={isExpanded}
-					nodeId={`found-dates-${dayId}`}
-					onToggle={() => {
+				{expandArrow({
+					hasChildren: true,
+					isExpanded,
+					nodeId: `found-dates-${dayId}`,
+					onToggle: () => {
 						setIsExpanded((open) => !open);
-					}}
-				/>
+					},
+				})}
 			</div>
 			<div className="drop-line">
 				<div className="line" />

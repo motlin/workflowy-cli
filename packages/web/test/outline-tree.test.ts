@@ -91,7 +91,7 @@ vi.mock("../src/client/hooks/use-bullet-drag.js", () => ({useBulletDrag: () => (
 vi.mock("../src/client/components/editable-text.js", async () => {
 	const {createElement: h} = await import("react");
 	return {
-		EditableText: ({initialValue, isEditing, nodeId}: {initialValue: string; isEditing: boolean; nodeId: string}) =>
+		editableText: ({initialValue, isEditing, nodeId}: {initialValue: string; isEditing: boolean; nodeId: string}) =>
 			h(
 				"span",
 				isEditing

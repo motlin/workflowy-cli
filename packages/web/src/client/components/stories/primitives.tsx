@@ -6,7 +6,7 @@
 
 import type {CSSProperties, ReactNode} from "react";
 
-import {ExpandArrow} from "../expand-arrow.js";
+import {expandArrow} from "../expand-arrow.js";
 import {resolveLayoutMode} from "../layout-mode.js";
 
 interface BulletDotProps {
@@ -66,7 +66,7 @@ interface ExpandTriangleProps {
  * Points right when collapsed, rotates down when expanded.
  */
 export function ExpandTriangle({isExpanded = false, onClick}: ExpandTriangleProps) {
-	return <ExpandArrow hasChildren isExpanded={isExpanded} nodeId="story" onToggle={() => onClick?.()} />;
+	return expandArrow({hasChildren: true, isExpanded, nodeId: "story", onToggle: () => onClick?.()});
 }
 
 /** Upstream's nested `div.children`: indented past the parent bullet, the guide line is its left border. */
