@@ -7,12 +7,17 @@ declare global {
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useCreateNode: () => ({mutate: () => {}}),
-	useDeleteNode: () => ({mutate: () => {}}),
-	useMoveNode: () => ({mutate: () => {}}),
-	useUpdateNode: () => ({mutate: () => {}}),
-}));
+// One `mutate` for every render, like react-query's. A fresh one per render rebuilds the name editor's saver each
+// render, which re-runs its editing-start effect each render: a render loop the real app never forms.
+vi.mock("../src/client/hooks/use-nodes.js", () => {
+	const mutation = {mutate: () => {}};
+	return {
+		useCreateNode: () => mutation,
+		useDeleteNode: () => mutation,
+		useMoveNode: () => mutation,
+		useUpdateNode: () => mutation,
+	};
+});
 vi.mock("../src/client/hooks/use-commit-search.js", () => ({usePaneTagSearch: () => () => {}}));
 // Every slash term resolves (to an unfinished sum), so a "#" typed into the chip keeps the menu open.
 vi.mock("../src/client/slash-math.js", () => ({evalMath: () => "incomplete"}));
@@ -108,4 +113,22 @@ describe.each(["name", "note"] as const)("inline suggest popups in the %s editor
 		await edit(editor, "/#", "insertText", "#");
 		expect(popups()).toStrictEqual({slashMenu: true, tagPopup: false});
 	});
+});
+
+describe("tag retagging in the name editor", () => {
+	it("settles when a name that opens with a slash and a tag is typed into and deleted back", async () => {
+		const editor = mount("name", "/#to");
+		await edit(editor, "/#too", "insertText", "o");
+		await edit(editor, "/#to", "deleteContentBackward", null);
+		await edit(editor, "/#t", "deleteContentBackward", null);
+		expect({
+			html: editor.innerHTML,
+			connected: editor.isConnected,
+			slashMenu: popups().slashMenu,
+		}).toStrictEqual({
+			html: '/<span class="contentTag explosive" title="Filter #t" data-val="#t">#<span class="contentTagText">t</span><span class="contentTagNub"></span></span>',
+			connected: true,
+			slashMenu: false,
+		});
+	}, 3000);
 });
