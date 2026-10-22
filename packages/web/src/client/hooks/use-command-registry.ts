@@ -62,7 +62,8 @@ import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherStepCommand} from "../switcher-keys.js";
-import {paneCommands} from "../pane-commands.js";
+import {paneCommands, paneNavCommands} from "../pane-commands.js";
+import {scrollSidePaneToTop} from "../components/pane-context.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
@@ -139,7 +140,9 @@ export function useCommandRegistry(): CommandRegistry {
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
 	const moveTo = useMoveTo();
+	const zoomSidePane = useOutlineStore((state) => state.zoomSidePane);
 	const navigateToToday = useNavigateToToday();
+	const navigateSidePaneToToday = useNavigateToToday(zoomSidePane);
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
 	const moveNodesMutation = useMoveNodes();
@@ -310,9 +313,10 @@ export function useCommandRegistry(): CommandRegistry {
 
 	/**
 	 * Upstream `navigate_to_next_item` / `prev_item`: zoom to the zoomed page's potentially visible sibling `step`
-	 * places away, scroll to the top, then edit its first visible child (or its title) at offset 0.
+	 * places away, scroll to the top, then edit its first visible child (or its title) at offset 0. In the side pane it
+	 * zooms the pane and scrolls the pane's scroller.
 	 */
-	const jumpToSibling = async (step: -1 | 1): Promise<void> => {
+	const jumpToSibling = async (step: -1 | 1, inSidePane: boolean): Promise<void> => {
 		if (zoomedNodeId === null || zoomedNode === undefined) {
 			return;
 		}
@@ -322,8 +326,13 @@ export function useCommandRegistry(): CommandRegistry {
 			return;
 		}
 		commitEdit();
-		void navigate(nodeUrl(targetId));
-		globalThis.scrollTo(0, 0);
+		if (inSidePane) {
+			zoomSidePane(targetId);
+			scrollSidePaneToTop();
+		} else {
+			void navigate(nodeUrl(targetId));
+			globalThis.scrollTo(0, 0);
+		}
 		const children = await queryClient.query({
 			queryKey: nodeKeys.children(targetId),
 			queryFn: async () => fetchChildren(targetId),
@@ -623,39 +632,6 @@ export function useCommandRegistry(): CommandRegistry {
 				void zoomTo(null, "last_selected");
 			},
 		},
-		navigate_home: {
-			execute() {
-				commitEdit();
-				void navigate("/");
-			},
-		},
-		navigate_backward: {
-			execute() {
-				commitEdit();
-				stepNav(navigate, "back", (id) => cachedResolvedId(queryClient, id));
-			},
-		},
-		navigate_forward: {
-			execute() {
-				commitEdit();
-				stepNav(navigate, "forward", (id) => cachedResolvedId(queryClient, id));
-			},
-		},
-		navigate_to_today: {
-			execute() {
-				void navigateToToday();
-			},
-		},
-		navigate_to_prev_item: {
-			execute() {
-				void jumpToSibling(-1);
-			},
-		},
-		navigate_to_next_item: {
-			execute() {
-				void jumpToSibling(1);
-			},
-		},
 		focus_prev_sibling: {
 			execute(ctx) {
 				focusSibling(ctx, -1);
@@ -812,6 +788,18 @@ export function useCommandRegistry(): CommandRegistry {
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightBar},
 		...paneCommands({getState: useOutlineStore.getState}),
+		...paneNavCommands({
+			getState: useOutlineStore.getState,
+			commitEdit,
+			goHome: () => {
+				void navigate("/");
+			},
+			stepMain: (direction) => {
+				stepNav(navigate, direction, (id) => cachedResolvedId(queryClient, id));
+			},
+			navigateToToday: async (inSidePane) => (inSidePane ? navigateSidePaneToToday() : navigateToToday()),
+			jumpToSibling,
+		}),
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3
 		show_or_hide_completed: showCompletedCommand(
 			toggleShowCompleted,
