@@ -9,6 +9,7 @@ import {
 	reconcilePaneUrl,
 	restoredActivePane,
 	sameSidePane,
+	storeSidePaneUrl,
 	withPanesFragment,
 } from "../src/client/pane-url.js";
 
@@ -133,6 +134,28 @@ describe("encodeSidePane / decodeSidePane", () => {
 		});
 	});
 
+	it("writes the pane's search query after its zoom, like upstream's [shortId, searchQuery]", () => {
+		const encoded = encodeSidePane({mainPaneId: MAIN, paneId: SIDE, location: null, query: "#todo"});
+		expect(decodePanes(encoded)).toStrictEqual({
+			kind: "valid",
+			state: [
+				[MAIN, "item-tree"],
+				[SIDE, "item-tree", ["None", "#todo"]],
+			],
+		});
+	});
+
+	it("leaves an empty query out of the pane's urlState", () => {
+		const encoded = encodeSidePane({mainPaneId: MAIN, paneId: SIDE, location: null, query: ""});
+		expect(decodePanes(encoded)).toStrictEqual({
+			kind: "valid",
+			state: [
+				[MAIN, "item-tree"],
+				[SIDE, "item-tree", ["None"]],
+			],
+		});
+	});
+
 	it("decodes the first extra item-tree pane, with None as Home and an optional query", () => {
 		const home = encodePanes([
 			[MAIN, "item-tree"],
@@ -202,6 +225,26 @@ describe("sameSidePane", () => {
 			bothNull: sameSidePane(null, null),
 			oneNull: sameSidePane(a, null),
 		}).toStrictEqual({same: true, otherZoom: false, otherId: false, bothNull: true, oneNull: false});
+	});
+
+	it("tells pane searches apart, with no query the same as an empty one", () => {
+		const a = {mainPaneId: MAIN, paneId: SIDE, location: null};
+		expect({
+			otherQuery: sameSidePane({...a, query: "x"}, {...a, query: "y"}),
+			addedQuery: sameSidePane(a, {...a, query: "x"}),
+			emptyQuery: sameSidePane({...a, query: null}, {...a, query: ""}),
+		}).toStrictEqual({otherQuery: false, addedQuery: false, emptyQuery: true});
+	});
+});
+
+describe("storeSidePaneUrl", () => {
+	it("carries the pane's committed search query", () => {
+		expect(storeSidePaneUrl({zoomedId: "alice", query: "todo"}, {mainPaneId: MAIN, paneId: SIDE})).toStrictEqual({
+			mainPaneId: MAIN,
+			paneId: SIDE,
+			location: "alice",
+			query: "todo",
+		});
 	});
 });
 

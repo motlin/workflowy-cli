@@ -18,11 +18,15 @@ export type PanesState = [string, string, ...unknown[]][];
 
 export type DecodedPanes = {kind: "absent"} | {kind: "invalid"} | {kind: "valid"; state: PanesState};
 
-/** The side pane as the URL sees it: both pane ids and the pane's zoom (full or short id; null is Home). */
+/**
+ * The side pane as the URL sees it: both pane ids, the pane's zoom (full or short id; null is Home) and its own
+ * search query (null or "" for none).
+ */
 export interface SidePaneUrl {
 	mainPaneId: string;
 	paneId: string;
 	location: string | null;
+	query?: string | null;
 }
 
 export interface PaneUrlIds {
@@ -102,11 +106,17 @@ export function decodePanes(value: string | null | undefined): DecodedPanes {
 	return {kind: "valid", state};
 }
 
-/** The item-tree pane's `toUrl`: `[shortId]`, Home as `None`. */
-export function encodeSidePane({mainPaneId, paneId, location}: SidePaneUrl): string | undefined {
+function paneQuery(query: string | null | undefined): string | null {
+	return query === undefined || query === "" ? null : query;
+}
+
+/** The item-tree pane's `toUrl`: `[shortId]` or `[shortId, searchQuery]`, Home as `None`. */
+export function encodeSidePane({mainPaneId, paneId, location, query}: SidePaneUrl): string | undefined {
+	const zoom = location === null ? HOME_ID : shortId(location);
+	const search = paneQuery(query);
 	return encodePanes([
 		[mainPaneId, ITEM_TREE],
-		[paneId, ITEM_TREE, [location === null ? HOME_ID : shortId(location)]],
+		[paneId, ITEM_TREE, search === null ? [zoom] : [zoom, search]],
 	]);
 }
 
@@ -133,10 +143,12 @@ export function decodeSidePane(value: string | null | undefined): (SidePaneUrl &
 
 /** The side pane as the URL should name it, from the store's pane and its URL ids; null with no side pane. */
 export function storeSidePaneUrl(
-	sidePane: {zoomedId: string | null} | null,
+	sidePane: {zoomedId: string | null; query: string} | null,
 	ids: PaneUrlIds | null,
 ): SidePaneUrl | null {
-	return sidePane === null || ids === null ? null : {...ids, location: sidePane.zoomedId};
+	return sidePane === null || ids === null
+		? null
+		: {...ids, location: sidePane.zoomedId, query: paneQuery(sidePane.query)};
 }
 
 /**
@@ -144,7 +156,7 @@ export function storeSidePaneUrl(
  * sync never has to replace the pushed URL a frame later.
  */
 export function sidePaneFragments(
-	sidePane: {zoomedId: string | null} | null,
+	sidePane: {zoomedId: string | null; query: string} | null,
 	ids: PaneUrlIds | null,
 ): Record<string, string> {
 	const store = storeSidePaneUrl(sidePane, ids);
@@ -163,12 +175,17 @@ function shortZoom(location: string | null): string | null {
 	return location === null ? null : shortId(location);
 }
 
-/** Upstream's item-tree `equals`: same pane ids and the same zoom by short id. */
+/** Upstream's item-tree `equals`: same pane ids, the same zoom by short id and the same search query. */
 export function sameSidePane(a: SidePaneUrl | null, b: SidePaneUrl | null): boolean {
 	if (a === null || b === null) {
 		return a === b;
 	}
-	return a.mainPaneId === b.mainPaneId && a.paneId === b.paneId && shortZoom(a.location) === shortZoom(b.location);
+	return (
+		a.mainPaneId === b.mainPaneId &&
+		a.paneId === b.paneId &&
+		shortZoom(a.location) === shortZoom(b.location) &&
+		paneQuery(a.query) === paneQuery(b.query)
+	);
 }
 
 export type PaneUrlAction = "none" | "apply" | "close" | "restore-url";

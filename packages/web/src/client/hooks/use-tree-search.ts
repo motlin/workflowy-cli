@@ -1,11 +1,14 @@
 import type {QueryClient} from "@tanstack/react-query";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
-import {useEffect} from "react";
+import {useContext, useEffect} from "react";
+import {useShallow} from "zustand/react/shallow";
 import type {TreeSearchResult} from "../../server/tree-search.js";
 import {readJson} from "../read-json.js";
 import {prefetchSearchAncestors} from "../search-prefetch.js";
 import type {SearchFilter} from "../search-filter.js";
 import {searchFilter} from "../search-filter.js";
+import {PaneContext} from "../components/pane-context.js";
+import {MAIN_PANE_ID, SIDE_PANE_ID} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {fetchChildren} from "./use-nodes.js";
 
@@ -63,20 +66,67 @@ export function treeSearchOptions(
 	};
 }
 
+/** The side pane's searches share one session of their own, so a main-outline result never stands in for one. */
+export const PANE_SEARCH_SESSION = -1;
+const NO_CREATED_IDS: ReadonlySet<string> = new Set();
+const NO_EXPANSION: ReadonlyMap<string, boolean> = new Map();
+
+export interface PaneSearchState extends SearchState {
+	createdIds: ReadonlySet<string>;
+	expansion: ReadonlyMap<string, boolean>;
+}
+
+interface PaneSearchSource extends SearchState {
+	searchCreatedIds: ReadonlySet<string>;
+	searchExpansion: ReadonlyMap<string, boolean>;
+	sidePane: {zoomedId: string | null; query: string} | null;
+}
+
+/**
+ * The search a pane's outline filters by: the main outline's in the main pane, and the side pane's own query under
+ * its own zoom in the side pane (upstream's per-pane search box), so one pane's search never filters the other.
+ */
+export function paneSearchState(state: PaneSearchSource, paneId: string): PaneSearchState {
+	if (paneId === SIDE_PANE_ID) {
+		return {
+			zoomedNodeId: state.sidePane?.zoomedId ?? null,
+			searchQuery: state.sidePane?.query ?? "",
+			searchRun: 0,
+			searchSession: PANE_SEARCH_SESSION,
+			createdIds: NO_CREATED_IDS,
+			expansion: NO_EXPANSION,
+		};
+	}
+	return {
+		zoomedNodeId: state.zoomedNodeId,
+		searchQuery: state.searchQuery,
+		searchRun: state.searchRun,
+		searchSession: state.searchSession,
+		createdIds: state.searchCreatedIds,
+		expansion: state.searchExpansion,
+	};
+}
+
+/** `paneSearchState` for the pane the caller renders in. */
+function usePaneSearch(): PaneSearchState {
+	const paneId = useContext(PaneContext)?.id ?? MAIN_PANE_ID;
+	return useOutlineStore(useShallow((state) => paneSearchState(state, paneId)));
+}
+
+/** The committed search query of the pane the caller renders in ("" for none). */
+export function usePaneSearchQuery(): string {
+	return usePaneSearch().searchQuery;
+}
+
 function useTreeSearch() {
 	const queryClient = useQueryClient();
-	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
-	const searchQuery = useOutlineStore((state) => state.searchQuery);
-	const searchRun = useOutlineStore((state) => state.searchRun);
-	const searchSession = useOutlineStore((state) => state.searchSession);
+	const {zoomedNodeId, searchQuery, searchRun, searchSession} = usePaneSearch();
 	return useQuery(treeSearchOptions(queryClient, {zoomedNodeId, searchQuery, searchRun, searchSession}));
 }
 
-/** The in-place filter for the outline, or null when no search is committed or no result has arrived yet. */
+/** The in-place filter for the pane's outline, or null when no search is committed or no result has arrived yet. */
 export function useSearchFilter(): SearchFilter | null {
-	const searchQuery = useOutlineStore((state) => state.searchQuery);
-	const createdIds = useOutlineStore((state) => state.searchCreatedIds);
-	const expansion = useOutlineStore((state) => state.searchExpansion);
+	const {searchQuery, createdIds, expansion} = usePaneSearch();
 	const {data} = useTreeSearch();
 	return searchQuery === "" || data === undefined ? null : searchFilter(data, createdIds, expansion);
 }

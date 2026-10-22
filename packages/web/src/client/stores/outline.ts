@@ -255,6 +255,8 @@ interface SidePaneState {
 	backLocations: (string | null)[];
 	/** Upstream's payload `forwardLocations`: zooms stepped back from, nearest first. */
 	forwardLocations: (string | null)[];
+	/** The pane's own committed search query ("" for none); it filters only this pane. */
+	query: string;
 }
 
 /** Opening the first extra pane gives the main pane a fresh random id too. */
@@ -476,12 +478,14 @@ interface OutlineActions {
 	/** The side pane's Back: zoom to its previous location, keeping the current one for Forward. */
 	sidePaneBack: () => void;
 	sidePaneForward: () => void;
+	/** Commit the side pane's search query, filtering only that pane. */
+	setSidePaneQuery: (query: string) => void;
 	closeSidePane: () => void;
 	/**
 	 * Apply a side pane named by the URL (reload, Back/Forward): open it with the URL's pane ids, or re-zoom the open
 	 * one without touching its history; `active` comes from `pane-workspace-runtime:v1`.
 	 */
-	restoreSidePane: (pane: {zoomedId: string | null; ids: PaneUrlIds; active: boolean}) => void;
+	restoreSidePane: (pane: {zoomedId: string | null; query?: string | null; ids: PaneUrlIds; active: boolean}) => void;
 	/** Make `paneId` the active pane; a no-op for the side pane while none is open. */
 	setActivePane: (paneId: string) => void;
 	openExportDialog: (context: ExportContext) => void;
@@ -1099,7 +1103,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	// Upstream focuses a new pane: editing in the main pane ends.
 	openSidePane: (zoomedId) => {
 		set({
-			sidePane: {zoomedId, backLocations: [], forwardLocations: []},
+			sidePane: {zoomedId, backLocations: [], forwardLocations: [], query: ""},
 			paneUrlIds: newPaneUrlIds(),
 			activePaneId: SIDE_PANE_ID,
 			editingId: null,
@@ -1116,6 +1120,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					zoomedId,
 					backLocations: [...sidePane.backLocations, sidePane.zoomedId].slice(-PANE_HISTORY_LIMIT),
 					forwardLocations: [],
+					query: "",
 				},
 			});
 		}
@@ -1129,6 +1134,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					zoomedId: sidePane.backLocations.at(-1) ?? null,
 					backLocations: sidePane.backLocations.slice(0, -1),
 					forwardLocations: [sidePane.zoomedId, ...sidePane.forwardLocations],
+					query: "",
 				},
 			});
 		}
@@ -1142,8 +1148,16 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					zoomedId: sidePane.forwardLocations[0] ?? null,
 					backLocations: [...sidePane.backLocations, sidePane.zoomedId],
 					forwardLocations: sidePane.forwardLocations.slice(1),
+					query: "",
 				},
 			});
+		}
+	},
+
+	setSidePaneQuery: (query) => {
+		const {sidePane} = get();
+		if (sidePane !== null && sidePane.query !== query) {
+			set({sidePane: {...sidePane, query}});
 		}
 	},
 
@@ -1163,10 +1177,14 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 	},
 
-	restoreSidePane: ({zoomedId, ids, active}) => {
+	restoreSidePane: ({zoomedId, query, ids, active}) => {
 		const {sidePane} = get();
+		const search = query ?? "";
 		set({
-			sidePane: sidePane === null ? {zoomedId, backLocations: [], forwardLocations: []} : {...sidePane, zoomedId},
+			sidePane:
+				sidePane === null
+					? {zoomedId, backLocations: [], forwardLocations: [], query: search}
+					: {...sidePane, zoomedId, query: search},
 			paneUrlIds: ids,
 		});
 		if (active && get().activePaneId !== SIDE_PANE_ID) {

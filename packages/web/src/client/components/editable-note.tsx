@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
+import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
 import {activePaneView, isModalOpen, outlineActions, registerEditFlush, useOutlineStore} from "../stores/outline.js";
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
@@ -104,7 +105,7 @@ export function EditableNote({
 	const dateSettings = useDateSettings();
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
 	const [focusedHtml, setFocusedHtml] = useState<string | null>(null);
-	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	const searchQuery = usePaneSearchQuery();
 	const restingHtml = noteContentHtml(initialValue, dateSettings);
 	// Search highlights live only in the DOM: React keeps the plain HTML, so focusing never rewrites the DOM
 	// under the caret, and a focused (editing) note never carries .contentMatch spans.

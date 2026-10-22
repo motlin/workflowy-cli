@@ -64,6 +64,7 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 				const ids = {mainPaneId: url.mainPaneId, paneId: url.paneId};
 				state.restoreSidePane({
 					zoomedId: url.location === null ? null : (resolved.data ?? null),
+					query: url.query,
 					ids,
 					active: restoredActivePane(readRuntimeState(), ids),
 				});

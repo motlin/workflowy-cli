@@ -65,6 +65,7 @@ import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
 import type {SelectionToolbarAction} from "./selection-toolbar.js";
 import {useCommitSearch} from "../hooks/use-commit-search.js";
+import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
 import {useTagAutocomplete} from "../hooks/use-tag-autocomplete.js";
 import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
@@ -1130,7 +1131,7 @@ function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | 
 	const queryClient = useQueryClient();
 	const {startEditing, resumeEditing} = outlineActions();
 	const commitSearch = useCommitSearch();
-	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	const searchQuery = usePaneSearchQuery();
 	const updateNodeMutation = useUpdateNode();
 	const dateSettings = useDateSettings();
 	// Tag color affordances: a caret appears on tag hover; clicking it opens the picker.

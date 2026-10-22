@@ -134,7 +134,7 @@ export const OutlineView = memo(function OutlineView() {
 					<SearchCountIndicator />
 				</div>
 			</MainPane>
-			<SidePane />
+			<SidePane onRedo={onRedo} onUndo={onUndo} />
 			<RightBar />
 			<RelatedNodesPanel />
 			<JumpMenu />

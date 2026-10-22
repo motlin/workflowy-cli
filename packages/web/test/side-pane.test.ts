@@ -10,14 +10,24 @@ interface PaneState {
 	zoomedId: string | null;
 	backLocations: (string | null)[];
 	forwardLocations: (string | null)[];
+	query: string;
 }
-const calls: {close: number; zoom: (string | null)[]; activate: string[]; history: string[]} = {
+const calls: {
+	close: number;
+	zoom: (string | null)[];
+	activate: string[];
+	history: string[];
+	opened: (string | null)[];
+	queries: string[];
+} = {
 	close: 0,
 	zoom: [],
 	activate: [],
 	history: [],
+	opened: [],
+	queries: [],
 };
-const BOB: PaneState = {zoomedId: "bob", backLocations: [], forwardLocations: []};
+const BOB: PaneState = {zoomedId: "bob", backLocations: [], forwardLocations: [], query: ""};
 const storeState: {sidePane: PaneState | null; activePaneId: string} & Record<string, unknown> = {
 	sidePane: BOB,
 	activePaneId: "side",
@@ -35,6 +45,12 @@ const storeState: {sidePane: PaneState | null; activePaneId: string} & Record<st
 	},
 	sidePaneForward: () => {
 		calls.history.push("forward");
+	},
+	openSidePane: (zoomedId: string | null) => {
+		calls.opened.push(zoomedId);
+	},
+	setSidePaneQuery: (query: string) => {
+		calls.queries.push(query);
 	},
 };
 
@@ -92,12 +108,30 @@ vi.mock("../src/client/hooks/use-navigate-to-today.js", () => ({
 	},
 }));
 
+/** The pane's compact search box: records the query it shows and where commits go. */
+const searchProps: {query: string; compact?: boolean; onCommit: (query: string) => void}[] = [];
+vi.mock("../src/client/components/pane-search-box.js", () => ({
+	PaneSearchBox: (props: (typeof searchProps)[number]) => {
+		searchProps.push(props);
+		return createElement("div", {className: "pane-search-mock"});
+	},
+}));
+
+/** The pane's kebab: records the zoom its compactable items act on. */
+const menuZooms: (string | null)[] = [];
+vi.mock("../src/client/components/header-more-menu.js", () => ({
+	HeaderMoreMenu: ({zoomedId}: {zoomedId: string | null}) => {
+		menuZooms.push(zoomedId);
+		return createElement("div", {className: "more-menu-mock"});
+	},
+}));
+
 const {MainPane, SidePane} = await import("../src/client/components/side-pane.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
 function render(): string {
-	return renderToStaticMarkup(createElement(SidePane));
+	return renderToStaticMarkup(createElement(SidePane, {onUndo: () => {}, onRedo: () => {}}));
 }
 
 describe("SidePane", () => {
@@ -138,12 +172,16 @@ describe("SidePane", () => {
 			buttons: [...buttons.keys()],
 			backDisabled: buttons.get("Back")?.disabled,
 			crumbsAfterBack: html.indexOf("breadcrumbs-mock") > html.indexOf("chevron-left"),
-		}).toStrictEqual({buttons: ["Back", "Today", "Close pane"], backDisabled: true, crumbsAfterBack: true});
+		}).toStrictEqual({
+			buttons: ["Back", "Today", "Close pane", "New pane"],
+			backDisabled: true,
+			crumbsAfterBack: true,
+		});
 	});
 
 	it("enables Back and shows Forward when the pane has history", () => {
 		buttons.clear();
-		storeState.sidePane = {zoomedId: "bob", backLocations: [null], forwardLocations: ["carol"]};
+		storeState.sidePane = {...BOB, backLocations: [null], forwardLocations: ["carol"]};
 		render();
 		storeState.sidePane = BOB;
 		calls.history.length = 0;
@@ -154,7 +192,7 @@ describe("SidePane", () => {
 			backDisabled: buttons.get("Back")?.disabled,
 			history: calls.history,
 		}).toStrictEqual({
-			buttons: ["Back", "Forward", "Today", "Close pane"],
+			buttons: ["Back", "Forward", "Today", "Close pane", "New pane"],
 			backDisabled: false,
 			history: ["back", "forward"],
 		});
@@ -182,6 +220,52 @@ describe("SidePane", () => {
 			zoom: ["day1"],
 			hasTodayTarget: true,
 		});
+	});
+
+	it("orders the header's right cluster like upstream: search circle, Today, kebab, Close pane", () => {
+		const html = render();
+		const order = ["pane-search-mock", "calendar-day", "more-menu-mock", "xmark"].map((marker) =>
+			html.indexOf(marker),
+		);
+		expect({
+			found: order.every((index) => index > 0),
+			ordered: order.every((index, i) => i === 0 || index > (order[i - 1] ?? 0)),
+		}).toStrictEqual({found: true, ordered: true});
+	});
+
+	it("gives the pane a compact search box over its own query that commits to the pane", () => {
+		searchProps.length = 0;
+		calls.queries.length = 0;
+		storeState.sidePane = {...BOB, query: "#todo"};
+		render();
+		storeState.sidePane = BOB;
+		const search = searchProps.at(-1);
+		search?.onCommit("#done");
+		expect({query: search?.query, compact: search?.compact, queries: calls.queries}).toStrictEqual({
+			query: "#todo",
+			compact: true,
+			queries: ["#done"],
+		});
+	});
+
+	it("points the pane's kebab at the pane's zoom", () => {
+		menuZooms.length = 0;
+		render();
+		expect(menuZooms).toStrictEqual(["bob"]);
+	});
+
+	it("puts upstream's pane-workspace-control with a New pane button at the last pane's top right", () => {
+		calls.opened.length = 0;
+		buttons.clear();
+		const html = render();
+		buttons.get("New pane")?.onClick?.({} as never);
+		expect({
+			control: html.includes(
+				'<div class="pane-workspace-control box-content absolute top-0 right-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-control-width)] items-center justify-center border-l border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint bg-primary">',
+			),
+			shortcut: buttons.get("New pane")?.shortcut,
+			opened: calls.opened,
+		}).toStrictEqual({control: true, shortcut: "⌃R", opened: ["bob"]});
 	});
 
 	it("renders the outline zoomed to the pane's node inside its own scroller", () => {
@@ -272,11 +356,16 @@ describe("side pane layout CSS", () => {
 			width: "var(--side-pane-width)",
 			"z-index": "200",
 			"border-left": "var(--wf-border-width-s) solid var(--wf-border-primary)",
+			"--pane-workspace-control-width": "var(--wf-header-height)",
 		});
 	});
 
 	it("lets the pane header flow inside the pane instead of fixing it to the window", () => {
-		expect(cssBlock(styles, ".side-pane .header")).toStrictEqual({position: "static", "min-width": "0"});
+		expect(cssBlock(styles, ".side-pane .header")).toStrictEqual({
+			position: "static",
+			"min-width": "0",
+			"padding-right": "var(--pane-workspace-control-width)",
+		});
 	});
 
 	it("scrolls the pane's outline on its own", () => {

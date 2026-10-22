@@ -31,13 +31,23 @@ describe("side pane store", () => {
 	it("opens a side pane zoomed to the given node", async () => {
 		const store = await loadStore();
 		store.getState().openSidePane("alice");
-		expect(store.getState().sidePane).toStrictEqual({zoomedId: "alice", backLocations: [], forwardLocations: []});
+		expect(store.getState().sidePane).toStrictEqual({
+			zoomedId: "alice",
+			backLocations: [],
+			forwardLocations: [],
+			query: "",
+		});
 	});
 
 	it("opens a side pane at Home for a null zoom", async () => {
 		const store = await loadStore();
 		store.getState().openSidePane(null);
-		expect(store.getState().sidePane).toStrictEqual({zoomedId: null, backLocations: [], forwardLocations: []});
+		expect(store.getState().sidePane).toStrictEqual({
+			zoomedId: null,
+			backLocations: [],
+			forwardLocations: [],
+			query: "",
+		});
 	});
 
 	it("zooms the open side pane independently of the main zoom", async () => {
@@ -47,7 +57,7 @@ describe("side pane store", () => {
 		store.getState().zoomSidePane("bob");
 		expect({main: store.getState().zoomedNodeId, pane: store.getState().sidePane}).toStrictEqual({
 			main: "main-node",
-			pane: {zoomedId: "bob", backLocations: ["alice"], forwardLocations: []},
+			pane: {zoomedId: "bob", backLocations: ["alice"], forwardLocations: [], query: ""},
 		});
 	});
 
@@ -63,9 +73,9 @@ describe("side pane store", () => {
 		store.getState().sidePaneForward();
 		const afterForward = store.getState().sidePane;
 		expect({afterBack, atStart, afterForward}).toStrictEqual({
-			afterBack: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"]},
-			atStart: {zoomedId: null, backLocations: [], forwardLocations: ["alice", "bob"]},
-			afterForward: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"]},
+			afterBack: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"], query: ""},
+			atStart: {zoomedId: null, backLocations: [], forwardLocations: ["alice", "bob"], query: ""},
+			afterForward: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"], query: ""},
 		});
 	});
 
@@ -80,6 +90,7 @@ describe("side pane store", () => {
 			zoomedId: "carol",
 			backLocations: ["alice"],
 			forwardLocations: [],
+			query: "",
 		});
 	});
 
@@ -88,7 +99,41 @@ describe("side pane store", () => {
 		store.getState().openSidePane("alice");
 		store.getState().sidePaneBack();
 		store.getState().sidePaneForward();
-		expect(store.getState().sidePane).toStrictEqual({zoomedId: "alice", backLocations: [], forwardLocations: []});
+		expect(store.getState().sidePane).toStrictEqual({
+			zoomedId: "alice",
+			backLocations: [],
+			forwardLocations: [],
+			query: "",
+		});
+	});
+
+	it("filters the pane by its own search query, leaving the main search alone", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().setSidePaneQuery("#todo");
+		expect({pane: store.getState().sidePane, main: store.getState().searchQuery}).toStrictEqual({
+			pane: {zoomedId: "alice", backLocations: [], forwardLocations: [], query: "#todo"},
+			main: "",
+		});
+	});
+
+	it("ends the pane search when the pane zooms elsewhere, like a new upstream location", async () => {
+		const store = await loadStore();
+		store.getState().openSidePane("alice");
+		store.getState().setSidePaneQuery("#todo");
+		store.getState().zoomSidePane("bob");
+		expect(store.getState().sidePane).toStrictEqual({
+			zoomedId: "bob",
+			backLocations: ["alice"],
+			forwardLocations: [],
+			query: "",
+		});
+	});
+
+	it("ignores a pane search when no pane is open", async () => {
+		const store = await loadStore();
+		store.getState().setSidePaneQuery("#todo");
+		expect(store.getState().sidePane).toBeNull();
 	});
 
 	it("ignores a pane zoom when no pane is open", async () => {
@@ -216,7 +261,7 @@ describe("restoreSidePane", () => {
 		store.getState().restoreSidePane({zoomedId: "alice", ids, active: false});
 		const {sidePane, paneUrlIds, activePaneId, editingId} = store.getState();
 		expect({sidePane, paneUrlIds, activePaneId, editingId}).toStrictEqual({
-			sidePane: {zoomedId: "alice", backLocations: [], forwardLocations: []},
+			sidePane: {zoomedId: "alice", backLocations: [], forwardLocations: [], query: ""},
 			paneUrlIds: ids,
 			activePaneId: "main",
 			editingId: "bob",
@@ -231,6 +276,17 @@ describe("restoreSidePane", () => {
 		expect({activePaneId, editingId}).toStrictEqual({activePaneId: "side", editingId: null});
 	});
 
+	it("restores the pane's search query from the URL", async () => {
+		const store = await loadStore();
+		store.getState().restoreSidePane({zoomedId: "alice", query: "todo", ids, active: false});
+		expect(store.getState().sidePane).toStrictEqual({
+			zoomedId: "alice",
+			backLocations: [],
+			forwardLocations: [],
+			query: "todo",
+		});
+	});
+
 	it("re-zooms an open pane without touching its history", async () => {
 		const store = await loadStore();
 		store.getState().openSidePane("alice");
@@ -238,7 +294,7 @@ describe("restoreSidePane", () => {
 		store.getState().restoreSidePane({zoomedId: "alice", ids, active: true});
 		const {sidePane, paneUrlIds} = store.getState();
 		expect({sidePane, paneUrlIds}).toStrictEqual({
-			sidePane: {zoomedId: "alice", backLocations: ["alice"], forwardLocations: []},
+			sidePane: {zoomedId: "alice", backLocations: ["alice"], forwardLocations: [], query: ""},
 			paneUrlIds: ids,
 		});
 	});

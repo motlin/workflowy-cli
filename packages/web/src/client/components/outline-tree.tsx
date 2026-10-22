@@ -18,7 +18,7 @@ import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
 import {rendersRow, rowLimit} from "../render-window.js";
-import {usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
+import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
 import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -567,7 +567,7 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 	const search = useSearchFilter();
 	usePrefetchSearchAncestors(search);
 	const {rowLimits, budgetRows, growBudget} = useRowLimits(parentId, search);
-	const showsAddChild = shouldRenderAddChildButton(useOutlineStore((state) => state.searchQuery));
+	const showsAddChild = shouldRenderAddChildButton(usePaneSearchQuery());
 
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
 	// last visible row.

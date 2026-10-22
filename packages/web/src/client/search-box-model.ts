@@ -1,3 +1,5 @@
+import type {CSSProperties} from "react";
+
 /** Upstream debounces typing in the header search box by a full second before committing. */
 const SEARCH_DEBOUNCE_MS = 1000;
 
@@ -65,4 +67,10 @@ export function createSearchBoxController({commit, getCommitted}: SearchBoxContr
 		},
 		dispose: cancel,
 	};
+}
+
+/** The search pill's rounded border on every side in `color`. */
+export function borderStyle(color: string): CSSProperties {
+	const side = `var(--wf-border-width-s) solid ${color}`;
+	return {borderRadius: 20, borderTop: side, borderRight: side, borderLeft: side, borderBottom: side};
 }

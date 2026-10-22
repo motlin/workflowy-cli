@@ -168,7 +168,7 @@ describe("goToNode in one frame", () => {
 
 	it("carries the open side pane's panes param so the pane sync has nothing to restore", () => {
 		useOutlineStore.setState({
-			sidePane: {zoomedId: null, backLocations: [], forwardLocations: []},
+			sidePane: {zoomedId: null, backLocations: [], forwardLocations: [], query: ""},
 			paneUrlIds: ids,
 		});
 		const navigate = vi.fn<(to: string) => void>();
@@ -182,7 +182,7 @@ describe("goToNode in one frame", () => {
 		goToNode(() => {}, null);
 		goToNode(() => {}, A);
 		useOutlineStore.setState({
-			sidePane: {zoomedId: null, backLocations: [], forwardLocations: []},
+			sidePane: {zoomedId: null, backLocations: [], forwardLocations: [], query: ""},
 			paneUrlIds: ids,
 		});
 		const navigate = vi.fn<(to: string) => void>();
@@ -195,7 +195,7 @@ describe("goToNode in one frame", () => {
 	it("carries the side pane on a search push too", () => {
 		useOutlineStore.setState({
 			zoomedNodeId: A,
-			sidePane: {zoomedId: null, backLocations: [], forwardLocations: []},
+			sidePane: {zoomedId: null, backLocations: [], forwardLocations: [], query: ""},
 			paneUrlIds: ids,
 		});
 		const navigate = vi.fn<(to: string) => void>();

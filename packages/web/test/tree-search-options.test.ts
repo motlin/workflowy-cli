@@ -27,3 +27,45 @@ describe("treeSearchOptions", () => {
 		});
 	});
 });
+
+const {paneSearchState, PANE_SEARCH_SESSION} = await import("../src/client/hooks/use-tree-search.js");
+
+describe("paneSearchState", () => {
+	const created = new Set(["new"]);
+	const expansion = new Map([["x", true]]);
+	const state = {
+		zoomedNodeId: "main-zoom",
+		searchQuery: "main",
+		searchRun: 4,
+		searchSession: 2,
+		searchCreatedIds: created,
+		searchExpansion: expansion,
+		sidePane: {zoomedId: "pane-zoom", query: "#todo"},
+	};
+
+	it("reads the main outline's search in the main pane", () => {
+		expect(paneSearchState(state, "main")).toStrictEqual({
+			zoomedNodeId: "main-zoom",
+			searchQuery: "main",
+			searchRun: 4,
+			searchSession: 2,
+			createdIds: created,
+			expansion,
+		});
+	});
+
+	it("reads only the side pane's own query and zoom inside the side pane", () => {
+		expect(paneSearchState(state, "side")).toStrictEqual({
+			zoomedNodeId: "pane-zoom",
+			searchQuery: "#todo",
+			searchRun: 0,
+			searchSession: PANE_SEARCH_SESSION,
+			createdIds: new Set(),
+			expansion: new Map(),
+		});
+	});
+
+	it("is no search in a side pane that has closed", () => {
+		expect(paneSearchState({...state, sidePane: null}, "side").searchQuery).toBe("");
+	});
+});
