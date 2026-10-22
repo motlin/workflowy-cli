@@ -1,4 +1,4 @@
-import {backlinks, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
+import {aiMetadata, backlinks, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import type {SQL} from "drizzle-orm";
@@ -7,6 +7,9 @@ import type {ServerContext} from "./context.js";
 type ServerDatabase = ServerContext["db"];
 
 const currentReferencesRootIds = sql`(SELECT ${referencesRoots.nodeId} FROM ${referencesRoots} WHERE ${referencesRoots.systemTo} = ${FAR_FUTURE_DATE})`;
+
+/** Upstream's `ai.inChat` items (the "AI Messages" mailbox), which its `ai_chat_message` displayable rule hides. */
+const currentInChatIds = sql`(SELECT ${aiMetadata.nodeId} FROM ${aiMetadata} WHERE ${aiMetadata.inChat} = 1 AND ${aiMetadata.systemTo} = ${FAR_FUTURE_DATE})`;
 
 /**
  * A `node_content` condition that drops every references root and the backlink
@@ -45,7 +48,7 @@ export function childFlagsFromRows(rows: {parentId: string | null; completedAt: 
 
 /**
  * The child flags of `parentIds`, counting only current children that are not
- * references roots. Upstream hides the triangle of a parent whose children are
+ * references roots or `ai.inChat` items. Upstream hides the triangle of a parent whose children are
  * all completed while completed items are hidden, so both flags are needed.
  */
 export function childFlags(db: ServerDatabase, parentIds: string[]): ChildFlags {
@@ -64,6 +67,7 @@ export function childFlags(db: ServerDatabase, parentIds: string[]): ChildFlags 
 				inArray(nodeContent.parentId, parentIds),
 				eq(nodeContent.systemTo, FAR_FUTURE_DATE),
 				sql`${nodeContent.id} NOT IN ${currentReferencesRootIds}`,
+				sql`${nodeContent.id} NOT IN ${currentInChatIds}`,
 			),
 		)
 		.all();

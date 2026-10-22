@@ -219,8 +219,9 @@ async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse
 async function readChildDtos(ctx: ServerContext, parentId: string | null): Promise<NodeResponse[]> {
 	// NodeTreeReader gives each mirror its original's name and note. A references
 	// root is never a row: its backlinks render as the parent's Backlinks section.
+	// Neither is an `ai.inChat` item (upstream's "AI Messages" mailbox).
 	const nodes = (await new NodeTreeReader(ctx.cacheService).readChildren(parentId, {depth: 0})).filter(
-		(node) => !node.hasReferencesRoot,
+		(node) => !node.hasReferencesRoot && !node.inChat,
 	);
 	// Determine which nodes have children (single query for efficiency)
 	const flags = childFlags(
