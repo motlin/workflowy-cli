@@ -34,9 +34,9 @@
 		"zustand": "^5.0.15"
 	},
 	"devDependencies": {
-		"@storybook/addon-a11y": "^10.6.1",
-		"@storybook/addon-docs": "^10.6.1",
-		"@storybook/react-vite": "^10.6.1",
+		"@storybook/addon-a11y": "^10.6.2",
+		"@storybook/addon-docs": "^10.6.2",
+		"@storybook/react-vite": "^10.6.2",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.6.5",
 		"@types/react": "^19.3.0",
@@ -44,7 +44,7 @@
 		"@vitejs/plugin-react": "^6.1.2",
 		"concurrently": "^10.0.6",
 		"happy-dom": "^21.0.4",
-		"storybook": "^10.6.1",
+		"storybook": "^10.6.2",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
 		"vite": "catalog:",
