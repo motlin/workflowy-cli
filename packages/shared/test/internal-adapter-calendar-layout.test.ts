@@ -1,4 +1,5 @@
 import DatabaseConstructor from "better-sqlite3";
+import {eq} from "drizzle-orm";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {join} from "node:path";
@@ -9,8 +10,11 @@ import {WorkflowyInternalClient} from "../src/api/workflowy-internal-client.js";
 import {CacheService} from "../src/cache/cache-service.js";
 import {WorkflowyWriteThroughClient} from "../src/cache/workflowy-write-through-client.js";
 import * as schema from "../src/db/schema.js";
+import {importInternalMetadata} from "../src/cache/importer.js";
 import {WorkflowyInternalAdapter} from "../src/internal/adapter.js";
+import type {CalendarLayoutSnapshot} from "../src/internal/adapter.js";
 import {calendarLayoutWrites, layoutWriteParents} from "../src/internal/calendar-layout-apply.js";
+import type {LayoutNode} from "../src/internal/calendar-layout.js";
 import {applyMetadataPatches} from "../src/internal/metadata-patch.js";
 import type {MetadataPatch} from "../src/internal/metadata-patch.js";
 import {createFakeInternalApi, json} from "./helpers/fake-internal-api.js";
@@ -27,6 +31,7 @@ const D1020 = "aaaaaaaa-0000-4000-8000-000000000005";
 const ENTRY = "aaaaaaaa-0000-4000-8000-000000000006";
 const TIMED = "aaaaaaaa-0000-4000-8000-000000000007";
 const NOTES = "aaaaaaaa-0000-4000-8000-000000000008";
+const LATE = "aaaaaaaa-0000-4000-8000-000000000009";
 const NEW1 = "00000000-0000-4000-8000-000000000001";
 
 const PushDataSchema = z.array(
@@ -54,7 +59,8 @@ interface ServerNode {
 
 /** One server state behind both fakes: `/push_and_poll` applies ops, `/get_tree_data/` and `/api/v1/nodes*` read it. */
 function createServer(initial: [string, ServerNode][]) {
-	const nodes = new Map(initial);
+	// Copies, so one test's ops never leak into another's fixture.
+	const nodes = new Map(initial.map(([id, value]) => [id, {...value}]));
 	const trash = new Map<string, ServerNode>();
 	const order = new Map<string, string[]>();
 	for (const [id, node] of initial) {
@@ -199,16 +205,22 @@ async function setup(initial: [string, ServerNode][]) {
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
 	const server = createServer(initial);
+	const publicReads: string[] = [];
 	vi.stubGlobal(
 		"fetch",
-		vi.fn(async (url: string) => Promise.resolve(server.publicFetch(url))),
+		vi.fn(async (url: string) => {
+			publicReads.push(url.replace("https://workflowy.test/api/v1", ""));
+			return Promise.resolve(server.publicFetch(url));
+		}),
 	);
 	const api = createFakeInternalApi();
 	const pushes: {type: string; data: Record<string, unknown>}[][] = [];
+	const readsBeforePush: number[] = [];
 	api.respond("/push_and_poll", (request) => {
 		const ops = pushedOps(request);
 		if (ops.length > 0) {
 			pushes.push(ops);
+			readsBeforePush.push(publicReads.length);
 		}
 		for (const op of ops) {
 			server.apply(op.type, op.data);
@@ -255,12 +267,52 @@ async function setup(initial: [string, ServerNode][]) {
 	});
 	const parents = [...new Set(initial.map(([, value]) => value.parent))];
 	await writeThrough.refreshChildren(parents.map((parent) => (parent === ROOT ? null : parent)));
+	importInternalMetadata(db, server.treeData(), 0);
+	const metadataOf = (id: string): Record<string, unknown> => {
+		const row = db
+			.select({metadataJson: schema.nodeInternalMetadata.metadataJson})
+			.from(schema.nodeInternalMetadata)
+			.where(eq(schema.nodeInternalMetadata.nodeId, id))
+			.get();
+		return row === undefined ? {} : z.record(z.string(), z.unknown()).parse(JSON.parse(row.metadataJson));
+	};
+	/** The calendar snapshot under `rootId` from the cache, as the web route's loader builds it. */
+	const cachedSnapshot = (rootId: string): CalendarLayoutSnapshot => {
+		const toLayout = (parentId: string): LayoutNode[] =>
+			cacheService.getChildren(parentId).map((child) => {
+				const calendar = z
+					.object({calendar: z.object({level: z.string(), dateId: z.number()}).loose()})
+					.safeParse(metadataOf(child.id));
+				const isDay = calendar.success && calendar.data.calendar.level === "day";
+				return {
+					id: child.id,
+					name: child.name ?? "",
+					note: child.note ?? "",
+					...(calendar.success
+						? {calendar: {level: calendar.data.calendar.level, dateId: calendar.data.calendar.dateId}}
+						: {}),
+					children: isDay
+						? cacheService
+								.getChildren(child.id)
+								.map((below) => ({id: below.id, name: "", note: "", children: []}))
+						: toLayout(child.id),
+				};
+			});
+		const levels = z
+			.object({calendar: z.object({levels: z.record(z.string(), z.boolean())}).loose()})
+			.safeParse(metadataOf(rootId));
+		return {
+			root: {id: rootId, name: "", note: "", children: toLayout(rootId)},
+			levels: levels.success ? levels.data.calendar.levels : undefined,
+		};
+	};
+	const loadSnapshot = (rootId: string) => () => cachedSnapshot(rootId);
 	const cachedOutline = (id: string): unknown[] =>
 		cacheService.getChildren(id).map((child) => {
 			const below = cachedOutline(child.id);
 			return below.length === 0 ? child.name : {[child.name ?? ""]: below};
 		});
-	return {sqlite, adapter, pushes, server, cachedOutline};
+	return {sqlite, adapter, api, pushes, readsBeforePush, publicReads, server, cachedOutline, loadSnapshot};
 }
 
 const ORIGINAL_OUTLINE = [{"2026": [{"10": [time(19), {[time(20)]: ["entry"]}]}]}, `Standup ${time(20, 10)}`, "Notes"];
@@ -355,9 +407,12 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 	}
 
 	it("restructures an explicit calendar root in one push, refreshes the cache, and undoes it", async () => {
-		const {adapter, pushes, server, cachedOutline} = await tracked(CALENDAR);
+		const {adapter, pushes, server, cachedOutline, loadSnapshot} = await tracked(CALENDAR);
 
-		const applied = await adapter.applyCalendarLayout({year: true, month: false, day: true}, {rootId: CAL});
+		const applied = await adapter.applyCalendarLayout(
+			{year: true, month: false, day: true},
+			{loadSnapshot: loadSnapshot(CAL)},
+		);
 		const after = {
 			result: applied,
 			pushed: pushes.map((ops) => ops.map((op) => `${op.type} ${z.string().parse(op.data.projectid)}`)),
@@ -392,13 +447,16 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 	});
 
 	it("creates level nodes with generated ids under an explicit root, never the account's deterministic ids", async () => {
-		const {adapter, server, cachedOutline} = await tracked([
+		const {adapter, server, cachedOutline, loadSnapshot} = await tracked([
 			[SANDBOX, node("🧪 Sync", ROOT)],
 			[CAL, node("📆 Calendar copy", SANDBOX, {calendar: {levels: {day: true}}})],
 			[D1019, node(time(19), CAL, level("day", 20_261_019))],
 		]);
 
-		const applied = await adapter.applyCalendarLayout({year: true, month: false, day: true}, {rootId: CAL});
+		const applied = await adapter.applyCalendarLayout(
+			{year: true, month: false, day: true},
+			{loadSnapshot: loadSnapshot(CAL)},
+		);
 
 		expect({
 			applied,
@@ -417,20 +475,58 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 	});
 
 	it("pushes nothing when the layout is already in place, and adds a week level around the days", async () => {
-		const {adapter, pushes, server} = await tracked([
+		const {adapter, pushes, server, loadSnapshot} = await tracked([
 			[SANDBOX, node("🧪 Sync", ROOT)],
 			[CAL, node("📆 Calendar copy", SANDBOX, {calendar: {levels: {day: true}}})],
 			[D1019, node(time(19), CAL, level("day", 20_261_019))],
 		]);
 
-		const applied = await adapter.applyCalendarLayout({day: true}, {rootId: CAL});
+		const applied = await adapter.applyCalendarLayout({day: true}, {loadSnapshot: loadSnapshot(CAL)});
 
 		expect({applied, pushes, undo: await adapter.undoCalendarLayout()}).toStrictEqual({
 			applied: {rootId: CAL, writes: 0},
 			pushes: [],
 			undo: undefined,
 		});
-		await adapter.applyCalendarLayout({week: true, day: true}, {rootId: CAL});
+		await adapter.applyCalendarLayout({week: true, day: true}, {loadSnapshot: loadSnapshot(CAL)});
 		expect(server.outline(CAL)).toStrictEqual([{"Week 43": [time(19)]}]);
+	});
+
+	it("plans from the cache, reading live only the parents it writes, and never the whole tree", async () => {
+		const {adapter, api, readsBeforePush, publicReads, loadSnapshot} = await tracked(CALENDAR);
+		api.requests.length = 0;
+		publicReads.length = 0;
+
+		await adapter.applyCalendarLayout({year: true, month: false, day: true}, {loadSnapshot: loadSnapshot(CAL)});
+
+		expect({
+			treeDataReads: api.requests.filter((request) => request.path === "/get_tree_data/").length,
+			readsBeforePush: publicReads.slice(0, readsBeforePush[0]).toSorted(),
+		}).toStrictEqual({
+			treeDataReads: 0,
+			// M10 is read too: the push deletes it, so it must still be empty.
+			readsBeforePush: [CAL, D1020, M10, Y2026].map((id) => `/nodes?parent_id=${id}`).toSorted(),
+		});
+	});
+
+	it("re-plans from fresh children when a parent it writes changed since it was cached", async () => {
+		const {adapter, server, cachedOutline, loadSnapshot} = await tracked(CALENDAR);
+		// A child added on workflowy.com after the cache read: the timed node must still land after it.
+		server.apply("bulk_create", {
+			parentid: D1020,
+			starting_priority: 1,
+			project_trees: JSON.stringify([{id: LATE, nm: "late"}]),
+		});
+
+		const applied = await adapter.applyCalendarLayout(
+			{year: true, month: false, day: true},
+			{loadSnapshot: loadSnapshot(CAL)},
+		);
+
+		expect({applied, server: server.outline(CAL), cache: cachedOutline(CAL)}).toStrictEqual({
+			applied: {rootId: CAL, writes: 5},
+			server: [{"2026": [time(19), {[time(20)]: ["entry", "late", `Standup ${time(20, 10)}`]}]}, "Notes"],
+			cache: [{"2026": [time(19), {[time(20)]: ["entry", "late", `Standup ${time(20, 10)}`]}]}, "Notes"],
+		});
 	});
 });

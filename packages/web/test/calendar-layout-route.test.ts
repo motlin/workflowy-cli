@@ -8,7 +8,7 @@ import {z} from "zod";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
 import {calendarNodeId} from "@workflowy/shared/internal";
-import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import type {CalendarLayoutSnapshot, LayoutTimings, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {createCalendarRouter} from "../src/server/routes/calendar.js";
@@ -86,9 +86,17 @@ function app({
 			calls.push(`getRootMeta ${path.join(".")}`);
 			return Promise.resolve(path[0] === "dateFormat" ? "YYYY-MM-DD ddd" : undefined);
 		},
-		applyCalendarLayout: async (levels: unknown, options: unknown) => {
-			calls.push(`applyCalendarLayout ${JSON.stringify(levels)} ${JSON.stringify(options)}`);
-			return Promise.resolve({rootId: "cal", writes: 3});
+		applyCalendarLayout: async (
+			levels: unknown,
+			{loadSnapshot, timings}: {loadSnapshot: () => CalendarLayoutSnapshot | undefined; timings?: LayoutTimings},
+		) => {
+			const snapshot = loadSnapshot();
+			calls.push(`applyCalendarLayout ${JSON.stringify(levels)} ${snapshot?.root.id ?? "no snapshot"}`);
+			if (timings !== undefined) {
+				timings.plan = 1.25;
+				timings.push = 20;
+			}
+			return Promise.resolve({rootId: snapshot?.root.id ?? "?", writes: 3});
 		},
 		undoCalendarLayout: async () => {
 			calls.push("undoCalendarLayout");
@@ -125,7 +133,7 @@ function app({
 			headers: {"content-type": "application/json"},
 			...(body === undefined ? {} : {body: JSON.stringify(body)}),
 		});
-	return {request, preview, send, calls};
+	return {request, preview, send, calls, hono};
 }
 
 describe("GET /api/v1/calendar/layout", () => {
@@ -264,7 +272,7 @@ describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", ()
 	});
 
 	it("applies the levels by default (to an explicit root when given), reports enabled, and undoes once", async () => {
-		const {request, send, calls} = app();
+		const {request, send, calls} = app({extra: [["sandbox-cal", null, "📆 Calendar copy"]]});
 		expect({
 			layout: await request("layout"),
 			tagged: await send("PUT", "layout", {levels: {year: true, month: false}}),
@@ -285,19 +293,34 @@ describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", ()
 				},
 			},
 			tagged: {status: 200, body: {rootId: "cal", writes: 3}},
-			sandbox: {status: 200, body: {rootId: "cal", writes: 3}},
+			sandbox: {status: 200, body: {rootId: "sandbox-cal", writes: 3}},
 			week: {status: 200, body: {rootId: "cal", writes: 3}},
 			bad: {status: 400, body: {error: "levels must be an object of year, month, week and day booleans"}},
 			undo: {status: 200, body: {rootId: "cal", writes: 3}},
 			nothing: {status: 409, body: {error: "There is no calendar layout to undo"}},
 			calls: [
 				"getRootMeta dateFormat",
-				'applyCalendarLayout {"year":true,"month":false} {}',
-				'applyCalendarLayout {"year":true} {"rootId":"sandbox-cal"}',
-				'applyCalendarLayout {"week":true} {}',
+				'applyCalendarLayout {"year":true,"month":false} cal',
+				'applyCalendarLayout {"year":true} sandbox-cal',
+				'applyCalendarLayout {"week":true} cal',
 				"undoCalendarLayout",
 				"undoCalendarLayout",
 			],
+		});
+	});
+
+	it("reports the apply's phase timings in a Server-Timing header", async () => {
+		const {hono} = app();
+		const res = await hono.fetch(
+			new Request("http://x/api/v1/calendar/layout", {
+				method: "PUT",
+				headers: {"content-type": "application/json"},
+				body: JSON.stringify({levels: {year: true}}),
+			}),
+		);
+		expect({status: res.status, timing: res.headers.get("server-timing")}).toStrictEqual({
+			status: 200,
+			timing: "plan;dur=1.3, push;dur=20.0",
 		});
 	});
 });

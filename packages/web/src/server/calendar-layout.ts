@@ -8,17 +8,11 @@
 
 import {eq} from "drizzle-orm";
 import {nodeInternalMetadata} from "@workflowy/shared/db";
-import type {CalendarLayoutLevels, LayoutNode} from "@workflowy/shared/internal";
+import type {CalendarLayoutLevels, CalendarLayoutSnapshot, LayoutNode} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {z} from "zod";
 import {findTaggedCalendarRoot, loadCalendarInfo} from "./calendar-day.js";
 import type {CalendarDayDeps} from "./calendar-day.js";
-
-export interface CalendarLayoutSnapshot {
-	root: LayoutNode;
-	/** The root's `calendar.levels`, or undefined for upstream's default. */
-	levels: CalendarLayoutLevels | undefined;
-}
 
 const RootLevelsSchema = z.object({
 	calendar: z.object({levels: z.record(z.string(), z.boolean()).optional()}).loose(),

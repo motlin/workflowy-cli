@@ -91,14 +91,17 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 	useEffect(() => {
 		void prefetchCalendarDays(queryClient, {year: shownYear, month: shownMonth}, {found: true});
 	}, [queryClient, shownYear, shownMonth]);
-	/** Apply the layout, then refetch everything it may have moved and offer Undo when anything changed. */
+	/**
+	 * Apply the layout and offer Undo when anything changed; everything it may have moved refetches in the background,
+	 * so the button's spinner ends as soon as the server has pushed.
+	 */
 	const applyLayout = async (levels: Parameters<typeof applyCalendarLayout>[0]) => {
 		const {writes} = await applyCalendarLayout(levels);
-		await queryClient.invalidateQueries();
+		void queryClient.invalidateQueries();
 		const undo = async () => {
 			try {
 				await undoCalendarLayout();
-				await queryClient.invalidateQueries();
+				void queryClient.invalidateQueries();
 				showAppMessage("Calendar layout restored.", {timeout: 5000});
 			} catch (error) {
 				reportError(error);

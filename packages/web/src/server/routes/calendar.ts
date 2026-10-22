@@ -16,8 +16,8 @@
  * Update Layout first asks "Move nodes into your Calendar?", and whether Update Layout applies or only previews (409
  * without the root's cached internal metadata).
  * `PUT /api/v1/calendar/layout` `{levels, rootId?}` -> 200 `{rootId, writes}`: restructure the calendar (the tagged
- * root, or `rootId`, such as a sandbox copy) in one push, read fresh from Workflowy (403 when
- * `CALENDAR_LAYOUT_ENABLED=false`).
+ * root, or `rootId`, such as a sandbox copy) in one push, planned from the cache with only the written parents read
+ * fresh, reporting each phase's time in `Server-Timing` (403 when `CALENDAR_LAYOUT_ENABLED=false`).
  * `POST /api/v1/calendar/layout/undo` -> 200 `{rootId, writes}`: undo the last applied layout once (409 when there is
  * none; 403 like PUT).
  * `POST /api/v1/calendar/layout/preview` `{levels, rootId?}` -> 200 `{steps}`: the tree writes upstream's restructure
@@ -37,7 +37,7 @@ import {
 	parseDateId,
 	planCalendarLayout,
 } from "@workflowy/shared/internal";
-import type {CalendarLevel} from "@workflowy/shared/internal";
+import type {CalendarLevel, LayoutTimings} from "@workflowy/shared/internal";
 import {Hono} from "hono";
 import {z} from "zod";
 import {findCalendarDay, findCalendarDays, findTaggedCalendarRoot, readCalendarSettings} from "../calendar-day.js";
@@ -248,8 +248,16 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 		}
 		const {levels, rootId} = body.data;
+		const timings: LayoutTimings = {};
 		try {
-			return c.json(await adapter.applyCalendarLayout(levels, rootId === undefined ? {} : {rootId}));
+			const applied = await adapter.applyCalendarLayout(levels, {
+				loadSnapshot: () => loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId),
+				timings,
+			});
+			const phases = Object.entries(timings).map(([phase, ms]) => `${phase};dur=${ms.toFixed(1)}`);
+			console.info(`calendar layout: ${applied.writes} writes (${phases.join(", ")})`);
+			c.header("Server-Timing", phases.join(", "));
+			return c.json(applied);
 		} catch (error) {
 			if (error instanceof CalendarRootMissing) {
 				return c.json({error: error.message}, 409);
