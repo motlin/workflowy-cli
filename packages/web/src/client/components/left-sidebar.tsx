@@ -8,9 +8,9 @@ import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {useChildren, useCreateNode, useNode} from "../hooks/use-nodes.js";
 import {useRecordStarViews, useStarActions, useStarredLocations} from "../hooks/use-starred.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {FaIcon, TriangleSvg} from "./fa-icons.js";
+import {FaIcon, triangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
-import {FilesListArrow, FilesListRows, LeftBarRow, RowName, nodeNameHtml} from "./left-bar-files-list.js";
+import {FilesListRows, LeftBarRow, filesListArrow, nodeNameHtml, rowName} from "./left-bar-files-list.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
@@ -88,24 +88,20 @@ function StarredPageRow({star}: {star: Star}) {
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const customName = star.name !== null && star.name !== "";
 	const name =
-		customName || star.nodeId === null ? (
-			<RowName text={label(star, () => "")} />
-		) : (
-			<RowName html={nodeNameHtml(node?.name)} />
-		);
+		customName || star.nodeId === null
+			? rowName({text: label(star, () => "")})
+			: rowName({html: nodeNameHtml(node?.name)});
 	return (
 		<>
 			<LeftBarRow
-				arrow={
-					<FilesListArrow
-						current={current}
-						expanded={expanded}
-						noChildren={star.nodeId !== null && node !== undefined && !rowHasChildren(node, showCompleted)}
-						onToggle={() => {
-							toggle(STARRED_CONTEXT, expansionKey);
-						}}
-					/>
-				}
+				arrow={filesListArrow({
+					current,
+					expanded,
+					noChildren: star.nodeId !== null && node !== undefined && !rowHasChildren(node, showCompleted),
+					onToggle: () => {
+						toggle(STARRED_CONTEXT, expansionKey);
+					},
+				})}
 				completed={(node?.completedAt ?? null) !== null}
 				controls={<StarredRowControls star={star} />}
 				current={current}
@@ -140,8 +136,7 @@ function StarredSearchRow({star}: {star: Star}) {
 				<span>
 					{label(star, () => "")}{" "}
 					<span className="font-light text-[.8em] opacity-75">
-						in{" "}
-						{star.nodeId === null ? <RowName text="Home" /> : <RowName html={nodeNameHtml(node?.name)} />}
+						in {star.nodeId === null ? rowName({text: "Home"}) : rowName({html: nodeNameHtml(node?.name)})}
 					</span>
 				</span>
 			}
@@ -234,7 +229,7 @@ export function LeftBarSection({
 					className={`absolute -top-[3px] left-2xs flex items-center justify-center ${open ? "opacity-25" : "opacity-50"} hover:opacity-100 group-hover:opacity-100 sectionArrow ${open ? "expanded" : ""}`}
 				>
 					<div>
-						<TriangleSvg className="block transition-transform duration-200 ease-base [.expanded_&]:rotate-90" />
+						{triangleSvg("block transition-transform duration-200 ease-base [.expanded_&]:rotate-90")}
 					</div>
 				</div>
 				{name}
@@ -309,11 +304,16 @@ export function NewNodeButton() {
 }
 
 /** Today, Starred and Home sections plus the New node button; replaced section by section by upstream ports. */
-function LeftBarSections() {
+/** Records each visit to a starred location; its own component, so a zoom re-renders nothing else in the left bar. */
+function RecordStarViews() {
 	useRecordStarViews();
+	return null;
+}
 
+function LeftBarSections() {
 	return (
 		<>
+			<RecordStarViews />
 			<TodayRow />
 
 			<StarredSection />

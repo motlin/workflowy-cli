@@ -7,7 +7,7 @@ import {nodeUrl} from "../navigation.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
-import {TriangleSvg} from "./fa-icons.js";
+import {triangleSvg} from "./fa-icons.js";
 
 type ArrowStyle = CSSProperties & Record<"--opacity" | "--hover-opacity", number>;
 
@@ -29,8 +29,11 @@ function isListed(node: NodeResponse, showCompleted: boolean): boolean {
 	return Boolean(node.name) || Boolean(node.note) || node.hasChildren !== false;
 }
 
-/** A name fragment: stored HTML keeps its colors and formatting; plain text (a custom star name) is escaped. */
-export function RowName({html, text}: {html?: string; text?: string}) {
+/**
+ * A name fragment: stored HTML keeps its colors and formatting; plain text (a custom star name) is escaped. A plain
+ * element, not a component, so a row mounts no fiber for it.
+ */
+export function rowName({html, text}: {html?: string; text?: string}) {
 	return (
 		<span style={{pointerEvents: "none", whiteSpace: "nowrap"}}>
 			{html === undefined ? (
@@ -51,8 +54,8 @@ export function nodeNameHtml(name: string | null | undefined): string {
 	return name === null || name === undefined || name === "" ? "Untitled" : name;
 }
 
-/** The expand triangle; clicks toggle without following the row's link. */
-export function FilesListArrow({
+/** The expand triangle; clicks toggle without following the row's link. A plain element, not a component. */
+export function filesListArrow({
 	expanded,
 	noChildren,
 	current,
@@ -75,24 +78,12 @@ export function FilesListArrow({
 			}}
 			style={filesListArrowStyle(noChildren, current)}
 		>
-			<div>
-				<TriangleSvg className="block transition-transform duration-200 ease-base [.expanded_&]:rotate-90" />
-			</div>
+			<div>{triangleSvg("block transition-transform duration-200 ease-base [.expanded_&]:rotate-90")}</div>
 		</div>
 	);
 }
 
-/** One upstream FilesList row: a link with an arrow slot, a label, and hover-only controls. */
-export function LeftBarRow({
-	href,
-	depth,
-	current,
-	completed,
-	expanded,
-	arrow,
-	label,
-	controls,
-}: {
+interface LeftBarRowProps {
 	href: string;
 	depth: number;
 	current: boolean;
@@ -101,10 +92,20 @@ export function LeftBarRow({
 	arrow: ReactNode;
 	label: ReactNode;
 	controls?: ReactNode;
-}) {
+}
+
+/** A row's hover state and link navigation, which `leftBarRowLink` renders with. */
+function useLeftBarRowState() {
 	const navigate = useStableNavigate();
 	const [hovered, setHovered] = useState(false);
+	return {navigate, hovered, setHovered};
+}
 
+/** One upstream FilesList row: a link with an arrow slot, a label, and hover-only controls. */
+function leftBarRowLink(
+	{href, depth, current, completed, expanded, arrow, label, controls}: LeftBarRowProps,
+	{navigate, hovered, setHovered}: ReturnType<typeof useLeftBarRowState>,
+) {
 	const handleClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
 			return;
@@ -151,37 +152,9 @@ export function LeftBarRow({
 	);
 }
 
-function FilesListRow({
-	node,
-	depth,
-	expanded,
-	onToggle,
-}: {
-	node: NodeResponse;
-	depth: number;
-	expanded: boolean;
-	onToggle: () => void;
-}) {
-	const current = useOutlineStore((state) => state.zoomedNodeId) === node.id;
-	const showCompleted = useOutlineStore((state) => state.showCompleted);
-	return (
-		<LeftBarRow
-			arrow={
-				<FilesListArrow
-					current={current}
-					expanded={expanded}
-					noChildren={!rowHasChildren(node, showCompleted)}
-					onToggle={onToggle}
-				/>
-			}
-			completed={node.completedAt !== null}
-			current={current}
-			depth={depth}
-			expanded={expanded}
-			href={nodeUrl(node.id)}
-			label={<RowName html={nodeNameHtml(node.name)} />}
-		/>
-	);
+/** A left-bar row with hover controls, for the Starred section's rows. */
+export function LeftBarRow(props: LeftBarRowProps) {
+	return leftBarRowLink(props, useLeftBarRowState());
 }
 
 /**
@@ -214,7 +187,10 @@ export function FilesListRows({
 		));
 }
 
-/** Memoized so a save that patches one row of a children list re-renders only that row's branch. */
+/**
+ * One FilesList row and, when expanded, its children's rows: one component per row. Memoized so a save that patches
+ * one row of a children list re-renders only that row's branch, and a zoom only the rows it makes or stops current.
+ */
 const FilesListBranch = memo(function FilesListBranch({
 	node,
 	depth,
@@ -227,16 +203,30 @@ const FilesListBranch = memo(function FilesListBranch({
 	expanded: boolean;
 }) {
 	const toggle = useLeftBarExpansionStore((state) => state.toggle);
+	const current = useOutlineStore((state) => state.zoomedNodeId === node.id);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const rowState = useLeftBarRowState();
 	return (
 		<>
-			<FilesListRow
-				depth={depth}
-				expanded={expanded}
-				node={node}
-				onToggle={() => {
-					toggle(contextKey, node.id);
-				}}
-			/>
+			{leftBarRowLink(
+				{
+					arrow: filesListArrow({
+						current,
+						expanded,
+						noChildren: !rowHasChildren(node, showCompleted),
+						onToggle: () => {
+							toggle(contextKey, node.id);
+						},
+					}),
+					completed: node.completedAt !== null,
+					current,
+					depth,
+					expanded,
+					href: nodeUrl(node.id),
+					label: rowName({html: nodeNameHtml(node.name)}),
+				},
+				rowState,
+			)}
 			{expanded ? <FilesListRows contextKey={contextKey} depth={depth + 1} parentId={node.id} /> : null}
 		</>
 	);

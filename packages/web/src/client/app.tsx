@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider, timeoutManager} from "@tanstack/react-query";
-import {memo, useCallback, useEffect} from "react";
+import {memo, useEffect} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
 import {ItemTypePickerHost} from "./components/item-type-picker-host.js";
@@ -39,6 +39,7 @@ import {createCoalescingTimeoutProvider} from "./coalescing-timers.js";
 import {nodeUrl, useEmptyDayCleanup} from "./navigation.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
+import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
 import "./wf-tailwind.css";
 import "./styles.css";
@@ -104,14 +105,29 @@ function GlobalCommands() {
 }
 
 /** The page shell. Memoized, so a URL change re-renders it only through the store fields it selects. */
+/** The main pane's outline under its zoom, styled by its search: the part of the page a zoom or search re-renders. */
+function MainOutline() {
+	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
+	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	return (
+		<div className={outlineViewClassName(searchQuery)}>
+			<OutlineTree parentId={zoomedNodeId} />
+			<SearchCountIndicator />
+		</div>
+	);
+}
+
+/** Undo and redo from the header, for the main outline's zoom when pressed. */
+function undoFromHeader(): void {
+	activeCommandRegistry().undo?.execute({items: [], zoomedId: useOutlineStore.getState().zoomedNodeId});
+}
+
+function redoFromHeader(): void {
+	activeCommandRegistry().redo?.execute({items: [], zoomedId: useOutlineStore.getState().zoomedNodeId});
+}
+
 export const OutlineView = memo(function OutlineView() {
-	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery, paneCount, leftBarOffset} = useOutlineViewState();
-	const onUndo = useCallback(() => {
-		activeCommandRegistry().undo?.execute({items: [], zoomedId: zoomedNodeId});
-	}, [zoomedNodeId]);
-	const onRedo = useCallback(() => {
-		activeCommandRegistry().redo?.execute({items: [], zoomedId: zoomedNodeId});
-	}, [zoomedNodeId]);
+	const {relatedNodesPanelOpen, paneCount, leftBarOffset} = useOutlineViewState();
 
 	const containerClasses = [
 		"outline-container",
@@ -134,14 +150,11 @@ export const OutlineView = memo(function OutlineView() {
 		<div className={containerClasses} style={paneStyle}>
 			<OfflineBanner />
 			<MainPane>
-				<TopBar onRedo={onRedo} onUndo={onUndo} />
+				<TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />
 				<LeftBar />
-				<div className={outlineViewClassName(searchQuery)}>
-					<OutlineTree parentId={zoomedNodeId} />
-					<SearchCountIndicator />
-				</div>
+				<MainOutline />
 			</MainPane>
-			<SidePanes onRedo={onRedo} onUndo={onUndo} />
+			<SidePanes onRedo={redoFromHeader} onUndo={undoFromHeader} />
 			<RightBar />
 			<RelatedNodesPanel />
 			<JumpMenu />

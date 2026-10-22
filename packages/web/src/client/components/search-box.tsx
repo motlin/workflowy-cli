@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import {memo, useEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
@@ -50,7 +50,7 @@ function chipRows(flyout: HTMLElement | null): number[] {
  * Upstream header search box (label.searchBox): a 210px pill that widens to 320px on focus and
  * collapses to a borderless 36px circle with a plain magnifier below 1000px while empty and unfocused.
  */
-export function SearchBox() {
+export const SearchBox = memo(function SearchBox() {
 	const searchInput = useOutlineStore((state) => state.searchInput);
 	const setSearchInput = useOutlineStore((state) => state.setSearchInput);
 	const focused = useOutlineStore((state) => state.searchFocused);
@@ -274,4 +274,4 @@ export function SearchBox() {
 	);
 
 	return <div className="flex items-center">{collapsed ? <Tooltip content="Search">{label}</Tooltip> : label}</div>;
-}
+});

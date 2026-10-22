@@ -1,3 +1,4 @@
+import {memo} from "react";
 import type {CSSProperties, MouseEvent} from "react";
 
 export interface FaIconDefinition {
@@ -641,7 +642,14 @@ interface FaIconProps {
 }
 
 /** Renders the same svg markup as upstream's @fortawesome/react-fontawesome. */
-export function FaIcon({icon, size = "1x", fixedWidth = false, className = "", style, onClick}: FaIconProps) {
+export const FaIcon = memo(function FaIcon({
+	icon,
+	size = "1x",
+	fixedWidth = false,
+	className = "",
+	style,
+	onClick,
+}: FaIconProps) {
 	const definition: FaIconDefinition = FA_ICONS[icon];
 	return (
 		<svg
@@ -667,13 +675,16 @@ export function FaIcon({icon, size = "1x", fixedWidth = false, className = "", s
 			)}
 		</svg>
 	);
-}
+});
 
 export const TRIANGLE_PATH =
 	"M13.75 9.56879C14.0833 9.76124 14.0833 10.2424 13.75 10.4348L8.5 13.4659C8.16667 13.6584 7.75 13.4178 7.75 13.0329L7.75 6.97072C7.75 6.58582 8.16667 6.34525 8.5 6.5377L13.75 9.56879Z";
 
-/** Upstream's expand/collapse triangle used by the left bar and node rows. */
-export function TriangleSvg({className}: {className?: string}) {
+/**
+ * Upstream's expand/collapse triangle used by the left bar and node rows. A plain element, not a component, so each
+ * left-bar row mounts no fiber for it.
+ */
+export function triangleSvg(className: string) {
 	return (
 		<svg width="20" height="20" viewBox="0 0 20 20" className={className}>
 			<path d={TRIANGLE_PATH} stroke="none" fill="currentColor" />

@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {FA_ICONS, FaIcon, TRIANGLE_PATH, TriangleSvg} from "../src/client/components/fa-icons.js";
+import {FA_ICONS, FaIcon, TRIANGLE_PATH, triangleSvg} from "../src/client/components/fa-icons.js";
 
 const SEED_KEYS = new Set([
 	"fal:bars",
@@ -189,9 +189,9 @@ describe("FaIcon", () => {
 	});
 });
 
-describe("TriangleSvg", () => {
+describe("triangleSvg", () => {
 	it("renders the upstream expand triangle", () => {
-		expect(renderToStaticMarkup(createElement(TriangleSvg, {className: "x"}))).toBe(
+		expect(renderToStaticMarkup(triangleSvg("x"))).toBe(
 			`<svg width="20" height="20" viewBox="0 0 20 20" class="x"><path d="${TRIANGLE_PATH}" stroke="none" fill="currentColor"></path></svg>`,
 		);
 		expect(TRIANGLE_PATH).toBe(

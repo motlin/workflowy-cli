@@ -64,6 +64,6 @@ describe("left bar files list render count", () => {
 				setTimeout(resolve, 20);
 			});
 		});
-		expect(renders.get("FilesListRow") ?? 0).toBe(1);
+		expect(renders.get("FilesListBranch") ?? 0).toBe(1);
 	});
 });

@@ -63,10 +63,11 @@ describe("useOutlineViewState", () => {
 		expect(renders()).toBe(1);
 	});
 
-	it("re-renders when the search query it styles the outline by changes", () => {
+	it("does not re-render the whole page for a zoom or search, which the main outline lays out itself", () => {
 		const renders = mountProbe(useOutlineViewState);
+		setStore({zoomedNodeId: "alice"});
 		setStore({searchQuery: "carol"});
-		expect(renders()).toBe(2);
+		expect(renders()).toBe(1);
 	});
 
 	it("re-renders when the pinned left bar's width, which sizes the side pane, changes", () => {

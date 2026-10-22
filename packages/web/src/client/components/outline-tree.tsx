@@ -225,7 +225,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				{node && layout.isTodo ? (
 					<TodoCheckbox isCompleted={node.completedAt !== null} onComplete={handleComplete} />
 				) : null}
-				{node ? <DayTitlePrefix node={node} /> : null}
+				{node?.calendar?.level === "day" ? <DayTitlePrefix node={node} /> : null}
 				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
 					{node && (nameHtml !== "" || isEditing)
 						? editableText({
@@ -247,7 +247,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				<EditableNote initialValue={node.note ?? ""} isFocused={isEditingNote} isMain nodeId={node.id} />
 			) : null}
 			{/* Upstream renders the day strip at `ui.item.note.afterend` for the zoomed calendar node, never a mirror. */}
-			{node && node.isMirror !== true ? <CalendarStrip node={node} /> : null}
+			{node?.calendar && node.isMirror !== true ? <CalendarStrip node={node} /> : null}
 			<div className="drop-line">
 				<div className="line" />
 			</div>

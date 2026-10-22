@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
 import {
@@ -1116,7 +1116,10 @@ function RestingTagColorPicker({tag, top, left, onClose}: RestingTagColorPickerP
  * clicks and hovers, and date pill clicks. It holds none of the editor's hooks, effects or store subscriptions, so
  * swapping in a view's rows stays cheap; the row becomes an `EditingText` when editing starts.
  */
-function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | "initialValue">) {
+const RestingText = memo(function RestingText({
+	nodeId,
+	initialValue,
+}: Pick<EditableTextProps, "nodeId" | "initialValue">) {
 	const queryClient = useQueryClient();
 	const {startEditing, resumeEditing} = outlineActions();
 	const toggleTagSearch = usePaneTagSearch();
@@ -1347,7 +1350,7 @@ function RestingText({nodeId, initialValue}: Pick<EditableTextProps, "nodeId" | 
 			{pillPicker.popup}
 		</>
 	);
-}
+});
 
 /**
  * A row's name: the full contenteditable `EditingText` while editing, else the light `RestingText`. Called as a

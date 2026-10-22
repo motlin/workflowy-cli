@@ -116,7 +116,9 @@ function usePaneSearch(): PaneSearchState {
 
 /** The committed search query of the pane the caller renders in ("" for none). */
 export function usePaneSearchQuery(): string {
-	return usePaneSearch().searchQuery;
+	const paneId = useContext(PaneContext)?.id ?? MAIN_PANE_ID;
+	// Only the query: a zoom replaces the pane's other search state, and every row's text reads this.
+	return useOutlineStore((state) => paneSearchState(state, paneId).searchQuery);
 }
 
 function useTreeSearch() {
