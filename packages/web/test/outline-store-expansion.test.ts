@@ -106,6 +106,31 @@ describe("loadExpansion", () => {
 		});
 	});
 
+	it("retries a page-load GET through an API restart (502, refused connection) without logging", async () => {
+		const {store, loadExpansion} = await loadModules();
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.useFakeTimers();
+		fetchMock
+			.mockImplementationOnce(async () => Promise.resolve(new Response("Bad Gateway", {status: 502})))
+			.mockImplementationOnce(async () => Promise.reject(new TypeError("Failed to fetch")))
+			.mockImplementationOnce(async () => Promise.resolve(Response.json({expandedIds: ["a"]})));
+		const loading = loadExpansion();
+		await vi.runAllTimersAsync();
+		await loading;
+		const logged = [...errors.mock.calls];
+		vi.useRealTimers();
+		errors.mockRestore();
+		expect({expandedIds: store.getState().expandedIds, calls: calls(), errors: logged}).toStrictEqual({
+			expandedIds: new Set(["a"]),
+			calls: [
+				{url: "/api/v1/expansion", method: undefined, body: undefined},
+				{url: "/api/v1/expansion", method: undefined, body: undefined},
+				{url: "/api/v1/expansion", method: undefined, body: undefined},
+			],
+			errors: [],
+		});
+	});
+
 	it("leaves an empty set on 503 and keeps later changes in memory", async () => {
 		const {store, loadExpansion} = await loadModules();
 		fetchMock.mockImplementation(async () =>

@@ -1,3 +1,4 @@
+import {timeoutManager} from "@tanstack/react-query";
 import type {ManagedTimerId, TimeoutCallback, TimeoutProvider} from "@tanstack/react-query";
 
 /** Timeouts at least this long are batched: query staleness and garbage collection, never retries or debounces. */
@@ -91,4 +92,20 @@ export function createCoalescingTimeoutProvider(): TimeoutProvider {
 			}
 		},
 	};
+}
+
+/** The page's one provider lives on the global object, outside any module a hot update re-runs. */
+const PAGE_PROVIDER = Symbol.for("workflowy.coalescingTimeoutProvider");
+
+type ProviderScope = typeof globalThis & {[PAGE_PROVIDER]?: TimeoutProvider};
+
+/**
+ * Give TanStack Query the page's coalescing provider, created once per page. A hot update re-runs the module that calls
+ * this; handing over a fresh provider then would orphan the timers armed through the old one (and TanStack logs a
+ * provider-switch error), so every later call reinstalls the same instance.
+ */
+export function installCoalescingTimeoutProvider(): void {
+	const scope = globalThis as ProviderScope;
+	scope[PAGE_PROVIDER] ??= createCoalescingTimeoutProvider();
+	timeoutManager.setTimeoutProvider(scope[PAGE_PROVIDER]);
 }

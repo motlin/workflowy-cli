@@ -1,4 +1,4 @@
-import {QueryClient, QueryClientProvider, timeoutManager} from "@tanstack/react-query";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {memo, useEffect} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
@@ -34,7 +34,7 @@ import {useTagColors} from "./hooks/use-tag-colors.js";
 import {useShowKeyboardShortcutsSync} from "./hooks/use-right-bar-sync.js";
 import {useShowCompletedSync} from "./hooks/use-show-completed-toggle.js";
 import {installWindowBlurredClass} from "./window-blurred.js";
-import {createCoalescingTimeoutProvider} from "./coalescing-timers.js";
+import {installCoalescingTimeoutProvider} from "./coalescing-timers.js";
 import {nodeUrl, useEmptyDayCleanup} from "./navigation.js";
 import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
@@ -76,7 +76,7 @@ function getRetryDelay(attemptIndex: number): number {
 }
 
 // Before any query exists: a navigation mounts hundreds of observers, each arming a stale timer.
-timeoutManager.setTimeoutProvider(createCoalescingTimeoutProvider());
+installCoalescingTimeoutProvider();
 
 const queryClient = new QueryClient({
 	defaultOptions: {

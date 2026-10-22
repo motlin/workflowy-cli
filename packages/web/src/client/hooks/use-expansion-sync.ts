@@ -22,6 +22,12 @@ const EXPANSION_REFRESH_INTERVAL_MS = 30_000;
  */
 const LOCAL_CHANGE_GRACE_MS = 5000;
 
+/**
+ * The page-load GET waits out an API server restart (the dev proxy's 502/504, or a refused connection) on this backoff,
+ * about 23s in all, instead of logging an error and leaving the page without the account's expanded levels.
+ */
+const LOAD_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 8000];
+
 let loading: Promise<void> | undefined;
 let lastFetchAt = Number.NEGATIVE_INFINITY;
 
@@ -62,7 +68,10 @@ export async function refreshExpansion(now = Date.now()): Promise<void> {
 async function fetchExpansion(now: number, localCount?: number): Promise<void> {
 	lastFetchAt = now;
 	try {
-		const response = await fetch(localCount === undefined ? "/api/v1/expansion" : "/api/v1/expansion?fresh=1");
+		const response =
+			localCount === undefined
+				? await fetchThroughRestart("/api/v1/expansion", LOAD_RETRY_DELAYS_MS)
+				: await fetch("/api/v1/expansion?fresh=1");
 		if (response.status === 503) {
 			disableExpansionPersistence();
 			return;
@@ -84,6 +93,26 @@ async function fetchExpansion(now: number, localCount?: number): Promise<void> {
 	} catch (error) {
 		console.error("Failed to load expansion", error);
 	}
+}
+
+/** GET `url`, retrying after each delay while the API server is restarting; the last attempt's outcome is returned. */
+async function fetchThroughRestart(url: string, retryDelaysMs: readonly number[]): Promise<Response> {
+	for (const delayMs of retryDelaysMs) {
+		try {
+			// oxlint-disable-next-line no-await-in-loop -- each retry waits on the one before it.
+			const response = await fetch(url);
+			if (response.status !== 502 && response.status !== 504) {
+				return response;
+			}
+		} catch {
+			// A refused connection: the API server is between processes.
+		}
+		// oxlint-disable-next-line no-await-in-loop -- the backoff is sequential by design.
+		await new Promise((resolve) => {
+			setTimeout(resolve, delayMs);
+		});
+	}
+	return fetch(url);
 }
 
 function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
