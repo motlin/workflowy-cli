@@ -544,8 +544,11 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			handleSlashInput(event.nativeEvent);
 			handleDateTrigger(event.nativeEvent);
 			handleDateAutocomplete();
-			handleTagAutocomplete();
-			if (!isSlashOpen()) {
+			// One inline suggest popup at a time: an open slash menu owns the keys, so the tag popup stays closed.
+			if (isSlashOpen()) {
+				detachTagAutocomplete();
+			} else {
+				handleTagAutocomplete();
 				changeName();
 			}
 		},
@@ -557,6 +560,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			handleDateTrigger,
 			handleDateAutocomplete,
 			handleTagAutocomplete,
+			detachTagAutocomplete,
 		],
 	);
 

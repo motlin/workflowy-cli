@@ -325,12 +325,23 @@ export function EditableNote({
 			if (event !== undefined) {
 				handleDateTrigger(event.nativeEvent);
 			}
-			handleTagAutocomplete();
-			if (!isSlashOpen()) {
+			// One inline suggest popup at a time: an open slash menu owns the keys, so the tag popup stays closed.
+			if (isSlashOpen()) {
+				detachTagAutocomplete();
+			} else {
+				handleTagAutocomplete();
 				changeNote();
 			}
 		},
-		[changeNote, dateSettings, handleSlashInput, isSlashOpen, handleDateTrigger, handleTagAutocomplete],
+		[
+			changeNote,
+			dateSettings,
+			handleSlashInput,
+			isSlashOpen,
+			handleDateTrigger,
+			handleTagAutocomplete,
+			detachTagAutocomplete,
+		],
 	);
 
 	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
