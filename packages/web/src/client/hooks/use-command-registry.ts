@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {flushSync} from "react-dom";
 import {notifyManager, useQueryClient} from "@tanstack/react-query";
-import {closeMainPane, goToNode, nodeUrl, stepNav} from "../navigation.js";
+import {closeMainPane, goToNode, movePane, nodeUrl, stepNav} from "../navigation.js";
 import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
@@ -803,6 +803,9 @@ export function useCommandRegistry(): CommandRegistry {
 			getState: useOutlineStore.getState,
 			closeMainPane: () => {
 				closeMainPane(navigate);
+			},
+			movePane: (paneId, index) => {
+				movePane(navigate, paneId, index);
 			},
 		}),
 		...paneNavCommands({

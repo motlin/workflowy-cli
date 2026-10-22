@@ -1,5 +1,5 @@
 import type {CommandRegistry} from "./keys/dispatch.js";
-import {MAIN_PANE_ID, findPane} from "./pane-ids.js";
+import {MAIN_PANE_ID, findPane, paneMoveIndex} from "./pane-ids.js";
 import type {OpenPaneOptions} from "./stores/outline.js";
 
 /** The slice of the outline store the pane commands read and drive. */
@@ -13,10 +13,12 @@ export interface PaneCommandStore {
 	};
 	/** Close the main pane: the first pane becomes the main outline (its zoom navigates the URL). */
 	closeMainPane: () => void;
+	/** Move pane `paneId` (`main` for the main pane) to workspace index `index`, navigating when the main pane changes. */
+	movePane: (paneId: string, index: number) => void;
 }
 
 /**
- * Upstream's `new_pane` (⌃R) and `close_pane` (⌃⌘W). New pane opens a pane on the active pane's zoom after the last
+ * Upstream's `new_pane` (⌃R), `close_pane` (⌃⌘W), and the unbound `move_pane_left` / `move_pane_right` (header kebab). New pane opens a pane on the active pane's zoom after the last
  * pane, from the active pane. Close pane closes the active pane; closing the main pane makes the first pane the main
  * outline. Both combos stay claimed when the command has nothing to do, so ⌃R never reloads the page.
  */
@@ -43,6 +45,25 @@ export function paneCommands(store: PaneCommandStore): CommandRegistry {
 					closePane(activePaneId);
 				}
 			},
+		},
+		move_pane_left: movePaneCommand(store, "left"),
+		move_pane_right: movePaneCommand(store, "right"),
+	};
+}
+
+/** Upstream's `move_pane_left` / `move_pane_right`: move the active pane one place, while `canPlacePane` allows it. */
+function movePaneCommand(store: PaneCommandStore, direction: "left" | "right") {
+	const target = (): number | null => {
+		const state = store.getState();
+		return paneMoveIndex(state, state.activePaneId, direction);
+	};
+	return {
+		available: () => target() !== null,
+		execute() {
+			const index = target();
+			if (index !== null) {
+				store.movePane(store.getState().activePaneId, index);
+			}
 		},
 	};
 }

@@ -145,6 +145,18 @@ export function closeMainPane(navigate: NavigateFn): void {
 }
 
 /**
+ * Upstream's `movePane`: move pane `paneId` (`main` for the main pane) to workspace index `index`. When another pane
+ * lands first it becomes the main outline, so the URL navigates to its zoom and search; otherwise the pane sync pushes
+ * the reordered `panes` param.
+ */
+export function movePane(navigate: NavigateFn, paneId: string, index: number): void {
+	const promoted = useOutlineStore.getState().movePane(paneId, index)?.promoted ?? null;
+	if (promoted !== null) {
+		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query);
+	}
+}
+
+/**
  * Commit a search: push the zoomed node's URL with `?q=<query>` through the same
  * navigate path as a node move (an empty query clears it). A new query on the same
  * node is a distinct location, so it is never deduped.

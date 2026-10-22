@@ -10,6 +10,7 @@ const {
 	cleanupEmptyDayOnLeave,
 	closeMainPane,
 	goToNode,
+	movePane,
 	navigateToSearch,
 	nodeUrl,
 	resolveZoomTarget,
@@ -280,6 +281,65 @@ describe("closeMainPane", () => {
 		const navigate = vi.fn<(to: string) => void>();
 		closeMainPane(navigate);
 		expect(navigate.mock.calls).toStrictEqual([]);
+	});
+});
+
+describe("movePane", () => {
+	const A = "AAAAAAAAAAA";
+	const B = "BBBBBBBBBBB";
+	const C = "CCCCCCCCCCC";
+	const pane = (id: string, zoomedId: string | null, query: string) => ({
+		id,
+		zoomedId,
+		backLocations: [],
+		forwardLocations: [],
+		query,
+		expandedIds: new Set<string>(),
+	});
+
+	beforeEach(() => {
+		useOutlineStore.setState({
+			nav: initialNavState,
+			zoomedNodeId: null,
+			searchQuery: "",
+			activePaneId: "main",
+			panes: [pane(B, FULL_ID, "#todo"), pane(C, null, "")],
+			mainPaneUrlId: A,
+			paneWidths: {main: 400, [B]: 500, [C]: 600},
+		});
+	});
+
+	it("navigates the main outline to a pane moved into the main slot, the old main outline now a pane", () => {
+		const navigate = vi.fn<(to: string) => void>();
+		movePane(navigate, B, 0);
+		const {zoomedNodeId, panes, mainPaneUrlId} = useOutlineStore.getState();
+		expect({urls: navigate.mock.calls, zoomedNodeId, panes: panes.map((p) => p.id), mainPaneUrlId}).toStrictEqual({
+			urls: [
+				[
+					`/#/35035d443bf1?q=%23todo&panes=${encodeURIComponent(
+						encodeWorkspace({
+							mainPaneId: B,
+							panes: [
+								{paneId: A, location: null},
+								{paneId: C, location: null},
+							],
+						}) ?? "",
+					)}`,
+				],
+			],
+			zoomedNodeId: FULL_ID,
+			panes: [A, C],
+			mainPaneUrlId: B,
+		});
+	});
+
+	it("leaves the URL to the pane sync when the main pane stays first", () => {
+		const navigate = vi.fn<(to: string) => void>();
+		movePane(navigate, C, 1);
+		expect({urls: navigate.mock.calls, panes: useOutlineStore.getState().panes.map((p) => p.id)}).toStrictEqual({
+			urls: [],
+			panes: [C, B],
+		});
 	});
 });
 

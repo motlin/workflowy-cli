@@ -1,5 +1,5 @@
 import {create} from "zustand";
-import {MAIN_PANE_ID, findPane, paneExpandedIds} from "../pane-ids.js";
+import {MAIN_PANE_ID, canPlacePane, findPane, paneExpandedIds} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
@@ -511,6 +511,13 @@ interface OutlineActions {
 	 * returned, so the caller navigates the main outline to its zoom and query. Null with no panes open.
 	 */
 	closeMainPane: () => ItemTreePane | null;
+	/**
+	 * Upstream's `movePane`: move pane `paneId` (`main` for the main pane) to workspace index `index`, main first. Widths
+	 * travel with their panes. Whichever pane lands first becomes the main pane: a promoted pane is returned, so the
+	 * caller navigates the main outline to its zoom and query, and the old main outline becomes a pane under its URL id.
+	 * Null when `canPlacePane` refuses the place.
+	 */
+	movePane: (paneId: string, index: number) => {promoted: ItemTreePane | null} | null;
 	/**
 	 * Apply the panes the URL names (reload, Back/Forward): open each, or re-zoom an open one with the same id without
 	 * touching its history, and drop the rest. `activePaneId` (from `pane-workspace-runtime:v1`) activates that pane.
@@ -1331,6 +1338,50 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			set({activePaneId: MAIN_PANE_ID, editingId: null, editingClickPosition: null, editingCaretOffset: null});
 		}
 		return promoted;
+	},
+
+	movePane: (paneId, index) => {
+		const state = get();
+		if (!canPlacePane(state, paneId, index)) {
+			return null;
+		}
+		const {panes, mainPaneUrlId, paneWidths, activePaneId, paneFocusHistory} = state;
+		const from = workspacePaneIds(state).indexOf(paneId);
+		if (from === index || mainPaneUrlId === null) {
+			return {promoted: null};
+		}
+		const main: ItemTreePane = {
+			id: mainPaneUrlId,
+			zoomedId: state.zoomedNodeId,
+			backLocations: [],
+			forwardLocations: [],
+			query: state.searchQuery,
+			expandedIds: new Set(state.expandedIds),
+		};
+		const entries = [main, ...panes];
+		const [moved] = entries.splice(from, 1);
+		if (moved !== undefined) {
+			entries.splice(index, 0, moved);
+		}
+		const [first, ...rest] = entries;
+		if (first === undefined || first === main) {
+			set({panes: rest});
+			return {promoted: null};
+		}
+		// The promoted pane takes the `main` key; the old main outline goes by its URL id.
+		const rename = (id: string): string =>
+			id === first.id ? MAIN_PANE_ID : id === MAIN_PANE_ID ? mainPaneUrlId : id;
+		set({
+			panes: rest,
+			mainPaneUrlId: first.id,
+			paneWidths: Object.fromEntries(Object.entries(paneWidths).map(([id, width]) => [rename(id), width])),
+			activePaneId: rename(activePaneId),
+			paneFocusHistory: paneFocusHistory.map(rename),
+			editingId: null,
+			editingClickPosition: null,
+			editingCaretOffset: null,
+		});
+		return {promoted: first};
 	},
 
 	restorePanes: ({mainPaneId, panes: restored, activePaneId, widthPercents}) => {

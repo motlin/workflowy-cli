@@ -24,6 +24,9 @@ function fakeStore(panes: {id: string; zoomedId: string | null}[], activePaneId 
 		closeMainPane: () => {
 			calls.push("close-main");
 		},
+		movePane: (paneId, index) => {
+			calls.push(`move:${paneId}:${index}`);
+		},
 	};
 	return {calls, store};
 }
@@ -77,6 +80,45 @@ describe("pane commands", () => {
 		const {calls, store} = fakeStore([]);
 		const result = processCombo("ctrl+meta+w", paneCommands(store), ctx, true);
 		expect({result, calls}).toStrictEqual({result: "claimed", calls: []});
+	});
+});
+
+describe("move pane commands", () => {
+	const ctx2 = {items: [], zoomedId: null};
+	function run(panes: {id: string; zoomedId: string | null}[], activePaneId: string) {
+		const {calls, store} = fakeStore(panes, activePaneId);
+		const commands = paneCommands(store);
+		const available = {
+			left: commands.move_pane_left.available?.(ctx2),
+			right: commands.move_pane_right.available?.(ctx2),
+		};
+		commands.move_pane_left.execute(ctx2);
+		commands.move_pane_right.execute(ctx2);
+		return {available, calls};
+	}
+
+	it("moves the active pane one place left or right, the main pane included", () => {
+		expect(run([{id: A, zoomedId: "alice"}], A)).toStrictEqual({
+			available: {left: true, right: false},
+			calls: [`move:${A}:0`],
+		});
+		expect(run([{id: A, zoomedId: "alice"}], "main")).toStrictEqual({
+			available: {left: false, right: true},
+			calls: ["move:main:1"],
+		});
+		expect(
+			run(
+				[
+					{id: A, zoomedId: "alice"},
+					{id: B, zoomedId: "bob"},
+				],
+				A,
+			),
+		).toStrictEqual({available: {left: true, right: true}, calls: [`move:${A}:0`, `move:${A}:2`]});
+	});
+
+	it("is unavailable with no pane open", () => {
+		expect(run([], "main")).toStrictEqual({available: {left: false, right: false}, calls: []});
 	});
 });
 

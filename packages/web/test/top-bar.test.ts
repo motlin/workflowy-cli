@@ -401,6 +401,13 @@ describe("TopBar New pane", () => {
 		);
 	});
 
+	it("marks the main header a draggable pane header only while a pane is open", () => {
+		expect({
+			single: renderCluster("alice", true, []).includes("wf-pane-header"),
+			panes: renderWithPane().includes('class="wf-header header bg-primary wf-pane-header border-b'),
+		}).toStrictEqual({single: false, panes: true});
+	});
+
 	it("closes the main pane, so the first pane becomes the main outline", () => {
 		closePaneCalls.length = 0;
 		renderWithPane();

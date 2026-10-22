@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {Fragment, useEffect, useRef, useState} from "react";
 import {selectIsMutating, useOutlineStore} from "../stores/outline.js";
 import {closeOnEscape} from "../menu-escape.js";
 import {autosaveText} from "../time-ago.js";
@@ -17,6 +17,8 @@ const NO_HEADER_ITEMS: GearMenuHeaderItem[] = [];
 
 interface GearMenuProps {
 	headerItems?: GearMenuHeaderItem[];
+	/** Upstream's `header.move-pane-left` / `header.move-pane-right` rows; empty with no pane open. */
+	paneItems?: GearMenuHeaderItem[];
 	isOpen: boolean;
 	onClose: () => void;
 	onOpenSettings: () => void;
@@ -183,6 +185,7 @@ function LogoutIcon() {
  */
 export function GearMenu({
 	headerItems = NO_HEADER_ITEMS,
+	paneItems = NO_HEADER_ITEMS,
 	isOpen,
 	onClose,
 	onOpenSettings,
@@ -258,19 +261,26 @@ export function GearMenu({
 	return (
 		<div className="gear-menu" ref={menuRef}>
 			<div className="gear-menu-scroller">
-				{headerItems.map((item) => (
-					<MenuItem
-						disabled={item.disabled}
-						icon={item.icon}
-						key={item.label}
-						label={item.label}
-						onClick={() => {
-							item.onSelect();
-							onClose();
-						}}
-					/>
-				))}
-				{headerItems.length > 0 && <MenuDivider />}
+				{[headerItems, paneItems].map(
+					(items) =>
+						items.length > 0 && (
+							<Fragment key={items === paneItems ? "pane" : "header"}>
+								{items.map((item) => (
+									<MenuItem
+										disabled={item.disabled}
+										icon={item.icon}
+										key={item.label}
+										label={item.label}
+										onClick={() => {
+											item.onSelect();
+											onClose();
+										}}
+									/>
+								))}
+								<MenuDivider />
+							</Fragment>
+						),
+				)}
 
 				<MenuItem icon={<ChalkboardUserIcon />} label="Learn WorkFlowy" />
 

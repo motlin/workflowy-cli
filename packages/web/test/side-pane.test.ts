@@ -88,6 +88,9 @@ vi.mock("../src/client/stores/outline.js", () => ({
 	workspacePaneIds: (state: typeof storeState) => ["main", ...state.panes.map((pane) => pane.id)],
 }));
 
+vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
+vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({})}));
+
 const {PaneContext, paneActivation} = await import("../src/client/components/pane-context.js");
 
 /** Records the pane context each OutlineTree sees, so tests can check bullet zooms stay in the pane. */
@@ -348,7 +351,7 @@ describe("PaneWorkspace", () => {
 
 	it("is a horizontally scrolling full-height flex row of panes while a pane is open, like upstream's workspace", () => {
 		expect(renderWorkspace()).toBe(
-			'<div data-pane-workspace="true" class="pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary"><i></i></div>',
+			'<div data-pane-workspace="true" data-pane-reordering="false" class="pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary [&amp;_.wf-pane-header]:cursor-grab"><i></i></div>',
 		);
 	});
 

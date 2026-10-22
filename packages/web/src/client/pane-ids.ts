@@ -35,3 +35,25 @@ export function paneExpandedIds(
 ): Set<string> {
 	return findPane(state.panes, paneId)?.expandedIds ?? state.expandedIds;
 }
+
+/**
+ * Upstream's `canPlacePane`: pane `paneId` (`main` for the main pane) can move to workspace index `index`, main first,
+ * while panes are open. Upstream also requires the pane landing first to be an item tree, which every local pane is.
+ */
+export function canPlacePane(state: {panes: readonly {id: string}[]}, paneId: string, index: number): boolean {
+	const ids = [MAIN_PANE_ID, ...state.panes.map((pane) => pane.id)];
+	return (
+		state.panes.length > 0 && Number.isInteger(index) && index >= 0 && index < ids.length && ids.includes(paneId)
+	);
+}
+
+/** The workspace index pane `paneId` moves to one place left or right, or null when it cannot (upstream's commands). */
+export function paneMoveIndex(
+	state: {panes: readonly {id: string}[]},
+	paneId: string,
+	direction: "left" | "right",
+): number | null {
+	const index = [MAIN_PANE_ID, ...state.panes.map((pane) => pane.id)].indexOf(paneId);
+	const target = direction === "left" ? index - 1 : index + 1;
+	return index !== -1 && canPlacePane(state, paneId, target) ? target : null;
+}

@@ -120,7 +120,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 
 	return (
 		<div
-			className={`wf-header header bg-primary border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER}`}
+			className={`wf-header header bg-primary${paneOpen ? " wf-pane-header" : ""} border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER}`}
 			style={{left: leftBarOffset, zIndex: 200}}
 		>
 			{/* Upstream swaps the hamburger for a 16px spacer while the left bar is pinned. */}
@@ -223,6 +223,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 					anchorSelector=".wf-header .gearMenu"
 					compact={compact}
 					onRedo={onRedo}
+					paneId={MAIN_PANE_ID}
 					onUndo={onUndo}
 					zoomedId={zoomedNodeId}
 				/>

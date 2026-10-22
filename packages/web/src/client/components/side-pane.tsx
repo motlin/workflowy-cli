@@ -1,12 +1,22 @@
 import type {ReactNode} from "react";
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
+import {createPortal} from "react-dom";
+import {useQueryClient} from "@tanstack/react-query";
+import type {QueryClient} from "@tanstack/react-query";
+import {useNavigate} from "react-router-dom";
+import {stripHtmlTags} from "@workflowy/shared/html";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
-import {MAIN_PANE_ID} from "../pane-ids.js";
+import {movePane} from "../navigation.js";
+import {readNode} from "../node-cache.js";
+import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
+import {bindPaneReorder} from "../pane-reorder.js";
+import type {ReorderView} from "../pane-reorder.js";
 import {paneResizeHandlers} from "../pane-resize.js";
 import {useOutlineStore, workspacePaneIds} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
+import {POPUP_Z} from "./flyout/popover-box.js";
 import {HeaderMoreMenu} from "./header-more-menu.js";
 import {IconButton} from "./icon-button.js";
 import {OutlineTree} from "./outline-tree.js";
@@ -19,15 +29,58 @@ function paneFlex(width: number | undefined): string | undefined {
 	return width === undefined ? undefined : `${width} 1 0px`;
 }
 
+/** Upstream's item-tree pane title (`getNameText`): the plain text of the pane's zoom, Home at the root. */
+function paneTitle(queryClient: QueryClient, paneId: string): string {
+	const state = useOutlineStore.getState();
+	const pane = findPane(state.panes, paneId);
+	const zoomedId = pane === undefined ? state.zoomedNodeId : pane.zoomedId;
+	return zoomedId === null ? "Home" : stripHtmlTags(readNode(queryClient, zoomedId)?.name ?? "");
+}
+
+/** Upstream's header-drag overlay, portaled to the body: the tint drop line and the ghost chip under the pointer. */
+function ReorderOverlay({view}: {view: ReorderView}) {
+	return createPortal(
+		<>
+			{view.dropLine !== null && (
+				<div
+					aria-hidden
+					className="fixed w-xs bg-tint rounded-pill pointer-events-none print:hidden"
+					style={{
+						left: view.dropLine.left,
+						top: view.dropLine.top,
+						height: view.dropLine.height,
+						transform: "translateX(-50%)",
+						zIndex: POPUP_Z,
+					}}
+				/>
+			)}
+			<div
+				aria-hidden
+				className="fixed translate-x-ml translate-y-ml flex items-center gap-s max-w-[280px] px-m py-s text-s text-primary bg-secondary border border-solid border-primary rounded-s shadow-md pointer-events-none print:hidden"
+				style={{left: view.pointerX, top: view.pointerY, zIndex: POPUP_Z}}
+			>
+				<FaIcon className="flex-shrink-0 text-tertiary" icon="fal:grip-dots-vertical" />
+				<span className="truncate">{view.title}</span>
+			</div>
+		</>,
+		document.body,
+	);
+}
+
 /**
  * Upstream's pane workspace (`[data-pane-workspace]`): while a pane is open, a full-height flex row of the main pane
  * and every open pane, each with its own scroller, that scrolls sideways once the panes' minimums outgrow the window.
- * Window resizes scale every pane to keep its share. In the single-document layout it lays nothing out, so the fixed
- * header and document-scrolled outline lay out as before.
+ * Window resizes scale every pane to keep its share. Dragging a pane header reorders the panes (drop line and ghost
+ * chip while dragging). In the single-document layout it lays nothing out, so the fixed header and document-scrolled
+ * outline lay out as before.
  */
 export function PaneWorkspace({children}: {children: ReactNode}) {
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
 	const resizeToAvailableWidth = useOutlineStore((state) => state.resizeToAvailableWidth);
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const workspaceRef = useRef<HTMLDivElement>(null);
+	const [reorder, setReorder] = useState<ReorderView | null>(null);
 	// The rescale does nothing with no pane open.
 	useEffect(() => {
 		globalThis.addEventListener("resize", resizeToAvailableWidth);
@@ -35,12 +88,32 @@ export function PaneWorkspace({children}: {children: ReactNode}) {
 			globalThis.removeEventListener("resize", resizeToAvailableWidth);
 		};
 	}, [resizeToAvailableWidth]);
+	useEffect(() => {
+		const workspace = workspaceRef.current;
+		const unbind =
+			panesOpen && workspace !== null
+				? bindPaneReorder(workspace, {
+						getState: useOutlineStore.getState,
+						title: (paneId) => paneTitle(queryClient, paneId),
+						movePane: (paneId, index) => {
+							movePane(navigate, paneId, index);
+						},
+						onView: setReorder,
+					})
+				: null;
+		return () => {
+			unbind?.();
+		};
+	}, [navigate, panesOpen, queryClient]);
 	return panesOpen ? (
 		<div
 			data-pane-workspace="true"
-			className="pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary"
+			data-pane-reordering={reorder === null ? "false" : "true"}
+			className={`pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary [&_.wf-pane-header]:cursor-grab${reorder === null ? "" : " cursor-grabbing [&_*]:!cursor-grabbing [&_*]:!pointer-events-none"}`}
+			ref={workspaceRef}
 		>
 			{children}
+			{reorder !== null && <ReorderOverlay view={reorder} />}
 		</div>
 	) : (
 		<div className="pane-workspace contents">{children}</div>
@@ -224,6 +297,7 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 						anchorSelector={`[data-pane-id="${id}"] .gearMenu`}
 						compact
 						onRedo={onRedo}
+						paneId={id}
 						onUndo={onUndo}
 						zoomedId={pane.zoomedId}
 					/>

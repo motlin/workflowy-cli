@@ -734,3 +734,102 @@ describe("resizeToAvailableWidth", () => {
 		expect(store.getState().paneWidths).toStrictEqual({});
 	});
 });
+
+describe("canPlacePane", () => {
+	it("allows any workspace index for an open pane or the main pane, like upstream's all item-tree workspace", async () => {
+		const store = await loadStore();
+		const {canPlacePane} = await import("../src/client/pane-ids.js");
+		const none = canPlacePane(store.getState(), "main", 0);
+		const a = store.getState().openPane("alice");
+		const state = store.getState();
+		expect({
+			none,
+			mainRight: canPlacePane(state, "main", 1),
+			paneLeft: canPlacePane(state, a, 0),
+			pastEnd: canPlacePane(state, a, 2),
+			negative: canPlacePane(state, "main", -1),
+			fraction: canPlacePane(state, a, 0.5),
+			unknown: canPlacePane(state, "XXXXXXXXXXX", 0),
+		}).toStrictEqual({
+			none: false,
+			mainRight: true,
+			paneLeft: true,
+			pastEnd: false,
+			negative: false,
+			fraction: false,
+			unknown: false,
+		});
+	});
+});
+
+describe("movePane", () => {
+	it("reorders open panes without rebalancing: each width travels with its pane", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const b = store.getState().openPane("bob");
+		store.getState().setPaneWidths([400, 500, 600]);
+		const result = store.getState().movePane(b, 1);
+		const {panes, paneWidths, mainPaneUrlId, activePaneId} = store.getState();
+		expect({result, panes, paneWidths, activePaneId, sameMain: mainPaneUrlId !== null}).toStrictEqual({
+			result: {promoted: null},
+			panes: [pane(b, {zoomedId: "bob"}), pane(a, {zoomedId: "alice"})],
+			paneWidths: {main: 400, [a]: 500, [b]: 600},
+			activePaneId: b,
+			sameMain: true,
+		});
+	});
+
+	it("promotes a pane moved into the main slot: the main outline becomes a pane under its URL id", async () => {
+		const store = await loadStore();
+		store.getState().zoom("home-zoom");
+		store.setState({searchQuery: "#tag", expandedIds: new Set(["x"])});
+		const a = store.getState().openPane("alice");
+		const mainId = store.getState().mainPaneUrlId ?? "";
+		store.getState().setPaneQuery(a, "bob");
+		store.getState().setPaneWidths([400, 600]);
+		const result = store.getState().movePane(a, 0);
+		const {panes, paneWidths, mainPaneUrlId, activePaneId, paneFocusHistory, editingId} = store.getState();
+		expect({result, panes, paneWidths, mainPaneUrlId, activePaneId, paneFocusHistory, editingId}).toStrictEqual({
+			result: {promoted: pane(a, {zoomedId: "alice", query: "bob", expandedIds: new Set(["x"])})},
+			panes: [pane(mainId, {zoomedId: "home-zoom", query: "#tag", expandedIds: new Set(["x"])})],
+			paneWidths: {main: 600, [mainId]: 400},
+			mainPaneUrlId: a,
+			activePaneId: "main",
+			paneFocusHistory: ["main"],
+			editingId: null,
+		});
+	});
+
+	it("moves the main pane right: the pane it passes becomes the main outline", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const b = store.getState().openPane("bob");
+		const mainId = store.getState().mainPaneUrlId ?? "";
+		store.getState().setActivePane("main");
+		store.getState().setPaneWidths([400, 500, 600]);
+		const result = store.getState().movePane("main", 2);
+		const {panes, paneWidths, activePaneId} = store.getState();
+		expect({
+			promoted: result?.promoted?.id,
+			panes: panes.map((open) => open.id),
+			paneWidths,
+			activePaneId,
+		}).toStrictEqual({
+			promoted: a,
+			panes: [b, mainId],
+			paneWidths: {main: 500, [b]: 600, [mainId]: 400},
+			activePaneId: mainId,
+		});
+	});
+
+	it("does nothing for a place it cannot take or the pane's own place", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const before = store.getState().panes;
+		expect({
+			pastEnd: store.getState().movePane(a, 2),
+			own: store.getState().movePane(a, 1),
+			same: store.getState().panes === before,
+		}).toStrictEqual({pastEnd: null, own: {promoted: null}, same: true});
+	});
+});
