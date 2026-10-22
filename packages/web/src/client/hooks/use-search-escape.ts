@@ -9,10 +9,11 @@ import type {SearchReturn} from "../stores/outline.js";
 import {collectVisibleNodeIds} from "./use-visible-nodes.js";
 import {currentSearchFilter} from "./use-tree-search.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
+import {paneScrollTop, scrollPaneTo} from "../components/pane-context.js";
 
 const SEARCH_INPUT_ID = "srch-input";
 
-/** The window's scroll position when Escape focused search, restored when focus returns. */
+/** The main outline's scroll (its pane scroller while panes are open, else the window's) when Escape focused search, restored when focus returns. */
 let savedScrollTop: number | null = null;
 
 function searchInputElement(): HTMLInputElement | null {
@@ -55,7 +56,7 @@ export function focusOutline(
 	const scrollTop = savedScrollTop;
 	savedScrollTop = null;
 	if (scrollTop !== null) {
-		globalThis.scrollTo(globalThis.scrollX, scrollTop);
+		scrollPaneTo(MAIN_PANE_ID, scrollTop);
 	}
 }
 
@@ -133,7 +134,7 @@ export function useSearchEscape(): void {
 				}
 				case "focus": {
 					const from = leaveEditor();
-					savedScrollTop = globalThis.scrollY;
+					savedScrollTop = paneScrollTop(MAIN_PANE_ID);
 					state.focusSearch(from);
 					searchInputElement()?.focus();
 					break;

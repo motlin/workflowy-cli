@@ -93,14 +93,33 @@ export function paneActivation(
 }
 
 /**
- * Scroll pane `paneId`'s outline to the top. While a pane is open every pane, the main one included, scrolls its own
- * outline; the single-document main outline scrolls the window.
+ * Pane `paneId`'s outline scroller. While a pane is open every pane, the main one included, scrolls its own outline;
+ * the single-document main outline scrolls the window (null here).
  */
-export function scrollPaneToTop(paneId: string): void {
-	const scroller = document.querySelector(`[data-pane-id="${paneId}"] > .vertical-scrollable-container`);
+function paneScroller(paneId: string): Element | null {
+	return document.querySelector(`[data-pane-id="${paneId}"] > .vertical-scrollable-container`);
+}
+
+/** How far pane `paneId`'s outline is scrolled; the window's scroll for the single-document main outline. */
+export function paneScrollTop(paneId: string): number {
+	const scroller = paneScroller(paneId);
 	if (scroller !== null) {
-		scroller.scrollTo(0, 0);
-	} else if (paneId === MAIN_PANE_ID) {
-		globalThis.scrollTo(0, 0);
+		return scroller.scrollTop;
 	}
+	return paneId === MAIN_PANE_ID ? globalThis.scrollY : 0;
+}
+
+/** Scroll pane `paneId`'s outline to `top`, through its own scroller or, for the single-document main outline, the window. */
+export function scrollPaneTo(paneId: string, top: number): void {
+	const scroller = paneScroller(paneId);
+	if (scroller !== null) {
+		scroller.scrollTo(0, top);
+	} else if (paneId === MAIN_PANE_ID) {
+		globalThis.scrollTo(globalThis.scrollX, top);
+	}
+}
+
+/** Scroll pane `paneId`'s outline to the top. */
+export function scrollPaneToTop(paneId: string): void {
+	scrollPaneTo(paneId, 0);
 }
