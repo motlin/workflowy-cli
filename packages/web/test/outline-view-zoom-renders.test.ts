@@ -18,6 +18,8 @@ const {nodeKeys} = await import("../src/client/node-cache.js");
 const {EMPTY_PREFERENCES, preferenceKeys} = await import("../src/client/hooks/use-preferences.js");
 const {starKeys} = await import("../src/client/hooks/use-starred.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const {afterNextPaint} = await import("../src/client/after-paint.js");
+const {RESIZE_DEBOUNCE_MS} = await import("../src/client/hooks/use-container-rect.js");
 
 const ROWS = 55;
 
@@ -44,10 +46,24 @@ const childRows = Array.from({length: ROWS}, (_, i) => row(`child${i}`, "parent"
 const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: Number.POSITIVE_INFINITY}}});
 let root: Root | undefined;
 
-async function settle(): Promise<void> {
+/**
+ * Waits out the row window's growth: the hook queues its step of slack below the fold with `afterNextPaint` when the
+ * view commits, so a paint queued after that commit resolves after the step lands, however long the event loop stalls.
+ */
+async function afterRowWindowGrows(): Promise<void> {
+	await act(async () => {
+		await afterNextPaint();
+	});
+}
+
+/**
+ * Waits out the crumbs' first container measure, which `useContainerRect` queues on mount for `RESIZE_DEBOUNCE_MS`:
+ * a timeout as long, queued after the mount, fires after it.
+ */
+async function afterCrumbsMeasure(): Promise<void> {
 	await act(async () => {
 		await new Promise((resolve) => {
-			setTimeout(resolve, 20);
+			setTimeout(resolve, RESIZE_DEBOUNCE_MS);
 		});
 	});
 }
@@ -139,7 +155,8 @@ beforeAll(async () => {
 			),
 		);
 	});
-	await settle();
+	await afterRowWindowGrows();
+	await afterCrumbsMeasure();
 	mounted = renderMap();
 });
 
@@ -151,15 +168,17 @@ afterAll(() => {
 });
 
 describe("55-row OutlineView renders", () => {
-	// 296 renders, from 570: each left-bar row is one component, and each outline row three.
-	it("mounts each component once, beyond the rows' three and the row window's second pass", () => {
+	// 299 renders, from 570: each left-bar row is one component, and each outline row three.
+	it("mounts each component once, beyond the rows' three, the row window's second pass, and the crumbs' measure", () => {
 		expect(mounted).toStrictEqual({
 			...PROVIDERS,
 			...SHELL,
 			...HEADER,
-			BreadcrumbItem: 1,
+			// Once to mount and once more when the crumbs measure their container: the Home crumb and its icon button.
+			Breadcrumbs: 2,
+			BreadcrumbItem: 2,
 			FaIcon: 18,
-			IconButton: 11,
+			IconButton: 12,
 			NewPaneIcon: 1,
 			...LEFT_BAR,
 			FilesListBranch: ROWS,
@@ -175,7 +194,7 @@ describe("55-row OutlineView renders", () => {
 		act(() => {
 			useOutlineStore.getState().zoom("parent");
 		});
-		await settle();
+		await afterRowWindowGrows();
 		// 205 renders, from 523: no page shell, no left bar beyond the row that becomes current, no header icon that
 		// did not change, and no row text twice.
 		expect(renderMap()).toStrictEqual({

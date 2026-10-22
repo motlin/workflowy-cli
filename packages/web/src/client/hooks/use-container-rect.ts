@@ -1,7 +1,8 @@
 import {useEffect, useState} from "react";
 import type {RefObject} from "react";
 
-const RESIZE_DEBOUNCE_MS = 200;
+/** How long the container waits after mounting or resizing before it measures itself. */
+export const RESIZE_DEBOUNCE_MS = 200;
 
 function initialWindowWidth(): number {
 	return typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth;
