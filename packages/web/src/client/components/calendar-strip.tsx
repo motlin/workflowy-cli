@@ -5,7 +5,7 @@ import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {dateId, dayTimestamp, formatPillLabel, guessDates, presetDate, stripModel} from "@workflowy/shared";
 import type {CalendarLevel, DatePreset} from "@workflowy/shared";
 import type {NodeResponse} from "../../node-types.js";
-import {useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
+import {prefetchCalendarDays, useCalendarEventDays} from "../hooks/use-calendar-event-days.js";
 import {
 	applyCalendarLayout,
 	previewCalendarLayout,
@@ -82,6 +82,15 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 		showAppMessage(error instanceof Error ? error.message : String(error));
 	};
 	const calendarSettings = useCalendarSettings(reportError);
+	const shownYear = date.getFullYear();
+	const shownMonth = date.getMonth() + 1;
+	const prefetchDots = () => {
+		void prefetchCalendarDays(queryClient, {year: shownYear, month: shownMonth}, {found: true});
+	};
+	// The picker opens on the strip's month: load its dots while the button shows, so they paint with the grid.
+	useEffect(() => {
+		void prefetchCalendarDays(queryClient, {year: shownYear, month: shownMonth}, {found: true});
+	}, [queryClient, shownYear, shownMonth]);
 	/** Apply the layout, then refetch everything it may have moved and offer Undo when anything changed. */
 	const applyLayout = async (levels: Parameters<typeof applyCalendarLayout>[0]) => {
 		const {writes} = await applyCalendarLayout(levels);
@@ -127,6 +136,7 @@ function CalendarButton({date, onSelect}: {date: Date; onSelect: (day: Date) => 
 		<div
 			ref={anchor}
 			className="inline-flex relative"
+			onPointerEnter={prefetchDots}
 			onClick={(event) => {
 				event.stopPropagation();
 				const rect = anchor.current?.getBoundingClientRect();

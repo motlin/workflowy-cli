@@ -4,7 +4,7 @@
  * ids and calendar metadata; older days only carry a `<time>` name.
  */
 
-import {and, eq, inArray, like, sql} from "drizzle-orm";
+import {and, eq, exists, inArray, like, sql} from "drizzle-orm";
 import {parseTimeAttrs} from "@workflowy/shared";
 import type {CacheService} from "@workflowy/shared/cache";
 import {calendarMetadata, nodeContent, nodeInternalMetadata} from "@workflowy/shared/db";
@@ -71,6 +71,115 @@ export function findCalendarDay(deps: CalendarDayDeps, dateId: number, level: Ca
 	return tagged?.id ?? (level === "week" ? null : walkNames(deps.cache, root, date, level));
 }
 
+/**
+ * Each of `dateIds`' day nodes, as {@link findCalendarDay} finds them, keyed by
+ * dateId; days without one are absent. One root lookup, then one metadata scan
+ * and one name walk per month instead of per day, for the date picker's dots.
+ */
+export function findCalendarDays(deps: CalendarDayDeps, dateIds: readonly number[]): Map<number, string> {
+	const found = new Map<number, string>();
+	const root = findCalendarRoot(deps);
+	if (root === undefined) {
+		return found;
+	}
+	const under = underRoot(deps.cache, root);
+	const days = dateIds.flatMap((dateId) => {
+		const date = parseDateId(dateId);
+		return date === undefined ? [] : [{dateId, date}];
+	});
+	const {entropyKey} = deps;
+	const deterministic = new Map(
+		entropyKey === undefined
+			? []
+			: days.map(({dateId, date}) => [dateId, calendarNodeId(entropyKey, "day", dateId, date.year)] as const),
+	);
+	const nodes = deps.cache.getMultipleNodes([...deterministic.values()]);
+	const months = new Map<number, {tagged: Map<number, string>; named: Map<number, string>}>();
+	for (const {dateId, date} of days) {
+		const id = deterministic.get(dateId);
+		const node = id === undefined ? undefined : nodes.get(id);
+		if (id !== undefined && node !== undefined && under(node.parentId)) {
+			found.set(dateId, id);
+			continue;
+		}
+		const monthKey = Math.floor(dateId / 100);
+		let month = months.get(monthKey);
+		if (month === undefined) {
+			month = {tagged: taggedDaysInMonth(deps, under, monthKey), named: namedDaysInMonth(deps.cache, root, date)};
+			months.set(monthKey, month);
+		}
+		const dayId = month.tagged.get(dateId) ?? month.named.get(date.day);
+		if (dayId !== undefined) {
+			found.set(dateId, dayId);
+		}
+	}
+	return found;
+}
+
+/**
+ * Whether a node with parent `parentId` sits strictly below `root`, as
+ * {@link isUnder} answers, remembering the ancestors it climbs so sibling days
+ * share one walk.
+ */
+function underRoot(cache: CacheService, root: string): (parentId: string | null) => boolean {
+	const answers = new Map<string, boolean>([[root, true]]);
+	return (start) => {
+		const climbed: string[] = [];
+		let parentId = start;
+		let answer = false;
+		while (parentId !== null) {
+			const known = answers.get(parentId);
+			if (known !== undefined) {
+				answer = known;
+				break;
+			}
+			if (climbed.includes(parentId)) {
+				break;
+			}
+			climbed.push(parentId);
+			parentId = cache.getNode(parentId)?.parentId ?? null;
+		}
+		for (const ancestor of climbed) {
+			answers.set(ancestor, answer);
+		}
+		return answer;
+	};
+}
+
+/** The month's (`YYYYMM`) day nodes under the root that cached calendar metadata tags, the first per dateId. */
+function taggedDaysInMonth(
+	deps: Pick<CalendarDayDeps, "db" | "cache">,
+	under: (parentId: string | null) => boolean,
+	monthKey: number,
+): Map<number, string> {
+	const rows = calendarRows(deps, `%"dateId":${monthKey}%`).filter(
+		({calendar}) =>
+			calendar.level === "day" && calendar.dateId !== undefined && Math.floor(calendar.dateId / 100) === monthKey,
+	);
+	const nodes = deps.cache.getMultipleNodes(rows.map(({id}) => id));
+	const days = new Map<number, string>();
+	for (const {id, calendar} of rows) {
+		const node = nodes.get(id);
+		if (calendar.dateId !== undefined && !days.has(calendar.dateId) && node !== undefined && under(node.parentId)) {
+			days.set(calendar.dateId, id);
+		}
+	}
+	return days;
+}
+
+/** The day nodes of `date`'s month found by the root > `YYYY` > `MM` name walk, keyed by day of month, the first per day. */
+function namedDaysInMonth(cache: CacheService, root: string, date: CalendarDate): Map<number, string> {
+	const days = new Map<number, string>();
+	const month = walkNames(cache, root, date, "month");
+	for (const child of month === null ? [] : cache.getChildren(month)) {
+		const named = dayNameDate(child.name);
+		if (named?.year === date.year && named.month === date.month && !days.has(named.day)) {
+			days.set(named.day, child.id);
+		}
+	}
+	return days;
+}
+
 /** The node whose cached metadata marks it the calendar root, else the Home child named `📆 Calendar`. */
 function findCalendarRoot(deps: Pick<CalendarDayDeps, "db" | "cache">): string | undefined {
 	return findTaggedCalendarRoot(deps) ?? deps.cache.getChildByName(null, CALENDAR_ROOT_NAME)?.id;
@@ -101,16 +210,33 @@ export function findTaggedCalendarRoot(deps: Pick<CalendarDayDeps, "db">): strin
 
 /** Live nodes whose metadata JSON matches `pattern` and parses as calendar metadata. */
 function calendarRows(deps: Pick<CalendarDayDeps, "db">, pattern: string) {
-	return deps.db
-		.select({id: nodeInternalMetadata.nodeId, metadataJson: nodeInternalMetadata.metadataJson})
-		.from(nodeInternalMetadata)
-		.innerJoin(nodeContent, eq(nodeContent.id, nodeInternalMetadata.nodeId))
-		.where(and(eq(nodeContent.systemTo, FAR_FUTURE_DATE), like(nodeInternalMetadata.metadataJson, pattern)))
-		.all()
-		.flatMap(({id, metadataJson}) => {
-			const parsed = CalendarSchema.safeParse(JSON.parse(metadataJson));
-			return parsed.success ? [{id, calendar: parsed.data.calendar}] : [];
-		});
+	return (
+		deps.db
+			.select({id: nodeInternalMetadata.nodeId, metadataJson: nodeInternalMetadata.metadataJson})
+			.from(nodeInternalMetadata)
+			// EXISTS keeps SQLite on the small metadata table; a join scans every node_content version first.
+			.where(
+				and(
+					like(nodeInternalMetadata.metadataJson, pattern),
+					exists(
+						deps.db
+							.select({live: sql`1`})
+							.from(nodeContent)
+							.where(
+								and(
+									eq(nodeContent.id, nodeInternalMetadata.nodeId),
+									eq(nodeContent.systemTo, FAR_FUTURE_DATE),
+								),
+							),
+					),
+				),
+			)
+			.all()
+			.flatMap(({id, metadataJson}) => {
+				const parsed = CalendarSchema.safeParse(JSON.parse(metadataJson));
+				return parsed.success ? [{id, calendar: parsed.data.calendar}] : [];
+			})
+	);
 }
 
 /** Whether `id` is a cached node strictly below `ancestor`. */

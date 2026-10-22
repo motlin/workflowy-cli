@@ -47,8 +47,12 @@ afterEach(() => {
 	}
 });
 
-function app() {
-	const sqlite = new DatabaseConstructor(":memory:");
+function app(onStatement: (sql: string) => void = () => {}) {
+	const sqlite = new DatabaseConstructor(":memory:", {
+		verbose: (sql) => {
+			onStatement(String(sql));
+		},
+	});
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -88,6 +92,18 @@ describe("GET /api/v1/calendar/days", () => {
 		]);
 	});
 
+	it("scans the metadata table a fixed number of times per month, not once or twice per day", async () => {
+		const scans: string[] = [];
+		const get = app((sql) => {
+			scans.push(sql);
+		});
+		scans.length = 0;
+
+		await expect(get("year=2026&month=10&found=1")).resolves.toStrictEqual({status: 200, body: {days: [1]}});
+		// Root lookups for the settings, the days and the Found Dates' calendar info, then the month's tagged days.
+		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(4);
+	});
+
 	it("rejects a missing or out-of-range year or month", async () => {
 		const get = app();
 
@@ -112,6 +128,20 @@ describe("GET /api/v1/calendar/dots", () => {
 			{status: 200, body: {dateIds: [20_260_928, 20_260_929, 20_260_930, 20_261_001]}},
 			{status: 200, body: {dateIds: []}},
 		]);
+	});
+
+	it("scans the metadata table a fixed number of times per month in the range, not per day", async () => {
+		const scans: string[] = [];
+		const get = app((sql) => {
+			scans.push(sql);
+		});
+		scans.length = 0;
+
+		await expect(get("from=20260901&to=20261031", "dots")).resolves.toStrictEqual({
+			status: 200,
+			body: {dateIds: [20_260_928, 20_260_929, 20_260_930, 20_261_001]},
+		});
+		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(3);
 	});
 
 	it("rejects a missing, invalid, reversed or over-long range", async () => {

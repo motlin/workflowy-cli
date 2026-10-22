@@ -40,7 +40,7 @@ import {
 import type {CalendarLevel} from "@workflowy/shared/internal";
 import {Hono} from "hono";
 import {z} from "zod";
-import {findCalendarDay, findTaggedCalendarRoot, readCalendarSettings} from "../calendar-day.js";
+import {findCalendarDay, findCalendarDays, findTaggedCalendarRoot, readCalendarSettings} from "../calendar-day.js";
 import {foundDaysInMonth} from "../calendar-found.js";
 import {loadCalendarLayout} from "../calendar-layout.js";
 import type {CalendarDayDeps} from "../calendar-day.js";
@@ -177,10 +177,13 @@ export function createCalendarRouter(): Hono<AppEnv> {
 				? foundDaysInMonth(deps, year, month)
 				: new Set<number>();
 		const length = new Date(Date.UTC(year, month, 0)).getUTCDate();
-		const days = Array.from({length}, (_, index) => index + 1).filter((day) => {
-			const id = findCalendarDay(deps, year * 10_000 + month * 100 + day);
-			return id !== null && (hasJournalContent(deps, id) || found.has(day));
-		});
+		const dayIds = findCalendarDays(
+			deps,
+			Array.from({length}, (_, index) => year * 10_000 + month * 100 + index + 1),
+		);
+		const days = [...dayIds]
+			.filter(([dateId, id]) => hasJournalContent(deps, id) || found.has(dateId % 100))
+			.map(([dateId]) => dateId % 100);
 		return c.json({days});
 	});
 
@@ -299,10 +302,9 @@ export function createCalendarRouter(): Hono<AppEnv> {
 			return c.json({error: INVALID_RANGE}, 400);
 		}
 		const deps = await calendarDayDeps(c.get("ctx"));
-		const dateIds = days.filter((dateId) => {
-			const id = findCalendarDay(deps, dateId);
-			return id !== null && hasJournalContent(deps, id);
-		});
+		const dateIds = [...findCalendarDays(deps, days)]
+			.filter(([, id]) => hasJournalContent(deps, id))
+			.map(([dateId]) => dateId);
 		return c.json({dateIds});
 	});
 

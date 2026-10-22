@@ -92,6 +92,34 @@ function ancestorsOf(cache: CacheService, node: Node): Node[] | undefined {
 	return ancestors;
 }
 
+/** Whether a node's ancestor chain stays in the cache up to Home, as {@link ancestorsOf} checks, sharing the walks. */
+function inTreeChecker(cache: CacheService): (node: Node) => boolean {
+	const answers = new Map<string, boolean>();
+	return (node) => {
+		const climbed = [node.id];
+		let parentId = node.parentId;
+		let answer = true;
+		while (parentId !== null) {
+			const known = answers.get(parentId);
+			if (known !== undefined) {
+				answer = known;
+				break;
+			}
+			const parent = climbed.includes(parentId) ? undefined : cache.getNode(parentId);
+			if (parent === undefined) {
+				answer = false;
+				break;
+			}
+			climbed.push(parentId);
+			parentId = parent.parentId;
+		}
+		for (const id of climbed) {
+			answers.set(id, answer);
+		}
+		return answer;
+	};
+}
+
 /** Tree order: compare the priority paths from the top level down; an ancestor comes before its descendants. */
 function compareTreeOrder(a: number[], b: number[]): number {
 	for (let index = 0; index < Math.min(a.length, b.length); index++) {
@@ -164,18 +192,27 @@ export function foundDaysInMonth(
 			return spans.length === 0 ? [] : [[id, spans] as const];
 		}),
 	);
-	const nodes = [...spansById.keys()].flatMap((id) => {
-		const node = deps.cache.getNode(id);
-		return node === undefined || ancestorsOf(deps.cache, node) === undefined ? [] : [node];
-	});
-	const calendarInfo = loadCalendarInfo(deps, nodes);
+	// A node whose days are all dotted already adds nothing, so only the rest pay for the tree checks.
+	const unseen = (spans: readonly (readonly [number, number])[], days: ReadonlySet<number>) =>
+		spans.some(([start, end]) => {
+			for (let dateId = Math.max(start, first); dateId <= Math.min(end, last); dateId++) {
+				if (!days.has(dateId % 100)) {
+					return true;
+				}
+			}
+			return false;
+		});
+	const inTree = inTreeChecker(deps.cache);
+	const nodesById = deps.cache.getMultipleNodes([...spansById.keys()]);
+	const calendarInfo = loadCalendarInfo(deps, [...nodesById.values()]);
 	const days = new Set<number>();
-	for (const node of nodes) {
-		const info = calendarInfo.get(node.id);
-		if (info?.root === true || info?.level != null) {
+	for (const [id, spans] of spansById) {
+		const node = nodesById.get(id);
+		const info = calendarInfo.get(id);
+		if (node === undefined || info?.root === true || info?.level != null || !unseen(spans, days) || !inTree(node)) {
 			continue;
 		}
-		for (const [start, end] of spansById.get(node.id) ?? []) {
+		for (const [start, end] of spans) {
 			for (let dateId = Math.max(start, first); dateId <= Math.min(end, last); dateId++) {
 				days.add(dateId % 100);
 			}

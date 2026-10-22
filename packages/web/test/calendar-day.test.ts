@@ -9,7 +9,7 @@ import * as schema from "@workflowy/shared/db";
 import {calendarNodeId} from "@workflowy/shared/internal";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import {findCalendarDay} from "../src/server/calendar-day.js";
+import {findCalendarDay, findCalendarDays} from "../src/server/calendar-day.js";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {createCalendarRouter} from "../src/server/routes/calendar.js";
 
@@ -60,8 +60,12 @@ afterEach(() => {
 	}
 });
 
-function setup() {
-	const sqlite = new DatabaseConstructor(":memory:");
+function setup(onStatement: (sql: string) => void = () => {}) {
+	const sqlite = new DatabaseConstructor(":memory:", {
+		verbose: (sql) => {
+			onStatement(String(sql));
+		},
+	});
 	open.push(sqlite);
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -121,6 +125,47 @@ describe("findCalendarDay", () => {
 		const deps = setup();
 
 		expect([20_261_017, 20_261_001].map((dateId) => findCalendarDay(deps, dateId))).toStrictEqual([null, "d1001"]);
+	});
+});
+
+describe("findCalendarDays", () => {
+	const SEPT_OCT = Array.from({length: 61}, (_, index) =>
+		index < 30 ? 20_260_901 + index : 20_261_001 + index - 30,
+	);
+
+	it("finds each day as findCalendarDay does", () => {
+		const deps = {...setup(), entropyKey: KEY};
+		const expected = new Map(
+			SEPT_OCT.flatMap((dateId) => {
+				const id = findCalendarDay(deps, dateId);
+				return id === null ? [] : [[dateId, id] as const];
+			}),
+		);
+
+		expect(findCalendarDays(deps, SEPT_OCT)).toStrictEqual(expected);
+		expect(expected).toStrictEqual(
+			new Map([
+				[20_260_902, "d0902"],
+				[20_260_930, "d0930"],
+				[20_261_001, "d1001"],
+				[20_261_017, D1017],
+			]),
+		);
+	});
+
+	it("scans the metadata table once for the root and once per month, not per day", () => {
+		const scans: string[] = [];
+		const deps = {
+			...setup((sql) => {
+				scans.push(sql);
+			}),
+			entropyKey: KEY,
+		};
+		scans.length = 0;
+
+		findCalendarDays(deps, SEPT_OCT);
+
+		expect(scans.filter((sql) => sql.includes('"node_internal_metadata"') && sql.includes("like"))).toHaveLength(3);
 	});
 });
 
