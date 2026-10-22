@@ -24,13 +24,15 @@ async function errorMessage(response: Response): Promise<string> {
 }
 
 /**
- * Flip one of the 📆 Calendar root's picker settings (upstream `A10`/`_10`). The flip shows at once, and a settings
- * read already in flight is cancelled so it cannot paint the old value back. On success the title prefix (read from
- * the day's ancestors), Found Dates and the picker dots refetch, the local stand-in for `calendar.settings_change`;
- * on failure the flip rolls back and the promise rejects with the server's reason, for the caller to show.
+ * Flip one of the 📆 Calendar root's picker settings (upstream `A10`/`_10`). The flip lands in the settings cache in
+ * the same task as the click, before the write is sent, and a settings read already in flight is cancelled (its
+ * cancellation reverts synchronously, so it cannot paint the old value back). Friendly day names need nothing more:
+ * day titles and crumbs read the prefix from this cache. Found Dates and the picker dots are computed by the server,
+ * so a Found Dates write refetches just those, the local stand-in for `calendar.settings_change`. On failure the flip
+ * rolls back and the promise rejects with the server's reason, for the caller to show.
  */
 export async function toggleCalendarSetting(queryClient: QueryClient, key: keyof CalendarSettings): Promise<void> {
-	await queryClient.cancelQueries({queryKey: CALENDAR_SETTINGS_KEY});
+	void queryClient.cancelQueries({queryKey: CALENDAR_SETTINGS_KEY});
 	const previous = queryClient.getQueryData<CalendarSettings>(CALENDAR_SETTINGS_KEY) ?? DEFAULT_SETTINGS;
 	const change = {[key]: !previous[key]};
 	queryClient.setQueryData<CalendarSettings>(CALENDAR_SETTINGS_KEY, {...previous, ...change});
@@ -52,11 +54,27 @@ export async function toggleCalendarSetting(queryClient: QueryClient, key: keyof
 		});
 	}
 	queryClient.setQueryData(CALENDAR_SETTINGS_KEY, settings);
-	await Promise.all([
-		queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "ancestors"]}),
-		queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "found-dates"]}),
-		queryClient.invalidateQueries({queryKey: ["calendar-days"]}),
-	]);
+	if (key === "foundDates") {
+		await Promise.all([
+			queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "found-dates"]}),
+			queryClient.invalidateQueries({queryKey: ["calendar-days"]}),
+		]);
+	}
+}
+
+/**
+ * Whether day titles and crumbs show Friendly day names: the settings cache once it holds a value, so a toggle shows
+ * at once, else `rootDayPrefix`, the 📆 Calendar root's value from already-loaded ancestors, so a fresh page does not
+ * flash the default. It only reads the cache, which the calendar strip's {@link useCalendarSettings} and a toggle
+ * fill, so pages outside the calendar send no settings request.
+ */
+export function useDayPrefix(rootDayPrefix: boolean | null | undefined): boolean {
+	const {data} = useQuery({
+		queryKey: CALENDAR_SETTINGS_KEY,
+		queryFn: fetchSettings,
+		enabled: false,
+	});
+	return data?.dayPrefix ?? rootDayPrefix !== false;
 }
 
 /**

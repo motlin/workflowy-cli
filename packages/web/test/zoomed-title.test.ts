@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {CalendarInfo, NodeResponse} from "../src/node-types.js";
@@ -14,6 +15,7 @@ vi.mock("../src/client/hooks/use-nodes.js", () => ({
 }));
 
 const {DayTitlePrefix} = await import("../src/client/components/day-title-prefix.js");
+const {CALENDAR_SETTINGS_KEY} = await import("../src/client/hooks/use-calendar-settings.js");
 
 const PREFIX_CLASS =
 	"flex h-[var(--line-height)] whitespace-nowrap items-center pr-m pt-[--wf-content-padding-top] pb-[--wf-content-padding-bottom]";
@@ -26,9 +28,20 @@ function dayNode(dateId: number): Pick<NodeResponse, "id" | "calendar"> {
 	return {id: `d${dateId}`, calendar: {level: "day", dateId, root: false, foundDates: null, dayPrefix: null}};
 }
 
+/** Render inside a client whose calendar settings cache holds `cached`, or nothing when undefined. */
+function renderWith(node: Pick<NodeResponse, "id" | "calendar">, cached?: {foundDates: boolean; dayPrefix: boolean}) {
+	const queryClient = new QueryClient();
+	if (cached !== undefined) {
+		queryClient.setQueryData(CALENDAR_SETTINGS_KEY, cached);
+	}
+	return renderToStaticMarkup(
+		createElement(QueryClientProvider, {client: queryClient}, createElement(DayTitlePrefix, {node})),
+	);
+}
+
 function render(node: Pick<NodeResponse, "id" | "calendar">, dayPrefix: boolean | null = true): string {
 	ancestorsState.data = [{id: "cal", calendar: rootInfo(dayPrefix)}, node];
-	return renderToStaticMarkup(createElement(DayTitlePrefix, {node}));
+	return renderWith(node);
 }
 
 describe("DayTitlePrefix", () => {
@@ -73,9 +86,21 @@ describe("DayTitlePrefix", () => {
 		const node = dayNode(20_261_002);
 
 		expect({
-			html: renderToStaticMarkup(createElement(DayTitlePrefix, {node})),
-			plain: renderToStaticMarkup(createElement(DayTitlePrefix, {node: {id: "plain", calendar: null}})),
+			html: renderWith(node),
+			plain: renderWith({id: "plain", calendar: null}),
 			requested,
 		}).toStrictEqual({html: "", plain: "", requested: ["d20261002", null]});
+	});
+
+	it("follows the cached calendar setting over the ancestors' root value, so a toggle shows before the refetch", () => {
+		ancestorsState.data = [{id: "cal", calendar: rootInfo(true)}, dayNode(20_261_002)];
+		const offWhileAncestorsSayOn = renderWith(dayNode(20_261_002), {foundDates: true, dayPrefix: false});
+		ancestorsState.data = [{id: "cal", calendar: rootInfo(false)}, dayNode(20_261_002)];
+		const onWhileAncestorsSayOff = renderWith(dayNode(20_261_002), {foundDates: true, dayPrefix: true});
+
+		expect({offWhileAncestorsSayOn, onWhileAncestorsSayOff}).toStrictEqual({
+			offWhileAncestorsSayOn: "",
+			onWhileAncestorsSayOff: `<span class="${PREFIX_CLASS}">Today,</span>`,
+		});
 	});
 });

@@ -33,8 +33,11 @@ vi.mock("../src/client/hooks/use-preferences.js", () => ({
 	useDateSettings: () => dateSettingsState,
 }));
 const calendarSettingsState = {foundDates: true, dayPrefix: true};
+/** The settings cache's Friendly day names value, or undefined before it loads. */
+const cachedDayPrefix: {value: boolean | undefined} = {value: undefined};
 vi.mock("../src/client/hooks/use-calendar-settings.js", () => ({
 	useCalendarSettings: () => ({settings: calendarSettingsState, toggle: () => {}}),
+	useDayPrefix: (rootDayPrefix: boolean | null | undefined) => cachedDayPrefix.value ?? rootDayPrefix !== false,
 }));
 
 vi.stubGlobal("window", {innerWidth: 1272});
@@ -158,6 +161,18 @@ describe("Breadcrumbs markup", () => {
 			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: false}},
 			{id: "day-uuid", name: todayName()},
 		]);
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
+		);
+	});
+
+	it("follows the settings cache over the ancestors' root value, so a Friendly day names toggle shows at once", () => {
+		cachedDayPrefix.value = false;
+		const html = render("day-uuid", [
+			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: true}},
+			{id: "day-uuid", name: todayName()},
+		]);
+		cachedDayPrefix.value = undefined;
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
 			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
 		);

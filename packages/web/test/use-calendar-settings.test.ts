@@ -86,6 +86,46 @@ describe("toggleCalendarSetting", () => {
 	});
 });
 
+describe("toggleCalendarSetting speed", () => {
+	it("shows the flipped value before the server answers the write", async () => {
+		const queryClient = client();
+		respond = async () => new Promise<Response>(() => {});
+
+		void toggleCalendarSetting(queryClient, "dayPrefix");
+		await Promise.resolve();
+
+		expect({
+			methods: calls.map(([, init]) => init?.method),
+			settings: queryClient.getQueryData(CALENDAR_SETTINGS_KEY),
+		}).toStrictEqual({methods: ["PUT"], settings: {foundDates: true, dayPrefix: false}});
+	});
+
+	it("sends one request for Friendly day names and refetches nothing, since the prefixes read the settings cache", async () => {
+		const queryClient = client();
+		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+		respond = async () => Promise.resolve(Response.json({foundDates: true, dayPrefix: false}));
+
+		await toggleCalendarSetting(queryClient, "dayPrefix");
+
+		expect({
+			calls: calls.map(([url, init]) => [url, init?.method]),
+			invalidated: invalidate.mock.calls.map(([filters]) => filters?.queryKey),
+		}).toStrictEqual({calls: [["/api/v1/calendar/settings", "PUT"]], invalidated: []});
+	});
+
+	it("refetches only the server-computed Found Dates and picker dots after a Found Dates write", async () => {
+		const queryClient = client();
+		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+		await toggleCalendarSetting(queryClient, "foundDates");
+
+		expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toStrictEqual([
+			["nodes", "found-dates"],
+			["calendar-days"],
+		]);
+	});
+});
+
 describe("Toggle styles", () => {
 	it("keeps upstream's content-box track so the 10px knob fits inside its 2px padding", () => {
 		const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");

@@ -4,7 +4,7 @@ import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumb
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
-import {useCalendarSettings} from "../hooks/use-calendar-settings.js";
+import {useCalendarSettings, useDayPrefix} from "../hooks/use-calendar-settings.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
@@ -277,6 +277,7 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();
 	const {dateFormat} = useDateSettings();
+	const dayPrefix = useDayPrefix(ancestors?.find((node) => node.calendar?.root === true)?.calendar?.dayPrefix);
 
 	const crumbs: Crumb[] =
 		nodeId === null || isLoading || ancestors === undefined
@@ -285,7 +286,7 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 	const currentId = crumbs.at(-1)?.id ?? ROOT_CRUMB.id;
 	const dateOptions = {
 		dateFormat,
-		dayPrefix: ancestors?.find((node) => node.calendar?.root === true)?.calendar?.dayPrefix !== false,
+		dayPrefix,
 	};
 	const inputs = crumbs.map((crumb) => ({
 		id: crumb.id,
