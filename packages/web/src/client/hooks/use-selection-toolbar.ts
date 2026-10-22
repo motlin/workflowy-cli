@@ -132,7 +132,8 @@ function installPointerTracker(): void {
 	document.addEventListener("pointercancel", releasePrimary, true);
 }
 
-function otherPopupOpen(modalOpen: () => boolean): boolean {
+/** A modal or a flyout other than the selection toolbar is open. */
+export function otherPopupOpen(modalOpen: () => boolean): boolean {
 	return modalOpen() || document.querySelector(".flyout:not(.ctx-menu)") !== null;
 }
 

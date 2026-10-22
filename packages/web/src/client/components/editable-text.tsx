@@ -59,7 +59,12 @@ import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
 import {plainText, splitHtml} from "../rich-text.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
-import {toolbarFormatAttr, toolbarLayoutCommand, useSelectionToolbar} from "../hooks/use-selection-toolbar.js";
+import {
+	otherPopupOpen,
+	toolbarFormatAttr,
+	toolbarLayoutCommand,
+	useSelectionToolbar,
+} from "../hooks/use-selection-toolbar.js";
 import {planLayoutHotkey} from "../layout-hotkeys.js";
 import type {LayoutHotkeyCommand} from "../layout-hotkeys.js";
 import {SelectionToolbar} from "./selection-toolbar.js";
@@ -1243,13 +1248,18 @@ const RestingText = memo(function RestingText({
 		}, 150);
 	}, [cancelHide]);
 
+	// Upstream: leaving the tag (even onto plain text in the same row) requests the close,
+	// and the teaser never opens over another popup (openGently).
 	const handleTagHover = useCallback(
 		(event: React.MouseEvent<HTMLSpanElement>) => {
-			if (colorPicker) {
-				return;
-			}
 			const tagEl = event.target instanceof Element ? event.target.closest(".contentTag") : null;
 			if (!tagEl) {
+				if (tagHover) {
+					scheduleHide();
+				}
+				return;
+			}
+			if (colorPicker || otherPopupOpen(isModalOpen)) {
 				return;
 			}
 			cancelHide();
@@ -1264,8 +1274,27 @@ const RestingText = memo(function RestingText({
 				left: rect.left,
 			});
 		},
-		[colorPicker, cancelHide],
+		[colorPicker, tagHover, cancelHide, scheduleHide],
 	);
+
+	// Upstream: a caret move or an editor blur closes the teaser at once.
+	const teaserShown = tagHover !== null;
+	useEffect(() => {
+		if (!teaserShown) {
+			// oxlint-disable-next-line unicorn/no-useless-undefined -- consistent-return needs a value beside the cleanup return
+			return undefined;
+		}
+		const close = () => {
+			cancelHide();
+			setTagHover(null);
+		};
+		document.addEventListener("selectionchange", close);
+		document.addEventListener("focusout", close);
+		return () => {
+			document.removeEventListener("selectionchange", close);
+			document.removeEventListener("focusout", close);
+		};
+	}, [teaserShown, cancelHide]);
 
 	const openPicker = useCallback(
 		(event: React.MouseEvent<HTMLDivElement>) => {
