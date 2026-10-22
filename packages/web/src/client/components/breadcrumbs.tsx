@@ -3,6 +3,7 @@ import type {MouseEvent} from "react";
 import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
+import {useCrumbZoomOut} from "../crumb-zoom.js";
 import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
 import {useCalendarSettings, useDayPrefix} from "../hooks/use-calendar-settings.js";
 import {useAncestors} from "../hooks/use-nodes.js";
@@ -269,7 +270,7 @@ interface BreadcrumbsProps {
 /** Upstream's header breadcrumbs: flat crumbs from Home to the zoomed node, truncated and middle-collapsed to fit. */
 export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps) {
 	const {navigateToNode: navigateMain, cancelSearch} = useNodeNavigation();
-	const navigateToNode = onNavigate ?? navigateMain;
+	const crumbZoomOut = useCrumbZoomOut();
 	const mainSearchActive = useOutlineStore((state) => state.searchQuery !== "");
 	const searchActive = onNavigate === undefined && mainSearchActive;
 	const {data: ancestors, isLoading} = useAncestors(nodeId);
@@ -284,6 +285,19 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 			? [ROOT_CRUMB]
 			: [ROOT_CRUMB, ...ancestors.map((node) => ({id: node.id, isRoot: false, name: node.name}))];
 	const currentId = crumbs.at(-1)?.id ?? ROOT_CRUMB.id;
+	// The main outline's crumbs to an ancestor zoom out with upstream's animation; Home swaps without one, as upstream.
+	const navigateToNode =
+		onNavigate ??
+		((id: string | null) => {
+			if (id === null) {
+				navigateMain(null);
+			} else {
+				crumbZoomOut(
+					crumbs.filter((crumb) => !crumb.isRoot).map((crumb) => crumb.id),
+					id,
+				);
+			}
+		});
 	const dateOptions = {
 		dateFormat,
 		dayPrefix,

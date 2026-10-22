@@ -1,5 +1,10 @@
 import {describe, expect, it} from "vite-plus/test";
-import {installScrollRestoration, poppedScrollY, restorePoppedScroll} from "../src/client/scroll-restoration.js";
+import {
+	installScrollRestoration,
+	oweAppStepScroll,
+	poppedScrollY,
+	restorePoppedScroll,
+} from "../src/client/scroll-restoration.js";
 import type {ScrollWindow} from "../src/client/scroll-restoration.js";
 
 const ALICE = "4823cefa-5fc0-478c-88ac-aaaaaaaaaaaa";
@@ -134,5 +139,42 @@ describe("scroll restoration", () => {
 		restorePoppedScroll(ALICE, reloaded);
 		uninstallReloaded();
 		expect(reloaded.scrolls).toStrictEqual([300]);
+	});
+
+	it("restores the scroll an app Back's location was left at, though Back pushes a new entry", () => {
+		const {win, uninstall} = scrolledAliceThenBob();
+		// The step zooms (and so loads rows down to the owed scroll) before it pushes the target's entry.
+		oweAppStepScroll({id: "aaaaaaaaaaaa", query: null});
+		const owed = poppedScrollY(ALICE, win);
+		win.push("c", "#/aaaaaaaaaaaa");
+		restorePoppedScroll(ALICE, win);
+		uninstall();
+		expect({owed, scrolls: win.scrolls}).toStrictEqual({owed: 300, scrolls: [300]});
+	});
+
+	it("restores the latest scroll of a location visited twice, and the top for one never scrolled", () => {
+		const {win, uninstall} = scrolledAliceThenBob();
+		win.push("c", "#/aaaaaaaaaaaa");
+		win.scroll(120);
+		win.push("d", "#/cccccccccccc");
+		oweAppStepScroll({id: "aaaaaaaaaaaa", query: null});
+		win.push("e", "#/aaaaaaaaaaaa");
+		restorePoppedScroll(ALICE, win);
+		oweAppStepScroll({id: "dddddddddddd", query: null});
+		win.push("f", "#/dddddddddddd");
+		restorePoppedScroll("5e6f7a8b-0b7d-4e5a-8c3f-dddddddddddd", win);
+		uninstall();
+		expect(win.scrolls).toStrictEqual([120, 0]);
+	});
+
+	it("drops an app step's restore once a later push leaves its entry", () => {
+		const {win, uninstall} = scrolledAliceThenBob();
+		oweAppStepScroll({id: "aaaaaaaaaaaa", query: null});
+		win.push("c", "#/aaaaaaaaaaaa");
+		restorePoppedScroll(BOB, win);
+		win.push("d", "#/aaaaaaaaaaaa");
+		restorePoppedScroll(ALICE, win);
+		uninstall();
+		expect(win.scrolls).toStrictEqual([]);
 	});
 });

@@ -27,6 +27,9 @@ vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,
 	useNodeNavigation: () => ({navigateToNode: () => {}, cancelSearch: () => {}}),
 }));
+vi.mock("../src/client/crumb-zoom.js", () => ({
+	useCrumbZoomOut: () => () => {},
+}));
 
 const dateSettingsState = {dateFormat: "ddd, MMM D", timeFormat: "h:mma", weekStartDay: 0};
 vi.mock("../src/client/hooks/use-preferences.js", () => ({

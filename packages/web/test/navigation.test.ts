@@ -1,5 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import type {NodeResponse} from "../src/node-types.js";
+import type {ScrollWindow} from "../src/client/scroll-restoration.js";
 
 vi.stubGlobal("localStorage", {getItem: () => null, setItem: () => {}});
 vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}}));
@@ -21,6 +22,7 @@ const {
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
 const {encodeWorkspace} = await import("../src/client/pane-url.js");
+const {installScrollRestoration, poppedScrollY} = await import("../src/client/scroll-restoration.js");
 
 const FULL_ID = "4823cefa-5fc0-478c-88ac-35035d443bf1";
 
@@ -113,6 +115,32 @@ describe("in-app navigation stacks", () => {
 			(id) => (id === "aaaaaaaaaaaa" ? A : undefined),
 		);
 		expect(zoomedWhenPushed).toStrictEqual([A]);
+	});
+
+	it("stepNav back owes the outline the scroll its target was left at, though it pushes a new entry", () => {
+		const history: ScrollWindow["history"] = {state: null, scrollRestoration: "auto"};
+		const win = Object.assign(new EventTarget(), {
+			scrollY: 0,
+			scrollTo: () => {},
+			history,
+			location: {href: "http://localhost/", hash: ""},
+		});
+		const navigate = (to: string) => {
+			win.location = {href: `http://localhost${to}`, hash: to.slice(1)};
+		};
+		const scroll = (y: number) => {
+			win.scrollY = y;
+			win.dispatchEvent(new Event("scroll"));
+		};
+		const uninstall = installScrollRestoration(win);
+		goToNode(navigate, A);
+		scroll(300);
+		goToNode(navigate, B);
+		scroll(0);
+		stepNav(navigate, "back", unresolved);
+		const owed = poppedScrollY(A, win);
+		uninstall();
+		expect(owed).toBe(300);
 	});
 
 	it("stepNav does nothing when the stack in that direction is empty", () => {

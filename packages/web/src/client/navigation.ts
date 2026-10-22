@@ -16,6 +16,7 @@ import {useOutlineStore} from "./stores/outline.js";
 import type {NavigateFn} from "./stores/outline.js";
 import {zoomWhenViewReady} from "./zoom-gate.js";
 import {focusQuietlyNext} from "./quiet-focus.js";
+import {oweAppStepScroll} from "./scroll-restoration.js";
 
 /**
  * The client URL for a node view: upstream's `/#/<last 12 chars of uuid>`.
@@ -197,7 +198,8 @@ function zoomToCachedId(locationId: string | null, resolve: (locationId: string)
 /**
  * Upstream's Back/Forward: step the in-app stacks (the main pane history while panes are open) and push a new browser
  * entry for the target, keeping the open panes (never `history.back()`); a no-op when that stack is empty.
- * A target `resolve` finds in the cache is zoomed before the push, as `goToNode` does.
+ * A target `resolve` finds in the cache is zoomed before the push, as `goToNode` does, and the outline returns to the
+ * scroll the target was left at, as upstream's does (while no pane is open, when the window scrolls the outline).
  */
 export function stepNav(
 	navigate: NavigateFn,
@@ -216,6 +218,9 @@ export function stepNav(
 	}
 	if (target !== null) {
 		const {panes, mainPaneUrlId} = useOutlineStore.getState();
+		if (panes.length === 0) {
+			oweAppStepScroll(target);
+		}
 		zoomToCachedId(target.id, resolve);
 		void navigate(locationUrl({...target, fragments: workspaceFragments(panes, mainPaneUrlId)}));
 	}

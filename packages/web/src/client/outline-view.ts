@@ -1,7 +1,7 @@
 import {notifyManager} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
-import type {BacklinksResponse, NodeResponse, OutlineViewResponse} from "../node-types.js";
-import {nodeKeys} from "./node-cache.js";
+import type {BacklinksResponse, FoundDatesResponse, NodeResponse, OutlineViewResponse} from "../node-types.js";
+import {nodeKeys, readNode} from "./node-cache.js";
 import {pendingCreates} from "./pending-creates.js";
 import {pendingMoves} from "./pending-moves.js";
 import {viewParentIds} from "./render-window.js";
@@ -26,8 +26,18 @@ export function outlineViewKey(rootId: string | null) {
 	return ["outline-view", rootId] as const;
 }
 
-/** Whether the cache holds every list and Backlinks section the view under `rootId` renders within its budget. */
+/**
+ * Whether the cache holds every list and Backlinks section the view under `rootId` renders within its budget, and a
+ * day page's Found Dates.
+ */
 export function outlineViewCached(queryClient: QueryClient, rootId: string | null, shape: OutlineViewShape): boolean {
+	if (
+		rootId !== null &&
+		readNode(queryClient, rootId)?.calendar?.level === "day" &&
+		!foundDatesCached(queryClient, rootId)
+	) {
+		return false;
+	}
 	const parentIds = viewParentIds(
 		(parentId) => queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId)),
 		rootId,
@@ -48,11 +58,15 @@ export function outlineViewCached(queryClient: QueryClient, rootId: string | nul
 	);
 }
 
+function foundDatesCached(queryClient: QueryClient, dayId: string): boolean {
+	return queryClient.getQueryData<FoundDatesResponse>(nodeKeys.foundDates(dayId)) !== undefined;
+}
+
 /**
  * Load the outline view under `rootId` in one request: the root's children and those of every expanded row the row
  * budget reaches, with their Backlinks sections, so the view renders whole instead of one depth level per round
- * trip. Lists the cache already holds stay (they may carry optimistic writes), as does a list a pending move touches;
- * with the whole view cached, nothing is sent.
+ * trip, and a day page's Found Dates with them. Lists the cache already holds stay (they may carry optimistic
+ * writes), as does a list a pending move touches; with the whole view cached, nothing is sent.
  *
  * With `accountExpansion`, the server expands the account's expanded rows in place of `shape.expandedIds` (which the
  * page load has yet to fill), and `accountExpansion` receives the listed rows it expanded before the lists are seeded.
@@ -68,7 +82,7 @@ export async function loadOutlineView(
 		return;
 	}
 	await pendingMoves.settled(rootId);
-	const {lists, expandedIds} = await fetchView({
+	const {lists, expandedIds, foundDates} = await fetchView({
 		rootId,
 		expandedIds: accountExpansion === undefined ? [...shape.expandedIds] : null,
 		limit: shape.budget,
@@ -87,6 +101,9 @@ export async function loadOutlineView(
 			) {
 				queryClient.setQueryData(nodeKeys.backlinks(parentId), backlinks);
 			}
+		}
+		if (rootId !== null && foundDates !== undefined && !foundDatesCached(queryClient, rootId)) {
+			queryClient.setQueryData(nodeKeys.foundDates(rootId), foundDates);
 		}
 	});
 }

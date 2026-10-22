@@ -249,7 +249,19 @@ const ROW_WAIT_FRAMES = 18;
 
 /** Resolve once `nodeId`'s row is rendered (a just-navigated view mounts a few frames later), or after ~300ms. */
 export async function waitForZoomRow(nodeId: string): Promise<void> {
-	for (let frame = 0; frame < ROW_WAIT_FRAMES && zoomRowElement(nodeId) === null; frame++) {
+	await waitForAnyZoomRow([nodeId]);
+}
+
+/**
+ * The first of `nodeIds` whose row is rendered, once any is (a just-navigated view mounts a few frames later), or
+ * null after ~300ms.
+ */
+export async function waitForAnyZoomRow(nodeIds: readonly string[]): Promise<string | null> {
+	for (let frame = 0; ; frame++) {
+		const rendered = nodeIds.find((id) => zoomRowElement(id) !== null);
+		if (rendered !== undefined || frame >= ROW_WAIT_FRAMES) {
+			return rendered ?? null;
+		}
 		// oxlint-disable-next-line no-await-in-loop -- each frame must paint before the next check
 		await new Promise((resolve) => {
 			requestAnimationFrame(resolve);

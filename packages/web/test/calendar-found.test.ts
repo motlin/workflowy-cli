@@ -75,7 +75,7 @@ function setup(rootMetadata?: Record<string, unknown>) {
 		await next();
 	});
 	app.route("/api/v1/nodes", nodesRouter);
-	return async (id: string) => {
+	const get = async (id: string) => {
 		const res = await app.fetch(new Request(`http://x/api/v1/nodes/${id}/found-dates`));
 		const body = (await res.json()) as Partial<FoundDatesResponse>;
 		return {
@@ -88,6 +88,24 @@ function setup(rootMetadata?: Record<string, unknown>) {
 			})),
 		};
 	};
+	return Object.assign(get, {
+		/** The raw Found Dates GET body and the outline view POST body for `rootId`. */
+		raw: async (rootId: string) => {
+			const foundDates: unknown = await (
+				await app.fetch(new Request(`http://x/api/v1/nodes/${rootId}/found-dates`))
+			).json();
+			const view = (await (
+				await app.fetch(
+					new Request("http://x/api/v1/nodes/view", {
+						method: "POST",
+						headers: {"Content-Type": "application/json"},
+						body: JSON.stringify({rootId, expandedIds: [], limit: 50, showCompleted: false}),
+					}),
+				)
+			).json()) as Record<string, unknown>;
+			return {foundDates, view};
+		},
+	});
 }
 
 const found = (id: string, crumbs: string[]) => ({id, isMirror: true, originalNodeId: id, crumbs});
@@ -133,5 +151,19 @@ describe("GET /api/v1/nodes/:id/found-dates", () => {
 		const get = setup();
 
 		await expect(get("nope")).resolves.toMatchObject({status: 404});
+	});
+});
+
+describe("POST /api/v1/nodes/view Found Dates", () => {
+	it("carries a day page's Found Dates, so they swap in with the view", async () => {
+		const {foundDates, view} = await setup().raw("d0930");
+
+		expect(view.foundDates).toStrictEqual(foundDates);
+	});
+
+	it("carries no Found Dates for a node that is not a day", async () => {
+		const {view} = await setup().raw("alpha");
+
+		expect(Object.keys(view)).toStrictEqual(["lists"]);
 	});
 });

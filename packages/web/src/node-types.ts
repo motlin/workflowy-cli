@@ -86,6 +86,8 @@ export interface OutlineViewResponse {
 	lists: OutlineViewList[];
 	/** For a request with `expandedIds: null`: the listed rows the account has expanded, in list order. */
 	expandedIds?: string[];
+	/** For a calendar day root: its Found Dates section, so it renders in the view's swap. */
+	foundDates?: FoundDatesResponse;
 }
 
 /**

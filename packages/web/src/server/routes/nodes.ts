@@ -397,9 +397,10 @@ nodesRouter.post("/children", async (c) => {
 // POST /api/v1/nodes/view - Everything an outline view under `rootId` first renders, in one round trip: the root's
 // children and, depth-first in document order, those of every expanded row the row budget reaches, each with its
 // Backlinks section (Home has none). Spares the client one children request per depth level and one backlinks GET
-// per expanded row, so a zoom swaps in the whole expanded view at once. `expandedIds: null` expands the account's
-// expanded rows (none without the internal API) and answers which of the listed rows those are, so the page load's
-// first view need not wait on the client fetching the account's whole expanded set.
+// per expanded row, so a zoom swaps in the whole expanded view at once; a day page's view carries its Found Dates too.
+// `expandedIds: null` expands the account's expanded rows (none without the internal API) and answers which of the
+// listed rows those are, so the page load's first view need not wait on the client fetching the account's whole
+// expanded set.
 const ViewSchema = z.object({
 	rootId: z.string().nullable(),
 	expandedIds: z.array(z.string()).nullable(),
@@ -438,10 +439,15 @@ nodesRouter.post("/view", async (c) => {
 		}
 	};
 	await visit(rootId, resolvedRoot);
-	const response: OutlineViewResponse =
-		body.data.expandedIds === null
-			? {lists, expandedIds: lists.flatMap((list) => list.nodes.map((node) => node.id).filter(isExpanded))}
-			: {lists};
+	const rootNode = resolvedRoot === null ? undefined : ctx.cacheService.getNode(resolvedRoot);
+	const foundDates = rootNode === undefined ? null : await readFoundDates(ctx, rootNode);
+	const response: OutlineViewResponse = {
+		lists,
+		...(body.data.expandedIds === null
+			? {expandedIds: lists.flatMap((list) => list.nodes.map((node) => node.id).filter(isExpanded))}
+			: {}),
+		...(foundDates === null ? {} : {foundDates}),
+	};
 	return c.json(response);
 });
 
@@ -1017,16 +1023,23 @@ nodesRouter.get("/:id/found-dates", async (c) => {
 	if (!node) {
 		return c.json({error: "Node not found"}, 404);
 	}
+	return c.json((await readFoundDates(ctx, node)) ?? {items: []});
+});
+
+/** `node`'s Found Dates section when it is a day page, else null. */
+async function readFoundDates(ctx: ServerContext, node: Node): Promise<FoundDatesResponse | null> {
 	const deps = {db: ctx.db, cache: ctx.cacheService};
 	const calendar = loadCalendarInfo(deps, [node]).get(node.id);
-	const found =
-		calendar?.level === "day" && calendar.dateId !== null ? findFoundDates(deps, node.id, calendar.dateId) : [];
+	if (calendar?.level !== "day") {
+		return null;
+	}
+	const found = calendar.dateId === null ? [] : findFoundDates(deps, node.id, calendar.dateId);
 	const ids = found.map((item) => item.id);
 	const trees = new Map(
 		(await new NodeTreeReader(ctx.cacheService).readNodes(ids, {depth: 0})).map((tree) => [tree.id, tree]),
 	);
 	const flags = childFlags(ctx.db, ids);
-	const body: FoundDatesResponse = {
+	return {
 		items: found.flatMap(({id: foundId, crumbs}) => {
 			const tree = trees.get(foundId);
 			return tree
@@ -1048,8 +1061,7 @@ nodesRouter.get("/:id/found-dates", async (c) => {
 				: [];
 		}),
 	};
-	return c.json(body);
-});
+}
 
 // GET /api/v1/nodes/:id/mirrors - Get all locations where a node appears (original + mirrors)
 nodesRouter.get("/:id/mirrors", (c) => {

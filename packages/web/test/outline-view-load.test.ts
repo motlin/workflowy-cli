@@ -81,4 +81,34 @@ describe("loadOutlineView", () => {
 
 		expect(fetchView.mock.calls).toStrictEqual([]);
 	});
+
+	it("seeds a day page's Found Dates from the view, so they render in its swap", async () => {
+		const queryClient = new QueryClient();
+		const foundDates = {items: [{node: node("found", "elsewhere"), crumbs: []}]};
+		const dayView: OutlineViewResponse = {
+			lists: [{parentId: "day", nodes: [], backlinks: NO_BACKLINKS}],
+			foundDates,
+		};
+
+		await loadOutlineView(queryClient, "day", view, async () => Promise.resolve(dayView));
+
+		expect(queryClient.getQueryData(nodeKeys.foundDates("day"))).toStrictEqual(foundDates);
+	});
+
+	it("loads a day page whose lists are cached but whose Found Dates are not", async () => {
+		const queryClient = new QueryClient();
+		const day = {
+			...node("day", null),
+			calendar: {level: "day", dateId: 20_260_930, root: false, foundDates: null, dayPrefix: null},
+		};
+		queryClient.setQueryData(nodeKeys.children(null), [day]);
+		queryClient.setQueryData(nodeKeys.children("day"), []);
+		queryClient.setQueryData(nodeKeys.backlinks("day"), NO_BACKLINKS);
+		const fetchView = vi.fn<FetchView>(async () => Promise.resolve({lists: [], foundDates: {items: []}}));
+
+		await loadOutlineView(queryClient, "day", view, fetchView);
+		await loadOutlineView(queryClient, "day", view, fetchView);
+
+		expect(fetchView.mock.calls).toHaveLength(1);
+	});
 });
