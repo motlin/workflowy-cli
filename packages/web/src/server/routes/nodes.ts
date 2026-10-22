@@ -223,7 +223,7 @@ function getAdapter(ctx: ServerContext): WorkflowyInternalAdapter | undefined {
 }
 
 /** A node as the REST API returns it, read from the cache; undefined when it is not cached. */
-async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse | undefined> {
+export async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse | undefined> {
 	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
 	const [node] = await new NodeTreeReader(ctx.cacheService).readNodes([id], {depth: 0});
 	if (node === undefined) {

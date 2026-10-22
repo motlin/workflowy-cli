@@ -10,6 +10,8 @@ import {useEffect, useMemo} from "react";
 import {z} from "zod";
 import {applyToggle, locationKey, moveKey, uniqueId} from "@workflowy/shared";
 import type {Star, StarredLocation} from "@workflowy/shared";
+import type {NodeResponse} from "../../node-types.js";
+import {nodeKeys, readDetail} from "../node-cache.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
 
@@ -33,7 +35,11 @@ function starUrl(key: string): string {
 	return `/api/v1/stars/${encodeURIComponent(key)}`;
 }
 
-export async function fetchStars(): Promise<StarsState> {
+/**
+ * `GET /api/v1/stars`. With a `queryClient`, the starred nodes the reply carries seed their detail cache (unless it
+ * already holds them), so the left bar's starred rows need no request of their own.
+ */
+export async function fetchStars(queryClient?: QueryClient): Promise<StarsState> {
 	const response = await fetch("/api/v1/stars");
 	if (response.status === 503) {
 		return {stars: [], unavailable: true};
@@ -41,7 +47,14 @@ export async function fetchStars(): Promise<StarsState> {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch stars: ${response.status}`);
 	}
-	const {stars} = await readJson<{stars: Star[]}>(response);
+	const {stars, nodes} = await readJson<{stars: Star[]; nodes?: NodeResponse[]}>(response);
+	if (queryClient !== undefined) {
+		for (const node of nodes ?? []) {
+			if (readDetail(queryClient, node.id) === undefined) {
+				queryClient.setQueryData(nodeKeys.detail(node.id), node);
+			}
+		}
+	}
 	return {stars, unavailable: false};
 }
 
@@ -167,7 +180,8 @@ function safeLocalStorage(): Storage | undefined {
 }
 
 export function useStars(): StarsState {
-	const {data} = useQuery({queryKey: starKeys.all, queryFn: fetchStars});
+	const queryClient = useQueryClient();
+	const {data} = useQuery({queryKey: starKeys.all, queryFn: async () => fetchStars(queryClient)});
 	return data ?? EMPTY;
 }
 

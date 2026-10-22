@@ -3,6 +3,7 @@ import {Hono} from "hono";
 import type {WorkflowyInternalAdapter} from "@workflowy/shared/internal";
 import type {AppEnv, ServerContext} from "../src/server/context.js";
 import {createStarsRouter} from "../src/server/routes/stars.js";
+import type {NodeResponse} from "../src/node-types.js";
 
 const NOT_CONFIGURED =
 	"Workflowy internal API is not configured (set WORKFLOWY_USERNAME and WORKFLOWY_PASSWORD, or run './bin/run.js internal login')";
@@ -29,7 +30,10 @@ function setup(meta: Record<string, unknown> | undefined) {
 		c.set("ctx", ctx);
 		await next();
 	});
-	app.route("/api/v1/stars", createStarsRouter());
+	// A stand-in for the REST node read: just the cached node's id and name.
+	const readNode = async (_ctx: ServerContext, id: string) =>
+		Promise.resolve(cacheService.getNode(id) as unknown as NodeResponse | undefined);
+	app.route("/api/v1/stars", createStarsRouter(readNode));
 	const request = async (method: string, path = "", body?: unknown) => {
 		const res = await app.fetch(
 			new Request(`http://x/api/v1/stars${path}`, {
@@ -60,6 +64,7 @@ describe("GET /api/v1/stars", () => {
 					{key: `${P1}_#todo`, nodeId: P1, query: "#todo", name: null, position: 0},
 					{key: P1, nodeId: P1, query: null, name: "Alice", position: 1},
 				],
+				nodes: [{id: P1, name: "<b>Zulu</b>"}],
 			},
 		});
 	});
@@ -75,6 +80,10 @@ describe("GET /api/v1/stars", () => {
 				stars: [
 					{key: P2, nodeId: P2, query: null, name: null, position: 0},
 					{key: P1, nodeId: P1, query: null, name: null, position: 1},
+				],
+				nodes: [
+					{id: P2, name: "Bravo"},
+					{id: P1, name: "<b>Zulu</b>"},
 				],
 			},
 		});
