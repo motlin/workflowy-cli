@@ -19,7 +19,7 @@ import {readChildren, readNode, removeFoundDates} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows} from "../outline-drop-target.js";
 import {edgeAutoscrollSpeed, stepAutoscroll} from "../pointer-drag.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import {leaveEditor} from "./use-drag-select.js";
@@ -42,7 +42,7 @@ function childIdsOf(queryClient: QueryClient, id: string): string[] {
 
 function outlineRows(queryClient: QueryClient, container: Element): {rows: DropRows; zoomRootId: string} {
 	const {tree} = currentSelectionView(queryClient);
-	const {expandedIds, showCompleted} = useOutlineStore.getState();
+	const {expandedIds, showCompleted} = activePaneView();
 	const projectOf = (id: string): Element | null =>
 		id === tree.zoomRootId
 			? container.querySelector(".project.root")

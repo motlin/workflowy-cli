@@ -36,6 +36,7 @@ describe("side pane store", () => {
 			backLocations: [],
 			forwardLocations: [],
 			query: "",
+			expandedIds: new Set(),
 		});
 	});
 
@@ -47,6 +48,7 @@ describe("side pane store", () => {
 			backLocations: [],
 			forwardLocations: [],
 			query: "",
+			expandedIds: new Set(),
 		});
 	});
 
@@ -57,7 +59,7 @@ describe("side pane store", () => {
 		store.getState().zoomSidePane("bob");
 		expect({main: store.getState().zoomedNodeId, pane: store.getState().sidePane}).toStrictEqual({
 			main: "main-node",
-			pane: {zoomedId: "bob", backLocations: ["alice"], forwardLocations: [], query: ""},
+			pane: {zoomedId: "bob", backLocations: ["alice"], forwardLocations: [], query: "", expandedIds: new Set()},
 		});
 	});
 
@@ -73,9 +75,27 @@ describe("side pane store", () => {
 		store.getState().sidePaneForward();
 		const afterForward = store.getState().sidePane;
 		expect({afterBack, atStart, afterForward}).toStrictEqual({
-			afterBack: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"], query: ""},
-			atStart: {zoomedId: null, backLocations: [], forwardLocations: ["alice", "bob"], query: ""},
-			afterForward: {zoomedId: "alice", backLocations: [null], forwardLocations: ["bob"], query: ""},
+			afterBack: {
+				zoomedId: "alice",
+				backLocations: [null],
+				forwardLocations: ["bob"],
+				query: "",
+				expandedIds: new Set(),
+			},
+			atStart: {
+				zoomedId: null,
+				backLocations: [],
+				forwardLocations: ["alice", "bob"],
+				query: "",
+				expandedIds: new Set(),
+			},
+			afterForward: {
+				zoomedId: "alice",
+				backLocations: [null],
+				forwardLocations: ["bob"],
+				query: "",
+				expandedIds: new Set(),
+			},
 		});
 	});
 
@@ -91,6 +111,7 @@ describe("side pane store", () => {
 			backLocations: ["alice"],
 			forwardLocations: [],
 			query: "",
+			expandedIds: new Set(),
 		});
 	});
 
@@ -104,6 +125,7 @@ describe("side pane store", () => {
 			backLocations: [],
 			forwardLocations: [],
 			query: "",
+			expandedIds: new Set(),
 		});
 	});
 
@@ -112,7 +134,7 @@ describe("side pane store", () => {
 		store.getState().openSidePane("alice");
 		store.getState().setSidePaneQuery("#todo");
 		expect({pane: store.getState().sidePane, main: store.getState().searchQuery}).toStrictEqual({
-			pane: {zoomedId: "alice", backLocations: [], forwardLocations: [], query: "#todo"},
+			pane: {zoomedId: "alice", backLocations: [], forwardLocations: [], query: "#todo", expandedIds: new Set()},
 			main: "",
 		});
 	});
@@ -127,6 +149,7 @@ describe("side pane store", () => {
 			backLocations: ["alice"],
 			forwardLocations: [],
 			query: "",
+			expandedIds: new Set(),
 		});
 	});
 
@@ -261,7 +284,7 @@ describe("restoreSidePane", () => {
 		store.getState().restoreSidePane({zoomedId: "alice", ids, active: false});
 		const {sidePane, paneUrlIds, activePaneId, editingId} = store.getState();
 		expect({sidePane, paneUrlIds, activePaneId, editingId}).toStrictEqual({
-			sidePane: {zoomedId: "alice", backLocations: [], forwardLocations: [], query: ""},
+			sidePane: {zoomedId: "alice", backLocations: [], forwardLocations: [], query: "", expandedIds: new Set()},
 			paneUrlIds: ids,
 			activePaneId: "main",
 			editingId: "bob",
@@ -284,6 +307,7 @@ describe("restoreSidePane", () => {
 			backLocations: [],
 			forwardLocations: [],
 			query: "todo",
+			expandedIds: new Set(),
 		});
 	});
 
@@ -294,8 +318,119 @@ describe("restoreSidePane", () => {
 		store.getState().restoreSidePane({zoomedId: "alice", ids, active: true});
 		const {sidePane, paneUrlIds} = store.getState();
 		expect({sidePane, paneUrlIds}).toStrictEqual({
-			sidePane: {zoomedId: "alice", backLocations: ["alice"], forwardLocations: [], query: ""},
+			sidePane: {
+				zoomedId: "alice",
+				backLocations: ["alice"],
+				forwardLocations: [],
+				query: "",
+				expandedIds: new Set(),
+			},
 			paneUrlIds: ids,
 		});
+	});
+});
+
+describe("per-pane expansion", () => {
+	function stubFetch(): string[] {
+		const bodies: string[] = [];
+		vi.stubGlobal("fetch", async (_url: string, init?: {body?: string}) => {
+			bodies.push(init?.body ?? "");
+			return Promise.resolve({ok: true, status: 200});
+		});
+		return bodies;
+	}
+
+	it("seeds a new pane's expansion from the main outline's", async () => {
+		stubFetch();
+		const store = await loadStore();
+		store.getState().setExpanded(new Set(["alice"]));
+		store.getState().openSidePane(null);
+		expect(store.getState().sidePane?.expandedIds).toStrictEqual(new Set(["alice"]));
+	});
+
+	it("toggles a row only in the active side pane and never saves it to the server", async () => {
+		const bodies = stubFetch();
+		const store = await loadStore();
+		store.getState().setExpanded(new Set(["alice"]));
+		store.getState().openSidePane(null);
+		store.getState().toggleExpand("alice");
+		store.getState().expand("bob");
+		store.getState().replaceExpanded(new Set([...(store.getState().sidePane?.expandedIds ?? []), "carol"]));
+		store.getState().collapse("bob");
+		expect({
+			main: store.getState().expandedIds,
+			pane: store.getState().sidePane?.expandedIds,
+			bodies,
+		}).toStrictEqual({main: new Set(["alice"]), pane: new Set(["carol"]), bodies: []});
+	});
+
+	it("toggles a row only in the main outline while it is active", async () => {
+		stubFetch();
+		const store = await loadStore();
+		store.getState().openSidePane(null);
+		store.getState().setActivePane("main");
+		store.getState().toggleExpand("alice");
+		expect({
+			main: store.getState().expandedIds,
+			pane: store.getState().sidePane?.expandedIds,
+		}).toStrictEqual({main: new Set(["alice"]), pane: new Set()});
+	});
+
+	it("keeps the pane's expansion across its zooms and history steps", async () => {
+		stubFetch();
+		const store = await loadStore();
+		store.getState().openSidePane(null);
+		store.getState().expand("alice");
+		store.getState().zoomSidePane("bob");
+		store.getState().sidePaneBack();
+		store.getState().sidePaneForward();
+		store.getState().setSidePaneQuery("todo");
+		expect(store.getState().sidePane?.expandedIds).toStrictEqual(new Set(["alice"]));
+	});
+
+	it("reads each pane's expansion and the active pane's in its view", async () => {
+		stubFetch();
+		vi.resetModules();
+		const {activePaneView, useOutlineStore: store} = await import("../src/client/stores/outline.js");
+		const {paneExpandedIds} = await import("../src/client/pane-ids.js");
+		store.getState().setExpanded(new Set(["main-row"]));
+		store.getState().openSidePane(null);
+		store.getState().toggleExpand("main-row");
+		store.getState().expand("pane-row");
+		const sideView = activePaneView().expandedIds;
+		store.getState().setActivePane("main");
+		const state = store.getState();
+		expect({
+			main: paneExpandedIds(state, "main"),
+			side: paneExpandedIds(state, "side"),
+			sideView,
+			mainView: activePaneView().expandedIds,
+		}).toStrictEqual({
+			main: new Set(["main-row"]),
+			side: new Set(["pane-row"]),
+			sideView: new Set(["pane-row"]),
+			mainView: new Set(["main-row"]),
+		});
+	});
+
+	it("reads the main expansion for the side pane id once the pane closed", async () => {
+		stubFetch();
+		vi.resetModules();
+		const {useOutlineStore: store} = await import("../src/client/stores/outline.js");
+		const {paneExpandedIds} = await import("../src/client/pane-ids.js");
+		store.getState().setExpanded(new Set(["alice"]));
+		expect(paneExpandedIds(store.getState(), "side")).toStrictEqual(new Set(["alice"]));
+	});
+
+	it("seeds a pane restored from the URL from the main outline's expansion", async () => {
+		stubFetch();
+		const store = await loadStore();
+		store.getState().setExpanded(new Set(["alice"]));
+		store.getState().restoreSidePane({
+			zoomedId: null,
+			ids: {mainPaneId: "AAAAAAAAAAA", paneId: "BBBBBBBBBBB"},
+			active: false,
+		});
+		expect(store.getState().sidePane?.expandedIds).toStrictEqual(new Set(["alice"]));
 	});
 });

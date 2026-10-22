@@ -199,7 +199,7 @@ export function useCommandRegistry(): CommandRegistry {
 		const state = useOutlineStore.getState();
 		const moves = planBlockMove(ctx.items, direction, cacheMoveTree(queryClient, state), zoomedNodeId);
 		for (const {parentId} of moves) {
-			if (parentId !== null && parentId !== zoomedNodeId && !state.expandedIds.has(parentId)) {
+			if (parentId !== null && parentId !== zoomedNodeId && !activePaneView().expandedIds.has(parentId)) {
 				expand(parentId);
 			}
 		}
@@ -296,8 +296,7 @@ export function useCommandRegistry(): CommandRegistry {
 			updateNodeMutation.mutate({nodeId, layoutMode});
 		},
 		expandAll: (ids) => {
-			const {expandedIds} = useOutlineStore.getState();
-			replaceExpanded(new Set([...expandedIds, ...ids]));
+			replaceExpanded(new Set([...activePaneView().expandedIds, ...ids]));
 		},
 		childIds: (nodeId) => (readChildren(queryClient, nodeId) ?? []).map((child) => child.id),
 		layoutMode: (nodeId) => readNode(queryClient, nodeId)?.data.layoutMode ?? null,
@@ -400,7 +399,7 @@ export function useCommandRegistry(): CommandRegistry {
 		const [itemId] = ctx.items;
 		const isRoot = itemId === undefined || itemId === ctx.zoomedId;
 		const node = itemNode(ctx);
-		const {expandedIds, showCompleted: completedShown} = useOutlineStore.getState();
+		const {expandedIds, showCompleted: completedShown} = activePaneView();
 		const rowId = itemId ?? "";
 		const plan = planExpandKey({
 			key,
@@ -675,7 +674,7 @@ export function useCommandRegistry(): CommandRegistry {
 				}
 				const node = itemNode(ctx);
 				if (node !== undefined) {
-					moveEditedNode(planIndent(queryClient, node, useOutlineStore.getState().expandedIds));
+					moveEditedNode(planIndent(queryClient, node, activePaneView().expandedIds));
 				}
 			},
 		},

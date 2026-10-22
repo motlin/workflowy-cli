@@ -15,6 +15,7 @@ import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {deleteDates} from "../date-pills.js";
 import {useNodeEditing} from "../hooks/use-node-editing.js";
 import {outlineActions, useOutlineStore} from "../stores/outline.js";
+import {paneExpandedIds} from "../pane-ids.js";
 import {useSearchFilter} from "../hooks/use-tree-search.js";
 import {isSearchExpanded} from "../search-filter.js";
 import {expansionSlide} from "../children-slide.js";
@@ -30,7 +31,7 @@ import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
 import {OutlineChildren} from "./outline-tree.js";
-import {PaneContext, useInActivePane} from "./pane-context.js";
+import {PaneContext, useInActivePane, usePaneId} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 import {planDuplicate, rowHasChildren} from "../tree-ops.js";
@@ -440,7 +441,8 @@ export const OutlineRow = memo(function OutlineRow({
 	fitCrumbs?: boolean;
 }) {
 	const search = useSearchFilter();
-	const isPersistentlyExpanded = useOutlineStore((state) => state.expandedIds.has(node.id));
+	const paneId = usePaneId();
+	const isPersistentlyExpanded = useOutlineStore((state) => paneExpandedIds(state, paneId).has(node.id));
 	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
 	const rowSearchClasses = searchClasses({id: node.id, parentId: node.parent_id}, search);
 	// Editing and the item selection show only in the active pane, so a row visible in both panes edits in one.

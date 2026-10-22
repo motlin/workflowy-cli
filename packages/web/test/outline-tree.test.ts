@@ -14,6 +14,7 @@ import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 const outlineState = {
 	activePaneId: "main" as string,
 	expandedIds: new Set<string>(),
+	sidePane: null as {expandedIds: Set<string>} | null,
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
 	draggingIds: [] as string[],
@@ -354,6 +355,42 @@ describe("OutlineTree active pane editing", () => {
 			mainWhileSideActive: false,
 			sideWhileSideActive: true,
 			sideWhileMainActive: false,
+		});
+	});
+});
+
+describe("OutlineTree per-pane expansion", () => {
+	function bobShownIn(paneId: string | null): boolean {
+		const tree = createElement(OutlineTree, {parentId: null});
+		return renderToStaticMarkup(
+			createElement(
+				QueryClientProvider,
+				{client: new QueryClient()},
+				paneId === null
+					? tree
+					: createElement(PaneContext.Provider, {value: {id: paneId, zoom: () => {}}}, tree),
+			),
+		).includes('data-item-id="bob"');
+	}
+
+	function shown(mainExpanded: string[], paneExpanded: string[]): {main: boolean; side: boolean} {
+		outlineState.expandedIds = new Set(mainExpanded);
+		outlineState.sidePane = {expandedIds: new Set(paneExpanded)};
+		try {
+			return {main: bobShownIn(null), side: bobShownIn("side")};
+		} finally {
+			outlineState.expandedIds = new Set();
+			outlineState.sidePane = null;
+		}
+	}
+
+	it("expands a row in each pane from that pane's own expansion, like upstream's temporary mirror root", () => {
+		expect({
+			mainOnly: shown(["alice"], []),
+			sideOnly: shown([], ["alice"]),
+		}).toStrictEqual({
+			mainOnly: {main: true, side: false},
+			sideOnly: {main: false, side: true},
 		});
 	});
 });

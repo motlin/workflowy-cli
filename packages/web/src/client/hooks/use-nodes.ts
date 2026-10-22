@@ -14,7 +14,7 @@ import {
 	spliceBlock,
 	spliceChildren,
 } from "../node-cache.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
 import {readJson} from "../read-json.js";
@@ -1008,7 +1008,7 @@ function subtreeIndex(items: readonly SubtreeItem[], showCompleted: boolean): Tr
  */
 export async function expandOrCollapseSubtree(rootId: string | null, open: boolean): Promise<void> {
 	const items = await fetchSubtreeItems(rootId);
-	const {expandedIds, showCompleted, replaceExpanded} = useOutlineStore.getState();
+	const {expandedIds, showCompleted, replaceExpanded} = activePaneView();
 	const index = subtreeIndex(items, showCompleted);
 	const roots = rootId === null ? index.children(HOME_TARGET).filter((id) => index.isVisible(id)) : [rootId];
 	let next = new Set<string>(expandedIds);

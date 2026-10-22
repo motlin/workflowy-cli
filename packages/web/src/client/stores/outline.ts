@@ -1,5 +1,5 @@
 import {create} from "zustand";
-import {MAIN_PANE_ID, SIDE_PANE_ID} from "../pane-ids.js";
+import {MAIN_PANE_ID, SIDE_PANE_ID, paneExpandedIds} from "../pane-ids.js";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
 import {initialNavState, locEquals, navReducer} from "../nav-stack.js";
@@ -257,6 +257,11 @@ interface SidePaneState {
 	forwardLocations: (string | null)[];
 	/** The pane's own committed search query ("" for none); it filters only this pane. */
 	query: string;
+	/**
+	 * Upstream's payload `expansionState`: the pane renders a temporary mirror root, so its rows expand apart from the
+	 * main outline's. Seeded from the main outline when the pane opens; kept in memory, never saved to the server.
+	 */
+	expandedIds: Set<string>;
 }
 
 /** Opening the first extra pane gives the main pane a fresh random id too. */
@@ -567,10 +572,10 @@ export function outlineActions(): OutlineStore {
 	return useOutlineStore.getState();
 }
 
-/** The store's state as the active pane sees it: `zoomedNodeId` is that pane's zoom, for keyboard navigation. */
+/** The store's state as the active pane sees it: that pane's `zoomedNodeId` and `expandedIds`, for keyboard navigation. */
 export function activePaneView(): OutlineStore {
 	const state = useOutlineStore.getState();
-	return {...state, zoomedNodeId: activeZoomedId(state)};
+	return {...state, zoomedNodeId: activeZoomedId(state), expandedIds: paneExpandedIds(state, state.activePaneId)};
 }
 
 export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): boolean {
@@ -645,8 +650,16 @@ async function patchExpansion(changes: Record<string, boolean>): Promise<void> {
 	}
 }
 
-/** Store `next` as the expanded set and persist the change. */
+/**
+ * Store `next` as the active pane's expanded set. The main outline's change is saved to the server; a side pane's
+ * stays in memory, like upstream's temporary mirror root.
+ */
 function commitExpanded(next: Set<string>): void {
+	const {activePaneId, sidePane} = useOutlineStore.getState();
+	if (activePaneId === SIDE_PANE_ID && sidePane !== null) {
+		useOutlineStore.setState({sidePane: {...sidePane, expandedIds: next}});
+		return;
+	}
 	const changes = expansionDelta(useOutlineStore.getState().expandedIds, next);
 	if (Object.keys(changes).length === 0) {
 		return;
@@ -758,7 +771,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	toggleExpand: (id) => {
-		const next = new Set(get().expandedIds);
+		const next = new Set(activePaneView().expandedIds);
 		if (next.has(id)) {
 			next.delete(id);
 		} else {
@@ -772,11 +785,11 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	expand: (id) => {
-		commitExpanded(new Set([...get().expandedIds, id]));
+		commitExpanded(new Set([...activePaneView().expandedIds, id]));
 	},
 
 	collapse: (id) => {
-		const next = new Set(get().expandedIds);
+		const next = new Set(activePaneView().expandedIds);
 		next.delete(id);
 		commitExpanded(next);
 	},
@@ -1103,7 +1116,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	// Upstream focuses a new pane: editing in the main pane ends.
 	openSidePane: (zoomedId) => {
 		set({
-			sidePane: {zoomedId, backLocations: [], forwardLocations: [], query: ""},
+			sidePane: {
+				zoomedId,
+				backLocations: [],
+				forwardLocations: [],
+				query: "",
+				expandedIds: new Set(get().expandedIds),
+			},
 			paneUrlIds: newPaneUrlIds(),
 			activePaneId: SIDE_PANE_ID,
 			editingId: null,
@@ -1121,6 +1140,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					backLocations: [...sidePane.backLocations, sidePane.zoomedId].slice(-PANE_HISTORY_LIMIT),
 					forwardLocations: [],
 					query: "",
+					expandedIds: sidePane.expandedIds,
 				},
 			});
 		}
@@ -1135,6 +1155,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					backLocations: sidePane.backLocations.slice(0, -1),
 					forwardLocations: [sidePane.zoomedId, ...sidePane.forwardLocations],
 					query: "",
+					expandedIds: sidePane.expandedIds,
 				},
 			});
 		}
@@ -1149,6 +1170,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 					backLocations: [...sidePane.backLocations, sidePane.zoomedId],
 					forwardLocations: sidePane.forwardLocations.slice(1),
 					query: "",
+					expandedIds: sidePane.expandedIds,
 				},
 			});
 		}
@@ -1183,7 +1205,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({
 			sidePane:
 				sidePane === null
-					? {zoomedId, backLocations: [], forwardLocations: [], query: search}
+					? {
+							zoomedId,
+							backLocations: [],
+							forwardLocations: [],
+							query: search,
+							expandedIds: new Set(get().expandedIds),
+						}
 					: {...sidePane, zoomedId, query: search},
 			paneUrlIds: ids,
 		});

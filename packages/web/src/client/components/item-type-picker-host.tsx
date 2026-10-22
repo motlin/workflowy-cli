@@ -5,7 +5,7 @@ import {pickerItemTypes, selectItemType} from "../item-type-select.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import type {ItemType} from "../layout-types.js";
 import {readChildren, readNode} from "../node-cache.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {ItemTypePicker} from "./layout-menu.js";
 
 /** Upstream's one "item-types.picker" root: shows the picker wherever `showItemTypePicker` opened it. */
@@ -28,7 +28,7 @@ export function ItemTypePickerHost() {
 			updateNode.mutate({nodeId, layoutMode});
 		},
 		expandAll: (ids) => {
-			const {expandedIds, replaceExpanded} = useOutlineStore.getState();
+			const {expandedIds, replaceExpanded} = activePaneView();
 			replaceExpanded(new Set([...expandedIds, ...ids]));
 		},
 		childIds: (nodeId) =>

@@ -1,5 +1,5 @@
 import {createContext, useContext} from "react";
-import {MAIN_PANE_ID, SIDE_PANE_ID} from "../pane-ids.js";
+import {MAIN_PANE_ID, SIDE_PANE_ID, paneExpandedIds} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
 
 /** The pane an outline renders in; bullet zooms inside a side pane zoom that pane instead of the main outline. */
@@ -14,12 +14,23 @@ export const PANE_HEADER_ACTIVE_BORDER = "group-data-[pane-active=true]/pane:bor
 /** Null for the main outline, which zooms by navigating the URL. */
 export const PaneContext = createContext<PaneContextValue | null>(null);
 
+/** The id of the pane the caller renders in. */
+export function usePaneId(): string {
+	return useContext(PaneContext)?.id ?? MAIN_PANE_ID;
+}
+
+/** The expanded rows of the pane the caller renders in; each pane expands apart, like upstream's temporary mirror root. */
+export function usePaneExpandedIds(): Set<string> {
+	const paneId = usePaneId();
+	return useOutlineStore((state) => paneExpandedIds(state, paneId));
+}
+
 /**
  * Whether the calling row renders in the active pane. Editing, the item selection and caret restoration show only
  * there, so a row visible in both panes edits in one.
  */
 export function useInActivePane(): boolean {
-	const paneId = useContext(PaneContext)?.id ?? MAIN_PANE_ID;
+	const paneId = usePaneId();
 	return useOutlineStore((state) => state.activePaneId === paneId);
 }
 

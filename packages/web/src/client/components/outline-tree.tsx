@@ -32,7 +32,7 @@ import {EditableNote} from "./editable-note.js";
 import {EditableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
-import {useInActivePane} from "./pane-context.js";
+import {useInActivePane, usePaneExpandedIds} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 
@@ -286,7 +286,7 @@ function RenderSentinel({onReached}: {onReached: () => void}) {
  * current source; completed sources hide like any completed row.
  */
 function BacklinksSection({rootId, items, depth}: {rootId: string; items: BacklinkItem[]; depth: number}) {
-	const isExpanded = useOutlineStore((state) => state.expandedIds.has(rootId));
+	const isExpanded = usePaneExpandedIds().has(rootId);
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const visibleItems = items.filter((item) => showCompleted || item.node.completedAt === null);

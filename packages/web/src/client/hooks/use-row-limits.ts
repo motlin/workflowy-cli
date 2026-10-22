@@ -14,6 +14,7 @@ import {
 } from "../render-window.js";
 import {afterNextPaint} from "../after-paint.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {usePaneExpandedIds} from "../components/pane-context.js";
 
 /** The outline's per-parent row limits; null outside an `OutlineTree`, where `.children` render every row. */
 export const RowLimitsContext = createContext<RowLimits | null>(null);
@@ -37,7 +38,7 @@ export function useRowLimits(
 	search: SearchFilter | null,
 ): {rowLimits: RowLimits; budgetRows: number; growBudget: () => void} {
 	const queryClient = useQueryClient();
-	const expandedIds = useOutlineStore((state) => state.expandedIds);
+	const expandedIds = usePaneExpandedIds();
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
 	const result = search?.result;
