@@ -20,8 +20,7 @@ import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
 import {SearchCountIndicator} from "./components/search-count-indicator.js";
 import {Settings} from "./components/settings.js";
-import {MainPane, SidePanes} from "./components/side-pane.js";
-import {sidePaneWidth} from "./components/pane-context.js";
+import {MainPane, PaneWorkspace, SidePanes} from "./components/side-pane.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
@@ -109,8 +108,10 @@ function GlobalCommands() {
 function MainOutline() {
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	// With a pane open the main outline scrolls itself, like each pane, instead of the document.
+	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
 	return (
-		<div className={outlineViewClassName(searchQuery)}>
+		<div className={`${outlineViewClassName(searchQuery)}${panesOpen ? " vertical-scrollable-container" : ""}`}>
 			<OutlineTree parentId={zoomedNodeId} />
 			<SearchCountIndicator />
 		</div>
@@ -127,7 +128,7 @@ function redoFromHeader(): void {
 }
 
 export const OutlineView = memo(function OutlineView() {
-	const {relatedNodesPanelOpen, paneCount, leftBarOffset} = useOutlineViewState();
+	const {relatedNodesPanelOpen, paneCount} = useOutlineViewState();
 
 	const containerClasses = [
 		"outline-container",
@@ -136,25 +137,17 @@ export const OutlineView = memo(function OutlineView() {
 	]
 		.filter(Boolean)
 		.join(" ");
-	// Upstream's rebalanceWidths: every pane, the main one included, gets an equal share of the width beside the left
-	// bar, at least 350px; the open panes together take `--side-panes-width` from the main outline.
-	const paneStyle =
-		paneCount > 0
-			? {
-					["--side-pane-width" as string]: sidePaneWidth(leftBarOffset, paneCount),
-					["--side-panes-width" as string]: `calc(var(--side-pane-width) * ${paneCount})`,
-				}
-			: undefined;
-
 	return (
-		<div className={containerClasses} style={paneStyle}>
+		<div className={containerClasses}>
 			<OfflineBanner />
-			<MainPane>
-				<TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />
-				<LeftBar />
-				<MainOutline />
-			</MainPane>
-			<SidePanes onRedo={redoFromHeader} onUndo={undoFromHeader} />
+			<PaneWorkspace>
+				<MainPane>
+					<TopBar onRedo={redoFromHeader} onUndo={undoFromHeader} />
+					<LeftBar />
+					<MainOutline />
+				</MainPane>
+				<SidePanes onRedo={redoFromHeader} onUndo={undoFromHeader} />
+			</PaneWorkspace>
 			<RightBar />
 			<RelatedNodesPanel />
 			<JumpMenu />

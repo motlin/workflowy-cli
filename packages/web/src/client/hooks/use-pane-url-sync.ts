@@ -4,20 +4,18 @@ import {z} from "zod";
 import {NavigationType, useLocation, useNavigate, useNavigationType} from "react-router-dom";
 import {parseLocationHash} from "../location.js";
 import {nodeKeys} from "../node-cache.js";
-import {MAIN_PANE_ID} from "../pane-ids.js";
 import {
 	PANE_RUNTIME_KEY,
 	PANES_FRAGMENT,
 	decodeWorkspace,
 	encodeWorkspace,
-	paneRuntimeState,
 	reconcilePaneUrl,
-	restoredActivePane,
+	restoredRuntime,
 	sameWorkspace,
 	storeWorkspaceUrl,
 	withPanesFragment,
 } from "../pane-url.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {useOutlineStore, workspaceRuntimeState} from "../stores/outline.js";
 
 /** `resolvedKey`'s entries: a pane location and the full id it resolved to (null when it names no node). */
 const resolvedEntries = z.array(z.tuple([z.string(), z.string().nullable()]));
@@ -83,10 +81,11 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 					void navigate(withPanesFragment(location.hash, null), {replace: true});
 					return;
 				}
-				const active = restoredActivePane(readRuntimeState(), [
+				const runtime = restoredRuntime(readRuntimeState(), [
 					url.mainPaneId,
 					...url.panes.map((pane) => pane.paneId),
 				]);
+				const active = runtime?.activePaneId ?? null;
 				state.restorePanes({
 					mainPaneId: url.mainPaneId,
 					panes: url.panes.map((pane, index) => ({
@@ -95,6 +94,7 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 						query: pane.query,
 					})),
 					activePaneId: active === url.mainPaneId ? null : active,
+					widthPercents: runtime?.widthPercents ?? null,
 				});
 				return;
 			}
@@ -135,24 +135,24 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 		}
 	}, [location, navigate, storeFragment]);
 
-	// Upstream `startRuntimePersistence`: rewrite the record when the panes or the active pane change.
+	// Upstream `startRuntimePersistence`: rewrite the record when the panes, their widths or the active pane change.
 	useEffect(
 		() =>
 			useOutlineStore.subscribe((state, previous) => {
 				if (
 					state.panes === previous.panes &&
+					state.paneWidths === previous.paneWidths &&
 					state.mainPaneUrlId === previous.mainPaneUrlId &&
 					state.activePaneId === previous.activePaneId
 				) {
 					return;
 				}
 				try {
-					if (state.mainPaneUrlId === null || state.panes.length === 0) {
+					const record = workspaceRuntimeState(state);
+					if (record === null) {
 						localStorage.removeItem(PANE_RUNTIME_KEY);
 					} else {
-						const ids = [state.mainPaneUrlId, ...state.panes.map((pane) => pane.id)];
-						const active = state.activePaneId === MAIN_PANE_ID ? state.mainPaneUrlId : state.activePaneId;
-						localStorage.setItem(PANE_RUNTIME_KEY, JSON.stringify(paneRuntimeState(ids, active)));
+						localStorage.setItem(PANE_RUNTIME_KEY, JSON.stringify(record));
 					}
 				} catch {
 					// Storage can be unavailable (private windows); the URL still carries the panes.

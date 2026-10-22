@@ -65,6 +65,7 @@ import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherStepCommand} from "../switcher-keys.js";
 import {paneCommands, paneNavCommands} from "../pane-commands.js";
 import {scrollPaneToTop} from "../components/pane-context.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
@@ -332,7 +333,7 @@ export function useCommandRegistry(): CommandRegistry {
 		commitEdit();
 		if (paneId === null) {
 			void navigate(nodeUrl(targetId));
-			globalThis.scrollTo(0, 0);
+			scrollPaneToTop(MAIN_PANE_ID);
 		} else {
 			zoomPane(paneId, targetId);
 			scrollPaneToTop(paneId);

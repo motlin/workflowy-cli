@@ -46,14 +46,14 @@ export function paneActivation(
 }
 
 /**
- * Each open pane's CSS width: upstream's `rebalanceWidths` gives the main pane and every open pane an equal share of
- * the space beside the left bar, never under its 350px pane minimum.
+ * Scroll pane `paneId`'s outline to the top. While a pane is open every pane, the main one included, scrolls its own
+ * outline; the single-document main outline scrolls the window.
  */
-export function sidePaneWidth(leftOffset: number, paneCount: number): string {
-	return `max(350px, calc((100vw - ${leftOffset}px) / ${paneCount + 1}))`;
-}
-
-/** Each pane scrolls its own outline, so its zooms scroll that scroller rather than the window. */
 export function scrollPaneToTop(paneId: string): void {
-	document.querySelector(`[data-pane-id="${paneId}"] .side-pane-scroller`)?.scrollTo(0, 0);
+	const scroller = document.querySelector(`[data-pane-id="${paneId}"] > .vertical-scrollable-container`);
+	if (scroller !== null) {
+		scroller.scrollTo(0, 0);
+	} else if (paneId === MAIN_PANE_ID) {
+		globalThis.scrollTo(0, 0);
+	}
 }

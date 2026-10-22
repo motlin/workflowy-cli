@@ -574,3 +574,163 @@ describe("tag clicks route to the clicked pane's search", () => {
 		});
 	});
 });
+
+describe("pane widths", () => {
+	const main = "AAAAAAAAAAA";
+	const b = "BBBBBBBBBBB";
+	const c = "CCCCCCCCCCC";
+
+	/** The width each pane gets when `count` panes share the stubbed 1272px window beside the left bar. */
+	async function share(count: number): Promise<number> {
+		const store = await loadStore();
+		return Math.max(350, Math.floor((1272 - store.getState().leftBarOffset()) / count));
+	}
+
+	it("has no widths with no pane open", async () => {
+		const store = await loadStore();
+		expect(store.getState().paneWidths).toStrictEqual({});
+	});
+
+	it("rebalances every pane, the main one included, to an equal share as panes open and close", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const afterOne = store.getState().paneWidths;
+		const two = store.getState().openPane("bob");
+		const afterTwo = store.getState().paneWidths;
+		store.getState().closePane(a);
+		const afterClose = store.getState().paneWidths;
+		store.getState().closeAllPanes();
+		expect({afterOne, afterTwo, afterClose, afterAll: store.getState().paneWidths}).toStrictEqual({
+			afterOne: {main: await share(2), [a]: await share(2)},
+			afterTwo: {main: await share(3), [a]: await share(3), [two]: await share(3)},
+			afterClose: {main: await share(2), [two]: await share(2)},
+			afterAll: {},
+		});
+	});
+
+	it("keeps widths when a pane only zooms", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		store.getState().setPaneWidths([500, 700]);
+		store.getState().zoomPane(a, "bob");
+		expect(store.getState().paneWidths).toStrictEqual({main: 500, [a]: 700});
+	});
+
+	it("sets widths in workspace order, main first, and ignores a list that does not match the panes", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const two = store.getState().openPane("bob");
+		store.getState().setPaneWidths([400, 500, 600]);
+		const set = store.getState().paneWidths;
+		store.getState().setPaneWidths([1, 2]);
+		expect({set, after: store.getState().paneWidths}).toStrictEqual({
+			set: {main: 400, [a]: 500, [two]: 600},
+			after: {main: 400, [a]: 500, [two]: 600},
+		});
+	});
+
+	it("reads the widths in workspace order", async () => {
+		const store = await loadStore();
+		const {workspaceWidths} = await import("../src/client/stores/outline.js");
+		store.getState().openPane("alice");
+		store.getState().openPane("bob");
+		store.getState().setPaneWidths([400, 500, 600]);
+		expect(workspaceWidths(store.getState())).toStrictEqual([400, 500, 600]);
+	});
+
+	it("restores stored width shares of the available width, else rebalances", async () => {
+		const store = await loadStore();
+		const available = 1272 - store.getState().leftBarOffset();
+		store.getState().restorePanes({
+			mainPaneId: main,
+			panes: [
+				{id: b, zoomedId: "alice", query: null},
+				{id: c, zoomedId: null, query: null},
+			],
+			activePaneId: null,
+			widthPercents: [50, 30, 20],
+		});
+		const stored = store.getState().paneWidths;
+		store.getState().restorePanes({
+			mainPaneId: main,
+			panes: [{id: b, zoomedId: "alice", query: null}],
+			activePaneId: null,
+		});
+		expect({stored, rebalanced: store.getState().paneWidths}).toStrictEqual({
+			stored: {
+				main: Math.max(350, Math.floor(available * 0.5)),
+				[b]: Math.max(350, Math.floor(available * 0.3)),
+				[c]: Math.max(350, Math.floor(available * 0.2)),
+			},
+			rebalanced: {main: await share(2), [b]: await share(2)},
+		});
+	});
+
+	it("keeps widths when the URL re-applies the same panes", async () => {
+		const store = await loadStore();
+		const panes = [{id: b, zoomedId: "alice", query: null}];
+		store.getState().restorePanes({mainPaneId: main, panes, activePaneId: null});
+		store.getState().setPaneWidths([400, 800]);
+		store.getState().restorePanes({mainPaneId: main, panes, activePaneId: null});
+		expect(store.getState().paneWidths).toStrictEqual({main: 400, [b]: 800});
+	});
+
+	it("rebalances when the main pane closes and the first pane takes its place", async () => {
+		const store = await loadStore();
+		store.getState().openPane("alice");
+		const two = store.getState().openPane("bob");
+		store.getState().setPaneWidths([400, 500, 600]);
+		store.getState().closeMainPane();
+		expect(store.getState().paneWidths).toStrictEqual({main: await share(2), [two]: await share(2)});
+	});
+});
+
+describe("workspaceRuntimeState", () => {
+	it("records the active pane by URL id and every pane's width share, or nothing with no pane open", async () => {
+		const store = await loadStore();
+		const {workspaceRuntimeState} = await import("../src/client/stores/outline.js");
+		const none = workspaceRuntimeState(store.getState());
+		const a = store.getState().openPane("alice");
+		store.getState().setPaneWidths([400, 600]);
+		const paneActive = workspaceRuntimeState(store.getState());
+		store.getState().setActivePane("main");
+		const main = store.getState().mainPaneUrlId;
+		expect({none, paneActive, mainActive: workspaceRuntimeState(store.getState())}).toStrictEqual({
+			none: null,
+			paneActive: {
+				activePaneId: a,
+				panes: [
+					{id: main, type: "item-tree", widthPercent: 40},
+					{id: a, type: "item-tree", widthPercent: 60},
+				],
+			},
+			mainActive: {
+				activePaneId: main,
+				panes: [
+					{id: main, type: "item-tree", widthPercent: 40},
+					{id: a, type: "item-tree", widthPercent: 60},
+				],
+			},
+		});
+	});
+});
+
+describe("resizeToAvailableWidth", () => {
+	it("scales every pane to the window's new width beside the left bar, keeping their shares", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		store.getState().setPaneWidths([400, 800]);
+		vi.stubGlobal("innerWidth", 600 + store.getState().leftBarOffset() + 600);
+		store.getState().resizeToAvailableWidth();
+		expect(store.getState().paneWidths).toStrictEqual({main: 400, [a]: 800});
+		vi.stubGlobal("innerWidth", 1800 + store.getState().leftBarOffset());
+		store.getState().resizeToAvailableWidth();
+		expect(store.getState().paneWidths).toStrictEqual({main: 600, [a]: 1200});
+	});
+
+	it("does nothing with no pane open", async () => {
+		const store = await loadStore();
+		store.getState().resizeToAvailableWidth();
+		expect(store.getState().paneWidths).toStrictEqual({});
+	});
+});

@@ -7,7 +7,7 @@ import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {goToNode, planZoomFocus} from "../navigation.js";
 import type {ZoomFocus} from "../navigation.js";
 import {nodeKeys, readNode, seedResolvedId} from "../node-cache.js";
-import {findPane} from "../pane-ids.js";
+import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import {activePaneView, activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {isPotentiallyVisible} from "../tree-ops.js";
@@ -114,11 +114,7 @@ async function zoomTo(
 				goToNode(navigate, id);
 			},
 			scrollToTop: (scrolledPaneId) => {
-				if (scrolledPaneId === null) {
-					globalThis.scrollTo(0, 0);
-				} else {
-					scrollPaneToTop(scrolledPaneId);
-				}
+				scrollPaneToTop(scrolledPaneId ?? MAIN_PANE_ID);
 			},
 		});
 		if (plan.editId !== null) {

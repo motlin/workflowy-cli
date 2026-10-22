@@ -10,7 +10,6 @@ export function useOutlineViewState() {
 		useShallow((state) => ({
 			relatedNodesPanelOpen: state.relatedNodesPanelOpen,
 			paneCount: state.panes.length,
-			leftBarOffset: state.leftBarOffset(),
 		})),
 	);
 }

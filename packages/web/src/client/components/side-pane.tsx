@@ -1,9 +1,10 @@
 import type {ReactNode} from "react";
-import {useMemo} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {paneResizeHandlers} from "../pane-resize.js";
+import {useOutlineStore, workspacePaneIds} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
 import {HeaderMoreMenu} from "./header-more-menu.js";
@@ -13,24 +14,91 @@ import {PANE_HEADER_ACTIVE_BORDER, PaneContext, paneActivation, scrollPaneToTop}
 import {PaneSearchBox} from "./pane-search-box.js";
 import {NewPaneIcon} from "./new-pane-icon.js";
 
+/** Upstream's flex sizing for a pane: its width is its share of the workspace, above the 350px pane minimum. */
+function paneFlex(width: number | undefined): string | undefined {
+	return width === undefined ? undefined : `${width} 1 0px`;
+}
+
 /**
- * The main outline's pane: a `display: contents` wrapper around its header and outline, so the fixed header and
- * document-scrolled outline lay out as before. It is the active pane (header border tinted) only while a pane is open
- * and the main outline last saw a pointerdown or focusin.
+ * Upstream's pane workspace (`[data-pane-workspace]`): while a pane is open, a full-height flex row of the main pane
+ * and every open pane, each with its own scroller, that scrolls sideways once the panes' minimums outgrow the window.
+ * Window resizes scale every pane to keep its share. In the single-document layout it lays nothing out, so the fixed
+ * header and document-scrolled outline lay out as before.
+ */
+export function PaneWorkspace({children}: {children: ReactNode}) {
+	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
+	const resizeToAvailableWidth = useOutlineStore((state) => state.resizeToAvailableWidth);
+	// The rescale does nothing with no pane open.
+	useEffect(() => {
+		globalThis.addEventListener("resize", resizeToAvailableWidth);
+		return () => {
+			globalThis.removeEventListener("resize", resizeToAvailableWidth);
+		};
+	}, [resizeToAvailableWidth]);
+	return panesOpen ? (
+		<div
+			data-pane-workspace="true"
+			className="pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary"
+		>
+			{children}
+		</div>
+	) : (
+		<div className="pane-workspace contents">{children}</div>
+	);
+}
+
+/**
+ * The main outline's pane. In the single-document layout it is a `display: contents` wrapper around its header and
+ * outline, so the fixed header and document-scrolled outline lay out as before. While a pane is open it is the
+ * workspace's first flex item, its header in flow above its own scroller. It is the active pane (header border tinted)
+ * only while a pane is open and the main outline last saw a pointerdown or focusin.
  */
 export function MainPane({children}: {children: ReactNode}) {
+	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
 	const isActive = useOutlineStore((state) => state.panes.length > 0 && state.activePaneId === MAIN_PANE_ID);
+	const width = useOutlineStore((state) => (state.panes.length > 0 ? state.paneWidths[MAIN_PANE_ID] : undefined));
 	const setActivePane = useOutlineStore((state) => state.setActivePane);
 	return (
 		<div
 			data-pane-id={MAIN_PANE_ID}
 			data-pane-type="item-tree"
 			data-pane-active={isActive ? "true" : "false"}
-			className="main-pane group/pane contents"
+			className={
+				panesOpen
+					? "main-pane group/pane shrink-0 min-w-[350px] relative box-border h-full max-h-full min-h-0 flex flex-col"
+					: "main-pane group/pane contents"
+			}
+			style={panesOpen ? {flex: paneFlex(width)} : undefined}
 			{...paneActivation(MAIN_PANE_ID, setActivePane)}
 		>
 			{children}
 		</div>
+	);
+}
+
+/** Every pane's rendered width in workspace order, main first, for a resize drag's start. */
+function measurePaneWidths(): number[] {
+	return workspacePaneIds(useOutlineStore.getState()).map(
+		(id) => document.querySelector(`[data-pane-id="${id}"]`)?.getBoundingClientRect().width ?? 0,
+	);
+}
+
+/**
+ * Upstream's resize handle on a secondary pane's left edge: dragging it trades width between the pane (at workspace
+ * `index`) and its left neighbour, each stopping at the 350px minimum.
+ */
+function PaneResizeHandle({index}: {index: number}) {
+	const setPaneWidths = useOutlineStore((state) => state.setPaneWidths);
+	const [handlers] = useState(() =>
+		paneResizeHandlers(index, {measure: measurePaneWidths, setWidths: setPaneWidths}),
+	);
+	return (
+		<div
+			className="pane-resize-handle absolute top-0 bottom-0 left-0 w-[4px] cursor-ew-resize"
+			onPointerDown={handlers.onPointerDown}
+			onPointerMove={handlers.onPointerMove}
+			onPointerUp={handlers.onPointerUp}
+		/>
 	);
 }
 
@@ -62,6 +130,8 @@ interface PaneActions {
 
 interface SidePaneProps extends PaneActions {
 	pane: ItemTreePane;
+	/** The pane's workspace index, counting the main pane as 0. */
+	index: number;
 	/** The rightmost pane carries upstream's pane-workspace-control (New pane). */
 	isLast: boolean;
 }
@@ -74,8 +144,9 @@ interface SidePaneProps extends PaneActions {
  * the kebab holding the compactable actions for the pane's zoom, and Close pane. The last pane carries the New pane
  * control at its top right.
  */
-function SidePane({pane, isLast, onUndo, onRedo}: SidePaneProps) {
+function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 	const {id} = pane;
+	const width = useOutlineStore((state) => state.paneWidths[id]);
 	const zoomPane = useOutlineStore((state) => state.zoomPane);
 	const closePane = useOutlineStore((state) => state.closePane);
 	const paneBack = useOutlineStore((state) => state.paneBack);
@@ -98,7 +169,8 @@ function SidePane({pane, isLast, onUndo, onRedo}: SidePaneProps) {
 			data-pane-id={id}
 			data-pane-type="item-tree"
 			data-pane-active={isActive ? "true" : "false"}
-			className="side-pane group/pane relative box-border flex-none bg-primary flex flex-col"
+			className="side-pane group/pane relative box-border flex-none h-full max-h-full min-h-0 min-w-[350px] bg-primary flex flex-col"
+			style={{flex: paneFlex(width)}}
 			{...paneActivation(id, setActivePane)}
 		>
 			<div
@@ -172,24 +244,15 @@ function SidePane({pane, isLast, onUndo, onRedo}: SidePaneProps) {
 					<OutlineTree parentId={pane.zoomedId} />
 				</PaneContext.Provider>
 			</div>
+			<PaneResizeHandle index={index} key={index} />
 		</div>
 	);
 }
 
-/**
- * Upstream's pane workspace after the main pane: every open item-tree pane left to right, pinned beside the main
- * outline at an equal share of the width (`--side-pane-width`, set on `.outline-container`).
- */
+/** Upstream's secondary panes: every open item-tree pane left to right, after the main pane in the workspace. */
 export function SidePanes(actions: PaneActions) {
 	const panes = useOutlineStore((state) => state.panes);
-	if (panes.length === 0) {
-		return null;
-	}
-	return (
-		<div className="side-panes">
-			{panes.map((pane, index) => (
-				<SidePane isLast={index === panes.length - 1} key={pane.id} pane={pane} {...actions} />
-			))}
-		</div>
-	);
+	return panes.map((pane, index) => (
+		<SidePane index={index + 1} isLast={index === panes.length - 1} key={pane.id} pane={pane} {...actions} />
+	));
 }

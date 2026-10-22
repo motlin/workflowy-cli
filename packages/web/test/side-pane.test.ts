@@ -36,9 +36,15 @@ function paneState(id: string, zoomedId: string | null): PaneState {
 	return {id, zoomedId, backLocations: [], forwardLocations: [], query: "", expandedIds: new Set()};
 }
 const BOB = paneState(B, "bob");
-const storeState: {panes: PaneState[]; activePaneId: string} & Record<string, unknown> = {
+const storeState: {panes: PaneState[]; activePaneId: string; paneWidths: Record<string, number>} & Record<
+	string,
+	unknown
+> = {
 	panes: [BOB],
 	activePaneId: B,
+	paneWidths: {main: 400, [B]: 500, [C]: 600, [D]: 700},
+	setPaneWidths: () => {},
+	resizeToAvailableWidth: () => {},
 	setActivePane: (paneId: string) => {
 		calls.activate.push(paneId);
 	},
@@ -74,11 +80,15 @@ function withPanes<T>(panes: PaneState[], run: () => T): T {
 }
 
 vi.mock("../src/client/stores/outline.js", () => ({
-	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
-		selector === undefined ? storeState : selector(storeState),
+	useOutlineStore: Object.assign(
+		(selector?: (state: typeof storeState) => unknown) =>
+			selector === undefined ? storeState : selector(storeState),
+		{getState: () => storeState},
+	),
+	workspacePaneIds: (state: typeof storeState) => ["main", ...state.panes.map((pane) => pane.id)],
 }));
 
-const {PaneContext, paneActivation, sidePaneWidth} = await import("../src/client/components/pane-context.js");
+const {PaneContext, paneActivation} = await import("../src/client/components/pane-context.js");
 
 /** Records the pane context each OutlineTree sees, so tests can check bullet zooms stay in the pane. */
 const seenPaneZooms: ((id: string | null) => void)[] = [];
@@ -145,7 +155,7 @@ vi.mock("../src/client/components/header-more-menu.js", () => ({
 	},
 }));
 
-const {MainPane, SidePanes} = await import("../src/client/components/side-pane.js");
+const {MainPane, PaneWorkspace, SidePanes} = await import("../src/client/components/side-pane.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
@@ -158,16 +168,26 @@ describe("SidePanes", () => {
 		expect(withPanes([], render)).toBe("");
 	});
 
-	it("renders every open pane left to right in a .side-panes row with upstream's data attributes", () => {
+	it("renders every open pane left to right as workspace flex items sized by their widths, like upstream", () => {
 		const html = withPanes([BOB, paneState(C, "carol"), paneState(D, null)], render);
 		const tags = [...html.matchAll(/<div data-pane-id="[^"]*"[^>]*>/gu)].map(([tag]) => tag);
-		expect({row: html.startsWith('<div class="side-panes">'), tags}).toStrictEqual({
-			row: true,
-			tags: [B, C, D].map(
-				(id) =>
-					`<div data-pane-id="${id}" data-pane-type="item-tree" data-pane-active="${id === B ? "true" : "false"}" class="side-pane group/pane relative box-border flex-none bg-primary flex flex-col">`,
+		expect({first: html.startsWith(`<div data-pane-id="${B}"`), tags}).toStrictEqual({
+			first: true,
+			tags: [
+				[B, 500],
+				[C, 600],
+				[D, 700],
+			].map(
+				([id, width]) =>
+					`<div data-pane-id="${id}" data-pane-type="item-tree" data-pane-active="${id === B ? "true" : "false"}" class="side-pane group/pane relative box-border flex-none h-full max-h-full min-h-0 min-w-[350px] bg-primary flex flex-col" style="flex:${width} 1 0px">`,
 			),
 		});
+	});
+
+	it("puts a 4px resize handle on every pane's left edge", () => {
+		const handle = '<div class="pane-resize-handle absolute top-0 bottom-0 left-0 w-[4px] cursor-ew-resize"></div>';
+		const html = withPanes([BOB, paneState(C, "carol"), paneState(D, null)], render);
+		expect(html.split(handle).length - 1).toBe(3);
 	});
 
 	it("marks the pane inactive while the main pane is active", () => {
@@ -321,22 +341,48 @@ describe("SidePanes", () => {
 	});
 });
 
+describe("PaneWorkspace", () => {
+	function renderWorkspace(): string {
+		return renderToStaticMarkup(createElement(PaneWorkspace, null, createElement("i")));
+	}
+
+	it("is a horizontally scrolling full-height flex row of panes while a pane is open, like upstream's workspace", () => {
+		expect(renderWorkspace()).toBe(
+			'<div data-pane-workspace="true" class="pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary"><i></i></div>',
+		);
+	});
+
+	it("lays nothing out in the single-document layout", () => {
+		expect(withPanes([], renderWorkspace)).toBe('<div class="pane-workspace contents"><i></i></div>');
+	});
+});
+
 describe("MainPane", () => {
 	function renderMain(): string {
 		return renderToStaticMarkup(createElement(MainPane, null, createElement("i")));
 	}
 
-	it("wraps the main outline in a layout-free pane, active while a pane is open and focused out of", () => {
+	it("wraps the main outline in a layout-free pane in the single-document layout", () => {
+		expect(withPanes([], renderMain)).toBe(
+			'<div data-pane-id="main" data-pane-type="item-tree" data-pane-active="false" class="main-pane group/pane contents"><i></i></div>',
+		);
+	});
+
+	it("is active while a pane is open and the main pane was focused last", () => {
 		storeState.activePaneId = "main";
 		const html = renderMain();
 		storeState.activePaneId = B;
-		expect(html).toBe(
-			'<div data-pane-id="main" data-pane-type="item-tree" data-pane-active="true" class="main-pane group/pane contents"><i></i></div>',
-		);
+		expect(html).toContain('data-pane-active="true"');
 	});
 
 	it("is inactive while another pane is active", () => {
 		expect(renderMain()).toContain('data-pane-active="false"');
+	});
+
+	it("becomes the workspace's first flex item, sized by its width, while a pane is open", () => {
+		expect(renderMain()).toBe(
+			'<div data-pane-id="main" data-pane-type="item-tree" data-pane-active="false" class="main-pane group/pane shrink-0 min-w-[350px] relative box-border h-full max-h-full min-h-0 flex flex-col" style="flex:400 1 0px"><i></i></div>',
+		);
 	});
 
 	it("is never active without a pane open, so its header keeps the plain border", () => {
@@ -359,32 +405,9 @@ describe("paneActivation", () => {
 	});
 });
 
-describe("sidePaneWidth", () => {
-	it("gives the main pane and every open pane an equal share beside the left bar, with a 350px floor", () => {
-		expect([sidePaneWidth(0, 1), sidePaneWidth(296, 1), sidePaneWidth(296, 2)]).toStrictEqual([
-			"max(350px, calc((100vw - 0px) / 2))",
-			"max(350px, calc((100vw - 296px) / 2))",
-			"max(350px, calc((100vw - 296px) / 3))",
-		]);
-	});
-});
-
 describe("side pane layout CSS", () => {
-	it("pins the open panes in a row to the right of the main outline", () => {
-		expect(cssBlock(styles, ".side-panes")).toStrictEqual({
-			position: "fixed",
-			top: "0",
-			right: "0",
-			bottom: "0",
-			display: "flex",
-			"z-index": "200",
-		});
-	});
-
-	it("sizes each pane to its share of the width, full height, bordered on the left", () => {
+	it("borders each pane on the left", () => {
 		expect(cssBlock(styles, ".side-pane")).toStrictEqual({
-			width: "var(--side-pane-width)",
-			height: "100%",
 			"border-left": "var(--wf-border-width-s) solid var(--wf-border-primary)",
 			"--pane-workspace-control-width": "var(--wf-header-height)",
 		});
@@ -410,13 +433,24 @@ describe("side pane layout CSS", () => {
 		});
 	});
 
-	it("narrows the main outline and header by all the open panes together", () => {
+	it("gives the main pane its own scroller and an in-flow header while a pane is open, like the other panes", () => {
 		expect({
-			view: cssBlock(styles, ".outline-container.with-side-pane .outline-view"),
-			header: cssBlock(styles, ".outline-container.with-side-pane > .main-pane > .header"),
+			view: cssBlock(styles, ".outline-container.with-side-pane .main-pane > .outline-view"),
+			header: cssBlock(styles, ".outline-container.with-side-pane .main-pane > .header"),
 		}).toStrictEqual({
-			view: {"margin-right": "var(--side-panes-width)", "padding-right": "40px"},
-			header: {right: "var(--side-panes-width)"},
+			view: {
+				flex: "1 1 0",
+				"min-height": "0",
+				margin: "0",
+				"overflow-y": "auto",
+				"overscroll-behavior": "contain",
+				padding: "24px 40px 24px 56px",
+			},
+			header: {position: "static", "min-width": "0", "flex-shrink": "0"},
 		});
+	});
+
+	it("stacks the resize handle over the pane header", () => {
+		expect(cssBlock(styles, ".pane-resize-handle")).toStrictEqual({"z-index": "1"});
 	});
 });

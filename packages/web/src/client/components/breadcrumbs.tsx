@@ -8,11 +8,13 @@ import {useCalendarSettings} from "../hooks/use-calendar-settings.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {BreadcrumbSeparator} from "./breadcrumb-separator.js";
 import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
 import {IconButton} from "./icon-button.js";
+import {scrollPaneToTop} from "./pane-context.js";
 
 export interface Crumb {
 	id: string;
@@ -89,9 +91,9 @@ function focusBrowserWindow(): void {
 	window.focus();
 }
 
-/** The outline scrolls the window, like upstream. */
+/** The main outline scrolls the window, or its own scroller while a pane is open, like upstream. */
 function scrollOutlineToTop(): void {
-	window.scrollTo(0, 0);
+	scrollPaneToTop(MAIN_PANE_ID);
 }
 
 function noop(): void {}

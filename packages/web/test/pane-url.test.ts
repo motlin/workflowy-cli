@@ -7,7 +7,7 @@ import {
 	encodeWorkspace,
 	paneRuntimeState,
 	reconcilePaneUrl,
-	restoredActivePane,
+	restoredRuntime,
 	sameWorkspace,
 	storeWorkspaceUrl,
 	withPanesFragment,
@@ -330,9 +330,9 @@ describe("createPaneId", () => {
 	});
 });
 
-describe("paneRuntimeState / restoredActivePane", () => {
-	it("persists the active pane and both panes at half width, like pane-workspace-runtime:v1", () => {
-		expect(paneRuntimeState([MAIN, SIDE], SIDE)).toStrictEqual({
+describe("paneRuntimeState / restoredRuntime", () => {
+	it("persists the active pane and each pane's share of the widths, like pane-workspace-runtime:v1", () => {
+		expect(paneRuntimeState([MAIN, SIDE], SIDE, [636, 636])).toStrictEqual({
 			activePaneId: SIDE,
 			panes: [
 				{id: MAIN, type: "item-tree", widthPercent: 50},
@@ -341,37 +341,42 @@ describe("paneRuntimeState / restoredActivePane", () => {
 		});
 	});
 
-	it("splits three panes into equal shares rounded like upstream's paneWidthPercent", () => {
-		expect(paneRuntimeState([MAIN, SIDE, THIRD], MAIN)).toStrictEqual({
+	it("rounds resized shares like upstream's paneWidthPercent", () => {
+		expect(paneRuntimeState([MAIN, SIDE, THIRD], MAIN, [400, 350, 450])).toStrictEqual({
 			activePaneId: MAIN,
 			panes: [
 				{id: MAIN, type: "item-tree", widthPercent: 33.3333},
-				{id: SIDE, type: "item-tree", widthPercent: 33.3333},
-				{id: THIRD, type: "item-tree", widthPercent: 33.3333},
+				{id: SIDE, type: "item-tree", widthPercent: 29.1667},
+				{id: THIRD, type: "item-tree", widthPercent: 37.5},
 			],
 		});
 	});
 
-	it("restores the stored active pane only when the record names every one of the URL's panes", () => {
+	it("restores the stored active pane and width shares only when the record names every one of the URL's panes", () => {
 		const ids = [MAIN, SIDE, THIRD];
-		const stored = JSON.stringify(paneRuntimeState(ids, THIRD));
+		const stored = JSON.stringify(paneRuntimeState(ids, THIRD, [400, 350, 450]));
 		expect({
-			match: restoredActivePane(stored, ids),
-			mainActive: restoredActivePane(JSON.stringify(paneRuntimeState(ids, MAIN)), ids),
-			subset: restoredActivePane(stored, [MAIN, THIRD]),
-			otherPanes: restoredActivePane(stored, [MAIN, SIDE, "CCCCCCCCCCC"]),
-			activeNotInUrl: restoredActivePane(stored, [MAIN, SIDE]),
-			missing: restoredActivePane(null, ids),
-			garbage: restoredActivePane("{", ids),
+			match: restoredRuntime(stored, ids),
+			mainActive: restoredRuntime(JSON.stringify(paneRuntimeState(ids, MAIN, [350, 350, 350])), ids),
+			subset: restoredRuntime(stored, [MAIN, THIRD]),
+			otherPanes: restoredRuntime(stored, [MAIN, SIDE, "CCCCCCCCCCC"]),
+			activeNotInUrl: restoredRuntime(stored, [MAIN, SIDE]),
+			missing: restoredRuntime(null, ids),
+			garbage: restoredRuntime("{", ids),
 		}).toStrictEqual({
-			match: THIRD,
-			mainActive: MAIN,
-			subset: THIRD,
+			match: {activePaneId: THIRD, widthPercents: [33.3333, 29.1667, 37.5]},
+			mainActive: {activePaneId: MAIN, widthPercents: [33.3333, 33.3333, 33.3333]},
+			subset: {activePaneId: THIRD, widthPercents: [33.3333, 37.5]},
 			otherPanes: null,
 			activeNotInUrl: null,
 			missing: null,
 			garbage: null,
 		});
+	});
+
+	it("leaves a stored width without a usable share to the fallback width", () => {
+		const stored = JSON.stringify({activePaneId: MAIN, panes: [{id: MAIN}, {id: SIDE, widthPercent: "wide"}]});
+		expect(restoredRuntime(stored, [MAIN, SIDE])).toStrictEqual({activePaneId: MAIN, widthPercents: [null, null]});
 	});
 });
 

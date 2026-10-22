@@ -66,6 +66,7 @@ const PROVIDERS = {QueryClientProvider: 1, MemoryRouter: 1, Router: 1};
 const SHELL = {
 	OutlineView: 1,
 	OfflineBanner: 1,
+	PaneWorkspace: 1,
 	MainPane: 1,
 	MainOutline: 1,
 	SearchCountIndicator: 1,

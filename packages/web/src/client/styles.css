@@ -4175,22 +4175,11 @@ label.toggle > div {
 }
 
 /* ================================
-   Side panes (upstream's New pane / Open in Pane): the item-tree panes after the main one, pinned right in a row,
-   each --side-pane-width wide (set on .outline-container) with its own header and scroller. The main outline and
-   header shrink by --side-panes-width, all of them together.
+   Pane workspace (upstream's New pane / Open in Pane): while a pane is open, .pane-workspace is a full-height flex
+   row of the main pane and every open pane, each sized by its width share and scrolling its own outline; the row
+   scrolls sideways once the panes' 350px minimums outgrow the window.
    ================================ */
-.side-panes {
-	position: fixed;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	display: flex;
-	z-index: 200;
-}
-
 .side-pane {
-	width: var(--side-pane-width);
-	height: 100%;
 	border-left: var(--wf-border-width-s) solid var(--wf-border-primary);
 	--pane-workspace-control-width: var(--wf-header-height);
 }
@@ -4213,11 +4202,22 @@ label.toggle > div {
 	padding: 24px 40px 24px 56px;
 }
 
-.outline-container.with-side-pane .outline-view {
-	margin-right: var(--side-panes-width);
-	padding-right: 40px;
+.outline-container.with-side-pane .main-pane > .outline-view {
+	flex: 1 1 0;
+	min-height: 0;
+	margin: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 24px 40px 24px 56px;
 }
 
-.outline-container.with-side-pane > .main-pane > .header {
-	right: var(--side-panes-width);
+.outline-container.with-side-pane .main-pane > .header {
+	position: static;
+	min-width: 0;
+	flex-shrink: 0;
+}
+
+/* Upstream's divider handle on each secondary pane's left edge, above the pane header. */
+.pane-resize-handle {
+	z-index: 1;
 }

@@ -70,11 +70,11 @@ describe("useOutlineViewState", () => {
 		expect(renders()).toBe(1);
 	});
 
-	it("re-renders when the pinned left bar's width, which sizes the side pane, changes", () => {
+	it("does not re-render the whole page when the pinned left bar resizes, since panes size by their flex shares", () => {
 		const renders = mountProbe(useOutlineViewState);
 		setStore({leftBarMode: "alwaysOpen"});
 		setStore({leftBarWidth: 300});
-		expect(renders()).toBe(3);
+		expect(renders()).toBe(1);
 	});
 });
 
