@@ -1,61 +1,13 @@
 // @vitest-environment happy-dom
 import {afterAll, beforeAll, describe, expect, it, vi} from "vite-plus/test";
 import type {Root} from "react-dom/client";
+import {renders} from "./helpers/render-counter.js";
 import type {NodeResponse} from "../src/node-types.js";
 
 declare global {
 	// React reads this to know act() wraps every update.
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
-
-interface Fiber {
-	type: unknown;
-	flags: number;
-	actualStartTime?: number;
-	child: Fiber | null;
-	sibling: Fiber | null;
-}
-
-/** Renders per component name, read from React's DevTools hook the way the Profiler does. */
-const renders = new Map<string, number>();
-let lastCommit = -1;
-const PERFORMED_WORK = 1;
-
-function componentName(type: unknown): string | undefined {
-	if (typeof type === "function") {
-		return type.name;
-	}
-	if (typeof type === "object" && type !== null && "type" in type && typeof type.type === "function") {
-		return type.type.name;
-	}
-	return undefined;
-}
-
-function countRenders(start: Fiber | null): void {
-	for (let fiber = start; fiber !== null; fiber = fiber.sibling) {
-		const name = componentName(fiber.type);
-		if (name !== undefined && (fiber.flags & PERFORMED_WORK) !== 0 && (fiber.actualStartTime ?? 0) > lastCommit) {
-			renders.set(name, (renders.get(name) ?? 0) + 1);
-		}
-		countRenders(fiber.child);
-	}
-}
-
-// React DOM looks for this global when it loads, so it is installed before the dynamic imports below.
-Reflect.set(globalThis, "__REACT_DEVTOOLS_GLOBAL_HOOK__", {
-	renderers: new Map(),
-	supportsFiber: true,
-	isDisabled: false,
-	inject: () => 1,
-	onScheduleFiberRoot() {},
-	onCommitFiberRoot(_id: number, root: {current: Fiber}) {
-		countRenders(root.current.child);
-		lastCommit = performance.now();
-	},
-	onCommitFiberUnmount() {},
-	onPostCommitFiberRoot() {},
-	checkDCE() {},
-});
 
 const {act, createElement} = await import("react");
 const {createRoot} = await import("react-dom/client");

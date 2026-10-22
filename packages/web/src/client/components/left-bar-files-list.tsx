@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {memo, useState} from "react";
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../../node-types.js";
@@ -200,7 +200,6 @@ export function FilesListRows({
 	const {data: nodes} = useChildren(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const expandedIds = useLeftBarExpansionStore((state) => state.expansions[contextKey]);
-	const toggle = useLeftBarExpansionStore((state) => state.toggle);
 
 	return nodes
 		?.filter((node) => isListed(node, showCompleted))
@@ -211,30 +210,34 @@ export function FilesListRows({
 				expanded={expandedIds?.includes(node.id) ?? false}
 				key={node.id}
 				node={node}
-				onToggle={() => {
-					toggle(contextKey, node.id);
-				}}
 			/>
 		));
 }
 
-function FilesListBranch({
+/** Memoized so a save that patches one row of a children list re-renders only that row's branch. */
+const FilesListBranch = memo(function FilesListBranch({
 	node,
 	depth,
 	contextKey,
 	expanded,
-	onToggle,
 }: {
 	node: NodeResponse;
 	depth: number;
 	contextKey: string;
 	expanded: boolean;
-	onToggle: () => void;
 }) {
+	const toggle = useLeftBarExpansionStore((state) => state.toggle);
 	return (
 		<>
-			<FilesListRow depth={depth} expanded={expanded} node={node} onToggle={onToggle} />
+			<FilesListRow
+				depth={depth}
+				expanded={expanded}
+				node={node}
+				onToggle={() => {
+					toggle(contextKey, node.id);
+				}}
+			/>
 			{expanded ? <FilesListRows contextKey={contextKey} depth={depth + 1} parentId={node.id} /> : null}
 		</>
 	);
-}
+});

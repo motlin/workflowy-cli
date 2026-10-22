@@ -1,5 +1,5 @@
 import {useQueries, useQueryClient} from "@tanstack/react-query";
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import type {KeyboardEvent, UIEvent} from "react";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {isMacPlatform} from "../editable-text-keys.js";
@@ -15,7 +15,7 @@ import {readJson} from "../read-json.js";
 import {applySpecial, isSpecialFilter, specialRows, switcherCrumb} from "../switcher-model.js";
 import type {SpecialRow} from "../switcher-model.js";
 import {nearScrollEnd, onSwitcherStep, stepSelection, switcherKeyAction} from "../switcher-keys.js";
-import {buildSwitcherRows, starredNodeIds} from "../switcher-rows.js";
+import {buildSwitcherRows, sameSwitcherRow, starredNodeIds} from "../switcher-rows.js";
 import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
@@ -64,6 +64,11 @@ const SLOW_FIRST_SEARCH_MS = 300;
 
 const NO_SPECIALS: readonly SpecialRow[] = [];
 
+/** A `..` / `-` row's key among the switcher's rows. */
+function specialKey(row: SpecialRow): string {
+	return `special-${row.kind}`;
+}
+
 function optionClass(hasCrumbs: boolean, selected: boolean): string {
 	return [
 		"switcher-option grid grid-cols-[auto_1fr] gap-x-m",
@@ -78,17 +83,39 @@ function optionClass(hasCrumbs: boolean, selected: boolean): string {
 interface SwitcherOptionProps {
 	row: SwitcherRow;
 	selected: boolean;
-	onSelect: () => void;
-	onHover: () => void;
+	onSelect: (row: SwitcherRow) => void;
+	/** Takes the row's key, not its place: a row dropping out above it must not re-render it. */
+	onHover: (key: string) => void;
+}
+
+/**
+ * Each keystroke rebuilds the row list, so an option compares its row by content: only the rows whose text or
+ * selection changed render again.
+ */
+function sameOptionProps(previous: SwitcherOptionProps, next: SwitcherOptionProps): boolean {
+	return (
+		previous.selected === next.selected &&
+		previous.onSelect === next.onSelect &&
+		previous.onHover === next.onHover &&
+		sameSwitcherRow(previous.row, next.row)
+	);
 }
 
 /** One `.switcher-option` row: star cell, highlighted label, then the ancestor crumbs when there are any. */
-function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps) {
+const SwitcherOption = memo(function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps) {
 	const struck = row.completed && !selected;
 	const hasCrumbs = row.ancestors.length > 0;
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream rows are plain divs; the input owns the keyboard
-		<div className={optionClass(hasCrumbs, selected)} onClick={onSelect} onMouseMove={onHover}>
+		<div
+			className={optionClass(hasCrumbs, selected)}
+			onClick={() => {
+				onSelect(row);
+			}}
+			onMouseMove={() => {
+				onHover(row.key);
+			}}
+		>
 			<div className="w-4">
 				{row.query === null ? (
 					row.starred && <FaIcon icon="fas:star" className="text-spark" />
@@ -122,7 +149,7 @@ function SwitcherOption({row, selected, onSelect, onHover}: SwitcherOptionProps)
 			)}
 		</div>
 	);
-}
+}, sameOptionProps);
 
 interface SpecialOptionProps {
 	row: SpecialRow;
@@ -162,7 +189,8 @@ export interface SwitcherDialogProps {
 	onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 	onSelect: (row: SwitcherRow) => void;
 	onSelectSpecial?: (row: SpecialRow) => void;
-	onHover: (index: number) => void;
+	/** The hovered row's key (`specialKey` for a special): a key, not a place, keeps the options stable. */
+	onHover: (key: string) => void;
 	onClose: () => void;
 	/** The dialog scrolled within 300px of its bottom: time to load the next page. */
 	onScrollNearEnd: () => void;
@@ -220,14 +248,14 @@ export function SwitcherDialog({
 					<div className="flex flex-col gap-s">
 						{specials.map((row, index) => (
 							<SpecialOption
-								key={`special-${row.kind}`}
+								key={specialKey(row)}
 								row={row}
 								selected={index === selectedIndex}
 								onSelect={() => {
 									onSelectSpecial?.(row);
 								}}
 								onHover={() => {
-									onHover(index);
+									onHover(specialKey(row));
 								}}
 							/>
 						))}
@@ -236,12 +264,8 @@ export function SwitcherDialog({
 								key={row.key}
 								row={row}
 								selected={specials.length + index === selectedIndex}
-								onSelect={() => {
-									onSelect(row);
-								}}
-								onHover={() => {
-									onHover(specials.length + index);
-								}}
+								onSelect={onSelect}
+								onHover={onHover}
 							/>
 						))}
 					</div>
@@ -411,6 +435,17 @@ function JumpMenuDialog() {
 	);
 
 	const rowCount = specials.length + rows.length;
+	// Read by the hover handler, never during render, so a changed list keeps the handler and the options stable.
+	const listedKeys = useRef<readonly string[]>([]);
+	useLayoutEffect(() => {
+		listedKeys.current = [...specials.map(specialKey), ...rows.map((row) => row.key)];
+	});
+	const handleHover = useCallback((key: string) => {
+		const index = listedKeys.current.indexOf(key);
+		if (index !== -1) {
+			setSelectedIndex(index);
+		}
+	}, []);
 	useEffect(
 		() =>
 			onSwitcherStep((step) => {
@@ -487,7 +522,7 @@ function JumpMenuDialog() {
 			onKeyDown={handleKeyDown}
 			onSelect={handleSelect}
 			onSelectSpecial={handleSelectSpecial}
-			onHover={setSelectedIndex}
+			onHover={handleHover}
 			onClose={cancel}
 			onScrollNearEnd={loadMore}
 		/>

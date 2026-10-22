@@ -6,7 +6,9 @@ import type {BacklinksResponse, FoundDatesResponse, NodeResponse} from "../../no
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
 import {
+	applySavedText,
 	cachedAncestors,
+	invalidateSavedText,
 	nodeKeys,
 	patchCachedNode,
 	readNode,
@@ -537,6 +539,9 @@ function planEdit(
  * tick later, after callers may already have previewed the edit in the cache (tag explode does),
  * so a snapshot taken there would roll a failed save back to the edited value.
  */
+/** Saves of each node still in flight; only the last one to answer writes the server's text into the cache. */
+const pendingSaves = new Map<string, number>();
+
 const preEditSnapshots = new WeakMap<UpdateNodeRequest & {nodeId: string}, () => void>();
 
 /**
@@ -552,6 +557,7 @@ export function useUpdateNode() {
 			serializeWrite(async () => updateNode(nodeId, request)),
 		async onMutate(variables) {
 			const {nodeId, ...updates} = variables;
+			pendingSaves.set(nodeId, (pendingSaves.get(nodeId) ?? 0) + 1);
 			// Cancel outgoing refetches
 			await queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
 			// Patch the row in its parent's list too: an empty row's name drives whether its editor stays mounted.
@@ -581,11 +587,24 @@ export function useUpdateNode() {
 			context?.restore();
 			addErrorNotification(`Failed to update node: ${error.message}`);
 		},
-		async onSettled(_data, _error, variables) {
-			// Refetch to get the real data from server
-			await queryClient.invalidateQueries({queryKey: nodeKeys.detail(variables.nodeId)});
-			// Also invalidate any children queries that might contain this node
-			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		async onSettled(data, error, variables) {
+			const {nodeId} = variables;
+			const pending = (pendingSaves.get(nodeId) ?? 1) - 1;
+			if (pending === 0) {
+				pendingSaves.delete(nodeId);
+			} else {
+				pendingSaves.set(nodeId, pending);
+			}
+			if (error !== null || data === undefined) {
+				// The rollback may not match the server: refetch everything that could hold the node.
+				await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+				return;
+			}
+			// A later save of the same node still in flight owns the cached text until it answers.
+			if (pending === 0) {
+				applySavedText(queryClient, data);
+			}
+			await invalidateSavedText(queryClient, nodeId);
 		},
 	});
 	const nodeMutate = useUndoableMutate(mutation.mutate, updateUndos, planEdit);

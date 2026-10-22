@@ -23,6 +23,10 @@ function isElement(node: unknown): node is ReactElement<ElementProps> {
 	return typeof node === "object" && node !== null && "props" in node && typeof node.props === "object";
 }
 
+function isMemo(type: unknown): type is {type: unknown} {
+	return typeof type === "object" && type !== null && "type" in type;
+}
+
 /** Every element in the tree, expanding function components the way React would. */
 function elements(node: ReactNode): ReactElement<ElementProps>[] {
 	if (Array.isArray(node)) {
@@ -31,8 +35,9 @@ function elements(node: ReactNode): ReactElement<ElementProps>[] {
 	if (!isElement(node)) {
 		return [];
 	}
-	if (typeof node.type === "function") {
-		const rendered: unknown = Reflect.apply(node.type, undefined, [node.props]);
+	const component = isMemo(node.type) ? node.type.type : node.type;
+	if (typeof component === "function") {
+		const rendered: unknown = Reflect.apply(component, undefined, [node.props]);
 		return elements(isElement(rendered) ? rendered : null);
 	}
 	return [node, ...elements(node.props.children)];

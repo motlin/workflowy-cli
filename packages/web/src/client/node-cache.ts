@@ -228,3 +228,50 @@ export function patchCachedNode(
 	}
 	return restoring(queryClient, entries);
 }
+
+/** `node` with the fields a text save writes taken from `saved`; its children flags and mirror links stay. */
+function withSavedText(node: NodeResponse, saved: NodeResponse): NodeResponse {
+	return {
+		...node,
+		name: saved.name,
+		note: saved.note,
+		data: {...node.data, layoutMode: saved.data.layoutMode},
+		modifiedAt: saved.modifiedAt,
+		...(saved.numberedStart === undefined ? {} : {numberedStart: saved.numberedStart}),
+	};
+}
+
+/**
+ * Write a saved node's text, as the server answered it, into every cached copy: its detail entry, its row in each
+ * children list and its link in each ancestor chain. Nothing that only shows the node needs a refetch after a save.
+ */
+export function applySavedText(queryClient: QueryClient, saved: NodeResponse): void {
+	patchCachedNode(queryClient, saved.id, (node) => withSavedText(node, saved));
+	queryClient.setQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "ancestors"]}, (chain) =>
+		chain?.some((node) => node.id === saved.id)
+			? chain.map((node) => (node.id === saved.id ? withSavedText(node, saved) : node))
+			: chain,
+	);
+}
+
+/**
+ * Refetch what a node's text feeds beyond its own copies: every backlinks list (a link added or removed changes its
+ * target's), every Found Dates list (a date added or removed), and each children list showing a mirror of the node.
+ */
+export async function invalidateSavedText(queryClient: QueryClient, nodeId: string): Promise<void> {
+	const related = new Set([nodeId]);
+	const original = readNode(queryClient, nodeId)?.originalNodeId;
+	if (original) {
+		related.add(original);
+	}
+	const mirrored = (row: NodeResponse) =>
+		row.id !== nodeId && (related.has(row.id) || related.has(row.originalNodeId ?? ""));
+	await Promise.all([
+		queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "backlinks"]}),
+		queryClient.invalidateQueries({queryKey: FOUND_DATES_KEY}),
+		queryClient.invalidateQueries({
+			queryKey: [...nodeKeys.all, "children"],
+			predicate: (query) => queryClient.getQueryData<NodeResponse[]>(query.queryKey)?.some(mirrored) ?? false,
+		}),
+	]);
+}

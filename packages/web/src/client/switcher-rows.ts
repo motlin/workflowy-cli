@@ -113,3 +113,22 @@ export function buildSwitcherRows(
 	const rows = [...starredRows, ...serverRows];
 	return {rows, ...emptyState(trimmed, rows, server.status)};
 }
+
+/** Whether two rows show the same thing, so a rebuilt row list can skip re-rendering the rows a keystroke left alone. */
+export function sameSwitcherRow(a: SwitcherRow, b: SwitcherRow): boolean {
+	return (
+		a === b ||
+		(a.key === b.key &&
+			a.id === b.id &&
+			a.nodeId === b.nodeId &&
+			a.query === b.query &&
+			a.labelHtml === b.labelHtml &&
+			a.completed === b.completed &&
+			a.starred === b.starred &&
+			a.ancestors.length === b.ancestors.length &&
+			a.ancestors.every((ancestor, index) => {
+				const other = b.ancestors.at(index);
+				return ancestor.id === other?.id && ancestor.name === other.name;
+			}))
+	);
+}
