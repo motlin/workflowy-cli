@@ -8,6 +8,7 @@ import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
 import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
 import {isComposingInput, retagEditor} from "../editor-html.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
+import {savePaneCaretOnBlur} from "./pane-context.js";
 import {planDateInsertion, planPillReplacement} from "../date-pills.js";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
@@ -43,6 +44,11 @@ interface EditableNoteProps {
 const PILL_UNIT = "\uFFFC";
 
 const NO_EXTRA_CLASSES: readonly string[] = [];
+
+/** The note's text container, where its caret offsets count from. */
+function noteTextElement(element: HTMLElement): HTMLElement {
+	return element.querySelector<HTMLElement>(".innerContentContainer") ?? element;
+}
 
 const CONTENT_CLASS = "notranslate content text-tertiary whitespace-pre-wrap overflow-hidden";
 
@@ -145,9 +151,14 @@ export function EditableNote({
 			return;
 		}
 		element.focus();
+		const caret = useOutlineStore.getState().editingNoteCaret;
+		if (caret !== "end" && caret > 0) {
+			placeCaretAtTextOffset(noteTextElement(element), caret);
+			return;
+		}
 		const range = document.createRange();
-		range.selectNodeContents(element.querySelector(".innerContentContainer") ?? element);
-		range.collapse(useOutlineStore.getState().editingNoteCaret === 0);
+		range.selectNodeContents(noteTextElement(element));
+		range.collapse(caret === 0);
 		const selection = globalThis.getSelection();
 		selection?.removeAllRanges();
 		selection?.addRange(range);
@@ -373,6 +384,10 @@ export function EditableNote({
 	}, [clearSearchHighlights, initialValue, restingHtml, isFocused, nodeId, focusNote, noteSaver]);
 
 	const handleBlur = useCallback(() => {
+		const element = contentRef.current;
+		if (element !== null) {
+			savePaneCaretOnBlur(element, nodeId, "note", noteTextElement(element));
+		}
 		detachSlashMenu();
 		detachTagAutocomplete();
 		if (datePickerOpen.current) {

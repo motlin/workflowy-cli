@@ -173,8 +173,9 @@ export interface PaneNumberDeps {
 		openPane: (zoomedId: string | null, options?: OpenPaneOptions) => string;
 	};
 	/**
-	 * Upstream's `WF.Panes.focus`: make `paneId` (`main` for the main pane) active and put the caret in it, on its first
-	 * row (`first`) or, upstream's `WF.Focus.firstChildOfSelected`, on the zoom's first child (`first_child`).
+	 * Upstream's `WF.Panes.focus`: make `paneId` (`main` for the main pane) active and put the caret in it: back where it
+	 * last was in that pane, else on its first row (`first`), or, upstream's `WF.Focus.firstChildOfSelected`, on the
+	 * zoom's first child (`first_child`).
 	 */
 	focusPane: (paneId: string, caret: "first" | "first_child") => void;
 	/** Make `paneId` (`main` for the main outline) active and zoom it to `nodeId` (null for Home), caret in the new view. */

@@ -18,6 +18,12 @@ export function editorElement(nodeId: string): HTMLElement | null {
 	);
 }
 
+/** The focused note's text container in the active pane, where its caret offsets count from. */
+export function activeNoteContent(): HTMLElement | null {
+	const note = activePaneScope().querySelector<HTMLElement>(".notes > .content.active");
+	return note?.querySelector<HTMLElement>(".innerContentContainer") ?? note ?? null;
+}
+
 /** The node's name content (`.innerContentContainer`) in the active pane, edited or not. */
 export function rowContent(nodeId: string): HTMLElement | null {
 	return activePaneScope().querySelector<HTMLElement>(`.innerContentContainer[data-node-id="${CSS.escape(nodeId)}"]`);

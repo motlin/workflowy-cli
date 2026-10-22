@@ -20,6 +20,7 @@ import {createPaneId, paneRuntimeState, workspaceFragments} from "../pane-url.js
 import type {PaneRuntimeState} from "../pane-url.js";
 import {availablePaneWidth, paneWidth, rebalancedWidths, scaledWidths, widthFromPercent} from "../pane-widths.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
+import type {PaneCaret, PaneCaretPosition} from "../pane-caret.js";
 import {closeSwitcher} from "../switcher-close.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
@@ -309,8 +310,8 @@ interface OutlineState {
 	/** Text offset to place the caret at when editing resumes after dismissing search. */
 	editingCaretOffset: number | null;
 	editingNoteId: string | null;
-	/** Where the focused note puts the caret when focus arrives from the keyboard. */
-	editingNoteCaret: 0 | "end";
+	/** Where the focused note puts the caret when focus arrives from the keyboard or a restored pane caret. */
+	editingNoteCaret: number | "end";
 	/** Set while a structural shortcut moves the edited node, so the blur from re-rendering keeps editing. */
 	editingHeld: boolean;
 	/** The most recently edited node; panels that follow the user's place outlive the edit's blur. */
@@ -380,6 +381,8 @@ interface OutlineState {
 	 * Empty in the single-document layout; rebalanced to equal shares whenever a pane opens or closes.
 	 */
 	paneWidths: Record<string, number>;
+	/** Each pane's last caret, keyed like `paneWidths`; ⌃N restores it when focusing the pane (upstream's `viewState`). */
+	paneCarets: Record<string, PaneCaret>;
 	exportDialogOpen: boolean;
 	exportContext: ExportContext | null;
 	presentationOpen: boolean;
@@ -435,7 +438,7 @@ interface OutlineActions {
 	startEditing: (id: string, clickPosition?: ClickPosition) => void;
 	stopEditing: () => void;
 	/** Focus `id`'s note with the caret at its start or end (default), leaving its name (the caller commits any unsaved name text first). */
-	focusNote: (id: string, caret?: 0 | "end") => void;
+	focusNote: (id: string, caret?: number | "end") => void;
 	/** Focus `id`'s name with the caret at its start or end, leaving any note. */
 	focusName: (id: string, caret: 0 | "end") => void;
 	/** Upstream "Add date" on an unfocused item: focus the end of `id`'s name and open the date picker there. */
@@ -549,6 +552,8 @@ interface OutlineActions {
 	resizeToAvailableWidth: () => void;
 	/** Make `paneId` the active pane; a no-op for a pane that is not open. */
 	setActivePane: (paneId: string) => void;
+	/** Remember `paneId`'s caret with the pane's current zoom; ignored for a pane that is not open. */
+	savePaneCaret: (paneId: string, caret: PaneCaretPosition) => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
 	openPresentation: (nodeId: string) => void;
@@ -805,6 +810,9 @@ function setWorkspace(panes: ItemTreePane[], mainPaneUrlId?: string): void {
 		mainPaneUrlId: panes.length === 0 ? null : (mainPaneUrlId ?? state.mainPaneUrlId),
 		...(panes.length === 0 ? {mainPaneHistory: emptyMainPaneHistory} : {}),
 		paneFocusHistory: history,
+		paneCarets: Object.fromEntries(
+			Object.entries(state.paneCarets).filter(([id]) => panes.length > 0 && (id === MAIN_PANE_ID || ids.has(id))),
+		),
 		activePaneId,
 		...(remains ? {} : {editingId: null, editingClickPosition: null, editingCaretOffset: null}),
 	});
@@ -853,6 +861,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	paneFocusHistory: [],
 	activePaneId: MAIN_PANE_ID,
 	paneWidths: {},
+	paneCarets: {},
 	exportDialogOpen: false,
 	exportContext: null,
 	presentationOpen: false,
@@ -1369,7 +1378,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (promoted === undefined) {
 			return null;
 		}
+		const promotedCaret = get().paneCarets[promoted.id];
 		setWorkspace(rest, promoted.id);
+		const {[MAIN_PANE_ID]: _closed, ...carets} = get().paneCarets;
+		set({paneCarets: promotedCaret === undefined ? carets : {...carets, [MAIN_PANE_ID]: promotedCaret}});
 		if (get().activePaneId !== MAIN_PANE_ID) {
 			set({activePaneId: MAIN_PANE_ID, editingId: null, editingClickPosition: null, editingCaretOffset: null});
 		}
@@ -1411,6 +1423,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			panes: rest,
 			mainPaneUrlId: first.id,
 			paneWidths: Object.fromEntries(Object.entries(paneWidths).map(([id, width]) => [rename(id), width])),
+			paneCarets: Object.fromEntries(Object.entries(state.paneCarets).map(([id, caret]) => [rename(id), caret])),
 			activePaneId: rename(activePaneId),
 			paneFocusHistory: paneFocusHistory.map(rename),
 			editingId: null,
@@ -1479,6 +1492,16 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 				paneFocusHistory: [...paneFocusHistory.filter((id) => id !== paneId), paneId],
 			});
 		}
+	},
+
+	savePaneCaret: (paneId, caret) => {
+		const state = get();
+		const pane = findPane(state.panes, paneId);
+		if (paneId !== MAIN_PANE_ID && pane === undefined) {
+			return;
+		}
+		const zoomedId = pane === undefined ? state.zoomedNodeId : pane.zoomedId;
+		set({paneCarets: {...state.paneCarets, [paneId]: {...caret, zoomedId}}});
 	},
 
 	openExportDialog: (context) => {

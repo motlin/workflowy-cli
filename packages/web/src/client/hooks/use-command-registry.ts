@@ -64,7 +64,8 @@ import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherStepCommand} from "../switcher-keys.js";
 import {paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
-import {scrollPaneToTop} from "../components/pane-context.js";
+import {captureActivePaneCaret, scrollPaneToTop} from "../components/pane-context.js";
+import {restorableCaret} from "../pane-caret.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
@@ -816,8 +817,33 @@ export function useCommandRegistry(): CommandRegistry {
 		...paneNumberCommands({
 			getState: useOutlineStore.getState,
 			focusPane: (paneId, caret) => {
+				captureActivePaneCaret();
 				useOutlineStore.getState().setActivePane(paneId);
-				focusEdge("first", caret === "first_child");
+				if (caret === "first_child") {
+					focusEdge("first", true);
+					return;
+				}
+				const view = activePaneView();
+				const saved = restorableCaret(view.paneCarets[paneId], {
+					zoomedId: view.zoomedNodeId,
+					visibleIds: collectVisibleNodeIds(
+						queryClient,
+						view.zoomedNodeId,
+						view.expandedIds,
+						view.showCompleted,
+						view.animatingCompletionIds,
+					),
+				});
+				if (saved === null) {
+					focusEdge("first");
+				} else {
+					commitEdit();
+					if (saved.field === "note") {
+						view.focusNote(saved.nodeId, saved.offset);
+					} else {
+						view.resumeEditing(saved.nodeId, saved.offset);
+					}
+				}
 			},
 			zoomPaneTo: (paneId, nodeId) => {
 				useOutlineStore.getState().setActivePane(paneId);

@@ -833,3 +833,66 @@ describe("movePane", () => {
 		}).toStrictEqual({pastEnd: null, own: {promoted: null}, same: true});
 	});
 });
+
+describe("pane carets", () => {
+	it("saves each pane's caret with the zoom it was taken in, main by the main outline's zoom", async () => {
+		const store = await loadStore();
+		store.getState().zoom("root");
+		const a = store.getState().openPane("alice");
+		store.getState().savePaneCaret("main", {nodeId: "n1", field: "name", offset: 3});
+		store.getState().savePaneCaret(a, {nodeId: "n2", field: "note", offset: 5});
+		expect(store.getState().paneCarets).toStrictEqual({
+			main: {nodeId: "n1", field: "name", offset: 3, zoomedId: "root"},
+			[a]: {nodeId: "n2", field: "note", offset: 5, zoomedId: "alice"},
+		});
+	});
+
+	it("ignores a caret for a pane that is not open", async () => {
+		const store = await loadStore();
+		store.getState().openPane("alice");
+		store.getState().savePaneCaret("gone", {nodeId: "n1", field: "name", offset: 0});
+		expect(store.getState().paneCarets).toStrictEqual({});
+	});
+
+	it("forgets a closed pane's caret", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const b = store.getState().openPane("bob");
+		store.getState().savePaneCaret(a, {nodeId: "n1", field: "name", offset: 1});
+		store.getState().savePaneCaret(b, {nodeId: "n2", field: "name", offset: 2});
+		store.getState().closePane(a);
+		expect(store.getState().paneCarets).toStrictEqual({
+			[b]: {nodeId: "n2", field: "name", offset: 2, zoomedId: "bob"},
+		});
+	});
+
+	it("hands the promoted pane's caret to the main pane when the main pane closes", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		const b = store.getState().openPane("bob");
+		store.getState().savePaneCaret("main", {nodeId: "m", field: "name", offset: 0});
+		store.getState().savePaneCaret(a, {nodeId: "n1", field: "name", offset: 1});
+		store.getState().savePaneCaret(b, {nodeId: "n2", field: "name", offset: 2});
+		store.getState().closeMainPane();
+		expect(store.getState().paneCarets).toStrictEqual({
+			main: {nodeId: "n1", field: "name", offset: 1, zoomedId: "alice"},
+			[b]: {nodeId: "n2", field: "name", offset: 2, zoomedId: "bob"},
+		});
+	});
+
+	it("moves carets with their panes", async () => {
+		const store = await loadStore();
+		store.getState().zoom("root");
+		const a = store.getState().openPane("alice");
+		const b = store.getState().openPane("bob");
+		const mainId = store.getState().mainPaneUrlId ?? "";
+		store.getState().savePaneCaret("main", {nodeId: "m", field: "name", offset: 0});
+		store.getState().savePaneCaret(a, {nodeId: "n1", field: "name", offset: 1});
+		store.getState().movePane("main", 2);
+		expect(store.getState().paneCarets).toStrictEqual({
+			main: {nodeId: "n1", field: "name", offset: 1, zoomedId: "alice"},
+			[mainId]: {nodeId: "m", field: "name", offset: 0, zoomedId: "root"},
+		});
+		expect(store.getState().panes.map((open) => open.id)).toStrictEqual([b, mainId]);
+	});
+});

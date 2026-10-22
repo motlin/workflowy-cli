@@ -77,6 +77,7 @@ import {renderLinks} from "../link-render.js";
 import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
+import {savePaneCaretOnBlur} from "./pane-context.js";
 
 /**
  * The caret's client rect at the edge of the current selection that the arrow key
@@ -924,6 +925,9 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	});
 
 	const handleBlur = useCallback(() => {
+		if (contentRef.current !== null) {
+			savePaneCaretOnBlur(contentRef.current, nodeId, "name");
+		}
 		detachSlashMenu();
 		hideDateAutocomplete();
 		detachTagAutocomplete();
