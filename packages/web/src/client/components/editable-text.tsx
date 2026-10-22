@@ -44,14 +44,8 @@ import type {TagColors} from "../hooks/use-tag-colors.js";
 import {closeOnEscape} from "../menu-escape.js";
 import {TagColorPicker} from "./tag-color-picker.js";
 import {FaIcon} from "./fa-icons.js";
-import {
-	deletePillAfterCaret,
-	deletePillBeforeCaret,
-	applyDatePhrase,
-	planDateInsertion,
-	planPillReplacement,
-	replacePill,
-} from "../date-pills.js";
+import {applyDatePhrase, planDateInsertion, planPillReplacement, replacePill} from "../date-pills.js";
+import {deleteAdjacentPill as deleteAdjacentPillInEditor} from "../pill-delete.js";
 import {isComposingInput, renderEditorHtml, retagEditor, serializeEditorHtml} from "../editor-html.js";
 import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
@@ -892,18 +886,18 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const deleteAdjacentPill = useCallback(
 		(direction: "backward" | "forward"): boolean => {
 			const content = contentRef.current;
-			if (!content || globalThis.getSelection()?.isCollapsed !== true) {
+			if (!content) {
 				return false;
 			}
-			const offset = caretTextOffset(content);
-			const html = serializeEditorHtml(content.innerHTML);
-			const next =
-				direction === "backward" ? deletePillBeforeCaret(html, offset) : deletePillAfterCaret(html, offset);
+			const next = deleteAdjacentPillInEditor(
+				content,
+				serializeEditorHtml(content.innerHTML),
+				direction,
+				(html) => renderEditorHtml(html, dateSettings),
+			);
 			if (next === null) {
 				return false;
 			}
-			content.innerHTML = renderEditorHtml(next, dateSettings);
-			placeCaretAtTextOffset(content, direction === "backward" ? offset - 1 : offset);
 			nameSaver.change(next);
 			return true;
 		},

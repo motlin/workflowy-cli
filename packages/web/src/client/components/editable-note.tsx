@@ -10,6 +10,7 @@ import {isComposingInput, retagEditor} from "../editor-html.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
 import {savePaneCaretOnBlur} from "./pane-context.js";
 import {planDateInsertion, planPillReplacement} from "../date-pills.js";
+import {deleteAdjacentPill} from "../pill-delete.js";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
@@ -95,6 +96,7 @@ function insertAtSelection(text: string, caretInText: number): void {
  * - Edits are never reverted: Escape is left to the global search Escape, which saves, exits the note, and focuses search
  * - Enter inserts a line break (two at the very end, the second a sentinel); Tab inserts a tab; Shift+Tab does nothing
  * - Shift+Enter saves and moves the caret to the end of the same row's name
+ * - Backspace right after / Delete right before a date pill removes the whole pill and saves
  * - Backspace in a blank note clears it and moves the caret to the end of the name
  * - Up at the start / Left at the start leave for the name; Down / Right at the end leave for the next row's name
  */
@@ -426,6 +428,19 @@ export function EditableNote({
 				applyInlineToggle(formatAttr);
 				return;
 			}
+			if (event.key === "Backspace" || event.key === "Delete") {
+				const next = deleteAdjacentPill(
+					element,
+					planNoteSave(noteSaver.saved, element.innerHTML).note,
+					event.key === "Backspace" ? "backward" : "forward",
+					(note) => noteContentHtml(note, dateSettings),
+				);
+				if (next !== null) {
+					event.preventDefault();
+					noteSaver.saveNow(next);
+					return;
+				}
+			}
 			const offsets = selectionOffsets(element);
 			if (offsets === null) {
 				return;
@@ -472,12 +487,14 @@ export function EditableNote({
 		},
 		[
 			applyInlineToggle,
+			dateSettings,
 			focusName,
 			focusNextRowName,
 			handleInput,
 			handleSlashKey,
 			handleTagAutocompleteKey,
 			nodeId,
+			noteSaver,
 			saveNow,
 		],
 	);
