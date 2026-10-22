@@ -191,7 +191,6 @@ describe("goToNode in one frame", () => {
 
 	it("carries the open panes on an in-app Back", () => {
 		goToNode(() => {}, null);
-		goToNode(() => {}, A);
 		useOutlineStore.setState({
 			panes: [
 				{
@@ -205,6 +204,7 @@ describe("goToNode in one frame", () => {
 			],
 			mainPaneUrlId: "AAAAAAAAAAA",
 		});
+		goToNode(() => {}, A);
 		const navigate = vi.fn<(to: string) => void>();
 		stepNav(navigate, "back", unresolved);
 		expect(navigate.mock.calls).toStrictEqual([[`/#?panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`]]);
@@ -230,6 +230,91 @@ describe("goToNode in one frame", () => {
 		expect(navigate.mock.calls).toStrictEqual([
 			[`/#/aaaaaaaaaaaa?q=x&panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`],
 		]);
+	});
+});
+
+describe("main pane history while panes are open", () => {
+	const A = "aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa";
+	const B = "bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb";
+	const C = "cccccccc-0000-0000-0000-cccccccccccc";
+	const fragment = `panes=${encodeURIComponent(
+		encodeWorkspace({mainPaneId: "AAAAAAAAAAA", panes: [{paneId: "BBBBBBBBBBB", location: null}]}) ?? "",
+	)}`;
+
+	function openPane(): void {
+		useOutlineStore.setState({
+			panes: [
+				{
+					id: "BBBBBBBBBBB",
+					zoomedId: null,
+					backLocations: [],
+					forwardLocations: [],
+					query: "",
+					expandedIds: new Set<string>(),
+				},
+			],
+			mainPaneUrlId: "AAAAAAAAAAA",
+		});
+	}
+
+	beforeEach(() => {
+		useOutlineStore.setState({
+			nav: initialNavState,
+			mainPaneHistory: {back: [], forward: []},
+			zoomedNodeId: null,
+			panes: [],
+			mainPaneUrlId: null,
+		});
+	});
+
+	it("starts empty when panes open, so Back does nothing for moves made before", () => {
+		goToNode(() => {}, A);
+		goToNode(() => {}, B);
+		openPane();
+		const navigate = vi.fn<(to: string) => void>();
+		stepNav(navigate, "back", unresolved);
+		expect({urls: navigate.mock.calls, history: useOutlineStore.getState().mainPaneHistory}).toStrictEqual({
+			urls: [],
+			history: {back: [], forward: []},
+		});
+	});
+
+	it("records main pane moves, not search-only changes, while panes are open", () => {
+		goToNode(() => {}, A);
+		openPane();
+		goToNode(() => {}, B);
+		navigateToSearch(() => {}, "x");
+		syncNavLocation("#/cccccccccccc", true);
+		expect(useOutlineStore.getState().mainPaneHistory).toStrictEqual({
+			back: [
+				{id: "aaaaaaaaaaaa", query: null},
+				{id: "bbbbbbbbbbbb", query: "x"},
+			],
+			forward: [],
+		});
+	});
+
+	it("Back and Forward step the main pane history, keeping the open panes in the URL", () => {
+		goToNode(() => {}, A);
+		openPane();
+		goToNode(() => {}, B);
+		goToNode(() => {}, C);
+		const navigate = vi.fn<(to: string) => void>();
+		stepNav(navigate, "back", unresolved);
+		stepNav(navigate, "back", unresolved);
+		stepNav(navigate, "forward", unresolved);
+		expect({urls: navigate.mock.calls, history: useOutlineStore.getState().mainPaneHistory}).toStrictEqual({
+			urls: [[`/#/bbbbbbbbbbbb?${fragment}`], [`/#/aaaaaaaaaaaa?${fragment}`], [`/#/bbbbbbbbbbbb?${fragment}`]],
+			history: {back: [{id: "aaaaaaaaaaaa", query: null}], forward: [{id: "cccccccccccc", query: null}]},
+		});
+	});
+
+	it("clears when the workspace returns to one pane", () => {
+		goToNode(() => {}, A);
+		openPane();
+		goToNode(() => {}, B);
+		useOutlineStore.getState().closeAllPanes();
+		expect(useOutlineStore.getState().mainPaneHistory).toStrictEqual({back: [], forward: []});
 	});
 });
 

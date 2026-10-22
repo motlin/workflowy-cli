@@ -1,6 +1,14 @@
 import {describe, expect, it} from "vite-plus/test";
-import {BACK_STACK_CAP, initialNavState, locFromHash, navReducer} from "../src/client/nav-stack.js";
-import type {Loc, NavState} from "../src/client/nav-stack.js";
+import {
+	BACK_STACK_CAP,
+	emptyMainPaneHistory,
+	initialNavState,
+	locFromHash,
+	navReducer,
+	rememberMainPaneMove,
+	stepMainPaneHistory,
+} from "../src/client/nav-stack.js";
+import type {Loc, MainPaneHistory, NavState} from "../src/client/nav-stack.js";
 
 function loc(id: string | null, query: string | null = null): Loc {
 	return {id, query};
@@ -85,5 +93,56 @@ describe("locFromHash", () => {
 			full: loc("35035d443bf1"),
 			query: loc("35035d443bf1", "x"),
 		});
+	});
+});
+
+describe("rememberMainPaneMove", () => {
+	it("records the location left when the main pane zooms elsewhere, capped, and clears forward", () => {
+		const full: MainPaneHistory = {
+			back: Array.from({length: BACK_STACK_CAP}, (_, index) => loc(`n${index}`)),
+			forward: [loc("f")],
+		};
+		const next = rememberMainPaneMove(full, loc("a", "x"), loc("b"));
+		expect({
+			length: next.back.length,
+			first: next.back[0],
+			last: next.back.at(-1),
+			forward: next.forward,
+		}).toStrictEqual({length: BACK_STACK_CAP, first: loc("n1"), last: loc("a", "x"), forward: []});
+	});
+
+	it("ignores a search-only change, a move from nowhere and staying put", () => {
+		const history: MainPaneHistory = {back: [loc("z")], forward: [loc("f")]};
+		expect([
+			rememberMainPaneMove(history, loc("a"), loc("a", "x")),
+			rememberMainPaneMove(history, null, loc("a")),
+			rememberMainPaneMove(history, loc("a"), loc("a")),
+		]).toStrictEqual([history, history, history]);
+	});
+});
+
+describe("stepMainPaneHistory", () => {
+	const history: MainPaneHistory = {back: [loc("a"), loc("b")], forward: [loc("d"), loc("e")]};
+
+	it("back takes the last back location and puts the current one first on forward", () => {
+		expect(stepMainPaneHistory(history, loc("c"), "back")).toStrictEqual({
+			target: loc("b"),
+			history: {back: [loc("a")], forward: [loc("c"), loc("d"), loc("e")]},
+		});
+	});
+
+	it("forward takes the first forward location and appends the current one to back", () => {
+		expect(stepMainPaneHistory(history, loc("c"), "forward")).toStrictEqual({
+			target: loc("d"),
+			history: {back: [loc("a"), loc("b"), loc("c")], forward: [loc("e")]},
+		});
+	});
+
+	it("is null on an empty stack or with no current location", () => {
+		expect([
+			stepMainPaneHistory(emptyMainPaneHistory, loc("c"), "back"),
+			stepMainPaneHistory(emptyMainPaneHistory, loc("c"), "forward"),
+			stepMainPaneHistory(history, null, "back"),
+		]).toStrictEqual([null, null, null]);
 	});
 });

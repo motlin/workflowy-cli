@@ -10,6 +10,7 @@ import {caretTextOffset, editorElement} from "./caret-dom.js";
 import {locationUrl, parseLocationHash, shortId} from "./location.js";
 import {readChildren, readNode} from "./node-cache.js";
 import {locFromHash} from "./nav-stack.js";
+import type {Loc} from "./nav-stack.js";
 import {workspaceFragments} from "./pane-url.js";
 import {useOutlineStore} from "./stores/outline.js";
 import type {NavigateFn} from "./stores/outline.js";
@@ -183,8 +184,8 @@ function zoomToCachedId(locationId: string | null, resolve: (locationId: string)
 }
 
 /**
- * Upstream's Back/Forward: step the in-app stacks and push a new browser entry
- * for the target (never `history.back()`); a no-op when that stack is empty.
+ * Upstream's Back/Forward: step the in-app stacks (the main pane history while panes are open) and push a new browser
+ * entry for the target, keeping the open panes (never `history.back()`); a no-op when that stack is empty.
  * A target `resolve` finds in the cache is zoomed before the push, as `goToNode` does.
  */
 export function stepNav(
@@ -192,15 +193,20 @@ export function stepNav(
 	direction: "back" | "forward",
 	resolve: (locationId: string) => string | undefined,
 ): void {
-	const {nav: before, dispatchNav} = useOutlineStore.getState();
-	if ((direction === "back" ? before.back : before.forward).length === 0) {
+	const {nav: before, dispatchNav, panes: panesBefore, stepMainPaneHistory} = useOutlineStore.getState();
+	let target: Loc | null;
+	if (panesBefore.length > 0) {
+		target = stepMainPaneHistory(direction);
+	} else if ((direction === "back" ? before.back : before.forward).length === 0) {
 		return;
+	} else {
+		dispatchNav({type: direction});
+		target = useOutlineStore.getState().nav.current;
 	}
-	dispatchNav({type: direction});
-	const {nav, panes, mainPaneUrlId} = useOutlineStore.getState();
-	if (nav.current !== null) {
-		zoomToCachedId(nav.current.id, resolve);
-		void navigate(locationUrl({...nav.current, fragments: workspaceFragments(panes, mainPaneUrlId)}));
+	if (target !== null) {
+		const {panes, mainPaneUrlId} = useOutlineStore.getState();
+		zoomToCachedId(target.id, resolve);
+		void navigate(locationUrl({...target, fragments: workspaceFragments(panes, mainPaneUrlId)}));
 	}
 }
 

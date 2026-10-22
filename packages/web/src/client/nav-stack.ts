@@ -69,3 +69,47 @@ export function navReducer(state: NavState, action: NavAction): NavState {
 	}
 	return {...state, current: action.loc};
 }
+
+/**
+ * Upstream's `W2.state.mainPaneHistory`: the main pane's own Back/Forward while panes are open, separate from the app
+ * stacks. `forward[0]` is the next location forward.
+ */
+export interface MainPaneHistory {
+	back: Loc[];
+	forward: Loc[];
+}
+
+export const emptyMainPaneHistory: MainPaneHistory = {back: [], forward: []};
+
+/**
+ * Upstream's `rememberMainPaneNavigation`: a main pane move to another node records the location left (capped) and
+ * clears forward; a search-only change, a move from no location, or staying put returns `history` unchanged.
+ */
+export function rememberMainPaneMove(history: MainPaneHistory, from: Loc | null, to: Loc | null): MainPaneHistory {
+	if (from === null || to === null || from.id === to.id) {
+		return history;
+	}
+	return {back: pushCapped(history.back, from), forward: []};
+}
+
+/**
+ * Upstream's `navigateMainPaneHistory`: step one location back or forward from `current`, or null when that stack is
+ * empty or there is no current location.
+ */
+export function stepMainPaneHistory(
+	history: MainPaneHistory,
+	current: Loc | null,
+	direction: "back" | "forward",
+): {history: MainPaneHistory; target: Loc} | null {
+	if (current === null) {
+		return null;
+	}
+	if (direction === "back") {
+		const target = history.back.at(-1);
+		return target === undefined
+			? null
+			: {target, history: {back: history.back.slice(0, -1), forward: [current, ...history.forward]}};
+	}
+	const [target, ...forward] = history.forward;
+	return target === undefined ? null : {target, history: {back: pushCapped(history.back, current), forward}};
+}

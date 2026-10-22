@@ -3,8 +3,15 @@ import {MAIN_PANE_ID, canPlacePane, findPane, paneExpandedIds} from "../pane-ids
 import type {ItemTreePane} from "../pane-ids.js";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
-import {initialNavState, locEquals, navReducer} from "../nav-stack.js";
-import type {NavAction, NavState} from "../nav-stack.js";
+import {
+	emptyMainPaneHistory,
+	initialNavState,
+	locEquals,
+	navReducer,
+	rememberMainPaneMove,
+	stepMainPaneHistory,
+} from "../nav-stack.js";
+import type {Loc, MainPaneHistory, NavAction, NavState} from "../nav-stack.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
@@ -393,12 +400,19 @@ interface OutlineState {
 	lastSavedAt: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
 	nav: NavState;
+	/** The main pane's own Back/Forward while panes are open (upstream's `mainPaneHistory`); empty with no pane open. */
+	mainPaneHistory: MainPaneHistory;
 	/** The committed search from the URL's `?q=` (null when absent); the hash route keeps it in sync. */
 	urlSearchQuery: string | null;
 }
 
 interface OutlineActions {
 	dispatchNav: (action: NavAction) => void;
+	/**
+	 * Upstream's `navigateMainPaneHistory`: step the main pane history and record the move on the app stacks without
+	 * remembering it again. Returns the location to navigate to, or null when that stack is empty.
+	 */
+	stepMainPaneHistory: (direction: "back" | "forward") => Loc | null;
 	setUrlSearchQuery: (query: string | null) => void;
 	zoom: (id: string | null) => void;
 	/** Keeps a row created during the committed search visible though it does not match; no-op with no search. */
@@ -789,6 +803,7 @@ function setWorkspace(panes: ItemTreePane[], mainPaneUrlId?: string): void {
 		panes,
 		...(samePaneIds(panes, state.panes) ? {} : {paneWidths: rebalancedPaneWidths(panes)}),
 		mainPaneUrlId: panes.length === 0 ? null : (mainPaneUrlId ?? state.mainPaneUrlId),
+		...(panes.length === 0 ? {mainPaneHistory: emptyMainPaneHistory} : {}),
 		paneFocusHistory: history,
 		activePaneId,
 		...(remains ? {} : {editingId: null, editingClickPosition: null, editingCaretOffset: null}),
@@ -853,16 +868,37 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	mutationCount: 0,
 	lastSavedAt: Date.now(),
 	nav: initialNavState,
+	mainPaneHistory: emptyMainPaneHistory,
 	urlSearchQuery: null,
 
 	dispatchNav: (action) => {
-		const {nav, appMessage, hideAppMessage} = get();
+		const {nav, appMessage, hideAppMessage, panes, mainPaneHistory} = get();
 		const next = navReducer(nav, action);
-		set({nav: next});
+		// Upstream remembers main pane moves on `location.change.before` while panes are open, Back/Forward included.
+		const remember = panes.length > 0 && (action.type === "navigate" || action.type === "popstate");
+		set({
+			nav: next,
+			mainPaneHistory: remember
+				? rememberMainPaneMove(mainPaneHistory, nav.current, next.current)
+				: mainPaneHistory,
+		});
 		// Upstream hides the app message on `location.change.before`.
 		if (appMessage !== null && !locEquals(nav.current, next.current)) {
 			hideAppMessage();
 		}
+	},
+
+	stepMainPaneHistory: (direction) => {
+		const {nav, mainPaneHistory, appMessage, hideAppMessage} = get();
+		const step = stepMainPaneHistory(mainPaneHistory, nav.current, direction);
+		if (step === null) {
+			return null;
+		}
+		set({mainPaneHistory: step.history, nav: navReducer(nav, {type: "navigate", loc: step.target})});
+		if (appMessage !== null) {
+			hideAppMessage();
+		}
+		return step.target;
 	},
 
 	setUrlSearchQuery: (query) => {

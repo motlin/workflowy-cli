@@ -31,6 +31,7 @@ const storeState: {zoomedNodeId: string | null; panes: {id: string; zoomedId: st
 	leftBarOffset: () => 0,
 	leftBarMode: "drawerClosed",
 	nav: {current: null, back: [], forward: []},
+	mainPaneHistory: {back: [], forward: []},
 	showItemTypePicker: (picker: unknown) => {
 		pickerCalls.push(picker);
 	},
@@ -212,6 +213,18 @@ describe("TopBar left controls", () => {
 	it("renders a disabled Back and no Forward on an empty stack", () => {
 		expect(paginationInner(renderWithNav(false, false))).toBe(
 			`<div role="button" tabindex="-1" aria-disabled="true" data-handbook="nav.back" class="iconButton lg shape-circle disabled">${svg("chevron-left", 320)}</div>`,
+		);
+	});
+
+	it("steps the main pane history instead of the app stacks while a pane is open", () => {
+		const home = {id: null, query: null};
+		storeState.panes = [{id: "BBBBBBBBBBB", zoomedId: "bob"}];
+		storeState.mainPaneHistory = {back: [home], forward: []};
+		const html = renderWithNav(false, true);
+		storeState.panes = [];
+		storeState.mainPaneHistory = {back: [], forward: []};
+		expect(paginationInner(html)).toBe(
+			`<div role="button" tabindex="0" data-handbook="nav.back" class="iconButton lg shape-circle">${svg("chevron-left", 320)}</div>`,
 		);
 	});
 

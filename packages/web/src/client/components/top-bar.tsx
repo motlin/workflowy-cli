@@ -103,8 +103,13 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const queryClient = useQueryClient();
 	const navigateToToday = useNavigateToToday();
 	useNavStackSync();
-	const canGoBack = useOutlineStore((state) => state.nav.back.length > 0);
-	const canGoForward = useOutlineStore((state) => state.nav.forward.length > 0);
+	// Upstream's main pane header steps `mainPaneHistory` while panes are open.
+	const canGoBack = useOutlineStore(
+		(state) => (state.panes.length > 0 ? state.mainPaneHistory.back : state.nav.back).length > 0,
+	);
+	const canGoForward = useOutlineStore(
+		(state) => (state.panes.length > 0 ? state.mainPaneHistory.forward : state.nav.forward).length > 0,
+	);
 	const actions = useHeaderActions(zoomedNodeId);
 	// Upstream's zv4: under 701px, or while a pane is open, the compactable actions move into the more menu.
 	const narrow = !useMediaQuery("(min-width: 701px)");
