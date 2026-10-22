@@ -13,22 +13,9 @@ export function serializeEditorHtml(html: string): string {
 	return serializeDatePills(stripTagMarkup(html));
 }
 
-/** Characters that end a #tag or @mention (`TAG_WITH_BOUNDARY_REGEXP`'s lookahead). */
-const TAG_BOUNDARY = /[\s(),.!?;:/[\]]/u;
-
-/**
- * Whether an `input` event may have completed, broken, or changed a tag. Typing a tag
- * character outside a rendered tag cannot, so a tag being typed stays plain until the
- * space (or other boundary) that completes it.
- */
-export function inputMayRetag(
-	event: {inputType: string; data: string | null; isComposing: boolean},
-	insideTag: boolean,
-): boolean {
-	if (event.isComposing) {
-		return false;
-	}
-	return insideTag || event.inputType !== "insertText" || event.data === null || TAG_BOUNDARY.test(event.data);
+/** An IME composition is in progress, so the DOM under it must not be rewritten. */
+export function isComposingInput(event: Event | undefined): boolean {
+	return event instanceof InputEvent && event.isComposing;
 }
 
 function tagSignature(root: ParentNode): string {
@@ -38,11 +25,11 @@ function tagSignature(root: ParentNode): string {
 }
 
 /**
- * Re-render the name editor's tag spans when its text no longer matches them, keeping the
- * selection, so a completed tag colors on the very keystroke that completes it.
+ * Swap in `html`, the editor's text freshly rendered, when its tag spans differ from the
+ * editor's, keeping the selection. Like upstream, which re-renders tags on every edit, a
+ * tag colors on each keystroke while it is typed (`#w`, `#wo`, ...) and uncolors when broken.
  */
-export function retagEditor(editor: HTMLElement, dateSettings: DateSettings): void {
-	const html = renderEditorHtml(serializeEditorHtml(editor.innerHTML), dateSettings);
+export function retagEditor(editor: HTMLElement, html: string): void {
 	const rendered = document.createElement("template");
 	rendered.innerHTML = html;
 	if (tagSignature(rendered.content) === tagSignature(editor)) {

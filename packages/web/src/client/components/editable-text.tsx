@@ -52,7 +52,7 @@ import {
 	planPillReplacement,
 	replacePill,
 } from "../date-pills.js";
-import {inputMayRetag, renderEditorHtml, retagEditor, serializeEditorHtml} from "../editor-html.js";
+import {isComposingInput, renderEditorHtml, retagEditor, serializeEditorHtml} from "../editor-html.js";
 import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
@@ -544,12 +544,8 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
 			const content = contentRef.current;
-			if (content !== null && event.nativeEvent instanceof InputEvent) {
-				const anchor = globalThis.getSelection()?.anchorNode;
-				const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement;
-				if (inputMayRetag(event.nativeEvent, anchorElement?.closest(".contentTag") != null)) {
-					retagEditor(content, dateSettings);
-				}
+			if (content !== null && !isComposingInput(event.nativeEvent)) {
+				retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings));
 			}
 			handleSlashInput(event.nativeEvent);
 			handleDateTrigger(event.nativeEvent);

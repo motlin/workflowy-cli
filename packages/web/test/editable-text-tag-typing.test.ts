@@ -24,6 +24,7 @@ const {act, createElement} = await import("react");
 const {createRoot} = await import("react-dom/client");
 const {QueryClient, QueryClientProvider} = await import("@tanstack/react-query");
 const {EditableText} = await import("../src/client/components/editable-text.js");
+const {EditableNote} = await import("../src/client/components/editable-note.js");
 const {caretTextOffset, placeCaretAtTextOffset} = await import("../src/client/caret-dom.js");
 
 let root: Root | undefined;
@@ -65,6 +66,26 @@ function mountEditor(initialValue: string): HTMLElement {
 	return editor;
 }
 
+function mountNote(initialValue: string): HTMLElement {
+	const container = document.createElement("div");
+	document.body.append(container);
+	root = createRoot(container);
+	act(() => {
+		root?.render(
+			createElement(
+				QueryClientProvider,
+				{client: new QueryClient()},
+				createElement(EditableNote, {nodeId: "alice", initialValue, isFocused: true}),
+			),
+		);
+	});
+	const editor = container.querySelector<HTMLElement>(".notes .content");
+	if (editor === null) {
+		throw new Error("note editor did not render");
+	}
+	return editor;
+}
+
 /** Simulate the browser inserting `data` at the caret: the DOM text changes, then `input` fires. */
 function typeText(editor: HTMLElement, text: string, data: string): void {
 	editor.textContent = text;
@@ -87,15 +108,52 @@ describe("EditableText typed tag styling", () => {
 		expect(tagsIn(editor)).toStrictEqual([{val: "@ellen", text: "@Ellen"}]);
 	});
 
-	it("styles a typed mention in the same input event as the space that completes it", () => {
+	it("styles a typed mention on every keystroke while it is typed, like upstream", () => {
 		const editor = mountEditor("Hi");
-		typeText(editor, "Hi @Ellen", "n");
+		typeText(editor, "Hi @", "@");
 		expect(tagsIn(editor)).toStrictEqual([]);
+		typeText(editor, "Hi @E", "E");
+		expect({tags: tagsIn(editor), text: editor.textContent, caret: caretTextOffset(editor)}).toStrictEqual({
+			tags: [{val: "@e", text: "@E"}],
+			text: "Hi @E",
+			caret: 5,
+		});
+		typeText(editor, "Hi @Ellen", "n");
+		expect({tags: tagsIn(editor), text: editor.textContent, caret: caretTextOffset(editor)}).toStrictEqual({
+			tags: [{val: "@ellen", text: "@Ellen"}],
+			text: "Hi @Ellen",
+			caret: 9,
+		});
 		typeText(editor, "Hi @Ellen ", " ");
 		expect({tags: tagsIn(editor), text: editor.textContent, caret: caretTextOffset(editor)}).toStrictEqual({
 			tags: [{val: "@ellen", text: "@Ellen"}],
 			text: "Hi @Ellen ",
 			caret: 10,
+		});
+	});
+});
+
+describe("EditableNote typed tag styling", () => {
+	it("renders stored tags as contentTag spans while focused", () => {
+		const editor = mountNote("Hi #work there");
+		expect(tagsIn(editor)).toStrictEqual([{val: "#work", text: "#work"}]);
+	});
+
+	it("styles a typed tag on every keystroke while it is typed, like upstream", () => {
+		const editor = mountNote("Hi");
+		typeText(editor, "Hi\n#", "#");
+		expect(tagsIn(editor)).toStrictEqual([]);
+		typeText(editor, "Hi\n#w", "w");
+		expect({tags: tagsIn(editor), text: editor.textContent, caret: caretTextOffset(editor)}).toStrictEqual({
+			tags: [{val: "#w", text: "#w"}],
+			text: "Hi\n#w",
+			caret: 5,
+		});
+		typeText(editor, "Hi\n#work ", " ");
+		expect({tags: tagsIn(editor), text: editor.textContent, caret: caretTextOffset(editor)}).toStrictEqual({
+			tags: [{val: "#work", text: "#work"}],
+			text: "Hi\n#work ",
+			caret: 9,
 		});
 	});
 });

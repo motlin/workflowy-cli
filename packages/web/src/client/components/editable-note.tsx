@@ -5,7 +5,8 @@ import {activePaneView, isModalOpen, outlineActions, registerEditFlush, useOutli
 import {useUpdateNode} from "../hooks/use-nodes.js";
 import {collectVisibleNodeIds} from "../hooks/use-visible-nodes.js";
 import {adjacentVisibleNode, navigableIds} from "../caret-navigation.js";
-import {noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
+import {editorHtmlToNote, noteContentHtml, planNoteKey, planNoteSave} from "../note-text.js";
+import {isComposingInput, retagEditor} from "../editor-html.js";
 import {placeCaretAtTextOffset} from "../caret-dom.js";
 import {planDateInsertion, planPillReplacement} from "../date-pills.js";
 import type {TimeAttrs} from "@workflowy/shared";
@@ -81,7 +82,7 @@ function insertAtSelection(text: string, caretInText: number): void {
 /**
  * Upstream's sibling `.notes` after the row's `.name`: ONE always-contenteditable `.content`.
  * - A click places the caret at the click point and focuses the note; while focused, `.content` is `active` (unclamped)
- * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused
+ * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused, re-rendered on every input
  * - Stored `<time>` dates render as monolith pills only at rest; the focused editor holds the raw `<time>` so pills are never saved
  * - A plain click on a date pill opens the date picker on it to change or remove that date
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
@@ -302,6 +303,11 @@ export function EditableNote({
 
 	const handleInput = useCallback(
 		(event?: React.SyntheticEvent<HTMLDivElement>) => {
+			// The note codec drops the slash chip, so tags wait while the slash menu is open.
+			const element = contentRef.current;
+			if (element !== null && !isSlashOpen() && !isComposingInput(event?.nativeEvent)) {
+				retagEditor(element, noteContentHtml(editorHtmlToNote(element.innerHTML), dateSettings));
+			}
 			handleSlashInput(event?.nativeEvent);
 			if (event !== undefined) {
 				handleDateTrigger(event.nativeEvent);
@@ -311,7 +317,7 @@ export function EditableNote({
 				changeNote();
 			}
 		},
-		[changeNote, handleSlashInput, isSlashOpen, handleDateTrigger, handleTagAutocomplete],
+		[changeNote, dateSettings, handleSlashInput, isSlashOpen, handleDateTrigger, handleTagAutocomplete],
 	);
 
 	// ⌘B/⌘I/⌘U/⇧⌘X/⇧⌘C toggle the selection's format, or make it pending for the next typed character.
