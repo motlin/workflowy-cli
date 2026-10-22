@@ -423,3 +423,9 @@ describe("search panel styles guard", () => {
 		expect(hasSelector(styles, /\.search-panel-/u)).toBe(false);
 	});
 });
+
+describe("show completed styles guard", () => {
+	it("drops the old show-completed popup and toggle switch rules", () => {
+		expect(hasSelector(styles, /\.hide-completed-popup\b|\.toggle-switch\b/u)).toBe(false);
+	});
+});
