@@ -46,6 +46,11 @@ function timeSpans(html: string | null): [number, number][] {
 	});
 }
 
+/** Whether `before` and `after` carry different `<time>` dates, in order. */
+export function timesDiffer(before: string, after: string): boolean {
+	return JSON.stringify(timeSpans(before)) !== JSON.stringify(timeSpans(after));
+}
+
 /** Whether any `<time>` in `html` starts on or before `dateId` and ends on or after it. */
 function coversDay(html: string | null, dateId: number): boolean {
 	return timeSpans(html).some(([start, end]) => start <= dateId && dateId <= end);

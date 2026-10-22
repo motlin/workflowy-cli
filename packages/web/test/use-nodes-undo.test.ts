@@ -106,7 +106,9 @@ beforeEach(() => {
 			const body = JSON.parse(typeof init.body === "string" ? init.body : "{}") as {id: string};
 			return Promise.resolve(Response.json({node: node({id: createdId ?? body.id})}));
 		}
-		return Promise.resolve(responses.shift() ?? Response.json({node: node({id: "any"})}));
+		return Promise.resolve(
+			responses.shift() ?? Response.json({node: node({id: "any"}), effects: {backlinkTargets: [], dates: false}}),
+		);
 	});
 });
 

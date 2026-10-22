@@ -252,7 +252,7 @@ describe("PATCH /api/v1/nodes/:id metadata", () => {
 		const res = await request("PATCH", "/nodes/n1", {layoutMode: "numbered", numberedStart: 5});
 
 		expect({res, calls: adapter.setNodeMetaValues.mock.calls, updates: updateNode.mock.calls}).toStrictEqual({
-			res: {status: 200, body: {node: dto("n1", "numbered", 5)}},
+			res: {status: 200, body: {node: dto("n1", "numbered", 5), effects: {backlinkTargets: [], dates: false}}},
 			calls: [
 				[
 					"n1",
@@ -320,6 +320,43 @@ describe("PATCH /api/v1/nodes/:id metadata", () => {
 		await request("PATCH", "/nodes/n1", {name: "plain"});
 
 		expect(adapter.syncBacklinks.mock.calls).toStrictEqual([]);
+	});
+
+	it("reports no effects for a plain text edit", async () => {
+		const {request} = setup(true);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		const {body} = await request("PATCH", "/nodes/n1", {name: "plain"});
+
+		expect(body).toStrictEqual({node: dto("n1", null, null), effects: {backlinkTargets: [], dates: false}});
+	});
+
+	it("reports the targets of the links an edit adds or removes, but not those it keeps", async () => {
+		const {request, cacheService} = setup(true);
+		const kept = "11111111-2222-3333-4444-0123456789ab";
+		const removed = "11111111-2222-3333-4444-aaaaaaaaaaaa";
+		const added = "11111111-2222-3333-4444-bbbbbbbbbbbb";
+		for (const id of [kept, removed, added]) {
+			cacheService.insertNode(apiNode(id), null);
+		}
+		const link = (id: string) => `<a href="https://workflowy.com/#/${id.slice(-12)}">t</a>`;
+		cacheService.insertNode({...apiNode("n1"), name: `${link(kept)} ${link(removed)}`}, null);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		const {body} = await request("PATCH", "/nodes/n1", {name: `${link(kept)} ${link(added)}`});
+
+		expect((body as {effects: unknown}).effects).toStrictEqual({backlinkTargets: [removed, added], dates: false});
+	});
+
+	it("reports a date change when an edit adds a <time>", async () => {
+		const {request} = setup(true);
+		updateNode.mockResolvedValue(apiNode("n1"));
+
+		const {body} = await request("PATCH", "/nodes/n1", {
+			note: 'on <time startYear="2026" startMonth="10" startDay="22">Oct 22</time>',
+		});
+
+		expect((body as {effects: unknown}).effects).toStrictEqual({backlinkTargets: [], dates: true});
 	});
 
 	it("rejects a numberedStart that is not an integer or null", async () => {

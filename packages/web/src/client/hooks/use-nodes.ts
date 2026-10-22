@@ -10,14 +10,20 @@ import {
 import {useCallback} from "react";
 import {HOME_TARGET} from "@workflowy/shared/types";
 import type {MutateOptions, MutationObserverOptions, QueryClient} from "@tanstack/react-query";
-import type {BacklinksResponse, FoundDatesResponse, NodeResponse, OutlineViewResponse} from "../../node-types.js";
+import type {
+	BacklinksResponse,
+	FoundDatesResponse,
+	NodeResponse,
+	OutlineViewResponse,
+	UpdateNodeResponse,
+} from "../../node-types.js";
 import type {OutlineViewRequest} from "../outline-view.js";
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
 import {
 	applySavedText,
 	cachedAncestors,
-	invalidateSavedText,
+	invalidateSaveEffects,
 	nodeKeys,
 	patchCachedNode,
 	patchMirrors,
@@ -134,7 +140,7 @@ async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 	return data.node;
 }
 
-async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<NodeResponse> {
+async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<UpdateNodeResponse> {
 	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`, {
 		method: "POST",
@@ -144,8 +150,7 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<N
 	if (!response.ok) {
 		throw new RequestStatusError(response.status, `Failed to update node: ${response.statusText}`);
 	}
-	const data = await readJson<{node: NodeResponse}>(response);
-	return data.node;
+	return readJson<UpdateNodeResponse>(response);
 }
 
 /** Home's own metadata: its layoutMode ("bullets" when unset). */
@@ -581,7 +586,7 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 	return {previousChildren, parentId, restoreParentFlags};
 }
 
-const updateUndos = new HeldUndos<NodeResponse, UpdateNodeRequest & {nodeId: string}>();
+const updateUndos = new HeldUndos<UpdateNodeResponse, UpdateNodeRequest & {nodeId: string}>();
 
 function planEdit(
 	{nodeId, name, note}: UpdateNodeRequest & {nodeId: string},
@@ -665,10 +670,10 @@ export function useUpdateNode() {
 			}
 			// A later save of the same node still in flight owns the cached text until it answers.
 			if (pending === 0) {
-				applySavedText(queryClient, data);
+				applySavedText(queryClient, data.node);
 				verifyAgainstServer(queryClient, "update", affectedKeys(queryClient, [nodeId], []));
 			}
-			await invalidateSavedText(queryClient, nodeId);
+			await invalidateSaveEffects(queryClient, data.effects);
 		},
 	});
 	const nodeMutate = useUndoableMutate(mutation.mutate, updateUndos, planEdit);

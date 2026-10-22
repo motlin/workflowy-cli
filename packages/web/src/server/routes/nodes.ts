@@ -8,6 +8,8 @@ import type {
 	NodeResponse,
 	OutlineViewList,
 	OutlineViewResponse,
+	SaveEffects,
+	UpdateNodeResponse,
 } from "../../node-types.js";
 import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import type {ExactMover} from "@workflowy/shared/cache";
@@ -17,14 +19,14 @@ import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/int
 import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
-import {hasInternalLink, isShortId} from "@workflowy/shared/workflowy";
+import {hasInternalLink, internalLinkShortIds, isShortId} from "@workflowy/shared/workflowy";
 import {and, eq, inArray, sql} from "drizzle-orm";
 import {Hono} from "hono";
 import {z} from "zod";
 import type {Context} from "hono";
 import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoot} from "../backlinks.js";
 import {loadCalendarInfo} from "../calendar-day.js";
-import {findFoundDates} from "../calendar-found.js";
+import {findFoundDates, timesDiffer} from "../calendar-found.js";
 import type {AppEnv, ServerContext} from "../context.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
@@ -37,6 +39,30 @@ function resolveNodeId(ctx: ServerContext, id: string): string | null {
 		return id;
 	}
 	return ctx.cacheService.resolveShortIdToUuid(id);
+}
+
+/**
+ * What saving `name`/`note` over `before` (the text source's cached text) changes beyond the node itself: the
+ * nodes a link was added to or removed from, and whether its `<time>` dates moved. The client refetches only those.
+ */
+function saveEffects(
+	ctx: ServerContext,
+	before: {name: string | null; note?: string | null} | undefined,
+	name: string | undefined,
+	note: string | undefined,
+): SaveEffects {
+	const beforeText = `${before?.name ?? ""} ${before?.note ?? ""}`;
+	const afterText = `${name ?? before?.name ?? ""} ${note ?? before?.note ?? ""}`;
+	const beforeLinks = new Set(internalLinkShortIds(beforeText));
+	const afterLinks = new Set(internalLinkShortIds(afterText));
+	const changed = [
+		...[...beforeLinks].filter((id) => !afterLinks.has(id)),
+		...[...afterLinks].filter((id) => !beforeLinks.has(id)),
+	];
+	return {
+		backlinkTargets: changed.flatMap((id) => resolveNodeId(ctx, id) ?? []),
+		dates: timesDiffer(beforeText, afterText),
+	};
 }
 
 /**
@@ -632,10 +658,12 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 			...(layoutMode === undefined ? [] : [{path: ["layoutMode"], value: layoutModeValue(layoutMode)}]),
 			...(numberedStart === undefined ? [] : [{path: ["numbered_start"], value: numberedStart ?? undefined}]),
 		];
+		let effects: SaveEffects = {backlinkTargets: [], dates: false};
 		if (name !== undefined || note !== undefined) {
 			// Text lives on a mirror's original, which is the backlink source.
 			const sourceId = cacheService.getMirrorOriginal(id) ?? id;
 			const before = cacheService.getNode(sourceId);
+			effects = saveEffects(ctx, before, name, note);
 			await client.updateNode(id, {
 				...(name === undefined ? {} : {name}),
 				...(note === undefined ? {} : {note}),
@@ -653,12 +681,13 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		if (node === undefined) {
 			return c.json({error: "Node not found"}, 404);
 		}
-		return c.json({node});
+		return c.json({node, effects} satisfies UpdateNodeResponse);
 	}
 	if (numberedStart !== undefined) {
 		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 	}
 
+	const effects = saveEffects(ctx, cacheService.getNode(cacheService.getMirrorOriginal(id) ?? id), name, note);
 	const updatedNode = await client.updateNode(id, {
 		...(name === undefined ? {} : {name}),
 		...(note === undefined ? {} : {note}),
@@ -686,7 +715,7 @@ nodesRouter.on(["PATCH", "POST"], "/:id", async (c) => {
 		calendar: null,
 	};
 
-	return c.json({node: nodeResponse});
+	return c.json({node: nodeResponse, effects} satisfies UpdateNodeResponse);
 });
 
 // DELETE /api/v1/nodes/:id - Delete node

@@ -1,5 +1,5 @@
 import type {QueryClient} from "@tanstack/react-query";
-import type {FoundDatesResponse, NodeResponse} from "../node-types.js";
+import type {BacklinkCrumb, BacklinksResponse, FoundDatesResponse, NodeResponse, SaveEffects} from "../node-types.js";
 import {shortId} from "./location.js";
 import {sortByPriority} from "./tree-position.js";
 
@@ -297,38 +297,67 @@ function withSavedText(node: NodeResponse, saved: NodeResponse): NodeResponse {
 	};
 }
 
+/** `crumbs` with the name of each crumb in `ids` set to `name`. */
+function renameCrumbs(crumbs: BacklinkCrumb[], ids: ReadonlySet<string>, name: string | null): BacklinkCrumb[] {
+	return crumbs.some((crumb) => ids.has(crumb.id))
+		? crumbs.map((crumb) => (ids.has(crumb.id) ? {...crumb, name: name ?? ""} : crumb))
+		: crumbs;
+}
+
 /**
  * Write a saved node's text, as the server answered it, into every cached copy: its detail entry, its row in each
- * children list and its link in each ancestor chain. Nothing that only shows the node needs a refetch after a save.
+ * children list, its link in each ancestor chain, its original's rows and mirrors when it is a mirror, and its rows
+ * and crumbs in each Backlinks and Found Dates list. Nothing that only shows the node needs a refetch after a save.
  */
 export function applySavedText(queryClient: QueryClient, saved: NodeResponse): void {
+	const text = (node: NodeResponse) => ({...node, name: saved.name, note: saved.note});
 	patchCachedNode(queryClient, saved.id, (node) => withSavedText(node, saved));
-	patchMirrors(queryClient, saved.id, (node) => ({...node, name: saved.name, note: saved.note}));
+	patchMirrors(queryClient, saved.id, text);
+	// A mirror's text is its original's, so the original and its other mirrors show the saved text too.
+	const source = saved.originalNodeId ?? saved.id;
+	if (source !== saved.id) {
+		patchCachedNode(queryClient, source, text);
+		patchMirrors(queryClient, source, (node) => (node.id === saved.id ? node : text(node)));
+	}
 	queryClient.setQueriesData<NodeResponse[]>({queryKey: [...nodeKeys.all, "ancestors"]}, (chain) =>
 		chain?.some((node) => node.id === saved.id)
 			? chain.map((node) => (node.id === saved.id ? withSavedText(node, saved) : node))
 			: chain,
 	);
+	const ids = new Set([saved.id, source]);
+	queryClient.setQueriesData<BacklinksResponse | null>({queryKey: [...nodeKeys.all, "backlinks"]}, (response) =>
+		response?.items === undefined
+			? response
+			: {
+					...response,
+					items: response.items.map((item) => ({
+						...item,
+						node: ids.has(item.sourceId) ? text(item.node) : item.node,
+						crumbs: renameCrumbs(item.crumbs, ids, saved.name),
+					})),
+				},
+	);
+	queryClient.setQueriesData<FoundDatesResponse>({queryKey: FOUND_DATES_KEY}, (response) =>
+		response === undefined
+			? response
+			: {
+					items: response.items.map((item) => ({
+						node: ids.has(item.node.id) ? text(item.node) : item.node,
+						crumbs: renameCrumbs(item.crumbs, ids, saved.name),
+					})),
+				},
+	);
 }
 
 /**
- * Refetch what a node's text feeds beyond its own copies: every backlinks list (a link added or removed changes its
- * target's), every Found Dates list (a date added or removed), and each children list showing a mirror of the node.
+ * Refetch only what the server says a save changed beyond the node's own copies: the Backlinks of each node a link
+ * was added to or removed from, and every Found Dates list when the node's dates moved. Plain typing refetches nothing.
  */
-export async function invalidateSavedText(queryClient: QueryClient, nodeId: string): Promise<void> {
-	const related = new Set([nodeId]);
-	const original = readNode(queryClient, nodeId)?.originalNodeId;
-	if (original) {
-		related.add(original);
-	}
-	const mirrored = (row: NodeResponse) =>
-		row.id !== nodeId && (related.has(row.id) || related.has(row.originalNodeId ?? ""));
+export async function invalidateSaveEffects(queryClient: QueryClient, effects: SaveEffects): Promise<void> {
 	await Promise.all([
-		queryClient.invalidateQueries({queryKey: [...nodeKeys.all, "backlinks"]}),
-		queryClient.invalidateQueries({queryKey: FOUND_DATES_KEY}),
-		queryClient.invalidateQueries({
-			queryKey: [...nodeKeys.all, "children"],
-			predicate: (query) => queryClient.getQueryData<NodeResponse[]>(query.queryKey)?.some(mirrored) ?? false,
-		}),
+		...effects.backlinkTargets.map(async (id) =>
+			queryClient.invalidateQueries({queryKey: nodeKeys.backlinks(id), exact: true}),
+		),
+		...(effects.dates ? [queryClient.invalidateQueries({queryKey: FOUND_DATES_KEY})] : []),
 	]);
 }

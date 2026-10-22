@@ -86,6 +86,21 @@ export interface OutlineViewResponse {
 	lists: OutlineViewList[];
 }
 
+/**
+ * What a text save changed beyond the node's own copies: the nodes whose Backlinks gained or lost it as a
+ * source, and whether its `<time>`s changed (which moves it between day pages' Found Dates).
+ */
+export interface SaveEffects {
+	backlinkTargets: string[];
+	dates: boolean;
+}
+
+/** `POST /api/v1/nodes/:id`'s answer: the saved node and what else the save changed. */
+export interface UpdateNodeResponse {
+	node: NodeResponse;
+	effects: SaveEffects;
+}
+
 /** A Found Dates item: the found node shown as a mirror of itself, and its ancestor crumbs. */
 export interface FoundDateItem {
 	node: NodeResponse;
