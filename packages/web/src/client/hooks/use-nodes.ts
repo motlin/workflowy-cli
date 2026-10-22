@@ -1,7 +1,14 @@
-import {skipToken, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {
+	MutationObserver,
+	mutationOptions,
+	skipToken,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {useCallback} from "react";
 import {HOME_TARGET} from "@workflowy/shared/types";
-import type {MutateOptions, QueryClient} from "@tanstack/react-query";
+import type {MutateOptions, MutationObserverOptions, QueryClient} from "@tanstack/react-query";
 import type {BacklinksResponse, FoundDatesResponse, NodeResponse} from "../../node-types.js";
 import {expandOrCollapseAll} from "../expansion.js";
 import type {TreeIndex} from "../expansion.js";
@@ -403,6 +410,21 @@ function useUndoableMutate<TData, TVariables, TContext>(
 	);
 }
 
+/**
+ * One undoable mutation run without a hook: reserve its undo slot as `useUndoableMutate` does, then run it on an
+ * observer of its own. Its failure is reported by the options' `onError`.
+ */
+function runUndoableMutation<TData, TVariables, TContext>(
+	queryClient: QueryClient,
+	options: MutationObserverOptions<TData, Error, TVariables, TContext>,
+	held: HeldUndos<TData, TVariables>,
+	plan: (variables: TVariables, queryClient: QueryClient) => (data: TData) => UndoOp[],
+	variables: TVariables,
+): void {
+	held.hold(variables, plan(variables, queryClient));
+	new MutationObserver(queryClient, options).mutate(variables).catch(() => {});
+}
+
 /** A plan for mutations whose ops are fully known from the cache before they run. */
 function cachedOps(queryClient: QueryClient, mutation: UndoableMutation): () => UndoOp[] {
 	const ops = toUndoOps(mutation, queryClient);
@@ -763,16 +785,11 @@ function planMoveNodes({ids, parent_id: parentId, index}: MoveNodesRequest, quer
  * in one call (multi-select, drag, Sort). Splices optimistically, then applies the
  * server's sibling lists for every touched parent.
  */
-export function useMoveNodes() {
-	const queryClient = useQueryClient();
-	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const beginMutation = useOutlineStore((state) => state.beginMutation);
-	const endMutation = useOutlineStore((state) => state.endMutation);
-
-	const mutation = useMutation({
+function moveNodesOptions(queryClient: QueryClient) {
+	return mutationOptions({
 		mutationFn: moveNodes,
-		async onMutate(request) {
-			beginMutation();
+		async onMutate(request: MoveNodesRequest) {
+			useOutlineStore.getState().beginMutation();
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const rows = request.ids
 				.map((id) => readNode(queryClient, id))
@@ -796,15 +813,25 @@ export function useMoveNodes() {
 		async onError(error, variables, snapshots) {
 			moveNodesUndos.settle(variables, "failed");
 			restoreSnapshots(queryClient, snapshots);
-			addErrorNotification(`Failed to move nodes: ${error.message}`);
+			useOutlineStore.getState().addErrorNotification(`Failed to move nodes: ${error.message}`);
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 		onSettled() {
-			endMutation();
+			useOutlineStore.getState().endMutation();
 		},
 	});
+}
+
+export function useMoveNodes() {
+	const queryClient = useQueryClient();
+	const mutation = useMutation(moveNodesOptions(queryClient));
 	const mutate = useUndoableMutate(mutation.mutate, moveNodesUndos, planMoveNodes);
 	return {...mutation, mutate};
+}
+
+/** `useMoveNodes().mutate` without a hook, for a bullet drag's drop: a resting row holds no observer. */
+export function moveNodesNow(queryClient: QueryClient, request: MoveNodesRequest): void {
+	runUndoableMutation(queryClient, moveNodesOptions(queryClient), moveNodesUndos, planMoveNodes, request);
 }
 
 type CacheSnapshot =
@@ -880,11 +907,8 @@ function planToggle(
  * Toggles node completion status with optimistic update.
  * If completed, uncompletes. If not completed, completes.
  */
-export function useToggleComplete() {
-	const queryClient = useQueryClient();
-	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-
-	const mutation = useMutation({
+function toggleCompleteOptions(queryClient: QueryClient) {
+	return mutationOptions({
 		mutationFn: async ({nodeId, isCurrentlyCompleted}: {nodeId: string; isCurrentlyCompleted: boolean}) =>
 			isCurrentlyCompleted ? uncompleteNode(nodeId) : completeNode(nodeId),
 		async onMutate({nodeId, isCurrentlyCompleted}) {
@@ -934,7 +958,7 @@ export function useToggleComplete() {
 			if (context?.previousChildren !== undefined) {
 				queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
 			}
-			addErrorNotification(`Failed to toggle completion: ${error.message}`);
+			useOutlineStore.getState().addErrorNotification(`Failed to toggle completion: ${error.message}`);
 		},
 		async onSettled(_data, _error, variables) {
 			// Refetch to get the real data from server
@@ -942,8 +966,21 @@ export function useToggleComplete() {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});
+}
+
+export function useToggleComplete() {
+	const queryClient = useQueryClient();
+	const mutation = useMutation(toggleCompleteOptions(queryClient));
 	const mutate = useUndoableMutate(mutation.mutate, toggleUndos, planToggle);
 	return {...mutation, mutate};
+}
+
+/** `useToggleComplete().mutate` without a hook, for a row's checkbox or menu: a resting row holds no observer. */
+export function toggleComplete(
+	queryClient: QueryClient,
+	variables: {nodeId: string; isCurrentlyCompleted: boolean},
+): void {
+	runUndoableMutation(queryClient, toggleCompleteOptions(queryClient), toggleUndos, planToggle, variables);
 }
 
 const restoreUndos = new HeldUndos<NodeResponse, RestoreNodeRequest & {nodeId: string}>();
@@ -1038,16 +1075,15 @@ export async function expandOrCollapseSubtree(rootId: string | null, open: boole
 }
 
 /** `expandOrCollapseSubtree` that reports a failed subtree fetch as an error notification. */
+function expandAll(rootId: string | null, open: boolean): void {
+	expandOrCollapseSubtree(rootId, open).catch((error: unknown) => {
+		useOutlineStore.getState().addErrorNotification(error instanceof Error ? error.message : String(error));
+	});
+}
+
+/** Expands or collapses a whole subtree; the callback is one module function, so its rows hold no store selector. */
 export function useExpandAll(): (rootId: string | null, open: boolean) => void {
-	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	return useCallback(
-		(rootId, open) => {
-			expandOrCollapseSubtree(rootId, open).catch((error: unknown) => {
-				addErrorNotification(error instanceof Error ? error.message : String(error));
-			});
-		},
-		[addErrorNotification],
-	);
+	return expandAll;
 }
 
 export type MoveNodesMutate = ReturnType<typeof useMoveNodes>["mutate"];

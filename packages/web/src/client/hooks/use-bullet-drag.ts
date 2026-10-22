@@ -23,7 +23,7 @@ import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import {leaveEditor} from "./use-drag-select.js";
-import {useMoveNodes} from "./use-nodes.js";
+import {moveNodesNow} from "./use-nodes.js";
 import {HOME_ROOT, currentSelectionView} from "./use-selection-keymap.js";
 
 const GHOST_CLONE_LIMIT = 5;
@@ -288,7 +288,6 @@ function makeGhost(bullet: HTMLElement, x: number, y: number, count: number): HT
  */
 export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnchorElement>) => void {
 	const queryClient = useQueryClient();
-	const moveNodes = useMoveNodes();
 
 	return useCallback(
 		(event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -454,7 +453,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 					if (fromFoundDates) {
 						removeFoundDates(queryClient, plan.move.ids);
 					}
-					moveNodes.mutate({
+					moveNodesNow(queryClient, {
 						ids: [...plan.move.ids],
 						parent_id: plan.move.parentId === HOME_ROOT ? null : plan.move.parentId,
 						index: plan.move.index,
@@ -479,6 +478,6 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			globalThis.addEventListener("keydown", onKeyDown, true);
 			document.addEventListener("mouseout", onLeaveWindow, true);
 		},
-		[nodeId, queryClient, moveNodes],
+		[nodeId, queryClient],
 	);
 }

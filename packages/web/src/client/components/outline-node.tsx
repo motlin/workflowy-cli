@@ -3,20 +3,19 @@
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {memo, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
-import {isEntry} from "../item-selection.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
 import {clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
 import {useBulletDrag} from "../hooks/use-bullet-drag.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useMoveTo} from "../hooks/use-move-to.js";
 import {useQueryClient} from "@tanstack/react-query";
-import {useCreateNode, useDeleteNode, useExpandAll, useToggleComplete, useUpdateNode} from "../hooks/use-nodes.js";
+import {toggleComplete, useCreateNode, useDeleteNode, useExpandAll, useUpdateNode} from "../hooks/use-nodes.js";
 import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
 import {deleteDates} from "../date-pills.js";
-import {useNodeEditing} from "../hooks/use-node-editing.js";
 import {outlineActions, useOutlineStore} from "../stores/outline.js";
-import {paneExpandedIds} from "../pane-ids.js";
-import {useSearchFilter} from "../hooks/use-tree-search.js";
+import {useOutlineSearchFilter} from "../search-filter-context.js";
+import type {ClickPosition} from "../stores/outline.js";
+import {useRowState} from "../hooks/use-row-state.js";
 import {isSearchExpanded} from "../search-filter.js";
 import {expansionSlide} from "../children-slide.js";
 import {searchClasses, withClasses} from "../search-classes.js";
@@ -29,9 +28,8 @@ import {itemMenuLeft} from "../item-menu-model.js";
 import {openInPane} from "../pane-commands.js";
 import {ItemMenuTrigger} from "./node-context-menu.js";
 import type {DropHover} from "../bullet-drag-state.js";
-import {dropHoverOf} from "../bullet-drag-state.js";
 import {OutlineChildren} from "./outline-tree.js";
-import {PaneContext, useInActivePane, usePaneId} from "./pane-context.js";
+import {PaneContext, usePaneId} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {rowClickResumesEditing} from "./row-click.js";
 import {planDuplicate, rowHasChildren} from "../tree-ops.js";
@@ -260,6 +258,10 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 
 interface NodeNameProps {
 	node: NodeResponse;
+	/** Whether this row's name is being edited in the active pane. */
+	isEditing: boolean;
+	/** Where the editing click landed, while `isEditing`. */
+	editingClickPosition: ClickPosition | null;
 	isExpanded: boolean;
 	hasChildren: boolean;
 	depth: number;
@@ -275,7 +277,17 @@ interface NodeNameProps {
  * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger,
  * which is mounted only while `.name` is hovered or its menu is open.
  */
-function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching, searchNameClasses}: NodeNameProps) {
+function NodeName({
+	node,
+	isEditing,
+	editingClickPosition,
+	isExpanded,
+	hasChildren,
+	depth,
+	withEmbedder,
+	searching,
+	searchNameClasses,
+}: NodeNameProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {setItemMenuOpen, toggleExpand, toggleSearchExpansion, resumeEditing} = outlineActions();
@@ -286,11 +298,8 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching
 		},
 		[node.id, setItemMenuOpen],
 	);
-	const {editing, clickPosition: editingClickPosition} = useNodeEditing(node.id);
-	const toggleComplete = useToggleComplete();
+	const queryClient = useQueryClient();
 	const expandAll = useExpandAll();
-	const inActivePane = useInActivePane();
-	const isEditing = inActivePane && editing;
 	const isCompleted = node.completedAt !== null;
 	const layout = resolveLayoutMode(node.data.layoutMode);
 	const name = node.name ?? "";
@@ -307,7 +316,7 @@ function NodeName({node, isExpanded, hasChildren, depth, withEmbedder, searching
 	};
 
 	const handleComplete = () => {
-		toggleComplete.mutate({nodeId: node.id, isCurrentlyCompleted: isCompleted});
+		toggleComplete(queryClient, {nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
 
 	const nameClasses = withClasses(nameClassName({empty: name === "", withEmbedder}), searchNameClasses);
@@ -440,26 +449,24 @@ export const OutlineRow = memo(function OutlineRow({
 	/** Collapse the crumbs from the left to fit the row, as Found Dates rows do. */
 	fitCrumbs?: boolean;
 }) {
-	const search = useSearchFilter();
+	const search = useOutlineSearchFilter();
 	const paneId = usePaneId();
-	const isPersistentlyExpanded = useOutlineStore((state) => paneExpandedIds(state, paneId).has(node.id));
+	const {
+		isPersistentlyExpanded,
+		isEditingNote,
+		isEditingName,
+		editingClickPosition,
+		isSlidingUp,
+		isMoving,
+		isAddedToSelection,
+		isHighlighted,
+		isSlidingDown,
+		dragHover,
+		showCompleted,
+	} = useRowState(node.id, paneId);
 	const isExpanded = search === null ? isPersistentlyExpanded : isSearchExpanded(node.id, search);
 	const rowSearchClasses = searchClasses({id: node.id, parentId: node.parent_id}, search);
-	// Editing and the item selection show only in the active pane, so a row visible in both panes edits in one.
-	const inActivePane = useInActivePane();
-	const isEditingNote = useOutlineStore((state) => inActivePane && state.editingNoteId === node.id);
-	const isEditingName = useOutlineStore((state) => inActivePane && state.editingId === node.id);
-	const isSlidingUp = useOutlineStore((state) => state.slidingUpCompletionIds.has(node.id));
-	const isMoving = useOutlineStore(
-		(state) => state.movingIds.includes(node.id) || state.draggingIds.includes(node.id),
-	);
-	const isAddedToSelection = useOutlineStore((state) => inActivePane && isEntry(state.itemSelection, node.id));
-	// Upstream tints the row and its nested `.children` while the row's item menu is open.
-	const isHighlighted = useOutlineStore((state) => state.itemMenuOpenId === node.id);
-	const isSlidingDown = useOutlineStore((state) => state.slidingDownCompletedIds.has(node.id));
-	const dragHover = useOutlineStore((state) => dropHoverOf(state.dropIndicator, node.id));
 	const {endCompletionAnimation} = outlineActions();
-	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const hasChildren = rowHasChildren(node, showCompleted);
 
 	// Upstream mounts `.notes` once the note is non-empty, has had focus, or the name was edited, and never unmounts it.
@@ -527,6 +534,8 @@ export const OutlineRow = memo(function OutlineRow({
 			{backlinkCrumbs ? <BacklinkCrumbs crumbs={backlinkCrumbs} fitted={fitCrumbs} /> : null}
 			<NodeName
 				depth={depth}
+				editingClickPosition={editingClickPosition}
+				isEditing={isEditingName}
 				hasChildren={hasChildren}
 				isExpanded={isExpanded}
 				node={node}

@@ -8,7 +8,7 @@ import type {Root} from "react-dom/client";
 import type {ReactElement} from "react";
 import {MemoryRouter, useNavigate} from "react-router-dom";
 import type {NavigateFunction} from "react-router-dom";
-import {useNodeEditing} from "../src/client/hooks/use-node-editing.js";
+import {useRowState} from "../src/client/hooks/use-row-state.js";
 import {StableNavigateProvider, useStableNavigate} from "../src/client/hooks/use-stable-navigate.js";
 import {useOutlineViewState} from "../src/client/hooks/use-outline-view-state.js";
 import {useOutlineStore} from "../src/client/stores/outline.js";
@@ -77,9 +77,9 @@ describe("useOutlineViewState", () => {
 	});
 });
 
-describe("useNodeEditing", () => {
+describe("useRowState", () => {
 	it("re-renders a row only when editing enters or leaves it", () => {
-		const renders = mountProbe(() => useNodeEditing("alice"));
+		const renders = mountProbe(() => useRowState("alice", "main"));
 		setStore({editingId: "bob"});
 		setStore({editingId: "alice"});
 		setStore({editingId: "carol"});

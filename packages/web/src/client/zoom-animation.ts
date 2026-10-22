@@ -1,7 +1,7 @@
 /** Upstream's zoom transition length. */
 export const ZOOM_MS = 200;
-/** Fallback for each transition's `transitionend`. */
-const TRANSITION_FALLBACK_MS = 300;
+/** Fallback for the animations' finish, should one never settle. */
+const ANIMATION_FALLBACK_MS = 300;
 /** The body class upstream's `[.item--zooming-in-progress_&]` utilities key on. */
 export const ZOOMING_CLASS = "item--zooming-in-progress";
 
@@ -107,46 +107,59 @@ function contentClone(content: HTMLElement): HTMLElement {
 	return clone;
 }
 
+/** The part of an element `play` uses: the Web Animations `animate`. */
+export interface Animatable {
+	animate: (
+		keyframes: Keyframe[],
+		options: KeyframeAnimationOptions,
+	) => {finished: Promise<unknown>; cancel: () => void};
+}
+
 interface Step {
-	el: HTMLElement;
+	el: Animatable;
 	from: Look;
 	to: Look;
 }
 
-async function waitForTransition(el: HTMLElement): Promise<void> {
+function keyframe({opacity, transform}: Look): Keyframe {
+	return {opacity, transform: transform === "" ? "none" : transform};
+}
+
+async function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => {
-		const done = () => {
-			clearTimeout(timer);
-			el.removeEventListener("transitionend", done);
-			resolve();
-		};
-		const timer = setTimeout(done, TRANSITION_FALLBACK_MS);
-		el.addEventListener("transitionend", done);
+		setTimeout(resolve, ms);
 	});
 }
 
-/** Put every element at its start look, then transition them all to their end looks. */
-async function play(steps: Step[]): Promise<void> {
-	for (const {el, from} of steps) {
-		el.style.transition = "none";
-		el.style.opacity = from.opacity;
-		el.style.transform = from.transform;
+/**
+ * Animate every element from its start look to its end look, holding the end look until the animations settle,
+ * then cancel them. Web Animations, unlike CSS transitions, fire no `transitionend` for React's root listener to
+ * dispatch once per animated row. The animations finish inside a frame's rendering update, so the settle waits for
+ * a task of its own: work awaiting it (the zoom swap mounting the new view) then renders in the next frame instead of
+ * sharing one task with this frame's style, layout and paint, with the end look held meanwhile.
+ */
+export async function play(steps: Step[]): Promise<void> {
+	const animations = steps.map(({el, from, to}) =>
+		el.animate([keyframe(from), keyframe(to)], {duration: ZOOM_MS, easing: "ease", fill: "forwards"}),
+	);
+	try {
+		await Promise.race([
+			Promise.allSettled(animations.map(async (animation) => animation.finished)),
+			delay(ANIMATION_FALLBACK_MS),
+		]);
+		await delay(0);
+	} finally {
+		for (const animation of animations) {
+			animation.cancel();
+		}
 	}
-	// Flush the start looks so the transitions run from them.
-	document.body.getBoundingClientRect();
-	for (const {el, to} of steps) {
-		el.style.transition = `opacity ${ZOOM_MS}ms, transform ${ZOOM_MS}ms`;
-		el.style.opacity = to.opacity;
-		el.style.transform = to.transform;
-	}
-	await Promise.all(steps.map(async ({el}) => waitForTransition(el)));
 }
 
 /**
  * Upstream's zoom animation, in parallel: a crossfade of `.name > .content` clones (the moving row's text slides
  * and scales between its row and the title while the title fades), and moveBullets (the moving row's bullet and
  * note slide by the offset and fade, its children slide the other way, and its siblings fade). The real contents
- * are hidden meanwhile; every inline style and clone is cleared afterwards.
+ * are hidden meanwhile; every animation and clone is cleared afterwards.
  */
 async function animateZoom({isOut, rowEl, otherEl, childEls}: AnimateZoomInput): Promise<void> {
 	const rowName = rowEl.querySelector<HTMLElement>(":scope > .name");
@@ -194,11 +207,6 @@ async function animateZoom({isOut, rowEl, otherEl, childEls}: AnimateZoomInput):
 		titleClone.remove();
 		rowContent.style.visibility = "";
 		titleContent.style.visibility = "";
-		for (const {el} of steps) {
-			el.style.transition = "";
-			el.style.opacity = "";
-			el.style.transform = "";
-		}
 	}
 }
 

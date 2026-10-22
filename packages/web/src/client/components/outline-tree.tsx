@@ -22,6 +22,8 @@ import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from ".
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
 import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
+import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
+import {useShallow} from "zustand/react/shallow";
 import {planAddChild, planAddSibling} from "../tree-ops.js";
 import {ExpandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
@@ -161,7 +163,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 	const isMainTreeRoot = nodeId === null;
 	const isDragHoveredIn = useOutlineStore((state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT) === "in");
 	const isEditing = inActivePane && !isMainTreeRoot && editingId === nodeId;
-	const searchRootClasses = rootSearchClasses(useSearchFilter());
+	const searchRootClasses = rootSearchClasses(useOutlineSearchFilter());
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");
 	const layout = resolveLayoutMode(node?.data.layoutMode);
 	const handleComplete = () => {
@@ -494,11 +496,15 @@ export function OutlineChildren({
 	found?: {dayId: string; response: FoundDatesResponse | undefined} | null;
 }) {
 	const {data: nodes} = useChildren(parentId);
-	const search = useSearchFilter();
+	const search = useOutlineSearchFilter();
 	// A search leaves the Backlinks section out, so its rows skip the fetch.
 	const {data: backlinks} = useBacklinks(search === null ? parentId : null);
-	const showCompleted = useOutlineStore((state) => state.showCompleted);
-	const animatingCompletionIds = useOutlineStore((state) => state.animatingCompletionIds);
+	const {showCompleted, animatingCompletionIds} = useOutlineStore(
+		useShallow((state) => ({
+			showCompleted: state.showCompleted,
+			animatingCompletionIds: state.animatingCompletionIds,
+		})),
+	);
 	const visibleNodes = nodes?.filter((node) => rendersRow(node, showCompleted, animatingCompletionIds, search));
 	// The outline spends one row budget across the whole tree (see render-window.ts).
 	const rowLimits = useContext(RowLimitsContext);
@@ -596,12 +602,14 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- a mouse shortcut to the last row; keyboard users move the caret with the arrow keys
 		<div className="outline-tree-container" onClick={handleBlankClick}>
 			<div className="scroller">
-				<RowLimitsContext.Provider value={rowLimits}>
-					<ZoomRootRow nodeId={parentId}>
-						<RootOutlineChildren parentId={parentId} />
-						{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
-					</ZoomRootRow>
-				</RowLimitsContext.Provider>
+				<SearchFilterContext.Provider value={search}>
+					<RowLimitsContext.Provider value={rowLimits}>
+						<ZoomRootRow nodeId={parentId}>
+							<RootOutlineChildren parentId={parentId} />
+							{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
+						</ZoomRootRow>
+					</RowLimitsContext.Provider>
+				</SearchFilterContext.Provider>
 				{rowLimits.remaining === 0 ? <RenderSentinel key={budgetRows} onReached={growBudget} /> : null}
 			</div>
 		</div>
