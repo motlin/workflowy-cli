@@ -170,6 +170,13 @@ export interface CalendarLayoutSnapshot {
 /** Milliseconds per phase of {@link WorkflowyInternalAdapter.applyCalendarLayout}, summed when a phase repeats. */
 export type LayoutTimings = Record<string, number>;
 
+/** Throw unless a layout write names its target calendar root: there is no fallback to the tagged root. */
+function requireRootId(rootId: string | undefined): asserts rootId is string {
+	if (typeof rootId !== "string" || rootId === "") {
+		throw new Error("calendar layout: rootId is required");
+	}
+}
+
 /** A function recording the time since its previous call (or creation) under a phase name; a no-op without `timings`. */
 function phaseTimer(timings: LayoutTimings | undefined): (phase: string) => void {
 	let last = performance.now();
@@ -781,8 +788,13 @@ export class WorkflowyInternalAdapter {
 	 */
 	async applyCalendarLayout(
 		levels: CalendarLayoutLevels,
-		{loadSnapshot, timings}: {loadSnapshot: () => CalendarLayoutSnapshot | undefined; timings?: LayoutTimings},
+		{
+			rootId: requestedRootId,
+			loadSnapshot,
+			timings,
+		}: {rootId: string; loadSnapshot: () => CalendarLayoutSnapshot | undefined; timings?: LayoutTimings},
 	): Promise<AppliedCalendarLayout> {
+		requireRootId(requestedRootId);
 		const time = phaseTimer(timings);
 		const dateFormat = await this.getRootMeta(["dateFormat"]);
 		const weekStartDay = await this.getRootMeta(["weekStartDay"]);
@@ -795,6 +807,9 @@ export class WorkflowyInternalAdapter {
 				throw new CalendarRootMissing();
 			}
 			const rootId = snapshot.root.id;
+			if (rootId !== requestedRootId) {
+				throw new Error(`calendar layout: planned root ${rootId} is not the requested root ${requestedRootId}`);
+			}
 			const rootMetadata = CalendarMetadataSchema.safeParse(this.readNodeMetadata(rootId));
 			const tagged = rootMetadata.success && rootMetadata.data.calendar.root === true;
 			const entropyKey = tagged ? (await this.session()).entropyKey : undefined;
@@ -812,11 +827,13 @@ export class WorkflowyInternalAdapter {
 			}
 			const ids = new Set(steps.map((step) => step.id));
 			const metadataById = new Map([...ids].map((id) => [id, this.readNodeMetadata(id)]));
+			const layoutWrites = calendarLayoutWrites(steps, metadataById);
+			this.assertLayoutWritesUnder(rootId, layoutWrites.writes);
 			return {
 				rootId,
 				childIds: layoutChildIds(snapshot.root),
 				metadataById,
-				...calendarLayoutWrites(steps, metadataById),
+				...layoutWrites,
 			};
 		};
 
@@ -865,18 +882,77 @@ export class WorkflowyInternalAdapter {
 	/**
 	 * Undo the last {@link applyCalendarLayout} with the inverse writes it
 	 * stored, in one push; undefined when there is nothing to undo. Once used,
-	 * the undo is cleared.
+	 * the undo is cleared. Throws, pushing nothing, when the stored undo was
+	 * applied under another root than `rootId` or would write outside it.
 	 */
-	async undoCalendarLayout(): Promise<AppliedCalendarLayout | undefined> {
+	async undoCalendarLayout(rootId: string): Promise<AppliedCalendarLayout | undefined> {
+		requireRootId(rootId);
 		const row = this.db.select().from(accountState).where(eq(accountState.key, KEYS.calendarLayoutUndo)).get();
 		const stored = row && LayoutUndoSchema.safeParse(JSON.parse(row.json)).data;
 		if (!stored) {
 			return undefined;
 		}
+		if (stored.rootId !== rootId) {
+			throw new Error(`calendar layout: the stored undo is for root ${stored.rootId}, not ${rootId}`);
+		}
+		this.assertLayoutWritesUnder(rootId, stored.writes);
 		await this.pushLayoutWrites(stored.writes);
 		this.db.delete(accountState).where(eq(accountState.key, KEYS.calendarLayoutUndo)).run();
 		await this.refreshLayout(layoutWriteParents(stored.writes), new Map(Object.entries(stored.metadata)));
 		return {rootId: stored.rootId, writes: stored.writes.length};
+	}
+
+	/**
+	 * Throw unless every node `writes` touch (each written node and every
+	 * parent it leaves or enters) lies under `rootId` in the cache, or is a
+	 * node an earlier write in the batch creates or undeletes there. An
+	 * undeleted node is in the trash, so only its new parent is checked.
+	 */
+	private assertLayoutWritesUnder(rootId: string, writes: readonly LayoutWrite[]): void {
+		const verdicts = new Map<string, boolean>([[rootId, true]]);
+		const cachedUnder = (id: string): boolean => {
+			const path: string[] = [];
+			let current: string | null | undefined = id;
+			let verdict = false;
+			while (current !== null && current !== undefined) {
+				const known = verdicts.get(current);
+				if (known !== undefined) {
+					verdict = known;
+					break;
+				}
+				path.push(current);
+				current = this.db
+					.select({parentId: nodeContent.parentId})
+					.from(nodeContent)
+					.where(and(eq(nodeContent.id, current), eq(nodeContent.systemTo, FAR_FUTURE_DATE)))
+					.get()?.parentId;
+			}
+			for (const visited of path) {
+				verdicts.set(visited, verdict);
+			}
+			return verdict;
+		};
+		const added = new Set<string>();
+		const inside = (id: string) => added.has(id) || cachedUnder(id);
+		const check = (id: string, ok: boolean) => {
+			if (!ok) {
+				throw new Error(`calendar layout: a write to ${id} lies outside the calendar root ${rootId}`);
+			}
+		};
+		for (const write of writes) {
+			if (write.op === "move" || write.op === "delete") {
+				check(write.from.parentId, inside(write.from.parentId));
+			}
+			if (write.op === "create" || write.op === "move" || write.op === "undelete") {
+				check(write.parentId, inside(write.parentId));
+			}
+			if (write.op === "create" || write.op === "undelete") {
+				check(write.id, !this.isCached(write.id) || cachedUnder(write.id));
+				added.add(write.id);
+			} else {
+				check(write.id, inside(write.id));
+			}
+		}
 	}
 
 	/** Push layout writes as one batch of ops. */

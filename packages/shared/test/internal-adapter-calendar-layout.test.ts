@@ -32,6 +32,7 @@ const ENTRY = "aaaaaaaa-0000-4000-8000-000000000006";
 const TIMED = "aaaaaaaa-0000-4000-8000-000000000007";
 const NOTES = "aaaaaaaa-0000-4000-8000-000000000008";
 const LATE = "aaaaaaaa-0000-4000-8000-000000000009";
+const OUTSIDE = "aaaaaaaa-0000-4000-8000-000000000010";
 const NEW1 = "00000000-0000-4000-8000-000000000001";
 
 const PushDataSchema = z.array(
@@ -411,7 +412,7 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 
 		const applied = await adapter.applyCalendarLayout(
 			{year: true, month: false, day: true},
-			{loadSnapshot: loadSnapshot(CAL)},
+			{rootId: CAL, loadSnapshot: loadSnapshot(CAL)},
 		);
 		const after = {
 			result: applied,
@@ -420,8 +421,8 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 			cache: cachedOutline(CAL),
 			levels: server.nodes.get(CAL)?.metadata,
 		};
-		const undone = await adapter.undoCalendarLayout();
-		const undoneAgain = await adapter.undoCalendarLayout();
+		const undone = await adapter.undoCalendarLayout(CAL);
+		const undoneAgain = await adapter.undoCalendarLayout(CAL);
 
 		expect({
 			after,
@@ -455,7 +456,7 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 
 		const applied = await adapter.applyCalendarLayout(
 			{year: true, month: false, day: true},
-			{loadSnapshot: loadSnapshot(CAL)},
+			{rootId: CAL, loadSnapshot: loadSnapshot(CAL)},
 		);
 
 		expect({
@@ -481,14 +482,14 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 			[D1019, node(time(19), CAL, level("day", 20_261_019))],
 		]);
 
-		const applied = await adapter.applyCalendarLayout({day: true}, {loadSnapshot: loadSnapshot(CAL)});
+		const applied = await adapter.applyCalendarLayout({day: true}, {rootId: CAL, loadSnapshot: loadSnapshot(CAL)});
 
-		expect({applied, pushes, undo: await adapter.undoCalendarLayout()}).toStrictEqual({
+		expect({applied, pushes, undo: await adapter.undoCalendarLayout(CAL)}).toStrictEqual({
 			applied: {rootId: CAL, writes: 0},
 			pushes: [],
 			undo: undefined,
 		});
-		await adapter.applyCalendarLayout({week: true, day: true}, {loadSnapshot: loadSnapshot(CAL)});
+		await adapter.applyCalendarLayout({week: true, day: true}, {rootId: CAL, loadSnapshot: loadSnapshot(CAL)});
 		expect(server.outline(CAL)).toStrictEqual([{"Week 43": [time(19)]}]);
 	});
 
@@ -497,7 +498,10 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 		api.requests.length = 0;
 		publicReads.length = 0;
 
-		await adapter.applyCalendarLayout({year: true, month: false, day: true}, {loadSnapshot: loadSnapshot(CAL)});
+		await adapter.applyCalendarLayout(
+			{year: true, month: false, day: true},
+			{rootId: CAL, loadSnapshot: loadSnapshot(CAL)},
+		);
 
 		expect({
 			treeDataReads: api.requests.filter((request) => request.path === "/get_tree_data/").length,
@@ -520,13 +524,75 @@ describe("WorkflowyInternalAdapter.applyCalendarLayout", () => {
 
 		const applied = await adapter.applyCalendarLayout(
 			{year: true, month: false, day: true},
-			{loadSnapshot: loadSnapshot(CAL)},
+			{rootId: CAL, loadSnapshot: loadSnapshot(CAL)},
 		);
 
 		expect({applied, server: server.outline(CAL), cache: cachedOutline(CAL)}).toStrictEqual({
 			applied: {rootId: CAL, writes: 5},
 			server: [{"2026": [time(19), {[time(20)]: ["entry", "late", `Standup ${time(20, 10)}`]}]}, "Notes"],
 			cache: [{"2026": [time(19), {[time(20)]: ["entry", "late", `Standup ${time(20, 10)}`]}]}, "Notes"],
+		});
+	});
+	it("throws and pushes nothing when a planned write touches a node outside rootId", async () => {
+		const {adapter, pushes, server, loadSnapshot} = await tracked([
+			...CALENDAR,
+			[OUTSIDE, node(`Call ${time(19, 9)}`, SANDBOX)],
+		]);
+		// A snapshot that wrongly holds a node living outside the calendar, which the plan then files into a day.
+		const leaky = () => {
+			const snapshot = loadSnapshot(CAL)();
+			const outside = {id: OUTSIDE, name: `Call ${time(19, 9)}`, note: "", children: []};
+			return {...snapshot, root: {...snapshot.root, children: [...snapshot.root.children, outside]}};
+		};
+
+		await expect(
+			adapter.applyCalendarLayout({year: true, month: false, day: true}, {rootId: CAL, loadSnapshot: leaky}),
+		).rejects.toThrow(`calendar layout: a write to ${OUTSIDE} lies outside the calendar root ${CAL}`);
+		expect({pushes, server: server.outline(CAL), sandbox: server.outline(SANDBOX).length}).toStrictEqual({
+			pushes: [],
+			server: ORIGINAL_OUTLINE,
+			sandbox: 2,
+		});
+	});
+
+	it("throws and pushes nothing when the snapshot is of a different root than rootId", async () => {
+		const {adapter, pushes, loadSnapshot} = await tracked(CALENDAR);
+
+		await expect(
+			adapter.applyCalendarLayout(
+				{year: true, month: false, day: true},
+				{rootId: CAL, loadSnapshot: loadSnapshot(SANDBOX)},
+			),
+		).rejects.toThrow(`calendar layout: planned root ${SANDBOX} is not the requested root ${CAL}`);
+		expect(pushes).toStrictEqual([]);
+	});
+
+	it("throws and pushes nothing without an explicit rootId", async () => {
+		const {adapter, pushes, loadSnapshot} = await tracked(CALENDAR);
+
+		await expect(
+			// @ts-expect-error rootId is required: there is no fallback to the tagged calendar root.
+			adapter.applyCalendarLayout({year: true, month: false, day: true}, {loadSnapshot: loadSnapshot(CAL)}),
+		).rejects.toThrow("calendar layout: rootId is required");
+		expect(pushes).toStrictEqual([]);
+	});
+
+	it("refuses to undo a layout applied under another root, keeping it undoable under its own", async () => {
+		const {adapter, pushes, server, loadSnapshot} = await tracked(CALENDAR);
+		await adapter.applyCalendarLayout(
+			{year: true, month: false, day: true},
+			{rootId: CAL, loadSnapshot: loadSnapshot(CAL)},
+		);
+
+		await expect(adapter.undoCalendarLayout(SANDBOX)).rejects.toThrow(
+			`calendar layout: the stored undo is for root ${CAL}, not ${SANDBOX}`,
+		);
+		// @ts-expect-error rootId is required.
+		await expect(adapter.undoCalendarLayout()).rejects.toThrow("calendar layout: rootId is required");
+		expect(pushes).toHaveLength(1);
+		expect({undone: await adapter.undoCalendarLayout(CAL), server: server.outline(CAL)}).toStrictEqual({
+			undone: {rootId: CAL, writes: 5},
+			server: ORIGINAL_OUTLINE,
 		});
 	});
 });

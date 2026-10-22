@@ -32,7 +32,7 @@ ensure-sqlite-native:
         node -e 'const Database = require(process.argv[1]); new Database(":memory:").close();' "$package_dir"
     done
 
-# Run dev server
+# Run dev server (shared code live from source; see `web`)
 dev *args: build-shared
     WORKFLOWY_DB_PATH={{ justfile_directory() }}/workflowy.sqlite vp run --filter @workflowy/web dev {{ args }}
 
@@ -63,10 +63,11 @@ test-plugins:
     node --test plugins/gtd/scripts/*.test.mts
 
 # No --cache on tsc: vp's cache tracking cannot see the native tsc 7 binary's reads or writes, so every run was a hit that never rebuilt
-# Type-check the project
+# Type-check the project, including the web package, which the root solution does not reference (its types read shared dist)
 [group('build')]
-typecheck: install
+typecheck: build-shared
     vp run typecheck
+    vp run --filter @workflowy/web typecheck
 
 # Remove all dist dirs and tsbuildinfo to prevent stale artifacts (used by git-test)
 [group('build')]
@@ -211,7 +212,8 @@ db-cli:
 db-web:
     datasette workflowy.sqlite
 
-# Start web app with API server and Vite dev server
+# The API server's `tsx watch` runs with `--conditions=source`, so @workflowy/shared resolves to packages/shared/src (its exports' `source` condition), not dist: shared edits restart the server live and it never runs stale built code.
+# Start web app with API server and Vite dev server (shared code live from source)
 [group('web')]
 web: build-shared
     WORKFLOWY_DB_PATH={{ justfile_directory() }}/workflowy.sqlite vp run --filter @workflowy/web dev

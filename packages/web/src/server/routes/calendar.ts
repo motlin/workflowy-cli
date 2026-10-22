@@ -18,8 +18,9 @@
  * `PUT /api/v1/calendar/layout` `{levels, rootId?}` -> 200 `{rootId, writes}`: restructure the calendar (the tagged
  * root, or `rootId`, such as a sandbox copy) in one push, planned from the cache with only the written parents read
  * fresh, reporting each phase's time in `Server-Timing` (403 when `CALENDAR_LAYOUT_ENABLED=false`).
- * `POST /api/v1/calendar/layout/undo` -> 200 `{rootId, writes}`: undo the last applied layout once (409 when there is
- * none; 403 like PUT).
+ * `POST /api/v1/calendar/layout/undo` `{rootId?}` -> 200 `{rootId, writes}`: undo the last applied layout once (409 when
+ * there is none; 403 like PUT). PUT and undo resolve their root (409 when it is not cached), log it, and hand it to the
+ * adapter, which refuses any write outside it.
  * `POST /api/v1/calendar/layout/preview` `{levels, rootId?}` -> 200 `{steps}`: the tree writes upstream's restructure
  * (`JX4`) would make for those levels, planned from the cache (under `rootId` when given); nothing is written.
  * `GET /api/v1/calendar/dots?from=YYYYMMDD&to=YYYYMMDD` -> 200 `{dateIds}`: the days in the range with journal
@@ -59,6 +60,7 @@ const DAY_MS = 86_400_000;
 const SettingsBody = z.object({foundDates: z.boolean().optional(), dayPrefix: z.boolean().optional()});
 const LAYOUT_DISABLED = "Applying calendar layouts is disabled (CALENDAR_LAYOUT_ENABLED)";
 const NOTHING_TO_UNDO = "There is no calendar layout to undo";
+const LAYOUT_ROOT_MISSING = "No calendar root is cached for this layout";
 const INVALID_LEVELS = "levels must be an object of year, month, week and day booleans";
 const LayoutBody = z.object({
 	levels: z.strictObject({
@@ -69,6 +71,16 @@ const LayoutBody = z.object({
 	}),
 	rootId: z.string().min(1).optional(),
 });
+const UndoBody = z.object({rootId: z.string().min(1).optional()});
+/**
+ * The calendar root a layout write targets: `explicitRootId` (a sandbox copy) or the tagged root, and only when that
+ * node is cached; undefined otherwise. The adapter is always handed this id, never left to fall back on its own.
+ */
+function resolveLayoutRoot(ctx: ServerContext, explicitRootId: string | undefined): string | undefined {
+	const rootId = explicitRootId ?? findTaggedCalendarRoot({db: ctx.db});
+	return rootId !== undefined && ctx.cacheService.getNode(rootId) !== undefined ? rootId : undefined;
+}
+
 /** Upstream `I10`'s levels when the root has none. */
 const DEFAULT_LAYOUT_LEVELS = {year: true, month: true, day: true};
 
@@ -247,15 +259,23 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		if (!adapter) {
 			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 		}
-		const {levels, rootId} = body.data;
+		const {levels} = body.data;
+		const rootId = resolveLayoutRoot(ctx, body.data.rootId);
+		if (rootId === undefined) {
+			return c.json({error: LAYOUT_ROOT_MISSING}, 409);
+		}
+		console.info(`calendar layout: applying under root ${rootId}`);
 		const timings: LayoutTimings = {};
 		try {
 			const applied = await adapter.applyCalendarLayout(levels, {
+				rootId,
 				loadSnapshot: () => loadCalendarLayout({db: ctx.db, cache: ctx.cacheService}, rootId),
 				timings,
 			});
 			const phases = Object.entries(timings).map(([phase, ms]) => `${phase};dur=${ms.toFixed(1)}`);
-			console.info(`calendar layout: ${applied.writes} writes (${phases.join(", ")})`);
+			console.info(
+				`calendar layout: ${applied.writes} writes under root ${applied.rootId} (${phases.join(", ")})`,
+			);
 			c.header("Server-Timing", phases.join(", "));
 			return c.json(applied);
 		} catch (error) {
@@ -275,7 +295,13 @@ export function createCalendarRouter(): Hono<AppEnv> {
 		if (!adapter) {
 			return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
 		}
-		const undone = await adapter.undoCalendarLayout();
+		const body = UndoBody.safeParse(await c.req.json().catch(() => ({})));
+		const rootId = resolveLayoutRoot(ctx, body.data?.rootId);
+		if (rootId === undefined) {
+			return c.json({error: LAYOUT_ROOT_MISSING}, 409);
+		}
+		console.info(`calendar layout: undoing under root ${rootId}`);
+		const undone = await adapter.undoCalendarLayout(rootId);
 		return undone === undefined ? c.json({error: NOTHING_TO_UNDO}, 409) : c.json(undone);
 	});
 

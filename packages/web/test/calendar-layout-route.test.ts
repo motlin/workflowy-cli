@@ -3,7 +3,7 @@ import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {Hono} from "hono";
 import {join} from "node:path";
-import {afterEach, describe, expect, it} from "vite-plus/test";
+import {afterEach, describe, expect, it, vi} from "vite-plus/test";
 import {z} from "zod";
 import {CacheService} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
@@ -88,18 +88,22 @@ function app({
 		},
 		applyCalendarLayout: async (
 			levels: unknown,
-			{loadSnapshot, timings}: {loadSnapshot: () => CalendarLayoutSnapshot | undefined; timings?: LayoutTimings},
+			{
+				rootId,
+				loadSnapshot,
+				timings,
+			}: {rootId: string; loadSnapshot: () => CalendarLayoutSnapshot | undefined; timings?: LayoutTimings},
 		) => {
 			const snapshot = loadSnapshot();
-			calls.push(`applyCalendarLayout ${JSON.stringify(levels)} ${snapshot?.root.id ?? "no snapshot"}`);
+			calls.push(`applyCalendarLayout ${JSON.stringify(levels)} ${rootId} ${snapshot?.root.id ?? "no snapshot"}`);
 			if (timings !== undefined) {
 				timings.plan = 1.25;
 				timings.push = 20;
 			}
 			return Promise.resolve({rootId: snapshot?.root.id ?? "?", writes: 3});
 		},
-		undoCalendarLayout: async () => {
-			calls.push("undoCalendarLayout");
+		undoCalendarLayout: async (rootId: string) => {
+			calls.push(`undoCalendarLayout ${rootId}`);
 			return Promise.resolve(undoes++ === 0 ? {rootId: "cal", writes: 3} : undefined);
 		},
 	};
@@ -300,11 +304,11 @@ describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", ()
 			nothing: {status: 409, body: {error: "There is no calendar layout to undo"}},
 			calls: [
 				"getRootMeta dateFormat",
-				'applyCalendarLayout {"year":true,"month":false} cal',
-				'applyCalendarLayout {"year":true} sandbox-cal',
-				'applyCalendarLayout {"week":true} cal',
-				"undoCalendarLayout",
-				"undoCalendarLayout",
+				'applyCalendarLayout {"year":true,"month":false} cal cal',
+				'applyCalendarLayout {"year":true} sandbox-cal sandbox-cal',
+				'applyCalendarLayout {"week":true} cal cal',
+				"undoCalendarLayout cal",
+				"undoCalendarLayout cal",
 			],
 		});
 	});
@@ -321,6 +325,40 @@ describe("PUT /api/v1/calendar/layout and POST /api/v1/calendar/layout/undo", ()
 		expect({status: res.status, timing: res.headers.get("server-timing")}).toStrictEqual({
 			status: 200,
 			timing: "plan;dur=1.3, push;dur=20.0",
+		});
+	});
+	it("rejects a rootId it cannot resolve to a cached node, or no tagged root, without calling the adapter", async () => {
+		const untagged = app({rootTagged: false});
+		const {send, calls} = app();
+		const missing = {status: 409, body: {error: "No calendar root is cached for this layout"}};
+		expect({
+			unknown: await send("PUT", "layout", {levels: {year: true}, rootId: "nope"}),
+			untagged: await untagged.send("PUT", "layout", {levels: {year: true}}),
+			undoUnknown: await send("POST", "layout/undo", {rootId: "nope"}),
+			undoUntagged: await untagged.send("POST", "layout/undo"),
+			calls: [...calls, ...untagged.calls],
+		}).toStrictEqual({unknown: missing, untagged: missing, undoUnknown: missing, undoUntagged: missing, calls: []});
+	});
+
+	it("passes an explicit rootId to undo and logs the resolved root of each write", async () => {
+		const {send, calls} = app({extra: [["sandbox-cal", null, "📆 Calendar copy"]]});
+		const logged: unknown[] = [];
+		const info = vi.spyOn(console, "info").mockImplementation((message: unknown) => {
+			logged.push(message);
+		});
+		try {
+			await send("PUT", "layout", {levels: {year: true}, rootId: "sandbox-cal"});
+			await send("POST", "layout/undo", {rootId: "sandbox-cal"});
+		} finally {
+			info.mockRestore();
+		}
+		expect({calls, logged}).toStrictEqual({
+			calls: ['applyCalendarLayout {"year":true} sandbox-cal sandbox-cal', "undoCalendarLayout sandbox-cal"],
+			logged: [
+				"calendar layout: applying under root sandbox-cal",
+				"calendar layout: 3 writes under root sandbox-cal (plan;dur=1.3, push;dur=20.0)",
+				"calendar layout: undoing under root sandbox-cal",
+			],
 		});
 	});
 });

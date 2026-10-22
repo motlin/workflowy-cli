@@ -222,7 +222,7 @@ function listenForDismiss(dismissOn: readonly string[], hide: () => void): () =>
 	};
 }
 
-interface ClickPosition {
+export interface ClickPosition {
 	x: number;
 	y: number;
 }
