@@ -35,6 +35,14 @@ export async function loadExpansion(now = Date.now()): Promise<void> {
 }
 
 /**
+ * Settles once the page load's expansion GET has been applied (or failed); resolved at once when none started. A view
+ * loaded before it would render without the account's expanded levels and fill them in one at a time after.
+ */
+export async function initialExpansionLoaded(): Promise<void> {
+	return loading;
+}
+
+/**
  * Re-GET the expanded ids (tab focus) and apply the differences without PATCHing them back.
  * Throttled to one GET per {@link EXPANSION_REFRESH_INTERVAL_MS}, counting the initial load; skipped
  * right after a local change, and discarded when a local change lands while the GET is in flight.

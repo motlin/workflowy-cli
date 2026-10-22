@@ -351,15 +351,12 @@ export function useAncestors(nodeId: string | null) {
 function ignoreFailure(): void {}
 
 /**
- * Load what a zoom into `nodeId` renders besides its children, so the new view lands in one commit: its Backlinks
- * section, and its detail and ancestor chain unless the cache already holds them (`useNode` and `useAncestors` then
- * seed from it). Failures are left to the hooks to retry; this never rejects.
+ * Load what a zoom into `nodeId` renders besides its tree (the view load brings its lists and Backlinks sections), so
+ * the new view lands in one commit: its detail and ancestor chain unless the cache already holds them (`useNode` and
+ * `useAncestors` then seed from it). Failures are left to the hooks to retry; this never rejects.
  */
 export async function prefetchZoomView(queryClient: QueryClient, nodeId: string): Promise<void> {
 	await Promise.all([
-		queryClient
-			.query({queryKey: nodeKeys.backlinks(nodeId), queryFn: async () => fetchBacklinks(nodeId)})
-			.catch(ignoreFailure),
 		readNode(queryClient, nodeId) === undefined
 			? queryClient
 					.query({queryKey: nodeKeys.detail(nodeId), queryFn: async () => fetchNode(nodeId)})

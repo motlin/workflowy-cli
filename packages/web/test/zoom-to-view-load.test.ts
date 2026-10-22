@@ -111,7 +111,9 @@ describe("useZoomTo view load", () => {
 		expect({
 			zoomed: useOutlineStore.getState().zoomedNodeId,
 			lists: [ALICE, BOB, CAROL].map((id) => queryClient.getQueryData(nodeKeys.children(id))),
-			treeRequests: requests.filter((url) => url.includes("/children") || url === "/api/v1/nodes/view"),
+			treeRequests: requests.filter(
+				(url) => url.includes("/children") || url.endsWith("/backlinks") || url === "/api/v1/nodes/view",
+			),
 		}).toStrictEqual({
 			zoomed: ALICE,
 			lists: [[row(BOB, ALICE)], [row(CAROL, BOB)], [row(DAVE, CAROL)]],

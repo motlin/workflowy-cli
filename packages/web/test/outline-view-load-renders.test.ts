@@ -14,6 +14,8 @@ const {QueryClient, QueryClientProvider} = await import("@tanstack/react-query")
 const {MemoryRouter} = await import("react-router-dom");
 const {OutlineView} = await import("../src/client/app.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const {initialRowBudget} = await import("../src/client/render-window.js");
+const {loadExpansion} = await import("../src/client/hooks/use-expansion-sync.js");
 
 function row(id: string, parentId: string | null, hasChildren: boolean): NodeResponse {
 	return {
@@ -44,20 +46,28 @@ const view: OutlineViewResponse = {
 
 let root: Root | undefined;
 let requests: string[] = [];
+let viewBodies: unknown[] = [];
+let expansionResponse: Promise<Response> = Promise.resolve(Response.json({}, {status: 404}));
 
 beforeEach(() => {
 	globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 	requests = [];
+	viewBodies = [];
 	useOutlineStore.setState(useOutlineStore.getInitialState(), true);
 	useOutlineStore.setState({expandedIds: new Set(["alice", "bob"])});
 	vi.stubGlobal(
 		"fetch",
-		vi.fn<typeof fetch>(async (input) => {
+		vi.fn<typeof fetch>(async (input, init) => {
 			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 			requests.push(url);
-			return Promise.resolve(
-				url.endsWith("/api/v1/nodes/view") ? Response.json(view) : Response.json({}, {status: 404}),
-			);
+			if (url.endsWith("/api/v1/expansion")) {
+				return expansionResponse;
+			}
+			if (url.endsWith("/api/v1/nodes/view")) {
+				viewBodies.push(JSON.parse(init?.body as string));
+				return Response.json(view);
+			}
+			return Response.json({}, {status: 404});
 		}),
 	);
 });
@@ -70,37 +80,43 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
+/** Render the outline and record the rows each commit shows, until the loads settle. */
+async function renderCommits(): Promise<string[][]> {
+	const container = document.createElement("div");
+	document.body.append(container);
+	// Each mutation batch is one React commit: the rows shown after each.
+	const commits: string[][] = [];
+	const observer = new MutationObserver(() => {
+		const ids = [...container.querySelectorAll("[data-node-id]")].map((element) =>
+			element.getAttribute("data-node-id"),
+		);
+		commits.push([...new Set(ids.filter((id) => id !== null))]);
+	});
+	observer.observe(container, {childList: true, subtree: true});
+	// The app's staleTime, so seeded lists do not refetch on mount.
+	const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}});
+	root = createRoot(container);
+	act(() => {
+		root?.render(
+			createElement(
+				QueryClientProvider,
+				{client: queryClient},
+				createElement(MemoryRouter, null, createElement(OutlineView)),
+			),
+		);
+	});
+	await act(async () => {
+		await new Promise((resolve) => {
+			setTimeout(resolve, 50);
+		});
+	});
+	observer.disconnect();
+	return commits;
+}
+
 describe("outline view load", () => {
 	it("loads a three-level expanded view in one request and mounts every level in the same commit", async () => {
-		const container = document.createElement("div");
-		document.body.append(container);
-		// Each mutation batch is one React commit: the rows shown after each.
-		const commits: string[][] = [];
-		const observer = new MutationObserver(() => {
-			const ids = [...container.querySelectorAll("[data-node-id]")].map((element) =>
-				element.getAttribute("data-node-id"),
-			);
-			commits.push([...new Set(ids.filter((id) => id !== null))]);
-		});
-		observer.observe(container, {childList: true, subtree: true});
-		// The app's staleTime, so seeded lists do not refetch on mount.
-		const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}});
-		root = createRoot(container);
-		act(() => {
-			root?.render(
-				createElement(
-					QueryClientProvider,
-					{client: queryClient},
-					createElement(MemoryRouter, null, createElement(OutlineView)),
-				),
-			);
-		});
-		await act(async () => {
-			await new Promise((resolve) => {
-				setTimeout(resolve, 50);
-			});
-		});
-		observer.disconnect();
+		const commits = await renderCommits();
 
 		expect({
 			firstWithRows: commits.find((ids) => ids.length > 0),
@@ -110,6 +126,35 @@ describe("outline view load", () => {
 			firstWithRows: ["alice", "bob", "carol"],
 			treeRequests: [],
 			viewRequests: 1,
+		});
+	});
+
+	it("waits for the account's expansion on page load, so expanded levels arrive with the first rows", async () => {
+		useOutlineStore.setState({expandedIds: new Set()});
+		expansionResponse = new Promise((resolve) => {
+			setTimeout(() => {
+				resolve(Response.json({expandedIds: ["alice", "bob"]}));
+			}, 10);
+		});
+		const expansion = loadExpansion();
+		const commits = await renderCommits();
+		await expansion;
+
+		expect({
+			firstWithRows: commits.find((ids) => ids.length > 0),
+			treeRequests: requests.filter((url) => url.includes("/children") || url.endsWith("/backlinks")),
+			viewBodies,
+		}).toStrictEqual({
+			firstWithRows: ["alice", "bob", "carol"],
+			treeRequests: [],
+			viewBodies: [
+				{
+					rootId: null,
+					expandedIds: ["alice", "bob"],
+					limit: initialRowBudget(window.innerHeight),
+					showCompleted: useOutlineStore.getState().showCompleted,
+				},
+			],
 		});
 	});
 });

@@ -103,13 +103,10 @@ describe("zoom view from the cache", () => {
 		expect({data, requests}).toStrictEqual({data: {node: bob, ancestors: [aliceLink, bobLink]}, requests: []});
 	});
 
-	it("prefetches the zoom target's backlinks and leaves its cached detail and chain to the cache", async () => {
+	it("leaves a cached zoom target's detail and chain to the cache, and its backlinks to the view load", async () => {
 		const queryClient = cacheWithAliceExpanded();
 		await prefetchZoomView(queryClient, BOB);
-		expect({
-			backlinks: queryClient.getQueryData(nodeKeys.backlinks(BOB)),
-			requests,
-		}).toStrictEqual({backlinks: {rootId: null, items: []}, requests: [`/api/v1/nodes/${BOB}/backlinks`]});
+		expect(requests).toStrictEqual([]);
 	});
 
 	it("prefetches the detail and chain of a target the cache does not hold", async () => {
@@ -122,11 +119,7 @@ describe("zoom view from the cache", () => {
 		}).toStrictEqual({
 			detail: bob,
 			ancestors: [aliceLink, bobLink],
-			requests: new Set([
-				`/api/v1/nodes/${BOB}`,
-				`/api/v1/nodes/${BOB}/ancestors`,
-				`/api/v1/nodes/${BOB}/backlinks`,
-			]),
+			requests: new Set([`/api/v1/nodes/${BOB}`, `/api/v1/nodes/${BOB}/ancestors`]),
 		});
 	});
 });
