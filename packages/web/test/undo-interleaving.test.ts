@@ -98,6 +98,7 @@ function runnerFor(world: World): UndoRunner {
 		settled: whenUndoSettled,
 		pop: (direction) => (direction === "undo" ? undoHistory.popUndo() : undoHistory.popRedo()),
 		blur() {},
+		hold: () => () => {},
 		preview(ops) {
 			for (const op of ops) {
 				if (op.kind === "edit") {

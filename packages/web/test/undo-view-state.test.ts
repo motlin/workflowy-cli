@@ -119,6 +119,12 @@ function fakeRunner(popped: UndoBatch | undefined): {runner: UndoRunner; calls: 
 		blur() {
 			calls.push(["blur"]);
 		},
+		hold(held) {
+			calls.push(["hold", held]);
+			return () => {
+				calls.push(["release"]);
+			};
+		},
 		preview(previewed) {
 			calls.push(["preview", previewed]);
 		},
@@ -162,14 +168,28 @@ describe("queueUndo", () => {
 			["settled"],
 			["pop", "undo"],
 			["blur"],
+			["hold", ops],
 			["preview", ops],
 			["textLength", "a", "name"],
 			["zoomTo", "y"],
 			["select", []],
 			["focus", {nodeId: "a", field: "name", start: 4, end: 4}],
 			["apply", ops],
+			["release"],
 			["reconcile"],
 		]);
+	});
+
+	it("previews within the press itself when every step is already pushed", async () => {
+		const {runner, calls} = fakeRunner(batch);
+		runner.settled = () => {
+			calls.push(["settled"]);
+			return;
+		};
+		const undone = queueUndo("undo", runner);
+		expect(calls.slice(0, 5)).toStrictEqual([["flush"], ["settled"], ["pop", "undo"], ["blur"], ["hold", ops]]);
+		expect(calls.at(5)).toStrictEqual(["preview", ops]);
+		await undone;
 	});
 
 	it("does nothing past the pop when the stack is empty", async () => {

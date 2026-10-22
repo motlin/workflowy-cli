@@ -1,7 +1,7 @@
 import {selectedIdsOf} from "./item-selection.js";
 import {editorElement, selectionTextOffsets} from "./caret-dom.js";
 import {useOutlineStore} from "./stores/outline.js";
-import {undoHistory} from "./undo-history.js";
+import {sameOp, undoHistory} from "./undo-history.js";
 import type {UndoOp, ViewState} from "./undo-history.js";
 
 /** A failed API request that keeps its HTTP status, so callers can branch on it. */
@@ -166,11 +166,34 @@ export interface UndoSlot {
 	settle(ops: readonly UndoOp[]): void;
 }
 
+/** A held slot whose ops were known when it was issued; an undo may push them before the reply. */
+interface ProvisionalSlot {
+	batch: PendingBatch;
+	index: number;
+	ops: readonly UndoOp[];
+}
+
+/** Held slots with known ops whose mutation has not answered yet. */
+const provisionalSlots = new Set<ProvisionalSlot>();
+
+/** Whether two op lists say the same thing, op by op. */
+function sameOps(left: readonly UndoOp[], right: readonly UndoOp[]): boolean {
+	return (
+		left.length === right.length &&
+		left.every((op, index) => {
+			const other = right[index];
+			return other !== undefined && sameOp(op, other);
+		})
+	);
+}
+
 /**
  * Reserves the next op slot for a mutation issued now, so its ops keep issue order. Inside a
- * command it joins that command's step, which waits for it; alone it is its own step.
+ * command it joins that command's step, which waits for it; alone it is its own step. `provisional`
+ * is the ops the mutation will apply as far as the cache knows at issue time: an undo pressed before
+ * the reply pushes them at once (`settleUndoNow`), and the reply corrects them if it differs.
  */
-export function holdUndoSlot(): UndoSlot {
+export function holdUndoSlot(provisional?: readonly UndoOp[]): UndoSlot {
 	if (replaying > 0) {
 		return {settle() {}};
 	}
@@ -182,6 +205,10 @@ export function holdUndoSlot(): UndoSlot {
 	const target = batch;
 	const index = target.entries.push([]) - 1;
 	target.pending++;
+	const early = provisional === undefined ? undefined : {batch: target, index, ops: [...provisional]};
+	if (early !== undefined) {
+		provisionalSlots.add(early);
+	}
 	let settled = false;
 	return {
 		settle(ops) {
@@ -189,11 +216,37 @@ export function holdUndoSlot(): UndoSlot {
 				return;
 			}
 			settled = true;
+			if (early !== undefined && !provisionalSlots.delete(early)) {
+				// An undo already took the provisional ops: correct them where they now are.
+				if (!sameOps(early.ops, ops)) {
+					if (queue.includes(target)) {
+						target.entries[index] = [...ops];
+					} else {
+						undoHistory.replaceOps(early.ops, ops);
+					}
+				}
+				return;
+			}
 			target.entries[index] = [...ops];
 			target.pending--;
 			flush();
 		},
 	};
+}
+
+/**
+ * Settles every in-flight slot whose ops are already known with those ops, so an undo pressed now
+ * pops the step the user just made without waiting on the server. Returns undefined once every step
+ * is pushed, else a promise for the slots and commands that still need their reply.
+ */
+export function settleUndoNow(): Promise<void> | undefined {
+	for (const slot of provisionalSlots) {
+		slot.batch.entries[slot.index] = [...slot.ops];
+		slot.batch.pending--;
+	}
+	provisionalSlots.clear();
+	flush();
+	return queue.length === 0 ? undefined : whenUndoSettled();
 }
 
 /** Runs one user command as a single undo step, capturing the view before and after it. */

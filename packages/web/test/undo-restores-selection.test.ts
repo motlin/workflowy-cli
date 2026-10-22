@@ -51,6 +51,7 @@ describe("queueUndo with the outline store", () => {
 			},
 			pop: () => undoHistory.popUndo(),
 			blur() {},
+			hold: () => () => {},
 			preview() {},
 			async apply(applied) {
 				return applyOps(applied, adapter);

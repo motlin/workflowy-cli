@@ -40,11 +40,16 @@ export type UndoDirection = "undo" | "redo";
 export interface UndoRunner {
 	/** Saves the edited row's pending text, which becomes its own undo step. */
 	flush(): void;
-	/** Resolves once every issued mutation has pushed its undo step. */
-	settled(): Promise<void>;
+	/**
+	 * Pushes every issued mutation's undo step; undefined when that happened at once, else a promise for the
+	 * steps still waiting on a reply.
+	 */
+	settled(): Promise<void> | undefined;
 	pop(direction: UndoDirection): UndoBatch | undefined;
 	/** Leaves the editor so the replay does not write under the caret. */
 	blur(): void;
+	/** Keeps server answers from landing over the preview until the replay is done; returns the release. */
+	hold(ops: readonly UndoOp[]): () => void;
 	/** Writes the ops into the cache at once, so the outline shows the undo before the server answers. */
 	preview(ops: readonly UndoOp[]): void;
 	/** Replays the ops on the server. */
@@ -62,19 +67,24 @@ export interface UndoRunner {
 	focus(target: Editing): void;
 }
 
+/** A popped step shown in the outline, with the release of its hold on server answers. */
+interface Previewed {
+	batch: UndoBatch;
+	release: () => void;
+}
+
 /**
- * Upstream undo/redo's instant half: flush the pending text, pop, blur, apply the ops to the cache and
- * restore the view saved with the step (the pre-command view for undo, the post-command view for redo),
- * not the current one, so the outline updates without a round trip. Returns the popped step.
+ * Upstream undo/redo's instant half, after the flush and settle: pop, blur, apply the ops to the cache and
+ * restore the view saved with the step (the pre-command view for undo, the post-command view for redo), not
+ * the current one, so the outline updates without a round trip.
  */
-async function previewUndo(direction: UndoDirection, runner: UndoRunner): Promise<UndoBatch | undefined> {
-	runner.flush();
-	await runner.settled();
+function previewStep(direction: UndoDirection, runner: UndoRunner): Previewed | undefined {
 	const batch = runner.pop(direction);
 	if (batch === undefined) {
 		return undefined;
 	}
 	runner.blur();
+	const release = runner.hold(batch.ops);
 	runner.preview(batch.ops);
 	const target = batch.after;
 	const length = target.editing === null ? 0 : runner.textLength(target.editing.nodeId, target.editing.field);
@@ -88,30 +98,63 @@ async function previewUndo(direction: UndoDirection, runner: UndoRunner): Promis
 	if (plan.focus !== null) {
 		runner.focus(plan.focus);
 	}
-	return batch;
+	return {batch, release};
 }
 
-/** Presses still popping and previewing, one at a time so each pops the step after the last. */
-let previews: Promise<unknown> = Promise.resolve();
+/** Flushes the pending text, then previews once every step is pushed: synchronously when nothing awaits a reply. */
+function previewUndo(
+	direction: UndoDirection,
+	runner: UndoRunner,
+): Previewed | undefined | Promise<Previewed | undefined> {
+	runner.flush();
+	const waiting = runner.settled();
+	return waiting === undefined ? previewStep(direction, runner) : waiting.then(() => previewStep(direction, runner));
+}
+
+/** The latest press still waiting to preview; later presses queue behind it so each pops the step after the last. */
+let waitingPreview: Promise<unknown> | undefined;
+/** Presses still waiting to preview; once none is left, the next press previews in the keypress itself. */
+let waitingPresses = 0;
 /** Replays queued or running; the cache reconciles with the server once this drops to 0. */
 let pendingReplays = 0;
 
+function startPreview(
+	direction: UndoDirection,
+	runner: UndoRunner,
+): Previewed | undefined | Promise<Previewed | undefined> {
+	const previewed =
+		waitingPreview === undefined
+			? previewUndo(direction, runner)
+			: waitingPreview.then(async () => previewUndo(direction, runner));
+	if (previewed instanceof Promise) {
+		waitingPresses++;
+		waitingPreview = (async () => {
+			await previewed.catch(() => {});
+			waitingPresses--;
+			if (waitingPresses === 0) {
+				waitingPreview = undefined;
+			}
+		})();
+	}
+	return previewed;
+}
+
 /**
- * Runs an undo or redo: each press previews at once, even while earlier presses still replay, so
- * rapid ⌘Z steps back without waiting on the server; only the replays are serialized (in line with text saves, see `serializeWrite`), and the cache
+ * Runs an undo or redo: each press previews at once (in the keypress itself when no step still awaits its
+ * server reply), even while earlier presses still replay, so rapid ⌘Z steps back without waiting on the
+ * server; only the replays are serialized (in line with text saves, see `serializeWrite`), and the cache
  * refetches once after the last of them so a middle refetch never lands over a later preview.
  */
 export async function queueUndo(direction: UndoDirection, runner: UndoRunner): Promise<void> {
-	const previewed = previews.then(async () => previewUndo(direction, runner));
-	previews = previewed.catch(() => {});
-	const batch = await previewed;
-	if (batch === undefined) {
+	const previewed = await startPreview(direction, runner);
+	if (previewed === undefined) {
 		return;
 	}
 	pendingReplays++;
 	try {
-		await serializeWrite(async () => runner.apply(batch.ops));
+		await serializeWrite(async () => runner.apply(previewed.batch.ops));
 	} finally {
+		previewed.release();
 		pendingReplays--;
 		if (pendingReplays === 0) {
 			await runner.reconcile();

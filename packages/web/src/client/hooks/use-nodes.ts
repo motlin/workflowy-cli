@@ -35,7 +35,7 @@ import {
 } from "../node-cache.js";
 import {affectedKeys, verifyAgainstServer} from "../cache-verify.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
-import {removeDeletedRow} from "../undo-cache.js";
+import {removeDeletedRow, textReplayPending} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
 import {readJson} from "../read-json.js";
 import {pendingCreates} from "../pending-creates.js";
@@ -393,13 +393,19 @@ interface HeldUndo<TData> {
 	finish(data: TData): UndoOp[];
 }
 
+/**
+ * How a mutation's undo ops come from its reply; `provisional` is what they are as far as the cache
+ * knows at issue time, so an undo pressed before the reply need not wait for it.
+ */
+type UndoPlan<TData> = ((data: TData) => UndoOp[]) & {provisional?: readonly UndoOp[]};
+
 /** One hook's undo slots of mutations in flight, keyed by their variables (first in, first out). */
 class HeldUndos<TData, TVariables> {
 	readonly #held = new Map<TVariables, HeldUndo<TData>[]>();
 
-	hold(variables: TVariables, finish: (data: TData) => UndoOp[]): void {
+	hold(variables: TVariables, finish: UndoPlan<TData>): void {
 		const held = this.#held.get(variables) ?? [];
-		held.push({slot: holdUndoSlot(), finish});
+		held.push({slot: holdUndoSlot(finish.provisional), finish});
 		this.#held.set(variables, held);
 	}
 
@@ -421,7 +427,7 @@ class HeldUndos<TData, TVariables> {
 function useUndoableMutate<TData, TVariables, TContext>(
 	mutate: Mutate<TData, TVariables, TContext>,
 	held: HeldUndos<TData, TVariables>,
-	plan: (variables: TVariables, queryClient: QueryClient) => (data: TData) => UndoOp[],
+	plan: (variables: TVariables, queryClient: QueryClient) => UndoPlan<TData>,
 ): Mutate<TData, TVariables, TContext> {
 	const queryClient = useQueryClient();
 	return useCallback<Mutate<TData, TVariables, TContext>>(
@@ -441,7 +447,7 @@ function runUndoableMutation<TData, TVariables, TContext>(
 	queryClient: QueryClient,
 	options: MutationObserverOptions<TData, Error, TVariables, TContext>,
 	held: HeldUndos<TData, TVariables>,
-	plan: (variables: TVariables, queryClient: QueryClient) => (data: TData) => UndoOp[],
+	plan: (variables: TVariables, queryClient: QueryClient) => UndoPlan<TData>,
 	variables: TVariables,
 ): void {
 	held.hold(variables, plan(variables, queryClient));
@@ -449,18 +455,21 @@ function runUndoableMutation<TData, TVariables, TContext>(
 }
 
 /** A plan for mutations whose ops are fully known from the cache before they run. */
-function cachedOps(queryClient: QueryClient, mutation: UndoableMutation): () => UndoOp[] {
+function cachedOps(queryClient: QueryClient, mutation: UndoableMutation): UndoPlan<unknown> {
 	const ops = toUndoOps(mutation, queryClient);
-	return () => ops;
+	return Object.assign(() => ops, {provisional: ops});
 }
 
 const createUndos = new HeldUndos<NodeResponse, CreateNodeRequest>();
 
-function planCreate(request: CreateNodeRequest, queryClient: QueryClient): (created: NodeResponse) => UndoOp[] {
+function planCreate(request: CreateNodeRequest, queryClient: QueryClient): UndoPlan<NodeResponse> {
 	const parentId = request.parent_id ?? null;
 	const [op] = toUndoOps({kind: "create", nodeId: "", parentId, index: exactIndex(request)}, queryClient);
 	// The public-API fallback may answer another id than the client one.
-	return (created) => (op === undefined ? [] : [{...op, nodeId: created.id}]);
+	const finish = (created: NodeResponse): UndoOp[] => (op === undefined ? [] : [{...op, nodeId: created.id}]);
+	return op === undefined || request.id === undefined
+		? finish
+		: Object.assign(finish, {provisional: [{...op, nodeId: request.id}]});
 }
 
 /**
@@ -588,7 +597,7 @@ const updateUndos = new HeldUndos<UpdateNodeResponse, UpdateNodeRequest & {nodeI
 function planEdit(
 	{nodeId, name, note}: UpdateNodeRequest & {nodeId: string},
 	queryClient: QueryClient,
-): () => UndoOp[] {
+): UndoPlan<unknown> {
 	return cachedOps(queryClient, {kind: "edit", nodeId, name, note});
 }
 
@@ -602,6 +611,36 @@ const pendingSaves = new Map<string, number>();
 
 const preEditSnapshots = new WeakMap<UpdateNodeRequest & {nodeId: string}, () => void>();
 
+/** Each save's rollback of its optimistic patch, made at `mutate` time and handed to `onMutate` by request identity. */
+const earlyUpdates = new WeakMap<UpdateNodeRequest & {nodeId: string}, () => void>();
+
+/** Counts the save as pending and writes it into the cache; returns the rollback. */
+function patchOptimisticUpdate(queryClient: QueryClient, variables: UpdateNodeRequest & {nodeId: string}): () => void {
+	const {nodeId, ...updates} = variables;
+	pendingSaves.set(nodeId, (pendingSaves.get(nodeId) ?? 0) + 1);
+	// A detail refetch in flight would answer the old text; a cancel reverts to the data as patched below.
+	void queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
+	// Patch the row in its parent's list too: an empty row's name drives whether its editor stays mounted.
+	const restorePatched = patchCachedNode(queryClient, nodeId, (node) => ({
+		...node,
+		name: updates.name ?? node.name,
+		note: updates.note ?? node.note,
+		data: {...node.data, layoutMode: updates.layoutMode ?? node.data.layoutMode},
+		...(updates.numberedStart === undefined ? {} : {numberedStart: updates.numberedStart}),
+		modifiedAt: Math.floor(Date.now() / 1000),
+	}));
+	// A mirror's row shows its original's text.
+	const restoreMirrors = patchMirrors(queryClient, nodeId, (node) => ({
+		...node,
+		name: updates.name ?? node.name,
+		note: updates.note ?? node.note,
+	}));
+	return () => {
+		restoreMirrors();
+		restorePatched();
+	};
+}
+
 /**
  * Updates a node with optimistic update.
  */
@@ -613,35 +652,10 @@ export function useUpdateNode() {
 		// In line with undo replays: a save and a replay of the same text must land in issue order.
 		mutationFn: async ({nodeId, ...request}: UpdateNodeRequest & {nodeId: string}) =>
 			serializeWrite(async () => updateNode(nodeId, request)),
-		async onMutate(variables) {
-			const {nodeId, ...updates} = variables;
-			pendingSaves.set(nodeId, (pendingSaves.get(nodeId) ?? 0) + 1);
-			// Cancel outgoing refetches
-			await queryClient.cancelQueries({queryKey: nodeKeys.detail(nodeId)});
-			// Patch the row in its parent's list too: an empty row's name drives whether its editor stays mounted.
-			const restorePatched = patchCachedNode(queryClient, nodeId, (node) => ({
-				...node,
-				name: updates.name ?? node.name,
-				note: updates.note ?? node.note,
-				data: {...node.data, layoutMode: updates.layoutMode ?? node.data.layoutMode},
-				...(updates.numberedStart === undefined ? {} : {numberedStart: updates.numberedStart}),
-				modifiedAt: Math.floor(Date.now() / 1000),
-			}));
-			// A mirror's row shows its original's text.
-			const restoreMirrors = patchMirrors(queryClient, nodeId, (node) => ({
-				...node,
-				name: updates.name ?? node.name,
-				note: updates.note ?? node.note,
-			}));
-			const restorePreEdit = preEditSnapshots.get(variables);
-			preEditSnapshots.delete(variables);
-			return {
-				restore() {
-					restoreMirrors();
-					restorePatched();
-					restorePreEdit?.();
-				},
-			};
+		onMutate(variables) {
+			const restore = earlyUpdates.get(variables) ?? (() => {});
+			earlyUpdates.delete(variables);
+			return {restore};
 		},
 		onSuccess(data, variables) {
 			updateUndos.settle(variables, {data});
@@ -665,15 +679,35 @@ export function useUpdateNode() {
 				await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 				return;
 			}
-			// A later save of the same node still in flight owns the cached text until it answers.
-			if (pending === 0) {
+			// A later save of the same node still in flight owns the cached text until it answers, and so does an
+			// undo already previewed over this save.
+			if (pending === 0 && !textReplayPending(nodeId)) {
 				applySavedText(queryClient, data.node);
 				verifyAgainstServer(queryClient, "update", affectedKeys(queryClient, [nodeId], []));
 			}
 			await invalidateSaveEffects(queryClient, data.effects);
 		},
 	});
-	const nodeMutate = useUndoableMutate(mutation.mutate, updateUndos, planEdit);
+	const {mutate: sendUpdate} = mutation;
+	/**
+	 * Patches the cache in the same call as `mutate`, not a tick later in `onMutate`, so an undo pressed right
+	 * after the save (it flushes the pending text) previews over the saved text rather than under it.
+	 */
+	const mutateNow = useCallback<typeof sendUpdate>(
+		(variables, options) => {
+			const restorePreEdit = preEditSnapshots.get(variables);
+			preEditSnapshots.delete(variables);
+			const restorePatched = patchOptimisticUpdate(queryClient, variables);
+			earlyUpdates.set(variables, () => {
+				restorePatched();
+				restorePreEdit?.();
+			});
+			sendUpdate(variables, options);
+		},
+		[queryClient, sendUpdate],
+	);
+	// Outermost, so the slot reads the before-text ahead of `mutateNow`'s optimistic patch.
+	const nodeMutate = useUndoableMutate(mutateNow, updateUndos, planEdit);
 	const homeMutation = useMutation({
 		mutationFn: updateHome,
 		async onMutate(layoutMode) {
@@ -710,7 +744,7 @@ export function useUpdateNode() {
 
 const deleteUndos = new HeldUndos<void, string>();
 
-function planDelete(nodeId: string, queryClient: QueryClient): () => UndoOp[] {
+function planDelete(nodeId: string, queryClient: QueryClient): UndoPlan<unknown> {
 	return cachedOps(queryClient, {kind: "delete", nodeId});
 }
 
@@ -756,7 +790,7 @@ export function useDeleteNode() {
 
 const moveUndos = new HeldUndos<MoveNodeResponse, MoveNodeRequest & {nodeId: string}>();
 
-function planMove(request: MoveNodeRequest & {nodeId: string}, queryClient: QueryClient): () => UndoOp[] {
+function planMove(request: MoveNodeRequest & {nodeId: string}, queryClient: QueryClient): UndoPlan<unknown> {
 	return cachedOps(queryClient, {
 		kind: "move",
 		ids: [request.nodeId],
@@ -838,7 +872,10 @@ async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
 
 const moveNodesUndos = new HeldUndos<NodeResponse[], MoveNodesRequest>();
 
-function planMoveNodes({ids, parent_id: parentId, index}: MoveNodesRequest, queryClient: QueryClient): () => UndoOp[] {
+function planMoveNodes(
+	{ids, parent_id: parentId, index}: MoveNodesRequest,
+	queryClient: QueryClient,
+): UndoPlan<unknown> {
 	return cachedOps(queryClient, {kind: "move", ids, parentId, index});
 }
 
@@ -985,7 +1022,7 @@ const toggleUndos = new HeldUndos<NodeResponse, {nodeId: string; isCurrentlyComp
 function planToggle(
 	{nodeId, isCurrentlyCompleted}: {nodeId: string; isCurrentlyCompleted: boolean},
 	queryClient: QueryClient,
-): () => UndoOp[] {
+): UndoPlan<unknown> {
 	return cachedOps(queryClient, {kind: isCurrentlyCompleted ? "uncomplete" : "complete", nodeId});
 }
 
@@ -1064,7 +1101,7 @@ const restoreUndos = new HeldUndos<NodeResponse, RestoreNodeRequest & {nodeId: s
 function planRestore(
 	{nodeId, parent_id: parentId, index}: RestoreNodeRequest & {nodeId: string},
 	queryClient: QueryClient,
-): () => UndoOp[] {
+): UndoPlan<unknown> {
 	return cachedOps(queryClient, {kind: "restore", nodeId, parentId, index});
 }
 

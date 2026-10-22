@@ -54,10 +54,10 @@ import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import {useCopyLink, useSortChildren} from "./use-item-actions.js";
 import {useDateSettings} from "./use-preferences.js";
 import {plainLength} from "../rich-text.js";
-import {applyOps, captureOutlineView, runInUndoBatch, whenUndoSettled} from "../undo-batch.js";
+import {applyOps, captureOutlineView, runInUndoBatch, settleUndoNow} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
 import {queueUndo} from "../undo-view-state.js";
-import {previewUndoOps} from "../undo-cache.js";
+import {holdUndoReplay, previewUndoOps} from "../undo-cache.js";
 import {deleteSelectedItems} from "./use-selection-keymap.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
@@ -564,7 +564,7 @@ export function useCommandRegistry(): CommandRegistry {
 
 	const undoRunner: UndoRunner = {
 		flush: flushEditing,
-		settled: whenUndoSettled,
+		settled: settleUndoNow,
 		pop: (direction) => (direction === "undo" ? undoHistory.popUndo() : undoHistory.popRedo()),
 		blur() {
 			// Committed at once, so the editor unmounts: a row edited both before and after the undo would otherwise keep
@@ -576,6 +576,9 @@ export function useCommandRegistry(): CommandRegistry {
 				}
 				stopEditing();
 			});
+		},
+		hold(ops) {
+			return holdUndoReplay(queryClient, ops);
 		},
 		preview(ops) {
 			// A refetch still in flight from the forward action would land over the previewed rows.

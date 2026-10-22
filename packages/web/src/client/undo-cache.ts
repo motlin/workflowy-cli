@@ -9,6 +9,7 @@ import {
 	spliceChildren,
 	syncParentFlags,
 } from "./node-cache.js";
+import {pendingMoves} from "./pending-moves.js";
 import type {UndoOp} from "./undo-history.js";
 
 /** A removed row with the cached children lists of its subtree, as they stood before the delete. */
@@ -129,4 +130,56 @@ export function previewUndoOps(queryClient: QueryClient, ops: readonly UndoOp[])
 	for (const op of ops) {
 		previewOp(queryClient, op);
 	}
+}
+
+/** Nodes whose text an undo replay will still write, by how many replays name them. */
+const textReplays = new Map<string, number>();
+
+/** Whether an undo replay still has to write `nodeId`'s text, so an earlier save's answer must not show its text. */
+export function textReplayPending(nodeId: string): boolean {
+	return textReplays.has(nodeId);
+}
+
+/** The parents whose children lists `op` changes, read before its preview moves the row. */
+function touchedParents(queryClient: QueryClient, op: UndoOp): (string | null)[] {
+	const current = readNode(queryClient, op.nodeId)?.parent_id;
+	const parents = current === undefined ? [] : [current];
+	switch (op.kind) {
+		case "move":
+			return [...parents, op.from.parentId, op.to.parentId];
+		case "create":
+		case "delete":
+		case "undelete":
+			return [...parents, op.parentId];
+		case "edit":
+		case "complete":
+		case "uncomplete":
+		default:
+			return parents;
+	}
+}
+
+/**
+ * Holds back the server answers that would land over an undo's preview until its replay reaches the
+ * server: children reads of the parents it touches wait (as for a move in flight), and a text save
+ * answering in the meantime leaves the previewed text alone. Call before `previewUndoOps`; returns the release.
+ */
+export function holdUndoReplay(queryClient: QueryClient, ops: readonly UndoOp[]): () => void {
+	const key = {};
+	pendingMoves.begin(key, [...new Set(ops.flatMap((op) => touchedParents(queryClient, op)))]);
+	const texts = ops.flatMap((op) => (op.kind === "edit" ? [op.nodeId] : []));
+	for (const nodeId of texts) {
+		textReplays.set(nodeId, (textReplays.get(nodeId) ?? 0) + 1);
+	}
+	return () => {
+		pendingMoves.end(key);
+		for (const nodeId of texts) {
+			const left = (textReplays.get(nodeId) ?? 1) - 1;
+			if (left === 0) {
+				textReplays.delete(nodeId);
+			} else {
+				textReplays.set(nodeId, left);
+			}
+		}
+	};
 }

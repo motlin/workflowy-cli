@@ -1,5 +1,5 @@
 /**
- * Moves whose reply has not arrived yet, by the parents they leave and enter. A children read of
+ * Moves (and undo replays, see `holdUndoReplay`) whose reply has not arrived yet, by the parents they leave and enter. A children read of
  * such a parent waits for the move to reach the server, so a refetch sent while it is in flight
  * (a create's settle, an expand) cannot answer the pre-move list and undo the optimistic splice.
  */

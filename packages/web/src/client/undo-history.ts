@@ -54,6 +54,22 @@ export function invertOp(op: UndoOp): UndoOp {
 	}
 }
 
+/** Whether two ops say the same thing, field by field. */
+export function sameOp(left: UndoOp, right: UndoOp): boolean {
+	return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
+}
+
+function canonical(value: unknown): unknown {
+	if (value === null || typeof value !== "object") {
+		return value;
+	}
+	return Object.fromEntries(
+		Object.entries(value)
+			.toSorted(([left], [right]) => left.localeCompare(right))
+			.map(([key, entry]) => [key, canonical(entry)]),
+	);
+}
+
 export function invertBatch(batch: UndoBatch): UndoBatch {
 	return {ops: batch.ops.map(invertOp).toReversed(), before: batch.after, after: batch.before};
 }
@@ -106,6 +122,31 @@ export class UndoHistory {
 		this.undoStack.push(invertBatch(batch));
 		this.onChange(this);
 		return batch;
+	}
+
+	/**
+	 * Corrects ops pushed before their mutation answered: each of `original` (in either direction, on
+	 * either stack) becomes the matching op of `replacement`, or is dropped when there is none; a step
+	 * left empty goes with it.
+	 */
+	replaceOps(original: readonly UndoOp[], replacement: readonly UndoOp[]): void {
+		const swap = (batch: UndoBatch): UndoBatch => {
+			let ops = batch.ops;
+			for (const [index, op] of original.entries()) {
+				const next = replacement[index];
+				const forward = ops.findIndex((candidate) => sameOp(candidate, op));
+				const inverse = forward === -1 ? ops.findIndex((candidate) => sameOp(candidate, invertOp(op))) : -1;
+				const at = forward === -1 ? inverse : forward;
+				if (at !== -1) {
+					const swapped = next === undefined ? [] : [forward === -1 ? invertOp(next) : next];
+					ops = ops.toSpliced(at, 1, ...swapped);
+				}
+			}
+			return ops === batch.ops ? batch : {...batch, ops};
+		};
+		this.undoStack = this.undoStack.map(swap).filter((batch) => batch.ops.length > 0);
+		this.redoStack = this.redoStack.map(swap).filter((batch) => batch.ops.length > 0);
+		this.onChange(this);
 	}
 
 	clear(): void {
