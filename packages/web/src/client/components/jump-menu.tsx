@@ -227,6 +227,7 @@ export function SwitcherDialog({
 				<div className="p-m flex flex-col gap-m text-s">
 					<div className="flex flex-col w-full">
 						<input
+							name="jump-menu-query"
 							className={INPUT_CLASS}
 							type="text"
 							placeholder="Jump to..."

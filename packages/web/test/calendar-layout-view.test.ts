@@ -13,7 +13,7 @@ function render(layout: CalendarLayout): string {
 function checkboxes(html: string): [string, boolean][] {
 	return [
 		...html.matchAll(
-			/<div class="flex gap-m"><span class="inline-flex relative w-l h-l"><svg[^>]*data-prefix="(fad|fal)"[^>]*>.*?<\/svg><input type="checkbox" class="sr-only peer"( checked="")?\/><\/span>([^<]*)<\/div>/gu,
+			/<div class="flex gap-m"><span class="inline-flex relative w-l h-l"><svg[^>]*data-prefix="(fad|fal)"[^>]*>.*?<\/svg><input type="checkbox" class="sr-only peer" name="calendar-layout-[a-z]+"( checked="")?\/><\/span>([^<]*)<\/div>/gu,
 		),
 	].map((m) => [m[3], m[1] === "fad" && Boolean(m[2])]);
 }

@@ -566,6 +566,7 @@ export function DatePickerPopup({
 	}, [onEscape]);
 	const input = (
 		<input
+			name="date-picker-input"
 			type="text"
 			// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream focuses the date input as soon as the popup opens
 			autoFocus

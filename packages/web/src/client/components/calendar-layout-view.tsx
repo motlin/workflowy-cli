@@ -22,7 +22,17 @@ function browserConfirm(message: string): boolean {
 }
 
 /** Upstream `W10` / `WF.DomKit.Checkbox` (`E24`). */
-function Checkbox({text, checked, onChange}: {text: string; checked: boolean; onChange: () => void}) {
+function Checkbox({
+	name,
+	text,
+	checked,
+	onChange,
+}: {
+	name: string;
+	text: string;
+	checked: boolean;
+	onChange: () => void;
+}) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup; the sr-only input is the keyboard path
 		<div className="flex flex-col gap-xs text-base cursor-pointer  " onClick={onChange}>
@@ -32,7 +42,7 @@ function Checkbox({text, checked, onChange}: {text: string; checked: boolean; on
 						icon={checked ? "fad:square-check" : "fal:square"}
 						className="relative w-full h-full text-tertiary hover:text-tint [--fa-primary-color:var(--wf-text-on-color)] [--fa-secondary-color:var(--wf-text-tint)] [--fa-secondary-opacity:1]"
 					/>
-					<input type="checkbox" checked={checked} onChange={onChange} className="sr-only peer" />
+					<input type="checkbox" name={name} checked={checked} onChange={onChange} className="sr-only peer" />
 				</span>
 				{text}
 			</div>
@@ -93,6 +103,7 @@ export function CalendarLayoutView({
 				{LEVELS.map((level) => (
 					<Checkbox
 						key={level}
+						name={`calendar-layout-${level}`}
 						text={capitalize(level)}
 						checked={checked[level] === true}
 						onChange={() => {

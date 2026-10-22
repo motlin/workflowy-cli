@@ -110,7 +110,7 @@ function shell(header: string, inputWrapper: string, query: string, menuClass: s
 		`<div style="position:absolute;inset:0 auto auto 0;z-index:300;transform:translate3d(203px, 361.5px, 0px)" data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom-start" class="${WRAPPER}">` +
 		`<div style="pointer-events:auto;z-index:300;max-width:240px;margin-top:4px;left:203px;top:361.5px;transform:scale(1, 1) translateX(0);transform-origin:10% 0;opacity:1" class="${SURFACE}">` +
 		`<div class="${HEADER}">${header}</div>` +
-		`<div class="${inputWrapper}"><div class="flex flex-col w-full"><input class="${INPUT}" type="text" placeholder="Find location..." autofocus="" value="${query}"/></div></div>` +
+		`<div class="${inputWrapper}"><div class="flex flex-col w-full"><input class="${INPUT}" type="text" placeholder="Find location..." autofocus="" name="location-picker-query" value="${query}"/></div></div>` +
 		`<div><div style="${INNER_STYLE}" class="${SURFACE}menu ${menuClass}">${menu}</div></div>` +
 		`</div></div>`
 	);

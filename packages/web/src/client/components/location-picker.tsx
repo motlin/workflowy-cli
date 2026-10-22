@@ -333,6 +333,7 @@ export function LocationPicker(props: LocationPickerProps) {
 							// Keyed by step: each step mounts its own autofocused input, as upstream's Lm1/Mm1 do.
 							key={step}
 							className={INPUT_CLASS}
+							name="location-picker-query"
 							type="text"
 							placeholder="Find location..."
 							value={query}

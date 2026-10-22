@@ -22,7 +22,7 @@ interface CustomFormatInputProps {
 	ariaLabel: string;
 	className: string;
 	disabled: boolean;
-	id?: string;
+	id: string;
 	value: string;
 	onSave: (value: string) => void;
 }
@@ -159,6 +159,7 @@ export function DatesSection({now: nowProp}: {now?: Date}) {
 					/>
 					<CustomFormatInput
 						ariaLabel="Custom time format"
+						id="settings-custom-time-format"
 						key={timeFormat}
 						className="w-[120px]"
 						disabled={disabled}

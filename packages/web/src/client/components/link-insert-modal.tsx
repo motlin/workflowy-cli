@@ -234,6 +234,7 @@ export function LinkInsertModal() {
 					</div>
 					<input
 						className="link-insert-input"
+						name="link-insert-query"
 						onChange={(event) => {
 							handleQueryChange(event.target.value);
 						}}

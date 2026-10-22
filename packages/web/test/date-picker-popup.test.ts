@@ -84,7 +84,7 @@ describe("DatePickerPopup", () => {
 				'<div class="wf-menu flex flex-col\n      border border-solid border-primary font-normal text-xs\n      rounded-md bg-primary shadow-md\n      overflow-x-hidden\n      [transition:200ms_opacity]\n      print:hidden absolute flyout menu [&amp;.menu]:py-0" style="pointer-events:auto;z-index:300;min-width:0;max-width:240px;margin-top:4px">',
 			),
 			input: html.includes(
-				'<div class="flex items-center px-l py-m bg-secondary"><input type="text" autofocus="" placeholder="Type date" class="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary" value=""/></div>',
+				'<div class="flex items-center px-l py-m bg-secondary"><input type="text" autofocus="" placeholder="Type date" class="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary" name="date-picker-input" value=""/></div>',
 			),
 			calendar: html.includes('<div data-keyboard-focus-scope="true" class="flex flex-col w-[220px]"><section>'),
 			icons: [...html.matchAll(/data-icon="([^"]*)"/gu)]
@@ -140,7 +140,7 @@ describe("DatePickerPopup", () => {
 		const html = render({showControls: false});
 		expect({
 			inputRow: html.includes(
-				'<div class="flex items-center px-l py-m bg-secondary"><input type="text" autofocus="" placeholder="Type date" class="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary" value=""/></div>',
+				'<div class="flex items-center px-l py-m bg-secondary"><input type="text" autofocus="" placeholder="Type date" class="date-popup-input bg-inherit w-full border-0 text-primary placeholder:text-tertiary" name="date-picker-input" value=""/></div>',
 			),
 			hiddenInput: html.includes("absolute w-0 h-0 overflow-hidden"),
 			rows: menuRows(html),

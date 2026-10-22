@@ -295,7 +295,12 @@ export function ExportDialog() {
 					{isLoading ? (
 						<p className="export-dialog-status">Loading...</p>
 					) : (
-						<textarea className="export-dialog-textarea" readOnly value={exportContent} />
+						<textarea
+							className="export-dialog-textarea"
+							name="export-content"
+							readOnly
+							value={exportContent}
+						/>
 					)}
 				</div>
 

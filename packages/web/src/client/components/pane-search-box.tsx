@@ -74,6 +74,7 @@ export function PaneSearchBox({query, compact = false, onCommit}: PaneSearchBoxP
 				<input
 					autoComplete="off"
 					autoCorrect="off"
+					name="pane-search"
 					className={collapsed ? `${COMPACT_INPUT_CLASS} opacity-0 cursor-pointer` : COMPACT_INPUT_CLASS}
 					onBlur={() => {
 						setFocused(false);
