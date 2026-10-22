@@ -1,6 +1,8 @@
 import {WorkflowyApiClient} from "@workflowy/shared/api";
+import type {InternalAuth} from "@workflowy/shared/api";
 import {CacheService, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
 import * as schema from "@workflowy/shared/db";
+import {readInternalAuth} from "@workflowy/shared/node";
 import {drizzle} from "drizzle-orm/better-sqlite3";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import DatabaseConstructor from "better-sqlite3";
@@ -41,6 +43,15 @@ export function getApiClient(): WorkflowyApiClient {
 		apiClient = new WorkflowyApiClient(apiKey, undefined, process.env.WORKFLOWY_API_URL);
 	}
 	return apiClient;
+}
+
+/**
+ * Internal-API auth from `WORKFLOWY_USERNAME`/`WORKFLOWY_PASSWORD` (both
+ * required) or a saved session cookie, mirroring the web and CLI wiring.
+ * Undefined when neither is configured; no MCP tool needs it yet.
+ */
+export function getInternalAuth(env: NodeJS.ProcessEnv = process.env): InternalAuth | undefined {
+	return readInternalAuth(env);
 }
 
 export function getCacheService(): CacheService {
