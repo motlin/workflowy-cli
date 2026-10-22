@@ -397,10 +397,12 @@ nodesRouter.post("/children", async (c) => {
 // POST /api/v1/nodes/view - Everything an outline view under `rootId` first renders, in one round trip: the root's
 // children and, depth-first in document order, those of every expanded row the row budget reaches, each with its
 // Backlinks section (Home has none). Spares the client one children request per depth level and one backlinks GET
-// per expanded row, so a zoom swaps in the whole expanded view at once.
+// per expanded row, so a zoom swaps in the whole expanded view at once. `expandedIds: null` expands the account's
+// expanded rows (none without the internal API) and answers which of the listed rows those are, so the page load's
+// first view need not wait on the client fetching the account's whole expanded set.
 const ViewSchema = z.object({
 	rootId: z.string().nullable(),
-	expandedIds: z.array(z.string()),
+	expandedIds: z.array(z.string()).nullable(),
 	limit: z.number().int().nonnegative(),
 	showCompleted: z.boolean(),
 });
@@ -416,7 +418,7 @@ nodesRouter.post("/view", async (c) => {
 	if (rootId !== null && resolvedRoot === null) {
 		return c.json({error: "Node not found"}, 404);
 	}
-	const expandedIds = new Set(body.data.expandedIds);
+	const isExpanded = await viewExpansionTest(ctx, body.data.expandedIds);
 	const lists: OutlineViewList[] = [];
 	let used = 0;
 	const visit = async (parentId: string | null, resolved: string | null): Promise<void> => {
@@ -430,15 +432,28 @@ nodesRouter.post("/view", async (c) => {
 				continue;
 			}
 			used += 1;
-			if (expandedIds.has(node.id)) {
+			if (isExpanded(node.id)) {
 				await visit(node.id, node.id);
 			}
 		}
 	};
 	await visit(rootId, resolvedRoot);
-	const response: OutlineViewResponse = {lists};
+	const response: OutlineViewResponse =
+		body.data.expandedIds === null
+			? {lists, expandedIds: lists.flatMap((list) => list.nodes.map((node) => node.id).filter(isExpanded))}
+			: {lists};
 	return c.json(response);
 });
+
+/** The requested expanded ids, or for null the account's expansion (nothing without the internal API). */
+async function viewExpansionTest(ctx: ServerContext, expandedIds: string[] | null): Promise<(id: string) => boolean> {
+	if (expandedIds !== null) {
+		const ids = new Set(expandedIds);
+		return (id) => ids.has(id);
+	}
+	const adapter = ctx.internalAdapter?.();
+	return adapter === undefined ? () => false : adapter.expansionTest();
+}
 
 // GET /api/v1/nodes/:id - Get single node (accepts UUID or short ID)
 nodesRouter.get("/:id", async (c) => {

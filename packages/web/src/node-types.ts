@@ -84,6 +84,8 @@ export interface OutlineViewList {
 /** An outline view's lists, the root's first, then each expanded row's in document order. */
 export interface OutlineViewResponse {
 	lists: OutlineViewList[];
+	/** For a request with `expandedIds: null`: the listed rows the account has expanded, in list order. */
+	expandedIds?: string[];
 }
 
 /**

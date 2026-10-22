@@ -29,7 +29,8 @@ function apiNode(id: string, parentId: string | null, priority: number, complete
 }
 
 /** Home holds Alpha>{A1>{A1a}, A2 (completed)>{A2a}} and Beta>{B1}. */
-function setup() {
+/** `accountExpanded`: the account's expanded ids the internal API holds; undefined leaves it unconfigured. */
+function setup(accountExpanded?: readonly string[]) {
 	const sqlite = new DatabaseConstructor(":memory:");
 	const db = drizzle(sqlite, {schema});
 	migrate(db, {migrationsFolder});
@@ -41,7 +42,11 @@ function setup() {
 	cacheService.insertNode(apiNode("A1a", "A1", 0), "A1");
 	cacheService.insertNode(apiNode("A2a", "A2", 0), "A2");
 	cacheService.insertNode(apiNode("B1", "Beta", 0), "Beta");
-	const ctx = {db, cacheService} as unknown as ServerContext;
+	const adapter =
+		accountExpanded === undefined
+			? undefined
+			: {expansionTest: async () => Promise.resolve((id: string) => accountExpanded.includes(id))};
+	const ctx = {db, cacheService, internalAdapter: () => adapter} as unknown as ServerContext;
 	const app = new Hono<AppEnv>();
 	app.use("*", async (c, next) => {
 		c.set("ctx", ctx);
@@ -141,6 +146,33 @@ describe("POST /api/v1/nodes/view", () => {
 			["Beta", ["B1", "M"], NO_BACKLINKS],
 			["M", ["A1", "A2"], NO_BACKLINKS],
 		]);
+	});
+
+	it("expands the account's expanded rows for null expandedIds, returning those the view reached", async () => {
+		const {post} = setup(["Alpha", "A1", "A2", "Beta", "Elsewhere"]);
+
+		const {body} = await post({rootId: null, expandedIds: null, limit: 100, showCompleted: false});
+
+		expect({lists: lists(body), expandedIds: body.expandedIds}).toStrictEqual({
+			lists: [
+				[null, ["Alpha", "Beta"], null],
+				["Alpha", ["A1", "A2"], NO_BACKLINKS],
+				["A1", ["A1a"], NO_BACKLINKS],
+				["Beta", ["B1"], NO_BACKLINKS],
+			],
+			expandedIds: ["Alpha", "Beta", "A1", "A2"],
+		});
+	});
+
+	it("expands nothing for null expandedIds without the internal API", async () => {
+		const {post} = setup();
+
+		const {body} = await post({rootId: null, expandedIds: null, limit: 100, showCompleted: false});
+
+		expect({lists: lists(body), expandedIds: body.expandedIds}).toStrictEqual({
+			lists: [[null, ["Alpha", "Beta"], null]],
+			expandedIds: [],
+		});
 	});
 
 	it("answers 404 for an unresolvable short root id and 400 for a malformed body", async () => {

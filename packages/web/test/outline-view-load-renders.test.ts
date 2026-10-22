@@ -48,11 +48,13 @@ let root: Root | undefined;
 let requests: string[] = [];
 let viewBodies: unknown[] = [];
 let expansionResponse: Promise<Response> = Promise.resolve(Response.json({}, {status: 404}));
+let viewResponse: OutlineViewResponse = view;
 
 beforeEach(() => {
 	globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 	requests = [];
 	viewBodies = [];
+	viewResponse = view;
 	useOutlineStore.setState(useOutlineStore.getInitialState(), true);
 	useOutlineStore.setState({expandedIds: new Set(["alice", "bob"])});
 	vi.stubGlobal(
@@ -65,7 +67,7 @@ beforeEach(() => {
 			}
 			if (url.endsWith("/api/v1/nodes/view")) {
 				viewBodies.push(JSON.parse(init?.body as string));
-				return Response.json(view);
+				return Response.json(viewResponse);
 			}
 			return Response.json({}, {status: 404});
 		}),
@@ -129,13 +131,16 @@ describe("outline view load", () => {
 		});
 	});
 
-	it("waits for the account's expansion on page load, so expanded levels arrive with the first rows", async () => {
+	it("loads the first view with the account's expansion without waiting on the expansion GET", async () => {
 		useOutlineStore.setState({expandedIds: new Set()});
+		let viewBodiesWhenExpansionSettled: unknown[] | undefined;
 		expansionResponse = new Promise((resolve) => {
 			setTimeout(() => {
-				resolve(Response.json({expandedIds: ["alice", "bob"]}));
-			}, 10);
+				viewBodiesWhenExpansionSettled = [...viewBodies];
+				resolve(Response.json({expandedIds: ["alice", "bob", "elsewhere"]}));
+			}, 30);
 		});
+		viewResponse = {...view, expandedIds: ["alice", "bob"]};
 		const expansion = loadExpansion();
 		const commits = await renderCommits();
 		await expansion;
@@ -143,18 +148,20 @@ describe("outline view load", () => {
 		expect({
 			firstWithRows: commits.find((ids) => ids.length > 0),
 			treeRequests: requests.filter((url) => url.includes("/children") || url.endsWith("/backlinks")),
-			viewBodies,
+			viewBodiesWhenExpansionSettled,
+			expandedIds: useOutlineStore.getState().expandedIds,
 		}).toStrictEqual({
 			firstWithRows: ["alice", "bob", "carol"],
 			treeRequests: [],
-			viewBodies: [
+			viewBodiesWhenExpansionSettled: [
 				{
 					rootId: null,
-					expandedIds: ["alice", "bob"],
+					expandedIds: null,
 					limit: initialRowBudget(window.innerHeight),
 					showCompleted: useOutlineStore.getState().showCompleted,
 				},
 			],
+			expandedIds: new Set(["alice", "bob", "elsewhere"]),
 		});
 	});
 });

@@ -1285,6 +1285,27 @@ export class WorkflowyInternalAdapter {
 	 * 5s old, so a change made on workflowy.com shows on that read.
 	 */
 	async getExpandedIds({fresh = false}: {fresh?: boolean} = {}): Promise<string[]> {
+		const keys = await this.expandedKeys(fresh);
+		return this.db
+			.select({id: nodeContent.id})
+			.from(nodeContent)
+			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
+			.orderBy(nodeContent.id)
+			.all()
+			.map(({id}) => id)
+			.filter((id) => keys.has(expansionKey(id)));
+	}
+
+	/**
+	 * Whether an id is expanded, per the same cached keys {@link getExpandedIds} reads, without listing every cached
+	 * node: an outline view tests only the rows it reaches.
+	 */
+	async expansionTest(): Promise<(id: string) => boolean> {
+		const keys = await this.expandedKeys(false);
+		return (id) => keys.has(expansionKey(id));
+	}
+
+	private async expandedKeys(fresh: boolean): Promise<Set<string>> {
 		const cached = this.loadExpandedKeys();
 		let keys: Set<string>;
 		if (cached && fresh && cached.fetchedAt <= this.now() - FRESH_EXPANSION_THROTTLE_MS) {
@@ -1299,14 +1320,7 @@ export class WorkflowyInternalAdapter {
 		} else {
 			keys = await this.refreshExpandedKeys();
 		}
-		return this.db
-			.select({id: nodeContent.id})
-			.from(nodeContent)
-			.where(eq(nodeContent.systemTo, FAR_FUTURE_DATE))
-			.orderBy(nodeContent.id)
-			.all()
-			.map(({id}) => id)
-			.filter((id) => keys.has(expansionKey(id)));
+		return keys;
 	}
 
 	/** Settles once the in-flight expanded-keys refresh, if any, has finished. */

@@ -13,10 +13,10 @@ export interface OutlineViewShape {
 	budget: number;
 }
 
-/** The body of `POST /api/v1/nodes/view`. */
+/** The body of `POST /api/v1/nodes/view`; `expandedIds: null` expands the account's expanded rows. */
 export interface OutlineViewRequest {
 	rootId: string | null;
-	expandedIds: string[];
+	expandedIds: string[] | null;
 	limit: number;
 	showCompleted: boolean;
 }
@@ -53,24 +53,29 @@ export function outlineViewCached(queryClient: QueryClient, rootId: string | nul
  * budget reaches, with their Backlinks sections, so the view renders whole instead of one depth level per round
  * trip. Lists the cache already holds stay (they may carry optimistic writes), as does a list a pending move touches;
  * with the whole view cached, nothing is sent.
+ *
+ * With `accountExpansion`, the server expands the account's expanded rows in place of `shape.expandedIds` (which the
+ * page load has yet to fill), and `accountExpansion` receives the listed rows it expanded before the lists are seeded.
  */
 export async function loadOutlineView(
 	queryClient: QueryClient,
 	rootId: string | null,
 	shape: OutlineViewShape,
 	fetchView: (request: OutlineViewRequest) => Promise<OutlineViewResponse>,
+	accountExpansion?: (expandedIds: string[]) => void,
 ): Promise<void> {
-	if (outlineViewCached(queryClient, rootId, shape)) {
+	if (accountExpansion === undefined && outlineViewCached(queryClient, rootId, shape)) {
 		return;
 	}
 	await pendingMoves.settled(rootId);
-	const {lists} = await fetchView({
+	const {lists, expandedIds} = await fetchView({
 		rootId,
-		expandedIds: [...shape.expandedIds],
+		expandedIds: accountExpansion === undefined ? [...shape.expandedIds] : null,
 		limit: shape.budget,
 		showCompleted: shape.showCompleted,
 	});
 	notifyManager.batch(() => {
+		accountExpansion?.(expandedIds ?? []);
 		for (const {parentId, nodes, backlinks} of lists) {
 			if (queryClient.getQueryData(nodeKeys.children(parentId)) === undefined && !pendingMoves.has(parentId)) {
 				queryClient.setQueryData(nodeKeys.children(parentId), pendingCreates.withPending(parentId, nodes));

@@ -99,6 +99,25 @@ describe("WorkflowyInternalAdapter expansion", () => {
 		]);
 	});
 
+	it("tests ids against the same cached keys, without a second fetch", async () => {
+		const {api, adapter} = tracked();
+		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));
+
+		await adapter.getExpandedIds();
+		const isExpanded = await adapter.expansionTest();
+
+		expect({
+			tested: [ALPHA, ALPHA_TWIN, BRAVO, "1a2b3c4d-not-cached"].map((id) => isExpanded(id)),
+			network: network(api.requests),
+		}).toStrictEqual({
+			tested: [true, true, false, true],
+			network: [
+				["POST", "/ajax_login"],
+				["GET", "/get_tree_data/"],
+			],
+		});
+	});
+
 	it("serves later reads from the cached keys, sharing one fetch between concurrent reads", async () => {
 		const {api, adapter} = tracked();
 		api.respond("/get_tree_data/", () => treeData(["1a2b3c4d"]));

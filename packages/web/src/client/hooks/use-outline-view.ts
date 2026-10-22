@@ -6,7 +6,7 @@ import {initialRowBudget} from "../render-window.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {usePaneExpandedIds, usePaneId} from "../components/pane-context.js";
 import {paneExpandedIds} from "../pane-ids.js";
-import {initialExpansionLoaded} from "./use-expansion-sync.js";
+import {adoptViewExpansion, initialExpansionPending} from "./use-expansion-sync.js";
 import {fetchOutlineView} from "./use-nodes.js";
 
 /** The view a pane with `expandedIds` shows now: the first row budget a new view reaches after its first paint. */
@@ -18,14 +18,23 @@ export function outlineViewShape(expandedIds: ReadonlySet<string>, showCompleted
 	};
 }
 
-/** `shape` is read once the page load's expansion is in, so the first view loads every level it expands. */
+/**
+ * While the page load's expansion GET is in flight, the main outline's view expands the account's rows on the server
+ * instead of waiting on it, and adopts the ones it reached, so the first view still loads every level it expands.
+ */
 function viewQuery(queryClient: QueryClient, rootId: string | null, shape: () => OutlineViewShape) {
 	return {
 		queryKey: outlineViewKey(rootId),
 		// A failed load leaves each level to its own children query.
 		queryFn: async () => {
-			await initialExpansionLoaded();
-			await loadOutlineView(queryClient, rootId, shape(), fetchOutlineView).catch(ignoreFailure);
+			const current = shape();
+			const accountExpansion =
+				initialExpansionPending() && current.expandedIds === useOutlineStore.getState().expandedIds
+					? adoptViewExpansion
+					: undefined;
+			await loadOutlineView(queryClient, rootId, current, fetchOutlineView, accountExpansion).catch(
+				ignoreFailure,
+			);
 			return true;
 		},
 		// Loaded once per visit: a later expand loads its own level, and leaving the view drops the entry, so the next

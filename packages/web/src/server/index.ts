@@ -2,6 +2,7 @@ import {Hono} from "hono";
 import {cors} from "hono/cors";
 import {serve} from "@hono/node-server";
 import {createNodeWebSocket} from "@hono/node-ws";
+import {apiCompression} from "./compression.js";
 import {createServerContext} from "./context.js";
 import type {AppEnv} from "./context.js";
 import {changesRouter} from "./routes/changes.js";
@@ -42,6 +43,8 @@ app.use("/*", async (c, next) => {
 	c.set("ctx", serverContext);
 	await next();
 });
+
+app.use("/api/*", apiCompression());
 
 // Rebuild the search tree snapshot in the background after each write, so searches rarely wait on the ~800ms reload.
 app.use("/api/*", rebuildTreeSnapshotAfterWrites(getDatabase));

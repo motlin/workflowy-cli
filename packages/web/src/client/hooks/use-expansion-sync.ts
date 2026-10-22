@@ -29,6 +29,7 @@ const LOCAL_CHANGE_GRACE_MS = 5000;
 const LOAD_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 8000];
 
 let loading: Promise<void> | undefined;
+let loadSettled = false;
 let lastFetchAt = Number.NEGATIVE_INFINITY;
 
 /**
@@ -36,16 +37,30 @@ let lastFetchAt = Number.NEGATIVE_INFINITY;
  * session. One GET per page load: later calls (StrictMode's second effect) share it.
  */
 export async function loadExpansion(now = Date.now()): Promise<void> {
-	loading ??= fetchExpansion(now);
+	loading ??= fetchExpansion(now).finally(() => {
+		loadSettled = true;
+	});
 	return loading;
 }
 
 /**
- * Settles once the page load's expansion GET has been applied (or failed); resolved at once when none started. A view
- * loaded before it would render without the account's expanded levels and fill them in one at a time after.
+ * Whether the page load's expansion GET is still in flight. Its body holds every expanded id in the account (over a
+ * megabyte), so a view loaded meanwhile asks the server to expand the account's rows instead of waiting on it.
  */
-export async function initialExpansionLoaded(): Promise<void> {
-	return loading;
+export function initialExpansionPending(): boolean {
+	return loading !== undefined && !loadSettled;
+}
+
+/**
+ * Expand the rows a view load found expanded in the account, so they render expanded with the first rows; the page
+ * load's GET replaces the whole set when it lands. Ignored once that GET has been applied, which already holds them.
+ */
+export function adoptViewExpansion(ids: readonly string[]): void {
+	const current = useOutlineStore.getState().expandedIds;
+	if (!initialExpansionPending() || ids.every((id) => current.has(id))) {
+		return;
+	}
+	useOutlineStore.getState().setExpanded(new Set([...current, ...ids]));
 }
 
 /**
