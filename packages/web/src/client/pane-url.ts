@@ -18,20 +18,17 @@ export type PanesState = [string, string, ...unknown[]][];
 
 export type DecodedPanes = {kind: "absent"} | {kind: "invalid"} | {kind: "valid"; state: PanesState};
 
-/**
- * The side pane as the URL sees it: both pane ids, the pane's zoom (full or short id; null is Home) and its own
- * search query (null or "" for none).
- */
-export interface SidePaneUrl {
-	mainPaneId: string;
+/** One secondary item-tree pane as the URL names it: its id, zoom (full or short id; null is Home) and search query. */
+export interface PaneUrl {
 	paneId: string;
 	location: string | null;
 	query?: string | null;
 }
 
-export interface PaneUrlIds {
+/** The pane workspace as `panes=v2.` names it: the main pane's id, then each secondary pane left to right. */
+export interface WorkspaceUrl {
 	mainPaneId: string;
-	paneId: string;
+	panes: PaneUrl[];
 }
 
 function toBase64url(bytes: Uint8Array): string {
@@ -110,57 +107,76 @@ function paneQuery(query: string | null | undefined): string | null {
 	return query === undefined || query === "" ? null : query;
 }
 
-/** The item-tree pane's `toUrl`: `[shortId]` or `[shortId, searchQuery]`, Home as `None`. */
-export function encodeSidePane({mainPaneId, paneId, location, query}: SidePaneUrl): string | undefined {
-	const zoom = location === null ? HOME_ID : shortId(location);
-	const search = paneQuery(query);
-	return encodePanes([
-		[mainPaneId, ITEM_TREE],
-		[paneId, ITEM_TREE, search === null ? [zoom] : [zoom, search]],
-	]);
+/** A workspace read from the URL: every pane's query is present (null for none). */
+export interface DecodedWorkspace {
+	mainPaneId: string;
+	panes: (PaneUrl & {query: string | null})[];
 }
 
-/** The first extra item-tree pane named by a `panes` value (its `fromUrl`); null when absent or malformed. */
-export function decodeSidePane(value: string | null | undefined): (SidePaneUrl & {query: string | null}) | null {
-	const decoded = decodePanes(value);
-	if (decoded.kind !== "valid") {
-		return null;
-	}
-	const [main, pane] = decoded.state;
-	if (main === undefined || pane === undefined || pane[1] !== ITEM_TREE) {
-		return null;
-	}
-	const urlState: unknown = pane[2];
-	if (!Array.isArray(urlState)) {
+/** The item-tree pane's `toUrl`: `[shortId]` or `[shortId, searchQuery]`, Home as `None`. */
+function paneUrlState({location, query}: PaneUrl): string[] {
+	const zoom = location === null ? HOME_ID : shortId(location);
+	const search = paneQuery(query);
+	return search === null ? [zoom] : [zoom, search];
+}
+
+/** Upstream's snapshot encoding: the main pane, then each item-tree pane with its urlState. */
+export function encodeWorkspace({mainPaneId, panes}: WorkspaceUrl): string | undefined {
+	return encodePanes([[mainPaneId, ITEM_TREE], ...panes.map((pane) => [pane.paneId, ITEM_TREE, paneUrlState(pane)])]);
+}
+
+/** The item-tree pane's `fromUrl`; null for any other type or a malformed urlState. */
+function decodePane([paneId, type, urlState]: PanesState[number]): (PaneUrl & {query: string | null}) | null {
+	if (type !== ITEM_TREE || !Array.isArray(urlState)) {
 		return null;
 	}
 	const [id, query = null] = urlState as unknown[];
 	if (typeof id !== "string" || id === "" || (query !== null && typeof query !== "string")) {
 		return null;
 	}
-	return {mainPaneId: main[0], paneId: pane[0], location: id === HOME_ID ? null : id, query};
-}
-
-/** The side pane as the URL should name it, from the store's pane and its URL ids; null with no side pane. */
-export function storeSidePaneUrl(
-	sidePane: {zoomedId: string | null; query: string} | null,
-	ids: PaneUrlIds | null,
-): SidePaneUrl | null {
-	return sidePane === null || ids === null
-		? null
-		: {...ids, location: sidePane.zoomedId, query: paneQuery(sidePane.query)};
+	return {paneId, location: id === HOME_ID ? null : id, query};
 }
 
 /**
- * The `panes` fragment naming the store's side pane, empty with none. A main-pane navigation carries it so the pane
- * sync never has to replace the pushed URL a frame later.
+ * The workspace a `panes` value names; null when absent, malformed, naming no extra pane, or naming a pane this app
+ * cannot render (upstream's `applySnapshot` rejects the whole snapshot then).
  */
-export function sidePaneFragments(
-	sidePane: {zoomedId: string | null; query: string} | null,
-	ids: PaneUrlIds | null,
+export function decodeWorkspace(value: string | null | undefined): DecodedWorkspace | null {
+	const decoded = decodePanes(value);
+	if (decoded.kind !== "valid") {
+		return null;
+	}
+	const [main, ...rest] = decoded.state;
+	if (main === undefined || rest.length === 0) {
+		return null;
+	}
+	const panes = rest.map(decodePane);
+	return panes.every((pane) => pane !== null) ? {mainPaneId: main[0], panes} : null;
+}
+
+/** The workspace as the URL should name it, from the store's panes and main URL id; null with no pane open. */
+export function storeWorkspaceUrl(
+	panes: readonly {id: string; zoomedId: string | null; query: string}[],
+	mainPaneUrlId: string | null,
+): WorkspaceUrl | null {
+	return panes.length === 0 || mainPaneUrlId === null
+		? null
+		: {
+				mainPaneId: mainPaneUrlId,
+				panes: panes.map((pane) => ({paneId: pane.id, location: pane.zoomedId, query: paneQuery(pane.query)})),
+			};
+}
+
+/**
+ * The `panes` fragment naming the store's panes, empty with none. A main-pane navigation carries it so the pane sync
+ * never has to replace the pushed URL a frame later.
+ */
+export function workspaceFragments(
+	panes: readonly {id: string; zoomedId: string | null; query: string}[],
+	mainPaneUrlId: string | null,
 ): Record<string, string> {
-	const store = storeSidePaneUrl(sidePane, ids);
-	const value = store === null ? undefined : encodeSidePane(store);
+	const store = storeWorkspaceUrl(panes, mainPaneUrlId);
+	const value = store === null ? undefined : encodeWorkspace(store);
 	return value === undefined ? {} : {[PANES_FRAGMENT]: value};
 }
 
@@ -175,36 +191,46 @@ function shortZoom(location: string | null): string | null {
 	return location === null ? null : shortId(location);
 }
 
-/** Upstream's item-tree `equals`: same pane ids, the same zoom by short id and the same search query. */
-export function sameSidePane(a: SidePaneUrl | null, b: SidePaneUrl | null): boolean {
-	if (a === null || b === null) {
-		return a === b;
-	}
+function samePane(a: PaneUrl, b: PaneUrl): boolean {
 	return (
-		a.mainPaneId === b.mainPaneId &&
 		a.paneId === b.paneId &&
 		shortZoom(a.location) === shortZoom(b.location) &&
 		paneQuery(a.query) === paneQuery(b.query)
 	);
 }
 
+/** Upstream's `snapshotEquals`: the same pane ids in order, each with the same zoom by short id and search query. */
+export function sameWorkspace(a: WorkspaceUrl | null, b: WorkspaceUrl | null): boolean {
+	if (a === null || b === null) {
+		return a === b;
+	}
+	return (
+		a.mainPaneId === b.mainPaneId &&
+		a.panes.length === b.panes.length &&
+		a.panes.every((pane, index) => {
+			const other = b.panes[index];
+			return other !== undefined && samePane(pane, other);
+		})
+	);
+}
+
 export type PaneUrlAction = "none" | "apply" | "close" | "restore-url";
 
 /**
- * After a location change: a URL naming a pane wins (reload, Back/Forward, a
- * pasted link). A URL without one closes the pane only on browser Back/Forward;
- * an in-app navigation that dropped the param gets the open pane written back.
+ * After a location change: a URL naming panes wins (reload, Back/Forward, a
+ * pasted link). A URL without them closes the panes only on browser Back/Forward;
+ * an in-app navigation that dropped the param gets the open panes written back.
  */
 export function reconcilePaneUrl({
 	url,
 	store,
 	isPop,
 }: {
-	url: SidePaneUrl | null;
-	store: SidePaneUrl | null;
+	url: WorkspaceUrl | null;
+	store: WorkspaceUrl | null;
 	isPop: boolean;
 }): PaneUrlAction {
-	if (sameSidePane(url, store)) {
+	if (sameWorkspace(url, store)) {
 		return "none";
 	}
 	if (url !== null) {
@@ -225,29 +251,31 @@ export interface PaneRuntimeState {
 	panes: {id: string; type: string; widthPercent: number}[];
 }
 
-/** The `pane-workspace-runtime:v1` record; the local side pane always splits the width in half. */
-export function paneRuntimeState({mainPaneId, paneId}: PaneUrlIds, sideActive: boolean): PaneRuntimeState {
-	return {
-		activePaneId: sideActive ? paneId : mainPaneId,
-		panes: [
-			{id: mainPaneId, type: ITEM_TREE, widthPercent: 50},
-			{id: paneId, type: ITEM_TREE, widthPercent: 50},
-		],
-	};
+/**
+ * The `pane-workspace-runtime:v1` record: the active pane's URL id and every pane (main first) at an equal share of
+ * the width, as upstream's rebalanced widths persist.
+ */
+export function paneRuntimeState(paneIds: readonly string[], activePaneId: string): PaneRuntimeState {
+	const widthPercent = Number((100 / paneIds.length).toFixed(4));
+	return {activePaneId, panes: paneIds.map((id) => ({id, type: ITEM_TREE, widthPercent}))};
 }
 
 const runtimeStateSchema = z.object({activePaneId: z.string(), panes: z.array(z.object({id: z.string()}))});
 
-/** Upstream `restoreRuntimeState`: the stored active pane counts only when the record names the URL's panes. */
-export function restoredActivePane(stored: string | null, {mainPaneId, paneId}: PaneUrlIds): boolean {
+/**
+ * Upstream `restoreRuntimeState`: the stored active pane, only when the record names every one of the URL's panes
+ * (`paneIds`, main first) and the active pane among them; null otherwise.
+ */
+export function restoredActivePane(stored: string | null, paneIds: readonly string[]): string | null {
 	try {
 		const parsed = runtimeStateSchema.safeParse(JSON.parse(stored ?? "null"));
 		if (!parsed.success) {
-			return false;
+			return null;
 		}
 		const ids = new Set(parsed.data.panes.map((pane) => pane.id));
-		return ids.has(mainPaneId) && ids.has(paneId) && parsed.data.activePaneId === paneId;
+		const {activePaneId} = parsed.data;
+		return paneIds.every((id) => ids.has(id)) && paneIds.includes(activePaneId) ? activePaneId : null;
 	} catch {
-		return false;
+		return null;
 	}
 }

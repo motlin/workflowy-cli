@@ -10,7 +10,7 @@ import {caretTextOffset, editorElement} from "./caret-dom.js";
 import {locationUrl, parseLocationHash, shortId} from "./location.js";
 import {readChildren, readNode} from "./node-cache.js";
 import {locFromHash} from "./nav-stack.js";
-import {sidePaneFragments} from "./pane-url.js";
+import {workspaceFragments} from "./pane-url.js";
 import {useOutlineStore} from "./stores/outline.js";
 import type {NavigateFn} from "./stores/outline.js";
 
@@ -120,17 +120,28 @@ function holdEditingAcrossSwap(): void {
 
 /**
  * Record a move to `nodeId` (null for home) on the in-app stacks, zoom the outline, then push its URL carrying any
- * open side pane. Zooming here rather than after the route resolves the URL's short id swaps the outline in the same
+ * open panes. Zooming here rather than after the route resolves the URL's short id swaps the outline in the same
  * frame as the click, and keeping the `panes` param spares the pane sync a second, replacing navigation.
  */
-export function goToNode(navigate: NavigateFn, nodeId: string | null): void {
-	const {dispatchNav, zoom, sidePane, paneUrlIds} = useOutlineStore.getState();
-	dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query: null}});
+export function goToNode(navigate: NavigateFn, nodeId: string | null, query: string | null = null): void {
+	const {dispatchNav, zoom, panes, mainPaneUrlId} = useOutlineStore.getState();
+	dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query}});
 	if (nodeId !== useOutlineStore.getState().zoomedNodeId) {
 		holdEditingAcrossSwap();
 	}
 	zoom(nodeId);
-	void navigate(locationUrl({id: nodeId, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
+	void navigate(locationUrl({id: nodeId, query, fragments: workspaceFragments(panes, mainPaneUrlId)}));
+}
+
+/**
+ * Upstream's close of the main pane: the first pane becomes the main outline, so the URL navigates to its zoom and
+ * search while the remaining panes stay open. A no-op with no pane open.
+ */
+export function closeMainPane(navigate: NavigateFn): void {
+	const promoted = useOutlineStore.getState().closeMainPane();
+	if (promoted !== null) {
+		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query);
+	}
 }
 
 /**
@@ -174,10 +185,10 @@ export function stepNav(
 		return;
 	}
 	dispatchNav({type: direction});
-	const {nav, sidePane, paneUrlIds} = useOutlineStore.getState();
+	const {nav, panes, mainPaneUrlId} = useOutlineStore.getState();
 	if (nav.current !== null) {
 		zoomToCachedId(nav.current.id, resolve);
-		void navigate(locationUrl({...nav.current, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
+		void navigate(locationUrl({...nav.current, fragments: workspaceFragments(panes, mainPaneUrlId)}));
 	}
 }
 

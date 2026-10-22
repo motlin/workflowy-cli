@@ -7,52 +7,71 @@ import type * as IconButtonModule from "../src/client/components/icon-button.js"
 import {cssBlock} from "./helpers/css-block.js";
 
 interface PaneState {
+	id: string;
 	zoomedId: string | null;
 	backLocations: (string | null)[];
 	forwardLocations: (string | null)[];
 	query: string;
+	expandedIds: Set<string>;
 }
 const calls: {
-	close: number;
-	zoom: (string | null)[];
+	close: string[];
+	zoom: string[];
 	activate: string[];
 	history: string[];
-	opened: (string | null)[];
+	opened: unknown[][];
 	queries: string[];
 } = {
-	close: 0,
+	close: [],
 	zoom: [],
 	activate: [],
 	history: [],
 	opened: [],
 	queries: [],
 };
-const BOB: PaneState = {zoomedId: "bob", backLocations: [], forwardLocations: [], query: ""};
-const storeState: {sidePane: PaneState | null; activePaneId: string} & Record<string, unknown> = {
-	sidePane: BOB,
-	activePaneId: "side",
+const B = "BBBBBBBBBBB";
+const C = "CCCCCCCCCCC";
+const D = "DDDDDDDDDDD";
+function paneState(id: string, zoomedId: string | null): PaneState {
+	return {id, zoomedId, backLocations: [], forwardLocations: [], query: "", expandedIds: new Set()};
+}
+const BOB = paneState(B, "bob");
+const storeState: {panes: PaneState[]; activePaneId: string} & Record<string, unknown> = {
+	panes: [BOB],
+	activePaneId: B,
 	setActivePane: (paneId: string) => {
 		calls.activate.push(paneId);
 	},
-	closeSidePane: () => {
-		calls.close++;
+	closePane: (paneId: string) => {
+		calls.close.push(paneId);
 	},
-	zoomSidePane: (zoomedId: string | null) => {
-		calls.zoom.push(zoomedId);
+	zoomPane: (paneId: string, zoomedId: string | null) => {
+		calls.zoom.push(`${paneId}:${zoomedId ?? "home"}`);
 	},
-	sidePaneBack: () => {
-		calls.history.push("back");
+	paneBack: (paneId: string) => {
+		calls.history.push(`back:${paneId}`);
 	},
-	sidePaneForward: () => {
-		calls.history.push("forward");
+	paneForward: (paneId: string) => {
+		calls.history.push(`forward:${paneId}`);
 	},
-	openSidePane: (zoomedId: string | null) => {
-		calls.opened.push(zoomedId);
+	openPane: (zoomedId: string | null, options?: unknown) => {
+		calls.opened.push([zoomedId, options]);
+		return "NEW";
 	},
-	setSidePaneQuery: (query: string) => {
-		calls.queries.push(query);
+	setPaneQuery: (paneId: string, query: string) => {
+		calls.queries.push(`${paneId}:${query}`);
 	},
 };
+
+/** Render with `panes` open, restoring the one-pane default afterwards. */
+function withPanes<T>(panes: PaneState[], run: () => T): T {
+	storeState.panes = panes;
+	try {
+		return run();
+	} finally {
+		storeState.panes = [BOB];
+	}
+}
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
@@ -126,40 +145,42 @@ vi.mock("../src/client/components/header-more-menu.js", () => ({
 	},
 }));
 
-const {MainPane, SidePane} = await import("../src/client/components/side-pane.js");
+const {MainPane, SidePanes} = await import("../src/client/components/side-pane.js");
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
 
 function render(): string {
-	return renderToStaticMarkup(createElement(SidePane, {onUndo: () => {}, onRedo: () => {}}));
+	return renderToStaticMarkup(createElement(SidePanes, {onUndo: () => {}, onRedo: () => {}}));
 }
 
-describe("SidePane", () => {
+describe("SidePanes", () => {
 	it("renders nothing when no pane is open", () => {
-		storeState.sidePane = null;
-		const html = render();
-		storeState.sidePane = BOB;
-		expect(html).toBe("");
+		expect(withPanes([], render)).toBe("");
 	});
 
-	it("renders an item-tree pane with upstream's data attributes", () => {
-		const html = render();
-		expect(html.slice(0, html.indexOf(">") + 1)).toBe(
-			'<div data-pane-id="side" data-pane-type="item-tree" data-pane-active="true" class="side-pane group/pane relative box-border flex-none bg-primary flex flex-col">',
-		);
+	it("renders every open pane left to right in a .side-panes row with upstream's data attributes", () => {
+		const html = withPanes([BOB, paneState(C, "carol"), paneState(D, null)], render);
+		const tags = [...html.matchAll(/<div data-pane-id="[^"]*"[^>]*>/gu)].map(([tag]) => tag);
+		expect({row: html.startsWith('<div class="side-panes">'), tags}).toStrictEqual({
+			row: true,
+			tags: [B, C, D].map(
+				(id) =>
+					`<div data-pane-id="${id}" data-pane-type="item-tree" data-pane-active="${id === B ? "true" : "false"}" class="side-pane group/pane relative box-border flex-none bg-primary flex flex-col">`,
+			),
+		});
 	});
 
 	it("marks the pane inactive while the main pane is active", () => {
 		storeState.activePaneId = "main";
 		const html = render();
-		storeState.activePaneId = "side";
+		storeState.activePaneId = B;
 		expect(html).toContain('data-pane-active="false"');
 	});
 
-	it("tells its outline it renders in the side pane", () => {
+	it("tells each pane's outline which pane it renders in", () => {
 		seenPaneIds.length = 0;
-		render();
-		expect(seenPaneIds).toStrictEqual(["side"]);
+		withPanes([BOB, paneState(C, "carol")], render);
+		expect(seenPaneIds).toStrictEqual([B, C]);
 	});
 
 	it("renders a wf-pane-header with upstream's Back, breadcrumbs, Today and Close pane", () => {
@@ -179,12 +200,10 @@ describe("SidePane", () => {
 		});
 	});
 
-	it("enables Back and shows Forward when the pane has history", () => {
+	it("enables Back and shows Forward when the pane has history, stepping that pane's history", () => {
 		buttons.clear();
-		storeState.sidePane = {...BOB, backLocations: [null], forwardLocations: ["carol"]};
-		render();
-		storeState.sidePane = BOB;
 		calls.history.length = 0;
+		withPanes([{...BOB, backLocations: [null], forwardLocations: ["carol"]}], render);
 		buttons.get("Back")?.onClick?.({} as never);
 		buttons.get("Forward")?.onClick?.({} as never);
 		expect({
@@ -194,7 +213,7 @@ describe("SidePane", () => {
 		}).toStrictEqual({
 			buttons: ["Back", "Forward", "Today", "Close pane", "New pane"],
 			backDisabled: false,
-			history: ["back", "forward"],
+			history: [`back:${B}`, `forward:${B}`],
 		});
 	});
 
@@ -207,7 +226,7 @@ describe("SidePane", () => {
 		crumbs?.onNavigate?.(null);
 		expect({nodeId: crumbs?.nodeId, zoom: calls.zoom, scrolls: typeof crumbs?.scrollToTop}).toStrictEqual({
 			nodeId: "bob",
-			zoom: ["alice", null],
+			zoom: [`${B}:alice`, `${B}:home`],
 			scrolls: "function",
 		});
 	});
@@ -217,7 +236,7 @@ describe("SidePane", () => {
 		const html = render();
 		today.zoomTo?.("day1");
 		expect({zoom: calls.zoom, hasTodayTarget: html.includes("calendar-day")}).toStrictEqual({
-			zoom: ["day1"],
+			zoom: [`${B}:day1`],
 			hasTodayTarget: true,
 		});
 	});
@@ -236,36 +255,42 @@ describe("SidePane", () => {
 	it("gives the pane a compact search box over its own query that commits to the pane", () => {
 		searchProps.length = 0;
 		calls.queries.length = 0;
-		storeState.sidePane = {...BOB, query: "#todo"};
-		render();
-		storeState.sidePane = BOB;
+		withPanes([{...BOB, query: "#todo"}], render);
 		const search = searchProps.at(-1);
 		search?.onCommit("#done");
 		expect({query: search?.query, compact: search?.compact, queries: calls.queries}).toStrictEqual({
 			query: "#todo",
 			compact: true,
-			queries: ["#done"],
+			queries: [`${B}:#done`],
 		});
 	});
 
-	it("points the pane's kebab at the pane's zoom", () => {
+	it("points each pane's kebab at that pane's zoom", () => {
 		menuZooms.length = 0;
-		render();
-		expect(menuZooms).toStrictEqual(["bob"]);
+		withPanes([BOB, paneState(C, "carol")], render);
+		expect(menuZooms).toStrictEqual(["bob", "carol"]);
 	});
 
-	it("puts upstream's pane-workspace-control with a New pane button at the last pane's top right", () => {
+	it("puts upstream's pane-workspace-control with a New pane button at the last pane's top right only", () => {
+		const control =
+			'<div class="pane-workspace-control box-content absolute top-0 right-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-control-width)] items-center justify-center border-l border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint bg-primary">';
+		const html = withPanes([BOB, paneState(C, "carol"), paneState(D, null)], render);
+		const controlAt = html.indexOf(control);
+		expect({
+			count: html.split(control).length - 1,
+			inLastPane: controlAt > html.indexOf(`data-pane-id="${D}"`),
+		}).toStrictEqual({count: 1, inLastPane: true});
+	});
+
+	it("opens another pane on the last pane's zoom from its New pane button, after it", () => {
 		calls.opened.length = 0;
 		buttons.clear();
-		const html = render();
+		withPanes([BOB, paneState(C, "carol")], render);
 		buttons.get("New pane")?.onClick?.({} as never);
-		expect({
-			control: html.includes(
-				'<div class="pane-workspace-control box-content absolute top-0 right-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-control-width)] items-center justify-center border-l border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint bg-primary">',
-			),
-			shortcut: buttons.get("New pane")?.shortcut,
-			opened: calls.opened,
-		}).toStrictEqual({control: true, shortcut: "⌃R", opened: ["bob"]});
+		expect({shortcut: buttons.get("New pane")?.shortcut, opened: calls.opened}).toStrictEqual({
+			shortcut: "⌃R",
+			opened: [["carol", {sourcePaneId: C}]],
+		});
 	});
 
 	it("renders the outline zoomed to the pane's node inside its own scroller", () => {
@@ -275,25 +300,24 @@ describe("SidePane", () => {
 	});
 
 	it("renders Home's outline for a null pane zoom", () => {
-		storeState.sidePane = {...BOB, zoomedId: null};
-		const html = render();
-		storeState.sidePane = BOB;
-		expect(html).toContain('data-parent="home"');
+		expect(withPanes([paneState(B, null)], render)).toContain('data-parent="home"');
 	});
 
-	it("closes the pane from its xmark button", () => {
-		calls.close = 0;
-		render();
+	it("closes its own pane from its xmark button", () => {
+		calls.close.length = 0;
+		buttons.clear();
+		withPanes([BOB, paneState(C, "carol")], render);
 		buttons.get("Close pane")?.onClick?.({} as never);
-		expect(calls.close).toBe(1);
+		expect(calls.close).toStrictEqual([C]);
 	});
 
-	it("routes bullet zooms inside the pane to the pane", () => {
+	it("routes bullet zooms inside each pane to that pane", () => {
 		seenPaneZooms.length = 0;
 		calls.zoom.length = 0;
-		render();
-		seenPaneZooms[0]?.("carol");
-		expect(calls.zoom).toStrictEqual(["carol"]);
+		withPanes([BOB, paneState(C, "carol")], render);
+		seenPaneZooms[0]?.("dave");
+		seenPaneZooms[1]?.("eve");
+		expect(calls.zoom).toStrictEqual([`${B}:dave`, `${C}:eve`]);
 	});
 });
 
@@ -302,25 +326,23 @@ describe("MainPane", () => {
 		return renderToStaticMarkup(createElement(MainPane, null, createElement("i")));
 	}
 
-	it("wraps the main outline in a layout-free pane, active while a side pane is open and focused out of", () => {
+	it("wraps the main outline in a layout-free pane, active while a pane is open and focused out of", () => {
 		storeState.activePaneId = "main";
 		const html = renderMain();
-		storeState.activePaneId = "side";
+		storeState.activePaneId = B;
 		expect(html).toBe(
 			'<div data-pane-id="main" data-pane-type="item-tree" data-pane-active="true" class="main-pane group/pane contents"><i></i></div>',
 		);
 	});
 
-	it("is inactive while the side pane is active", () => {
+	it("is inactive while another pane is active", () => {
 		expect(renderMain()).toContain('data-pane-active="false"');
 	});
 
-	it("is never active without a side pane, so its header keeps the plain border", () => {
+	it("is never active without a pane open, so its header keeps the plain border", () => {
 		storeState.activePaneId = "main";
-		storeState.sidePane = null;
-		const html = renderMain();
-		storeState.activePaneId = "side";
-		storeState.sidePane = BOB;
+		const html = withPanes([], renderMain);
+		storeState.activePaneId = B;
 		expect(html).toContain('data-pane-active="false"');
 	});
 });
@@ -328,47 +350,57 @@ describe("MainPane", () => {
 describe("paneActivation", () => {
 	it("activates the pane on pointerdown and focusin inside it, like upstream", () => {
 		const activated: string[] = [];
-		const handlers = paneActivation("side", (paneId) => {
+		const handlers = paneActivation(B, (paneId) => {
 			activated.push(paneId);
 		});
 		handlers.onPointerDown();
 		handlers.onFocus();
-		expect(activated).toStrictEqual(["side", "side"]);
+		expect(activated).toStrictEqual([B, B]);
 	});
 });
 
 describe("sidePaneWidth", () => {
-	it("splits the space beside the left bar in half with a 350px floor", () => {
-		expect([sidePaneWidth(0), sidePaneWidth(296)]).toStrictEqual([
+	it("gives the main pane and every open pane an equal share beside the left bar, with a 350px floor", () => {
+		expect([sidePaneWidth(0, 1), sidePaneWidth(296, 1), sidePaneWidth(296, 2)]).toStrictEqual([
 			"max(350px, calc((100vw - 0px) / 2))",
 			"max(350px, calc((100vw - 296px) / 2))",
+			"max(350px, calc((100vw - 296px) / 3))",
 		]);
 	});
 });
 
 describe("side pane layout CSS", () => {
-	it("pins the pane to the right half of the space beside the left bar", () => {
-		expect(cssBlock(styles, ".side-pane")).toStrictEqual({
+	it("pins the open panes in a row to the right of the main outline", () => {
+		expect(cssBlock(styles, ".side-panes")).toStrictEqual({
 			position: "fixed",
 			top: "0",
 			right: "0",
 			bottom: "0",
-			width: "var(--side-pane-width)",
+			display: "flex",
 			"z-index": "200",
+		});
+	});
+
+	it("sizes each pane to its share of the width, full height, bordered on the left", () => {
+		expect(cssBlock(styles, ".side-pane")).toStrictEqual({
+			width: "var(--side-pane-width)",
+			height: "100%",
 			"border-left": "var(--wf-border-width-s) solid var(--wf-border-primary)",
 			"--pane-workspace-control-width": "var(--wf-header-height)",
 		});
 	});
 
-	it("lets the pane header flow inside the pane instead of fixing it to the window", () => {
-		expect(cssBlock(styles, ".side-pane .header")).toStrictEqual({
-			position: "static",
-			"min-width": "0",
-			"padding-right": "var(--pane-workspace-control-width)",
+	it("lets each pane header flow inside its pane, and only the last one makes room for the New pane control", () => {
+		expect({
+			header: cssBlock(styles, ".side-pane .header"),
+			last: cssBlock(styles, ".side-pane:last-child .header"),
+		}).toStrictEqual({
+			header: {position: "static", "min-width": "0"},
+			last: {"padding-right": "var(--pane-workspace-control-width)"},
 		});
 	});
 
-	it("scrolls the pane's outline on its own", () => {
+	it("scrolls each pane's outline on its own", () => {
 		expect(cssBlock(styles, ".side-pane-scroller")).toStrictEqual({
 			flex: "1 1 0",
 			"min-height": "0",
@@ -378,13 +410,13 @@ describe("side pane layout CSS", () => {
 		});
 	});
 
-	it("narrows the main outline and header by the pane width", () => {
+	it("narrows the main outline and header by all the open panes together", () => {
 		expect({
 			view: cssBlock(styles, ".outline-container.with-side-pane .outline-view"),
 			header: cssBlock(styles, ".outline-container.with-side-pane > .main-pane > .header"),
 		}).toStrictEqual({
-			view: {"margin-right": "var(--side-pane-width)", "padding-right": "40px"},
-			header: {right: "var(--side-pane-width)"},
+			view: {"margin-right": "var(--side-panes-width)", "padding-right": "40px"},
+			header: {right: "var(--side-panes-width)"},
 		});
 	});
 });

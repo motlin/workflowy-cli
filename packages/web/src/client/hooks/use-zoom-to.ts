@@ -7,7 +7,7 @@ import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {goToNode, planZoomFocus} from "../navigation.js";
 import type {ZoomFocus} from "../navigation.js";
 import {nodeKeys, readNode, seedResolvedId} from "../node-cache.js";
-import {SIDE_PANE_ID} from "../pane-ids.js";
+import {findPane} from "../pane-ids.js";
 import {activePaneView, activeZoomedId, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
 import {isPotentiallyVisible} from "../tree-ops.js";
@@ -16,14 +16,14 @@ import {fetchChildren, prefetchZoomView} from "./use-nodes.js";
 import {outlineViewShape, queryOutlineView} from "./use-outline-view.js";
 import {afterNextPaint} from "../after-paint.js";
 import {showZoom} from "../show-zoom.js";
-import {scrollSidePaneToTop} from "../components/pane-context.js";
+import {scrollPaneToTop} from "../components/pane-context.js";
 
 /**
  * Upstream `zoomTo(target, focus)`: commit the edited text, navigate, then edit the row `planZoomFocus` picks and,
  * for `first_child`, scroll the outline to the top. `targetId` is the node to zoom into (null for home); it is
  * ignored by `last_selected`, which zooms out of the zoomed node. Zooming never changes expansion.
  *
- * While the side pane is active it zooms that pane instead of navigating, scrolling the pane's own scroller, without
+ * While an open pane is active it zooms that pane instead of navigating, scrolling the pane's own scroller, without
  * the zoom animation (which finds rows document-wide).
  */
 export function useZoomTo(): (targetId: string | null, focus: ZoomFocus) => Promise<void> {
@@ -42,9 +42,9 @@ async function zoomTo(
 	focus: ZoomFocus,
 ): Promise<void> {
 	const state = useOutlineStore.getState();
-	const {editingId, showCompleted, animatingCompletionIds, resumeEditing, stopEditing, zoomSidePane} = state;
+	const {editingId, showCompleted, animatingCompletionIds, resumeEditing, stopEditing, zoomPane} = state;
 	const zoomedNodeId = activeZoomedId(state);
-	const inSidePane = state.activePaneId === SIDE_PANE_ID && state.sidePane !== null;
+	const paneId = findPane(state.panes, state.activePaneId)?.id ?? null;
 	const editor = editingId === null ? null : editorElement(editingId);
 	const previousOffset = editor ? caretTextOffset(editor) : 0;
 	const parentOfZoomed = zoomedNodeId === null ? null : (readNode(queryClient, zoomedNodeId)?.parent_id ?? null);
@@ -91,7 +91,7 @@ async function zoomTo(
 	const movingId = isOut ? zoomedNodeId : targetId;
 	const isBoard = (id: string | null) => id !== null && readNode(queryClient, id)?.data.layoutMode === "board";
 	const animate =
-		!inSidePane && movingId !== null && zoomAnimationEnabled(isBoard(zoomedNodeId) || isBoard(destination));
+		paneId === null && movingId !== null && zoomAnimationEnabled(isBoard(zoomedNodeId) || isBoard(destination));
 	if (animate) {
 		document.body.classList.add(ZOOMING_CLASS);
 	}
@@ -105,19 +105,19 @@ async function zoomTo(
 		// the whole outline before the paint. After it, style and layout are clean and the focus costs next to nothing.
 		stopEditing();
 		showZoom(destination, plan.scrollTop, {
-			inSidePane,
-			zoomSidePane,
+			paneId,
+			zoomPane,
 			goToNode: (id) => {
 				if (id !== null) {
 					seedResolvedId(queryClient, id);
 				}
 				goToNode(navigate, id);
 			},
-			scrollToTop: (pane) => {
-				if (pane === "side") {
-					scrollSidePaneToTop();
-				} else {
+			scrollToTop: (scrolledPaneId) => {
+				if (scrolledPaneId === null) {
 					globalThis.scrollTo(0, 0);
+				} else {
+					scrollPaneToTop(scrolledPaneId);
 				}
 			},
 		});

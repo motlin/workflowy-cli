@@ -1,19 +1,21 @@
 export interface ShowZoomDeps {
-	inSidePane: boolean;
-	zoomSidePane: (id: string | null) => void;
+	/** The active open pane, or null while the main outline is active. */
+	paneId: string | null;
+	zoomPane: (paneId: string, id: string | null) => void;
 	goToNode: (id: string | null) => void;
-	scrollToTop: (pane: "main" | "side") => void;
+	/** Scroll pane `paneId`'s scroller (the window for null) to the top. */
+	scrollToTop: (paneId: string | null) => void;
 }
 
-/** Show `destination` in the active pane: zoom the side pane while it is active, else navigate the main outline. */
+/** Show `destination` in the active pane: zoom an open pane while it is active, else navigate the main outline. */
 export function showZoom(destination: string | null, scrollTop: boolean, deps: ShowZoomDeps): void {
-	if (deps.inSidePane) {
-		deps.zoomSidePane(destination);
-	} else {
+	if (deps.paneId === null) {
 		deps.goToNode(destination);
+	} else {
+		deps.zoomPane(deps.paneId, destination);
 	}
 	if (scrollTop) {
-		deps.scrollToTop(deps.inSidePane ? "side" : "main");
+		deps.scrollToTop(deps.paneId);
 	}
 }
 

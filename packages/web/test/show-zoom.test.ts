@@ -1,18 +1,18 @@
 import {describe, expect, it} from "vite-plus/test";
 import {outlineRootToShow, showZoom} from "../src/client/show-zoom.js";
 
-function run(inSidePane: boolean, scrollTop: boolean): string[] {
+function run(paneId: string | null, scrollTop: boolean): string[] {
 	const calls: string[] = [];
 	showZoom("alice", scrollTop, {
-		inSidePane,
-		zoomSidePane: (id) => {
-			calls.push(`pane:${id}`);
+		paneId,
+		zoomPane: (pane, id) => {
+			calls.push(`pane:${pane}:${id}`);
 		},
 		goToNode: (id) => {
 			calls.push(`url:${id}`);
 		},
 		scrollToTop: (pane) => {
-			calls.push(`scroll:${pane}`);
+			calls.push(`scroll:${pane ?? "main"}`);
 		},
 	});
 	return calls;
@@ -20,15 +20,15 @@ function run(inSidePane: boolean, scrollTop: boolean): string[] {
 
 describe("showZoom", () => {
 	it("navigates the main outline and scrolls the page while the main pane is active", () => {
-		expect(run(false, true)).toStrictEqual(["url:alice", "scroll:main"]);
+		expect(run(null, true)).toStrictEqual(["url:alice", "scroll:main"]);
 	});
 
-	it("zooms the side pane and scrolls its scroller while it is active, leaving the URL alone", () => {
-		expect(run(true, true)).toStrictEqual(["pane:alice", "scroll:side"]);
+	it("zooms the active pane and scrolls its scroller, leaving the URL alone", () => {
+		expect(run("BBBBBBBBBBB", true)).toStrictEqual(["pane:BBBBBBBBBBB:alice", "scroll:BBBBBBBBBBB"]);
 	});
 
 	it("keeps the scroll position when the zoom does not scroll to the top", () => {
-		expect(run(true, false)).toStrictEqual(["pane:alice"]);
+		expect(run("BBBBBBBBBBB", false)).toStrictEqual(["pane:BBBBBBBBBBB:alice"]);
 	});
 });
 

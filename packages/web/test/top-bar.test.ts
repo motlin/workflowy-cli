@@ -8,33 +8,33 @@ import type {GearMenuHeaderItem} from "../src/client/components/gear-menu.js";
 import {cssBlock, cssBlockText, hasSelector} from "./helpers/css-block.js";
 
 const pickerCalls: unknown[] = [];
-const openSidePaneCalls: (string | null)[] = [];
+const openPaneCalls: unknown[][] = [];
 const closePaneCalls: unknown[][] = [];
-const storeState: {zoomedNodeId: string | null; sidePane: {zoomedId: string | null} | null} & Record<string, unknown> =
-	{
-		zoomedNodeId: "alice",
-		sidePane: null,
-		openSidePane: (zoomedId: string | null) => {
-			openSidePaneCalls.push(zoomedId);
-		},
-		closeSidePane: () => {
-			closePaneCalls.push(["closeSidePane"]);
-		},
-		toggleLeftBar: () => {},
-		searchInput: "",
-		setSearchInput: () => {},
-		searchFocused: false,
-		setSearchFocused: () => {},
-		showCompleted: false,
-		openSettings: () => {},
-		openPresentation: () => {},
-		leftBarOffset: () => 0,
-		leftBarMode: "drawerClosed",
-		nav: {current: null, back: [], forward: []},
-		showItemTypePicker: (picker: unknown) => {
-			pickerCalls.push(picker);
-		},
-	};
+const storeState: {zoomedNodeId: string | null; panes: {id: string; zoomedId: string | null}[]} & Record<
+	string,
+	unknown
+> = {
+	zoomedNodeId: "alice",
+	panes: [],
+	openPane: (zoomedId: string | null, options?: unknown) => {
+		openPaneCalls.push([zoomedId, options]);
+		return "NEW";
+	},
+	toggleLeftBar: () => {},
+	searchInput: "",
+	setSearchInput: () => {},
+	searchFocused: false,
+	setSearchFocused: () => {},
+	showCompleted: false,
+	openSettings: () => {},
+	openPresentation: () => {},
+	leftBarOffset: () => 0,
+	leftBarMode: "drawerClosed",
+	nav: {current: null, back: [], forward: []},
+	showItemTypePicker: (picker: unknown) => {
+		pickerCalls.push(picker);
+	},
+};
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector?: (state: typeof storeState) => unknown) =>
@@ -56,8 +56,8 @@ vi.mock("../src/client/hooks/use-show-completed-toggle.js", () => ({
 vi.mock("../src/client/navigation.js", () => ({
 	stepNav: () => {},
 	useNavStackSync: () => {},
-	goToNode: (_navigate: unknown, nodeId: string | null) => {
-		closePaneCalls.push(["goToNode", nodeId]);
+	closeMainPane: () => {
+		closePaneCalls.push(["closeMainPane"]);
 	},
 }));
 const nodeState: {hasChildren: boolean; rootChildren: {id: string}[]; layoutMode: string | null} = {
@@ -343,10 +343,10 @@ describe("TopBar right cluster", () => {
 	});
 });
 
-function renderWithSidePane(): string {
-	storeState.sidePane = {zoomedId: "bob"};
+function renderWithPane(): string {
+	storeState.panes = [{id: "BBBBBBBBBBB", zoomedId: "bob"}];
 	const html = renderCluster("alice", true, [{id: "r1"}]);
-	storeState.sidePane = null;
+	storeState.panes = [];
 	return html;
 }
 
@@ -376,40 +376,40 @@ describe("TopBar New pane", () => {
 		});
 	});
 
-	it("opens a side pane on the zoomed node", () => {
-		openSidePaneCalls.length = 0;
+	it("opens a pane on the zoomed node from the main pane", () => {
+		openPaneCalls.length = 0;
 		renderCluster("alice", true, []);
 		iconButtonProps.get("new_pane")?.onClick?.({} as never);
-		expect(openSidePaneCalls).toStrictEqual(["alice"]);
+		expect(openPaneCalls).toStrictEqual([["alice", {sourcePaneId: "main"}]]);
 	});
 
-	it("opens a side pane on Home at root", () => {
-		openSidePaneCalls.length = 0;
+	it("opens a pane on Home at root", () => {
+		openPaneCalls.length = 0;
 		renderCluster(null, true, [{id: "r1"}]);
 		iconButtonProps.get("new_pane")?.onClick?.({} as never);
-		expect(openSidePaneCalls).toStrictEqual([null]);
+		expect(openPaneCalls).toStrictEqual([[null, {sourcePaneId: "main"}]]);
 	});
 
 	it("swaps New pane for Close pane and compacts the cluster while a pane is open", () => {
-		expect(clusterSequence(renderWithSidePane())).toStrictEqual(["search", "today", "gearMenu", "close_pane"]);
+		expect(clusterSequence(renderWithPane())).toStrictEqual(["search", "today", "gearMenu", "close_pane"]);
 	});
 
 	it("renders Close pane as upstream's tertiary xmark", () => {
-		const cluster = clusterHtml(renderWithSidePane()).replaceAll(/ d="[^"]*"/gu, "");
+		const cluster = clusterHtml(renderWithPane()).replaceAll(/ d="[^"]*"/gu, "");
 		expect(cluster).toContain(
 			`<div role="button" tabindex="0" class="text-tertiary hover:text-on-surface flex-shrink-0 iconButton lg shape-circle">${svg("xmark", 384)}</div>`,
 		);
 	});
 
-	it("closes the main pane by moving the side pane's zoom into it", () => {
+	it("closes the main pane, so the first pane becomes the main outline", () => {
 		closePaneCalls.length = 0;
-		renderWithSidePane();
+		renderWithPane();
 		iconButtonProps.get("close_pane")?.onClick?.({} as never);
-		expect(closePaneCalls).toStrictEqual([["goToNode", "bob"], ["closeSidePane"]]);
+		expect(closePaneCalls).toStrictEqual([["closeMainPane"]]);
 	});
 
 	it("moves the compactable actions into the more menu while a pane is open", () => {
-		renderWithSidePane();
+		renderWithPane();
 		expect(gearMenuProps.headerItems?.map((item) => item.label)).toStrictEqual([
 			"Share",
 			"Present",

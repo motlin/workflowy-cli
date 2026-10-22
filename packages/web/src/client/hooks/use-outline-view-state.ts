@@ -11,7 +11,7 @@ export function useOutlineViewState() {
 			zoomedNodeId: state.zoomedNodeId,
 			relatedNodesPanelOpen: state.relatedNodesPanelOpen,
 			searchQuery: state.searchQuery,
-			sidePaneOpen: state.sidePane !== null,
+			paneCount: state.panes.length,
 			leftBarOffset: state.leftBarOffset(),
 		})),
 	);

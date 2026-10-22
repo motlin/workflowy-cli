@@ -4175,24 +4175,33 @@ label.toggle > div {
 }
 
 /* ================================
-   Side pane (upstream's New pane): the second item-tree pane, pinned right at --side-pane-width
-   (set on .outline-container), with its own header and scroller. The main outline and header shrink by it.
+   Side panes (upstream's New pane / Open in Pane): the item-tree panes after the main one, pinned right in a row,
+   each --side-pane-width wide (set on .outline-container) with its own header and scroller. The main outline and
+   header shrink by --side-panes-width, all of them together.
    ================================ */
-.side-pane {
+.side-panes {
 	position: fixed;
 	top: 0;
 	right: 0;
 	bottom: 0;
-	width: var(--side-pane-width);
+	display: flex;
 	z-index: 200;
+}
+
+.side-pane {
+	width: var(--side-pane-width);
+	height: 100%;
 	border-left: var(--wf-border-width-s) solid var(--wf-border-primary);
 	--pane-workspace-control-width: var(--wf-header-height);
 }
 
-/* The last pane's header leaves room for the pane-workspace-control (New pane) pinned at its top right. */
 .side-pane .header {
 	position: static;
 	min-width: 0;
+}
+
+/* The last pane's header leaves room for the pane-workspace-control (New pane) pinned at its top right. */
+.side-pane:last-child .header {
 	padding-right: var(--pane-workspace-control-width);
 }
 
@@ -4205,10 +4214,10 @@ label.toggle > div {
 }
 
 .outline-container.with-side-pane .outline-view {
-	margin-right: var(--side-pane-width);
+	margin-right: var(--side-panes-width);
 	padding-right: 40px;
 }
 
 .outline-container.with-side-pane > .main-pane > .header {
-	right: var(--side-pane-width);
+	right: var(--side-panes-width);
 }

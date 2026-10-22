@@ -14,7 +14,7 @@ import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 const outlineState = {
 	activePaneId: "main" as string,
 	expandedIds: new Set<string>(),
-	sidePane: null as {expandedIds: Set<string>} | null,
+	panes: [] as {id: string; zoomedId: string | null; query: string; expandedIds: Set<string>}[],
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
 	draggingIds: [] as string[],
@@ -377,12 +377,12 @@ describe("OutlineTree per-pane expansion", () => {
 
 	function shown(mainExpanded: string[], paneExpanded: string[]): {main: boolean; side: boolean} {
 		outlineState.expandedIds = new Set(mainExpanded);
-		outlineState.sidePane = {expandedIds: new Set(paneExpanded)};
+		outlineState.panes = [{id: "side", zoomedId: null, query: "", expandedIds: new Set(paneExpanded)}];
 		try {
 			return {main: bobShownIn(null), side: bobShownIn("side")};
 		} finally {
 			outlineState.expandedIds = new Set();
-			outlineState.sidePane = null;
+			outlineState.panes = [];
 		}
 	}
 

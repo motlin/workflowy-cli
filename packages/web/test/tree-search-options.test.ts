@@ -40,7 +40,7 @@ describe("paneSearchState", () => {
 		searchSession: 2,
 		searchCreatedIds: created,
 		searchExpansion: expansion,
-		sidePane: {zoomedId: "pane-zoom", query: "#todo"},
+		panes: [{id: "BBBBBBBBBBB", zoomedId: "pane-zoom", query: "#todo"}],
 	};
 
 	it("reads the main outline's search in the main pane", () => {
@@ -54,8 +54,8 @@ describe("paneSearchState", () => {
 		});
 	});
 
-	it("reads only the side pane's own query and zoom inside the side pane", () => {
-		expect(paneSearchState(state, "side")).toStrictEqual({
+	it("reads only an open pane's own query and zoom inside that pane", () => {
+		expect(paneSearchState(state, "BBBBBBBBBBB")).toStrictEqual({
 			zoomedNodeId: "pane-zoom",
 			searchQuery: "#todo",
 			searchRun: 0,
@@ -65,7 +65,7 @@ describe("paneSearchState", () => {
 		});
 	});
 
-	it("is no search in a side pane that has closed", () => {
-		expect(paneSearchState({...state, sidePane: null}, "side").searchQuery).toBe("");
+	it("reads the main outline's search for a pane that has closed", () => {
+		expect(paneSearchState({...state, panes: []}, "BBBBBBBBBBB").searchQuery).toBe("main");
 	});
 });

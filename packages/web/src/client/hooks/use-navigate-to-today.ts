@@ -6,7 +6,7 @@ import {navigateToCalendarDate, navigateToToday} from "../today.js";
 import type {CalendarTarget, NavigateToCalendarDeps} from "../today.js";
 
 /**
- * The calendar navigation deps bound to the outline store, zooming `zoomTo` when given (the side pane's zoom) and the
+ * The calendar navigation deps bound to the outline store, zooming `zoomTo` when given (an open pane's zoom) and the
  * main outline's URL otherwise.
  */
 function useCalendarDeps(zoomTo?: (id: string) => void): () => NavigateToCalendarDeps {

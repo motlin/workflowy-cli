@@ -227,16 +227,25 @@ function searchState(searchQuery: string, searchSession = 0) {
 		searchSession,
 		searchCreatedIds: new Set(),
 		searchExpansion: new Map([["cherry", false]]),
-		sidePane: null,
+		panes: [],
 		activePaneId: "main",
 	});
 }
 
-/** A side pane zoomed to the fixture root with its own `query`; `active` makes it the pane keyboard commands act in. */
+/** A pane zoomed to the fixture root with its own `query`; `active` makes it the pane keyboard commands act in. */
 function sidePaneState(query: string, active: boolean) {
 	useOutlineStore.setState({
-		sidePane: {zoomedId: "root", backLocations: [], forwardLocations: [], query, expandedIds: new Set()},
-		activePaneId: active ? "side" : "main",
+		panes: [
+			{
+				id: "BBBBBBBBBBB",
+				zoomedId: "root",
+				backLocations: [],
+				forwardLocations: [],
+				query,
+				expandedIds: new Set(),
+			},
+		],
+		activePaneId: active ? "BBBBBBBBBBB" : "main",
 	});
 }
 

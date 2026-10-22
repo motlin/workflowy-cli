@@ -13,7 +13,8 @@ import {NewPaneIcon} from "./new-pane-icon.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton} from "./star-button.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
-import {goToNode, stepNav, useNavStackSync} from "../navigation.js";
+import {closeMainPane, stepNav, useNavStackSync} from "../navigation.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import {cachedResolvedId} from "../node-cache.js";
 import {PANE_HEADER_ACTIVE_BORDER} from "./pane-context.js";
 
@@ -76,9 +77,8 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 		leftBarMode,
 		openLeftBarDrawer,
 		closeLeftBarDrawer,
-		sidePane,
-		openSidePane,
-		closeSidePane,
+		paneOpen,
+		openPane,
 	} = useOutlineStore(
 		useShallow((state) => ({
 			zoomedNodeId: state.zoomedNodeId,
@@ -87,9 +87,8 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			leftBarMode: state.leftBarMode,
 			openLeftBarDrawer: state.openLeftBarDrawer,
 			closeLeftBarDrawer: state.closeLeftBarDrawer,
-			sidePane: state.sidePane,
-			openSidePane: state.openSidePane,
-			closeSidePane: state.closeSidePane,
+			paneOpen: state.panes.length > 0,
+			openPane: state.openPane,
 		})),
 	);
 	const [peek] = useState(() =>
@@ -109,7 +108,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	const actions = useHeaderActions(zoomedNodeId);
 	// Upstream's zv4: under 701px, or while a pane is open, the compactable actions move into the more menu.
 	const narrow = !useMediaQuery("(min-width: 701px)");
-	const compact = narrow || sidePane !== null;
+	const compact = narrow || paneOpen;
 
 	const resolveCached = (locationId: string) => cachedResolvedId(queryClient, locationId);
 	const handleNavigateBack = () => {
@@ -230,25 +229,24 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 
 				{/* Upstream's header.controls.new-pane: shown until a pane is open, on any zoom including Home. */}
 				{/* While a pane is open the main header is a pane header too: its xmark closes the main pane, so the
-				    side pane's zoom becomes the main outline's. */}
-				{sidePane !== null && (
+				    first pane becomes the main outline. */}
+				{paneOpen && (
 					<IconButton
 						className="text-tertiary hover:text-on-surface flex-shrink-0"
 						onClick={() => {
-							goToNode(navigate, sidePane.zoomedId);
-							closeSidePane();
+							closeMainPane(navigate);
 						}}
 						tooltip="Close pane"
 					>
 						<FaIcon icon="fal:xmark" />
 					</IconButton>
 				)}
-				{sidePane === null && (
+				{!paneOpen && (
 					<>
 						<div className="self-stretch border-l border-solid border-primary mx-s" />
 						<IconButton
 							onClick={() => {
-								openSidePane(zoomedNodeId);
+								openPane(zoomedNodeId, {sourcePaneId: MAIN_PANE_ID});
 							}}
 							shortcut="⌃R"
 							tooltip="New pane"

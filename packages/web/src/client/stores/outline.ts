@@ -1,5 +1,6 @@
 import {create} from "zustand";
-import {MAIN_PANE_ID, SIDE_PANE_ID, paneExpandedIds} from "../pane-ids.js";
+import {MAIN_PANE_ID, findPane, paneExpandedIds} from "../pane-ids.js";
+import type {ItemTreePane} from "../pane-ids.js";
 import {z} from "zod";
 import {themeBodyClass} from "../theme-body-class.js";
 import {initialNavState, locEquals, navReducer} from "../nav-stack.js";
@@ -8,8 +9,7 @@ import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
-import {createPaneId, sidePaneFragments} from "../pane-url.js";
-import type {PaneUrlIds} from "../pane-url.js";
+import {createPaneId, workspaceFragments} from "../pane-url.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import {closeSwitcher} from "../switcher-close.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
@@ -248,30 +248,31 @@ export interface LocationPickerOptions {
 /** `{id}` from a chosen location, `{createdId}` from create-and-move, undefined when closed. */
 type LocationPickerResult = {id: string} | {createdId: string} | undefined;
 
-interface SidePaneState {
-	/** The pane's zoomed node; null is Home. */
-	zoomedId: string | null;
-	/** Upstream's item-tree payload `backLocations`: earlier pane zooms, oldest first. */
-	backLocations: (string | null)[];
-	/** Upstream's payload `forwardLocations`: zooms stepped back from, nearest first. */
-	forwardLocations: (string | null)[];
-	/** The pane's own committed search query ("" for none); it filters only this pane. */
-	query: string;
-	/**
-	 * Upstream's payload `expansionState`: the pane renders a temporary mirror root, so its rows expand apart from the
-	 * main outline's. Seeded from the main outline when the pane opens; kept in memory, never saved to the server.
-	 */
-	expandedIds: Set<string>;
+/** Upstream `createPaneId`: a fresh 11-character id no pane in the workspace uses yet. */
+function uniquePaneId(taken: readonly (string | null)[]): string {
+	let id = createPaneId();
+	while (taken.includes(id)) {
+		id = createPaneId();
+	}
+	return id;
 }
 
-/** Opening the first extra pane gives the main pane a fresh random id too. */
-function newPaneUrlIds(): PaneUrlIds {
-	const mainPaneId = createPaneId();
-	let paneId = createPaneId();
-	while (paneId === mainPaneId) {
-		paneId = createPaneId();
-	}
-	return {mainPaneId, paneId};
+/** Where `openPane` puts the new pane and whose expansion it starts from. */
+export interface OpenPaneOptions {
+	/**
+	 * Upstream's workspace index, counting the main pane as 0: clamped to 1..(open panes + 1). Omitted appends the pane
+	 * after the last one (New pane); Open in Pane passes the source pane's index + 1.
+	 */
+	index?: number;
+	/** The pane the new one opens from; its expansion seeds the new pane's. Defaults to the active pane. */
+	sourcePaneId?: string;
+}
+
+/** A pane as the URL names it, for `restorePanes`. */
+interface RestoredPane {
+	id: string;
+	zoomedId: string | null;
+	query: string | null;
 }
 
 /** Upstream caps each pane history at 100 locations. */
@@ -354,13 +355,15 @@ interface OutlineState {
 	linkInsertOpen: boolean;
 	linkInsertContext: LinkInsertContext | null;
 	relatedNodesPanelOpen: boolean;
-	/** Upstream's second item-tree pane (New pane ⌃R): its own zoom, independent of the main outline's. */
-	sidePane: SidePaneState | null;
-	/** The workspace's upstream pane ids (`panes=v2.` in the URL) while the side pane is open. */
-	paneUrlIds: PaneUrlIds | null;
+	/** Upstream's secondary item-tree panes (New pane ⌃R, Open in Pane), left to right after the main outline. */
+	panes: ItemTreePane[];
+	/** The main pane's upstream id in `panes=v2.` while any pane is open; null in the single-document layout. */
+	mainPaneUrlId: string | null;
+	/** Upstream's pane focus history (`QM`): pane ids, most recently active last; picks the next active pane on close. */
+	paneFocusHistory: string[];
 	/**
 	 * Upstream's `activePaneId`: the pane that last saw a pointerdown or focusin. Editing, the item selection and keyboard
-	 * navigation act in it only; it is the main pane whenever no side pane is open.
+	 * navigation act in it only; it is the main pane whenever no pane is open.
 	 */
 	activePaneId: string;
 	exportDialogOpen: boolean;
@@ -477,21 +480,36 @@ interface OutlineActions {
 	openLinkInsert: (context: LinkInsertContext) => void;
 	closeLinkInsert: () => void;
 	toggleRelatedNodesPanel: () => void;
-	openSidePane: (zoomedId: string | null) => void;
-	/** Zoom the open side pane; a no-op when none is open. */
-	zoomSidePane: (zoomedId: string | null) => void;
-	/** The side pane's Back: zoom to its previous location, keeping the current one for Forward. */
-	sidePaneBack: () => void;
-	sidePaneForward: () => void;
-	/** Commit the side pane's search query, filtering only that pane. */
-	setSidePaneQuery: (query: string) => void;
-	closeSidePane: () => void;
 	/**
-	 * Apply a side pane named by the URL (reload, Back/Forward): open it with the URL's pane ids, or re-zoom the open
-	 * one without touching its history; `active` comes from `pane-workspace-runtime:v1`.
+	 * Upstream's `WF.Panes.open` for an item-tree pane: insert a pane zoomed to `zoomedId` and make it active, ending
+	 * editing. The first pane also gives the main pane its URL id. Returns the new pane's id.
 	 */
-	restoreSidePane: (pane: {zoomedId: string | null; query?: string | null; ids: PaneUrlIds; active: boolean}) => void;
-	/** Make `paneId` the active pane; a no-op for the side pane while none is open. */
+	openPane: (zoomedId: string | null, options?: OpenPaneOptions) => string;
+	/** Zoom pane `paneId`, pushing its previous zoom on its Back stack; a no-op for a pane that is not open. */
+	zoomPane: (paneId: string, zoomedId: string | null) => void;
+	/** Pane `paneId`'s Back: zoom to its previous location, keeping the current one for Forward. */
+	paneBack: (paneId: string) => void;
+	paneForward: (paneId: string) => void;
+	/** Commit pane `paneId`'s search query, filtering only that pane. */
+	setPaneQuery: (paneId: string, query: string) => void;
+	/**
+	 * Upstream's `WF.Panes.close` for a secondary pane. The active pane stays active when it remains; otherwise the most
+	 * recently active remaining pane takes over and editing ends. Closing the last pane restores the single document.
+	 */
+	closePane: (paneId: string) => void;
+	/** Close every pane (browser Back to a URL without `panes`), restoring the single document. */
+	closeAllPanes: () => void;
+	/**
+	 * Upstream's close of the main pane: the first pane becomes the main pane (its id becomes the main URL id) and is
+	 * returned, so the caller navigates the main outline to its zoom and query. Null with no panes open.
+	 */
+	closeMainPane: () => ItemTreePane | null;
+	/**
+	 * Apply the panes the URL names (reload, Back/Forward): open each, or re-zoom an open one with the same id without
+	 * touching its history, and drop the rest. `activePaneId` (from `pane-workspace-runtime:v1`) activates that pane.
+	 */
+	restorePanes: (workspace: {mainPaneId: string; panes: RestoredPane[]; activePaneId: string | null}) => void;
+	/** Make `paneId` the active pane; a no-op for a pane that is not open. */
 	setActivePane: (paneId: string) => void;
 	openExportDialog: (context: ExportContext) => void;
 	closeExportDialog: () => void;
@@ -557,11 +575,10 @@ export function shouldCommitOnBlur(state: Pick<OutlineState, "editingId" | "edit
 	return state.editingId === nodeId && !state.editingHeld;
 }
 
-/** The active pane's zoomed node: the side pane's while it is active, else the main outline's. */
-export function activeZoomedId(state: Pick<OutlineState, "activePaneId" | "sidePane" | "zoomedNodeId">): string | null {
-	return state.activePaneId === SIDE_PANE_ID && state.sidePane !== null
-		? state.sidePane.zoomedId
-		: state.zoomedNodeId;
+/** The active pane's zoomed node: an open pane's while it is active, else the main outline's. */
+export function activeZoomedId(state: Pick<OutlineState, "activePaneId" | "panes" | "zoomedNodeId">): string | null {
+	const pane = findPane(state.panes, state.activePaneId);
+	return pane === undefined ? state.zoomedNodeId : pane.zoomedId;
 }
 
 /**
@@ -651,13 +668,15 @@ async function patchExpansion(changes: Record<string, boolean>): Promise<void> {
 }
 
 /**
- * Store `next` as the active pane's expanded set. The main outline's change is saved to the server; a side pane's
- * stays in memory, like upstream's temporary mirror root.
+ * Store `next` as the active pane's expanded set. The main outline's change is saved to the server; a pane's stays
+ * in memory, like upstream's temporary mirror root.
  */
 function commitExpanded(next: Set<string>): void {
-	const {activePaneId, sidePane} = useOutlineStore.getState();
-	if (activePaneId === SIDE_PANE_ID && sidePane !== null) {
-		useOutlineStore.setState({sidePane: {...sidePane, expandedIds: next}});
+	const {activePaneId, panes} = useOutlineStore.getState();
+	if (findPane(panes, activePaneId) !== undefined) {
+		useOutlineStore.setState({
+			panes: panes.map((pane) => (pane.id === activePaneId ? {...pane, expandedIds: next} : pane)),
+		});
 		return;
 	}
 	const changes = expansionDelta(useOutlineStore.getState().expandedIds, next);
@@ -669,6 +688,39 @@ function commitExpanded(next: Set<string>): void {
 	if (expansionPersisted) {
 		void patchExpansion(changes);
 	}
+}
+
+/** Replace open pane `paneId` with `update(pane)`; a no-op for a pane that is not open or an unchanged pane. */
+function updatePane(paneId: string, update: (pane: ItemTreePane) => ItemTreePane): void {
+	const {panes} = useOutlineStore.getState();
+	const pane = findPane(panes, paneId);
+	if (pane === undefined) {
+		return;
+	}
+	const next = update(pane);
+	if (next !== pane) {
+		useOutlineStore.setState({panes: panes.map((open) => (open === pane ? next : open))});
+	}
+}
+
+/**
+ * Upstream's `applySnapshot` for the store's panes: set the open panes (and the main pane's URL id when given). The
+ * active pane stays active while it remains; otherwise the most recently active remaining pane (upstream's `vC4`), else
+ * the main pane, takes over and editing ends. No panes left restores the single document.
+ */
+function setWorkspace(panes: ItemTreePane[], mainPaneUrlId?: string): void {
+	const state = useOutlineStore.getState();
+	const ids = new Set(panes.map((pane) => pane.id));
+	const history = panes.length === 0 ? [] : state.paneFocusHistory.filter((id) => id === MAIN_PANE_ID || ids.has(id));
+	const remains = state.activePaneId === MAIN_PANE_ID || ids.has(state.activePaneId);
+	const activePaneId = remains ? state.activePaneId : (history.at(-1) ?? MAIN_PANE_ID);
+	useOutlineStore.setState({
+		panes,
+		mainPaneUrlId: panes.length === 0 ? null : (mainPaneUrlId ?? state.mainPaneUrlId),
+		paneFocusHistory: history,
+		activePaneId,
+		...(remains ? {} : {editingId: null, editingClickPosition: null, editingCaretOffset: null}),
+	});
 }
 
 export const useOutlineStore = create<OutlineStore>((set, get) => ({
@@ -709,8 +761,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	linkInsertOpen: false,
 	linkInsertContext: null,
 	relatedNodesPanelOpen: false,
-	sidePane: null,
-	paneUrlIds: null,
+	panes: [],
+	mainPaneUrlId: null,
+	paneFocusHistory: [],
 	activePaneId: MAIN_PANE_ID,
 	exportDialogOpen: false,
 	exportContext: null,
@@ -1049,10 +1102,10 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	},
 
 	pushSearchLocation: (query, navigate) => {
-		const {zoomedNodeId, dispatchNav, sidePane, paneUrlIds} = get();
+		const {zoomedNodeId, dispatchNav, panes, mainPaneUrlId} = get();
 		const q = query === "" ? null : query;
 		dispatchNav({type: "navigate", loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q}});
-		void navigate(locationUrl({id: zoomedNodeId, query: q, fragments: sidePaneFragments(sidePane, paneUrlIds)}));
+		void navigate(locationUrl({id: zoomedNodeId, query: q, fragments: workspaceFragments(panes, mainPaneUrlId)}));
 	},
 
 	commitSearch: (query, navigate) => {
@@ -1113,116 +1166,139 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set((state) => ({relatedNodesPanelOpen: !state.relatedNodesPanelOpen}));
 	},
 
-	// Upstream focuses a new pane: editing in the main pane ends.
-	openSidePane: (zoomedId) => {
+	// Upstream focuses a new pane: editing in the previous pane ends.
+	openPane: (zoomedId, options = {}) => {
+		const {panes, mainPaneUrlId, activePaneId, paneFocusHistory} = get();
+		const mainId = mainPaneUrlId ?? uniquePaneId(panes.map((pane) => pane.id));
+		const id = uniquePaneId([mainId, ...panes.map((pane) => pane.id)]);
+		const index = Math.max(1, Math.min(panes.length + 1, Math.floor(options.index ?? panes.length + 1)));
+		const source = options.sourcePaneId ?? activePaneId;
+		const pane: ItemTreePane = {
+			id,
+			zoomedId,
+			backLocations: [],
+			forwardLocations: [],
+			query: "",
+			expandedIds: new Set(paneExpandedIds(get(), source)),
+		};
 		set({
-			sidePane: {
-				zoomedId,
-				backLocations: [],
-				forwardLocations: [],
-				query: "",
-				expandedIds: new Set(get().expandedIds),
-			},
-			paneUrlIds: newPaneUrlIds(),
-			activePaneId: SIDE_PANE_ID,
+			panes: [...panes.slice(0, index - 1), pane, ...panes.slice(index - 1)],
+			mainPaneUrlId: mainId,
+			paneFocusHistory: [...paneFocusHistory.filter((paneId) => paneId !== id), id],
+			activePaneId: id,
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
 		});
+		return id;
 	},
 
-	zoomSidePane: (zoomedId) => {
-		const {sidePane} = get();
-		if (sidePane !== null && sidePane.zoomedId !== zoomedId) {
-			set({
-				sidePane: {
-					zoomedId,
-					backLocations: [...sidePane.backLocations, sidePane.zoomedId].slice(-PANE_HISTORY_LIMIT),
-					forwardLocations: [],
-					query: "",
-					expandedIds: sidePane.expandedIds,
-				},
-			});
+	zoomPane: (paneId, zoomedId) => {
+		updatePane(paneId, (pane) =>
+			pane.zoomedId === zoomedId
+				? pane
+				: {
+						...pane,
+						zoomedId,
+						backLocations: [...pane.backLocations, pane.zoomedId].slice(-PANE_HISTORY_LIMIT),
+						forwardLocations: [],
+						query: "",
+					},
+		);
+	},
+
+	paneBack: (paneId) => {
+		updatePane(paneId, (pane) =>
+			pane.backLocations.length === 0
+				? pane
+				: {
+						...pane,
+						zoomedId: pane.backLocations.at(-1) ?? null,
+						backLocations: pane.backLocations.slice(0, -1),
+						forwardLocations: [pane.zoomedId, ...pane.forwardLocations],
+						query: "",
+					},
+		);
+	},
+
+	paneForward: (paneId) => {
+		updatePane(paneId, (pane) =>
+			pane.forwardLocations.length === 0
+				? pane
+				: {
+						...pane,
+						zoomedId: pane.forwardLocations[0] ?? null,
+						backLocations: [...pane.backLocations, pane.zoomedId],
+						forwardLocations: pane.forwardLocations.slice(1),
+						query: "",
+					},
+		);
+	},
+
+	setPaneQuery: (paneId, query) => {
+		updatePane(paneId, (pane) => (pane.query === query ? pane : {...pane, query}));
+	},
+
+	closePane: (paneId) => {
+		const {panes} = get();
+		if (findPane(panes, paneId) !== undefined) {
+			setWorkspace(panes.filter((pane) => pane.id !== paneId));
 		}
 	},
 
-	sidePaneBack: () => {
-		const {sidePane} = get();
-		if (sidePane !== null && sidePane.backLocations.length > 0) {
-			set({
-				sidePane: {
-					zoomedId: sidePane.backLocations.at(-1) ?? null,
-					backLocations: sidePane.backLocations.slice(0, -1),
-					forwardLocations: [sidePane.zoomedId, ...sidePane.forwardLocations],
-					query: "",
-					expandedIds: sidePane.expandedIds,
-				},
-			});
+	closeAllPanes: () => {
+		if (get().panes.length > 0) {
+			setWorkspace([]);
 		}
 	},
 
-	sidePaneForward: () => {
-		const {sidePane} = get();
-		if (sidePane !== null && sidePane.forwardLocations.length > 0) {
-			set({
-				sidePane: {
-					zoomedId: sidePane.forwardLocations[0] ?? null,
-					backLocations: [...sidePane.backLocations, sidePane.zoomedId],
-					forwardLocations: sidePane.forwardLocations.slice(1),
-					query: "",
-					expandedIds: sidePane.expandedIds,
-				},
-			});
+	// Upstream's applySnapshot: the old first pane (main) is gone, so the new first pane is active.
+	closeMainPane: () => {
+		const [promoted, ...rest] = get().panes;
+		if (promoted === undefined) {
+			return null;
 		}
+		setWorkspace(rest, promoted.id);
+		if (get().activePaneId !== MAIN_PANE_ID) {
+			set({activePaneId: MAIN_PANE_ID, editingId: null, editingClickPosition: null, editingCaretOffset: null});
+		}
+		return promoted;
 	},
 
-	setSidePaneQuery: (query) => {
-		const {sidePane} = get();
-		if (sidePane !== null && sidePane.query !== query) {
-			set({sidePane: {...sidePane, query}});
-		}
-	},
-
-	// Editing in the closing pane ends with it; editing in the main pane carries on.
-	closeSidePane: () => {
-		if (get().activePaneId === SIDE_PANE_ID) {
-			set({
-				sidePane: null,
-				paneUrlIds: null,
-				activePaneId: MAIN_PANE_ID,
-				editingId: null,
-				editingClickPosition: null,
-				editingCaretOffset: null,
-			});
-		} else {
-			set({sidePane: null, paneUrlIds: null});
-		}
-	},
-
-	restoreSidePane: ({zoomedId, query, ids, active}) => {
-		const {sidePane} = get();
-		const search = query ?? "";
-		set({
-			sidePane:
-				sidePane === null
-					? {
-							zoomedId,
-							backLocations: [],
-							forwardLocations: [],
-							query: search,
-							expandedIds: new Set(get().expandedIds),
-						}
-					: {...sidePane, zoomedId, query: search},
-			paneUrlIds: ids,
+	restorePanes: ({mainPaneId, panes: restored, activePaneId}) => {
+		const {panes, expandedIds} = get();
+		const next = restored.map((url): ItemTreePane => {
+			const open = findPane(panes, url.id);
+			const query = url.query ?? "";
+			return open === undefined
+				? {
+						id: url.id,
+						zoomedId: url.zoomedId,
+						backLocations: [],
+						forwardLocations: [],
+						query,
+						expandedIds: new Set(expandedIds),
+					}
+				: {...open, zoomedId: url.zoomedId, query};
 		});
-		if (active && get().activePaneId !== SIDE_PANE_ID) {
-			set({activePaneId: SIDE_PANE_ID, editingId: null, editingClickPosition: null, editingCaretOffset: null});
+		setWorkspace(next, mainPaneId);
+		if (
+			activePaneId !== null &&
+			activePaneId !== get().activePaneId &&
+			findPane(next, activePaneId) !== undefined
+		) {
+			get().setActivePane(activePaneId);
+			set({editingId: null, editingClickPosition: null, editingCaretOffset: null});
 		}
 	},
 
 	setActivePane: (paneId) => {
-		if (paneId === MAIN_PANE_ID || get().sidePane !== null) {
-			set({activePaneId: paneId});
+		const {panes, paneFocusHistory} = get();
+		if (paneId === MAIN_PANE_ID || findPane(panes, paneId) !== undefined) {
+			set({
+				activePaneId: paneId,
+				paneFocusHistory: [...paneFocusHistory.filter((id) => id !== paneId), paneId],
+			});
 		}
 	},
 

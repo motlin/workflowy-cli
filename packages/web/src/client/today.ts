@@ -4,7 +4,7 @@ import {readJson} from "./read-json.js";
 
 export interface NavigateToTodayDeps {
 	fetch: (url: string, init?: {method?: string}) => Promise<Response>;
-	/** Zoom the target pane to `id`: the main outline's URL, or the side pane's own zoom. */
+	/** Zoom the target pane to `id`: the main outline's URL, or an open pane's own zoom. */
 	zoomTo: (id: string) => unknown;
 	notify: (message: string, type: "info") => unknown;
 	/** Edit `id` with the caret at `offset`. */

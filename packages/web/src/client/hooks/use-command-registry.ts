@@ -1,7 +1,7 @@
 import {useCallback} from "react";
 import {flushSync} from "react-dom";
 import {notifyManager, useQueryClient} from "@tanstack/react-query";
-import {goToNode, nodeUrl, stepNav} from "../navigation.js";
+import {closeMainPane, goToNode, nodeUrl, stepNav} from "../navigation.js";
 import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
@@ -64,7 +64,7 @@ import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherStepCommand} from "../switcher-keys.js";
 import {paneCommands, paneNavCommands} from "../pane-commands.js";
-import {scrollSidePaneToTop} from "../components/pane-context.js";
+import {scrollPaneToTop} from "../components/pane-context.js";
 import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
@@ -141,9 +141,13 @@ export function useCommandRegistry(): CommandRegistry {
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const zoomTo = useZoomTo();
 	const moveTo = useMoveTo();
-	const zoomSidePane = useOutlineStore((state) => state.zoomSidePane);
+	const zoomPane = useOutlineStore((state) => state.zoomPane);
 	const navigateToToday = useNavigateToToday();
-	const navigateSidePaneToToday = useNavigateToToday(zoomSidePane);
+	// ⌃T in an open pane zooms that pane: the active pane is read when today's page resolves.
+	const navigateActivePaneToToday = useNavigateToToday((id) => {
+		const {activePaneId} = useOutlineStore.getState();
+		zoomPane(activePaneId, id);
+	});
 	const createNodeMutation = useCreateNode();
 	const moveNodeMutation = useMoveNode();
 	const moveNodesMutation = useMoveNodes();
@@ -313,10 +317,10 @@ export function useCommandRegistry(): CommandRegistry {
 
 	/**
 	 * Upstream `navigate_to_next_item` / `prev_item`: zoom to the zoomed page's potentially visible sibling `step`
-	 * places away, scroll to the top, then edit its first visible child (or its title) at offset 0. In the side pane it
-	 * zooms the pane and scrolls the pane's scroller.
+	 * places away, scroll to the top, then edit its first visible child (or its title) at offset 0. In an open pane
+	 * (`paneId`) it zooms the pane and scrolls the pane's scroller.
 	 */
-	const jumpToSibling = async (step: -1 | 1, inSidePane: boolean): Promise<void> => {
+	const jumpToSibling = async (step: -1 | 1, paneId: string | null): Promise<void> => {
 		if (zoomedNodeId === null || zoomedNode === undefined) {
 			return;
 		}
@@ -326,12 +330,12 @@ export function useCommandRegistry(): CommandRegistry {
 			return;
 		}
 		commitEdit();
-		if (inSidePane) {
-			zoomSidePane(targetId);
-			scrollSidePaneToTop();
-		} else {
+		if (paneId === null) {
 			void navigate(nodeUrl(targetId));
 			globalThis.scrollTo(0, 0);
+		} else {
+			zoomPane(paneId, targetId);
+			scrollPaneToTop(paneId);
 		}
 		const children = await queryClient.query({
 			queryKey: nodeKeys.children(targetId),
@@ -794,7 +798,12 @@ export function useCommandRegistry(): CommandRegistry {
 		}),
 		toggle_leftbar: {execute: toggleLeftBar},
 		toggle_rightbar: {execute: toggleRightBar},
-		...paneCommands({getState: useOutlineStore.getState}),
+		...paneCommands({
+			getState: useOutlineStore.getState,
+			closeMainPane: () => {
+				closeMainPane(navigate);
+			},
+		}),
 		...paneNavCommands({
 			getState: useOutlineStore.getState,
 			commitEdit,
@@ -804,7 +813,7 @@ export function useCommandRegistry(): CommandRegistry {
 			stepMain: (direction) => {
 				stepNav(navigate, direction, (id) => cachedResolvedId(queryClient, id));
 			},
-			navigateToToday: async (inSidePane) => (inSidePane ? navigateSidePaneToToday() : navigateToToday()),
+			navigateToToday: async (paneId) => (paneId === null ? navigateToToday() : navigateActivePaneToToday()),
 			jumpToSibling,
 		}),
 		// The open search panel stands in for upstream's search-in-progress until search-filtering SF3

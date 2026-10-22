@@ -8,7 +8,7 @@ import {prefetchSearchAncestors} from "../search-prefetch.js";
 import type {SearchFilter} from "../search-filter.js";
 import {searchFilter} from "../search-filter.js";
 import {PaneContext} from "../components/pane-context.js";
-import {MAIN_PANE_ID, SIDE_PANE_ID} from "../pane-ids.js";
+import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {fetchChildren} from "./use-nodes.js";
 
@@ -66,7 +66,7 @@ export function treeSearchOptions(
 	};
 }
 
-/** The side pane's searches share one session of their own, so a main-outline result never stands in for one. */
+/** The panes' searches share one session of their own, so a main-outline result never stands in for one. */
 export const PANE_SEARCH_SESSION = -1;
 const NO_CREATED_IDS: ReadonlySet<string> = new Set();
 const NO_EXPANSION: ReadonlyMap<string, boolean> = new Map();
@@ -79,18 +79,19 @@ export interface PaneSearchState extends SearchState {
 interface PaneSearchSource extends SearchState {
 	searchCreatedIds: ReadonlySet<string>;
 	searchExpansion: ReadonlyMap<string, boolean>;
-	sidePane: {zoomedId: string | null; query: string} | null;
+	panes: readonly {id: string; zoomedId: string | null; query: string}[];
 }
 
 /**
- * The search a pane's outline filters by: the main outline's in the main pane, and the side pane's own query under
- * its own zoom in the side pane (upstream's per-pane search box), so one pane's search never filters the other.
+ * The search a pane's outline filters by: the main outline's in the main pane, and an open pane's own query under its
+ * own zoom in that pane (upstream's per-pane search box), so one pane's search never filters another.
  */
 export function paneSearchState(state: PaneSearchSource, paneId: string): PaneSearchState {
-	if (paneId === SIDE_PANE_ID) {
+	const pane = findPane(state.panes, paneId);
+	if (pane !== undefined) {
 		return {
-			zoomedNodeId: state.sidePane?.zoomedId ?? null,
-			searchQuery: state.sidePane?.query ?? "",
+			zoomedNodeId: pane.zoomedId,
+			searchQuery: pane.query,
 			searchRun: 0,
 			searchSession: PANE_SEARCH_SESSION,
 			createdIds: NO_CREATED_IDS,

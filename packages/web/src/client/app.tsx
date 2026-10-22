@@ -20,7 +20,7 @@ import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
 import {SearchCountIndicator} from "./components/search-count-indicator.js";
 import {Settings} from "./components/settings.js";
-import {MainPane, SidePane} from "./components/side-pane.js";
+import {MainPane, SidePanes} from "./components/side-pane.js";
 import {sidePaneWidth} from "./components/pane-context.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
@@ -105,7 +105,7 @@ function GlobalCommands() {
 
 /** The page shell. Memoized, so a URL change re-renders it only through the store fields it selects. */
 export const OutlineView = memo(function OutlineView() {
-	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery, sidePaneOpen, leftBarOffset} = useOutlineViewState();
+	const {zoomedNodeId, relatedNodesPanelOpen, searchQuery, paneCount, leftBarOffset} = useOutlineViewState();
 	const onUndo = useCallback(() => {
 		activeCommandRegistry().undo?.execute({items: [], zoomedId: zoomedNodeId});
 	}, [zoomedNodeId]);
@@ -116,12 +116,19 @@ export const OutlineView = memo(function OutlineView() {
 	const containerClasses = [
 		"outline-container",
 		relatedNodesPanelOpen && "with-related-panel",
-		sidePaneOpen && "with-side-pane",
+		paneCount > 0 && "with-side-pane",
 	]
 		.filter(Boolean)
 		.join(" ");
-	// Upstream's rebalanceWidths: each pane gets half the width beside the left bar, at least 350px.
-	const paneStyle = sidePaneOpen ? {["--side-pane-width" as string]: sidePaneWidth(leftBarOffset)} : undefined;
+	// Upstream's rebalanceWidths: every pane, the main one included, gets an equal share of the width beside the left
+	// bar, at least 350px; the open panes together take `--side-panes-width` from the main outline.
+	const paneStyle =
+		paneCount > 0
+			? {
+					["--side-pane-width" as string]: sidePaneWidth(leftBarOffset, paneCount),
+					["--side-panes-width" as string]: `calc(var(--side-pane-width) * ${paneCount})`,
+				}
+			: undefined;
 
 	return (
 		<div className={containerClasses} style={paneStyle}>
@@ -134,7 +141,7 @@ export const OutlineView = memo(function OutlineView() {
 					<SearchCountIndicator />
 				</div>
 			</MainPane>
-			<SidePane onRedo={onRedo} onUndo={onUndo} />
+			<SidePanes onRedo={onRedo} onUndo={onUndo} />
 			<RightBar />
 			<RelatedNodesPanel />
 			<JumpMenu />

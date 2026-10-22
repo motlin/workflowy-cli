@@ -2,19 +2,21 @@ import {describe, expect, it} from "vite-plus/test";
 import {
 	createPaneId,
 	decodePanes,
-	decodeSidePane,
+	decodeWorkspace,
 	encodePanes,
-	encodeSidePane,
+	encodeWorkspace,
 	paneRuntimeState,
 	reconcilePaneUrl,
 	restoredActivePane,
-	sameSidePane,
-	storeSidePaneUrl,
+	sameWorkspace,
+	storeWorkspaceUrl,
 	withPanesFragment,
 } from "../src/client/pane-url.js";
+import type {PaneUrlAction, WorkspaceUrl} from "../src/client/pane-url.js";
 
 const MAIN = "AAAAAAAAAAA";
 const SIDE = "BBBBBBBBBBB";
+const THIRD = "DDDDDDDDDDD";
 
 function base64url(text: string): string {
 	return Buffer.from(text, "utf8").toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
@@ -107,24 +109,27 @@ describe("decodePanes", () => {
 	});
 });
 
-describe("encodeSidePane / decodeSidePane", () => {
-	it("encodes the side pane zoom as its short id", () => {
-		const encoded = encodeSidePane({
+describe("encodeWorkspace / decodeWorkspace", () => {
+	it("encodes each pane's zoom as its short id, main first", () => {
+		const encoded = encodeWorkspace({
 			mainPaneId: MAIN,
-			paneId: SIDE,
-			location: "4823cefa-5fc0-478c-88ac-35035d443bf1",
+			panes: [
+				{paneId: SIDE, location: "4823cefa-5fc0-478c-88ac-35035d443bf1"},
+				{paneId: THIRD, location: "7f3e2a1b9c0d"},
+			],
 		});
 		expect(decodePanes(encoded)).toStrictEqual({
 			kind: "valid",
 			state: [
 				[MAIN, "item-tree"],
 				[SIDE, "item-tree", ["35035d443bf1"]],
+				[THIRD, "item-tree", ["7f3e2a1b9c0d"]],
 			],
 		});
 	});
 
 	it("encodes a Home zoom as upstream's None", () => {
-		const encoded = encodeSidePane({mainPaneId: MAIN, paneId: SIDE, location: null});
+		const encoded = encodeWorkspace({mainPaneId: MAIN, panes: [{paneId: SIDE, location: null}]});
 		expect(decodePanes(encoded)).toStrictEqual({
 			kind: "valid",
 			state: [
@@ -134,40 +139,36 @@ describe("encodeSidePane / decodeSidePane", () => {
 		});
 	});
 
-	it("writes the pane's search query after its zoom, like upstream's [shortId, searchQuery]", () => {
-		const encoded = encodeSidePane({mainPaneId: MAIN, paneId: SIDE, location: null, query: "#todo"});
+	it("writes a pane's search query after its zoom, like upstream's [shortId, searchQuery], leaving empty ones out", () => {
+		const encoded = encodeWorkspace({
+			mainPaneId: MAIN,
+			panes: [
+				{paneId: SIDE, location: null, query: "#todo"},
+				{paneId: THIRD, location: null, query: ""},
+			],
+		});
 		expect(decodePanes(encoded)).toStrictEqual({
 			kind: "valid",
 			state: [
 				[MAIN, "item-tree"],
 				[SIDE, "item-tree", ["None", "#todo"]],
+				[THIRD, "item-tree", ["None"]],
 			],
 		});
 	});
 
-	it("leaves an empty query out of the pane's urlState", () => {
-		const encoded = encodeSidePane({mainPaneId: MAIN, paneId: SIDE, location: null, query: ""});
-		expect(decodePanes(encoded)).toStrictEqual({
-			kind: "valid",
-			state: [
-				[MAIN, "item-tree"],
-				[SIDE, "item-tree", ["None"]],
-			],
-		});
-	});
-
-	it("decodes the first extra item-tree pane, with None as Home and an optional query", () => {
-		const home = encodePanes([
+	it("decodes every extra item-tree pane, with None as Home and an optional query", () => {
+		const value = encodePanes([
 			[MAIN, "item-tree"],
 			[SIDE, "item-tree", ["None"]],
+			[THIRD, "item-tree", ["35035d443bf1", "todo"]],
 		]);
-		const item = encodePanes([
-			[MAIN, "item-tree"],
-			[SIDE, "item-tree", ["35035d443bf1", "todo"]],
-		]);
-		expect({home: decodeSidePane(home), item: decodeSidePane(item)}).toStrictEqual({
-			home: {mainPaneId: MAIN, paneId: SIDE, location: null, query: null},
-			item: {mainPaneId: MAIN, paneId: SIDE, location: "35035d443bf1", query: "todo"},
+		expect(decodeWorkspace(value)).toStrictEqual({
+			mainPaneId: MAIN,
+			panes: [
+				{paneId: SIDE, location: null, query: null},
+				{paneId: THIRD, location: "35035d443bf1", query: "todo"},
+			],
 		});
 	});
 
@@ -176,10 +177,11 @@ describe("encodeSidePane / decodeSidePane", () => {
 		["invalid", "v2."],
 		["main pane only", encodePanes([[MAIN, "item-tree"]])],
 		[
-			"an unknown pane type",
+			"an unknown pane type after a valid pane",
 			encodePanes([
 				[MAIN, "item-tree"],
-				[SIDE, "board", ["None"]],
+				[SIDE, "item-tree", ["None"]],
+				[THIRD, "board", ["None"]],
 			]),
 		],
 		[
@@ -211,54 +213,108 @@ describe("encodeSidePane / decodeSidePane", () => {
 			]),
 		],
 	])("is null for %s", (_label, value) => {
-		expect(decodeSidePane(value)).toBeNull();
+		expect(decodeWorkspace(value)).toBeNull();
 	});
 });
 
-describe("sameSidePane", () => {
-	it("compares pane ids and the zoom's short id", () => {
-		const a = {mainPaneId: MAIN, paneId: SIDE, location: "4823cefa-5fc0-478c-88ac-35035d443bf1"};
+describe("sameWorkspace", () => {
+	const zoomed = {paneId: SIDE, location: "4823cefa-5fc0-478c-88ac-35035d443bf1"};
+
+	it("compares pane ids in order and each zoom's short id", () => {
+		const a = {mainPaneId: MAIN, panes: [zoomed, {paneId: THIRD, location: null}]};
 		expect({
-			same: sameSidePane(a, {mainPaneId: MAIN, paneId: SIDE, location: "35035d443bf1"}),
-			otherZoom: sameSidePane(a, {mainPaneId: MAIN, paneId: SIDE, location: null}),
-			otherId: sameSidePane(a, {mainPaneId: MAIN, paneId: "CCCCCCCCCCC", location: "35035d443bf1"}),
-			bothNull: sameSidePane(null, null),
-			oneNull: sameSidePane(a, null),
-		}).toStrictEqual({same: true, otherZoom: false, otherId: false, bothNull: true, oneNull: false});
+			same: sameWorkspace(a, {
+				mainPaneId: MAIN,
+				panes: [
+					{paneId: SIDE, location: "35035d443bf1"},
+					{paneId: THIRD, location: null},
+				],
+			}),
+			otherZoom: sameWorkspace(a, {
+				mainPaneId: MAIN,
+				panes: [
+					{paneId: SIDE, location: null},
+					{paneId: THIRD, location: null},
+				],
+			}),
+			reordered: sameWorkspace(a, {mainPaneId: MAIN, panes: [{paneId: THIRD, location: null}, zoomed]}),
+			fewer: sameWorkspace(a, {mainPaneId: MAIN, panes: [zoomed]}),
+			otherMain: sameWorkspace(a, {...a, mainPaneId: THIRD}),
+			bothNull: sameWorkspace(null, null),
+			oneNull: sameWorkspace(a, null),
+		}).toStrictEqual({
+			same: true,
+			otherZoom: false,
+			reordered: false,
+			fewer: false,
+			otherMain: false,
+			bothNull: true,
+			oneNull: false,
+		});
 	});
 
 	it("tells pane searches apart, with no query the same as an empty one", () => {
-		const a = {mainPaneId: MAIN, paneId: SIDE, location: null};
+		const a = {paneId: SIDE, location: null};
+		const ws = (pane: {paneId: string; location: null; query?: string | null}) => ({
+			mainPaneId: MAIN,
+			panes: [pane],
+		});
 		expect({
-			otherQuery: sameSidePane({...a, query: "x"}, {...a, query: "y"}),
-			addedQuery: sameSidePane(a, {...a, query: "x"}),
-			emptyQuery: sameSidePane({...a, query: null}, {...a, query: ""}),
+			otherQuery: sameWorkspace(ws({...a, query: "x"}), ws({...a, query: "y"})),
+			addedQuery: sameWorkspace(ws(a), ws({...a, query: "x"})),
+			emptyQuery: sameWorkspace(ws({...a, query: null}), ws({...a, query: ""})),
 		}).toStrictEqual({otherQuery: false, addedQuery: false, emptyQuery: true});
 	});
 });
 
-describe("storeSidePaneUrl", () => {
-	it("carries the pane's committed search query", () => {
-		expect(storeSidePaneUrl({zoomedId: "alice", query: "todo"}, {mainPaneId: MAIN, paneId: SIDE})).toStrictEqual({
+describe("storeWorkspaceUrl", () => {
+	it("names every open pane in order with its committed search query", () => {
+		expect(
+			storeWorkspaceUrl(
+				[
+					{id: SIDE, zoomedId: "alice", query: "todo"},
+					{id: THIRD, zoomedId: null, query: ""},
+				],
+				MAIN,
+			),
+		).toStrictEqual({
 			mainPaneId: MAIN,
-			paneId: SIDE,
-			location: "alice",
-			query: "todo",
+			panes: [
+				{paneId: SIDE, location: "alice", query: "todo"},
+				{paneId: THIRD, location: null, query: null},
+			],
 		});
+	});
+
+	it("is null with no pane open", () => {
+		expect(storeWorkspaceUrl([], null)).toBeNull();
 	});
 });
 
 describe("reconcilePaneUrl", () => {
-	const pane = {mainPaneId: MAIN, paneId: SIDE, location: "35035d443bf1"};
+	const ws: WorkspaceUrl = {mainPaneId: MAIN, panes: [{paneId: SIDE, location: "35035d443bf1"}]};
 
-	it.each([
+	it.each<[string, WorkspaceUrl | null, WorkspaceUrl | null, boolean, PaneUrlAction]>([
 		["nothing anywhere", null, null, false, "none"],
-		["URL and store agree", pane, pane, false, "none"],
-		["the URL names a pane the store lacks (reload)", pane, null, true, "apply"],
-		["the URL names another zoom (Back)", {...pane, location: null}, pane, true, "apply"],
-		["Back reaches an entry without panes", null, pane, true, "close"],
-		["an in-app link drops the param while the pane is open", null, pane, false, "restore-url"],
-	] as const)("%s", (_label, url, store, isPop, expected) => {
+		["URL and store agree", ws, ws, false, "none"],
+		["the URL names panes the store lacks (reload)", ws, null, true, "apply"],
+		[
+			"the URL names another zoom (Back)",
+			{mainPaneId: MAIN, panes: [{paneId: SIDE, location: null}]},
+			ws,
+			true,
+			"apply",
+		],
+		[
+			"the URL names one more pane (Forward)",
+			{mainPaneId: MAIN, panes: [...ws.panes, {paneId: THIRD, location: null}]},
+			ws,
+			true,
+			"apply",
+		],
+		["Back reaches an entry without panes", null, ws, true, "close"],
+		["an in-app link drops the param while panes are open", null, ws, false, "restore-url"],
+	])("%s", (_label, url, store, isPop, expected) => {
 		expect(reconcilePaneUrl({url, store, isPop})).toBe(expected);
 	});
 });
@@ -276,7 +332,7 @@ describe("createPaneId", () => {
 
 describe("paneRuntimeState / restoredActivePane", () => {
 	it("persists the active pane and both panes at half width, like pane-workspace-runtime:v1", () => {
-		expect(paneRuntimeState({mainPaneId: MAIN, paneId: SIDE}, true)).toStrictEqual({
+		expect(paneRuntimeState([MAIN, SIDE], SIDE)).toStrictEqual({
 			activePaneId: SIDE,
 			panes: [
 				{id: MAIN, type: "item-tree", widthPercent: 50},
@@ -285,20 +341,37 @@ describe("paneRuntimeState / restoredActivePane", () => {
 		});
 	});
 
-	it("persists the main pane as active", () => {
-		expect(paneRuntimeState({mainPaneId: MAIN, paneId: SIDE}, false).activePaneId).toBe(MAIN);
+	it("splits three panes into equal shares rounded like upstream's paneWidthPercent", () => {
+		expect(paneRuntimeState([MAIN, SIDE, THIRD], MAIN)).toStrictEqual({
+			activePaneId: MAIN,
+			panes: [
+				{id: MAIN, type: "item-tree", widthPercent: 33.3333},
+				{id: SIDE, type: "item-tree", widthPercent: 33.3333},
+				{id: THIRD, type: "item-tree", widthPercent: 33.3333},
+			],
+		});
 	});
 
-	it("restores the side pane as active only when the stored state names the URL's panes", () => {
-		const ids = {mainPaneId: MAIN, paneId: SIDE};
-		const stored = JSON.stringify(paneRuntimeState(ids, true));
+	it("restores the stored active pane only when the record names every one of the URL's panes", () => {
+		const ids = [MAIN, SIDE, THIRD];
+		const stored = JSON.stringify(paneRuntimeState(ids, THIRD));
 		expect({
 			match: restoredActivePane(stored, ids),
-			mainActive: restoredActivePane(JSON.stringify(paneRuntimeState(ids, false)), ids),
-			otherPanes: restoredActivePane(stored, {mainPaneId: MAIN, paneId: "CCCCCCCCCCC"}),
+			mainActive: restoredActivePane(JSON.stringify(paneRuntimeState(ids, MAIN)), ids),
+			subset: restoredActivePane(stored, [MAIN, THIRD]),
+			otherPanes: restoredActivePane(stored, [MAIN, SIDE, "CCCCCCCCCCC"]),
+			activeNotInUrl: restoredActivePane(stored, [MAIN, SIDE]),
 			missing: restoredActivePane(null, ids),
 			garbage: restoredActivePane("{", ids),
-		}).toStrictEqual({match: true, mainActive: false, otherPanes: false, missing: false, garbage: false});
+		}).toStrictEqual({
+			match: THIRD,
+			mainActive: MAIN,
+			subset: THIRD,
+			otherPanes: null,
+			activeNotInUrl: null,
+			missing: null,
+			garbage: null,
+		});
 	});
 });
 

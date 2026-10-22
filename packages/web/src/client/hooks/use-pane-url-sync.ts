@@ -1,22 +1,26 @@
-import {skipToken, useQuery} from "@tanstack/react-query";
+import {useQueries} from "@tanstack/react-query";
 import {useEffect, useRef} from "react";
+import {z} from "zod";
 import {NavigationType, useLocation, useNavigate, useNavigationType} from "react-router-dom";
 import {parseLocationHash} from "../location.js";
 import {nodeKeys} from "../node-cache.js";
-import {SIDE_PANE_ID} from "../pane-ids.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import {
 	PANE_RUNTIME_KEY,
 	PANES_FRAGMENT,
-	decodeSidePane,
-	encodeSidePane,
+	decodeWorkspace,
+	encodeWorkspace,
 	paneRuntimeState,
 	reconcilePaneUrl,
 	restoredActivePane,
-	sameSidePane,
-	storeSidePaneUrl,
+	sameWorkspace,
+	storeWorkspaceUrl,
 	withPanesFragment,
 } from "../pane-url.js";
 import {useOutlineStore} from "../stores/outline.js";
+
+/** `resolvedKey`'s entries: a pane location and the full id it resolved to (null when it names no node). */
+const resolvedEntries = z.array(z.tuple([z.string(), z.string().nullable()]));
 
 function readRuntimeState(): string | null {
 	try {
@@ -27,56 +31,80 @@ function readRuntimeState(): string | null {
 }
 
 /**
- * Keep the side pane and the URL's `panes=v2.` param in step, and mirror the
- * workspace into `pane-workspace-runtime:v1`. A URL naming a pane opens or
- * re-zooms it (reload, Back/Forward); a pane change pushes a new URL; closing
- * the pane drops the param. Mount once (the outline route owns it).
+ * Keep the open panes and the URL's `panes=v2.` param in step, and mirror the
+ * workspace into `pane-workspace-runtime:v1`. A URL naming panes opens, re-zooms
+ * or drops them (reload, Back/Forward); a pane change pushes a new URL; closing
+ * the last pane drops the param. Mount once (the outline route owns it).
  */
 export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string | null>): void {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const isPop = useNavigationType() === NavigationType.Pop;
-	const sidePane = useOutlineStore((state) => state.sidePane);
-	const paneUrlIds = useOutlineStore((state) => state.paneUrlIds);
-	const urlPane = decodeSidePane(parseLocationHash(location.hash).fragments[PANES_FRAGMENT]);
-	const paneLocation = urlPane?.location ?? null;
-	const resolved = useQuery({
-		queryKey: nodeKeys.resolvedId(paneLocation ?? ""),
-		queryFn: paneLocation === null ? skipToken : async () => resolveId(paneLocation),
-		staleTime: Number.POSITIVE_INFINITY,
+	const panes = useOutlineStore((state) => state.panes);
+	const mainPaneUrlId = useOutlineStore((state) => state.mainPaneUrlId);
+	const urlWorkspace = decodeWorkspace(parseLocationHash(location.hash).fragments[PANES_FRAGMENT]);
+	const locations = [
+		...new Set((urlWorkspace?.panes ?? []).flatMap((pane) => (pane.location === null ? [] : [pane.location]))),
+	];
+	// Each pane's location id resolved to a full id: undefined while loading, null when it names no node.
+	const resolvedList = useQueries({
+		queries: locations.map((locationId) => ({
+			queryKey: nodeKeys.resolvedId(locationId),
+			queryFn: async () => resolveId(locationId),
+			staleTime: Number.POSITIVE_INFINITY,
+		})),
+		combine: (results) => results.map((result) => result.data),
 	});
+	// The resolved locations as a string, so the URL effect re-runs only when one of them resolves.
+	const resolvedKey = JSON.stringify(
+		locations.flatMap((locationId, index) => {
+			const id = resolvedList[index];
+			return id === undefined ? [] : [[locationId, id]];
+		}),
+	);
 
 	// URL → store: runs on location changes only, so a pane change is never undone before its URL is pushed.
 	useEffect(() => {
-		const url = decodeSidePane(parseLocationHash(location.hash).fragments[PANES_FRAGMENT]);
+		const url = decodeWorkspace(parseLocationHash(location.hash).fragments[PANES_FRAGMENT]);
 		const state = useOutlineStore.getState();
-		const store = storeSidePaneUrl(state.sidePane, state.paneUrlIds);
+		const store = storeWorkspaceUrl(state.panes, state.mainPaneUrlId);
 		switch (reconcilePaneUrl({url, store, isPop})) {
 			case "apply": {
-				if (url === null || (url.location !== null && resolved.data === undefined)) {
+				if (url === null) {
 					return;
 				}
-				if (url.location !== null && resolved.data === null) {
-					state.closeSidePane();
+				const resolved = new Map(resolvedEntries.parse(JSON.parse(resolvedKey)));
+				const zooms = url.panes.map((pane) => (pane.location === null ? null : resolved.get(pane.location)));
+				if (zooms.includes(undefined)) {
+					return;
+				}
+				if (url.panes.some((pane, index) => pane.location !== null && zooms[index] === null)) {
+					state.closeAllPanes();
 					void navigate(withPanesFragment(location.hash, null), {replace: true});
 					return;
 				}
-				const ids = {mainPaneId: url.mainPaneId, paneId: url.paneId};
-				state.restoreSidePane({
-					zoomedId: url.location === null ? null : (resolved.data ?? null),
-					query: url.query,
-					ids,
-					active: restoredActivePane(readRuntimeState(), ids),
+				const active = restoredActivePane(readRuntimeState(), [
+					url.mainPaneId,
+					...url.panes.map((pane) => pane.paneId),
+				]);
+				state.restorePanes({
+					mainPaneId: url.mainPaneId,
+					panes: url.panes.map((pane, index) => ({
+						id: pane.paneId,
+						zoomedId: zooms[index] ?? null,
+						query: pane.query,
+					})),
+					activePaneId: active === url.mainPaneId ? null : active,
 				});
 				return;
 			}
 			case "close": {
-				state.closeSidePane();
+				state.closeAllPanes();
 				return;
 			}
 			case "restore-url": {
 				void navigate(
-					withPanesFragment(location.hash, store === null ? null : (encodeSidePane(store) ?? null)),
+					withPanesFragment(location.hash, store === null ? null : (encodeWorkspace(store) ?? null)),
 					{
 						replace: true,
 					},
@@ -87,12 +115,12 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 				return;
 			}
 		}
-	}, [isPop, location.hash, navigate, resolved.data]);
+	}, [isPop, location.hash, navigate, resolvedKey]);
 
 	// Store → URL: a pane opened, zoomed or closed in the app pushes a new history entry.
 	const storeFragment = (() => {
-		const store = storeSidePaneUrl(sidePane, paneUrlIds);
-		return store === null ? null : (encodeSidePane(store) ?? null);
+		const store = storeWorkspaceUrl(panes, mainPaneUrlId);
+		return store === null ? null : (encodeWorkspace(store) ?? null);
 	})();
 	const previousFragment = useRef(storeFragment);
 	useEffect(() => {
@@ -101,8 +129,8 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 		}
 		previousFragment.current = storeFragment;
 		const {hash} = location;
-		const url = decodeSidePane(parseLocationHash(hash).fragments[PANES_FRAGMENT]);
-		if (!sameSidePane(url, decodeSidePane(storeFragment))) {
+		const url = decodeWorkspace(parseLocationHash(hash).fragments[PANES_FRAGMENT]);
+		if (!sameWorkspace(url, decodeWorkspace(storeFragment))) {
 			void navigate(withPanesFragment(hash, storeFragment));
 		}
 	}, [location, navigate, storeFragment]);
@@ -111,15 +139,20 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 	useEffect(
 		() =>
 			useOutlineStore.subscribe((state, previous) => {
-				if (state.paneUrlIds === previous.paneUrlIds && state.activePaneId === previous.activePaneId) {
+				if (
+					state.panes === previous.panes &&
+					state.mainPaneUrlId === previous.mainPaneUrlId &&
+					state.activePaneId === previous.activePaneId
+				) {
 					return;
 				}
 				try {
-					if (state.paneUrlIds === null) {
+					if (state.mainPaneUrlId === null || state.panes.length === 0) {
 						localStorage.removeItem(PANE_RUNTIME_KEY);
 					} else {
-						const record = paneRuntimeState(state.paneUrlIds, state.activePaneId === SIDE_PANE_ID);
-						localStorage.setItem(PANE_RUNTIME_KEY, JSON.stringify(record));
+						const ids = [state.mainPaneUrlId, ...state.panes.map((pane) => pane.id)];
+						const active = state.activePaneId === MAIN_PANE_ID ? state.mainPaneUrlId : state.activePaneId;
+						localStorage.setItem(PANE_RUNTIME_KEY, JSON.stringify(paneRuntimeState(ids, active)));
 					}
 				} catch {
 					// Storage can be unavailable (private windows); the URL still carries the panes.

@@ -8,6 +8,7 @@ vi.stubGlobal("addEventListener", () => {});
 
 const {
 	cleanupEmptyDayOnLeave,
+	closeMainPane,
 	goToNode,
 	navigateToSearch,
 	nodeUrl,
@@ -18,7 +19,7 @@ const {
 } = await import("../src/client/navigation.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {initialNavState} = await import("../src/client/nav-stack.js");
-const {encodeSidePane} = await import("../src/client/pane-url.js");
+const {encodeWorkspace} = await import("../src/client/pane-url.js");
 
 const FULL_ID = "4823cefa-5fc0-478c-88ac-35035d443bf1";
 
@@ -152,10 +153,10 @@ describe("in-app navigation stacks", () => {
 
 describe("goToNode in one frame", () => {
 	const A = "aaaaaaaa-0000-0000-0000-aaaaaaaaaaaa";
-	const ids = {mainPaneId: "AAAAAAAAAAA", paneId: "BBBBBBBBBBB"};
+	const ws = {mainPaneId: "AAAAAAAAAAA", panes: [{paneId: "BBBBBBBBBBB", location: null}]};
 
 	beforeEach(() => {
-		useOutlineStore.setState({nav: initialNavState, zoomedNodeId: null, sidePane: null, paneUrlIds: null});
+		useOutlineStore.setState({nav: initialNavState, zoomedNodeId: null, panes: [], mainPaneUrlId: null});
 	});
 
 	it("zooms the store before pushing the URL, so the outline swaps without waiting for the route", () => {
@@ -166,43 +167,119 @@ describe("goToNode in one frame", () => {
 		expect(zoomedWhenPushed).toStrictEqual([A]);
 	});
 
-	it("carries the open side pane's panes param so the pane sync has nothing to restore", () => {
+	it("carries the open panes' panes param so the pane sync has nothing to restore", () => {
 		useOutlineStore.setState({
-			sidePane: {zoomedId: null, backLocations: [], forwardLocations: [], query: "", expandedIds: new Set()},
-			paneUrlIds: ids,
+			panes: [
+				{
+					id: "BBBBBBBBBBB",
+					zoomedId: null,
+					backLocations: [],
+					forwardLocations: [],
+					query: "",
+					expandedIds: new Set<string>(),
+				},
+			],
+			mainPaneUrlId: "AAAAAAAAAAA",
 		});
 		const navigate = vi.fn<(to: string) => void>();
 		goToNode(navigate, A);
 		expect(navigate.mock.calls).toStrictEqual([
-			[`/#/aaaaaaaaaaaa?panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
+			[`/#/aaaaaaaaaaaa?panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`],
 		]);
 	});
 
-	it("carries the side pane on an in-app Back", () => {
+	it("carries the open panes on an in-app Back", () => {
 		goToNode(() => {}, null);
 		goToNode(() => {}, A);
 		useOutlineStore.setState({
-			sidePane: {zoomedId: null, backLocations: [], forwardLocations: [], query: "", expandedIds: new Set()},
-			paneUrlIds: ids,
+			panes: [
+				{
+					id: "BBBBBBBBBBB",
+					zoomedId: null,
+					backLocations: [],
+					forwardLocations: [],
+					query: "",
+					expandedIds: new Set<string>(),
+				},
+			],
+			mainPaneUrlId: "AAAAAAAAAAA",
 		});
 		const navigate = vi.fn<(to: string) => void>();
 		stepNav(navigate, "back", unresolved);
-		expect(navigate.mock.calls).toStrictEqual([
-			[`/#?panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
-		]);
+		expect(navigate.mock.calls).toStrictEqual([[`/#?panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`]]);
 	});
 
-	it("carries the side pane on a search push too", () => {
+	it("carries the open panes on a search push too", () => {
 		useOutlineStore.setState({
 			zoomedNodeId: A,
-			sidePane: {zoomedId: null, backLocations: [], forwardLocations: [], query: "", expandedIds: new Set()},
-			paneUrlIds: ids,
+			panes: [
+				{
+					id: "BBBBBBBBBBB",
+					zoomedId: null,
+					backLocations: [],
+					forwardLocations: [],
+					query: "",
+					expandedIds: new Set<string>(),
+				},
+			],
+			mainPaneUrlId: "AAAAAAAAAAA",
 		});
 		const navigate = vi.fn<(to: string) => void>();
 		navigateToSearch(navigate, "x");
 		expect(navigate.mock.calls).toStrictEqual([
-			[`/#/aaaaaaaaaaaa?q=x&panes=${encodeURIComponent(encodeSidePane({...ids, location: null}) ?? "")}`],
+			[`/#/aaaaaaaaaaaa?q=x&panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`],
 		]);
+	});
+});
+
+describe("closeMainPane", () => {
+	const B = "BBBBBBBBBBB";
+	const C = "CCCCCCCCCCC";
+	const pane = (id: string, zoomedId: string | null, query: string) => ({
+		id,
+		zoomedId,
+		backLocations: [],
+		forwardLocations: [],
+		query,
+		expandedIds: new Set<string>(),
+	});
+
+	beforeEach(() => {
+		useOutlineStore.setState({nav: initialNavState, zoomedNodeId: null, activePaneId: "main"});
+	});
+
+	it("navigates the main outline to the first pane's zoom and search, keeping the remaining panes in the URL", () => {
+		useOutlineStore.setState({
+			panes: [pane(B, FULL_ID, "#todo"), pane(C, null, "")],
+			mainPaneUrlId: "AAAAAAAAAAA",
+		});
+		const navigate = vi.fn<(to: string) => void>();
+		closeMainPane(navigate);
+		const {zoomedNodeId, panes, mainPaneUrlId} = useOutlineStore.getState();
+		expect({urls: navigate.mock.calls, zoomedNodeId, panes: panes.map((p) => p.id), mainPaneUrlId}).toStrictEqual({
+			urls: [
+				[
+					`/#/35035d443bf1?q=%23todo&panes=${encodeURIComponent(encodeWorkspace({mainPaneId: B, panes: [{paneId: C, location: null}]}) ?? "")}`,
+				],
+			],
+			zoomedNodeId: FULL_ID,
+			panes: [C],
+			mainPaneUrlId: B,
+		});
+	});
+
+	it("returns to the single document when the only pane becomes the main outline", () => {
+		useOutlineStore.setState({panes: [pane(B, FULL_ID, "")], mainPaneUrlId: "AAAAAAAAAAA"});
+		const navigate = vi.fn<(to: string) => void>();
+		closeMainPane(navigate);
+		expect(navigate.mock.calls).toStrictEqual([["/#/35035d443bf1"]]);
+	});
+
+	it("does nothing with no pane open", () => {
+		useOutlineStore.setState({panes: [], mainPaneUrlId: null});
+		const navigate = vi.fn<(to: string) => void>();
+		closeMainPane(navigate);
+		expect(navigate.mock.calls).toStrictEqual([]);
 	});
 });
 
@@ -212,8 +289,8 @@ describe("navigateToSearch", () => {
 			nav: initialNavState,
 			zoomedNodeId: FULL_ID,
 			urlSearchQuery: null,
-			sidePane: null,
-			paneUrlIds: null,
+			panes: [],
+			mainPaneUrlId: null,
 		});
 	});
 
