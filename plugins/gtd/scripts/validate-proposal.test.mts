@@ -120,6 +120,24 @@ test("accepts a name update op carrying --expect-name", () => {
 	assert.deepStrictEqual(result, {valid: true, errors: []});
 });
 
+test("accepts a node create op, which has no prior name to guard with --expect-name", () => {
+	const result = validateProposal(
+		staged({
+			task: "workout-guess",
+			proposals: [
+				proposal({
+					before: "",
+					applyOps: [
+						"./bin/run.js node create --parent-id 11111111-2222-3333-4444-555555555555 --name '💪 #ProgramX week 1, day 2, Legs #exercise' --position bottom",
+					],
+				}),
+			],
+		}),
+	);
+
+	assert.deepStrictEqual(result, {valid: true, errors: []});
+});
+
 test("requires proposals[] to be empty unless status is ready", () => {
 	const result = validateProposal(staged({status: "empty"}));
 

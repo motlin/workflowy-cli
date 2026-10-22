@@ -121,7 +121,13 @@ const validateProposalEntry = (task: unknown, entry: JsonObject, index: number, 
 
 	const ops: unknown[] = Array.isArray(entry.applyOps) ? entry.applyOps : [];
 	for (const [opIndex, op] of ops.entries()) {
-		if (typeof op === "string" && op.includes("--name") && !op.includes("--expect-name")) {
+		// Only an update overwrites an existing name; a `node create --name` has nothing to guard.
+		if (
+			typeof op === "string" &&
+			/\bnode update\b/u.test(op) &&
+			op.includes("--name") &&
+			!op.includes("--expect-name")
+		) {
 			errors.push(`proposals[${index}]: applyOps[${opIndex}] updates --name without --expect-name`);
 			return;
 		}
