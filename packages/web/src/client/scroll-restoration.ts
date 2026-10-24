@@ -81,7 +81,8 @@ export function installScrollRestoration(win: ScrollWindow): () => void {
 		locationPositions.set(hashLocationKey(win.location.hash), win.scrollY);
 	};
 	const oweEntryScroll = () => {
-		oweScroll(win, positions.get(entryKey(win)) ?? 0);
+		// Upstream keys the view state by location: the location's last scroll wins over this entry's own.
+		oweScroll(win, locationPositions.get(hashLocationKey(win.location.hash)) ?? positions.get(entryKey(win)) ?? 0);
 	};
 	// A reload returns to its entry's scroll once the page's first view shows, as the browser's restoration did.
 	if (positions.has(entryKey(win))) {

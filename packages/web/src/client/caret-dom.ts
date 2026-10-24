@@ -94,6 +94,22 @@ export function selectionTextOffsets(element: HTMLElement): {start: number; end:
 	};
 }
 
+/**
+ * The selection's plain-text range within `element` with its direction (`reversed` when the focus is before the
+ * anchor); a caret at the end when the selection lies outside it.
+ */
+export function selectionTextRange(element: HTMLElement): {start: number; end: number; reversed: boolean} {
+	const selection = globalThis.getSelection();
+	const length = textUnitLength(element);
+	const {anchorNode, focusNode} = selection ?? {};
+	if (!selection || !anchorNode || !focusNode || !element.contains(anchorNode) || !element.contains(focusNode)) {
+		return {start: length, end: length, reversed: false};
+	}
+	const anchor = unitsBefore(element, anchorNode, selection.anchorOffset);
+	const focus = unitsBefore(element, focusNode, selection.focusOffset);
+	return {...orderOffsets(anchor, focus), reversed: focus < anchor};
+}
+
 /** Raw index in `text` after `units` non-guard characters, or null when it has fewer. */
 function rawIndex(text: string, units: number): number | null {
 	let remaining = units;
@@ -166,7 +182,7 @@ function rangeAtTextOffset(element: HTMLElement, offset: number): Range {
 }
 
 /** Select plain-text units `start`..`end` of `element` (either order), each clamped to its end. */
-export function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number): void {
+export function placeSelectionAtTextOffsets(element: HTMLElement, start: number, end: number, reversed = false): void {
 	const ordered = orderOffsets(start, end);
 	const range = rangeAtTextOffset(element, ordered.start);
 	if (ordered.end !== ordered.start) {
@@ -176,6 +192,9 @@ export function placeSelectionAtTextOffsets(element: HTMLElement, start: number,
 	const selection = globalThis.getSelection();
 	selection?.removeAllRanges();
 	selection?.addRange(range);
+	if (reversed && ordered.end !== ordered.start) {
+		selection?.setBaseAndExtent(range.endContainer, range.endOffset, range.startContainer, range.startOffset);
+	}
 }
 
 /** Collapse the selection to `offset` plain-text units into `element`, clamped to its end. */

@@ -24,6 +24,7 @@ import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from ".
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
 import {useOutlineViewPending} from "../hooks/use-outline-view.js";
 import {restorePoppedScroll} from "../scroll-restoration.js";
+import {restoreShownView} from "../view-restore.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -696,8 +697,9 @@ export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTree
 	useLayoutEffect(() => {
 		if (scrollsWindow && !shownLoading) {
 			restorePoppedScroll(parentId);
+			restoreShownView(queryClient, parentId);
 		}
-	}, [parentId, scrollsWindow, shownLoading]);
+	}, [parentId, queryClient, scrollsWindow, shownLoading]);
 	const showsAddChild = shouldRenderAddChildButton(usePaneSearchQuery());
 
 	const createNode = useCreateNode();

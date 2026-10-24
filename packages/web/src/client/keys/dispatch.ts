@@ -54,25 +54,26 @@ export function presentCommand(deps: {open: (nodeId: string) => void; expand: (n
 
 export type ComboResult = "claimed" | "unclaimed";
 
-/** Local-only bindings kept until the user decides: in-app history on ⌘[ / ⌘] (upstream binds it only in Electron). */
-const LOCAL_HOTKEYS = [
-	["meta+[", "navigate_backward"],
-	["meta+]", "navigate_forward"],
-] as const;
+/**
+ * Upstream's panes listener: while panes are open it claims Back/Forward (⌘[ / ⌘] on mac, ⌥← / ⌥→ elsewhere) to step the
+ * active pane's history. With no pane open the browser's own Back/Forward runs (the table binds them only in Electron).
+ */
+function paneHistoryCommand(combo: string, isMac: boolean): string | undefined {
+	const back = isMac ? "meta+[" : "alt+left";
+	const forward = isMac ? "meta+]" : "alt+right";
+	if (combo === back) {
+		return "navigate_backward";
+	}
+	return combo === forward ? "navigate_forward" : undefined;
+}
 
 const tables = new Map<boolean, ReadonlyMap<string, string>>();
 
-/** The combo-to-command table for the current browser, with its mac flag overridden, plus the local extras. */
+/** The combo-to-command table for the current browser, with its mac flag overridden. */
 export function hotkeyTable(isMac: boolean): ReadonlyMap<string, string> {
 	let table = tables.get(isMac);
 	if (table === undefined) {
-		const map = new Map(buildHotkeys({...currentPlatform(), mac: isMac}));
-		for (const [combo, command] of LOCAL_HOTKEYS) {
-			if (!map.has(combo)) {
-				map.set(combo, command);
-			}
-		}
-		table = map;
+		table = new Map(buildHotkeys({...currentPlatform(), mac: isMac}));
 		tables.set(isMac, table);
 	}
 	return table;
@@ -97,8 +98,9 @@ export function processCombo(
 	ctx: CommandContext,
 	isMac: boolean,
 	table: ReadonlyMap<string, string> = hotkeyTable(isMac),
+	panesOpen = false,
 ): ComboResult {
-	const commandId = table.get(combo);
+	const commandId = table.get(combo) ?? (panesOpen ? paneHistoryCommand(combo, isMac) : undefined);
 	if (commandId === undefined) {
 		return "unclaimed";
 	}

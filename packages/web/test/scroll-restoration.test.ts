@@ -97,6 +97,21 @@ describe("scroll restoration", () => {
 		expect(win.scrolls).toStrictEqual([300, 0]);
 	});
 
+	it("restores a popped entry to its location's last scroll, not the entry's own", () => {
+		const win = new FakeWindow();
+		const uninstall = installScrollRestoration(win);
+		win.push("k1", "#/aaaaaaaaaaaa");
+		win.scroll(500);
+		win.push("k2", "#/bbbbbbbbbbbb");
+		win.push("k3", "#/aaaaaaaaaaaa");
+		win.scroll(200);
+		win.push("k4", "#/bbbbbbbbbbbb");
+		win.pop("k1", "#/aaaaaaaaaaaa");
+		const scrollY = poppedScrollY(ALICE, win);
+		uninstall();
+		expect(scrollY).toBe(200);
+	});
+
 	it("scrolls an entry it never saw to the top", () => {
 		const {win, uninstall} = scrolledAliceThenBob();
 		win.scroll(500);

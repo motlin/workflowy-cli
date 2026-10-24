@@ -5,6 +5,7 @@ import {isMacPlatform} from "../editable-text-keys.js";
 import {RESOLVED_ID_STALE_TIME, nodeKeys} from "../node-cache.js";
 import {openInPane} from "../pane-commands.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
+import {oweViewRestoreForHash} from "../view-state.js";
 import {useOutlineStore} from "../stores/outline.js";
 
 /**
@@ -24,6 +25,15 @@ export function useContentLinkClicks(resolveId: (locationId: string) => Promise<
 			const sourcePaneId = link.closest("[data-pane-id]")?.getAttribute("data-pane-id") ?? MAIN_PANE_ID;
 			const action = contentLinkAction(event, isMacPlatform(), sourcePaneId !== MAIN_PANE_ID);
 			const locationId = internalLinkId(href, globalThis.location.origin);
+			if (
+				action === null &&
+				locationId !== null &&
+				event.button === 0 &&
+				!(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+			) {
+				// A plain click in the main outline follows the href through the router, which restores the view (upstream `VL`).
+				oweViewRestoreForHash(new URL(href, globalThis.location.origin).hash);
+			}
 			if (action === null || locationId === null) {
 				return;
 			}

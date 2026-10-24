@@ -13,6 +13,7 @@ import {
 	stepMainPaneHistory,
 } from "../nav-stack.js";
 import type {Loc, MainPaneHistory, NavAction, NavState} from "../nav-stack.js";
+import {captureViewState} from "../view-state-capture.js";
 import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
@@ -33,7 +34,7 @@ const THEME_STORAGE_KEY = "workflowy-theme";
 export type Theme = "light" | "dark" | "system";
 
 /** A router push, e.g. react-router's `navigate`. */
-export type NavigateFn = (to: string) => unknown;
+export type NavigateFn = (to: string, options?: {replace?: boolean; state?: unknown}) => unknown;
 
 type SettingsSection = "Dates";
 
@@ -950,8 +951,12 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	dispatchNav: (action) => {
 		const {nav, appMessage, hideAppMessage, panes, mainPaneHistory} = get();
 		const next = navReducer(nav, action);
+		if (action.type !== "popstate" && action.type !== "replace" && !locEquals(nav.current, next.current)) {
+			captureViewState(nav.current, get());
+		}
 		// Upstream remembers main pane moves on `location.change.before` while panes are open, Back/Forward included.
-		const remember = panes.length > 0 && (action.type === "navigate" || action.type === "popstate");
+		const remember =
+			panes.length > 0 && (action.type === "navigate" || action.type === "popstate" || action.type === "replace");
 		set({
 			nav: next,
 			mainPaneHistory: remember
@@ -970,6 +975,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		if (step === null) {
 			return null;
 		}
+		captureViewState(nav.current, get());
 		set({mainPaneHistory: step.history, nav: navReducer(nav, {type: "navigate", loc: step.target})});
 		if (appMessage !== null) {
 			hideAppMessage();
@@ -1290,8 +1296,16 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	pushSearchLocation: (query, navigate) => {
 		const {zoomedNodeId, dispatchNav, panes, mainPaneUrlId} = get();
 		const q = query === "" ? null : query;
-		dispatchNav({type: "navigate", loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q}});
-		void navigate(locationUrl({id: zoomedNodeId, query: q, fragments: workspaceFragments(panes, mainPaneUrlId)}));
+		// Upstream replaces the entry while panes are open and leaves the app stacks alone.
+		const replace = panes.length > 0;
+		dispatchNav({
+			type: replace ? "replace" : "navigate",
+			loc: {id: zoomedNodeId === null ? null : shortId(zoomedNodeId), query: q},
+		});
+		void navigate(
+			locationUrl({id: zoomedNodeId, query: q, fragments: workspaceFragments(panes, mainPaneUrlId)}),
+			...(replace ? [{replace: true}] : []),
+		);
 	},
 
 	commitSearch: (query, navigate) => {

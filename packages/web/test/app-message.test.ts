@@ -20,7 +20,10 @@ function stubGlobals(): void {
 	vi.stubGlobal("localStorage", {getItem: () => null, setItem: () => {}, removeItem: () => {}});
 	vi.stubGlobal("innerWidth", 1272);
 	vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}}));
-	vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
+	vi.stubGlobal("document", {
+		documentElement: {dataset: {}},
+		body: {classList: {toggle: () => true, contains: () => false}},
+	});
 	vi.stubGlobal("addEventListener", () => {});
 }
 

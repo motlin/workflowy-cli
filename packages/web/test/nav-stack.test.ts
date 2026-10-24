@@ -75,6 +75,15 @@ describe("navReducer", () => {
 		});
 	});
 
+	it("replace sets current without touching the stacks", () => {
+		const before = navReducer(navigateAll(["a", "b", "c"]), {type: "back"});
+		expect(navReducer(before, {type: "replace", loc: loc("x")})).toStrictEqual({
+			current: loc("x"),
+			back: [loc("a")],
+			forward: [loc("c")],
+		});
+	});
+
 	it("back and forward on empty stacks return the same object", () => {
 		const state = navigateAll(["a"]);
 		expect(navReducer(state, {type: "back"})).toBe(state);

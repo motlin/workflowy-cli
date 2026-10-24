@@ -86,7 +86,7 @@ export function useGlobalKeymap(registry: CommandRegistry): void {
 					: commandTargets(itemSelection, () => currentSelectionView(queryClient).tree, editingId),
 				zoomedId: activeZoomedId(state),
 			};
-			if (processCombo(combo, registryRef.current, ctx, isMac) === "claimed") {
+			if (processCombo(combo, registryRef.current, ctx, isMac, undefined, state.panes.length > 0) === "claimed") {
 				event.preventDefault();
 			}
 		};

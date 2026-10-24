@@ -6,7 +6,7 @@ import {useStableNavigate} from "./hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../node-types.js";
 import {useDeleteNode} from "./hooks/use-nodes.js";
 import {afterNextPaint} from "./after-paint.js";
-import {caretTextOffset, editorElement} from "./caret-dom.js";
+import {caretTextOffset, editorElement, rowContent} from "./caret-dom.js";
 import {locationUrl, parseLocationHash, shortId} from "./location.js";
 import {readChildren, readNode} from "./node-cache.js";
 import {locFromHash} from "./nav-stack.js";
@@ -17,6 +17,7 @@ import type {NavigateFn} from "./stores/outline.js";
 import {zoomWhenViewReady} from "./zoom-gate.js";
 import {focusQuietlyNext} from "./quiet-focus.js";
 import {oweAppStepScroll} from "./scroll-restoration.js";
+import {dropViewRestore, oweViewRestore} from "./view-state.js";
 
 /**
  * The client URL for a node view: upstream's `/#/<last 12 chars of uuid>`.
@@ -150,7 +151,8 @@ function holdEditingAcrossSwap(): void {
 	void (async () => {
 		await afterNextPaint();
 		const state = useOutlineStore.getState();
-		if (state.editingId === null) {
+		// A row the new view does not show is not resumed: the store would say "editing" with focus on BODY.
+		if (state.editingId === null && rowContent(editingId) !== null) {
 			focusQuietlyNext(editingId);
 			state.resumeEditing(editingId, offset);
 		}
@@ -163,16 +165,26 @@ function holdEditingAcrossSwap(): void {
  * frame as the click, and keeping the `panes` param spares the pane sync a second, replacing navigation. A view the
  * cache lacks holds the zoom until it loads (`zoomWhenViewReady`), so it swaps whole like a cached one.
  */
-export function goToNode(navigate: NavigateFn, nodeId: string | null, query: string | null = null): void {
+export function goToNode(
+	navigate: NavigateFn,
+	nodeId: string | null,
+	query: string | null = null,
+	/** A pane open/close/move promoted this location: it pushes like a navigation, as upstream's workspace edits do. */
+	structural = false,
+): void {
 	const {dispatchNav, zoom, panes, mainPaneUrlId} = useOutlineStore.getState();
-	dispatchNav({type: "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query}});
+	dropViewRestore();
+	// Upstream replaces the entry while panes are open and leaves the app stacks alone.
+	const replace = panes.length > 0 && !structural;
+	dispatchNav({type: replace ? "replace" : "navigate", loc: {id: nodeId === null ? null : shortId(nodeId), query}});
 	zoomWhenViewReady(nodeId, () => {
 		if (nodeId !== useOutlineStore.getState().zoomedNodeId) {
 			holdEditingAcrossSwap();
 		}
 		zoom(nodeId);
 	});
-	void navigate(locationUrl({id: nodeId, query, fragments: workspaceFragments(panes, mainPaneUrlId)}));
+	const url = locationUrl({id: nodeId, query, fragments: workspaceFragments(panes, mainPaneUrlId)});
+	void (replace ? navigate(url, {replace: true}) : navigate(url));
 }
 
 /**
@@ -182,7 +194,7 @@ export function goToNode(navigate: NavigateFn, nodeId: string | null, query: str
 export function closeMainPane(navigate: NavigateFn): void {
 	const promoted = useOutlineStore.getState().closeMainPane();
 	if (promoted !== null) {
-		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query);
+		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query, true);
 	}
 }
 
@@ -194,7 +206,7 @@ export function closeMainPane(navigate: NavigateFn): void {
 export function movePane(navigate: NavigateFn, paneId: string, index: number): void {
 	const promoted = useOutlineStore.getState().movePane(paneId, index)?.promoted ?? null;
 	if (promoted !== null) {
-		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query);
+		goToNode(navigate, promoted.zoomedId, promoted.query === "" ? null : promoted.query, true);
 	}
 }
 
@@ -255,6 +267,7 @@ export function stepNav(
 		if (panes.length === 0) {
 			oweAppStepScroll(target);
 		}
+		oweViewRestore(target);
 		zoomToCachedId(target.id, resolve);
 		void navigate(locationUrl({...target, fragments: workspaceFragments(panes, mainPaneUrlId)}));
 	}
@@ -263,11 +276,13 @@ export function stepNav(
 /**
  * Fold a router location change into the stacks: browser Back/Forward (`isPop`)
  * sets the current location only; anything else (a link click) is a navigation,
- * deduped against the URL the app itself just pushed.
+ * deduped against the URL the app itself just pushed. A replaced entry, or the push of the canonical URL for an unknown
+ * id, sets the current location only, as upstream's `replaceState` and root fallback leave the stacks alone.
  */
-export function syncNavLocation(hash: string, isPop: boolean): void {
+export function syncNavLocation(hash: string, isPop: boolean, isReplace = false): void {
 	const loc = locFromHash(hash);
-	useOutlineStore.getState().dispatchNav(isPop ? {type: "popstate", loc} : {type: "navigate", loc});
+	const type = isReplace ? "replace" : isPop ? "popstate" : "navigate";
+	useOutlineStore.getState().dispatchNav({type, loc});
 }
 
 export interface EmptyDayCleanupDeps {
@@ -323,7 +338,14 @@ export function useNavStackSync(): void {
 
 	useEffect(() => {
 		if (location.pathname === "/") {
-			syncNavLocation(location.hash, navigationType === NavigationType.Pop);
+			const state: unknown = location.state;
+			const canonical =
+				typeof state === "object" && state !== null && "wfCanonical" in state && state.wfCanonical === true;
+			syncNavLocation(
+				location.hash,
+				navigationType === NavigationType.Pop,
+				canonical || navigationType === NavigationType.Replace,
+			);
 		}
 	}, [location, navigationType]);
 }

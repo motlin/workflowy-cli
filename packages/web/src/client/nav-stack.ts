@@ -17,7 +17,8 @@ export type NavAction =
 	| {type: "navigate"; loc: Loc}
 	| {type: "back"}
 	| {type: "forward"}
-	| {type: "popstate"; loc: Loc};
+	| {type: "popstate"; loc: Loc}
+	| {type: "replace"; loc: Loc};
 
 export const BACK_STACK_CAP = 100;
 
@@ -39,7 +40,7 @@ function pushCapped(stack: Loc[], loc: Loc | null): Loc[] {
 /**
  * `navigate` pushes the current location onto `back` and clears `forward` (no-op
  * when already there); `back`/`forward` move one step between the stacks;
- * `popstate` (browser Back/Forward) sets the current location only.
+ * `popstate` (browser Back/Forward) and `replace` (a replaced history entry) set the current location only.
  */
 export function navReducer(state: NavState, action: NavAction): NavState {
 	switch (action.type) {
@@ -63,7 +64,8 @@ export function navReducer(state: NavState, action: NavAction): NavState {
 			}
 			return {current: target, back: pushCapped(state.back, state.current), forward: state.forward.slice(0, -1)};
 		}
-		case "popstate": {
+		case "popstate":
+		case "replace": {
 			break;
 		}
 	}

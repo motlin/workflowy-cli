@@ -4,7 +4,10 @@ import type {ScrollWindow} from "../src/client/scroll-restoration.js";
 
 vi.stubGlobal("localStorage", {getItem: () => null, setItem: () => {}});
 vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}}));
-vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
+vi.stubGlobal("document", {
+	documentElement: {dataset: {}},
+	body: {classList: {toggle: () => true, contains: () => false}},
+});
 vi.stubGlobal("addEventListener", () => {});
 
 const {
@@ -213,7 +216,7 @@ describe("goToNode in one frame", () => {
 		const navigate = vi.fn<(to: string) => void>();
 		goToNode(navigate, A);
 		expect(navigate.mock.calls).toStrictEqual([
-			[`/#/aaaaaaaaaaaa?panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`],
+			[`/#/aaaaaaaaaaaa?panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`, {replace: true}],
 		]);
 	});
 
@@ -253,10 +256,10 @@ describe("goToNode in one frame", () => {
 			],
 			mainPaneUrlId: "AAAAAAAAAAA",
 		});
-		const navigate = vi.fn<(to: string) => void>();
+		const navigate = vi.fn<(to: string, options?: {replace?: boolean}) => void>();
 		navigateToSearch(navigate, "x");
 		expect(navigate.mock.calls).toStrictEqual([
-			[`/#/aaaaaaaaaaaa?q=x&panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`],
+			[`/#/aaaaaaaaaaaa?q=x&panes=${encodeURIComponent(encodeWorkspace(ws) ?? "")}`, {replace: true}],
 		]);
 	});
 });
@@ -304,6 +307,30 @@ describe("main pane history while panes are open", () => {
 		expect({urls: navigate.mock.calls, history: useOutlineStore.getState().mainPaneHistory}).toStrictEqual({
 			urls: [],
 			history: {back: [], forward: []},
+		});
+	});
+
+	it("goToNode replaces the entry and leaves the app stacks alone while a pane is open", () => {
+		const X = {id: "cccccccccccc", query: null};
+		useOutlineStore.setState({nav: {current: {id: "aaaaaaaaaaaa", query: null}, back: [X], forward: []}});
+		openPane();
+		const navigate = vi.fn<(to: string, options?: {replace?: boolean}) => void>();
+		goToNode(navigate, "bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb");
+		const {nav, mainPaneHistory} = useOutlineStore.getState();
+		expect({nav, mainPaneHistory, calls: navigate.mock.calls.map(([, options]) => options)}).toStrictEqual({
+			nav: {current: {id: "bbbbbbbbbbbb", query: null}, back: [X], forward: []},
+			mainPaneHistory: {back: [{id: "aaaaaaaaaaaa", query: null}], forward: []},
+			calls: [{replace: true}],
+		});
+	});
+
+	it("goToNode still pushes with no pane open", () => {
+		const navigate = vi.fn<(to: string, options?: {replace?: boolean}) => void>();
+		useOutlineStore.setState({nav: {current: {id: "aaaaaaaaaaaa", query: null}, back: [], forward: []}});
+		goToNode(navigate, "bbbbbbbb-0000-0000-0000-bbbbbbbbbbbb");
+		expect({calls: navigate.mock.calls, back: useOutlineStore.getState().nav.back}).toStrictEqual({
+			calls: [["/#/bbbbbbbbbbbb"]],
+			back: [{id: "aaaaaaaaaaaa", query: null}],
 		});
 	});
 
@@ -580,5 +607,26 @@ describe("zoomToCachedLocation", () => {
 		zoomToCachedLocation("#/cccccccccccc", resolve);
 		zoomed.push(useOutlineStore.getState().zoomedNodeId);
 		expect(zoomed).toStrictEqual([A, null, null]);
+	});
+});
+
+describe("the unknown-id redirect", () => {
+	const home = {id: null, query: null};
+	const a = {id: "aaaaaaaaaaaa", query: null};
+	const b = {id: "bbbbbbbbbbbb", query: null};
+	const dead = {id: "deaddeaddead", query: null};
+
+	it("does not record the dead location on a page load that redirects home", () => {
+		useOutlineStore.setState({nav: initialNavState});
+		syncNavLocation("#/deaddeaddead", true);
+		syncNavLocation("", false, true);
+		expect(useOutlineStore.getState().nav).toStrictEqual({current: home, back: [], forward: []});
+	});
+
+	it("does not loop Back through the dead location", () => {
+		useOutlineStore.setState({nav: {current: b, back: [a, dead], forward: []}});
+		useOutlineStore.getState().dispatchNav({type: "back"});
+		syncNavLocation("", false, true);
+		expect(useOutlineStore.getState().nav).toStrictEqual({current: home, back: [a], forward: [b]});
 	});
 });

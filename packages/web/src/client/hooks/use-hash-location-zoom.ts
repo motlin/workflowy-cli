@@ -9,6 +9,9 @@ import {PANES_FRAGMENT} from "../pane-url.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {setZoomViewLoader, zoomWhenViewReady} from "../zoom-gate.js";
+import {oweViewRestoreForHash} from "../view-state.js";
+import {captureViewState} from "../view-state-capture.js";
+import {restoreShownView} from "../view-restore.js";
 import {installScrollRestoration, restorePoppedScroll} from "../scroll-restoration.js";
 import {loadMainZoomView, mainZoomViewCached} from "./use-outline-view.js";
 
@@ -69,10 +72,15 @@ export function useHashLocationZoom(): void {
 		const uninstallScroll = installScrollRestoration(globalThis.window);
 		const zoomFromHistory = () => {
 			const shown = useOutlineStore.getState().zoomedNodeId;
+			// Upstream saves the view as a location is left; popstate leaves the stacks alone, so `nav.current` is the one left.
+			const {nav, editingId, editingNoteId} = useOutlineStore.getState();
+			captureViewState(nav.current, {editingId, editingNoteId});
+			oweViewRestoreForHash(globalThis.location.hash);
 			zoomToCachedLocation(globalThis.location.hash, (locationId) => cachedResolvedId(queryClient, locationId));
 			// An entry on the shown view swaps nothing, so its scroll restores now; a swap restores it in its own commit.
 			if (useOutlineStore.getState().zoomedNodeId === shown) {
 				restorePoppedScroll(shown);
+				restoreShownView(queryClient, shown);
 			}
 		};
 		globalThis.addEventListener("popstate", zoomFromHistory);
@@ -85,7 +93,7 @@ export function useHashLocationZoom(): void {
 	useLayoutEffect(() => {
 		if (unknown) {
 			zoom(null);
-			void navigate("/");
+			void navigate("/", {state: {wfCanonical: true}});
 			return;
 		}
 		if (target === null) {

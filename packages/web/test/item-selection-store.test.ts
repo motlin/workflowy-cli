@@ -5,7 +5,10 @@ import type {SelectionState} from "../src/client/item-selection.js";
 vi.stubGlobal("localStorage", {getItem: () => null, setItem: () => {}, removeItem: () => {}});
 vi.stubGlobal("innerWidth", 1272);
 vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}}));
-vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
+vi.stubGlobal("document", {
+	documentElement: {dataset: {}},
+	body: {classList: {toggle: () => true, contains: () => false}},
+});
 vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");

@@ -3,7 +3,10 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 vi.stubGlobal("localStorage", {getItem: () => null, setItem: () => {}});
 vi.stubGlobal("innerWidth", 1272);
 vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}}));
-vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
+vi.stubGlobal("document", {
+	documentElement: {dataset: {}},
+	body: {classList: {toggle: () => true, contains: () => false}},
+});
 vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");

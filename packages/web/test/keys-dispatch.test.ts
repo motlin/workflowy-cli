@@ -11,6 +11,7 @@ import {
 	processCombo,
 	processSelectionKey,
 } from "../src/client/keys/dispatch.js";
+import {buildHotkeys, currentPlatform} from "../src/client/keys/keymap.js";
 import type {CommandContext, SelectionKeyEvent} from "../src/client/keys/dispatch.js";
 import type {SelectionKeyAction} from "../src/client/item-selection.js";
 
@@ -65,17 +66,37 @@ describe("processCombo", () => {
 		expect(processCombo("meta+q", {}, ctx, true)).toBe("unclaimed");
 	});
 
-	it("dispatches the local history bindings upstream only has in Electron", () => {
+	it("leaves Back/Forward to the browser with no pane open, and claims them while panes are open", () => {
 		const back = vi.fn<(ctx: CommandContext) => void>();
 		const forward = vi.fn<(ctx: CommandContext) => void>();
 		const registry = {
 			navigate_backward: {execute: back},
 			navigate_forward: {execute: forward},
 		};
+		const run = (combo: string, isMac: boolean, panesOpen: boolean) =>
+			processCombo(combo, registry, ctx, isMac, hotkeyTable(isMac), panesOpen);
 		expect({
-			results: ["meta+[", "meta+]"].map((combo) => processCombo(combo, registry, ctx, true)),
+			closed: [run("meta+[", true, false), run("meta+]", true, false), run("alt+left", false, false)],
+			open: [
+				run("meta+[", true, true),
+				run("meta+]", true, true),
+				run("alt+left", false, true),
+				run("alt+right", false, true),
+			],
+			offMacCmd: run("meta+[", false, true),
 			calls: [back.mock.calls.length, forward.mock.calls.length],
-		}).toStrictEqual({results: ["claimed", "claimed"], calls: [1, 1]});
+		}).toStrictEqual({
+			closed: ["unclaimed", "unclaimed", "unclaimed"],
+			open: ["claimed", "claimed", "claimed", "claimed"],
+			offMacCmd: "unclaimed",
+			calls: [2, 2],
+		});
+	});
+
+	it("keeps the Electron table's claim of an unavailable Back", () => {
+		const electron = new Map(buildHotkeys({...currentPlatform(), mac: true, electron: true}));
+		const registry = {navigate_backward: {available: () => false, execute: vi.fn<() => void>()}};
+		expect(processCombo("meta+[", registry, ctx, true, electron)).toBe("claimed");
 	});
 
 	it("toggles the right bar on meta+/ only, leaving meta+shift+/ to the browser", () => {
@@ -105,14 +126,13 @@ describe("processCombo", () => {
 });
 
 describe("hotkeyTable", () => {
-	it("maps the platform's upstream combos plus the local extras", () => {
+	it("maps the platform's upstream combos", () => {
 		const table = hotkeyTable(true);
 		expect({
 			save: table.get("meta+s"),
 			zoomIn: table.get("meta+."),
 			today: table.get("ctrl+t"),
 			back: table.get("meta+["),
-			forward: table.get("meta+]"),
 			help: table.get("meta+/"),
 			shiftHelp: table.get("meta+shift+/"),
 			quit: table.get("meta+q"),
@@ -120,8 +140,7 @@ describe("hotkeyTable", () => {
 			save: "save_and_sync",
 			zoomIn: "zoom_in",
 			today: "navigate_to_today",
-			back: "navigate_backward",
-			forward: "navigate_forward",
+			back: undefined,
 			help: "toggle_rightbar",
 			shiftHelp: undefined,
 			quit: undefined,
