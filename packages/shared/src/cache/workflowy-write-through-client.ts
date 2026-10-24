@@ -332,11 +332,13 @@ export class WorkflowyWriteThroughClient {
 	}
 
 	/**
-	 * Mark a node as completed and update the cache.
-	 * @param nodeId The node ID to complete
-	 * @returns The completed node
+	 * Mark a node as completed and update the cache. A mirror's completion is its
+	 * original's, so completing a mirror completes the original.
+	 * @param requestedId The node ID to complete
+	 * @returns The completed node (the original, for a mirror)
 	 */
-	async completeNode(nodeId: string): Promise<WorkflowyNode> {
+	async completeNode(requestedId: string): Promise<WorkflowyNode> {
+		const nodeId = this.resolveUpdateTarget(requestedId);
 		await this.apiClient.completeNode(nodeId);
 		// Fetch fresh node data from API to update cache correctly
 		const completedNode = await this.apiClient.getNode(nodeId);
@@ -348,11 +350,13 @@ export class WorkflowyWriteThroughClient {
 	}
 
 	/**
-	 * Mark a node as not completed and update the cache.
-	 * @param nodeId The node ID to uncomplete
-	 * @returns The uncompleted node
+	 * Mark a node as not completed and update the cache. Uncompleting a mirror
+	 * uncompletes its original.
+	 * @param requestedId The node ID to uncomplete
+	 * @returns The uncompleted node (the original, for a mirror)
 	 */
-	async uncompleteNode(nodeId: string): Promise<WorkflowyNode> {
+	async uncompleteNode(requestedId: string): Promise<WorkflowyNode> {
+		const nodeId = this.resolveUpdateTarget(requestedId);
 		await this.apiClient.uncompleteNode(nodeId);
 		// Fetch fresh node data from API to update cache correctly
 		const uncompletedNode = await this.apiClient.getNode(nodeId);

@@ -26,6 +26,7 @@ import {
 	invalidateSaveEffects,
 	nodeKeys,
 	patchCachedNode,
+	cachedCopyParentIds,
 	patchMirrors,
 	readNode,
 	snapshotCachedNode,
@@ -1050,19 +1051,26 @@ function toggleCompleteOptions(queryClient: QueryClient) {
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const now = Math.floor(Date.now() / 1000);
 			const completedAt = isCurrentlyCompleted ? null : now;
+			// A mirror's completion is its original's: the write goes to the original, so the original and
+			// every rendered mirror change together.
+			const originalId = readNode(queryClient, nodeId)?.originalNodeId ?? nodeId;
+			const parentIds = cachedCopyParentIds(queryClient, originalId);
 			const parentId = readNode(queryClient, nodeId)?.parent_id ?? null;
-			// Every cached copy of the row, then its parent's flags: completing the last open child makes it a done parent.
+			const complete = (node: NodeResponse): NodeResponse => ({...node, completedAt, modifiedAt: now});
+			// Every cached copy of the row, then each copy's parent flags: completing the last open child makes it a done parent.
 			return notifyManager.batch(() => {
-				const restoreRow = patchCachedNode(queryClient, nodeId, (node) => ({
-					...node,
-					completedAt,
-					modifiedAt: now,
-				}));
-				const restoreFlags = syncParentFlags(queryClient, parentId);
+				const restoreRow = patchCachedNode(queryClient, originalId, complete);
+				const restoreMirrors = patchMirrors(queryClient, originalId, complete);
+				const restoreFlags = parentIds.map((id) => syncParentFlags(queryClient, id));
 				return {
 					parentId,
+					originalId,
+					parentIds,
 					restore() {
-						restoreFlags();
+						for (const restoreParent of restoreFlags.toReversed()) {
+							restoreParent();
+						}
+						restoreMirrors();
 						restoreRow();
 					},
 				};
@@ -1082,7 +1090,7 @@ function toggleCompleteOptions(queryClient: QueryClient) {
 				verifyAgainstServer(
 					queryClient,
 					"complete",
-					affectedKeys(queryClient, [variables.nodeId], [context.parentId]),
+					affectedKeys(queryClient, [variables.nodeId, context.originalId], context.parentIds),
 				);
 			}
 			// Refetch to get the real data from server

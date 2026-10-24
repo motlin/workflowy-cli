@@ -145,6 +145,23 @@ describe("loadTreeSearchRows", () => {
 		);
 	});
 
+	it("reads a mirror's completion from its original and ignores the mirror's own completedAt", () => {
+		const db = setup();
+		const completionOf = () =>
+			loadTreeSearchRows(db, "root").find((row) => row.id === "mirror")?.completedAt ?? null;
+		const initial = completionOf();
+		rewriteMetadata(db, "mirror", {completedAt: COMPLETED});
+		const staleOwn = completionOf();
+		rewriteMetadata(db, "other", {completedAt: COMPLETED});
+		const originalDone = completionOf();
+
+		expect({initial, staleOwn, originalDone}).toStrictEqual({
+			initial: null,
+			staleOwn: null,
+			originalDone: COMPLETED.getTime(),
+		});
+	});
+
 	it("loads every live row when rootId is null", () => {
 		const ids = loadTreeSearchRows(setup(), null).map((row) => row.id);
 		expect(new Set(ids)).toStrictEqual(new Set(["a", "a1", "mirror", "other", "root"]));

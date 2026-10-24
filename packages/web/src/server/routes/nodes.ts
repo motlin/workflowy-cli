@@ -11,7 +11,7 @@ import type {
 	SaveEffects,
 	UpdateNodeResponse,
 } from "../../node-types.js";
-import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient} from "@workflowy/shared/cache";
+import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient, effectiveCompletedAt} from "@workflowy/shared/cache";
 import type {ExactMover} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
@@ -803,6 +803,13 @@ nodesRouter.post("/:id/complete", async (c) => {
 
 	const completedNode = await client.completeNode(id);
 
+	// Answer the requested row from the cache: a mirror keeps its own id and parent and
+	// carries its original's completion.
+	const cached = await readNodeDto(ctx, id);
+	if (cached) {
+		return c.json({node: cached});
+	}
+
 	// Return in Workflowy response format
 	const nodeResponse: NodeResponse = {
 		id: completedNode.id,
@@ -837,7 +844,11 @@ interface SubtreeItem {
 /** Every current node's parent and completion in sibling order, plus each mirror's original, in two queries. */
 function readTreeShape(ctx: ServerContext) {
 	const rows = ctx.db
-		.select({id: nodeContent.id, parentId: nodeContent.parentId, completedAt: nodeMetadata.completedAt})
+		.select({
+			id: nodeContent.id,
+			parentId: nodeContent.parentId,
+			completedAt: effectiveCompletedAt(nodeContent.id, nodeMetadata.completedAt),
+		})
 		.from(nodeContent)
 		.leftJoin(
 			nodeMetadata,
@@ -1145,6 +1156,13 @@ nodesRouter.post("/:id/uncomplete", async (c) => {
 	}
 
 	const uncompletedNode = await client.uncompleteNode(id);
+
+	// Answer the requested row from the cache: a mirror keeps its own id and parent and
+	// carries its original's completion.
+	const cached = await readNodeDto(ctx, id);
+	if (cached) {
+		return c.json({node: cached});
+	}
 
 	// Return in Workflowy response format
 	const nodeResponse: NodeResponse = {

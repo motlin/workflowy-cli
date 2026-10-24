@@ -1,3 +1,4 @@
+import {effectiveCompletedAt} from "@workflowy/shared/cache";
 import {aiMetadata, backlinks, nodeContent, nodeMetadata, referencesRoots} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
 import {and, eq, inArray, sql} from "drizzle-orm";
@@ -56,7 +57,10 @@ export function childFlags(db: ServerDatabase, parentIds: string[]): ChildFlags 
 		return childFlagsFromRows([]);
 	}
 	const rows = db
-		.select({parentId: nodeContent.parentId, completedAt: nodeMetadata.completedAt})
+		.select({
+			parentId: nodeContent.parentId,
+			completedAt: effectiveCompletedAt(nodeContent.id, nodeMetadata.completedAt),
+		})
 		.from(nodeContent)
 		.leftJoin(
 			nodeMetadata,

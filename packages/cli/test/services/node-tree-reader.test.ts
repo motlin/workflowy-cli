@@ -177,6 +177,32 @@ describe("NodeTreeReader", () => {
 		expect(mirror.children?.map((c) => c.name)).toStrictEqual(["Original Child"]);
 	});
 
+	it("reads a mirror's completion from its original and ignores the mirror's own completedAt", async () => {
+		seedTestData(testDatabase, {
+			...nodeFixtures([
+				createTestNode({id: "p", name: "Parent", parentId: null}),
+				createTestNode({id: "open-orig", name: "Open", parentId: "elsewhere"}),
+				createTestNode({id: "done-orig", name: "Done", parentId: "elsewhere", completedAt: new Date(5000)}),
+				createTestNode({id: "stale-mir", name: null, parentId: "p", priority: 1, completedAt: new Date(1234)}),
+				createTestNode({id: "done-mir", name: null, parentId: "p", priority: 2}),
+				createTestNode({id: "orphan-mir", name: null, parentId: "p", priority: 3, completedAt: new Date(99)}),
+			]),
+			mirrors: [
+				{originalId: "open-orig", mirrorId: "stale-mir", systemFrom: from, systemTo: FAR_FUTURE_DATE},
+				{originalId: "done-orig", mirrorId: "done-mir", systemFrom: from, systemTo: FAR_FUTURE_DATE},
+				{originalId: "uncached", mirrorId: "orphan-mir", systemFrom: from, systemTo: FAR_FUTURE_DATE},
+			],
+		});
+
+		const mirrors = await reader.readChildren("p", {depth: 0});
+
+		expect(mirrors.map((m) => [m.id, m.completedAt])).toStrictEqual([
+			["stale-mir", null],
+			["done-mir", new Date(5000)],
+			["orphan-mir", null],
+		]);
+	});
+
 	it("populates linkTargets when following Workflowy links", async () => {
 		const linkName = 'See <a href="https://workflowy.com/#/abcdef012345">target</a>';
 		seedTestData(

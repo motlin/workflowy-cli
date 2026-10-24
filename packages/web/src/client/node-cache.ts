@@ -195,6 +195,47 @@ function cachedNodeEntries(
 	return entries;
 }
 
+/** The parent ids of every cached row of `originalId` and of its mirrors, each once. */
+export function cachedCopyParentIds(queryClient: QueryClient, originalId: string): (string | null)[] {
+	const parents = new Set<string | null>();
+	for (const [, children] of queryClient.getQueriesData<NodeResponse[]>({
+		queryKey: [...nodeKeys.all, "children"],
+	})) {
+		for (const child of children ?? []) {
+			if (child.id === originalId || child.originalNodeId === originalId) {
+				parents.add(child.parent_id);
+			}
+		}
+	}
+	return [...parents];
+}
+
+/**
+ * `ids` plus the other rendered copies of the same items: each mirror's original and every cached mirror of an
+ * original, each once. A completion changes all of them together, so their deferred hide is scheduled together.
+ */
+export function renderedCopyIds(queryClient: QueryClient, ids: readonly string[]): string[] {
+	const originals = new Set(ids.map((id) => readNode(queryClient, id)?.originalNodeId ?? id));
+	const copies = new Set(ids);
+	for (const original of originals) {
+		copies.add(original);
+	}
+	for (const [, children] of queryClient.getQueriesData<NodeResponse[]>({
+		queryKey: [...nodeKeys.all, "children"],
+	})) {
+		for (const child of children ?? []) {
+			if (
+				child.originalNodeId !== undefined &&
+				child.originalNodeId !== null &&
+				originals.has(child.originalNodeId)
+			) {
+				copies.add(child.id);
+			}
+		}
+	}
+	return [...copies];
+}
+
 function restoring(queryClient: QueryClient, entries: [readonly unknown[], unknown][]): () => void {
 	return () => {
 		for (const [key, value] of entries) {

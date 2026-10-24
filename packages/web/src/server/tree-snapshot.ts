@@ -86,7 +86,7 @@ function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): Tre
 			CASE WHEN o.id IS NULL THEN c.note ELSE o.note END AS note,
 			m.created_at AS createdAt,
 			m.modified_at AS modifiedAt,
-			m.completed_at AS completedAt,
+			CASE WHEN mi.mirror_id IS NULL THEN m.completed_at ELSE om.completed_at END AS completedAt,
 			m.layout_mode AS layoutMode,
 			mi.mirror_id IS NOT NULL AS isMirror,
 			s.depth AS depth,
@@ -98,6 +98,7 @@ function selectTreeRows(database: Database, seeds: SQL, recursive: boolean): Tre
 		LEFT JOIN node_metadata m ON m.node_id = c.id AND m.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN mirrors mi ON mi.mirror_id = c.id AND mi.system_to = ${FAR_FUTURE_DATE}
 		LEFT JOIN node_content o ON o.id = mi.original_id AND o.system_to = ${FAR_FUTURE_DATE}
+		LEFT JOIN node_metadata om ON om.node_id = mi.original_id AND om.system_to = ${FAR_FUTURE_DATE}
 		ORDER BY s.depth, c.id
 	`);
 }

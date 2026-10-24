@@ -52,8 +52,8 @@ function setup() {
 		return {status: res.status, body: await res.json()};
 	};
 	/** Make `mirrorId` (a new child of `parentId`) a mirror of `originalId`. */
-	const mirror = (mirrorId: string, parentId: string, originalId: string) => {
-		cacheService.insertNode(apiNode(mirrorId, parentId, 9), parentId);
+	const mirror = (mirrorId: string, parentId: string, originalId: string, ownCompletedAt?: number) => {
+		cacheService.insertNode(apiNode(mirrorId, parentId, 9, ownCompletedAt), parentId);
 		sqlite
 			.prepare("INSERT INTO mirrors (mirror_id, original_id, system_from, system_to) VALUES (?, ?, ?, ?)")
 			.run(mirrorId, originalId, "2000-01-01T00:00:00.000Z", FAR_FUTURE_DATE);
@@ -109,6 +109,20 @@ describe("GET /api/v1/nodes/:id/subtree-ids", () => {
 				],
 			},
 		});
+	});
+
+	it("reports a mirror as completed exactly when its original is", async () => {
+		const {request, mirror} = setup();
+		mirror("MA2", "Beta", "A2");
+		mirror("MA1", "Beta", "A1", 400);
+
+		const {body} = await request("/Beta/subtree-ids");
+
+		const completion = new Map(
+			(body as {items: {id: string; completed: boolean}[]}).items.map((item) => [item.id, item.completed]),
+		);
+
+		expect({MA1: completion.get("MA1"), MA2: completion.get("MA2")}).toStrictEqual({MA1: false, MA2: true});
 	});
 
 	it("does not descend into a mirror of its own ancestor", async () => {

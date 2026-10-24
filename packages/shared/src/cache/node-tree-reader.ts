@@ -68,13 +68,15 @@ function rawToTree(raw: NodeWithRelations): NodeTree {
 }
 
 /**
- * Give a mirror its original's name and note. A mirror never has text of its
- * own, so any text stored on the mirror row (stale text the API or a backup can
- * still return) is ignored; with no cached original the mirror has no text.
+ * Give a mirror its original's name, note and completion. A mirror never has
+ * text or completion of its own, so any stored on the mirror row (stale values
+ * the API or a backup can still return) is ignored; with no cached original the
+ * mirror has no text and is open.
  */
 function assignMirrorContent(target: NodeTree, original: Node | undefined): void {
 	target.name = original?.name ?? null;
 	target.note = original?.note ?? null;
+	target.completedAt = original?.completedAt ?? null;
 }
 
 /** Options controlling how deep a subtree is read and whether links are followed. */

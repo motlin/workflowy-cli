@@ -2,7 +2,7 @@ import {useCallback} from "react";
 import {flushSync} from "react-dom";
 import {notifyManager, useQueryClient} from "@tanstack/react-query";
 import {closeMainPane, goToNode, movePane, nodeUrl, stepNav} from "../navigation.js";
-import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode} from "../node-cache.js";
+import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode, renderedCopyIds} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
@@ -466,7 +466,7 @@ export function useCommandRegistry(): CommandRegistry {
 		const completing = plan.action === "complete";
 		if (completing && !store.showCompleted) {
 			scheduleCompletionHide(
-				plan.ids,
+				renderedCopyIds(queryClient, plan.ids),
 				store,
 				(id) => !useOutlineStore.getState().showCompleted && readNode(queryClient, id)?.completedAt !== null,
 			);
@@ -531,11 +531,8 @@ export function useCommandRegistry(): CommandRegistry {
 				: undefined;
 		// Hidden completed rows stay for upstream's deferred hide; the caret has already moved
 		if (completing && !showCompleted) {
-			const parentId = node.parent_id;
-			scheduleCompletionHide(plan.ids, useOutlineStore.getState(), (id) => {
-				const current = queryClient
-					.getQueryData<NodeResponse[]>(nodeKeys.children(parentId))
-					?.find((sibling) => sibling.id === id);
+			scheduleCompletionHide(renderedCopyIds(queryClient, plan.ids), useOutlineStore.getState(), (id) => {
+				const current = readNode(queryClient, id);
 				return !useOutlineStore.getState().showCompleted && current?.completedAt !== null;
 			});
 		}

@@ -36,6 +36,7 @@ export {
 	mergeItemRelationships,
 	type MergeItemRelationshipsResult,
 } from "./item-relationships.js";
+export {effectiveCompletedAt} from "./effective-completion.js";
 export {applyMirrorText, loadMirrorOriginals, notAMirror, withMirrorText} from "./mirror-text.js";
 export {NodeReader} from "./node-reader.js";
 export {PathBuilder} from "./path-builder.js";
