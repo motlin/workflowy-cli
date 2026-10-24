@@ -31,6 +31,11 @@ export function storedAnchorTag(href: string): string {
  * as its plain text, so editing the text around it never deletes that text.
  */
 export function renderLinks(html: string): string {
+	return autoLink(decorateStoredLinks(html));
+}
+
+/** `renderLinks` without the display-only auto-links: the stored anchors alone, in upstream's markup. */
+export function decorateStoredLinks(html: string): string {
 	let out = "";
 	let cursor = 0;
 	let droppedClose: {start: number; end: number} | undefined;
@@ -56,7 +61,12 @@ export function renderLinks(html: string): string {
 		out += html.slice(cursor, droppedClose.start);
 		cursor = droppedClose.end;
 	}
-	return autoLink(out + html.slice(cursor));
+	return out + html.slice(cursor);
+}
+
+/** Every `<a …>` open tag in `html` back to the stored `<a href="…">`, dropping `class`, `target` and `rel`. */
+export function storeAnchors(html: string): string {
+	return html.replaceAll(ANCHOR_OPEN_PATTERN, (tag) => storedAnchorTag(anchorHref(tag)));
 }
 
 const HTML_TAG_PATTERN = /<[^>]*>/gu;

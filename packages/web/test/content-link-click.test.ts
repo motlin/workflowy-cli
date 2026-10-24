@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {contentLinkAction, internalLinkId} from "../src/client/content-link-click.js";
+import {internalLinkId, planContentLinkClick} from "../src/client/content-link-click.js";
 
 const ORIGIN = "http://localhost:5175";
 const none = {metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, button: 0};
@@ -24,36 +24,41 @@ describe("internalLinkId", () => {
 	});
 });
 
-describe("contentLinkAction", () => {
-	it("⌘-click on mac and ⌃-click elsewhere open the link in a pane, from either pane", () => {
-		expect([
-			contentLinkAction({...none, metaKey: true}, true, false),
-			contentLinkAction({...none, metaKey: true}, true, true),
-			contentLinkAction({...none, ctrlKey: true}, false, false),
-		]).toStrictEqual(["open_in_pane", "open_in_pane", "open_in_pane"]);
-	});
+describe("planContentLinkClick", () => {
+	const WF = "https://workflowy.com/#/0123456789ab";
+	const main = {isMac: true, inSidePane: false, origin: ORIGIN};
+	const side = {...main, inSidePane: true};
+	const loc = {id: "0123456789ab", query: null};
 
-	it("⌥-click opens the link in a pane on every platform, like upstream", () => {
+	it("plans each link click the way upstream routes it", () => {
 		expect([
-			contentLinkAction({...none, altKey: true}, true, false),
-			contentLinkAction({...none, altKey: true}, false, false),
-		]).toStrictEqual(["open_in_pane", "open_in_pane"]);
-	});
-
-	it("a plain click navigates the side pane and leaves the main pane's click alone", () => {
-		expect([contentLinkAction(none, true, true), contentLinkAction(none, true, false)]).toStrictEqual([
-			"navigate_pane",
+			planContentLinkClick(WF, none, main),
+			planContentLinkClick(`${WF}?q=zzz`, none, main),
+			planContentLinkClick("https://workflowy.com/#/", none, main),
+			planContentLinkClick(WF, {...none, shiftKey: true}, main),
+			planContentLinkClick(WF, {...none, ctrlKey: true}, main),
+			planContentLinkClick(WF, {...none, metaKey: true}, main),
+			planContentLinkClick(WF, {...none, altKey: true}, {...main, isMac: false}),
+			planContentLinkClick(WF, {...none, metaKey: true, shiftKey: true}, main),
+			planContentLinkClick(WF, none, side),
+			planContentLinkClick("search:%23foo", none, main),
+			planContentLinkClick("https://example.com/page", none, main),
+			planContentLinkClick("https://example.com/page", {...none, metaKey: true}, main),
+			planContentLinkClick(WF, {...none, button: 1}, main),
+		]).toStrictEqual([
+			{kind: "navigate", loc},
+			{kind: "navigate", loc: {id: "0123456789ab", query: "zzz"}},
+			{kind: "navigate", loc: {id: null, query: null}},
+			{kind: "navigate", loc},
+			{kind: "open", href: WF},
+			{kind: "open_in_pane", loc},
+			{kind: "open_in_pane", loc},
+			{kind: "open", href: WF},
+			{kind: "navigate_pane", loc},
+			{kind: "search", query: "#foo"},
+			{kind: "open", href: "https://example.com/page"},
+			{kind: "open", href: "https://example.com/page"},
 			null,
 		]);
-	});
-
-	it("leaves other modifier combos and non-left buttons to the browser", () => {
-		expect([
-			contentLinkAction({...none, ctrlKey: true}, true, true),
-			contentLinkAction({...none, metaKey: true}, false, true),
-			contentLinkAction({...none, metaKey: true, shiftKey: true}, true, false),
-			contentLinkAction({...none, metaKey: true, altKey: true}, true, false),
-			contentLinkAction({...none, button: 1}, true, true),
-		]).toStrictEqual([null, null, null, null, null]);
 	});
 });

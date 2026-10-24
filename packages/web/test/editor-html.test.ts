@@ -25,3 +25,30 @@ describe("mentions in names", () => {
 		);
 	});
 });
+
+describe("links in names", () => {
+	it("renders stored anchors with upstream's link markup while editing, without autolinking", () => {
+		expect([
+			renderEditorHtml('Ext <a href="https://e.com/p">example</a> tail', settings),
+			renderEditorHtml("plain https://e.com/q text", settings),
+		]).toStrictEqual([
+			'Ext <a class="contentLink" target="_blank" rel="noreferrer" href="https://e.com/p">example</a> tail',
+			"plain https://e.com/q text",
+		]);
+	});
+
+	it("stores anchors without class, target or rel", () => {
+		expect(
+			serializeEditorHtml(
+				'Ext <a class="contentLink" target="_blank" rel="noreferrer" href="https://e.com/p">example</a> tail',
+			),
+		).toBe('Ext <a href="https://e.com/p">example</a> tail');
+	});
+
+	it.each([
+		'Bold <b>bo<a href="https://e.com/b">ld link</a></b> end',
+		'A <a href="https://workflowy.com/#/0123456789ab">x</a>',
+	])("round-trips %s", (stored) => {
+		expect(serializeEditorHtml(renderEditorHtml(stored, settings))).toBe(stored);
+	});
+});

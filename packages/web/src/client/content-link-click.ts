@@ -18,7 +18,18 @@ export function internalLinkId(href: string, origin: string): string | null {
 	return internal ? parseLocationHash(url.hash).id : null;
 }
 
-export type ContentLinkAction = "open_in_pane" | "navigate_pane";
+export interface LinkLocation {
+	id: string | null;
+	query: string | null;
+}
+
+export type ContentLinkPlan =
+	| {kind: "open_in_pane"; loc: LinkLocation}
+	| {kind: "navigate_pane"; loc: LinkLocation}
+	| {kind: "navigate"; loc: LinkLocation}
+	| {kind: "search"; query: string}
+	| {kind: "open"; href: string}
+	| null;
 
 interface LinkClick {
 	metaKey: boolean;
@@ -28,21 +39,58 @@ interface LinkClick {
 	button: number;
 }
 
+function internalLocation(href: string, origin: string): LinkLocation | null {
+	let url: URL;
+	try {
+		url = new URL(href, origin);
+	} catch {
+		return null;
+	}
+	const internal = url.origin === origin || (/^https?:$/u.test(url.protocol) && WORKFLOWY_HOSTS.has(url.hostname));
+	if (!internal) {
+		return null;
+	}
+	const {id, query} = parseLocationHash(url.hash);
+	return {id, query};
+}
+
 /**
- * What a click on an internal link does. ⌥ alone, or the platform's primary modifier alone, opens it in a pane; a plain
- * click navigates the side pane it sits in. Anything else (and a plain click in the main pane) is left alone.
+ * What a left click on a content link does. ⌥ alone, or the platform's primary modifier alone, opens an internal link
+ * in a pane; a plain (or ⇧) click navigates in-app, or the side pane it sits in. `search:` links search, and every
+ * other link, or any other modifier combo, opens the href in a new tab.
  */
-export function contentLinkAction(event: LinkClick, isMac: boolean, inSidePane: boolean): ContentLinkAction | null {
+export function planContentLinkClick(
+	href: string,
+	event: LinkClick,
+	ctx: {isMac: boolean; inSidePane: boolean; origin: string},
+): ContentLinkPlan {
 	if (event.button !== 0) {
 		return null;
 	}
+	if (href.startsWith("search:")) {
+		return {kind: "search", query: safeDecode(href.slice("search:".length))};
+	}
+	const loc = internalLocation(href, ctx.origin);
+	if (loc === null) {
+		return {kind: "open", href};
+	}
 	const alt = event.altKey && !event.ctrlKey && !event.metaKey;
-	const primary = isMac
+	const primary = ctx.isMac
 		? event.metaKey && !event.altKey && !event.ctrlKey
 		: event.ctrlKey && !event.altKey && !event.metaKey;
 	if (!event.shiftKey && (alt || primary)) {
-		return "open_in_pane";
+		return {kind: "open_in_pane", loc};
 	}
-	const modified = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
-	return !modified && inSidePane ? "navigate_pane" : null;
+	if (event.altKey || event.ctrlKey || event.metaKey) {
+		return {kind: "open", href};
+	}
+	return {kind: ctx.inSidePane ? "navigate_pane" : "navigate", loc};
+}
+
+function safeDecode(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
 }

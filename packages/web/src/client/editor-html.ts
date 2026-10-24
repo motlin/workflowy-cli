@@ -1,5 +1,6 @@
 import {placeSelectionAtTextOffsets, selectionTextOffsets} from "./caret-dom.js";
 import {renderDatePills, serializeDatePills} from "./date-pills.js";
+import {decorateStoredLinks, storeAnchors} from "./link-render.js";
 import type {DateSettings} from "./date-settings.js";
 import {renderMentionPills, serializeMentionPills} from "./mention-pills.js";
 import type {MentionAccount} from "./mention-pills.js";
@@ -8,12 +9,14 @@ import {renderTags, stripTagMarkup} from "./tag-render.js";
 
 /** Stored name HTML as the name editor shows it: atomic date and mention pills and colored `.contentTag` spans. */
 export function renderEditorHtml(html: string, dateSettings: DateSettings, account: MentionAccount = null): string {
-	return addMonolithGuards(renderTags(renderMentionPills(renderDatePills(html, dateSettings), account)));
+	return addMonolithGuards(
+		renderTags(renderMentionPills(renderDatePills(decorateStoredLinks(html), dateSettings), account)),
+	);
 }
 
 /** The name editor's innerHTML back to stored HTML: tag spans unwrapped, date pills to canonical `<time>`. */
 export function serializeEditorHtml(html: string): string {
-	return serializeMentionPills(serializeDatePills(stripTagMarkup(html)));
+	return serializeMentionPills(serializeDatePills(stripTagMarkup(storeAnchors(html))));
 }
 
 /** An IME composition is in progress, so the DOM under it must not be rewritten. */
