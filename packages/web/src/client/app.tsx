@@ -40,6 +40,7 @@ import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
+import {installSaveTracking} from "./hooks/use-saving.js";
 import {queryClientDefaults} from "./query-retry.js";
 import "./wf-tailwind.css";
 import "./styles.css";
@@ -48,6 +49,7 @@ import "./styles.css";
 installCoalescingTimeoutProvider();
 
 const queryClient = new QueryClient({defaultOptions: queryClientDefaults});
+installSaveTracking(queryClient, window);
 
 /**
  * Registers the keyboard shortcuts. The command registry follows the edited and zoomed nodes, so it lives in this

@@ -23,6 +23,7 @@ const editingState = vi.hoisted(() => ({
 		counter: 0,
 	},
 }));
+vi.mock("../src/client/hooks/use-saving.js", () => ({trackReplay: async <T>(promise: Promise<T>) => promise}));
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: {
 		getState: () => ({

@@ -422,8 +422,8 @@ interface OutlineState {
 	requestedMenus: Map<string, RequestedMenu>;
 	/** Upstream's inline location picker (WF.InlineSearch), opened by `openLocationPicker`. */
 	locationPicker: LocationPickerState | null;
-	/** In-flight node mutations; the main menu's autosave footer reads "Saving..." while it is above zero (see selectIsMutating). */
-	mutationCount: number;
+	/** In-flight undo/redo replays, which bypass useMutation; counted with TanStack's mutations by useSaving. */
+	replayCount: number;
 	/** When the last in-flight mutation settled (page load until then), for the footer's "Autosaved: <ago>". */
 	lastSavedAt: number;
 	/** In-app Back/Forward stacks (see nav-stack.ts). */
@@ -617,8 +617,6 @@ interface OutlineActions {
 	) => Promise<LocationPickerResult>;
 	/** Close the picker, resolve its promise with `result` and return the caret to `returnTo`. */
 	closeLocationPicker: (result: LocationPickerResult) => void;
-	beginMutation: () => void;
-	endMutation: () => void;
 }
 
 type OutlineStore = OutlineActions & OutlineState;
@@ -719,10 +717,6 @@ export function outlineActions(): OutlineStore {
 export function activePaneView(): OutlineStore {
 	const state = useOutlineStore.getState();
 	return {...state, zoomedNodeId: activeZoomedId(state), expandedIds: paneExpandedIds(state, state.activePaneId)};
-}
-
-export function selectIsMutating(state: Pick<OutlineState, "mutationCount">): boolean {
-	return state.mutationCount > 0;
 }
 
 /** A modal popup is open, which keeps the selection toolbar from opening. */
@@ -911,7 +905,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	appMessage: null,
 	requestedMenus: new Map(),
 	locationPicker: null,
-	mutationCount: 0,
+	replayCount: 0,
 	lastSavedAt: Date.now(),
 	nav: initialNavState,
 	mainPaneHistory: emptyMainPaneHistory,
@@ -1719,17 +1713,6 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			get().resumeEditing(returnTo.nodeId, returnTo.offset);
 		}
 		resolve?.(result);
-	},
-
-	beginMutation: () => {
-		set((state) => ({mutationCount: state.mutationCount + 1}));
-	},
-
-	endMutation: () => {
-		set((state) => {
-			const mutationCount = Math.max(0, state.mutationCount - 1);
-			return mutationCount === 0 ? {mutationCount, lastSavedAt: Date.now()} : {mutationCount};
-		});
 	},
 }));
 

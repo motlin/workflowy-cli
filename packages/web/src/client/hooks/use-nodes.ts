@@ -46,6 +46,7 @@ import {toUndoOps} from "../tree-ops.js";
 import {serializeWrite} from "../write-order.js";
 import type {BlockMove, UndoableMutation} from "../tree-ops.js";
 import {toRequestStatusError} from "../request-error.js";
+import {trackReplay} from "./use-saving.js";
 import {holdUndoSlot} from "../undo-batch.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
@@ -268,12 +269,12 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 
 /** The raw server calls `applyOps` replays an undo step through (no optimistic cache writes). */
 export const undoAdapter: UndoAdapter = {
-	updateNode,
-	deleteNode,
-	restoreNode,
-	moveNode,
-	completeNode,
-	uncompleteNode,
+	updateNode: async (...args) => trackReplay(updateNode(...args)),
+	deleteNode: async (...args) => trackReplay(deleteNode(...args)),
+	restoreNode: async (...args) => trackReplay(restoreNode(...args)),
+	moveNode: async (...args) => trackReplay(moveNode(...args)),
+	completeNode: async (...args) => trackReplay(completeNode(...args)),
+	uncompleteNode: async (...args) => trackReplay(uncompleteNode(...args)),
 };
 
 /**
@@ -482,13 +483,10 @@ function planCreate(request: CreateNodeRequest, queryClient: QueryClient): UndoP
 export function useCreateNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const beginMutation = useOutlineStore((state) => state.beginMutation);
-	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	const mutation = useMutation({
 		mutationFn: createNode,
 		async onMutate(newNode) {
-			beginMutation();
 			const early = earlyCreates.get(newNode);
 			if (early) {
 				return early;
@@ -515,7 +513,6 @@ export function useCreateNode() {
 			addErrorNotification(`Failed to create node: ${error.message}`);
 		},
 		async onSettled(data, error, variables) {
-			endMutation();
 			if (variables.id !== undefined) {
 				pendingCreates.end(variables.id);
 			}
@@ -775,13 +772,10 @@ function planDelete(nodeId: string, queryClient: QueryClient): UndoPlan<unknown>
 export function useDeleteNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const beginMutation = useOutlineStore((state) => state.beginMutation);
-	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	const mutation = useMutation({
 		mutationFn: deleteNode,
 		async onMutate(nodeId) {
-			beginMutation();
 			// Cancel first: a cancelled refetch reverts to the data it started from, row included.
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const parentId = readNode(queryClient, nodeId)?.parent_id ?? null;
@@ -797,7 +791,6 @@ export function useDeleteNode() {
 			addErrorNotification(`Failed to delete node: ${error.message}`);
 		},
 		async onSettled(_data, error, _nodeId, context) {
-			endMutation();
 			if (error === null && context !== undefined) {
 				verifyAgainstServer(queryClient, "delete", affectedKeys(queryClient, [], [context.parentId]));
 			}
@@ -827,13 +820,10 @@ function planMove(request: MoveNodeRequest & {nodeId: string}, queryClient: Quer
 export function useMoveNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const beginMutation = useOutlineStore((state) => state.beginMutation);
-	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	const mutation = useMutation({
 		mutationFn: async ({nodeId, ...request}: MoveNodeRequest & {nodeId: string}) => moveNode(nodeId, request),
 		async onMutate(request) {
-			beginMutation();
 			pendingMoves.begin(request, [readNode(queryClient, request.nodeId)?.parent_id ?? null, request.parent_id]);
 			await queryClient.cancelQueries({queryKey: nodeKeys.all});
 			const node = readNode(queryClient, request.nodeId);
@@ -854,7 +844,6 @@ export function useMoveNode() {
 			addErrorNotification(`Failed to move node: ${error.message}`);
 		},
 		async onSettled(data, error, variables) {
-			endMutation();
 			pendingMoves.end(variables);
 			if (error === null && data !== undefined) {
 				verifyAgainstServer(
@@ -909,7 +898,6 @@ function moveNodesOptions(queryClient: QueryClient) {
 	return mutationOptions({
 		mutationFn: moveNodes,
 		async onMutate(request: MoveNodesRequest) {
-			useOutlineStore.getState().beginMutation();
 			const rows = request.ids
 				.map((id) => readNode(queryClient, id))
 				.filter((row): row is NodeResponse => row !== undefined);
@@ -942,7 +930,6 @@ function moveNodesOptions(queryClient: QueryClient) {
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 		onSettled(_nodes, error, variables, snapshots) {
-			useOutlineStore.getState().endMutation();
 			if (error === null) {
 				const parentIds = (snapshots ?? []).flatMap((snapshot) =>
 					snapshot.kind === "children" ? [snapshot.parentId] : [],
@@ -1138,14 +1125,9 @@ function planRestore(
 export function useRestoreNode() {
 	const queryClient = useQueryClient();
 	const addErrorNotification = useOutlineStore((state) => state.addErrorNotification);
-	const beginMutation = useOutlineStore((state) => state.beginMutation);
-	const endMutation = useOutlineStore((state) => state.endMutation);
 
 	const mutation = useMutation({
 		mutationFn: async ({nodeId, ...request}: RestoreNodeRequest & {nodeId: string}) => restoreNode(nodeId, request),
-		onMutate() {
-			beginMutation();
-		},
 		onSuccess(data, variables) {
 			restoreUndos.settle(variables, {data});
 		},
@@ -1154,7 +1136,6 @@ export function useRestoreNode() {
 			addErrorNotification(error.message);
 		},
 		async onSettled() {
-			endMutation();
 			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
 		},
 	});

@@ -1,6 +1,7 @@
 import {isValidElement, useState} from "react";
 import type {ReactElement, ReactNode} from "react";
-import {selectIsMutating, useOutlineStore} from "../stores/outline.js";
+import {useSaving} from "../hooks/use-saving.js";
+import {useOutlineStore} from "../stores/outline.js";
 import {autosaveText} from "../time-ago.js";
 import {useUndoStore} from "../undo-history.js";
 import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
@@ -29,7 +30,7 @@ export interface GearMenuRowsOptions {
 
 /** Upstream's `status.autosave` footer (KY): the only save-state UI, so writes never block the outline. */
 function AutosaveStatus() {
-	const saving = useOutlineStore(selectIsMutating);
+	const saving = useSaving();
 	const lastSavedAt = useOutlineStore((state) => state.lastSavedAt);
 	// The footer mounts with the open menu, so its age is measured from when the menu opened.
 	const [openedAt] = useState(() => Date.now());

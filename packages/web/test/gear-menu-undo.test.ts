@@ -1,11 +1,10 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 
 vi.mock("../src/client/stores/outline.js", () => ({
-	useOutlineStore: (
-		selector: (state: {openExportDialog: () => void; mutationCount: number; lastSavedAt: number}) => unknown,
-	) => selector({openExportDialog: () => {}, mutationCount: 0, lastSavedAt: 0}),
-	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
+	useOutlineStore: (selector: (state: {openExportDialog: () => void; lastSavedAt: number}) => unknown) =>
+		selector({openExportDialog: () => {}, lastSavedAt: 0}),
 }));
+vi.mock("../src/client/hooks/use-saving.js", () => ({useSaving: () => false}));
 
 /** renderToStaticMarkup reads zustand's initial state, so the seeded stack state comes through a mock. */
 const undoState = {canUndo: false, canRedo: false};

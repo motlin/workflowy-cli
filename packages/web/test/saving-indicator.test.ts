@@ -3,17 +3,19 @@ import {describe, expect, it, vi} from "vite-plus/test";
 
 /** Upstream never blocks input while saving; its only save state is the main menu's autosave footer (KY). */
 
-const outlineState = {openExportDialog: () => {}, mutationCount: 0, lastSavedAt: 0};
+const outlineState = {openExportDialog: () => {}, lastSavedAt: 0};
+const saving = {value: false};
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (selector: (state: typeof outlineState) => unknown) => selector(outlineState),
-	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
 }));
+vi.mock("../src/client/hooks/use-saving.js", () => ({useSaving: () => saving.value}));
 
 const {useGearMenuRows} = await import("../src/client/components/gear-menu.js");
 const {renderGearMenuRows} = await import("./helpers/render-gear-menu-rows.js");
 
-function autosaveFooter(mutationCount: number): string | undefined {
-	Object.assign(outlineState, {mutationCount, lastSavedAt: Date.now()});
+function autosaveFooter(inFlight: number): string | undefined {
+	saving.value = inFlight > 0;
+	Object.assign(outlineState, {lastSavedAt: Date.now()});
 	const html = renderGearMenuRows(useGearMenuRows);
 	// The footer is the menu's last row, so it runs up to the closing scroller div.
 	const start = html.indexOf('<div class="gear-menu-autosave">');

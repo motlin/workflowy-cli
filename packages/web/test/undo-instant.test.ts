@@ -19,12 +19,11 @@ const outlineState = {
 	editingNoteId: null,
 	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	addErrorNotification: () => "id",
-	beginMutation() {},
-	endMutation() {},
 	startEditing() {},
 	markCreatedForSearch() {},
 };
 
+vi.mock("../src/client/hooks/use-saving.js", () => ({trackReplay: async <T>(promise: Promise<T>) => promise}));
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: Object.assign(
 		(selector?: (state: typeof outlineState) => unknown) => (selector ? selector(outlineState) : outlineState),
