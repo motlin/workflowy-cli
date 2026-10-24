@@ -3,6 +3,7 @@
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
 import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
 import {useIsRowHovered} from "../hooks/use-row-hover.js";
+import type {ReactNode} from "react";
 import {memo, useContext, useMemo, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {childInstance, isCyclical} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
@@ -27,6 +28,8 @@ import {EditableNote} from "./editable-note.js";
 import {DayTitlePrefix} from "./day-title-prefix.js";
 import {editableText} from "./editable-text.js";
 import {expandArrow} from "./expand-arrow.js";
+import {DividerLine} from "./divider-line.js";
+import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {itemMenuLeft} from "../item-menu-model.js";
 import {openInPane} from "../pane-commands.js";
@@ -129,45 +132,6 @@ function nodeBullet({nodeId, isMirror, showHalo, keepBullet, onMouseDown, onZoom
 	);
 }
 
-export function TodoCheckbox({isCompleted, onComplete}: {isCompleted: boolean; onComplete: () => void}) {
-	return (
-		<button
-			aria-label="Complete"
-			aria-pressed={isCompleted}
-			className={`todo-checkbox${isCompleted ? " checked" : ""}`}
-			onClick={(event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				onComplete();
-			}}
-			type="button"
-		>
-			<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
-				<rect
-					fill="none"
-					height="13"
-					rx="3"
-					stroke="currentColor"
-					strokeWidth="1.5"
-					width="13"
-					x="1.5"
-					y="1.5"
-				/>
-				{isCompleted ? (
-					<path
-						d="M4 8.5 L7 11 L12 5"
-						fill="none"
-						stroke="currentColor"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeWidth="2"
-					/>
-				) : null}
-			</svg>
-		</button>
-	);
-}
-
 interface NodeItemMenuProps {
 	node: NodeResponse;
 	left?: string;
@@ -259,6 +223,8 @@ interface NodeNameProps {
 	searching: boolean;
 	/** Classes the search appends to `.name`. */
 	searchNameClasses: readonly string[];
+	/** The row's list number when it is a numbered row. */
+	number?: number;
 }
 
 /**
@@ -276,6 +242,7 @@ function NodeName({
 	withEmbedder,
 	searching,
 	searchNameClasses,
+	number,
 }: NodeNameProps) {
 	const search = useOutlineSearchFilter();
 	const isHovered = useIsRowHovered(node.id);
@@ -321,6 +288,22 @@ function NodeName({
 		toggleComplete(queryClient, {nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
 
+	const prefixPieces: ReactNode[] = [];
+	if (number !== undefined) {
+		prefixPieces.push(<NumberPiece key="numbered" number={number} />);
+	}
+	if (layout.isTodo) {
+		prefixPieces.push(<ItemCheckbox key="todo" isCompleted={isCompleted} onComplete={handleComplete} />);
+	}
+	const isDivider = node.data.layoutMode === "divider";
+	const dividerLine = isDivider ? (
+		<DividerLine
+			onActivate={() => {
+				resumeEditing(node.id, 0);
+			}}
+		/>
+	) : null;
+
 	const nameClasses = withClasses(
 		nameClassName({focused: isEditing, empty: name === "", withEmbedder}),
 		searchNameClasses,
@@ -351,9 +334,10 @@ function NodeName({
 				onZoom: zoomIn,
 				onClearSelection: () => clearSelectionFromBullet(queryClient, node.id),
 			})}
-			{layout.isTodo ? <TodoCheckbox isCompleted={isCompleted} onComplete={handleComplete} /> : null}
+			{itemPrefix(prefixPieces)}
 			{/* Upstream's `ui.item.name.afterbegin` friendly day name; mounted only on day rows to keep other rows cheap. */}
 			{node.calendar?.level === "day" ? <DayTitlePrefix node={node} /> : null}
+			{dividerLine}
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mouse-only item selection (⌘/⌥/⇧-press, drag); keyboard users select with ⇧↑/⇧↓ */}
 			<div className="notranslate content whitespace-pre-wrap" onMouseDown={handleContentMouseDown}>
 				{/* Called, not mounted: it only picks the editing or resting text, so it needs no fiber of its own. */}
@@ -370,6 +354,7 @@ function NodeName({
 				{node.attachment ? <NodeAttachmentIndicator attachment={node.attachment} /> : null}
 			</div>
 			<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+			{dividerLine}
 			{/* Hook-free, so called as a plain element rather than mounted as a component. */}
 			{expandArrow({
 				hasChildren,
@@ -422,7 +407,7 @@ function rowProjectClassName(
 		hasMirrors: false,
 		highlighted,
 		addedToSelection,
-		layoutClass: resolveLayoutMode(node.data.layoutMode).projectClass ?? undefined,
+		layoutClasses: resolveLayoutMode(node.data.layoutMode).projectClasses,
 		slidingUp,
 		slidingDown,
 		moving,
@@ -460,8 +445,11 @@ export const OutlineRow = memo(function OutlineRow({
 	depth = 1,
 	backlinkCrumbs,
 	fitCrumbs = false,
+	number,
 }: {
 	node: NodeResponse;
+	/** The row's list number when it is a numbered row. */
+	number?: number;
 	depth?: number;
 	/** A backlink item's source crumbs, rendered before `.name`. */
 	backlinkCrumbs?: BacklinkCrumb[];
@@ -567,6 +555,7 @@ export const OutlineRow = memo(function OutlineRow({
 				searchNameClasses={rowSearchClasses.name}
 				searching={search !== null}
 				withEmbedder={backlinkCrumbs !== undefined}
+				number={number}
 			/>
 			{noteMounted || shouldMountNote ? (
 				<EditableNote

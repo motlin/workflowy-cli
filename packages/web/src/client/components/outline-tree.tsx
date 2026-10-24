@@ -38,7 +38,10 @@ import {DayTitlePrefix} from "./day-title-prefix.js";
 import {EditableNote} from "./editable-note.js";
 import {editableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
-import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
+import {NodeItemMenu, OutlineRow} from "./outline-node.js";
+import {DividerLine} from "./divider-line.js";
+import {ItemCheckbox, itemPrefix, NumberPiece} from "./item-prefix.js";
+import {renderedNumbers, siblingNumber} from "../numbered-list.js";
 import {useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
 import {itemMenuLeft} from "../item-menu-model.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
@@ -182,6 +185,34 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 		}
 	};
 
+	// Upstream's `LK4` sibling walk numbers a numbered zoom root; the siblings are only fetched for one.
+	const rootIsNumbered = node?.data.layoutMode === "numbered";
+	const {data: rootSiblings} = useChildren(node?.parent_id ?? null, rootIsNumbered);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const rootNumber =
+		node && rootIsNumbered && rootSiblings
+			? siblingNumber(numberingRows(rootSiblings.filter((s) => showCompleted || s.completedAt === null)), node.id)
+			: undefined;
+	const prefixPieces: ReactNode[] = [];
+	if (rootNumber !== undefined && rootNumber > 0) {
+		prefixPieces.push(<NumberPiece key="numbered" number={rootNumber} />);
+	}
+	if (node && layout.isTodo) {
+		prefixPieces.push(
+			<ItemCheckbox key="todo" isCompleted={node.completedAt !== null} isZoomRoot onComplete={handleComplete} />,
+		);
+	}
+	const dividerLine =
+		node?.data.layoutMode === "divider" ? (
+			<DividerLine
+				onActivate={() => {
+					if (nodeId !== null) {
+						resumeEditing(nodeId, 0);
+					}
+				}}
+			/>
+		) : null;
+
 	// Like a row, the root's `.notes--main` mounts once noted, note-focused, or title-focused, and stays mounted.
 	const [noteMounted, setNoteMounted] = useState(false);
 	const shouldMountNote = !isMainTreeRoot && (Boolean(node?.note) || isEditingNote || isEditing);
@@ -211,7 +242,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					hasMirrors: false,
 					highlighted: false,
 					addedToSelection: isAddedToSelection,
-					layoutClass: layout.projectClass ?? undefined,
+					layoutClasses: layout.projectClasses,
 					dragHoveredIn: isDragHoveredIn,
 				}),
 				isMainTreeRoot && "mainTreeRoot",
@@ -237,15 +268,14 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					setIsHovered(false);
 				}}
 			>
-				{!isMainTreeRoot && nameHtml === "" ? (
+				{!isMainTreeRoot && nameHtml === "" && node?.data.layoutMode !== "numbered" ? (
 					<div className="contentEditablePlaceholderWrapper">
 						<div className="contentEditablePlaceholder">Untitled</div>
 					</div>
 				) : null}
-				{node && layout.isTodo ? (
-					<TodoCheckbox isCompleted={node.completedAt !== null} onComplete={handleComplete} />
-				) : null}
+				{itemPrefix(prefixPieces)}
 				{node?.calendar?.level === "day" ? <DayTitlePrefix node={node} /> : null}
+				{dividerLine}
 				<div className="notranslate content whitespace-pre-wrap">
 					{node && (nameHtml !== "" || isEditing)
 						? editableText({
@@ -259,6 +289,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 						: null}
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
+				{dividerLine}
 				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (
 					<NodeItemMenu
 						left={itemMenuLeft(true, 1)}
@@ -495,6 +526,44 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 	);
 }
 
+function numberingRows(nodes: readonly NodeResponse[]) {
+	return nodes.map((node) => ({
+		id: node.id,
+		layoutMode: node.data.layoutMode,
+		numberedStart: node.numberedStart,
+	}));
+}
+
+/**
+ * List numbers of the numbered children: rendered order in the outline, but the true sibling position during a
+ * search (upstream's `LK4` walk, which ignores the search filter and skips hidden completed rows).
+ */
+function childNumbers(
+	nodes: readonly NodeResponse[],
+	visibleNodes: readonly NodeResponse[],
+	searching: boolean,
+	showCompleted: boolean,
+	animatingCompletionIds: ReadonlySet<string>,
+): Map<string, number> {
+	if (!nodes.some((node) => node.data.layoutMode === "numbered")) {
+		return new Map();
+	}
+	if (!searching) {
+		return renderedNumbers(numberingRows(visibleNodes));
+	}
+	const siblings = numberingRows(
+		nodes.filter((node) => showCompleted || node.completedAt === null || animatingCompletionIds.has(node.id)),
+	);
+	const numbers = new Map<string, number>();
+	for (const node of visibleNodes) {
+		const number = siblingNumber(siblings, node.id);
+		if (number > 0) {
+			numbers.set(node.id, number);
+		}
+	}
+	return numbers;
+}
+
 /**
  * Upstream's `div.children`: the visible children of `parentId` that the outline's row
  * budget reaches, each a recursive `OutlineRow`, then, once every child is rendered,
@@ -562,10 +631,11 @@ export function OutlineChildren({
 		return isRoot ? (addChild ?? null) : null;
 	}
 
+	const numbers = childNumbers(nodes ?? [], visibleNodes, search !== null, showCompleted, animatingCompletionIds);
 	return (
 		<div ref={containerRef} className={isRoot ? ROOT_CHILDREN_CLASS : NESTED_CHILDREN_CLASS}>
 			{visibleNodes.slice(0, limit).map((node) => (
-				<OutlineRow key={node.id} depth={depth} node={node} />
+				<OutlineRow key={node.id} depth={depth} node={node} number={numbers.get(node.id)} />
 			))}
 			{isRoot ? addChild : null}
 			{backlinksRootId == null ? null : (

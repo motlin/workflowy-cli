@@ -379,3 +379,92 @@ describe("expand arrow CSS", () => {
 		expect(rules.filter((rule) => !css.includes(normalizeCss(rule)))).toStrictEqual([]);
 	});
 });
+
+const PREFIX_OPEN =
+	'<div class="prefix relative top-0 inline-flex items-center justify-center whitespace-nowrap" style="--prefix-count:1"><div style="height:12px"></div><div class="inline-flex space-x-2 items-center justify-center">';
+
+/** Everything between the bullet and the content: the prefix slot. */
+function prefixMarkup(html: string): string {
+	const start = html.indexOf("</a>") + "</a>".length;
+	return html.slice(start, html.indexOf('<span class="innerContentContainer">'));
+}
+
+describe("OutlineRow prefix slot", () => {
+	it("renders a to-do row's checkbox in the prefix after the visible bullet", () => {
+		const html = render(makeNode({data: {layoutMode: "todo"}}), false);
+		expect(bulletMarkup(html)).toBe(expectedBullet("alice", "bullet", DOT_SVG));
+		expect(
+			prefixMarkup(html).startsWith(`${PREFIX_OPEN}<label class="item-checkbox"><div class="checkbox-bg"></div>`),
+		).toBe(true);
+		expect(prefixMarkup(html)).toContain('data-icon="square"');
+		expect(prefixMarkup(html)).toContain('style="font-size:16px"');
+		expect(
+			prefixMarkup(html).endsWith(
+				'<input type="checkbox" tabindex="-1" name="complete"/></label></div></div><div class="notranslate content whitespace-pre-wrap">',
+			),
+		).toBe(true);
+	});
+
+	it("renders a completed to-do as checked with the square-check icon", () => {
+		const html = render(makeNode({data: {layoutMode: "todo"}, completedAt: 1_760_745_600}), false);
+		expect(html).toContain('<label class="item-checkbox checked">');
+		expect(html).toContain('data-icon="square-check"');
+		expect(html).toContain('<input type="checkbox" tabindex="-1" name="complete" checked=""/>');
+	});
+
+	it("renders no focusable button or aria-pressed in the prefix", () => {
+		const prefix = prefixMarkup(render(makeNode({data: {layoutMode: "todo"}}), false));
+		expect(prefix.includes("<button") || prefix.includes("aria-pressed")).toBe(false);
+	});
+
+	it("renders no prefix on a bullets row", () => {
+		expect(render(makeNode({}), false).includes('class="prefix')).toBe(false);
+	});
+
+	it("renders a numbered row's number as the only prefix piece", () => {
+		outlineState.expandedIds = new Set();
+		const html = renderToStaticMarkup(
+			createElement(
+				QueryClientProvider,
+				{client: new QueryClient()},
+				createElement(OutlineRow, {
+					node: {...makeNode({data: {layoutMode: "numbered"}}), hasChildren: false},
+					number: 3,
+				}),
+			),
+		);
+		expect(prefixMarkup(html)).toBe(
+			`${PREFIX_OPEN}<span class="[.done_&amp;]:line-through [.done_&amp;]:opacity-[.37]">3.</span></div></div><div class="notranslate content whitespace-pre-wrap">`,
+		);
+	});
+});
+
+describe("OutlineRow divider", () => {
+	const DIVIDER_LINE =
+		'<div class="\n    divider-line h-[var(--line-height)]\n    flex flex-1 items-center min-w-[24px]\n    cursor-text\n    name--item-selection-handle\n    name--meta-match-target\n  "><hr class="w-full h-px border-0 border-t border-solid border-color text-center m-0 mt-xs" style="border-top-color:var(--wf-border-primary)"/></div>';
+
+	it("flanks the label with two divider lines, one after the bullet and one after nameButtons", () => {
+		const html = render(makeNode({data: {layoutMode: "divider"}}), false);
+		const nameStart = html.indexOf('<div tabindex="-1" class="name');
+		const name = html.slice(nameStart);
+		const stripped = name.replaceAll(DIVIDER_LINE, "<LINE/>");
+		expect(stripped.includes("divider-line")).toBe(false);
+		expect(
+			[
+				stripped.indexOf("<a "),
+				stripped.indexOf("<LINE/>"),
+				stripped.indexOf('<div class="notranslate content'),
+				stripped.indexOf('<div class="wf-menu nameButtons"'),
+				stripped.lastIndexOf("<LINE/>"),
+			].every(
+				(position, index, positions) =>
+					position >= 0 && (index === 0 || position > (positions[index - 1] ?? 0)),
+			),
+		).toBe(true);
+		expect(name.split(DIVIDER_LINE)).toHaveLength(3);
+	});
+
+	it("renders no divider line on a bullets row", () => {
+		expect(render(makeNode({}), false).includes("divider-line")).toBe(false);
+	});
+});

@@ -2,25 +2,33 @@ import {readdirSync, readFileSync} from "node:fs";
 import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vite-plus/test";
-import {resolveLayoutMode} from "../src/client/components/layout-mode.js";
+import {DIVIDER_CLASSES, resolveLayoutMode} from "../src/client/components/layout-mode.js";
 
 describe("resolveLayoutMode", () => {
 	it.each([
-		["bullets", {projectClass: null, isTodo: false, isMultiline: false, hidesBullet: false}],
-		["h1", {projectClass: "header1", isTodo: false, isMultiline: false, hidesBullet: true}],
-		["p", {projectClass: "paragraph", isTodo: false, isMultiline: false, hidesBullet: false}],
-		["paragraph", {projectClass: "paragraph", isTodo: false, isMultiline: false, hidesBullet: false}],
-		["todo", {projectClass: "checkmark", isTodo: true, isMultiline: false, hidesBullet: false}],
-		["check", {projectClass: "checkmark", isTodo: true, isMultiline: false, hidesBullet: false}],
-		["numbered", {projectClass: null, isTodo: false, isMultiline: false, hidesBullet: false}],
-		["board", {projectClass: "board", isTodo: false, isMultiline: false, hidesBullet: false}],
-		["table", {projectClass: null, isTodo: false, isMultiline: false, hidesBullet: false}],
-		["quote-block", {projectClass: "quote-block", isTodo: false, isMultiline: true, hidesBullet: false}],
-		["quote", {projectClass: "quote-block", isTodo: false, isMultiline: true, hidesBullet: false}],
-		["code-block", {projectClass: "code-block", isTodo: false, isMultiline: true, hidesBullet: false}],
-		["divider", {projectClass: "divider", isTodo: false, isMultiline: false, hidesBullet: true}],
+		["bullets", {projectClasses: [], isTodo: false}],
+		["h1", {projectClasses: ["header1"], isTodo: false}],
+		["h2", {projectClasses: ["header2"], isTodo: false}],
+		["h3", {projectClasses: ["header3"], isTodo: false}],
+		["p", {projectClasses: ["paragraph"], isTodo: false}],
+		["paragraph", {projectClasses: ["paragraph"], isTodo: false}],
+		["todo", {projectClasses: ["checkmark"], isTodo: true}],
+		["check", {projectClasses: ["checkmark"], isTodo: true}],
+		["numbered", {projectClasses: [], isTodo: false}],
+		["board", {projectClasses: ["board"], isTodo: false}],
+		["table", {projectClasses: [], isTodo: false}],
+		["quote-block", {projectClasses: ["quote-block", "multiline"], isTodo: false}],
+		["quote", {projectClasses: ["quote-block", "multiline"], isTodo: false}],
+		["code-block", {projectClasses: ["code-block", "multiline"], isTodo: false}],
+		["divider", {projectClasses: DIVIDER_CLASSES, isTodo: false}],
 	])("resolves %s", (layoutMode, expected) => {
 		expect(resolveLayoutMode(layoutMode)).toStrictEqual(expected);
+	});
+
+	it("lists upstream's divider classes in order", () => {
+		expect(DIVIDER_CLASSES.join(" ")).toBe(
+			"divider [&>.name]:items-center [&>.name>.content]:flex-none [&>.name>.content]:justify-center [&>.name>.content]:max-w-[calc(100%_-_48px)] [&>.name>.content]:min-w-0 [&>.name>.content]:!px-s [&>.name>.content]:text-center [&>.name>.content]:text-tertiary [&>.name>.content]:text-s [&>.name>.content>.innerContentContainer]:max-w-full [&>.name>.content>.innerContentContainer]:w-auto [&>.name.empty:not(.name--focused)>.content]:!px-0 [&>.name.empty:not(.name--focused)>.content]:!w-0 project--bullet-on-hover",
+		);
 	});
 });
 

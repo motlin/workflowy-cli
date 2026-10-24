@@ -8,7 +8,7 @@ export interface ProjectClassState {
 	hasMirrors: boolean;
 	highlighted: boolean;
 	addedToSelection: boolean;
-	layoutClass?: string;
+	layoutClasses?: readonly string[];
 	/** Upstream's references root, the Backlinks section's row. */
 	references?: boolean;
 	/** The completed row is playing upstream's slideUp before it hides. */
@@ -53,7 +53,7 @@ export function projectClassName(state: ProjectClassState): string {
 		state.moving && "moving",
 		state.dragHoveredIn && "drag-hovered-in",
 		state.dragHoveredAt && "drag-hovered-at",
-		state.layoutClass,
+		...(state.layoutClasses ?? []),
 		state.slidingUp && "completing-slide-up",
 		state.slidingDown && "completed-slide-down",
 	]

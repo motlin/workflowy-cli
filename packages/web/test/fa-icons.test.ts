@@ -114,6 +114,7 @@ describe("FA_ICONS", () => {
 			"fal:clock-rotate-left",
 			"fal:users",
 			"fal:square",
+			"fal:square-check",
 			"fad:square-check",
 			"fal:calendar-lines-pen",
 			"fal:triangle-exclamation",

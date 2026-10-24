@@ -48,7 +48,7 @@ describe("projectClassName", () => {
 	});
 
 	it("appends the layout class last", () => {
-		expect(projectClassName({...LEAF, layoutClass: "checkmark"})).toBe("font-custom project task checkmark");
+		expect(projectClassName({...LEAF, layoutClasses: ["checkmark"]})).toBe("font-custom project task checkmark");
 	});
 
 	it("emits every state class in upstream order", () => {
@@ -63,7 +63,7 @@ describe("projectClassName", () => {
 				hasMirrors: true,
 				highlighted: true,
 				addedToSelection: true,
-				layoutClass: "board",
+				layoutClasses: ["board"],
 			}),
 		).toBe("font-custom project hasMirrors done noted collapsed highlighted addedToSelection board");
 	});

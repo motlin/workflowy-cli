@@ -8,6 +8,7 @@ import type {CSSProperties, ReactNode} from "react";
 
 import {expandArrow} from "../expand-arrow.js";
 import {resolveLayoutMode} from "../layout-mode.js";
+import {ItemCheckbox, itemPrefix} from "../item-prefix.js";
 
 interface BulletDotProps {
 	isCollapsed?: boolean;
@@ -197,7 +198,7 @@ export function StaticNode({
 	children,
 }: StaticNodeProps) {
 	const layout = resolveLayoutMode(layoutMode);
-	const projectClasses = ["font-custom project", isCompleted && "done", note && "noted", layout.projectClass]
+	const projectClasses = ["font-custom project", isCompleted && "done", note && "noted", ...layout.projectClasses]
 		.filter(Boolean)
 		.join(" ");
 
@@ -205,37 +206,9 @@ export function StaticNode({
 		<div className={projectClasses}>
 			<div className="name">
 				<BulletDot />
-				{layout.isTodo ? (
-					<button
-						aria-label="Complete"
-						aria-pressed={isCompleted}
-						className={`todo-checkbox${isCompleted ? " checked" : ""}`}
-						type="button"
-					>
-						<svg fill="none" height="16" viewBox="0 0 16 16" width="16">
-							<rect
-								fill="none"
-								height="13"
-								rx="3"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								width="13"
-								x="1.5"
-								y="1.5"
-							/>
-							{isCompleted ? (
-								<path
-									d="M4 8.5 L7 11 L12 5"
-									fill="none"
-									stroke="currentColor"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth="2"
-								/>
-							) : null}
-						</svg>
-					</button>
-				) : null}
+				{layout.isTodo
+					? itemPrefix([<ItemCheckbox key="todo" isCompleted={isCompleted} onComplete={() => {}} />])
+					: null}
 				<div className="notranslate content whitespace-pre-wrap">
 					<div className="content-editable" dangerouslySetInnerHTML={{__html: name}} />
 				</div>

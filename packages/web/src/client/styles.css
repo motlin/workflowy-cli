@@ -3688,131 +3688,237 @@ body.moving .itemMenu {
    Default bullets carry no layout class and render via the rules above.
    ============================================================================ */
 
-/* Headings: larger/bold text, no bullet. Captured sizes: h1 25.6px, h2 22.8px,
-   h3 a step smaller. Tokens: xl=1.602rem (~25.6px), l=1.424rem (~22.8px),
-   m=1.266em (~20.3px). */
-.project.header1 .innerContentContainer,
-.project.header1 .content-editable,
-.outline-node.header1 .innerContentContainer,
-.outline-node.header1 .content-editable,
-.project.header2 .innerContentContainer,
-.project.header2 .content-editable,
-.outline-node.header2 .innerContentContainer,
-.outline-node.header2 .content-editable,
-.project.header3 .innerContentContainer,
-.project.header3 .content-editable,
-.outline-node.header3 .innerContentContainer,
-.outline-node.header3 .content-editable {
-	font-weight: var(--wf-font-weight-bold);
-	line-height: var(--wf-line-height-s);
+/* Upstream's block-layout rules (js_wf-base CSS), desktop only. */
+.code-block {
+	margin-top: var(--wf-space-l);
+	margin-bottom: var(--wf-space-l);
 }
 
-.project.header1 .innerContentContainer,
-.project.header1 .content-editable,
-.outline-node.header1 .innerContentContainer,
-.outline-node.header1 .content-editable {
-	font-size: var(--wf-font-size-xl);
+.code-block > .name > .bullet {
+	opacity: 0.00000001 !important;
 }
 
-.project.header2 .innerContentContainer,
-.project.header2 .content-editable,
-.outline-node.header2 .innerContentContainer,
-.outline-node.header2 .content-editable {
-	font-size: var(--wf-font-size-l);
+.code-block > .name > .bullet.keep-bullet {
+	opacity: 1 !important;
 }
 
-.project.header3 .innerContentContainer,
-.project.header3 .content-editable,
-.outline-node.header3 .innerContentContainer,
-.outline-node.header3 .content-editable {
-	font-size: var(--wf-font-size-m);
+.code-block > .name:hover > .bullet {
+	opacity: 1 !important;
 }
 
-/* Headings and dividers suppress the round bullet (upstream shows none). */
-.project.header1 > .name .bulletHalo,
-.project.header2 > .name .bulletHalo,
-.project.header3 > .name .bulletHalo,
-.project.divider > .name .bulletHalo,
-.outline-node.header1 > .name .bulletHalo,
-.outline-node.header2 > .name .bulletHalo,
-.outline-node.header3 > .name .bulletHalo,
-.outline-node.divider > .name .bulletHalo {
-	visibility: hidden;
-}
-
-/* To-do: a square checkbox replaces the bullet. The bullet anchor stays for
-   drag/zoom but its dot is hidden; the checkbox button sits where the dot was. */
-.project.checkmark > .name .bulletHalo,
-.outline-node.checkmark > .name .bulletHalo {
-	visibility: hidden;
-}
-
-.todo-checkbox {
-	position: absolute;
-	top: 4px;
-	left: calc(var(--name-left-overhang) + 1px);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 24px;
-	padding: 0;
-	border: none;
-	background: none;
-	cursor: pointer;
-	color: var(--wf-gray-400);
-}
-
-.todo-checkbox:hover {
-	color: var(--wf-gray-500);
-}
-
-.todo-checkbox.checked {
-	color: var(--wf-text-green);
-}
-
-.todo-checkbox svg {
-	display: block;
-}
-
-.done .todo-checkbox {
-	opacity: 0.37;
-}
-
-/* Code block: full-width monospace box. Upstream renders content in a
-   whitespace-pre-wrap div inside a gray box. */
-.project.code-block > .name .content,
-.outline-node.code-block > .name .content {
-	font-family: var(--wf-font-family-mono);
-	background-color: var(--wf-gray-100);
-	border: var(--wf-border-width-s) solid var(--wf-gray-300);
+.code-block > .name .content {
+	box-sizing: border-box;
+	max-width: 100%;
+	padding: var(--wf-space-l) var(--wf-space-l);
+	overflow-wrap: break-word;
+	background: var(--wf-background-secondary);
+	border: var(--wf-border-width-s) solid var(--wf-border-primary);
 	border-radius: var(--wf-radius-s);
-	padding: var(--wf-space-m) var(--wf-space-ml);
-	white-space: pre-wrap;
-	overflow-x: auto;
+	font-family: var(--font-code-font-family, var(--wf-font-family-mono));
 }
 
-/* Quote block: left vertical bar, indented italic-ish text. */
-.project.quote-block > .name .content,
-.outline-node.quote-block > .name .content {
-	border-left: var(--wf-border-width-l) solid var(--wf-gray-300);
-	padding-left: var(--wf-space-ml);
-	color: var(--wf-gray-700);
+.code-block > .name .contentEditablePlaceholderWrapper {
+	display: none;
 }
 
-/* Divider: render the node as a horizontal rule. Text (if any) stays readable
-   but the row gets a centered rule via the content's top border. */
-.project.divider > .name .content::after,
-.outline-node.divider > .name .content::after {
-	content: "";
-	display: block;
-	border-top: var(--wf-border-width-s) solid var(--wf-gray-300);
+.quote-block {
 	margin: var(--wf-space-m) 0;
 }
 
-/* Numbered and board are lower-frequency; until their upstream DOM is captured
-   they fall back to default bullet rendering (no override here) to avoid
-   guessing markup. paragraph also renders as default text. */
+.quote-block > .name > .bullet {
+	opacity: 0.00000001 !important;
+}
+
+.quote-block > .name > .bullet.keep-bullet {
+	opacity: 1 !important;
+}
+
+.quote-block > .name:hover > .bullet {
+	opacity: 1 !important;
+}
+
+.quote-block .contentEditablePlaceholderWrapper {
+	display: none;
+}
+
+.quote-block > .name > .content .innerContentContainer {
+	border-left: solid var(--wf-border-width-l) var(--wf-border-primary);
+	padding: 0 var(--wf-space-l);
+}
+
+.quote-block > .name > .content:empty {
+	padding-left: var(--wf-space-ml);
+}
+
+.quote-block > .name > .content:empty:before {
+	content: "";
+	display: block;
+	height: var(--wf-item-line-height, 0);
+	position: relative;
+	left: calc(var(--wf-space-ml) * -1);
+	border-left: solid var(--wf-border-width-l) var(--wf-border-primary);
+}
+
+.paragraph:not(.root) {
+	margin-top: var(--wf-space-s);
+	margin-bottom: var(--wf-space-s);
+}
+
+.paragraph:not(.root) > .name {
+	--line-height: 1.5em;
+}
+
+.paragraph:not(.root) > .name > .content,
+.paragraph:not(.root) > .note > .content {
+	line-height: var(--line-height);
+}
+
+.paragraph:not(.root) > .name > .bullet:not(.keep-bullet),
+.header1:not(.root) > .name > .bullet:not(.keep-bullet),
+.header2:not(.root) > .name > .bullet:not(.keep-bullet),
+.header3:not(.root) > .name > .bullet:not(.keep-bullet) {
+	opacity: 0.00000001 !important;
+}
+
+.is-desktop .paragraph:not(.root) > .name:hover > .bullet:not(.keep-bullet),
+.is-desktop .header1:not(.root) > .name:hover > .bullet:not(.keep-bullet),
+.is-desktop .header2:not(.root) > .name:hover > .bullet:not(.keep-bullet),
+.is-desktop .header3:not(.root) > .name:hover > .bullet:not(.keep-bullet) {
+	opacity: 1 !important;
+}
+
+.paragraph:not(.root) > .children {
+	padding-top: var(--wf-space-s);
+}
+
+.header1:not(.root) > .name,
+.header2:not(.root) > .name,
+.header3:not(.root) > .name {
+	font-weight: 700;
+	--line-height: 1.375em;
+}
+
+.header1:not(.root) > .name {
+	font-size: var(--wf-font-size-xl);
+}
+
+.header2:not(.root) > .name {
+	font-size: var(--wf-font-size-l);
+}
+
+.header3:not(.root) > .name {
+	font-size: var(--wf-font-size-m);
+}
+
+.is-desktop .header1:not(.root) > .name,
+.is-desktop .header2:not(.root) > .name,
+.is-desktop .header3:not(.root) > .name {
+	margin-top: var(--wf-space-m);
+	margin-bottom: var(--wf-space-m);
+}
+
+.header1:not(.root) > .name > .expand,
+.header1:not(.root) > .name > .menu,
+.header1:not(.root) > .name > .prefix,
+.header1:not(.root) > .name > .bullet,
+.header1:not(.root) > .name > .content,
+.header2:not(.root) > .name > .expand,
+.header2:not(.root) > .name > .menu,
+.header2:not(.root) > .name > .prefix,
+.header2:not(.root) > .name > .bullet,
+.header2:not(.root) > .name > .content,
+.header3:not(.root) > .name > .expand,
+.header3:not(.root) > .name > .menu,
+.header3:not(.root) > .name > .prefix,
+.header3:not(.root) > .name > .bullet,
+.header3:not(.root) > .name > .content {
+	line-height: var(--line-height);
+	font-size: inherit;
+}
+
+.project--bullet-on-hover > .name > .bullet {
+	opacity: 0.00000001 !important;
+}
+
+.project--bullet-on-hover > .name > .bullet.keep-bullet {
+	opacity: 1 !important;
+}
+
+.project--bullet-on-hover > .name:hover > .bullet {
+	opacity: 1 !important;
+}
+
+/* The prefix slot (numbered, to-do) between the bullet and the content. */
+.name > .prefix:empty {
+	display: none;
+}
+
+.name > .prefix:empty ~ .content:empty {
+	display: block;
+}
+
+.prefix {
+	height: var(--line-height);
+	margin-right: calc(var(--line-height) * 0.3);
+	padding-top: var(--wf-content-padding-top);
+}
+
+.prefix + .content {
+	max-width: calc(100% - 2 * var(--prefix-count) * var(--line-height));
+}
+
+.item-checkbox {
+	background: none;
+	color: var(--wf-text-primary);
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	position: relative;
+	justify-content: center;
+}
+
+.item-checkbox.checked,
+.done .item-checkbox,
+.done .image-viewer,
+.done .embed,
+.done .twitter-tweet {
+	opacity: 0.37;
+}
+
+.item-checkbox > input {
+	position: absolute;
+	height: 0;
+	width: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.checkbox-bg {
+	position: absolute;
+	top: 1px;
+	right: 1px;
+	bottom: 1px;
+	left: 1px;
+	background: var(--wf-background-primary);
+	border-radius: var(--wf-radius-xs);
+}
+
+.item-checkbox:hover > .checkbox-bg,
+.item-checkbox:checked > .checkbox-bg {
+	background: var(--wf-background-quaternary);
+}
+
+.checkbox-icon {
+	position: relative;
+}
+
+.is-mobile .item-checkbox:hover > .checkbox-bg {
+	background: var(--wf-background-primary);
+}
+
+.is-mobile .item-checkbox.checked:hover > .checkbox-bg {
+	background: var(--wf-background-quaternary);
+}
 
 /* Upstream's reset gives chrome line-height:1, inherited from body. */
 .wf-left-bar {

@@ -9,6 +9,7 @@ import type {TreeSearchResult} from "../src/server/tree-search.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {searchFilter} from "../src/client/search-filter.js";
 import type {SearchFilter} from "../src/client/search-filter.js";
+import {DIVIDER_CLASSES} from "../src/client/components/layout-mode.js";
 import {cssBlock, cssPreludes} from "./helpers/css-block.js";
 
 const outlineState = {
@@ -298,32 +299,50 @@ describe("OutlineTree zoom root row", () => {
 		expect(classes).toStrictEqual([
 			"font-custom project selected root header2",
 			"font-custom project selected root checkmark",
-			"font-custom project selected root code-block",
-			"font-custom project selected root quote-block",
-			"font-custom project selected root divider",
+			"font-custom project selected root code-block multiline",
+			"font-custom project selected root quote-block multiline",
+			`font-custom project selected root ${DIVIDER_CLASSES.join(" ").replaceAll("&", "&amp;").replaceAll(">", "&gt;")}`,
 			"font-custom project selected root paragraph",
 			"font-custom project selected root header1",
 			"font-custom project selected root header3",
 		]);
 	});
 
-	it("renders a to-do zoom root's checkbox before its title", () => {
+	it("renders a to-do zoom root's checkbox in the prefix slot, first in the title row", () => {
 		nodesById.set("alice", makeNode({name: "Delta", data: {layoutMode: "todo"}}));
 		const html = render("alice");
 		const expected =
-			'<div tabindex="-1" class="name name--main"><button aria-label="Complete" aria-pressed="false" class="todo-checkbox" type="button">';
+			'<div tabindex="-1" class="name name--main"><div class="prefix relative top-0 inline-flex items-center justify-center whitespace-nowrap" style="--prefix-count:1"><div style="height:12px"></div><div class="inline-flex space-x-2 items-center justify-center"><label class="item-checkbox zoomed">';
 		const start = html.indexOf('<div tabindex="-1" class="name name--main">');
 		expect(html.slice(start, start + expected.length)).toBe(expected);
+		expect(html).toContain('data-icon="square" class="svg-inline--fa fa-square fa-1x checkbox-icon" ');
+		expect(html).toContain('style="font-size:24px"');
 	});
 
-	it("renders a completed to-do zoom root's checkbox as checked", () => {
+	it("renders a completed to-do zoom root's checkbox as checked and zoomed", () => {
 		nodesById.set("alice", makeNode({name: "Delta", completedAt: 1_760_745_600, data: {layoutMode: "todo"}}));
-		expect(render("alice").includes('aria-pressed="true" class="todo-checkbox checked"')).toBe(true);
+		const html = render("alice");
+		expect(html).toContain('<label class="item-checkbox checked zoomed">');
+		expect(html).toContain('data-icon="square-check"');
+		expect(html).toContain('<input type="checkbox" tabindex="-1" name="complete" checked=""/>');
 	});
 
 	it("renders no checkbox on a bullets zoom root", () => {
 		nodesById.set("alice", makeNode({name: "Delta"}));
-		expect(render("alice").includes("todo-checkbox")).toBe(false);
+		expect(render("alice").includes("item-checkbox")).toBe(false);
+	});
+
+	it("renders no Untitled placeholder on an empty numbered zoom root, but keeps it on a bullets one", () => {
+		nodesById.set("alice", makeNode({name: "", data: {layoutMode: "numbered"}}));
+		const numbered = render("alice");
+		nodesById.set("alice", makeNode({name: ""}));
+		const bullets = render("alice");
+		expect([numbered.includes("Untitled"), bullets.includes("Untitled")]).toStrictEqual([false, true]);
+	});
+
+	it("flanks a divider zoom root's title with two divider lines", () => {
+		nodesById.set("alice", makeNode({name: "Section", data: {layoutMode: "divider"}}));
+		expect(render("alice").split('class="\n    divider-line').length - 1).toBe(2);
 	});
 
 	it("never renders a note on the unzoomed main-tree root", () => {

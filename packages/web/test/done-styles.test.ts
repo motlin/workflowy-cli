@@ -19,12 +19,16 @@ describe("done styling CSS", () => {
 			content: cssBlock(styles, ".done > .name > .content"),
 			dimmed: cssBlock(styles, ".done .name > .content, .name > .content.done"),
 			pill: cssBlock(styles, ".done > .name > .content .monolith-pill .content-wrapper"),
-			checkbox: cssBlock(styles, ".done .todo-checkbox"),
+			checkbox: cssBlock(
+				styles,
+				".item-checkbox.checked, .done .item-checkbox, .done .image-viewer, .done .embed, .done .twitter-tweet",
+			),
 		}).toStrictEqual({
 			content: {"text-decoration": "line-through"},
 			dimmed: {opacity: "37%"},
 			pill: {"text-decoration": "line-through"},
 			checkbox: {opacity: "0.37"},
 		});
+		expect(styles.includes(".todo-checkbox")).toBe(false);
 	});
 });
