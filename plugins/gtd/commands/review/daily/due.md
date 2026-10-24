@@ -187,6 +187,14 @@ Task **execution** stays foreground. If a task runs `cache import-api` / `just d
 
 **Open-then-confirm tasks.** Some `#llm-task` items only instruct you to open a page/URL for a manual action the user completes themselves (e.g. redeeming credit-card rewards, reviewing a subscription's member benefits). For these, **open the page first** (`open <url>`) and **then** ask whether the task is actually done — opening the page is not the task. In the `AskUserQuestion` body, state both halves explicitly: what you already did (including the page you opened and any script you ran), and the exact manual step the user must perform, read from the item's child instructions. A status-only message such as "The benefits page is open for review" is not enough. Opening can succeed while the real action cannot (a financial submit the user must perform, a page that won't load, info not yet available), so never infer "done" from a successful `open`. Advance the date only on a real "done".
 
+**Interactive-walk tasks.** Some `#llm-task` items are long interactive walks: their instructions ask the user a question per file, video, or album entry (e.g. sorting a TikTok album into categories). These do not auto-start; a first per-item question has been rejected on consecutive runs. Handle them like this:
+
+- Detect them from the child instructions: a per-item loop of `AskUserQuestion` calls, or sorting/triaging a collection one entry at a time.
+- Ask one question per such task before running anything, with outcomes **Run now** (promoted), **Skip today**, and **Move to Weekly Review**.
+- On **Run now**, execute the instructions as written. On **Skip today**, log a skip per the skip-log rules and leave the date alone. On **Move to Weekly Review**, move the node under `🗓️ Weekly Review` and write that section's cadence `<time>`.
+- Related setup steps that only serve the walk (e.g. a NAS sync) belong with it: gate and move them together.
+- Non-interactive `#llm-task` items keep the no-skip-prompt behavior above.
+
 ### Drafting instruction children
 
 Whenever you write a new instruction child for an `#llm-task` item (converting an item, or adding a rule the user asked for), draft it to these rules:
