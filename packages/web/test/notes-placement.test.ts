@@ -85,7 +85,7 @@ function render(node: NodeResponse): string {
 }
 
 function projectClass(html: string): string | undefined {
-	return /^<div class="([^"]*)"/u.exec(html)?.[1];
+	return /^<div projectid="[^"]*" class="([^"]*)"/u.exec(html)?.[1];
 }
 
 describe("note placement", () => {

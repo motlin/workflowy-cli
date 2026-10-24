@@ -199,8 +199,8 @@ describe("OutlineTree zoom root row", () => {
 		nodesById.set("alice", makeNode({name: "Alice"}));
 		const html = render("alice");
 		const expected =
-			'<div class="font-custom project selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer" data-node-id="alice">Alice</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="drop-line"><div class="line"></div></div><div class="children ';
-		const start = html.indexOf('<div class="font-custom project selected root">');
+			'<div projectid="alice" class="font-custom project selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer" data-node-id="alice">Alice</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="drop-line"><div class="line"></div></div><div class="children ';
+		const start = html.indexOf('<div projectid="alice" class="font-custom project selected root">');
 		expect(html.slice(start, start + expected.length)).toBe(expected);
 	});
 
@@ -210,7 +210,7 @@ describe("OutlineTree zoom root row", () => {
 		try {
 			const html = render("alice");
 			const expected =
-				'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer editing" data-node-id="alice" contentEditable="true">Alice</span></div>';
+				'<div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer editing" data-node-id="alice" contentEditable="true">Alice</span></div>';
 			expect(html.includes(expected)).toBe(true);
 		} finally {
 			outlineState.editingId = null;
@@ -223,7 +223,7 @@ describe("OutlineTree zoom root row", () => {
 		try {
 			expect(
 				render("alice").includes(
-					'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer editing" data-node-id="alice" contentEditable="true"></span></div>',
+					'<div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer editing" data-node-id="alice" contentEditable="true"></span></div>',
 				),
 			).toBe(true);
 		} finally {
@@ -233,24 +233,43 @@ describe("OutlineTree zoom root row", () => {
 
 	it("marks a completed zoomed leaf's root .project as done", () => {
 		nodesById.set("alice", makeNode({hasChildren: false, completedAt: 1_760_745_600}));
-		expect(render("alice").includes('<div class="font-custom project task done selected root">')).toBe(true);
+		expect(
+			render("alice").includes('<div projectid="alice" class="font-custom project task done selected root">'),
+		).toBe(true);
 	});
 
-	it("leaves the content div empty for an unnamed zoomed node so the placeholder shows", () => {
+	it("renders upstream's placeholder element first in an unnamed zoomed node's title", () => {
 		nodesById.set("alice", makeNode({name: ""}));
-		expect(
-			render("alice").includes(
-				'<div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"></div>',
-			),
-		).toBe(true);
+		const html = render("alice");
+		const expected =
+			'<div tabindex="-1" class="name name--main empty"><div class="contentEditablePlaceholderWrapper"><div class="contentEditablePlaceholder">Untitled</div></div><div class="notranslate content whitespace-pre-wrap"></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div>';
+		const start = html.indexOf('<div tabindex="-1" class="name name--main empty">');
+		expect(html.slice(start, start + expected.length)).toBe(expected);
+	});
+
+	it("has no placeholder element in a named zoomed node's title", () => {
+		nodesById.set("alice", makeNode({name: "Alice"}));
+		expect(render("alice").includes("contentEditablePlaceholder")).toBe(false);
+	});
+
+	it("marks a focused unnamed zoom title name--focused", () => {
+		nodesById.set("alice", makeNode({name: ""}));
+		outlineState.editingId = "alice";
+		try {
+			expect(render("alice").includes('<div tabindex="-1" class="name name--focused name--main empty">')).toBe(
+				true,
+			);
+		} finally {
+			outlineState.editingId = null;
+		}
 	});
 
 	it("renders the zoom root's note as notes--main after the title, before the children, and marks the root noted", () => {
 		nodesById.set("alice", makeNode({name: "Delta", note: "Delta parent note"}));
 		const html = render("alice");
 		const expected =
-			'<div class="font-custom project noted selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"><span class="innerContentContainer" data-node-id="alice">Delta</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="notes notes--main" data-note-of="alice">Delta parent note</div><div class="drop-line"><div class="line"></div></div><div class="children ';
-		const start = html.indexOf('<div class="font-custom project noted selected root">');
+			'<div projectid="alice" class="font-custom project noted selected root"><div tabindex="-1" class="name name--main"><div class="notranslate content whitespace-pre-wrap"><span class="innerContentContainer" data-node-id="alice">Delta</span></div><div class="wf-menu nameButtons" style="margin-left:0"></div></div><div class="notes notes--main" data-note-of="alice">Delta parent note</div><div class="drop-line"><div class="line"></div></div><div class="children ';
+		const start = html.indexOf('<div projectid="alice" class="font-custom project noted selected root">');
 		expect(html.slice(start, start + expected.length)).toBe(expected);
 	});
 
@@ -272,7 +291,9 @@ describe("OutlineTree zoom root row", () => {
 	it("gives the zoom root its layout's project class like a row", () => {
 		const classes = ["h2", "todo", "code-block", "quote-block", "divider", "p", "h1", "h3"].map((layoutMode) => {
 			nodesById.set("alice", makeNode({data: {layoutMode}}));
-			return /<div class="(font-custom project[^"]*selected root[^"]*)">/u.exec(render("alice"))?.[1];
+			return /<div projectid="alice" class="(font-custom project[^"]*selected root[^"]*)">/u.exec(
+				render("alice"),
+			)?.[1];
 		});
 		expect(classes).toStrictEqual([
 			"font-custom project selected root header2",
@@ -312,7 +333,7 @@ describe("OutlineTree zoom root row", () => {
 	it("marks the unzoomed root as mainTreeRoot with a title-less name--root row", () => {
 		const html = render();
 		const expected =
-			'<div class="font-custom project selected root mainTreeRoot"><div tabindex="-1" class="name name--root"><div class="notranslate content whitespace-pre-wrap" data-placeholder="Untitled"></div>';
+			'<div class="font-custom project selected root mainTreeRoot"><div tabindex="-1" class="name name--root"><div class="notranslate content whitespace-pre-wrap"></div>';
 		const start = html.indexOf('<div class="font-custom project selected root mainTreeRoot">');
 		expect(html.slice(start, start + expected.length)).toBe(expected);
 	});
@@ -586,7 +607,6 @@ describe("outline tree styles guard", () => {
 			legacy: styles.includes(".zoomed-node-title"),
 			main: cssBlock(styles, ".name.name--main"),
 			rootContent: cssBlock(styles, ".root > .name > .content"),
-			placeholder: cssBlock(styles, ".name--main > .content:empty::before"),
 		}).toStrictEqual({
 			legacy: false,
 			main: {
@@ -599,12 +619,6 @@ describe("outline tree styles guard", () => {
 				"padding-left": "100px",
 			},
 			rootContent: {"padding-top": "0"},
-			placeholder: {
-				content: "attr(data-placeholder)",
-				color: "var(--wf-text-tertiary)",
-				width: "auto",
-				"pointer-events": "none",
-			},
 		});
 	});
 

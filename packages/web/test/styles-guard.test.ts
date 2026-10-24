@@ -204,7 +204,7 @@ describe("item menu trigger styles guard", () => {
 
 	it("has upstream's .itemMenu trigger rules", () => {
 		const rules = [
-			".itemMenu{position:absolute !important;left:var(--item-menu-left);top:0;height:var(--line-height);padding-top:var(--wf-content-padding-top);display:flex;align-items:center;cursor:pointer;outline:none;transition:opacity 0.2s}",
+			".itemMenu{box-sizing:content-box;position:absolute !important;left:var(--item-menu-left);top:0;height:var(--line-height);padding-top:var(--wf-content-padding-top);display:flex;align-items:center;cursor:pointer;outline:none;transition:opacity 0.2s}",
 			".itemMenu>div>span{display:block;width:24px;height:24px;border-radius:12px;color:var(--wf-text-tertiary)}",
 			".itemMenu>div>span:hover,.itemMenu:focus>div>span{background:var(--wf-background-tertiary)}",
 			".itemMenu:focus>div>span{color:var(--wf-text-quaternary)}",
@@ -444,5 +444,58 @@ describe("search panel styles guard", () => {
 describe("show completed styles guard", () => {
 	it("drops the old show-completed popup and toggle switch rules", () => {
 		expect(hasSelector(styles, /\.hide-completed-popup\b|\.toggle-switch\b/u)).toBe(false);
+	});
+});
+
+describe("node row anatomy styles guard", () => {
+	it("drops the old zoom-title ::before placeholder and styles upstream's placeholder element", () => {
+		expect({
+			oldRule: hasSelector(styles, /\.name--main > \.content:empty::before/u),
+			wrapper: normalizedBlocks(styles, ".name .contentEditablePlaceholderWrapper"),
+			placeholder: normalizedBlocks(styles, ".name .contentEditablePlaceholder"),
+			prefix: normalizedBlocks(styles, ".prefix + .contentEditablePlaceholderWrapper"),
+		}).toStrictEqual({
+			oldRule: false,
+			wrapper: ["position: absolute;line-height: var(--font-selected-name-line-height);pointer-events: none"],
+			placeholder: ["color: var(--wf-text-tertiary);line-height: var(--font-selected-name-line-height)"],
+			prefix: ["padding-left: calc(var(--line-height))"],
+		});
+	});
+
+	it("makes the item menu trigger content-box", () => {
+		expect(cssBlock(styles, ".itemMenu")["box-sizing"]).toBe("content-box");
+	});
+
+	it("lets the text span shrink to its text and resets the expand button font and bullet underline", () => {
+		expect({
+			flex: cssBlock(styles, ".innerContentContainer").flex,
+			expandFont: cssBlock(styles, ".expand").font,
+			expandLineHeight: cssBlock(styles, ".expand")["line-height"],
+			bulletDecoration: cssBlock(styles, ".bullet")["text-decoration"],
+			bulletFocus: hasSelector(styles, /\.bullet:focus/u),
+		}).toStrictEqual({
+			flex: undefined,
+			expandFont: "inherit",
+			expandLineHeight: "inherit",
+			bulletDecoration: "none",
+			bulletFocus: false,
+		});
+	});
+
+	it("ports the remaining wf-base row rules", () => {
+		expect({
+			hover: normalizedBlocks(
+				styles,
+				".name:not(.name--root):hover > .itemMenu,\n.name:not(.name--root):hover > .bullet",
+			),
+			print: /@media print\s*\{\s*\.name\s*\{\s*break-inside:\s*avoid;?\s*\}\s*\.nameButtons\s*\{\s*display:\s*none\s*!important;?\s*\}\s*\}/u.test(
+				uncommented,
+			),
+			floating: hasSelector(styles, /\.project\.floating-conversations:before/u),
+		}).toStrictEqual({
+			hover: ["opacity: 1 !important"],
+			print: true,
+			floating: true,
+		});
 	});
 });

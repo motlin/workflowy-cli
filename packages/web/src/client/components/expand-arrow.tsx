@@ -53,7 +53,16 @@ export function expandArrow({nodeId, hasChildren, isExpanded, onToggle, onExpand
 		return <button type="button" tabIndex={-1} aria-hidden="true" {...shared} />;
 	}
 	return (
-		<button type="button" aria-expanded={isExpanded} aria-label={isExpanded ? "Collapse" : "Expand"} {...shared}>
+		<button
+			type="button"
+			aria-expanded={isExpanded}
+			aria-label={isExpanded ? "Collapse" : "Expand"}
+			// Upstream's anchor is never focusable; keep a click from moving focus to the button.
+			onMouseDown={(event) => {
+				event.preventDefault();
+			}}
+			{...shared}
+		>
 			<div>
 				<svg
 					width="20"

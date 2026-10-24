@@ -40,6 +40,7 @@ import {editableText} from "./editable-text.js";
 import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
 import {useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
+import {itemMenuLeft} from "../item-menu-model.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
 import {planBlankSpaceClick} from "../blank-space-click.js";
 import {DOCUMENT_END_HEIGHT} from "../page-style.js";
@@ -198,6 +199,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 
 	return (
 		<div
+			projectid={node?.id}
 			className={[
 				projectClassName({
 					hasChildren: node?.hasChildren !== false,
@@ -221,7 +223,12 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- hover mounts the bullet-menu trigger; click is a mouse shortcut for editing the title, which keyboard users reach with the arrow keys */}
 			<div
 				tabIndex={-1}
-				className={isMainTreeRoot ? "name name--root" : "name name--main"}
+				className={nameClassName({
+					focused: isEditing,
+					isZoomRoot: !isMainTreeRoot,
+					isMainRoot: isMainTreeRoot,
+					empty: !isMainTreeRoot && nameHtml === "",
+				})}
 				onClick={isMainTreeRoot ? undefined : handleTitleClick}
 				onMouseEnter={() => {
 					setIsHovered(true);
@@ -230,11 +237,16 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 					setIsHovered(false);
 				}}
 			>
+				{!isMainTreeRoot && nameHtml === "" ? (
+					<div className="contentEditablePlaceholderWrapper">
+						<div className="contentEditablePlaceholder">Untitled</div>
+					</div>
+				) : null}
 				{node && layout.isTodo ? (
 					<TodoCheckbox isCompleted={node.completedAt !== null} onComplete={handleComplete} />
 				) : null}
 				{node?.calendar?.level === "day" ? <DayTitlePrefix node={node} /> : null}
-				<div className="notranslate content whitespace-pre-wrap" data-placeholder="Untitled">
+				<div className="notranslate content whitespace-pre-wrap">
 					{node && (nameHtml !== "" || isEditing)
 						? editableText({
 								clickPosition: isEditing ? (editingClickPosition ?? undefined) : undefined,
@@ -248,7 +260,12 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 				</div>
 				<div className="wf-menu nameButtons" style={{marginLeft: 0}} />
 				{node && !isMainTreeRoot && (isHovered || isMenuOpen) ? (
-					<NodeItemMenu node={node} onComplete={handleComplete} onOpenChange={setIsMenuOpen} />
+					<NodeItemMenu
+						left={itemMenuLeft(true, 1)}
+						node={node}
+						onComplete={handleComplete}
+						onOpenChange={setIsMenuOpen}
+					/>
 				) : null}
 			</div>
 			{node && (noteMounted || shouldMountNote) ? (

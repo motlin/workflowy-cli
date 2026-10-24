@@ -208,7 +208,7 @@ describe("OutlineChildren Backlinks section", () => {
 		outlineState.expandedIds = new Set(["refs"]);
 		const html = render("target");
 		const crumbs =
-			'<div class="font-custom project task"><div class="text-xs mobile:text-s text-tertiary mt-m ml-xl mobile:ml-2xl leading-s"><div class="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden"><a class="breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate opacity-70';
+			'<div projectid="bl-1" class="font-custom project task"><div class="text-xs mobile:text-s text-tertiary mt-m ml-xl mobile:ml-2xl leading-s"><div class="breadcrumbs grow shrink min-w-0 flex gap-m items-center text-s leading-base overflow-hidden"><a class="breadcrumb-item flex-shrink-0 whitespace-nowrap overflow-hidden truncate opacity-70';
 		const inFirstRow = (fragment: string) => html.indexOf(fragment, html.indexOf(crumbs)) > html.indexOf(crumbs);
 		expect({
 			open: html.includes('<div class="font-custom project references open">'),

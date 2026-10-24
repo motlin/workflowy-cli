@@ -74,7 +74,7 @@ function projectClass(indicator: DropIndicator | null): string {
 		createElement(QueryClientProvider, {client: new QueryClient()}, createElement(OutlineRow, {node: ALICE})),
 	);
 	outlineState.dropIndicator = null;
-	return /^<div class="([^"]*)"/u.exec(html)?.[1] ?? "";
+	return /^<div projectid="[^"]*" class="([^"]*)"/u.exec(html)?.[1] ?? "";
 }
 
 describe("drop indicator row classes", () => {

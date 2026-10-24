@@ -319,7 +319,10 @@ function NodeName({
 		toggleComplete(queryClient, {nodeId: node.id, isCurrentlyCompleted: isCompleted});
 	};
 
-	const nameClasses = withClasses(nameClassName({empty: name === "", withEmbedder}), searchNameClasses);
+	const nameClasses = withClasses(
+		nameClassName({focused: isEditing, empty: name === "", withEmbedder}),
+		searchNameClasses,
+	);
 
 	return (
 		// Mouse shortcut for editing; keyboard users reach nodes by moving the caret with the arrow keys.
@@ -531,6 +534,7 @@ export const OutlineRow = memo(function OutlineRow({
 
 	return (
 		<div
+			projectid={node.id}
 			className={withClasses(
 				rowProjectClassName(
 					node,

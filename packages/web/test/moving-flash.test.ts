@@ -71,7 +71,7 @@ describe("moving row class", () => {
 			.replaceAll(";}", "}");
 		expect({
 			rule: css.includes(
-				'.project.highlighted:before,.project.moving:before,.project.tapped:before{content:"";display:block;position:absolute;top:0;right:var(--item-selection-x-offset);bottom:0;left:var(--item-selection-x-offset);border-radius:var(--item-selection-border-radius);background:var(--wf-background-tertiary)}',
+				'.project.highlighted:before,.project.floating-conversations:before,.project.moving:before,.project.tapped:before{content:"";display:block;position:absolute;top:0;right:var(--item-selection-x-offset);bottom:0;left:var(--item-selection-x-offset);border-radius:var(--item-selection-border-radius);background:var(--wf-background-tertiary)}',
 			),
 			offset: css.includes("--item-selection-x-offset:-5px;"),
 			radius: css.includes("--item-selection-border-radius:5px;"),

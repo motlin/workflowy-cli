@@ -1059,6 +1059,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Upstream's row tint behind a highlighted, just-moved (Shift+Cmd+Up/Down, 500ms) or tapped row. */
 .project.highlighted:before,
+.project.floating-conversations:before,
 .project.moving:before,
 .project.tapped:before {
 	content: "";
@@ -1150,6 +1151,16 @@ body.item-selection--dragging * {
 
 .name > .content {
 	--wf-item-line-height: var(--font-default-line-height);
+}
+
+@media print {
+	.name {
+		break-inside: avoid;
+	}
+
+	.nameButtons {
+		display: none !important;
+	}
 }
 
 .name > .content {
@@ -1261,11 +1272,19 @@ body.item-selection--dragging * {
 	padding-top: 0;
 }
 
-.name--main > .content:empty::before {
-	content: attr(data-placeholder);
-	color: var(--wf-text-tertiary);
-	width: auto;
+.name .contentEditablePlaceholderWrapper {
+	position: absolute;
+	line-height: var(--font-selected-name-line-height);
 	pointer-events: none;
+}
+
+.name .contentEditablePlaceholder {
+	color: var(--wf-text-tertiary);
+	line-height: var(--font-selected-name-line-height);
+}
+
+.prefix + .contentEditablePlaceholderWrapper {
+	padding-left: calc(var(--line-height));
 }
 
 /* Upstream sizes this via an inline --root-content-height of 30px. */
@@ -1299,9 +1318,16 @@ body:not(.moving) .mainTreeRoot > .notes {
 	border: none;
 	background: none;
 	box-sizing: content-box;
+	font: inherit;
+	line-height: inherit;
 }
 
 .name:not(.name--root):hover > .expand {
+	opacity: 1 !important;
+}
+
+.name:not(.name--root):hover > .itemMenu,
+.name:not(.name--root):hover > .bullet {
 	opacity: 1 !important;
 }
 
@@ -1354,6 +1380,7 @@ body.moving .expand {
 	box-sizing: content-box;
 	color: var(--wf-text-secondary);
 	cursor: pointer;
+	text-decoration: none;
 }
 
 .bullet > .bulletHalo {
@@ -1444,7 +1471,6 @@ body.moving .expand {
 
 /* Node text; font-size and line-height come from .name and .content */
 .innerContentContainer {
-	flex: 1;
 	word-wrap: break-word;
 	overflow-wrap: break-word;
 }
@@ -2906,6 +2932,7 @@ body.moving * {
 
 /* Upstream bullet-menu trigger: the ButtonMenu `.itemMenu`, last child of a hovered `.name` */
 .itemMenu {
+	box-sizing: content-box;
 	position: absolute !important;
 	left: var(--item-menu-left);
 	top: 0;

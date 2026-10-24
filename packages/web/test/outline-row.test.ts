@@ -19,7 +19,7 @@ const outlineState = {
 	showCompleted: true,
 	toggleExpand: () => {},
 	resumeEditing: () => {},
-	editingId: null,
+	editingId: null as string | null,
 	itemSelection: {entries: [], pivotId: null, retractableIds: [], counter: 0},
 	editingClickPosition: null,
 	editingNoteId: null,
@@ -145,7 +145,7 @@ const NAME_BUTTONS = '<div class="wf-menu nameButtons" style="margin-left:0"></d
 const DROP_LINE = '<div class="drop-line"><div class="line"></div></div>';
 
 function expectedRow(projectClass: string, nameClass: string, content: string): string {
-	return `<div class="${projectClass}"><div tabindex="-1" class="${nameClass}" role="presentation">${expectedBullet("alice", "bullet", DOT_SVG)}<div class="notranslate content whitespace-pre-wrap">${content}</div>${NAME_BUTTONS}${EXPAND_LEAF}</div>${DROP_LINE}</div>`;
+	return `<div projectid="alice" class="${projectClass}"><div tabindex="-1" class="${nameClass}" role="presentation">${expectedBullet("alice", "bullet", DOT_SVG)}<div class="notranslate content whitespace-pre-wrap">${content}</div>${NAME_BUTTONS}${EXPAND_LEAF}</div>${DROP_LINE}</div>`;
 }
 
 describe("OutlineRow name and content markup", () => {
@@ -176,6 +176,25 @@ describe("OutlineRow name and content markup", () => {
 		expect(render(makeNode({completedAt: 1_792_195_200_000}), false)).toBe(
 			expectedRow("font-custom project task done", "name", '<span class="innerContentContainer">Alice</span>'),
 		);
+	});
+});
+
+describe("OutlineRow focused name", () => {
+	it("adds name--focused only while the row's name is being edited", () => {
+		const content = '<span class="innerContentContainer">Alice</span>';
+		outlineState.editingId = "alice";
+		const editing = render(makeNode({}), false);
+		const editingEmpty = render(makeNode({name: ""}), false);
+		outlineState.editingId = null;
+		expect({
+			editing: editing.includes('<div tabindex="-1" class="name name--focused" role="presentation">'),
+			editingEmpty: editingEmpty.includes('class="name name--focused empty"'),
+			resting: render(makeNode({}), false),
+		}).toStrictEqual({
+			editing: true,
+			editingEmpty: true,
+			resting: expectedRow("font-custom project task", "name", content),
+		});
 	});
 });
 
@@ -216,6 +235,16 @@ describe("expand arrow", () => {
 		expect(toggleExpand.mock.calls).toStrictEqual([]);
 		click(true);
 		expect(toggleExpand.mock.calls).toStrictEqual([["alice"]]);
+	});
+
+	it("keeps focus off the parent arrow on mouse down", () => {
+		const preventDefault = vi.fn<() => void>();
+		(
+			expandArrow({nodeId: "alice", hasChildren: true, isExpanded: false, onToggle: () => {}}).props as {
+				onMouseDown: (e: {preventDefault: () => void}) => void;
+			}
+		).onMouseDown({preventDefault});
+		expect(preventDefault.mock.calls).toStrictEqual([[]]);
 	});
 
 	it("expands the whole subtree on a second arrow click within 250ms, else toggles again", () => {
@@ -310,7 +339,7 @@ describe("expand arrow CSS", () => {
 
 	it("contains upstream's expand rules", () => {
 		const rules = [
-			".expand{position:absolute;top:0;left:calc(var(--name-left-overhang) - 22px);width:20px;height:var(--line-height);padding:var(--wf-content-padding-top) 0 0;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;background:none;box-sizing:content-box}",
+			".expand{position:absolute;top:0;left:calc(var(--name-left-overhang) - 22px);width:20px;height:var(--line-height);padding:var(--wf-content-padding-top) 0 0;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;background:none;box-sizing:content-box;font:inherit;line-height:inherit}",
 			".name:not(.name--root):hover>.expand{opacity:1 !important}",
 			".name:hover>.expand{color:var(--wf-text-quaternary)!important}",
 			".header1:not(.root)>.name>.expand,.header2:not(.root)>.name>.expand,.header3:not(.root)>.name>.expand,.paragraph:not(.root)>.name>.expand{color:var(--wf-text-quinary)}",
