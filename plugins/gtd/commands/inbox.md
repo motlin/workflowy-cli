@@ -141,7 +141,7 @@ The only correct first move after parsing the refinement suggestions is to prese
 
 **For each batch of 4 items, use AskUserQuestion:**
 
-Present each item with its suggested destination and confidence. Always include these option types:
+Show the suggested destination as its full path from the root (see `${CLAUDE_PLUGIN_ROOT}/skills/destination-paths.md`; no `…` elision, target title last). Present each item with its suggested destination and confidence. Always include these option types:
 
 - **Accept** — move to suggested destination
 - **Skip** — leave in inbox for later

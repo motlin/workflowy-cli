@@ -141,7 +141,7 @@ Write `.llm/gtd/review/proposals/group-tasks.json` following `${CLAUDE_PLUGIN_RO
 
 Every move is **its own question** — never bundle two clusters, or a cluster and a rescue or duplicate, into one `AskUserQuestion` question. Up to 4 questions per call is fine. Go straight into the first proposal: no meta-question about how to scope the walk, and no comment on the count.
 
-For a **group** proposal, show the theme, the anchor and where it lands, and each member with its current tier. Tier occupancy may appear as a plain fact; a full tier is still a valid destination, so never say something will be bumped and never ask a follow-up to confirm it:
+Show every anchor, landing spot, and move target as its full path from the root with the target title, never elided (`${CLAUDE_PLUGIN_ROOT}/skills/destination-paths.md`). For a **group** proposal, show the theme, the anchor and where it lands, and each member with its current tier. Tier occupancy may appear as a plain fact; a full tier is still a valid destination, so never say something will be bumped and never ask a follow-up to confirm it:
 
 ```markdown
 Group 1/2 (Work): Onboarding @Alice → new node in 📌 asap → 2nd (4/4)

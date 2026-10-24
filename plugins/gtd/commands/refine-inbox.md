@@ -66,7 +66,7 @@ Parse the `🔍 Refinement` child to extract:
 - `confidence` - from `📊 Confidence:` sub-child
 - `suggestedText` - from `✏️ Text:` child
 
-Present for review:
+Present for review, showing `<destination>` and every destination option as the full path from the root with the target title last, never elided (`${CLAUDE_PLUGIN_ROOT}/skills/destination-paths.md`):
 
 ```text
 AskUserQuestion:
@@ -215,7 +215,7 @@ Extract items with `🔍 Refinement` children. For each, build a review record w
 - `confidence` - from `📊 Confidence:` sub-child
 - `suggestedText` - from `✏️ Text:` child
 
-**Present in batches of 4 using AskUserQuestion:**
+**Present in batches of 4 using AskUserQuestion** (show `<destination>` as the full path from the root, per `${CLAUDE_PLUGIN_ROOT}/skills/destination-paths.md`):
 
 Create one question per item, up to 4 questions per call:
 
