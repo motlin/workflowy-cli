@@ -412,3 +412,14 @@ describe("applyDatePhrase", () => {
 		});
 	});
 });
+
+describe("renderDatePills with malformed <time>", () => {
+	it("renders a month-only date from the implied day instead of throwing", () => {
+		const html = renderDatePills(
+			"x <time startYear='2026' startMonth='10'>y</time>",
+			SETTINGS,
+			new Date(2026, 9, 23, 10),
+		);
+		expect(html).toContain('<span class="content-wrapper">2026-10-23 Fri</span>');
+	});
+});

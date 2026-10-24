@@ -1,5 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {canonicalTimeAttributes, formatPillLabel, parseTimeAttrs, toTimeMarkup} from "../src/index.js";
+import {
+	canonicalTimeAttributes,
+	formatPillLabel,
+	formatTimeLabel,
+	parseTimeAttrs,
+	parseTimeAttrsLoose,
+	toTimeMarkup,
+} from "../src/index.js";
 
 const now = new Date(2026, 9, 1);
 const custom = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", now};
@@ -89,5 +96,62 @@ describe("canonicalTimeAttributes", () => {
 		expect(canonicalTimeAttributes(html)).toBe(
 			'<time startYear="2026" endYear="2027" startMonth="1" startDay="2" data-x="a startyear=b">t</time>',
 		);
+	});
+});
+
+describe("formatTimeLabel", () => {
+	const loose = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", now: new Date(2026, 9, 23, 10)};
+
+	it("takes unknown units from now and marks a missing month invalid", () => {
+		expect([
+			formatTimeLabel({startYear: 2026, startMonth: 10}, loose),
+			formatTimeLabel({startMonth: 3, startDay: 5}, loose),
+			formatTimeLabel({}, loose),
+			formatTimeLabel({startYear: 2026, startMonth: 10, startDay: 23, startHour: 9, endHour: 17}, loose),
+			formatTimeLabel({startYear: 2026, startMonth: 10, startDay: 23, endDay: 25}, loose),
+			formatTimeLabel({startYear: 2026, startMonth: 10, startDay: 23, startHour: 14}, loose),
+		]).toStrictEqual([
+			"2026-10-23 Fri",
+			"2026-03-05 Thu",
+			"Invalid date",
+			"09:00 on 2026-10-23 Fri - Invalid date",
+			"2026-10-23 Fri - Invalid date",
+			"14:00 on 2026-10-23 Fri",
+		]);
+	});
+
+	it("matches upstream for dayjs plugin tokens and never throws on unknown ones", () => {
+		const attrs = {startYear: 2025, startMonth: 3, startDay: 5};
+		const tokens = ["w", "wo", "W", "Wo", "gggg", "GGGG", "k", "LT", "LL", "[Week] w"];
+		const labels = Object.fromEntries(
+			tokens.map((token) => [token, formatTimeLabel(attrs, {dateFormat: token, now: new Date(2025, 5, 1)})]),
+		);
+		expect(labels).toStrictEqual({
+			w: "10",
+			wo: "10th",
+			W: "10",
+			Wo: "10th",
+			gggg: "2025",
+			GGGG: "2025",
+			k: "24",
+			LT: "12:00 AM",
+			LL: "March 5, 2025",
+			"[Week] w": "Week 10",
+		});
+		expect(() => formatTimeLabel(attrs, {dateFormat: "zzz", now: new Date(2025, 5, 1)})).not.toThrow();
+	});
+});
+
+describe("parseTimeAttrsLoose", () => {
+	it("returns whatever units are present without throwing", () => {
+		expect(parseTimeAttrsLoose("")).toStrictEqual({});
+		expect(parseTimeAttrsLoose("startyear='2026' startMonth='10'")).toStrictEqual({
+			startYear: 2026,
+			startMonth: 10,
+		});
+		expect(parseTimeAttrsLoose('startyear="2026" startMonth="10"')).toStrictEqual({
+			startYear: 2026,
+			startMonth: 10,
+		});
 	});
 });

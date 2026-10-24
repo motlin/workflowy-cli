@@ -22,10 +22,14 @@ export const DEFAULT_DATE_SETTINGS: DateSettings = {
 	weekStartDay: 0,
 };
 
+function nonEmpty(value: string | null, fallback: string): string {
+	return value === null || value === "" ? fallback : value;
+}
+
 export function resolveDateSettings(preferences: DatePreferences): DateSettings {
 	return {
-		dateFormat: preferences.dateFormat ?? DEFAULT_DATE_SETTINGS.dateFormat,
-		timeFormat: preferences.timeFormat ?? DEFAULT_DATE_SETTINGS.timeFormat,
+		dateFormat: nonEmpty(preferences.dateFormat, DEFAULT_DATE_SETTINGS.dateFormat),
+		timeFormat: nonEmpty(preferences.timeFormat, DEFAULT_DATE_SETTINGS.timeFormat),
 		weekStartDay: preferences.weekStartDay ?? DEFAULT_DATE_SETTINGS.weekStartDay,
 	};
 }

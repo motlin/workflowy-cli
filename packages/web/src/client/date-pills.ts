@@ -1,8 +1,9 @@
 import {
 	canonicalTimeAttributes,
 	findDatePhrase,
-	formatPillLabel,
+	formatTimeLabel,
 	parseTimeAttrs,
+	parseTimeAttrsLoose,
 	toTimeMarkup,
 } from "@workflowy/shared";
 import type {DatePhrase, TimeAttrs} from "@workflowy/shared";
@@ -22,7 +23,7 @@ function lowercaseAttrNames(attrText: string): string {
 /** Display-mode HTML: each stored `<time>` becomes upstream's non-editable monolith pill. */
 export function renderDatePills(html: string, settings: DateSettings, now: Date = new Date()): string {
 	return html.replaceAll(TIME_PATTERN, (_match, attrText: string) => {
-		const label = formatPillLabel(parseTimeAttrs(attrText), {
+		const label = formatTimeLabel(parseTimeAttrsLoose(attrText), {
 			dateFormat: settings.dateFormat,
 			timeFormat: settings.timeFormat,
 			now,

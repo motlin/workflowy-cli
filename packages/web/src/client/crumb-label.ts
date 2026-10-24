@@ -1,4 +1,4 @@
-import {formatPillLabel, parseTimeAttrs} from "@workflowy/shared";
+import {formatTimeLabel, parseTimeAttrs, parseTimeAttrsLoose} from "@workflowy/shared";
 import {stripHtmlTags} from "@workflowy/shared/html";
 
 export type FriendlyPrefix = "Yesterday" | "Today" | "Tomorrow";
@@ -40,11 +40,15 @@ export function crumbLabel(
 ): string {
 	const label = stripHtmlTags(
 		nameHtml.replaceAll(TIME_PATTERN, (_match, attrText: string) =>
-			formatPillLabel(parseTimeAttrs(attrText), {dateFormat, now}),
+			formatTimeLabel(parseTimeAttrsLoose(attrText), {dateFormat, now}),
 		),
 	);
 	const single = dayPrefix ? SINGLE_TIME_PATTERN.exec(nameHtml) : null;
 	if (single?.[1] === undefined) {
+		return label;
+	}
+	const loose = parseTimeAttrsLoose(single[1]);
+	if (loose.startYear === undefined || loose.startMonth === undefined || loose.startDay === undefined) {
 		return label;
 	}
 	const attrs = parseTimeAttrs(single[1]);

@@ -76,6 +76,14 @@ describe("resolveDateSettings", () => {
 		});
 	});
 
+	it("treats empty stored formats as unset", () => {
+		expect(resolveDateSettings({dateFormat: "", timeFormat: "", weekStartDay: null})).toStrictEqual({
+			dateFormat: "ddd, MMM D",
+			timeFormat: "h:mma",
+			weekStartDay: 0,
+		});
+	});
+
 	it("passes stored preferences through", () => {
 		expect(resolveDateSettings({dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 1})).toStrictEqual(
 			{dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 1},

@@ -58,3 +58,9 @@ describe("friendlyPrefix", () => {
 		]).toStrictEqual(["Yesterday", "Today", "Tomorrow", null]);
 	});
 });
+
+describe("crumbLabel with malformed <time>", () => {
+	it("shows Invalid date for a time element with no units", () => {
+		expect(crumbLabel("<time>z</time>", {now: new Date(2026, 9, 23, 10)})).toBe("Invalid date");
+	});
+});

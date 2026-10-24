@@ -1,7 +1,15 @@
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat.js";
+import isoWeek from "dayjs/plugin/isoWeek.js";
+import localizedFormat from "dayjs/plugin/localizedFormat.js";
+import weekOfYear from "dayjs/plugin/weekOfYear.js";
+import weekYear from "dayjs/plugin/weekYear.js";
 
 dayjs.extend(advancedFormat);
+dayjs.extend(weekOfYear);
+dayjs.extend(isoWeek);
+dayjs.extend(weekYear);
+dayjs.extend(localizedFormat);
 
 export interface TimeAttrs {
 	startYear: number;
@@ -150,28 +158,118 @@ export function toTimeMarkup(attrs: TimeAttrs): string {
 
 const ATTR_BY_LOWER = new Map<string, keyof TimeAttrs>(ATTR_ORDER.map((key) => [key.toLowerCase(), key]));
 
-/** Parse `<time>` attribute text (camelCase or DOM-lowercased) into numeric attrs in canonical order. */
-export function parseTimeAttrs(attrText: string): TimeAttrs {
-	const found = new Map<keyof TimeAttrs, number>();
-	for (const match of attrText.matchAll(/([A-Za-z]+)\s*=\s*"(\d+)"/gu)) {
-		const [, name, value] = match;
+const INVALID_DATE = "Invalid date";
+
+/** Parse whatever numeric `<time>` attributes are present (either quote style); never throws. */
+export function parseTimeAttrsLoose(attrText: string): Partial<TimeAttrs> {
+	const found: Partial<TimeAttrs> = {};
+	for (const match of attrText.matchAll(/([A-Za-z]+)\s*=\s*(?:"(\d+)"|'(\d+)')/gu)) {
+		const [, name, double, single] = match;
+		const value = double ?? single;
 		const key = name === undefined ? undefined : ATTR_BY_LOWER.get(name.toLowerCase());
 		if (key !== undefined && value !== undefined) {
-			found.set(key, Number(value));
+			found[key] = Number(value);
 		}
 	}
-	const startYear = found.get("startYear");
-	const startMonth = found.get("startMonth");
-	const startDay = found.get("startDay");
-	if (startYear === undefined || startMonth === undefined || startDay === undefined) {
-		throw new Error(`Missing startYear/startMonth/startDay in time attributes: ${attrText}`);
-	}
-	const result: TimeAttrs = {startYear, startMonth, startDay};
-	for (const key of ["startHour", "startMinute", "endYear", "endMonth", "endDay", "endHour", "endMinute"] as const) {
-		const value = found.get(key);
+	const result: Partial<TimeAttrs> = {};
+	for (const key of ATTR_ORDER_START_FIRST) {
+		const value = found[key];
 		if (value !== undefined) {
 			result[key] = value;
 		}
 	}
 	return result;
+}
+
+const ATTR_ORDER_START_FIRST = [
+	"startYear",
+	"startMonth",
+	"startDay",
+	"startHour",
+	"startMinute",
+	"endYear",
+	"endMonth",
+	"endDay",
+	"endHour",
+	"endMinute",
+] as const satisfies readonly (keyof TimeAttrs)[];
+
+/** Parse `<time>` attribute text (camelCase or DOM-lowercased) into numeric attrs in canonical order. */
+export function parseTimeAttrs(attrText: string): TimeAttrs {
+	const found = parseTimeAttrsLoose(attrText);
+	const {startYear, startMonth, startDay} = found;
+	if (startYear === undefined || startMonth === undefined || startDay === undefined) {
+		throw new Error(`Missing startYear/startMonth/startDay in time attributes: ${attrText}`);
+	}
+	const result: TimeAttrs = {startYear, startMonth, startDay};
+	for (const key of ["startHour", "startMinute", "endYear", "endMonth", "endDay", "endHour", "endMinute"] as const) {
+		const value = found[key];
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+function ordinal(n: number): string {
+	const mod100 = n % 100;
+	const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+	return `${n}${suffix}`;
+}
+
+/** Format with dayjs, adding the `Wo` (ISO week ordinal) token that dayjs's plugins leave half-formatted. */
+function formatWithTokens(date: dayjs.Dayjs, format: string): string {
+	const prepared = format
+		.split(/(\[[^\]]*\])/u)
+		.map((part) => (part.startsWith("[") ? part : part.replaceAll("Wo", `[${ordinal(date.isoWeek())}]`)))
+		.join("");
+	return date.format(prepared);
+}
+
+function looseSide(attrs: Partial<TimeAttrs>, side: Side, now: Date): {date: dayjs.Dayjs; hasTime: boolean} | null {
+	const year = attrs[`${side}Year`];
+	const month = attrs[`${side}Month`];
+	const day = attrs[`${side}Day`];
+	const hour = attrs[`${side}Hour`];
+	const minute = attrs[`${side}Minute`];
+	if (month === undefined) {
+		return null;
+	}
+	const date = dayjs(now)
+		.year(year ?? now.getFullYear())
+		.month(month - 1)
+		.date(day ?? now.getDate())
+		.hour(hour ?? 0)
+		.minute(minute ?? 0);
+	return date.isValid() ? {date, hasTime: hour !== undefined} : null;
+}
+
+/**
+ * Display label for a possibly incomplete `<time>`, mirroring upstream: unknown units come from
+ * `now`, a side without a month is `Invalid date`, and the end side reads only `end*` keys.
+ */
+export function formatTimeLabel(attrs: Partial<TimeAttrs>, options: PillLabelOptions = {}): string {
+	const dateFormat = options.dateFormat ?? DATE_FORMATS_SHORT[0];
+	const timeFormat = options.timeFormat ?? TIME_FORMATS[0];
+	const now = options.now ?? new Date();
+	const sides: Side[] = ATTR_ORDER.some((key) => key.startsWith("end") && attrs[key] !== undefined)
+		? ["start", "end"]
+		: ["start"];
+	return sides
+		.map((side) => {
+			const moment = looseSide(attrs, side, now);
+			if (moment === null) {
+				return INVALID_DATE;
+			}
+			try {
+				const dateText = formatWithTokens(
+					moment.date,
+					dateFormatFor(dateFormat, moment.date.year(), now.getFullYear()),
+				);
+				return moment.hasTime ? `${moment.date.format(timeFormat)} on ${dateText}` : dateText;
+			} catch {
+				return INVALID_DATE;
+			}
+		})
+		.join(" - ");
 }
