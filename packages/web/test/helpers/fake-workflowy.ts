@@ -135,11 +135,8 @@ export function fakeAdapter(cache: CacheService) {
 	return {
 		async createAt(input: CreateAtInput) {
 			const parentId = home(input.parentId);
-			const index = anchoredIndex(
-				cache.getChildren(parentId).map((child) => child.id),
-				input.afterId,
-				input.index,
-			);
+			const siblingIds = cache.getChildren(parentId).map((child) => child.id);
+			const index = anchoredIndex(siblingIds, input.afterId, input.index ?? siblingIds.length);
 			const id = input.id ?? `new-${now()}`;
 			const at = now();
 			cache.insertNode(
@@ -157,8 +154,9 @@ export function fakeAdapter(cache: CacheService) {
 			place(cache, [id], parentId, index);
 			return Promise.resolve({id});
 		},
-		async moveTo(input: {ids: string[]; parentId: string; index: number}) {
-			place(cache, input.ids, home(input.parentId), input.index);
+		async moveTo(input: {ids: string[]; parentId: string; index?: number}) {
+			const parentId = home(input.parentId);
+			place(cache, input.ids, parentId, input.index ?? cache.getChildren(parentId).length);
 			return Promise.resolve();
 		},
 		async restore(input: RestoreInput) {

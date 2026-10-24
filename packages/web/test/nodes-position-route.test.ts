@@ -129,7 +129,7 @@ describe("POST /api/v1/nodes with the internal API", () => {
 
 		await post("", {parent_id: "home", name: "x"});
 
-		expect(adapter.createAt.mock.calls).toStrictEqual([[{parentId: "home", index: 3, name: "x"}]]);
+		expect(adapter.createAt.mock.calls).toStrictEqual([[{parentId: "home", name: "x"}]]);
 	});
 
 	it("passes note and layoutMode through and treats a null parent as Home", async () => {
@@ -197,7 +197,7 @@ describe("POST /api/v1/nodes/:id/move with the internal API", () => {
 
 		const res = await post("/c/move", {parent_id: "a"});
 
-		expect(adapter.moveTo.mock.calls).toStrictEqual([[{ids: ["c"], parentId: "a", index: 0}]]);
+		expect(adapter.moveTo.mock.calls).toStrictEqual([[{ids: ["c"], parentId: "a"}]]);
 		await expect(res.json()).resolves.toStrictEqual({
 			nodes: [dto("a", null, 0), dto("b", null, 1), dto("c", null, 2)],
 		});

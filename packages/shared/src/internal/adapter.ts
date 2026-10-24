@@ -138,8 +138,8 @@ export interface CreateAtInput {
 	id?: string;
 	/** A node id, or `HOME`. */
 	parentId: string;
-	/** 0-based slot among all siblings, completed ones included; clamped to `[0, siblings]`. */
-	index: number;
+	/** 0-based slot among all siblings, completed ones included; clamped to `[0, siblings]`. Omitted = after the last live child. */
+	index?: number;
 	/** The sibling the new node follows (null: first); while it is a live sibling it decides the slot over `index`. */
 	afterId?: string | null;
 	name: string;
@@ -248,9 +248,9 @@ export interface MoveToInput {
 	 * Insertion slot among the target's current children, moved ones included (counted
 	 * BEFORE removal): the nodes land right before the child now at `index`. Among a,b,c,d,
 	 * moving b below c is index 3. Clamped to `[0, children]`. The web move endpoints and
-	 * client planners use this same contract.
+	 * client planners use this same contract. Omitted = after the last live child.
 	 */
-	index: number;
+	index?: number;
 }
 
 export interface RestoreInput {
@@ -402,7 +402,7 @@ export class WorkflowyInternalAdapter {
 			index: anchoredIndex(
 				siblings.map((sibling) => sibling.id),
 				input.afterId,
-				input.index,
+				input.index ?? siblings.length,
 			),
 			trees: [newTree],
 			userId: session.userId,
@@ -1109,7 +1109,7 @@ export class WorkflowyInternalAdapter {
 			index: order(parent).indexOf(id),
 		});
 		const siblings = order(target);
-		const index = clampIndex(input.index, siblings.length);
+		const index = clampIndex(input.index ?? siblings.length, siblings.length);
 		const session = await this.session();
 		const clock = {now: this.now(), dateJoinedSec: session.dateJoinedSec};
 		const items = moving.map((node) => ({id: node.id, from: from(node.id, node.parent_id ?? null)}));

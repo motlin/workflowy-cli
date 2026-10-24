@@ -152,7 +152,7 @@ function setup(options: {
 			}
 		}
 		const list = children.get(input.parentId) ?? [];
-		list.splice(input.index, 0, ...input.ids);
+		list.splice(input.index ?? list.length, 0, ...input.ids);
 		children.set(input.parentId, list);
 		for (const [parent, ids] of children) {
 			cached.set(parent, [...ids]);

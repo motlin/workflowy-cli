@@ -290,6 +290,28 @@ describe("WorkflowyInternalAdapter tree writes", () => {
 		expect(order(null)).toStrictEqual(["a", "new", "b", "c"]);
 	});
 
+	it("creates an omitted index after the live last child, not the stale cached count", async () => {
+		const {adapter, pushes, cacheService} = await tracked();
+		cacheService.deleteNode("c");
+
+		await adapter.createAt({parentId: "home", name: "x"});
+
+		expect(
+			pushes.map((ops) => ops.map((op) => [op.type, OpDataSchema.parse(op.data).starting_priority])),
+		).toStrictEqual([[["bulk_create", 3]]]);
+	});
+
+	it("moves an omitted index to the live bottom, not the stale cached count", async () => {
+		const {adapter, pushes, cacheService} = await tracked();
+		cacheService.deleteNode("c");
+
+		await adapter.moveTo({ids: ["a"], parentId: "home"});
+
+		expect(pushes.map((ops) => ops.map((op) => [op.type, op.data]))).toStrictEqual([
+			[["move", {projectid: "a", parentid: "None", priority: 2}]],
+		]);
+	});
+
 	it.each([
 		{afterId: "b", index: 0, expected: ["a", "b", "new", "c"]},
 		{afterId: null, index: 2, expected: ["new", "a", "b", "c"]},

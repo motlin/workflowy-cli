@@ -550,7 +550,7 @@ nodesRouter.post("/", async (c) => {
 	if (adapter) {
 		const {id} = await adapter.createAt({
 			parentId: adapterParent(parentId),
-			index: slot.index ?? count,
+			...(slot.index === undefined ? {} : {index: slot.index}),
 			...(afterId === undefined || slot.index === undefined ? {} : {afterId}),
 			name,
 			...(typeof body.id === "string" ? {id: body.id} : {}),
@@ -1295,7 +1295,11 @@ async function moveNodes(
 
 	const adapter = getAdapter(ctx);
 	if (adapter) {
-		await adapter.moveTo({ids, parentId: adapterParent(parentId), index: slot.index ?? count});
+		await adapter.moveTo({
+			ids,
+			parentId: adapterParent(parentId),
+			...(slot.index === undefined ? {} : {index: slot.index}),
+		});
 	} else {
 		const end = publicEnd(slot.index, count);
 		if (end === undefined) {
