@@ -50,6 +50,7 @@ function row(overrides: Partial<SwitcherRow> = {}): SwitcherRow {
 		id,
 		nodeId: id,
 		query: null,
+		search: null,
 		labelHtml: "Alpha",
 		completed: false,
 		starred: false,
@@ -138,12 +139,27 @@ describe("SwitcherDialog", () => {
 		expect([stars(starred).length, stars(plain).length]).toStrictEqual([1, 0]);
 	});
 
-	it("shows a magnifier instead of a star on starred searches", () => {
-		const [search] = options(render({rows: [row({id: "a", starred: true, query: "#todo"})]}));
-		const icons = elements(search)
-			.filter((element) => element.type === "svg")
-			.map((element) => element.props["data-icon"]);
-		expect(icons).toStrictEqual(["magnifying-glass"]);
+	it("shows the star and an SVG magnifier on every starred location, never the magnifying-glass icon", () => {
+		const check = (overrides: Partial<SwitcherRow>) => {
+			const [option] = options(render({rows: [row({id: "a", starred: true, search: "Alpha", ...overrides})]}));
+			const svgs = elements(option).filter((element) => element.type === "svg");
+			return {
+				icons: svgs.map((element) => element.props["data-icon"]).filter(Boolean),
+				magnifier: svgs.filter((element) => element.props.width === 12 && element.props.className === "mr-s")
+					.length,
+			};
+		};
+		expect([check({}), check({query: "#todo"})]).toStrictEqual([
+			{icons: ["star"], magnifier: 1},
+			{icons: ["star"], magnifier: 1},
+		]);
+	});
+
+	it("shows no magnifier on a row without a search label", () => {
+		const [option] = options(render({rows: [row({id: "a"})]}));
+		expect(
+			elements(option).filter((element) => element.type === "svg" && element.props.width === 12),
+		).toStrictEqual([]);
 	});
 
 	it("shows a spinner beside the indexing text", () => {

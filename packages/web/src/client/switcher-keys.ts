@@ -95,3 +95,13 @@ export function switcherStepCommand(step: SwitcherStep, isOpen: () => boolean, o
 		},
 	};
 }
+
+export type SwitcherCommandAction = "none" | "open" | "link-insert";
+
+/** Upstream's `show_switcher` only opens: with the switcher open it changes nothing. */
+export function switcherCommandAction(isOpen: boolean, hasTextSelection: boolean): SwitcherCommandAction {
+	if (hasTextSelection) {
+		return "link-insert";
+	}
+	return isOpen ? "none" : "open";
+}

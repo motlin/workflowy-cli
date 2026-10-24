@@ -60,6 +60,11 @@ function specialKey(row: SpecialRow): string {
 	return `special-${row.kind}`;
 }
 
+/** Upstream scrolls a row into view whenever it becomes selected; "nearest" leaves a visible row alone. */
+function scrollIntoViewRef(element: HTMLDivElement | null): void {
+	element?.scrollIntoView({block: "nearest"});
+}
+
 function optionClass(hasCrumbs: boolean, selected: boolean): string {
 	return [
 		"switcher-option grid grid-cols-[auto_1fr] gap-x-m",
@@ -99,6 +104,7 @@ const SwitcherOption = memo(function SwitcherOption({row, selected, onSelect, on
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream rows are plain divs; the input owns the keyboard
 		<div
+			ref={selected ? scrollIntoViewRef : undefined}
 			className={optionClass(hasCrumbs, selected)}
 			onClick={() => {
 				onSelect(row);
@@ -107,19 +113,27 @@ const SwitcherOption = memo(function SwitcherOption({row, selected, onSelect, on
 				onHover(row.key);
 			}}
 		>
-			<div className="w-4">
-				{row.query === null ? (
-					row.starred && <FaIcon icon="fas:star" className="text-spark" />
-				) : (
-					<FaIcon icon="fas:magnifying-glass" />
-				)}
-			</div>
+			<div className="w-4">{row.starred && <FaIcon icon="fas:star" className="text-spark" />}</div>
 			<div
 				className={`items-center ${struck ? "line-through opacity-[0.37] " : ""}text-base leading-base truncate`}
 			>
 				<div className="flex justify-between items-center">
 					<div className="overflow-hidden mr-m">
-						<span dangerouslySetInnerHTML={{__html: row.labelHtml}} />
+						{row.search !== null && (
+							<svg
+								width={12}
+								height={12}
+								viewBox="0 0 12 12"
+								fill="none"
+								stroke="currentColor"
+								strokeLinecap="round"
+								className="mr-s"
+							>
+								<circle cx="5" cy="5" r="4.5" />
+								<path d="M8.5,8.5 L11.5,11.5" />
+							</svg>
+						)}
+						<span dangerouslySetInnerHTML={{__html: row.search ?? row.labelHtml}} />
 					</div>
 				</div>
 			</div>
@@ -153,7 +167,12 @@ interface SpecialOptionProps {
 function SpecialOption({row, selected, onSelect, onHover}: SpecialOptionProps) {
 	return (
 		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream rows are plain divs; the input owns the keyboard
-		<div className={optionClass(false, selected)} onClick={onSelect} onMouseMove={onHover}>
+		<div
+			ref={selected ? scrollIntoViewRef : undefined}
+			className={optionClass(false, selected)}
+			onClick={onSelect}
+			onMouseMove={onHover}
+		>
 			<div className="w-4" />
 			<div className="items-center text-base leading-base truncate">
 				<div className="flex justify-between items-center">
@@ -329,6 +348,8 @@ function JumpMenuDialog() {
 	const [listQuery, setListQuery] = useState("");
 	const [results, setResults] = useState<readonly SwitcherResult[]>([]);
 	const [hasMore, setHasMore] = useState(false);
+	// Upstream's `batchSize` counts starred matches: the list shows this many pages of rows.
+	const [pages, setPages] = useState(1);
 	const loadingMore = useRef(false);
 	const latestQuery = useRef("");
 	const [status, setStatus] = useState<SwitcherSearchStatus>("idle");
@@ -345,6 +366,7 @@ function JumpMenuDialog() {
 		setQuery(value);
 		setSelectedIndex(0);
 		if (!isSpecialFilter(value)) {
+			setPages(1);
 			setListQuery(value);
 			latestQuery.current = value;
 		}
@@ -398,11 +420,17 @@ function JumpMenuDialog() {
 		};
 	}, [listQuery, starredIds]);
 
-	const {rows, emptyText, indexing} = buildSwitcherRows(starred, {status, results}, listQuery);
-
 	const zoomedNode = zoomedNodeId === null ? undefined : readNode(queryClient, zoomedNodeId);
 	const zoomedName = zoomedNodeId === null ? "Home" : stripHtmlTags(zoomedNode?.name ?? "");
 	const specials = specialRows(query, {zoomId: zoomedNodeId, parentId: zoomedNode?.parent_id ?? null});
+	const {rows, emptyText, indexing} = buildSwitcherRows(
+		starred,
+		{status, results},
+		listQuery,
+		pages,
+		specials.length,
+	);
+	const buffered = buildSwitcherRows(starred, {status, results}, listQuery, Number.POSITIVE_INFINITY).rows.length;
 
 	/** Upstream `..` / `-`: remember where we were, then go to the row's page like any other jump. */
 	const handleSelectSpecial = useCallback(
@@ -478,8 +506,8 @@ function JumpMenuDialog() {
 		[cancel, handleSelect, handleSelectSpecial, rowCount, rows, selectedIndex, specials],
 	);
 
-	/** Upstream's infinite scroll: append the next page of server results. */
-	const loadMore = useCallback(() => {
+	/** Fetch the next server page when the buffer cannot fill the pages asked for. */
+	const fetchMore = useCallback(() => {
 		if (!hasMore || loadingMore.current || !listQuery.trim()) {
 			return;
 		}
@@ -501,6 +529,16 @@ function JumpMenuDialog() {
 				loadingMore.current = false;
 			});
 	}, [hasMore, listQuery, results.length, starredIds]);
+
+	/** Upstream's infinite scroll: show one more page of rows, fetching server rows only when the buffer runs short. */
+	const loadMore = useCallback(() => {
+		if (buffered > rows.length) {
+			setPages((previous) => previous + 1);
+		} else if (hasMore && !loadingMore.current) {
+			setPages((previous) => previous + 1);
+			fetchMore();
+		}
+	}, [buffered, fetchMore, hasMore, rows.length]);
 
 	return (
 		<SwitcherDialog

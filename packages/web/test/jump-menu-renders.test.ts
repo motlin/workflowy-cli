@@ -102,6 +102,24 @@ describe("JumpMenu render count", () => {
 		expect(renders.get("SwitcherOption") ?? 0).toBe(0);
 	});
 
+	it("scrolls a newly selected row into view with block nearest", async () => {
+		const scrollIntoView = vi.fn<(options?: ScrollIntoViewOptions) => void>();
+		const original: unknown = Reflect.get(Element.prototype, "scrollIntoView");
+		Element.prototype.scrollIntoView = function scroll(this: Element, options?: ScrollIntoViewOptions) {
+			scrollIntoView.call(this, options);
+		};
+		try {
+			act(() => {
+				emitSwitcherStep("next");
+			});
+			await settle();
+			expect(scrollIntoView.mock.calls).toStrictEqual([[{block: "nearest"}]]);
+			expect(scrollIntoView.mock.contexts).toStrictEqual([document.querySelectorAll(".switcher-option")[1]]);
+		} finally {
+			Reflect.set(Element.prototype, "scrollIntoView", original);
+		}
+	});
+
 	it("re-renders only the two options the selection moves between", async () => {
 		renders.clear();
 		act(() => {
@@ -112,7 +130,13 @@ describe("JumpMenu render count", () => {
 	});
 
 	it("does not re-render the options below a row that drops out of the list", () => {
-		const rows = results.map((result) => ({...result, key: result.id, nodeId: result.id, query: null}));
+		const rows = results.map((result) => ({
+			...result,
+			key: result.id,
+			nodeId: result.id,
+			query: null,
+			search: null,
+		}));
 		const noop = () => {};
 		const dialog = (shown: typeof rows) =>
 			createElement(SwitcherDialog, {

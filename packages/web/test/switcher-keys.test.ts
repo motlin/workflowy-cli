@@ -4,6 +4,7 @@ import {
 	nearScrollEnd,
 	onSwitcherStep,
 	stepSelection,
+	switcherCommandAction,
 	switcherKeyAction,
 	switcherStepCommand,
 } from "../src/client/switcher-keys.js";
@@ -72,5 +73,15 @@ describe("switcherStepCommand", () => {
 		unsubscribe();
 		emitSwitcherStep("next");
 		expect({opens: open.mock.calls.length, steps}).toStrictEqual({opens: 1, steps: ["prev"]});
+	});
+});
+
+describe("switcherCommandAction", () => {
+	it("only opens, and keeps the link-insert branch for a text selection", () => {
+		expect([
+			switcherCommandAction(true, false),
+			switcherCommandAction(false, false),
+			switcherCommandAction(false, true),
+		]).toStrictEqual(["none", "open", "link-insert"]);
 	});
 });

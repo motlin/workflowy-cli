@@ -32,16 +32,21 @@ describe("buildSwitcherRows", () => {
 					id: "b",
 					nodeId: "b",
 					query: null,
+					search: "Beta",
 					labelHtml: "Beta",
 					completed: false,
 					starred: true,
-					ancestors: [{id: "p", name: "Parent"}],
+					ancestors: [
+						{id: "p", name: "Parent"},
+						{id: "b", name: "Beta"},
+					],
 				},
 				{
 					key: "a_#todo",
 					id: "a",
 					nodeId: "a",
 					query: "#todo",
+					search: "Todos",
 					labelHtml: "Todos",
 					completed: false,
 					starred: true,
@@ -68,6 +73,7 @@ describe("buildSwitcherRows", () => {
 					id: "a",
 					nodeId: "a",
 					query: "#todo",
+					search: "Todos",
 					labelHtml: "Todos",
 					completed: false,
 					starred: true,
@@ -110,8 +116,10 @@ describe("buildSwitcherRows", () => {
 		});
 	});
 
-	it("reports no matches once the search is done", () => {
-		expect(buildSwitcherRows([], {status: "done", results: []}, "qwzx")).toStrictEqual({
+	it("reports no matches once the search is done and some stars exist", () => {
+		expect(
+			buildSwitcherRows([entry({star: star("s"), name: "other"})], {status: "done", results: []}, "qwzx"),
+		).toStrictEqual({
 			rows: [],
 			emptyText: "No matches found. Try adjusting your search.",
 			indexing: false,
@@ -131,16 +139,18 @@ describe("buildSwitcherRows", () => {
 					id: "s",
 					nodeId: "s",
 					query: null,
+					search: "<b><u>qwzx</u></b> starred",
 					labelHtml: "<b><u>qwzx</u></b> starred",
 					completed: false,
 					starred: true,
-					ancestors: [],
+					ancestors: [{id: "s", name: "qwzx starred"}],
 				},
 				{
 					key: "r",
 					id: "r",
 					nodeId: "r",
 					query: null,
+					search: null,
 					labelHtml: "<b><u>qwzx</u></b> plain",
 					completed: false,
 					starred: false,
@@ -159,12 +169,45 @@ describe("buildSwitcherRows", () => {
 				id: "",
 				nodeId: null,
 				query: null,
+				search: "Home",
 				labelHtml: "Home",
 				completed: false,
 				starred: true,
 				ancestors: [],
 			},
 		]);
+	});
+});
+
+describe("buildSwitcherRows paging and empty state", () => {
+	it("shows 20 rows in total on the first page, starred matches included", () => {
+		const starred = [entry({star: star("s1"), name: "qw one"}), entry({star: star("s2"), name: "qw two"})];
+		const results = Array.from({length: 20}, (_, index) => result(`r${index}`, `qw ${index}`));
+		const first = buildSwitcherRows(starred, {status: "done", results}, "qw", 1).rows.map((row) => row.key);
+		expect(first).toStrictEqual(["s1", "s2", ...results.slice(0, 18).map((r) => r.id)]);
+		expect(buildSwitcherRows(starred, {status: "done", results}, "qw", 2).rows).toHaveLength(22);
+	});
+
+	it("gives server rows a null search", () => {
+		const [row] = buildSwitcherRows([], {status: "done", results: [result("r", "qw")]}, "qw").rows;
+		expect(row.search).toBeNull();
+	});
+
+	it("shows no empty text when a special row is listed", () => {
+		expect(buildSwitcherRows([], {status: "done", results: []}, "..", 1, 1).emptyText).toBeNull();
+	});
+
+	it("shows the starred hint with no stars even when a filter matched nothing", () => {
+		expect(buildSwitcherRows([], {status: "done", results: []}, "zz").emptyText).toBe(
+			"Your starred pages will appear here.",
+		);
+	});
+
+	it("reports no matches when stars exist but none matched", () => {
+		const starred = [entry({star: star("a"), name: "Alpha"})];
+		expect(buildSwitcherRows(starred, {status: "done", results: []}, "zz").emptyText).toBe(
+			"No matches found. Try adjusting your search.",
+		);
 	});
 });
 

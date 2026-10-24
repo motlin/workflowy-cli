@@ -73,7 +73,7 @@ import {deleteSelectedItems} from "./use-selection-keymap.js";
 import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
-import {switcherStepCommand} from "../switcher-keys.js";
+import {switcherCommandAction, switcherStepCommand} from "../switcher-keys.js";
 import {paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
 import {captureActivePaneCaret, scrollPaneToTop} from "../components/pane-context.js";
 import {restorableCaret} from "../pane-caret.js";
@@ -159,7 +159,6 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleShowCompleted = useShowCompletedToggle();
 	const {toggleStar} = useStarActions();
 	const openJumpMenu = useOutlineStore((state) => state.openJumpMenu);
-	const closeJumpMenu = useOutlineStore((state) => state.closeJumpMenu);
 	const expand = useOutlineStore((state) => state.expand);
 	const collapse = useOutlineStore((state) => state.collapse);
 	const toggleExpand = useOutlineStore((state) => state.toggleExpand);
@@ -723,9 +722,7 @@ export function useCommandRegistry(): CommandRegistry {
 				return;
 			}
 		}
-		if (isJumpMenuOpen()) {
-			closeJumpMenu("cancel");
-		} else {
+		if (switcherCommandAction(isJumpMenuOpen(), false) === "open") {
 			openJumpMenu();
 		}
 	};

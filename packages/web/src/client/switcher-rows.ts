@@ -41,9 +41,14 @@ export interface SwitcherRow extends SwitcherResult {
 	/** The location key (a page's key is its node id), unique among the rows. */
 	key: string;
 	nodeId: string | null;
-	/** Set for a starred search, which shows the magnifier. */
+	/** Set for a starred search; used for navigation only. */
 	query: string | null;
+	/** Upstream's `match.search`: the highlighted star label of a starred row, null for server rows. */
+	search: string | null;
 }
+
+/** Upstream's `batchSize`: rows per page, counting the starred matches. */
+const SWITCHER_PAGE_SIZE = 20;
 
 export interface SwitcherRows {
 	rows: SwitcherRow[];
@@ -67,22 +72,32 @@ function starredRow(entry: StarredEntry, filter: string): SwitcherRow | null {
 	}
 	const isSearch = star.query !== null && star.query !== "";
 	const self = star.nodeId === null ? [] : [{id: star.nodeId, name: stripHtmlTags(entry.name)}];
+	const search = match.searchHtml ?? starLabel;
 	return {
 		key: star.key,
 		id: star.nodeId ?? "",
 		nodeId: star.nodeId,
 		query: isSearch ? star.query : null,
-		labelHtml: isSearch || star.nodeId === null ? (match.searchHtml ?? starLabel) : match.labelHtml,
+		search,
+		labelHtml: isSearch || star.nodeId === null ? search : match.labelHtml,
 		completed: entry.completed,
 		starred: true,
-		// A starred search's crumbs end in the page it searches.
-		ancestors: isSearch ? [...entry.ancestors, ...self] : entry.ancestors,
+		// Every starred location's crumbs end in the page itself.
+		ancestors: [...entry.ancestors, ...self],
 	};
 }
 
-function emptyState(filter: string, rows: readonly SwitcherRow[], status: SwitcherSearchStatus) {
+function emptyState(
+	filter: string,
+	listed: number,
+	starredCount: number,
+	status: SwitcherSearchStatus,
+): {emptyText: string | null; indexing: boolean} {
+	if (listed > 0) {
+		return {emptyText: null, indexing: false};
+	}
 	if (filter === "") {
-		return {emptyText: rows.length === 0 ? STARRED_HINT : null, indexing: false};
+		return {emptyText: STARRED_HINT, indexing: false};
 	}
 	if (status === "error") {
 		return {emptyText: SEARCH_UNAVAILABLE, indexing: false};
@@ -93,13 +108,19 @@ function emptyState(filter: string, rows: readonly SwitcherRow[], status: Switch
 	if (status === "pending") {
 		return {emptyText: INDEXING, indexing: true};
 	}
-	return {emptyText: rows.length === 0 ? NO_MATCHES : null, indexing: false};
+	return {emptyText: starredCount === 0 ? STARRED_HINT : NO_MATCHES, indexing: false};
 }
 
+/**
+ * `pages` pages of `SWITCHER_PAGE_SIZE` rows over the combined starred and server rows; `specialCount` is the number of
+ * `..` / `-` rows listed above, which count as matches for the empty state.
+ */
 export function buildSwitcherRows(
 	starred: readonly StarredEntry[],
 	server: SwitcherServerResults,
 	filter: string,
+	pages = 1,
+	specialCount = 0,
 ): SwitcherRows {
 	const trimmed = filter.trim();
 	const starredRows = starred.flatMap((entry) => starredRow(entry, trimmed) ?? []);
@@ -109,9 +130,9 @@ export function buildSwitcherRows(
 			? []
 			: server.results
 					.filter((result) => !listed.has(result.id))
-					.map((result) => ({...result, key: result.id, nodeId: result.id, query: null}));
-	const rows = [...starredRows, ...serverRows];
-	return {rows, ...emptyState(trimmed, rows, server.status)};
+					.map((result) => ({...result, key: result.id, nodeId: result.id, query: null, search: null}));
+	const rows = [...starredRows, ...serverRows].slice(0, SWITCHER_PAGE_SIZE * pages);
+	return {rows, ...emptyState(trimmed, rows.length + specialCount, starred.length, server.status)};
 }
 
 /** Whether two rows show the same thing, so a rebuilt row list can skip re-rendering the rows a keystroke left alone. */
@@ -122,6 +143,7 @@ export function sameSwitcherRow(a: SwitcherRow, b: SwitcherRow): boolean {
 			a.id === b.id &&
 			a.nodeId === b.nodeId &&
 			a.query === b.query &&
+			a.search === b.search &&
 			a.labelHtml === b.labelHtml &&
 			a.completed === b.completed &&
 			a.starred === b.starred &&
