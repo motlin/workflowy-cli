@@ -7,11 +7,14 @@
 // interval. The Phase 0 planner imports the shared date helpers from this module.
 //
 // Usage:
-//   node compute-overdue.mts [tree.json] [--today YYYY-MM-DD] [--print] [--skip-log path]
+//   node compute-overdue.mts [tree.json] [--today YYYY-MM-DD] [--print] [--skip-log path] [--run-started ISO]
 //   node compute-overdue.mts --record <itemId> --outcome <skip|done|lengthen|retire|...>
 //
 // Default tree path: .llm/gtd/review/tree.json. Default today: the local date.
 // Without --print, emits the overdue rows as JSON to stdout.
+//
+// --run-started drops every row whose skip-log entry has any outcome at or after that timestamp, so a
+// recompute after a midnight rollover never re-asks an item already answered this run.
 //
 // --record appends one outcome to the skip log so the next run knows how many times in a row an
 // item was skipped. Each row then carries `skipStreak` plus a staged `lengthen` op that moves the
@@ -331,6 +334,8 @@ export interface SkipEntry {
 	key: string;
 	outcome: string;
 	date: string;
+	/** ISO timestamp of the write; absent on entries logged before timestamps existed. */
+	at?: string;
 }
 
 export interface SkipStreak {
@@ -353,7 +358,8 @@ function parseSkipLog(text: string): SkipEntry[] {
 			const outcome = stringField(entry, "outcome");
 			const date = stringField(entry, "date");
 			if (key && outcome && date) {
-				entries.push({key, outcome, date});
+				const at = stringField(entry, "at");
+				entries.push(at ? {key, outcome, date, at} : {key, outcome, date});
 			}
 		} catch {
 			// A truncated line from an interrupted run costs one item's history, never the whole log.
@@ -405,12 +411,37 @@ export function loadSkipStreaks(path = DEFAULT_SKIP_LOG_PATH): Map<string, SkipS
 	}
 }
 
+/** Keys with any outcome recorded at or after `runStartedISO`: the items this run already answered. */
+export function loadAnsweredKeys(runStartedISO: string, path = DEFAULT_SKIP_LOG_PATH): Set<string> {
+	const started = Date.parse(runStartedISO);
+	if (Number.isNaN(started)) {
+		throw new TypeError(`--run-started must be an ISO timestamp, got ${runStartedISO}`);
+	}
+	try {
+		return new Set(
+			parseSkipLog(readFileSync(path, "utf8"))
+				// An entry without a timestamp only knows its day, so it counts from that day's start.
+				.filter((entry) => Date.parse(entry.at ?? `${entry.date}T00:00:00Z`) >= started)
+				.map((entry) => entry.key),
+		);
+	} catch (error) {
+		if (error instanceof TypeError) {
+			throw error;
+		}
+		return new Set();
+	}
+}
+
 export function recordOutcome(
 	key: string,
 	outcome: string,
-	{date = localTodayISO(), path = DEFAULT_SKIP_LOG_PATH}: {date?: string; path?: string} = {},
+	{
+		date = localTodayISO(),
+		at = new Date().toISOString(),
+		path = DEFAULT_SKIP_LOG_PATH,
+	}: {date?: string; at?: string; path?: string} = {},
 ): SkipEntry {
-	const entry: SkipEntry = {key, outcome, date};
+	const entry: SkipEntry = {key, outcome, date, at};
 	mkdirSync(dirname(path), {recursive: true});
 	appendFileSync(path, `${JSON.stringify(entry)}\n`);
 	return entry;
@@ -535,7 +566,10 @@ export interface OverdueRow extends NodeContext {
 export function computeOverdue(
 	tree: TreeRoot,
 	todayISO: string,
-	{skipStreaks = new Map<string, SkipStreak>()}: {skipStreaks?: Map<string, SkipStreak>} = {},
+	{
+		skipStreaks = new Map<string, SkipStreak>(),
+		answeredKeys = new Set<string>(),
+	}: {skipStreaks?: Map<string, SkipStreak>; answeredKeys?: ReadonlySet<string>} = {},
 ): OverdueRow[] {
 	const sections = tree.children ?? [];
 	const rows: OverdueRow[] = [];
@@ -572,7 +606,7 @@ export function computeOverdue(
 				const due = hardDeadline
 					? addInterval(hardDeadline.date, {amount: -hardDeadline.leadDays, unit: "d"})
 					: date;
-				if (due && due <= todayISO && !isCompleted) {
+				if (due && due <= todayISO && !isCompleted && !(child.id !== undefined && answeredKeys.has(child.id))) {
 					const needsInterval = interval === null;
 					const nextStoredDate =
 						interval === null
@@ -639,6 +673,7 @@ function main(argv: string[]): void {
 	let today = localTodayISO();
 	let print = false;
 	let skipLogPath = DEFAULT_SKIP_LOG_PATH;
+	let runStarted: string | null = null;
 	let recordKey: string | null = null;
 	let outcome: string | null = null;
 	const argIterator = args[Symbol.iterator]();
@@ -649,6 +684,8 @@ function main(argv: string[]): void {
 			print = true;
 		} else if (arg === "--skip-log") {
 			skipLogPath = takeValue(argIterator, arg);
+		} else if (arg === "--run-started") {
+			runStarted = takeValue(argIterator, arg);
 		} else if (arg === "--record") {
 			recordKey = takeValue(argIterator, arg);
 		} else if (arg === "--outcome") {
@@ -668,7 +705,10 @@ function main(argv: string[]): void {
 	}
 
 	const tree = readTreeFile(treePath);
-	const rows = computeOverdue(tree, today, {skipStreaks: loadSkipStreaks(skipLogPath)});
+	const rows = computeOverdue(tree, today, {
+		skipStreaks: loadSkipStreaks(skipLogPath),
+		answeredKeys: runStarted ? loadAnsweredKeys(runStarted, skipLogPath) : new Set<string>(),
+	});
 
 	if (!print) {
 		process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);

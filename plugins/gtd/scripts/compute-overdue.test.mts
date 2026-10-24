@@ -12,6 +12,7 @@ import {
 	foldSkipLog,
 	intervalDays,
 	intervalForSection,
+	loadAnsweredKeys,
 	loadSkipStreaks,
 	nextLongerSection,
 	nodeContext,
@@ -336,6 +337,29 @@ test("recordOutcome appends to the log and loadSkipStreaks reads it back", () =>
 		]),
 	);
 	rmSync(dir, {recursive: true, force: true});
+});
+
+test("loadAnsweredKeys returns items with any outcome at or after the run start", () => {
+	const dir = mkdtempSync(join(tmpdir(), "gtd-skip-"));
+	const logPath = join(dir, "skip-log.jsonl");
+	recordOutcome("before", "skip", {date: "2026-10-14", at: "2026-10-14T09:00:00.000Z", path: logPath});
+	recordOutcome("at-start", "done", {date: "2026-10-14", at: "2026-10-14T10:00:00.000Z", path: logPath});
+	recordOutcome("after", "skip", {date: "2026-10-15", at: "2026-10-15T00:05:00.000Z", path: logPath});
+
+	assert.deepStrictEqual(loadAnsweredKeys("2026-10-14T10:00:00.000Z", logPath), new Set(["at-start", "after"]));
+	assert.deepStrictEqual(loadAnsweredKeys("2026-10-14T10:00:00.000Z", join(dir, "missing.jsonl")), new Set());
+	rmSync(dir, {recursive: true, force: true});
+});
+
+test("computeOverdue drops rows already answered this run", () => {
+	const all = computeOverdue(FIXTURE, "2026-06-26");
+	const [first] = all;
+	assert.ok(first?.id);
+	const rows = computeOverdue(FIXTURE, "2026-06-26", {answeredKeys: new Set([first.id])});
+	assert.deepStrictEqual(
+		rows.map((r) => r.id),
+		all.filter((r) => r.id !== first.id).map((r) => r.id),
+	);
 });
 
 test("loadSkipStreaks treats a missing log as no history", () => {
