@@ -195,7 +195,7 @@ Present each merged candidate once, naming and linking **all source meetings** i
 
 ### Step 8: Confirm each candidate
 
-Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `laddered`, `filed`, `delegated`, `journaled`, `completed`, `logged`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
+Keep a local per-candidate outcome ledger in `.llm/gtd/review/meetings/`: `pending`, `skipped`, `accepted_pending_write`, `added`, `laddered`, `filed`, `delegated`, `journaled`, `completed`, `logged`, `agendaed`, or `failed`. Record the user's decision and, after recording succeeds, the verified destination node ID and name. A proposed title or acceptance alone is not a destination.
 
 #### Choose how to review unassigned meetings
 
@@ -210,7 +210,7 @@ Record each meeting choice and each skipped source contribution in the local led
 
 #### Confirm individual candidates
 
-Before each question (including a meeting-level question), refresh each displayed candidate's match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added`, `laddered`, `filed`, and `delegated` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a laddered follow-up contributes its created node on the `📌` ladder; a delegated follow-up contributes its node under `📤 Delegate`; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, `completed`, `logged`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
+Before each question (including a meeting-level question), refresh each displayed candidate's match against pre-existing tasks and earlier follow-ups successfully recorded in this walk. Only `added`, `laddered`, `filed`, and `delegated` outcomes contribute task destinations: an added follow-up contributes its created inbox node; a laddered follow-up contributes its created node on the `📌` ladder; a delegated follow-up contributes its node under `📤 Delegate`; a filed follow-up contributes the existing task it was filed on, never its provenance child. Exclude `pending`, `skipped`, `accepted_pending_write`, `journaled`, `completed`, `logged`, `agendaed`, and `failed` candidates from filing and merge targets, including candidates from the same meeting. A skipped candidate does not invalidate an independently verified pre-existing task on the same topic. Verify the target node still exists before offering it, and show its actual name and location in the question.
 
 Present candidates one at a time using AskUserQuestion. The user does not read the scrolling console, so everything needed to decide goes **inside** the question body: the description, the source meeting (as a clickable link), the Step 6 reasoning, and the Step 7 match result.
 
@@ -236,10 +236,11 @@ Offer these options, omitting filing when no eligible target exists:
 - **Already done — complete the matched task** — only when the candidate has a verified open `existingMatch` and the user says the work is done. Step 9 Branch C2 completes that existing task instead of journaling. Name the verified task in the label (`Done — complete <task name>`). This option takes the fourth slot from **Already did it — journal it** whenever a verified match exists; journaling stays reachable through "Other".
 - **Delegated in the meeting** — only for a delegation-shaped candidate. Ask outright in the question body whether the work was handed off in the meeting, and to whom, quoting the supporting fragment. Label the option with the person and the destination (`Delegated to @Bob — Work > 📤 Delegate`). When the assignee is ambiguous or unresolved, label it `Delegated in the meeting — name via Other`, and get the person before recording, per the name-resolution rules above. This option takes the fourth slot from **Already did it — journal it**, which the user can still ask for through "Other". **Add to inbox** stays the answer for "not delegated yet, I still need to hand it off".
 - **Log to request tracker** — only for a team-request candidate. The team is not committing to the work; the ask is recorded under the user's request-tracking task as evidence for future prioritization conversations. Name the requester and the verified tracker task in the label (`Log @Alice's request — <tracker task name>`), and put the requester, meeting date, and supporting fragment in the question body. When the requester is unresolved, label it `Log to request tracker — name the requester via Other`. This option takes the fourth slot from **Already did it — journal it** (and from **Delegated in the meeting** if a candidate somehow carries both flags); the user can still ask for those through "Other". When the tracker config from Step 9 Branch E is missing, still offer the option and resolve the task on selection.
+- **Add to 1:1 agenda with @Person** - only for a waiting-on, talk-to, or tell candidate that names exactly one resolved person (for example "ask @Alice about the rollout", "tell @Bob the date moved"). Step 9 Branch H files it as a child of that person's open `#agenda` task instead of the Inbox. Label it with the person and the verified or to-be-created destination (`Add to 1:1 agenda with @Alice - Work > 📌 Tasks (asap) > 2nd > 1:1 Agenda with @Alice #agenda`, the full path per `${CLAUDE_PLUGIN_ROOT}/skills/destination-paths.md`; when none exists, `create 1:1 Agenda with @Alice #agenda on Work > 📌 Tasks (asap) > 4th (bottom)`). This option takes the fourth slot from **Already did it - journal it**, which the user can still ask for through "Other"; **Extract my notes from the full transcript**, **Delegated in the meeting**, **Log to request tracker**, and **File on 📌 asap ladder** keep precedence over it. Not offered when the candidate names zero or several people.
 - **Extract my notes from the full transcript** — only for a user-led candidate. Like **Add to inbox**, but Step 9 Branch F first reads the meeting's full Otter transcript and files the inbox item with a child for everything the user said on the topic, not just the points the summary captured. Say in the question body why the candidate looks user-led, quoting the Step 6 fragment. This option takes the fourth slot ahead of **Delegated in the meeting**, **Log to request tracker**, and **Already did it — journal it**; the user can still ask for those through "Other". When no eligible filing target exists, it takes the freed second slot instead, and the fourth slot goes to whichever other option would have held it.
 - **Skip** — drop it, whether it's noise or not the user's. This command records nothing on skip. Already-done is split out from Skip because it has a different **destination** (a dated calendar entry), not merely a different label — a skipped item leaves no trace, a done item becomes journal.
 
-- Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `laddered`, `filed`, `delegated`, `journaled`, `completed`, or `logged`. On a write or verification failure, set `failed` and stop without advancing the watermark.
+- Resolve each candidate's decision and Step 9 recording before preparing the next question. On Skip, set `skipped` locally without writing a Workflowy node. On acceptance, set `accepted_pending_write`; after a successful write, read back the destination and record `added`, `laddered`, `filed`, `delegated`, `journaled`, `completed`, `logged`, or `agendaed`. On a write or verification failure, set `failed` and stop without advancing the watermark.
 - Never auto-add — every item needs explicit confirmation, including the "file on existing task" path.
 
 ### Step 9: Record confirmed items
@@ -441,6 +442,23 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts choices .llm/gtd/review/meetin
 - Keep the meeting provenance child, and add the user's spoken points as children, exactly as in Branch A. The no-inventing rule applies.
 - Do **not** also create an inbox node.
 - Read back the task with `--depth 2`, confirm its parent is the chosen tier and the provenance child landed, then record `laddered` with the task ID and its `📌 <bucket> > <tier>` location.
+
+#### Branch H - Add to a 1:1 agenda
+
+The follow-up is something to raise with one person, so it belongs on that person's standing agenda task rather than in the Inbox.
+
+- Find the person's open agenda task: search the Work (or, for a clearly personal meeting, Personal) `📌 Tasks (asap)` ladder from the real bucket (never a mirror) for an uncompleted task named `1:1 Agenda with <confirmed @mention> #agenda`, using the ladder read from Branch G. Prefer `matchLadderHomes` in `${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts` when it fits.
+- When none exists, create `1:1 Agenda with <confirmed @mention> #agenda` on the bottom tier exactly as Branch G files a task (creating tiers via `planInsertion` when needed), and show that in the Step 8 label so the user confirms the creation.
+- Create the follow-up as a child of the agenda task:
+
+```bash
+./bin/run.js node create --parent-id <agenda-task-id> --position bottom --name "<enriched follow-up description>"
+./bin/run.js node create --parent-id <new-node-id> --name 'From: <a href="https://otter.ai/u/<otid>">Meeting name</a> <time>...</time>'
+```
+
+- Add the user's spoken points as children, as in Branch A. The no-inventing rule applies.
+- Do **not** also create an inbox node.
+- Read back the new node with `--depth 2`, confirm its parent is the agenda task and the provenance child landed, then record `agendaed` with the node ID and the agenda task's location.
 
 ### Step 10: Advance the watermark
 
