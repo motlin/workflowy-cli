@@ -80,8 +80,8 @@ function leaveEditor(): SearchReturn | null {
 }
 
 function popupOwnsEscape(): boolean {
-	const {presentationOpen, itemTypePicker} = useOutlineStore.getState();
-	return isModalOpen() || presentationOpen || itemTypePicker !== null;
+	const {presentationOpen, requestedMenus} = useOutlineStore.getState();
+	return isModalOpen() || presentationOpen || requestedMenus.size > 0;
 }
 
 /**

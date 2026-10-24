@@ -13,7 +13,6 @@ import {useMoveTo} from "../hooks/use-move-to.js";
 import {useQueryClient} from "@tanstack/react-query";
 import {toggleComplete, useCreateNode, useDeleteNode, useExpandAll, useUpdateNode} from "../hooks/use-nodes.js";
 import {useCopyLink, useSortChildren} from "../hooks/use-item-actions.js";
-import {deleteDates} from "../date-pills.js";
 import {outlineActions, useOutlineStore} from "../stores/outline.js";
 import {useOutlineSearchFilter} from "../search-filter-context.js";
 import type {ClickPosition} from "../stores/outline.js";
@@ -202,14 +201,6 @@ export function NodeItemMenu({node, left, onComplete, onOpenChange}: NodeItemMen
 				},
 				onAddDate: () => {
 					requestDatePicker(node.id);
-				},
-				onDeleteDates: () => {
-					// Upstream: name and note lose their dates in one undoable edit.
-					updateNode.mutate({
-						nodeId: node.id,
-						name: deleteDates(node.name ?? ""),
-						...(node.note === null ? {} : {note: deleteDates(node.note)}),
-					});
 				},
 				onPresent: () => {
 					navigateToNode(node.id);

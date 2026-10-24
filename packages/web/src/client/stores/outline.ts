@@ -22,6 +22,7 @@ import {availablePaneWidth, paneWidth, rebalancedWidths, scaledWidths, widthFrom
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import type {PaneCaret, PaneCaretPosition} from "../pane-caret.js";
 import {closeSwitcher} from "../switcher-close.js";
+import {requestedMenuEntries} from "../requested-menu.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
 
 /** Upstream's per-browser mirror of the account's `show_completed` setting, for first paint. */
@@ -242,10 +243,16 @@ export interface SearchReturn {
 	caretOffset: number;
 }
 
-/** Where the shared item-type picker is open and which items it turns into the chosen type. */
-interface ItemTypePickerState {
+/** What a menu opened by id acts on: the nodes the "Turn into..." picker would change. */
+export interface MenuCmdContext {
 	nodeIds: string[];
-	position: {top: number; left: number};
+}
+
+/** One open menu in upstream's `requested` map (`js1.requested`), keyed by menu id. */
+export interface RequestedMenu {
+	target: {top: number; left: number};
+	cmdContext: MenuCmdContext;
+	qualifiers: string[];
 }
 
 export interface LocationPickerOptions {
@@ -396,7 +403,8 @@ interface OutlineState {
 	isOnline: boolean;
 	errorNotifications: ErrorNotification[];
 	appMessage: AppMessageState | null;
-	itemTypePicker: ItemTypePickerState | null;
+	/** Menus opened by id (`showMenuById`); one open menu per id. */
+	requestedMenus: Map<string, RequestedMenu>;
 	/** Upstream's inline location picker (WF.InlineSearch), opened by `openLocationPicker`. */
 	locationPicker: LocationPickerState | null;
 	/** In-flight node mutations; the main menu's autosave footer reads "Saving..." while it is above zero (see selectIsMutating). */
@@ -573,9 +581,19 @@ interface OutlineActions {
 	clearAllErrorNotifications: () => void;
 	showAppMessage: (text: string, options?: ShowAppMessageOptions) => void;
 	hideAppMessage: () => void;
-	/** Upstream's `showItemTypePicker`: open the one shared item-type picker for `nodeIds` at `position`. */
-	showItemTypePicker: (picker: ItemTypePickerState) => void;
-	hideItemTypePicker: () => void;
+	/**
+	 * Upstream's `GuiMenu.showById`: assemble the submenu flat and, when it has rows, open it at `target`;
+	 * otherwise warn "Couldn't assemble menu: <id>" and open nothing.
+	 */
+	showMenuById: (
+		menuId: string,
+		target: {top: number; left: number},
+		cmdContext: MenuCmdContext,
+		qualifiers: readonly string[],
+	) => void;
+	hideMenu: (menuId: string) => void;
+	/** Upstream's `showItemTypePicker`: open the "Turn into..." picker for `nodeIds` at `position`. */
+	showItemTypePicker: (picker: {nodeIds: string[]; position: {top: number; left: number}}) => void;
 	/** Upstream's `execute()`: open the location picker at `anchor`; resolves when it closes. */
 	openLocationPicker: (
 		options: LocationPickerOptions,
@@ -876,7 +894,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
 	errorNotifications: [],
 	appMessage: null,
-	itemTypePicker: null,
+	requestedMenus: new Map(),
 	locationPicker: null,
 	mutationCount: 0,
 	lastSavedAt: Date.now(),
@@ -1643,12 +1661,30 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		set({appMessage: null});
 	},
 
-	showItemTypePicker: (picker) => {
-		set({itemTypePicker: picker});
+	showMenuById: (menuId, target, cmdContext, qualifiers) => {
+		if (requestedMenuEntries(menuId, cmdContext, qualifiers).length === 0) {
+			get().showAppMessage(`Couldn't assemble menu: ${menuId}`);
+			return;
+		}
+		set((state) => ({
+			requestedMenus: new Map(state.requestedMenus).set(menuId, {
+				target,
+				cmdContext,
+				qualifiers: [...qualifiers],
+			}),
+		}));
 	},
 
-	hideItemTypePicker: () => {
-		set({itemTypePicker: null});
+	hideMenu: (menuId) => {
+		set((state) => {
+			const requestedMenus = new Map(state.requestedMenus);
+			requestedMenus.delete(menuId);
+			return {requestedMenus};
+		});
+	},
+
+	showItemTypePicker: ({nodeIds, position}) => {
+		get().showMenuById("node_type_picker", position, {nodeIds}, []);
 	},
 
 	openLocationPicker: async (options, anchor, returnTo) => {

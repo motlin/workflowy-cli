@@ -31,12 +31,21 @@ interface ClickLike {
 	button: number;
 	preventDefault: () => void;
 	stopPropagation: () => void;
+	pageX?: number;
+	pageY?: number;
 }
+
+/** What a row's `onSelect` receives: the click's page point, for rows that open a submenu there. */
+export type MenuSelectEvent = Pick<ClickLike, "pageX" | "pageY">;
 
 /** Upstream MenuItem onClick: ignore modifier/middle clicks; disabled rows swallow the click. */
 export function menuItemClick(
 	event: ClickLike,
-	{href, disabled, onSelect}: {href: string | undefined; disabled: boolean; onSelect: (() => unknown) | undefined},
+	{
+		href,
+		disabled,
+		onSelect,
+	}: {href: string | undefined; disabled: boolean; onSelect: ((event?: MenuSelectEvent) => unknown) | undefined},
 ): void {
 	if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
 		return;
@@ -48,7 +57,7 @@ export function menuItemClick(
 		event.stopPropagation();
 		return;
 	}
-	onSelect?.();
+	onSelect?.(event);
 }
 
 /** Upstream MenuItem onMouseDown: always preventDefault so focus stays on the menu trigger. */
@@ -77,7 +86,7 @@ export interface MenuItemProps {
 	isInKeyboardMode?: boolean;
 	checked?: boolean | null;
 	blueDot?: boolean;
-	onSelect?: () => unknown;
+	onSelect?: (event?: MenuSelectEvent) => unknown;
 	onMouseEnter?: (event: MouseEvent<HTMLAnchorElement>) => void;
 	onMouseLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
 	onMouseDown?: () => void;

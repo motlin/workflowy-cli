@@ -1,11 +1,16 @@
 /**
  * Pure model of the bullet (item) context menu, matching upstream Workflowy's
- * default `config.item.menu`, plus upstream's palette-only `delete_dates` after "Add date".
- * Unavailable commands are filtered out rather than shown disabled, and separators are
- * cleaned up after filtering.
+ * `single_node_menu`. Rows, order, separators and per-layout filtering come from the config
+ * engine (`app-menu.ts`); this module supplies the command table and local availability.
  */
 import type {NodeResponse} from "../node-types.js";
 import type {FaIconKey} from "./components/fa-icons.js";
+import {assembleMenu} from "./app-menu.js";
+import type {AssembledEntry} from "./app-menu.js";
+import {APP_MENU_CONFIG} from "./app-menu-config.js";
+import {pickerItemTypes} from "./item-type-select.js";
+
+const NODE_TYPE_PICKER = "node_type_picker";
 
 /** A light (`fal:`) FontAwesome icon name from the shared registry. */
 export type ItemMenuIcon = FaIconKey extends infer K ? (K extends `fal:${infer N}` ? N : never) : never;
@@ -15,7 +20,6 @@ export type ItemMenuKey =
 	| "complete"
 	| "add_note"
 	| "add_date"
-	| "delete_dates"
 	| "present_it"
 	| "comment"
 	| "move_to"
@@ -38,42 +42,6 @@ export type ItemMenuKey =
 	| "sort_children_asc"
 	| "sort_children_desc";
 
-const ITEM_MENU_SEPARATOR = "---";
-
-type ItemMenuSlot = ItemMenuKey | typeof ITEM_MENU_SEPARATOR;
-
-export const ITEM_MENU_KEYS: readonly ItemMenuSlot[] = [
-	"open_in_pane",
-	"complete",
-	"add_note",
-	"add_date",
-	"delete_dates",
-	"present_it",
-	"comment",
-	"move_to",
-	"move_to_today",
-	"move_to_tomorrow",
-	"move_to_next_week",
-	"move_to_date",
-	"upload_file",
-	"mirror_to",
-	"mirror",
-	"detach_mirror",
-	"duplicate",
-	ITEM_MENU_SEPARATOR,
-	"share",
-	"show_export",
-	"copy_link",
-	"make_template",
-	ITEM_MENU_SEPARATOR,
-	"delete",
-	ITEM_MENU_SEPARATOR,
-	"expand_all",
-	"collapse_all",
-	"sort_children_asc",
-	"sort_children_desc",
-];
-
 interface ItemMenuDef {
 	label: string;
 	icon: ItemMenuIcon;
@@ -85,7 +53,6 @@ const ITEM_MENU_DEFS: Record<ItemMenuKey, ItemMenuDef> = {
 	complete: {label: "Complete", icon: "check", shortcut: "⌘↵"},
 	add_note: {label: "Add note", icon: "pencil", shortcut: "⇧↵"},
 	add_date: {label: "Add date", icon: "calendar-days", shortcut: "!!"},
-	delete_dates: {label: "Delete dates", icon: "calendar-days"},
 	present_it: {label: "Present", icon: "play", shortcut: "⇧⌘P"},
 	comment: {label: "Add comment", icon: "message-lines", shortcut: "⌃M"},
 	move_to: {label: "Move To...", icon: "arrow-right-long", shortcut: "⌃⌘M"},
@@ -109,57 +76,24 @@ const ITEM_MENU_DEFS: Record<ItemMenuKey, ItemMenuDef> = {
 	sort_children_desc: {label: "Sort Z-A", icon: "arrow-down-z-a"},
 };
 
-export type ItemMenuEntry =
-	| {kind: "item"; key: ItemMenuKey; label: string; icon: ItemMenuIcon; shortcut?: string}
-	| {kind: "separator"};
-
-export type ItemMenuNode = Pick<NodeResponse, "completedAt" | "isMirror">;
-
-export interface ItemMenuContext<N extends ItemMenuNode = ItemMenuNode> {
-	available(key: ItemMenuKey, node: N): boolean;
-	originalNotFound?: boolean;
+/** What the bullet menu shows for one command row. */
+export interface ItemMenuCommand {
+	key: ItemMenuKey | typeof NODE_TYPE_PICKER;
+	label: string;
+	icon: ItemMenuIcon;
+	shortcut?: string;
 }
 
-function toEntry(key: ItemMenuKey, node: ItemMenuNode): ItemMenuEntry {
-	const {label, icon, shortcut} = ITEM_MENU_DEFS[key];
-	const finalLabel = key === "complete" && node.completedAt !== null ? "Uncomplete" : label;
-	return shortcut === undefined
-		? {kind: "item", key, label: finalLabel, icon}
-		: {kind: "item", key, label: finalLabel, icon, shortcut};
-}
+export type ItemMenuEntry = AssembledEntry<ItemMenuCommand>;
 
-export function buildItemMenu<N extends ItemMenuNode>(node: N, ctx: ItemMenuContext<N>): ItemMenuEntry[] {
-	if (ctx.originalNotFound === true) {
-		return [toEntry("delete", node)];
-	}
-	const entries: ItemMenuEntry[] = [];
-	for (const slot of ITEM_MENU_KEYS) {
-		if (slot === ITEM_MENU_SEPARATOR) {
-			if (entries.length > 0 && entries.at(-1)?.kind !== "separator") {
-				entries.push({kind: "separator"});
-			}
-			continue;
-		}
-		if (slot === "detach_mirror" && node.isMirror !== true) {
-			continue;
-		}
-		if (ctx.available(slot, node)) {
-			entries.push(toEntry(slot, node));
-		}
-	}
-	if (entries.at(-1)?.kind === "separator") {
-		entries.pop();
-	}
-	return entries;
-}
+export type ItemMenuNode = Pick<NodeResponse, "id" | "completedAt" | "isMirror">;
 
-/** Commands the local app runs; buildItemMenu hides the rest. */
-const LOCAL_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
+/** Commands the local app runs; the menu hides the rest. `delete_dates` stays palette-only, like upstream. */
+const LOCAL_ITEM_MENU_KEYS: ReadonlySet<string> = new Set([
 	"open_in_pane",
 	"complete",
 	"add_note",
 	"add_date",
-	"delete_dates",
 	"present_it",
 	"move_to",
 	"duplicate",
@@ -173,9 +107,46 @@ const LOCAL_ITEM_MENU_KEYS: ReadonlySet<ItemMenuKey> = new Set([
 	"sort_children_desc",
 ]);
 
-/** The local availability map; Delete dates also needs a date in the name or note. */
-export function localItemMenuContext({hasDates}: {hasDates: boolean}): ItemMenuContext {
-	return {available: (key) => LOCAL_ITEM_MENU_KEYS.has(key) && (key !== "delete_dates" || hasDates)};
+export function localItemMenuAvailable(key: string): boolean {
+	return LOCAL_ITEM_MENU_KEYS.has(key);
+}
+
+function isItemMenuKey(id: string): id is ItemMenuKey {
+	return Object.hasOwn(ITEM_MENU_DEFS, id);
+}
+
+/** Upstream's `WF.Cmd.get` for the bullet menu: null when the command is unknown, unavailable, or not for this node. */
+export function itemMenuCommand(
+	id: string,
+	node: Pick<NodeResponse, "completedAt" | "isMirror">,
+	available: (key: string) => boolean,
+): ItemMenuCommand | null {
+	if (!isItemMenuKey(id) || !available(id) || (id === "detach_mirror" && node.isMirror !== true)) {
+		return null;
+	}
+	const key = id;
+	const {label, icon, shortcut} = ITEM_MENU_DEFS[key];
+	const finalLabel = key === "complete" && node.completedAt !== null ? "Uncomplete" : label;
+	return shortcut === undefined ? {key, label: finalLabel, icon} : {key, label: finalLabel, icon, shortcut};
+}
+
+/** The bullet menu's rows: `single_node_menu` assembled by the config engine for the node's qualifiers. */
+export function buildItemMenu(
+	node: ItemMenuNode,
+	qualifiers: readonly string[],
+	available: (key: string) => boolean = localItemMenuAvailable,
+): ItemMenuEntry[] {
+	return assembleMenu(
+		"single_node_menu",
+		qualifiers,
+		(id): ItemMenuCommand | null =>
+			id === NODE_TYPE_PICKER
+				? pickerItemTypes([node.id]).length > 0
+					? {key: NODE_TYPE_PICKER, label: "Turn into...", icon: "list-ul"}
+					: null
+				: itemMenuCommand(id, node, available),
+		APP_MENU_CONFIG,
+	);
 }
 
 /** A node's workflowy.com URL (upstream's internal link), keyed by the last 12 hex digits of its id. */

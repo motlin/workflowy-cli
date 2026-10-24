@@ -3997,29 +3997,6 @@ label.toggle > div {
 	background: var(--wf-background-secondary);
 }
 
-.wf-menu .item-type-picker {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 4px 16px;
-	line-height: 18.96px;
-	cursor: pointer;
-}
-
-.wf-menu .item-type-picker:hover {
-	background: var(--wf-background-secondary);
-}
-
-.wf-menu .item-type-picker .row-start {
-	display: flex;
-	gap: 8px;
-	align-items: center;
-}
-
-.item-type-picker p {
-	margin: 0;
-}
-
 .wf-menu .menuItem.active {
 	background: var(--wf-background-secondary);
 }

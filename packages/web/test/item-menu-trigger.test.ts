@@ -12,7 +12,6 @@ const NOOP_ACTIONS: ItemMenuActions = {
 	onComplete: () => {},
 	onAddNote: () => {},
 	onAddDate: () => {},
-	onDeleteDates: () => {},
 	onPresent: () => {},
 	onMoveTo: () => {},
 	onDuplicate: () => {},

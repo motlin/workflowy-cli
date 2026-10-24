@@ -4,17 +4,18 @@ import {createPortal} from "react-dom";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
 import type {NodeResponse} from "../../node-types.js";
 import {readJson} from "../read-json.js";
-import {buildItemMenu, hasFooter, localItemMenuContext} from "../item-menu-model.js";
+import {buildItemMenu, hasFooter} from "../item-menu-model.js";
+import {qualifyItemMenu} from "../app-menu.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import type {ItemMenuKey} from "../item-menu-model.js";
 import {formatMenuTimestamp} from "../menu-timestamp.js";
 import {closeOnEscape} from "../menu-escape.js";
-import {pickerItemTypes} from "../item-type-select.js";
 import {useOutlineStore} from "../stores/outline.js";
-import {hasDates} from "../date-pills.js";
 import type {SortDirection} from "../sort-children.js";
-import {FaIcon} from "./fa-icons.js";
 import {ButtonMenu} from "./flyout/button-menu.js";
-import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
+import {MenuSeparator} from "./flyout/menu-item.js";
+import {renderAssembledMenu} from "./assembled-menu.js";
+import {usePaneId} from "./pane-context.js";
 
 interface MirrorLocationPath {
 	id: string;
@@ -174,7 +175,6 @@ export interface ItemMenuActions {
 	onComplete: () => void;
 	onAddNote: () => void;
 	onAddDate: () => void;
-	onDeleteDates: () => void;
 	onPresent: () => void;
 	onMoveTo: () => void;
 	onDuplicate: () => void;
@@ -185,42 +185,6 @@ export interface ItemMenuActions {
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
 	onSort: (direction: SortDirection) => void;
-}
-
-const TURN_INTO_CLASS =
-	"item-type-picker flex justify-between items-center px-l py-xs mobile:py-ml leading-base hover:bg-secondary mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right cursor-pointer desktop:text-xs";
-
-/**
- * Upstream's bullet-menu "Turn into…" row (`kV`): mousedown keeps focus on the menu; a click
- * closes the menu, then on the next tick opens the shared item-type picker at the click's page point.
- */
-export function TurnIntoRow({nodeId, onClose}: {nodeId: string; onClose: () => void}) {
-	return (
-		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- verbatim upstream markup; the picker is also reachable by the layout hotkeys
-		<div
-			data-handbook="bullet.layout"
-			data-handbook-placement="right"
-			className={TURN_INTO_CLASS}
-			onClick={(event: {pageX: number; pageY: number}) => {
-				const position = {top: event.pageY, left: event.pageX};
-				onClose();
-				setTimeout(() => {
-					useOutlineStore.getState().showItemTypePicker({nodeIds: [nodeId], position});
-				});
-			}}
-			onMouseDown={(event: {preventDefault: () => void}) => {
-				event.preventDefault();
-			}}
-		>
-			<div className="row-start flex gap-m items-center">
-				<FaIcon fixedWidth icon="fal:arrows-cross" />
-				<p>Turn into…</p>
-			</div>
-			<div className="row-end">
-				<FaIcon icon="fal:chevron-down" />
-			</div>
-		</div>
-	);
 }
 
 function footerTimestamp(label: string, unixSeconds: number | null, now: Date) {
@@ -250,10 +214,9 @@ export function ItemMenuBody({
 }) {
 	// The body mounts each time the menu opens, so "now" is the moment it opened.
 	const [now] = useState(() => new Date());
-	const entries = buildItemMenu(
-		node,
-		localItemMenuContext({hasDates: hasDates(node.name ?? "") || hasDates(node.note ?? "")}),
-	);
+	const paneId = usePaneId();
+	const qualifiers = qualifyItemMenu(node, paneId === MAIN_PANE_ID ? [] : ["is_inside_side_pane"]);
+	const entries = buildItemMenu(node, qualifiers);
 	/** Runs the action, then closes the menu (returning false so MenuItem does not keep it open). */
 	const thenClose = (run: () => void) => (): boolean => {
 		run();
@@ -272,7 +235,6 @@ export function ItemMenuBody({
 		complete: thenClose(actions.onComplete),
 		add_note: closeThen(actions.onAddNote),
 		add_date: closeThen(actions.onAddDate),
-		delete_dates: thenClose(actions.onDeleteDates),
 		present_it: closeThen(actions.onPresent),
 		move_to: closeThen(actions.onMoveTo),
 		duplicate: thenClose(actions.onDuplicate),
@@ -307,28 +269,18 @@ export function ItemMenuBody({
 					originalNodeId={node.originalNodeId}
 				/>
 			)}
-			{pickerItemTypes([node.id]).length > 0 && (
-				<>
-					<TurnIntoRow nodeId={node.id} onClose={onClose} />
-					<MenuSeparator />
-				</>
-			)}
-			{entries.map((entry, index) =>
-				entry.kind === "separator" ? (
-					// Separators have no identity beyond their position in the filtered list.
-					// oxlint-disable-next-line react/no-array-index-key
-					<MenuSeparator key={`separator${index}`} />
-				) : (
-					<MenuItem
-						handbook={entry.key}
-						icon={`fal:${entry.icon}`}
-						key={entry.key}
-						label={entry.label}
-						onSelect={select[entry.key]}
-						shortcut={entry.shortcut}
-					/>
-				),
-			)}
+			{renderAssembledMenu(entries, {
+				cmdContext: {nodeIds: [node.id]},
+				qualifiers,
+				onSelect: (cmd) => (cmd.key === "node_type_picker" ? undefined : select[cmd.key]?.()),
+				// Upstream closes the bullet menu on a click, then opens the submenu at the click's page point.
+				openSubmenu: (menuId, target) => {
+					onClose();
+					setTimeout(() => {
+						useOutlineStore.getState().showMenuById(menuId, target, {nodeIds: [node.id]}, qualifiers);
+					});
+				},
+			})}
 			{hasFooter(node) && (
 				<>
 					<MenuSeparator key="separator4" />

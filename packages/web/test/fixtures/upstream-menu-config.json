@@ -1,0 +1,229 @@
+{
+	"ordered_ui": {
+		"node_type_picker": [
+			"turn_into_bullet",
+			"turn_into_h1",
+			"turn_into_h2",
+			"turn_into_h3",
+			"turn_into_paragraph",
+			"turn_into_todo",
+			"turn_into_numbered",
+			"turn_into_board",
+			"turn_into_table",
+			"turn_into_dashboard",
+			"turn_into_ai_item",
+			"turn_into_quote_block",
+			"turn_into_code_block",
+			"turn_into_divider"
+		],
+		"single_node_menu": [
+			"node_type_picker",
+			"single_node_menu_group_1",
+			"single_node_menu_group_2",
+			"single_node_menu_group_3",
+			"single_node_menu_group_4"
+		],
+		"single_node_menu_group_1": [
+			"open_in_pane",
+			"ask_ai",
+			"mark_read:false",
+			"mark_unread:false",
+			"focus_name:false",
+			"complete",
+			"add_note",
+			"add_date",
+			"present_it",
+			"comment",
+			"move_to",
+			"move_to_today",
+			"move_to_tomorrow",
+			"move_to_next_week",
+			"move_to_date",
+			"take_photo",
+			"upload_image:false",
+			"upload_file",
+			"mirror_to",
+			"mirror",
+			"detach_mirror",
+			"duplicate",
+			"duplicate_table_column:false"
+		],
+		"single_node_menu_group_2": ["share", "mcp_agents", "show_export", "copy_link", "make_template"],
+		"single_node_menu_group_3": ["delete", "delete_table_column:false"],
+		"single_node_menu_group_4": ["expand_all", "collapse_all", "sort_children_asc", "sort_children_desc"],
+		"multi_select_menu": [
+			"multi_select_menu_group_1",
+			"multi_select_menu_group_2",
+			"multi_select_menu_group_3",
+			"multi_select_menu_group_4"
+		],
+		"multi_select_menu_group_1": [
+			"toggle_h1",
+			"toggle_h2",
+			"toggle_h3",
+			"toggle_paragraph",
+			"toggle_code_block",
+			"toggle_quote_block",
+			"toggle_bullet",
+			"toggle_todo_mode",
+			"toggle_numbered"
+		],
+		"multi_select_menu_group_2": [
+			"toggle_bold",
+			"toggle_italic",
+			"toggle_underline",
+			"toggle_strikethrough",
+			"toggle_code",
+			"show_color_popup"
+		],
+		"multi_select_menu_group_3": [
+			"complete",
+			"move_to",
+			"move_to_today",
+			"move_to_tomorrow",
+			"move_to_next_week",
+			"move_to_date",
+			"mirror",
+			"mirror_to",
+			"mirror_to_today",
+			"mirror_to_date",
+			"show_export"
+		],
+		"multi_select_menu_group_4": ["delete"]
+	},
+	"is_submenu": {
+		"node_type_picker": true
+	},
+	"menu_active_set": {
+		"single_node_menu :: is_dangling": {
+			"delete": true
+		},
+		"single_node_menu :: is_guide_preview": {
+			"node_type_picker": true,
+			"expand_all": true,
+			"collapse_all": true
+		},
+		"single_node_menu :: is_draft": {
+			"node_type_picker": true,
+			"upload_image": true,
+			"copy_link": true,
+			"delete": true,
+			"expand_all": true,
+			"collapse_all": true
+		},
+		"single_node_menu :: is_comment_not_draft": {
+			"mark_read": true,
+			"mark_unread": true,
+			"focus_name": true,
+			"add_note": true,
+			"mirror_to": true,
+			"mirror": true,
+			"share": true,
+			"show_export": true,
+			"copy_link": true,
+			"delete": true
+		},
+		"single_node_menu :: is_shared_page_root": {
+			"share": true,
+			"expand_all": true,
+			"collapse_all": true
+		},
+		"single_node_menu :: is_table_header_cell": {
+			"node_type_picker": true,
+			"add_note": true,
+			"duplicate_table_column": true,
+			"add_date": true,
+			"complete": true,
+			"upload_file": true,
+			"delete_table_column": true
+		},
+		"single_node_menu :: is_table_body_cell": {
+			"node_type_picker": true,
+			"add_note": true,
+			"duplicate_table_column": true,
+			"add_date": true,
+			"complete": true,
+			"upload_file": true,
+			"delete": true
+		},
+		"single_node_menu :: is_divider": {
+			"node_type_picker": true,
+			"move_to": true,
+			"copy_link": true,
+			"duplicate": true,
+			"delete": true,
+			"expand_all": true,
+			"collapse_all": true
+		},
+		"single_node_menu :: is_ai_item": {
+			"node_type_picker": true,
+			"add_date": true,
+			"comment": true,
+			"move_to": true,
+			"duplicate": true,
+			"delete": true
+		},
+		"multi_select_menu :: has_table_cell": {
+			"toggle_bullet": true,
+			"toggle_todo_mode": true,
+			"toggle_bold": true,
+			"toggle_italic": true,
+			"toggle_underline": true,
+			"toggle_strikethrough": true,
+			"complete": true,
+			"move_to": true,
+			"mirror": true,
+			"mirror_to": true,
+			"show_export": true,
+			"delete": true
+		},
+		"multi_select_menu :: all_comment_paragraphs": {},
+		"multi_select_menu :: has_calendar_search_container": {}
+	},
+	"menu_block_set": {
+		"node_type_picker :: is_inside_side_pane": {
+			"turn_into_dashboard": true
+		},
+		"single_node_menu :: is_comment": {
+			"node_type_picker": true
+		},
+		"single_node_menu :: is_conversation_container": {
+			"node_type_picker": true
+		},
+		"single_node_menu :: is_embedded_share_root": {
+			"node_type_picker": true
+		},
+		"single_node_menu :: is_readonly": {
+			"node_type_picker": true
+		},
+		"single_node_menu :: is_code_block": {
+			"make_template": true,
+			"add_date": true,
+			"present_it": true
+		},
+		"single_node_menu :: is_quote_block": {
+			"make_template": true,
+			"present_it": true
+		},
+		"single_node_menu :: is_inside_side_pane": {
+			"comment": true
+		},
+		"multi_select_menu :: has_pane_item": {
+			"move_to": true,
+			"move_to_today": true,
+			"move_to_tomorrow": true,
+			"move_to_next_week": true,
+			"move_to_date": true,
+			"mirror": true,
+			"mirror_to": true,
+			"mirror_to_today": true,
+			"mirror_to_date": true
+		}
+	},
+	"ui_label": {
+		"node_type_picker": "Turn into..."
+	},
+	"icon": {
+		"node_type_picker": "list-ul"
+	}
+}

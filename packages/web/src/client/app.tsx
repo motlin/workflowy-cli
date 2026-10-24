@@ -2,7 +2,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {memo, useEffect} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
-import {ItemTypePickerHost} from "./components/item-type-picker-host.js";
+import {MenusHost} from "./components/menus-host.js";
 import {AppMessages} from "./components/app-message.js";
 import {ChangesView} from "./components/changes-view.js";
 import {ErrorBoundary} from "./components/error-boundary.js";
@@ -173,7 +173,7 @@ export function App() {
 				<ShowCompletedSync />
 				<ShowKeyboardShortcutsSync />
 				<ExpansionSync />
-				<ItemTypePickerHost />
+				<MenusHost />
 				{/* Location updates render synchronously, in the same commit as the zoom a navigation sets in the store. */}
 				<BrowserRouter useTransitions={false}>
 					<StableNavigateProvider>

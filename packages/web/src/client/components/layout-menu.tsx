@@ -57,7 +57,7 @@ export function ItemTypePicker({position, types, onSelect, onClose}: ItemTypePic
 
 	return createPortal(
 		<div style={{position: "absolute", top: position.top, left: position.left}}>
-			<ButtonMenu ref={menuRef} button={null} onHide={onClose}>
+			<ButtonMenu ref={menuRef} button={null} minWidth={200} onHide={onClose}>
 				<>{itemTypePickerItems(types, onSelect)}</>
 			</ButtonMenu>
 		</div>,

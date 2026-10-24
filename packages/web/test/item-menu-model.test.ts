@@ -2,35 +2,141 @@ import {describe, expect, it} from "vite-plus/test";
 import {
 	buildItemMenu,
 	hasFooter,
-	ITEM_MENU_KEYS,
 	internalLinkUrl,
+	itemMenuCommand,
 	itemMenuLeft,
-	localItemMenuContext,
+	localItemMenuAvailable,
 } from "../src/client/item-menu-model.js";
-import type {ItemMenuEntry, ItemMenuKey, ItemMenuNode} from "../src/client/item-menu-model.js";
+import type {ItemMenuEntry} from "../src/client/item-menu-model.js";
+import {qualifyItemMenu} from "../src/client/app-menu.js";
 
-const plain: ItemMenuNode = {completedAt: null, isMirror: false};
-const everything = {available: (): boolean => true};
+const plain = {id: "alice", completedAt: null, isMirror: false};
+const everything = (): boolean => true;
 
-function only(...keys: ItemMenuKey[]) {
-	return {available: (key: ItemMenuKey): boolean => keys.includes(key)};
-}
-
-function summarize(entries: ItemMenuEntry[]): string {
+function tokens(entries: ItemMenuEntry[]): string {
 	return entries
-		.map((entry) => (entry.kind === "separator" ? "|" : entry.label))
-		.join(";")
-		.replaceAll(";|;", "|");
+		.map((entry) => {
+			if (entry.kind === "separator") {
+				return "|";
+			}
+			return entry.kind === "submenu" ? `[${entry.id}]` : entry.id;
+		})
+		.join(" ")
+		.replaceAll(/ ?\| ?/gu, " | ")
+		.trim();
 }
 
-describe("ITEM_MENU_KEYS", () => {
-	it("lists every key in upstream order with separators", () => {
-		expect(ITEM_MENU_KEYS).toStrictEqual([
+function menu(layoutMode: string | null, isMirror = false): string {
+	return tokens(buildItemMenu({...plain, isMirror}, qualifyItemMenu({data: {layoutMode}}), localItemMenuAvailable));
+}
+
+describe("buildItemMenu with local availability", () => {
+	it("lists the plain bullet menu in the engine's order with group separators", () => {
+		expect(menu(null)).toBe(
+			"[node_type_picker] | open_in_pane complete add_note add_date present_it move_to duplicate | show_export copy_link make_template | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+		);
+	});
+
+	it("shows the full upstream group order when everything is available", () => {
+		expect(tokens(buildItemMenu(plain, qualifyItemMenu({data: {layoutMode: null}}), everything))).toBe(
+			"[node_type_picker] | open_in_pane complete add_note add_date present_it comment move_to move_to_today move_to_tomorrow move_to_next_week move_to_date upload_file mirror_to mirror duplicate | share show_export copy_link make_template | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+		);
+	});
+
+	it("narrows a divider to its active set", () => {
+		expect(menu("divider")).toBe(
+			"[node_type_picker] | move_to duplicate | copy_link | delete | expand_all collapse_all",
+		);
+	});
+
+	it("drops add_date, present_it and make_template for code blocks", () => {
+		expect(menu("code-block")).toBe(
+			"[node_type_picker] | open_in_pane complete add_note move_to duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+		);
+	});
+
+	it("drops present_it and make_template for quote blocks", () => {
+		expect(menu("quote-block")).toBe(
+			"[node_type_picker] | open_in_pane complete add_note add_date move_to duplicate | show_export copy_link | delete | expand_all collapse_all sort_children_asc sort_children_desc",
+		);
+	});
+
+	it("reduces a dangling node to Delete", () => {
+		expect(
+			tokens(buildItemMenu(plain, qualifyItemMenu({isOriginalNotFound: true, data: {layoutMode: null}}))),
+		).toBe("delete");
+	});
+
+	it("never lists delete_dates, even for a dated node", () => {
+		expect(menu(null)).not.toContain("delete_dates");
+	});
+
+	it("offers Detach Mirror only for a mirror root", () => {
+		const detach = (isMirror: boolean) =>
+			tokens(
+				buildItemMenu({...plain, isMirror}, qualifyItemMenu({data: {layoutMode: null}}), everything),
+			).includes("detach_mirror");
+		expect([detach(false), detach(true)]).toStrictEqual([false, true]);
+	});
+});
+
+describe("itemMenuCommand", () => {
+	it("labels complete as Uncomplete for a completed node", () => {
+		expect(itemMenuCommand("complete", {completedAt: 1_700_000_000, isMirror: false}, everything)).toStrictEqual({
+			key: "complete",
+			label: "Uncomplete",
+			icon: "check",
+			shortcut: "⌘↵",
+		});
+	});
+
+	it("returns null for unknown or unavailable commands", () => {
+		expect([
+			itemMenuCommand("ask_ai", plain, everything),
+			itemMenuCommand("share", plain, () => false),
+			itemMenuCommand("detach_mirror", plain, everything),
+		]).toStrictEqual([null, null, null]);
+	});
+
+	it("uses the upstream shortcuts", () => {
+		const ids = [
+			"complete",
+			"add_note",
+			"add_date",
+			"present_it",
+			"comment",
+			"move_to",
+			"mirror",
+			"duplicate",
+			"copy_link",
+			"delete",
+			"expand_all",
+		];
+		expect(
+			Object.fromEntries(
+				ids.map((id) => [id, itemMenuCommand(id, {...plain, isMirror: true}, everything)?.shortcut ?? null]),
+			),
+		).toStrictEqual({
+			complete: "⌘↵",
+			add_note: "⇧↵",
+			add_date: "!!",
+			present_it: "⇧⌘P",
+			comment: "⌃M",
+			move_to: "⌃⌘M",
+			mirror: "⇧⌘M",
+			duplicate: "⇧⌘D",
+			copy_link: "⇧⌘L",
+			delete: "⇧⌘⌫",
+			expand_all: null,
+		});
+	});
+
+	it("uses the upstream FA light icon names", () => {
+		const ids = [
 			"open_in_pane",
 			"complete",
 			"add_note",
 			"add_date",
-			"delete_dates",
 			"present_it",
 			"comment",
 			"move_to",
@@ -43,101 +149,25 @@ describe("ITEM_MENU_KEYS", () => {
 			"mirror",
 			"detach_mirror",
 			"duplicate",
-			"---",
 			"share",
 			"show_export",
 			"copy_link",
 			"make_template",
-			"---",
 			"delete",
-			"---",
 			"expand_all",
 			"collapse_all",
 			"sort_children_asc",
 			"sort_children_desc",
-		]);
-	});
-});
-
-describe("buildItemMenu", () => {
-	it("renders the full upstream list for a non-mirror node with everything available", () => {
-		expect(summarize(buildItemMenu(plain, everything))).toBe(
-			"Open in Pane;Complete;Add note;Add date;Delete dates;Present;Add comment;Move To...;Move to Today;Move to Tomorrow;Move to Next Week;Move to Date...;Upload file;Mirror To...;Mirror;Duplicate|Share;Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
-		);
-	});
-
-	it("offers Detach Mirror only for a mirror root", () => {
-		const labels = buildItemMenu({completedAt: null, isMirror: true}, everything).map((entry) =>
-			entry.kind === "item" ? entry.label : "|",
-		);
-		expect(labels.slice(14, 17)).toStrictEqual(["Mirror", "Detach Mirror", "Duplicate"]);
-	});
-
-	it("drops leading, trailing and doubled separators after filtering", () => {
-		expect(summarize(buildItemMenu(plain, only("delete", "expand_all")))).toBe("Delete|Expand all");
-		expect(summarize(buildItemMenu(plain, only("share", "expand_all")))).toBe("Share|Expand all");
-		expect(buildItemMenu(plain, only("delete"))).toStrictEqual([
-			{kind: "item", key: "delete", label: "Delete", icon: "trash-can", shortcut: "⇧⌘⌫"},
-		]);
-		expect(buildItemMenu(plain, only())).toStrictEqual([]);
-	});
-
-	it("passes the node to the availability check", () => {
-		const seen: ItemMenuNode[] = [];
-		buildItemMenu(plain, {
-			available: (_key, node) => {
-				seen.push(node);
-				return false;
-			},
-		});
-		expect(seen.every((node) => node === plain)).toBe(true);
-		expect(seen).toHaveLength(25);
-	});
-
-	it("labels complete as Uncomplete for a completed node", () => {
-		expect(buildItemMenu({completedAt: 1_700_000_000, isMirror: false}, only("complete"))).toStrictEqual([
-			{kind: "item", key: "complete", label: "Uncomplete", icon: "check", shortcut: "⌘↵"},
-		]);
-	});
-
-	it("reduces the list to delete when the original is not found", () => {
-		expect(buildItemMenu(plain, {...everything, originalNotFound: true})).toStrictEqual([
-			{kind: "item", key: "delete", label: "Delete", icon: "trash-can", shortcut: "⇧⌘⌫"},
-		]);
-	});
-
-	it("uses the upstream shortcuts", () => {
-		const shortcuts = Object.fromEntries(
-			buildItemMenu({completedAt: null, isMirror: true}, everything).flatMap((entry) =>
-				entry.kind === "item" && entry.shortcut !== undefined ? [[entry.key, entry.shortcut]] : [],
+		];
+		expect(
+			Object.fromEntries(
+				ids.map((id) => [id, itemMenuCommand(id, {...plain, isMirror: true}, everything)?.icon]),
 			),
-		);
-		expect(shortcuts).toStrictEqual({
-			complete: "⌘↵",
-			add_note: "⇧↵",
-			add_date: "!!",
-			present_it: "⇧⌘P",
-			comment: "⌃M",
-			move_to: "⌃⌘M",
-			mirror: "⇧⌘M",
-			duplicate: "⇧⌘D",
-			copy_link: "⇧⌘L",
-			delete: "⇧⌘⌫",
-		});
-	});
-
-	it("uses the upstream FA light icon names", () => {
-		const icons = Object.fromEntries(
-			buildItemMenu({completedAt: null, isMirror: true}, everything).flatMap((entry) =>
-				entry.kind === "item" ? [[entry.key, entry.icon]] : [],
-			),
-		);
-		expect(icons).toStrictEqual({
+		).toStrictEqual({
 			open_in_pane: "table-columns",
 			complete: "check",
 			add_note: "pencil",
 			add_date: "calendar-days",
-			delete_dates: "calendar-days",
 			present_it: "play",
 			comment: "message-lines",
 			move_to: "arrow-right-long",
@@ -160,20 +190,6 @@ describe("buildItemMenu", () => {
 			sort_children_asc: "arrow-down-a-z",
 			sort_children_desc: "arrow-down-z-a",
 		});
-	});
-});
-
-describe("localItemMenuContext", () => {
-	it("shows only the commands the local app runs", () => {
-		expect(summarize(buildItemMenu(plain, localItemMenuContext({hasDates: false})))).toBe(
-			"Open in Pane;Complete;Add note;Add date;Present;Move To...;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
-		);
-	});
-
-	it("adds Delete dates when the name or note has a date", () => {
-		expect(summarize(buildItemMenu(plain, localItemMenuContext({hasDates: true})))).toBe(
-			"Open in Pane;Complete;Add note;Add date;Delete dates;Present;Move To...;Duplicate|Export;Copy internal link;Make template|Delete|Expand all;Collapse all;Sort A-Z;Sort Z-A",
-		);
 	});
 });
 

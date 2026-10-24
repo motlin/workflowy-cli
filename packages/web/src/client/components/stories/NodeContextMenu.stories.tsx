@@ -31,7 +31,6 @@ function ItemMenuInline({isCompleted = false, modifiedAt = true}: {isCompleted?:
 						onComplete: () => {},
 						onAddNote: () => {},
 						onAddDate: () => {},
-						onDeleteDates: () => {},
 						onPresent: () => {},
 						onMoveTo: () => {},
 						onDuplicate: () => {},

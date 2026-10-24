@@ -40,16 +40,23 @@ function recordingDeps(children: Record<string, string[]>, layoutModes: Record<s
 	return {calls, deps};
 }
 
-describe("item type picker store", () => {
-	it("stores the picker's nodes and position, and clears it on hide", () => {
-		expect(useOutlineStore.getState().itemTypePicker).toBeNull();
+describe("requested menus store", () => {
+	it("opens the Turn into picker by id at a point, and clears it on hide", () => {
+		expect(useOutlineStore.getState().requestedMenus.size).toBe(0);
 		useOutlineStore.getState().showItemTypePicker({nodeIds: ["alice"], position: {top: 46, left: 1131}});
-		expect(useOutlineStore.getState().itemTypePicker).toStrictEqual({
-			nodeIds: ["alice"],
-			position: {top: 46, left: 1131},
-		});
-		useOutlineStore.getState().hideItemTypePicker();
-		expect(useOutlineStore.getState().itemTypePicker).toBeNull();
+		expect([...useOutlineStore.getState().requestedMenus]).toStrictEqual([
+			["node_type_picker", {target: {top: 46, left: 1131}, cmdContext: {nodeIds: ["alice"]}, qualifiers: []}],
+		]);
+		useOutlineStore.getState().hideMenu("node_type_picker");
+		expect(useOutlineStore.getState().requestedMenus.size).toBe(0);
+	});
+
+	it("warns and opens nothing when a menu has no rows", () => {
+		useOutlineStore.getState().showMenuById("nope", {top: 1, left: 2}, {nodeIds: ["alice"]}, []);
+		expect({
+			menus: useOutlineStore.getState().requestedMenus.size,
+			message: useOutlineStore.getState().appMessage?.text,
+		}).toStrictEqual({menus: 0, message: "Couldn't assemble menu: nope"});
 	});
 });
 
