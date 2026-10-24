@@ -67,5 +67,13 @@
 			"file": "packages/web/src/client/keys/keymap.ts",
 			"exports": ["*"],
 		},
+		{
+			"file": "packages/web/src/client/components/flyout/place-popper.ts",
+			"exports": ["*"],
+		},
+		{
+			"file": "packages/web/src/client/components/flyout/popper-transform.ts",
+			"exports": ["*"],
+		},
 	],
 }

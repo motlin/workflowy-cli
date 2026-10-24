@@ -4100,3 +4100,8 @@ label.toggle > div {
 	box-sizing: content-box;
 	line-height: 1;
 }
+
+/* Upstream's picker footers are content-box: py-xs and the top border add to the inline 32px height (41px and 40px). */
+[data-popper-placement] > .flyout a.menuItem[style*="height: 32px"] {
+	box-sizing: content-box;
+}

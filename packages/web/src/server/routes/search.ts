@@ -139,6 +139,10 @@ searchRouter.post("/locations", async (c) => {
 	const {query, offset = 0, limit = 20, excludeId} = await c.req.json<LocationsBody>();
 	const rows = loadTreeRows(getDatabase(), null);
 	const joinedSec = await loadJoinedSec(c, rows);
+	// Typing supersedes earlier keystrokes; the client aborts them, so skip ranking for a request nobody waits on.
+	if (c.req.raw.signal.aborted) {
+		return new Response(null, {status: 499});
+	}
 	return c.json(filterLocations(rows, {query, excludeId, offset, limit, joinedSec}));
 });
 

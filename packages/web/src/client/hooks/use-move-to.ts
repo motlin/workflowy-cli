@@ -2,13 +2,13 @@ import {useQueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretAnchor, caretBoxes, caretTextOffset, editorElement, rowContent} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
-import {editingAfterRemoval} from "../caret-navigation.js";
+import {editingAfterMoveOut} from "../caret-navigation.js";
 import {executeMoveTo, viewMovedTarget} from "../move-to.js";
 import type {LoadedMoveTarget} from "../move-to.js";
 import {goToNode} from "../navigation.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import {readNode} from "../node-cache.js";
-import {useOutlineStore} from "../stores/outline.js";
+import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import type {CaretReturn} from "../stores/outline.js";
 import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {fetchAncestors, fetchChildren, fetchNode, sendBlockMoves, useMoveNodes} from "./use-nodes.js";
@@ -71,7 +71,11 @@ export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 				if (outline.editingId !== first) {
 					return;
 				}
-				const next = editingAfterRemoval(currentNavigableIds(queryClient), first);
+				const next = editingAfterMoveOut(
+					currentNavigableIds(queryClient),
+					first,
+					activePaneView().zoomedNodeId,
+				);
 				if (next === null) {
 					outline.stopEditing();
 				} else {

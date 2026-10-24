@@ -1,4 +1,5 @@
 import {useQueries, useQueryClient} from "@tanstack/react-query";
+import {stripHtmlTags} from "@workflowy/shared/html";
 import {useEffect, useState} from "react";
 import {usePreferences} from "../hooks/use-preferences.js";
 import {fetchAncestors, useCreateNode} from "../hooks/use-nodes.js";
@@ -9,6 +10,7 @@ import {
 	buildPickerRows,
 	reducePicker,
 	resolveDefaultLocation,
+	starRowIds,
 } from "../location-picker-model.js";
 import type {PickerEffect, PickerEvent, PickerResult, PickerState} from "../location-picker-model.js";
 import {nodeKeys, readNode} from "../node-cache.js";
@@ -44,8 +46,13 @@ function escapeHtml(text: string): string {
 	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-/** Undebounced `/api/search/locations` hits for `query`; empty for an empty query. */
-function useSearchHits(query: string): readonly SearchHit[] {
+/** A node name as upstream's `nameInPlainText`: markup stripped, then escaped as a text child. */
+function plainLabel(name: string): string {
+	return escapeHtml(stripHtmlTags(name));
+}
+
+/** Undebounced `/api/search/locations` hits for `query`, empty for an empty query; `pending` until the reply lands. */
+function useSearchHits(query: string): {hits: readonly SearchHit[]; pending: boolean} {
 	const [found, setFound] = useState<{query: string; hits: readonly SearchHit[]}>({query: "", hits: []});
 	useEffect(() => {
 		if (query.trim() === "") {
@@ -77,7 +84,8 @@ function useSearchHits(query: string): readonly SearchHit[] {
 			controller.abort();
 		};
 	}, [query]);
-	return found.query === query ? found.hits : EMPTY_HITS;
+	const landed = found.query === query;
+	return {hits: landed ? found.hits : EMPTY_HITS, pending: !landed && query.trim() !== ""};
 }
 
 /** One open picker: its step machine, rows and the create-and-move sub-action. */
@@ -91,7 +99,7 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const {searcher, getFilter} = picker;
 	const filter = getFilter?.() ?? null;
 	const query = filter ?? state.query;
-	const fetchedHits = useSearchHits(searcher === undefined ? query : "");
+	const {hits: fetchedHits, pending} = useSearchHits(searcher === undefined ? query : "");
 	const hits: readonly SearchHit[] =
 		searcher === undefined
 			? fetchedHits
@@ -104,12 +112,14 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const nameOf = (id: string): string =>
 		readNode(queryClient, id)?.name ?? stars.find((star) => star.nodeId === id)?.name ?? "";
 	const recentIds = recentLocations().ids();
+	const exists = (id: string): boolean => readNode(queryClient, id) !== undefined;
+	const recentExists = (id: string): boolean => exists(id) || stars.some((star) => star.nodeId === id);
 	const defaultLocation = resolveDefaultLocation({
-		recentId: recentIds[0] ?? null,
+		recentIds,
 		notesRootId: notesRootIdFor(preferences),
-		exists: (id) => readNode(queryClient, id) !== undefined,
+		exists: (id) => (recentIds.includes(id) ? recentExists(id) : exists(id)),
 	});
-	const starredIds = stars.flatMap((star) => (star.nodeId !== null && star.query === null ? [star.nodeId] : []));
+	const starredIds = starRowIds(stars);
 	const results: PickerResult[] = hits.map(({id, labelHtml}) => ({id, labelHtml}));
 	const listedIds = [...new Set([...recentIds, ...starredIds])];
 	const chains = useQueries({
@@ -135,8 +145,11 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 		starredIds,
 		forItemId: picker.forItemId,
 		expanded: state.expanded,
-		recentLabel: "create" in defaultLocation ? "Notes" : escapeHtml(nameOf(defaultLocation.id)),
-		labelOf: (id) => escapeHtml(nameOf(id)),
+		step: state.step,
+		pending,
+		exists: recentExists,
+		recentLabel: "create" in defaultLocation ? "Notes" : plainLabel(nameOf(defaultLocation.id)),
+		labelOf: (id) => plainLabel(nameOf(id)),
 	});
 
 	const defaultTarget = async () =>
@@ -171,7 +184,7 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const crumbsOf = (id: string): readonly LocationCrumb[] => crumbsById.get(id) ?? [];
 	return (
 		<LocationPicker
-			position={[picker.anchor.x, picker.anchor.y + 4]}
+			position={[picker.anchor.x, picker.anchor.y]}
 			step={state.step}
 			headerText={picker.headerText}
 			name={state.name}

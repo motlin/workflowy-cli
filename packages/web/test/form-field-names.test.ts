@@ -31,9 +31,15 @@ function openingTag(source: string, start: number): string {
 }
 
 /** Every `<input>`, `<textarea>`, and `<select>` in the client lacking an `id` or `name` attribute, as `file:line`. */
+// The location picker's input is an exact upstream clone (class, type, placeholder, value only), so it carries no name.
+const UPSTREAM_CLONE_FILES = new Set(["components/location-picker.tsx"]);
+
 function unnamedFormFields(): string[] {
 	const unnamed: string[] = [];
 	for (const file of tsxFiles(CLIENT_ROOT)) {
+		if (UPSTREAM_CLONE_FILES.has(path.relative(CLIENT_ROOT, file))) {
+			continue;
+		}
 		const source = fs.readFileSync(file, "utf8");
 		for (const match of source.matchAll(/<(?:input|textarea|select)\b/gu)) {
 			const tag = openingTag(source, match.index);

@@ -17,6 +17,7 @@ vi.mock(import("../src/client/breadcrumb-layout.js"), async (importOriginal) => 
 vi.stubGlobal("document", {body: {}});
 
 const {LocationPicker} = await import("../src/client/components/location-picker.js");
+const {popperTransform} = await import("../src/client/components/flyout/popper-transform.js");
 
 // Class strings below are copied from .llm/upstream-sync/dumps/inline-location-picker-upstream-empty-dom.html,
 // inline-location-picker-upstream-more-row.html and move-reorder-upstream-moveto-dom.html (whitespace collapsed).
@@ -107,10 +108,10 @@ function render({step = 1, query, rows, name, active}: RenderOptions): string {
 
 function shell(header: string, inputWrapper: string, query: string, menuClass: string, menu: string): string {
 	return (
-		`<div style="position:absolute;inset:0 auto auto 0;z-index:300;transform:translate3d(203px, 361.5px, 0px)" data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom-start" class="${WRAPPER}">` +
+		`<div class="${WRAPPER}" data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom-start" style="position:absolute;inset:0 auto auto 0;z-index:300;transform:translate(203px, 362px)">` +
 		`<div style="pointer-events:auto;z-index:300;max-width:240px;margin-top:4px;left:203px;top:361.5px;transform:scale(1, 1) translateX(0);transform-origin:10% 0;opacity:1" class="${SURFACE}">` +
 		`<div class="${HEADER}">${header}</div>` +
-		`<div class="${inputWrapper}"><div class="flex flex-col w-full"><input class="${INPUT}" type="text" placeholder="Find location..." autofocus="" name="location-picker-query" value="${query}"/></div></div>` +
+		`<div class="${inputWrapper}"><div class="flex flex-col w-full"><input class="${INPUT}" type="text" placeholder="Find location..." autofocus="" value="${query}"/></div></div>` +
 		`<div><div style="${INNER_STYLE}" class="${SURFACE}menu ${menuClass}">${menu}</div></div>` +
 		`</div></div>`
 	);
@@ -131,6 +132,16 @@ function createRows(query: string, disabled: boolean): PickerRow[] {
 		{kind: "create-elsewhere", labelHtml: `New "${query}" in…`, disabled, icon: "arrow-up"},
 	];
 }
+
+describe("popperTransform", () => {
+	it("rounds to device pixels and writes translate at dpr 1", () => {
+		expect(popperTransform(188.359375, 221.5, 1)).toBe("translate(188px, 222px)");
+	});
+
+	it("writes translate3d above dpr 1", () => {
+		expect(popperTransform(188.359375, 221.5, 2)).toBe("translate3d(188.5px, 221.5px, 0px)");
+	});
+});
 
 describe("LocationPicker markup", () => {
 	it("renders the empty-query state: a recent and a starred row over two disabled footers", () => {
@@ -313,5 +324,14 @@ describe("MoveAssistant removal", () => {
 		expect(existsSync(source("components/move-assistant.tsx"))).toBe(false);
 		expect(/MoveAssistant|move-assistant/u.test(readFileSync(source("app.tsx"), "utf8"))).toBe(false);
 		expect(/MoveAssistant|moveAssistant/u.test(readFileSync(source("stores/outline.ts"), "utf8"))).toBe(false);
+	});
+});
+
+describe("picker styles", () => {
+	it("makes the footer rows content-box like upstream", () => {
+		const css = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
+		expect(css).toMatch(
+			/\[data-popper-placement\] > \.flyout a\.menuItem\[style\*="height: 32px"\]\s*\{\s*box-sizing: content-box;\s*\}/u,
+		);
 	});
 });

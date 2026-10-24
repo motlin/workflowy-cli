@@ -141,6 +141,23 @@ export function editingAfterRemoval(
 	return next === null ? null : {nodeId: next, caretOffset: 0};
 }
 
+/**
+ * Where editing continues after the edited row moves elsewhere (Move To): like a removal, except that a row right
+ * under the zoom title hands the caret to the next row (start) instead of the title, as upstream does.
+ */
+export function editingAfterMoveOut(
+	visibleIds: readonly string[],
+	nodeId: string,
+	zoomRootId: string | null,
+): {nodeId: string; caretOffset: number} | null {
+	const previous = adjacentVisibleNode(visibleIds, nodeId, "up");
+	const next = adjacentVisibleNode(visibleIds, nodeId, "down");
+	if (previous !== null && previous === zoomRootId && next !== null) {
+		return {nodeId: next, caretOffset: 0};
+	}
+	return editingAfterRemoval(visibleIds, nodeId);
+}
+
 export type CompleteFocus =
 	| {kind: "row"; id: string; offset: 0}
 	| {kind: "zoomTitle"}

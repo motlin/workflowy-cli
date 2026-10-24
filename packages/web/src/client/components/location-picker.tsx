@@ -14,6 +14,7 @@ import {FlyoutAlign} from "./flyout/flyout-style.js";
 import {MenuBody} from "./flyout/menu.js";
 import {MenuItem, MenuSectionHeader} from "./flyout/menu-item.js";
 import {placePopper} from "./flyout/place-popper.js";
+import {popperTransform} from "./flyout/popper-transform.js";
 import {IconButton} from "./icon-button.js";
 import {POPUP_Z} from "./flyout/popover-box.js";
 
@@ -55,9 +56,26 @@ export interface LocationPickerProps {
 const WRAPPER_CLASS = `[&_.flyout]:static [&_.flyout]:m-0 [&_.flyout]:min-w-[480px] [&_.flyout]:p-0
         [&_.flyout:empty]:hidden [&_.flyout.menu]:border-0 [&_.flyout.menu]:rounded-none `;
 
-// Upstream WF.DomKit.Input.
-const INPUT_CLASS =
-	"block w-full box-border appearance-none p-m rounded-s outline-none border border-solid border-primary bg-primary focus:border-tint text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected [&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:inherit] [&:-webkit-autofill]:border-tint [&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset] [&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset] ";
+// Upstream WF.DomKit.Input; its whitespace-only lines and 12-space indents are rebuilt here so no trailing space sits in the source.
+const INDENT = " ".repeat(12);
+const INPUT_CLASS = [
+	"block w-full box-border appearance-none p-m rounded-s",
+	INDENT,
+	INDENT,
+	`${INDENT}outline-none border border-solid border-primary bg-primary focus:border-tint`,
+	INDENT,
+	INDENT,
+	`${INDENT}text-s leading-s text-primary placeholder:text-tertiary selection:bg-selected`,
+	`${INDENT}[&:-webkit-autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
+	`${INDENT}[&:-webkit-autofill]:[-webkit-text-fill-color:inherit]`,
+	`${INDENT}[&:-webkit-autofill]:border-tint`,
+	`${INDENT}[&:-webkit-autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
+	`${INDENT}[&:-webkit-autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
+	`${INDENT}[&:autofill]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
+	`${INDENT}[&:autofill:hover]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
+	`${INDENT}[&:autofill:focus]:shadow-[0_0_0_1000px_#e4f5ff_inset]`,
+	INDENT,
+].join("\n");
 
 const MENU_MAX_HEIGHT = 240;
 
@@ -306,6 +324,18 @@ export function LocationPicker(props: LocationPickerProps) {
 	const {onFocusLeave} = props;
 	const {ref, placed} = usePopperPosition(position);
 	useEscape(props.onEscape);
+	// Upstream's WF.Scroll.reveal(b, {boundary: row, inline: "center"}) on each highlighted match as its row mounts.
+	const rowKey = rows.map((row) => row.labelHtml).join("\n");
+	const revealedKey = useRef<string | null>(null);
+	useLayoutEffect(() => {
+		if (revealedKey.current === rowKey) {
+			return;
+		}
+		revealedKey.current = rowKey;
+		for (const match of ref.current?.querySelectorAll("a.menuItem [data-menu-item-label] b") ?? []) {
+			match.scrollIntoView({inline: "center", block: "nearest"});
+		}
+	});
 	const indexes = enabledIndexes(rows);
 	const header =
 		step === 1 ? (
@@ -323,16 +353,16 @@ export function LocationPicker(props: LocationPickerProps) {
 	return createPortal(
 		<div
 			ref={ref}
+			className={WRAPPER_CLASS}
+			data-popper-reference-hidden="false"
+			data-popper-escaped="false"
+			data-popper-placement="bottom-start"
 			style={{
 				position: "absolute",
 				inset: "0 auto auto 0",
 				zIndex: POPUP_Z,
-				transform: `translate3d(${placed[0]}px, ${placed[1]}px, 0px)`,
+				transform: popperTransform(placed[0], placed[1], globalThis.devicePixelRatio || 1),
 			}}
-			data-popper-reference-hidden="false"
-			data-popper-escaped="false"
-			data-popper-placement="bottom-start"
-			className={WRAPPER_CLASS}
 			onBlur={(event) => {
 				if (onFocusLeave && !event.currentTarget.contains(event.relatedTarget)) {
 					onFocusLeave();
@@ -348,7 +378,6 @@ export function LocationPicker(props: LocationPickerProps) {
 								// Keyed by step: each step mounts its own autofocused input, as upstream's Lm1/Mm1 do.
 								key={step}
 								className={INPUT_CLASS}
-								name="location-picker-query"
 								type="text"
 								placeholder="Find location..."
 								value={query}

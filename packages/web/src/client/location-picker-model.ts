@@ -43,6 +43,12 @@ export interface PickerRowsInput {
 	/** Replaces `New` in both create rows (`Mirror to`). */
 	subActionName?: string;
 	limit?: number;
+	/** Step 2 (`New "q" in…`) has no create rows and no `More results`. */
+	step?: 1 | 2;
+	/** The search reply for a non-empty query has not landed: show neither results nor the help row. */
+	pending?: boolean;
+	/** Whether a recent location still exists; recents that do not are dropped. */
+	exists?: (id: string) => boolean;
 }
 
 function escapeHtml(text: string): string {
@@ -50,30 +56,36 @@ function escapeHtml(text: string): string {
 }
 
 function locationRows(input: PickerRowsInput): PickerRow[] {
-	const listed = new Set([input.forItemId]);
+	const listed = new Set<string>();
 	const rows: PickerRow[] = [];
-	for (const [ids, kind, icon] of [
-		[input.recentIds, "recent", "clock"],
-		[input.starredIds, "starred", "star"],
-	] as const) {
-		for (const id of ids) {
-			if (listed.has(id)) {
-				continue;
-			}
-			listed.add(id);
-			rows.push({kind, id, labelHtml: input.labelOf(id), disabled: false, icon});
+	// Upstream checks the exclusion list only for starred locations, never for recents.
+	for (const id of input.recentIds) {
+		if (listed.has(id) || input.exists?.(id) === false) {
+			continue;
 		}
+		listed.add(id);
+		rows.push({kind: "recent", id, labelHtml: input.labelOf(id), disabled: false, icon: "clock"});
+	}
+	for (const id of input.starredIds) {
+		if (listed.has(id) || id === input.forItemId) {
+			continue;
+		}
+		listed.add(id);
+		rows.push({kind: "starred", id, labelHtml: input.labelOf(id), disabled: false, icon: "star"});
 	}
 	return rows;
 }
 
 function resultRows(input: PickerRowsInput): PickerRow[] {
 	const matches = input.results.filter((result) => result.id !== input.forItemId);
+	if (input.pending === true) {
+		return [];
+	}
 	if (matches.length === 0) {
 		return [{kind: "help", labelHtml: "No matching locations found", disabled: true, icon: null}];
 	}
 	const limit = input.limit ?? 5;
-	const cut = !input.expanded && matches.length > limit;
+	const cut = !input.expanded && input.step !== 2 && matches.length > limit;
 	const shown = cut ? matches.slice(0, limit) : matches;
 	const rows: PickerRow[] = shown.map((result) => ({
 		kind: "result",
@@ -90,7 +102,7 @@ function resultRows(input: PickerRowsInput): PickerRow[] {
 
 export function buildPickerRows(input: PickerRowsInput): PickerRow[] {
 	const rows = input.query === "" && input.eager !== true ? locationRows(input) : resultRows(input);
-	if (input.action === false) {
+	if (input.action === false || input.step === 2) {
 		return rows;
 	}
 	const q = escapeHtml(input.query);
@@ -182,8 +194,8 @@ export function reducePicker(state: PickerState, event: PickerEvent, rows: reado
 }
 
 export interface DefaultLocationInput {
-	/** The newest recent location, if any. */
-	recentId: string | null;
+	/** Recent location ids, newest first. */
+	recentIds: readonly string[];
 	/** The account's `notesRootId` (or this session's lazily created Notes). */
 	notesRootId: string | null;
 	/** Whether a node is in the cache. */
@@ -193,8 +205,9 @@ export interface DefaultLocationInput {
 export type DefaultLocation = {id: string} | {create: "Notes"};
 
 /** Footer A's target: the newest recent location, else the account's Notes node, else a Notes to create. */
-export function resolveDefaultLocation({recentId, notesRootId, exists}: DefaultLocationInput): DefaultLocation {
-	if (recentId !== null) {
+export function resolveDefaultLocation({recentIds, notesRootId, exists}: DefaultLocationInput): DefaultLocation {
+	const recentId = recentIds.find((id) => exists(id));
+	if (recentId !== undefined) {
 		return {id: recentId};
 	}
 	if (notesRootId !== null && exists(notesRootId)) {
@@ -206,4 +219,9 @@ export function resolveDefaultLocation({recentId, notesRootId, exists}: DefaultL
 /** A location's subtext crumbs from its root-first ancestor chain (itself last): ancestors only, as plain text. */
 export function ancestorCrumbs(chain: readonly {id: string; name: string | null}[]): {id: string; name: string}[] {
 	return chain.slice(0, -1).map(({id, name}) => ({id, name: stripHtmlTags(name ?? "")}));
+}
+
+/** Every starred location, search stars included, as its page id: deduplicated, in `mostRecent` order, Home skipped. */
+export function starRowIds(stars: readonly {nodeId: string | null; query: string | null}[]): string[] {
+	return [...new Set(stars.flatMap((star) => (star.nodeId === null ? [] : [star.nodeId])))];
 }

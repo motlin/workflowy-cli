@@ -7,6 +7,7 @@ import {
 	firstEnabledIndex,
 	reducePicker,
 	resolveDefaultLocation,
+	starRowIds,
 } from "../src/client/location-picker-model.js";
 import {ensureNotesLocation, notesRootIdFor} from "../src/client/notes-location.js";
 import type {PickerRow, PickerState} from "../src/client/location-picker-model.js";
@@ -85,6 +86,7 @@ describe("buildPickerRows", () => {
 			}),
 		).toStrictEqual([
 			{kind: "recent", id: "hub", labelHtml: "Qzpick Hub", disabled: false, icon: "clock"},
+			{kind: "recent", id: "mover", labelHtml: "Mover", disabled: false, icon: "clock"},
 			{kind: "starred", id: "cal", labelHtml: "📆 Calendar", disabled: false, icon: "star"},
 			...createRows("", true),
 		]);
@@ -210,19 +212,90 @@ describe("reducePicker", () => {
 });
 
 describe("resolveDefaultLocation", () => {
-	const exists = (id: string) => id === "notes";
+	const exists = (id: string) => id === "notes" || id === "hub";
 
 	it("prefers the newest recent location", () => {
-		expect(resolveDefaultLocation({recentId: "hub", notesRootId: "notes", exists})).toStrictEqual({id: "hub"});
+		expect(resolveDefaultLocation({recentIds: ["hub"], notesRootId: "notes", exists})).toStrictEqual({id: "hub"});
 	});
 
 	it("uses the account's notesRootId when that node exists", () => {
-		expect(resolveDefaultLocation({recentId: null, notesRootId: "notes", exists})).toStrictEqual({id: "notes"});
+		expect(resolveDefaultLocation({recentIds: [], notesRootId: "notes", exists})).toStrictEqual({id: "notes"});
 	});
 
 	it("creates Notes when notesRootId is unset or points at a missing node", () => {
-		expect(resolveDefaultLocation({recentId: null, notesRootId: null, exists})).toStrictEqual({create: "Notes"});
-		expect(resolveDefaultLocation({recentId: null, notesRootId: "gone", exists})).toStrictEqual({create: "Notes"});
+		expect(resolveDefaultLocation({recentIds: [], notesRootId: null, exists})).toStrictEqual({create: "Notes"});
+		expect(resolveDefaultLocation({recentIds: [], notesRootId: "gone", exists})).toStrictEqual({create: "Notes"});
+	});
+});
+
+describe("resolveDefaultLocation with recents", () => {
+	it("skips recents that no longer exist and falls back to Notes when none resolve", () => {
+		expect(
+			resolveDefaultLocation({recentIds: ["gone", "hub"], notesRootId: null, exists: (id) => id === "hub"}),
+		).toStrictEqual({id: "hub"});
+		expect(resolveDefaultLocation({recentIds: ["gone"], notesRootId: null, exists: () => false})).toStrictEqual({
+			create: "Notes",
+		});
+	});
+});
+
+describe("step 2 rows", () => {
+	it("lists recents with no footer rows for an empty query", () => {
+		expect(buildPickerRows({...BASE, step: 2, query: "", recentIds: ["hub"], starredIds: []})).toStrictEqual([
+			{kind: "recent", id: "hub", labelHtml: "Qzpick Hub", disabled: false, icon: "clock"},
+		]);
+	});
+
+	it("shows every result with no More or create rows", () => {
+		expect(buildPickerRows({...BASE, step: 2, query: "qz", results: results(9)})).toStrictEqual(
+			Array.from({length: 9}, (_, i) => resultRow(i + 1)),
+		);
+	});
+
+	it("creates under the first result on Enter", () => {
+		const state: PickerState = {step: 2, name: "qzpick", query: "qz", expanded: false, active: 0};
+		const step2Rows = buildPickerRows({...BASE, step: 2, query: "qz", results: results(9)});
+		expect(reducePicker(state, {type: "key", key: "Enter"}, step2Rows)).toStrictEqual({
+			state,
+			effect: {type: "sub-action", id: "r1", name: "qzpick"},
+		});
+	});
+});
+
+describe("recent rows", () => {
+	it("drops recents that do not exist and keeps forItem as a recent", () => {
+		expect(
+			buildPickerRows({
+				...BASE,
+				query: "",
+				recentIds: ["gone", "hub"],
+				exists: (id) => id !== "gone",
+				forItemId: "hub",
+				starredIds: ["hub"],
+			}),
+		).toStrictEqual([
+			{kind: "recent", id: "hub", labelHtml: "Qzpick Hub", disabled: false, icon: "clock"},
+			...createRows("", true),
+		]);
+	});
+});
+
+describe("pending search", () => {
+	it("shows no help row and no results while the reply is pending, keeping the footers", () => {
+		expect(buildPickerRows({...BASE, query: "qz", pending: true})).toStrictEqual(createRows("qz", false));
+	});
+});
+
+describe("starRowIds", () => {
+	it("maps every star, searches included, to its deduplicated page in order", () => {
+		expect(
+			starRowIds([
+				{nodeId: "p1", query: "date:past"},
+				{nodeId: "p2", query: null},
+				{nodeId: "p1", query: null},
+				{nodeId: null, query: null},
+			]),
+		).toStrictEqual(["p1", "p2"]);
 	});
 });
 

@@ -3,6 +3,7 @@ import {
 	adjacentVisibleNode,
 	planVerticalCross,
 	backspaceDeleteTarget,
+	editingAfterMoveOut,
 	editingAfterRemoval,
 	firstLastNavigable,
 	horizontalTarget,
@@ -119,6 +120,33 @@ describe("editingAfterRemoval", () => {
 
 	it("stops editing when no other node is visible", () => {
 		expect(editingAfterRemoval(["a"], "a")).toBeNull();
+	});
+});
+
+describe("editingAfterMoveOut", () => {
+	it("continues on the next row when the moved row follows the zoom title", () => {
+		expect(editingAfterMoveOut(["root-title", "mover", "hub"], "mover", "root-title")).toStrictEqual({
+			nodeId: "hub",
+			caretOffset: 0,
+		});
+	});
+
+	it("continues at the end of the previous row otherwise", () => {
+		expect(editingAfterMoveOut(["root-title", "a", "mover"], "mover", "root-title")).toStrictEqual({
+			nodeId: "a",
+			caretOffset: Number.MAX_SAFE_INTEGER,
+		});
+		expect(editingAfterMoveOut(["a", "mover"], "mover", null)).toStrictEqual({
+			nodeId: "a",
+			caretOffset: Number.MAX_SAFE_INTEGER,
+		});
+	});
+
+	it("falls back to the zoom title when the moved row was its only child", () => {
+		expect(editingAfterMoveOut(["root-title", "mover"], "mover", "root-title")).toStrictEqual({
+			nodeId: "root-title",
+			caretOffset: Number.MAX_SAFE_INTEGER,
+		});
 	});
 });
 

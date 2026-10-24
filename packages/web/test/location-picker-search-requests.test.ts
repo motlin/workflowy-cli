@@ -12,9 +12,10 @@ const {createRoot} = await import("react-dom/client");
 const {QueryClient, QueryClientProvider} = await import("@tanstack/react-query");
 const {LocationPickerHost} = await import("../src/client/components/location-picker-host.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
+const {nodeKeys} = await import("../src/client/node-cache.js");
 
 /** Each `/api/search/locations` request in order, with a resolver to answer it later. */
-let searches: {query: string; answer: (label: string) => void}[];
+let searches: {query: string; answer: (label?: string) => void}[];
 
 let root: Root | undefined;
 
@@ -32,10 +33,20 @@ beforeEach(() => {
 					searches.push({
 						query,
 						answer: (label) => {
-							resolve(Response.json({results: [{id: `hit-${label}`, labelHtml: label, ancestors: []}]}));
+							resolve(
+								Response.json({
+									results:
+										label === undefined
+											? []
+											: [{id: `hit-${label}`, labelHtml: label, ancestors: []}],
+								}),
+							);
 						},
 					});
 				});
+			}
+			if (url.endsWith("/ancestors")) {
+				return Response.json({ancestors: []});
 			}
 			if (url === "/api/v1/stars") {
 				return Response.json({stars: [], nodes: []});
@@ -80,7 +91,7 @@ describe("Location picker search requests", () => {
 				.openLocationPicker({forItemId: "item", headerText: "Move To..."}, {x: 0, y: 0});
 		});
 		await flush();
-		const input = document.querySelector<HTMLInputElement>('input[name="location-picker-query"]');
+		const input = document.querySelector<HTMLInputElement>('input[placeholder="Find location..."]');
 		if (input === null) {
 			throw new Error("picker input missing");
 		}
@@ -160,5 +171,106 @@ describe("Location picker options", () => {
 		await flush();
 		expect(document.querySelector("input[placeholder='Find location...']")).toBeNull();
 		expect(searches.map((search) => search.query)).toStrictEqual(["qz"]);
+	});
+});
+
+describe("Location picker labels, pending state and reveal", () => {
+	async function mountWith(client: InstanceType<typeof QueryClient>): Promise<void> {
+		const container = document.createElement("div");
+		document.body.append(container);
+		root = createRoot(container);
+		act(() => {
+			root?.render(createElement(QueryClientProvider, {client}, createElement(LocationPickerHost)));
+		});
+		await flush();
+	}
+
+	function open(anchor = {x: 0, y: 0}): void {
+		act(() => {
+			void useOutlineStore.getState().openLocationPicker({forItemId: "item", headerText: "Move To..."}, anchor);
+		});
+	}
+
+	it("renders recent and footer labels as plain text, not escaped markup", async () => {
+		sessionStorage.setItem("recentlySavedLocations", JSON.stringify([["n1", 1]]));
+		const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}});
+		queryClient.setQueryData(nodeKeys.detail("n1"), {id: "n1", name: "<b>Hub</b> &amp; Co"});
+		await mountWith(queryClient);
+		open();
+		await flush();
+		const labels = [...document.querySelectorAll("a.menuItem [data-menu-item-label]")].map((label) =>
+			label.innerHTML.replace(/ data-menu-item-label=""/u, ""),
+		);
+		expect(labels).toStrictEqual([
+			"<div>Hub &amp; Co</div>",
+			'New "" in: <b>Hub &amp; Co</b>',
+			'<div>New "" in…</div>',
+		]);
+	});
+
+	it("drops recents whose node no longer exists and falls back to Notes", async () => {
+		sessionStorage.setItem("recentlySavedLocations", JSON.stringify([["gone", 1]]));
+		await mountWith(new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}}));
+		open();
+		await flush();
+		const labels = [...document.querySelectorAll("a.menuItem [data-menu-item-label]")].map(
+			(label) => label.textContent,
+		);
+		expect(labels).toStrictEqual(['New "" in: Notes', 'New "" in…']);
+	});
+
+	it("shows no help text while the search is pending, then the help text for zero results", async () => {
+		await mountWith(new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}}));
+		open();
+		await flush();
+		type(document.querySelector<HTMLInputElement>('input[placeholder="Find location..."]')!, "qz");
+		const pending = {
+			help: document.querySelector(".help-text"),
+			footers: document.querySelectorAll("a.menuItem").length,
+		};
+		searches[0]?.answer();
+		await flush();
+		expect(pending).toStrictEqual({help: null, footers: 2});
+		expect(document.querySelector(".help-text")?.textContent).toBe("No matching locations found");
+	});
+
+	it("does not expose New rows in step 2", async () => {
+		await mountWith(new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}}));
+		open();
+		await flush();
+		type(document.querySelector<HTMLInputElement>('input[placeholder="Find location..."]')!, "qz");
+		const footerB = [...document.querySelectorAll("a.menuItem")].at(-1) as HTMLElement;
+		act(() => {
+			footerB.click();
+		});
+		await flush();
+		expect({
+			header: document.querySelector(".menu-section-header")?.textContent,
+			news: [...document.querySelectorAll("a.menuItem")].filter((item) => item.textContent.includes("New"))
+				.length,
+		}).toStrictEqual({header: 'New "qz" in…', news: 0});
+	});
+
+	it("anchors the wrapper at the caret bottom without an extra offset", async () => {
+		await mountWith(new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}}));
+		open({x: 10, y: 20});
+		await flush();
+		const wrapper = document.querySelector<HTMLElement>("[data-popper-placement]");
+		expect(wrapper?.style.transform).toBe("translate(10px, 20px)");
+	});
+
+	it("reveals each highlighted match horizontally once rows mount", async () => {
+		await mountWith(new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}}));
+		const reveal = vi.fn<(options?: ScrollIntoViewOptions) => void>();
+		Element.prototype.scrollIntoView = reveal;
+		open();
+		await flush();
+		type(document.querySelector<HTMLInputElement>('input[placeholder="Find location..."]')!, "qz");
+		reveal.mockClear();
+		searches[0]?.answer("<b><u>Hit</u></b> Hub");
+		await flush();
+		// One call per `<b>` in the labels: the match, and the default location in footer A.
+		const options = {inline: "center", block: "nearest"};
+		expect(reveal.mock.calls).toStrictEqual([[options], [options]]);
 	});
 });
