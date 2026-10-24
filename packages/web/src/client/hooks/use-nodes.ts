@@ -28,6 +28,7 @@ import {
 	patchCachedNode,
 	cachedCopyParentIds,
 	patchMirrors,
+	readChildren,
 	readNode,
 	snapshotCachedNode,
 	spliceBlock,
@@ -1140,6 +1141,61 @@ export function useRestoreNode() {
 		},
 	});
 	const mutate = useUndoableMutate(mutation.mutate, restoreUndos, planRestore);
+	return {...mutation, mutate};
+}
+
+interface MirrorNodesRequest {
+	/** The items to mirror; a mirror resolves to its original on the server. */
+	item_ids: string[];
+	parent_id: string | null;
+	/** Slot among ALL of the parent's children; omitted = bottom. */
+	index?: number;
+}
+
+async function mirrorNodes(request: MirrorNodesRequest): Promise<NodeResponse[]> {
+	await pendingCreates.settled([...request.item_ids, request.parent_id]);
+	const response = await fetch("/api/v1/nodes/mirror", {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(request),
+	});
+	if (!response.ok) {
+		throw await toRequestStatusError("Failed to mirror nodes", response);
+	}
+	const data = await readJson<{nodes: NodeResponse[]}>(response);
+	return data.nodes;
+}
+
+const mirrorNodesUndos = new HeldUndos<NodeResponse[], MirrorNodesRequest>();
+
+/** The new mirrors' ids are known only from the reply, so the ops are built then. */
+function planMirrorNodes(
+	{parent_id: parentId, index}: MirrorNodesRequest,
+	queryClient: QueryClient,
+): UndoPlan<NodeResponse[]> {
+	const start = index ?? readChildren(queryClient, parentId)?.length;
+	return (nodes) =>
+		toUndoOps({kind: "mirror", nodeIds: nodes.map((node) => node.id), parentId, index: start}, queryClient);
+}
+
+/** Mirrors items under `parent_id` (MIR4); ⌘Z deletes the new mirrors. The refetch shows them. */
+// fallow-ignore-next-line unused-export -- callers land with the Mirror To and Mirror paste commands
+export function useMirrorNodes() {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: mirrorNodes,
+		onSuccess(nodes, variables) {
+			mirrorNodesUndos.settle(variables, {data: nodes});
+		},
+		onError(error, variables) {
+			mirrorNodesUndos.settle(variables, "failed");
+			useOutlineStore.getState().addErrorNotification(`Failed to mirror nodes: ${error.message}`);
+		},
+		async onSettled() {
+			await queryClient.invalidateQueries({queryKey: nodeKeys.all});
+		},
+	});
+	const mutate = useUndoableMutate(mutation.mutate, mirrorNodesUndos, planMirrorNodes);
 	return {...mutation, mutate};
 }
 

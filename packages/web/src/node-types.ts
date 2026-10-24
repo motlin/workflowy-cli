@@ -33,6 +33,8 @@ export interface NodeResponse {
 	/** At least one child is uncompleted; with completed items hidden, this decides whether the row is a parent. */
 	hasUncompletedChildren?: boolean;
 	isMirror?: boolean;
+	/** The node is an original with at least one live mirror (upstream `isMirrorRoot` on the original). */
+	hasMirrors?: boolean;
 	originalNodeId?: string | null;
 	attachment?: NodeAttachment | null;
 	/** Upstream `metadata.priority.defaultToBottom`: nodes dropped or moved into this one land at the bottom. */

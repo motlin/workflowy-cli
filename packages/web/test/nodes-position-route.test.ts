@@ -49,6 +49,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 		completedAt: null,
 		hasChildren,
 		hasUncompletedChildren: hasChildren,
+		hasMirrors: false,
 		isMirror: false,
 		originalNodeId: null,
 		attachment: null,
@@ -334,7 +335,8 @@ describe("public-API fallback when the internal API is not configured", () => {
 			[{parent_id: "home", name: "y", note: undefined, layoutMode: undefined, position: "bottom"}],
 			[{parent_id: "home", name: "z", note: undefined, layoutMode: undefined, position: "bottom"}],
 		]);
-		await expect(top.json()).resolves.toStrictEqual({node: dto("n1", null, 0, true)});
+		const {hasMirrors: _omitted, ...publicShape} = dto("n1", null, 0, true);
+		await expect(top.json()).resolves.toStrictEqual({node: publicShape});
 	});
 
 	it("answers 503 for a create at a middle index", async () => {

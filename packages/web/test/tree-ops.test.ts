@@ -991,6 +991,17 @@ describe("toUndoOps", () => {
 		]);
 	});
 
+	it("records one create per mirror at consecutive slots, so undo deletes the mirrors", () => {
+		const qc = seed({p: ids("a", "b", "c")});
+		expect(toUndoOps({kind: "mirror", nodeIds: ["x", "y"], parentId: "p", index: 1}, qc)).toStrictEqual([
+			{kind: "create", nodeId: "x", parentId: "p", index: 1},
+			{kind: "create", nodeId: "y", parentId: "p", index: 2},
+		]);
+		expect(toUndoOps({kind: "mirror", nodeIds: ["z"], parentId: "p"}, qc)).toStrictEqual([
+			{kind: "create", nodeId: "z", parentId: "p", index: 3},
+		]);
+	});
+
 	it("records nothing for a delete of an uncached node", () => {
 		expect(toUndoOps({kind: "delete", nodeId: "ghost"}, seed({}))).toStrictEqual([]);
 	});

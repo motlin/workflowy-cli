@@ -94,6 +94,7 @@ function nodeToRestDto(
 	derived: {
 		hasChildren: boolean;
 		hasUncompletedChildren: boolean;
+		hasMirrors?: boolean;
 		name: string | null;
 		note: string | null;
 		attachment?: NodeAttachment | null;
@@ -115,6 +116,7 @@ function nodeToRestDto(
 		hasChildren: derived.hasChildren,
 		hasUncompletedChildren: derived.hasUncompletedChildren,
 		isMirror: node.mirror.isMirror,
+		hasMirrors: derived.hasMirrors ?? false,
 		originalNodeId: node.mirror.originalNodeId,
 		attachment: derived.attachment ?? null,
 		defaultToBottom: derived.metadata?.defaultToBottom ?? false,
@@ -224,6 +226,19 @@ function getAdapter(ctx: ServerContext): WorkflowyInternalAdapter | undefined {
 	return ctx.apiKey ? ctx.internalAdapter?.() : undefined;
 }
 
+/** Which of `ids` are originals with at least one live mirror: one query for the whole list. */
+function originalsWithMirrors(ctx: ServerContext, ids: string[]): Set<string> {
+	if (ids.length === 0) {
+		return new Set();
+	}
+	const rows = ctx.db
+		.selectDistinct({originalId: mirrorsTable.originalId})
+		.from(mirrorsTable)
+		.where(and(inArray(mirrorsTable.originalId, ids), eq(mirrorsTable.systemTo, FAR_FUTURE_DATE)))
+		.all();
+	return new Set(rows.map((row) => row.originalId));
+}
+
 /** A node as the REST API returns it, read from the cache; undefined when it is not cached. */
 export async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeResponse | undefined> {
 	// NodeTreeReader gives a mirror its original's name and note, and sets mirror flags.
@@ -236,6 +251,7 @@ export async function readNodeDto(ctx: ServerContext, id: string): Promise<NodeR
 	const metadata = loadInternalMetadataFields(ctx, [id]).get(id);
 	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, [node]).get(id);
 	return nodeToRestDto(node, {
+		hasMirrors: !node.mirror.isMirror && originalsWithMirrors(ctx, [id]).has(id),
 		hasChildren: flags.withChildren.size > 0,
 		hasUncompletedChildren: flags.withUncompletedChildren.size > 0,
 		name: node.name,
@@ -259,6 +275,10 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 		ctx.db,
 		nodes.map((node) => node.mirror.originalNodeId ?? node.id),
 	);
+	const mirrored = originalsWithMirrors(
+		ctx,
+		nodes.map((node) => node.id),
+	);
 	// Batch-load file attachments for all returned nodes.
 	const attachments = loadAttachments(
 		ctx,
@@ -271,6 +291,7 @@ async function readChildDtos(ctx: ServerContext, parentId: string | null): Promi
 	const calendar = loadCalendarInfo({db: ctx.db, cache: ctx.cacheService}, nodes);
 	return nodes.map((node) =>
 		nodeToRestDto(node, {
+			hasMirrors: !node.mirror.isMirror && mirrored.has(node.id),
 			hasChildren: flags.withChildren.has(node.mirror.originalNodeId ?? node.id),
 			hasUncompletedChildren: flags.withUncompletedChildren.has(node.mirror.originalNodeId ?? node.id),
 			name: node.name,
@@ -574,6 +595,65 @@ nodesRouter.post("/trees", async (c) => {
 		trees,
 	});
 	return c.json({ids}, 201);
+});
+
+// POST /api/v1/nodes/mirror - Mirror items under a parent, in order at consecutive indexes
+nodesRouter.post("/mirror", async (c) => {
+	const ctx = c.get("ctx");
+	const body = await c.req.json<{item_ids?: unknown; parent_id?: unknown; index?: unknown}>();
+	if (
+		!Array.isArray(body.item_ids) ||
+		body.item_ids.length === 0 ||
+		!body.item_ids.every((id) => typeof id === "string")
+	) {
+		return c.json({error: "item_ids must be a non-empty array of node ids"}, 400);
+	}
+	const parent = parseParent(ctx, body.parent_id);
+	if (!parent.ok) {
+		return c.json({error: parent.error}, parent.status);
+	}
+	const slot = parseIndex(body.index, undefined);
+	if (!slot.ok) {
+		return c.json({error: slot.error}, 400);
+	}
+	const originals: string[] = [];
+	for (const raw of body.item_ids) {
+		if (raw === "None" || raw === "" || raw === HOME_TARGET) {
+			return c.json({error: "Cannot mirror Home"}, 400);
+		}
+		const resolved = resolveNodeId(ctx, raw);
+		if (resolved === null) {
+			return c.json({error: `Node not found: ${raw}`}, 404);
+		}
+		originals.push(resolveMirrorToOriginal(ctx, resolved));
+	}
+	// A mirror parent writes into its original's child list.
+	const parentId = parent.parentId === null ? null : resolveMirrorToOriginal(ctx, parent.parentId);
+	// The parent and each of its ancestors, which no source may be.
+	const lineage = new Set<string>();
+	for (let current = parentId; current !== null; current = ctx.cacheService.getNode(current)?.parentId ?? null) {
+		lineage.add(current);
+	}
+	if (originals.some((id) => lineage.has(id))) {
+		return c.json({error: "Cannot mirror an item into itself"}, 400);
+	}
+	const adapter = getAdapter(ctx);
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	const mirrorIds: string[] = [];
+	for (const [offset, originalId] of originals.entries()) {
+		const {mirrorId} = await adapter.createMirrorAt({
+			originalId,
+			parentId: adapterParent(parentId),
+			index: (slot.index ?? countChildren(ctx, parentId)) + offset,
+		});
+		mirrorIds.push(mirrorId);
+	}
+	const nodes = (await Promise.all(mirrorIds.map(async (id) => readNodeDto(ctx, id)))).filter(
+		(node): node is NodeResponse => node !== undefined,
+	);
+	return c.json({nodes}, 201);
 });
 
 // POST /api/v1/nodes - Create node at an exact `index` among all siblings (omitted = bottom)

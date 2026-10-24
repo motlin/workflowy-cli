@@ -630,6 +630,7 @@ export function planFocusSibling(
 /** A mutation as `toUndoOps` reads it; `index` follows the create/move endpoints (omitted = bottom). */
 export type UndoableMutation =
 	| {kind: "create"; nodeId: string; parentId: string | null; index?: number}
+	| {kind: "mirror"; nodeIds: readonly string[]; parentId: string | null; index?: number}
 	| {kind: "delete"; nodeId: string}
 	| {kind: "edit"; nodeId: string; name?: string; note?: string}
 	| {kind: "move"; ids: readonly string[]; parentId: string | null; index?: number}
@@ -732,6 +733,15 @@ export function toUndoOps(mutation: UndoableMutation, queryClient: QueryClient):
 		case "create": {
 			const index = mutation.index ?? readChildren(queryClient, mutation.parentId)?.length ?? BOTTOM_INDEX;
 			return [{kind: "create", nodeId: mutation.nodeId, parentId: mutation.parentId, index}];
+		}
+		case "mirror": {
+			const start = mutation.index ?? readChildren(queryClient, mutation.parentId)?.length ?? BOTTOM_INDEX;
+			return mutation.nodeIds.map((nodeId, offset) => ({
+				kind: "create",
+				nodeId,
+				parentId: mutation.parentId,
+				index: start === BOTTOM_INDEX ? start : start + offset,
+			}));
 		}
 		case "delete": {
 			const parentId = readNode(queryClient, mutation.nodeId)?.parent_id ?? null;
