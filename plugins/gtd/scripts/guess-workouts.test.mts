@@ -549,3 +549,37 @@ test("guessWorkouts is empty when today already has a workout or there is no his
 		],
 	);
 });
+
+test("guessWorkouts treats a bare program hashtag without #exercise as a logged day", () => {
+	const tree = calendar(firstPass(), [
+		dayNode("2026-03-10", "Tue, Mar 10, 2026", ["Took the day off", "#programx "]),
+	]);
+
+	assert.deepStrictEqual(
+		guessWorkouts({
+			tree,
+			today: "2026-03-10",
+			template: TEMPLATE,
+			programs: ["#ProgramX"],
+			restDays: [],
+			maxDays: 7,
+			generatedAt: "x",
+		}),
+		{
+			task: "workout-guess",
+			generatedAt: "x",
+			status: "empty",
+			presentation: "Guess workout",
+			summary: {
+				lastLogged: {
+					date: "2026-03-09",
+					text: "💪 #ProgramX phase 2, week 1, day 2, Arms, Core, and Calves #exercise",
+				},
+				daysUnlogged: 0,
+				proposalsStaged: 0,
+				remainingDays: 0,
+			},
+			proposals: [],
+		},
+	);
+});

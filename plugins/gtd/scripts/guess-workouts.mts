@@ -410,6 +410,10 @@ function readCalendar(tree: CalendarNode, programs: readonly string[]): Calendar
 	const lastText = new Map<Session, string>();
 	const exerciseDates = new Set<string>();
 	const dayNodes = new Map<string, string>();
+	// A bare program hashtag ("#ProgramX ") is a workout the user logged but did not finish writing up.
+	const programTags = new Set(programs.map((tag) => tag.replace(/^#/u, "").toLowerCase()));
+	const hasProgramTag = (name: string): boolean =>
+		[...name.matchAll(/#([A-Za-z][\w-]*)/gu)].some((match) => programTags.has(match[1]?.toLowerCase() ?? ""));
 	let order = 0;
 	// Breadth-first, so a live day node is found before an archived duplicate of the same date.
 	const queue: {node: CalendarNode; date: string | null}[] = [{node: tree, date: null}];
@@ -427,6 +431,9 @@ function readCalendar(tree: CalendarNode, programs: readonly string[]): Calendar
 			}
 		} else if (date !== null || isoFromTime(name) !== null) {
 			const entryDate = isoFromTime(name) ?? date;
+			if (entryDate !== null && hasProgramTag(name)) {
+				exerciseDates.add(entryDate);
+			}
 			if (entryDate !== null && /#exercise\b/iu.test(name)) {
 				exerciseDates.add(entryDate);
 				const parsed = parseEntry(name, programs);
