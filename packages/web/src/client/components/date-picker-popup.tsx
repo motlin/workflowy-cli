@@ -230,6 +230,7 @@ function DateView({
 												},
 											}
 										: {})}
+									tabIndex={0}
 									data-date-picker-day-button="true"
 									data-date-picker-grid-button="true"
 									data-date-picker-active-button={day === active ? "true" : undefined}
@@ -303,6 +304,7 @@ function MonthView({datepicker, onChange}: ViewProps) {
 									onChange("DATE");
 								},
 							})}
+							tabIndex={0}
 							data-date-picker-grid-button="true"
 							data-date-picker-active-button={month.active ? "true" : undefined}
 						>
@@ -345,6 +347,7 @@ function YearView({datepicker, onChange}: ViewProps) {
 									onChange("DATE");
 								},
 							})}
+							tabIndex={0}
 							data-date-picker-grid-button="true"
 							data-date-picker-active-button={year.active ? "true" : undefined}
 						>
@@ -367,6 +370,19 @@ function useCalendarArrowKeys(scope: RefObject<HTMLDivElement | null>): void {
 		const onKeyDown = (event: KeyboardEvent) => {
 			const root = scope.current;
 			const active = document.activeElement;
+			// Upstream `ZK`: Enter clicks the focused calendar button before the menu's Enter/exit can run.
+			if (
+				event.key === "Enter" &&
+				root &&
+				active instanceof HTMLElement &&
+				root.contains(active) &&
+				active.matches(`${HEADER_SELECTOR}, ${GRID_SELECTOR}`)
+			) {
+				event.stopImmediatePropagation();
+				event.preventDefault();
+				active.click();
+				return;
+			}
 			if (!CALENDAR_KEYS.has(event.key) || !root || !(active instanceof HTMLElement) || !root.contains(active)) {
 				return;
 			}
@@ -551,19 +567,21 @@ export function DatePickerPopup({
 }: DatePickerPopupProps) {
 	const box = popoverBox({minWidth: 0, maxWidth: 240, offset: [0, 0]});
 	// Upstream `ZK`: Escape closes in the capture phase wherever focus sits, so the caret is restored.
+	// A replaced body (upstream `renderContent`, the Calendar Layout view) lets Escape fall through to the app.
+	const escapeHandler = content === undefined ? onEscape : undefined;
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Escape" && onEscape) {
+			if (event.key === "Escape" && escapeHandler) {
 				event.stopImmediatePropagation();
 				event.preventDefault();
-				onEscape();
+				escapeHandler();
 			}
 		};
 		window.addEventListener("keydown", onKeyDown, true);
 		return () => {
 			window.removeEventListener("keydown", onKeyDown, true);
 		};
-	}, [onEscape]);
+	}, [escapeHandler]);
 	const input = (
 		<input
 			name="date-picker-input"
@@ -585,68 +603,83 @@ export function DatePickerPopup({
 			}}
 		/>
 	);
+	// MenuBody walks its direct children for MenuItems, so the rows are one flat keyed array, never a Fragment.
+	const rows: ReactNode[] = [
+		<div key="date-popup-input" className="flex items-center px-l py-m bg-secondary">
+			{input}
+		</div>,
+		<MenuSeparator key="date-popup-separator-input" style={{margin: 0}} />,
+		...PRESETS.map(({label, preset, icon}) => (
+			<MenuItem
+				key={preset}
+				label={label}
+				icon={icon}
+				className={PRESET_ROW_CLASS}
+				onSelect={() => {
+					onPreset?.(preset);
+				}}
+			/>
+		)),
+		<MenuSeparator key="date-popup-separator-presets" style={{margin: 0}} />,
+		<Calendar
+			key="date-popup"
+			selected={selected}
+			weekStartDay={weekStartDay}
+			isRange={isRange}
+			initialView={initialView}
+			renderDayContent={renderDayContent ?? dottedDayContent(hasEvent)}
+			onApply={onApply}
+			onVisibleMonthChange={onVisibleMonthChange}
+		/>,
+		...(afterCalendar ?? []),
+		...(showControls
+			? [
+					<MenuSeparator key="date-popup-separator-controls" style={{margin: 0}} />,
+					<MenuItem
+						key="date-popup-range"
+						label="Range"
+						icon={<Toggle on={isRange} />}
+						className={CONTROL_ROW_CLASS}
+						onSelect={() => {
+							onToggleRange?.();
+							return true;
+						}}
+					/>,
+					<MenuItem
+						key="date-popup-format"
+						label="Format"
+						icon="fal:gear"
+						className={CONTROL_ROW_CLASS}
+						onSelect={onFormat}
+					/>,
+					...(showNoDate
+						? [
+								<MenuItem
+									key="date-popup-remove"
+									label="Remove date"
+									icon="fal:ban"
+									className={CONTROL_ROW_CLASS}
+									onSelect={onRemove}
+								/>,
+							]
+						: []),
+				]
+			: []),
+	];
 	return (
 		<div
 			className={`${box.className} absolute flyout menu [&.menu]:py-0`}
 			style={{...box.style, ...(position ? {left: position.left, top: position.top} : {})}}
 		>
-			<MenuBody keyboardMode focusNavigation initialSelect={-1} selectOnTab={false} exit={onClose}>
-				{content ?? (
-					<>
-						<div className="flex items-center px-l py-m bg-secondary">{input}</div>
-						<MenuSeparator style={{margin: 0}} />
-						{PRESETS.map(({label, preset, icon}) => (
-							<MenuItem
-								key={preset}
-								label={label}
-								icon={icon}
-								className={PRESET_ROW_CLASS}
-								onSelect={() => {
-									onPreset?.(preset);
-								}}
-							/>
-						))}
-						<MenuSeparator style={{margin: 0}} />
-						<Calendar
-							selected={selected}
-							weekStartDay={weekStartDay}
-							isRange={isRange}
-							initialView={initialView}
-							renderDayContent={renderDayContent ?? dottedDayContent(hasEvent)}
-							onApply={onApply}
-							onVisibleMonthChange={onVisibleMonthChange}
-						/>
-						{afterCalendar}
-						{showControls ? (
-							<>
-								<MenuSeparator style={{margin: 0}} />
-								<MenuItem
-									label="Range"
-									icon={<Toggle on={isRange} />}
-									className={CONTROL_ROW_CLASS}
-									onSelect={() => {
-										onToggleRange?.();
-										return true;
-									}}
-								/>
-								<MenuItem
-									label="Format"
-									icon="fal:gear"
-									className={CONTROL_ROW_CLASS}
-									onSelect={onFormat}
-								/>
-								{showNoDate && (
-									<MenuItem
-										label="Remove date"
-										icon="fal:ban"
-										className={CONTROL_ROW_CLASS}
-										onSelect={onRemove}
-									/>
-								)}
-							</>
-						) : null}
-					</>
-				)}
+			<MenuBody
+				keyboardMode
+				focusNavigation
+				cyclicNavigation
+				initialSelect={-1}
+				selectOnTab={false}
+				exit={onClose}
+			>
+				{content ?? rows}
 			</MenuBody>
 		</div>
 	);

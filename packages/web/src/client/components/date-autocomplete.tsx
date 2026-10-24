@@ -49,10 +49,10 @@ export function DateAutocompleteFlyout({
 			<div className="flex items-center gap-m justify-between text-xs">
 				<span>{label}</span>
 				<div className="flex flex-row">
-					<IconButton data-icon-name="calendar-alt" size="md" shape="square" onClick={onOpenPicker}>
+					<IconButton icon="calendar-alt" size="md" shape="square" onClick={onOpenPicker}>
 						<FaIcon icon="fal:calendar-days" />
 					</IconButton>
-					<IconButton data-icon-name="gear" size="md" shape="square" onClick={onOpenSettings}>
+					<IconButton icon="gear" size="md" shape="square" onClick={onOpenSettings}>
 						<FaIcon icon="fal:gear" />
 					</IconButton>
 				</div>

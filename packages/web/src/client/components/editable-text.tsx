@@ -52,6 +52,7 @@ import type {TagColors} from "../hooks/use-tag-colors.js";
 import {closeOnEscape} from "../menu-escape.js";
 import {TagColorPicker} from "./tag-color-picker.js";
 import {FaIcon} from "./fa-icons.js";
+import {prefetchPickerMonths} from "../hooks/use-calendar-event-days.js";
 import {applyDatePhrase, planDateInsertion, planPillReplacement, replacePill} from "../date-pills.js";
 import {deleteAdjacentPill as deleteAdjacentPillInEditor} from "../pill-delete.js";
 import {isComposingInput, renderEditorHtml, retagEditor, serializeEditorHtml} from "../editor-html.js";
@@ -236,6 +237,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	// Focus and position cursor when entering edit mode
 	useEffect(() => {
 		if (isEditing && contentRef.current) {
+			prefetchPickerMonths(queryClient);
 			const centers = focusCenters(nodeId);
 			contentRef.current.focus({preventScroll: !focusScrolls(nodeId) || centers});
 			if (centers) {
@@ -275,7 +277,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
-	}, [isEditing, storedEditorHtml, clickPosition, nodeId, nameSaver]);
+	}, [isEditing, storedEditorHtml, clickPosition, nodeId, nameSaver, queryClient]);
 
 	/** Save the edited text if it changed, keeping the caret (⌘S); returns false with no editor. */
 	const saveInPlace = useCallback((): boolean => {
@@ -1205,7 +1207,12 @@ const RestingText = memo(function RestingText({
 	const pillPicker = usePillDatePicker({
 		dateSettings,
 		onChange: (pillIndex, attrs) => {
-			updateNodeMutation.mutate({nodeId, name: replacePill(initialValue, pillIndex, attrs)});
+			// Upstream edits the row afterwards: the caret lands after the new pill, or where the removed one was.
+			const plan = planPillReplacement(initialValue, pillIndex, attrs);
+			updateNodeMutation.mutate({nodeId, name: plan.html});
+			// The editor captures its HTML when editing starts: show the new name before that.
+			patchCachedNode(queryClient, nodeId, (node) => ({...node, name: plan.html}));
+			resumeEditing(nodeId, plan.caretOffset, {html: plan.html});
 		},
 		onDismiss: () => {},
 	});

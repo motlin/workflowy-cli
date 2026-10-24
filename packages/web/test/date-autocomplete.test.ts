@@ -55,6 +55,32 @@ describe("DateAutocompleteFlyout", () => {
 	});
 });
 
+describe("DateAutocompleteFlyout icon buttons", () => {
+	it("spreads upstream's `icon` attribute instead of data-icon-name", () => {
+		const html = renderToStaticMarkup(
+			createElement(DateAutocompleteFlyout, {
+				label: "x",
+				position: {left: 0, top: 0},
+				onApply: noop,
+				onOpenPicker: noop,
+				onOpenSettings: noop,
+			}),
+		);
+		expect({
+			buttons: [...html.matchAll(/<div (role="button" tabindex="0" icon="[^"]*" class="[^"]*")>/gu)].map(
+				(m) => m[1],
+			),
+			dataIconName: html.includes("data-icon-name"),
+		}).toStrictEqual({
+			buttons: [
+				'role="button" tabindex="0" icon="calendar-alt" class="iconButton md shape-square"',
+				'role="button" tabindex="0" icon="gear" class="iconButton md shape-square"',
+			],
+			dataIconName: false,
+		});
+	});
+});
+
 describe("dateAutocompleteKeyAction", () => {
 	it("applies on Tab and hides on any other key", () => {
 		expect(

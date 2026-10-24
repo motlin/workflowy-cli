@@ -17,6 +17,7 @@ import {deleteAdjacentPill} from "../pill-delete.js";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
+import {prefetchPickerMonths} from "../hooks/use-calendar-event-days.js";
 import {useAccount} from "../hooks/use-account.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
@@ -407,12 +408,13 @@ export function EditableNote({
 			return;
 		}
 		clearSearchHighlights();
+		prefetchPickerMonths(queryClient);
 		noteSaver.reset(initialValue);
 		setFocusedHtml(restingHtml);
 		if (!isFocused) {
 			focusNote(nodeId);
 		}
-	}, [clearSearchHighlights, initialValue, restingHtml, isFocused, nodeId, focusNote, noteSaver]);
+	}, [clearSearchHighlights, initialValue, restingHtml, isFocused, nodeId, focusNote, noteSaver, queryClient]);
 
 	const handleBlur = useCallback(() => {
 		const element = contentRef.current;

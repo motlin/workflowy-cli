@@ -1,6 +1,6 @@
-import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {useQueries} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useState} from "react";
 import {readJson} from "../read-json.js";
 
 /** A calendar month, `month` 1-12. */
@@ -58,37 +58,54 @@ export async function prefetchCalendarDays(
 		.catch(() => {});
 }
 
-/** Whether a date is one of `days` in `visible`; nothing is marked until the days load. */
-export function eventDayPredicate(visible: CalendarMonth, days: number[] | undefined): (date: Date) => boolean {
-	const marked = new Set(days);
+/**
+ * Load the current month and both neighbours into the cache when a name or note gains the caret, so a `!!` popup's
+ * first frame already has its dots (upstream reads the in-memory tree synchronously).
+ */
+export function prefetchPickerMonths(queryClient: QueryClient, now: Date = new Date()): void {
+	const current = {year: now.getFullYear(), month: now.getMonth() + 1};
+	for (const month of [current, ...adjacentMonths(current)]) {
+		void prefetchCalendarDays(queryClient, month);
+	}
+}
+
+/** The key {@link eventDayPredicate} looks a month up by: `year-month`, month 1-12. */
+function monthKey({year, month}: CalendarMonth): string {
+	return `${year}-${month}`;
+}
+
+/** Whether a date is one of the loaded days of its own month; nothing is marked until a month's days load. */
+export function eventDayPredicate(byMonth: ReadonlyMap<string, readonly number[]>): (date: Date) => boolean {
 	return (date) =>
-		date.getFullYear() === visible.year && date.getMonth() + 1 === visible.month && marked.has(date.getDate());
+		byMonth.get(monthKey({year: date.getFullYear(), month: date.getMonth() + 1}))?.includes(date.getDate()) ??
+		false;
 }
 
 /**
- * The date picker's event dots (upstream DP10): fetches which days of the
- * visible month have journal content under 📆 Calendar, one query per month,
- * prefetching the months either side.
+ * The date picker's event dots (upstream DP10): which days of the visible month and both months either side have
+ * journal content under 📆 Calendar, one query per month, so the grid's leading and trailing cells are dotted too.
  */
 export function useCalendarEventDays({found = false}: EventDayOptions = {}): {
 	hasEvent: (date: Date) => boolean;
 	onVisibleMonthChange: (visible: CalendarMonth) => void;
 } {
 	const [visible, setVisible] = useState<CalendarMonth | null>(null);
-	const queryClient = useQueryClient();
-	const {data} = useQuery({
-		queryKey: visible === null ? ["calendar-days", null] : calendarDaysKey(visible, {found}),
-		queryFn: async () => (visible === null ? [] : fetchCalendarDays(visible, {found})),
-		enabled: visible !== null,
+	const months = visible === null ? [] : [visible, ...adjacentMonths(visible)];
+	const results = useQueries({
+		queries: months.map((month) => ({
+			queryKey: calendarDaysKey(month, {found}),
+			queryFn: async () => fetchCalendarDays(month, {found}),
+		})),
 	});
-	useEffect(() => {
-		// Paging a month lands on dots that are already loaded.
-		for (const month of visible === null ? [] : adjacentMonths(visible)) {
-			void prefetchCalendarDays(queryClient, month, {found});
+	const byMonth = new Map<string, readonly number[]>();
+	for (const [index, month] of months.entries()) {
+		const days = results[index]?.data;
+		if (days) {
+			byMonth.set(monthKey(month), days);
 		}
-	}, [queryClient, visible, found]);
+	}
 	const onVisibleMonthChange = useCallback((next: CalendarMonth) => {
 		setVisible((current) => (current?.year === next.year && current.month === next.month ? current : next));
 	}, []);
-	return {hasEvent: visible === null ? () => false : eventDayPredicate(visible, data), onVisibleMonthChange};
+	return {hasEvent: eventDayPredicate(byMonth), onVisibleMonthChange};
 }

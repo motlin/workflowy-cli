@@ -52,3 +52,24 @@ describe("date picker calendar button styles", () => {
 		});
 	});
 });
+
+describe("date surface resets", () => {
+	it("styles .tooltip-key like upstream's wf-base rule", () => {
+		expect(cssBlock(styles, ".tooltip-key")).toStrictEqual({
+			padding: "var(--wf-space-xs)",
+			"border-radius": "var(--wf-radius-xs)",
+			border: "var(--wf-border-width-s) solid var(--wf-border-primary)",
+		});
+	});
+
+	it("removes the focus ring from the date input like css_reset's :focus{outline:0}", () => {
+		expect(cssBlock(styles, ".date-popup-input:focus")).toStrictEqual({outline: "0"});
+	});
+
+	it("resets the autocomplete flyout paragraph margin and line height", () => {
+		expect(cssBlock(styles, ".wf-menu.flyout.text-center > p.text-xs")).toStrictEqual({
+			margin: "0",
+			"line-height": "1",
+		});
+	});
+});

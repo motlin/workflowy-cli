@@ -4067,3 +4067,20 @@ label.toggle > div {
 	position: static;
 	flex-shrink: 0;
 }
+
+/* Date surfaces: the pieces of upstream's css_reset and wf-base the date popup and the autocomplete flyout lean on
+   (`:focus{outline:0}`, `p{margin:0}` with body line-height 1, and `.tooltip-key`). */
+.date-popup-input:focus {
+	outline: 0;
+}
+
+.wf-menu.flyout.text-center > p.text-xs {
+	margin: 0;
+	line-height: 1;
+}
+
+.tooltip-key {
+	padding: var(--wf-space-xs);
+	border-radius: var(--wf-radius-xs);
+	border: var(--wf-border-width-s) solid var(--wf-border-primary);
+}

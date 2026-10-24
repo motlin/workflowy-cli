@@ -278,4 +278,23 @@ describe("nextCalendarFocus", () => {
 	] as const)("%s", (_name, index, key, expected) => {
 		expect(nextCalendarFocus("grid", index, key, gridCounts, months)).toStrictEqual(expected);
 	});
+
+	it("keeps tabindex 0 on every day, month and year button like upstream's bundled datepicker", () => {
+		const tabindexes = (html: string, attr: string) =>
+			[...html.matchAll(new RegExp(`<button[^>]*${attr}="true"[^>]*>`, "gu"))].map(
+				(m) => /tabindex="(-?\d+)"/u.exec(m[0])?.[1],
+			);
+		const date = tabindexes(render({selected: [new Date(2026, 9, 15)]}), "data-date-picker-day-button");
+		const month = tabindexes(render({initialView: "MONTH"}), "data-date-picker-grid-button");
+		const year = tabindexes(render({initialView: "YEAR"}), "data-date-picker-grid-button");
+		expect({
+			date: [date.length, new Set(date)],
+			month: [month.length, new Set(month)],
+			year: [year.length, new Set(year)],
+		}).toStrictEqual({
+			date: [42, new Set(["0"])],
+			month: [12, new Set(["0"])],
+			year: [12, new Set(["0"])],
+		});
+	});
 });

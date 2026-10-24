@@ -9,16 +9,21 @@ import {
 } from "../src/client/hooks/use-calendar-event-days.js";
 
 describe("eventDayPredicate", () => {
-	it("marks only the listed days of the fetched month", () => {
-		const hasEvent = eventDayPredicate({year: 2026, month: 9}, [28, 29]);
+	it("marks the listed days of every loaded month, adjacent-month cells included", () => {
+		const hasEvent = eventDayPredicate(
+			new Map([
+				["2026-9", [28, 29]],
+				["2026-10", [1, 2]],
+			]),
+		);
 
 		expect(
-			[new Date(2026, 8, 27), new Date(2026, 8, 28), new Date(2026, 8, 29), new Date(2026, 9, 28)].map(hasEvent),
-		).toStrictEqual([false, true, true, false]);
+			[new Date(2026, 8, 28), new Date(2026, 9, 2), new Date(2026, 8, 27), new Date(2026, 10, 1)].map(hasEvent),
+		).toStrictEqual([true, true, false, false]);
 	});
 
-	it("marks nothing before the month's days load", () => {
-		expect(eventDayPredicate({year: 2026, month: 9}, undefined)(new Date(2026, 8, 28))).toBe(false);
+	it("marks nothing for months that have not loaded", () => {
+		expect(eventDayPredicate(new Map())(new Date(2026, 8, 28))).toBe(false);
 	});
 });
 
