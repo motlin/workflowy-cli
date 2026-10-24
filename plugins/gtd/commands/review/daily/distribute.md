@@ -49,7 +49,7 @@ Skip a task when:
 
 - It spans several projects, or no project directory exists for it. Do not create directories or invent paths.
 - Its next step happens outside the code: a purchase, an email, a call, a decision, or waiting on someone.
-- It is already tracked there. Grep the project's `todoPath` (when `todoExists`) for the task's key phrase before proposing it.
+- It is already tracked there. Grep the project's `todoPath` (when `todoExists`) for the task's Workflowy link, `workflowy.com/#/<shortId>`, before proposing it. Every distributed task carries that link as provenance, so a task kept open in Workflowy by **Distribute, keep in Workflowy** is recognized on later runs even after its text was reworded. Also grep for the task's key phrase, which catches tasks added there by other routes.
 - It is a `#llm-task` recurring item. Those run through the LLM Tasks DAG, not a project's task list.
 
 Read each candidate's subtree (children, note, links) before proposing it, per **Show the item, do not just name it** in `${CLAUDE_PLUGIN_ROOT}/skills/due-item-walk.md`. Write the proposals to `.llm/gtd/review/distribute-candidates.json` (one entry per task: Workflowy `id`, `shortId`, source `inbox` or `ladder-<root>`, project `name`, and the drafted task text) so the walk survives a compacted conversation.
