@@ -39,7 +39,7 @@ describe("renderDatePills", () => {
 		);
 	});
 
-	it("appends an extra U+FEFF after a pill that ends the content", () => {
+	it("adds no outer U+FEFF guard itself (addMonolithGuards does)", () => {
 		expect(
 			renderDatePills(
 				'end <time startYear="2026" startMonth="10" startDay="1">Thu, Oct 1, 2026</time>',
@@ -47,7 +47,7 @@ describe("renderDatePills", () => {
 				NOW,
 			),
 		).toBe(
-			`end ${PILL_OPEN} startyear="2026" startmonth="10" startday="1">${BOM}<span class="content-wrapper">2026-10-01 Thu</span>${BOM}</time>${BOM}`,
+			`end ${PILL_OPEN} startyear="2026" startmonth="10" startday="1">${BOM}<span class="content-wrapper">2026-10-01 Thu</span>${BOM}</time>`,
 		);
 	});
 
@@ -112,6 +112,15 @@ describe("deletePillBeforeCaret", () => {
 
 	it("leaves text alone when no pill is right before the caret", () => {
 		expect([deletePillBeforeCaret(SINGLE, 9), deletePillBeforeCaret(SINGLE, 0)]).toStrictEqual([null, null]);
+	});
+});
+
+describe("deleting mentions", () => {
+	it("Backspace after a mention and Delete before one remove it whole", () => {
+		expect([
+			deletePillBeforeCaret('MP a <mention id="0" by="1" ts="1"> </mention> end', 6),
+			deletePillAfterCaret('MP unknown <mention id="42" by="1" ts="1"> </mention> x', 11),
+		]).toStrictEqual(["MP a  end", "MP unknown  x"]);
 	});
 });
 

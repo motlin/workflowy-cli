@@ -1,7 +1,7 @@
 // Pure helpers for splitting and joining Workflowy rich-text names at plain-text offsets.
 // Inline formatting tags survive a split (closed in `before`, reopened in `after`) and
-// identical tags meeting at a join are merged back together. A `<time>` element (a date
-// pill) is atomic: one plain-text character that is never split.
+// identical tags meeting at a join are merged back together. A `<time>` or `<mention>` element (a
+// date or mention pill) is atomic: one plain-text character that is never split.
 
 const FORMAT_TAGS = new Set(["b", "i", "u", "s", "code", "a", "span"]);
 
@@ -12,7 +12,7 @@ type Token =
 	| {kind: "char"; raw: string};
 
 const TOKEN_PATTERN =
-	/<time\b[^>]*>[\s\S]*?<\/time>|<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>|&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);|[\s\S]/gu;
+	/<time\b[^>]*>[\s\S]*?<\/time>|<mention\b[^>]*>[\s\S]*?<\/mention>|<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>|&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);|[\s\S]/gu;
 
 function tokenize(html: string): Token[] {
 	const tokens: Token[] = [];
@@ -106,11 +106,17 @@ function decodeEntity(raw: string): string {
 	return NAMED_ENTITIES[raw.slice(1, -1).toLowerCase()] ?? raw;
 }
 
-/** Plain text of `html`, one character per plain-text unit: each `<time>` pill becomes `pillChar`. */
+/** Plain text of `html`, one character per plain-text unit: each `<time>` and `<mention>` pill becomes `pillChar`. */
 export function plainText(html: string, pillChar: string): string {
 	return tokenize(html)
 		.filter((token) => token.kind === "char")
-		.map(({raw}) => (raw.startsWith("<time") ? pillChar : raw.startsWith("&") ? decodeEntity(raw) : raw))
+		.map(({raw}) =>
+			raw.startsWith("<time") || raw.startsWith("<mention")
+				? pillChar
+				: raw.startsWith("&")
+					? decodeEntity(raw)
+					: raw,
+		)
 		.join("");
 }
 

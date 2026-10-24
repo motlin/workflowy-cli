@@ -1,4 +1,4 @@
-/** The signed-in Workflowy account: `GET /` -> `{userId, joinedAt}` (ISO date). */
+/** The signed-in Workflowy account: `GET /` -> `{userId, joinedAt, fullName}` (ISO date). */
 
 import {Hono} from "hono";
 import type {AppEnv} from "../context.js";
@@ -10,8 +10,8 @@ export function createAccountRouter(): Hono<AppEnv> {
 	router.get(
 		"/",
 		withAdapter(async (c, adapter) => {
-			const {userId, joinedAt} = await adapter.getAccount();
-			return c.json({userId, joinedAt: joinedAt.toISOString()});
+			const {userId, joinedAt, fullName} = await adapter.getAccount();
+			return c.json({userId, joinedAt: joinedAt.toISOString(), fullName});
 		}),
 	);
 

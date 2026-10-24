@@ -40,7 +40,10 @@ const InitializationDataSchema = z
 			})
 			.loose(),
 		settings: z.record(z.string(), z.unknown()).optional(),
-		user: z.object({id: z.number()}).loose().optional(),
+		user: z
+			.object({id: z.number(), fullName: z.string().nullish(), avatarUrl: z.string().nullish()})
+			.loose()
+			.optional(),
 		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
 	})
 	.loose();
@@ -48,7 +51,7 @@ const InitializationDataSchema = z
 /** `/get_user_data/`: where the live server keeps the user, settings, globals and root metadata. */
 const UserDataSchema = z
 	.object({
-		user: z.object({id: z.number()}).loose(),
+		user: z.object({id: z.number(), fullName: z.string().nullish(), avatarUrl: z.string().nullish()}).loose(),
 		settings: z.record(z.string(), z.unknown()).optional(),
 		globals: z.array(z.tuple([z.string(), z.unknown()])).optional(),
 		rootProjectMetadata: z.record(z.string(), z.unknown()).optional(),
@@ -147,6 +150,8 @@ export interface InternalSession {
 	expandedKeys: string[];
 	/** The per-account salt upstream's `WF.Id.uuidv5` prefixes to every deterministic id; absent when the server sends none. */
 	entropyKey?: string;
+	/** The account's display name, which upstream shows in a self-mention pill; absent when the server sends none. */
+	fullName?: string;
 }
 
 /** The `client_version` sent before the server has told us its `CLIENT_VERSION`. */
@@ -306,6 +311,7 @@ export class WorkflowyInternalClient {
 					};
 		const userId = account.user.id;
 		const entropyKey = z.string().min(1).safeParse(account.user.entropyKey);
+		const fullName = z.string().min(1).safeParse(account.user.fullName);
 		// CLIENT_VERSION is a page global (`var CLIENT_VERSION = 21;` in the HTML), absent from both JSON globals lists live.
 		const globalVersion = ClientVersionSchema.safeParse(
 			account.globals?.find(([name]) => name === "CLIENT_VERSION")?.[1],
@@ -322,6 +328,7 @@ export class WorkflowyInternalClient {
 			settings: account.settings ?? {},
 			expandedKeys: tree.serverExpandedProjectsList ?? [],
 			...(entropyKey.success ? {entropyKey: entropyKey.data} : {}),
+			...(fullName.success ? {fullName: fullName.data} : {}),
 		};
 	}
 

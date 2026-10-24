@@ -47,7 +47,7 @@ function setup(meta: Record<string, unknown> | undefined, settings: Record<strin
 			return Promise.resolve();
 		}),
 		getAccount: vi.fn<WorkflowyInternalAdapter["getAccount"]>(async () =>
-			Promise.resolve({userId: 42, joinedAt: new Date(1_500_000_000 * 1000)}),
+			Promise.resolve({userId: 42, joinedAt: new Date(1_500_000_000 * 1000), fullName: null}),
 		),
 	};
 	const ctx = {
@@ -248,7 +248,7 @@ describe("GET /api/v1/account", () => {
 
 		await expect(request("GET", "/account")).resolves.toStrictEqual({
 			status: 200,
-			body: {userId: 42, joinedAt: "2017-07-14T02:40:00.000Z"},
+			body: {userId: 42, joinedAt: "2017-07-14T02:40:00.000Z", fullName: null},
 		});
 	});
 

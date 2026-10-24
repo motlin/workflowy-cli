@@ -75,7 +75,24 @@ describe("WorkflowyInternalAdapter account state", () => {
 	it("returns the account's user id and join date from the initialization data", async () => {
 		const {adapter} = tracked();
 
-		await expect(adapter.getAccount()).resolves.toStrictEqual({userId: 123, joinedAt: new Date(1_500_000_000_000)});
+		await expect(adapter.getAccount()).resolves.toStrictEqual({
+			userId: 123,
+			joinedAt: new Date(1_500_000_000_000),
+			fullName: null,
+		});
+	});
+
+	it("returns the account's full name when the server sends one", async () => {
+		const {adapter, api} = tracked();
+		const data = initializationData();
+		data.user = {id: 123, email: "alice@example.com", fullName: "Alice Smith"};
+		api.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+
+		await expect(adapter.getAccount()).resolves.toStrictEqual({
+			userId: 123,
+			joinedAt: new Date(1_500_000_000_000),
+			fullName: "Alice Smith",
+		});
 	});
 
 	it("sets a root metadata path with one edit on None built against the fresh metadata, then reads it from the cache", async () => {

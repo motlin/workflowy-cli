@@ -7,6 +7,7 @@
 import {renderDatePills, serializeDatePills} from "./date-pills.js";
 import type {DateSettings} from "./date-settings.js";
 import {AUTO_LINK_ATTRIBUTE, anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
+import {addMonolithGuards} from "./monolith-guards.js";
 import {renderTags} from "./tag-render.js";
 
 const TAG_PATTERN = /<(\/?)([a-z][\w-]*)([^>]*)>/giu;
@@ -96,7 +97,7 @@ export function noteContentHtml(note: string, dateSettings?: DateSettings, now?:
 	}
 	const linked = renderLinks(noteToEditorHtml(note));
 	const dated = dateSettings === undefined ? linked : renderDatePills(linked, dateSettings, now);
-	return `<span class="innerContentContainer">${renderTags(dated)}</span>`;
+	return `<span class="innerContentContainer">${addMonolithGuards(renderTags(dated))}</span>`;
 }
 
 /**

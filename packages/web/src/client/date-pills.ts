@@ -21,15 +21,14 @@ function lowercaseAttrNames(attrText: string): string {
 
 /** Display-mode HTML: each stored `<time>` becomes upstream's non-editable monolith pill. */
 export function renderDatePills(html: string, settings: DateSettings, now: Date = new Date()): string {
-	return html.replaceAll(TIME_PATTERN, (match, attrText: string, offset: number) => {
+	return html.replaceAll(TIME_PATTERN, (_match, attrText: string) => {
 		const label = formatPillLabel(parseTimeAttrs(attrText), {
 			dateFormat: settings.dateFormat,
 			timeFormat: settings.timeFormat,
 			now,
 		});
 		const attrs = lowercaseAttrNames(attrText.trim());
-		const trailer = offset + match.length === html.length ? BOM : "";
-		return `<time ${PILL_ATTRS} ${attrs}>${BOM}<span class="content-wrapper">${label}</span>${BOM}</time>${trailer}`;
+		return `<time ${PILL_ATTRS} ${attrs}>${BOM}<span class="content-wrapper">${label}</span>${BOM}</time>`;
 	});
 }
 
@@ -52,7 +51,7 @@ export function serializeDatePills(html: string): string {
 
 function deletePillAt(html: string, index: number): string | null {
 	const char = index < 0 ? null : plainCharAt(html, index);
-	return char !== null && /^<time\b/iu.test(char.raw) ? char.without : null;
+	return char !== null && /^<(?:time|mention)\b/iu.test(char.raw) ? char.without : null;
 }
 
 /** Backspace right after a pill (at plain-text `offset`, a pill counting one) deletes the whole pill, else null. */

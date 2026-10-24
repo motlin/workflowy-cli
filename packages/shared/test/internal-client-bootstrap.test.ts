@@ -121,6 +121,23 @@ describe("WorkflowyInternalClient.bootstrap", () => {
 		expect(session).toStrictEqual({...EXPECTED_SESSION, entropyKey: "k".repeat(64)});
 	});
 
+	it("carries the user's fullName, and parses a null one", async () => {
+		const named = createFakeInternalApi();
+		const data = initializationData();
+		data.user = {id: 123, email: "alice@example.com", fullName: "Alice Smith"};
+		named.respond("/get_initialization_data", () => json(data, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+		const unnamed = createFakeInternalApi();
+		const nullData = initializationData();
+		nullData.user = {id: 123, email: "alice@example.com", fullName: null};
+		unnamed.respond("/get_initialization_data", () => json(nullData, {headers: {wfclientid: FAKE_CLIENT_ID}}));
+
+		await expect(clientWith(named).client.bootstrap()).resolves.toStrictEqual({
+			...EXPECTED_SESSION,
+			fullName: "Alice Smith",
+		});
+		await expect(clientWith(unnamed).client.bootstrap()).resolves.toStrictEqual(EXPECTED_SESSION);
+	});
+
 	it("accepts a null isReadOnly (sent live) and a null ownerId", async () => {
 		const api = createFakeInternalApi();
 		const data = initializationData();

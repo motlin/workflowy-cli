@@ -5,6 +5,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {projectClassName} from "../src/client/components/row-classes.js";
+import {addMonolithGuards} from "../src/client/monolith-guards.js";
 import {renderDatePills} from "../src/client/date-pills.js";
 import {DEFAULT_DATE_SETTINGS} from "../src/client/date-settings.js";
 import {EMPTY_PREFERENCES, preferenceKeys} from "../src/client/hooks/use-preferences.js";
@@ -54,8 +55,8 @@ describe("EditableNote markup", () => {
 			unfocused: render({initialValue: note}),
 			focused: render({initialValue: note, isFocused: true}),
 		}).toStrictEqual({
-			unfocused: `${open}" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, DEFAULT_DATE_SETTINGS)}</span></div></div>`,
-			focused: `${open} active" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, DEFAULT_DATE_SETTINGS)}</span></div></div>`,
+			unfocused: `${open}" contentEditable="true"><span class="innerContentContainer">${addMonolithGuards(renderDatePills(note, DEFAULT_DATE_SETTINGS))}</span></div></div>`,
+			focused: `${open} active" contentEditable="true"><span class="innerContentContainer">${addMonolithGuards(renderDatePills(note, DEFAULT_DATE_SETTINGS))}</span></div></div>`,
 		});
 	});
 
@@ -69,7 +70,7 @@ describe("EditableNote markup", () => {
 			error: null,
 		});
 		expect(render({initialValue: note}, client)).toBe(
-			`<div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden" contentEditable="true"><span class="innerContentContainer">${renderDatePills(note, account)}</span></div></div>`,
+			`<div class="notes"><div class="notranslate content text-tertiary whitespace-pre-wrap overflow-hidden" contentEditable="true"><span class="innerContentContainer">${addMonolithGuards(renderDatePills(note, account))}</span></div></div>`,
 		);
 	});
 

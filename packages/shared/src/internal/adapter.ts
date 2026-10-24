@@ -50,9 +50,10 @@ const FLAG_SETTINGS = new Set<ServerSetting>(["show_completed", "show_keyboard_s
 export interface Account {
 	userId: number;
 	joinedAt: Date;
+	fullName: string | null;
 }
 
-const StoredAccountSchema = z.object({userId: z.number(), dateJoinedSec: z.number()});
+const StoredAccountSchema = z.object({userId: z.number(), dateJoinedSec: z.number(), fullName: z.string().nullish()});
 const MetadataSchema = z.record(z.string(), z.unknown());
 const SucceededSchema = z.object({succeeded: z.boolean()});
 const CalendarMetadataSchema = z.object({
@@ -1427,7 +1428,11 @@ export class WorkflowyInternalAdapter {
 
 	async getAccount(): Promise<Account> {
 		const {account} = await this.snapshot();
-		return {userId: account.userId, joinedAt: new Date(account.dateJoinedSec * 1000)};
+		return {
+			userId: account.userId,
+			joinedAt: new Date(account.dateJoinedSec * 1000),
+			fullName: account.fullName ?? null,
+		};
 	}
 
 	/** The root (Home) metadata value at `path`; the whole object for an empty path. */
@@ -1522,7 +1527,11 @@ export class WorkflowyInternalAdapter {
 
 	private fromSession(session: InternalSession): AccountSnapshot {
 		return {
-			account: {userId: session.userId, dateJoinedSec: session.dateJoinedSec},
+			account: {
+				userId: session.userId,
+				dateJoinedSec: session.dateJoinedSec,
+				...(session.fullName === undefined ? {} : {fullName: session.fullName}),
+			},
 			rootMetadata: session.rootMetadata,
 			settings: session.settings,
 		};

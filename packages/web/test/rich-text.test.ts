@@ -6,6 +6,7 @@ import {
 	pendingFormatApply,
 	plainLength,
 	planInlineToggle,
+	plainText,
 	serializeInline,
 	splitHtml,
 	toggleAttr,
@@ -100,6 +101,23 @@ describe("date pills are one character", () => {
 
 	it("never splits inside a <time> element", () => {
 		expect(splitHtml(`ab ${pill} c`, 4, 4)).toStrictEqual({before: `ab ${pill}`, after: " c"});
+	});
+});
+
+describe("mentions are one character", () => {
+	const mention = '<mention id="0" by="1" ts="1"> </mention>';
+
+	it("counts a <mention> element as one plain-text character", () => {
+		expect([plainLength(`a ${mention} b`), plainText(`a ${mention} b`, "\u0001")]).toStrictEqual([5, "a \u0001 b"]);
+	});
+
+	it("never splits inside a <mention> element", () => {
+		expect(splitHtml(`a ${mention} b`, 2, 3)).toStrictEqual({before: "a ", after: " b"});
+		expect(splitHtml(`a ${mention} b`, 3, 3)).toStrictEqual({before: `a ${mention}`, after: " b"});
+	});
+
+	it("keeps the whole mention inside a toggled format", () => {
+		expect(toggleAttr(`a ${mention} b`, 0, 5, "b")).toBe(`<b>a ${mention} b</b>`);
 	});
 });
 

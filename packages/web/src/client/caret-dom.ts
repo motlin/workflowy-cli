@@ -30,7 +30,7 @@ export function rowContent(nodeId: string): HTMLElement | null {
 }
 
 function isPill(node: Node): node is Element {
-	return node instanceof Element && node.localName === "time";
+	return node instanceof Element && (node.localName === "time" || node.localName === "mention");
 }
 
 function unitsIn(node: Node): number {
