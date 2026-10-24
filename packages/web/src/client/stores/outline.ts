@@ -309,6 +309,8 @@ interface OutlineState {
 	editingClickPosition: ClickPosition | null;
 	/** Text offset to place the caret at when editing resumes after dismissing search. */
 	editingCaretOffset: number | null;
+	/** A name the next editor for `id` starts from instead of its `initialValue`; consumed when editing mounts. */
+	editingHtmlOverride: {id: string; html: string} | null;
 	editingNoteId: string | null;
 	/** Where the focused note puts the caret when focus arrives from the keyboard or a restored pane caret. */
 	editingNoteCaret: number | "end";
@@ -448,7 +450,8 @@ interface OutlineActions {
 	/** The note `id` lost focus: clear note focus unless it already moved elsewhere. */
 	blurNote: (id: string) => void;
 	/** Edit `id` with the caret `caretOffset` text characters in (clamped to the end). */
-	resumeEditing: (id: string, caretOffset: number) => void;
+	/** `options.html` is the stored name the editor must start from, for a row whose `initialValue` prop is stale. */
+	resumeEditing: (id: string, caretOffset: number, options?: {html: string}) => void;
 	holdEditing: (caretOffset: number) => void;
 	releaseEditing: () => void;
 	/** Show or hide completed rows: updates `completedMode` and PATCHes the account setting. */
@@ -825,6 +828,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	itemSelection: emptySelection(),
 	editingClickPosition: null,
 	editingCaretOffset: null,
+	editingHtmlOverride: null,
 	editingNoteId: null,
 	editingNoteCaret: "end",
 	editingHeld: false,
@@ -1049,8 +1053,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 	},
 
-	resumeEditing: (id, caretOffset) => {
+	resumeEditing: (id, caretOffset, options) => {
 		set({
+			editingHtmlOverride: options ? {id, html: options.html} : null,
 			itemSelection: emptySelection(),
 			editingId: id,
 			editingClickPosition: null,

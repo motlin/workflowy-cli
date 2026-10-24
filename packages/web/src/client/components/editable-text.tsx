@@ -210,11 +210,18 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	// The HTML as of editing start, held while editing so saves and refetches never rewrite the DOM under the caret.
 	const [editingHtml, setEditingHtml] = useState<string | null>(null);
 	if (isEditing && editingHtml === null) {
-		setEditingHtml(initialValue);
+		const override = outlineActions().editingHtmlOverride;
+		setEditingHtml(override?.id === nodeId ? override.html : initialValue);
 	} else if (!isEditing && editingHtml !== null) {
 		setEditingHtml(null);
 	}
 	const storedEditorHtml = editingHtml ?? initialValue;
+	// The override has served this editor; a later editing session must start from the stored name again.
+	useEffect(() => {
+		if (editingHtml !== null && outlineActions().editingHtmlOverride?.id === nodeId) {
+			useOutlineStore.setState({editingHtmlOverride: null});
+		}
+	}, [editingHtml, nodeId]);
 	// Pills are atomic in edit mode too; every save path serializes them back to stored `<time>` markup.
 	const editorHtml = useMemo(
 		() => renderEditorHtml(storedEditorHtml, dateSettings, account),
@@ -1191,7 +1198,7 @@ const RestingText = memo(function RestingText({
 				updateNodeMutation.mutate({nodeId, name});
 				// The editor captures its HTML when editing starts: show the new name before that.
 				patchCachedNode(queryClient, nodeId, (node) => ({...node, name}));
-				resumeEditing(nodeId, tagCaretUnits(name, start));
+				resumeEditing(nodeId, tagCaretUnits(name, start), {html: name});
 			});
 		},
 		[initialValue, nodeId, queryClient, resumeEditing, updateNodeMutation],
