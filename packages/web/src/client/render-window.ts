@@ -1,6 +1,8 @@
 import type {NodeResponse} from "../node-types.js";
 import {isPotentiallyVisible} from "./tree-ops.js";
 import type {SearchFilter} from "./search-filter.js";
+import type {MirrorInstance} from "../mirror-path.js";
+import {childInstance, instanceKey, isCyclical} from "../mirror-path.js";
 import {isSearchExpanded, searchShowsCompleted, searchShowsNode} from "./search-filter.js";
 
 /**
@@ -40,7 +42,7 @@ export interface RowView {
 }
 
 /** Whether `node` renders as a row: completion visibility, then the search filter when one is applied. */
-export function rendersRow(
+function rendersRow(
 	node: NodeResponse,
 	showCompleted: boolean,
 	animatingCompletionIds: ReadonlySet<string>,
@@ -49,6 +51,23 @@ export function rendersRow(
 	return (
 		isPotentiallyVisible(node, searchShowsCompleted(showCompleted, search), animatingCompletionIds) &&
 		(search === null || searchShowsNode(node, search))
+	);
+}
+
+/**
+ * Whether `node` renders as a row in `instance`: as `rendersRow`, but a cyclical mirror instance is never a search
+ * match (upstream `isSearchable` is false for it), so a search leaves it out.
+ */
+export function rendersInstanceRow(
+	node: NodeResponse,
+	instance: MirrorInstance | null,
+	showCompleted: boolean,
+	animatingCompletionIds: ReadonlySet<string>,
+	search: SearchFilter | null,
+): boolean {
+	return (
+		rendersRow(node, showCompleted, animatingCompletionIds, search) &&
+		(search === null || !isCyclical(node, instance))
 	);
 }
 
@@ -73,7 +92,7 @@ export function rowLimits(
 ): RowLimits {
 	const limits = new Map<string | null, number>();
 	let used = 0;
-	const visit = (parentId: string | null) => {
+	const visit = (parentId: string | null, instance: MirrorInstance | null) => {
 		const children = getChildren(parentId);
 		if (children === undefined) {
 			return;
@@ -83,18 +102,18 @@ export function rowLimits(
 			if (used >= budget) {
 				break;
 			}
-			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
+			if (!rendersInstanceRow(node, instance, showCompleted, animatingCompletionIds, search)) {
 				continue;
 			}
 			used += 1;
 			count += 1;
-			if (rendersChildren(node.id, expandedIds, search)) {
-				visit(node.id);
+			if (rendersChildren(node.id, expandedIds, search) && !isCyclical(node, instance)) {
+				visit(node.id, childInstance(node, instance));
 			}
 		}
-		limits.set(parentId, count);
+		limits.set(instanceKey(parentId, instance), count);
 	};
-	visit(rootId);
+	visit(rootId, null);
 	return {limits, remaining: budget - used};
 }
 
@@ -110,7 +129,7 @@ export function viewParentIds(
 ): (string | null)[] | undefined {
 	const parentIds: (string | null)[] = [];
 	let used = 0;
-	const visit = (parentId: string | null): boolean => {
+	const visit = (parentId: string | null, instance: MirrorInstance | null): boolean => {
 		parentIds.push(parentId);
 		const children = getChildren(parentId);
 		if (children === undefined) {
@@ -120,17 +139,21 @@ export function viewParentIds(
 			if (used >= budget) {
 				return true;
 			}
-			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
+			if (!rendersInstanceRow(node, instance, showCompleted, animatingCompletionIds, search)) {
 				continue;
 			}
 			used += 1;
-			if (rendersChildren(node.id, expandedIds, search) && !visit(node.id)) {
+			if (
+				rendersChildren(node.id, expandedIds, search) &&
+				!isCyclical(node, instance) &&
+				!visit(node.id, childInstance(node, instance))
+			) {
 				return false;
 			}
 		}
 		return true;
 	};
-	return visit(rootId) ? parentIds : undefined;
+	return visit(rootId, null) ? parentIds : undefined;
 }
 
 /**
@@ -147,27 +170,35 @@ export function rowBudgetToShow(
 	targetId: string,
 ): number {
 	let position = 0;
-	const find = (parentId: string | null): boolean => {
+	const find = (parentId: string | null, instance: MirrorInstance | null): boolean => {
 		for (const node of getChildren(parentId) ?? []) {
-			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
+			if (!rendersInstanceRow(node, instance, showCompleted, animatingCompletionIds, search)) {
 				continue;
 			}
 			position += 1;
-			if (node.id === targetId || (rendersChildren(node.id, expandedIds, search) && find(node.id))) {
+			if (
+				node.id === targetId ||
+				(rendersChildren(node.id, expandedIds, search) &&
+					!isCyclical(node, instance) &&
+					find(node.id, childInstance(node, instance)))
+			) {
 				return true;
 			}
 		}
 		return false;
 	};
-	if (!find(rootId) || position <= budget) {
+	if (!find(rootId, null) || position <= budget) {
 		return budget;
 	}
 	return budget + Math.ceil((position - budget) / ROW_STEP) * ROW_STEP;
 }
 
-/** The rows `parentId` may render: its share when loaded, else whatever budget is left. */
-export function rowLimit(limits: RowLimits, parentId: string | null): number {
-	return limits.limits.get(parentId) ?? limits.remaining;
+/**
+ * The rows the parent may render: its share when loaded, else whatever budget is left. `key` is `instanceKey`, so a
+ * parent shown at several places inside mirrors has a share for each.
+ */
+export function rowLimit(limits: RowLimits, key: string | null): number {
+	return limits.limits.get(key) ?? limits.remaining;
 }
 
 /** A value that changes exactly when some parent's limit or the remaining budget does. */

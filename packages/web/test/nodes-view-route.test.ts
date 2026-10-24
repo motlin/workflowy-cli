@@ -148,6 +148,25 @@ describe("POST /api/v1/nodes/view", () => {
 		]);
 	});
 
+	it("sends each list once and stops at a mirror inside its own original", async () => {
+		const {post, mirror} = setup();
+		mirror("Mmmm", "A1", "Alpha");
+
+		const {body} = await post({
+			rootId: null,
+			expandedIds: ["Alpha", "A1", "Mmmm"],
+			limit: 200,
+			showCompleted: false,
+		});
+
+		expect(lists(body)).toStrictEqual([
+			[null, ["Alpha", "Beta"], null],
+			["Alpha", ["A1", "A2"], NO_BACKLINKS],
+			["A1", ["A1a", "Mmmm"], NO_BACKLINKS],
+			["Mmmm", ["A1", "A2"], NO_BACKLINKS],
+		]);
+	});
+
 	it("expands the account's expanded rows for null expandedIds, returning those the view reached", async () => {
 		const {post} = setup(["Alpha", "A1", "A2", "Beta", "Elsewhere"]);
 

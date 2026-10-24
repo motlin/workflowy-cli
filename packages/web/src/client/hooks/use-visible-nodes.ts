@@ -3,8 +3,10 @@ import {nodeKeys} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {activePaneView} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
-import {rendersChildren, rendersRow} from "../render-window.js";
+import {rendersChildren, rendersInstanceRow} from "../render-window.js";
 import type {ExpansionRow} from "../expansion.js";
+import type {MirrorInstance} from "../../mirror-path.js";
+import {childInstance, isCyclical} from "../../mirror-path.js";
 import {navigableIds} from "../caret-navigation.js";
 import type {SearchFilter} from "../search-filter.js";
 import {currentSearchFilter} from "./use-tree-search.js";
@@ -29,7 +31,7 @@ export function collectVisibleNodeIds(
 ): string[] {
 	const visibleIds: string[] = [];
 
-	const collectVisibleNodes = (parentId: string | null) => {
+	const collectVisibleNodes = (parentId: string | null, instance: MirrorInstance | null) => {
 		const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
 
 		if (!children) {
@@ -37,19 +39,19 @@ export function collectVisibleNodeIds(
 		}
 
 		const filteredChildren = children.filter((node) =>
-			rendersRow(node, showCompleted, animatingCompletionIds, search),
+			rendersInstanceRow(node, instance, showCompleted, animatingCompletionIds, search),
 		);
 
 		for (const node of filteredChildren) {
 			visibleIds.push(node.id);
 
-			if (rendersChildren(node.id, expandedIds, search)) {
-				collectVisibleNodes(node.id);
+			if (rendersChildren(node.id, expandedIds, search) && !isCyclical(node, instance)) {
+				collectVisibleNodes(node.id, childInstance(node, instance));
 			}
 		}
 	};
 
-	collectVisibleNodes(zoomedNodeId);
+	collectVisibleNodes(zoomedNodeId, null);
 	return visibleIds;
 }
 
@@ -74,10 +76,10 @@ export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
 	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
 	const search = currentSearchFilter(queryClient);
 	const rows: ExpansionRow[] = [];
-	const walk = (parentId: string | null, depth: number) => {
+	const walk = (parentId: string | null, depth: number, instance: MirrorInstance | null) => {
 		const children = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId)) ?? [];
 		for (const node of children) {
-			if (!rendersRow(node, showCompleted, animatingCompletionIds, search)) {
+			if (!rendersInstanceRow(node, instance, showCompleted, animatingCompletionIds, search)) {
 				continue;
 			}
 			const cached = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(node.id));
@@ -86,11 +88,11 @@ export function currentExpansionRows(queryClient: QueryClient): ExpansionRow[] {
 					? cached === undefined || cached.length > 0
 					: rowHasChildren(node, showCompleted);
 			rows.push({id: node.id, depth, hasVisibleChildren});
-			if (rendersChildren(node.id, expandedIds, search)) {
-				walk(node.id, depth + 1);
+			if (rendersChildren(node.id, expandedIds, search) && !isCyclical(node, instance)) {
+				walk(node.id, depth + 1, childInstance(node, instance));
 			}
 		}
 	};
-	walk(zoomedNodeId, 0);
+	walk(zoomedNodeId, 0, null);
 	return rows;
 }

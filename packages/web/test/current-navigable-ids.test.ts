@@ -9,7 +9,7 @@ vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {nodeKeys} = await import("../src/client/node-cache.js");
-const {currentNavigableIds} = await import("../src/client/hooks/use-visible-nodes.js");
+const {currentNavigableIds, currentExpansionRows} = await import("../src/client/hooks/use-visible-nodes.js");
 
 function makeNode(id: string, parentId: string | null): NodeResponse {
 	return {
@@ -46,5 +46,44 @@ describe("currentNavigableIds", () => {
 			before: ["root", "alpha", "bravo"],
 			after: ["root", "alpha", "bravo", "charlie"],
 		});
+	});
+});
+
+describe("a mirror inside its own original", () => {
+	function cyclicalClient() {
+		const queryClient = new QueryClient();
+		const mirror: NodeResponse = {...makeNode("Mmmm", "Kkkk"), isMirror: true, originalNodeId: "Oooo"};
+		queryClient.setQueryData(nodeKeys.children("Pppp"), [makeNode("Oooo", "Pppp")]);
+		queryClient.setQueryData(nodeKeys.children("Oooo"), [makeNode("Kkkk", "Oooo")]);
+		queryClient.setQueryData(nodeKeys.children("Kkkk"), [mirror]);
+		queryClient.setQueryData(nodeKeys.children("Mmmm"), [makeNode("Kkkk", "Oooo")]);
+		useOutlineStore.setState({
+			zoomedNodeId: "Pppp",
+			expandedIds: new Set(["Oooo", "Kkkk", "Mmmm"]),
+			showCompleted: true,
+			animatingCompletionIds: new Set(),
+		});
+		return queryClient;
+	}
+
+	it("lists the navigable rows up to the cyclical mirror instead of overflowing the stack", () => {
+		expect(currentNavigableIds(cyclicalClient())).toStrictEqual([
+			"Pppp",
+			"Oooo",
+			"Kkkk",
+			"Mmmm",
+			"Kkkk",
+			"Mmmm",
+			"Kkkk",
+			"Mmmm",
+			"Kkkk",
+			"Mmmm",
+		]);
+	});
+
+	it("lists the expansion rows one level deeper each, up to the cyclical mirror", () => {
+		expect(currentExpansionRows(cyclicalClient()).map((row) => row.depth)).toStrictEqual([
+			0, 1, 2, 3, 4, 5, 6, 7, 8,
+		]);
 	});
 });

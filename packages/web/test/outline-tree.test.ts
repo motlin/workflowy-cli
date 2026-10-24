@@ -1,6 +1,6 @@
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
@@ -616,6 +616,55 @@ describe("outline tree styles guard", () => {
 		expect(cssBlock(styles, ".children")).toStrictEqual({
 			"--wf-content-padding-top": "var(--font-descendant-padding-top)",
 			"--space-for-bullet": "24px",
+		});
+	});
+});
+
+describe("OutlineTree with a mirror inside its own original", () => {
+	const CYCLICAL = new Map<string | null, NodeResponse[]>([
+		["Pppp", [makeNode({id: "Oooo", parent_id: "Pppp", name: "O", hasChildren: true})]],
+		["Oooo", [makeNode({id: "Kkkk", parent_id: "Oooo", name: "K", hasChildren: true})]],
+		[
+			"Kkkk",
+			[
+				makeNode({
+					id: "Mmmm",
+					parent_id: "Kkkk",
+					name: "O",
+					hasChildren: true,
+					isMirror: true,
+					originalNodeId: "Oooo",
+				}),
+			],
+		],
+		["Mmmm", [makeNode({id: "Kkkk", parent_id: "Oooo", name: "K", hasChildren: true})]],
+	]);
+
+	function renderCyclical(): string {
+		const client = new QueryClient();
+		for (const [parentId, nodes] of CYCLICAL) {
+			childrenByParent.set(parentId, nodes);
+			client.setQueryData(nodeKeys.children(parentId), nodes);
+		}
+		nodesById.set("Pppp", makeNode({id: "Pppp", name: "P"}));
+		outlineState.expandedIds = new Set(["Oooo", "Kkkk", "Mmmm"]);
+		return render("Pppp", client);
+	}
+
+	afterEach(() => {
+		for (const parentId of CYCLICAL.keys()) {
+			childrenByParent.delete(parentId);
+		}
+		nodesById.clear();
+	});
+
+	it("terminates with nine rows, the last mirror collapsed with no children", () => {
+		const html = renderCyclical();
+		const rows = [...html.matchAll(/data-item-id="([A-Za-z]+)"/gu)].map((match) => match[1]);
+		const lastMirror = html.lastIndexOf('data-item-id="Mmmm"');
+		expect({rows, lastMirrorHasChildren: html.slice(lastMirror).includes('class="children')}).toStrictEqual({
+			rows: ["Oooo", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk", "Mmmm", "Kkkk", "Mmmm"],
+			lastMirrorHasChildren: false,
 		});
 	});
 });

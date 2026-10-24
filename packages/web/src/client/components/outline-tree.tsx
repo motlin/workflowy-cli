@@ -17,7 +17,9 @@ import {outlineRootToShow} from "../show-zoom.js";
 import {isEntry} from "../item-selection.js";
 import {currentSelectionView, HOME_ROOT} from "../hooks/use-selection-keymap.js";
 import {dropHoverOf} from "../bullet-drag-state.js";
-import {rendersRow, rowLimit} from "../render-window.js";
+import {rendersInstanceRow, rowLimit} from "../render-window.js";
+import {instanceKey} from "../../mirror-path.js";
+import {MirrorInstanceContext} from "../mirror-instance-context.js";
 import {usePaneSearchQuery, usePrefetchSearchAncestors, useSearchFilter} from "../hooks/use-tree-search.js";
 import {RowLimitsContext, useRowLimits} from "../hooks/use-row-limits.js";
 import {useOutlineViewPending} from "../hooks/use-outline-view.js";
@@ -508,11 +510,14 @@ export function OutlineChildren({
 			animatingCompletionIds: state.animatingCompletionIds,
 		})),
 	);
-	const visibleNodes = nodes?.filter((node) => rendersRow(node, showCompleted, animatingCompletionIds, search));
+	const instance = useContext(MirrorInstanceContext);
+	const visibleNodes = nodes?.filter((node) =>
+		rendersInstanceRow(node, instance, showCompleted, animatingCompletionIds, search),
+	);
 	// The outline spends one row budget across the whole tree (see render-window.ts).
 	const rowLimits = useContext(RowLimitsContext);
 	const total = visibleNodes?.length ?? 0;
-	const limit = rowLimits === null ? total : rowLimit(rowLimits, parentId);
+	const limit = rowLimits === null ? total : rowLimit(rowLimits, instanceKey(parentId, instance));
 	const backlinksRootId =
 		search === null && total <= limit && isBacklinksSectionVisible(backlinks, showCompleted)
 			? backlinks?.rootId

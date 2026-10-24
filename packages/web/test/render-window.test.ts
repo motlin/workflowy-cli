@@ -10,6 +10,7 @@ import {
 	rowBudgetToShow,
 	rowLimit,
 	rowLimits,
+	rendersInstanceRow,
 	viewParentIds,
 } from "../src/client/render-window.js";
 
@@ -156,5 +157,75 @@ describe("viewParentIds", () => {
 			budgeted: viewParentIds((id) => children.get(id) ?? [], null, 2, view),
 			unloaded: viewParentIds((id) => children.get(id), null, 100, view),
 		}).toStrictEqual({budgeted: [null, "alice"], unloaded: undefined});
+	});
+});
+
+// Pppp holds Oooo; Oooo holds Kkkk; Kkkk holds Mmmm, a mirror of Oooo; Mmmm shows Oooo's children, so Kkkk again.
+function mirrorNode(id: string, parentId: string, originalId: string): NodeResponse {
+	return {...node(id, parentId), isMirror: true, originalNodeId: originalId};
+}
+
+const cyclicalChildren = new Map<string | null, NodeResponse[]>([
+	["Pppp", [node("Oooo", "Pppp")]],
+	["Oooo", [node("Kkkk", "Oooo")]],
+	["Kkkk", [mirrorNode("Mmmm", "Kkkk", "Oooo")]],
+	["Mmmm", [node("Kkkk", "Oooo")]],
+]);
+
+const cyclicalView: RowView = {...outlineView, expandedIds: new Set(["Oooo", "Kkkk", "Mmmm"])};
+
+describe("a mirror inside its own original", () => {
+	it("stops the budgeted walks at the third repetition, giving each repeated parent its own limit", () => {
+		const computed = rowLimits((id) => cyclicalChildren.get(id), "Pppp", 60, cyclicalView);
+		expect({limits: Object.fromEntries(computed.limits), remaining: computed.remaining}).toStrictEqual({
+			limits: {
+				Pppp: 1,
+				Oooo: 1,
+				Kkkk: 1,
+				"Mmmm@Mmmm_Mmmm": 1,
+				"Kkkk@Mmmm_MmmmKkkk": 1,
+				"Mmmm@Mmmm_MmmmKkkkMmmm": 1,
+				"Kkkk@Mmmm_MmmmKkkkMmmmKkkk": 1,
+				"Mmmm@Mmmm_MmmmKkkkMmmmKkkkMmmm": 1,
+				"Kkkk@Mmmm_MmmmKkkkMmmmKkkkMmmmKkkk": 1,
+			},
+			remaining: 51,
+		});
+	});
+
+	it("lists the parents up to the cyclical mirror once", () => {
+		expect(viewParentIds((id) => cyclicalChildren.get(id), "Pppp", 60, cyclicalView)).toStrictEqual([
+			"Pppp",
+			"Oooo",
+			"Kkkk",
+			"Mmmm",
+			"Kkkk",
+			"Mmmm",
+			"Kkkk",
+			"Mmmm",
+			"Kkkk",
+		]);
+	});
+
+	it("finds no place for a row that is not in the tree without overflowing the stack", () => {
+		expect(rowBudgetToShow((id) => cyclicalChildren.get(id), "Pppp", 60, cyclicalView, "missing")).toBe(60);
+	});
+});
+
+describe("a search over a mirror inside its own original", () => {
+	const searching: RowView = {
+		...cyclicalView,
+		search: searchFilter(result(["Mmmm"], ["Pppp", "Oooo", "Kkkk"]), new Set(), new Map([["Mmmm", true]])),
+	};
+	const mirrorRow = mirrorNode("Mmmm", "Kkkk", "Oooo");
+	const cyclicalInstance = {rootId: "Mmmm", path: "MmmmKkkkMmmmKkkkMmmmKkkk"};
+
+	it("never shows a cyclical instance, and terminates", () => {
+		const computed = rowLimits((id) => cyclicalChildren.get(id), "Pppp", 60, searching);
+		expect({
+			cyclicalShown: rendersInstanceRow(mirrorRow, cyclicalInstance, false, new Set(), searching.search),
+			plainShown: rendersInstanceRow(mirrorRow, null, false, new Set(), searching.search),
+			finished: computed.remaining >= 0,
+		}).toStrictEqual({cyclicalShown: false, plainShown: true, finished: true});
 	});
 });

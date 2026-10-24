@@ -28,6 +28,8 @@ import {childFlags, currentBacklinkSources, findReferencesRoot, notReferencesRoo
 import {loadCalendarInfo} from "../calendar-day.js";
 import {findFoundDates, timesDiffer} from "../calendar-found.js";
 import type {AppEnv, ServerContext} from "../context.js";
+import type {MirrorInstance} from "../../mirror-path.js";
+import {childInstance, isCyclical} from "../../mirror-path.js";
 import {INTERNAL_API_NOT_CONFIGURED} from "../internal-api.js";
 
 /**
@@ -422,9 +424,18 @@ nodesRouter.post("/view", async (c) => {
 	const isExpanded = await viewExpansionTest(ctx, body.data.expandedIds);
 	const lists: OutlineViewList[] = [];
 	let used = 0;
-	const visit = async (parentId: string | null, resolved: string | null): Promise<void> => {
+	// A parent's list is sent once however often it repeats, and a cyclical mirror instance is not expanded.
+	const listed = new Set<string | null>();
+	const visit = async (
+		parentId: string | null,
+		resolved: string | null,
+		instance: MirrorInstance | null,
+	): Promise<void> => {
 		const nodes = await readChildDtos(ctx, resolved === null ? null : resolveMirrorToOriginal(ctx, resolved));
-		lists.push({parentId, nodes, backlinks: resolved === null ? null : await readBacklinks(ctx, resolved)});
+		if (!listed.has(parentId)) {
+			listed.add(parentId);
+			lists.push({parentId, nodes, backlinks: resolved === null ? null : await readBacklinks(ctx, resolved)});
+		}
 		for (const node of nodes) {
 			if (used >= limit) {
 				return;
@@ -433,12 +444,12 @@ nodesRouter.post("/view", async (c) => {
 				continue;
 			}
 			used += 1;
-			if (isExpanded(node.id)) {
-				await visit(node.id, node.id);
+			if (isExpanded(node.id) && !isCyclical(node, instance)) {
+				await visit(node.id, node.id, childInstance(node, instance));
 			}
 		}
 	};
-	await visit(rootId, resolvedRoot);
+	await visit(rootId, resolvedRoot, null);
 	const rootNode = resolvedRoot === null ? undefined : ctx.cacheService.getNode(resolvedRoot);
 	const foundDates = rootNode === undefined ? null : await readFoundDates(ctx, rootNode);
 	const response: OutlineViewResponse = {
