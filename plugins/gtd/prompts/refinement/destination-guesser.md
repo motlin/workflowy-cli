@@ -76,6 +76,14 @@ The asap bucket's children are ordinal priority tiers (`1st`, `2nd`, `3rd`, …)
 node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts choices .llm/gtd/refinement/$ITEM_ID-ladder.json
 ```
 
+**Match an existing on-ladder node before the bare tier.** The tiers already hold project and group nodes (a game's bullets, an application's tasks, a person's agenda). At every confidence, whenever the item would land on an asap tier, run the matcher over the same ladder file before settling on the bottom tier:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/asap-tiers.mts match .llm/gtd/refinement/$ITEM_ID-ladder.json "<item text>"
+```
+
+It lists open tier children sharing the item's `#tags`, `@people`, or key nouns, strongest first, each with `id`, `name`, `label`, and `shared`. When a match is a project or group node that the item plainly extends, return it as `path` (full path ending in the tier label and the node's name) with its `id` as `targetId`, and put the bottom tier in `alternative`. When the match is only a weak noun overlap, keep the bottom tier as `path` and offer the match as `alternative`. An empty list means fall back to the bottom tier.
+
 Return `bottom.id` as `targetId` and end `path` with `bottom.label` (`Work > ☑️ Next (Work) > 📌 Tasks (asap) > 4th`). Never guess a tier name or id from memory or from the synced metadata. When `bottom` is null the bucket has no ladder yet: create its first tier with `./bin/run.js node create --parent-id <bucket-uuid> --name "1st"` and return that new node. Never return a leftover category container (`💻 Coding`, `Administrative`, `🏠 Home`, …) either — those are pre-migration data that File Loose Tasks removes, and what the task _is_ belongs on its text as a `#tag`. See `${CLAUDE_PLUGIN_ROOT}/skills/asap-tiers.md`.
 
 **Never return a Someday node.** No `🌱 Someday`, `Someday/Maybe`, or any node under one is a valid destination, however the item is phrased. "Read this someday", "maybe look into X", and "in the future" all describe an undated future task, and an undated future task is still a task: it goes on the **bottom tier** of the matching `📌 Tasks (asap)` ladder — Work or Personal, whichever fits the item. The bottom tier already means "not soon"; a separate Someday list only hides the task from the ladder the user actually reviews. When the topical-home search below turns up a Someday node, discard that match.

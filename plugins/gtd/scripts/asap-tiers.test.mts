@@ -6,6 +6,7 @@ import {
 	bottomTier,
 	filingChoices,
 	ladderCapacity,
+	matchLadderHomes,
 	parseTierLabel,
 	planGroup,
 	planInsertion,
@@ -440,4 +441,40 @@ test("planRescue creates 1st on a bucket with no ladder yet", () => {
 		targetId: null,
 		createTiers: [{tier: 1, label: "1st"}],
 	});
+});
+
+test("matchLadderHomes finds on-ladder nodes sharing tags, people, or key nouns", () => {
+	const ladder = readLadder({
+		id: "bucket",
+		children: [
+			{
+				name: "1st",
+				id: "tier-1",
+				children: [
+					{id: "a", name: "Factorio bullets #games", children: []},
+					{id: "b", name: "Renew passport"},
+				],
+			},
+			{
+				name: "2nd",
+				id: "tier-2",
+				children: [
+					{id: "c", name: "<b>BCA</b> application stuff"},
+					{id: "d", name: "Agenda for @Alice #agenda"},
+					{id: "e", name: "Done thing about factorio", completedAt: "2026-01-01"},
+				],
+			},
+		],
+	});
+	assert.deepStrictEqual(matchLadderHomes(ladder, "Try the new factorio mod #games"), [
+		{id: "a", name: "Factorio bullets #games", tier: 1, label: "1st", shared: ["#games", "factorio"]},
+	]);
+	assert.deepStrictEqual(matchLadderHomes(ladder, "Submit BCA application form"), [
+		{id: "c", name: "<b>BCA</b> application stuff", tier: 2, label: "2nd", shared: ["application"]},
+	]);
+	assert.deepStrictEqual(
+		matchLadderHomes(ladder, "Ask @alice about the thing #agenda").map((m) => m.id),
+		["d"],
+	);
+	assert.deepStrictEqual(matchLadderHomes(ladder, "Buy milk"), []);
 });

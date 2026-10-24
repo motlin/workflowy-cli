@@ -253,6 +253,58 @@ export function filingChoices(ladder: Ladder): FilingChoices {
 	return {summary, bottom: {tier: bottom.tier, label: bottom.label, id: bottom.id}, promote};
 }
 
+export interface LadderHomeMatch {
+	readonly id: string;
+	readonly name: string;
+	readonly tier: number;
+	readonly label: string;
+	readonly shared: readonly string[];
+}
+
+const STOP_WORDS = new Set(
+	"about after also another before from have into just more need only over some that their then there these this those very what when where which with without would your".split(
+		" ",
+	),
+);
+
+/** Lowercased #tags, @people, and key nouns (4+ letters, not stop words) in a node's text. */
+function homeSignals(text: string): {tagsAndPeople: Set<string>; words: Set<string>} {
+	const plain = text.replaceAll(/<[^>]*>/gu, " ").toLowerCase();
+	const tagsAndPeople = new Set(plain.match(/[#@][\p{L}\p{N}_-]+/gu));
+	const words = new Set(
+		(plain.replaceAll(/[#@][\p{L}\p{N}_-]+/gu, " ").match(/[\p{L}\p{N}]{4,}/gu) ?? []).filter(
+			(w) => !STOP_WORDS.has(w),
+		),
+	);
+	return {tagsAndPeople, words};
+}
+
+/**
+ * Open nodes on the ladder that share a #tag, @person, or key noun with the item text: the
+ * existing project or group node the item may belong under instead of a bare tier. Strongest
+ * overlap first (tags and people count triple), ladder order breaking ties.
+ */
+export function matchLadderHomes(ladder: Ladder, itemText: string): LadderHomeMatch[] {
+	const item = homeSignals(itemText);
+	const scored: {match: LadderHomeMatch; score: number; index: number}[] = [];
+	for (const t of ladder.tiers) {
+		for (const node of t.items) {
+			const signals = homeSignals(node.name);
+			const sharedTags = [...item.tagsAndPeople].filter((s) => signals.tagsAndPeople.has(s));
+			const sharedWords = [...item.words].filter((w) => signals.words.has(w));
+			const shared = [...sharedTags, ...sharedWords];
+			if (shared.length > 0) {
+				scored.push({
+					match: {id: node.id, name: node.name, tier: t.tier, label: t.label, shared},
+					score: sharedTags.length * 3 + sharedWords.length,
+					index: scored.length,
+				});
+			}
+		}
+	}
+	return scored.toSorted((a, b) => b.score - a.score || a.index - b.index).map((entry) => entry.match);
+}
+
 /**
  * Read a ladder that may already be out of shape and report what a rebalance would propose. Every
  * entry is a proposal for the user to confirm; nothing here picks an item. Tiers are numbered
@@ -373,6 +425,7 @@ function main(arguments_: readonly string[]): void {
 	const commands: Readonly<Record<string, (ladder: Ladder) => unknown>> = {
 		rebalance: planRebalance,
 		choices: filingChoices,
+		match: (ladder) => matchLadderHomes(ladder, memberList ?? ""),
 		rescue: (ladder) => planRescue(ladder, memberList === undefined ? undefined : Number(memberList)),
 		group: (ladder) =>
 			planGroup(
@@ -382,9 +435,14 @@ function main(arguments_: readonly string[]): void {
 			),
 	};
 	const run = command !== undefined && Object.hasOwn(commands, command) ? commands[command] : undefined;
-	if (run === undefined || !inputPath || (command === "group" && !memberList)) {
+	if (
+		run === undefined ||
+		!inputPath ||
+		(command === "match" && !memberList) ||
+		(command === "group" && !memberList)
+	) {
 		throw new Error(
-			"usage: asap-tiers.mts <rebalance|choices> <bucket.json> | rescue <bucket.json> [tier] | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)",
+			"usage: asap-tiers.mts <rebalance|choices> <bucket.json> | rescue <bucket.json> [tier] | match <bucket.json> <item text> | group <bucket.json> <id,id,...> [tier]  (a 📌 bucket from `node get --depth 2 --json`)",
 		);
 	}
 	const bucket = parseJson(readFileSync(inputPath, "utf8"));
