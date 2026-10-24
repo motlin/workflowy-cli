@@ -21,7 +21,7 @@ import type {ClickPosition} from "../stores/outline.js";
 import {useRowState} from "../hooks/use-row-state.js";
 import {isSearchExpanded} from "../search-filter.js";
 import {expansionSlide} from "../children-slide.js";
-import {searchClasses, withClasses} from "../search-classes.js";
+import {isSearchHalfExpanded, searchClasses, withClasses} from "../search-classes.js";
 import {FlatCrumbs, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
 import {DayTitlePrefix} from "./day-title-prefix.js";
@@ -60,6 +60,7 @@ interface NodeBulletProps {
 	nodeId: string;
 	isMirror: boolean;
 	showHalo: boolean;
+	keepBullet: boolean;
 	onMouseDown: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 	/** A plain press that did not become a drag; a selected row's bullet clears the selection instead. */
 	onZoom: () => void;
@@ -71,8 +72,8 @@ interface NodeBulletProps {
  * parent shows the halo; a mirror renders a diamond. A press that does not
  * become a drag, or Enter, zooms in. A plain element, not a component, so a resting row mounts no fiber for it.
  */
-function nodeBullet({nodeId, isMirror, showHalo, onMouseDown, onZoom, onClearSelection}: NodeBulletProps) {
-	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo keep-bullet"]
+function nodeBullet({nodeId, isMirror, showHalo, keepBullet, onMouseDown, onZoom, onClearSelection}: NodeBulletProps) {
+	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo", keepBullet && "keep-bullet"]
 		.filter(Boolean)
 		.join(" ");
 	return (
@@ -276,6 +277,7 @@ function NodeName({
 	searching,
 	searchNameClasses,
 }: NodeNameProps) {
+	const search = useOutlineSearchFilter();
 	const isHovered = useIsRowHovered(node.id);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {setItemMenuOpen, toggleExpand, toggleSearchExpansion, resumeEditing} = outlineActions();
@@ -343,7 +345,8 @@ function NodeName({
 			{nodeBullet({
 				nodeId: node.id,
 				isMirror: node.isMirror === true,
-				showHalo: hasChildren && !isExpanded,
+				showHalo: hasChildren && (!isExpanded || (search !== null && isSearchHalfExpanded(node.id, search))),
+				keepBullet: hasChildren && !isExpanded,
 				onMouseDown: handleBulletMouseDown,
 				onZoom: zoomIn,
 				onClearSelection: () => clearSelectionFromBullet(queryClient, node.id),

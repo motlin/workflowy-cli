@@ -14,6 +14,11 @@ function isHalfExpanded(id: string, search: SearchFilter): boolean {
 	return search.halfExpandedIds.has(id) && search.expansion.get(id) !== true;
 }
 
+/** Whether a search shows `id` expanded but not every child: upstream gives such a bullet its halo. */
+export function isSearchHalfExpanded(id: string, search: SearchFilter): boolean {
+	return isHalfExpanded(id, search) && isSearchExpanded(id, search);
+}
+
 /**
  * Upstream's `cw.getAdditionalClassesForSearch` for an outline row. A row created during the search, or a
  * non-matching row shown because its parent was fully expanded, counts as created-for-search: `matches

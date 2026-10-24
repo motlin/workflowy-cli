@@ -432,6 +432,7 @@ body {
 /* FontAwesome 6 svg-core sizing (injected at runtime upstream) */
 .svg-inline--fa {
 	display: inline-block;
+	box-sizing: content-box;
 	height: 1em;
 	overflow: visible;
 	vertical-align: -0.125em;
@@ -824,7 +825,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 	margin: 0;
 	width: 100%;
 	box-sizing: border-box;
-	padding: 7px 0 7px 30px;
+	padding: 7px 2px 7px 30px;
 	font-family: inherit;
 	line-height: 16px;
 	border: 2px inset transparent;
@@ -1008,6 +1009,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Upstream's .matching-node count pill: one line tall, its spinner inline after "Still searching". */
 .matching-node {
+	box-sizing: content-box;
 	line-height: 0.889rem;
 }
 

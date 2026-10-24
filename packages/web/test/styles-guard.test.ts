@@ -256,7 +256,7 @@ describe("page layout styles guard", () => {
 	});
 
 	it("pads the search input's right side only when it carries pr-[72px]", () => {
-		expect(normalized.includes("padding:7px 0 7px 30px;")).toBe(true);
+		expect(normalized.includes("padding:7px 2px 7px 30px;")).toBe(true);
 		expect(normalized.includes(String.raw`.searchBoxInput.pr-\[72px\]{padding-right:72px}`)).toBe(true);
 	});
 

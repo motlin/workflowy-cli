@@ -116,3 +116,12 @@ describe("SearchBox", () => {
 		expect(labelStyle(render({searchInput: "apple"}, false))).toBe("margin-right:6px;width:210px");
 	});
 });
+
+describe("compact search input CSS", () => {
+	it("uses a 2px right padding", async () => {
+		const {readFileSync} = await import("node:fs");
+		const {cssBlock} = await import("./helpers/css-block.js");
+		const styles = readFileSync(new URL("../src/client/styles.css", import.meta.url), "utf8");
+		expect(cssBlock(styles, ".searchBoxInput").padding).toBe("7px 2px 7px 30px");
+	});
+});

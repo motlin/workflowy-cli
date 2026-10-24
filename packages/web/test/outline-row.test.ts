@@ -5,6 +5,8 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
+import {SearchFilterContext} from "../src/client/search-filter-context.js";
+import type {SearchFilter} from "../src/client/search-filter.js";
 import type * as Navigation from "../src/client/navigation.js";
 
 const outlineState = {
@@ -80,13 +82,22 @@ function makeNode(overrides: Partial<NodeResponse>): NodeResponse {
 	};
 }
 
-function render(node: NodeResponse, hasChildren: boolean, isExpanded = false): string {
+function render(
+	node: NodeResponse,
+	hasChildren: boolean,
+	isExpanded = false,
+	search: SearchFilter | null = null,
+): string {
 	outlineState.expandedIds = isExpanded ? new Set([node.id]) : new Set();
 	return renderToStaticMarkup(
 		createElement(
 			QueryClientProvider,
 			{client: new QueryClient()},
-			createElement(OutlineRow, {node: {...node, hasChildren}}),
+			createElement(
+				SearchFilterContext.Provider,
+				{value: search},
+				createElement(OutlineRow, {node: {...node, hasChildren}}),
+			),
 		),
 	);
 }
@@ -110,6 +121,23 @@ describe("OutlineRow bullet markup", () => {
 	it("renders a collapsed parent's bullet with the halo shown", () => {
 		expect(bulletMarkup(render(makeNode({}), true))).toBe(
 			expectedBullet("alice", "bullet bullet--show-halo keep-bullet", DOT_SVG),
+		);
+	});
+
+	it("renders a half-expanded search parent's bullet with the halo but without keep-bullet", () => {
+		const search = {
+			ancestorIds: new Set(["alice"]),
+			halfExpandedIds: new Set(["alice"]),
+			expansion: new Map<string, boolean>(),
+			matchIds: new Set<string>(),
+			nameMatchIds: new Set<string>(),
+			noteMatchIds: new Set<string>(),
+			metaMatchIds: new Set<string>(),
+			createdIds: new Set<string>(),
+			result: {rootHalfExpanded: false},
+		} as unknown as SearchFilter;
+		expect(bulletMarkup(render(makeNode({}), true, false, search))).toBe(
+			expectedBullet("alice", "bullet bullet--show-halo", DOT_SVG),
 		);
 	});
 

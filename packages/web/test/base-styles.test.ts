@@ -79,6 +79,7 @@ describe("upstream base styles", () => {
 	it("ports FontAwesome svg-core sizing", () => {
 		expect(cssBlock(styles, ".svg-inline--fa")).toStrictEqual({
 			display: "inline-block",
+			"box-sizing": "content-box",
 			height: "1em",
 			overflow: "visible",
 			"vertical-align": "-0.125em",
