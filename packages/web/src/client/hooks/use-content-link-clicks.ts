@@ -2,7 +2,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {useEffect} from "react";
 import {contentLinkAction, internalLinkId} from "../content-link-click.js";
 import {isMacPlatform} from "../editable-text-keys.js";
-import {nodeKeys} from "../node-cache.js";
+import {RESOLVED_ID_STALE_TIME, nodeKeys} from "../node-cache.js";
 import {openInPane} from "../pane-commands.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -34,7 +34,7 @@ export function useContentLinkClicks(resolveId: (locationId: string) => Promise<
 				const nodeId = await queryClient.query({
 					queryKey: nodeKeys.resolvedId(locationId),
 					queryFn: async () => resolveId(locationId),
-					staleTime: Number.POSITIVE_INFINITY,
+					staleTime: RESOLVED_ID_STALE_TIME,
 				});
 				if (nodeId === null) {
 					return;

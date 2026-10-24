@@ -4,6 +4,8 @@ import {readJson} from "./read-json.js";
 
 export interface NavigateToTodayDeps {
 	fetch: (url: string, init?: {method?: string}) => Promise<Response>;
+	/** Record that the day's short URL id resolves to `id`, so the zoom needs no lookup request. */
+	seedResolved: (id: string) => unknown;
 	/** Zoom the target pane to `id`: the main outline's URL, or an open pane's own zoom. */
 	zoomTo: (id: string) => unknown;
 	notify: (message: string, type: "info") => unknown;
@@ -63,7 +65,7 @@ export async function findOrEnsureCalendarNode(
  */
 export async function navigateToCalendarDate(
 	target: CalendarTarget,
-	{fetch, zoomTo, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
+	{fetch, seedResolved, zoomTo, notify, startEditing, commitEdit}: NavigateToCalendarDeps,
 ): Promise<void> {
 	commitEdit();
 	const node = await findOrEnsureCalendarNode(target, fetch);
@@ -71,6 +73,7 @@ export async function navigateToCalendarDate(
 		notify(`No calendar page for ${pageLabel(target.date, target.level ?? "day")} yet`, "info");
 		return;
 	}
+	void seedResolved(node.dayId);
 	void zoomTo(node.dayId);
 	if (node.firstChildId !== null) {
 		startEditing(node.firstChildId, 0);

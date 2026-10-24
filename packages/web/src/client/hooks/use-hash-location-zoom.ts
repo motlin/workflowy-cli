@@ -4,7 +4,7 @@ import {useLocation, useNavigate} from "react-router-dom";
 import type {NodeResponse} from "../../node-types.js";
 import {locationUrl, parseLocationHash} from "../location.js";
 import {resolveZoomTarget, zoomToCachedLocation} from "../navigation.js";
-import {cachedResolvedId, nodeKeys} from "../node-cache.js";
+import {RESOLVED_ID_STALE_TIME, cachedResolvedId, nodeKeys} from "../node-cache.js";
 import {PANES_FRAGMENT} from "../pane-url.js";
 import {readJson} from "../read-json.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -48,10 +48,10 @@ export function useHashLocationZoom(): void {
 		queryKey: nodeKeys.resolvedId(id ?? ""),
 		queryFn: id === null ? skipToken : async () => fetchResolvedId(id),
 		initialData: () => (id === null ? undefined : cachedResolvedId(queryClient, id)),
-		staleTime: Number.POSITIVE_INFINITY,
+		staleTime: RESOLVED_ID_STALE_TIME,
 	});
-	const unknown = resolved.data === null;
-	const target = resolveZoomTarget(id, () => resolved.data ?? null);
+	const unknown = resolved.data === null && !resolved.isFetching;
+	const target = resolveZoomTarget(id, () => (resolved.isFetching ? null : (resolved.data ?? null)));
 	const currentUrl = location.pathname + location.hash;
 	const zoomedOnce = useRef(false);
 

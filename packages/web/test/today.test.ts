@@ -22,6 +22,9 @@ function harness(replies: Reply[]) {
 		calls,
 		deps: {
 			fetch,
+			seedResolved: (id: string) => {
+				calls.push(["seedResolved", id]);
+			},
 			zoomTo: (id: string) => {
 				calls.push(["zoomTo", id]);
 			},
@@ -48,6 +51,7 @@ describe("navigateToToday", () => {
 		expect(calls).toStrictEqual([
 			["commitEdit"],
 			["fetch", "/api/v1/calendar/day/20261017", "GET"],
+			["seedResolved", "aaaaaaaa-0000-0000-0000-day000000001"],
 			["zoomTo", "aaaaaaaa-0000-0000-0000-day000000001"],
 		]);
 	});
@@ -58,6 +62,7 @@ describe("navigateToToday", () => {
 		expect(calls).toStrictEqual([
 			["commitEdit"],
 			["fetch", "/api/v1/calendar/day/20261017", "GET"],
+			["seedResolved", "day000000001"],
 			["zoomTo", "day000000001"],
 			["startEditing", "kid000000001", 0],
 		]);
@@ -73,6 +78,7 @@ describe("navigateToToday", () => {
 			["commitEdit"],
 			["fetch", "/api/v1/calendar/day/20261017", "GET"],
 			["fetch", "/api/v1/calendar/day/20261017/ensure", "POST"],
+			["seedResolved", "day000000002"],
 			["zoomTo", "day000000002"],
 			["startEditing", "kid000000002", 0],
 		]);
@@ -104,6 +110,7 @@ describe("navigateToCalendarDate", () => {
 			["commitEdit"],
 			["fetch", "/api/v1/calendar/day/20261101?level=month", "GET"],
 			["fetch", "/api/v1/calendar/day/20261101/ensure?level=month&createChild=false", "POST"],
+			["seedResolved", "month0000001"],
 			["zoomTo", "month0000001"],
 		]);
 	});
@@ -125,6 +132,7 @@ describe("navigateToCalendarDate", () => {
 			day: [
 				["commitEdit"],
 				["fetch", "/api/v1/calendar/day/20260930", "GET"],
+				["seedResolved", "day000000003"],
 				["zoomTo", "day000000003"],
 				["startEditing", "kid000000003", 0],
 			],

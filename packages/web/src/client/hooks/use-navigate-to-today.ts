@@ -1,3 +1,5 @@
+import {useQueryClient} from "@tanstack/react-query";
+import {seedResolvedId} from "../node-cache.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {editorElement} from "../caret-dom.js";
 import {locationUrl} from "../location.js";
@@ -11,10 +13,14 @@ import type {CalendarTarget, NavigateToCalendarDeps} from "../today.js";
  */
 function useCalendarDeps(zoomTo?: (id: string) => void): () => NavigateToCalendarDeps {
 	const navigate = useStableNavigate();
+	const queryClient = useQueryClient();
 	return () => {
 		const store = useOutlineStore.getState();
 		return {
 			fetch: globalThis.fetch,
+			seedResolved: (id) => {
+				seedResolvedId(queryClient, id);
+			},
 			zoomTo:
 				zoomTo ??
 				((id) => {

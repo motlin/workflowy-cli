@@ -691,6 +691,13 @@ export class WorkflowyInternalAdapter {
 		});
 		const tree = this.tree();
 		let live = false;
+		// Parents read live: the cache lagged Workflowy there, so they are cached before returning.
+		const liveParents: string[] = [];
+		const cacheLiveParents = async (parents: string[]): Promise<void> => {
+			if (parents.length > 0) {
+				await tree.refreshChain(parents);
+			}
+		};
 		const lookUp = async (
 			parentId: string,
 			matches: (ids: string[]) => string | undefined,
@@ -704,6 +711,7 @@ export class WorkflowyInternalAdapter {
 				live = true;
 			}
 			const children = (await tree.liveChildren(parentId)).map((child) => child.id);
+			liveParents.push(parentId);
 			return {found: matches(children), children};
 		};
 
@@ -742,20 +750,25 @@ export class WorkflowyInternalAdapter {
 			}
 			const chain = specs.slice(position, end).map(toCreate);
 			const childId = end === specs.length && createChild ? this.generateId() : undefined;
+			const chainParentId = parentId;
 			await this.createCalendarChain(parentId, index, chain, childId);
 			created.push(...chain.map((node) => node.id), ...(childId === undefined ? [] : [childId]));
 			parentId = chain.at(-1)?.id ?? parentId;
 			if (end === specs.length) {
+				await cacheLiveParents(liveParents.filter((other) => other !== chainParentId));
 				return {dayId: parentId, firstChildId: childId ?? null, created};
 			}
 			position = end - 1;
 		}
 		let {found: firstChildId = null} = await lookUp(parentId, (ids) => ids[0]);
+		let alreadyCached: string | undefined;
 		if (firstChildId === null && createChild) {
 			firstChildId = this.generateId();
 			await this.createCalendarChain(parentId, 0, [], firstChildId);
 			created.push(firstChildId);
+			alreadyCached = parentId;
 		}
+		await cacheLiveParents(liveParents.filter((other) => other !== alreadyCached));
 		return {dayId: parentId, firstChildId, created};
 	}
 

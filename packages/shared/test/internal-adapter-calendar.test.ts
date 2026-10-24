@@ -347,6 +347,7 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 			calls: [
 				["live", M10],
 				["live", D1017],
+				["refresh", [M10, D1017]],
 			],
 		});
 	});
@@ -366,6 +367,7 @@ describe("WorkflowyInternalAdapter.ensureCalendarDay", () => {
 				["moveTo", {ids: [M10], parentId: Y2026, index: 1}],
 				["live", M10],
 				["live", D1017],
+				["refresh", [Y2026, M10, D1017]],
 			],
 		});
 	});

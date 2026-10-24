@@ -3,7 +3,7 @@ import {useEffect, useRef} from "react";
 import {z} from "zod";
 import {NavigationType, useLocation, useNavigate, useNavigationType} from "react-router-dom";
 import {parseLocationHash} from "../location.js";
-import {nodeKeys} from "../node-cache.js";
+import {RESOLVED_ID_STALE_TIME, nodeKeys} from "../node-cache.js";
 import {
 	PANE_RUNTIME_KEY,
 	PANES_FRAGMENT,
@@ -49,9 +49,10 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 		queries: locations.map((locationId) => ({
 			queryKey: nodeKeys.resolvedId(locationId),
 			queryFn: async () => resolveId(locationId),
-			staleTime: Number.POSITIVE_INFINITY,
+			staleTime: RESOLVED_ID_STALE_TIME,
 		})),
-		combine: (results) => results.map((result) => result.data),
+		combine: (results) =>
+			results.map((result) => (result.data === null && result.isFetching ? undefined : result.data)),
 	});
 	// The resolved locations as a string, so the URL effect re-runs only when one of them resolves.
 	const resolvedKey = JSON.stringify(

@@ -24,6 +24,10 @@ export const nodeKeys = {
 	resolvedId: (locationId: string) => [...nodeKeys.all, "resolved-id", locationId] as const,
 };
 
+/** A resolved id stays fresh forever, except a `null` (not found): that is re-resolved on the next use, as upstream re-resolves every navigation. */
+export const RESOLVED_ID_STALE_TIME = (query: {state: {data: string | null | undefined}}): number =>
+	query.state.data === null ? 0 : Number.POSITIVE_INFINITY;
+
 /** Record that `nodeId`'s short URL id resolves to it, so navigating to its URL needs no `GET /nodes/:id` lookup. */
 export function seedResolvedId(queryClient: QueryClient, nodeId: string): void {
 	queryClient.setQueryData(nodeKeys.resolvedId(shortId(nodeId)), nodeId);
