@@ -414,14 +414,7 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 								<FaIcon icon="fal:calendar-day" />
 							</IconButton>
 						</div>
-						<HeaderMoreMenu
-							anchorSelector={`[data-pane-id="${id}"] .gearMenu`}
-							compact
-							onRedo={onRedo}
-							paneId={id}
-							onUndo={onUndo}
-							zoomedId={pane.zoomedId}
-						/>
+						<HeaderMoreMenu compact onRedo={onRedo} paneId={id} onUndo={onUndo} zoomedId={pane.zoomedId} />
 						<IconButton
 							className="text-tertiary hover:text-on-surface flex-shrink-0"
 							onClick={() => {

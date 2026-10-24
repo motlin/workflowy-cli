@@ -12,6 +12,8 @@ interface IconButtonProps extends Omit<HTMLAttributes<HTMLDivElement>, "onClick"
 	disabled?: boolean;
 	tooltip?: ReactNode;
 	shortcut?: string;
+	/** Upstream's `icon` attribute naming the glyph, set on the Back and Forward buttons. */
+	icon?: string;
 	onClick?: MouseEventHandler<HTMLDivElement>;
 	children?: ReactNode;
 	[dataAttribute: `data-${string}`]: string | undefined;

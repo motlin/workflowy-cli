@@ -1,10 +1,12 @@
 import {selectCompletedVisibility} from "../completed-visibility.js";
 import type {ReactNode} from "react";
 import {locationKey} from "@workflowy/shared";
+import {HOME_TARGET} from "@workflowy/shared/types";
 import {useChildren, useHome, useNode} from "../hooks/use-nodes.js";
 import {useShowCompletedToggle} from "../hooks/use-show-completed-toggle.js";
 import {useStarActions, useStars} from "../hooks/use-starred.js";
 import {internalLinkUrl} from "../item-menu-model.js";
+import {pickerItemTypes} from "../item-type-select.js";
 import {currentTypeIcon} from "../layout-types.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
@@ -24,8 +26,11 @@ export interface HeaderActions {
 	toggleCompleted: () => void;
 	/** A revealing search forces completed rows, so upstream renders no toggle. */
 	completedForced: boolean;
-	/** Upstream: showItemTypePicker at {top: rect.bottom + 4, left: rect.left}; the picker centers itself there. */
-	openLayoutPicker: (anchor: Element | null) => void;
+	/**
+	 * Upstream's compact "Change layout" `getMenuAnchor`: opens the picker over the last visible flyout (the more menu
+	 * itself), horizontally centered on it with its top 4px above the flyout's top.
+	 */
+	openLayoutPickerOverMenu: () => void;
 }
 
 /** The compactable header actions acting on `zoomedId` (null is Home). */
@@ -67,10 +72,15 @@ export function useHeaderActions(zoomedId: string | null): HeaderActions {
 			}
 		},
 		toggleCompleted,
-		openLayoutPicker: (anchor) => {
-			if (anchor) {
-				const rect = anchor.getBoundingClientRect();
-				showItemTypePicker({nodeIds: [zoomedId ?? "home"], position: {top: rect.bottom + 4, left: rect.left}});
+		openLayoutPickerOverMenu: () => {
+			const flyout = [...document.querySelectorAll(".flyout.menu")]
+				.map((element) => element.getBoundingClientRect())
+				.findLast((rect) => rect.width > 0 && rect.height > 0);
+			if (flyout) {
+				showItemTypePicker({
+					nodeIds: [zoomedId ?? HOME_TARGET],
+					position: {top: flyout.top - 4, left: flyout.left + flyout.width / 2},
+				});
 			}
 		},
 	};
@@ -78,13 +88,9 @@ export function useHeaderActions(zoomedId: string | null): HeaderActions {
 
 /**
  * The compactable actions as more-menu rows, like upstream's `more-menu.menu.header.*`. Change layout has no element
- * of its own, so its picker opens under the kebab that `anchorSelector` finds, like upstream.
+ * of its own, so its picker opens over the more menu, like upstream.
  */
-export function compactHeaderItems(
-	actions: HeaderActions,
-	zoomedId: string | null,
-	anchorSelector: string,
-): GearMenuHeaderItem[] {
+export function compactHeaderItems(actions: HeaderActions, zoomedId: string | null): GearMenuHeaderItem[] {
 	const items: GearMenuHeaderItem[] = [];
 	if (zoomedId !== null) {
 		items.push({label: "Share", icon: <FaIcon icon="fal:user-plus" />, onSelect: actions.share});
@@ -109,12 +115,12 @@ export function compactHeaderItems(
 			onSelect: actions.toggleCompleted,
 		});
 	}
-	items.push({
-		label: "Change layout",
-		icon: actions.layoutIcon,
-		onSelect: () => {
-			actions.openLayoutPicker(document.querySelector(anchorSelector));
-		},
-	});
+	if (pickerItemTypes([zoomedId ?? HOME_TARGET]).length > 0) {
+		items.push({
+			label: "Change layout",
+			icon: actions.layoutIcon,
+			onSelect: actions.openLayoutPickerOverMenu,
+		});
+	}
 	return items;
 }

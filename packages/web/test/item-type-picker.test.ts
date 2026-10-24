@@ -1,6 +1,4 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {existsSync, readFileSync} from "node:fs";
-import {fileURLToPath} from "node:url";
 import {createElement} from "react";
 import type {ReactNode, ReactPortal} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
@@ -19,26 +17,14 @@ class FakeElement {
 vi.stubGlobal("HTMLElement", FakeElement);
 vi.stubGlobal("document", {activeElement: new FakeElement(), body: {classList: {add: () => {}, remove: () => {}}}});
 
-const {ItemTypePicker, itemTypePickerItems} = await import("../src/client/components/layout-menu.js");
-
-// The upstream dump lives under the gitignored .llm/ tree, so it exists only in the main checkout.
-const dumpPath = fileURLToPath(
-	new URL("../../../.llm/upstream-sync/dumps/layout-modes-upstream-dom.html", import.meta.url),
-);
+const {ItemTypePicker, nodeTypeMenuItems} = await import("../src/client/components/layout-menu.js");
 
 function tokens(className: string): string[] {
 	return className.split(/\s+/u).filter(Boolean);
 }
 
-/** Collapses each class attribute to single-spaced tokens and drops svg path data (stripped in the dump). */
-function normalize(markup: string): string {
-	return markup
-		.replaceAll(/class="([^"]*)"/gu, (_match, className: string) => `class="${tokens(className).join(" ")}"`)
-		.replaceAll(/ d="[^"]*"/gu, "");
-}
-
 function renderItems(): string[] {
-	return itemTypePickerItems(ITEM_TYPES, () => {}).map((item) => renderToStaticMarkup(item));
+	return nodeTypeMenuItems(ITEM_TYPES, () => {}).map((item) => renderToStaticMarkup(item));
 }
 
 function anchorAttribute(markup: string, name: string): string | undefined {
@@ -50,48 +36,43 @@ const UPSTREAM_ROW_CLASS =
 	"pl-l py-xs pr-l block !no-underline cursor-pointer whitespace-nowrap leading-base border-solid border-primary text-primary hover:bg-secondary mobile:border-t mobile:last:border-b mobile:py-ml mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right menuItem";
 
 describe("ItemTypePicker items", () => {
-	it("renders the twelve upstream rows with item-type class tokens, handbooks and labels in order", () => {
+	it("renders the twelve turn_into rows with exact upstream class tokens, handbooks and labels in order", () => {
 		const rows = renderItems();
 		expect(
 			rows.map((row) => ({
 				classes: tokens(anchorAttribute(row, "class") ?? ""),
-				handbook: anchorAttribute(row, "data-handbook") ?? "-",
+				handbook: anchorAttribute(row, "data-handbook"),
 				placement: anchorAttribute(row, "data-handbook-placement"),
 				label: /<\/div>([^<]*)<\/span>/u.exec(row)?.[1],
+				shortcut: row.includes("shortcut"),
 			})),
 		).toStrictEqual(
 			[
-				["bullets", "toggle_bullet", "Bullets"],
-				["h1", "toggle_h1", "Heading 1"],
-				["h2", "toggle_h2", "Heading 2"],
-				["h3", "toggle_h3", "Heading 3"],
-				["p", "toggle_paragraph", "Paragraph"],
-				["todo", "toggle_todo", "To-do"],
-				["numbered", "-", "Number"],
-				["board", "toggle_board", "Board"],
-				["table", "-", "Table"],
-				["quote-block", "-", "Quote"],
-				["code-block", "-", "Code Block"],
-				["divider", "-", "Divider"],
-			].map(([key, handbook, label]) => ({
-				classes: [...tokens(UPSTREAM_ROW_CLASS), `${key}-item-type`, "canHover"],
+				["turn_into_bullet", "Bullets"],
+				["turn_into_h1", "Heading 1"],
+				["turn_into_h2", "Heading 2"],
+				["turn_into_h3", "Heading 3"],
+				["turn_into_paragraph", "Paragraph"],
+				["turn_into_todo", "To-do"],
+				["turn_into_numbered", "Number"],
+				["turn_into_board", "Board"],
+				["turn_into_table", "Table"],
+				["turn_into_quote_block", "Quote"],
+				["turn_into_code_block", "Code Block"],
+				["turn_into_divider", "Divider"],
+			].map(([handbook, label]) => ({
+				classes: [...tokens(UPSTREAM_ROW_CLASS), "menuItem", "canHover"],
 				handbook,
 				placement: "right",
 				label,
+				shortcut: false,
 			})),
 		);
 	});
 
-	it.skipIf(!existsSync(dumpPath))("renders the Bullets row exactly as the upstream dump", () => {
-		const upstream = readFileSync(dumpPath, "utf8")
-			.split("\n")
-			.find((line) => line.includes('data-handbook="toggle_bullet"'));
-		expect(normalize(renderItems()[0] ?? "")).toBe(normalize(upstream?.trim() ?? ""));
-	});
-
 	it("passes the chosen type to onSelect and blurs the focused picker so it closes", () => {
 		const onSelect = vi.fn<(type: ItemType) => void>();
-		itemTypePickerItems(ITEM_TYPES, onSelect)[7]?.props.onSelect?.();
+		nodeTypeMenuItems(ITEM_TYPES, onSelect)[7]?.props.onSelect?.();
 		expect({selected: onSelect.mock.calls, blurs: blur.mock.calls.length}).toStrictEqual({
 			selected: [[ITEM_TYPES[7]]],
 			blurs: 1,

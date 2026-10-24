@@ -110,7 +110,9 @@ const HEADER = {
 	Flyout: 1,
 	FlyoutSurface: 1,
 	HeaderMoreMenu: 1,
-	ButtonMenu: 1,
+	// The kebab's and the Change layout button's.
+	ButtonMenu: 2,
+	LayoutButtonMenu: 1,
 };
 
 /** The left bar's frame around its Home rows. */

@@ -9,6 +9,7 @@ import {useHeaderActions} from "./header-actions.js";
 import {HeaderMoreMenu} from "./header-more-menu.js";
 import {useBreakpoint} from "../hooks/use-breakpoint.js";
 import {IconButton} from "./icon-button.js";
+import {LayoutButtonMenu} from "./layout-button-menu.js";
 import {NewPaneIcon} from "./new-pane-icon.js";
 import {SearchBox} from "./search-box.js";
 import {StarButton} from "./star-button.js";
@@ -125,7 +126,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 
 	return (
 		<div
-			className={`wf-header header bg-primary${paneOpen ? " wf-pane-header" : ""} border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER}`}
+			className={`wf-header header bg-primary${paneOpen ? " wf-pane-header" : ""} border-b border-solid border-primary${paneOpen ? ` ${PANE_HEADER_ACTIVE_BORDER}` : ""}`}
 			style={{left: leftBarOffset, zIndex: 200}}
 		>
 			{/* Upstream swaps the hamburger for a 16px spacer while the left bar is pinned. */}
@@ -149,13 +150,20 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 			)}
 
 			<div className="pagination">
-				<IconButton data-handbook="nav.back" disabled={!canGoBack} onClick={handleNavigateBack} tooltip="Back">
+				<IconButton
+					data-handbook="nav.back"
+					icon="chevron-left"
+					disabled={!canGoBack}
+					onClick={handleNavigateBack}
+					tooltip="Back"
+				>
 					<FaIcon icon="fal:chevron-left" />
 				</IconButton>
 				{canGoForward && (
 					<IconButton
 						className="sm:flex hidden"
 						data-handbook="nav.forward"
+						icon="chevron-right"
 						onClick={handleNavigateForward}
 						tooltip="Forward"
 					>
@@ -203,7 +211,6 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 							<IconButton
 								data-handbook="complete.toggle"
 								onClick={actions.toggleCompleted}
-								shortcut="⌘O"
 								tooltip={actions.showCompleted ? "Hide completed" : "Show completed"}
 							>
 								<FaIcon
@@ -213,21 +220,11 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 							</IconButton>
 						)}
 
-						{/* Change layout */}
-						<IconButton
-							data-handbook="bullet.layout"
-							onClick={(event) => {
-								actions.openLayoutPicker(event.currentTarget);
-							}}
-							tooltip="Change layout"
-						>
-							{actions.layoutIcon}
-						</IconButton>
+						<LayoutButtonMenu layoutIcon={actions.layoutIcon} nodeId={zoomedNodeId} />
 					</>
 				)}
 
 				<HeaderMoreMenu
-					anchorSelector=".wf-header .gearMenu"
 					compact={compact}
 					onRedo={onRedo}
 					paneId={MAIN_PANE_ID}

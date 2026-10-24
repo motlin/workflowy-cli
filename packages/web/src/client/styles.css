@@ -3022,27 +3022,6 @@ body.moving .itemMenu {
 	right: auto;
 }
 
-/* Mirror banner in context menu */
-.mirror-banner {
-	padding: 8px 12px;
-	font-size: 12px;
-	color: var(--color-text-secondary);
-	background-color: var(--color-bg-secondary, #f5f5f5);
-	border-bottom: 1px solid var(--color-border, #e0e0e0);
-}
-.mirror-banner-link {
-	background: none;
-	border: none;
-	color: var(--wf-text-tint);
-	cursor: pointer;
-	font-size: 12px;
-	padding: 0;
-	text-decoration: underline;
-}
-.mirror-banner-link:hover {
-	color: var(--wf-text-tint);
-}
-
 /* Mirrors modal dialog */
 .mirrors-modal-overlay {
 	position: fixed;

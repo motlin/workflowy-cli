@@ -174,7 +174,16 @@ describe("TopBar markup", () => {
 
 	it("renders upstream's wf-header root", () => {
 		expect(html.slice(0, html.indexOf(">") + 1)).toBe(
-			'<div class="wf-header header bg-primary border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint" style="left:0;z-index:200">',
+			'<div class="wf-header header bg-primary border-b border-solid border-primary" style="left:0;z-index:200">',
+		);
+	});
+
+	it("adds the pane-active border class only while a pane is open", () => {
+		storeState.panes = [{id: "BBBBBBBBBBB", zoomedId: "bob"}];
+		const withPane = renderToStaticMarkup(createElement(TopBar));
+		storeState.panes = [];
+		expect(withPane.slice(0, withPane.indexOf(">") + 1)).toContain(
+			"group-data-[pane-active=true]/pane:border-b-tint",
 		);
 	});
 
@@ -183,7 +192,7 @@ describe("TopBar markup", () => {
 		const pinned = renderToStaticMarkup(createElement(TopBar));
 		storeState.leftBarOffset = () => 0;
 		expect(pinned.slice(0, pinned.indexOf(">") + 1)).toBe(
-			'<div class="wf-header header bg-primary border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint" style="left:296px;z-index:200">',
+			'<div class="wf-header header bg-primary border-b border-solid border-primary" style="left:296px;z-index:200">',
 		);
 	});
 
@@ -220,7 +229,7 @@ function svg(name: string, width: number): string {
 describe("TopBar left controls", () => {
 	it("renders a disabled Back and no Forward on an empty stack", () => {
 		expect(paginationInner(renderWithNav(false, false))).toBe(
-			`<div role="button" tabindex="-1" aria-disabled="true" data-handbook="nav.back" class="iconButton lg shape-circle disabled">${svg("chevron-left", 320)}</div>`,
+			`<div role="button" tabindex="-1" aria-disabled="true" data-handbook="nav.back" icon="chevron-left" class="iconButton lg shape-circle disabled">${svg("chevron-left", 320)}</div>`,
 		);
 	});
 
@@ -232,14 +241,14 @@ describe("TopBar left controls", () => {
 		storeState.panes = [];
 		storeState.mainPaneHistory = {back: [], forward: []};
 		expect(paginationInner(html)).toBe(
-			`<div role="button" tabindex="0" data-handbook="nav.back" class="iconButton lg shape-circle">${svg("chevron-left", 320)}</div>`,
+			`<div role="button" tabindex="0" data-handbook="nav.back" icon="chevron-left" class="iconButton lg shape-circle">${svg("chevron-left", 320)}</div>`,
 		);
 	});
 
 	it("renders enabled Back and a sm:flex Forward when both stacks are non-empty", () => {
 		expect(paginationInner(renderWithNav(true, true))).toBe(
-			`<div role="button" tabindex="0" data-handbook="nav.back" class="iconButton lg shape-circle">${svg("chevron-left", 320)}</div>` +
-				`<div role="button" tabindex="0" data-handbook="nav.forward" class="sm:flex hidden iconButton lg shape-circle">${svg("chevron-right", 320)}</div>`,
+			`<div role="button" tabindex="0" data-handbook="nav.back" icon="chevron-left" class="iconButton lg shape-circle">${svg("chevron-left", 320)}</div>` +
+				`<div role="button" tabindex="0" data-handbook="nav.forward" icon="chevron-right" class="sm:flex hidden iconButton lg shape-circle">${svg("chevron-right", 320)}</div>`,
 		);
 	});
 
@@ -559,6 +568,7 @@ describe("TopBar show completed toggle", () => {
 			`<div role="button" tabindex="0" data-handbook="complete.toggle" class="iconButton lg shape-circle">${svg("check", 448)}</div>`,
 		);
 		expect(iconButtonProps.get("complete.toggle")?.tooltip).toBe("Show completed");
+		expect(iconButtonProps.get("complete.toggle")?.shortcut).toBeUndefined();
 	});
 
 	it("renders no toggle, and no more-menu entry, while the search forces completed rows", () => {
@@ -584,6 +594,7 @@ describe("TopBar show completed toggle", () => {
 			`<div role="button" tabindex="0" data-handbook="complete.toggle" class="iconButton lg shape-circle">${svgStyled("check", 448, "color:var(--wf-text-tint)")}</div>`,
 		);
 		expect(iconButtonProps.get("complete.toggle")?.tooltip).toBe("Hide completed");
+		expect(iconButtonProps.get("complete.toggle")?.shortcut).toBeUndefined();
 	});
 });
 
@@ -650,48 +661,53 @@ function layoutIcon(html: string): string | undefined {
 	return /data-icon="([^"]*)"/u.exec(button)?.[1];
 }
 
-/** Click Change layout with its element reporting `rect`, and return what the picker store received. */
-function clickLayout(rect: {left: number; bottom: number}): unknown[] {
-	pickerCalls.length = 0;
-	const currentTarget = {getBoundingClientRect: () => rect};
-	const onClick = iconButtonProps.get("bullet.layout")?.onClick as unknown as (event: unknown) => void;
-	onClick({currentTarget});
-	return [...pickerCalls];
+/** The wrapper markup around the Change layout button, from the ButtonMenu trigger to the end of the IconButton. */
+function layoutControl(html: string): string {
+	const marker = 'data-handbook="bullet.layout"';
+	const start = html.lastIndexOf('<div tabindex="0"', html.indexOf(marker));
+	const end = html.indexOf("</svg></div></div></div>", html.indexOf(marker)) + "</svg></div></div></div>".length;
+	return html.slice(start, end).replaceAll(/ d="[^"]*"/gu, "");
 }
 
 describe("TopBar Change layout button", () => {
-	it("shows the zoomed item's type icon and opens the picker under the button", () => {
+	it("renders a ButtonMenu trigger around the zoomed item's type icon", () => {
 		nodeState.layoutMode = "h2";
 		const html = renderToStaticMarkup(createElement(TopBar));
 		nodeState.layoutMode = null;
 		expect(layoutIcon(html)).toBe("h2");
-		expect(clickLayout({left: 1131, bottom: 42})).toStrictEqual([
-			{nodeIds: ["alice"], position: {top: 46, left: 1131}},
-		]);
+		expect(layoutControl(html)).toBe(
+			`<div tabindex="0" class="relative outline-none menu "><div><div role="button" tabindex="0" data-handbook="bullet.layout" class="iconButton lg shape-circle">${svg("h2", 640)}</div></div></div>`,
+		);
 	});
 
-	it("shows Home's layout icon at Home and opens the picker on the home node", () => {
+	it("opens no picker from the button itself", () => {
+		pickerCalls.length = 0;
+		renderToStaticMarkup(createElement(TopBar));
+		expect(pickerCalls).toStrictEqual([]);
+	});
+
+	it("shows Home's layout icon at Home", () => {
 		storeState.zoomedNodeId = null;
 		homeState.layoutMode = "board";
 		const html = renderToStaticMarkup(createElement(TopBar));
 		homeState.layoutMode = undefined;
 		storeState.zoomedNodeId = "alice";
 		expect(layoutIcon(html)).toBe("columns-3");
-		expect(clickLayout({left: 1131, bottom: 42})).toStrictEqual([
-			{nodeIds: ["home"], position: {top: 46, left: 1131}},
-		]);
 	});
 
-	it("opens the picker under the kebab from the compact more menu", () => {
+	it("opens the picker over the last visible flyout from the compact more menu", () => {
 		pickerCalls.length = 0;
 		renderCompact("alice");
+		const rect = (left: number, top: number, width: number, height: number) => ({
+			getBoundingClientRect: () => ({left, top, width, height}),
+		});
 		vi.stubGlobal("document", {
-			querySelector: (selector: string) =>
-				selector === ".wf-header .gearMenu" ? {getBoundingClientRect: () => ({left: 1200, bottom: 44})} : null,
+			querySelectorAll: (selector: string) =>
+				selector === ".flyout.menu" ? [rect(10, 10, 0, 0), rect(600, 50, 228, 500), rect(0, 0, 0, 0)] : [],
 		});
 		gearMenuProps.headerItems?.find((item) => item.label === "Change layout")?.onSelect();
 		vi.unstubAllGlobals();
-		expect(pickerCalls).toStrictEqual([{nodeIds: ["alice"], position: {top: 48, left: 1200}}]);
+		expect(pickerCalls).toStrictEqual([{nodeIds: ["alice"], position: {top: 46, left: 714}}]);
 	});
 });
 

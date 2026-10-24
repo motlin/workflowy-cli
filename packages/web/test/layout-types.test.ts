@@ -7,18 +7,42 @@ const NORMAL: ItemTypeContext = {isRoot: false, isMainDocumentRoot: false, readO
 describe("ITEM_TYPES", () => {
 	it("lists the upstream turn-into types in menu order", () => {
 		expect(ITEM_TYPES).toStrictEqual([
-			{key: "bullet", label: "Bullets", layoutModeKey: "bullets", icon: "list-ul", handbook: "toggle_bullet"},
-			{key: "h1", label: "Heading 1", layoutModeKey: "h1", icon: "h1", handbook: "toggle_h1"},
-			{key: "h2", label: "Heading 2", layoutModeKey: "h2", icon: "h2", handbook: "toggle_h2"},
-			{key: "h3", label: "Heading 3", layoutModeKey: "h3", icon: "h3", handbook: "toggle_h3"},
-			{key: "p", label: "Paragraph", layoutModeKey: "p", icon: "paragraph", handbook: "toggle_paragraph"},
-			{key: "todo", label: "To-do", layoutModeKey: "todo", icon: "list-check", handbook: "toggle_todo"},
-			{key: "numbered", label: "Number", layoutModeKey: "numbered", icon: "list-ol"},
-			{key: "board", label: "Board", layoutModeKey: "board", icon: "columns-3", handbook: "toggle_board"},
-			{key: "table", label: "Table", layoutModeKey: "table", icon: "table-cells"},
-			{key: "quote-block", label: "Quote", layoutModeKey: "quote-block", icon: "block-quote"},
-			{key: "code-block", label: "Code Block", layoutModeKey: "code-block", icon: "rectangle-code"},
-			{key: "divider", label: "Divider", layoutModeKey: "divider", icon: "horizontal-rule"},
+			{key: "bullet", label: "Bullets", layoutModeKey: "bullets", icon: "list-ul", command: "turn_into_bullet"},
+			{key: "h1", label: "Heading 1", layoutModeKey: "h1", icon: "h1", command: "turn_into_h1"},
+			{key: "h2", label: "Heading 2", layoutModeKey: "h2", icon: "h2", command: "turn_into_h2"},
+			{key: "h3", label: "Heading 3", layoutModeKey: "h3", icon: "h3", command: "turn_into_h3"},
+			{key: "p", label: "Paragraph", layoutModeKey: "p", icon: "paragraph", command: "turn_into_paragraph"},
+			{key: "todo", label: "To-do", layoutModeKey: "todo", icon: "list-check", command: "turn_into_todo"},
+			{
+				key: "numbered",
+				label: "Number",
+				layoutModeKey: "numbered",
+				icon: "list-ol",
+				command: "turn_into_numbered",
+			},
+			{key: "board", label: "Board", layoutModeKey: "board", icon: "columns-3", command: "turn_into_board"},
+			{key: "table", label: "Table", layoutModeKey: "table", icon: "table-cells", command: "turn_into_table"},
+			{
+				key: "quote-block",
+				label: "Quote",
+				layoutModeKey: "quote-block",
+				icon: "block-quote",
+				command: "turn_into_quote_block",
+			},
+			{
+				key: "code-block",
+				label: "Code Block",
+				layoutModeKey: "code-block",
+				icon: "rectangle-code",
+				command: "turn_into_code_block",
+			},
+			{
+				key: "divider",
+				label: "Divider",
+				layoutModeKey: "divider",
+				icon: "horizontal-rule",
+				command: "turn_into_divider",
+			},
 		]);
 	});
 });

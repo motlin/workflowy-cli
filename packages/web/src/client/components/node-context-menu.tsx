@@ -147,27 +147,47 @@ function MirrorBanner({
 		return null;
 	}
 
-	const handleSeeAll = (event: React.MouseEvent) => {
-		event.stopPropagation();
-		onShowMirrors(mirrorsData);
-	};
-
 	return (
-		<div className="mirror-banner">
-			<span>Node has {mirrorsData.mirrors.length} mirrors. </span>
+		<MirrorBannerView
+			count={mirrorsData.mirrors.length}
+			onSeeThem={() => {
+				onShowMirrors(mirrorsData);
+			}}
+		/>
+	);
+}
+
+/** Upstream's banner markup: `Node has N mirrors.` and a "See them" link that keeps focus on the menu trigger. */
+export function MirrorBannerView({count, onSeeThem}: {count: number; onSeeThem: () => void}) {
+	return (
+		<div className="flex flex-wrap justify-center py-m bg-tertiary !mt-0 mb-1.5 rounded-t-md border-b border-primary text-primary text-2xs">
+			<span>Node has {count} mirrors.</span>
 			{/* Upstream's link prevents mousedown so focus stays on the menu trigger and the menu stays open. */}
-			<button
-				className="mirror-banner-link"
-				onClick={handleSeeAll}
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, jsx-a11y/anchor-is-valid -- verbatim upstream markup */}
+			<a
+				className="underline my-0 mx-xs"
+				onClick={(event) => {
+					event.stopPropagation();
+					onSeeThem();
+				}}
 				onMouseDown={(event) => {
 					event.preventDefault();
 				}}
-				type="button"
 			>
 				See them
-			</button>
+			</a>
 		</div>
 	);
+}
+
+/** The node whose mirrors the banner lists: the original of a mirror, or an original that has mirrors; else none. */
+export function mirrorBannerOriginalId(
+	node: Pick<NodeResponse, "id" | "isMirror" | "hasMirrors" | "originalNodeId">,
+): string | null {
+	if (node.isMirror === true) {
+		return node.originalNodeId ?? null;
+	}
+	return node.hasMirrors === true ? node.id : null;
 }
 
 export interface ItemMenuActions {
@@ -217,6 +237,7 @@ export function ItemMenuBody({
 	const paneId = usePaneId();
 	const qualifiers = qualifyItemMenu(node, paneId === MAIN_PANE_ID ? [] : ["is_inside_side_pane"]);
 	const entries = buildItemMenu(node, qualifiers);
+	const mirrorOriginalId = mirrorBannerOriginalId(node);
 	/** Runs the action, then closes the menu (returning false so MenuItem does not keep it open). */
 	const thenClose = (run: () => void) => (): boolean => {
 		run();
@@ -260,13 +281,13 @@ export function ItemMenuBody({
 
 	return (
 		<>
-			{node.isMirror && node.originalNodeId && (
+			{mirrorOriginalId !== null && (
 				<MirrorBanner
 					onShowMirrors={(data) => {
 						onClose();
 						onShowMirrors(data);
 					}}
-					originalNodeId={node.originalNodeId}
+					originalNodeId={mirrorOriginalId}
 				/>
 			)}
 			{renderAssembledMenu(entries, {

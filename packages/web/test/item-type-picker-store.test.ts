@@ -95,15 +95,41 @@ describe("selectItemType", () => {
 		expect(calls).toStrictEqual({updates: [{nodeId: "alice", layoutMode: "h2"}], expanded: []});
 	});
 
-	it("toggles Divider on the first node through the layout toggle plan", () => {
-		const on = recordingDeps({});
+	it("sets Divider on a node that is not one, and keeps an existing divider", () => {
+		const on = recordingDeps({}, {bob: "h2"});
 		selectItemType(itemType("divider"), ["alice", "bob"], on.deps);
 		const off = recordingDeps({}, {alice: "divider"});
 		selectItemType(itemType("divider"), ["alice"], off.deps);
 		expect([on.calls, off.calls]).toStrictEqual([
-			{updates: [{nodeId: "alice", layoutMode: "divider"}], expanded: []},
-			{updates: [{nodeId: "alice", layoutMode: "bullets"}], expanded: []},
+			{
+				updates: [
+					{nodeId: "alice", layoutMode: "divider"},
+					{nodeId: "bob", layoutMode: "divider"},
+				],
+				expanded: [],
+			},
+			{updates: [], expanded: []},
 		]);
+	});
+
+	it("keeps the current type when chosen again", () => {
+		const {calls, deps} = recordingDeps({}, {alice: "h2"});
+		selectItemType(itemType("h2"), ["alice"], deps);
+		expect(calls).toStrictEqual({updates: [{nodeId: "alice", layoutMode: "h2"}], expanded: []});
+	});
+
+	it("skips Home for types Home cannot become, and writes the rest", () => {
+		const {calls, deps} = recordingDeps({});
+		selectItemType(itemType("h1"), ["home", "alice"], deps);
+		selectItemType(itemType("todo"), ["home"], deps);
+		selectItemType(itemType("board"), ["home"], deps);
+		expect(calls).toStrictEqual({
+			updates: [
+				{nodeId: "alice", layoutMode: "h1"},
+				{nodeId: "home", layoutMode: "board"},
+			],
+			expanded: [[]],
+		});
 	});
 });
 

@@ -16,8 +16,6 @@ interface HeaderMoreMenuProps {
 	paneId: string;
 	/** Upstream's compact header: the compactable actions move into this menu. */
 	compact: boolean;
-	/** Finds this kebab in the DOM, to anchor Change layout's picker under it. */
-	anchorSelector: string;
 	onUndo: () => void;
 	onRedo: () => void;
 }
@@ -26,14 +24,14 @@ interface HeaderMoreMenuProps {
  * The header kebab (upstream's gearMenu wrapper, no tooltip; blue dot omitted with no unread rows locally). Its
  * Expand/Collapse all act on the zoomed item's whole subtree (every top-level item at Home).
  */
-export function HeaderMoreMenu({zoomedId, paneId, compact, anchorSelector, onUndo, onRedo}: HeaderMoreMenuProps) {
+export function HeaderMoreMenu({zoomedId, paneId, compact, onUndo, onRedo}: HeaderMoreMenuProps) {
 	const navigate = useNavigate();
 	const panes = useOutlineStore((state) => state.panes);
 	const openSettings = useOutlineStore((state) => state.openSettings);
 	const expandAll = useExpandAll();
 	const actions = useHeaderActions(zoomedId);
 	const rows = useGearMenuRows({
-		headerItems: compact ? compactHeaderItems(actions, zoomedId, anchorSelector) : [],
+		headerItems: compact ? compactHeaderItems(actions, zoomedId) : [],
 		paneItems: movePaneItems({panes}, paneId, (id, index) => {
 			movePane(navigate, id, index);
 		}),

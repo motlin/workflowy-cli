@@ -17,16 +17,16 @@ function selectType(type: ItemType, onSelect: (type: ItemType) => void): void {
 	}
 }
 
-/** The picker rows: one MenuItem per type, no shortcut and no checked state, like upstream. */
-export function itemTypePickerItems(
+/** The node-type menu rows (`turn_into_*` commands): one MenuItem per type, no shortcut and no checked state, like upstream. */
+export function nodeTypeMenuItems(
 	types: readonly ItemType[],
 	onSelect: (type: ItemType) => void,
 ): ReactElement<MenuItemProps>[] {
 	return types.map((type) => (
 		<MenuItem
 			key={type.key}
-			className={`${type.layoutModeKey}-item-type`}
-			handbook={type.handbook}
+			className="menuItem"
+			handbook={type.command}
 			icon={typeIcon(type.icon)}
 			label={type.label}
 			onSelect={() => {
@@ -58,7 +58,7 @@ export function ItemTypePicker({position, types, onSelect, onClose}: ItemTypePic
 	return createPortal(
 		<div style={{position: "absolute", top: position.top, left: position.left}}>
 			<ButtonMenu ref={menuRef} button={null} minWidth={200} onHide={onClose}>
-				<>{itemTypePickerItems(types, onSelect)}</>
+				<>{nodeTypeMenuItems(types, onSelect)}</>
 			</ButtonMenu>
 		</div>,
 		document.body,

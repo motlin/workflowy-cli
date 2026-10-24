@@ -1,5 +1,5 @@
 import {HOME_TARGET} from "@workflowy/shared/types";
-import {availableItemTypes, planLayoutToggle} from "./layout-types.js";
+import {availableItemTypes} from "./layout-types.js";
 import type {ItemType} from "./layout-types.js";
 
 /** What choosing an item type needs from the outline: writes, expansion and the cached tree. */
@@ -19,33 +19,24 @@ export function pickerItemTypes(nodeIds: readonly string[]): ItemType[] {
 }
 
 /**
- * Upstream's picker select: Board and Table first expand every child of each
- * node so its columns or rows show; Divider runs the divider toggle; every
- * other type writes its layoutMode key to each node.
+ * Upstream's `turn_into_*` execute: it only touches nodes the type is available for (Home cannot become most
+ * types), then sets the type; choosing the current type again keeps it, and Divider never toggles off. Board and
+ * Table first expand every child of each node so the columns or rows show.
  */
 export function selectItemType(type: ItemType, nodeIds: readonly string[], deps: ItemTypeSelectDeps): void {
+	const targets = nodeIds.filter((id) => pickerItemTypes([id]).some((available) => available.key === type.key));
 	if (type.layoutModeKey === "divider") {
-		const plan = planLayoutToggle(
-			"toggle_divider",
-			nodeIds.map((id) => ({
-				id,
-				layoutMode: deps.layoutMode(id),
-				numberedStart: null,
-				name: "",
-				plainName: "",
-				hasChildren: false,
-				hasNote: false,
-			})),
-		);
-		for (const update of plan.updates) {
-			deps.update(update.id, update.layoutMode);
+		for (const id of targets) {
+			if (deps.layoutMode(id) !== "divider") {
+				deps.update(id, "divider");
+			}
 		}
 		return;
 	}
 	if (type.layoutModeKey === "board" || type.layoutModeKey === "table") {
-		deps.expandAll(nodeIds.flatMap((id) => deps.childIds(id)));
+		deps.expandAll(targets.flatMap((id) => deps.childIds(id)));
 	}
-	for (const id of nodeIds) {
+	for (const id of targets) {
 		deps.update(id, type.layoutModeKey);
 	}
 }

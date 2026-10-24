@@ -13,6 +13,8 @@ interface TooltipBoxProps {
 	content: ReactNode;
 	shortcut?: string;
 	state: TooltipState;
+	/** Horizontal arrow offset: half the box width, once measured. */
+	arrowX?: number;
 }
 
 function tooltipText(content: ReactNode, shortcut: string | undefined): ReactNode {
@@ -30,18 +32,25 @@ function tooltipText(content: ReactNode, shortcut: string | undefined): ReactNod
 }
 
 /** Upstream's tippy box markup (`.tippy-box.wf-helper.tooltip`), rendered without positioning. */
-export function TooltipBox({content, shortcut, state}: TooltipBoxProps) {
+export function TooltipBox({content, shortcut, state, arrowX = 0}: TooltipBoxProps) {
 	return (
+		// The literal "undefined" class is upstream's: tippy interpolates an unset theme option into the class list.
 		<div
-			className="tippy-box wf-helper tooltip text-xs shadow-md"
-			data-placement="bottom"
+			className="tippy-box wf-helper tooltip text-xs shadow-md undefined"
 			data-state={state}
+			tabIndex={-1}
+			data-animation="fade"
 			role="tooltip"
 			style={{maxWidth: 350, transitionDuration: "300ms"}}
+			data-placement="bottom"
 		>
-			<div className="tippy-content">
+			<div className="tippy-content" data-state={state} style={{transitionDuration: "300ms"}}>
 				<div>{tooltipText(content, shortcut)}</div>
 			</div>
+			<div
+				className="tippy-arrow"
+				style={{position: "absolute", left: 0, transform: `translate3d(${arrowX}px, 0px, 0px)`}}
+			/>
 		</div>
 	);
 }

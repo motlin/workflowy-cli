@@ -13,13 +13,13 @@ describe("TooltipBox", () => {
 		expect(
 			renderToStaticMarkup(createElement(TooltipBox, {content: "Today", shortcut: "⌃T", state: "visible"})),
 		).toBe(
-			'<div class="tippy-box wf-helper tooltip text-xs shadow-md" data-placement="bottom" data-state="visible" role="tooltip" style="max-width:350px;transition-duration:300ms"><div class="tippy-content"><div>Today ⌃T</div></div></div>',
+			'<div class="tippy-box wf-helper tooltip text-xs shadow-md undefined" data-state="visible" tabindex="-1" data-animation="fade" role="tooltip" style="max-width:350px;transition-duration:300ms" data-placement="bottom"><div class="tippy-content" data-state="visible" style="transition-duration:300ms"><div>Today ⌃T</div></div><div class="tippy-arrow" style="position:absolute;left:0;transform:translate3d(0px, 0px, 0px)"></div></div>',
 		);
 	});
 
 	it("omits the shortcut suffix when there is none", () => {
 		expect(renderToStaticMarkup(createElement(TooltipBox, {content: "Present", state: "hidden"}))).toBe(
-			'<div class="tippy-box wf-helper tooltip text-xs shadow-md" data-placement="bottom" data-state="hidden" role="tooltip" style="max-width:350px;transition-duration:300ms"><div class="tippy-content"><div>Present</div></div></div>',
+			'<div class="tippy-box wf-helper tooltip text-xs shadow-md undefined" data-state="hidden" tabindex="-1" data-animation="fade" role="tooltip" style="max-width:350px;transition-duration:300ms" data-placement="bottom"><div class="tippy-content" data-state="hidden" style="transition-duration:300ms"><div>Present</div></div><div class="tippy-arrow" style="position:absolute;left:0;transform:translate3d(0px, 0px, 0px)"></div></div>',
 		);
 	});
 });
