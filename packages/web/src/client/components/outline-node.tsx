@@ -1,6 +1,8 @@
 // fallow-ignore-file circular-dependency
 // Mutual recursion between OutlineRow and OutlineChildren is intentional.
 import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types.js";
+import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
+import {useIsRowHovered} from "../hooks/use-row-hover.js";
 import {memo, useContext, useMemo, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {childInstance, isCyclical} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
@@ -274,7 +276,7 @@ function NodeName({
 	searching,
 	searchNameClasses,
 }: NodeNameProps) {
-	const [isHovered, setIsHovered] = useState(false);
+	const isHovered = useIsRowHovered(node.id);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const {setItemMenuOpen, toggleExpand, toggleSearchExpansion, resumeEditing} = outlineActions();
 	const cyclical = isCyclical(node, useContext(MirrorInstanceContext));
@@ -326,10 +328,12 @@ function NodeName({
 			className={nameClasses}
 			onClick={handleRowClick}
 			onMouseEnter={() => {
-				setIsHovered(true);
+				setHoveredRowId(node.id);
 			}}
 			onMouseLeave={() => {
-				setIsHovered(false);
+				if (getHoveredRowId() === node.id) {
+					setHoveredRowId(null);
+				}
 			}}
 			role="presentation"
 		>

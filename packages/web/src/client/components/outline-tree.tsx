@@ -41,10 +41,14 @@ import {resolveLayoutMode} from "./layout-mode.js";
 import {NodeItemMenu, OutlineRow, TodoCheckbox} from "./outline-node.js";
 import {useInActivePane, usePaneExpandedIds, usePaneId} from "./pane-context.js";
 import {nameClassName, projectClassName} from "./row-classes.js";
+import {planBlankSpaceClick} from "../blank-space-click.js";
+import {DOCUMENT_END_HEIGHT} from "../page-style.js";
 import {rowClickResumesEditing} from "./row-click.js";
 
 interface OutlineTreeProps {
 	parentId: string | null;
+	/** `"page"` renders the rows and `.document-end` as fragments for the main `.page`; `"pane"` keeps its own scroller. */
+	shell?: "page" | "pane";
 }
 
 /** Upstream's top-level `.children`: no margin, padding, or guide border. */
@@ -569,7 +573,7 @@ export function RootOutlineChildren({parentId}: {parentId: string | null}) {
  * Renders the outline under `parentId` as nested `.project` / `.children` elements,
  * matching upstream's DOM: each expanded row holds its children inline.
  */
-export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
+export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTreeProps) {
 	// The whole expanded view loads in one request before the swap; the root's own query then reads the cache.
 	const viewPending = useOutlineViewPending(requestedId);
 	const children = useChildren(requestedId, !viewPending);
@@ -596,6 +600,7 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 	}, [parentId, scrollsWindow, shownLoading]);
 	const showsAddChild = shouldRenderAddChildButton(usePaneSearchQuery());
 
+	const createNode = useCreateNode();
 	// A click on blank outline space (below or beside the rows) clears any item selection and edits the end of the
 	// last visible row.
 	const handleBlankClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -611,6 +616,42 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 		}
 	};
 
+	// Upstream's `xy4`, wired to `.document-end` only.
+	const handleDocumentEndClick = () => {
+		const {itemSelection, resumeEditing} = useOutlineStore.getState();
+		const view = currentSelectionView(queryClient);
+		const rows = view.rows.filter((row) => row.id !== parentId);
+		const store = useOutlineStore.getState();
+		const visibleChildCount = (children.data ?? []).filter(
+			(node) => store.showCompleted || node.completedAt === null,
+		).length;
+		const plan = planBlankSpaceClick({
+			selectionActive: itemSelection.entries.length > 0,
+			lastVisibleRowId: rows.at(-1)?.id ?? null,
+			searching: search !== null,
+			visibleChildCount,
+		});
+		if (plan.kind === "edit-end") {
+			resumeEditing(plan.id, Number.MAX_SAFE_INTEGER);
+		} else if (plan.kind === "add-child") {
+			const visible = (children.data ?? []).filter((node) => store.showCompleted || node.completedAt === null);
+			const addPlan = planAddChild({
+				childCount: (children.data ?? []).length,
+				zoomedId: parentId,
+				prevVisibleLayout: visible.at(-1)?.data.layoutMode,
+			});
+			const id = crypto.randomUUID();
+			createNode.mutate({
+				id,
+				parent_id: addPlan.parent_id,
+				name: addPlan.name,
+				index: addPlan.index,
+				...(addPlan.layoutMode === null ? {} : {layoutMode: addPlan.layoutMode}),
+			});
+			resumeEditing(id, 0);
+		}
+	};
+
 	if (shownLoading) {
 		return <div className="outline-tree-loading">Loading...</div>;
 	}
@@ -619,19 +660,39 @@ export function OutlineTree({parentId: requestedId}: OutlineTreeProps) {
 		return <div className="outline-tree-error">Error loading nodes: {error.message}</div>;
 	}
 
+	const rows = (
+		<SearchFilterContext.Provider value={search}>
+			<RowLimitsContext.Provider value={rowLimits}>
+				<ZoomRootRow nodeId={parentId}>
+					<RootOutlineChildren parentId={parentId} />
+					{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
+				</ZoomRootRow>
+			</RowLimitsContext.Provider>
+		</SearchFilterContext.Provider>
+	);
+	const sentinel = rowLimits.remaining === 0 ? <RenderSentinel key={budgetRows} onReached={growBudget} /> : null;
+
+	if (shell === "page") {
+		return (
+			<>
+				{rows}
+				{sentinel}
+				{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- a mouse shortcut to the last row; keyboard users move the caret with the arrow keys */}
+				<div
+					className="document-end flex-grow flex-shrink-0 print:hidden"
+					style={{height: DOCUMENT_END_HEIGHT}}
+					onClick={handleDocumentEndClick}
+				/>
+			</>
+		);
+	}
+
 	return (
 		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- a mouse shortcut to the last row; keyboard users move the caret with the arrow keys
 		<div className="outline-tree-container" onClick={handleBlankClick}>
 			<div className="scroller">
-				<SearchFilterContext.Provider value={search}>
-					<RowLimitsContext.Provider value={rowLimits}>
-						<ZoomRootRow nodeId={parentId}>
-							<RootOutlineChildren parentId={parentId} />
-							{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
-						</ZoomRootRow>
-					</RowLimitsContext.Provider>
-				</SearchFilterContext.Provider>
-				{rowLimits.remaining === 0 ? <RenderSentinel key={budgetRows} onReached={growBudget} /> : null}
+				{rows}
+				{sentinel}
 			</div>
 		</div>
 	);

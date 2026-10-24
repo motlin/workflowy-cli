@@ -620,6 +620,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 /* App container */
 .app {
 	min-height: 100vh;
+	overflow: hidden;
 }
 
 /* ================================
@@ -994,23 +995,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 	border-radius: 0.125rem;
 }
 
-/* Outline view container - upstream's .page with full_width_page on: no max-width, 72px top
-   margin, and tl2()'s side padding (80px/136px, or 56px/56px below 720px). */
-.outline-view {
-	padding: 24px 136px 24px 80px;
-	margin: 72px 0 0;
+/* Upstream's .page uses content-box sizing: its min-height and max-width apply to the content box. */
+.page {
+	box-sizing: content-box;
 }
 
-@media (max-width: 719px) {
-	.outline-view {
-		padding-left: 56px;
-		padding-right: 56px;
-	}
-}
-
-/* Upstream's .page.searching: extra bottom room while a search filters the outline. */
-.outline-view.searching {
-	padding-bottom: 70px;
+/* Upstream's .pageContainer clips horizontal overflow of wide content (the document never scrolls sideways)
+   and, as a block formatting context, keeps the page's 72px top margin inside it. */
+.pageContainer {
+	overflow: auto;
 }
 
 /* Upstream's .matching-node count pill: one line tall, its spinner inline after "Still searching". */
@@ -1024,6 +1017,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 /* Upstream's .page.searching .notes.matches>.content: a matched note opens to full height. */
+.page.searching .notes.matches > .content,
 .outline-view.searching .notes.matches > .content {
 	overflow: visible;
 	display: block;
@@ -1056,15 +1050,6 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 .children {
 	--space-for-bullet: 24px;
-}
-
-/* Scroller - inner content padding within scrollable area.
-   Top padding is 0 so the zoomed title sits at the content top (y≈96),
-   matching production workflowy.com; the .outline-view margin+padding
-   already provide the offset below the fixed top bar. Scoped to the outline
-   so the left bar and menu scrollers keep their upstream padding utilities. */
-.outline-tree-container > .scroller {
-	padding: 0 0 40px;
 }
 
 .project {
@@ -1892,8 +1877,8 @@ body.moving .expand {
 
 /* Outline container; the pinned left bar offset is body padding set by LeftBar */
 /* Upstream's .pageContainer: the document scrolls, so the page scrollbar sits at the window edge and the
-   fixed hotkeys panel (inset by the body's padding-right) scrolls on its own. flow-root keeps the
-   .outline-view's 72px top margin inside the container: collapsed through it, the margin pushed the
+   fixed hotkeys panel (inset by the body's padding-right) scrolls on its own. the
+   .pageContainer's overflow keeps the page's 72px top margin inside the container: collapsed through it, the margin pushed the
    100vh-tall container 72px down, so even a short page scrolled (focusing a clicked row scrolled it). */
 .outline-container {
 	display: flow-root;
@@ -2343,6 +2328,7 @@ html {
 }
 
 /* Adjust outline container when related nodes panel is open */
+.outline-container.with-related-panel .pageContainer > .page,
 .outline-container.with-related-panel .outline-view {
 	margin-right: 320px;
 }
@@ -2847,8 +2833,8 @@ body.moving * {
 }
 
 /* Adjust container when offline banner is visible */
-.outline-container:has(.offline-banner) .outline-view {
-	padding-top: 112px; /* 48px top bar + 40px offline banner + 24px spacing */
+.outline-container:has(.offline-banner) .pageContainer {
+	padding-top: 88px; /* the 40px banner and 48px top bar; local divergence, upstream's desktop page does not move offline */
 }
 
 .outline-container:has(.offline-banner) .related-nodes-panel {

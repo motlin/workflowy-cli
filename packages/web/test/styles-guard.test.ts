@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
+import {pageClassName} from "../src/client/page-style.js";
 import {cssBlock, hasSelector} from "./helpers/css-block.js";
 
 const styles = readFileSync(fileURLToPath(new URL("../src/client/styles.css", import.meta.url)), "utf8");
@@ -220,17 +221,34 @@ describe("page layout styles guard", () => {
 		.replaceAll(/\s+/gu, " ")
 		.replaceAll(";}", "}");
 
-	it("sizes .outline-view like upstream's full-width .page (no max-width, 80px/136px padding)", () => {
-		expect(declarationsFor(/^\s*\.outline-view\s*$/u)).toStrictEqual([
-			"padding: 24px 136px 24px 80px;\n\tmargin: 72px 0 0;",
-			"padding-left: 56px;\n\t\tpadding-right: 56px;",
-		]);
+	it("sizes .page as content-box and clips overflow in .pageContainer like upstream", () => {
+		expect({
+			page: declarationsFor(/^\s*\.page\s*$/u),
+			container: declarationsFor(/^\s*\.pageContainer\s*$/u),
+			app: declarationsFor(/^\s*\.app\s*$/u),
+		}).toStrictEqual({
+			page: ["box-sizing: content-box;"],
+			container: ["overflow: auto;"],
+			app: ["min-height: 100vh;\n\toverflow: hidden;"],
+		});
 	});
 
-	it("drops to upstream's 56px side padding below 720px", () => {
-		expect(
-			normalized.includes("@media(max-width:719px){.outline-view{padding-left:56px;padding-right:56px}}"),
-		).toBe(true);
+	it("leaves no bare .outline-view page rule and no offline rule that moves the page", () => {
+		const offlineRules = [...uncommented.matchAll(/([^{}]+)\{([^{}]*)\}/gu)].filter(
+			(match) => /offline-banner/u.test(match[1]) && /(padding|margin)-top/u.test(match[2]),
+		);
+		expect({
+			bareOutlineView: declarationsFor(/^\s*\.outline-view\s*$/u),
+			offlineTargets: offlineRules.map((match) => match[1].trim()),
+		}).toStrictEqual({
+			bareOutlineView: [],
+			offlineTargets: [".outline-container:has(.offline-banner) .pageContainer"],
+		});
+	});
+
+	it("keeps the page chrome unselectable but rows' text selectable", () => {
+		expect(pageClassName({searching: false, showCompleted: false}).split(" ")).toContain("select-none");
+		expect(/\.content\b[^{}]*\{[^}]*user-select:\s*text/u.test(styles)).toBe(true);
 	});
 
 	it("keeps upstream's 30px unzoomed root title row", () => {

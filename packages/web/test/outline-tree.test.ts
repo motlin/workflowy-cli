@@ -669,3 +669,23 @@ describe("OutlineTree with a mirror inside its own original", () => {
 		});
 	});
 });
+
+describe("OutlineTree page shell", () => {
+	it("renders the root project and .document-end as fragments, with no scroller wrappers", () => {
+		const html = renderToStaticMarkup(
+			createElement(
+				QueryClientProvider,
+				{client: new QueryClient()},
+				createElement(OutlineTree, {parentId: null, shell: "page"}),
+			),
+		);
+		expect({
+			startsWithRoot: html.startsWith('<div class="font-custom project'),
+			scroller: html.includes('class="scroller"'),
+			container: html.includes("outline-tree-container"),
+			endsWithDocumentEnd: html.endsWith(
+				'<div class="document-end flex-grow flex-shrink-0 print:hidden" style="height:380px"></div>',
+			),
+		}).toStrictEqual({startsWithRoot: true, scroller: false, container: false, endsWithDocumentEnd: true});
+	});
+});

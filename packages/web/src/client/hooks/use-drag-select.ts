@@ -43,7 +43,7 @@ function suppressNextClick(): void {
 
 /** Where a drag may select: the start row's board column, else the whole outline. */
 function dragScope(name: Element): Element {
-	const outline = name.closest(".outline-tree-container") ?? document.body;
+	const outline = name.closest(".page, .outline-tree-container") ?? document.body;
 	const board = name.parentElement?.parentElement?.closest(".project.board");
 	if (board === null || board === undefined) {
 		return outline;

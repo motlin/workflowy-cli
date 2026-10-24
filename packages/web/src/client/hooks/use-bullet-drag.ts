@@ -302,7 +302,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			if (event.altKey || event.shiftKey) {
 				return;
 			}
-			const container = bullet.closest(".outline-tree-container") ?? document.body;
+			const container = bullet.closest(".page, .outline-tree-container") ?? document.body;
 			const sourceRow = bullet.closest(".project");
 			const node = readNode(queryClient, nodeId);
 			if (node === undefined || sourceRow === null) {

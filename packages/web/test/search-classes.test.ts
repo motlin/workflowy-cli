@@ -148,12 +148,13 @@ describe("page and add button during a search", () => {
 		});
 	});
 
-	it("pads the searching page bottom and opens matched notes to full height", () => {
+	it("opens matched notes to full height", () => {
 		expect({
-			page: cssBlock(styles, ".outline-view.searching"),
-			note: cssBlock(styles, ".outline-view.searching .notes.matches > .content"),
+			note: cssBlock(
+				styles,
+				".page.searching .notes.matches > .content, .outline-view.searching .notes.matches > .content",
+			),
 		}).toStrictEqual({
-			page: {"padding-bottom": "70px"},
 			note: {overflow: "visible", display: "block", "max-height": "none", height: "auto"},
 		});
 	});

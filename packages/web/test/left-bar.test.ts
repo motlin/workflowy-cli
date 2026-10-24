@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from "vite-plus/test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {cssBlock, cssPreludes} from "./helpers/css-block.js";
+import {cssPreludes} from "./helpers/css-block.js";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import type {Star} from "@workflowy/shared";
@@ -443,12 +443,12 @@ describe("left bar styles", () => {
 		expect(styles.includes("with-sidebar")).toBe(false);
 	});
 
-	it("scopes the outline's .scroller padding so the left bar scroller keeps its pt-3xl and pb-m", () => {
-		const preludes = cssPreludes(styles).map((prelude) => prelude.trim());
+	it("adds no .scroller padding rule so the left bar scroller keeps its pt-3xl and pb-m", () => {
+		const preludes = new Set(cssPreludes(styles).map((prelude) => prelude.trim()));
 		expect({
-			bareScroller: preludes.includes(".scroller"),
-			outlineScroller: cssBlock(styles, ".outline-tree-container > .scroller"),
-		}).toStrictEqual({bareScroller: false, outlineScroller: {padding: "0 0 40px"}});
+			bareScroller: preludes.has(".scroller"),
+			outlineScroller: preludes.has(".outline-tree-container > .scroller"),
+		}).toStrictEqual({bareScroller: false, outlineScroller: false});
 	});
 
 	it("removes the body padding when printing", () => {

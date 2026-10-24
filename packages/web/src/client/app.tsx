@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {memo, useEffect} from "react";
+import {memo, useEffect, useState} from "react";
 import {BrowserRouter, Navigate, Route, Routes, useParams} from "react-router-dom";
 
 import {MenusHost} from "./components/menus-host.js";
@@ -40,6 +40,9 @@ import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
+import {pageClassName, pageContainerClassName, pageStyle} from "./page-style.js";
+import {shouldClearSelectionOnPageMouseDown} from "./page-mousedown.js";
+import {useRowHoverController} from "./hooks/use-row-hover.js";
 import {installSaveTracking} from "./hooks/use-saving.js";
 import {queryClientDefaults} from "./query-retry.js";
 import "./reset.css";
@@ -59,18 +62,81 @@ installSaveTracking(queryClient, window);
 function GlobalCommands() {
 	useGlobalKeymap(useCommandRegistry());
 	useSearchEscape();
+	useRowHoverController();
 	return null;
 }
 
 /** The page shell. Memoized, so a URL change re-renders it only through the store fields it selects. */
+/** `window.innerWidth`, tracked on resize: upstream feeds it to the page padding. */
+function useInnerWidth(): number {
+	const [width, setWidth] = useState(() => window.innerWidth);
+	useEffect(() => {
+		const onResize = () => {
+			setWidth(window.innerWidth);
+		};
+		window.addEventListener("resize", onResize);
+		return () => {
+			window.removeEventListener("resize", onResize);
+		};
+	}, []);
+	return width;
+}
+
+function clearSelectionOnPageMouseDown(event: React.MouseEvent<HTMLDivElement>): void {
+	const target = event.target instanceof Element ? event.target : null;
+	const {itemSelection, clearItemSelection} = useOutlineStore.getState();
+	const bullet = target?.closest(".bullet");
+	const bulletRow = bullet?.closest(".project");
+	if (
+		shouldClearSelectionOnPageMouseDown({
+			selectionActive: itemSelection.entries.length > 0,
+			button: event.button,
+			meta: event.metaKey,
+			alt: event.altKey,
+			ctrl: event.ctrlKey,
+			shift: event.shiftKey,
+			onSelectedBullet: bulletRow?.classList.contains("addedToSelection") === true,
+		})
+	) {
+		clearItemSelection();
+	}
+}
+
+export interface PageShellProps {
+	zoomedNodeId: string | null;
+	fullWidth: boolean;
+	/** `window.innerWidth`. */
+	width: number;
+	searching: boolean;
+	showCompleted: boolean;
+}
+
+/** Upstream's `.pageContainer > .page` around the main outline (no pane open). Hook-free, so it adds no fiber. */
+export function pageShell({zoomedNodeId, fullWidth, width, searching, showCompleted}: PageShellProps) {
+	return (
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- upstream clears the item selection on any plain press in the container
+		<div className={pageContainerClassName()} onMouseDown={clearSelectionOnPageMouseDown}>
+			<div className={pageClassName({searching, showCompleted})} style={pageStyle({fullWidth, width, searching})}>
+				<OutlineTree parentId={zoomedNodeId} shell="page" />
+				<SearchCountIndicator />
+			</div>
+		</div>
+	);
+}
+
 /** The main pane's outline under its zoom, styled by its search: the part of the page a zoom or search re-renders. */
 function MainOutline() {
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const searchQuery = useOutlineStore((state) => state.searchQuery);
+	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const width = useInnerWidth();
 	// With a pane open the main outline scrolls itself, like each pane, instead of the document.
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
+	if (!panesOpen) {
+		return pageShell({zoomedNodeId, fullWidth: true, width, searching: searchQuery !== "", showCompleted});
+	}
 	return (
-		<div className={`${outlineViewClassName(searchQuery)}${panesOpen ? " vertical-scrollable-container" : ""}`}>
+		<div className={`${outlineViewClassName(searchQuery)} vertical-scrollable-container`}>
 			<OutlineTree parentId={zoomedNodeId} />
 			<SearchCountIndicator />
 		</div>
