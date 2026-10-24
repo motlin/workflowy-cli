@@ -146,6 +146,11 @@ export function readItemNode(
 	return editedNode?.id === itemId ? editedNode : readNode(queryClient, itemId);
 }
 
+/** `children` without the optimistic row `id`, so one failed create never touches another's pending row. */
+export function removeOptimistic(children: NodeResponse[] | undefined, id: string): NodeResponse[] | undefined {
+	return children?.filter((child) => child.id !== id);
+}
+
 /**
  * Upstream move/insert splice: sort `children` by priority, drop any copy of `row`,
  * insert it at `index` (a move slot, see `spliceBlock`), and renumber priorities `(i+1)*100`.

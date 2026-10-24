@@ -69,6 +69,10 @@ beforeEach(() => {
 				viewBodies.push(JSON.parse(init?.body as string));
 				return Response.json(viewResponse);
 			}
+			if (url.endsWith("/api/v1/nodes")) {
+				// Home's own children query races the view; a real server answers it, a 404 settles on its own timing.
+				return Response.json({nodes: view.lists[0]?.nodes ?? []});
+			}
 			return Response.json({}, {status: 404});
 		}),
 	);

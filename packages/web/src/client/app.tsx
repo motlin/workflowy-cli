@@ -40,58 +40,14 @@ import {buildTagColorCss} from "./tag-color-styles.js";
 import {useOutlineViewState} from "./hooks/use-outline-view-state.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {outlineViewClassName} from "./search-classes.js";
+import {queryClientDefaults} from "./query-retry.js";
 import "./wf-tailwind.css";
 import "./styles.css";
-
-/**
- * Custom retry function that retries transient failures.
- * Does not retry on 4xx client errors (except 408 timeout and 429 rate limit).
- */
-function shouldRetry(failureCount: number, error: Error): boolean {
-	// Max 3 retries
-	if (failureCount >= 3) {
-		return false;
-	}
-
-	// Check for HTTP status in error message
-	const statusDigits = error.message.match(/(\d{3})/u)?.[1];
-	if (statusDigits !== undefined) {
-		const status = Math.trunc(Number(statusDigits));
-		// Don't retry client errors except timeout (408) and rate limit (429)
-		if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
-			return false;
-		}
-	}
-
-	// Retry for network errors and server errors
-	return true;
-}
-
-/**
- * Calculate exponential backoff delay.
- */
-function getRetryDelay(attemptIndex: number): number {
-	// Exponential backoff: 1s, 2s, 4s
-	return Math.min(1000 * 2 ** attemptIndex, 4000);
-}
 
 // Before any query exists: a navigation mounts hundreds of observers, each arming a stale timer.
 installCoalescingTimeoutProvider();
 
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			staleTime: 1000 * 60,
-			refetchOnWindowFocus: false,
-			retry: shouldRetry,
-			retryDelay: getRetryDelay,
-		},
-		mutations: {
-			retry: shouldRetry,
-			retryDelay: getRetryDelay,
-		},
-	},
-});
+const queryClient = new QueryClient({defaultOptions: queryClientDefaults});
 
 /**
  * Registers the keyboard shortcuts. The command registry follows the edited and zoomed nodes, so it lives in this

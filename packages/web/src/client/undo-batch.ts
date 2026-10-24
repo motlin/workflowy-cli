@@ -1,19 +1,11 @@
+import {RequestStatusError} from "./request-error.js";
 import {selectedIdsOf} from "./item-selection.js";
 import {editorElement, selectionTextOffsets} from "./caret-dom.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {sameOp, undoHistory} from "./undo-history.js";
 import type {UndoOp, ViewState} from "./undo-history.js";
 
-/** A failed API request that keeps its HTTP status, so callers can branch on it. */
-export class RequestStatusError extends Error {
-	constructor(
-		readonly status: number,
-		message: string,
-	) {
-		super(message);
-		this.name = "RequestStatusError";
-	}
-}
+export {RequestStatusError};
 
 /**
  * Statuses that mean the outline no longer matches the history: the node is gone (404), was

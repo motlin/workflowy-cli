@@ -33,6 +33,7 @@ import {
 	spliceBlock,
 	spliceChildren,
 	syncParentFlags,
+	removeOptimistic,
 } from "../node-cache.js";
 import {affectedKeys, verifyAgainstServer} from "../cache-verify.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
@@ -44,7 +45,8 @@ import {pendingMoves} from "../pending-moves.js";
 import {toUndoOps} from "../tree-ops.js";
 import {serializeWrite} from "../write-order.js";
 import type {BlockMove, UndoableMutation} from "../tree-ops.js";
-import {RequestStatusError, holdUndoSlot} from "../undo-batch.js";
+import {toRequestStatusError} from "../request-error.js";
+import {holdUndoSlot} from "../undo-batch.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
 
@@ -76,7 +78,7 @@ const loadChildren = createChildrenBatcher(async (parentIds) => {
 		body: JSON.stringify({parentIds}),
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to fetch children: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch children", response);
 	}
 	return (await readJson<{children: Record<string, NodeResponse[]>}>(response)).children;
 });
@@ -89,7 +91,7 @@ export async function fetchChildren(parentId: string | null): Promise<NodeRespon
 	}
 	const response = await fetch("/api/v1/nodes");
 	if (!response.ok) {
-		throw new Error(`Failed to fetch children: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch children", response);
 	}
 	const data = await readJson<{nodes: NodeResponse[]}>(response);
 	return pendingCreates.withPending(parentId, data.nodes);
@@ -103,7 +105,7 @@ export async function fetchOutlineView(request: OutlineViewRequest): Promise<Out
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to fetch outline view: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch outline view", response);
 	}
 	return readJson<OutlineViewResponse>(response);
 }
@@ -112,7 +114,7 @@ export async function fetchNode(nodeId: string): Promise<NodeResponse> {
 	await pendingCreates.settled([nodeId]);
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}`);
 	if (!response.ok) {
-		throw new Error(`Failed to fetch node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch node", response);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -121,7 +123,7 @@ export async function fetchNode(nodeId: string): Promise<NodeResponse> {
 export async function fetchAncestors(nodeId: string): Promise<NodeResponse[]> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/ancestors`);
 	if (!response.ok) {
-		throw new Error(`Failed to fetch ancestors: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch ancestors", response);
 	}
 	const data = await readJson<{ancestors: NodeResponse[]}>(response);
 	return data.ancestors;
@@ -136,7 +138,7 @@ async function createNode(request: CreateNodeRequest): Promise<NodeResponse> {
 		body: JSON.stringify(afterId === undefined ? request : {...request, after_id: afterId}),
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to create node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to create node", response);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -150,7 +152,7 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<U
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to update node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to update node", response);
 	}
 	return readJson<UpdateNodeResponse>(response);
 }
@@ -163,7 +165,7 @@ interface HomeResponse {
 async function fetchHome(): Promise<HomeResponse> {
 	const response = await fetch("/api/v1/home");
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to fetch home: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch home", response);
 	}
 	return readJson<HomeResponse>(response);
 }
@@ -176,7 +178,7 @@ async function updateHome(layoutMode: string): Promise<HomeResponse> {
 		body: JSON.stringify({layoutMode}),
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to update home: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to update home", response);
 	}
 	return readJson<HomeResponse>(response);
 }
@@ -187,7 +189,7 @@ async function deleteNode(nodeId: string): Promise<void> {
 		method: "DELETE",
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to delete node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to delete node", response);
 	}
 }
 
@@ -212,7 +214,7 @@ async function moveNode(nodeId: string, request: MoveNodeRequest): Promise<MoveN
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to move node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to move node", response);
 	}
 	return readJson<MoveNodeResponse>(response);
 }
@@ -234,7 +236,7 @@ export async function restoreNode(nodeId: string, request: RestoreNodeRequest): 
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to restore node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to restore node", response);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -246,7 +248,7 @@ async function completeNode(nodeId: string): Promise<NodeResponse> {
 		method: "POST",
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to complete node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to complete node", response);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -258,7 +260,7 @@ async function uncompleteNode(nodeId: string): Promise<NodeResponse> {
 		method: "POST",
 	});
 	if (!response.ok) {
-		throw new RequestStatusError(response.status, `Failed to uncomplete node: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to uncomplete node", response);
 	}
 	const data = await readJson<{node: NodeResponse}>(response);
 	return data.node;
@@ -280,7 +282,7 @@ export const undoAdapter: UndoAdapter = {
 async function fetchBacklinks(nodeId: string): Promise<BacklinksResponse> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/backlinks`);
 	if (!response.ok) {
-		throw new Error(`Failed to fetch backlinks: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch backlinks", response);
 	}
 	return readJson<BacklinksResponse>(response);
 }
@@ -296,7 +298,7 @@ export function useBacklinks(nodeId: string | null) {
 async function fetchFoundDates(dayId: string): Promise<FoundDatesResponse> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(dayId)}/found-dates`);
 	if (!response.ok) {
-		throw new Error(`Failed to fetch found dates: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch found dates", response);
 	}
 	return readJson<FoundDatesResponse>(response);
 }
@@ -507,10 +509,9 @@ export function useCreateNode() {
 		onError(error, variables, context) {
 			createUndos.settle(variables, "failed");
 			// Roll back to previous value on error
-			if (context?.previousChildren !== undefined) {
-				queryClient.setQueryData(nodeKeys.children(context.parentId), context.previousChildren);
+			if (context !== undefined) {
+				rollbackCreate(queryClient, context);
 			}
-			context?.restoreParentFlags();
 			addErrorNotification(`Failed to create node: ${error.message}`);
 		},
 		async onSettled(data, error, variables) {
@@ -548,7 +549,7 @@ export function useCreateNode() {
 }
 
 interface CreateContext {
-	previousChildren: NodeResponse[] | undefined;
+	optimisticId: string;
 	parentId: string | null;
 	restoreParentFlags: () => void;
 }
@@ -563,7 +564,7 @@ const earlyCreates = new WeakMap<CreateNodeRequest, CreateContext>();
 const createAnchors = new WeakMap<CreateNodeRequest, string | null>();
 
 /** Splice the optimistic row for `newNode` into its parent's cached children (tracking it when it has a client id). */
-function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeRequest): CreateContext {
+export function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeRequest): CreateContext {
 	const parentId = newNode.parent_id ?? null;
 	const previousChildren = queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(parentId));
 	const now = Math.floor(Date.now() / 1000);
@@ -601,7 +602,15 @@ function insertOptimisticCreate(queryClient: QueryClient, newNode: CreateNodeReq
 		queryClient.setQueryData<NodeResponse[]>(nodeKeys.children(parentId), children);
 		return syncParentFlags(queryClient, parentId);
 	});
-	return {previousChildren, parentId, restoreParentFlags};
+	return {optimisticId: optimisticNode.id, parentId, restoreParentFlags};
+}
+
+/** Undo one failed create: drop its own optimistic row (not a snapshot, which would clobber parallel creates). */
+export function rollbackCreate(queryClient: QueryClient, context: CreateContext): void {
+	queryClient.setQueryData<NodeResponse[] | undefined>(nodeKeys.children(context.parentId), (old) =>
+		removeOptimistic(old, context.optimisticId),
+	);
+	context.restoreParentFlags();
 }
 
 const updateUndos = new HeldUndos<UpdateNodeResponse, UpdateNodeRequest & {nodeId: string}>();
@@ -876,7 +885,7 @@ async function moveNodes(request: MoveNodesRequest): Promise<NodeResponse[]> {
 		body: JSON.stringify(request),
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to move nodes: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to move nodes", response);
 	}
 	const data = await readJson<{nodes: NodeResponse[]}>(response);
 	return data.nodes;
@@ -1165,7 +1174,7 @@ interface SubtreeItem {
 async function fetchSubtreeItems(rootId: string | null): Promise<SubtreeItem[]> {
 	const response = await fetch(`/api/v1/nodes/${encodeURIComponent(rootId ?? HOME_TARGET)}/subtree-ids`);
 	if (!response.ok) {
-		throw new Error(`Failed to fetch subtree: ${response.statusText}`);
+		throw await toRequestStatusError("Failed to fetch subtree", response);
 	}
 	const data = await readJson<{items: SubtreeItem[]}>(response);
 	return data.items;
