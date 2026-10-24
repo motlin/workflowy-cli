@@ -1,5 +1,6 @@
 import {
 	canonicalTimeAttributes,
+	domTimeAttributes,
 	findDatePhrase,
 	formatTimeLabel,
 	parseTimeAttrs,
@@ -16,21 +17,20 @@ const PILL_ATTRS =
 // <time> elements never nest, so a lazy match up to the first close tag is exact.
 const TIME_PATTERN = /<time\b([^>]*)>[\s\S]*?<\/time>/giu;
 
-function lowercaseAttrNames(attrText: string): string {
-	return attrText.replaceAll(/([A-Za-z-]+)(?=\s*=)/gu, (name) => name.toLowerCase());
-}
-
 /** Display-mode HTML: each stored `<time>` becomes upstream's non-editable monolith pill. */
 export function renderDatePills(html: string, settings: DateSettings, now: Date = new Date()): string {
-	return html.replaceAll(TIME_PATTERN, (_match, attrText: string) => {
-		const label = formatTimeLabel(parseTimeAttrsLoose(attrText), {
+	const rendered = html.replaceAll(TIME_PATTERN, (_match, attrText: string) => {
+		const parsed = parseTimeAttrsLoose(attrText);
+		const label = formatTimeLabel(parsed, {
 			dateFormat: settings.dateFormat,
 			timeFormat: settings.timeFormat,
 			now,
 		});
-		const attrs = lowercaseAttrNames(attrText.trim());
-		return `<time ${PILL_ATTRS} ${attrs}>${BOM}<span class="content-wrapper">${label}</span>${BOM}</time>`;
+		const attrs = domTimeAttributes(parsed);
+		return `<time ${`${PILL_ATTRS} ${attrs}`.trim()}>${BOM}<span class="content-wrapper">${label}</span>${BOM}</time>`;
 	});
+	// Upstream puts one U+FEFF guard between two adjacent pills (the outer guards come from addMonolithGuards).
+	return rendered.replaceAll(/<\/time><time\b/gu, `</time>${BOM}<time`);
 }
 
 /**

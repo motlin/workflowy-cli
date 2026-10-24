@@ -10,7 +10,7 @@ import {useRecordStarViews, useStarActions, useStarredLocations} from "../hooks/
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon, triangleSvg} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
-import {FilesListRows, LeftBarRow, filesListArrow, nodeNameHtml, rowName} from "./left-bar-files-list.js";
+import {FilesListRows, LeftBarRow, filesListArrow, rowName, useNodeRowName} from "./left-bar-files-list.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {useNavigateToToday} from "../hooks/use-navigate-to-today.js";
@@ -87,10 +87,8 @@ function StarredPageRow({star}: {star: Star}) {
 	const toggle = useLeftBarExpansionStore((state) => state.toggle);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const customName = star.name !== null && star.name !== "";
-	const name =
-		customName || star.nodeId === null
-			? rowName({text: label(star, () => "")})
-			: rowName({html: nodeNameHtml(node?.name)});
+	const richName = useNodeRowName(node);
+	const name = customName || star.nodeId === null ? rowName({text: label(star, () => "")}) : richName;
 	return (
 		<>
 			<LeftBarRow
@@ -119,6 +117,7 @@ function StarredPageRow({star}: {star: Star}) {
 function StarredSearchRow({star}: {star: Star}) {
 	const {data: node} = useNode(star.nodeId);
 	const current = useIsCurrent(star);
+	const richName = useNodeRowName(node);
 	return (
 		<LeftBarRow
 			arrow={
@@ -136,7 +135,7 @@ function StarredSearchRow({star}: {star: Star}) {
 				<span>
 					{label(star, () => "")}{" "}
 					<span className="font-light text-[.8em] opacity-75">
-						in {star.nodeId === null ? rowName({text: "Home"}) : rowName({html: nodeNameHtml(node?.name)})}
+						in {star.nodeId === null ? rowName({text: "Home"}) : richName}
 					</span>
 				</span>
 			}

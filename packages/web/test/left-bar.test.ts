@@ -42,6 +42,10 @@ vi.mock("../src/client/hooks/use-starred.js", () => ({
 	useStarredLocations: () => starred,
 	useStars: () => ({stars: [], unavailable: false}),
 }));
+vi.mock("../src/client/hooks/use-preferences.js", () => ({
+	useDateSettings: () => ({dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0}),
+}));
+vi.mock("../src/client/hooks/use-calendar-settings.js", () => ({useDayPrefix: () => true}));
 vi.mock("react-router-dom", () => ({useNavigate: () => navigateMock}));
 vi.mock("../src/client/hooks/use-stable-navigate.js", () => ({useStableNavigate: () => navigateMock}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({

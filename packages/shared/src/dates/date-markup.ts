@@ -156,6 +156,13 @@ export function toTimeMarkup(attrs: TimeAttrs): string {
 	return `<time ${attrText}>${text}</time>`;
 }
 
+/** The DOM attribute text of a displayed pill: known units only, lowercase names, canonical interleaved order. */
+export function domTimeAttributes(attrs: Partial<TimeAttrs>): string {
+	return ATTR_ORDER.filter((key) => attrs[key] !== undefined)
+		.map((key) => `${key.toLowerCase()}="${attrs[key]}"`)
+		.join(" ");
+}
+
 const ATTR_BY_LOWER = new Map<string, keyof TimeAttrs>(ATTR_ORDER.map((key) => [key.toLowerCase(), key]));
 
 const INVALID_DATE = "Invalid date";

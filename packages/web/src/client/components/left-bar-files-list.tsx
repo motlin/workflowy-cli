@@ -2,7 +2,13 @@ import {memo, useState} from "react";
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import type {NodeResponse} from "../../node-types.js";
+import {friendlyPrefix} from "@workflowy/shared";
+import {useDayPrefix} from "../hooks/use-calendar-settings.js";
 import {useChildren} from "../hooks/use-nodes.js";
+import {useDateSettings} from "../hooks/use-preferences.js";
+import {renderDatePills} from "../date-pills.js";
+import type {DateSettings} from "../date-settings.js";
+import {addMonolithGuards} from "../monolith-guards.js";
 import {nodeUrl} from "../navigation.js";
 import {useLeftBarExpansionStore} from "../stores/left-bar-expansions.js";
 import {useOutlineStore} from "../stores/outline.js";
@@ -33,24 +39,55 @@ function isListed(node: NodeResponse, showCompleted: boolean): boolean {
  * A name fragment: stored HTML keeps its colors and formatting; plain text (a custom star name) is escaped. A plain
  * element, not a component, so a row mounts no fiber for it.
  */
-export function rowName({html, text}: {html?: string; text?: string}) {
+export function rowName({
+	html,
+	text,
+	dates,
+	prefix,
+}: {
+	html?: string;
+	text?: string;
+	/** Render stored `<time>` markup as date pills with these settings, as outline rows do. */
+	dates?: DateSettings;
+	/** The friendly day prefix (`Today, `), a sibling before the label as upstream's `item:icon` decorator renders it. */
+	prefix?: string | null;
+}) {
+	const shown = html !== undefined && dates !== undefined ? addMonolithGuards(renderDatePills(html, dates)) : html;
 	return (
-		<span style={{pointerEvents: "none", whiteSpace: "nowrap"}}>
-			{html === undefined ? (
-				<span className="innerContentContainer">{text}</span>
-			) : (
-				<span
-					className="innerContentContainer"
-					// oxlint-disable-next-line react/no-danger -- node names are stored HTML; colors and formatting must survive
-					dangerouslySetInnerHTML={{__html: html}}
-				/>
-			)}
-		</span>
+		<>
+			{prefix}
+			<span style={{pointerEvents: "none", whiteSpace: "nowrap"}}>
+				{shown === undefined ? (
+					<span className="innerContentContainer">{text}</span>
+				) : (
+					<span
+						className="innerContentContainer"
+						// oxlint-disable-next-line react/no-danger -- node names are stored HTML; colors and formatting must survive
+						dangerouslySetInnerHTML={{__html: shown}}
+					/>
+				)}
+			</span>
+		</>
 	);
 }
 
+/** The local-midnight date a `YYYYMMDD` dateId names. */
+function dateOfId(dateId: number): Date {
+	return new Date(Math.floor(dateId / 10_000), (Math.floor(dateId / 100) % 100) - 1, dateId % 100);
+}
+
+/** A node's left-bar label: its rich name with date pills, plus `Today, ` on a calendar day node. */
+export function useNodeRowName(node: Pick<NodeResponse, "name" | "calendar"> | undefined) {
+	const dates = useDateSettings();
+	const dayPrefix = useDayPrefix(undefined);
+	const [now] = useState(() => new Date());
+	const dateId = node?.calendar?.level === "day" ? node.calendar.dateId : null;
+	const prefix = dateId !== null && dayPrefix ? friendlyPrefix(dateOfId(dateId), now) : null;
+	return rowName({html: nodeNameHtml(node?.name), dates, prefix: prefix === null ? null : `${prefix}, `});
+}
+
 /** A node's rich name, or "Untitled" when it has none. */
-export function nodeNameHtml(name: string | null | undefined): string {
+function nodeNameHtml(name: string | null | undefined): string {
 	return name === null || name === undefined || name === "" ? "Untitled" : name;
 }
 
@@ -206,6 +243,7 @@ const FilesListBranch = memo(function FilesListBranch({
 	const current = useOutlineStore((state) => state.zoomedNodeId === node.id);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
 	const rowState = useLeftBarRowState();
+	const nameLabel = useNodeRowName(node);
 	return (
 		<>
 			{leftBarRowLink(
@@ -223,7 +261,7 @@ const FilesListBranch = memo(function FilesListBranch({
 					depth,
 					expanded,
 					href: nodeUrl(node.id),
-					label: rowName({html: nodeNameHtml(node.name)}),
+					label: nameLabel,
 				},
 				rowState,
 			)}

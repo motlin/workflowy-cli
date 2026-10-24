@@ -15,6 +15,10 @@ vi.mock("../src/client/stores/left-bar-expansions.js", async (importActual) => (
 	...(await importActual<typeof ExpansionsModule>()),
 	useLeftBarExpansionStore: (selector: (state: typeof expansionState) => unknown) => selector(expansionState),
 }));
+vi.mock("../src/client/hooks/use-preferences.js", () => ({
+	useDateSettings: () => ({dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0}),
+}));
+vi.mock("../src/client/hooks/use-calendar-settings.js", () => ({useDayPrefix: () => true}));
 vi.mock("react-router-dom", () => ({useNavigate: () => () => {}}));
 
 function node(id: string, name: string, overrides: Partial<NodeResponse> = {}): NodeResponse {
@@ -40,7 +44,20 @@ const children: Record<string, NodeResponse[]> = {
 		node("C", "", {hasChildren: false}),
 	],
 	A: [node("A1", "A1", {hasChildren: false})],
+	days: [
+		node("D", '<time startYear="2026" startMonth="10" startDay="23">Fri, Oct 23, 2026</time>', {
+			hasChildren: false,
+			calendar: {level: "day", dateId: toDateId(new Date())},
+		} as Partial<NodeResponse>),
+		node("E", '<time startYear="2026" startMonth="10" startDay="23">Fri, Oct 23, 2026</time>', {
+			hasChildren: false,
+		}),
+	],
 };
+
+function toDateId(date: Date): number {
+	return date.getFullYear() * 10_000 + (date.getMonth() + 1) * 100 + date.getDate();
+}
 
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useChildren: (id: string | null) => ({data: id === null ? undefined : children[id]}),
@@ -180,6 +197,29 @@ describe("toggleExpansion", () => {
 		expect({opened, closed: toggleExpansion(opened, CTX, "A")}).toStrictEqual({
 			opened: {other: ["X"], [CTX]: ["A"]},
 			closed: {other: ["X"], [CTX]: []},
+		});
+	});
+});
+
+describe("FilesListRows date names", () => {
+	it("renders a <time> name as a pill, with the friendly prefix only on a calendar day node", () => {
+		const result = renderToStaticMarkup(
+			createElement(FilesListRows, {parentId: "days", depth: 0, contextKey: CTX}),
+		);
+		const spans = [...result.matchAll(/(Today, )?<span style="pointer-events:none;white-space:nowrap">/gu)].map(
+			(match) => match[1] || "",
+		);
+		expect({
+			spans,
+			pills: result.match(/<span class="content-wrapper">[^<]*<\/span>/gu),
+			raw: result.includes("Fri, Oct 23, 2026"),
+		}).toStrictEqual({
+			spans: ["Today, ", ""],
+			pills: [
+				'<span class="content-wrapper">2026-10-23 Fri</span>',
+				'<span class="content-wrapper">2026-10-23 Fri</span>',
+			],
+			raw: false,
 		});
 	});
 });

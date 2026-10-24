@@ -4094,3 +4094,9 @@ label.toggle > div {
 	border-radius: var(--wf-radius-xs);
 	border: var(--wf-border-width-s) solid var(--wf-border-primary);
 }
+
+/* Upstream rows have no global reset, so the friendly day prefix span is content-box: its padding adds to the height. */
+.name > span.whitespace-nowrap.pr-m {
+	box-sizing: content-box;
+	line-height: 1;
+}

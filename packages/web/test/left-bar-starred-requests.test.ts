@@ -89,7 +89,11 @@ describe("Starred section requests", () => {
 		await settle();
 		await settle();
 
-		expect({requests, text: container.textContent}).toStrictEqual({
+		// The date settings for pill names are the app-wide preferences query, shared with every other surface.
+		expect({
+			requests: requests.filter((url) => url !== "/api/v1/preferences"),
+			text: container.textContent,
+		}).toStrictEqual({
 			requests: ["/api/v1/stars"],
 			text: "StarredPage 1#todo in Page 2Page 3",
 		});

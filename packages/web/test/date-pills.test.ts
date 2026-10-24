@@ -423,3 +423,25 @@ describe("renderDatePills with malformed <time>", () => {
 		expect(html).toContain('<span class="content-wrapper">2026-10-23 Fri</span>');
 	});
 });
+
+describe("renderDatePills guards and canonical attributes", () => {
+	it("puts one U+FEFF between adjacent pills", () => {
+		const html = renderDatePills(
+			'a <time startYear="2026" startMonth="10" startDay="23">x</time><time startYear="2026" startMonth="10" startDay="24">y</time> end',
+			SETTINGS,
+			NOW,
+		);
+		expect(html).toContain(`</time>${BOM}<time `);
+		expect(html).not.toContain(`</time><time`);
+	});
+
+	it("emits canonical lowercase attributes in interleaved order and drops unknown ones", () => {
+		const html = renderDatePills(
+			'<time foo="bar" startDay="25" startMonth="10" startYear="2026">x</time> t',
+			SETTINGS,
+			NOW,
+		);
+		expect(html).toContain('title="\u2325click to search" startyear="2026" startmonth="10" startday="25">');
+		expect(html).not.toContain("foo");
+	});
+});
