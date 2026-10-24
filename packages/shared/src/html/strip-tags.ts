@@ -1,9 +1,13 @@
+const KNOWN_TAGS =
+	"a|b|i|u|s|em|strong|span|time|mark|code|pre|br|hr|div|p|ul|ol|li|img|h[1-6]|blockquote|strike|del|font|sub|sup|table|tr|td|th";
+const TAG_PATTERN = new RegExp(`</?(?:${KNOWN_TAGS})(?:\\s[^>]*)?/?>`, "giu");
+
 export function stripHtmlTags(html: string | null): string {
 	if (!html) {
 		return "";
 	}
 	return html
-		.replaceAll(/<[^>]*>/gu, "")
+		.replaceAll(TAG_PATTERN, "")
 		.replaceAll("&nbsp;", " ")
 		.replaceAll("&amp;", "&")
 		.replaceAll("&lt;", "<")
