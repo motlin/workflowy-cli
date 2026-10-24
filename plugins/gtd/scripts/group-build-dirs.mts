@@ -4,7 +4,7 @@
 // A repo's `.worktrees/` directory can hold hundreds of Maven `target/` dirs, one per module per
 // worktree. Listing each one buries the handful of durable-checkout paths that matter. Build output
 // inside a worktree is still regenerable and still gets excluded; only the presentation changes:
-// every path under `<repo>/.worktrees/<worktree>/` collapses into one line per repo. Scratch checkouts
+// every path under `<repo>/.worktrees/<worktree>/` or `<repo>/.claude/worktrees/<worktree>/` collapses into one line per repo. Scratch checkouts
 // at `<repo>/.llm/conflicts-*/` and `<repo>/.llm/pr-*-repair/`, and Yarn PnP packages at
 // `<repo>/.yarn/unplugged/<package>/`, collapse the same way, each kind into its own line per repo.
 //
@@ -28,7 +28,7 @@ type KindName = (typeof KIND_NAMES)[number];
 type CountKey = "worktreeCount" | "checkoutCount" | "packageCount";
 
 interface Kind {
-	marker: string[];
+	markers: string[][];
 	matches: (name: string) => boolean;
 	countKey: CountKey;
 	noun: string;
@@ -44,23 +44,29 @@ type RepoTally = Map<string, {names: Set<string>; dirCount: number}>;
  * segment naming one checkout or package, the count key, and how a report line describes it.
  */
 const KINDS: Record<KindName, Kind> = {
-	worktrees: {marker: [".worktrees"], matches: () => true, countKey: "worktreeCount", noun: "worktree", under: ""},
+	worktrees: {
+		markers: [[".worktrees"], [".claude", "worktrees"]],
+		matches: () => true,
+		countKey: "worktreeCount",
+		noun: "worktree",
+		under: "",
+	},
 	conflicts: {
-		marker: [".llm"],
+		markers: [[".llm"]],
 		matches: (name) => name.startsWith("conflicts-"),
 		countKey: "checkoutCount",
 		noun: "conflicts checkout",
 		under: "/.llm",
 	},
 	repairs: {
-		marker: [".llm"],
+		markers: [[".llm"]],
 		matches: (name) => PR_REPAIR.test(name),
 		countKey: "checkoutCount",
 		noun: "PR repair checkout",
 		under: "/.llm",
 	},
 	unplugged: {
-		marker: [".yarn", "unplugged"],
+		markers: [[".yarn", "unplugged"]],
 		matches: () => true,
 		countKey: "packageCount",
 		noun: "unplugged package",
@@ -71,18 +77,20 @@ const KINDS: Record<KindName, Kind> = {
 /** The kind whose marker and name match `segments` at `index`, or null. */
 function kindAt(segments: string[], index: number): {kind: KindName; name: string} | null {
 	for (const kind of KIND_NAMES) {
-		const {marker, matches} = KINDS[kind];
-		const nameIndex = index + marker.length;
-		// The last segment is the build dir itself, so a location needs a named segment before it.
-		if (nameIndex >= segments.length - 1) {
-			continue;
-		}
-		if (!marker.every((segment, offset) => segments[index + offset] === segment)) {
-			continue;
-		}
-		const name = segments[nameIndex];
-		if (name !== undefined && matches(name)) {
-			return {kind, name};
+		const {markers, matches} = KINDS[kind];
+		for (const marker of markers) {
+			const nameIndex = index + marker.length;
+			// The last segment is the build dir itself, so a location needs a named segment before it.
+			if (nameIndex >= segments.length - 1) {
+				continue;
+			}
+			if (!marker.every((segment, offset) => segments[index + offset] === segment)) {
+				continue;
+			}
+			const name = segments[nameIndex];
+			if (name !== undefined && matches(name)) {
+				return {kind, name};
+			}
 		}
 	}
 	return null;

@@ -252,3 +252,18 @@ test("parsePathList accepts NUL- and newline-delimited input and drops blanks", 
 	assert.deepStrictEqual(parsePathList("/a/dist\n/b/target\n\n"), ["/a/dist", "/b/target"]);
 	assert.deepStrictEqual(parsePathList(""), []);
 });
+
+test("build dirs inside .claude/worktrees collapse into the same per-repo worktree aggregate", () => {
+	const paths = [
+		`${LIFTWIZARD}/.claude/worktrees/next-line/target`,
+		`${LIFTWIZARD}/.claude/worktrees/next-line/liftwizard-clock/target`,
+		`${LIFTWIZARD}/.worktrees/default-8b7ac1b7f/target`,
+	];
+	assert.deepStrictEqual(groupBuildDirs(paths), {
+		durable: [],
+		worktrees: [{repo: LIFTWIZARD, worktreeCount: 2, dirCount: 3}],
+		conflicts: [],
+		repairs: [],
+		unplugged: [],
+	});
+});
