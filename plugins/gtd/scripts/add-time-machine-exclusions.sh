@@ -32,13 +32,23 @@ if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
 	exit 1
 fi
 
+# Fixed-path exclusions outlive their directories, so the list only grows. Drop every entry
+# under ROOT whose path is gone; stale-exclusions.mts is the one definition prep also uses.
+STALE_OUT="$(mktemp)"
+SCAN_OUT="$(mktemp)"
+trap 'rm -f "$STALE_OUT" "$SCAN_OUT"' EXIT
+node "$(dirname -- "$SCRIPT_PATH")/stale-exclusions.mts" "$ROOT" >"$STALE_OUT"
+mapfile -d '' STALE <"$STALE_OUT"
+if [ "${#STALE[@]}" -gt 0 ]; then
+	echo "Removing ${#STALE[@]} stale exclusions for directories that no longer exist (sudo required)..."
+	printf '%s\0' "${STALE[@]}" | sudo xargs -0 -n40 tmutil removeexclusion -p
+fi
+
 echo "Scanning $ROOT for node_modules / target / build / dist ..."
 
 # The scanner prunes below each match, skips directories that are already excluded or that
 # hold git-tracked source, and is the one definition the daily-review prep also uses.
 # Writing to a file (not process substitution) lets a scanner failure stop the script.
-SCAN_OUT="$(mktemp)"
-trap 'rm -f "$SCAN_OUT"' EXIT
 node "$(dirname -- "$SCRIPT_PATH")/scan-build-dirs.mts" "$ROOT" >"$SCAN_OUT"
 mapfile -d '' DIRS <"$SCAN_OUT"
 

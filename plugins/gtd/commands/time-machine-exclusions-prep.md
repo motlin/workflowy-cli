@@ -24,6 +24,16 @@ Capture the null-delimited result without losing the command's exit status. The 
 
 Run the script once. Do not substitute a hand-rolled `find` pipeline: `find` exits non-zero on a vanished directory, which makes a transient entry indistinguishable from a real failure and once forced a full second sweep that doubled the prep's runtime.
 
+## Count stale exclusions
+
+Count fixed-path exclusions whose directory no longer exists:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/stale-exclusions.mts | tr -cd '\0' | wc -c
+```
+
+Store the number as `summary.staleExclusions`. The sweep script removes them with `sudo tmutil removeexclusion -p`, so prep stays read-only. Stale entries alone (zero unmatched directories) still stage `status: "ready"`, and the report gains a line `N stale exclusions to remove`.
+
 ## Group the result
 
 Pipe the null-delimited paths through the grouping script:
@@ -52,7 +62,7 @@ It prints `[{path, repo, branch, dirCount, clean}]`: every linked git worktree t
 
 Create `.llm/gtd/review/proposals/` and write the proposal for the inferred slug `time-machine-exclusions`.
 
-- No unmatched directories: stage `status: "empty"`, `summary.missingExclusions: 0`, and an empty `proposals` array.
+- No unmatched directories and no stale exclusions: stage `status: "empty"`, `summary.missingExclusions: 0`, and an empty `proposals` array.
 - Unmatched directories: stage `status: "ready"`, include every path in `summary.directories`, copy the grouping script's `durable`, `worktrees`, `conflicts`, `repairs`, `unplugged`, and `report` fields into `summary`, store the worktree finder's output as `summary.worktreeCandidates`, and create one confirm-only proposal with empty `applyOps`. Set the proposal `detail` from `summary.report`, never from the full directory list.
 - Check failure: stage `status: "error"` with the command error.
 
