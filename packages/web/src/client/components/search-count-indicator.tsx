@@ -3,7 +3,7 @@ import {selectCompletedVisibility} from "../completed-visibility.js";
 import {useSearchProgress} from "../hooks/use-tree-search.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
-import {LoadingSpinner} from "./loading-spinner.js";
+import {DomKitSpinner} from "./dom-kit-spinner.js";
 
 export interface SearchCountIndicatorProps {
 	/** Every match, hidden completed ones included. */
@@ -49,7 +49,7 @@ export function SearchCountIndicatorView({
 					</Fragment>
 				)}
 				{done ? " " : " Still searching "}
-				{!done && <LoadingSpinner size="small" />}
+				{!done && <DomKitSpinner />}
 			</span>
 		</div>
 	);

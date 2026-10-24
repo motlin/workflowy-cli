@@ -1,12 +1,14 @@
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {
 	matchField,
+	parseQuery,
 	normalizeForSearch,
 	normalizeWithOffsets,
 	splitIntoWords,
 	staticScore,
 	textFactor,
 } from "@workflowy/shared/search";
+import {searchItem} from "./tree-search.js";
 import type {TreeSearchRow} from "./tree-search.js";
 
 /** Upstream's index keys words by their first 16 characters. */
@@ -149,6 +151,14 @@ function toSeconds(millis: number | null): number | null {
 	return millis === null ? null : Math.floor(millis / 1000);
 }
 
+/** Splits a nested `a > b` query on standalone `>` tokens; the last segment is the one that is ranked. */
+function nestedSegments(query: string): string[] {
+	return query
+		.split(/(?<=^|\s)>(?=\s|$)/u)
+		.map((segment) => segment.trim())
+		.filter((segment) => segment !== "");
+}
+
 /**
  * Upstream's jump-menu search over the live tree: candidates hold the longest query word (first 16 chars)
  * somewhere in their name or note, `matchSwitcherRow` keeps word-start matches only, completed nodes and
@@ -161,7 +171,8 @@ export function rankSwitcher(
 	nowSec: number,
 	{joinedSec, offset = 0, limit = DEFAULT_LIMIT, excludeId}: RankSwitcherOptions,
 ): SwitcherResponse {
-	const words = splitIntoWords(query);
+	const segments = nestedSegments(query);
+	const words = splitIntoWords(segments.at(-1) ?? "");
 	if (words.length === 0) {
 		return {results: [], hasMore: false};
 	}
@@ -169,6 +180,21 @@ export function rankSwitcher(
 	const starred = new Set(starredIds);
 	const index = rowIndex(rows);
 	const {byId, childCount} = index;
+	const earlier = segments.slice(0, -1).map((segment) => parseQuery(segment));
+	// Upstream's `P94`: walking up from the parent, an ancestor matching the current earlier segment consumes it.
+	const ancestorsMatch = (row: TreeSearchRow): boolean => {
+		let remaining = earlier.length - 1;
+		let parent = row.parentId === null ? undefined : byId.get(row.parentId);
+		while (remaining >= 0 && parent) {
+			if (
+				earlier[remaining]?.matches(searchItem(parent, childCount.get(parent.id) ?? 0, false)).matches === true
+			) {
+				remaining--;
+			}
+			parent = parent.parentId === null ? undefined : byId.get(parent.parentId);
+		}
+		return remaining < 0;
+	};
 	// matchField's word-start tests, run on its own folding: a field hits when it holds every word.
 	const longestAtWordStart = wordStart(longest);
 	const wordRegExps = words.map(wordStart);
@@ -202,6 +228,9 @@ export function rankSwitcher(
 		const [plainNameField, rawNameField, noteField] = matchFields(row, text);
 		// matchSwitcherRow answers null exactly when no field holds every word.
 		if (!hitsEvery(plainNameField) && !hitsEvery(rawNameField) && !hitsEvery(noteField)) {
+			continue;
+		}
+		if (earlier.length > 0 && !ancestorsMatch(row)) {
 			continue;
 		}
 		const nameHit = longestAtWordStart.test(plainNameField);

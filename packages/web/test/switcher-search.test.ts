@@ -101,6 +101,23 @@ describe("rankSwitcher", () => {
 		expect(rank("par qwz").results.map((result) => result.id)).toStrictEqual(["parent", "beta", "base64"]);
 	});
 
+	it("keeps a nested a > b result only when its ancestors match the earlier segments in order", () => {
+		const ids = (query: string) => rank(query).results.map((result) => result.id);
+		expect({
+			one: ids("beta > qwzx"),
+			two: ids("parent > beta > qwzx"),
+			wrongOrder: ids("beta > parent > qwzx"),
+			leaf: ids("alpha > qwzx"),
+			label: rank("beta > qwzx").results[0]?.labelHtml,
+		}).toStrictEqual({
+			one: ["deep"],
+			two: ["deep"],
+			wrongOrder: [],
+			leaf: [],
+			label: "deep <b><u>qwzx</u></b>child",
+		});
+	});
+
 	it("answers nothing for a query without words", () => {
 		expect(rank("  ..  ")).toStrictEqual({results: [], hasMore: false});
 	});

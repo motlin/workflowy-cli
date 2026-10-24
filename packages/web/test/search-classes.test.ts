@@ -57,12 +57,9 @@ describe("searchClasses", () => {
 		});
 	});
 
-	it("keeps halfExpanded but drops half-open on a collapsed half-expanded row", () => {
+	it("drops halfExpanded and half-open on a collapsed half-expanded row", () => {
 		const collapsed = searchFilter(appleResult, new Set(), new Map([["fruit", false]]));
-		expect(searchClasses({id: "fruit", parentId: "root"}, collapsed).project).toStrictEqual([
-			"matches",
-			"halfExpanded",
-		]);
+		expect(searchClasses({id: "fruit", parentId: "root"}, collapsed).project).toStrictEqual(["matches"]);
 	});
 
 	it("drops halfExpanded once the row is fully expanded and marks shown non-matches as terminal matches", () => {
@@ -70,9 +67,11 @@ describe("searchClasses", () => {
 		expect({
 			fruit: searchClasses({id: "fruit", parentId: "root"}, full).project,
 			banana: searchClasses({id: "banana", parentId: "fruit"}, full),
+			cherry: searchClasses({id: "cherry", parentId: "fruit"}, full),
 		}).toStrictEqual({
 			fruit: ["matches"],
 			banana: {project: ["matches", "terminalMatch"], name: [], note: []},
+			cherry: {project: ["matches", "terminalMatch"], name: [], note: []},
 		});
 	});
 

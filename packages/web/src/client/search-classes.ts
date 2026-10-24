@@ -10,13 +10,9 @@ export interface SearchClasses {
 
 const NO_CLASSES: SearchClasses = {project: [], name: [], note: []};
 
-function isHalfExpanded(id: string, search: SearchFilter): boolean {
-	return search.halfExpandedIds.has(id) && search.expansion.get(id) !== true;
-}
-
 /** Whether a search shows `id` expanded but not every child: upstream gives such a bullet its halo. */
 export function isSearchHalfExpanded(id: string, search: SearchFilter): boolean {
-	return isHalfExpanded(id, search) && isSearchExpanded(id, search);
+	return search.halfExpandedIds.has(id) && isSearchExpanded(id, search) && search.expansion.get(id) !== true;
 }
 
 /**
@@ -31,10 +27,9 @@ export function searchClasses(row: {id: string; parentId: string | null}, search
 	const {id, parentId} = row;
 	const isMatch = search.matchIds.has(id);
 	const isCreatedForSearch =
-		search.createdIds.has(id) ||
-		(!isMatch && !search.ancestorIds.has(id) && parentId !== null && search.expansion.get(parentId) === true);
+		search.createdIds.has(id) || (!isMatch && parentId !== null && search.expansion.get(parentId) === true);
 	const isShownAsMatch = isMatch || isCreatedForSearch;
-	const halfExpanded = isHalfExpanded(id, search);
+	const halfExpanded = isSearchHalfExpanded(id, search);
 	const nameMatches = search.nameMatchIds.has(id);
 	const noteMatches = search.noteMatchIds.has(id);
 	return {
@@ -42,7 +37,7 @@ export function searchClasses(row: {id: string; parentId: string | null}, search
 			isShownAsMatch && "matches",
 			isShownAsMatch && (isCreatedForSearch || !search.ancestorIds.has(id)) && "terminalMatch",
 			halfExpanded && "halfExpanded",
-			halfExpanded && isSearchExpanded(id, search) && "half-open",
+			halfExpanded && "half-open",
 			search.metaMatchIds.has(id) && !nameMatches && !noteMatches && "metaMatches",
 		].filter((name) => name !== false),
 		name: [isMatch && "fullMatch", nameMatches && "matches"].filter((name) => name !== false),

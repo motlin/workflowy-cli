@@ -79,6 +79,7 @@ export const SearchBox = memo(function SearchBox() {
 		enabled: focused,
 	});
 	const [helper, setHelper] = useState<HelperSelection>(NO_HELPER_SELECTION);
+	const [canHover, setCanHover] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const flyoutRef = useRef<HTMLDivElement>(null);
 	const autocompletePopulated = false;
@@ -90,11 +91,31 @@ export const SearchBox = memo(function SearchBox() {
 		if (!helperVisible) {
 			return () => {};
 		}
-		const reset = () => {
+		// A click on a chip keeps its tab open. The browser then forwards the click to the label's input, which
+		// must not reset the selection either; clicks on the input and elsewhere reset it.
+		let pressedInFlyout = false;
+		const inFlyout = (event: Event) =>
+			event.target instanceof Node && flyoutRef.current?.contains(event.target) === true;
+		const press = (event: MouseEvent) => {
+			pressedInFlyout = inFlyout(event);
+		};
+		const reset = (event: MouseEvent) => {
+			if (inFlyout(event)) {
+				setTimeout(() => {
+					pressedInFlyout = false;
+				}, 0);
+				return;
+			}
+			if (pressedInFlyout) {
+				pressedInFlyout = false;
+				return;
+			}
 			setHelper(NO_HELPER_SELECTION);
 		};
+		window.addEventListener("mousedown", press, true);
 		window.addEventListener("click", reset);
 		return () => {
+			window.removeEventListener("mousedown", press, true);
 			window.removeEventListener("click", reset);
 		};
 	}, [helperVisible]);
@@ -198,8 +219,14 @@ export const SearchBox = memo(function SearchBox() {
 					tags={helperTags}
 					selection={helper}
 					onHoverTab={(tab) => {
+						setCanHover(true);
 						setHelper({tab, chip: -1});
 					}}
+					onHoverChip={(chip) => {
+						setCanHover(true);
+						setHelper((current) => ({tab: current.tab, chip}));
+					}}
+					canHover={canHover}
 					onInsert={insertHelper}
 					jumpKey={isMacPlatform() ? "meta+k" : "ctrl+k"}
 					flyoutRef={flyoutRef}
@@ -227,6 +254,7 @@ export const SearchBox = memo(function SearchBox() {
 					onFocus={() => {
 						setArmed(true);
 						setHelper(NO_HELPER_SELECTION);
+						setCanHover(false);
 						void queryClient.invalidateQueries({queryKey: ["search-helpers"]});
 						setSearchFocused(true);
 					}}
@@ -238,8 +266,14 @@ export const SearchBox = memo(function SearchBox() {
 					value={searchInput}
 				/>
 				<svg
-					className={`svg-inline--fa fa-magnifying-glass ${collapsed ? "fa-1x absolute left-[10px] pt-xs" : "fa-sm absolute left-ml"} pointer-events-none`}
+					aria-hidden="true"
+					focusable="false"
+					data-prefix="fal"
 					data-icon="magnifying-glass"
+					className={`svg-inline--fa fa-magnifying-glass ${collapsed ? "fa-1x absolute left-[10px] pt-xs" : "fa-sm absolute left-ml"} pointer-events-none`}
+					// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- verbatim upstream markup
+					role="img"
+					xmlns="http://www.w3.org/2000/svg"
 					viewBox="0 0 512 512"
 				>
 					<path d={MAGNIFIER_PATH} fill="currentColor" />

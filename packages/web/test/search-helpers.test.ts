@@ -135,13 +135,25 @@ describe("SearchHelpers", () => {
 		});
 	});
 
-	it("renders the exact upstream chip markup and highlights the active chip", () => {
+	it("renders the exact upstream keyboard-mode chip markup and highlights the active chip", () => {
 		const html = render({selection: {tab: 3, chip: 1}});
 		const chip = (text: string, state: string) =>
-			`<div class="min-w-0 py-xs px-px"><a class="pl-l py-xs pr-l block !no-underline cursor-pointer whitespace-nowrap leading-base border-solid border-primary text-primary hover:bg-secondary menuItem !py-0 !px-s !flex text-xs rounded-[16px] [&amp;_span]:whitespace-nowrap [&amp;_span]:text-ellipsis [&amp;_span]:overflow-hidden ${state} canHover" style="height:20px"><span class="relative flex justify-between items-center"><span class="grow flex items-center gap-m whitespace-nowrap text-ellipsis overflow-hidden desktop:text-xs">${text}</span></span></a></div>`;
+			`<div class="min-w-0 py-xs px-px"><a class="pl-l py-xs pr-l block !no-underline cursor-pointer whitespace-nowrap leading-base border-solid border-primary text-primary${state}" style="height:20px"><span class="relative flex justify-between items-center"><span class="grow flex items-center gap-m whitespace-nowrap text-ellipsis overflow-hidden desktop:text-xs">${text}</span></span></a></div>`;
 		expect(html).toContain(
-			`<div><div class="shrink-0 h-auto flex overflow-hidden [&amp;:not(:last-child)]:mb-ml"><div class="relative min-w-0 flex flex-row flex-wrap items-center">${chip("date:", "!text-on-surface !bg-transparent")}${chip("date-before:", "!bg-secondary active")}`,
+			`<div><div class="shrink-0 h-auto flex overflow-hidden [&amp;:not(:last-child)]:mb-ml"><div class="relative min-w-0 flex flex-row flex-wrap items-center">${chip("date:", " mobile:border-t mobile:last:border-b mobile:py-ml mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right menuItem !py-0 !px-s !flex text-xs rounded-[16px] [&amp;_span]:whitespace-nowrap [&amp;_span]:text-ellipsis [&amp;_span]:overflow-hidden !text-on-surface !bg-transparent")}${chip("date-before:", " bg-secondary mobile:border-t mobile:last:border-b mobile:py-ml mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right menuItem !py-0 !px-s !flex text-xs rounded-[16px] [&amp;_span]:whitespace-nowrap [&amp;_span]:text-ellipsis [&amp;_span]:overflow-hidden !text-on-surface !bg-secondary active")}`,
 		);
+	});
+
+	it("switches chips to the hover classes once the mouse has been used", () => {
+		const chipClasses = (canHover: boolean) =>
+			[...render({selection: {tab: 3, chip: 1}, canHover}).matchAll(/<a class="([^"]*)"/gu)]
+				.slice(0, 2)
+				.map((match) => match[1]);
+		const [inactive, active] = chipClasses(false);
+		expect(chipClasses(true)).toStrictEqual([
+			`${inactive.replace("text-primary mobile:", "text-primary hover:bg-secondary mobile:")} canHover`,
+			`${active.replace("bg-secondary mobile:", "bg-secondary hover:bg-secondary mobile:")} canHover`,
+		]);
 	});
 
 	it("labels the changed-by chips me and others", () => {

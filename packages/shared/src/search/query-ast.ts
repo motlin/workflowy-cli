@@ -202,3 +202,78 @@ export function parseQuery(q: string, opts: ParseQueryOptions = {}): QueryNode {
 	const [only, ...rest] = ands;
 	return only && rest.length === 0 ? only : new OrNode(ands);
 }
+
+/** A nested `a > b > c` query: OR-groups of segments, each segment an ancestor (or, last, the row) filter. */
+export interface NestedQuery {
+	groups: QueryNode[][];
+	/** The last segment of every group, ORed: what upstream highlights (`iX1` keeps only the last segment). */
+	highlight: QueryNode;
+}
+
+function tokenSource(token: Token): string {
+	return `${token.negated ? "-" : ""}${token.text}`;
+}
+
+const isOr = (token: Token): boolean => !token.negated && token.phrase === null && token.text === "OR";
+const isNest = (token: Token): boolean => !token.negated && token.phrase === null && token.text === ">";
+
+/**
+ * Splits `q` into OR groups of `>`-separated segments. Returns null unless the query contains a standalone `>` token
+ * outside a quoted phrase.
+ */
+export function parseNestedQuery(q: string, opts: ParseQueryOptions = {}): NestedQuery | null {
+	if (!q.includes(" > ")) {
+		return null;
+	}
+	const tokens = tokenize(q);
+	if (!tokens.some(isNest)) {
+		return null;
+	}
+	const groups = splitTokens(tokens, isOr).map((group) =>
+		splitTokens(group, isNest).map((segment) => parseQuery(segment.map(tokenSource).join(" "), opts)),
+	);
+	return {groups, highlight: new OrNode(groups.flatMap((group) => group.slice(-1)))};
+}
+
+function splitTokens(tokens: Token[], isSeparator: (token: Token) => boolean): Token[][] {
+	const parts: Token[][] = [];
+	let current: Token[] = [];
+	for (const token of tokens) {
+		if (isSeparator(token)) {
+			parts.push(current);
+			current = [];
+		} else {
+			current.push(token);
+		}
+	}
+	parts.push(current);
+	return parts;
+}
+
+/**
+ * Matches `item` against a nested query. `item.ancestors` lists its ancestors nearest first; walking up, each ancestor
+ * that matches the current earlier segment consumes it (right to left), and non-matching ancestors are skipped. The
+ * flags come from the last segment only.
+ */
+export function matchNested(nested: NestedQuery, item: SearchItem): MatchResult {
+	const results: MatchResult[] = [];
+	for (const group of nested.groups) {
+		const last = group.at(-1)?.matches(item);
+		if (!last?.matches) {
+			continue;
+		}
+		let index = group.length - 2;
+		for (const ancestor of item.ancestors ?? []) {
+			if (index < 0) {
+				break;
+			}
+			if (group[index]?.matches(ancestor).matches === true) {
+				index--;
+			}
+		}
+		if (index < 0) {
+			results.push(last);
+		}
+	}
+	return orFlags(results, results.length > 0);
+}

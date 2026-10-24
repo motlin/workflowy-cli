@@ -131,7 +131,7 @@ describe("link:, in:note: and id: operators", () => {
 		expect(matchingNames("link:exampl.")).toStrictEqual([]);
 	});
 
-	it('in:note:"words" matches whole words in the note only', () => {
+	it('in:note:"words" matches a prefix in the note only, with upstream\'s token grammar', () => {
 		expect(matchingNames('in:note:"zebra"')).toStrictEqual(["Alpha apple pie"]);
 		expect(parseQuery('in:note:"zebra"').matches(ROWS[0]!)).toStrictEqual({
 			matches: true,
@@ -139,7 +139,11 @@ describe("link:, in:note: and id: operators", () => {
 			noteMatches: true,
 			metaMatches: false,
 		});
-		expect(matchingNames('in:note:"zeb"')).toStrictEqual([]);
+		for (const query of ['in:note:"zeb"', 'in:note:"not"', 'in:note:"zebra no"']) {
+			expect(matchingNames(query)).toStrictEqual(["Alpha apple pie"]);
+		}
+		expect(matchingNames("in:note:zeb")).toStrictEqual([]);
+		expect(matchingNames("in:note:\u201Czebra\u201D")).toStrictEqual([]);
 		expect(matchingNames('in:note:"zebra note"')).toStrictEqual(["Alpha apple pie"]);
 		expect(matchingNames('in:note:"apple"')).toStrictEqual([]);
 		expect(matchingNames('in:note:"zebra note" apple')).toStrictEqual(["Alpha apple pie"]);

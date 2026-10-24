@@ -1,4 +1,4 @@
-import {parseQuery} from "@workflowy/shared/search";
+import {parseNestedQuery, parseQuery} from "@workflowy/shared/search";
 import type {QueryNode} from "@workflowy/shared/search";
 import {decodeSegment} from "./tag-render.js";
 
@@ -66,7 +66,7 @@ let parsed: {query: string; node: QueryNode} | null = null;
 /** The parsed `query`, kept for the last query so every rendered row shares one parse. */
 function parsedQuery(query: string): QueryNode {
 	if (parsed === null || parsed.query !== query) {
-		parsed = {query, node: parseQuery(query)};
+		parsed = {query, node: parseNestedQuery(query)?.highlight ?? parseQuery(query)};
 	}
 	return parsed.node;
 }

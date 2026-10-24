@@ -1,5 +1,5 @@
 import {normalizeForSearch} from "../normalize.js";
-import {escapeRegExp, prepare, QUOTE_PAIRS, TermNode} from "../query-nodes.js";
+import {escapeRegExp, prepare, TermNode} from "../query-nodes.js";
 import type {MatchResult, QueryNode, Range, SearchItem, SearchOperator} from "../query-nodes.js";
 
 type Predicate = (item: SearchItem) => boolean;
@@ -42,7 +42,7 @@ export class MetaNode implements QueryNode {
 	}
 }
 
-/** A whole-word term matched against the note only (`in:note:"words"`). */
+/** A term matched against the note only (`in:note:"words"`). */
 class NoteTermNode extends TermNode {
 	override matches(item: SearchItem): MatchResult {
 		const noteMatches = this.test(prepare(item).note);
@@ -157,27 +157,18 @@ export const isCodeBlock = exact(["is:code-block"], layout("code-block"));
 export const isQuote = exact(["is:quote"], layout("quote-block"));
 
 const IN_NOTE = "in:note:";
-
-/** Strip a matching pair of quote marks from `value`, if present. */
-function unquote(value: string): string {
-	const closer = QUOTE_PAIRS.get(value[0] ?? "");
-	return closer !== undefined && value.length > 1 && value.endsWith(closer) ? value.slice(1, -1) : value;
-}
+const IN_NOTE_TOKEN = /in:note:"([\w\d\s]+)"/iuy;
 
 export const inNote: SearchOperator = {
 	name: IN_NOTE,
 	parseToken(query, start) {
-		if (query.slice(start, start + IN_NOTE.length).toLowerCase() !== IN_NOTE) {
-			return null;
-		}
-		const open = start + IN_NOTE.length;
-		const closer = QUOTE_PAIRS.get(query[open] ?? "");
-		const close = closer === undefined ? -1 : query.indexOf(closer, open + 1);
-		return close === -1 ? null : close + 1;
+		IN_NOTE_TOKEN.lastIndex = start;
+		const match = IN_NOTE_TOKEN.exec(query);
+		return match === null ? null : start + match[0].length;
 	},
-	matchesToken: (token) => token.startsWith(IN_NOTE),
+	matchesToken: (token) => /^in:note:"[\w\d\s]+"$/iu.test(token),
 	create(token) {
-		const term = normalizeForSearch(unquote(token.slice(IN_NOTE.length)));
-		return term.length === 0 ? MATCH_NOTHING : new NoteTermNode(term, false);
+		const term = normalizeForSearch(token.slice(IN_NOTE.length + 1, -1));
+		return term.length === 0 ? MATCH_NOTHING : new NoteTermNode(term, true);
 	},
 };

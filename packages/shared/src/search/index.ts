@@ -1,7 +1,10 @@
 export {buildSearchConditions, getScoringTerms, type SearchConditions} from "./conditions.js";
 export {normalizeForSearch, normalizeWithOffsets} from "./normalize.js";
 export {
+	matchNested,
 	type MatchResult,
+	type NestedQuery,
+	parseNestedQuery,
 	type OperatorContext,
 	parseQuery,
 	type ParseQueryOptions,

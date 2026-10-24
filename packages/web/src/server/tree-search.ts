@@ -1,5 +1,5 @@
-import {parseQuery} from "@workflowy/shared/search";
-import type {SearchItem} from "@workflowy/shared/search";
+import {matchNested, parseNestedQuery, parseQuery} from "@workflowy/shared/search";
+import type {MatchResult, SearchItem} from "@workflowy/shared/search";
 
 /** A live node as loaded for tree search. Timestamps are epoch milliseconds. */
 export interface TreeSearchRow {
@@ -83,7 +83,7 @@ function childrenByParent(rows: TreeSearchRow[]): Map<string | null, TreeSearchR
 	return children;
 }
 
-function searchItem(row: TreeSearchRow, childCount: number, ancestorCompleted: boolean): SearchItem {
+export function searchItem(row: TreeSearchRow, childCount: number, ancestorCompleted: boolean): SearchItem {
 	let slots = itemCache.get(row);
 	if (slots === undefined) {
 		slots = [];
@@ -119,8 +119,11 @@ export function computeTreeSearch(
 	rootId: string | null,
 	query: string,
 	now: number,
+	opts: {dateFormat?: string} = {},
 ): TreeSearchResult {
-	const parsed = parseQuery(query, {now});
+	const parseOpts = {now, ...(opts.dateFormat === undefined ? {} : {dateFormat: opts.dateFormat})};
+	const nested = parseNestedQuery(query, parseOpts);
+	const parsed = nested?.highlight ?? parseQuery(query, parseOpts);
 	if (parsed.isEmpty()) {
 		return emptyResult(false);
 	}
@@ -128,10 +131,29 @@ export function computeTreeSearch(
 	const children = childrenByParent(rows);
 	const rootCompleted = rootId !== null && rows.some((row) => row.id === rootId && row.completedAt !== null);
 	const visits: Visit[] = [];
+	const byId = nested ? new Map(rows.map((row) => [row.id, row])) : null;
+	const matchRow = (row: TreeSearchRow, ancestorCompleted: boolean): MatchResult => {
+		const item = searchItem(row, children.get(row.id)?.length ?? 0, ancestorCompleted);
+		if (!nested || !byId) {
+			return parsed.matches(item);
+		}
+		const ancestors: SearchItem[] = [];
+		const seen = new Set<string>([row.id]);
+		for (let id = row.parentId; id !== null && !seen.has(id);) {
+			const ancestor = byId.get(id);
+			if (!ancestor) {
+				break;
+			}
+			seen.add(id);
+			ancestors.push(searchItem(ancestor, children.get(id)?.length ?? 0, false));
+			id = ancestor.parentId;
+		}
+		return matchNested(nested, {...item, ancestors});
+	};
 
 	const walk = (parentId: string | null, ancestorCompleted: boolean): void => {
 		for (const row of children.get(parentId) ?? []) {
-			const match = parsed.matches(searchItem(row, children.get(row.id)?.length ?? 0, ancestorCompleted));
+			const match = matchRow(row, ancestorCompleted);
 			const completed = ancestorCompleted || row.completedAt !== null;
 			visits.push({
 				id: row.id,

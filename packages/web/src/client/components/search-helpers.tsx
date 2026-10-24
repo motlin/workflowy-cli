@@ -79,8 +79,25 @@ const FLYOUT_CLASS = "menu !-mt-px !px-[5%] !pt-0 !pb-[2px] !bg-primary\n       
 const TAB_ROW_CLASS = "relative py-s shrink-0 flex justify-around overflow-hidden";
 const TAB_ROW_SELECTED_CLASS = `${TAB_ROW_CLASS} after:content-[''] after:absolute after:z-1 after:top-full after:left-0 after:right-0 after:bottom-0 after:h-px after:-mt-px after:bg-header-border`;
 const TAB_CLASS = "py-2xs px-ml rounded-[16px]";
-const CHIP_CLASS =
-	"pl-l py-xs pr-l block !no-underline cursor-pointer whitespace-nowrap leading-base border-solid border-primary text-primary hover:bg-secondary menuItem !py-0 !px-s !flex text-xs rounded-[16px] [&_span]:whitespace-nowrap [&_span]:text-ellipsis [&_span]:overflow-hidden";
+const NOOP_HOVER_CHIP = (): void => {};
+const CHIP_BASE =
+	"pl-l py-xs pr-l block !no-underline cursor-pointer whitespace-nowrap leading-base border-solid border-primary text-primary";
+const CHIP_TAIL =
+	"mobile:border-t mobile:last:border-b mobile:py-ml mobile:landscape:pl-safe-left mobile:landscape:pr-safe-right menuItem !py-0 !px-s !flex text-xs rounded-[16px] [&_span]:whitespace-nowrap [&_span]:text-ellipsis [&_span]:overflow-hidden !text-on-surface";
+
+/** Upstream's chip classes: `hover:bg-secondary` and `canHover` appear only once the mouse has been used over the menu. */
+function chipClass(active: boolean, canHover: boolean): string {
+	return [
+		CHIP_BASE,
+		active && "bg-secondary",
+		canHover && "hover:bg-secondary",
+		CHIP_TAIL,
+		active ? "!bg-secondary active" : "!bg-transparent",
+		canHover && "canHover",
+	]
+		.filter((part) => part !== false)
+		.join(" ");
+}
 
 /** Upstream's `useDelayedMouseEnter`: the first hover waits 100ms, later ones are instant until the flyout is left. */
 const FIRST_HOVER_DELAY_MS = 100;
@@ -92,6 +109,10 @@ export interface SearchHelpersProps {
 	tags: HelperTagLists;
 	selection: HelperSelection;
 	onHoverTab: (tab: number) => void;
+	/** Upstream selects a chip when the mouse enters it. */
+	onHoverChip?: (chip: number) => void;
+	/** The mouse has been used over the menu, which switches the chips to their hover classes. */
+	canHover?: boolean;
 	onInsert: (value: string) => void;
 	/** The jump-menu shortcut named in the hint (`ctrl+k` off mac). */
 	jumpKey?: string;
@@ -110,10 +131,14 @@ function JumpHint({jumpKey}: {jumpKey: string}) {
 function Chips({
 	values,
 	chip,
+	canHover,
+	onHoverChip,
 	onInsert,
 }: {
 	values: readonly HelperValue[];
 	chip: number;
+	canHover: boolean;
+	onHoverChip: (chip: number) => void;
 	onInsert: (value: string) => void;
 }) {
 	return (
@@ -123,8 +148,11 @@ function Chips({
 					<div className="min-w-0 py-xs px-px" key={value}>
 						{/* oxlint-disable-next-line jsx-a11y/anchor-is-valid, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream's chips are href-less anchors driven from the search input's keys */}
 						<a
-							className={`${CHIP_CLASS} ${index === chip ? "!bg-secondary active" : "!text-on-surface !bg-transparent"} canHover`}
+							className={chipClass(index === chip, canHover)}
 							style={{height: 20}}
+							onMouseEnter={() => {
+								onHoverChip(index);
+							}}
 							onClick={() => {
 								onInsert(value);
 							}}
@@ -154,6 +182,8 @@ export function SearchHelpers({
 	tags,
 	selection,
 	onHoverTab,
+	onHoverChip = NOOP_HOVER_CHIP,
+	canHover = false,
 	onInsert,
 	jumpKey = "meta+k",
 	flyoutRef,
@@ -190,7 +220,15 @@ export function SearchHelpers({
 	if (selected?.hint === true) {
 		panel = <JumpHint jumpKey={jumpKey} />;
 	} else if (selected !== undefined) {
-		panel = <Chips values={selected.values} chip={selection.chip} onInsert={onInsert} />;
+		panel = (
+			<Chips
+				values={selected.values}
+				chip={selection.chip}
+				canHover={canHover}
+				onHoverChip={onHoverChip}
+				onInsert={onInsert}
+			/>
+		);
 	}
 	const border = query === "" ? "!border-primary" : "!border-[var(--wf-border-tint)]";
 

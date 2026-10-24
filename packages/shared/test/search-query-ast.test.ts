@@ -1,5 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {normalizeForSearch, normalizeWithOffsets, parseQuery} from "../src/search/index.js";
+import {
+	matchNested,
+	normalizeForSearch,
+	normalizeWithOffsets,
+	parseNestedQuery,
+	parseQuery,
+} from "../src/search/index.js";
+import type {SearchItem} from "../src/search/index.js";
 import {SO_PLAIN_NAMES as PLAIN_NAMES, SO_ROWS, searchItem as item} from "./helpers/search-so-fixture.js";
 
 function matchingNames(query: string): string[] {
@@ -122,5 +129,50 @@ describe("QueryNode.ranges", () => {
 	it("maps ranges back through diacritic folding", () => {
 		expect(parseQuery("cafe").ranges("Le Café noir")).toStrictEqual([[3, 7]]);
 		expect(parseQuery("noir").ranges("Le Café noir")).toStrictEqual([[9, 13]]);
+	});
+});
+
+describe("nested search", () => {
+	const chain = (names: string[]): SearchItem[] => {
+		const items = names.map((name) => item(name));
+		return items.map((row, index) => ({...row, ancestors: items.slice(0, index).toReversed()}));
+	};
+	const NESTED_ROWS: SearchItem[] = [
+		...chain(["Parent with kids", "kid one", "grand kid"]),
+		item("Alpha apple pie"),
+		item("applesauce jar"),
+	];
+	const NESTED_ORDER = ["Alpha apple pie", "applesauce jar", "Parent with kids", "kid one", "grand kid"];
+	const rows = NESTED_ORDER.map((name) => NESTED_ROWS.find((r) => r.nameHtml === name)!);
+
+	function nestedNames(query: string): string[] {
+		const nested = parseNestedQuery(query);
+		const parsed = nested ? null : parseQuery(query);
+		return rows.flatMap((row) => {
+			const result = nested ? matchNested(nested, row) : parsed!.matches(row);
+			return result.matches ? [row.nameHtml] : [];
+		});
+	}
+
+	it("keeps rows whose ancestors match the earlier segments in order", () => {
+		expect(nestedNames("parent > kid")).toStrictEqual(["kid one", "grand kid"]);
+		expect(nestedNames("parent > grand")).toStrictEqual(["grand kid"]);
+		expect(nestedNames("parent > kid > grand")).toStrictEqual(["grand kid"]);
+		expect(nestedNames("alpha > pie")).toStrictEqual([]);
+		expect(nestedNames("kid > grand OR applesauce")).toStrictEqual(["applesauce jar", "grand kid"]);
+		expect(nestedNames("parent > kid -grand")).toStrictEqual(["kid one"]);
+	});
+
+	it("is not nested without a standalone > token", () => {
+		expect(parseNestedQuery("parent>kid")).toBeNull();
+		expect(parseNestedQuery('"parent > kid"')).toBeNull();
+		expect(nestedNames("parent>kid")).toStrictEqual([]);
+		expect(nestedNames('"parent > kid"')).toStrictEqual([]);
+	});
+
+	it("highlights with the last segment only", () => {
+		const nested = parseNestedQuery("parent > kid")!;
+		expect(nested.highlight.ranges("kid one")).toStrictEqual([[0, 3]]);
+		expect(nested.highlight.ranges("Parent with kids")).toStrictEqual([[12, 15]]);
 	});
 });

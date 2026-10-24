@@ -108,10 +108,29 @@ describe("SearchCountIndicatorView", () => {
 		const html = render({searching: true});
 		expect({
 			still: html.includes(" Still searching <div"),
-			spinner: html.includes('class="loading-spinner loading-spinner-small"'),
+			spinner: html.includes(
+				' Still searching <div class="relative box-border" style="width:24px;height:24px;display:inline-block;margin-left:8px">',
+			),
+			spinnerOrder: [...html.matchAll(/animation:(dom-kit-spinner-b\d)/gu)].map((match) => match[1]),
 			count: html.includes("Matches"),
 			toggle: html.includes("mr-s"),
-		}).toStrictEqual({still: true, spinner: true, count: false, toggle: false});
+		}).toStrictEqual({
+			still: true,
+			spinner: true,
+			spinnerOrder: ["dom-kit-spinner-b4", "dom-kit-spinner-b1", "dom-kit-spinner-b3"],
+			count: false,
+			toggle: false,
+		});
+	});
+
+	it("defines the upstream DomKit spinner keyframes", async () => {
+		const {readFileSync} = await import("node:fs");
+		const styles = readFileSync(new URL("../src/client/styles.css", import.meta.url), "utf8");
+		expect(["b1", "b3", "b4"].map((name) => styles.includes(`@keyframes dom-kit-spinner-${name}`))).toStrictEqual([
+			true,
+			true,
+			true,
+		]);
 	});
 
 	it("calls onToggleCompleted once when the toggle is clicked", () => {

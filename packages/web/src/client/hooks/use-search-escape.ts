@@ -3,7 +3,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
-import {escapeAction, escapeReturnTarget} from "../search-escape.js";
+import {escapeAction, outlineFocusTarget} from "../search-escape.js";
 import {isModalOpen, useOutlineStore} from "../stores/outline.js";
 import type {SearchReturn} from "../stores/outline.js";
 import {collectVisibleNodeIds} from "./use-visible-nodes.js";
@@ -32,9 +32,9 @@ function editFirstVisibleRow(queryClient: QueryClient): void {
 		animatingCompletionIds,
 		currentSearchFilter(queryClient, MAIN_PANE_ID),
 	);
-	const target = escapeReturnTarget({zoomedNodeId, firstVisibleId: firstId});
+	const target = outlineFocusTarget({zoomedNodeId, firstVisibleId: firstId});
 	if (target !== null) {
-		resumeEditing(target.id, target.offset);
+		resumeEditing(target.nodeId, target.offset);
 	}
 }
 
@@ -54,6 +54,10 @@ export function focusOutline(
 	if (!resumes) {
 		editFirstVisibleRow(queryClient);
 	}
+	restoreSavedScroll();
+}
+
+function restoreSavedScroll(): void {
 	const scrollTop = savedScrollTop;
 	savedScrollTop = null;
 	if (scrollTop !== null) {
@@ -117,16 +121,13 @@ export function useSearchEscape(): void {
 			});
 			switch (action) {
 				case "cancel": {
-					const cancel = (): void => {
-						useOutlineStore.getState().cancelSearch(navigate);
-					};
-					if (document.activeElement?.id === SEARCH_INPUT_ID) {
-						focusOutline(queryClient, cancel);
-					} else {
-						// Focus already sits in the outline (or nowhere): keep it there.
-						useOutlineStore.setState({searchReturn: null});
-						cancel();
-					}
+					// Upstream lands the caret on the zoom-root title (or the first row), not on the row Escape left.
+					leaveEditor();
+					searchInputElement()?.blur();
+					useOutlineStore.setState({searchReturn: null});
+					useOutlineStore.getState().cancelSearch(navigate);
+					editFirstVisibleRow(queryClient);
+					restoreSavedScroll();
 					break;
 				}
 				case "blur": {

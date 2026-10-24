@@ -113,7 +113,7 @@ describe("SearchBox", () => {
 
 	it("keeps the small magnifier when wide", () => {
 		expect(render({})).toContain(
-			'class="svg-inline--fa fa-magnifying-glass fa-sm absolute left-ml pointer-events-none"',
+			'<svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="magnifying-glass" class="svg-inline--fa fa-magnifying-glass fa-sm absolute left-ml pointer-events-none" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">',
 		);
 	});
 

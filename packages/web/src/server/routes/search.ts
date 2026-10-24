@@ -64,11 +64,26 @@ export function loadHelperTags(database: ReturnType<typeof getDatabase>, rootId:
 // GET /api/search/helpers?rootId= - Subtree tags for the search helper's #TAGS / @TAGS sections
 searchRouter.get("/helpers", (c) => c.json(loadHelperTags(getDatabase(), c.req.query("rootId") ?? "")));
 
+/** The account's stored date format (so strict `date:` queries parse it), or null when unset or unavailable. */
+async function loadDateFormat(c: Context<AppEnv>): Promise<string | null> {
+	const adapter = c.get("ctx").internalAdapter?.();
+	if (!adapter) {
+		return null;
+	}
+	try {
+		const value = await adapter.getRootMeta(["dateFormat"]);
+		return typeof value === "string" && value !== "" ? value : null;
+	} catch {
+		return null;
+	}
+}
+
 // POST /api/search/tree - In-place search of the zoomed subtree, driven by the upstream query AST
 searchRouter.post("/tree", async (c) => {
 	const {query, rootId} = await c.req.json<TreeSearchBody>();
 	const rows = loadTreeRows(getDatabase(), rootId);
-	return c.json(computeTreeSearch(rows, rootId, query, Date.now()));
+	const dateFormat = await loadDateFormat(c);
+	return c.json(computeTreeSearch(rows, rootId, query, Date.now(), dateFormat === null ? {} : {dateFormat}));
 });
 
 interface SwitcherBody {

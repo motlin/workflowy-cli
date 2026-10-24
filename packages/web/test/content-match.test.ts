@@ -45,10 +45,14 @@ describe("highlightSearchMatches", () => {
 			term: highlightSearchMatches('Green <span class="contentTag">#apple</span> pie', "apple"),
 			empty: highlightSearchMatches("Green apple", ""),
 			metaOnly: highlightSearchMatches("Green apple", "is:complete"),
+			nestedKid: highlightSearchMatches("kid one", "parent > kid"),
+			nestedParent: highlightSearchMatches("Parent with kids", "parent > kid"),
 		}).toStrictEqual({
 			term: 'Green <span class="contentTag">#<span class="contentMatch">apple</span></span> pie',
 			empty: "Green apple",
 			metaOnly: "Green apple",
+			nestedKid: '<span class="contentMatch">kid</span> one',
+			nestedParent: 'Parent with <span class="contentMatch">kid</span>s',
 		});
 	});
 });

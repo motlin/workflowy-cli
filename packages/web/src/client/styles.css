@@ -1013,9 +1013,37 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 	line-height: 0.889rem;
 }
 
-.matching-node .loading-spinner {
-	display: inline-block;
-	margin-left: 8px;
+@keyframes dom-kit-spinner-b1 {
+	0% {
+		transform: scale(0);
+		opacity: 0;
+	}
+	100% {
+		transform: scale(0.33);
+		opacity: 1;
+	}
+}
+
+@keyframes dom-kit-spinner-b3 {
+	0% {
+		transform: scale(0.33);
+		opacity: 0;
+	}
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+@keyframes dom-kit-spinner-b4 {
+	0% {
+		transform: scale(1);
+		opacity: 1;
+	}
+	100% {
+		transform: scale(2);
+		opacity: 0;
+	}
 }
 
 /* Upstream's .page.searching .notes.matches>.content: a matched note opens to full height. */

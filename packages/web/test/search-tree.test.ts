@@ -149,4 +149,28 @@ describe("computeTreeSearch", () => {
 	it("returns the empty result for an empty query", () => {
 		expect(computeTreeSearch(ROWS, "root", "   ", NOW)).toStrictEqual(EMPTY);
 	});
+
+	it("nested a > b keeps rows under a matching ancestor, including the zoom root and rows above it", () => {
+		const nested = [
+			row("top", null, 0, "Top"),
+			row("parent", "top", 0, "Parent with kids"),
+			row("kid", "parent", 0, "kid one"),
+			row("stray", "top", 1, "kid stray"),
+		];
+		expect({
+			zoomed: computeTreeSearch(nested, "parent", "parent > kid", NOW).matchIds,
+			whole: computeTreeSearch(nested, null, "parent > kid", NOW).matchIds,
+			aboveRoot: computeTreeSearch(nested, "parent", "top > kid", NOW).matchIds,
+		}).toStrictEqual({zoomed: ["kid"], whole: ["kid"], aboveRoot: ["kid"]});
+	});
+
+	it("uses the account date format for strict date: queries", () => {
+		const dated = [
+			row("d", null, 0, 'Meeting <time startYear="2026" startMonth="10" startDay="23">Fri, Oct 23, 2026</time>'),
+		];
+		expect({
+			withFormat: computeTreeSearch(dated, null, "date:10/23/2026", NOW, {dateFormat: "MM/DD/YYYY"}).matchIds,
+			withoutFormat: computeTreeSearch(dated, null, "date:10/23/2026", NOW).matchIds,
+		}).toStrictEqual({withFormat: ["d"], withoutFormat: []});
+	});
 });
