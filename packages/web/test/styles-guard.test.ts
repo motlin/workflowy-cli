@@ -82,8 +82,8 @@ describe("flyout surface styles guard", () => {
 
 	it("scopes the light and dark .wf-menu tokens", () => {
 		expect({
-			light: normalizedBlocks(styles, ':root:not([data-theme="dark"]) .wf-menu'),
-			dark: normalizedBlocks(styles, '[data-theme="dark"] .wf-menu'),
+			light: normalizedBlocks(styles, "._theme-default .wf-menu"),
+			dark: normalizedBlocks(styles, "._theme-dark .wf-menu"),
 		}).toStrictEqual({
 			light: ["--wf-text-primary: var(--wf-gray-700);--wf-border-secondary: var(--wf-gray-400)"],
 			dark: [

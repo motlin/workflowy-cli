@@ -22,7 +22,8 @@ const preview: Preview = {
 		(Story, context) => {
 			// Apply theme based on selected background
 			const isDark = context.globals.backgrounds?.value === "#1a1a1a";
-			document.documentElement.dataset.theme = isDark ? "dark" : "light";
+			document.body.classList.remove("_theme-default", "_theme-dark");
+			document.body.classList.add(isDark ? "_theme-dark" : "_theme-default");
 			return Story();
 		},
 	],

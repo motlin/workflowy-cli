@@ -23,7 +23,26 @@ function stripComments(css: string): string {
 describe("upstream base styles", () => {
 	it("uses upstream's system font stack on body and --wf-font-family", () => {
 		expect(cssBlock(styles, "body")["font-family"]).toBe(SYSTEM_FONT_STACK);
-		expect(cssBlock(styles, ":root")["--wf-font-family"]).toBe(SYSTEM_FONT_STACK);
+		expect(cssBlock(styles, ":root")["--wf-font-family"]).toBe(
+			SYSTEM_FONT_STACK.replace("var(--emoji-font, ", "").replace('"Apple Color Emoji")', '"Apple Color Emoji"'),
+		);
+	});
+
+	it("paints body from the semantic tokens", () => {
+		const body = cssBlock(styles, "body");
+		expect({color: body.color, background: body.background}).toStrictEqual({
+			color: "var(--wf-text-primary)",
+			background: "var(--wf-background-primary)",
+		});
+		expect(body["background-color"]).toBeUndefined();
+	});
+
+	it("ports design.css's input color and time-picker rules", () => {
+		expect(cssBlock(styles, "input")).toStrictEqual({color: "var(--wf-text-primary)"});
+		expect(cssBlock(styles, 'input[type="time"]::-webkit-calendar-picker-indicator')).toStrictEqual({
+			background: "none",
+			display: "none",
+		});
 	});
 
 	it("leaves body line-height to the reset (1)", () => {

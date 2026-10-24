@@ -22,7 +22,7 @@ function colorGroupCss(color: string, tags: readonly string[]): string {
 		tags.map((tag) => `${prefix}.contentTag[data-val="${escapeCssString(tag)}"]${suffix}`).join(",");
 	return [
 		rule(selectors(""), [
-			`background-color: var(--wf-tag-bg-${color})!important`,
+			`background-color: var(--wf-background-${color})!important`,
 			"color: var(--wf-text-primary)!important",
 		]),
 		rule(selectors(" span"), ["background: none"]),

@@ -125,7 +125,6 @@ function getInitialTheme(): Theme {
 
 function applyTheme(theme: Theme): void {
 	const effectiveTheme = theme === "system" ? getSystemTheme() : theme;
-	document.documentElement.dataset.theme = effectiveTheme;
 	const bodyClass = themeBodyClass(effectiveTheme);
 	document.body.classList.toggle("_theme-dark", bodyClass === "_theme-dark");
 	document.body.classList.toggle("_theme-default", bodyClass === "_theme-default");

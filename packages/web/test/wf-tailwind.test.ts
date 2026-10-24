@@ -11,7 +11,7 @@ const tw = readSource("../src/client/wf-tailwind.css");
 
 // The upstream dump lives under the gitignored .llm/ tree, so it exists only in the main checkout.
 const upstreamPath = fileURLToPath(
-	new URL("../../../.llm/upstream-sync/dumps/upstream-assets/css_tailwind.19007f1c5b78.css", import.meta.url),
+	new URL("../../../.llm/upstream-sync/dumps/upstream-assets/css_tailwind.7d94a432a83c.css", import.meta.url),
 );
 
 // lightningcss cannot minify this rule (an unexpanded JS template literal upstream), so the port drops it.
@@ -68,6 +68,11 @@ const SAMPLE_RULES: Record<string, Record<string, string>> = {
 		"box-shadow": "var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)",
 	},
 	".sm\\:flex": {display: "flex"},
+	".hover\\:bg-tint:hover": {"background-color": "var(--wf-background-tint)"},
+	".min-h-\\[var\\(--wf-header-height\\)\\]": {"min-height": "var(--wf-header-height)"},
+	// Still used by components/side-pane.tsx; upstream dropped them, so they live in a local appendix.
+	".box-content": {"box-sizing": "content-box"},
+	".min-w-\\[350px\\]": {"min-width": "350px"},
 };
 
 describe("wf-tailwind.css", () => {

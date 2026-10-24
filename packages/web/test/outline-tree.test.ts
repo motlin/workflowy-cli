@@ -590,6 +590,7 @@ describe("outline tree styles guard", () => {
 		}).toStrictEqual({
 			legacy: false,
 			main: {
+				"border-color": "#aaa",
 				"font-weight": "700",
 				"font-size": "var(--font-selected-name-font-size)",
 				"--line-height": "var(--font-selected-name-line-height)",
@@ -613,10 +614,10 @@ describe("outline tree styles guard", () => {
 	});
 
 	it("puts the descendant content padding on .children like upstream", () => {
-		expect(cssBlock(styles, ".children")).toStrictEqual({
-			"--wf-content-padding-top": "var(--font-descendant-padding-top)",
-			"--space-for-bullet": "24px",
-		});
+		expect(cssBlock(styles, ".children, .draggableNameClone")["--wf-content-padding-top"]).toBe(
+			"var(--font-descendant-padding-top)",
+		);
+		expect(cssBlock(styles, ".children")).toStrictEqual({"--space-for-bullet": "24px"});
 	});
 });
 
