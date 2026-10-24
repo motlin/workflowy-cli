@@ -6,6 +6,7 @@ import type {Root} from "react-dom/client";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {editableText} from "../src/client/components/editable-text.js";
 import {useOutlineStore} from "../src/client/stores/outline.js";
+import {is, pop, resetPopupsForTests} from "../src/client/popups.js";
 
 declare global {
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -31,9 +32,10 @@ afterEach(() => {
 	host?.remove();
 	root = undefined;
 	host = undefined;
-	for (const element of document.body.querySelectorAll(".flyout")) {
+	for (const element of document.body.querySelectorAll(".flyout, .hidden")) {
 		element.remove();
 	}
+	resetPopupsForTests();
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
@@ -129,13 +131,42 @@ describe("tag color teaser", () => {
 		expect({opened, after: teaserOpen()}).toStrictEqual({opened: true, after: false});
 	});
 
-	it("does not open while another flyout is open", () => {
+	it("opens beside the always-mounted hidden search-helpers flyout", () => {
+		const content = mountRow();
+		const hidden = document.createElement("div");
+		hidden.className = "hidden";
+		hidden.innerHTML = '<div class="flyout menu"></div>';
+		document.body.append(hidden);
+		hover(tagOf(content));
+		expect({teaser: teaserOpen(), registered: is("TAG_COLOR_TEASER_POPUP")}).toStrictEqual({
+			teaser: true,
+			registered: true,
+		});
+	});
+
+	it("opens while an unregistered flyout such as the tag autocomplete is visible", () => {
 		const content = mountRow();
 		const menu = document.createElement("div");
-		menu.className = "flyout";
+		menu.className = "flyout menu";
 		document.body.append(menu);
 		hover(tagOf(content));
+		expect(teaserOpen()).toBe(true);
+	});
+
+	it("does not open while the selection toolbar is registered", () => {
+		const content = mountRow();
+		pop("CTX_MENU_POPUP");
+		hover(tagOf(content));
 		expect(teaserOpen()).toBe(false);
+	});
+
+	it("unregisters when the teaser closes", () => {
+		const content = mountRow();
+		hover(tagOf(content));
+		act(() => {
+			document.dispatchEvent(new Event("selectionchange"));
+		});
+		expect(is("TAG_COLOR_TEASER_POPUP")).toBe(false);
 	});
 
 	it("does not open while a modal is open", () => {

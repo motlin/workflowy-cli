@@ -51,6 +51,7 @@ import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
+import {pop, unpop} from "../popups.js";
 import {plainText, splitHtml} from "../rich-text.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
 import {
@@ -1242,6 +1243,7 @@ const RestingText = memo(function RestingText({
 	const scheduleHide = useCallback(() => {
 		cancelHide();
 		hideTimer.current = globalThis.setTimeout(() => {
+			unpop("TAG_COLOR_TEASER_POPUP");
 			setTagHover(null);
 		}, 150);
 	}, [cancelHide]);
@@ -1257,13 +1259,14 @@ const RestingText = memo(function RestingText({
 				}
 				return;
 			}
-			if (colorPicker || otherPopupOpen(isModalOpen)) {
+			if (colorPicker || otherPopupOpen("TAG_COLOR_TEASER_POPUP", isModalOpen)) {
 				return;
 			}
 			cancelHide();
 			installTagDeleteKeys();
 			markTagDeleteHover(tagEl, event);
 			const rect = tagEl.getBoundingClientRect();
+			pop("TAG_COLOR_TEASER_POPUP", tagEl);
 			setTagHover({
 				tag: tagEl.textContent,
 				top: rect.top,
@@ -1284,6 +1287,7 @@ const RestingText = memo(function RestingText({
 		}
 		const close = () => {
 			cancelHide();
+			unpop("TAG_COLOR_TEASER_POPUP");
 			setTagHover(null);
 		};
 		document.addEventListener("selectionchange", close);
@@ -1302,6 +1306,7 @@ const RestingText = memo(function RestingText({
 				return;
 			}
 			cancelHide();
+			pop("TAG_COLORS_POPUP");
 			setColorPicker({tag: tagHover.tag, top: tagHover.bottom, left: tagHover.left});
 			setTagHover(null);
 		},
@@ -1309,6 +1314,7 @@ const RestingText = memo(function RestingText({
 	);
 
 	const closeColorPicker = useCallback(() => {
+		unpop("TAG_COLORS_POPUP");
 		setColorPicker(null);
 	}, []);
 
@@ -1329,6 +1335,7 @@ const RestingText = memo(function RestingText({
 		document.addEventListener("pointerdown", onPointerDown);
 		document.addEventListener("keydown", onKey);
 		return () => {
+			unpop("TAG_COLORS_POPUP");
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("keydown", onKey);
 		};

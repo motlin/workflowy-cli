@@ -1,3 +1,5 @@
+import {anotherPopupOpened, pop, unpop} from "../popups.js";
+import type {PopupId} from "../popups.js";
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import type {RefObject} from "react";
 import {selectionTextOffsets} from "../caret-dom.js";
@@ -132,9 +134,9 @@ function installPointerTracker(): void {
 	document.addEventListener("pointercancel", releasePrimary, true);
 }
 
-/** A modal or a flyout other than the selection toolbar is open. */
-export function otherPopupOpen(modalOpen: () => boolean): boolean {
-	return modalOpen() || document.querySelector(".flyout:not(.ctx-menu)") !== null;
+/** A modal is open, or the registry holds a popup other than `self` (upstream's `anotherPopupOpened`). */
+export function otherPopupOpen(self: PopupId, modalOpen: () => boolean): boolean {
+	return modalOpen() || anotherPopupOpened(self);
 }
 
 function stretchedIn(editor: HTMLElement): boolean {
@@ -168,7 +170,7 @@ interface SelectionToolbarOptions {
 	active: boolean;
 	/** The editor's content as stored HTML, for the active formats. */
 	read: () => string;
-	/** A modal (link insert, jump menu, dialogs) is open; any other open `.flyout` also counts as a popup. */
+	/** A modal (link insert, jump menu, dialogs) is open; another registered popup also counts. */
 	modalOpen: () => boolean;
 }
 
@@ -201,7 +203,13 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 		let frame = 0;
 		let released = false;
 		const publish = () => {
-			setView(state.visible ? measure(editor, io.current.read()) : null);
+			const next = state.visible ? measure(editor, io.current.read()) : null;
+			if (next === null) {
+				unpop("CTX_MENU_POPUP");
+			} else {
+				pop("CTX_MENU_POPUP", editor);
+			}
+			setView(next);
 		};
 		const dispatch = (event: ToolbarEvent) => {
 			state = toolbarState(state, event);
@@ -214,7 +222,7 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 			frame = requestAnimationFrame(() => {
 				frame = 0;
 				const stretched = stretchedIn(editor);
-				const popupOpen = otherPopupOpen(io.current.modalOpen);
+				const popupOpen = otherPopupOpen("CTX_MENU_POPUP", io.current.modalOpen);
 				dispatch(
 					released
 						? {type: "pointerup", stretched, popupOpen}
@@ -265,6 +273,7 @@ export function useSelectionToolbar({editorRef, active, read, modalOpen}: Select
 			editor.removeEventListener("compositionstart", onCompositionStart);
 			editor.removeEventListener("compositionend", onCompositionEnd);
 			editor.removeEventListener("keydown", onKeyDown);
+			unpop("CTX_MENU_POPUP");
 			setView(null);
 		};
 	}, [active, editorRef]);

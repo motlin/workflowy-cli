@@ -6,6 +6,7 @@ import type {DatePhrase} from "@workflowy/shared";
 import {caretTextOffset} from "../caret-dom.js";
 import {datePhraseText, findDatePhraseAtCaret, serializeDatePills} from "../date-pills.js";
 import type {DateSettings} from "../date-settings.js";
+import {isVisible, pop, unpop} from "../popups.js";
 import {FaIcon} from "./fa-icons.js";
 import {popoverBox} from "./flyout/popover-box.js";
 import {IconButton} from "./icon-button.js";
@@ -119,6 +120,11 @@ export function useDateAutocomplete({
 
 	const show = useCallback((next: Shown | null) => {
 		shownRef.current = next;
+		if (next === null) {
+			unpop("date.autocomplete");
+		} else {
+			pop("date.autocomplete");
+		}
 		setShown(next);
 	}, []);
 	const hide = useCallback(() => {
@@ -130,7 +136,9 @@ export function useDateAutocomplete({
 	const handleInput = useCallback(() => {
 		const editor = editorRef.current;
 		const selection = globalThis.getSelection();
-		if (editor === null || isBlocked() || !selection?.isCollapsed) {
+		// Upstream: drop our own slot first, then yield to any other registered popup.
+		unpop("date.autocomplete");
+		if (editor === null || isBlocked() || isVisible() || !selection?.isCollapsed) {
 			hide();
 			return;
 		}
