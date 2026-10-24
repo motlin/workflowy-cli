@@ -10,6 +10,9 @@ interface Ancestor {
 
 const ancestorsState: {data: Ancestor[] | undefined; isLoading: boolean} = {data: undefined, isLoading: false};
 
+vi.mock("../src/client/hooks/use-account.js", () => ({
+	useAccount: () => null,
+}));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
 	useAncestors: () => ancestorsState,
 }));

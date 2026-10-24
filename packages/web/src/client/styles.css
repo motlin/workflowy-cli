@@ -1665,6 +1665,18 @@ body.moving .expand {
 	text-decoration: line-through;
 }
 
+.mention .at-sign::after {
+	content: "@";
+}
+
+.notes .mention .at-sign {
+	font-size: 12px;
+}
+
+.root > .notes .mention .at-sign {
+	font-size: inherit;
+}
+
 .content time {
 	cursor: pointer;
 }

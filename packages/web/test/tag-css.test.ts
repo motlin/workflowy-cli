@@ -59,3 +59,14 @@ describe("tag CSS parity with upstream wf-base", () => {
 		expect(styles.includes(".innerContentContainer .contentTag")).toBe(false);
 	});
 });
+
+describe("mention CSS parity with upstream wf-base", () => {
+	it("shows the @ sign after the at-sign span", () => {
+		expect(cssBlock(styles, ".mention .at-sign::after")).toStrictEqual({content: '"@"'});
+	});
+
+	it("sizes the @ sign in notes", () => {
+		expect(cssBlock(styles, ".notes .mention .at-sign")).toStrictEqual({"font-size": "12px"});
+		expect(cssBlock(styles, ".root > .notes .mention .at-sign")).toStrictEqual({"font-size": "inherit"});
+	});
+});

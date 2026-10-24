@@ -3,9 +3,11 @@ import type {MouseEvent} from "react";
 import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumbLabel} from "../breadcrumb-layout.js";
 import type {LayoutCrumb} from "../breadcrumb-layout.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
+import type {MentionAccount} from "../mention-pills.js";
 import {useCrumbZoomOut} from "../crumb-zoom.js";
 import {useContainerRect, useWindowWidth} from "../hooks/use-container-rect.js";
 import {useCalendarSettings, useDayPrefix} from "../hooks/use-calendar-settings.js";
+import {useAccount} from "../hooks/use-account.js";
 import {useAncestors} from "../hooks/use-nodes.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {nodeUrl, useNodeNavigation} from "../navigation.js";
@@ -106,10 +108,14 @@ function noop(): void {}
 interface CrumbDateOptions {
 	dateFormat?: string;
 	dayPrefix?: boolean;
+	account?: MentionAccount;
 }
 
-function crumbLabel(name: string | null | undefined, {dateFormat, dayPrefix = true}: CrumbDateOptions): string {
-	const label = formatCrumbLabel(name ?? "", {now: new Date(), dateFormat, dayPrefix});
+function crumbLabel(
+	name: string | null | undefined,
+	{dateFormat, dayPrefix = true, account = null}: CrumbDateOptions,
+): string {
+	const label = formatCrumbLabel(name ?? "", {now: new Date(), dateFormat, dayPrefix, account});
 	return label === "" ? "Untitled" : label;
 }
 
@@ -298,9 +304,11 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 				);
 			}
 		});
+	const account = useAccount();
 	const dateOptions = {
 		dateFormat,
 		dayPrefix,
+		account,
 	};
 	const inputs = crumbs.map((crumb) => ({
 		id: crumb.id,
@@ -384,7 +392,8 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 function useCrumbDateOptions(): CrumbDateOptions {
 	const {dateFormat} = useDateSettings();
 	const {dayPrefix} = useCalendarSettings(noLog).settings;
-	return {dateFormat, dayPrefix};
+	const account = useAccount();
+	return {dateFormat, dayPrefix, account};
 }
 
 /** A backlink's ancestors laid out flat, without the header's truncation engine. */

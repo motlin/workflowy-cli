@@ -3,7 +3,7 @@
 export type MentionAccount = {userId: number; fullName: string | null} | null;
 
 const BOM = "﻿";
-const MENTION_PATTERN = /<mention\b([^>]*)>[\s\S]*?<\/mention>/giu;
+export const MENTION_PATTERN = /<mention\b([^>]*)>[\s\S]*?<\/mention>/giu;
 
 export interface MentionAttrs {
 	id: string;

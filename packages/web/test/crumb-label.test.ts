@@ -4,6 +4,20 @@ import {crumbLabel, friendlyPrefix} from "../src/client/crumb-label.js";
 const SEP_4 = '<time startYear="2026" startMonth="9" startDay="4">Fri, Sep 4, 2026</time>';
 
 describe("crumbLabel", () => {
+	it("resolves stored mentions to plain names", () => {
+		const html = 'MP sys <mention id="-2" by="1" ts="1"> </mention> <mention id="-10" by="1" ts="1"> </mention> x';
+		expect(crumbLabel(html, {now: new Date(2026, 9, 1)})).toBe("MP sys Workflowy AI x");
+	});
+
+	it("resolves the current user's mention to the account full name", () => {
+		expect(
+			crumbLabel('hi <mention id="7" by="7" ts="1"> </mention>', {
+				now: new Date(2026, 9, 1),
+				account: {userId: 7, fullName: "Alice Smith"},
+			}),
+		).toBe("hi Alice Smith");
+	});
+
 	it("formats a day <time> with the default date format", () => {
 		expect(crumbLabel(SEP_4, {now: new Date(2026, 9, 1)})).toBe("2026-09-04 Fri");
 	});

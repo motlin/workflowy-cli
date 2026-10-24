@@ -1,5 +1,7 @@
 import {formatTimeLabel, parseTimeAttrs, parseTimeAttrsLoose} from "@workflowy/shared";
 import {stripHtmlTags} from "@workflowy/shared/html";
+import {MENTION_PATTERN, parseMentionAttrs, resolveMentionName} from "./mention-pills.js";
+import type {MentionAccount} from "./mention-pills.js";
 
 export type FriendlyPrefix = "Yesterday" | "Today" | "Tomorrow";
 
@@ -28,6 +30,7 @@ export interface CrumbLabelOptions {
 	now: Date;
 	dateFormat?: string;
 	dayPrefix?: boolean;
+	account?: MentionAccount;
 }
 
 const TIME_PATTERN = /<time\b([^>]*)>[\s\S]*?<\/time>/giu;
@@ -36,12 +39,16 @@ const SINGLE_TIME_PATTERN = /^\s*<time\b([^>]*)>[\s\S]*?<\/time>\s*$/iu;
 /** Plain crumb text: `<time>` pills rendered as formatted dates, other tags stripped, a day name prefixed. */
 export function crumbLabel(
 	nameHtml: string,
-	{now, dateFormat = "YYYY-MM-DD ddd", dayPrefix = true}: CrumbLabelOptions,
+	{now, dateFormat = "YYYY-MM-DD ddd", dayPrefix = true, account = null}: CrumbLabelOptions,
 ): string {
 	const label = stripHtmlTags(
-		nameHtml.replaceAll(TIME_PATTERN, (_match, attrText: string) =>
-			formatTimeLabel(parseTimeAttrsLoose(attrText), {dateFormat, now}),
-		),
+		nameHtml
+			.replaceAll(TIME_PATTERN, (_match, attrText: string) =>
+				formatTimeLabel(parseTimeAttrsLoose(attrText), {dateFormat, now}),
+			)
+			.replaceAll(MENTION_PATTERN, (_match, attrText: string) =>
+				resolveMentionName(parseMentionAttrs(attrText).id, account),
+			),
 	);
 	const single = dayPrefix ? SINGLE_TIME_PATTERN.exec(nameHtml) : null;
 	if (single?.[1] === undefined) {
