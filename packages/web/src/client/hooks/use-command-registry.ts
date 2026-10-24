@@ -569,9 +569,17 @@ export function useCommandRegistry(): CommandRegistry {
 			// Committed at once, so the editor unmounts: a row edited both before and after the undo would otherwise keep
 			// its held text, since stopping and resuming in one render never leaves editing.
 			flushSync(() => {
-				const editedId = useOutlineStore.getState().editingId;
+				const {editingId: editedId, editingNoteId: editedNoteId} = useOutlineStore.getState();
 				if (editedId !== null) {
 					editorElement(editedId)?.blur();
+				}
+				// A focused note holds its typed HTML, so it must blur to re-render the restored text.
+				const active = document.activeElement;
+				if (active instanceof HTMLElement && active.isContentEditable && active.closest(".notes") !== null) {
+					active.blur();
+				}
+				if (editedNoteId !== null) {
+					useOutlineStore.getState().blurNote(editedNoteId);
 				}
 				stopEditing();
 			});
