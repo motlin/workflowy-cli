@@ -22,6 +22,7 @@ import {createPaneId, workspaceFragments} from "../pane-url.js";
 import {availablePaneWidth, beginDividerResize, paneWidth, resizedDivider, resolveWidths} from "../pane-widths.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import type {PaneCaret, PaneCaretPosition} from "../pane-caret.js";
+import {selectCompletedVisibility} from "../completed-visibility.js";
 import {closeSwitcher} from "../switcher-close.js";
 import {requestedMenuEntries} from "../requested-menu.js";
 import type {SwitcherCloseMode, SwitcherReturn} from "../switcher-close.js";
@@ -1168,12 +1169,20 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	setShowCompleted: (showCompleted) => {
 		set({showCompleted});
-		writeCompletedMode(showCompleted);
+		// Upstream's `setShown` writes storage only outside a search.
+		if (get().searchQuery === "") {
+			writeCompletedMode(showCompleted);
+		}
 		void patchPreference({showCompleted}, "show completed");
 	},
 
 	toggleShowCompleted: () => {
-		get().setShowCompleted(!get().showCompleted);
+		const {searchQuery, showCompleted} = get();
+		// Upstream ignores the toggle while a revealing query forces completed rows.
+		if (selectCompletedVisibility({showCompleted, searchQuery}).forced) {
+			return;
+		}
+		get().setShowCompleted(!showCompleted);
 	},
 
 	adoptShowCompleted: (showCompleted) => {

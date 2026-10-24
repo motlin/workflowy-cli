@@ -36,3 +36,8 @@ export function scheduleCompletionHide(
 		}, SLIDE_UP_FALLBACK_MS);
 	}, COMPLETION_HIDE_DELAY_MS);
 }
+
+/** Upstream's delay before a completed zoom root zooms out: the hide wait and slide (hidden mode) plus 500ms. */
+export function zoomOutDelayMs(showCompleted: boolean): number {
+	return showCompleted ? 500 : COMPLETION_HIDE_DELAY_MS + SLIDE_UP_FALLBACK_MS + 500;
+}

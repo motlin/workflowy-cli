@@ -603,6 +603,17 @@ describe("planToggleComplete", () => {
 	it("does nothing for an empty list", () => {
 		expect(planToggleComplete([])).toStrictEqual({action: "none", ids: []});
 	});
+
+	it("does nothing when any item is blocked (read-only or a backlink root)", () => {
+		const nodes = [
+			{id: "a", completedAt: null},
+			{id: "b", completedAt: null},
+		];
+		expect([planToggleComplete(nodes, (id) => id === "b"), planToggleComplete(nodes, () => false)]).toStrictEqual([
+			{action: "none", ids: []},
+			{action: "complete", ids: ["a", "b"]},
+		]);
+	});
 });
 
 describe("isPotentiallyVisible", () => {

@@ -1,3 +1,4 @@
+import {selectCompletedVisibility} from "../completed-visibility.js";
 import type {ReactNode} from "react";
 import {locationKey} from "@workflowy/shared";
 import {useChildren, useHome, useNode} from "../hooks/use-nodes.js";
@@ -21,6 +22,8 @@ export interface HeaderActions {
 	present: () => void;
 	toggleStar: () => void;
 	toggleCompleted: () => void;
+	/** A revealing search forces completed rows, so upstream renders no toggle. */
+	completedForced: boolean;
 	/** Upstream: showItemTypePicker at {top: rect.bottom + 4, left: rect.left}; the picker centers itself there. */
 	openLayoutPicker: (anchor: Element | null) => void;
 }
@@ -28,6 +31,7 @@ export interface HeaderActions {
 /** The compactable header actions acting on `zoomedId` (null is Home). */
 export function useHeaderActions(zoomedId: string | null): HeaderActions {
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
+	const searchQuery = useOutlineStore((state) => state.searchQuery);
 	const openPresentation = useOutlineStore((state) => state.openPresentation);
 	const showItemTypePicker = useOutlineStore((state) => state.showItemTypePicker);
 	const toggleCompleted = useShowCompletedToggle();
@@ -41,6 +45,7 @@ export function useHeaderActions(zoomedId: string | null): HeaderActions {
 		canPresent: zoomedId === null ? (rootChildren.data?.length ?? 0) > 0 : zoomedNode.data?.hasChildren === true,
 		isStarred: stars.some((star) => star.key === pageKey),
 		showCompleted,
+		completedForced: selectCompletedVisibility({showCompleted, searchQuery}).forced,
 		layoutIcon: (
 			<FaIcon
 				icon={typeIcon(
@@ -97,19 +102,19 @@ export function compactHeaderItems(
 			onSelect: actions.toggleStar,
 		});
 	}
-	items.push(
-		{
+	if (!actions.completedForced) {
+		items.push({
 			label: actions.showCompleted ? "Hide completed" : "Show completed",
 			icon: <FaIcon icon="fal:check" />,
 			onSelect: actions.toggleCompleted,
+		});
+	}
+	items.push({
+		label: "Change layout",
+		icon: actions.layoutIcon,
+		onSelect: () => {
+			actions.openLayoutPicker(document.querySelector(anchorSelector));
 		},
-		{
-			label: "Change layout",
-			icon: actions.layoutIcon,
-			onSelect: () => {
-				actions.openLayoutPicker(document.querySelector(anchorSelector));
-			},
-		},
-	);
+	});
 	return items;
 }

@@ -30,7 +30,7 @@ import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.j
 import {useOutlineStore} from "../stores/outline.js";
 import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
 import {useShallow} from "zustand/react/shallow";
-import {lastChildShapeLayout, planAddChild, planAddSibling} from "../tree-ops.js";
+import {lastChildShapeLayout, planAddChild, planAddSibling, rowHasChildren} from "../tree-ops.js";
 import {expandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -235,7 +235,7 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 			projectid={node?.id}
 			className={[
 				projectClassName({
-					hasChildren: node?.hasChildren !== false,
+					hasChildren: node === undefined || rowHasChildren(node, showCompleted),
 					expanded: true,
 					completed: node !== undefined && node.completedAt !== null,
 					hasNote: Boolean(node?.note),

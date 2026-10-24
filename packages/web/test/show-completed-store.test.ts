@@ -96,6 +96,32 @@ describe("setShowCompleted", () => {
 		});
 	});
 
+	it("leaves completedMode untouched while a search is active, but still updates state", async () => {
+		const store = await loadStore();
+		store.setState({searchQuery: "x"});
+		store.getState().setShowCompleted(false);
+		const duringSearch = {
+			showCompleted: store.getState().showCompleted,
+			completedMode: stored.get("completedMode"),
+		};
+		store.setState({searchQuery: ""});
+		store.getState().setShowCompleted(false);
+		expect([duringSearch, stored.get("completedMode")]).toStrictEqual([
+			{showCompleted: false, completedMode: undefined},
+			"hide",
+		]);
+	});
+
+	it("ignores the toggle while the search forces completed rows", async () => {
+		const store = await loadStore();
+		store.setState({searchQuery: "is:complete"});
+		store.getState().toggleShowCompleted();
+		expect({showCompleted: store.getState().showCompleted, calls: patchCalls()}).toStrictEqual({
+			showCompleted: true,
+			calls: [],
+		});
+	});
+
 	it("keeps the local value when the PATCH fails", async () => {
 		fetchMock.mockResolvedValue(new Response("nope", {status: 500}));
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});

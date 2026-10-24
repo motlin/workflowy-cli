@@ -1,4 +1,5 @@
 import {Fragment} from "react";
+import {selectCompletedVisibility} from "../completed-visibility.js";
 import {useSearchProgress} from "../hooks/use-tree-search.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
@@ -8,7 +9,8 @@ export interface SearchCountIndicatorProps {
 	/** Every match, hidden completed ones included. */
 	matchCount: number;
 	completedMatchCount: number;
-	showCompleted: boolean;
+	/** Completed rows render: the preference, or forced by a revealing query. */
+	shown: boolean;
 	/** The current query's result has not arrived yet. */
 	searching: boolean;
 	onToggleCompleted: () => void;
@@ -22,7 +24,7 @@ const PILL_CLASS =
 export function SearchCountIndicatorView({
 	matchCount,
 	completedMatchCount,
-	showCompleted,
+	shown,
 	searching,
 	onToggleCompleted,
 }: SearchCountIndicatorProps) {
@@ -40,7 +42,7 @@ export function SearchCountIndicatorView({
 							<div className="flex cursor-pointer h-full items-center " onClick={onToggleCompleted}>
 								<span className="mr-s">{`${completedMatchCount} completed`}</span>
 								<div className="w-[20px] flex justify-center">
-									<FaIcon icon={showCompleted ? "fal:eye" : "fal:eye-slash"} />
+									<FaIcon icon={shown ? "fal:eye" : "fal:eye-slash"} />
 								</div>
 							</div>
 						)}
@@ -66,7 +68,7 @@ export function SearchCountIndicator() {
 		<SearchCountIndicatorView
 			matchCount={result?.matchCount ?? 0}
 			completedMatchCount={result?.completedMatchCount ?? 0}
-			showCompleted={showCompleted}
+			shown={selectCompletedVisibility({showCompleted, searchQuery}).shown}
 			searching={searching}
 			onToggleCompleted={toggleShowCompleted}
 		/>

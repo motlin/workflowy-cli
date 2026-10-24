@@ -26,6 +26,7 @@ const storeState: {zoomedNodeId: string | null; panes: {id: string; zoomedId: st
 	searchFocused: false,
 	setSearchFocused: () => {},
 	showCompleted: false,
+	searchQuery: "",
 	openSettings: () => {},
 	openPresentation: () => {},
 	leftBarOffset: () => 0,
@@ -558,6 +559,21 @@ describe("TopBar show completed toggle", () => {
 			`<div role="button" tabindex="0" data-handbook="complete.toggle" class="iconButton lg shape-circle">${svg("check", 448)}</div>`,
 		);
 		expect(iconButtonProps.get("complete.toggle")?.tooltip).toBe("Show completed");
+	});
+
+	it("renders no toggle, and no more-menu entry, while the search forces completed rows", () => {
+		storeState.searchQuery = "is:complete";
+		const forced = renderToStaticMarkup(createElement(TopBar));
+		renderCompact("alice");
+		const forcedLabels = gearMenuProps.headerItems?.map((item) => item.label);
+		storeState.searchQuery = "rc";
+		const plain = renderToStaticMarkup(createElement(TopBar));
+		storeState.searchQuery = "";
+		expect({
+			forced: forced.includes('data-handbook="complete.toggle"'),
+			forcedLabels,
+			plain: plain.includes('data-handbook="complete.toggle"'),
+		}).toStrictEqual({forced: false, forcedLabels: ["Share", "Present", "Star", "Change layout"], plain: true});
 	});
 
 	it("tints the check svg and offers Hide completed when shown", () => {

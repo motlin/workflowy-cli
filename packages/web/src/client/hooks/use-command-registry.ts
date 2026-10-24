@@ -15,6 +15,8 @@ import {focusableSiblingIds} from "../render-window.js";
 import {focusCenterNext} from "../quiet-focus.js";
 import type {SearchFilter} from "../search-filter.js";
 import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../caret-navigation.js";
+import type {CompleteFocus} from "../caret-navigation.js";
+import {selectCompletedVisibility} from "../completed-visibility.js";
 import {
 	cacheMoveTree,
 	needsChildrenBeforeMove,
@@ -49,7 +51,7 @@ import type {ExpandKey} from "../expansion.js";
 import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {useMoveTo} from "./use-move-to.js";
-import {scheduleCompletionHide} from "../completion-animation.js";
+import {scheduleCompletionHide, zoomOutDelayMs} from "../completion-animation.js";
 import {presentCommand, printCommand} from "../keys/dispatch.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
@@ -97,6 +99,11 @@ function isRowInView(id: string): boolean {
 		return false;
 	}
 	return rect.bottom > 0 && rect.top < Math.max(document.documentElement.clientHeight, globalThis.innerHeight);
+}
+
+/** Whether completed rows render now: the preference, or a revealing search forcing them. */
+function completedRowsShown(): boolean {
+	return selectCompletedVisibility(useOutlineStore.getState()).shown;
 }
 
 /** Whether items are selected, so `ctx.items` is the selection rather than the edited row. */
@@ -579,22 +586,56 @@ export function useCommandRegistry(): CommandRegistry {
 		});
 	};
 
+	/** Upstream's `dL2` blocks read-only items and backlink roots. */
+	const isCompleteBlocked = (id: string): boolean => readNode(queryClient, id)?.readOnly === true;
+
+	/** Where the caret goes after toggling completion on `ids`, which must be in display order. */
+	const planCompletionFocus = (ids: readonly string[], completing: boolean): CompleteFocus => {
+		const visibleRows = currentNavigableIds(queryClient);
+		return planCompleteFocus({
+			ids,
+			completing,
+			showCompleted: completedRowsShown(),
+			zoomRootId: zoomedNodeId,
+			siblingsOf: (id) =>
+				sortByPriority(
+					queryClient.getQueryData<NodeResponse[]>(
+						nodeKeys.children(readNode(queryClient, id)?.parent_id ?? null),
+					) ?? [],
+				).map((sibling) => sibling.id),
+			visibleRows,
+			completedIds: new Set(visibleRows.filter((id) => readNode(queryClient, id)?.completedAt != null)),
+		});
+	};
+
+	/** Upstream zooms a completed zoom root out on a timer that does not wait for the server. */
+	const scheduleZoomOut = (): void => {
+		const parentOfZoomed = zoomedNode?.parent_id ?? null;
+		setTimeout(() => {
+			void navigate(parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed));
+		}, zoomOutDelayMs(completedRowsShown()));
+	};
+
 	/** Toggle complete on every selected item as one undo step, then clear the selection. */
 	const completeSelection = (ids: readonly string[]): void => {
 		const store = useOutlineStore.getState();
 		store.clearItemSelection();
+		const order = currentNavigableIds(queryClient);
+		const sortedIds = ids.toSorted((x, y) => order.indexOf(x) - order.indexOf(y));
 		const plan = planToggleComplete(
-			ids.map((id) => readNode(queryClient, id)).filter((node) => node !== undefined),
+			sortedIds.map((id) => readNode(queryClient, id)).filter((node) => node !== undefined),
+			isCompleteBlocked,
 		);
 		if (plan.action === "none") {
 			return;
 		}
 		const completing = plan.action === "complete";
-		if (completing && !store.showCompleted) {
+		const focus = planCompletionFocus(plan.ids, completing);
+		if (completing && !completedRowsShown()) {
 			scheduleCompletionHide(
 				renderedCopyIds(queryClient, plan.ids),
 				store,
-				(id) => !useOutlineStore.getState().showCompleted && readNode(queryClient, id)?.completedAt !== null,
+				(id) => !completedRowsShown() && readNode(queryClient, id)?.completedAt !== null,
 			);
 		}
 		void runInUndoBatch(captureOutlineView, () => {
@@ -602,6 +643,16 @@ export function useCommandRegistry(): CommandRegistry {
 				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing});
 			}
 		});
+		const [first] = plan.ids;
+		if (focus.kind === "row") {
+			resumeEditing(focus.id, focus.offset);
+		} else if (focus.kind === "zoomTitle" && zoomedNodeId !== null) {
+			resumeEditing(zoomedNodeId, 0);
+		} else if (focus.kind === "zoomOut") {
+			scheduleZoomOut();
+		} else if (!completing && first !== undefined) {
+			resumeEditing(first, 0);
+		}
 	};
 
 	/** Toggle complete on the edited node and move the caret as upstream does, or on the whole selection. */
@@ -614,60 +665,49 @@ export function useCommandRegistry(): CommandRegistry {
 		if (node === undefined) {
 			return;
 		}
-		const plan = planToggleComplete([node]);
+		const plan = planToggleComplete([node], isCompleteBlocked);
 		if (plan.action === "none") {
 			return;
 		}
 		const completing = plan.action === "complete";
-		const siblings = sortByPriority(
-			queryClient.getQueryData<NodeResponse[]>(nodeKeys.children(node.parent_id)) ?? [],
-		);
-		const focus = planCompleteFocus({
-			ids: plan.ids,
-			completing,
-			showCompleted,
-			zoomRootId: zoomedNodeId,
-			siblingsOf: () => siblings.map((sibling) => sibling.id),
-			visibleRows: currentNavigableIds(queryClient),
-			completedIds: new Set(
-				siblings.filter((sibling) => sibling.completedAt !== null).map((sibling) => sibling.id),
-			),
-		});
+		const focus = planCompletionFocus(plan.ids, completing);
 
 		// Pending text is its own undo step (upstream `saveFocused()` before `startOperationBatch`); the command's step
 		// then captures the view BEFORE the caret moves, so undo returns to the completed row.
 		flushEditing();
 		void runInUndoBatch(captureOutlineView, () => {
-			// Commit the edited text before the caret moves; "stay" keeps editing in place
-			if (focus.kind !== "stay") {
+			// The text is saved above. Upstream leaves the caret alone when it stays in the edited row or the title
+			// is being completed, and otherwise blurs it before moving.
+			const staysInPlace =
+				focus.kind === "stay" || focus.kind === "zoomOut" || (focus.kind === "row" && focus.id === editingId);
+			if (!staysInPlace) {
 				commitEdit();
 			}
-			if (focus.kind === "row") {
+			if (focus.kind === "row" && focus.id === editingId) {
+				const editor = editorElement(focus.id);
+				if (editor === null) {
+					resumeEditing(focus.id, focus.offset);
+				} else {
+					placeCaretAtTextOffset(editor, focus.offset);
+				}
+			} else if (focus.kind === "row") {
 				resumeEditing(focus.id, focus.offset);
 			} else if (focus.kind === "zoomTitle" && zoomedNodeId !== null) {
 				resumeEditing(zoomedNodeId, 0);
 			}
 
-			const parentOfZoomed = zoomedNode?.parent_id ?? null;
-			const zoomOutAfterSettling =
-				focus.kind === "zoomOut"
-					? {
-							onSettled() {
-								setTimeout(() => {
-									void navigate(parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed));
-								}, focus.delayMs);
-							},
-						}
-					: undefined;
 			// Hidden completed rows stay for upstream's deferred hide; the caret has already moved
-			if (completing && !showCompleted) {
+			if (completing && !completedRowsShown()) {
 				scheduleCompletionHide(renderedCopyIds(queryClient, plan.ids), useOutlineStore.getState(), (id) => {
 					const current = readNode(queryClient, id);
-					return !useOutlineStore.getState().showCompleted && current?.completedAt !== null;
+					return !completedRowsShown() && current?.completedAt !== null;
 				});
 			}
 			for (const nodeId of plan.ids) {
-				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing}, zoomOutAfterSettling);
+				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing});
+			}
+			if (focus.kind === "zoomOut") {
+				scheduleZoomOut();
 			}
 		});
 	};
@@ -879,7 +919,10 @@ export function useCommandRegistry(): CommandRegistry {
 				void moveTo(ctx.items);
 			},
 		},
-		complete: {execute: complete},
+		complete: {
+			available: (ctx) => !ctx.items.some((id) => isCompleteBlocked(id)),
+			execute: complete,
+		},
 		duplicate: {
 			execute(ctx) {
 				if (hasItemSelection()) {

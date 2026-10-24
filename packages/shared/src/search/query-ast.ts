@@ -29,7 +29,7 @@ class NotNode implements QueryNode {
 	}
 
 	revealsCompleted(): boolean {
-		return false;
+		return this.child.revealsCompleted();
 	}
 
 	isEmpty(): boolean {

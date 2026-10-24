@@ -27,7 +27,7 @@ function props(overrides: Partial<SearchCountIndicatorProps>): SearchCountIndica
 	return {
 		matchCount: 4,
 		completedMatchCount: 1,
-		showCompleted: false,
+		shown: false,
 		searching: false,
 		onToggleCompleted: () => {},
 		...overrides,
@@ -88,11 +88,20 @@ describe("SearchCountIndicatorView", () => {
 	});
 
 	it("shows the eye icon while completed items are shown", () => {
-		const html = render({showCompleted: true});
+		const html = render({shown: true});
 		expect({eye: html.includes('data-icon="eye"'), slash: html.includes("eye-slash")}).toStrictEqual({
 			eye: true,
 			slash: false,
 		});
+	});
+
+	it("labels the completed count and drops the toggle when no match is completed", () => {
+		expect([
+			render({matchCount: 5, completedMatchCount: 3, shown: true}).includes(
+				'<span class="mr-s">3 completed</span>',
+			),
+			render({matchCount: 2, completedMatchCount: 0, shown: true}).includes("mr-s"),
+		]).toStrictEqual([true, false]);
 	});
 
 	it("shows only the spinner and 'Still searching' while the search runs", () => {

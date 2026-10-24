@@ -199,17 +199,19 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 							<StarButton nodeId={zoomedNodeId} handbook="starring.star" size="lg" />
 						)}
 
-						<IconButton
-							data-handbook="complete.toggle"
-							onClick={actions.toggleCompleted}
-							shortcut="⌘O"
-							tooltip={actions.showCompleted ? "Hide completed" : "Show completed"}
-						>
-							<FaIcon
-								icon="fal:check"
-								style={actions.showCompleted ? {color: "var(--wf-text-tint)"} : undefined}
-							/>
-						</IconButton>
+						{!actions.completedForced && (
+							<IconButton
+								data-handbook="complete.toggle"
+								onClick={actions.toggleCompleted}
+								shortcut="⌘O"
+								tooltip={actions.showCompleted ? "Hide completed" : "Show completed"}
+							>
+								<FaIcon
+									icon="fal:check"
+									style={actions.showCompleted ? {color: "var(--wf-text-tint)"} : undefined}
+								/>
+							</IconButton>
+						)}
 
 						{/* Change layout */}
 						<IconButton

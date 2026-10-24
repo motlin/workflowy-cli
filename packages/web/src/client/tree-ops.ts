@@ -645,12 +645,15 @@ export interface ToggleCompletePlan {
 
 /**
  * Upstream multi-item toggle: if any item is not completed, complete them all;
- * otherwise uncomplete them all. An empty list does nothing.
+ * otherwise uncomplete them all. An empty list does nothing, nor does a list with a blocked (read-only or backlink-root) item.
  */
-export function planToggleComplete(nodes: Pick<NodeResponse, "id" | "completedAt">[]): ToggleCompletePlan {
+export function planToggleComplete(
+	nodes: Pick<NodeResponse, "id" | "completedAt">[],
+	isBlocked: (id: string) => boolean = () => false,
+): ToggleCompletePlan {
 	const ids = nodes.map((node) => node.id);
-	if (ids.length === 0) {
-		return {action: "none", ids};
+	if (ids.length === 0 || ids.some((id) => isBlocked(id))) {
+		return {action: "none", ids: []};
 	}
 	const allCompleted = nodes.every((node) => node.completedAt !== null);
 	return {action: allCompleted ? "uncomplete" : "complete", ids};

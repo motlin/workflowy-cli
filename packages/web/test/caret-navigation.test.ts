@@ -186,6 +186,20 @@ describe("planCompleteFocus", () => {
 		completedIds: new Set<string>(),
 	};
 
+	it("moves a multi-selection's caret to the row after the last item", () => {
+		expect([
+			planCompleteFocus({...base, showCompleted: true, ids: ["delta", "charlie"]}),
+			planCompleteFocus({
+				...base,
+				ids: ["delta", "charlie"],
+				completedIds: new Set(["bravo"]),
+			}),
+		]).toStrictEqual([
+			{kind: "row", id: "bravo", offset: 0},
+			{kind: "row", id: "alpha", offset: 0},
+		]);
+	});
+
 	it("moves to the next sibling when completing with completed rows hidden", () => {
 		expect(planCompleteFocus({...base, ids: ["charlie"]})).toStrictEqual({kind: "row", id: "bravo", offset: 0});
 	});

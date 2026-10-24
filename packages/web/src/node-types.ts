@@ -32,6 +32,8 @@ export interface NodeResponse {
 	hasChildren?: boolean;
 	/** At least one child is uncompleted; with completed items hidden, this decides whether the row is a parent. */
 	hasUncompletedChildren?: boolean;
+	/** Upstream blocks completing a read-only item. */
+	readOnly?: boolean;
 	isMirror?: boolean;
 	/** The node is an original with at least one live mirror (upstream `isMirrorRoot` on the original). */
 	hasMirrors?: boolean;

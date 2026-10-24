@@ -79,6 +79,11 @@
 			"types": "./dist/search/index.d.ts",
 			"import": "./dist/search/index.js"
 		},
+		"./search-query": {
+			"source": "./src/search/query-ast.ts",
+			"types": "./dist/search/query-ast.d.ts",
+			"import": "./dist/search/query-ast.js"
+		},
 		"./tags": {
 			"source": "./src/tags/index.ts",
 			"types": "./dist/tags/index.d.ts",

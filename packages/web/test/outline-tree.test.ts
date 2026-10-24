@@ -246,6 +246,20 @@ describe("OutlineTree zoom root row", () => {
 		).toBe(true);
 	});
 
+	it("marks the zoom root as a task when every child is completed and hidden, only while completed rows are hidden", () => {
+		nodesById.set("alice", makeNode({hasChildren: true, hasUncompletedChildren: false}));
+		const rootClass = (): string | undefined =>
+			/<div projectid="alice" class="([^"]*)">/u.exec(render("alice"))?.[1];
+		outlineState.showCompleted = false;
+		const hidden = rootClass();
+		outlineState.showCompleted = true;
+		const shown = rootClass();
+		expect([hidden, shown]).toStrictEqual([
+			"font-custom project task selected root",
+			"font-custom project selected root",
+		]);
+	});
+
 	it("renders upstream's placeholder element first in an unnamed zoomed node's title", () => {
 		nodesById.set("alice", makeNode({name: ""}));
 		const html = render("alice");

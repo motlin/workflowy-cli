@@ -10,7 +10,7 @@ vi.stubGlobal("document", {
 vi.stubGlobal("addEventListener", () => {});
 
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
-const {scheduleCompletionHide} = await import("../src/client/completion-animation.js");
+const {scheduleCompletionHide, zoomOutDelayMs} = await import("../src/client/completion-animation.js");
 
 function animationState() {
 	const {animatingCompletionIds, slidingUpCompletionIds} = useOutlineStore.getState();
@@ -74,5 +74,11 @@ describe("scheduleCompletionHide", () => {
 		scheduleCompletionHide(ids, useOutlineStore.getState(), () => true);
 		vi.advanceTimersByTime(1000);
 		expect(animationState()).toStrictEqual({animating: ids.slice(0, 10), sliding: ids.slice(0, 10)});
+	});
+});
+
+describe("zoomOutDelayMs", () => {
+	it("is upstream's 500ms when shown, and the hide wait plus slide plus 500ms when hidden", () => {
+		expect([zoomOutDelayMs(true), zoomOutDelayMs(false)]).toStrictEqual([500, 1720]);
 	});
 });
