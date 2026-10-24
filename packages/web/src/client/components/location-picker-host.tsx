@@ -88,7 +88,18 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 	const stars = useStarredLocations();
 	const closeLocationPicker = useOutlineStore((state) => state.closeLocationPicker);
 	const [state, setState] = useState<PickerState>(INITIAL_PICKER_STATE);
-	const hits = useSearchHits(state.query);
+	const {searcher, getFilter} = picker;
+	const filter = getFilter?.() ?? null;
+	const query = filter ?? state.query;
+	const fetchedHits = useSearchHits(searcher === undefined ? query : "");
+	const hits: readonly SearchHit[] =
+		searcher === undefined
+			? fetchedHits
+			: (query === "" && !searcher.eager ? [] : searcher.search(query)).map(({id, labelHtml}) => ({
+					id,
+					labelHtml,
+					ancestors: [],
+				}));
 
 	const nameOf = (id: string): string =>
 		readNode(queryClient, id)?.name ?? stars.find((star) => star.nodeId === id)?.name ?? "";
@@ -115,8 +126,11 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 		...hits.map((hit): [string, readonly LocationCrumb[]] => [hit.id, hit.ancestors]),
 	]);
 	const rows = buildPickerRows({
-		query: state.query,
+		query,
 		results,
+		eager: searcher?.eager,
+		action: searcher?.action,
+		subActionName: picker.subActionName,
 		recentIds,
 		starredIds,
 		forItemId: picker.forItemId,
@@ -161,9 +175,11 @@ function LocationPickerSession({picker}: {picker: LocationPickerState}) {
 			step={state.step}
 			headerText={picker.headerText}
 			name={state.name}
-			query={state.query}
-			onQueryChange={(query) => {
-				dispatch({type: "query", query});
+			query={query}
+			subActionName={picker.subActionName}
+			hideInput={filter !== null}
+			onQueryChange={(typed) => {
+				dispatch({type: "query", query: typed});
 			}}
 			rows={rows}
 			crumbsOf={crumbsOf}

@@ -31,6 +31,8 @@ export interface LocationPickerProps {
 	/** Step 1 header, e.g. `Move To...`. */
 	headerText?: ReactNode;
 	subActionName?: string;
+	/** The query comes from elsewhere (`getFilter`), so there is no input. */
+	hideInput?: boolean;
 	/** Step 2: the name of the item to create. */
 	name?: string;
 	query: string;
@@ -288,7 +290,19 @@ function enabledIndexes(rows: readonly PickerRow[]): number[] {
 
 /** Upstream WF.InlineSearch picker (`Bp` desktop `Cb4` + steps `Lm1`/`Mm1` + results list `KM`). */
 export function LocationPicker(props: LocationPickerProps) {
-	const {position, step, headerText, subActionName, name = "", query, onQueryChange, rows, active = 0, exit} = props;
+	const {
+		position,
+		step,
+		headerText,
+		subActionName,
+		hideInput = false,
+		name = "",
+		query,
+		onQueryChange,
+		rows,
+		active = 0,
+		exit,
+	} = props;
 	const {onFocusLeave} = props;
 	const {ref, placed} = usePopperPosition(position);
 	useEscape(props.onEscape);
@@ -327,24 +341,26 @@ export function LocationPicker(props: LocationPickerProps) {
 		>
 			<Flyout expanded position={position} align={FlyoutAlign.Left}>
 				<MenuSectionHeader>{header}</MenuSectionHeader>
-				<div className={step === 1 ? "p-l pt-0 mobile:pl-ml" : "pt-0 pb-l px-l mobile:pl-ml"}>
-					<div className="flex flex-col w-full">
-						<input
-							// Keyed by step: each step mounts its own autofocused input, as upstream's Lm1/Mm1 do.
-							key={step}
-							className={INPUT_CLASS}
-							name="location-picker-query"
-							type="text"
-							placeholder="Find location..."
-							value={query}
-							onChange={(event) => {
-								onQueryChange(event.currentTarget.value);
-							}}
-							// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream's picker input autofocuses
-							autoFocus
-						/>
+				{!hideInput && (
+					<div className={step === 1 ? "p-l pt-0 mobile:pl-ml" : "pt-0 pb-l px-l mobile:pl-ml"}>
+						<div className="flex flex-col w-full">
+							<input
+								// Keyed by step: each step mounts its own autofocused input, as upstream's Lm1/Mm1 do.
+								key={step}
+								className={INPUT_CLASS}
+								name="location-picker-query"
+								type="text"
+								placeholder="Find location..."
+								value={query}
+								onChange={(event) => {
+									onQueryChange(event.currentTarget.value);
+								}}
+								// oxlint-disable-next-line jsx-a11y/no-autofocus -- upstream's picker input autofocuses
+								autoFocus
+							/>
+						</div>
 					</div>
-				</div>
+				)}
 				<div>
 					<Flyout
 						expanded

@@ -1,4 +1,5 @@
 import {create} from "zustand";
+import type {PickerResult} from "../location-picker-model.js";
 import {MAIN_PANE_ID, canPlacePane, findPane, paneExpandedIds} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
 import {z} from "zod";
@@ -260,6 +261,12 @@ export interface LocationPickerOptions {
 	forItemId: string;
 	/** Step 1 header, e.g. `Move To...`. */
 	headerText: string;
+	/** Replaces the location search: `eager` lists `search("")` with no query, `action: false` drops the create rows. */
+	searcher?: {eager: boolean; action: boolean; search: (query: string) => PickerResult[]};
+	/** Replaces `New` in both create rows and the step-2 header. */
+	subActionName?: string;
+	/** A non-null filter hides the input and drives the query. */
+	getFilter?: () => string | null;
 }
 
 /** `{id}` from a chosen location, `{createdId}` from create-and-move, undefined when closed. */

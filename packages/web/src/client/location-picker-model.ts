@@ -38,6 +38,10 @@ export interface PickerRowsInput {
 	labelOf: (id: string) => string;
 	/** `false` for a searcher without an action (`Select child...`): no create rows. */
 	action?: boolean;
+	/** A searcher that lists `search("")` results even with no query. */
+	eager?: boolean;
+	/** Replaces `New` in both create rows (`Mirror to`). */
+	subActionName?: string;
 	limit?: number;
 }
 
@@ -85,16 +89,17 @@ function resultRows(input: PickerRowsInput): PickerRow[] {
 }
 
 export function buildPickerRows(input: PickerRowsInput): PickerRow[] {
-	const rows = input.query === "" ? locationRows(input) : resultRows(input);
+	const rows = input.query === "" && input.eager !== true ? locationRows(input) : resultRows(input);
 	if (input.action === false) {
 		return rows;
 	}
 	const q = escapeHtml(input.query);
 	const disabled = input.query === "";
+	const verb = input.subActionName === undefined || input.subActionName === "" ? "New" : input.subActionName;
 	return [
 		...rows,
-		{kind: "create-default", labelHtml: `New "${q}" in: <b>${input.recentLabel}</b>`, disabled, icon: "plus"},
-		{kind: "create-elsewhere", labelHtml: `New "${q}" in…`, disabled, icon: "arrow-up"},
+		{kind: "create-default", labelHtml: `${verb} "${q}" in: <b>${input.recentLabel}</b>`, disabled, icon: "plus"},
+		{kind: "create-elsewhere", labelHtml: `${verb} "${q}" in…`, disabled, icon: "arrow-up"},
 	];
 }
 

@@ -103,3 +103,62 @@ describe("Location picker search requests", () => {
 		}).toStrictEqual({requested: ["a", "ab"], latest: true, stale: false});
 	});
 });
+
+describe("Location picker options", () => {
+	async function mount(): Promise<void> {
+		const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: 60_000}}});
+		const container = document.createElement("div");
+		document.body.append(container);
+		root = createRoot(container);
+		act(() => {
+			root?.render(createElement(QueryClientProvider, {client: queryClient}, createElement(LocationPickerHost)));
+		});
+		await flush();
+	}
+
+	it("lists an eager searcher's results with no query and no create rows when it has no action", async () => {
+		await mount();
+		act(() => {
+			void useOutlineStore.getState().openLocationPicker(
+				{
+					forItemId: "a",
+					headerText: "Select child...",
+					searcher: {eager: true, action: false, search: () => [{id: "c1", labelHtml: "C1"}]},
+				},
+				{x: 0, y: 0},
+			);
+		});
+		await flush();
+		const items = [...document.querySelectorAll("a.menuItem")];
+		expect(items.map((item) => item.querySelector("[data-menu-item-label]")?.textContent)).toStrictEqual(["C1"]);
+		expect(document.body.textContent).not.toContain('New "');
+	});
+
+	it("names the sub-action in footer B", async () => {
+		await mount();
+		act(() => {
+			void useOutlineStore
+				.getState()
+				.openLocationPicker(
+					{forItemId: "a", headerText: "Mirror...", subActionName: "Mirror to"},
+					{x: 0, y: 0},
+				);
+		});
+		await flush();
+		type(document.querySelector<HTMLInputElement>("input[placeholder='Find location...']")!, "x");
+		await flush();
+		expect(document.body.innerHTML).toContain('<div>Mirror to "x" in…</div>');
+	});
+
+	it("hides the input when getFilter supplies the query", async () => {
+		await mount();
+		act(() => {
+			void useOutlineStore
+				.getState()
+				.openLocationPicker({forItemId: "a", headerText: "Move...", getFilter: () => "qz"}, {x: 0, y: 0});
+		});
+		await flush();
+		expect(document.querySelector("input[placeholder='Find location...']")).toBeNull();
+		expect(searches.map((search) => search.query)).toStrictEqual(["qz"]);
+	});
+});

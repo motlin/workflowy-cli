@@ -107,6 +107,14 @@ describe("buildPickerRows", () => {
 		]);
 	});
 
+	it("names the sub-action in both create rows", () => {
+		const rows = buildPickerRows({...BASE, query: "x", results: results(1), subActionName: "Mirror to"});
+		expect(rows.slice(-2).map((row) => row.labelHtml)).toStrictEqual([
+			`Mirror to "x" in: <b>${BASE.recentLabel}</b>`,
+			'Mirror to "x" in…',
+		]);
+	});
+
 	it("omits the create rows when the searcher has no action", () => {
 		expect(buildPickerRows({...BASE, query: "qzpick", results: results(1), action: false})).toStrictEqual([
 			resultRow(1),
