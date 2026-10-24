@@ -7,7 +7,7 @@ import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
 import {useHeaderActions} from "./header-actions.js";
 import {HeaderMoreMenu} from "./header-more-menu.js";
-import {useMediaQuery} from "../hooks/use-media-query.js";
+import {useBreakpoint} from "../hooks/use-breakpoint.js";
 import {IconButton} from "./icon-button.js";
 import {NewPaneIcon} from "./new-pane-icon.js";
 import {SearchBox} from "./search-box.js";
@@ -112,7 +112,7 @@ export function TopBar({onUndo, onRedo}: TopBarProps) {
 	);
 	const actions = useHeaderActions(zoomedNodeId);
 	// Upstream's zv4: under 701px, or while a pane is open, the compactable actions move into the more menu.
-	const narrow = !useMediaQuery("(min-width: 701px)");
+	const narrow = !useBreakpoint(701);
 	const compact = narrow || paneOpen;
 
 	const resolveCached = (locationId: string) => cachedResolvedId(queryClient, locationId);

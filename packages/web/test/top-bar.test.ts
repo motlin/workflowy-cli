@@ -91,8 +91,12 @@ vi.mock("../src/client/components/breadcrumbs.js", () => ({
 	Breadcrumbs: () => createElement("div", {className: "breadcrumbs-mock"}),
 }));
 const media = {wide: true};
-vi.mock("../src/client/hooks/use-media-query.js", () => ({
-	useMediaQuery: (query: string) => (query === "(min-width: 701px)" ? media.wide : true),
+const breakpointCalls: number[] = [];
+vi.mock("../src/client/hooks/use-breakpoint.js", () => ({
+	useBreakpoint: (min: number) => {
+		breakpointCalls.push(min);
+		return media.wide;
+	},
 }));
 
 interface CapturedGearMenuProps {
@@ -459,6 +463,12 @@ function renderCompact(zoomedNodeId: string | null): string {
 }
 
 describe("TopBar compact mode under 701px", () => {
+	it("compacts at upstream's 701px breakpoint", () => {
+		breakpointCalls.length = 0;
+		renderCompact("alice");
+		expect(breakpointCalls.includes(701)).toBe(true);
+	});
+
 	it("keeps only search, Today, the kebab and New pane in the cluster", () => {
 		expect(clusterSequence(renderCompact("alice"))).toStrictEqual(["search", "today", "gearMenu", "new_pane"]);
 	});

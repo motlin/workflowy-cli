@@ -84,15 +84,25 @@ describe("PaneSearchBox", () => {
 		}).toStrictEqual({width: "36px", height: "36px", placeholder: "Search", hidden: true});
 	});
 
+	it("uses upstream's collapsed class order", () => {
+		mount("");
+		expect(label().className).toBe(
+			"relative shrink-0 max-w-[60vw] transition-[width] duration-300 ease-base hover:!bg-tertiary searchBox",
+		);
+	});
+
 	it("opens into a pill on focus", () => {
 		mount("");
+		const before = label();
 		act(() => {
 			input().focus();
 		});
-		expect({width: label().style.width, hidden: input().classList.contains("opacity-0")}).toStrictEqual({
-			width: "210px",
-			hidden: false,
-		});
+		expect({
+			width: label().style.width,
+			hidden: input().classList.contains("opacity-0"),
+			sameLabel: label() === before,
+			focused: document.activeElement === input(),
+		}).toStrictEqual({width: "210px", hidden: false, sameLabel: true, focused: true});
 	});
 
 	it("commits the typed query on Enter", () => {

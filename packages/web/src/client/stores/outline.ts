@@ -1275,7 +1275,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingNoteId: null,
 			lastEditedId: from?.nodeId ?? state.lastEditedId,
 			searchFocused: true,
-			searchReturn: from,
+			searchReturn: from ?? (state.searchFocused ? state.searchReturn : null),
 		}));
 	},
 

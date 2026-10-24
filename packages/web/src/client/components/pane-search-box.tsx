@@ -1,8 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, KeyboardEvent} from "react";
 import {borderStyle, createSearchBoxController} from "../search-box-model.js";
-import {CLEAR_PATH, COMPACT_INPUT_CLASS, LABEL_CLASS, MAGNIFIER_PATH} from "./search-box.js";
-import {Tooltip} from "./tooltip.js";
+import {CLEAR_PATH, COMPACT_INPUT_CLASS, MAGNIFIER_PATH, labelClass} from "./search-box.js";
 
 interface PaneSearchBoxProps {
 	/** The pane's committed query ("" for none). */
@@ -69,7 +68,7 @@ export function PaneSearchBox({query, compact = false, onCommit}: PaneSearchBoxP
 
 	const label = (
 		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- upstream's bare label wraps the input; its placeholder names it
-		<label className={collapsed ? `${LABEL_CLASS} hover:!bg-tertiary` : LABEL_CLASS} style={labelStyle}>
+		<label className={labelClass(collapsed)} style={labelStyle}>
 			<div className="flex items-center " style={innerStyle}>
 				<input
 					autoComplete="off"
@@ -120,5 +119,5 @@ export function PaneSearchBox({query, compact = false, onCommit}: PaneSearchBoxP
 		</label>
 	);
 
-	return <div className="flex items-center">{collapsed ? <Tooltip content="Search">{label}</Tooltip> : label}</div>;
+	return <div className="flex items-center">{label}</div>;
 }

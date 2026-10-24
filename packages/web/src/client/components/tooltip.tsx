@@ -214,7 +214,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 }
 
 /** Clones its single child with the tooltip trigger props, chaining any existing handlers and ref. */
-export function Tooltip({children, ...options}: TooltipProps) {
+function Tooltip({children, ...options}: TooltipProps) {
 	const {triggerProps, tooltip} = useTooltip(options);
 	const childProps = children.props;
 	const childRef = childProps.ref;

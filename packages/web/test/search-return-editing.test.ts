@@ -56,6 +56,12 @@ describe("Escape focuses search and returns to the edited node", () => {
 		});
 	});
 
+	it("a repeat focusSearch(null) keeps the saved caret", () => {
+		useOutlineStore.getState().focusSearch({nodeId: "node-a", caretOffset: 15});
+		useOutlineStore.getState().focusSearch(null);
+		expect(useOutlineStore.getState().searchReturn).toStrictEqual({nodeId: "node-a", caretOffset: 15});
+	});
+
 	it("blurring search that was not focused from editing resumes nothing", () => {
 		useOutlineStore.getState().focusSearch(null);
 		useOutlineStore.getState().blurSearch();

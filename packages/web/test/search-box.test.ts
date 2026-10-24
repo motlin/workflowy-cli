@@ -21,8 +21,12 @@ vi.mock("@tanstack/react-query", () => ({
 	useQueryClient: () => ({}),
 	useQuery: () => ({data: undefined}),
 }));
-vi.mock("../src/client/hooks/use-media-query.js", () => ({
-	useMediaQuery: () => media.wide,
+const breakpointCalls: number[] = [];
+vi.mock("../src/client/hooks/use-breakpoint.js", () => ({
+	useBreakpoint: (min: number) => {
+		breakpointCalls.push(min);
+		return media.wide;
+	},
 }));
 
 const {SearchBox} = await import("../src/client/components/search-box.js");
@@ -50,6 +54,12 @@ function innerDivStyle(html: string): string {
 }
 
 describe("SearchBox", () => {
+	it("compacts at upstream's 1000px breakpoint", () => {
+		breakpointCalls.length = 0;
+		render({});
+		expect(breakpointCalls).toStrictEqual([1000]);
+	});
+
 	it("renders the idle empty wide box with upstream markup", () => {
 		const html = render({});
 		expect(

@@ -3,7 +3,7 @@ import type {CSSProperties, KeyboardEvent} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "../hooks/use-stable-navigate.js";
 import {isMacPlatform} from "../editable-text-keys.js";
-import {useMediaQuery} from "../hooks/use-media-query.js";
+import {useBreakpoint} from "../hooks/use-breakpoint.js";
 import {focusOutline} from "../hooks/use-search-escape.js";
 import {readJson} from "../read-json.js";
 import {borderStyle, createSearchBoxController} from "../search-box-model.js";
@@ -13,9 +13,11 @@ import type {HelperSelection} from "../search/helper-keys.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {SearchHelpers, helperSections} from "./search-helpers.js";
 import type {HelperTagLists} from "./search-helpers.js";
-import {Tooltip} from "./tooltip.js";
 
-export const LABEL_CLASS = "relative shrink-0 max-w-[60vw] transition-[width] duration-300 ease-base searchBox";
+/** Upstream's label class; the collapsed circle adds its hover tint before `searchBox`. */
+export function labelClass(collapsed: boolean): string {
+	return `relative shrink-0 max-w-[60vw] transition-[width] duration-300 ease-base ${collapsed ? "hover:!bg-tertiary " : ""}searchBox`;
+}
 const INPUT_BASE_CLASS =
 	"m-0 w-full py-[7px] pl-[30px] box-border font-[inherit] leading-[16px] border-transparent rounded-[16px] bg-transparent placeholder:text-primary";
 const INPUT_CLASS = `${INPUT_BASE_CLASS} pr-[72px] searchBoxInput`;
@@ -68,7 +70,7 @@ export const SearchBox = memo(function SearchBox() {
 		[navigate],
 	);
 	useEffect(() => controller.dispose, [controller]);
-	const wide = useMediaQuery("(min-width: 1000px)");
+	const wide = useBreakpoint(1000);
 	const [armed, setArmed] = useState(false);
 	const zoomedNodeId = useOutlineStore((state) => state.zoomedNodeId);
 	const {data: helperTags = NO_HELPER_TAGS} = useQuery({
@@ -187,7 +189,7 @@ export const SearchBox = memo(function SearchBox() {
 
 	const label = (
 		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- upstream's bare label wraps the input; its placeholder names it
-		<label className={collapsed ? `${LABEL_CLASS} hover:!bg-tertiary` : LABEL_CLASS} style={labelStyle}>
+		<label className={labelClass(collapsed)} style={labelStyle}>
 			<div className={focused ? FOCUSED_INNER_CLASS : "flex items-center "} style={innerStyle}>
 				<SearchHelpers
 					query={searchInput}
@@ -273,5 +275,5 @@ export const SearchBox = memo(function SearchBox() {
 		</label>
 	);
 
-	return <div className="flex items-center">{collapsed ? <Tooltip content="Search">{label}</Tooltip> : label}</div>;
+	return <div className="flex items-center">{label}</div>;
 });
