@@ -1,3 +1,4 @@
+import {routeTypedInput} from "../inline-input-router.js";
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {usePaneSearchQuery} from "../hooks/use-tree-search.js";
@@ -328,15 +329,23 @@ export function EditableNote({
 					noteContentHtml(editorHtmlToNote(element.innerHTML), dateSettings, undefined, account),
 				);
 			}
-			handleSlashInput(event?.nativeEvent);
-			if (event !== undefined) {
+			// Upstream's typed-input pipe: an armed chip swallows the input, including the one that disarms it.
+			const {armedBefore, armedAfter} = handleSlashInput(event?.nativeEvent);
+			const route = routeTypedInput({
+				chipArmedBefore: armedBefore,
+				chipArmedAfter: armedAfter,
+				datePopupOpened: false,
+			});
+			if (route.dateTrigger && event !== undefined) {
 				handleDateTrigger(event.nativeEvent);
 			}
-			// One inline suggest popup at a time: an open slash menu owns the keys, so the tag popup stays closed.
-			if (isSlashOpen()) {
+			if (route.detachTags) {
 				detachTagAutocomplete();
-			} else {
+			}
+			if (route.tagAutocomplete) {
 				handleTagAutocomplete();
+			}
+			if (route.save) {
 				changeNote();
 			}
 		},

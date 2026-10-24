@@ -51,6 +51,7 @@ import {formatPillLabel} from "@workflowy/shared";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {useDateAutocomplete} from "./date-autocomplete.js";
+import {routeTypedInput} from "../inline-input-router.js";
 import {pop, unpop} from "../popups.js";
 import {plainText, splitHtml} from "../rich-text.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
@@ -518,12 +519,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	}, [saveInPlace]);
 	const slashMenu = useSlashMenu({editorRef: contentRef, nodeId, onChange: changeName, onSave: saveName});
 	const slashDiscovered = useSlashDiscovered();
-	const {
-		handleInput: handleSlashInput,
-		handleKeyDown: handleSlashKey,
-		isOpen: isSlashOpen,
-		detach: detachSlashMenu,
-	} = slashMenu;
+	const {handleInput: handleSlashInput, handleKeyDown: handleSlashKey, detach: detachSlashMenu} = slashMenu;
 
 	const handleInput = useCallback(
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
@@ -531,14 +527,30 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			if (content !== null && !isComposingInput(event.nativeEvent)) {
 				retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings, account));
 			}
-			handleSlashInput(event.nativeEvent);
-			handleDateTrigger(event.nativeEvent);
-			handleDateAutocomplete();
-			// One inline suggest popup at a time: an open slash menu owns the keys, so the tag popup stays closed.
-			if (isSlashOpen()) {
+			// Upstream's typed-input pipe: an armed chip swallows the input, including the one that disarms it.
+			const {armedBefore, armedAfter} = handleSlashInput(event.nativeEvent);
+			const chipRoute = routeTypedInput({
+				chipArmedBefore: armedBefore,
+				chipArmedAfter: armedAfter,
+				datePopupOpened: false,
+			});
+			let datePopupOpened = false;
+			if (chipRoute.dateTrigger) {
+				const wasOpen = isDatePickerOpen();
+				handleDateTrigger(event.nativeEvent);
+				datePopupOpened = !wasOpen && isDatePickerOpen();
+			}
+			const route = routeTypedInput({chipArmedBefore: armedBefore, chipArmedAfter: armedAfter, datePopupOpened});
+			if (route.dateAutocomplete) {
+				handleDateAutocomplete();
+			}
+			if (route.detachTags) {
 				detachTagAutocomplete();
-			} else {
+			}
+			if (route.tagAutocomplete) {
 				handleTagAutocomplete();
+			}
+			if (route.save) {
 				changeName();
 			}
 		},
@@ -547,7 +559,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			dateSettings,
 			account,
 			handleSlashInput,
-			isSlashOpen,
+			isDatePickerOpen,
 			handleDateTrigger,
 			handleDateAutocomplete,
 			handleTagAutocomplete,

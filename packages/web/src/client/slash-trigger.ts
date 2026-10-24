@@ -3,6 +3,8 @@
  * the `/` symbol predicates (`first`, `standalone`, `propping`).
  */
 
+import {isPropping} from "./suggest/suggest-engine.js";
+
 export const SLASH_CHIP_CLASS = "slash-input bg-tertiary py-2xs pr-xs pl-xs rounded-s leading-none";
 
 export interface SlashRange {
@@ -11,11 +13,6 @@ export interface SlashRange {
 }
 
 const REARM_SCAN_LENGTH = 10;
-
-/** Upstream `propping`: any character other than space, `\n`, `\r` or `\t`; a missing neighbor is not propping. */
-function isPropping(ch: string | undefined): boolean {
-	return ch !== undefined && !/[ \n\r\t]/u.test(ch);
-}
 
 /**
  * Chip range for a `/` just typed at `slashIndex` of `text`, or null when it does not trigger.
