@@ -97,7 +97,7 @@ export function paneActivation(
  * the single-document main outline scrolls the window (null here).
  */
 function paneScroller(paneId: string): Element | null {
-	return document.querySelector(`[data-pane-id="${paneId}"] > .vertical-scrollable-container`);
+	return document.querySelector(`[data-pane-id="${paneId}"] .vertical-scrollable-container`);
 }
 
 /** How far pane `paneId`'s outline is scrolled; the window's scroll for the single-document main outline. */

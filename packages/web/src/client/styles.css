@@ -4040,49 +4040,11 @@ label.toggle > div {
    help text 8px 16px 16px. The surface's line-height 1 (12.64px header) comes from the .wf-menu.flyout rule. */
 
 /* ================================
-   Pane workspace (upstream's New pane / Open in Pane): while a pane is open, .pane-workspace is a full-height flex
-   row of the main pane and every open pane, each sized by its width share and scrolling its own outline; the row
-   scrolls sideways once the panes' 350px minimums outgrow the window.
+   Pane workspace (upstream's New pane / Open in Pane): while a pane is open, [data-pane-workspace] is a full-height row
+   whose scroll container holds the main pane and every open pane at their pixel widths, each scrolling its own outline;
+   the container scrolls sideways once the panes' widths outgrow it. The utilities on the panes come from wf-tailwind.css.
    ================================ */
-.side-pane {
-	border-left: var(--wf-border-width-s) solid var(--wf-border-primary);
-	--pane-workspace-control-width: var(--wf-header-height);
-}
-
-.side-pane .header {
+[data-pane-workspace] [data-split-pane] > .header {
 	position: static;
-	min-width: 0;
-}
-
-/* The last pane's header leaves room for the pane-workspace-control (New pane) pinned at its top right. */
-.side-pane:last-child .header {
-	padding-right: var(--pane-workspace-control-width);
-}
-
-.side-pane-scroller {
-	flex: 1 1 0;
-	min-height: 0;
-	overflow-y: auto;
-	overscroll-behavior: contain;
-	padding: 24px 40px 24px 56px;
-}
-
-.outline-container.with-side-pane .main-pane > .outline-view {
-	flex: 1 1 0;
-	min-height: 0;
-	margin: 0;
-	overflow-y: auto;
-	overscroll-behavior: contain;
-	padding: 24px 40px 24px 56px;
-}
-
-.outline-container.with-side-pane .main-pane > .header {
-	position: static;
-	min-width: 0;
 	flex-shrink: 0;
-}
-
-/* Upstream's divider handle on each secondary pane's left edge, above the pane header. */
-.pane-resize-handle {
-	z-index: 1;
 }

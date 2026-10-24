@@ -1,84 +1,126 @@
 /**
- * Upstream's pane workspace width maths (`W2.paneWidth`, `rebalanceWidths`, `resizeToAvailableWidth`,
- * `resizePaneFromLeft`, `paneWidthPercent`, `paneWidthFromPercent`). Widths are listed in workspace order, the main pane
- * first; each pane renders as `flex: <width> 1 0px` with a 350px minimum, so widths act as shares of the workspace and
- * the workspace scrolls sideways once the minimums outgrow it.
+ * Upstream's pane workspace width maths (`Nn2`: `available`, `minimum`, `normalize`, `resolve`, `beginResize`,
+ * `resizeDivider`, `finishResize`). Widths are pixels, listed in workspace order with the main pane first. Each pane
+ * renders at `width: <px>; min-width: 350px`, and the workspace scrolls sideways once the widths outgrow it.
  */
 
-/** Upstream `Zn`: no pane gets narrower than this. */
+/** Upstream `Nn2.min`: no pane gets narrower than this. */
 export const MIN_PANE_WIDTH = 350;
-/** Upstream `Au1`: the width of a pane with no usable width, and the window width before there is a window. */
+/** Upstream `Nn2.gutter`: the margin to the right of the workspace. */
+export const PANE_GUTTER = 8;
+/** Upstream `Nn2.normalize`'s fallback for a pane with no usable width. */
 export const DEFAULT_PANE_WIDTH = 380;
 
-/** Upstream `paneWidth`: a finite width floored at the minimum, else `fallback` floored at the minimum. */
-export function paneWidth(width: unknown, fallback = DEFAULT_PANE_WIDTH): number {
-	return typeof width === "number" && Number.isFinite(width)
-		? Math.max(MIN_PANE_WIDTH, width)
-		: Math.max(MIN_PANE_WIDTH, fallback);
+/** Upstream `Nn2.normalize`: a finite width floored at the minimum, else the 380px fallback. */
+export function paneWidth(width: unknown): number {
+	return typeof width === "number" && Number.isFinite(width) ? Math.max(MIN_PANE_WIDTH, width) : DEFAULT_PANE_WIDTH;
 }
 
-/** Upstream `availableWidth`: the window width beside the left bar, never under one pane's minimum. */
-export function availablePaneWidth(windowWidth: number | undefined, leftOffset: number): number {
-	return Math.max(MIN_PANE_WIDTH, (windowWidth ?? DEFAULT_PANE_WIDTH) - leftOffset);
+/** Upstream `Nn2.available`: the measured workspace width, else the window beside the left bar and the gutter. */
+export function availablePaneWidth(workspaceWidth: number | null, innerWidth: number, leftOffset: number): number {
+	return workspaceWidth ?? Math.max(0, innerWidth - leftOffset - PANE_GUTTER);
 }
 
-/** Upstream `rebalanceWidths`: every one of `count` panes gets an equal floored share of `available`. */
-export function rebalancedWidths(count: number, available: number): number[] {
-	const width = Math.max(MIN_PANE_WIDTH, Math.floor(available / count));
-	return Array.from({length: count}, () => width);
+function sumExcept(widths: readonly number[], skip: number): number {
+	return widths.reduce((sum, width, index) => (index === skip ? sum : sum + width), 0);
 }
 
-function total(widths: readonly number[]): number {
-	return paneWidth(
-		widths.reduce((sum, width) => sum + paneWidth(width), 0),
-		MIN_PANE_WIDTH,
-	);
-}
-
-/** Upstream `resizeToAvailableWidth` (window resize): every pane keeps its share of the new available width. */
-export function scaledWidths(widths: readonly number[], available: number): number[] {
-	const sum = total(widths);
-	const target = paneWidth(available, MIN_PANE_WIDTH);
-	return widths.map((width) => paneWidth(Math.round((target * paneWidth(width)) / sum)));
-}
-
-/** The two widths either side of a divider when its drag began (upstream `leftResizeSnapshot`). */
-export interface LeftResizeStart {
-	previousWidth: number;
-	paneWidth: number;
+/** Upstream `Nn2.minimum`: 350, except the last pane, which must leave the others plus itself filling the workspace. */
+export function minimumPaneWidth(widths: readonly number[], index: number, available: number): number {
+	if (index !== widths.length - 1) {
+		return MIN_PANE_WIDTH;
+	}
+	return Math.max(MIN_PANE_WIDTH, available - sumExcept(widths, index));
 }
 
 /**
- * Upstream `resizePaneFromLeft`: dragging the divider on pane `index`'s left edge by `delta` pixels trades width with
- * its left neighbour, measured from the widths at the drag's start, each side stopping at the minimum. Null for the
- * main pane, which has no divider on its left.
+ * Upstream `Nn2.resolve`: size the panes in `newIndexes` (an equal share of `available` each) and keep the others,
+ * unless together they leave the workspace unfilled or `fitWorkspace` asks for a refit. Then every pane is scaled in
+ * proportion, smallest first, so the row fills `available`. Each width stays at or above the minimum.
  */
-export function resizedFromLeft(
+export function resolveWidths(
 	widths: readonly number[],
-	index: number,
-	start: LeftResizeStart,
-	delta: number,
-): number[] | null {
-	if (index <= 0 || index >= widths.length) {
+	newIndexes: readonly number[],
+	available: number,
+	fitWorkspace: boolean,
+): number[] {
+	if (widths.length === 0) {
+		return [];
+	}
+	const next = [...widths];
+	const fresh = new Set(newIndexes);
+	const share = available / next.length;
+	const allNew = next.every((_width, index) => fresh.has(index));
+	for (const index of fresh) {
+		if (index >= 0 && index < next.length) {
+			next[index] = paneWidth(share);
+		}
+	}
+	const unfilled = next.reduce((sum, width) => sum + width, 0) < available;
+	if (!allNew && !unfilled && !fitWorkspace) {
+		return next;
+	}
+	const scaled = [...next];
+	let remaining = available;
+	let total = next.reduce((sum, width) => sum + width, 0);
+	const smallestFirst = next.map((_width, index) => index).toSorted((a, b) => (next[a] ?? 0) - (next[b] ?? 0));
+	for (const index of smallestFirst) {
+		const width = next[index] ?? 0;
+		const resolved = paneWidth((remaining * width) / total);
+		remaining -= resolved;
+		total -= width;
+		scaled[index] = resolved;
+	}
+	return scaled;
+}
+
+/** What a divider resize remembers from its start (upstream `state.resize`): the pane and its right neighbour. */
+export interface DividerResize {
+	index: number;
+	width: number;
+	rightWidth: number | null;
+}
+
+/** Upstream `Nn2.beginResize`; null for a pane that is not in the workspace. */
+export function beginDividerResize(widths: readonly number[], index: number): DividerResize | null {
+	const width = widths[index];
+	if (width === undefined) {
 		return null;
 	}
-	const moved = Math.max(MIN_PANE_WIDTH - start.previousWidth, Math.min(start.paneWidth - MIN_PANE_WIDTH, delta));
+	return {index, width, rightWidth: widths[index + 1] ?? null};
+}
+
+/**
+ * Upstream `Nn2.resizeDivider`: the pane's width is its start width plus `delta`, at least its minimum. Growing
+ * changes nothing else, so the workspace overflows; shrinking lets the right neighbour grow to keep the row filling it.
+ */
+export function resizedDivider(
+	widths: readonly number[],
+	resize: DividerResize,
+	delta: number,
+	available: number,
+): number[] {
+	const current = widths[resize.index];
+	if (!Number.isFinite(delta) || current === undefined) {
+		return [...widths];
+	}
+	const width = Math.max(minimumPaneWidth(widths, resize.index, available), resize.width + delta);
 	const next = [...widths];
-	next[index - 1] = Math.max(MIN_PANE_WIDTH, start.previousWidth + moved);
-	next[index] = Math.max(MIN_PANE_WIDTH, start.paneWidth - moved);
+	next[resize.index] = width;
+	const neighbour = widths[resize.index + 1];
+	if (width - current > 0 || resize.rightWidth === null || neighbour === undefined) {
+		return next;
+	}
+	next[resize.index + 1] = Math.max(neighbour, available - sumExcept(next, resize.index + 1));
 	return next;
 }
 
-/** Upstream `paneWidthPercent`: each pane's share of the total, as `pane-workspace-runtime:v1` stores it. */
-export function widthPercents(widths: readonly number[]): number[] {
-	const sum = total(widths);
-	return widths.map((width) => Number(((paneWidth(width) / sum) * 100).toFixed(4)));
-}
-
-/** Upstream `paneWidthFromPercent`: a stored share of `available`, or the fallback width for an unusable share. */
-export function widthFromPercent(percent: unknown, available: number): number {
-	if (typeof percent !== "number" || !Number.isFinite(percent) || percent <= 0 || percent > 100) {
-		return paneWidth(DEFAULT_PANE_WIDTH);
+/** Upstream `finishResize(id, false)`: both start widths back. */
+export function cancelledDivider(widths: readonly number[], resize: DividerResize): number[] {
+	const next = [...widths];
+	next[resize.index] = resize.width;
+	if (resize.rightWidth !== null) {
+		next[resize.index + 1] = resize.rightWidth;
 	}
-	return paneWidth(Math.floor((available * percent) / 100));
+	return next;
 }

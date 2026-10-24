@@ -20,7 +20,14 @@ import {RelatedNodesPanel} from "./components/related-nodes-panel.js";
 import {RightBar} from "./components/right-bar.js";
 import {SearchCountIndicator} from "./components/search-count-indicator.js";
 import {Settings} from "./components/settings.js";
-import {MainPane, PaneWorkspace, SidePanes} from "./components/side-pane.js";
+import {
+	DocumentEnd,
+	MainPane,
+	PANE_SCROLLER_CLASS,
+	PANE_SCROLLER_STYLE,
+	PaneWorkspace,
+	SidePanes,
+} from "./components/side-pane.js";
 import {TopBar} from "./components/top-bar.js";
 import {useExpansionSync} from "./hooks/use-expansion-sync.js";
 import {useCommandRegistry} from "./hooks/use-command-registry.js";
@@ -136,9 +143,16 @@ function MainOutline() {
 		return pageShell({zoomedNodeId, fullWidth: true, width, searching: searchQuery !== "", showCompleted});
 	}
 	return (
-		<div className={`${outlineViewClassName(searchQuery)} vertical-scrollable-container`}>
-			<OutlineTree parentId={zoomedNodeId} />
-			<SearchCountIndicator />
+		<div className="relative flex flex-1 min-h-0 flex-col">
+			<div
+				className={`${outlineViewClassName(searchQuery)} ${PANE_SCROLLER_CLASS}`}
+				data-full-width-boundary="true"
+				style={PANE_SCROLLER_STYLE}
+			>
+				<OutlineTree parentId={zoomedNodeId} />
+				<SearchCountIndicator />
+				<DocumentEnd />
+			</div>
 		</div>
 	);
 }

@@ -17,9 +17,8 @@ import {emptySelection, selectionOf} from "../item-selection.js";
 import type {SelectionState} from "../item-selection.js";
 import type {DropIndicator} from "../bullet-drag-state.js";
 import {locationUrl, shortId} from "../location.js";
-import {createPaneId, paneRuntimeState, workspaceFragments} from "../pane-url.js";
-import type {PaneRuntimeState} from "../pane-url.js";
-import {availablePaneWidth, paneWidth, rebalancedWidths, scaledWidths, widthFromPercent} from "../pane-widths.js";
+import {createPaneId, workspaceFragments} from "../pane-url.js";
+import {availablePaneWidth, beginDividerResize, paneWidth, resizedDivider, resolveWidths} from "../pane-widths.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
 import type {PaneCaret, PaneCaretPosition} from "../pane-caret.js";
 import {closeSwitcher} from "../switcher-close.js";
@@ -400,10 +399,14 @@ interface OutlineState {
 	 */
 	activePaneId: string;
 	/**
-	 * Upstream's per-pane `width`, keyed by pane id (`main` for the main pane): each pane's flex share of the workspace.
-	 * Empty in the single-document layout; rebalanced to equal shares whenever a pane opens or closes.
+	 * Upstream's per-pane `width` in pixels, keyed by pane id (`main` for the main pane). Empty in the single-document
+	 * layout. A new pane gets an equal share of the workspace; the others keep their widths while they fill it.
 	 */
 	paneWidths: Record<string, number>;
+	/** Upstream's `Nn2.state.workspaceWidth`: the pane scroll container's measured width; null before it is measured. */
+	workspaceWidth: number | null;
+	/** Upstream's `Nn2.state.resize`: whether a divider drag is under way (widths are not resolved or persisted). */
+	paneResizing: boolean;
 	/** Each pane's last caret, keyed like `paneWidths`; ⌃N restores it when focusing the pane (upstream's `viewState`). */
 	paneCarets: Record<string, PaneCaret>;
 	exportDialogOpen: boolean;
@@ -562,19 +565,25 @@ interface OutlineActions {
 	movePane: (paneId: string, index: number) => {promoted: ItemTreePane | null} | null;
 	/**
 	 * Apply the panes the URL names (reload, Back/Forward): open each, or re-zoom an open one with the same id without
-	 * touching its history, and drop the rest. `activePaneId` (from `pane-workspace-runtime:v1`) activates that pane.
+	 * touching its history, and drop the rest. `activePaneId` (from `pane-workspace-runtime:v2`) activates that pane.
 	 */
 	restorePanes: (workspace: {
 		mainPaneId: string;
 		panes: RestoredPane[];
 		activePaneId: string | null;
-		/** `pane-workspace-runtime:v1`'s width shares, main first; absent, a changed pane set rebalances. */
-		widthPercents?: readonly (number | null)[] | null;
+		/** Each pane's stored `pane-width:<id>`, main first; null where none, which gives the pane an equal share. */
+		widths?: readonly (number | null)[] | null;
 	}) => void;
 	/** Set every pane's width in workspace order, main first; ignored unless it names one width per pane. */
 	setPaneWidths: (widths: readonly number[]) => void;
-	/** Upstream's window resize: scale every pane to the new width beside the left bar, keeping their shares. */
-	resizeToAvailableWidth: () => void;
+	/**
+	 * Upstream's workspace-width reaction: remember the measured width, and resolve the pane widths against it, refitting
+	 * every pane when they filled the previous width. Does nothing to the panes while a divider drag is under way.
+	 */
+	setWorkspaceWidth: (width: number | null) => void;
+	setPaneResizing: (resizing: boolean) => void;
+	/** Upstream's keyboard divider resize: move the divider on the right of pane `index` by `delta` pixels. */
+	resizePaneDivider: (index: number, delta: number) => void;
 	/** Make `paneId` the active pane; a no-op for a pane that is not open. */
 	setActivePane: (paneId: string) => void;
 	/** Remember `paneId`'s caret with the pane's current zoom; ignored for a pane that is not open. */
@@ -658,7 +667,7 @@ export function activeZoomedId(state: Pick<OutlineState, "activePaneId" | "panes
 }
 
 /** The workspace's pane ids in order: the main pane, then each open pane left to right. */
-export function workspacePaneIds(state: Pick<OutlineState, "panes">): string[] {
+function workspacePaneIds(state: Pick<OutlineState, "panes">): string[] {
 	return [MAIN_PANE_ID, ...state.panes.map((pane) => pane.id)];
 }
 
@@ -667,37 +676,59 @@ export function workspaceWidths(state: Pick<OutlineState, "panes" | "paneWidths"
 	return state.panes.length === 0 ? [] : workspacePaneIds(state).map((id) => paneWidth(state.paneWidths[id]));
 }
 
-/** Upstream `availableWidth`: the window width beside the pinned left bar. */
-function workspaceAvailableWidth(state: Pick<OutlineStore, "leftBarOffset">): number {
-	return availablePaneWidth(globalThis.innerWidth, state.leftBarOffset());
+/** Upstream `Nn2.available`: the measured workspace width, else the window beside the left bar less the gutter. */
+export function workspaceAvailableWidth(state: Pick<OutlineStore, "leftBarOffset" | "workspaceWidth">): number {
+	return availablePaneWidth(state.workspaceWidth, globalThis.innerWidth, state.leftBarOffset());
 }
 
-/**
- * Upstream `startRuntimePersistence`'s `pane-workspace-runtime:v1` record for the workspace: the active pane by its URL
- * id and every pane's width share; null in the single-document layout, which removes the record.
- */
+/** What `startRuntimePersistence` stores for the workspace: the panes' URL ids, the active one and the widths. */
+export interface WorkspaceRuntimeState {
+	/** The panes' URL ids, main first. */
+	ids: string[];
+	activePaneId: string;
+	widths: number[];
+}
+
+/** The runtime persistence's view of the workspace; null in the single-document layout, which removes the keys. */
 export function workspaceRuntimeState(
 	state: Pick<OutlineState, "panes" | "paneWidths" | "mainPaneUrlId" | "activePaneId">,
-): PaneRuntimeState | null {
+): WorkspaceRuntimeState | null {
 	const {mainPaneUrlId, panes, activePaneId} = state;
 	if (mainPaneUrlId === null || panes.length === 0) {
 		return null;
 	}
-	const ids = [mainPaneUrlId, ...panes.map((pane) => pane.id)];
-	return paneRuntimeState(ids, activePaneId === MAIN_PANE_ID ? mainPaneUrlId : activePaneId, workspaceWidths(state));
+	return {
+		ids: [mainPaneUrlId, ...panes.map((pane) => pane.id)],
+		activePaneId: activePaneId === MAIN_PANE_ID ? mainPaneUrlId : activePaneId,
+		widths: workspaceWidths(state),
+	};
 }
 
 function widthsById(ids: readonly string[], widths: readonly number[]): Record<string, number> {
 	return Object.fromEntries(ids.map((id, index) => [id, widths[index] ?? paneWidth(undefined)]));
 }
 
-/** Upstream `rebalanceWidths` over `panes`: an equal share each, the main pane included; none with no pane open. */
-function rebalancedPaneWidths(panes: ItemTreePane[]): Record<string, number> {
+/**
+ * Upstream `Nn2.resolve` over `panes`: a pane without a width in `previous` is new and gets an equal share of the
+ * workspace; the others keep theirs unless they leave the workspace unfilled or `fitWorkspace` refits them. None with
+ * no pane open; `previous` is returned untouched while a divider drag is under way.
+ */
+function resolvedPaneWidths(
+	panes: ItemTreePane[],
+	previous: Record<string, number>,
+	fitWorkspace = false,
+): Record<string, number> {
+	const state = useOutlineStore.getState();
 	if (panes.length === 0) {
 		return {};
 	}
+	if (state.paneResizing) {
+		return previous;
+	}
 	const ids = workspacePaneIds({panes});
-	return widthsById(ids, rebalancedWidths(ids.length, workspaceAvailableWidth(useOutlineStore.getState())));
+	const newIndexes = ids.flatMap((id, index) => (previous[id] === undefined ? [index] : []));
+	const widths = ids.map((id) => previous[id] ?? 0);
+	return widthsById(ids, resolveWidths(widths, newIndexes, workspaceAvailableWidth(state), fitWorkspace));
 }
 
 function samePaneIds(a: readonly ItemTreePane[], b: readonly ItemTreePane[]): boolean {
@@ -827,7 +858,11 @@ function updatePane(paneId: string, update: (pane: ItemTreePane) => ItemTreePane
  * active pane stays active while it remains; otherwise the most recently active remaining pane (upstream's `vC4`), else
  * the main pane, takes over and editing ends. No panes left restores the single document.
  */
-function setWorkspace(panes: ItemTreePane[], mainPaneUrlId?: string): void {
+function setWorkspace(
+	panes: ItemTreePane[],
+	mainPaneUrlId?: string,
+	previousWidths: Record<string, number> = useOutlineStore.getState().paneWidths,
+): void {
 	const state = useOutlineStore.getState();
 	const ids = new Set(panes.map((pane) => pane.id));
 	const history = panes.length === 0 ? [] : state.paneFocusHistory.filter((id) => id === MAIN_PANE_ID || ids.has(id));
@@ -835,7 +870,7 @@ function setWorkspace(panes: ItemTreePane[], mainPaneUrlId?: string): void {
 	const activePaneId = remains ? state.activePaneId : (history.at(-1) ?? MAIN_PANE_ID);
 	useOutlineStore.setState({
 		panes,
-		...(samePaneIds(panes, state.panes) ? {} : {paneWidths: rebalancedPaneWidths(panes)}),
+		...(samePaneIds(panes, state.panes) ? {} : {paneWidths: resolvedPaneWidths(panes, previousWidths)}),
 		mainPaneUrlId: panes.length === 0 ? null : (mainPaneUrlId ?? state.mainPaneUrlId),
 		...(panes.length === 0 ? {mainPaneHistory: emptyMainPaneHistory} : {}),
 		paneFocusHistory: history,
@@ -891,6 +926,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	paneFocusHistory: [],
 	activePaneId: MAIN_PANE_ID,
 	paneWidths: {},
+	workspaceWidth: null,
+	paneResizing: false,
 	paneCarets: {},
 	exportDialogOpen: false,
 	exportContext: null,
@@ -1333,7 +1370,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		const nextPanes = [...panes.slice(0, index - 1), pane, ...panes.slice(index - 1)];
 		set({
 			panes: nextPanes,
-			paneWidths: rebalancedPaneWidths(nextPanes),
+			paneWidths: resolvedPaneWidths(nextPanes, get().paneWidths),
 			mainPaneUrlId: mainId,
 			paneFocusHistory: [...paneFocusHistory.filter((paneId) => paneId !== id), id],
 			activePaneId: id,
@@ -1410,7 +1447,9 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			return null;
 		}
 		const promotedCaret = get().paneCarets[promoted.id];
-		setWorkspace(rest, promoted.id);
+		// The promoted pane keeps its own width as the new main pane's; the old main pane's width goes with it.
+		const {[MAIN_PANE_ID]: _main, [promoted.id]: promotedWidth, ...kept} = get().paneWidths;
+		setWorkspace(rest, promoted.id, promotedWidth === undefined ? kept : {...kept, [MAIN_PANE_ID]: promotedWidth});
 		const {[MAIN_PANE_ID]: _closed, ...carets} = get().paneCarets;
 		set({paneCarets: promotedCaret === undefined ? carets : {...carets, [MAIN_PANE_ID]: promotedCaret}});
 		if (get().activePaneId !== MAIN_PANE_ID) {
@@ -1464,7 +1503,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		return {promoted: first};
 	},
 
-	restorePanes: ({mainPaneId, panes: restored, activePaneId, widthPercents}) => {
+	restorePanes: ({mainPaneId, panes: restored, activePaneId, widths}) => {
 		const {panes, expandedIds} = get();
 		const next = restored.map((url): ItemTreePane => {
 			const open = findPane(panes, url.id);
@@ -1481,14 +1520,15 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 				: {...open, zoomedId: url.zoomedId, query};
 		});
 		setWorkspace(next, mainPaneId);
-		if (widthPercents?.length === next.length + 1) {
-			const available = workspaceAvailableWidth(get());
-			set({
-				paneWidths: widthsById(
-					workspacePaneIds({panes: next}),
-					widthPercents.map((percent) => widthFromPercent(percent, available)),
-				),
-			});
+		if (widths?.length === next.length + 1 && widths.some((width) => width !== null)) {
+			const ids = workspacePaneIds({panes: next});
+			const stored = Object.fromEntries(
+				ids.flatMap((id, index) => {
+					const width = widths[index];
+					return width === null || width === undefined ? [] : [[id, paneWidth(width)]];
+				}),
+			);
+			set({paneWidths: resolvedPaneWidths(next, stored)});
 		}
 		if (
 			activePaneId !== null &&
@@ -1508,10 +1548,33 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		}
 	},
 
-	resizeToAvailableWidth: () => {
+	setWorkspaceWidth: (width) => {
 		const state = get();
-		if (state.panes.length > 0) {
-			state.setPaneWidths(scaledWidths(workspaceWidths(state), workspaceAvailableWidth(state)));
+		const previous = state.workspaceWidth;
+		set({workspaceWidth: width});
+		if (width === null || state.panes.length === 0 || state.paneResizing) {
+			return;
+		}
+		const total = workspaceWidths(state).reduce((sum, paneWidthPx) => sum + paneWidthPx, 0);
+		set({
+			paneWidths: resolvedPaneWidths(
+				state.panes,
+				state.paneWidths,
+				previous !== null && Math.round(total) <= previous,
+			),
+		});
+	},
+
+	setPaneResizing: (resizing) => {
+		set({paneResizing: resizing});
+	},
+
+	resizePaneDivider: (index, delta) => {
+		const state = get();
+		const widths = workspaceWidths(state);
+		const resize = beginDividerResize(widths, index);
+		if (resize !== null) {
+			state.setPaneWidths(resizedDivider(widths, resize, delta, workspaceAvailableWidth(state)));
 		}
 	},
 

@@ -7,9 +7,13 @@ import {RESOLVED_ID_STALE_TIME, nodeKeys} from "../node-cache.js";
 import {
 	PANE_RUNTIME_KEY,
 	PANES_FRAGMENT,
+	applyPaneStorageUpdate,
 	decodeWorkspace,
 	encodeWorkspace,
+	paneStorageUpdate,
+	paneWidthKey,
 	reconcilePaneUrl,
+	restoredPaneWidth,
 	restoredRuntime,
 	sameWorkspace,
 	storeWorkspaceUrl,
@@ -20,9 +24,9 @@ import {useOutlineStore, workspaceRuntimeState} from "../stores/outline.js";
 /** `resolvedKey`'s entries: a pane location and the full id it resolved to (null when it names no node). */
 const resolvedEntries = z.array(z.tuple([z.string(), z.string().nullable()]));
 
-function readRuntimeState(): string | null {
+function readStorage(key: string): string | null {
 	try {
-		return localStorage.getItem(PANE_RUNTIME_KEY);
+		return localStorage.getItem(key);
 	} catch {
 		return null;
 	}
@@ -30,7 +34,7 @@ function readRuntimeState(): string | null {
 
 /**
  * Keep the open panes and the URL's `panes=v2.` param in step, and mirror the
- * workspace into `pane-workspace-runtime:v1`. A URL naming panes opens, re-zooms
+ * workspace into `pane-workspace-runtime:v2` and `pane-width:<id>`. A URL naming panes opens, re-zooms
  * or drops them (reload, Back/Forward); a pane change pushes a new URL; closing
  * the last pane drops the param. Mount once (the outline route owns it).
  */
@@ -82,10 +86,8 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 					void navigate(withPanesFragment(location.hash, null), {replace: true});
 					return;
 				}
-				const runtime = restoredRuntime(readRuntimeState(), [
-					url.mainPaneId,
-					...url.panes.map((pane) => pane.paneId),
-				]);
+				const paneIds = [url.mainPaneId, ...url.panes.map((pane) => pane.paneId)];
+				const runtime = restoredRuntime(readStorage(PANE_RUNTIME_KEY), paneIds);
 				const active = runtime?.activePaneId ?? null;
 				state.restorePanes({
 					mainPaneId: url.mainPaneId,
@@ -95,7 +97,7 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 						query: pane.query,
 					})),
 					activePaneId: active === url.mainPaneId ? null : active,
-					widthPercents: runtime?.widthPercents ?? null,
+					widths: paneIds.map((id) => restoredPaneWidth(readStorage(paneWidthKey(id)))),
 				});
 				return;
 			}
@@ -136,29 +138,36 @@ export function usePaneUrlSync(resolveId: (locationId: string) => Promise<string
 		}
 	}, [location, navigate, storeFragment]);
 
-	// Upstream `startRuntimePersistence`: rewrite the record when the panes, their widths or the active pane change.
-	useEffect(
-		() =>
-			useOutlineStore.subscribe((state, previous) => {
-				if (
-					state.panes === previous.panes &&
+	// Upstream `startRuntimePersistence`: rewrite the keys when the panes, their widths or the active pane change, but
+	// not while a divider drag is under way.
+	useEffect(() => {
+		let writtenIds = workspaceRuntimeState(useOutlineStore.getState())?.ids ?? [];
+		return useOutlineStore.subscribe((state, previous) => {
+			if (
+				state.paneResizing ||
+				(state.panes === previous.panes &&
 					state.paneWidths === previous.paneWidths &&
 					state.mainPaneUrlId === previous.mainPaneUrlId &&
-					state.activePaneId === previous.activePaneId
-				) {
-					return;
-				}
-				try {
-					const record = workspaceRuntimeState(state);
-					if (record === null) {
-						localStorage.removeItem(PANE_RUNTIME_KEY);
-					} else {
-						localStorage.setItem(PANE_RUNTIME_KEY, JSON.stringify(record));
-					}
-				} catch {
-					// Storage can be unavailable (private windows); the URL still carries the panes.
-				}
-			}),
-		[],
-	);
+					state.activePaneId === previous.activePaneId &&
+					state.paneResizing === previous.paneResizing)
+			) {
+				return;
+			}
+			const record = workspaceRuntimeState(state);
+			try {
+				applyPaneStorageUpdate(
+					localStorage,
+					paneStorageUpdate({
+						previousIds: writtenIds,
+						ids: record?.ids ?? [],
+						activePaneId: record?.activePaneId ?? "",
+						widths: record?.widths ?? [],
+					}),
+				);
+			} catch {
+				// Storage can be unavailable (private windows); the URL still carries the panes.
+			}
+			writtenIds = record?.ids ?? [];
+		});
+	}, []);
 }

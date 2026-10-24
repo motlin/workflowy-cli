@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from "vite-plus/test";
+import {resolveWidths} from "../src/client/pane-widths.js";
 
 function stubGlobals(): void {
 	vi.stubGlobal("localStorage", {
@@ -580,10 +581,10 @@ describe("pane widths", () => {
 	const b = "BBBBBBBBBBB";
 	const c = "CCCCCCCCCCC";
 
-	/** The width each pane gets when `count` panes share the stubbed 1272px window beside the left bar. */
-	async function share(count: number): Promise<number> {
+	/** Upstream's `available()` with no measured workspace: the window beside the left bar, less the 8px gutter. */
+	async function available(): Promise<number> {
 		const store = await loadStore();
-		return Math.max(350, Math.floor((1272 - store.getState().leftBarOffset()) / count));
+		return 1272 - store.getState().leftBarOffset() - 8;
 	}
 
 	it("has no widths with no pane open", async () => {
@@ -591,8 +592,9 @@ describe("pane widths", () => {
 		expect(store.getState().paneWidths).toStrictEqual({});
 	});
 
-	it("rebalances every pane, the main one included, to an equal share as panes open and close", async () => {
+	it("gives a new pane an equal share, keeps the others while they fill the workspace, and refits on close", async () => {
 		const store = await loadStore();
+		const total = await available();
 		const a = store.getState().openPane("alice");
 		const afterOne = store.getState().paneWidths;
 		const two = store.getState().openPane("bob");
@@ -600,10 +602,11 @@ describe("pane widths", () => {
 		store.getState().closePane(a);
 		const afterClose = store.getState().paneWidths;
 		store.getState().closeAllPanes();
+		const [closedMain = 0, closedTwo = 0] = resolveWidths([total / 2, total / 3], [], total, false);
 		expect({afterOne, afterTwo, afterClose, afterAll: store.getState().paneWidths}).toStrictEqual({
-			afterOne: {main: await share(2), [a]: await share(2)},
-			afterTwo: {main: await share(3), [a]: await share(3), [two]: await share(3)},
-			afterClose: {main: await share(2), [two]: await share(2)},
+			afterOne: {main: total / 2, [a]: total / 2},
+			afterTwo: {main: total / 2, [a]: total / 2, [two]: total / 3},
+			afterClose: {main: closedMain, [two]: closedTwo},
 			afterAll: {},
 		});
 	});
@@ -638,9 +641,9 @@ describe("pane widths", () => {
 		expect(workspaceWidths(store.getState())).toStrictEqual([400, 500, 600]);
 	});
 
-	it("restores stored width shares of the available width, else rebalances", async () => {
+	it("restores stored pane widths, giving a pane with none an equal share", async () => {
 		const store = await loadStore();
-		const available = 1272 - store.getState().leftBarOffset();
+		const total = await available();
 		store.getState().restorePanes({
 			mainPaneId: main,
 			panes: [
@@ -648,22 +651,21 @@ describe("pane widths", () => {
 				{id: c, zoomedId: null, query: null},
 			],
 			activePaneId: null,
-			widthPercents: [50, 30, 20],
+			widths: [700, 500, null],
 		});
-		const stored = store.getState().paneWidths;
+		expect(store.getState().paneWidths).toStrictEqual({main: 700, [b]: 500, [c]: total / 3});
+	});
+
+	it("shares the workspace equally when a restore has no stored widths", async () => {
+		const store = await loadStore();
+		const total = await available();
 		store.getState().restorePanes({
 			mainPaneId: main,
 			panes: [{id: b, zoomedId: "alice", query: null}],
 			activePaneId: null,
+			widths: null,
 		});
-		expect({stored, rebalanced: store.getState().paneWidths}).toStrictEqual({
-			stored: {
-				main: Math.max(350, Math.floor(available * 0.5)),
-				[b]: Math.max(350, Math.floor(available * 0.3)),
-				[c]: Math.max(350, Math.floor(available * 0.2)),
-			},
-			rebalanced: {main: await share(2), [b]: await share(2)},
-		});
+		expect(store.getState().paneWidths).toStrictEqual({main: total / 2, [b]: total / 2});
 	});
 
 	it("keeps widths when the URL re-applies the same panes", async () => {
@@ -675,18 +677,20 @@ describe("pane widths", () => {
 		expect(store.getState().paneWidths).toStrictEqual({main: 400, [b]: 800});
 	});
 
-	it("rebalances when the main pane closes and the first pane takes its place", async () => {
+	it("keeps the promoted pane's own width when the main pane closes", async () => {
 		const store = await loadStore();
+		const total = await available();
 		store.getState().openPane("alice");
 		const two = store.getState().openPane("bob");
 		store.getState().setPaneWidths([400, 500, 600]);
 		store.getState().closeMainPane();
-		expect(store.getState().paneWidths).toStrictEqual({main: await share(2), [two]: await share(2)});
+		const [first = 0, second = 0] = resolveWidths([500, 600], [], total, false);
+		expect(store.getState().paneWidths).toStrictEqual({main: first, [two]: second});
 	});
 });
 
 describe("workspaceRuntimeState", () => {
-	it("records the active pane by URL id and every pane's width share, or nothing with no pane open", async () => {
+	it("records the pane URL ids, the active one and the widths, or nothing with no pane open", async () => {
 		const store = await loadStore();
 		const {workspaceRuntimeState} = await import("../src/client/stores/outline.js");
 		const none = workspaceRuntimeState(store.getState());
@@ -697,40 +701,101 @@ describe("workspaceRuntimeState", () => {
 		const main = store.getState().mainPaneUrlId;
 		expect({none, paneActive, mainActive: workspaceRuntimeState(store.getState())}).toStrictEqual({
 			none: null,
-			paneActive: {
-				activePaneId: a,
-				panes: [
-					{id: main, type: "item-tree", widthPercent: 40},
-					{id: a, type: "item-tree", widthPercent: 60},
-				],
-			},
-			mainActive: {
-				activePaneId: main,
-				panes: [
-					{id: main, type: "item-tree", widthPercent: 40},
-					{id: a, type: "item-tree", widthPercent: 60},
-				],
-			},
+			paneActive: {ids: [main, a], activePaneId: a, widths: [400, 600]},
+			mainActive: {ids: [main, a], activePaneId: main, widths: [400, 600]},
 		});
 	});
 });
 
-describe("resizeToAvailableWidth", () => {
-	it("scales every pane to the window's new width beside the left bar, keeping their shares", async () => {
+describe("setWorkspaceWidth", () => {
+	it("keeps widths that fill the first measured workspace", async () => {
 		const store = await loadStore();
 		const a = store.getState().openPane("alice");
-		store.getState().setPaneWidths([400, 800]);
-		vi.stubGlobal("innerWidth", 600 + store.getState().leftBarOffset() + 600);
-		store.getState().resizeToAvailableWidth();
-		expect(store.getState().paneWidths).toStrictEqual({main: 400, [a]: 800});
-		vi.stubGlobal("innerWidth", 1800 + store.getState().leftBarOffset());
-		store.getState().resizeToAvailableWidth();
-		expect(store.getState().paneWidths).toStrictEqual({main: 600, [a]: 1200});
+		store.getState().setPaneWidths([500, 700]);
+		store.getState().setWorkspaceWidth(1200);
+		expect({widths: store.getState().paneWidths, measured: store.getState().workspaceWidth}).toStrictEqual({
+			widths: {main: 500, [a]: 700},
+			measured: 1200,
+		});
 	});
 
-	it("does nothing with no pane open", async () => {
+	it("scales panes that filled the workspace to its new width, keeping their shares", async () => {
 		const store = await loadStore();
-		store.getState().resizeToAvailableWidth();
+		const a = store.getState().openPane("alice");
+		store.getState().setWorkspaceWidth(1200);
+		store.getState().setPaneWidths([500, 700]);
+		store.getState().setWorkspaceWidth(1800);
+		expect(store.getState().paneWidths).toStrictEqual({main: 750, [a]: 1050});
+	});
+
+	it("leaves panes that already overflowed the workspace alone when it grows but still overflows", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		store.getState().setWorkspaceWidth(1200);
+		store.getState().setPaneWidths([800, 800]);
+		store.getState().setWorkspaceWidth(1500);
+		expect(store.getState().paneWidths).toStrictEqual({main: 800, [a]: 800});
+	});
+
+	it("stretches panes that no longer fill a grown workspace", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		store.getState().setWorkspaceWidth(1200);
+		store.getState().setPaneWidths([800, 800]);
+		store.getState().setWorkspaceWidth(2000);
+		expect(store.getState().paneWidths).toStrictEqual({main: 1000, [a]: 1000});
+	});
+
+	it("only remembers the width with no pane open", async () => {
+		const store = await loadStore();
+		store.getState().setWorkspaceWidth(1200);
+		expect({widths: store.getState().paneWidths, measured: store.getState().workspaceWidth}).toStrictEqual({
+			widths: {},
+			measured: 1200,
+		});
+	});
+
+	it("does not touch widths while a divider drag is under way", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		store.getState().setWorkspaceWidth(1200);
+		store.getState().setPaneWidths([500, 700]);
+		store.getState().setPaneResizing(true);
+		store.getState().setWorkspaceWidth(1800);
+		expect(store.getState().paneWidths).toStrictEqual({main: 500, [a]: 700});
+	});
+
+	it("uses the measured workspace width as the available width for a new pane", async () => {
+		const store = await loadStore();
+		store.getState().setWorkspaceWidth(1416);
+		store.getState().openPane("alice");
+		store.getState().setPaneWidths([716, 716]);
+		const three = store.getState().openPane("bob");
+		expect(store.getState().paneWidths[three]).toBe(472);
+	});
+});
+
+describe("resizePaneDivider", () => {
+	it("moves a divider by the delta, growing the right neighbour back to fill the workspace on a shrink", async () => {
+		const store = await loadStore();
+		const a = store.getState().openPane("alice");
+		store.getState().setWorkspaceWidth(1416);
+		store.getState().setPaneWidths([716, 716]);
+		store.getState().resizePaneDivider(0, -10);
+		const first = store.getState().paneWidths;
+		store.getState().resizePaneDivider(0, -50);
+		const second = store.getState().paneWidths;
+		store.getState().resizePaneDivider(0, 50);
+		expect({first, second, third: store.getState().paneWidths}).toStrictEqual({
+			first: {main: 706, [a]: 716},
+			second: {main: 656, [a]: 760},
+			third: {main: 706, [a]: 760},
+		});
+	});
+
+	it("ignores a pane that is not open", async () => {
+		const store = await loadStore();
+		store.getState().resizePaneDivider(3, -10);
 		expect(store.getState().paneWidths).toStrictEqual({});
 	});
 });

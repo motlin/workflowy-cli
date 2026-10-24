@@ -1,4 +1,4 @@
-import type {ReactNode} from "react";
+import type {CSSProperties, ReactNode} from "react";
 import {useEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useQueryClient} from "@tanstack/react-query";
@@ -12,8 +12,9 @@ import {MAIN_PANE_ID, findPane} from "../pane-ids.js";
 import type {ItemTreePane} from "../pane-ids.js";
 import {bindPaneReorder} from "../pane-reorder.js";
 import type {ReorderView} from "../pane-reorder.js";
-import {paneResizeHandlers} from "../pane-resize.js";
-import {useOutlineStore, workspacePaneIds} from "../stores/outline.js";
+import {bindPaneSeparator, handleSeparatorKey} from "../pane-resize.js";
+import {MIN_PANE_WIDTH, minimumPaneWidth} from "../pane-widths.js";
+import {useOutlineStore, workspaceAvailableWidth, workspaceWidths} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
 import {FaIcon} from "./fa-icons.js";
 import {POPUP_Z} from "./flyout/popover-box.js";
@@ -24,9 +25,50 @@ import {PANE_HEADER_ACTIVE_BORDER, PaneContext, paneActivation, scrollPaneToTop}
 import {PaneSearchBox} from "./pane-search-box.js";
 import {NewPaneIcon} from "./new-pane-icon.js";
 
-/** Upstream's flex sizing for a pane: its width is its share of the workspace, above the 350px pane minimum. */
-function paneFlex(width: number | undefined): string | undefined {
-	return width === undefined ? undefined : `${width} 1 0px`;
+/** Upstream's workspace utilities: the pane scrollers inside never scroll sideways, whatever their own classes say. */
+const WORKSPACE_SCROLLER_CLASSES = [
+	"[&_[data-full-width-boundary].vertical-scrollable-container]:overflow-x-hidden",
+	"[&_[data-full-width-boundary].vertical-scrollable-container]:overflow-y-auto",
+	"[&_[data-full-width-boundary].vertical-scrollable-container]:overscroll-x-auto",
+	"[&_[data-full-width-boundary].vertical-scrollable-container]:overscroll-y-contain",
+	"[&_[data-full-width-boundary]>.vertical-scrollable-container]:overflow-x-hidden",
+	"[&_[data-full-width-boundary]>.vertical-scrollable-container]:overflow-y-auto",
+	"[&_[data-full-width-boundary]>.vertical-scrollable-container]:overscroll-x-auto",
+	"[&_[data-full-width-boundary]>.vertical-scrollable-container]:overscroll-y-contain",
+].join(" ");
+
+/** Upstream's workspace root: a full-height row clipping the pane scroller and the workspace-level control. */
+const WORKSPACE_CLASS = `relative flex h-screen max-h-screen min-h-0 items-stretch overflow-hidden bg-primary print:block print:!mr-0 print:!h-auto print:!max-h-none print:!overflow-visible ${WORKSPACE_SCROLLER_CLASSES}`;
+
+/** A style object with CSS custom properties, which `CSSProperties` does not name. */
+function cssVars(style: Record<string, string | number>): CSSProperties {
+	return style;
+}
+
+const WORKSPACE_STYLE: CSSProperties = cssVars({
+	"--pane-workspace-control-width": "var(--wf-header-height)",
+	"--pane-workspace-left-control-width": "calc(var(--wf-space-s) + 36px)",
+	marginRight: 8,
+});
+
+/** Upstream's pane: a fixed-width column that never flexes. Only the active pane prints. */
+const PANE_CLASS = "group/pane relative box-border flex-none h-full max-h-full min-h-0 bg-primary flex flex-col";
+const PANE_ACTIVE_PRINT_CLASS = "print:block print:!w-auto print:!min-w-0 print:!h-auto print:!max-h-none";
+/** The last pane's header leaves room for the workspace-level control at the workspace's top right. */
+const PANE_LAST_CLASS = "[&_.header]:pr-[var(--pane-workspace-control-width)] [&_.header]:min-w-[280px]";
+
+/** Upstream's pane body scroller: padding 16px 32px 16px 56px, a centred project column and the Home indent. */
+export const PANE_SCROLLER_CLASS =
+	"flex-1 min-h-0 py-l pr-2xl overflow-auto overscroll-contain relative vertical-scrollable-container print:!overflow-visible pl-[calc(var(--wf-space-xl)+var(--side-pane-menu-gutter))] [--name-left-overhang:60px] [&>.project.root]:w-full [&>.project.root]:max-w-[700px] [&>.project.root]:mx-auto [&>.project.root]:data-[full-width-active=true]:!max-w-none [&>.project.root]:!max-w-none";
+export const PANE_SCROLLER_STYLE: CSSProperties = cssVars({"--side-pane-menu-gutter": "32px"});
+
+function paneClassName(isActive: boolean, extra = ""): string {
+	return `${PANE_CLASS} ${isActive ? PANE_ACTIVE_PRINT_CLASS : "print:hidden"}${extra === "" ? "" : ` ${extra}`}`;
+}
+
+/** Upstream's blank space under a pane's last row, so the end of the outline scrolls clear of the bottom edge. */
+export function DocumentEnd() {
+	return <div className="document-end flex-grow flex-shrink-0 print:hidden" style={{height: 380}} />;
 }
 
 /** Upstream's item-tree pane title (`getNameText`): the plain text of the pane's zoom, Home at the root. */
@@ -68,31 +110,44 @@ function ReorderOverlay({view}: {view: ReorderView}) {
 }
 
 /**
- * Upstream's pane workspace (`[data-pane-workspace]`): while a pane is open, a full-height flex row of the main pane
- * and every open pane, each with its own scroller, that scrolls sideways once the panes' minimums outgrow the window.
- * Window resizes scale every pane to keep its share. Dragging a pane header reorders the panes (drop line and ghost
- * chip while dragging). In the single-document layout it lays nothing out, so the fixed header and document-scrolled
- * outline lay out as before.
+ * Upstream's pane workspace (`[data-pane-workspace]`): while a pane is open, a full-height row holding the pane scroll
+ * container (`[data-pane-scroll-container]`, which scrolls sideways once the panes' pixel widths outgrow it) and the
+ * workspace-level New pane control. The scroll container's measured width drives the pane widths. Dragging a pane
+ * header reorders the panes (drop line and ghost chip while dragging). In the single-document layout both wrappers
+ * are `display: contents`, so the fixed header and document-scrolled outline lay out as before.
  */
 export function PaneWorkspace({children}: {children: ReactNode}) {
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
-	const resizeToAvailableWidth = useOutlineStore((state) => state.resizeToAvailableWidth);
+	const resizing = useOutlineStore((state) => state.paneResizing);
+	const workspaceWidth = useOutlineStore((state) => state.workspaceWidth);
+	const leftBarOffset = useOutlineStore((state) => state.leftBarOffset);
+	const setWorkspaceWidth = useOutlineStore((state) => state.setWorkspaceWidth);
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const workspaceRef = useRef<HTMLDivElement>(null);
+	const scrollRef = useRef<HTMLDivElement>(null);
 	const [reorder, setReorder] = useState<ReorderView | null>(null);
-	// The rescale does nothing with no pane open.
+	// Upstream measures the scroll container into `workspaceWidth`; the store rescales the panes when it changes.
 	useEffect(() => {
-		globalThis.addEventListener("resize", resizeToAvailableWidth);
-		return () => {
-			globalThis.removeEventListener("resize", resizeToAvailableWidth);
+		const scroller = scrollRef.current;
+		if (!panesOpen || scroller === null || typeof ResizeObserver === "undefined") {
+			return () => {};
+		}
+		const measure = () => {
+			setWorkspaceWidth(scroller.clientWidth);
 		};
-	}, [resizeToAvailableWidth]);
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(scroller);
+		return () => {
+			observer.disconnect();
+			setWorkspaceWidth(null);
+		};
+	}, [panesOpen, setWorkspaceWidth]);
 	useEffect(() => {
-		const workspace = workspaceRef.current;
+		const scroller = scrollRef.current;
 		const unbind =
-			panesOpen && workspace !== null
-				? bindPaneReorder(workspace, {
+			panesOpen && scroller !== null
+				? bindPaneReorder(scroller, {
 						getState: useOutlineStore.getState,
 						title: (paneId) => paneTitle(queryClient, paneId),
 						movePane: (paneId, index) => {
@@ -105,87 +160,151 @@ export function PaneWorkspace({children}: {children: ReactNode}) {
 			unbind?.();
 		};
 	}, [navigate, panesOpen, queryClient]);
-	return panesOpen ? (
+	return (
 		<div
-			data-pane-workspace="true"
-			data-pane-reordering={reorder === null ? "false" : "true"}
-			className={`pane-workspace flex h-screen max-h-screen min-h-0 items-stretch overflow-x-auto overflow-y-hidden bg-primary [&_.wf-pane-header]:cursor-grab${reorder === null ? "" : " cursor-grabbing [&_*]:!cursor-grabbing [&_*]:!pointer-events-none"}`}
-			ref={workspaceRef}
+			className={panesOpen ? WORKSPACE_CLASS : "contents"}
+			data-pane-workspace={panesOpen ? "true" : undefined}
+			style={panesOpen ? WORKSPACE_STYLE : undefined}
 		>
-			{children}
+			<div
+				className={
+					panesOpen
+						? `flex min-w-0 min-h-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden print:block print:!overflow-visible [&_.wf-pane-header]:cursor-grab${reorder === null ? "" : " cursor-grabbing [&_*]:!cursor-grabbing [&_*]:!pointer-events-none"}`
+						: "contents"
+				}
+				data-pane-reordering={panesOpen ? (reorder === null ? "false" : "true") : undefined}
+				data-pane-scroll-container={panesOpen ? "true" : undefined}
+				ref={scrollRef}
+			>
+				{children}
+				{panesOpen && resizing && (
+					<div
+						aria-hidden="true"
+						className="flex-none print:hidden"
+						style={{width: workspaceAvailableWidth({leftBarOffset, workspaceWidth})}}
+					/>
+				)}
+			</div>
+			{panesOpen && <PaneWorkspaceControl />}
 			{reorder !== null && <ReorderOverlay view={reorder} />}
 		</div>
-	) : (
-		<div className="pane-workspace contents">{children}</div>
 	);
 }
 
 /**
- * The main outline's pane. In the single-document layout it is a `display: contents` wrapper around its header and
- * outline, so the fixed header and document-scrolled outline lay out as before. While a pane is open it is the
- * workspace's first flex item, its header in flow above its own scroller. It is the active pane (header border tinted)
- * only while a pane is open and the main outline last saw a pointerdown or focusin.
+ * The main outline's pane. In the single-document layout it is two `display: contents` wrappers, with no pane
+ * attributes, around its header and outline, so the fixed header and document-scrolled outline lay out as before.
+ * While a pane is open it is the workspace's first pane: a fixed-width column holding its header and its own scroller
+ * in upstream's body wrapper, then its resize separator. It is the active pane (header border tinted) only while a
+ * pane is open and the main outline last saw a pointerdown or focusin.
  */
 export function MainPane({children}: {children: ReactNode}) {
 	const panesOpen = useOutlineStore((state) => state.panes.length > 0);
 	const isActive = useOutlineStore((state) => state.panes.length > 0 && state.activePaneId === MAIN_PANE_ID);
 	const width = useOutlineStore((state) => (state.panes.length > 0 ? state.paneWidths[MAIN_PANE_ID] : undefined));
 	const setActivePane = useOutlineStore((state) => state.setActivePane);
-	return (
+	return panesOpen ? (
 		<div
+			id={`pane-${MAIN_PANE_ID}`}
 			data-pane-id={MAIN_PANE_ID}
 			data-pane-type="item-tree"
 			data-pane-active={isActive ? "true" : "false"}
-			className={
-				panesOpen
-					? "main-pane group/pane shrink-0 min-w-[350px] relative box-border h-full max-h-full min-h-0 flex flex-col"
-					: "main-pane group/pane contents"
-			}
-			style={panesOpen ? {flex: paneFlex(width)} : undefined}
+			className={`main-pane ${paneClassName(isActive)}`}
+			style={{width, minWidth: MIN_PANE_WIDTH}}
 			{...paneActivation(MAIN_PANE_ID, setActivePane)}
 		>
-			{children}
+			<div className="flex flex-1 min-h-0 flex-col" data-full-width-boundary="true" data-split-pane="true">
+				{children}
+			</div>
+			<PaneSeparator index={0} />
+		</div>
+	) : (
+		<div className="main-pane contents">
+			<div className="contents">{children}</div>
 		</div>
 	);
 }
 
-/** Every pane's rendered width in workspace order, main first, for a resize drag's start. */
-function measurePaneWidths(): number[] {
-	return workspacePaneIds(useOutlineStore.getState()).map(
-		(id) => document.querySelector(`[data-pane-id="${id}"]`)?.getBoundingClientRect().width ?? 0,
-	);
-}
-
 /**
- * Upstream's resize handle on a secondary pane's left edge: dragging it trades width between the pane (at workspace
- * `index`) and its left neighbour, each stopping at the 350px minimum.
+ * Upstream's resize separator on a pane's right edge, the last pane's included: a 6px focusable `role=separator`.
+ * Dragging it or pressing ArrowLeft, ArrowRight or Home resizes the pane at workspace `index` (see `resizedDivider`).
  */
-function PaneResizeHandle({index}: {index: number}) {
+function PaneSeparator({index}: {index: number}) {
+	const panes = useOutlineStore((state) => state.panes);
+	const paneWidths = useOutlineStore((state) => state.paneWidths);
+	const workspaceWidth = useOutlineStore((state) => state.workspaceWidth);
+	const leftBarOffset = useOutlineStore((state) => state.leftBarOffset);
 	const setPaneWidths = useOutlineStore((state) => state.setPaneWidths);
-	const [handlers] = useState(() =>
-		paneResizeHandlers(index, {measure: measurePaneWidths, setWidths: setPaneWidths}),
-	);
+	const setPaneResizing = useOutlineStore((state) => state.setPaneResizing);
+	const ref = useRef<HTMLDivElement>(null);
+	const ids = [MAIN_PANE_ID, ...panes.map((pane) => pane.id)];
+	const widths = workspaceWidths({panes, paneWidths});
+	const available = workspaceAvailableWidth({leftBarOffset, workspaceWidth});
+	const width = widths[index] ?? MIN_PANE_WIDTH;
+	const nextId = ids[index + 1];
+	const nextWidth = widths[index + 1];
+	const deps = {
+		getWidths: () => workspaceWidths(useOutlineStore.getState()),
+		available: () => workspaceAvailableWidth(useOutlineStore.getState()),
+		setWidths: setPaneWidths,
+	};
+	useEffect(() => {
+		const separator = ref.current;
+		const scroller = separator?.closest<HTMLElement>("[data-pane-scroll-container]") ?? null;
+		if (separator === null || scroller === null) {
+			return () => {};
+		}
+		return bindPaneSeparator(separator, index, {
+			scroller,
+			getWidths: () => workspaceWidths(useOutlineStore.getState()),
+			available: () => workspaceAvailableWidth(useOutlineStore.getState()),
+			setWidths: setPaneWidths,
+			setResizing: setPaneResizing,
+		});
+	}, [index, setPaneResizing, setPaneWidths]);
 	return (
 		<div
-			className="pane-resize-handle absolute top-0 bottom-0 left-0 w-[4px] cursor-ew-resize"
-			onPointerDown={handlers.onPointerDown}
-			onPointerMove={handlers.onPointerMove}
-			onPointerUp={handlers.onPointerUp}
+			aria-controls={nextId === undefined ? `pane-${ids[index]}` : `pane-${ids[index]} pane-${nextId}`}
+			aria-label={`Resize pane ${index + 1}`}
+			aria-orientation="vertical"
+			aria-valuemin={Math.round(minimumPaneWidth(widths, index, available))}
+			aria-valuenow={Math.round(width)}
+			aria-valuetext={
+				nextWidth === undefined
+					? `${Math.round(width)} pixels`
+					: `${Math.round(width)} and ${Math.round(nextWidth)} pixels`
+			}
+			className="absolute top-0 right-0 bottom-0 w-[6px] cursor-col-resize touch-none select-none border-r border-solid border-primary hover:bg-tertiary focus-visible:bg-tertiary focus-visible:outline-none print:hidden"
+			data-pane-drag-ignore="true"
+			onKeyDown={(event) => {
+				handleSeparatorKey(event, index, deps);
+			}}
+			ref={ref}
+			// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- upstream's focusable, draggable separator is a div; an hr cannot take pointer or key handlers
+			role="separator"
+			style={{zIndex: 200}}
+			tabIndex={0}
 		/>
 	);
 }
 
 /**
- * Upstream's `pane-workspace-control` on the last pane: a New pane button at the header's top right that opens another
- * pane on this pane's zoom after it and focuses it.
+ * Upstream's `pane-workspace-control`: one per workspace, at its top right. Its New pane button opens another pane on
+ * the last pane's zoom after it and focuses it.
  */
-function PaneWorkspaceControl({paneId, zoomedId}: {paneId: string; zoomedId: string | null}) {
+function PaneWorkspaceControl() {
+	const last = useOutlineStore((state) => state.panes.at(-1));
 	const openPane = useOutlineStore((state) => state.openPane);
 	return (
-		<div className="pane-workspace-control box-content absolute top-0 right-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-control-width)] items-center justify-center border-l border-b border-solid border-primary group-data-[pane-active=true]/pane:border-b-tint bg-primary">
+		<div
+			className="wf-header pane-workspace-control box-border absolute top-0 right-0 flex h-[var(--wf-header-height)] w-[var(--pane-workspace-control-width)] items-center justify-center border-x border-solid border-primary bg-primary [&_.iconButton]:text-primary print:hidden"
+			style={{zIndex: 200}}
+		>
 			<IconButton
 				onClick={() => {
-					openPane(zoomedId, {sourcePaneId: paneId});
+					if (last !== undefined) {
+						openPane(last.zoomedId, {sourcePaneId: last.id});
+					}
 				}}
 				shortcut="⌃R"
 				tooltip="New pane"
@@ -205,7 +324,7 @@ interface SidePaneProps extends PaneActions {
 	pane: ItemTreePane;
 	/** The pane's workspace index, counting the main pane as 0. */
 	index: number;
-	/** The rightmost pane carries upstream's pane-workspace-control (New pane). */
+	/** The rightmost pane's header leaves room for the workspace-level New pane control. */
 	isLast: boolean;
 }
 
@@ -214,8 +333,8 @@ interface SidePaneProps extends PaneActions {
  * Open in Pane. It zooms independently of the main outline and the other panes: its bullets zoom the pane, not the URL.
  * Its compact `.wf-pane-header` follows upstream's: Back/Forward through the pane's own history, breadcrumbs (whose
  * root crumb is Home) that zoom the pane, the compact search circle filtering only this pane, Today zooming the pane,
- * the kebab holding the compactable actions for the pane's zoom, and Close pane. The last pane carries the New pane
- * control at its top right.
+ * the kebab holding the compactable actions for the pane's zoom, and Close pane. Its body follows upstream's wrappers,
+ * and its resize separator sits on its right edge.
  */
 function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 	const {id} = pane;
@@ -239,86 +358,91 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 	const navigateToToday = useNavigateToToday(context.zoom);
 	return (
 		<div
+			id={`pane-${id}`}
 			data-pane-id={id}
 			data-pane-type="item-tree"
 			data-pane-active={isActive ? "true" : "false"}
-			className="side-pane group/pane relative box-border flex-none h-full max-h-full min-h-0 min-w-[350px] bg-primary flex flex-col"
-			style={{flex: paneFlex(width)}}
+			className={paneClassName(isActive, isLast ? PANE_LAST_CLASS : "")}
+			style={{width, minWidth: MIN_PANE_WIDTH}}
 			{...paneActivation(id, setActivePane)}
 		>
-			<div
-				className={`wf-header header bg-primary wf-pane-header border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER} flex-shrink-0`}
-			>
-				<div className="pagination">
-					<IconButton
-						data-handbook="nav.back"
-						disabled={pane.backLocations.length === 0}
-						onClick={() => {
-							paneBack(id);
-						}}
-						tooltip="Back"
-					>
-						<FaIcon icon="fal:chevron-left" />
-					</IconButton>
-					{pane.forwardLocations.length > 0 && (
+			<div className="flex flex-1 min-h-0 flex-col" data-full-width-boundary="true" data-split-pane="true">
+				<div
+					className={`wf-header header bg-primary wf-pane-header border-b border-solid border-primary ${PANE_HEADER_ACTIVE_BORDER} flex-shrink-0`}
+				>
+					<div className="pagination">
 						<IconButton
-							data-handbook="nav.forward"
+							data-handbook="nav.back"
+							disabled={pane.backLocations.length === 0}
 							onClick={() => {
-								paneForward(id);
+								paneBack(id);
 							}}
-							tooltip="Forward"
+							tooltip="Back"
 						>
-							<FaIcon icon="fal:chevron-right" />
+							<FaIcon icon="fal:chevron-left" />
 						</IconButton>
-					)}
-				</div>
-				<Breadcrumbs
-					nodeId={pane.zoomedId}
-					onNavigate={context.zoom}
-					scrollToTop={() => {
-						scrollPaneToTop(id);
-					}}
-				/>
-				<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
-					<PaneSearchBox
-						compact
-						onCommit={(query) => {
-							setPaneQuery(id, query);
+						{pane.forwardLocations.length > 0 && (
+							<IconButton
+								data-handbook="nav.forward"
+								onClick={() => {
+									paneForward(id);
+								}}
+								tooltip="Forward"
+							>
+								<FaIcon icon="fal:chevron-right" />
+							</IconButton>
+						)}
+					</div>
+					<Breadcrumbs
+						nodeId={pane.zoomedId}
+						onNavigate={context.zoom}
+						scrollToTop={() => {
+							scrollPaneToTop(id);
 						}}
-						query={pane.query}
 					/>
-					{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
-					<div onClick={() => void navigateToToday()}>
-						<IconButton tooltip="Today">
-							<FaIcon icon="fal:calendar-day" />
+					<div className="ml-auto flex self-stretch items-center gap-xs flex-shrink-0">
+						<PaneSearchBox
+							compact
+							onCommit={(query) => {
+								setPaneQuery(id, query);
+							}}
+							query={pane.query}
+						/>
+						{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- upstream wraps the Today IconButton in a bare clickable div; the IconButton handles keys */}
+						<div onClick={() => void navigateToToday()}>
+							<IconButton tooltip="Today">
+								<FaIcon icon="fal:calendar-day" />
+							</IconButton>
+						</div>
+						<HeaderMoreMenu
+							anchorSelector={`[data-pane-id="${id}"] .gearMenu`}
+							compact
+							onRedo={onRedo}
+							paneId={id}
+							onUndo={onUndo}
+							zoomedId={pane.zoomedId}
+						/>
+						<IconButton
+							className="text-tertiary hover:text-on-surface flex-shrink-0"
+							onClick={() => {
+								closePane(id);
+							}}
+							tooltip="Close pane"
+						>
+							<FaIcon icon="fal:xmark" />
 						</IconButton>
 					</div>
-					<HeaderMoreMenu
-						anchorSelector={`[data-pane-id="${id}"] .gearMenu`}
-						compact
-						onRedo={onRedo}
-						paneId={id}
-						onUndo={onUndo}
-						zoomedId={pane.zoomedId}
-					/>
-					<IconButton
-						className="text-tertiary hover:text-on-surface flex-shrink-0"
-						onClick={() => {
-							closePane(id);
-						}}
-						tooltip="Close pane"
-					>
-						<FaIcon icon="fal:xmark" />
-					</IconButton>
+				</div>
+				<div className="relative flex flex-1 min-h-0 flex-col">
+					<div className={PANE_SCROLLER_CLASS} data-full-width-boundary="true" style={PANE_SCROLLER_STYLE}>
+						<PaneContext.Provider value={context}>
+							<OutlineTree parentId={pane.zoomedId} />
+						</PaneContext.Provider>
+						<DocumentEnd />
+					</div>
 				</div>
 			</div>
-			{isLast && <PaneWorkspaceControl paneId={id} zoomedId={pane.zoomedId} />}
-			<div className="side-pane-scroller vertical-scrollable-container">
-				<PaneContext.Provider value={context}>
-					<OutlineTree parentId={pane.zoomedId} />
-				</PaneContext.Provider>
-			</div>
-			<PaneResizeHandle index={index} key={index} />
+			<PaneSeparator index={index} />
 		</div>
 	);
 }

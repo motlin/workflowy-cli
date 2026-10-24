@@ -1,11 +1,12 @@
 import {z} from "zod";
 import {locationUrl, parseLocationHash, shortId} from "./location.js";
-import {widthPercents} from "./pane-widths.js";
 
 /** The hash fragment key upstream stores the pane workspace under (`#/<id>?panes=v2.…`). */
 export const PANES_FRAGMENT = "panes";
-/** Upstream's `localStorage` key for pane widths and the active pane. */
-export const PANE_RUNTIME_KEY = "pane-workspace-runtime:v1";
+/** Upstream's `localStorage` key for the active pane. */
+export const PANE_RUNTIME_KEY = "pane-workspace-runtime:v2";
+/** Upstream's per-pane `localStorage` key prefix for a pane's width: `pane-width:<id>`. */
+const PANE_WIDTH_KEY_PREFIX = "pane-width:";
 
 const VERSION_PREFIX = "v2.";
 const MAX_LENGTH = 65_536;
@@ -247,61 +248,97 @@ export function createPaneId(
 	return toBase64url(randomBytes());
 }
 
-export interface PaneRuntimeState {
-	activePaneId: string;
-	panes: {id: string; type: string; widthPercent: number}[];
+export function paneWidthKey(paneId: string): string {
+	return `${PANE_WIDTH_KEY_PREFIX}${paneId}`;
+}
+
+/** What a runtime persistence pass changes in `localStorage`: the entries to write and the keys to remove. */
+export interface PaneStorageUpdate {
+	set: Record<string, string>;
+	remove: string[];
 }
 
 /**
- * The `pane-workspace-runtime:v1` record: the active pane's URL id and every pane (main first) with its share of the
- * workspace `widths`, as upstream's `startRuntimePersistence` writes it.
+ * Upstream `startRuntimePersistence`: `pane-workspace-runtime:v2` holds the active pane's URL id, and each pane keeps
+ * `pane-width:<id>` = `{type, width}` (only for a finite positive width). `ids` are the panes' URL ids, main first,
+ * with `widths` in the same order. A pane in `previousIds` that is gone loses its width key; with no pane left every
+ * key goes.
  */
-export function paneRuntimeState(
-	paneIds: readonly string[],
-	activePaneId: string,
-	widths: readonly number[],
-): PaneRuntimeState {
-	const percents = widthPercents(widths);
-	return {
-		activePaneId,
-		panes: paneIds.map((id, index) => ({id, type: ITEM_TREE, widthPercent: percents[index] ?? 0})),
-	};
+export function paneStorageUpdate({
+	previousIds,
+	ids,
+	activePaneId,
+	widths,
+}: {
+	previousIds: readonly string[];
+	ids: readonly string[];
+	activePaneId: string;
+	widths: readonly number[];
+}): PaneStorageUpdate {
+	const gone = previousIds.filter((id) => !ids.includes(id)).map(paneWidthKey);
+	if (ids.length === 0) {
+		return {set: {}, remove: [PANE_RUNTIME_KEY, ...gone]};
+	}
+	const set: Record<string, string> = {[PANE_RUNTIME_KEY]: JSON.stringify({activePaneId})};
+	const remove = [...gone];
+	for (const [index, id] of ids.entries()) {
+		const width = widths[index];
+		if (width !== undefined && Number.isFinite(width) && width > 0) {
+			set[paneWidthKey(id)] = JSON.stringify({type: ITEM_TREE, width});
+		} else {
+			remove.push(paneWidthKey(id));
+		}
+	}
+	return {set, remove};
 }
 
-const runtimeStateSchema = z.object({
-	activePaneId: z.string(),
-	panes: z.array(z.object({id: z.string(), widthPercent: z.unknown().optional()})),
-});
+/** Write a `paneStorageUpdate` to `storage`. */
+export function applyPaneStorageUpdate(
+	storage: Pick<Storage, "setItem" | "removeItem">,
+	update: PaneStorageUpdate,
+): void {
+	for (const [key, value] of Object.entries(update.set)) {
+		storage.setItem(key, value);
+	}
+	for (const key of update.remove) {
+		storage.removeItem(key);
+	}
+}
 
-/** What `restoreRuntimeState` takes from the record: the active pane and each URL pane's stored width share. */
+const runtimeStateSchema = z.object({activePaneId: z.string()});
+
+const paneWidthSchema = z.object({type: z.string(), width: z.number()});
+
+/** What `restoreRuntimeState` takes from the record: the active pane's URL id. */
 export interface RestoredRuntime {
 	activePaneId: string;
-	/** Main first; null where the record holds no usable share, which restores to the fallback width. */
-	widthPercents: (number | null)[];
 }
 
 /**
- * Upstream `restoreRuntimeState`: the stored active pane and width shares, only when the record names every one of the
- * URL's panes (`paneIds`, main first) and the active pane among them; null otherwise.
+ * Upstream `restoreRuntimeState`: the stored active pane, only when it is one of the URL's panes (`paneIds`, main
+ * first); null otherwise.
  */
 export function restoredRuntime(stored: string | null, paneIds: readonly string[]): RestoredRuntime | null {
 	try {
 		const parsed = runtimeStateSchema.safeParse(JSON.parse(stored ?? "null"));
-		if (!parsed.success) {
-			return null;
-		}
-		const byId = new Map(parsed.data.panes.map((pane) => [pane.id, pane.widthPercent]));
-		const {activePaneId} = parsed.data;
-		if (!paneIds.every((id) => byId.has(id)) || !paneIds.includes(activePaneId)) {
-			return null;
-		}
-		return {
-			activePaneId,
-			widthPercents: paneIds.map((id) => {
-				const percent = byId.get(id);
-				return typeof percent === "number" ? percent : null;
-			}),
-		};
+		return parsed.success && paneIds.includes(parsed.data.activePaneId)
+			? {activePaneId: parsed.data.activePaneId}
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+/** Upstream's stored `pane-width:<id>`: its width when the type is an item-tree and the width is finite and positive. */
+export function restoredPaneWidth(stored: string | null): number | null {
+	try {
+		const parsed = paneWidthSchema.safeParse(JSON.parse(stored ?? "null"));
+		return parsed.success &&
+			parsed.data.type === ITEM_TREE &&
+			Number.isFinite(parsed.data.width) &&
+			parsed.data.width > 0
+			? parsed.data.width
+			: null;
 	} catch {
 		return null;
 	}
