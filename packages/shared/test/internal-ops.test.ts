@@ -194,6 +194,30 @@ describe("bulkCreateOp", () => {
 		});
 	});
 
+	it("emits cp for completed trees at every depth", () => {
+		const generated = ["id-1", "id-2"];
+		const {op} = bulkCreateOp({
+			parentId: "p",
+			index: 0,
+			trees: [{name: "a", completed: true, children: [{name: "b", metadata: {layoutMode: "h1"}}]}],
+			userId: 42,
+			generateId: () => generated.shift() ?? "unexpected",
+			...CLOCK,
+		});
+		expect(op.data.project_trees).toBe(
+			JSON.stringify([
+				{
+					id: "id-1",
+					nm: "a",
+					ct: CLIENT_TS,
+					cb: 42,
+					cp: CLIENT_TS,
+					ch: [{id: "id-2", nm: "b", metadata: {layoutMode: "h1"}, ct: CLIENT_TS, cb: 42, ch: []}],
+				},
+			]),
+		);
+	});
+
 	it("keeps caller-supplied ids", () => {
 		const {op, ids} = bulkCreateOp({
 			parentId: "p",

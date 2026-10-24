@@ -15,7 +15,7 @@ import {NodeReader, NodeTreeReader, WorkflowyWriteThroughClient, effectiveComple
 import type {ExactMover} from "@workflowy/shared/cache";
 import {mirrors as mirrorsTable, nodeContent, nodeInternalMetadata, nodeMetadata, s3Files} from "@workflowy/shared/db";
 import {FAR_FUTURE_DATE} from "@workflowy/shared/temporal";
-import type {RestoreInput, WorkflowyInternalAdapter} from "@workflowy/shared/internal";
+import type {RestoreInput, WorkflowyInternalAdapter, NewTree} from "@workflowy/shared/internal";
 import {linkedSourcesInSubtree} from "@workflowy/shared/internal";
 import type {Node} from "@workflowy/shared/types";
 import {HOME_TARGET} from "@workflowy/shared/types";
@@ -488,6 +488,92 @@ nodesRouter.get("/:id", async (c) => {
 
 	// Wrap in { node: ... } to match Workflowy API format
 	return c.json({node: nodeResponse});
+});
+
+const MAX_BULK_NODES = 10_000;
+
+interface BulkTreeBody {
+	name: string;
+	note?: unknown;
+	completed?: unknown;
+	layoutMode?: unknown;
+	numberedStart?: unknown;
+	children?: unknown;
+}
+
+function isBulkTreeBody(value: unknown): value is BulkTreeBody {
+	return typeof value === "object" && value !== null && typeof (value as {name?: unknown}).name === "string";
+}
+
+/** Validate and convert the request trees; the count accumulates the total nodes seen. */
+function parseBulkTrees(raw: unknown, count: {total: number}): NewTree[] | string {
+	if (!Array.isArray(raw)) {
+		return "trees must be an array";
+	}
+	const trees: NewTree[] = [];
+	for (const entry of raw as unknown[]) {
+		count.total += 1;
+		if (!isBulkTreeBody(entry)) {
+			return "each tree needs a string name";
+		}
+		const item = entry;
+		const children = item.children === undefined ? undefined : parseBulkTrees(item.children, count);
+		if (typeof children === "string") {
+			return children;
+		}
+		const metadata: Record<string, unknown> = {};
+		if (typeof item.layoutMode === "string") {
+			metadata.layoutMode = item.layoutMode;
+		}
+		if (typeof item.numberedStart === "number") {
+			metadata.numbered_start = item.numberedStart;
+		}
+		trees.push({
+			name: item.name,
+			...(typeof item.note === "string" ? {note: item.note} : {}),
+			...(item.completed === true ? {completed: true} : {}),
+			...(Object.keys(metadata).length === 0 ? {} : {metadata}),
+			...(children === undefined || children.length === 0 ? {} : {children}),
+		});
+	}
+	return trees;
+}
+
+// POST /api/v1/nodes/trees - Create many trees at one slot with a single bulk_create
+nodesRouter.post("/trees", async (c) => {
+	const ctx = c.get("ctx");
+	const body = await c.req.json<{parent_id?: string | null; index?: number; after_id?: unknown; trees?: unknown}>();
+	const parent = parseParent(ctx, body.parent_id);
+	if (!parent.ok) {
+		return c.json({error: parent.error}, parent.status);
+	}
+	const slot = parseIndex(body.index, undefined);
+	if (!slot.ok) {
+		return c.json({error: slot.error}, 400);
+	}
+	const afterId = body.after_id;
+	if (afterId !== undefined && afterId !== null && typeof afterId !== "string") {
+		return c.json({error: "after_id must be a node id or null"}, 400);
+	}
+	const count = {total: 0};
+	const trees = parseBulkTrees(body.trees, count);
+	if (typeof trees === "string") {
+		return c.json({error: trees}, 400);
+	}
+	if (count.total > MAX_BULK_NODES) {
+		return c.json({error: `Too many nodes: ${count.total} (max ${MAX_BULK_NODES})`}, 400);
+	}
+	const adapter = getAdapter(ctx);
+	if (!adapter) {
+		return c.json({error: INTERNAL_API_NOT_CONFIGURED}, 503);
+	}
+	const {ids} = await adapter.createTreesAt({
+		parentId: adapterParent(parent.parentId),
+		...(slot.index === undefined ? {} : {index: slot.index}),
+		...(afterId === undefined ? {} : {afterId}),
+		trees,
+	});
+	return c.json({ids}, 201);
 });
 
 // POST /api/v1/nodes - Create node at an exact `index` among all siblings (omitted = bottom)

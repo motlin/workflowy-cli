@@ -74,6 +74,8 @@ export interface NewTree {
 	name: string;
 	note?: string;
 	metadata?: Record<string, unknown>;
+	/** Created already completed: `cp` is the creation client timestamp. */
+	completed?: boolean;
 	children?: NewTree[];
 }
 
@@ -94,6 +96,7 @@ interface ProjectTree {
 	metadata?: Record<string, unknown>;
 	ct: number;
 	cb: number;
+	cp?: number;
 	ch: ProjectTree[];
 }
 
@@ -110,6 +113,7 @@ export function bulkCreateOp(input: BulkCreateInput): {op: InternalOp; ids: stri
 			...(tree.metadata === undefined ? {} : {metadata: tree.metadata}),
 			ct,
 			cb: input.userId,
+			...(tree.completed === true ? {cp: ct} : {}),
 			ch: (tree.children ?? []).map(toProjectTree),
 		};
 	};

@@ -147,6 +147,13 @@ export interface CreateAtInput {
 	metadata?: Record<string, unknown>;
 }
 
+export interface CreateTreesAtInput {
+	parentId: string;
+	index?: number;
+	afterId?: string | null;
+	trees: NewTree[];
+}
+
 export interface CreateMirrorAtInput {
 	/** The node to mirror; a mirror resolves to its original. */
 	originalId: string;
@@ -424,6 +431,46 @@ export class WorkflowyInternalAdapter {
 			await this.syncBacklinks([id]);
 		}
 		return {id};
+	}
+
+	/** Create N trees at one slot with a single `bulk_create`; like `createAt` but recursive. */
+	async createTreesAt(input: CreateTreesAtInput): Promise<{ids: string[]}> {
+		const tree = this.tree();
+		const parent = publicParent(input.parentId);
+		const siblings = await tree.liveChildren(parent);
+		const session = await this.session();
+		const withIds = (trees: NewTree[]): NewTree[] =>
+			trees.map((node) => ({
+				...node,
+				id: node.id ?? this.generateId(),
+				...(node.children === undefined ? {} : {children: withIds(node.children)}),
+			}));
+		const trees = withIds(input.trees);
+		const {op, ids} = bulkCreateOp({
+			parentId: internalParent(parent),
+			index: anchoredIndex(
+				siblings.map((sibling) => sibling.id),
+				input.afterId,
+				input.index ?? siblings.length,
+			),
+			trees,
+			userId: session.userId,
+			now: this.now(),
+			dateJoinedSec: session.dateJoinedSec,
+		});
+		await this.pusher.pushAndPoll({ops: [op]});
+		const writeKept = (nodes: NewTree[]) => {
+			for (const node of nodes) {
+				const kept = keptInternalMetadata(node.metadata);
+				if (node.id !== undefined && kept !== undefined) {
+					this.writeNodeMetadata(node.id, kept);
+				}
+				writeKept(node.children ?? []);
+			}
+		};
+		writeKept(trees);
+		await tree.refreshChildren([parent]);
+		return {ids};
 	}
 
 	/**

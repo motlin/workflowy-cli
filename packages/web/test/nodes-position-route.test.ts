@@ -59,6 +59,7 @@ function dto(id: string, parentId: string | null, priority: number, hasChildren 
 
 interface FakeAdapter {
 	createAt: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["createAt"]>>;
+	createTreesAt: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["createTreesAt"]>>;
 	moveTo: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["moveTo"]>>;
 	restore: ReturnType<typeof vi.fn<WorkflowyInternalAdapter["restore"]>>;
 }
@@ -78,6 +79,9 @@ function setup(configured: boolean) {
 			cacheService.insertNode(apiNode(id, input.parentId === "home" ? null : input.parentId, 1), null);
 			return Promise.resolve({id});
 		}),
+		createTreesAt: vi.fn<WorkflowyInternalAdapter["createTreesAt"]>(async () =>
+			Promise.resolve({ids: ["t1", "t2"]}),
+		),
 		moveTo: vi.fn<WorkflowyInternalAdapter["moveTo"]>(async () => {}),
 		restore: vi.fn<WorkflowyInternalAdapter["restore"]>(async (input) => {
 			cacheService.insertNode(apiNode(input.id, null, 0), null);
@@ -369,5 +373,66 @@ describe("public-API fallback when the internal API is not configured", () => {
 			["c", null, -1],
 			["b", null, -1],
 		]);
+	});
+});
+
+describe("POST /api/v1/nodes/trees", () => {
+	it("creates the trees in one adapter call and returns the ids", async () => {
+		const {adapter, post} = setup(true);
+
+		const res = await post("/trees", {
+			parent_id: null,
+			index: 1,
+			after_id: "a",
+			trees: [
+				{name: "x", note: "n", completed: true, layoutMode: "h1", children: [{name: "y", numberedStart: 3}]},
+				{name: "z"},
+			],
+		});
+
+		expect({status: res.status, body: await res.json(), calls: adapter.createTreesAt.mock.calls}).toStrictEqual({
+			status: 201,
+			body: {ids: ["t1", "t2"]},
+			calls: [
+				[
+					{
+						parentId: "home",
+						index: 1,
+						afterId: "a",
+						trees: [
+							{
+								name: "x",
+								note: "n",
+								completed: true,
+								metadata: {layoutMode: "h1"},
+								children: [{name: "y", metadata: {numbered_start: 3}}],
+							},
+							{name: "z"},
+						],
+					},
+				],
+			],
+		});
+	});
+
+	it("rejects more than 10000 nodes in total", async () => {
+		const {adapter, post} = setup(true);
+		const trees = [{name: "p", children: Array.from({length: 10_000}, () => ({name: "c"}))}];
+
+		const res = await post("/trees", {parent_id: "home", index: 0, trees});
+
+		expect({
+			status: res.status,
+			body: await res.json(),
+			calls: adapter.createTreesAt.mock.calls.length,
+		}).toStrictEqual({status: 400, body: {error: "Too many nodes: 10001 (max 10000)"}, calls: 0});
+	});
+
+	it("needs the internal adapter", async () => {
+		const {post} = setup(false);
+
+		const res = await post("/trees", {parent_id: "home", index: 0, trees: [{name: "a"}]});
+
+		expect(res.status).toBe(503);
 	});
 });
