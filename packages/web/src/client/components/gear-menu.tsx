@@ -1,8 +1,9 @@
-import {Fragment, useEffect, useRef, useState} from "react";
+import {isValidElement, useState} from "react";
+import type {ReactElement, ReactNode} from "react";
 import {selectIsMutating, useOutlineStore} from "../stores/outline.js";
-import {closeOnEscape} from "../menu-escape.js";
 import {autosaveText} from "../time-ago.js";
 import {useUndoStore} from "../undo-history.js";
+import {MenuItem, MenuSeparator} from "./flyout/menu-item.js";
 import {LoadingSpinner} from "./loading-spinner.js";
 
 /** A compacted header action prepended to the menu under 701px, like upstream's `more-menu.menu.header.*`. */
@@ -15,48 +16,15 @@ export interface GearMenuHeaderItem {
 
 const NO_HEADER_ITEMS: GearMenuHeaderItem[] = [];
 
-interface GearMenuProps {
+export interface GearMenuRowsOptions {
 	headerItems?: GearMenuHeaderItem[];
 	/** Upstream's `header.move-pane-left` / `header.move-pane-right` rows; empty with no pane open. */
 	paneItems?: GearMenuHeaderItem[];
-	isOpen: boolean;
-	onClose: () => void;
 	onOpenSettings: () => void;
 	onExpandAll: () => void;
 	onCollapseAll: () => void;
 	onUndo: () => void;
 	onRedo: () => void;
-}
-
-interface MenuItemProps {
-	icon: React.ReactNode;
-	label: string;
-	shortcut?: string;
-	onClick?: () => void;
-	disabled?: boolean;
-	subtitle?: string;
-}
-
-function MenuItem({icon, label, shortcut, onClick, disabled = false, subtitle}: MenuItemProps) {
-	return (
-		<button
-			className={`gear-menu-item ${disabled ? "disabled" : ""}`}
-			disabled={disabled}
-			onClick={onClick}
-			type="button"
-		>
-			<span className="gear-menu-item-content">
-				<span className="gear-menu-item-icon">{icon}</span>
-				<span className="gear-menu-item-label">{label}</span>
-			</span>
-			{shortcut && <span className="gear-menu-item-shortcut">{shortcut}</span>}
-			{subtitle && <span className="gear-menu-item-subtitle">{subtitle}</span>}
-		</button>
-	);
-}
-
-function MenuDivider() {
-	return <div className="gear-menu-divider" />;
 }
 
 /** Upstream's `status.autosave` footer (KY): the only save-state UI, so writes never block the outline. */
@@ -71,6 +39,10 @@ function AutosaveStatus() {
 			{autosaveText({saving, lastSavedAt, now: Math.max(openedAt, lastSavedAt)})}
 		</div>
 	);
+}
+
+function iconElement(icon: ReactNode): ReactElement | undefined {
+	return isValidElement(icon) ? icon : undefined;
 }
 
 // Icon components
@@ -179,139 +151,80 @@ function LogoutIcon() {
 }
 
 /**
- * Gear menu dropdown component matching Workflowy's production menu.
- * Contains options like Undo, Settings, Help, etc. What's New and Connect Apps with Zapier
- * are deliberately omitted: there is no changelog or Zapier backend locally.
+ * The main menu's rows, for a ButtonMenu's children (MenuBody reads its direct MenuItem children, so these are
+ * a flat list, not a component). Options like Undo, Settings, Help, etc. What's New and Connect Apps with Zapier
+ * are deliberately omitted: there is no changelog or Zapier backend locally. Every `onSelect` returns undefined,
+ * so selecting a row closes the menu.
  */
-export function GearMenu({
+export function useGearMenuRows({
 	headerItems = NO_HEADER_ITEMS,
 	paneItems = NO_HEADER_ITEMS,
-	isOpen,
-	onClose,
 	onOpenSettings,
 	onExpandAll,
 	onCollapseAll,
 	onUndo,
 	onRedo,
-}: GearMenuProps) {
-	const menuRef = useRef<HTMLDivElement>(null);
+}: GearMenuRowsOptions): ReactNode[] {
 	const openExportDialog = useOutlineStore((state) => state.openExportDialog);
 	const canUndo = useUndoStore((state) => state.canUndo);
 	const canRedo = useUndoStore((state) => state.canRedo);
 
-	useEffect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			if (menuRef.current && !menuRef.current.contains(event.target instanceof Node ? event.target : null)) {
-				onClose();
-			}
+	const rows: ReactNode[] = [];
+	for (const [group, items] of [
+		["header", headerItems],
+		["pane", paneItems],
+	] as const) {
+		if (items.length === 0) {
+			continue;
 		}
-
-		const handleEscape = closeOnEscape(onClose);
-
-		if (isOpen) {
-			document.addEventListener("mousedown", handleClickOutside);
-			document.addEventListener("keydown", handleEscape);
+		for (const item of items) {
+			rows.push(
+				<MenuItem
+					disabled={item.disabled}
+					icon={iconElement(item.icon)}
+					key={`${group}-${item.label}`}
+					label={item.label}
+					onSelect={item.onSelect}
+				/>,
+			);
 		}
-
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-			document.removeEventListener("keydown", handleEscape);
-		};
-	}, [isOpen, onClose]);
-
-	if (!isOpen) {
-		return null;
+		rows.push(<MenuSeparator key={`${group}-separator`} />);
 	}
-
-	const handleExportAll = () => {
-		openExportDialog({nodeIds: []});
-		onClose();
-	};
-
-	const handleExpandAll = () => {
-		onExpandAll();
-		onClose();
-	};
-
-	const handleCollapseAll = () => {
-		onCollapseAll();
-		onClose();
-	};
-
-	const handlePrint = () => {
-		globalThis.print();
-		onClose();
-	};
-
-	const handleUndo = () => {
-		onUndo();
-		onClose();
-	};
-
-	const handleRedo = () => {
-		onRedo();
-		onClose();
-	};
-
-	const handleSettings = () => {
-		onOpenSettings();
-		onClose();
-	};
-
-	return (
-		<div className="gear-menu" ref={menuRef}>
-			<div className="gear-menu-scroller">
-				{[headerItems, paneItems].map(
-					(items) =>
-						items.length > 0 && (
-							<Fragment key={items === paneItems ? "pane" : "header"}>
-								{items.map((item) => (
-									<MenuItem
-										disabled={item.disabled}
-										icon={item.icon}
-										key={item.label}
-										label={item.label}
-										onClick={() => {
-											item.onSelect();
-											onClose();
-										}}
-									/>
-								))}
-								<MenuDivider />
-							</Fragment>
-						),
-				)}
-
-				<MenuItem icon={<ChalkboardUserIcon />} label="Learn WorkFlowy" />
-
-				<MenuDivider />
-
-				<MenuItem disabled={!canUndo} icon={<UndoIcon />} label="Undo" onClick={handleUndo} shortcut="⌘Z" />
-				<MenuItem disabled={!canRedo} icon={<RedoIcon />} label="Redo" onClick={handleRedo} shortcut="⇧⌘Z" />
-
-				<MenuDivider />
-
-				<MenuItem icon={<ExpandIcon />} label="Expand all" onClick={handleExpandAll} />
-				<MenuItem icon={<CollapseIcon />} label="Collapse all" onClick={handleCollapseAll} />
-				<MenuItem icon={<PrintIcon />} label="Print" onClick={handlePrint} shortcut="⌘P" />
-				<MenuItem icon={<ExportIcon />} label="Export all" onClick={handleExportAll} />
-				<MenuItem icon={<DownloadIcon />} label="Download Files" />
-
-				<MenuDivider />
-
-				<MenuItem icon={<GearIcon />} label="Settings" onClick={handleSettings} />
-				<MenuItem icon={<HelpIcon />} label="Help" />
-				<MenuItem icon={<BugIcon />} label="Report a problem" />
-				<MenuItem icon={<TrashIcon />} label="Trash" />
-
-				<MenuDivider />
-
-				<MenuItem icon={<LogoutIcon />} label="Log out" subtitle="user@example.com" />
-
-				<MenuDivider />
-
-				<AutosaveStatus />
-			</div>
-		</div>
+	rows.push(
+		<MenuItem icon={<ChalkboardUserIcon />} key="learn" label="Learn WorkFlowy" />,
+		<MenuSeparator key="separator-learn" />,
+		<MenuItem disabled={!canUndo} icon={<UndoIcon />} key="undo" label="Undo" onSelect={onUndo} shortcut="⌘Z" />,
+		<MenuItem disabled={!canRedo} icon={<RedoIcon />} key="redo" label="Redo" onSelect={onRedo} shortcut="⇧⌘Z" />,
+		<MenuSeparator key="separator-history" />,
+		<MenuItem icon={<ExpandIcon />} key="expand" label="Expand all" onSelect={onExpandAll} />,
+		<MenuItem icon={<CollapseIcon />} key="collapse" label="Collapse all" onSelect={onCollapseAll} />,
+		<MenuItem
+			icon={<PrintIcon />}
+			key="print"
+			label="Print"
+			onSelect={() => {
+				globalThis.print();
+			}}
+			shortcut="⌘P"
+		/>,
+		<MenuItem
+			icon={<ExportIcon />}
+			key="export"
+			label="Export all"
+			onSelect={() => {
+				openExportDialog({nodeIds: []});
+			}}
+		/>,
+		<MenuItem icon={<DownloadIcon />} key="download" label="Download Files" />,
+		<MenuSeparator key="separator-files" />,
+		<MenuItem icon={<GearIcon />} key="settings" label="Settings" onSelect={onOpenSettings} />,
+		<MenuItem icon={<HelpIcon />} key="help" label="Help" />,
+		<MenuItem icon={<BugIcon />} key="bug" label="Report a problem" />,
+		<MenuItem icon={<TrashIcon />} key="trash" label="Trash" />,
+		<MenuSeparator key="separator-trash" />,
+		<MenuItem icon={<LogoutIcon />} key="logout" label="Log out" subtext="user@example.com" />,
+		<MenuSeparator key="separator-account" />,
+		<AutosaveStatus key="autosave" />,
 	);
+	return rows;
 }

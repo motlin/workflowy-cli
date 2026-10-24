@@ -1,6 +1,4 @@
 import {describe, expect, it, vi} from "vite-plus/test";
-import {createElement} from "react";
-import {renderToStaticMarkup} from "react-dom/server";
 
 vi.mock("../src/client/stores/outline.js", () => ({
 	useOutlineStore: (
@@ -9,7 +7,8 @@ vi.mock("../src/client/stores/outline.js", () => ({
 	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
 }));
 
-const {GearMenu} = await import("../src/client/components/gear-menu.js");
+const {useGearMenuRows} = await import("../src/client/components/gear-menu.js");
+const {renderGearMenuRows} = await import("./helpers/render-gear-menu-rows.js");
 
 interface Item {
 	label: string;
@@ -19,25 +18,15 @@ interface Item {
 }
 
 function render(headerItems: Item[], paneItems: Item[] = []): string {
-	return renderToStaticMarkup(
-		createElement(GearMenu, {
-			isOpen: true,
-			onClose: () => {},
-			onOpenSettings: () => {},
-			onExpandAll: () => {},
-			onCollapseAll: () => {},
-			onUndo: () => {},
-			onRedo: () => {},
-			headerItems,
-			paneItems,
-		}),
-	);
+	return renderGearMenuRows(useGearMenuRows, headerItems, paneItems);
 }
 
 function labels(html: string): string[] {
-	return [...html.matchAll(/gear-menu-item-label">([^<]*)<|class="(gear-menu-divider)"/gu)].map((match) =>
-		match[0].startsWith("class") ? "------------" : match[1],
-	);
+	return [
+		...html.matchAll(
+			/desktop:text-xs">(?:<div class="menuItemIcon[^>]*>.*?<\/div>)?([^<]*)<|class="(border-t border-primary border-solid my-s)"/gu,
+		),
+	].map((match) => (match[0].startsWith("class") ? "------------" : match[1]));
 }
 
 describe("GearMenu header items", () => {
@@ -47,7 +36,11 @@ describe("GearMenu header items", () => {
 			{label: "Present", icon: "P", onSelect: () => {}, disabled: true},
 		]);
 		expect(labels(html).slice(0, 4)).toStrictEqual(["Share", "Present", "------------", "Learn WorkFlowy"]);
-		expect(html).toContain('<button class="gear-menu-item disabled" disabled="" type="button">');
+		const disabled = html
+			.split("<a ")
+			.filter((row) => row.includes("\n        text-tertiary\n"))
+			.map((row) => /desktop:text-xs">(?:<div class="menuItemIcon[^>]*>.*?<\/div>)?([^<]*)</u.exec(row)?.[1]);
+		expect(disabled).toStrictEqual(["Present", "Undo", "Redo"]);
 	});
 
 	it("follows the header items with upstream's Move pane left/right rows and a separator", () => {

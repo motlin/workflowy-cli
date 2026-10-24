@@ -1,10 +1,10 @@
-import {useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useExpandAll} from "../hooks/use-nodes.js";
 import {movePane} from "../navigation.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {FaIcon} from "./fa-icons.js";
-import {GearMenu} from "./gear-menu.js";
+import {ButtonMenu} from "./flyout/button-menu.js";
+import {useGearMenuRows} from "./gear-menu.js";
 import {compactHeaderItems, useHeaderActions} from "./header-actions.js";
 import {IconButton} from "./icon-button.js";
 import {movePaneItems} from "./move-pane-items.js";
@@ -27,52 +27,39 @@ interface HeaderMoreMenuProps {
  * Expand/Collapse all act on the zoomed item's whole subtree (every top-level item at Home).
  */
 export function HeaderMoreMenu({zoomedId, paneId, compact, anchorSelector, onUndo, onRedo}: HeaderMoreMenuProps) {
-	const [open, setOpen] = useState(false);
 	const navigate = useNavigate();
 	const panes = useOutlineStore((state) => state.panes);
-	const menuRef = useRef<HTMLDivElement>(null);
 	const openSettings = useOutlineStore((state) => state.openSettings);
 	const expandAll = useExpandAll();
 	const actions = useHeaderActions(zoomedId);
-	const close = () => {
-		setOpen(false);
-	};
+	const rows = useGearMenuRows({
+		headerItems: compact ? compactHeaderItems(actions, zoomedId, anchorSelector) : [],
+		paneItems: movePaneItems({panes}, paneId, (id, index) => {
+			movePane(navigate, id, index);
+		}),
+		onCollapseAll: () => {
+			expandAll(zoomedId, false);
+		},
+		onExpandAll: () => {
+			expandAll(zoomedId, true);
+		},
+		onOpenSettings: openSettings,
+		onRedo,
+		onUndo,
+	});
 	return (
-		<div
-			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- upstream's focusable gearMenu wrapper; markup parity with workflowy.com
-			tabIndex={0}
-			className="relative outline-none menu gearMenu"
-			ref={menuRef}
-		>
-			<div>
-				<IconButton
-					onClick={() => {
-						setOpen((previous) => !previous);
-					}}
-				>
+		<ButtonMenu
+			button={
+				<IconButton>
 					<FaIcon icon="fal:ellipsis-vertical" size="lg" />
 				</IconButton>
-			</div>
-			<GearMenu
-				headerItems={compact ? compactHeaderItems(actions, zoomedId, anchorSelector) : []}
-				paneItems={movePaneItems({panes}, paneId, (id, index) => {
-					movePane(navigate, id, index);
-				})}
-				isOpen={open}
-				onClose={close}
-				onCollapseAll={() => {
-					expandAll(zoomedId, false);
-				}}
-				onExpandAll={() => {
-					expandAll(zoomedId, true);
-				}}
-				onOpenSettings={() => {
-					setOpen(false);
-					openSettings();
-				}}
-				onRedo={onRedo}
-				onUndo={onUndo}
-			/>
-		</div>
+			}
+			className="gearMenu"
+			maxHeight={700}
+			minWidth={100}
+			offset={[-8, 0]}
+		>
+			{rows}
+		</ButtonMenu>
 	);
 }

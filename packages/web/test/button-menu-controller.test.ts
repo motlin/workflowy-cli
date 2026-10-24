@@ -241,17 +241,16 @@ describe("createButtonMenuController", () => {
 		expect(h.calls.focusTrigger).toBe(0);
 	});
 
-	it("escape only asks to blur when open, and does nothing when closed", () => {
+	it("exposes no escape transition: upstream ButtonMenu leaves Escape to the global search handler", () => {
 		const h = createHarness();
-		expect(h.controller.escape()).toBe("none");
-		h.controller.focus();
-		expect(h.controller.escape()).toBe("blur");
-		expect(h.calls).toStrictEqual({onShow: 1, onHide: 0, focusTrigger: 0});
-		expect(h.state()).toStrictEqual({
-			open: true,
-			bodyClasses: ["button-menu-for-breadcrumbs"],
-			onShowCalls: 1,
-			onHideCalls: 0,
-		});
+		expect(Object.keys(h.controller)).toStrictEqual([
+			"focus",
+			"blur",
+			"mouseEnter",
+			"mouseLeave",
+			"flyoutPointerDown",
+			"click",
+			"isOpen",
+		]);
 	});
 });

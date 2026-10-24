@@ -13,6 +13,7 @@ vi.stubGlobal("localStorage", {getItem: () => null, setItem: () => {}});
 vi.stubGlobal("matchMedia", () => ({matches: false, addEventListener: () => {}}));
 vi.stubGlobal("document", {documentElement: {dataset: {}}, body: {classList: {toggle: () => true}}});
 vi.stubGlobal("addEventListener", () => {});
+vi.stubGlobal("devicePixelRatio", 1);
 
 const buttonMenuModule = await import("../src/client/components/flyout/button-menu.js");
 const {ButtonMenu} = buttonMenuModule;
@@ -42,7 +43,7 @@ describe("ButtonMenu", () => {
 	it("renders the breadcrumb configuration trigger and flyout exactly", () => {
 		expect(render({button, actOnHover: true, expanded: true})).toBe(
 			`<div tabindex="0" class="relative outline-none menu "><div><span>...</span></div>` +
-				`<div class="${flyoutClass}" data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom" style="position:absolute;inset:0px auto auto 0px;pointer-events:auto;z-index:1001;min-width:0;max-width:240px;margin-top:4px;padding:5px;transform:translate3d(0px, 0px, 0px)">` +
+				`<div class="${flyoutClass}" data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom" style="position:absolute;inset:0px auto auto 0px;pointer-events:auto;z-index:1001;min-width:0;max-width:240px;margin-top:4px;padding:5px;transform:translate(0px, 0px)">` +
 				`<div style="--menu-max-h:calc(100vh - 50px)" class="${scrollerClass}"><div>crumbs</div></div>` +
 				`</div></div>`,
 		);
@@ -70,14 +71,15 @@ describe("ButtonMenu", () => {
 			`<div tabindex="0" style="display:flex" class="relative outline-none menu itemTypePickerMenu">`,
 		);
 		expect(markup).toContain(
-			`data-popper-placement="bottom-start" style="position:absolute;inset:0px auto auto 0px;pointer-events:auto;z-index:1001;min-width:100px;max-width:300px;margin-top:6px;padding:5px;transform:translate3d(0px, 0px, 0px)"`,
+			`data-popper-placement="bottom-start" style="position:absolute;inset:0px auto auto 0px;pointer-events:auto;z-index:1001;min-width:100px;max-width:300px;margin-top:6px;padding:5px;transform:translate(0px, 0px)"`,
 		);
 		expect(markup).toContain(`style="--menu-max-h:700px"`);
 	});
 });
 
 describe("ButtonMenu Escape", () => {
-	it("exports no search side effect: upstream's item menu Escape only closes the menu", () => {
+	it("renders a trigger without a keydown claim so Escape reaches the global search handler", () => {
+		expect(render({button, expanded: false})).not.toContain("keydown");
 		expect(Object.keys(buttonMenuModule)).toStrictEqual(["ButtonMenu"]);
 	});
 });

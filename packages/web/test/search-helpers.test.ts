@@ -61,17 +61,31 @@ describe("SearchHelpers", () => {
 	it("renders the exact upstream flyout wrapper and tab markup", () => {
 		const html = render();
 		expect(html).toContain(
-			'<div class=""><div class="wf-header flex flex-col border border-solid border-primary font-normal text-xs rounded-md bg-primary shadow-md overflow-x-hidden [transition:200ms_opacity] print:hidden absolute flyout menu !-mt-px !px-[5%] !pt-0 !pb-[2px] !bg-primary !border-primary"',
+			` class="wf-header flex flex-col
+      border border-solid border-primary font-normal text-xs
+      rounded-md bg-primary shadow-md
+      overflow-x-hidden
+      [transition:200ms_opacity]
+      print:hidden absolute flyout menu !-mt-px !px-[5%] !pt-0 !pb-[2px] !bg-primary
+        !border-primary"`,
 		);
 		expect(html).toContain(
 			`<div class="relative py-s shrink-0 flex justify-around overflow-hidden"><div ${TAB_CLASS}><svg aria-hidden="true" focusable="false" data-prefix="fal" data-icon="globe" class="svg-inline--fa fa-globe fa-sm " role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">`,
 		);
 	});
 
+	it("renders the flyout through DomKit Flyout: transform origin and rounded no-top style", () => {
+		const html = render();
+		const style = /<div class=""><div style="([^"]*)"/u.exec(html)?.[1];
+		expect(style).toContain("transform:scale(1, 1) translateX(-50%);transform-origin:0 0");
+		expect(style).toContain("min-width:100%;max-width:100%");
+		expect(style).toContain("max-height:280px;overflow-y:auto");
+	});
+
 	it("tints the flyout border once the query is non-empty", () => {
 		const html = render({query: "x"});
 		expect({
-			tint: count(html, "!bg-primary !border-[var(--wf-border-tint)]"),
+			tint: count(html, "!bg-primary\n        !border-[var(--wf-border-tint)]"),
 			primary: count(html, '!border-primary"'),
 		}).toStrictEqual({
 			tint: 1,

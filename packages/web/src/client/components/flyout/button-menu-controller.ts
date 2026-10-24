@@ -5,7 +5,6 @@ const JUST_OPENED_GUARD_MS = 300;
 const HOVER_HIDE_DELAY_MS = 100;
 
 export type ButtonMenuClickAction = "none" | "open" | "hide" | "blur";
-export type ButtonMenuEscapeAction = "none" | "blur";
 
 export interface ButtonMenuControllerOptions {
 	actOnHover?: boolean;
@@ -31,7 +30,6 @@ export interface ButtonMenuController {
 	 * bubbling through the React portal (upstream's flyout is not inside the trigger).
 	 */
 	click(activeInsideTrigger: boolean | null, fromFlyout?: boolean): ButtonMenuClickAction;
-	escape(): ButtonMenuEscapeAction;
 	isOpen(): boolean;
 }
 
@@ -120,12 +118,6 @@ export function createButtonMenuController(options: ButtonMenuControllerOptions)
 			if (activeInsideTrigger !== true) {
 				hide();
 				return "hide";
-			}
-			return "blur";
-		},
-		escape() {
-			if (!open) {
-				return "none";
 			}
 			return "blur";
 		},

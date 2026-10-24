@@ -102,11 +102,11 @@ interface CapturedGearMenuProps {
 }
 const gearMenuProps: CapturedGearMenuProps = {};
 vi.mock("../src/client/components/gear-menu.js", () => ({
-	GearMenu: (props: CapturedGearMenuProps) => {
+	useGearMenuRows: (props: CapturedGearMenuProps) => {
 		gearMenuProps.headerItems = props.headerItems;
 		gearMenuProps.onExpandAll = props.onExpandAll;
 		gearMenuProps.onCollapseAll = props.onCollapseAll;
-		return null;
+		return [];
 	},
 }));
 
@@ -320,6 +320,14 @@ describe("TopBar right cluster", () => {
 			"gearMenu",
 			"new_pane",
 		]);
+	});
+
+	it("renders the kebab as a ButtonMenu trigger, not a hand-built gear menu", () => {
+		const html = renderCluster("alice", true, []);
+		expect({
+			trigger: html.includes('<div tabindex="0" class="relative outline-none menu gearMenu">'),
+			handBuilt: html.includes("gear-menu"),
+		}).toStrictEqual({trigger: true, handBuilt: false});
 	});
 
 	it("hides Present when the zoomed node has no children", () => {

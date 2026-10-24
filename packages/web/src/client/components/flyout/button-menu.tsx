@@ -1,10 +1,9 @@
 import {useImperativeHandle, useLayoutEffect, useRef, useState} from "react";
 import type {CSSProperties, ReactNode, Ref} from "react";
 import {createPortal} from "react-dom";
-import {claimEscape} from "../../menu-escape.js";
 import {createButtonMenuController} from "./button-menu-controller.js";
 import {MenuBody} from "./menu.js";
-import {placePopper} from "./place-popper.js";
+import {placePopper, popperTransform, popperViewport} from "./place-popper.js";
 import type {PopperPlacement} from "./place-popper.js";
 import {BUTTON_MENU_Z, popoverBox} from "./popover-box.js";
 
@@ -112,7 +111,7 @@ export function ButtonMenu({
 				reference: {left: rect.left, top: rect.top, width: rect.width, height: rect.height},
 				popper: {width: flyout.offsetWidth, height: flyout.offsetHeight},
 				placement,
-				viewport: {width: window.innerWidth, height: window.innerHeight},
+				viewport: popperViewport(document),
 			});
 			// The flyout is absolutely positioned in document.body, so viewport coordinates need the scroll offset.
 			setPosition({x: placed.x + window.scrollX, y: placed.y + window.scrollY});
@@ -153,7 +152,7 @@ export function ButtonMenu({
 				...box.style,
 				padding: "5px",
 				zIndex: BUTTON_MENU_Z,
-				transform: `translate3d(${position.x}px, ${position.y}px, 0px)`,
+				transform: popperTransform(position.x, position.y, globalThis.devicePixelRatio || 1),
 			}}
 		>
 			<MenuBody unwrapped maxHeight={maxHeight} exit={hide}>
@@ -163,7 +162,7 @@ export function ButtonMenu({
 	);
 
 	return (
-		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- verbatim upstream markup: a focusable div is the menu trigger
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- verbatim upstream markup: a focusable div is the menu trigger; Escape and other keys reach the global handlers
 		<div
 			ref={triggerRef}
 			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- upstream opens the menu on trigger focus
@@ -194,15 +193,6 @@ export function ButtonMenu({
 				if (action === "blur") {
 					activeElement?.blur();
 				}
-			}}
-			onKeyDown={(event) => {
-				claimEscape(event, () => {
-					if (controller.escape() !== "blur") {
-						return false;
-					}
-					triggerRef.current?.blur();
-					return true;
-				});
 			}}
 		>
 			<div ref={referenceRef}>{button}</div>

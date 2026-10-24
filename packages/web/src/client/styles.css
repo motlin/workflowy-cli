@@ -841,104 +841,10 @@ body {
 }
 
 /* ================================
-   Gear Menu Styles
+   Main menu footer
    ================================
-   Production-accurate gear menu dropdown from top bar.
-   Matches Workflowy's settings/more options menu.
+   The kebab's flyout is a ButtonMenu (components/flyout); only the autosave footer row has its own rules.
 */
-
-.gear-menu {
-	position: absolute;
-	top: 100%;
-	right: 0;
-	z-index: 1000;
-	min-width: 220px;
-	max-height: 400px;
-	background-color: var(--color-bg);
-	border-radius: 6px;
-	border: 1px solid var(--color-border);
-	box-shadow: var(--shadow-modal);
-	margin-top: 4px;
-	overflow: hidden;
-}
-
-.gear-menu-scroller {
-	max-height: 400px;
-	overflow-y: auto;
-	padding: 4px 0;
-}
-
-.gear-menu-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	padding: 4px 16px;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-	font-size: 12.64px;
-	font-family: inherit;
-	color: var(--wf-gray-700);
-	text-align: left;
-	transition: background-color 0.1s ease;
-}
-
-[data-theme="dark"] .gear-menu-item {
-	color: var(--color-text-secondary);
-}
-
-.gear-menu-item:hover:not(:disabled) {
-	background-color: var(--color-bg-hover);
-}
-
-.gear-menu-item:focus {
-	outline: none;
-	background-color: var(--color-bg-selected);
-}
-
-.gear-menu-item:disabled,
-.gear-menu-item.disabled {
-	color: var(--wf-gray-500);
-	cursor: default;
-}
-
-[data-theme="dark"] .gear-menu-item:disabled,
-[data-theme="dark"] .gear-menu-item.disabled {
-	color: var(--color-text-faint);
-}
-
-.gear-menu-item-content {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.gear-menu-item-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	color: var(--color-icon);
-}
-
-.gear-menu-item-label {
-	white-space: nowrap;
-}
-
-.gear-menu-item-shortcut {
-	margin-left: auto;
-	padding-left: 16px;
-	font-size: 11px;
-	color: var(--color-text-faint);
-}
-
-.gear-menu-item-subtitle {
-	margin-left: auto;
-	padding-left: 16px;
-	font-size: 11px;
-	color: var(--color-text-faint);
-}
 
 .gear-menu-autosave {
 	display: flex;
@@ -950,12 +856,6 @@ body {
 	line-height: 1;
 	text-align: center;
 	color: var(--color-text-muted);
-}
-
-.gear-menu-divider {
-	height: 1px;
-	background-color: var(--color-border);
-	margin: 6px 0;
 }
 
 /* ================================
@@ -4053,9 +3953,11 @@ body.moving .itemMenu {
 /* DomKit flyout surface, cloned from tailwind + themes. The popoverBox class string's utilities
    (wf-tailwind.css) and the .wf-menu token scopes above cover the rest; only the box model differs,
    because the local reset sets border-box on everything. Upstream's flyout is content-box, so
-   max-width 240 gives a 252px border-box (240 + 2*5 padding + 2*1 border). */
+   max-width 240 gives a 252px border-box (240 + 2*5 padding + 2*1 border). Upstream's css_reset also gives body
+   line-height 1, and flyouts are portaled to body, so the surface carries it. */
 .wf-menu.flyout {
 	box-sizing: content-box;
+	line-height: 1;
 }
 
 /* DomKit Toggle (date-picker-popup.tsx). Upstream's track is content-box: w-[20px] h-[10px] plus p-2xs
@@ -4168,11 +4070,7 @@ label.toggle > div {
 /* Inline location picker, cloned from wf-base + tailwind (components/location-picker.tsx). The markup's
    utilities (wf-tailwind.css) and the DomKit flyout/menu rules above give the box model: 480px surface,
    header padding 8px 16px, input 448x37.55, rows 4px 16px at 18.96px (42.96px with crumbs), 32px footers,
-   help text 8px 16px 16px. Upstream's reset gives the surface line-height 1 (12.64px header); the local
-   body keeps 1.5, so restore it here. Selected via the popper wrapper's unique min-width utility. */
-.\[\&_\.flyout\]\:min-w-\[480px\] > .wf-menu.flyout {
-	line-height: 1;
-}
+   help text 8px 16px 16px. The surface's line-height 1 (12.64px header) comes from the .wf-menu.flyout rule. */
 
 /* ================================
    Pane workspace (upstream's New pane / Open in Pane): while a pane is open, .pane-workspace is a full-height flex

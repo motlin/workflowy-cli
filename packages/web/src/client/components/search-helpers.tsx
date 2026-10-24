@@ -1,7 +1,8 @@
 import {useEffect, useRef} from "react";
-import type {CSSProperties, ReactNode, Ref} from "react";
+import type {ReactNode, Ref} from "react";
 import type {HelperSelection} from "../search/helper-keys.js";
 import {FaIcon} from "./fa-icons.js";
+import {Flyout} from "./flyout/flyout.js";
 import type {FaIconKey} from "./fa-icons.js";
 
 export interface HelperTagLists {
@@ -73,25 +74,8 @@ export function helperSections(tags: HelperTagLists): HelperSection[] {
 	return sections.filter((section) => section.hint || section.values.length > 0);
 }
 
-const FLYOUT_CLASS =
-	"wf-header flex flex-col border border-solid border-primary font-normal text-xs rounded-md bg-primary shadow-md overflow-x-hidden [transition:200ms_opacity] print:hidden absolute flyout menu !-mt-px !px-[5%] !pt-0 !pb-[2px] !bg-primary";
-const FLYOUT_STYLE: CSSProperties = {
-	pointerEvents: "auto",
-	zIndex: 300,
-	minWidth: "100%",
-	maxWidth: "100%",
-	margin: 0,
-	maxHeight: 280,
-	overflowY: "auto",
-	left: "50%",
-	top: "100%",
-	transform: "scale(1,1) translateX(-50%)",
-	borderTop: "none",
-	boxShadow: "none",
-	borderRadius: "0 0 16px 16px",
-	boxSizing: "border-box",
-	opacity: 1,
-};
+// Upstream's class template tail: `border` follows the template's own newline and indentation.
+const FLYOUT_CLASS = "menu !-mt-px !px-[5%] !pt-0 !pb-[2px] !bg-primary\n        ";
 const TAB_ROW_CLASS = "relative py-s shrink-0 flex justify-around overflow-hidden";
 const TAB_ROW_SELECTED_CLASS = `${TAB_ROW_CLASS} after:content-[''] after:absolute after:z-1 after:top-full after:left-0 after:right-0 after:bottom-0 after:h-px after:-mt-px after:bg-header-border`;
 const TAB_CLASS = "py-2xs px-ml rounded-[16px]";
@@ -213,9 +197,13 @@ export function SearchHelpers({
 	return (
 		<div className={focused && !autocompletePopulated ? "" : "hidden"}>
 			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- mousedown only keeps focus in the search input */}
-			<div
-				className={`${FLYOUT_CLASS} ${border}`}
-				style={FLYOUT_STYLE}
+			<Flyout
+				surfaceClassName="wf-header"
+				rounded
+				maxHeight={280}
+				minWidth="100%"
+				maxWidth="100%"
+				className={`${FLYOUT_CLASS}${border}`}
 				ref={flyoutRef}
 				onMouseDown={(event) => {
 					event.preventDefault();
@@ -245,7 +233,7 @@ export function SearchHelpers({
 					))}
 				</div>
 				<div>{panel}</div>
-			</div>
+			</Flyout>
 		</div>
 	);
 }

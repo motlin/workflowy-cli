@@ -85,4 +85,20 @@ describe("Escape to search and back", () => {
 
 		expect(globalThis.scrollY).toBe(420);
 	});
+
+	it("focuses search when Escape comes from a focused element inside a ButtonMenu trigger", () => {
+		mount();
+		const menu = document.createElement("div");
+		menu.className = "relative outline-none menu";
+		const inner = document.createElement("button");
+		menu.append(inner);
+		document.body.append(menu);
+		inner.focus();
+
+		act(() => {
+			inner.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", cancelable: true, bubbles: true}));
+		});
+
+		expect(document.activeElement?.id).toBe("srch-input");
+	});
 });

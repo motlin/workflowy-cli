@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {placePopper} from "../src/client/components/flyout/place-popper.js";
+import {placePopper, popperTransform, popperViewport} from "../src/client/components/flyout/place-popper.js";
 
 describe("placePopper", () => {
 	it("centers a bottom popper under the breadcrumb reference", () => {
@@ -91,5 +91,43 @@ describe("placePopper", () => {
 				viewport: {width: 1000, height: 800},
 			}),
 		).toStrictEqual({x: 37, y: 10, placement: "bottom-start"});
+	});
+});
+
+describe("popperTransform", () => {
+	it("rounds to device pixels and uses the 2d form at dpr 1, translate3d above it", () => {
+		expect([
+			popperTransform(285.84, 36, 1),
+			popperTransform(412.37, 36, 2),
+			popperTransform(39.7, 0.2, 1),
+			popperTransform(-0.2, 0, 1),
+		]).toStrictEqual([
+			"translate(286px, 36px)",
+			"translate3d(412.5px, 36px, 0px)",
+			"translate(40px, 0px)",
+			"translate(0px, 0px)",
+		]);
+	});
+});
+
+describe("popperViewport", () => {
+	it("reads the root client box, which excludes a scrollbar", () => {
+		expect(popperViewport({documentElement: {clientWidth: 1265, clientHeight: 860}})).toStrictEqual({
+			width: 1265,
+			height: 860,
+		});
+	});
+});
+
+describe("main menu right clamp", () => {
+	it("clamps against the clipping width (1265) rather than innerWidth (1272)", () => {
+		expect(
+			placePopper({
+				reference: {left: 1170, top: 12, width: 24, height: 24},
+				popper: {width: 183.66, height: 40},
+				placement: "bottom",
+				viewport: popperViewport({documentElement: {clientWidth: 1265, clientHeight: 860}}),
+			}).x,
+		).toBe(1071.34);
 	});
 });

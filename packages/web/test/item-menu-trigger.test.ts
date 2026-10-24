@@ -38,9 +38,15 @@ const node: NodeResponse = {
 };
 
 const TRIGGER_CLASS =
-	"relative outline-none menu !absolute left-[var(--item-menu-left)] top-0 h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center opacity-100 cursor-pointer transition-opacity duration-200 [body.moving_&amp;]:hidden itemMenu";
-const DOTS =
-	'<span class="block size-xl rounded-[12px] text-tertiary hover:bg-tertiary"><svg viewBox="0 0 24 24" fill="currentColor" class="block size-full"><circle cx="6" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="18" cy="12" r="2"></circle></svg></span>';
+	"relative outline-none menu \n        [body.moving_&amp;]:hidden\n        !absolute left-[var(--item-menu-left)] top-0\n\n        h-[var(--line-height)] pt-[var(--wf-content-padding-top)]\n        flex items-center\n        opacity-100 cursor-pointer transition-opacity duration-200\n        \n        itemMenu\n      ";
+const DOTS_CLASS = `
+            block size-xl rounded-[12px]
+            text-tertiary
+            hover:bg-tertiary
+            [.menu:focus_&amp;]:text-quaternary
+            [.menu:focus_&amp;]:bg-tertiary
+          `;
+const DOTS = `<span class="${DOTS_CLASS}"><svg viewBox="0 0 24 24" fill="currentColor" class="block size-full"><circle cx="6" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="18" cy="12" r="2"></circle></svg></span>`;
 
 describe("ItemMenuTrigger", () => {
 	it("renders upstream's ButtonMenu trigger with the computed --item-menu-left", () => {

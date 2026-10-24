@@ -102,7 +102,16 @@ const SHELL = {
 };
 
 /** The header parts a zoom re-renders: they show the zoomed location. */
-const HEADER = {TopBar: 1, Breadcrumbs: 1, SearchBox: 1, SearchHelpers: 1, HeaderMoreMenu: 1, GearMenu: 1};
+const HEADER = {
+	TopBar: 1,
+	Breadcrumbs: 1,
+	SearchBox: 1,
+	SearchHelpers: 1,
+	Flyout: 1,
+	FlyoutSurface: 1,
+	HeaderMoreMenu: 1,
+	ButtonMenu: 1,
+};
 
 /** The left bar's frame around its Home rows. */
 const LEFT_BAR = {

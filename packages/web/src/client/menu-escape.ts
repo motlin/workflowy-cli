@@ -5,7 +5,8 @@ interface EscapeKeyEvent {
 }
 
 /**
- * Upstream's menus and pickers swallow Escape: it only closes them. `useSearchEscape` runs on `window` and skips
+ * Dialogs and pickers swallow Escape: it only closes them. (Upstream's ButtonMenu does not: Escape reaches the global
+ * handler, which focuses search and so blurs the menu closed; see `ButtonMenu`.) `useSearchEscape` runs on `window` and skips
  * claimed (defaultPrevented) events, so a popup that closes on Escape must claim the key or the same press would
  * also focus search. `close` reports whether it closed anything; only then is the key claimed.
  */

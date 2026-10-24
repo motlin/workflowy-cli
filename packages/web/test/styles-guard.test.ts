@@ -78,7 +78,7 @@ function normalizedBlocks(css: string, selector: string): string[] {
 
 describe("flyout surface styles guard", () => {
 	it("keeps the flyout content-box so max-width 240 gives a 252px border-box", () => {
-		expect(normalizedBlocks(styles, ".wf-menu.flyout")).toStrictEqual(["box-sizing: content-box"]);
+		expect(normalizedBlocks(styles, ".wf-menu.flyout")).toStrictEqual(["box-sizing: content-box;line-height: 1"]);
 	});
 
 	it("scopes the light and dark .wf-menu tokens", () => {

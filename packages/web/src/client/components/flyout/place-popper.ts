@@ -34,3 +34,17 @@ export function placePopper({reference, popper, placement, viewport}: PlacePoppe
 		placement,
 	};
 }
+
+/** Popper's `roundOffsets` + `mapToStyles` transform: device-pixel rounding, 2d form at dpr <= 1. */
+export function popperTransform(x: number, y: number, dpr: number): string {
+	const round = (value: number): number => Math.round(value * dpr) / dpr || 0;
+	return dpr <= 1 ? `translate(${round(x)}px, ${round(y)}px)` : `translate3d(${round(x)}px, ${round(y)}px, 0px)`;
+}
+
+/** Popper's boundary: the root client box, which excludes a scrollbar (not `innerWidth/innerHeight`). */
+export function popperViewport(doc: {documentElement: {clientWidth: number; clientHeight: number}}): {
+	width: number;
+	height: number;
+} {
+	return {width: doc.documentElement.clientWidth, height: doc.documentElement.clientHeight};
+}

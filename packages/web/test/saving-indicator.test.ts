@@ -1,6 +1,4 @@
 import {readFileSync} from "node:fs";
-import {createElement} from "react";
-import {renderToStaticMarkup} from "react-dom/server";
 import {describe, expect, it, vi} from "vite-plus/test";
 
 /** Upstream never blocks input while saving; its only save state is the main menu's autosave footer (KY). */
@@ -11,24 +9,15 @@ vi.mock("../src/client/stores/outline.js", () => ({
 	selectIsMutating: (state: {mutationCount: number}) => state.mutationCount > 0,
 }));
 
-const {GearMenu} = await import("../src/client/components/gear-menu.js");
+const {useGearMenuRows} = await import("../src/client/components/gear-menu.js");
+const {renderGearMenuRows} = await import("./helpers/render-gear-menu-rows.js");
 
 function autosaveFooter(mutationCount: number): string | undefined {
 	Object.assign(outlineState, {mutationCount, lastSavedAt: Date.now()});
-	const html = renderToStaticMarkup(
-		createElement(GearMenu, {
-			isOpen: true,
-			onClose: () => {},
-			onOpenSettings: () => {},
-			onExpandAll: () => {},
-			onCollapseAll: () => {},
-			onUndo: () => {},
-			onRedo: () => {},
-		}),
-	);
-	// The footer is the menu's last row, so it runs up to the closing scroller and menu divs.
+	const html = renderGearMenuRows(useGearMenuRows);
+	// The footer is the menu's last row, so it runs up to the closing scroller div.
 	const start = html.indexOf('<div class="gear-menu-autosave">');
-	return start === -1 ? undefined : html.slice(start, -"</div></div>".length);
+	return start === -1 ? undefined : html.slice(start, -"</div>".length);
 }
 
 describe("saving indicator", () => {

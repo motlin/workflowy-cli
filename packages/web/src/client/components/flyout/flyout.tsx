@@ -12,7 +12,7 @@ export interface FlyoutProps {
 	position?: readonly [number, number];
 	offset?: readonly [number, number];
 	minWidth?: number | string;
-	maxWidth?: number;
+	maxWidth?: number | string;
 	maxHeight?: CSSProperties["maxHeight"];
 	align?: FlyoutAlign;
 	expanded?: boolean;
@@ -20,6 +20,7 @@ export interface FlyoutProps {
 	className?: string;
 	onMouseEnter?: MouseEventHandler<HTMLDivElement>;
 	onMouseLeave?: MouseEventHandler<HTMLDivElement>;
+	onMouseDown?: MouseEventHandler<HTMLDivElement>;
 	onScroll?: UIEventHandler<HTMLDivElement>;
 	dense?: boolean;
 	rounded?: boolean;
@@ -75,6 +76,7 @@ function FlyoutSurface({
 	className = "",
 	onMouseEnter,
 	onMouseLeave,
+	onMouseDown,
 	onScroll,
 	dense,
 	rounded,
@@ -129,12 +131,14 @@ function FlyoutSurface({
 	const box = popoverBox({surfaceName: surfaceClassName || undefined, minWidth, maxWidth, offset});
 	const positioning = flyoutStyle({position, offset, align, expanded, rounded, dense, maxHeight, shiftY});
 	return (
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- verbatim upstream markup: the mouse handlers only track hover and keep input focus
 		<div
 			ref={setRef}
 			style={{...box.style, ...positioning, ...style}}
 			onScroll={onScroll}
 			onMouseEnter={onMouseEnter}
 			onMouseLeave={onMouseLeave}
+			onMouseDown={onMouseDown}
 			className={`${box.className} absolute flyout ${className}`}
 		>
 			{children}

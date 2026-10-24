@@ -35,7 +35,7 @@ describe("closeOnEscape", () => {
 });
 
 describe("claimEscape", () => {
-	it("claims Escape only when the menu was open and closed, as ButtonMenu's controller reports", () => {
+	it("claims Escape only when the menu was open and closed, as a popup's close callback reports", () => {
 		const open = key("Escape");
 		const shut = key("Escape");
 		claimEscape(open, () => true);

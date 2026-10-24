@@ -162,7 +162,7 @@ describe("item menu surface", () => {
 	it("places the flyout bottom-start with upstream's 300px max width", () => {
 		const flyout = /<div class="wf-menu[^"]*flyout menu"([^>]*)>/u.exec(render(node));
 		expect(flyout?.[1]).toBe(
-			' data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom-start" style="position:absolute;inset:0px auto auto 0px;pointer-events:auto;z-index:1001;min-width:0;max-width:300px;margin-top:4px;padding:5px;transform:translate3d(0px, 0px, 0px)"',
+			' data-popper-reference-hidden="false" data-popper-escaped="false" data-popper-placement="bottom-start" style="position:absolute;inset:0px auto auto 0px;pointer-events:auto;z-index:1001;min-width:0;max-width:300px;margin-top:4px;padding:5px;transform:translate(0px, 0px)"',
 		);
 	});
 

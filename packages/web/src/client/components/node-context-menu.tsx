@@ -359,8 +359,12 @@ interface ItemMenuTriggerProps {
 /** Upstream fa1's ButtonMenu placement: the flyout hangs 16px left of the trigger, up to 300px wide. */
 const ITEM_MENU_OFFSET = [-16, 0] as const;
 
+// Upstream's multi-line class templates, byte for byte (whitespace and newlines are part of the DOM contract).
 const ITEM_MENU_TRIGGER_CLASS =
-	"!absolute left-[var(--item-menu-left)] top-0 h-[var(--line-height)] pt-[var(--wf-content-padding-top)] flex items-center opacity-100 cursor-pointer transition-opacity duration-200 [body.moving_&]:hidden itemMenu";
+	"\n        [body.moving_&]:hidden\n        !absolute left-[var(--item-menu-left)] top-0\n\n        h-[var(--line-height)] pt-[var(--wf-content-padding-top)]\n        flex items-center\n        opacity-100 cursor-pointer transition-opacity duration-200\n        \n        itemMenu\n      ";
+
+const ITEM_MENU_DOTS_CLASS =
+	"\n            block size-xl rounded-[12px]\n            text-tertiary\n            hover:bg-tertiary\n            [.menu:focus_&]:text-quaternary\n            [.menu:focus_&]:bg-tertiary\n          ";
 
 function blurActiveElement(): void {
 	if (document.activeElement instanceof HTMLElement) {
@@ -392,7 +396,7 @@ export function ItemMenuTrigger({node, left, actions, onOpenChange, expanded, se
 				}}
 				style={left === undefined ? undefined : {["--item-menu-left" as string]: left}}
 				button={
-					<span className="block size-xl rounded-[12px] text-tertiary hover:bg-tertiary">
+					<span className={ITEM_MENU_DOTS_CLASS}>
 						<svg viewBox="0 0 24 24" fill="currentColor" className="block size-full">
 							<circle cx="6" cy="12" r="2" />
 							<circle cx="12" cy="12" r="2" />
