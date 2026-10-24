@@ -1,138 +1,46 @@
 import {useQuery} from "@tanstack/react-query";
 import {useCallback, useMemo, useState} from "react";
-import {stripHtmlTags as stripHtml} from "@workflowy/shared/html";
 import {useHotkeys} from "react-hotkeys-hook";
 import {useOutlineStore} from "../stores/outline.js";
 import type {NodeResponse} from "../../node-types.js";
+import {formatToString, linkParents} from "../export-format.js";
+import type {ExportItem} from "../export-format.js";
 import {readJson} from "../read-json.js";
 
 type ExportFormat = "plain-text" | "markdown" | "opml";
 
-interface NodeData {
-	id: string;
-	name: string | null;
-	note: string | null;
-	children?: NodeData[];
-}
+const FORMATTER_TYPE = {"plain-text": "text", markdown: "markdown", opml: "opml"} as const;
 
-function formatPlainText(nodes: NodeData[], depth = 0): string {
-	const lines: string[] = [];
-	const indent = "  ".repeat(depth);
-
-	for (const node of nodes) {
-		const name = node.name ? stripHtml(node.name) : "";
-		if (name) {
-			lines.push(`${indent}- ${name}`);
-		}
-		if (node.note) {
-			const noteText = stripHtml(node.note);
-			lines.push(`${indent}  ${noteText}`);
-		}
-		if (node.children && node.children.length > 0) {
-			lines.push(formatPlainText(node.children, depth + 1));
-		}
-	}
-
-	return lines.join("\n");
-}
-
-function formatMarkdown(nodes: NodeData[], depth = 0): string {
-	const lines: string[] = [];
-	const indent = "  ".repeat(depth);
-
-	for (const node of nodes) {
-		const name = node.name ? stripHtml(node.name) : "";
-		if (name) {
-			lines.push(`${indent}- ${name}`);
-		}
-		if (node.note) {
-			const noteText = stripHtml(node.note);
-			// Notes are indented and italicized in markdown
-			lines.push(`${indent}  *${noteText}*`);
-		}
-		if (node.children && node.children.length > 0) {
-			lines.push(formatMarkdown(node.children, depth + 1));
-		}
-	}
-
-	return lines.join("\n");
-}
-
-function escapeXml(text: string): string {
-	return text
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;")
-		.replaceAll('"', "&quot;")
-		.replaceAll("'", "&apos;");
-}
-
-function formatOpmlOutline(nodes: NodeData[], depth = 0): string {
-	const lines: string[] = [];
-	const indent = "\t".repeat(depth + 2);
-
-	for (const node of nodes) {
-		const name = node.name ? escapeXml(stripHtml(node.name)) : "";
-		const note = node.note ? escapeXml(stripHtml(node.note)) : "";
-
-		if (node.children && node.children.length > 0) {
-			if (note) {
-				lines.push(`${indent}<outline text="${name}" _note="${note}">`);
-			} else {
-				lines.push(`${indent}<outline text="${name}">`);
-			}
-			lines.push(formatOpmlOutline(node.children, depth + 1), `${indent}</outline>`);
-		} else if (note) {
-			lines.push(`${indent}<outline text="${name}" _note="${note}" />`);
-		} else {
-			lines.push(`${indent}<outline text="${name}" />`);
-		}
-	}
-
-	return lines.join("\n");
-}
-
-function formatOpml(nodes: NodeData[], title = "Workflowy Export"): string {
-	const now = new Date().toISOString();
-	const outlines = formatOpmlOutline(nodes);
-
-	return `<?xml version="1.0" encoding="UTF-8"?>
-<opml version="2.0">
-	<head>
-		<title>${escapeXml(title)}</title>
-		<dateCreated>${now}</dateCreated>
-	</head>
-	<body>
-${outlines}
-	</body>
-</opml>`;
-}
-
-async function fetchNodeTree(nodeId: string): Promise<NodeData | null> {
+async function fetchNodeTree(nodeId: string): Promise<ExportItem | null> {
 	const response = await fetch(`/api/v1/nodes/${nodeId}`);
 	if (!response.ok) {
 		return null;
 	}
 
 	const {node} = await readJson<{node: NodeResponse}>(response);
+	const item: ExportItem = {
+		id: node.id,
+		name: node.name ?? "",
+		note: node.note ?? "",
+		layoutMode: node.data.layoutMode,
+		numberedStart: node.numberedStart ?? null,
+		completed: node.completedAt !== null,
+		parent: null,
+		children: [],
+	};
 
 	// Fetch children
 	const childrenResponse = await fetch(`/api/v1/nodes?parent_id=${nodeId}`);
 	if (!childrenResponse.ok) {
-		return {id: node.id, name: node.name, note: node.note};
+		return item;
 	}
 
 	const {nodes: children} = await readJson<{nodes: NodeResponse[]}>(childrenResponse);
 
 	// Recursively fetch children's trees
 	const childTrees = await Promise.all(children.map(async (child) => fetchNodeTree(child.id)));
-
-	return {
-		id: node.id,
-		name: node.name,
-		note: node.note,
-		children: childTrees.filter((c): c is NodeData => c !== null),
-	};
+	item.children = childTrees.filter((c): c is ExportItem => c !== null);
+	return item;
 }
 
 export function ExportDialog() {
@@ -152,7 +60,7 @@ export function ExportDialog() {
 		queryKey: ["export-trees", nodeIds],
 		queryFn: async () => {
 			const fetched = await Promise.all(nodeIds.map(async (id) => fetchNodeTree(id)));
-			return fetched.filter((t): t is NodeData => t !== null);
+			return linkParents(fetched.filter((t): t is ExportItem => t !== null));
 		},
 		enabled: exportDialogOpen && nodeIds.length > 0,
 		staleTime: 0,
@@ -165,21 +73,7 @@ export function ExportDialog() {
 		if (!trees) {
 			return "";
 		}
-		switch (format) {
-			case "plain-text": {
-				return formatPlainText(trees);
-			}
-			case "markdown": {
-				return formatMarkdown(trees);
-			}
-			case "opml": {
-				return formatOpml(trees);
-			}
-			default: {
-				const unknownFormat: never = format;
-				throw new Error(`Unknown export format: ${String(unknownFormat)}`);
-			}
-		}
+		return formatToString(FORMATTER_TYPE[format], trees);
 	}, [format, isError, trees]);
 
 	const handleCopy = useCallback(async () => {
