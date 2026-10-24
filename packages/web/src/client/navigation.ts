@@ -34,10 +34,23 @@ export function nodeUrl(nodeId: string): string {
  * and a 12-hex short id through `lookup` (null when it is unknown).
  */
 /**
- * What a bullet click does: a plain left click zooms in-app; a Cmd/Ctrl click or
- * a non-left button is left to the browser so it opens the bullet's href in a new tab.
+ * What a bullet click does, in upstream's order: a click whose press the drag did not arm is ignored; a click on a
+ * selected row clears the selection; a Cmd/Ctrl click or a non-left button is left to the browser so it opens the
+ * bullet's href in a new tab; anything else zooms in-app.
  */
-export function bulletClickAction(event: {metaKey: boolean; ctrlKey: boolean; button: number}): "zoom" | "browser" {
+export function bulletClickAction(event: {
+	metaKey: boolean;
+	ctrlKey: boolean;
+	button: number;
+	armed: boolean;
+	inSelection: boolean;
+}): "ignore" | "clear-selection" | "browser" | "zoom" {
+	if (!event.armed) {
+		return "ignore";
+	}
+	if (event.inSelection) {
+		return "clear-selection";
+	}
 	return event.metaKey || event.ctrlKey || event.button !== 0 ? "browser" : "zoom";
 }
 
@@ -95,9 +108,30 @@ export function planZoomFocus(
 	return {
 		route: parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed),
 		editId: zoomedId,
-		offset: 0,
+		offset: previousEditingId === zoomedId ? previousOffset : 0,
 		scrollTop: false,
 	};
+}
+
+export type ZoomStep = "animate-in" | "navigate" | "animate-out" | "focus";
+
+/**
+ * The order of a zoom's phases. Zooming in animates, navigates, then focuses; zooming out navigates, animates, then
+ * focuses, because the animation hides the row until it ends and a caret set earlier would be lost.
+ */
+export function zoomSteps({animate, isOut, hasEdit}: {animate: boolean; isOut: boolean; hasEdit: boolean}): ZoomStep[] {
+	const steps: ZoomStep[] = [];
+	if (animate && !isOut) {
+		steps.push("animate-in");
+	}
+	steps.push("navigate");
+	if (animate && isOut) {
+		steps.push("animate-out");
+	}
+	if (hasEdit) {
+		steps.push("focus");
+	}
+	return steps;
 }
 
 /**

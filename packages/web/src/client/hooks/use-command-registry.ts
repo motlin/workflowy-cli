@@ -7,11 +7,14 @@ import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
-import {caretTextOffset, editorElement, placeCaretAtTextOffset} from "../caret-dom.js";
+import {caretTextOffset, editorElement, placeCaretAtTextOffset, rowContent} from "../caret-dom.js";
+import {currentSearchFilter} from "./use-tree-search.js";
+import {focusableSiblingIds} from "../render-window.js";
+import {focusCenterNext} from "../quiet-focus.js";
+import type {SearchFilter} from "../search-filter.js";
 import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../caret-navigation.js";
 import {
 	cacheMoveTree,
-	isPotentiallyVisible,
 	rowHasChildren,
 	nextPotentiallyVisibleSibling,
 	planBlockMove,
@@ -44,6 +47,7 @@ import {useNavigateToToday} from "./use-navigate-to-today.js";
 import {useZoomTo} from "./use-zoom-to.js";
 import {useMoveTo} from "./use-move-to.js";
 import {scheduleCompletionHide} from "../completion-animation.js";
+import {presentCommand, printCommand} from "../keys/dispatch.js";
 import type {Command, CommandContext, CommandRegistry} from "../keys/dispatch.js";
 import {saveAndSyncCommand} from "../save-and-sync.js";
 import {renderEditorHtml, serializeEditorHtml} from "../editor-html.js";
@@ -54,7 +58,8 @@ import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import {useCopyLink, useSortChildren} from "./use-item-actions.js";
 import {useAccount} from "./use-account.js";
 import {useDateSettings} from "./use-preferences.js";
-import {plainLength} from "../rich-text.js";
+import {plainLength, planItemsAttrToggle, planItemsCodeToggle} from "../rich-text.js";
+import type {InlineAttr, ItemField} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, settleUndoNow} from "../undo-batch.js";
 import {undoHistory} from "../undo-history.js";
 import {queueUndo} from "../undo-view-state.js";
@@ -73,12 +78,22 @@ import type {UndoDirection, UndoRunner} from "../undo-view-state.js";
 /** Pairs two ⌃Space presses on the same row (upstream's 250ms window). */
 const toggleDetector = createDoublePressDetector();
 
-/** The ids of `nodes` the outline can show, in priority order. */
-function potentiallyVisibleIds(nodes: NodeResponse[] | undefined): string[] {
+/**
+ * The ids of `nodes` the outline can show, in priority order. `search` is the filter the rows are shown under; zooming
+ * lands on a new page with the search cleared, so those callers pass null.
+ */
+function potentiallyVisibleIds(nodes: NodeResponse[] | undefined, search: SearchFilter | null): string[] {
 	const {showCompleted, animatingCompletionIds} = useOutlineStore.getState();
-	return sortByPriority(nodes ?? [])
-		.filter((node) => isPotentiallyVisible(node, showCompleted, animatingCompletionIds))
-		.map((node) => node.id);
+	return focusableSiblingIds(nodes, {showCompleted, animatingCompletionIds, search});
+}
+
+/** Upstream `JM4`: whether the row's box overlaps the viewport. */
+function isRowInView(id: string): boolean {
+	const rect = rowContent(id)?.closest(".project")?.getBoundingClientRect();
+	if (rect === undefined) {
+		return false;
+	}
+	return rect.bottom > 0 && rect.top < Math.max(document.documentElement.clientHeight, globalThis.innerHeight);
 }
 
 /** Whether items are selected, so `ctx.items` is the selection rather than the edited row. */
@@ -346,28 +361,37 @@ export function useCommandRegistry(): CommandRegistry {
 			queryFn: async () => fetchChildren(targetId),
 			staleTime: "static",
 		});
-		resumeEditing(potentiallyVisibleIds(children)[0] ?? targetId, 0);
+		resumeEditing(potentiallyVisibleIds(children, null)[0] ?? targetId, 0);
 	};
 
-	/** Upstream `focus_next_sibling` / `prev`: edit the edited row's potentially visible sibling at offset 0. */
+	/**
+	 * Upstream `focus_next_sibling` / `prev`: edit the edited row's focusable sibling at offset 0, honoring the search.
+	 * With nothing focused, the first child in the viewport. Going down centers the target.
+	 */
 	const focusSibling = (ctx: CommandContext, step: -1 | 1): void => {
 		const currentId = ctx.items[0] ?? null;
 		const currentNode =
 			currentId === null || currentId === zoomedNodeId ? undefined : readNode(queryClient, currentId);
+		const search = currentSearchFilter(queryClient);
+		const children = potentiallyVisibleIds(readChildren(queryClient, zoomedNodeId), search);
 		const targetId = planFocusSibling(
 			{
 				zoomedId: zoomedNodeId,
 				currentId,
-				firstChildId: potentiallyVisibleIds(readChildren(queryClient, zoomedNodeId))[0] ?? null,
+				firstChildId: children[0] ?? null,
+				firstInViewChildId: currentId === null ? (children.find(isRowInView) ?? null) : null,
 				siblings:
 					currentNode === undefined
 						? []
-						: potentiallyVisibleIds(readChildren(queryClient, currentNode.parent_id)),
+						: potentiallyVisibleIds(readChildren(queryClient, currentNode.parent_id), search),
 			},
 			step,
 		);
 		if (targetId !== null) {
 			commitEdit();
+			if (step === 1 || currentId === null) {
+				focusCenterNext(targetId);
+			}
 			resumeEditing(targetId, 0);
 		}
 	};
@@ -453,6 +477,35 @@ export function useCommandRegistry(): CommandRegistry {
 				replaceExpanded(next);
 			}
 		}
+	};
+
+	/** Format the name and note of every selected item as one undo step; the selection stays. */
+	const formatSelection = (ctx: CommandContext, attr: InlineAttr): void => {
+		commitEdit();
+		const fields: ItemField[] = [];
+		for (const id of new Set(ctx.items)) {
+			const node = readNode(queryClient, id);
+			if (node === undefined) {
+				continue;
+			}
+			fields.push({id, field: "name", html: node.name ?? ""});
+			if (node.note !== null && node.note !== "") {
+				fields.push({id, field: "note", html: node.note});
+			}
+		}
+		const changed = attr === "code" ? planItemsCodeToggle(fields) : planItemsAttrToggle(fields, attr);
+		const updates = new Map<string, {nodeId: string; name?: string; note?: string}>();
+		for (const {id, field, html} of changed) {
+			updates.set(id, {...updates.get(id), nodeId: id, [field]: html});
+		}
+		if (updates.size === 0) {
+			return;
+		}
+		void runInUndoBatch(captureOutlineView, () => {
+			for (const update of updates.values()) {
+				updateNodeMutation.mutate(update);
+			}
+		});
 	};
 
 	/** Toggle complete on every selected item as one undo step, then clear the selection. */
@@ -641,6 +694,13 @@ export function useCommandRegistry(): CommandRegistry {
 		},
 	});
 
+	const selectionFormatCommand = (attr: InlineAttr): Command => ({
+		available: (ctx) => hasItemSelection() && ctx.items.length > 0,
+		execute: (ctx) => {
+			formatSelection(ctx, attr);
+		},
+	});
+
 	return {
 		undo: undoCommand("undo"),
 		redo: undoCommand("redo"),
@@ -683,6 +743,25 @@ export function useCommandRegistry(): CommandRegistry {
 		expand: {
 			execute(ctx) {
 				expandKey(ctx, "expand");
+			},
+		},
+		// The editor owns these keys while it has the caret; with an item selection they format the whole items.
+		toggle_bold: selectionFormatCommand("b"),
+		toggle_italic: selectionFormatCommand("i"),
+		toggle_underline: selectionFormatCommand("u"),
+		toggle_strikethrough: selectionFormatCommand("s"),
+		toggle_code: selectionFormatCommand("code"),
+		print: printCommand(),
+		present_it: {
+			execute(ctx) {
+				presentCommand({
+					open: (nodeId) => {
+						useOutlineStore.getState().openPresentation(nodeId);
+					},
+					expand: (nodeId) => {
+						expandKey({items: [nodeId], zoomedId: ctx.zoomedId}, "expand");
+					},
+				}).execute(ctx);
 			},
 		},
 		collapse: {

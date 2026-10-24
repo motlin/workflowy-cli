@@ -9,7 +9,15 @@ import {
 	shouldCommitOnBlur,
 	useOutlineStore,
 } from "../stores/outline.js";
-import {applySplitPlan, planBackspaceAtStart, planDeleteAtEnd, planOutdent, planSplit} from "../tree-ops.js";
+import {
+	applySplitPlan,
+	isEmptyForReturn,
+	planBackspaceAtStart,
+	planDeleteAtEnd,
+	planOutdent,
+	planSplit,
+	rowShapeLayout,
+} from "../tree-ops.js";
 import type {MergeRow} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import type {NodeResponse} from "../../node-types.js";
@@ -80,7 +88,8 @@ import type {TagColorName} from "./tag-color-picker.js";
 import {useSlashMenu} from "../hooks/use-slash-menu.js";
 import {placeholderFor, stripSlashChip} from "../slash-trigger.js";
 import {savePaneCaretOnBlur} from "./pane-context.js";
-import {focusScrolls} from "../quiet-focus.js";
+import {focusCenters, focusScrolls} from "../quiet-focus.js";
+import {scrollToCenter} from "../scroll-reveal.js";
 
 /**
  * The caret's client rect at the edge of the current selection that the arrow key
@@ -226,7 +235,11 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	// Focus and position cursor when entering edit mode
 	useEffect(() => {
 		if (isEditing && contentRef.current) {
-			contentRef.current.focus({preventScroll: !focusScrolls(nodeId)});
+			const centers = focusCenters(nodeId);
+			contentRef.current.focus({preventScroll: !focusScrolls(nodeId) || centers});
+			if (centers) {
+				scrollToCenter(contentRef.current);
+			}
 			nameSaver.reset(storedEditorHtml);
 
 			const {editingId, editingCaretOffset} = useOutlineStore.getState();
@@ -702,10 +715,8 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		const allSiblings = sortByPriority(readChildren(queryClient, parentId) ?? []);
 		const listed = allSiblings.find((sibling) => sibling.id === nodeId);
 		const visibleSiblings = allSiblings.filter((sibling) => sibling.id === nodeId || visible.has(sibling.id));
-		// Unknown children count as children: never treat an unloaded subtree as empty.
 		const children = readChildren(queryClient, nodeId);
-		const hasChildren = children ? children.length > 0 : listed?.hasChildren !== false;
-		const note = readDetail(queryClient, nodeId)?.note ?? listed?.note ?? "";
+		const grandparent = parentId === null ? undefined : readNode(queryClient, parentId)?.parent_id;
 		const html = serializeEditorHtml(content.innerHTML);
 		const outdent = planOutdent(queryClient, {id: nodeId, parent_id: parentId, priority}, zoomedNodeId);
 		const plan = planSplit({
@@ -716,16 +727,25 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 					allSiblings.findIndex((sibling) => sibling.id === nodeId),
 					0,
 				),
-				layoutMode: listed?.data.layoutMode,
 				hasVisibleChildren: (children ?? []).some((child) => visible.has(child.id)),
 				isExpanded: expandedIds.has(nodeId),
 				isZoomRoot: nodeId === zoomedNodeId,
-				isEmpty: content.textContent === "" && !note && !hasChildren,
+				isEmpty: isEmptyForReturn({
+					text: content.textContent,
+					layoutMode: listed?.data.layoutMode,
+					hasFile: Boolean(listed?.attachment),
+					isCalendarContainer: Boolean(listed?.calendar),
+					isTableCell:
+						grandparent !== null &&
+						grandparent !== undefined &&
+						readNode(queryClient, grandparent)?.data.layoutMode === "table",
+				}),
 				hasNextSibling: visibleSiblings.at(-1)?.id !== nodeId,
 				canOutdent: outdent !== null,
 			},
 			html,
 			selection: selectionTextOffsets(content),
+			shapeLayout: listed === undefined ? null : rowShapeLayout(queryClient, listed),
 		});
 
 		if (plan.kind === "outdent") {
@@ -848,6 +868,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 					hasNote: Boolean(readDetail(queryClient, node.id)?.note ?? node.note),
 					completed: node.completedAt !== null,
 					isMirror: node.isMirror === true,
+					hasMirrors: node.hasMirrors === true,
 					layoutMode: node.data.layoutMode,
 				};
 			};

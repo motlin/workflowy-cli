@@ -71,27 +71,82 @@ export interface AddChildPlan {
 	parent_id: string | undefined;
 	index: number;
 	name: string;
-	layoutMode: "todo" | null;
+	layoutMode: string | null;
+}
+
+/**
+ * Upstream `Item.shape` for one source row: the layout a new row next to it takes. Headings become paragraphs,
+ * numbered and todo rows repeat, a bullet stores nothing, and any other layout (board, table, quote, code, divider,
+ * dashboard) defers to `fallback`.
+ */
+export function shapeLayoutFor(
+	source: {layoutMode: string | null | undefined},
+	fallback: () => string | null,
+): string | null {
+	switch (source.layoutMode ?? "bullets") {
+		case "h1":
+		case "h2":
+		case "h3":
+		case "p":
+			return "p";
+		case "numbered":
+			return "numbered";
+		case "todo":
+			return "todo";
+		case "bullets":
+			return null;
+		default:
+			return fallback();
+	}
+}
+
+/**
+ * The shape a row gives a new neighbor, read from the cache: `shapeLayoutFor` with upstream's fallback, the previous
+ * sibling's shape, else the parent's, and null at the root.
+ */
+export function rowShapeLayout(queryClient: QueryClient, node: NodeResponse): string | null {
+	return shapeLayoutFor(node.data, () => {
+		const siblings = sortByPriority(readChildren(queryClient, node.parent_id) ?? []);
+		const previous = siblings[siblings.findIndex((sibling) => sibling.id === node.id) - 1];
+		if (previous !== undefined) {
+			return rowShapeLayout(queryClient, previous);
+		}
+		const parent = node.parent_id === null ? undefined : readNode(queryClient, node.parent_id);
+		return parent === undefined ? null : rowShapeLayout(queryClient, parent);
+	});
+}
+
+/** The shape of a new last child of `parentId`: the previous visible row's, else the parent's, else none. */
+export function lastChildShapeLayout(
+	queryClient: QueryClient,
+	parentId: string | null,
+	lastVisible: NodeResponse | undefined,
+): string | null {
+	if (lastVisible !== undefined) {
+		return rowShapeLayout(queryClient, lastVisible);
+	}
+	const parent = parentId === null ? undefined : readNode(queryClient, parentId);
+	return parent === undefined ? null : rowShapeLayout(queryClient, parent);
 }
 
 /**
  * Plan the "+" add-child button: the new node goes in the bottom slot (`index` =
- * child count) and is shaped like the previous visible row, inheriting `todo`.
+ * child count) and takes the shape the caller computed from the previous visible row.
  */
 export function planAddChild({
 	childCount,
 	zoomedId,
-	prevVisibleLayout,
+	shapeLayout,
 }: {
 	childCount: number;
 	zoomedId: string | null;
-	prevVisibleLayout: string | null | undefined;
+	shapeLayout: string | null;
 }): AddChildPlan {
 	return {
 		parent_id: zoomedId ?? undefined,
 		index: childCount,
 		name: "",
-		layoutMode: prevVisibleLayout === "todo" ? "todo" : null,
+		layoutMode: shapeLayout,
 	};
 }
 
@@ -112,12 +167,27 @@ export function planAddSibling({owner, siblings}: {owner: PlanNode; siblings: Pl
 	return {parent_id: owner.parent_id ?? undefined, name: "", index: ownerIndex + 1};
 }
 
-/** The row state `planSplit` reads. `isEmpty` = empty name AND no note AND no children. */
+/**
+ * Upstream `item:is-empty` with the name-only default: the NAME is empty, whatever the note or children hold. A
+ * divider, a file row, a calendar container and a table cell are never empty.
+ */
+export function isEmptyForReturn(row: {
+	text: string;
+	layoutMode: string | null | undefined;
+	hasFile: boolean;
+	isCalendarContainer: boolean;
+	isTableCell: boolean;
+}): boolean {
+	return (
+		row.text === "" && row.layoutMode !== "divider" && !row.hasFile && !row.isCalendarContainer && !row.isTableCell
+	);
+}
+
+/** The row state `planSplit` reads. `isEmpty` = empty NAME (see `isEmptyForReturn`). */
 export interface SplitNode {
 	id: string;
 	parent_id: string | null;
 	index: number;
-	layoutMode: string | null | undefined;
 	hasVisibleChildren: boolean;
 	isExpanded: boolean;
 	isZoomRoot: boolean;
@@ -137,7 +207,7 @@ export type SplitPlan =
 			newName: string;
 			currentName: string;
 			focus: "new" | "current";
-			layoutMode: "todo" | null;
+			layoutMode: string | null;
 	  };
 
 /**
@@ -150,22 +220,24 @@ export function planSplit({
 	node,
 	html,
 	selection,
+	shapeLayout,
 }: {
 	node: SplitNode;
 	html: string;
 	selection: {start: number; end: number};
+	/** The new row's layout, from `rowShapeLayout` of the split row. */
+	shapeLayout: string | null;
 }): SplitPlan {
 	if (node.isEmpty && !node.hasNextSibling && node.canOutdent && !node.isZoomRoot) {
 		return {kind: "outdent"};
 	}
-	const layoutMode = node.layoutMode === "todo" ? "todo" : null;
 	const create = (
 		parentId: string | null,
 		index: number,
 		newName: string,
 		currentName: string,
 		focus: "new" | "current",
-	): SplitPlan => ({kind: "create", parentId, index, newName, currentName, focus, layoutMode});
+	): SplitPlan => ({kind: "create", parentId, index, newName, currentName, focus, layoutMode: shapeLayout});
 
 	if (node.isZoomRoot) {
 		return create(node.id, 0, "", html, "new");
@@ -188,7 +260,7 @@ export function planSplit({
 /** One step of carrying out a split plan, in order. */
 export type SplitMutation =
 	| {type: "update"; nodeId: string; name: string}
-	| {type: "create"; parent_id: string | null; index: number; name: string; layoutMode: "todo" | null}
+	| {type: "create"; parent_id: string | null; index: number; name: string; layoutMode: string | null}
 	| {type: "edit"; target: "new" | "current"; caret: 0};
 
 /**
@@ -218,6 +290,8 @@ export interface MergeRow {
 	hasNote: boolean;
 	completed: boolean;
 	isMirror: boolean;
+	/** The row is an original that mirrors point to. */
+	hasMirrors: boolean;
 	layoutMode: string | null | undefined;
 }
 
@@ -226,8 +300,8 @@ export type MergePlan = {kind: "none"} | {kind: "merge"; keepId: string; deleteI
 
 /**
  * Merge `absorbed` (deleted) into `kept`, which keeps its id, children, and note. Refused
- * unless `absorbed` is a plain leaf (no children, note, completion, mirror, or board) with
- * the same layout as `kept`.
+ * unless `absorbed` is a plain leaf (no children, note, or completion) with the same layout as
+ * `kept`, and neither row is a board, a mirror, or a mirrored original.
  */
 function planMerge(first: MergeRow, second: MergeRow, absorbed: MergeRow, kept: MergeRow): MergePlan {
 	const refused =
@@ -235,7 +309,11 @@ function planMerge(first: MergeRow, second: MergeRow, absorbed: MergeRow, kept: 
 		absorbed.hasNote ||
 		absorbed.completed ||
 		absorbed.isMirror ||
+		kept.isMirror ||
+		absorbed.hasMirrors ||
+		kept.hasMirrors ||
 		absorbed.layoutMode === "board" ||
+		kept.layoutMode === "board" ||
 		(absorbed.layoutMode ?? null) !== (kept.layoutMode ?? null);
 	if (refused) {
 		return {kind: "none"};
@@ -607,20 +685,32 @@ export function nextPotentiallyVisibleSibling(
 }
 
 /**
- * Upstream `focus_next_sibling` / `focus_prev_sibling`: where the caret goes. With no current row, or on the
- * zoomed title, next goes to the zoomed page's first visible child; otherwise the caret steps to the current row's
- * potentially visible sibling (`siblings`, in order), skipping children. Previous never reaches the title.
+ * Upstream `focus_next_sibling` / `focus_prev_sibling`: where the caret goes. With no current row, either key goes to
+ * the first child in the viewport. On the zoomed title, next goes to the zoomed page's first visible child; otherwise
+ * the caret steps to the current row's focusable sibling (`siblings`, in order), skipping children. Previous never
+ * reaches the title.
  */
 export function planFocusSibling(
 	{
 		zoomedId,
 		currentId,
 		firstChildId,
+		firstInViewChildId,
 		siblings,
-	}: {zoomedId: string | null; currentId: string | null; firstChildId: string | null; siblings: readonly string[]},
+	}: {
+		zoomedId: string | null;
+		currentId: string | null;
+		firstChildId: string | null;
+		/** The first focusable child of the zoom root whose row is in the viewport. */
+		firstInViewChildId: string | null;
+		siblings: readonly string[];
+	},
 	step: -1 | 1,
 ): string | null {
-	if (currentId === null || currentId === zoomedId) {
+	if (currentId === null) {
+		return firstInViewChildId;
+	}
+	if (currentId === zoomedId) {
 		return step === 1 ? firstChildId : null;
 	}
 	const index = siblings.indexOf(currentId);

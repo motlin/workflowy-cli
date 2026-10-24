@@ -9,7 +9,7 @@ import {childInstance, isCyclical} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
 import {bulletClickAction, nodeUrl, useNodeNavigation} from "../navigation.js";
-import {clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
+import {bulletInSelection, clearSelectionFromBullet, useContentMouseDown} from "../hooks/use-drag-select.js";
 import {useBulletDrag} from "../hooks/use-bullet-drag.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
 import {useMoveTo} from "../hooks/use-move-to.js";
@@ -67,15 +67,25 @@ interface NodeBulletProps {
 	onMouseDown: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 	/** A plain press that did not become a drag; a selected row's bullet clears the selection instead. */
 	onZoom: () => void;
-	onClearSelection: () => boolean;
+	isInSelection: () => boolean;
+	onClearSelection: () => void;
 }
 
 /**
  * The zoom bullet: upstream's `a.bullet > span.bulletHalo > svg`. A collapsed
  * parent shows the halo; a mirror renders a diamond. A press that does not
- * become a drag, or Enter, zooms in. A plain element, not a component, so a resting row mounts no fiber for it.
+ * become a drag zooms in. A plain element, not a component, so a resting row mounts no fiber for it.
  */
-function nodeBullet({nodeId, isMirror, showHalo, keepBullet, onMouseDown, onZoom, onClearSelection}: NodeBulletProps) {
+function nodeBullet({
+	nodeId,
+	isMirror,
+	showHalo,
+	keepBullet,
+	onMouseDown,
+	onZoom,
+	isInSelection,
+	onClearSelection,
+}: NodeBulletProps) {
 	const className = ["bullet", isMirror && "diamond", showHalo && "bullet--show-halo", keepBullet && "keep-bullet"]
 		.filter(Boolean)
 		.join(" ");
@@ -89,24 +99,23 @@ function nodeBullet({nodeId, isMirror, showHalo, keepBullet, onMouseDown, onZoom
 			onMouseDown={onMouseDown}
 			onClick={(event) => {
 				event.stopPropagation();
-				if (bulletClickAction(event) === "browser") {
+				// Only a press the drag armed and released before moving 3px acts; a finished drag does not.
+				const armed = event.currentTarget.dataset.preDragClick === "true";
+				delete event.currentTarget.dataset.preDragClick;
+				const action = bulletClickAction({
+					metaKey: event.metaKey,
+					ctrlKey: event.ctrlKey,
+					button: event.button,
+					armed,
+					inSelection: isInSelection(),
+				});
+				if (action === "browser") {
 					return;
 				}
 				event.preventDefault();
-				// Only a press the drag armed and released before moving 3px zooms; a finished drag does not.
-				if (event.currentTarget.dataset.preDragClick !== "true") {
-					return;
-				}
-				delete event.currentTarget.dataset.preDragClick;
-				// A selected row's bullet clears the selection and stays put.
-				if (onClearSelection()) {
-					return;
-				}
-				onZoom();
-			}}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
+				if (action === "clear-selection") {
+					onClearSelection();
+				} else if (action === "zoom") {
 					onZoom();
 				}
 			}}
@@ -332,7 +341,10 @@ function NodeName({
 				keepBullet: hasChildren && !isExpanded,
 				onMouseDown: handleBulletMouseDown,
 				onZoom: zoomIn,
-				onClearSelection: () => clearSelectionFromBullet(queryClient, node.id),
+				isInSelection: () => bulletInSelection(queryClient, node.id),
+				onClearSelection: () => {
+					clearSelectionFromBullet(queryClient, node.id);
+				},
 			})}
 			{itemPrefix(prefixPieces)}
 			{/* Upstream's `ui.item.name.afterbegin` friendly day name; mounted only on day rows to keep other rows cheap. */}

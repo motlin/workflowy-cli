@@ -21,7 +21,9 @@ export function shortId(id: string): string {
 export function locationUrl({id, query, fragments = {}}: LocationInput): string {
 	const params = [
 		...(query ? [`q=${encodeURIComponent(query)}`] : []),
-		...Object.entries(fragments).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`),
+		...Object.entries(fragments).map(([key, value]) =>
+			value === "" ? encodeURIComponent(key) : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+		),
 	];
 	const path = id === null ? "" : `/${shortId(id)}`;
 	if (params.length === 0) {
@@ -30,15 +32,13 @@ export function locationUrl({id, query, fragments = {}}: LocationInput): string 
 	return `/#${path}?${params.join("&")}`;
 }
 
-/** Mirrors upstream's parser: strip `#` or `#/`, split on the first `?`, empty id means home. */
+/** Mirrors upstream's parser: strip `#` or `#/`, keep the text between the first and second `?`, empty id means home. */
 export function parseLocationHash(hash: string): Location {
 	const body = hash.replace(/^#\/?/u, "");
-	const separator = body.indexOf("?");
-	const rawId = separator === -1 ? body : body.slice(0, separator);
-	const search = separator === -1 ? "" : body.slice(separator + 1);
+	const [rawId = "", search = ""] = body.split("?");
 	let query: string | null = null;
 	const fragments: Record<string, string> = {};
-	for (const [key, value] of new URLSearchParams(search.replaceAll("+", "%2B"))) {
+	for (const [key, value] of new URLSearchParams(search)) {
 		if (key === "q") {
 			query = value === "" ? null : value;
 		} else {

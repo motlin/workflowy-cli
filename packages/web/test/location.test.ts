@@ -60,3 +60,17 @@ describe("parseLocationHash", () => {
 		expect(parseLocationHash("#?q=a%20b%26c")).toStrictEqual({id: null, query: "a b&c", fragments: {}});
 	});
 });
+
+describe("upstream URL edge cases", () => {
+	it("reads + in a query as a space, as URLSearchParams does", () => {
+		expect(parseLocationHash("#/abc?q=a+b")).toStrictEqual({id: "abc", query: "a b", fragments: {}});
+	});
+
+	it("keeps only the text between the first and second ?", () => {
+		expect(parseLocationHash("#/abc?q=x?y=1")).toStrictEqual({id: "abc", query: "x", fragments: {}});
+	});
+
+	it("writes a fragment with an empty value as the bare key", () => {
+		expect(locationUrl({id: null, fragments: {flag: ""}})).toBe("/#?flag");
+	});
+});

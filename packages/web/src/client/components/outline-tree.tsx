@@ -29,7 +29,7 @@ import {rootSearchClasses, shouldRenderAddChildButton} from "../search-classes.j
 import {useOutlineStore} from "../stores/outline.js";
 import {SearchFilterContext, useOutlineSearchFilter} from "../search-filter-context.js";
 import {useShallow} from "zustand/react/shallow";
-import {planAddChild, planAddSibling} from "../tree-ops.js";
+import {lastChildShapeLayout, planAddChild, planAddSibling} from "../tree-ops.js";
 import {expandArrow} from "./expand-arrow.js";
 import {FaIcon} from "./fa-icons.js";
 import {IconButton} from "./icon-button.js";
@@ -75,6 +75,7 @@ const ADD_CHILD_CONTAINER_CLASS = "mt-m mobile:ml-[-6px] [.item--zooming-in-prog
  * built-in hooks so tests can invoke its click handler directly.
  */
 export function AddChildButton({parentId}: {parentId: string | null}) {
+	const queryClient = useQueryClient();
 	const createNode = useCreateNode();
 	const {data: nodes} = useChildren(parentId);
 	const showCompleted = useOutlineStore((state) => state.showCompleted);
@@ -86,7 +87,7 @@ export function AddChildButton({parentId}: {parentId: string | null}) {
 		const plan = planAddChild({
 			childCount: children.length,
 			zoomedId: parentId,
-			prevVisibleLayout: visible.at(-1)?.data.layoutMode,
+			shapeLayout: lastChildShapeLayout(queryClient, parentId, visible.at(-1)),
 		});
 		// A client-generated id lets the caret enter the new row now, not after the round-trip;
 		// blurring the button keeps Space/Enter typed meanwhile from clicking it again.
@@ -436,6 +437,7 @@ const FOUND_DATES_CLASS = "font-custom project open [&_>.name>.itemMenu]:hidden 
  */
 function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDateItem[]; depth: number}) {
 	const [isExpanded, setIsExpanded] = useState(true);
+	const queryClient = useQueryClient();
 	const createNode = useCreateNode();
 	const {data: dayChildren} = useChildren(dayId);
 	const resumeEditing = useOutlineStore((state) => state.resumeEditing);
@@ -444,7 +446,7 @@ function FoundDatesSection({dayId, items, depth}: {dayId: string; items: FoundDa
 		const plan = planAddChild({
 			childCount: children.length,
 			zoomedId: dayId,
-			prevVisibleLayout: children.at(-1)?.data.layoutMode,
+			shapeLayout: lastChildShapeLayout(queryClient, dayId, children.at(-1)),
 		});
 		const id = crypto.randomUUID();
 		createNode.mutate({
@@ -736,7 +738,7 @@ export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTree
 			const addPlan = planAddChild({
 				childCount: (children.data ?? []).length,
 				zoomedId: parentId,
-				prevVisibleLayout: visible.at(-1)?.data.layoutMode,
+				shapeLayout: lastChildShapeLayout(queryClient, parentId, visible.at(-1)),
 			});
 			const id = crypto.randomUUID();
 			createNode.mutate({

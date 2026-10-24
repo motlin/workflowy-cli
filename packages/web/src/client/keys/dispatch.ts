@@ -26,6 +26,32 @@ export interface Command {
 /** Commands keyed by upstream command id (`zoom_in`, `complete`, ...). */
 export type CommandRegistry = Readonly<Record<string, Command>>;
 
+/** Upstream `print` (⌘P): open the browser's print dialog. */
+export function printCommand(
+	print: () => void = () => {
+		globalThis.print();
+	},
+): Command {
+	return {
+		execute: () => {
+			print();
+		},
+	};
+}
+
+/** Upstream `present_it` (⇧⌘P): expand the focused item, then open the presentation on the zoomed node (or the root). */
+export function presentCommand(deps: {open: (nodeId: string) => void; expand: (nodeId: string) => void}): Command {
+	return {
+		execute: (ctx) => {
+			const [item] = ctx.items;
+			if (item !== undefined) {
+				deps.expand(item);
+			}
+			deps.open(ctx.zoomedId ?? "root");
+		},
+	};
+}
+
 export type ComboResult = "claimed" | "unclaimed";
 
 /** Local-only bindings kept until the user decides: in-app history on ⌘[ / ⌘] (upstream binds it only in Electron). */

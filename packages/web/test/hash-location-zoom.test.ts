@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
-import {act, createElement} from "react";
+import {StrictMode, act, createElement} from "react";
 import {createRoot} from "react-dom/client";
 import type {Root} from "react-dom/client";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {MemoryRouter} from "react-router-dom";
+import {BrowserRouter, MemoryRouter} from "react-router-dom";
 import type {NodeResponse} from "../src/node-types.js";
 import {nodeKeys} from "../src/client/node-cache.js";
 import {useHashLocationZoom} from "../src/client/hooks/use-hash-location-zoom.js";
@@ -98,5 +98,34 @@ describe("useHashLocationZoom", () => {
 			globalThis.dispatchEvent(new PopStateEvent("popstate"));
 		});
 		expect({zoomed, requests}).toStrictEqual({zoomed: [BOB], requests: []});
+	});
+
+	it("pushes the canonical URL exactly once when effects re-run under StrictMode", () => {
+		globalThis.history.replaceState(null, "", `/#/${ALICE}`);
+		const before = globalThis.history.length;
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(nodeKeys.children(null), [treeRow(ALICE), treeRow(BOB)]);
+		function Probe() {
+			useHashLocationZoom();
+			return null;
+		}
+		root = createRoot(document.createElement("div"));
+		act(() => {
+			root?.render(
+				createElement(
+					StrictMode,
+					null,
+					createElement(
+						QueryClientProvider,
+						{client: queryClient},
+						createElement(BrowserRouter, null, createElement(Probe)),
+					),
+				),
+			);
+		});
+		expect({grew: globalThis.history.length - before, hash: globalThis.location.hash}).toStrictEqual({
+			grew: 1,
+			hash: "#/aaaaaaaaaaaa",
+		});
 	});
 });

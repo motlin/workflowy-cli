@@ -291,13 +291,14 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 
 	return useCallback(
 		(event: React.MouseEvent<HTMLAnchorElement>) => {
+			// Arm the click first, as upstream does, so a ⌘/Ctrl or other-button press still reaches the click handler.
+			event.currentTarget.dataset.preDragClick = "true";
 			// ⌘/Ctrl-click keeps the link's href.
 			if (event.button !== 0 || event.ctrlKey || event.metaKey) {
 				return;
 			}
 			event.preventDefault();
 			const bullet = event.currentTarget;
-			bullet.dataset.preDragClick = "true";
 			// Alt (duplicate) and Shift (mirror) drags are not built yet; the press still clicks to zoom.
 			if (event.altKey || event.shiftKey) {
 				return;

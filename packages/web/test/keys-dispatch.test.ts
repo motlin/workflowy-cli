@@ -5,6 +5,8 @@ import {
 	hotkeyTable,
 	keymapCombo,
 	listenForAppMessageKeys,
+	presentCommand,
+	printCommand,
 	processAppMessageCombo,
 	processCombo,
 	processSelectionKey,
@@ -327,5 +329,37 @@ describe("listenForAppMessageKeys", () => {
 			stopped: [],
 			removed: ["keydown"],
 		});
+	});
+});
+
+describe("print command", () => {
+	it("prints once on meta+p and leaves ctrl+p to the browser on mac", () => {
+		const print = vi.fn<() => void>();
+		expect({
+			meta: processCombo("meta+p", {print: printCommand(print)}, ctx, true),
+			afterMeta: print.mock.calls.length,
+			ctrl: processCombo("ctrl+p", {print: printCommand(print)}, ctx, true),
+			afterCtrl: print.mock.calls.length,
+		}).toStrictEqual({meta: "claimed", afterMeta: 1, ctrl: "unclaimed", afterCtrl: 1});
+	});
+});
+
+describe("present_it command", () => {
+	it("expands the focused item and opens the presentation on the zoomed node", () => {
+		const open = vi.fn<(nodeId: string) => void>();
+		const expand = vi.fn<(nodeId: string) => void>();
+		const registry = {present_it: presentCommand({open, expand})};
+		expect({
+			result: processCombo("meta+shift+p", registry, {items: ["a"], zoomedId: "z"}, true),
+			expand: expand.mock.calls,
+			open: open.mock.calls,
+		}).toStrictEqual({result: "claimed", expand: [["a"]], open: [["z"]]});
+	});
+
+	it("opens the root presentation and expands nothing with no focused item", () => {
+		const open = vi.fn<(nodeId: string) => void>();
+		const expand = vi.fn<(nodeId: string) => void>();
+		processCombo("meta+shift+p", {present_it: presentCommand({open, expand})}, {items: [], zoomedId: null}, true);
+		expect({expand: expand.mock.calls, open: open.mock.calls}).toStrictEqual({expand: [], open: [["root"]]});
 	});
 });

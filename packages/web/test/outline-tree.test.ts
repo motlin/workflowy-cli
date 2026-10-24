@@ -4,6 +4,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vite-plus/test";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import type * as ReactQuery from "@tanstack/react-query";
 import type {NodeResponse} from "../src/node-types.js";
 import type {TreeSearchResult} from "../src/server/tree-search.js";
 import {nodeKeys} from "../src/client/node-cache.js";
@@ -64,6 +65,12 @@ vi.mock("../src/client/navigation.js", () => ({
 	nodeUrl: (nodeId: string) => `/#/${nodeId.slice(-12)}`,
 	useNodeNavigation: () => ({navigateToNode: () => {}}),
 }));
+// AddChildButton runs outside React in one test; `standaloneClient` stands in for its context client there.
+let standaloneClient: QueryClient | null = null;
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+	const actual = await importOriginal<typeof ReactQuery>();
+	return {...actual, useQueryClient: () => standaloneClient ?? actual.useQueryClient()};
+});
 vi.mock("../src/client/hooks/use-zoom-to.js", () => ({useZoomTo: () => async () => {}}));
 vi.mock("../src/client/hooks/use-nodes.js", async () => {
 	const {noopMutation} = await import("./helpers/stable-mutation.js");
@@ -496,7 +503,9 @@ describe("OutlineTree add-child button", () => {
 		const id = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 		vi.spyOn(crypto, "randomUUID").mockReturnValue(id);
 		const blur = vi.fn<() => void>();
+		standaloneClient = new QueryClient();
 		const element = AddChildButton({parentId: "alice"});
+		standaloneClient = null;
 		const button = (element.props as {children: {props: {onClick: (event: unknown) => void}}}).children;
 		button.props.onClick({currentTarget: {blur}});
 		expect({

@@ -188,12 +188,17 @@ export function useContentMouseDown(nodeId: string): (event: React.MouseEvent<HT
 	);
 }
 
+/** Whether the bullet's row is covered by the item selection. */
+export function bulletInSelection(queryClient: QueryClient, id: string): boolean {
+	const {itemSelection} = useOutlineStore.getState();
+	return itemSelection.entries.length > 0 && isCovered(itemSelection, currentSelectionView(queryClient).tree, id);
+}
+
 /** A bullet click on a selected row clears the selection instead of zooming; returns whether it did. */
 export function clearSelectionFromBullet(queryClient: QueryClient, id: string): boolean {
-	const {itemSelection, clearItemSelection} = useOutlineStore.getState();
-	if (itemSelection.entries.length === 0 || !isCovered(itemSelection, currentSelectionView(queryClient).tree, id)) {
+	if (!bulletInSelection(queryClient, id)) {
 		return false;
 	}
-	clearItemSelection();
+	useOutlineStore.getState().clearItemSelection();
 	return true;
 }

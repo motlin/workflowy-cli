@@ -17,3 +17,20 @@ export function focusScrolls(id: string): boolean {
 	quietId = null;
 	return false;
 }
+
+/** The row whose next editing focus centers it in the view. */
+let centerId: string | null = null;
+
+/** Center `id`'s row in the view when its editor next focuses (upstream `scrollTo`, used by ⌥⌘↓). */
+export function focusCenterNext(id: string): void {
+	centerId = id;
+}
+
+/** Whether `id`'s editor, focusing now, centers its row; the request is used up by the call. */
+export function focusCenters(id: string): boolean {
+	if (centerId !== id) {
+		return false;
+	}
+	centerId = null;
+	return true;
+}

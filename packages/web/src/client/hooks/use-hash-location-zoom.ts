@@ -106,7 +106,9 @@ export function useHashLocationZoom(): void {
 			query,
 			fragments: panes === undefined ? {} : {[PANES_FRAGMENT]: panes},
 		});
-		if (canonical !== currentUrl) {
+		// Also compared with the live URL, not just the render's: a re-run effect (StrictMode) or a second render before
+		// the router commits must not push the same canonical URL again.
+		if (canonical !== currentUrl && canonical !== globalThis.location.pathname + globalThis.location.hash) {
 			void navigate(canonical);
 		}
 	}, [currentUrl, navigate, panes, query, target, unknown, zoom]);

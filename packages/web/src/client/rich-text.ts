@@ -338,6 +338,32 @@ export function toggleAttr(html: string, start: number, end: number, attr: Inlin
 	return serializeTags(chars, toggled, tail);
 }
 
+export interface ItemField {
+	id: string;
+	field: "name" | "note";
+	html: string;
+}
+
+/**
+ * Upstream `toggleAttributeForItems`: the fields lacking `attr` get it (all fields lose it when none lacks it), each
+ * over its whole text. Empty fields are skipped.
+ */
+export function planItemsAttrToggle(fields: readonly ItemField[], attr: InlineAttr): ItemField[] {
+	const filled = fields.filter(({html}) => plainLength(html) > 0);
+	const lacking = filled.filter(({html}) => !hasAttr(html, 0, plainLength(html), attr));
+	return (lacking.length > 0 ? lacking : filled).map((entry) => ({
+		...entry,
+		html: toggleAttr(entry.html, 0, plainLength(entry.html), attr),
+	}));
+}
+
+/** Upstream's item-selection `toggle_code`: every non-empty field flips on its own. */
+export function planItemsCodeToggle(fields: readonly ItemField[]): ItemField[] {
+	return fields
+		.filter(({html}) => plainLength(html) > 0)
+		.map((entry) => ({...entry, html: toggleAttr(entry.html, 0, plainLength(entry.html), "code")}));
+}
+
 export function planInlineToggle(
 	html: string,
 	sel: {start: number; end: number},

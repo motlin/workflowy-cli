@@ -19,6 +19,8 @@ import {
 	planFocusSibling,
 	planOutdent,
 	planSplit,
+	isEmptyForReturn,
+	shapeLayoutFor,
 	planToggleComplete,
 	planVerticalMove,
 	cacheMoveTree,
@@ -495,22 +497,63 @@ describe("defaultIndexIn", () => {
 });
 
 describe("planAddChild", () => {
-	it("appends an empty last child that inherits a todo layout from the previous visible row", () => {
-		expect(planAddChild({childCount: 3, zoomedId: "z", prevVisibleLayout: "todo"})).toStrictEqual({
+	it("appends an empty last child with the shape the caller computed", () => {
+		expect(planAddChild({childCount: 3, zoomedId: "z", shapeLayout: "numbered"})).toStrictEqual({
 			parent_id: "z",
 			index: 3,
 			name: "",
-			layoutMode: "todo",
+			layoutMode: "numbered",
 		});
 	});
 
-	it("leaves the layout unset after a bullets row", () => {
-		expect(planAddChild({childCount: 3, zoomedId: "z", prevVisibleLayout: "bullets"})).toStrictEqual({
+	it("leaves the layout unset when the shape is none", () => {
+		expect(planAddChild({childCount: 3, zoomedId: "z", shapeLayout: null})).toStrictEqual({
 			parent_id: "z",
 			index: 3,
 			name: "",
 			layoutMode: null,
 		});
+	});
+});
+
+describe("shapeLayoutFor", () => {
+	it("maps each source layout to the new row's layout", () => {
+		const cases = ["h2", "p", "numbered", "todo", null, "bullets"] as const;
+		expect(cases.map((layoutMode) => shapeLayoutFor({layoutMode}, () => "x"))).toStrictEqual([
+			"p",
+			"p",
+			"numbered",
+			"todo",
+			null,
+			null,
+		]);
+	});
+
+	it("defers every other layout to the fallback", () => {
+		expect({
+			code: shapeLayoutFor({layoutMode: "code-block"}, () => "todo"),
+			board: shapeLayoutFor({layoutMode: "board"}, () => null),
+		}).toStrictEqual({code: "todo", board: null});
+	});
+});
+
+describe("isEmptyForReturn", () => {
+	const row = {text: "", layoutMode: null, hasFile: false, isCalendarContainer: false, isTableCell: false};
+
+	it("tests the name only", () => {
+		expect({
+			empty: isEmptyForReturn(row),
+			text: isEmptyForReturn({...row, text: "a"}),
+		}).toStrictEqual({empty: true, text: false});
+	});
+
+	it("never treats a divider, file row, calendar container or table cell as empty", () => {
+		expect([
+			isEmptyForReturn({...row, layoutMode: "divider"}),
+			isEmptyForReturn({...row, hasFile: true}),
+			isEmptyForReturn({...row, isCalendarContainer: true}),
+			isEmptyForReturn({...row, isTableCell: true}),
+		]).toStrictEqual([false, false, false, false]);
 	});
 });
 
@@ -561,7 +604,6 @@ describe("planSplit", () => {
 		id: "n",
 		parent_id: "p",
 		index: 4,
-		layoutMode: null,
 		hasVisibleChildren: false,
 		isExpanded: false,
 		isZoomRoot: false,
@@ -571,7 +613,9 @@ describe("planSplit", () => {
 	};
 
 	it("puts the text before a mid caret in a new row above and keeps the rest in the current row", () => {
-		expect(planSplit({node: base, html: "Bravo text", selection: {start: 5, end: 5}})).toStrictEqual({
+		expect(
+			planSplit({node: base, html: "Bravo text", selection: {start: 5, end: 5}, shapeLayout: null}),
+		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
 			index: 4,
@@ -583,7 +627,9 @@ describe("planSplit", () => {
 	});
 
 	it("creates an empty row after when the caret is at the end", () => {
-		expect(planSplit({node: base, html: "Bravo text", selection: {start: 10, end: 10}})).toStrictEqual({
+		expect(
+			planSplit({node: base, html: "Bravo text", selection: {start: 10, end: 10}, shapeLayout: null}),
+		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
 			index: 5,
@@ -595,7 +641,9 @@ describe("planSplit", () => {
 	});
 
 	it("treats a caret inside trailing whitespace as the end", () => {
-		expect(planSplit({node: base, html: "Bravo&nbsp; ", selection: {start: 5, end: 5}})).toStrictEqual({
+		expect(
+			planSplit({node: base, html: "Bravo&nbsp; ", selection: {start: 5, end: 5}, shapeLayout: null}),
+		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
 			index: 5,
@@ -607,7 +655,9 @@ describe("planSplit", () => {
 	});
 
 	it("creates an empty row above when the caret is at the start of a non-empty row", () => {
-		expect(planSplit({node: base, html: "Bravo text", selection: {start: 0, end: 0}})).toStrictEqual({
+		expect(
+			planSplit({node: base, html: "Bravo text", selection: {start: 0, end: 0}, shapeLayout: null}),
+		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
 			index: 4,
@@ -619,7 +669,9 @@ describe("planSplit", () => {
 	});
 
 	it("drops a selection and splits around it", () => {
-		expect(planSplit({node: base, html: "XyCharlie", selection: {start: 1, end: 3}})).toStrictEqual({
+		expect(
+			planSplit({node: base, html: "XyCharlie", selection: {start: 1, end: 3}, shapeLayout: null}),
+		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
 			index: 4,
@@ -636,6 +688,7 @@ describe("planSplit", () => {
 				node: {...base, hasVisibleChildren: true, isExpanded: true},
 				html: "Bravo text",
 				selection: {start: 10, end: 10},
+				shapeLayout: null,
 			}),
 		).toStrictEqual({
 			kind: "create",
@@ -650,7 +703,12 @@ describe("planSplit", () => {
 
 	it("creates an empty first child of the zoom root and keeps its full text", () => {
 		expect(
-			planSplit({node: {...base, isZoomRoot: true}, html: "<b>Bravo</b> text", selection: {start: 3, end: 3}}),
+			planSplit({
+				node: {...base, isZoomRoot: true},
+				html: "<b>Bravo</b> text",
+				selection: {start: 3, end: 3},
+				shapeLayout: null,
+			}),
 		).toStrictEqual({
 			kind: "create",
 			parentId: "n",
@@ -664,12 +722,19 @@ describe("planSplit", () => {
 
 	it("outdents an empty last child instead of creating a row", () => {
 		expect(
-			planSplit({node: {...base, isEmpty: true, hasNextSibling: false}, html: "", selection: {start: 0, end: 0}}),
+			planSplit({
+				node: {...base, isEmpty: true, hasNextSibling: false},
+				html: "",
+				selection: {start: 0, end: 0},
+				shapeLayout: null,
+			}),
 		).toStrictEqual({kind: "outdent"});
 	});
 
 	it("creates a row after an empty row that has a next sibling", () => {
-		expect(planSplit({node: {...base, isEmpty: true}, html: "", selection: {start: 0, end: 0}})).toStrictEqual({
+		expect(
+			planSplit({node: {...base, isEmpty: true}, html: "", selection: {start: 0, end: 0}, shapeLayout: null}),
+		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
 			index: 5,
@@ -686,6 +751,7 @@ describe("planSplit", () => {
 				node: {...base, isEmpty: true, hasNextSibling: false, canOutdent: false},
 				html: "",
 				selection: {start: 0, end: 0},
+				shapeLayout: null,
 			}),
 		).toStrictEqual({
 			kind: "create",
@@ -698,9 +764,9 @@ describe("planSplit", () => {
 		});
 	});
 
-	it("inherits a todo layout", () => {
+	it("creates the new row with the shape the caller computed", () => {
 		expect(
-			planSplit({node: {...base, layoutMode: "todo"}, html: "Bravo text", selection: {start: 10, end: 10}}),
+			planSplit({node: base, html: "Bravo text", selection: {start: 10, end: 10}, shapeLayout: "p"}),
 		).toStrictEqual({
 			kind: "create",
 			parentId: "p",
@@ -708,22 +774,19 @@ describe("planSplit", () => {
 			newName: "",
 			currentName: "Bravo text",
 			focus: "new",
-			layoutMode: "todo",
+			layoutMode: "p",
 		});
 	});
 
-	it("does not inherit a bullets layout", () => {
+	it("keeps the empty-name outdent whatever else the row holds", () => {
 		expect(
-			planSplit({node: {...base, layoutMode: "bullets"}, html: "Bravo text", selection: {start: 10, end: 10}}),
-		).toStrictEqual({
-			kind: "create",
-			parentId: "p",
-			index: 5,
-			newName: "",
-			currentName: "Bravo text",
-			focus: "new",
-			layoutMode: null,
-		});
+			planSplit({
+				node: {...base, isEmpty: true, hasNextSibling: false},
+				html: "",
+				selection: {start: 0, end: 0},
+				shapeLayout: "todo",
+			}),
+		).toStrictEqual({kind: "outdent"});
 	});
 });
 
@@ -771,7 +834,15 @@ describe("applySplitPlan", () => {
 });
 
 describe("planBackspaceAtStart / planDeleteAtEnd", () => {
-	const row = {html: "", hasChildren: false, hasNote: false, completed: false, isMirror: false, layoutMode: null};
+	const row = {
+		html: "",
+		hasChildren: false,
+		hasNote: false,
+		completed: false,
+		isMirror: false,
+		hasMirrors: false,
+		layoutMode: null,
+	};
 	const current = {...row, id: "cur", html: " text"};
 	const bravo = {...row, id: "bravo", html: "Bravo"};
 
@@ -810,6 +881,18 @@ describe("planBackspaceAtStart / planDeleteAtEnd", () => {
 				{...bravo, layoutMode: "todo"},
 			].map((previousSibling) => planBackspaceAtStart({current, previousSibling})),
 		).toStrictEqual([{kind: "none"}, {kind: "none"}, {kind: "none"}, {kind: "none"}]);
+	});
+
+	it("refuses when either side is a mirror, a mirrored original or a board", () => {
+		expect([
+			planBackspaceAtStart({current: {...current, isMirror: true}, previousSibling: bravo}),
+			planBackspaceAtStart({current, previousSibling: {...bravo, hasMirrors: true}}),
+			planBackspaceAtStart({current: {...current, hasMirrors: true}, previousSibling: bravo}),
+			planDeleteAtEnd({
+				current: {...row, id: "bravo", html: "Bravo", layoutMode: "board"},
+				nextSibling: {...row, id: "alpha", html: "Alpha", layoutMode: "board"},
+			}),
+		]).toStrictEqual([{kind: "none"}, {kind: "none"}, {kind: "none"}, {kind: "none"}]);
 	});
 
 	it("merges two todo rows", () => {
@@ -906,14 +989,20 @@ describe("nextPotentiallyVisibleSibling", () => {
 });
 
 describe("planFocusSibling", () => {
-	const base = {zoomedId: "z", firstChildId: "a", siblings: ["a", "b", "c"]};
+	const base = {zoomedId: "z", firstChildId: "a", firstInViewChildId: null, siblings: ["a", "b", "c"]};
 
-	it("focuses the first child going forward with no current row", () => {
-		expect(planFocusSibling({...base, currentId: null}, 1)).toBe("a");
+	it("focuses the first in-view child with no current row, in either direction", () => {
+		expect([
+			planFocusSibling({...base, currentId: null, firstInViewChildId: "b"}, 1),
+			planFocusSibling({...base, currentId: null, firstInViewChildId: "b"}, -1),
+		]).toStrictEqual(["b", "b"]);
 	});
 
-	it("does nothing going backward with no current row", () => {
-		expect(planFocusSibling({...base, currentId: null}, -1)).toBeNull();
+	it("does nothing with no current row and no child in view", () => {
+		expect([
+			planFocusSibling({...base, currentId: null}, 1),
+			planFocusSibling({...base, currentId: null}, -1),
+		]).toStrictEqual([null, null]);
 	});
 
 	it("focuses the first child going forward from the zoomed title", () => {
@@ -940,8 +1029,8 @@ describe("planFocusSibling", () => {
 		expect(planFocusSibling({...base, currentId: "c"}, 1)).toBeNull();
 	});
 
-	it("does nothing going forward on an empty zoomed page", () => {
-		expect(planFocusSibling({...base, currentId: null, firstChildId: null, siblings: []}, 1)).toBeNull();
+	it("does nothing going forward from the title of an empty zoomed page", () => {
+		expect(planFocusSibling({...base, currentId: "z", firstChildId: null, siblings: []}, 1)).toBeNull();
 	});
 });
 

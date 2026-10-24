@@ -6,6 +6,8 @@ import {
 	pendingFormatApply,
 	plainLength,
 	planInlineToggle,
+	planItemsAttrToggle,
+	planItemsCodeToggle,
 	plainText,
 	serializeInline,
 	splitHtml,
@@ -205,5 +207,67 @@ describe("pendingFormatApply", () => {
 
 	it("escapes the typed character", () => {
 		expect(pendingFormatApply("a", 1, new Set(["b"]), "<")).toBe("a<b>&lt;</b>");
+	});
+});
+
+describe("planItemsAttrToggle", () => {
+	it("sets the attribute on a plain field and removes it when every field has it", () => {
+		expect({
+			set: planItemsAttrToggle([{id: "a", field: "name", html: "Bravo"}], "b"),
+			remove: planItemsAttrToggle([{id: "a", field: "name", html: "<b>Bravo</b>"}], "b"),
+		}).toStrictEqual({
+			set: [{id: "a", field: "name", html: "<b>Bravo</b>"}],
+			remove: [{id: "a", field: "name", html: "Bravo"}],
+		});
+	});
+
+	it("sets only the fields lacking the attribute when the selection is mixed", () => {
+		expect(
+			planItemsAttrToggle(
+				[
+					{id: "a", field: "name", html: "<b>A</b>"},
+					{id: "c", field: "name", html: "C"},
+				],
+				"b",
+			),
+		).toStrictEqual([{id: "c", field: "name", html: "<b>C</b>"}]);
+	});
+
+	it("includes notes and skips empty fields", () => {
+		expect(
+			planItemsAttrToggle(
+				[
+					{id: "a", field: "note", html: "n"},
+					{id: "b", field: "name", html: ""},
+				],
+				"i",
+			),
+		).toStrictEqual([{id: "a", field: "note", html: "<i>n</i>"}]);
+	});
+});
+
+describe("planItemsCodeToggle", () => {
+	it("flips each field independently", () => {
+		expect(
+			planItemsCodeToggle([
+				{id: "a", field: "name", html: "<code>A</code>"},
+				{id: "c", field: "name", html: "C"},
+			]),
+		).toStrictEqual([
+			{id: "a", field: "name", html: "A"},
+			{id: "c", field: "name", html: "<code>C</code>"},
+		]);
+	});
+
+	it("wraps the name and the note of one item separately", () => {
+		expect(
+			planItemsCodeToggle([
+				{id: "n", field: "name", html: "note row"},
+				{id: "n", field: "note", html: "note <code>n code</code>"},
+			]),
+		).toStrictEqual([
+			{id: "n", field: "name", html: "<code>note row</code>"},
+			{id: "n", field: "note", html: "<code>note n code</code>"},
+		]);
 	});
 });

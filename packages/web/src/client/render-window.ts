@@ -1,5 +1,6 @@
 import type {NodeResponse} from "../node-types.js";
 import {isPotentiallyVisible} from "./tree-ops.js";
+import {sortByPriority} from "./tree-position.js";
 import type {SearchFilter} from "./search-filter.js";
 import type {MirrorInstance} from "../mirror-path.js";
 import {childInstance, instanceKey, isCyclical} from "../mirror-path.js";
@@ -52,6 +53,19 @@ function rendersRow(
 		isPotentiallyVisible(node, searchShowsCompleted(showCompleted, search), animatingCompletionIds) &&
 		(search === null || searchShowsNode(node, search))
 	);
+}
+
+/**
+ * The ids of `nodes` a sibling-focus command can reach, in priority order: the rows that render, so a search that hides
+ * a sibling (or completion that hides one) never gets the caret.
+ */
+export function focusableSiblingIds(
+	nodes: readonly NodeResponse[] | undefined,
+	view: {showCompleted: boolean; animatingCompletionIds: ReadonlySet<string>; search: SearchFilter | null},
+): string[] {
+	return sortByPriority([...(nodes ?? [])])
+		.filter((node) => rendersRow(node, view.showCompleted, view.animatingCompletionIds, view.search))
+		.map((node) => node.id);
 }
 
 /**

@@ -117,16 +117,17 @@ async function zoomTo(
 				scrollPaneToTop(scrolledPaneId ?? MAIN_PANE_ID);
 			},
 		});
+		// The zoom-out animation hides the row until it ends, so the caret is set after it, as upstream does.
+		if (animate && isOut) {
+			await waitForZoomRow(movingId);
+			await runZoomAnimation(true, movingId);
+		}
 		if (plan.editId !== null) {
 			await afterNextPaint();
 			const after = useOutlineStore.getState();
 			if (after.editingId === null && activeZoomedId(after) === destination) {
 				resumeEditing(plan.editId, plan.offset);
 			}
-		}
-		if (animate && isOut) {
-			await waitForZoomRow(movingId);
-			await runZoomAnimation(true, movingId);
 		}
 	} finally {
 		if (animate) {
