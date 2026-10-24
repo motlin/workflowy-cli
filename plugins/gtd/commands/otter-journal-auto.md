@@ -67,7 +67,7 @@ The main thread records each answer and creates nothing itself. Creation stays i
 
 Once every flag on the held page has a decision, rerun this command right away. If the user wants to wait, the next daily review's Auto run picks the decisions up instead. The scanner reads the file during title preflight, so a decided otid no longer holds the page. It creates the approved entries, skips the skipped ones, and advances the cursor. URL dedup still prevents duplicates. A recording with no decision still flags as before.
 
-When the user confirms a flagged attendee was in the meeting, offer in a follow-up question to tag that person as a speaker in Otter. Otter learns a voice from tagged blocks and then labels that person in future recordings by itself, which stops the same flag from coming back. A few big blocks are enough:
+When the user confirms a flagged attendee was in the meeting, offer in a follow-up question to tag that person as a speaker in Otter. Word the options with the actor named, not bare "I" or "you": "Claude will tag it" or "the user will tag it". Otter learns a voice from tagged blocks and then labels that person in future recordings by itself, which stops the same flag from coming back. A few big blocks are enough:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/otter-api.sh speaker-blocks <otid> [count]
