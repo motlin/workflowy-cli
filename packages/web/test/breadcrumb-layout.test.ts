@@ -4,6 +4,7 @@ import {
 	crumbInputsFromKey,
 	crumbInputsKey,
 	measureCrumbLabel,
+	paneCrumbOptions,
 } from "../src/client/breadcrumb-layout.js";
 import type {CrumbInput} from "../src/client/breadcrumb-layout.js";
 
@@ -162,5 +163,15 @@ describe("crumbInputsKey", () => {
 	it("gives equal trails equal keys and different trails different keys", () => {
 		expect(crumbInputsKey(crumbs(["Home", "a"]))).toBe(crumbInputsKey(crumbs(["Home", "a"])));
 		expect(crumbInputsKey(crumbs(["Home", "a"]))).not.toBe(crumbInputsKey(crumbs(["Home", "b"])));
+	});
+});
+
+describe("paneCrumbOptions", () => {
+	it("uses regular sizes from 500px and compact sizes below", () => {
+		expect([paneCrumbOptions(500), paneCrumbOptions(450), paneCrumbOptions(300)]).toStrictEqual([
+			{sizes: {rightMargin: 8, itemGap: 18, ellipsisWidth: 28}, maxWidth: 140, threeDotPosition: "left"},
+			{sizes: {rightMargin: 4, itemGap: 14, ellipsisWidth: 28}, maxWidth: 190, threeDotPosition: "left"},
+			{sizes: {rightMargin: 4, itemGap: 14, ellipsisWidth: 28}, maxWidth: 120, threeDotPosition: "left"},
+		]);
 	});
 });

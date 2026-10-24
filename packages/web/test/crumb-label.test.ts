@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vite-plus/test";
-import {crumbLabel, friendlyPrefix} from "../src/client/crumb-label.js";
+import {crumbLabel} from "../src/client/crumb-label.js";
 
 const SEP_4 = '<time startYear="2026" startMonth="9" startDay="4">Fri, Sep 4, 2026</time>';
 
@@ -22,24 +22,42 @@ describe("crumbLabel", () => {
 		expect(crumbLabel(SEP_4, {now: new Date(2026, 9, 1)})).toBe("2026-09-04 Fri");
 	});
 
-	it("prefixes Today for a single-day name on the current day", () => {
-		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 4)})).toBe("Today, 2026-09-04 Fri");
+	it("adds no day prefix without calendar day info", () => {
+		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 4)})).toBe("2026-09-04 Fri");
 	});
 
-	it("prefixes Yesterday for a single-day name on the previous day", () => {
-		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 5)})).toBe("Yesterday, 2026-09-04 Fri");
+	it("prefixes Today for a calendar day node on the current day", () => {
+		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 4), dayDateId: 20_260_904, dayPrefix: true})).toBe(
+			"Today, 2026-09-04 Fri",
+		);
 	});
 
-	it("prefixes Tomorrow for a single-day name on the next day", () => {
-		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 3, 23, 59)})).toBe("Tomorrow, 2026-09-04 Fri");
+	it("prefixes Yesterday for a calendar day node on the previous day", () => {
+		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 5), dayDateId: 20_260_904, dayPrefix: true})).toBe(
+			"Yesterday, 2026-09-04 Fri",
+		);
 	});
 
-	it("omits the prefix when dayPrefix is false", () => {
-		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 4), dayPrefix: false})).toBe("2026-09-04 Fri");
+	it("prefixes Tomorrow for a calendar day node on the next day", () => {
+		expect(crumbLabel(SEP_4, {now: new Date(2026, 8, 3, 23, 59), dayDateId: 20_260_904, dayPrefix: true})).toBe(
+			"Tomorrow, 2026-09-04 Fri",
+		);
 	});
 
-	it("omits the prefix when the <time> is embedded in other text", () => {
-		expect(crumbLabel(`Party ${SEP_4}`, {now: new Date(2026, 8, 4)})).toBe("Party 2026-09-04 Fri");
+	it("omits the prefix when dayPrefix is false or unset", () => {
+		expect([
+			crumbLabel(SEP_4, {now: new Date(2026, 8, 4), dayDateId: 20_260_904, dayPrefix: false}),
+			crumbLabel(SEP_4, {now: new Date(2026, 8, 4), dayDateId: 20_260_904}),
+		]).toStrictEqual(["2026-09-04 Fri", "2026-09-04 Fri"]);
+	});
+
+	it("formats a time-of-day pill with the time format", () => {
+		expect(
+			crumbLabel('<time startYear="2026" startMonth="10" startDay="24" startHour="9" startMinute="0">x</time>', {
+				now: new Date(2026, 9, 23),
+				timeFormat: "HH:mm",
+			}),
+		).toBe("09:00 on 2026-10-24 Sat");
 	});
 
 	it("honors a custom date format", () => {
@@ -57,19 +75,6 @@ describe("crumbLabel", () => {
 
 	it("returns an empty string for an empty name", () => {
 		expect(crumbLabel("", {now: new Date(2026, 9, 1)})).toBe("");
-	});
-});
-
-describe("friendlyPrefix", () => {
-	const date = new Date(2026, 8, 4);
-
-	it("names adjacent days and returns null otherwise", () => {
-		expect([
-			friendlyPrefix(date, new Date(2026, 8, 5, 8)),
-			friendlyPrefix(date, new Date(2026, 8, 4, 23)),
-			friendlyPrefix(date, new Date(2026, 8, 3)),
-			friendlyPrefix(date, new Date(2026, 8, 6)),
-		]).toStrictEqual(["Yesterday", "Today", "Tomorrow", null]);
 	});
 });
 

@@ -129,7 +129,14 @@ vi.mock("../src/client/components/icon-button.js", async (importOriginal) => {
 });
 
 /** The pane header's breadcrumbs: records the zoom they show and where their clicks go. */
-const crumbProps: {nodeId: string | null; onNavigate?: (id: string | null) => void; scrollToTop?: () => void}[] = [];
+const crumbProps: {
+	nodeId: string | null;
+	onNavigate?: (id: string | null) => void;
+	scrollToTop?: () => void;
+	sizes?: unknown;
+	maxWidth?: number;
+	threeDotPosition?: string;
+}[] = [];
 vi.mock("../src/client/components/breadcrumbs.js", () => ({
 	Breadcrumbs: (props: (typeof crumbProps)[number]) => {
 		crumbProps.push(props);
@@ -268,6 +275,21 @@ describe("SidePanes", () => {
 			nodeId: "bob",
 			zoom: [`${B}:alice`, `${B}:home`],
 			scrolls: "function",
+		});
+	});
+
+	it("lays pane crumbs out with the pane's width, sizes and left collapse", () => {
+		crumbProps.length = 0;
+		render();
+		const crumbs = crumbProps.at(-1);
+		expect({
+			sizes: crumbs?.sizes,
+			maxWidth: crumbs?.maxWidth,
+			threeDotPosition: crumbs?.threeDotPosition,
+		}).toStrictEqual({
+			sizes: {rightMargin: 8, itemGap: 18, ellipsisWidth: 28},
+			maxWidth: 140,
+			threeDotPosition: "left",
 		});
 	});
 

@@ -1,7 +1,8 @@
 import {Fragment, useMemo, useRef, useState} from "react";
 import type {MouseEvent} from "react";
 import {createBreadcrumbLayout, crumbInputsFromKey, crumbInputsKey, measureCrumbLabel} from "../breadcrumb-layout.js";
-import type {LayoutCrumb} from "../breadcrumb-layout.js";
+import type {BreadcrumbLayoutOptions, LayoutCrumb} from "../breadcrumb-layout.js";
+import type {NodeResponse} from "../../node-types.js";
 import {crumbLabel as formatCrumbLabel} from "../crumb-label.js";
 import type {MentionAccount} from "../mention-pills.js";
 import {useCrumbZoomOut} from "../crumb-zoom.js";
@@ -23,6 +24,11 @@ export interface Crumb {
 	id: string;
 	isRoot: boolean;
 	name?: string | null;
+	/** `YYYYMMDD` when the node is a 📆 Calendar day node; the Friendly day prefix applies only then. */
+	dayDateId?: number | null;
+	layoutMode?: string | null;
+	/** The live attachment's MIME type, which picks the file icon. */
+	fileType?: string | null;
 }
 
 const ROOT_CRUMB: Crumb = {id: "None", isRoot: true};
@@ -107,16 +113,67 @@ function noop(): void {}
  */
 interface CrumbDateOptions {
 	dateFormat?: string;
+	timeFormat?: string | null;
 	dayPrefix?: boolean;
 	account?: MentionAccount;
 }
 
+/** An empty name stays empty, like upstream's empty anchor; the layout measures it as 0. */
 function crumbLabel(
-	name: string | null | undefined,
-	{dateFormat, dayPrefix = true, account = null}: CrumbDateOptions,
+	{name, dayDateId}: Pick<Crumb, "name" | "dayDateId">,
+	{dateFormat, timeFormat, dayPrefix, account = null}: CrumbDateOptions,
 ): string {
-	const label = formatCrumbLabel(name ?? "", {now: new Date(), dateFormat, dayPrefix, account});
-	return label === "" ? "Untitled" : label;
+	return formatCrumbLabel(name ?? "", {
+		now: new Date(),
+		dateFormat,
+		timeFormat: timeFormat ?? undefined,
+		dayDateId,
+		dayPrefix,
+		account,
+	});
+}
+
+const DIVIDER_CLASS = "min-w-l w-full h-px border-0 border-t border-solid border-color text-center m-0 mt-xs";
+
+function fileIconKey(fileType: string): "fal:file-audio" | "fal:file-video" | "fal:file-image" | "fal:file" {
+	if (fileType.startsWith("audio/")) {
+		return "fal:file-audio";
+	}
+	if (fileType.startsWith("video/")) {
+		return "fal:file-video";
+	}
+	if (fileType.startsWith("image/")) {
+		return "fal:file-image";
+	}
+	return "fal:file";
+}
+
+/** Upstream's `item:icon` decorators that reach crumbs: the file-type icon and the divider rule. */
+function CrumbIcon({crumb}: {crumb: Crumb}) {
+	if (crumb.layoutMode === "divider") {
+		return <hr className={DIVIDER_CLASS} />;
+	}
+	if (crumb.fileType === undefined || crumb.fileType === null) {
+		return null;
+	}
+	return (
+		<>
+			<FaIcon icon={fileIconKey(crumb.fileType)} style={{color: "var(--wf-text-tertiary)"}} />
+			{"\u00A0"}
+		</>
+	);
+}
+
+/** Crumb fields filled from an ancestor node. */
+function crumbOfNode(node: NodeResponse): Crumb {
+	return {
+		id: node.id,
+		isRoot: false,
+		name: node.name,
+		dayDateId: node.calendar?.level === "day" ? node.calendar.dateId : null,
+		layoutMode: node.data.layoutMode,
+		fileType: node.attachment?.isDeleted === false ? node.attachment.fileType : null,
+	};
 }
 
 function noLog(): void {}
@@ -160,7 +217,10 @@ function BreadcrumbItem({
 			<FaIcon icon="fal:house" size="lg" />
 		</IconButton>
 	) : (
-		crumbLabel(crumb.name, dateOptions)
+		<>
+			<CrumbIcon crumb={crumb} />
+			{crumbLabel(crumb, dateOptions)}
+		</>
 	);
 	const style = {maxWidth: truncateWidth === null ? undefined : truncateWidth};
 
@@ -201,9 +261,6 @@ function BreadcrumbItem({
 const HOME_LABEL = "Home";
 const OVERFLOW_MENU_GUTTER = 48;
 
-// Upstream header sizes are the layout defaults; measuring goes through the module export so tests can stub it.
-const layout = createBreadcrumbLayout({}, (label) => measureCrumbLabel(label));
-
 interface BreadcrumbOverflowMenuProps {
 	items: LayoutCrumb[];
 	crumbs: Map<string, Crumb>;
@@ -229,7 +286,7 @@ export function BreadcrumbOverflowMenu({
 	scrollToTop,
 }: BreadcrumbOverflowMenuProps) {
 	return (
-		<div className="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style={{maxWidth}}>
+		<div className={`max-w-[${maxWidth}px] flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu`}>
 			{items.map((item) => {
 				const crumb = crumbs.get(item.id);
 				return crumb === undefined ? null : (
@@ -271,10 +328,15 @@ interface BreadcrumbsProps {
 	onNavigate?: (nodeId: string | null) => void;
 	/** The scroller a crumb click returns to the top; the window by default. */
 	scrollToTop?: () => void;
+	/** Layout sizes overriding the header defaults, as a side pane passes. */
+	sizes?: BreadcrumbLayoutOptions;
+	/** Width budget overriding the container's measured width. */
+	maxWidth?: number;
+	threeDotPosition?: "middle" | "left";
 }
 
 /** Upstream's header breadcrumbs: flat crumbs from Home to the zoomed node, truncated and middle-collapsed to fit. */
-export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps) {
+export function Breadcrumbs({nodeId, onNavigate, scrollToTop, sizes, maxWidth, threeDotPosition}: BreadcrumbsProps) {
 	const {navigateToNode: navigateMain, cancelSearch} = useNodeNavigation();
 	const crumbZoomOut = useCrumbZoomOut();
 	const mainSearchActive = useOutlineStore((state) => state.searchQuery !== "");
@@ -283,13 +345,13 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerLeft, containerWidth] = useContainerRect(containerRef);
 	const windowWidth = useWindowWidth();
-	const {dateFormat} = useDateSettings();
+	const {dateFormat, timeFormat} = useDateSettings();
 	const dayPrefix = useDayPrefix(ancestors?.find((node) => node.calendar?.root === true)?.calendar?.dayPrefix);
 
 	const crumbs: Crumb[] =
 		nodeId === null || isLoading || ancestors === undefined
 			? [ROOT_CRUMB]
-			: [ROOT_CRUMB, ...ancestors.map((node) => ({id: node.id, isRoot: false, name: node.name}))];
+			: [ROOT_CRUMB, ...ancestors.map(crumbOfNode)];
 	const currentId = crumbs.at(-1)?.id ?? ROOT_CRUMB.id;
 	// The main outline's crumbs to an ancestor zoom out with upstream's animation; Home swaps without one, as upstream.
 	const navigateToNode =
@@ -307,12 +369,13 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 	const account = useAccount();
 	const dateOptions = {
 		dateFormat,
+		timeFormat,
 		dayPrefix,
 		account,
 	};
 	const inputs = crumbs.map((crumb) => ({
 		id: crumb.id,
-		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dateOptions),
+		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb, dateOptions),
 	}));
 
 	const zoomedIds = useZoomedIds(
@@ -323,9 +386,18 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 	// Upstream memoizes on width and the joined id path, not on array identity.
 	const inputsKey = crumbInputsKey(inputs);
 	const zoomedKey = zoomedIds.join("/");
+	const {itemGap, rightMargin, minItemWidth, ellipsisWidth} = sizes ?? {};
+	const layout = useMemo(
+		() =>
+			createBreadcrumbLayout({itemGap, rightMargin, minItemWidth, ellipsisWidth, threeDotPosition}, (label) =>
+				measureCrumbLabel(label),
+			),
+		[itemGap, rightMargin, minItemWidth, ellipsisWidth, threeDotPosition],
+	);
+	const layoutWidth = maxWidth ?? containerWidth;
 	const visible = useMemo(
-		() => layout.calculateVisibleItems(crumbInputsFromKey(inputsKey), containerWidth, zoomedKey.split("/")),
-		[containerWidth, inputsKey, zoomedKey],
+		() => layout.calculateVisibleItems(crumbInputsFromKey(inputsKey), layoutWidth, zoomedKey.split("/")),
+		[layout, layoutWidth, inputsKey, zoomedKey],
 	);
 	const chunks = layout.getItemGroupsWithLeftOffset(layout.getItemGroups(visible));
 	const crumbsById = new Map(crumbs.map((crumb) => [crumb.id, crumb]));
@@ -390,10 +462,10 @@ export function Breadcrumbs({nodeId, onNavigate, scrollToTop}: BreadcrumbsProps)
 
 /** Crumbs outside the header trail: the account's date format and the 📆 Calendar's Friendly day names setting. */
 function useCrumbDateOptions(): CrumbDateOptions {
-	const {dateFormat} = useDateSettings();
+	const {dateFormat, timeFormat} = useDateSettings();
 	const {dayPrefix} = useCalendarSettings(noLog).settings;
 	const account = useAccount();
-	return {dateFormat, dayPrefix, account};
+	return {dateFormat, timeFormat, dayPrefix, account};
 }
 
 /** A backlink's ancestors laid out flat, without the header's truncation engine. */
@@ -435,7 +507,7 @@ export function LeftCollapsingCrumbs({crumbs}: {crumbs: Crumb[]}) {
 	const dateOptions = useCrumbDateOptions();
 	const inputs = crumbs.map((crumb) => ({
 		id: crumb.id,
-		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb.name, dateOptions),
+		label: crumb.isRoot ? HOME_LABEL : crumbLabel(crumb, dateOptions),
 	}));
 	const inputsKey = crumbInputsKey(inputs);
 	const visible = useMemo(

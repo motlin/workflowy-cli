@@ -34,11 +34,22 @@ describe("breadcrumb styles guard", () => {
 		).toStrictEqual([]);
 	});
 
-	it("keeps only the header color rule and the backlink crumb anchor reset", () => {
-		expect(declarationsFor(/\.breadcrumbs?\b|\.breadcrumb-item\b/u)).toStrictEqual([
+	it("keeps only the header color rule, the backlink crumb anchor reset, the hover underline and the flyout line-height", () => {
+		expect(declarationsFor(/\.breadcrumbs?\b|\.breadcrumb-item\b|\.breadcrumb-overflow-menu\b/u)).toStrictEqual([
 			"color: var(--wf-text-primary) !important;",
+			"line-height: 1;",
 			"text-decoration: none;\n\tcolor: inherit;\n\tcursor: pointer;",
+			"text-decoration: underline;",
 		]);
+	});
+
+	it("sets line-height 1 on the overflow menu, not on its crumbs", () => {
+		expect(hasSelector(styles, /\.breadcrumb-overflow-menu \.breadcrumb-item\s*\{/u)).toBe(false);
+		expect(declarationsFor(/\.breadcrumb-overflow-menu\b/u)).toStrictEqual(["line-height: 1;"]);
+	});
+
+	it("underlines in-outline crumbs on hover without changing opacity", () => {
+		expect(declarationsFor(/\.breadcrumbs a:hover/u)).toStrictEqual(["text-decoration: underline;"]);
 	});
 });
 

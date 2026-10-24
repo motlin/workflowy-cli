@@ -30,6 +30,23 @@ export interface BreadcrumbLayoutOptions {
 	threeDotPosition?: "middle" | "left";
 }
 
+/**
+ * Upstream's side-pane header crumbs: tighter sizes under 500px, a width budget that leaves room for the pane's
+ * buttons and search box, and the leftmost crumbs collapsing first.
+ */
+export function paneCrumbOptions(paneWidth: number): {
+	sizes: BreadcrumbLayoutOptions;
+	maxWidth: number;
+	threeDotPosition: "left";
+} {
+	const compact = paneWidth < 500;
+	return {
+		sizes: {rightMargin: compact ? 4 : 8, itemGap: compact ? 14 : 18, ellipsisWidth: 28},
+		maxWidth: Math.max(120, paneWidth - (compact ? 260 : 360)),
+		threeDotPosition: "left",
+	};
+}
+
 export interface BreadcrumbLayout {
 	calculateVisibleItems(items: CrumbInput[], maxWidth: number, zoomedIds: string[]): LayoutCrumb[];
 	getItemGroups(items: LayoutCrumb[]): LayoutCrumb[][];

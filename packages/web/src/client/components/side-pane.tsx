@@ -13,6 +13,7 @@ import type {ItemTreePane} from "../pane-ids.js";
 import {bindPaneReorder} from "../pane-reorder.js";
 import type {ReorderView} from "../pane-reorder.js";
 import {bindPaneSeparator, handleSeparatorKey} from "../pane-resize.js";
+import {paneCrumbOptions} from "../breadcrumb-layout.js";
 import {MIN_PANE_WIDTH, minimumPaneWidth} from "../pane-widths.js";
 import {useOutlineStore, workspaceAvailableWidth, workspaceWidths} from "../stores/outline.js";
 import {Breadcrumbs} from "./breadcrumbs.js";
@@ -396,6 +397,7 @@ function SidePane({pane, index, isLast, onUndo, onRedo}: SidePaneProps) {
 					<Breadcrumbs
 						nodeId={pane.zoomedId}
 						onNavigate={context.zoom}
+						{...paneCrumbOptions(width ?? MIN_PANE_WIDTH)}
 						scrollToTop={() => {
 							scrollPaneToTop(id);
 						}}

@@ -1,67 +1,44 @@
-import {formatTimeLabel, parseTimeAttrs, parseTimeAttrsLoose} from "@workflowy/shared";
+import {formatTimeLabel, friendlyPrefix, parseTimeAttrsLoose} from "@workflowy/shared";
 import {stripHtmlTags} from "@workflowy/shared/html";
 import {MENTION_PATTERN, parseMentionAttrs, resolveMentionName} from "./mention-pills.js";
 import type {MentionAccount} from "./mention-pills.js";
 
-export type FriendlyPrefix = "Yesterday" | "Today" | "Tomorrow";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function dayOf(date: Date): number {
-	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-/** Upstream's relative day name for `date` as seen from `now`, or null beyond one day either way. */
-export function friendlyPrefix(date: Date, now: Date): FriendlyPrefix | null {
-	const offset = Math.round((dayOf(date) - dayOf(now)) / DAY_MS);
-	if (offset === -1) {
-		return "Yesterday";
-	}
-	if (offset === 0) {
-		return "Today";
-	}
-	if (offset === 1) {
-		return "Tomorrow";
-	}
-	return null;
+/** The local-midnight date a `YYYYMMDD` dateId names. */
+function dateOfId(dateId: number): Date {
+	return new Date(Math.floor(dateId / 10_000), (Math.floor(dateId / 100) % 100) - 1, dateId % 100);
 }
 
 export interface CrumbLabelOptions {
 	now: Date;
 	dateFormat?: string;
+	timeFormat?: string;
+	/** `YYYYMMDD` of the calendar day node, or null/undefined for any other node. */
+	dayDateId?: number | null;
+	/** The 📆 Calendar root's Friendly day names setting; only `true` adds the prefix. */
 	dayPrefix?: boolean;
 	account?: MentionAccount;
 }
 
 const TIME_PATTERN = /<time\b([^>]*)>[\s\S]*?<\/time>/giu;
-const SINGLE_TIME_PATTERN = /^\s*<time\b([^>]*)>[\s\S]*?<\/time>\s*$/iu;
 
-/** Plain crumb text: `<time>` pills rendered as formatted dates, other tags stripped, a day name prefixed. */
+/**
+ * Plain crumb text: `<time>` pills rendered as formatted dates, other tags stripped. Upstream's crumb decorator adds
+ * `Yesterday, ` / `Today, ` / `Tomorrow, ` only for a calendar day node (`dayDateId`) whose root keeps Friendly day
+ * names on (`dayPrefix === true`; a missing setting is off).
+ */
 export function crumbLabel(
 	nameHtml: string,
-	{now, dateFormat = "YYYY-MM-DD ddd", dayPrefix = true, account = null}: CrumbLabelOptions,
+	{now, dateFormat = "YYYY-MM-DD ddd", timeFormat, dayDateId = null, dayPrefix, account = null}: CrumbLabelOptions,
 ): string {
 	const label = stripHtmlTags(
 		nameHtml
 			.replaceAll(TIME_PATTERN, (_match, attrText: string) =>
-				formatTimeLabel(parseTimeAttrsLoose(attrText), {dateFormat, now}),
+				formatTimeLabel(parseTimeAttrsLoose(attrText), {dateFormat, timeFormat, now}),
 			)
 			.replaceAll(MENTION_PATTERN, (_match, attrText: string) =>
 				resolveMentionName(parseMentionAttrs(attrText).id, account),
 			),
 	);
-	const single = dayPrefix ? SINGLE_TIME_PATTERN.exec(nameHtml) : null;
-	if (single?.[1] === undefined) {
-		return label;
-	}
-	const loose = parseTimeAttrsLoose(single[1]);
-	if (loose.startYear === undefined || loose.startMonth === undefined || loose.startDay === undefined) {
-		return label;
-	}
-	const attrs = parseTimeAttrs(single[1]);
-	if (attrs.endYear !== undefined || attrs.startHour !== undefined) {
-		return label;
-	}
-	const prefix = friendlyPrefix(new Date(attrs.startYear, attrs.startMonth - 1, attrs.startDay), now);
+	const prefix = dayDateId !== null && dayPrefix === true ? friendlyPrefix(dateOfId(dayDateId), now) : null;
 	return prefix === null ? label : `${prefix}, ${label}`;
 }

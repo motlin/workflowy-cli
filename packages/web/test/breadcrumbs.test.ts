@@ -5,7 +5,9 @@ import {renderToStaticMarkup} from "react-dom/server";
 interface Ancestor {
 	id: string;
 	name: string | null;
-	calendar?: {root?: boolean; dayPrefix?: boolean};
+	calendar?: {root?: boolean; dayPrefix?: boolean; level?: string; dateId?: number};
+	data?: {layoutMode: string | null};
+	attachment?: {fileName: string; fileType: string; isDeleted: boolean};
 }
 
 const ancestorsState: {data: Ancestor[] | undefined; isLoading: boolean} = {data: undefined, isLoading: false};
@@ -14,7 +16,10 @@ vi.mock("../src/client/hooks/use-account.js", () => ({
 	useAccount: () => null,
 }));
 vi.mock("../src/client/hooks/use-nodes.js", () => ({
-	useAncestors: () => ancestorsState,
+	useAncestors: () => ({
+		...ancestorsState,
+		data: ancestorsState.data?.map((node) => ({...node, data: node.data ?? {layoutMode: null}})),
+	}),
 }));
 const storeState = {searchQuery: ""};
 vi.mock("../src/client/stores/outline.js", () => ({
@@ -79,6 +84,11 @@ function render(nodeId: string | null, ancestors: Ancestor[] | undefined, isLoad
 
 const ROOT_MARKUP = `${CONTAINER_OPEN}<div class="${crumbClass(true)}"><div role="button" tabindex="-1" aria-disabled="true" data-handbook="nav.home" class="homeButton disabled iconButton lg shape-circle disabled">${HOUSE_SVG}</div></div></div>`;
 
+function todayDay(): {level: string; dateId: number} {
+	const now = new Date();
+	return {level: "day", dateId: now.getFullYear() * 10_000 + (now.getMonth() + 1) * 100 + now.getDate()};
+}
+
 function todayName(): string {
 	const now = new Date();
 	return `<time startYear="${now.getFullYear()}" startMonth="${now.getMonth() + 1}" startDay="${now.getDate()}">today</time>`;
@@ -125,10 +135,10 @@ describe("Breadcrumbs markup", () => {
 		);
 	});
 
-	it("labels an empty-named ancestor Untitled", () => {
+	it("renders an empty-named crumb as an empty anchor", () => {
 		const html = render("empty-uuid", [{id: "empty-uuid", name: ""}]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
-			`<a class="${crumbClass(true)}" href="/#/empty-uuid" data-item-id="empty-uuid">Untitled</a></div>`,
+			`<a class="${crumbClass(true)}" href="/#/empty-uuid" data-item-id="empty-uuid"></a></div>`,
 		);
 	});
 
@@ -155,17 +165,24 @@ describe("Breadcrumbs markup", () => {
 	it("prefixes today's day crumb with Today when the calendar root keeps Friendly day names", () => {
 		const html = render("day-uuid", [
 			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: true}},
-			{id: "day-uuid", name: todayName()},
+			{id: "day-uuid", name: todayName(), calendar: todayDay()},
 		]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
 			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">Today, ${todayLabel()}</a></div>`,
 		);
 	});
 
+	it("adds no Today prefix to a non-calendar node named only by today's pill", () => {
+		const html = render("day-uuid", [{id: "day-uuid", name: todayName()}]);
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
+		);
+	});
+
 	it("drops the Today prefix when the calendar root turns Friendly day names off", () => {
 		const html = render("day-uuid", [
 			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: false}},
-			{id: "day-uuid", name: todayName()},
+			{id: "day-uuid", name: todayName(), calendar: todayDay()},
 		]);
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
 			`<a class="${crumbClass(true)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
@@ -176,7 +193,7 @@ describe("Breadcrumbs markup", () => {
 		cachedDayPrefix.value = false;
 		const html = render("day-uuid", [
 			{id: "cal-uuid", name: "Calendar", calendar: {root: true, dayPrefix: true}},
-			{id: "day-uuid", name: todayName()},
+			{id: "day-uuid", name: todayName(), calendar: todayDay()},
 		]);
 		cachedDayPrefix.value = undefined;
 		expect(html.slice(html.lastIndexOf("<a "))).toBe(
@@ -213,14 +230,14 @@ function childTags(html: string): string[] {
 	return tags;
 }
 
-function renderLeft(crumbs: {id: string; isRoot: boolean; name?: string | null}[]): string {
+function renderLeft(crumbs: {id: string; isRoot: boolean; name?: string | null; dayDateId?: number | null}[]): string {
 	return renderToStaticMarkup(createElement(LeftCollapsingCrumbs, {crumbs}));
 }
 
 describe("LeftCollapsingCrumbs labels", () => {
 	it("prefixes a today crumb with Today when the calendar keeps Friendly day names", () => {
 		calendarSettingsState.dayPrefix = true;
-		const html = renderLeft([{id: "day-uuid", isRoot: false, name: todayName()}]);
+		const html = renderLeft([{id: "day-uuid", isRoot: false, name: todayName(), dayDateId: todayDay().dateId}]);
 		expect(html.slice(html.indexOf("<a "))).toBe(
 			`<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">Today, ${todayLabel()}</a></div>`,
 		);
@@ -228,7 +245,7 @@ describe("LeftCollapsingCrumbs labels", () => {
 
 	it("drops the Today prefix when the calendar turns Friendly day names off", () => {
 		calendarSettingsState.dayPrefix = false;
-		const html = renderLeft([{id: "day-uuid", isRoot: false, name: todayName()}]);
+		const html = renderLeft([{id: "day-uuid", isRoot: false, name: todayName(), dayDateId: todayDay().dateId}]);
 		calendarSettingsState.dayPrefix = true;
 		expect(html.slice(html.indexOf("<a "))).toBe(
 			`<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
@@ -247,21 +264,21 @@ describe("LeftCollapsingCrumbs labels", () => {
 	});
 });
 
-function renderFlat(crumbs: {id: string; isRoot: boolean; name?: string | null}[]): string {
+function renderFlat(crumbs: {id: string; isRoot: boolean; name?: string | null; dayDateId?: number | null}[]): string {
 	return renderToStaticMarkup(createElement(FlatCrumbs, {crumbs}));
 }
 
 describe("FlatCrumbs labels", () => {
 	it("prefixes a today crumb with Today when the calendar keeps Friendly day names", () => {
 		calendarSettingsState.dayPrefix = true;
-		expect(renderFlat([{id: "day-uuid", isRoot: false, name: todayName()}])).toBe(
+		expect(renderFlat([{id: "day-uuid", isRoot: false, name: todayName(), dayDateId: todayDay().dateId}])).toBe(
 			`${CONTAINER_OPEN}<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">Today, ${todayLabel()}</a></div>`,
 		);
 	});
 
 	it("drops the Today prefix when the calendar turns Friendly day names off", () => {
 		calendarSettingsState.dayPrefix = false;
-		const html = renderFlat([{id: "day-uuid", isRoot: false, name: todayName()}]);
+		const html = renderFlat([{id: "day-uuid", isRoot: false, name: todayName(), dayDateId: todayDay().dateId}]);
 		calendarSettingsState.dayPrefix = true;
 		expect(html).toBe(
 			`${CONTAINER_OPEN}<a class="${crumbClass(false)}" href="/#/day-uuid" data-item-id="day-uuid">${todayLabel()}</a></div>`,
@@ -344,7 +361,7 @@ describe("Breadcrumbs overflow", () => {
 		);
 		expect(html).toBe(
 			[
-				'<div class="flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu" style="max-width:822px">',
+				'<div class="max-w-[822px] flex flex-col items-stretch gap-m px-m breadcrumb-overflow-menu">',
 				`<div><a class="${crumbClass(false)}" href="/#/bravo-uuid" data-item-id="bravo-uuid">${longName("Bravo")}</a></div>`,
 				`<div><a class="${crumbClass(false)}" href="/#/charlie-uuid" data-item-id="charlie-uuid">${longName("Charlie")}</a></div>`,
 				"</div>",
@@ -477,3 +494,70 @@ describe("preventCrumbMouseDown", () => {
 		expect(event.preventDefault.mock.calls).toStrictEqual([[]]);
 	});
 });
+
+describe("Breadcrumbs item:icon decorations", () => {
+	it("prefixes a divider crumb with the upstream hr", () => {
+		const html = render("div-uuid", [{id: "div-uuid", name: "", data: {layoutMode: "divider"}}]);
+		expect(html.slice(html.lastIndexOf("<a "))).toBe(
+			`<a class="${crumbClass(true)}" href="/#/div-uuid" data-item-id="div-uuid"><hr class="min-w-l w-full h-px border-0 border-t border-solid border-color text-center m-0 mt-xs"/></a></div>`,
+		);
+	});
+
+	it("prefixes an image file crumb with a tertiary file-image icon and a non-breaking space", () => {
+		const html = render("img-uuid", [
+			{
+				id: "img-uuid",
+				name: "photo.png",
+				attachment: {fileName: "photo.png", fileType: "image/png", isDeleted: false},
+			},
+		]);
+		const anchor = html.slice(html.lastIndexOf("<a "));
+		expect({
+			icon: /data-icon="([^"]+)"/u.exec(anchor)?.[1],
+			color: /style="color:var\(--wf-text-tertiary\)"/u.test(anchor),
+			text: anchor.slice(anchor.indexOf("</svg>") + "</svg>".length),
+		}).toStrictEqual({icon: "file-image", color: true, text: "\u00A0photo.png</a></div>"});
+	});
+
+	it("picks the audio, video and generic file icons by mime prefix and ignores deleted files", () => {
+		const icon = (fileType: string, isDeleted = false) => {
+			const html = render("f-uuid", [
+				{id: "f-uuid", name: "f", attachment: {fileName: "f", fileType, isDeleted}},
+			]);
+			return /data-icon="(file[^"]*)"/u.exec(html)?.[1];
+		};
+		expect([icon("audio/wav"), icon("video/mp4"), icon("application/pdf"), icon("image/png", true)]).toStrictEqual([
+			"file-audio",
+			"file-video",
+			"file",
+			undefined,
+		]);
+	});
+});
+
+describe("Breadcrumbs pane layout", () => {
+	it("collapses the leftmost crumbs first, Home included, with pane sizes and maxWidth", () => {
+		ancestorsState.data = DEEP_ANCESTORS;
+		ancestorsState.isLoading = false;
+		storeState.searchQuery = "";
+		const html = renderToStaticMarkup(
+			createElement(Breadcrumbs, {
+				nodeId: "echo-uuid",
+				sizes: {rightMargin: 8, itemGap: 18, ellipsisWidth: 28},
+				maxWidth: 400,
+				threeDotPosition: "left",
+			}),
+		);
+		expect({
+			tags: childTags(html),
+			first: html.slice(CONTAINER_OPEN.length, CONTAINER_OPEN.length + 40),
+			ids: [...html.matchAll(/data-item-id="([^"]+)"/gu)].map(([, id]) => id),
+		}).toStrictEqual(EXPECTED_PANE_LAYOUT);
+	});
+});
+
+const EXPECTED_PANE_LAYOUT = {
+	tags: ["div", "svg", "a", "svg", "a", "svg", "a"],
+	first: '<div tabindex="0" class="relative outlin',
+	ids: ["charlie-uuid", "delta-uuid", "echo-uuid"],
+};

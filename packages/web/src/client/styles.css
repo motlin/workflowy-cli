@@ -678,6 +678,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 	color: var(--wf-text-primary) !important;
 }
 
+/* Upstream's flyout rows inherit reset.css body{line-height:1}; remove once design-tokens resolves the global body line-height. */
+.breadcrumb-overflow-menu {
+	line-height: 1;
+}
+
 @media print {
 	.header {
 		display: none !important;
@@ -1469,6 +1474,11 @@ body.moving .expand {
 	text-decoration: none;
 	color: inherit;
 	cursor: pointer;
+}
+
+/* Upstream's global a:hover underline also reaches backlink and Found Dates crumbs. */
+.breadcrumbs a:hover {
+	text-decoration: underline;
 }
 
 /* Completed nodes - bullet keeps normal color per production Workflowy */
