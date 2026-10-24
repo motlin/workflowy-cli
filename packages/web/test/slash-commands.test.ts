@@ -164,7 +164,9 @@ describe("LOCAL_SLASH_AVAILABLE", () => {
 			"Divider",
 			"Number",
 			"Complete",
+			"Add date",
 			"Add note",
+			"Open in Pane",
 			"Duplicate",
 			"Move To...",
 			"Export",
@@ -175,6 +177,12 @@ describe("LOCAL_SLASH_AVAILABLE", () => {
 			"Copy internal link",
 			"Delete",
 		]);
+	});
+
+	it("matches Add date for /add d", () => {
+		expect(
+			resolveSlash(" /add d", {available: LOCAL_SLASH_AVAILABLE})?.[0]?.options.map((o) => o.label),
+		).toStrictEqual(["Add date"]);
 	});
 
 	it("has a command-registry executor for every locally available key, and the slash hook gates on it", () => {

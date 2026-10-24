@@ -154,6 +154,23 @@ describe("name and note share one focus", () => {
 		});
 	});
 
+	it("requestDatePicker with an anchor rect keeps the caret and records the rect until taken", () => {
+		useOutlineStore.setState({editingId: "a", editingNoteId: null, editingCaretOffset: 3});
+		const rect = {left: 10, right: 40, top: 20, bottom: 60} as DOMRect;
+		useOutlineStore.getState().requestDatePicker("a", rect);
+		const requested = {
+			caret: useOutlineStore.getState().editingCaretOffset,
+			id: useOutlineStore.getState().datePickerRequestId,
+			anchor: useOutlineStore.getState().datePickerAnchor,
+		};
+		const taken = useOutlineStore.getState().takeDatePickerRequest("a");
+		expect({requested, taken, anchorAfter: useOutlineStore.getState().datePickerAnchor}).toStrictEqual({
+			requested: {caret: 3, id: "a", anchor: rect},
+			taken: true,
+			anchorAfter: null,
+		});
+	});
+
 	it("takeDatePickerRequest ignores another row's request", () => {
 		useOutlineStore.getState().requestDatePicker("a");
 		expect({

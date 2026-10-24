@@ -89,7 +89,7 @@ describe("SlashMenu", () => {
 	});
 
 	it("renders the math result under the = header with no handbook and no icon", () => {
-		const mathItem = `<a data-handbook-placement="right" class="${itemClass(true, false)}"><span class="relative flex justify-between items-center"><span class="grow flex items-center gap-m whitespace-nowrap text-ellipsis overflow-hidden desktop:text-xs"><span>4</span></span></span></a>`;
+		const mathItem = `<a data-handbook-placement="right" class="${itemClass(true, false)}"><span class="relative flex justify-between items-center"><span class="grow flex items-center gap-m whitespace-nowrap text-ellipsis overflow-hidden desktop:text-xs">4</span></span></a>`;
 		expect(render([{name: "=", options: [{label: "4"}]}], 0, true)).toBe(
 			FLYOUT_OPEN + header("=", "# =") + mathItem + FLYOUT_CLOSE,
 		);

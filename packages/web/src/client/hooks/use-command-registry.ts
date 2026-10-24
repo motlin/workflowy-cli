@@ -74,7 +74,7 @@ import {useStarActions} from "./use-starred.js";
 import {useShowCompletedToggle} from "./use-show-completed-toggle.js";
 import {showCompletedCommand} from "../show-completed-toggle.js";
 import {switcherCommandAction, switcherStepCommand} from "../switcher-keys.js";
-import {paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
+import {openInPane, paneCommands, paneNavCommands, paneNumberCommands} from "../pane-commands.js";
 import {captureActivePaneCaret, scrollPaneToTop} from "../components/pane-context.js";
 import {restorableCaret} from "../pane-caret.js";
 import {MAIN_PANE_ID} from "../pane-ids.js";
@@ -987,6 +987,18 @@ export function useCommandRegistry(): CommandRegistry {
 			} else {
 				focusNote(nodeId);
 			}
+		}),
+		add_date: {
+			available: (ctx) => ctx.items.length === 1,
+			execute(ctx) {
+				const [nodeId] = ctx.items;
+				if (nodeId !== undefined) {
+					useOutlineStore.getState().requestDatePicker(nodeId, ctx.anchorRect);
+				}
+			},
+		},
+		open_in_pane: singleItemCommand((nodeId) => {
+			openInPane(useOutlineStore.getState(), nodeId);
 		}),
 		expand_all: singleItemCommand((nodeId) => {
 			expandAll(nodeId, true);

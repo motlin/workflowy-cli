@@ -103,7 +103,7 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 	/** Open the picker to replace the plain text `offset`..`replaceEnd`, its input prefilled with `term`. */
 	openForPhrase: (phrase: Required<Pick<OpenPicker, "replaceEnd">> & Omit<OpenPicker, "replaceEnd">) => void;
 	/** Open the picker at the editor's caret, as upstream's "Add date" command does with `addSpaceBefore`. */
-	openAtCaret: () => void;
+	openAtCaret: (anchorRect?: DOMRect | null) => void;
 	isOpen: () => boolean;
 	popup: ReactNode;
 } {
@@ -143,14 +143,22 @@ export function useBangDatePicker({editorRef, dateSettings, onOpen, onInsert, on
 		[onOpen],
 	);
 
-	const openAtCaret = useCallback(() => {
-		const editor = editorRef.current;
-		if (editor === null || openRef.current !== null) {
-			return;
-		}
-		const offset = caretTextOffset(editor);
-		openForPhrase({offset, position: caretPosition(editor), term: "", isRange: false, addSpaceBefore: true});
-	}, [editorRef, openForPhrase]);
+	const openAtCaret = useCallback(
+		(anchorRect?: DOMRect | null) => {
+			const editor = editorRef.current;
+			if (editor === null || openRef.current !== null) {
+				return;
+			}
+			const offset = caretTextOffset(editor);
+			// The slash menu anchors the picker where its chip was; otherwise it opens under the caret.
+			const position =
+				anchorRect === undefined || anchorRect === null
+					? caretPosition(editor)
+					: {left: anchorRect.left + globalThis.scrollX, top: anchorRect.bottom + globalThis.scrollY};
+			openForPhrase({offset, position, term: "", isRange: false, addSpaceBefore: true});
+		},
+		[editorRef, openForPhrase],
+	);
 
 	const isOpen = useCallback(() => openRef.current !== null, []);
 

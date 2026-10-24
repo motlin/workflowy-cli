@@ -346,6 +346,8 @@ interface OutlineState {
 	lastEditedId: string | null;
 	/** A row whose name editor should open the date picker at its caret once it is focused ("Add date"). */
 	datePickerRequestId: string | null;
+	/** Where the queued picker anchors (the removed slash chip); null anchors it at the caret. */
+	datePickerAnchor: DOMRect | null;
 	showCompleted: boolean;
 	/** Upstream's account setting `always_visible_controls` (default on): expand arrows are drawn at rest. */
 	alwaysVisibleControls: boolean;
@@ -477,7 +479,7 @@ interface OutlineActions {
 	/** Focus `id`'s name with the caret at its start or end, leaving any note. */
 	focusName: (id: string, caret: 0 | "end") => void;
 	/** Upstream "Add date" on an unfocused item: focus the end of `id`'s name and open the date picker there. */
-	requestDatePicker: (id: string) => void;
+	requestDatePicker: (id: string, anchorRect?: DOMRect) => void;
 	/** Clear and report whether the pending date-picker request is for `id`. */
 	takeDatePickerRequest: (id: string) => boolean;
 	/** The note `id` lost focus: clear note focus unless it already moved elsewhere. */
@@ -920,6 +922,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	editingHeld: false,
 	lastEditedId: null,
 	datePickerRequestId: null,
+	datePickerAnchor: null,
 	showCompleted: getInitialShowCompleted(),
 	alwaysVisibleControls: true,
 	animatingCompletionIds: new Set<string>(),
@@ -1131,16 +1134,19 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		});
 	},
 
-	requestDatePicker: (id) => {
-		get().focusName(id, "end");
-		set({datePickerRequestId: id});
+	requestDatePicker: (id, anchorRect) => {
+		// From the slash menu the caret already sits where the chip was; the bullet menu jumps to the end.
+		if (anchorRect === undefined) {
+			get().focusName(id, "end");
+		}
+		set({datePickerRequestId: id, datePickerAnchor: anchorRect ?? null});
 	},
 
 	takeDatePickerRequest: (id) => {
 		if (get().datePickerRequestId !== id) {
 			return false;
 		}
-		set({datePickerRequestId: null});
+		set({datePickerRequestId: null, datePickerAnchor: null});
 		return true;
 	},
 

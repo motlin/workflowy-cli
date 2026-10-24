@@ -79,7 +79,7 @@ export function SlashMenu({groups, index, keyboardMode, left, top, onSelect, onH
 							<MenuItem
 								key={command?.key ?? `math-${option.label}`}
 								ref={active && keyboardMode ? scrollActive : undefined}
-								label={<span>{option.label}</span>}
+								label={command === undefined ? option.label : <span>{option.label}</span>}
 								handbook={command?.key}
 								icon={command?.icon}
 								className=" undefined"
