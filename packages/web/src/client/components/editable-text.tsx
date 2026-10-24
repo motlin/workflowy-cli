@@ -71,6 +71,7 @@ import type {TagAcceptHandler} from "../hooks/use-tag-autocomplete.js";
 import {spliceAcceptedTag} from "../tag-autocomplete.js";
 import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
 import {highlightSearchMatches} from "../highlight-html.js";
+import {useAccount} from "../hooks/use-account.js";
 import {useDateSettings, useSlashDiscovered} from "../hooks/use-preferences.js";
 import {isTagDeleteClick, removeTagFromHtml, renderedTagStarts, tagCaretUnits, teaserPosition} from "../tag-render.js";
 import {renderLinks} from "../link-render.js";
@@ -204,6 +205,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const deleteNodeMutation = useDeleteNode();
 	const moveNodeMutation = useMoveNode();
 	const dateSettings = useDateSettings();
+	const account = useAccount();
 
 	// The HTML as of editing start, held while editing so saves and refetches never rewrite the DOM under the caret.
 	const [editingHtml, setEditingHtml] = useState<string | null>(null);
@@ -215,8 +217,8 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 	const storedEditorHtml = editingHtml ?? initialValue;
 	// Pills are atomic in edit mode too; every save path serializes them back to stored `<time>` markup.
 	const editorHtml = useMemo(
-		() => renderEditorHtml(storedEditorHtml, dateSettings),
-		[storedEditorHtml, dateSettings],
+		() => renderEditorHtml(storedEditorHtml, dateSettings, account),
+		[storedEditorHtml, dateSettings, account],
 	);
 
 	// Saves the name after each 500ms pause in typing (upstream `saveLater`): one undo step per pause.
@@ -301,13 +303,13 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 					replaceEnd === undefined ? {before: html, after: ""} : splitHtml(html, offset, replaceEnd);
 				const plan = planDateInsertion(before + after, offset, attrs, {addSpaceBefore});
 				content.focus();
-				content.innerHTML = renderEditorHtml(plan.html, dateSettings);
+				content.innerHTML = renderEditorHtml(plan.html, dateSettings, account);
 				placeCaretAtTextOffset(content, plan.caretOffset);
 				nameSaver.saveNow(plan.html);
 			}
 			releaseEditing();
 		},
-		[dateSettings, nameSaver, releaseEditing],
+		[dateSettings, account, nameSaver, releaseEditing],
 	);
 
 	const cancelDate = useCallback(
@@ -354,7 +356,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			const content = contentRef.current;
 			if (content) {
 				const plan = applyDatePhrase(serializeEditorHtml(content.innerHTML), phrase);
-				content.innerHTML = renderEditorHtml(plan.html, dateSettings);
+				content.innerHTML = renderEditorHtml(plan.html, dateSettings, account);
 				placeCaretAtTextOffset(content, plan.caretOffset);
 				nameSaver.saveNow(plan.html);
 			}
@@ -387,7 +389,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			}
 			const plan = planPillReplacement(serializeEditorHtml(content.innerHTML), pillIndex, attrs);
 			content.focus();
-			content.innerHTML = renderEditorHtml(plan.html, dateSettings);
+			content.innerHTML = renderEditorHtml(plan.html, dateSettings, account);
 			placeCaretAtTextOffset(content, plan.caretOffset);
 			nameSaver.saveNow(plan.html);
 			releaseEditing();
@@ -427,12 +429,12 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			const content = contentRef.current;
 			if (content) {
 				const html = spliceAcceptedTag(serializeEditorHtml(content.innerHTML), edit);
-				content.innerHTML = renderEditorHtml(html, dateSettings);
+				content.innerHTML = renderEditorHtml(html, dateSettings, account);
 				placeCaretAtTextOffset(content, edit.caret);
 				nameSaver.saveNow(html);
 			}
 		},
-		[dateSettings, nameSaver],
+		[dateSettings, account, nameSaver],
 	);
 	const tagAutocomplete = useTagAutocomplete({
 		editorRef: contentRef,
@@ -453,7 +455,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		editorRef: contentRef,
 		active: isEditing,
 		read: readNameHtml,
-		render: (html) => renderEditorHtml(html, dateSettings),
+		render: (html) => renderEditorHtml(html, dateSettings, account),
 		onChange: (html) => {
 			nameSaver.change(html);
 		},
@@ -482,7 +484,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			const renamed = plan.updates.find((update) => update.nodeId === nodeId)?.name;
 			if (renamed !== undefined && renamed !== name) {
 				nameSaver.reset(renamed);
-				content.innerHTML = renderEditorHtml(renamed, dateSettings);
+				content.innerHTML = renderEditorHtml(renamed, dateSettings, account);
 				const length = textUnitLength(content);
 				placeSelectionAtTextOffsets(content, Math.min(sel.start, length), Math.min(sel.end, length));
 			}
@@ -496,7 +498,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			});
 			refreshToolbar();
 		},
-		[dateSettings, deleteNodeMutation, nameSaver, nodeId, queryClient, refreshToolbar, updateNodeMutation],
+		[dateSettings, account, deleteNodeMutation, nameSaver, nodeId, queryClient, refreshToolbar, updateNodeMutation],
 	);
 
 	const handleToolbarAction = useCallback(
@@ -541,7 +543,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		(event: React.SyntheticEvent<HTMLSpanElement>) => {
 			const content = contentRef.current;
 			if (content !== null && !isComposingInput(event.nativeEvent)) {
-				retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings));
+				retagEditor(content, renderEditorHtml(serializeEditorHtml(content.innerHTML), dateSettings, account));
 			}
 			handleSlashInput(event.nativeEvent);
 			handleDateTrigger(event.nativeEvent);
@@ -557,6 +559,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		[
 			changeName,
 			dateSettings,
+			account,
 			handleSlashInput,
 			isSlashOpen,
 			handleDateTrigger,
@@ -739,7 +742,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 
 		// Show the kept text now, so the blur commit and the re-render agree with the plan.
 		if (html !== plan.currentName) {
-			content.innerHTML = renderEditorHtml(plan.currentName, dateSettings);
+			content.innerHTML = renderEditorHtml(plan.currentName, dateSettings, account);
 		}
 		// The new row carries a client-generated id, so the caret moves into it now,
 		// before the create round-trip; writes to it wait for the create (pendingCreates).
@@ -779,6 +782,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		resumeEditing,
 		nameSaver,
 		dateSettings,
+		account,
 	]);
 
 	/**
@@ -869,7 +873,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				updateNodeMutation.mutate({nodeId: plan.keepId, name: plan.name});
 				// The held editor never re-renders its text: show the merged row and its caret here.
 				if (plan.keepId === nodeId) {
-					content.innerHTML = renderEditorHtml(plan.name, dateSettings);
+					content.innerHTML = renderEditorHtml(plan.name, dateSettings, account);
 					placeCaretAtTextOffset(content, plan.caret);
 				}
 				deleteNodeMutation.mutate(plan.deleteId);
@@ -882,7 +886,17 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			});
 			return true;
 		},
-		[nodeId, parentId, queryClient, resumeEditing, updateNodeMutation, deleteNodeMutation, nameSaver, dateSettings],
+		[
+			nodeId,
+			parentId,
+			queryClient,
+			resumeEditing,
+			updateNodeMutation,
+			deleteNodeMutation,
+			nameSaver,
+			dateSettings,
+			account,
+		],
 	);
 
 	/**
@@ -899,7 +913,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 				content,
 				serializeEditorHtml(content.innerHTML),
 				direction,
-				(html) => renderEditorHtml(html, dateSettings),
+				(html) => renderEditorHtml(html, dateSettings, account),
 			);
 			if (next === null) {
 				return false;
@@ -907,7 +921,7 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			nameSaver.change(next);
 			return true;
 		},
-		[dateSettings, nameSaver],
+		[dateSettings, account, nameSaver],
 	);
 
 	/**
@@ -1136,6 +1150,7 @@ const RestingText = memo(function RestingText({
 	const searchQuery = usePaneSearchQuery();
 	const updateNodeMutation = useUpdateNode();
 	const dateSettings = useDateSettings();
+	const account = useAccount();
 	// Tag color affordances: a caret appears on tag hover; clicking it opens the picker.
 	const [tagHover, setTagHover] = useState<{
 		tag: string;
@@ -1344,7 +1359,7 @@ const RestingText = memo(function RestingText({
 				data-node-id={nodeId}
 				dangerouslySetInnerHTML={{
 					__html: highlightSearchMatches(
-						renderEditorHtml(renderLinks(initialValue), dateSettings),
+						renderEditorHtml(renderLinks(initialValue), dateSettings, account),
 						searchQuery,
 					),
 				}}

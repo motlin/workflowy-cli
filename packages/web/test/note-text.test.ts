@@ -237,3 +237,22 @@ describe("planNoteKey", () => {
 		expect(planNoteKey({...base, key: "Delete", text: "", start: 0, end: 0})).toStrictEqual({kind: "native"});
 	});
 });
+
+describe("mentions in notes", () => {
+	const settings = {dateFormat: "YYYY-MM-DD ddd", timeFormat: "HH:mm", weekStartDay: 0};
+	const note = 'note <mention id="0" by="1" ts="1"> </mention> tail';
+
+	it("keeps a mention byte-identical through a note edit", () => {
+		const html = noteContentHtml(note, settings, new Date(2026, 9, 1), null);
+		expect(html).toContain('class="mention view-mode monolith-pill explosive"');
+		expect(editorHtmlToNote(`${html}z`)).toBe('note <mention id="0" by="1" ts="1"> </mention> tailz');
+	});
+
+	it("stores a rendered mention back unchanged", () => {
+		expect(editorHtmlToNote(noteContentHtml(note, settings, new Date(2026, 9, 1), null))).toBe(note);
+	});
+
+	it("keeps a raw mention when saving", () => {
+		expect(editorHtmlToNote(`${note}z`)).toBe(`${note}z`);
+	});
+});

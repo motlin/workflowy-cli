@@ -7,11 +7,13 @@
 import {renderDatePills, serializeDatePills} from "./date-pills.js";
 import type {DateSettings} from "./date-settings.js";
 import {AUTO_LINK_ATTRIBUTE, anchorHref, renderLinks, storedAnchorTag} from "./link-render.js";
+import {renderMentionPills, serializeMentionPills} from "./mention-pills.js";
+import type {MentionAccount} from "./mention-pills.js";
 import {addMonolithGuards} from "./monolith-guards.js";
 import {renderTags} from "./tag-render.js";
 
 const TAG_PATTERN = /<(\/?)([a-z][\w-]*)([^>]*)>/giu;
-const KEPT_ELEMENTS = new Set(["b", "i", "u", "s", "code", "a", "time"]);
+const KEPT_ELEMENTS = new Set(["b", "i", "u", "s", "code", "a", "time", "mention"]);
 const BLOCK_ELEMENTS = new Set(["div", "p"]);
 const CLASS_PATTERN = /\sclass\s*=\s*(?:"([^"]*)"|'([^']*)')/iu;
 const COLOR_CLASS_PATTERN = /^b?c-[\w-]+$/u;
@@ -36,7 +38,7 @@ function isKept(name: string, attributes: string): boolean {
 
 /** Converts the note editor's innerHTML into stored note text (date pills back to canonical `<time>` markup). */
 export function editorHtmlToNote(editorHtml: string): string {
-	const html = serializeDatePills(editorHtml);
+	const html = serializeDatePills(serializeMentionPills(editorHtml));
 	let note = "";
 	let cursor = 0;
 	// For each open element, whether its open tag was emitted and so needs a close tag.
@@ -91,13 +93,19 @@ export function noteToEditorHtml(note: string): string {
  * Given `dateSettings`, stored `<time>` also renders as monolith pills, which the codec
  * serializes back to canonical `<time>` markup.
  */
-export function noteContentHtml(note: string, dateSettings?: DateSettings, now?: Date): string {
+export function noteContentHtml(
+	note: string,
+	dateSettings?: DateSettings,
+	now?: Date,
+	account: MentionAccount = null,
+): string {
 	if (note === "") {
 		return "";
 	}
 	const linked = renderLinks(noteToEditorHtml(note));
 	const dated = dateSettings === undefined ? linked : renderDatePills(linked, dateSettings, now);
-	return `<span class="innerContentContainer">${addMonolithGuards(renderTags(dated))}</span>`;
+	const mentioned = renderMentionPills(dated, account);
+	return `<span class="innerContentContainer">${addMonolithGuards(renderTags(mentioned))}</span>`;
 }
 
 /**

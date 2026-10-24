@@ -52,6 +52,7 @@ import type {LayoutToggleCommand} from "../layout-types.js";
 import {toggleBoardOrTable} from "../item-type-select.js";
 import type {ItemTypeSelectDeps} from "../item-type-select.js";
 import {useCopyLink, useSortChildren} from "./use-item-actions.js";
+import {useAccount} from "./use-account.js";
 import {useDateSettings} from "./use-preferences.js";
 import {plainLength} from "../rich-text.js";
 import {applyOps, captureOutlineView, runInUndoBatch, settleUndoNow} from "../undo-batch.js";
@@ -157,6 +158,7 @@ export function useCommandRegistry(): CommandRegistry {
 	const toggleCompleteMutation = useToggleComplete();
 	const updateNodeMutation = useUpdateNode();
 	const dateSettings = useDateSettings();
+	const account = useAccount();
 	const copyLink = useCopyLink();
 	const sortChildren = useSortChildren();
 
@@ -274,7 +276,7 @@ export function useCommandRegistry(): CommandRegistry {
 			const renamed = plan.updates.find((update) => update.nodeId === edited.nodeId)?.name;
 			if (renamed !== undefined) {
 				caret = Math.max(0, caret - (plainLength(edited.name) - plainLength(renamed)));
-				editor.innerHTML = renderEditorHtml(renamed, dateSettings);
+				editor.innerHTML = renderEditorHtml(renamed, dateSettings, account);
 				placeCaretAtTextOffset(editor, caret);
 			}
 			holdEditing(caret);

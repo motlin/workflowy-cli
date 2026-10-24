@@ -56,14 +56,14 @@ function mountedQueryKeys(isEditing: boolean): string[] {
 }
 
 describe("EditableText at rest", () => {
-	it("mounts a resting row with only the date settings it renders pills with, leaving the editor's queries to the edited row", () => {
+	it("mounts a resting row with only the date settings and account it renders pills with, leaving the editor's queries to the edited row", () => {
 		const resting = mountedQueryKeys(false);
 		act(() => {
 			root?.unmount();
 		});
 		expect({resting, editing: mountedQueryKeys(true)}).toStrictEqual({
-			resting: ["preferences"],
-			editing: ["preferences", "tag-autocomplete"],
+			resting: ["preferences", "account"],
+			editing: ["preferences", "account", "tag-autocomplete"],
 		});
 	});
 });

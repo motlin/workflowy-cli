@@ -15,6 +15,7 @@ import {deleteAdjacentPill} from "../pill-delete.js";
 import type {TimeAttrs} from "@workflowy/shared";
 import {useBangDatePicker} from "./bang-date-picker.js";
 import {clickedPill, offsetAfterPill, usePillDatePicker} from "./pill-date-picker.js";
+import {useAccount} from "../hooks/use-account.js";
 import {useDateSettings} from "../hooks/use-preferences.js";
 import {createEditDebouncer, TEXT_SAVE_DEBOUNCE_MS} from "../edit-debouncer.js";
 import {useInlineFormat} from "../hooks/use-inline-format.js";
@@ -91,7 +92,7 @@ function insertAtSelection(text: string, caretInText: number): void {
  * Upstream's sibling `.notes` after the row's `.name`: ONE always-contenteditable `.content`.
  * - A click places the caret at the click point and focuses the note; while focused, `.content` is `active` (unclamped)
  * - #tags and @mentions render as upstream's `span.contentTag`, both at rest and while focused, re-rendered on every input
- * - Stored `<time>` dates render as monolith pills only at rest; the focused editor holds the raw `<time>` so pills are never saved
+ * - Stored `<time>` dates and `<mention>`s render as atomic monolith pills; the codec serializes them back to canonical markup on save
  * - A plain click on a date pill opens the date picker on it to change or remove that date
  * - Saves on input (debounced) and on blur, storing line breaks as `\n` (never `<br>`) via the note-text codec
  * - Edits are never reverted: Escape is left to the global search Escape, which saves, exits the note, and focuses search
@@ -113,10 +114,11 @@ export function EditableNote({
 	const updateNodeMutation = useUpdateNode();
 	const queryClient = useQueryClient();
 	const dateSettings = useDateSettings();
+	const account = useAccount();
 	// The HTML as of focus, held while focused so optimistic saves never rewrite the DOM under the caret.
 	const [focusedHtml, setFocusedHtml] = useState<string | null>(null);
 	const searchQuery = usePaneSearchQuery();
-	const restingHtml = noteContentHtml(initialValue, dateSettings);
+	const restingHtml = noteContentHtml(initialValue, dateSettings, undefined, account);
 	// Search highlights live only in the DOM: React keeps the plain HTML, so focusing never rewrites the DOM
 	// under the caret, and a focused (editing) note never carries .contentMatch spans.
 	const highlightedHtml = focusedHtml === null ? highlightSearchMatches(restingHtml, searchQuery) : null;
@@ -197,13 +199,13 @@ export function EditableNote({
 			if (element !== null) {
 				const plan = planDateInsertion(planNoteSave(noteSaver.saved, element.innerHTML).note, offset, attrs);
 				element.focus();
-				element.innerHTML = noteContentHtml(plan.html, dateSettings);
+				element.innerHTML = noteContentHtml(plan.html, dateSettings, undefined, account);
 				placeCaretAtTextOffset(element, plan.caretOffset);
 				noteSaver.saveNow(plan.html);
 			}
 			datePickerOpen.current = false;
 		},
-		[dateSettings, noteSaver],
+		[dateSettings, account, noteSaver],
 	);
 
 	const cancelDate = useCallback((offset: number) => {
@@ -242,7 +244,7 @@ export function EditableNote({
 					attrs,
 				);
 				element.focus();
-				element.innerHTML = noteContentHtml(plan.html, dateSettings);
+				element.innerHTML = noteContentHtml(plan.html, dateSettings, undefined, account);
 				placeCaretAtTextOffset(element, plan.caretOffset);
 				noteSaver.saveNow(plan.html);
 			}
@@ -281,12 +283,12 @@ export function EditableNote({
 			const element = contentRef.current;
 			if (element !== null) {
 				const note = spliceAcceptedTag(planNoteSave(noteSaver.saved, element.innerHTML).note, edit);
-				element.innerHTML = noteContentHtml(note, dateSettings);
+				element.innerHTML = noteContentHtml(note, dateSettings, undefined, account);
 				placeCaretAtTextOffset(element, edit.caret);
 				noteSaver.saveNow(note);
 			}
 		},
-		[dateSettings, noteSaver],
+		[dateSettings, account, noteSaver],
 	);
 	const tagAutocomplete = useTagAutocomplete({
 		editorRef: contentRef,
@@ -321,7 +323,10 @@ export function EditableNote({
 			// The note codec drops the slash chip, so tags wait while the slash menu is open.
 			const element = contentRef.current;
 			if (element !== null && !isSlashOpen() && !isComposingInput(event?.nativeEvent)) {
-				retagEditor(element, noteContentHtml(editorHtmlToNote(element.innerHTML), dateSettings));
+				retagEditor(
+					element,
+					noteContentHtml(editorHtmlToNote(element.innerHTML), dateSettings, undefined, account),
+				);
 			}
 			handleSlashInput(event?.nativeEvent);
 			if (event !== undefined) {
@@ -338,6 +343,7 @@ export function EditableNote({
 		[
 			changeNote,
 			dateSettings,
+			account,
 			handleSlashInput,
 			isSlashOpen,
 			handleDateTrigger,
@@ -355,7 +361,7 @@ export function EditableNote({
 		editorRef: contentRef,
 		active: true,
 		read: readNote,
-		render: (note) => noteContentHtml(note, dateSettings),
+		render: (note) => noteContentHtml(note, dateSettings, undefined, account),
 		onChange: (note) => {
 			noteSaver.change(note);
 		},
@@ -446,7 +452,7 @@ export function EditableNote({
 					element,
 					planNoteSave(noteSaver.saved, element.innerHTML).note,
 					event.key === "Backspace" ? "backward" : "forward",
-					(note) => noteContentHtml(note, dateSettings),
+					(note) => noteContentHtml(note, dateSettings, undefined, account),
 				);
 				if (next !== null) {
 					event.preventDefault();
@@ -501,6 +507,7 @@ export function EditableNote({
 		[
 			applyInlineToggle,
 			dateSettings,
+			account,
 			focusName,
 			focusNextRowName,
 			handleInput,

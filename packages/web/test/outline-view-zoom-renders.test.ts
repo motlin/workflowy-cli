@@ -16,6 +16,7 @@ const {MemoryRouter} = await import("react-router-dom");
 const {OutlineView} = await import("../src/client/app.js");
 const {nodeKeys} = await import("../src/client/node-cache.js");
 const {EMPTY_PREFERENCES, preferenceKeys} = await import("../src/client/hooks/use-preferences.js");
+const {accountKeys} = await import("../src/client/hooks/use-account.js");
 const {starKeys} = await import("../src/client/hooks/use-starred.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {afterNextPaint} = await import("../src/client/after-paint.js");
@@ -134,6 +135,7 @@ beforeAll(async () => {
 	);
 	// Everything both views read is cached, as after a page load and a bullet click's view load.
 	queryClient.setQueryData(starKeys.all, {stars: [], unavailable: false});
+	queryClient.setQueryData(accountKeys.all, null);
 	queryClient.setQueryData(preferenceKeys.all, {preferences: EMPTY_PREFERENCES, available: true, error: null});
 	queryClient.setQueryData(nodeKeys.children(null), homeRows);
 	queryClient.setQueryData(nodeKeys.children("parent"), childRows);
