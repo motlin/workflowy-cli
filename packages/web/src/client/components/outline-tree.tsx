@@ -510,8 +510,11 @@ export function OutlineChildren({
 	depth = 1,
 	found = null,
 	containerRef,
+	addChild,
 }: {
 	parentId: string | null;
+	/** The root's add-child wrapper: inside `.children` after the rows, or alone when no `.children` renders. */
+	addChild?: ReactNode;
 	/** The `.children` element, for the expand/collapse slide. */
 	containerRef?: Ref<HTMLDivElement>;
 	/** The row whose `.children` this is; a nested `.children` ends with its add-sibling button. */
@@ -520,7 +523,7 @@ export function OutlineChildren({
 	depth?: number;
 	/** The zoomed day page's Found Dates (root only): its day id and the cached list, or null elsewhere. */
 	found?: {dayId: string; response: FoundDatesResponse | undefined} | null;
-}) {
+}): ReactNode {
 	const {data: nodes} = useChildren(parentId);
 	const search = useOutlineSearchFilter();
 	// A search leaves the Backlinks section out, so its rows skip the fetch.
@@ -556,7 +559,7 @@ export function OutlineChildren({
 		(total > 0 && limit === 0) ||
 		(total === 0 && backlinksRootId == null && foundItems.length === 0)
 	) {
-		return null;
+		return isRoot ? (addChild ?? null) : null;
 	}
 
 	return (
@@ -564,6 +567,7 @@ export function OutlineChildren({
 			{visibleNodes.slice(0, limit).map((node) => (
 				<OutlineRow key={node.id} depth={depth} node={node} />
 			))}
+			{isRoot ? addChild : null}
 			{backlinksRootId == null ? null : (
 				<BacklinksSection depth={depth} items={backlinks?.items ?? []} rootId={backlinksRootId} />
 			)}
@@ -579,11 +583,18 @@ export function OutlineChildren({
  * The zoom root's `.children`, with the zoomed day page's Found Dates. Only the root reads the zoomed node and its
  * Found Dates, so the nested `.children` of every expanded row hold no query for them.
  */
-export function RootOutlineChildren({parentId}: {parentId: string | null}) {
+export function RootOutlineChildren({parentId, addChild}: {parentId: string | null; addChild?: ReactNode}) {
 	const {data: zoomed} = useNode(parentId);
 	const dayId = zoomed?.calendar?.level === "day" ? zoomed.id : null;
 	const {data: response} = useFoundDates(dayId);
-	return <OutlineChildren found={dayId === null ? null : {dayId, response}} isRoot parentId={parentId} />;
+	return (
+		<OutlineChildren
+			addChild={addChild}
+			found={dayId === null ? null : {dayId, response}}
+			isRoot
+			parentId={parentId}
+		/>
+	);
 }
 
 /**
@@ -681,8 +692,10 @@ export function OutlineTree({parentId: requestedId, shell = "pane"}: OutlineTree
 		<SearchFilterContext.Provider value={search}>
 			<RowLimitsContext.Provider value={rowLimits}>
 				<ZoomRootRow nodeId={parentId}>
-					<RootOutlineChildren parentId={parentId} />
-					{showsAddChild && rowLimits.remaining > 0 ? <AddChildButton parentId={parentId} /> : null}
+					<RootOutlineChildren
+						addChild={showsAddChild ? <AddChildButton parentId={parentId} /> : undefined}
+						parentId={parentId}
+					/>
 				</ZoomRootRow>
 			</RowLimitsContext.Provider>
 		</SearchFilterContext.Provider>

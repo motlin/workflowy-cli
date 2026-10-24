@@ -133,7 +133,7 @@ const TREE_FRAME = {
 	RootOutlineChildren: 2,
 	OutlineChildren: 2,
 	RenderSentinel: 1,
-	AddChildButton: 1,
+	AddChildButton: 2,
 };
 
 beforeAll(async () => {
@@ -189,7 +189,7 @@ describe("55-row OutlineView renders", () => {
 			Breadcrumbs: 2,
 			BreadcrumbItem: 2,
 			FaIcon: 18,
-			IconButton: 12,
+			IconButton: 13,
 			NewPaneIcon: 1,
 			...LEFT_BAR,
 			FilesListBranch: ROWS,
@@ -211,8 +211,8 @@ describe("55-row OutlineView renders", () => {
 		expect(renderMap()).toStrictEqual({
 			...HEADER,
 			BreadcrumbItem: 1,
-			FaIcon: 3,
-			IconButton: 12,
+			FaIcon: 2,
+			IconButton: 13,
 			StarButton: 1,
 			StarIcon: 1,
 			GlobalCommands: 1,

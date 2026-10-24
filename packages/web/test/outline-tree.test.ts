@@ -428,7 +428,7 @@ describe("OutlineTree add-child button", () => {
 		outlineState.resumeEditing.mockClear();
 	});
 
-	it("renders upstream's markup once, as the root project's last child after the root .children", () => {
+	it("renders upstream's markup once, as the last child of the root .children", () => {
 		const html = render();
 		const stack = stackAt(html, 'class="mt-m ');
 		expect({
@@ -438,13 +438,30 @@ describe("OutlineTree add-child button", () => {
 				html.indexOf('<div class="mt-m '),
 				html.indexOf('<div class="mt-m ') + ADD_BUTTON_MARKUP.length,
 			),
-			endsRoot: html.endsWith(`${ADD_BUTTON_MARKUP}</div></div></div>`),
+			endsRootChildren: html.endsWith(`${ADD_BUTTON_MARKUP}</div></div></div></div>`),
 		}).toStrictEqual({
 			count: 1,
-			parent: "font-custom project selected root mainTreeRoot",
+			parent: ROOT_CHILDREN,
 			markup: ADD_BUTTON_MARKUP,
-			endsRoot: true,
+			endsRootChildren: true,
 		});
+	});
+
+	it("renders the wrapper directly after the drop-line when the root has no .children", () => {
+		childrenByParent.set("bob", []);
+		try {
+			const html = render("bob");
+			const stack = stackAt(html, 'class="mt-m ');
+			expect({
+				hasChildren: html.includes('class="children'),
+				parent: classOf(stack[stack.length - 2]).startsWith("font-custom project"),
+				precededByDropLine: html.includes(
+					`<div class="drop-line"><div class="line"></div></div>${ADD_BUTTON_MARKUP}`,
+				),
+			}).toStrictEqual({hasChildren: false, parent: true, precededByDropLine: true});
+		} finally {
+			childrenByParent.delete("bob");
+		}
 	});
 
 	it("leaves the add-child button out during a search", () => {
@@ -491,7 +508,7 @@ describe("OutlineTree add-sibling button", () => {
 		expect({
 			count: html.split("addSiblingButton").length - 1,
 			parent: classOf(stack[stack.length - 2]),
-			endsNested: html.includes(`${ADD_SIBLING_MARKUP}</div></div></div><div class="mt-m `),
+			endsNested: html.includes(`${ADD_SIBLING_MARKUP}</div></div><div class="mt-m `),
 		}).toStrictEqual({count: 1, parent: NESTED_CHILDREN, endsNested: true});
 	});
 
@@ -526,7 +543,7 @@ describe("OutlineTree add-sibling button", () => {
 });
 
 describe("OutlineTree row windowing", () => {
-	it("renders the first rows of a long list up to the budget, then a growth sentinel and no add-child button", () => {
+	it("renders the first rows of a long list up to the budget, then the add-child button and a growth sentinel", () => {
 		const original = childrenByParent.get(null);
 		const rows = Array.from({length: 250}, (_, index) =>
 			makeNode({id: `n${index}`, name: `Node ${index}`, hasChildren: false}),
@@ -541,7 +558,7 @@ describe("OutlineTree row windowing", () => {
 				projects: html.split('class="font-custom project task').length - 1,
 				sentinels: html.split('<div class="render-sentinel"').length - 1,
 				addChild: html.includes("addChildButton"),
-			}).toStrictEqual({projects: 24, sentinels: 1, addChild: false});
+			}).toStrictEqual({projects: 24, sentinels: 1, addChild: true});
 		} finally {
 			childrenByParent.set(null, original ?? []);
 		}
