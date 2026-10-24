@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto";
 import {beforeAll, afterAll, describe, expect, it} from "vite-plus/test";
 import {findUnregisteredInboxes} from "../../src/services/unregistered-inboxes.js";
 import {cleanupTestDatabase, createInMemoryTestDatabase, nodeFixtures, seedTestData} from "../db/migration-helper.js";
@@ -28,13 +29,15 @@ describe("unregistered inbox diagnostics", () => {
 				createTestNode({id: "link", name: '<a href="https://example.com">Inbox</a>'}),
 			]),
 		);
-		const before = database.sqlite.serialize();
+		// Deep-equality over the raw database bytes walks them one index at a time; a digest compares the same bytes in milliseconds.
+		const digest = (): string => createHash("sha256").update(database.sqlite.serialize()).digest("hex");
+		const before = digest();
 		const registeredIds = new Set([...Array.from({length: 30}, (_, index) => `registered-${index}`), "link"]);
 		expect(findUnregisteredInboxes(database.db, registeredIds)).toStrictEqual([
 			{id: "nested", name: "📥 Inbox", path: "Work > Reference > 📥 Inbox"},
 			{id: "root", name: "Inbox", path: "Inbox"},
 		]);
-		expect(database.sqlite.serialize()).toStrictEqual(before);
+		expect(digest()).toStrictEqual(before);
 	});
 
 	it("returns no warnings when all inbox nodes are registered", () => {

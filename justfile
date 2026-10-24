@@ -148,12 +148,40 @@ eval-behavioral: build
 pre-commit: build-shared
     pre-commit run --all-files
 
+# Run pre-commit hooks except Fallow and vp fmt, which verify's fixer branch already ran
+_pre-commit-unformatted: build-shared
+    SKIP=fallow,oxfmt pre-commit run --all-files
+
 # Run all pre-commit checks
 [arg("quick", long, value="true", help="Skip tests")]
 [group('workflow')]
-verify quick="": check typecheck build fallow test-plugins manifest eval-structural pre-commit
-    {{ if quick != "true" { "just test" } else { "true" } }}
-    @echo "All pre-commit checks passed!"
+verify quick="": build-shared
+    #!/usr/bin/env bash
+    set -uo pipefail
+    # Branches run in parallel with --no-deps: just's [parallel] can start a shared dependency twice, and a second build-shared rewrites shared dist under the running tests.
+    # Fixers rewrite files in place, so they share one serial branch. Fallow goes first because its fix rewrites package.json with 2-space indentation, which check's formatter re-tabs.
+    branches=(
+        "fallow check _pre-commit-unformatted"
+        "typecheck build manifest eval-structural"
+        "test-plugins"
+        {{ if quick == "true" { "" } else { '"test"' } }}
+    )
+    pids=()
+    for branch in "${branches[@]}"; do
+        (for recipe in $branch; do just --no-deps "$recipe" || exit; done) &
+        pids+=("$!")
+    done
+    failed=0
+    for index in "${!pids[@]}"; do
+        if ! wait "${pids[$index]}"; then
+            echo "verify branch failed: ${branches[$index]}" >&2
+            failed=1
+        fi
+    done
+    if [ "$failed" -ne 0 ]; then
+        exit 1
+    fi
+    echo "All pre-commit checks passed!"
 
 # Deprecated alias for `verify`
 [arg("quick", long, value="true", help="Skip tests")]
