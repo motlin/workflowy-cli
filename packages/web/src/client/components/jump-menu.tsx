@@ -19,18 +19,9 @@ import {buildSwitcherRows, sameSwitcherRow, starredNodeIds} from "../switcher-ro
 import type {StarredEntry, SwitcherRow, SwitcherSearchStatus} from "../switcher-rows.js";
 import {useOutlineStore} from "../stores/outline.js";
 import {useZoomTo} from "../hooks/use-zoom-to.js";
+import {BACKDROP_CLASS, DIALOG_CLASS, SCRIM_CLASS} from "./dialog-shell.js";
 import {FaIcon} from "./fa-icons.js";
 import {LoadingSpinner} from "./loading-spinner.js";
-
-const BACKDROP_CLASS =
-	"fixed top-sat left-sal right-sar bottom-sab flex items-start justify-center print:hidden dialog-backdrop";
-
-const SCRIM_CLASS =
-	"absolute inset-0 flex items-center justify-center bg-black transition-opacity duration-300 transition-base";
-
-// Upstream WF.DomKit.Dialog box.
-const DIALOG_CLASS =
-	"wf-dialog dialog-box relative mt-[10vh] p-0 !w-[calc(100%-72px)] max-w-[576px] max-h-[80vh] shrink-0 gap-l flex flex-col rounded-m border border-solid border-primary text-primary bg-primary box-border select-text overflow-x-hidden overflow-y-auto overscroll-contain transition-[transform,opacity] duration-300 transition-base desktop:shadow-[var(--wf-box-shadow-m)] mobile:max-w-full mobile:border-0 mobile:!w-[100%] [@media(max-height:700px)]:!mt-0 [@media(max-height:700px)]:!h-full [@media(max-height:700px)]:max-h-none [@media(max-height:700px)]:!rounded-none [@media(max-width:576px)]:mt-0 [@media(max-width:576px)]:!w-full [@media(max-width:576px)]:h-full [@media(max-width:576px)]:max-h-none [@media(max-width:576px)]:!rounded-none [@media(max-width:576px)]:border-none";
 
 // Upstream WF.DomKit.Input with the switcher's py-ml px-l padding.
 const INPUT_CLASS =
