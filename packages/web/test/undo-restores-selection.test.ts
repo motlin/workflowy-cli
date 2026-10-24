@@ -39,6 +39,9 @@ describe("queueUndo with the outline store", () => {
 			async uncompleteNode() {
 				return Promise.resolve();
 			},
+			async updateLayout() {
+				return Promise.resolve();
+			},
 		};
 		undoHistory.clear();
 		useOutlineStore.getState().clearItemSelection();

@@ -59,6 +59,7 @@ function slide(
 	to: Partial<SlideStyle>,
 	deps: SlideDeps,
 	onDone: () => void,
+	leaveOrigin = false,
 ): () => void {
 	if (deps.reducedMotion) {
 		onDone();
@@ -73,6 +74,10 @@ function slide(
 	const finish = () => {
 		if (active) {
 			stop();
+			if (leaveOrigin) {
+				// Upstream's expand leaves this one declaration behind on `.children`.
+				el.style.transformOrigin = "0px 0px";
+			}
 			onDone();
 		}
 	};
@@ -102,7 +107,7 @@ function slide(
 
 /** Upstream's expand: `.children` grows from `scale(0.2, 0)` and fades in. */
 export function slideDown(el: SlideElement, deps: SlideDeps, onDone: () => void = () => {}): () => void {
-	return slide(el, SHUT, OPEN, deps, onDone);
+	return slide(el, SHUT, OPEN, deps, onDone, true);
 }
 
 /** Upstream's collapse: `.children` shrinks to `scale(0.2, 0)` and fades out; `onDone` unmounts it. */

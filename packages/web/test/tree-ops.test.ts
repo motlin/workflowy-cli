@@ -24,6 +24,7 @@ import {
 	planToggleComplete,
 	planVerticalMove,
 	cacheMoveTree,
+	needsChildrenBeforeMove,
 	toUndoOps,
 } from "../src/client/tree-ops.js";
 import type {BlockMove, BlockMoveTree, VerticalMoveTree} from "../src/client/tree-ops.js";
@@ -348,6 +349,29 @@ function afterMoves(tree: BlockMoveTree, moves: BlockMove[], parents: (string | 
 	const after = moves.reduce<BlockMoveTree>((current, move) => applyBlockMove(current, move), tree);
 	return parents.map((parentId) => after.childrenOf(parentId));
 }
+
+describe("needsChildrenBeforeMove", () => {
+	const tree = (loaded: Record<string, boolean>): BlockMoveTree => ({
+		...rowTree([{id: "delta"}]),
+		childrenLoaded: (id) => loaded[id] ?? true,
+	});
+
+	it("is true for a collapsed row whose children are not cached", () => {
+		expect(needsChildrenBeforeMove(tree({delta: false}), "delta")).toBe(true);
+	});
+
+	it("is false for a loaded row, a leaf and home", () => {
+		expect([
+			needsChildrenBeforeMove(tree({delta: true}), "delta"),
+			needsChildrenBeforeMove(tree({}), "leaf"),
+			needsChildrenBeforeMove(tree({delta: false}), null),
+		]).toStrictEqual([false, false, false]);
+	});
+
+	it("is false when the tree cannot say", () => {
+		expect(needsChildrenBeforeMove(rowTree([{id: "delta"}]), "delta")).toBe(false);
+	});
+});
 
 describe("planBlockMove", () => {
 	const root = (): Row[] => [{id: "delta"}, {id: "charlie"}, {id: "bravo"}, {id: "alpha"}];
@@ -1173,6 +1197,78 @@ describe("toUndoOps", () => {
 		const qc = seed({p: [node({id: "a", parent_id: "p", priority: 100, name: "old", note: "same"})]});
 		expect(toUndoOps({kind: "edit", nodeId: "a", name: "new", note: "same"}, qc)).toStrictEqual([
 			{kind: "edit", nodeId: "a", field: "name", before: "old", after: "new"},
+		]);
+	});
+
+	it("records a layout change with the cached layoutMode and numberedStart", () => {
+		const qc = seed({p: [node({id: "alice", parent_id: "p", priority: 100})]});
+		expect(toUndoOps({kind: "edit", nodeId: "alice", layoutMode: "h2"}, qc)).toStrictEqual([
+			{
+				kind: "layout",
+				nodeId: "alice",
+				before: {layoutMode: null, numberedStart: null},
+				after: {layoutMode: "h2", numberedStart: null},
+			},
+		]);
+	});
+
+	it("treats bullets and a null layoutMode as the same layout", () => {
+		const qc = seed({
+			p: [
+				node({id: "plain", parent_id: "p", priority: 100}),
+				node({id: "heading", parent_id: "p", priority: 200, data: {layoutMode: "h1"}}),
+			],
+		});
+		expect([
+			toUndoOps({kind: "edit", nodeId: "plain", layoutMode: "bullets"}, qc),
+			toUndoOps({kind: "edit", nodeId: "heading", layoutMode: "bullets"}, qc),
+		]).toStrictEqual([
+			[],
+			[
+				{
+					kind: "layout",
+					nodeId: "heading",
+					before: {layoutMode: "h1", numberedStart: null},
+					after: {layoutMode: null, numberedStart: null},
+				},
+			],
+		]);
+	});
+
+	it("records a numberedStart change and a name and layout change together as edit then layout", () => {
+		const qc = seed({
+			p: [
+				node({
+					id: "a",
+					parent_id: "p",
+					priority: 100,
+					name: "old",
+					data: {layoutMode: "numbered"},
+					numberedStart: 3,
+				}),
+			],
+		});
+		expect([
+			toUndoOps({kind: "edit", nodeId: "a", numberedStart: 7}, qc),
+			toUndoOps({kind: "edit", nodeId: "a", name: "new", layoutMode: "h3"}, qc),
+		]).toStrictEqual([
+			[
+				{
+					kind: "layout",
+					nodeId: "a",
+					before: {layoutMode: "numbered", numberedStart: 3},
+					after: {layoutMode: "numbered", numberedStart: 7},
+				},
+			],
+			[
+				{kind: "edit", nodeId: "a", field: "name", before: "old", after: "new"},
+				{
+					kind: "layout",
+					nodeId: "a",
+					before: {layoutMode: "numbered", numberedStart: 3},
+					after: {layoutMode: "h3", numberedStart: 3},
+				},
+			],
 		]);
 	});
 

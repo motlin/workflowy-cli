@@ -330,6 +330,10 @@ interface OutlineState {
 	editingClickPosition: ClickPosition | null;
 	/** Text offset to place the caret at when editing resumes after dismissing search. */
 	editingCaretOffset: number | null;
+	/** The end of a restored selection range that starts at `editingCaretOffset`; null for a caret. */
+	editingCaretEnd: number | null;
+	/** Whether the restored range was selected backwards (focus before anchor). */
+	editingCaretReversed: boolean;
 	/** A name the next editor for `id` starts from instead of its `initialValue`; consumed when editing mounts. */
 	editingHtmlOverride: {id: string; html: string} | null;
 	editingNoteId: string | null;
@@ -342,6 +346,8 @@ interface OutlineState {
 	/** A row whose name editor should open the date picker at its caret once it is focused ("Add date"). */
 	datePickerRequestId: string | null;
 	showCompleted: boolean;
+	/** Upstream's account setting `always_visible_controls` (default on): expand arrows are drawn at rest. */
+	alwaysVisibleControls: boolean;
 	/** Completed rows kept visible while their deferred hide runs, though completed rows are hidden. */
 	animatingCompletionIds: Set<string>;
 	/** Animating rows currently playing the slideUp. */
@@ -477,8 +483,12 @@ interface OutlineActions {
 	blurNote: (id: string) => void;
 	/** Edit `id` with the caret `caretOffset` text characters in (clamped to the end). */
 	/** `options.html` is the stored name the editor must start from, for a row whose `initialValue` prop is stale. */
-	resumeEditing: (id: string, caretOffset: number, options?: {html: string}) => void;
-	holdEditing: (caretOffset: number) => void;
+	resumeEditing: (
+		id: string,
+		caretOffset: number,
+		options?: {html?: string; end?: number; reversed?: boolean},
+	) => void;
+	holdEditing: (caretOffset: number, end?: number, reversed?: boolean) => void;
 	releaseEditing: () => void;
 	/** Show or hide completed rows: updates `completedMode` and PATCHes the account setting. */
 	setShowCompleted: (showCompleted: boolean) => void;
@@ -879,7 +889,9 @@ function setWorkspace(
 			Object.entries(state.paneCarets).filter(([id]) => panes.length > 0 && (id === MAIN_PANE_ID || ids.has(id))),
 		),
 		activePaneId,
-		...(remains ? {} : {editingId: null, editingClickPosition: null, editingCaretOffset: null}),
+		...(remains
+			? {}
+			: {editingId: null, editingClickPosition: null, editingCaretOffset: null, editingCaretEnd: null}),
 	});
 }
 
@@ -890,6 +902,8 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	itemSelection: emptySelection(),
 	editingClickPosition: null,
 	editingCaretOffset: null,
+	editingCaretEnd: null,
+	editingCaretReversed: false,
 	editingHtmlOverride: null,
 	editingNoteId: null,
 	editingNoteCaret: "end",
@@ -897,6 +911,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 	lastEditedId: null,
 	datePickerRequestId: null,
 	showCompleted: getInitialShowCompleted(),
+	alwaysVisibleControls: true,
 	animatingCompletionIds: new Set<string>(),
 	slidingUpCompletionIds: new Set<string>(),
 	slidingDownCompletedIds: new Set<string>(),
@@ -1072,12 +1087,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: id,
 			editingClickPosition: clickPosition ?? null,
 			editingCaretOffset: null,
+			editingCaretEnd: null,
 			lastEditedId: id,
 		});
 	},
 
 	stopEditing: () => {
-		set({editingId: null, editingClickPosition: null, editingCaretOffset: null});
+		set({editingId: null, editingClickPosition: null, editingCaretOffset: null, editingCaretEnd: null});
 	},
 
 	focusNote: (id, caret = "end") => {
@@ -1086,6 +1102,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
+			editingCaretEnd: null,
 			editingNoteId: id,
 			editingNoteCaret: caret,
 			lastEditedId: id,
@@ -1098,6 +1115,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: id,
 			editingClickPosition: null,
 			editingCaretOffset: caret === "end" ? Number.MAX_SAFE_INTEGER : 0,
+			editingCaretEnd: null,
 			editingNoteId: null,
 			lastEditedId: id,
 		});
@@ -1124,17 +1142,24 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 
 	resumeEditing: (id, caretOffset, options) => {
 		set({
-			editingHtmlOverride: options ? {id, html: options.html} : null,
+			editingHtmlOverride: options?.html === undefined ? null : {id, html: options.html},
 			itemSelection: emptySelection(),
 			editingId: id,
 			editingClickPosition: null,
 			editingCaretOffset: caretOffset,
+			editingCaretEnd: options?.end ?? null,
+			editingCaretReversed: options?.reversed ?? false,
 			lastEditedId: id,
 		});
 	},
 
-	holdEditing: (caretOffset) => {
-		set({editingHeld: true, editingCaretOffset: caretOffset});
+	holdEditing: (caretOffset, end, reversed = false) => {
+		set({
+			editingHeld: true,
+			editingCaretOffset: caretOffset,
+			editingCaretEnd: end ?? null,
+			editingCaretReversed: reversed,
+		});
 	},
 
 	releaseEditing: () => {
@@ -1278,6 +1303,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
+			editingCaretEnd: null,
 			editingNoteId: null,
 			lastEditedId: from?.nodeId ?? state.lastEditedId,
 			searchFocused: true,
@@ -1342,6 +1368,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
+			editingCaretEnd: null,
 		});
 	},
 
@@ -1391,6 +1418,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
+			editingCaretEnd: null,
 		});
 		return id;
 	},
@@ -1467,7 +1495,13 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 		const {[MAIN_PANE_ID]: _closed, ...carets} = get().paneCarets;
 		set({paneCarets: promotedCaret === undefined ? carets : {...carets, [MAIN_PANE_ID]: promotedCaret}});
 		if (get().activePaneId !== MAIN_PANE_ID) {
-			set({activePaneId: MAIN_PANE_ID, editingId: null, editingClickPosition: null, editingCaretOffset: null});
+			set({
+				activePaneId: MAIN_PANE_ID,
+				editingId: null,
+				editingClickPosition: null,
+				editingCaretOffset: null,
+				editingCaretEnd: null,
+			});
 		}
 		return promoted;
 	},
@@ -1513,6 +1547,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			editingId: null,
 			editingClickPosition: null,
 			editingCaretOffset: null,
+			editingCaretEnd: null,
 		});
 		return {promoted: first};
 	},
@@ -1550,7 +1585,7 @@ export const useOutlineStore = create<OutlineStore>((set, get) => ({
 			findPane(next, activePaneId) !== undefined
 		) {
 			get().setActivePane(activePaneId);
-			set({editingId: null, editingClickPosition: null, editingCaretOffset: null});
+			set({editingId: null, editingClickPosition: null, editingCaretOffset: null, editingCaretEnd: null});
 		}
 	},
 

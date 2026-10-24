@@ -242,9 +242,14 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 			}
 			nameSaver.reset(storedEditorHtml);
 
-			const {editingId, editingCaretOffset} = useOutlineStore.getState();
+			const {editingId, editingCaretOffset, editingCaretEnd, editingCaretReversed} = useOutlineStore.getState();
 			if (editingId === nodeId && editingCaretOffset !== null) {
-				placeCaretAtTextOffset(contentRef.current, editingCaretOffset);
+				placeSelectionAtTextOffsets(
+					contentRef.current,
+					editingCaretOffset,
+					editingCaretEnd ?? editingCaretOffset,
+					editingCaretReversed,
+				);
 				return;
 			}
 
@@ -951,13 +956,14 @@ function EditingText({nodeId, initialValue, parentId, priority, isEditing, click
 		if (!isEditing || !content || document.activeElement === content) {
 			return;
 		}
-		const {editingHeld, editingCaretOffset} = useOutlineStore.getState();
+		const {editingHeld, editingCaretOffset, editingCaretEnd, editingCaretReversed} = useOutlineStore.getState();
 		const focusIsLost = document.activeElement === null || document.activeElement === document.body;
 		if (!editingHeld || !focusIsLost) {
 			return;
 		}
 		content.focus();
-		placeCaretAtTextOffset(content, editingCaretOffset ?? Number.MAX_SAFE_INTEGER);
+		const start = editingCaretOffset ?? Number.MAX_SAFE_INTEGER;
+		placeSelectionAtTextOffsets(content, start, editingCaretEnd ?? start, editingCaretReversed);
 		releaseEditing();
 	});
 

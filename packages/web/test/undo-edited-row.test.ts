@@ -96,8 +96,8 @@ async function mountEditing(rows: NodeResponse[], editingId: string, caret: numb
 	await settle();
 }
 
-function editing(nodeId: string, offset: number): ViewState {
-	return {zoomedNodeId: null, editing: {nodeId, field: "name", start: offset, end: offset}, selectedIds: []};
+function editing(nodeId: string, offset: number, end = offset): ViewState {
+	return {zoomedNodeId: null, editing: {nodeId, field: "name", start: offset, end}, selectedIds: []};
 }
 
 /** The edited row's name editor: its text, whether it has focus, and the caret offset in it. */
@@ -144,6 +144,24 @@ afterEach(() => {
 });
 
 describe("⌘Z on the row being edited", () => {
+	it("restores the whole selection range saved with the step, not just a caret", async () => {
+		await mountEditing([row("alice", "Alice q", 0)], "alice", 7);
+		undoHistory.push({
+			ops: [{kind: "edit", nodeId: "alice", field: "name", before: "Alice", after: "Alice q"}],
+			before: editing("alice", 1, 4),
+			after: editing("alice", 7),
+		});
+
+		await undo();
+
+		const selection = globalThis.getSelection();
+		expect({
+			text: selection?.toString(),
+			anchor: selection?.anchorOffset,
+			focus: selection?.focusOffset,
+		}).toStrictEqual({text: "lic", anchor: 1, focus: 4});
+	});
+
 	it("shows the undone text in the editor and keeps the caret in the row", async () => {
 		await mountEditing([row("alice", "Alice q", 0)], "alice", 7);
 		undoHistory.push({

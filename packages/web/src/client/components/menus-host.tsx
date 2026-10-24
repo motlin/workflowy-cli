@@ -8,6 +8,7 @@ import {readChildren, readNode} from "../node-cache.js";
 import {requestedMenuEntries} from "../requested-menu.js";
 import {activePaneView, useOutlineStore} from "../stores/outline.js";
 import type {RequestedMenu} from "../stores/outline.js";
+import {captureOutlineView, runInUndoBatch} from "../undo-batch.js";
 import {ItemTypePicker} from "./layout-menu.js";
 
 function NodeTypePickerMenu({menu}: {menu: RequestedMenu}) {
@@ -35,7 +36,10 @@ function NodeTypePickerMenu({menu}: {menu: RequestedMenu}) {
 	};
 
 	const handleSelect = (type: ItemType) => {
-		selectItemType(type, menu.cmdContext.nodeIds, deps);
+		// One undo step for the whole choice, however many nodes it turns into the type.
+		void runInUndoBatch(captureOutlineView, () => {
+			selectItemType(type, menu.cmdContext.nodeIds, deps);
+		});
 	};
 
 	return (

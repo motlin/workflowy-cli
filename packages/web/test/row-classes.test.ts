@@ -33,6 +33,20 @@ describe("projectClassName", () => {
 		expect(projectClassName({...LEAF, hasChildren: true})).toBe("font-custom project collapsed");
 	});
 
+	it("shows neither open nor collapsed while the children slide up", () => {
+		expect(projectClassName({...LEAF, hasChildren: true, collapsingChildren: true})).toBe("font-custom project");
+	});
+
+	it("marks a parent whose children are hidden as a task that is open once expanded", () => {
+		expect(projectClassName({...LEAF, hasChildren: false, hasAnyChildren: true, expanded: true})).toBe(
+			"font-custom project task open",
+		);
+	});
+
+	it("leaves a task with only hidden children closed while collapsed", () => {
+		expect(projectClassName({...LEAF, hasChildren: false, hasAnyChildren: true})).toBe("font-custom project task");
+	});
+
 	it("marks a completed leaf with a note as done and noted", () => {
 		expect(projectClassName({...LEAF, completed: true, hasNote: true})).toBe("font-custom project task done noted");
 	});

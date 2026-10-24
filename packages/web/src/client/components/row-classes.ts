@@ -1,5 +1,9 @@
 export interface ProjectClassState {
 	hasChildren: boolean;
+	/** The row has children, hidden completed ones included; `open` follows this, `collapsed` needs visible ones. */
+	hasAnyChildren?: boolean;
+	/** The row's `.children` is playing the collapse slide-up: upstream shows neither `open` nor `collapsed` yet. */
+	collapsingChildren?: boolean;
 	expanded: boolean;
 	completed: boolean;
 	hasNote: boolean;
@@ -36,7 +40,12 @@ export interface NameClassState {
 
 // Mirrors upstream's `.project` class order; layout classes come last.
 export function projectClassName(state: ProjectClassState): string {
-	const branch = state.hasChildren && !state.isZoomRoot;
+	const branch = state.hasChildren && !state.isZoomRoot && state.collapsingChildren !== true;
+	const open =
+		(state.hasChildren || state.hasAnyChildren === true) &&
+		!state.isZoomRoot &&
+		state.collapsingChildren !== true &&
+		state.expanded;
 	return [
 		"font-custom project",
 		state.references && "references",
@@ -44,8 +53,8 @@ export function projectClassName(state: ProjectClassState): string {
 		!state.hasChildren && "task",
 		state.completed && "done",
 		(state.hasNote || state.noteFocused) && "noted",
-		branch && state.expanded && "open",
-		branch && state.expanded && state.animatingShowChildren && "animatingShowChildren",
+		open && "open",
+		open && state.animatingShowChildren && "animatingShowChildren",
 		branch && !state.expanded && "collapsed",
 		state.isZoomRoot && "selected root",
 		state.highlighted && "highlighted",

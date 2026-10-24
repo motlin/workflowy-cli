@@ -96,7 +96,7 @@ describe("slideDown", () => {
 
 		el.dispatch("transitionend");
 		expect({style: el.style, done, listeners: el.listenerCount("transitionend")}).toStrictEqual({
-			style: {},
+			style: {transformOrigin: "0px 0px"},
 			done: 1,
 			listeners: 0,
 		});
@@ -113,7 +113,7 @@ describe("slideDown", () => {
 		expect(fake.timers.map(({ms}) => ms)).toStrictEqual([220]);
 		fake.timers[0]?.cb();
 		el.dispatch("transitionend");
-		expect({style: el.style, done}).toStrictEqual({style: {}, done: 1});
+		expect({style: el.style, done}).toStrictEqual({style: {transformOrigin: "0px 0px"}, done: 1});
 	});
 
 	it("does nothing but finish under prefers-reduced-motion", () => {

@@ -1,6 +1,6 @@
 import {RequestStatusError} from "./request-error.js";
 import {selectedIdsOf} from "./item-selection.js";
-import {editorElement, selectionTextOffsets} from "./caret-dom.js";
+import {activeNoteContent, editorElement, selectionTextRange} from "./caret-dom.js";
 import {useOutlineStore} from "./stores/outline.js";
 import {sameOp, undoHistory} from "./undo-history.js";
 import type {UndoOp, ViewState} from "./undo-history.js";
@@ -28,6 +28,7 @@ export interface UndoAdapter {
 	moveNode(nodeId: string, request: {parent_id: string | null; index: number}): Promise<unknown>;
 	completeNode(nodeId: string): Promise<unknown>;
 	uncompleteNode(nodeId: string): Promise<unknown>;
+	updateLayout(nodeId: string, layout: {layoutMode: string; numberedStart: number | null}): Promise<unknown>;
 }
 
 /** One undo step being collected: an entry per recorded op or held mutation, in issue order. */
@@ -91,32 +92,43 @@ export async function whenUndoSettled(): Promise<void> {
 	});
 }
 
-type ReadSelection = (nodeId: string) => {start: number; end: number} | null;
+type ReadSelection = (
+	nodeId: string,
+	field: "name" | "note",
+) => {start: number; end: number; reversed?: boolean} | null;
 
-/** The live selection in `nodeId`'s rendered name editor; null without one (or without a DOM). */
-function liveNameSelection(nodeId: string): {start: number; end: number} | null {
+/** The live selection in `nodeId`'s rendered name or note editor; null without one (or without a DOM). */
+function liveSelection(nodeId: string, field: "name" | "note"): ReturnType<ReadSelection> {
 	if (typeof document === "undefined") {
 		return null;
 	}
-	const editor = editorElement(nodeId);
-	return editor === null ? null : selectionTextOffsets(editor);
+	const editor = field === "name" ? editorElement(nodeId) : activeNoteContent();
+	return editor === null ? null : selectionTextRange(editor);
 }
 
 /**
- * The outline's zoom, caret and item selection: the name editor's live selection when it is rendered (the store's
- * caret is only where editing started), else the stored caret.
+ * The outline's zoom, caret and item selection: the focused editor's live selection (name or note) when it is
+ * rendered (the store's caret is only where editing started), else the stored caret.
  */
-export function captureOutlineView(readSelection: ReadSelection = liveNameSelection): ViewState {
+export function captureOutlineView(readSelection: ReadSelection = liveSelection): ViewState {
 	const {zoomedNodeId, editingId, editingCaretOffset, editingNoteId, itemSelection} = useOutlineStore.getState();
 	const selectedIds = selectedIdsOf(itemSelection);
 	if (editingId !== null) {
 		const caret = editingCaretOffset ?? 0;
-		const {start, end} = readSelection(editingId) ?? {start: caret, end: caret};
-		return {zoomedNodeId, editing: {nodeId: editingId, field: "name", start, end}, selectedIds};
+		const {start, end, reversed} = readSelection(editingId, "name") ?? {start: caret, end: caret};
+		return {
+			zoomedNodeId,
+			editing: {nodeId: editingId, field: "name", start, end, ...(reversed === true ? {reversed} : {})},
+			selectedIds,
+		};
 	}
+	if (editingNoteId === null) {
+		return {zoomedNodeId, editing: null, selectedIds};
+	}
+	const {start, end, reversed} = readSelection(editingNoteId, "note") ?? {start: 0, end: 0};
 	return {
 		zoomedNodeId,
-		editing: editingNoteId === null ? null : {nodeId: editingNoteId, field: "note", start: 0, end: 0},
+		editing: {nodeId: editingNoteId, field: "note", start, end, ...(reversed === true ? {reversed} : {})},
 		selectedIds,
 	};
 }
@@ -264,6 +276,11 @@ async function applyOp(op: UndoOp, adapter: UndoAdapter): Promise<unknown> {
 			return adapter.moveNode(op.nodeId, {parent_id: op.to.parentId, index: op.to.index});
 		case "complete":
 			return adapter.completeNode(op.nodeId);
+		case "layout":
+			return adapter.updateLayout(op.nodeId, {
+				layoutMode: op.after.layoutMode ?? "bullets",
+				numberedStart: op.after.numberedStart,
+			});
 		case "uncomplete":
 		default:
 			return adapter.uncompleteNode(op.nodeId);

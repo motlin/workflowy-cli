@@ -9,6 +9,12 @@ export interface Slot {
 	index: number;
 }
 
+/** A node's layout as an undo step restores it; a null `layoutMode` is bullets. */
+export interface LayoutState {
+	layoutMode: string | null;
+	numberedStart: number | null;
+}
+
 /**
  * One reversible outline mutation. Delete is undone by restoring the ORIGINAL id, so redo of a
  * create also restores that id (`undelete`) rather than creating a fresh node.
@@ -19,12 +25,13 @@ export type UndoOp =
 	| {kind: "delete"; nodeId: string; parentId: string | null; index: number}
 	| {kind: "undelete"; nodeId: string; parentId: string | null; index: number}
 	| {kind: "move"; nodeId: string; from: Slot; to: Slot}
-	| {kind: "complete" | "uncomplete"; nodeId: string};
+	| {kind: "complete" | "uncomplete"; nodeId: string}
+	| {kind: "layout"; nodeId: string; before: LayoutState; after: LayoutState};
 
 /** Where the user was looking and typing; restored on undo/redo but never itself an op. */
 export interface ViewState {
 	zoomedNodeId: string | null;
-	editing: {nodeId: string; field: "name" | "note"; start: number; end: number} | null;
+	editing: {nodeId: string; field: "name" | "note"; start: number; end: number; reversed?: boolean} | null;
 	/** The item selection's entry ids in lead order. */
 	selectedIds: string[];
 }
@@ -38,6 +45,8 @@ export interface UndoBatch {
 export function invertOp(op: UndoOp): UndoOp {
 	switch (op.kind) {
 		case "edit":
+			return {...op, before: op.after, after: op.before};
+		case "layout":
 			return {...op, before: op.after, after: op.before};
 		case "create":
 		case "undelete":

@@ -3,9 +3,10 @@ import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretAnchor, caretBoxes, caretTextOffset, editorElement, rowContent} from "../caret-dom.js";
 import type {AnchorRect} from "../caret-dom.js";
 import {editingAfterRemoval} from "../caret-navigation.js";
-import {executeMoveTo} from "../move-to.js";
+import {executeMoveTo, viewMovedTarget} from "../move-to.js";
 import type {LoadedMoveTarget} from "../move-to.js";
 import {goToNode} from "../navigation.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
 import {readNode} from "../node-cache.js";
 import {useOutlineStore} from "../stores/outline.js";
 import type {CaretReturn} from "../stores/outline.js";
@@ -51,6 +52,7 @@ export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 			return;
 		}
 		const store = useOutlineStore.getState();
+		const paneId = store.activePaneId === MAIN_PANE_ID ? null : store.activePaneId;
 		store.clearItemSelection();
 		const editor = store.editingId === first ? editorElement(first) : null;
 		const returnTo: CaretReturn | undefined =
@@ -83,7 +85,14 @@ export function useMoveTo(): (itemIds: readonly string[]) => Promise<void> {
 				useOutlineStore.getState().showAppMessage(text, {timeout, actions, type});
 			},
 			view: (targetId) => {
-				goToNode(navigate, targetId);
+				viewMovedTarget(targetId, paneId, {
+					zoomPane: (pane, target) => {
+						useOutlineStore.getState().zoomPane(pane, target);
+					},
+					zoomMain: (target) => {
+						goToNode(navigate, target);
+					},
+				});
 			},
 			undo: () => {
 				activeCommandRegistry().undo?.execute({items: [], zoomedId: null});

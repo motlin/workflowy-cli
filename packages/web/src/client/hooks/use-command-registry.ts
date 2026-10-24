@@ -2,12 +2,14 @@ import {useCallback} from "react";
 import {flushSync} from "react-dom";
 import {notifyManager, useQueryClient} from "@tanstack/react-query";
 import {closeMainPane, goToNode, movePane, nodeUrl, stepNav} from "../navigation.js";
+import {FIT_REVEAL_BUFFER, MOVE_REVEAL_BUFFER, revealRowsAfterPaint} from "../reveal-row.js";
+import type {RevealBuffer} from "../reveal-row.js";
 import {cachedResolvedId, nodeKeys, readChildren, readItemNode, readNode, renderedCopyIds} from "../node-cache.js";
 import type {NodeResponse} from "../../node-types.js";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {activePaneView, activeZoomedId, flushEditing, useOutlineStore} from "../stores/outline.js";
 import {sortByPriority} from "../tree-position.js";
-import {caretTextOffset, editorElement, placeCaretAtTextOffset, rowContent} from "../caret-dom.js";
+import {caretTextOffset, editorElement, placeCaretAtTextOffset, rowContent, selectionTextRange} from "../caret-dom.js";
 import {currentSearchFilter} from "./use-tree-search.js";
 import {focusableSiblingIds} from "../render-window.js";
 import {focusCenterNext} from "../quiet-focus.js";
@@ -15,6 +17,7 @@ import type {SearchFilter} from "../search-filter.js";
 import {editingAfterRemoval, firstLastNavigable, planCompleteFocus} from "../caret-navigation.js";
 import {
 	cacheMoveTree,
+	needsChildrenBeforeMove,
 	rowHasChildren,
 	nextPotentiallyVisibleSibling,
 	planBlockMove,
@@ -200,7 +203,10 @@ export function useCommandRegistry(): CommandRegistry {
 	 * after expanding its new parent when the plan asks for it.
 	 */
 	const moveEditedNode = useCallback(
-		(plan: (MoveNodePayload & {expandParentId?: string | null}) | null) => {
+		(
+			plan: (MoveNodePayload & {expandParentId?: string | null}) | null,
+			reveal: RevealBuffer = FIT_REVEAL_BUFFER,
+		) => {
 			if (plan === null) {
 				return;
 			}
@@ -209,11 +215,40 @@ export function useCommandRegistry(): CommandRegistry {
 				expand(expandParentId);
 			}
 			const editor = editorElement(payload.nodeId);
-			holdEditing(editor ? caretTextOffset(editor) : Number.MAX_SAFE_INTEGER);
+			if (editor) {
+				const {start, end, reversed} = selectionTextRange(editor);
+				holdEditing(start, end, reversed);
+			} else {
+				holdEditing(Number.MAX_SAFE_INTEGER);
+			}
 			moveNodeMutation.mutate(payload, {onSettled: releaseEditing});
+			revealRowsAfterPaint([payload.nodeId], reveal);
 		},
 		[expand, holdEditing, releaseEditing, moveNodeMutation],
 	);
+
+	/**
+	 * Runs `then` once `parentId`'s children are cached, holding the edited row's selection meanwhile (a move into a
+	 * never-opened collapsed row would otherwise vanish until the children landed). A failed load changes nothing.
+	 */
+	const loadChildrenThen = async (parentId: string | null, then: () => void): Promise<void> => {
+		const editor = editingId === null ? null : editorElement(editingId);
+		if (editor !== null) {
+			const {start, end, reversed} = selectionTextRange(editor);
+			holdEditing(start, end, reversed);
+		}
+		try {
+			await queryClient.query({
+				queryKey: nodeKeys.children(parentId),
+				queryFn: async () => fetchChildren(parentId),
+				staleTime: "static",
+			});
+		} catch {
+			releaseEditing();
+			return;
+		}
+		then();
+	};
 
 	/**
 	 * Move the item selection as blocks (`planBlockMove`) in one undo step, keeping it selected and expanding each
@@ -221,7 +256,16 @@ export function useCommandRegistry(): CommandRegistry {
 	 */
 	const moveSelection = (ctx: CommandContext, direction: BlockMoveDirection): void => {
 		const state = useOutlineStore.getState();
-		const moves = planBlockMove(ctx.items, direction, cacheMoveTree(queryClient, state), zoomedNodeId);
+		const tree = cacheMoveTree(queryClient, state);
+		const moves = planBlockMove(ctx.items, direction, tree, zoomedNodeId);
+		const unloaded = moves.find(({parentId}) => needsChildrenBeforeMove(tree, parentId));
+		if (unloaded !== undefined) {
+			// Planned again once the target's children are cached, so the block lands among them.
+			void loadChildrenThen(unloaded.parentId, () => {
+				moveSelection(ctx, direction);
+			});
+			return;
+		}
 		for (const {parentId} of moves) {
 			if (parentId !== null && parentId !== zoomedNodeId && !activePaneView().expandedIds.has(parentId)) {
 				expand(parentId);
@@ -229,6 +273,11 @@ export function useCommandRegistry(): CommandRegistry {
 		}
 		if (moves.length > 0) {
 			void runInUndoBatch(captureOutlineView, async () => sendBlockMoves(moves, moveNodesMutation.mutate));
+			// Upstream `WF.Scroll.fit`: both ends of the moved selection stay in view.
+			revealRowsAfterPaint(
+				[ctx.items[0], ctx.items.at(-1)].filter((id) => id !== undefined),
+				FIT_REVEAL_BUFFER,
+			);
 		}
 	};
 
@@ -242,22 +291,44 @@ export function useCommandRegistry(): CommandRegistry {
 		if (nodeId === undefined) {
 			return;
 		}
-		const plan = planVerticalMove({
-			nodeId,
-			direction,
-			zoomRootId: zoomedNodeId,
-			tree: cacheMoveTree(queryClient, useOutlineStore.getState()),
-		});
+		const tree = cacheMoveTree(queryClient, useOutlineStore.getState());
+		const plan = planVerticalMove({nodeId, direction, zoomRootId: zoomedNodeId, tree});
 		if (plan === null) {
 			return;
 		}
-		moveEditedNode({
-			nodeId: plan.nodeId,
-			parent_id: plan.parentId,
-			index: plan.index,
-			expandParentId: plan.expandParentId,
-		});
+		if (needsChildrenBeforeMove(tree, plan.parentId)) {
+			void loadChildrenThen(plan.parentId, () => {
+				moveEditedNodeVertically(ctx, direction);
+			});
+			return;
+		}
+		moveEditedNode(
+			{nodeId: plan.nodeId, parent_id: plan.parentId, index: plan.index, expandParentId: plan.expandParentId},
+			MOVE_REVEAL_BUFFER,
+		);
 		flashMoving([plan.nodeId]);
+	};
+
+	/** Tab: the selection as blocks, else the edited row as the last child of its previous sibling. */
+	const indentItem = (ctx: CommandContext): void => {
+		if (hasItemSelection()) {
+			moveSelection(ctx, "indent");
+			return;
+		}
+		const node = itemNode(ctx);
+		if (node === undefined) {
+			return;
+		}
+		const plan = planIndent(queryClient, node, activePaneView().expandedIds);
+		const tree = cacheMoveTree(queryClient, useOutlineStore.getState());
+		if (plan !== null && needsChildrenBeforeMove(tree, plan.parent_id)) {
+			// Without the previous sibling's children the row could not be placed after them.
+			void loadChildrenThen(plan.parent_id, () => {
+				indentItem(ctx);
+			});
+			return;
+		}
+		moveEditedNode(plan);
 	};
 
 	/** Continue editing beside the edited node, which is about to leave the view. */
@@ -563,37 +634,42 @@ export function useCommandRegistry(): CommandRegistry {
 			),
 		});
 
-		// Commit the edited text before the caret moves; "stay" keeps editing in place
-		if (focus.kind !== "stay") {
-			commitEdit();
-		}
-		if (focus.kind === "row") {
-			resumeEditing(focus.id, focus.offset);
-		} else if (focus.kind === "zoomTitle" && zoomedNodeId !== null) {
-			resumeEditing(zoomedNodeId, 0);
-		}
+		// Pending text is its own undo step (upstream `saveFocused()` before `startOperationBatch`); the command's step
+		// then captures the view BEFORE the caret moves, so undo returns to the completed row.
+		flushEditing();
+		void runInUndoBatch(captureOutlineView, () => {
+			// Commit the edited text before the caret moves; "stay" keeps editing in place
+			if (focus.kind !== "stay") {
+				commitEdit();
+			}
+			if (focus.kind === "row") {
+				resumeEditing(focus.id, focus.offset);
+			} else if (focus.kind === "zoomTitle" && zoomedNodeId !== null) {
+				resumeEditing(zoomedNodeId, 0);
+			}
 
-		const parentOfZoomed = zoomedNode?.parent_id ?? null;
-		const zoomOutAfterSettling =
-			focus.kind === "zoomOut"
-				? {
-						onSettled() {
-							setTimeout(() => {
-								void navigate(parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed));
-							}, focus.delayMs);
-						},
-					}
-				: undefined;
-		// Hidden completed rows stay for upstream's deferred hide; the caret has already moved
-		if (completing && !showCompleted) {
-			scheduleCompletionHide(renderedCopyIds(queryClient, plan.ids), useOutlineStore.getState(), (id) => {
-				const current = readNode(queryClient, id);
-				return !useOutlineStore.getState().showCompleted && current?.completedAt !== null;
-			});
-		}
-		for (const nodeId of plan.ids) {
-			toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing}, zoomOutAfterSettling);
-		}
+			const parentOfZoomed = zoomedNode?.parent_id ?? null;
+			const zoomOutAfterSettling =
+				focus.kind === "zoomOut"
+					? {
+							onSettled() {
+								setTimeout(() => {
+									void navigate(parentOfZoomed === null ? "/" : nodeUrl(parentOfZoomed));
+								}, focus.delayMs);
+							},
+						}
+					: undefined;
+			// Hidden completed rows stay for upstream's deferred hide; the caret has already moved
+			if (completing && !showCompleted) {
+				scheduleCompletionHide(renderedCopyIds(queryClient, plan.ids), useOutlineStore.getState(), (id) => {
+					const current = readNode(queryClient, id);
+					return !useOutlineStore.getState().showCompleted && current?.completedAt !== null;
+				});
+			}
+			for (const nodeId of plan.ids) {
+				toggleCompleteMutation.mutate({nodeId, isCurrentlyCompleted: !completing}, zoomOutAfterSettling);
+			}
+		});
 	};
 
 	/** Open the link-insert modal for a text selection in the edited node, else the jump menu. */
@@ -669,13 +745,13 @@ export function useCommandRegistry(): CommandRegistry {
 		zoomTo(nodeId) {
 			goToNode(navigate, nodeId);
 		},
-		focus({nodeId, field, start}) {
+		focus({nodeId, field, start, end, reversed}) {
 			// Queued behind the preview's cache notifications, so the editor mounts on the restored text.
 			notifyManager.schedule(() => {
 				if (field === "name") {
-					resumeEditing(nodeId, start);
+					resumeEditing(nodeId, start, {end, reversed});
 				} else {
-					useOutlineStore.getState().focusNote(nodeId, start === 0 ? 0 : "end");
+					useOutlineStore.getState().focusNote(nodeId, start);
 				}
 			});
 		},
@@ -774,18 +850,7 @@ export function useCommandRegistry(): CommandRegistry {
 				expandKey(ctx, "toggle");
 			},
 		},
-		indent: {
-			execute(ctx) {
-				if (hasItemSelection()) {
-					moveSelection(ctx, "indent");
-					return;
-				}
-				const node = itemNode(ctx);
-				if (node !== undefined) {
-					moveEditedNode(planIndent(queryClient, node, activePaneView().expandedIds));
-				}
-			},
-		},
+		indent: {execute: indentItem},
 		outdent: {
 			execute(ctx) {
 				if (hasItemSelection()) {
@@ -835,11 +900,14 @@ export function useCommandRegistry(): CommandRegistry {
 				// Copy the unsaved text too
 				const editor = editorElement(node.id);
 				const name = editor === null ? node.name : serializeEditorHtml(editor.innerHTML);
-				commitEdit();
-				createNodeMutation.mutate(planDuplicate(queryClient, {...node, name}), {
-					onSuccess(createdNode) {
-						resumeEditing(createdNode.id, Number.MAX_SAFE_INTEGER);
-					},
+				flushEditing();
+				void runInUndoBatch(captureOutlineView, () => {
+					commitEdit();
+					createNodeMutation.mutate(planDuplicate(queryClient, {...node, name}), {
+						onSuccess(createdNode) {
+							resumeEditing(createdNode.id, Number.MAX_SAFE_INTEGER);
+						},
+					});
 				});
 			},
 		},
@@ -851,8 +919,11 @@ export function useCommandRegistry(): CommandRegistry {
 				}
 				const [nodeId] = ctx.items;
 				if (nodeId !== undefined) {
-					editBesideRemovedNode(nodeId);
-					deleteNodeMutation.mutate(nodeId);
+					flushEditing();
+					void runInUndoBatch(captureOutlineView, () => {
+						editBesideRemovedNode(nodeId);
+						deleteNodeMutation.mutate(nodeId);
+					});
 				}
 			},
 		},

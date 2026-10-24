@@ -519,6 +519,15 @@ export interface BlockMove {
 	index?: number;
 }
 
+/**
+ * Whether a move into `parentId` must first load that row's children: a collapsed row that has never been opened
+ * has none cached, so the planner could not place the moved row among them and the row would vanish until the
+ * children landed. False for home (`null`), a loaded row and a leaf.
+ */
+export function needsChildrenBeforeMove(tree: BlockMoveTree, parentId: string | null): boolean {
+	return parentId !== null && tree.childrenLoaded?.(parentId) === false;
+}
+
 export type BlockMoveDirection = "up" | "down" | "indent" | "outdent";
 
 /** Upstream `aY1`: split display-ordered `ids` into runs of rows that are each other's visible siblings. */
@@ -722,7 +731,7 @@ export type UndoableMutation =
 	| {kind: "create"; nodeId: string; parentId: string | null; index?: number}
 	| {kind: "mirror"; nodeIds: readonly string[]; parentId: string | null; index?: number}
 	| {kind: "delete"; nodeId: string}
-	| {kind: "edit"; nodeId: string; name?: string; note?: string}
+	| {kind: "edit"; nodeId: string; name?: string; note?: string; layoutMode?: string; numberedStart?: number | null}
 	| {kind: "move"; ids: readonly string[]; parentId: string | null; index?: number}
 	| {kind: "complete" | "uncomplete"; nodeId: string}
 	| {kind: "restore"; nodeId: string; parentId: string | null; index: number};
@@ -803,14 +812,33 @@ function moveOps(
 	return ops;
 }
 
-/** The text edits `mutation` makes to `nodeId`, each with its cached before-value. */
-function editOps(queryClient: QueryClient, nodeId: string, changes: {name?: string; note?: string}): UndoOp[] {
+/** A layout mode as stored: bullets are the absence of one. */
+function storedLayoutMode(layoutMode: string | null | undefined): string | null {
+	return layoutMode === undefined || layoutMode === "bullets" ? null : layoutMode;
+}
+
+/**
+ * The edits `mutation` makes to `nodeId`, each with its cached before-value: one op per changed text field, then a
+ * layout op when its layoutMode (bullets equal null) or numberedStart changes.
+ */
+function editOps(
+	queryClient: QueryClient,
+	nodeId: string,
+	changes: {name?: string; note?: string; layoutMode?: string; numberedStart?: number | null},
+): UndoOp[] {
 	const node = readNode(queryClient, nodeId);
-	return (["name", "note"] as const).flatMap((field): UndoOp[] => {
+	const texts = (["name", "note"] as const).flatMap((field): UndoOp[] => {
 		const after = changes[field];
 		const before = node?.[field] ?? "";
 		return after === undefined || after === before ? [] : [{kind: "edit", nodeId, field, before, after}];
 	});
+	const before = {layoutMode: storedLayoutMode(node?.data.layoutMode), numberedStart: node?.numberedStart ?? null};
+	const after = {
+		layoutMode: changes.layoutMode === undefined ? before.layoutMode : storedLayoutMode(changes.layoutMode),
+		numberedStart: changes.numberedStart === undefined ? before.numberedStart : changes.numberedStart,
+	};
+	const layoutChanged = after.layoutMode !== before.layoutMode || after.numberedStart !== before.numberedStart;
+	return layoutChanged ? [...texts, {kind: "layout", nodeId, before, after}] : texts;
 }
 
 /**

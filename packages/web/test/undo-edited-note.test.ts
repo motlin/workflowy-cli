@@ -16,6 +16,7 @@ const {MemoryRouter} = await import("react-router-dom");
 const {OutlineView} = await import("../src/client/app.js");
 const {activeCommandRegistry} = await import("../src/client/hooks/use-global-keymap.js");
 const {nodeKeys} = await import("../src/client/node-cache.js");
+const {activeNoteContent, selectionTextOffsets} = await import("../src/client/caret-dom.js");
 const {useOutlineStore} = await import("../src/client/stores/outline.js");
 const {undoHistory} = await import("../src/client/undo-history.js");
 
@@ -161,5 +162,23 @@ describe("⌘Z while a note is focused", () => {
 
 		await typeNote(`${noteElement().textContent}Z`);
 		expect(server.get("alice")?.note).toBe("note textZ");
+	});
+
+	it("puts the caret back at the offset saved with the step", async () => {
+		await mountNote([row("alice", "Alice", 0, "note text")], "alice");
+		undoHistory.push({
+			ops: [{kind: "edit", nodeId: "alice", field: "note", before: "note text", after: "noQte text"}],
+			before: {zoomedNodeId: null, editing: {nodeId: "alice", field: "note", start: 3, end: 3}, selectedIds: []},
+			after: {zoomedNodeId: null, editing: {nodeId: "alice", field: "note", start: 10, end: 10}, selectedIds: []},
+		});
+
+		act(() => {
+			activeCommandRegistry().undo.execute({items: [], zoomedId: null});
+		});
+		await settle();
+		await settle();
+
+		const content = activeNoteContent();
+		expect(content === null ? null : selectionTextOffsets(content)).toStrictEqual({start: 3, end: 3});
 	});
 });

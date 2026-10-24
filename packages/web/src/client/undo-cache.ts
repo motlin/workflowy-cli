@@ -11,6 +11,7 @@ import {
 } from "./node-cache.js";
 import {pendingMoves} from "./pending-moves.js";
 import type {UndoOp} from "./undo-history.js";
+import {HOME_TARGET} from "@workflowy/shared/types";
 
 /** A removed row with the cached children lists of its subtree, as they stood before the delete. */
 interface RemovedRow {
@@ -85,6 +86,19 @@ function previewOp(queryClient: QueryClient, op: UndoOp): void {
 			// A mirror's row shows its original's text.
 			patchMirrors(queryClient, op.nodeId, (node) => ({...node, [op.field]: op.after}));
 			return;
+		case "layout": {
+			const layoutMode = op.after.layoutMode ?? "bullets";
+			if (op.nodeId === HOME_TARGET) {
+				queryClient.setQueryData(nodeKeys.home(), {layoutMode});
+				return;
+			}
+			patchCachedNode(queryClient, op.nodeId, (node) => ({
+				...node,
+				data: {...node.data, layoutMode: op.after.layoutMode},
+				numberedStart: op.after.numberedStart,
+			}));
+			return;
+		}
 		case "complete":
 		case "uncomplete": {
 			const completedAt = op.kind === "complete" ? Math.floor(Date.now() / 1000) : null;
@@ -152,6 +166,7 @@ function touchedParents(queryClient: QueryClient, op: UndoOp): (string | null)[]
 		case "undelete":
 			return [...parents, op.parentId];
 		case "edit":
+		case "layout":
 		case "complete":
 		case "uncomplete":
 		default:

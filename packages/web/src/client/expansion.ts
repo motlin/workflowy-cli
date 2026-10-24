@@ -3,6 +3,8 @@ export interface TreeIndex {
 	children(id: string): string[];
 	isVisible(id: string): boolean;
 	hasVisibleChildren(id: string): boolean;
+	/** Whether the item has any child at all, hidden completed ones included. */
+	hasAnyChildren(id: string): boolean;
 }
 
 /** One currently rendered flattened row. */
@@ -33,7 +35,10 @@ export function subtreeIds(index: TreeIndex, rootId: string): string[] {
 	return ids;
 }
 
-/** Upstream `expandOrCollapseAll(item, open)`: sets the expansion of the item and its visible subtree. */
+/**
+ * Upstream `expandOrCollapseAll(item, open)`: sets the expansion of the item and its visible subtree, every item with
+ * any child (a row whose only children are hidden included), never a childless one.
+ */
 export function expandOrCollapseAll(
 	expanded: ReadonlySet<string>,
 	index: TreeIndex,
@@ -44,7 +49,7 @@ export function expandOrCollapseAll(
 	for (const id of subtreeIds(index, rootId)) {
 		if (!open) {
 			next.delete(id);
-		} else if (index.hasVisibleChildren(id)) {
+		} else if (index.hasAnyChildren(id)) {
 			next.add(id);
 		}
 	}

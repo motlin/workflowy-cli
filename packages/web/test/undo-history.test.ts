@@ -31,6 +31,22 @@ describe("invertOp", () => {
 		});
 	});
 
+	it("swaps before and after of a layout change", () => {
+		expect(
+			invertOp({
+				kind: "layout",
+				nodeId: "n",
+				before: {layoutMode: null, numberedStart: null},
+				after: {layoutMode: "h2", numberedStart: 4},
+			}),
+		).toStrictEqual({
+			kind: "layout",
+			nodeId: "n",
+			before: {layoutMode: "h2", numberedStart: 4},
+			after: {layoutMode: null, numberedStart: null},
+		});
+	});
+
 	it("turns a create into a delete of the same id and slot", () => {
 		expect(invertOp({kind: "create", nodeId: "n", parentId: "p", index: 3})).toStrictEqual({
 			kind: "delete",

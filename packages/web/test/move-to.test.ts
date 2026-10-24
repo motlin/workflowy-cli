@@ -1,5 +1,12 @@
 import {describe, expect, it} from "vite-plus/test";
-import {canMoveUnder, executeMoveTo, moveToastText, planMoveTo, runMoveTo} from "../src/client/move-to.js";
+import {
+	canMoveUnder,
+	executeMoveTo,
+	moveToastText,
+	planMoveTo,
+	runMoveTo,
+	viewMovedTarget,
+} from "../src/client/move-to.js";
 import type {MoveToToast} from "../src/client/move-to.js";
 import type {BlockMove} from "../src/client/tree-ops.js";
 
@@ -211,5 +218,28 @@ describe("executeMoveTo", () => {
 			moved: false,
 			log: ["load grandchild", "toast Can't move to 'Uncle'"],
 		});
+	});
+});
+
+describe("viewMovedTarget", () => {
+	const record = (paneId: string | null): string[][] => {
+		const calls: string[][] = [];
+		viewMovedTarget("charlie", paneId, {
+			zoomPane: (pane, target) => {
+				calls.push(["zoomPane", pane, target]);
+			},
+			zoomMain: (target) => {
+				calls.push(["zoomMain", target]);
+			},
+		});
+		return calls;
+	};
+
+	it("zooms the pane Move To ran in", () => {
+		expect(record("pane-2")).toStrictEqual([["zoomPane", "pane-2", "charlie"]]);
+	});
+
+	it("zooms the main outline when Move To ran there", () => {
+		expect(record(null)).toStrictEqual([["zoomMain", "charlie"]]);
 	});
 });

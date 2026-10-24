@@ -26,6 +26,7 @@ function makeIndex(hidden: ReadonlySet<string> = new Set()): TreeIndex {
 		children,
 		isVisible: (id) => !hidden.has(id),
 		hasVisibleChildren: (id) => children(id).some((child) => !hidden.has(child)),
+		hasAnyChildren: (id) => children(id).length > 0,
 	};
 }
 
@@ -77,6 +78,18 @@ describe("expandOrCollapseAll", () => {
 	it("expands every parent in the subtree", () => {
 		const result = expandOrCollapseAll(new Set(), makeIndex(), "Alpha", true);
 		expect(result).toStrictEqual(new Set(["A1", "Alpha"]));
+	});
+
+	it("marks a parent whose only child is hidden, but never a childless row", () => {
+		const children: Record<string, string[]> = {top: ["Gamma", "Leaf"], Gamma: ["G1"]};
+		const index: TreeIndex = {
+			children: (id) => children[id] ?? [],
+			isVisible: (id) => id !== "G1",
+			hasVisibleChildren: (id) => (children[id] ?? []).some((child) => child !== "G1"),
+			hasAnyChildren: (id) => (children[id] ?? []).length > 0,
+		};
+		const result = expandOrCollapseAll(new Set(), index, "top", true);
+		expect(result).toStrictEqual(new Set(["top", "Gamma"]));
 	});
 
 	it("skips hidden items when expanding", () => {

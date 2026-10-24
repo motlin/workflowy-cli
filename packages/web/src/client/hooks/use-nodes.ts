@@ -37,7 +37,7 @@ import {
 	removeOptimistic,
 } from "../node-cache.js";
 import {affectedKeys, verifyAgainstServer} from "../cache-verify.js";
-import {activePaneView, useOutlineStore} from "../stores/outline.js";
+import {activePaneView, localExpansionChangeState, useOutlineStore} from "../stores/outline.js";
 import {removeDeletedRow, textReplayPending} from "../undo-cache.js";
 import {createChildrenBatcher} from "../children-batcher.js";
 import {readJson} from "../read-json.js";
@@ -48,7 +48,7 @@ import {serializeWrite} from "../write-order.js";
 import type {BlockMove, UndoableMutation} from "../tree-ops.js";
 import {toRequestStatusError} from "../request-error.js";
 import {trackReplay} from "./use-saving.js";
-import {holdUndoSlot} from "../undo-batch.js";
+import {holdUndoSlot, recordOp} from "../undo-batch.js";
 import type {UndoAdapter, UndoSlot} from "../undo-batch.js";
 import type {UndoOp} from "../undo-history.js";
 
@@ -157,6 +157,11 @@ async function updateNode(nodeId: string, request: UpdateNodeRequest): Promise<U
 		throw await toRequestStatusError("Failed to update node", response);
 	}
 	return readJson<UpdateNodeResponse>(response);
+}
+
+/** A layout mode as an undo step stores it: bullets are the absence of one. */
+function storedLayout(layoutMode: string | undefined): string | null {
+	return layoutMode === undefined || layoutMode === "bullets" ? null : layoutMode;
 }
 
 /** Home's own metadata: its layoutMode ("bullets" when unset). */
@@ -276,6 +281,16 @@ export const undoAdapter: UndoAdapter = {
 	moveNode: async (...args) => trackReplay(moveNode(...args)),
 	completeNode: async (...args) => trackReplay(completeNode(...args)),
 	uncompleteNode: async (...args) => trackReplay(uncompleteNode(...args)),
+	updateLayout: async (nodeId, layout) =>
+		trackReplay(
+			(async () => {
+				if (nodeId === HOME_TARGET) {
+					await updateHome(layout.layoutMode);
+				} else {
+					await updateNode(nodeId, layout);
+				}
+			})(),
+		),
 };
 
 /**
@@ -614,10 +629,10 @@ export function rollbackCreate(queryClient: QueryClient, context: CreateContext)
 const updateUndos = new HeldUndos<UpdateNodeResponse, UpdateNodeRequest & {nodeId: string}>();
 
 function planEdit(
-	{nodeId, name, note}: UpdateNodeRequest & {nodeId: string},
+	{nodeId, name, note, layoutMode, numberedStart}: UpdateNodeRequest & {nodeId: string},
 	queryClient: QueryClient,
 ): UndoPlan<unknown> {
-	return cachedOps(queryClient, {kind: "edit", nodeId, name, note});
+	return cachedOps(queryClient, {kind: "edit", nodeId, name, note, layoutMode, numberedStart});
 }
 
 /**
@@ -749,6 +764,16 @@ export function useUpdateNode() {
 		(variables, options) => {
 			if (variables.nodeId === HOME_TARGET) {
 				if (variables.layoutMode !== undefined) {
+					const before = storedLayout(queryClient.getQueryData<HomeResponse>(nodeKeys.home())?.layoutMode);
+					const after = storedLayout(variables.layoutMode);
+					if (before !== after) {
+						recordOp({
+							kind: "layout",
+							nodeId: HOME_TARGET,
+							before: {layoutMode: before, numberedStart: null},
+							after: {layoutMode: after, numberedStart: null},
+						});
+					}
 					homeMutate(variables.layoutMode);
 				}
 				return;
@@ -1233,15 +1258,33 @@ function subtreeIndex(items: readonly SubtreeItem[], showCompleted: boolean): Tr
 		children: (id) => children.get(id) ?? [],
 		isVisible,
 		hasVisibleChildren: (id) => (children.get(id) ?? []).some(isVisible),
+		hasAnyChildren: (id) => (children.get(id) ?? []).length > 0,
 	};
 }
 
-/**
- * Upstream Expand all / Collapse all on `rootId` (the whole page for Home): fetches the full subtree so
- * descendants the client never loaded are covered, then sets their expansion; hidden completed subtrees are skipped.
- */
-export async function expandOrCollapseSubtree(rootId: string | null, open: boolean): Promise<void> {
-	const items = await fetchSubtreeItems(rootId);
+/** How long Expand all waits for the full subtree before using what the client has cached. */
+const SUBTREE_FETCH_TIMEOUT_MS = 3000;
+
+/** The subtree of `rootId` as far as the client has loaded it (Home's tree for null). */
+function cachedSubtreeItems(queryClient: QueryClient, rootId: string | null): SubtreeItem[] {
+	const items: SubtreeItem[] = [];
+	const walk = (parentId: string | null): void => {
+		for (const child of readChildren(queryClient, parentId) ?? []) {
+			items.push({
+				id: child.id,
+				parentId: parentId ?? null,
+				completed: child.completedAt !== null,
+				hasChildren: child.hasChildren === true,
+			});
+			walk(child.id);
+		}
+	};
+	walk(rootId);
+	return items;
+}
+
+/** Sets the expansion of `rootId` (each visible top item for Home) and its visible descendants in `items`. */
+function applySubtreeExpansion(items: readonly SubtreeItem[], rootId: string | null, open: boolean): void {
 	const {expandedIds, showCompleted, replaceExpanded} = activePaneView();
 	const index = subtreeIndex(items, showCompleted);
 	const roots = rootId === null ? index.children(HOME_TARGET).filter((id) => index.isVisible(id)) : [rootId];
@@ -1252,16 +1295,64 @@ export async function expandOrCollapseSubtree(rootId: string | null, open: boole
 	replaceExpanded(next);
 }
 
+/**
+ * Upstream Expand all / Collapse all on `rootId` (the whole page for Home): fetches the full subtree so
+ * descendants the client never loaded are covered, then sets their expansion; hidden completed subtrees are skipped.
+ * When the fetch is slow or fails, the loaded subtree (`queryClient`'s cache) is expanded at once; a late full
+ * result then replaces it unless expansion changed in between.
+ */
+export async function expandOrCollapseSubtree(
+	rootId: string | null,
+	open: boolean,
+	queryClient?: QueryClient,
+): Promise<void> {
+	const fetched = fetchSubtreeItems(rootId);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timedOut = new Promise<null>((resolve) => {
+		timer = setTimeout(() => {
+			resolve(null);
+		}, SUBTREE_FETCH_TIMEOUT_MS);
+	});
+	const applyCached = (): void => {
+		applySubtreeExpansion(queryClient === undefined ? [] : cachedSubtreeItems(queryClient, rootId), rootId, open);
+	};
+	let items: SubtreeItem[] | null;
+	try {
+		items = await Promise.race([fetched, timedOut]);
+	} catch (error) {
+		clearTimeout(timer);
+		applyCached();
+		throw error;
+	}
+	clearTimeout(timer);
+	if (items !== null) {
+		applySubtreeExpansion(items, rootId, open);
+		return;
+	}
+	applyCached();
+	const changesAfterFallback = localExpansionChangeState().count;
+	const full = await fetched.catch(() => null);
+	if (full !== null && localExpansionChangeState().count === changesAfterFallback) {
+		applySubtreeExpansion(full, rootId, open);
+	}
+}
+
 /** `expandOrCollapseSubtree` that reports a failed subtree fetch as an error notification. */
-function expandAll(rootId: string | null, open: boolean): void {
-	expandOrCollapseSubtree(rootId, open).catch((error: unknown) => {
+function expandAll(rootId: string | null, open: boolean, queryClient: QueryClient): void {
+	expandOrCollapseSubtree(rootId, open, queryClient).catch((error: unknown) => {
 		useOutlineStore.getState().addErrorNotification(error instanceof Error ? error.message : String(error));
 	});
 }
 
 /** Expands or collapses a whole subtree; the callback is one module function, so its rows hold no store selector. */
 export function useExpandAll(): (rootId: string | null, open: boolean) => void {
-	return expandAll;
+	const queryClient = useQueryClient();
+	return useCallback(
+		(rootId, open) => {
+			expandAll(rootId, open, queryClient);
+		},
+		[queryClient],
+	);
 }
 
 export type MoveNodesMutate = ReturnType<typeof useMoveNodes>["mutate"];

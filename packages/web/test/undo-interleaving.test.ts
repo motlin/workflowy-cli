@@ -92,6 +92,7 @@ function runnerFor(world: World): UndoRunner {
 		moveNode: async () => Promise.resolve(),
 		completeNode: async () => Promise.resolve(),
 		uncompleteNode: async () => Promise.resolve(),
+		updateLayout: async () => Promise.resolve(),
 	};
 	return {
 		flush() {},

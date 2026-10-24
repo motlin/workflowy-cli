@@ -10,6 +10,10 @@ interface ExpandArrowProps {
 	onToggle: (nodeId: string) => void;
 	/** When set, a second click within 250ms expands or collapses the whole subtree (upstream arrow double-click). */
 	onExpandAll?: (nodeId: string, open: boolean) => void;
+	/** Upstream's account setting `always_visible_controls`: the arrow is drawn at rest, else transparent until hover. */
+	alwaysVisible?: boolean;
+	/** Called after a toggle: upstream puts the caret at the start of the row's text. */
+	onFocusRow?: (nodeId: string) => void;
 }
 
 const EXPAND_CLASS =
@@ -20,7 +24,15 @@ const EXPAND_CLASS =
  * the triangle, rotated by the `.open` row; a leaf renders it empty and inert. Hook-free and called as a plain
  * function, so a row mounts no fiber for it.
  */
-export function expandArrow({nodeId, hasChildren, isExpanded, onToggle, onExpandAll}: ExpandArrowProps) {
+export function expandArrow({
+	nodeId,
+	hasChildren,
+	isExpanded,
+	onToggle,
+	onExpandAll,
+	alwaysVisible = true,
+	onFocusRow,
+}: ExpandArrowProps) {
 	const handleClick = (event: Pick<React.MouseEvent, "preventDefault" | "stopPropagation" | "timeStamp">) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -39,14 +51,16 @@ export function expandArrow({nodeId, hasChildren, isExpanded, onToggle, onExpand
 		});
 		if (plan.type === "toggle") {
 			onToggle(nodeId);
+			onFocusRow?.(nodeId);
 		} else if (plan.type === "all") {
 			onExpandAll(nodeId, plan.open);
+			onFocusRow?.(nodeId);
 		}
 	};
 	const shared = {
 		"data-handbook": "expand.toggle",
 		className: EXPAND_CLASS,
-		style: {color: "var(--wf-text-quinary)"},
+		style: {color: alwaysVisible ? "var(--wf-text-quinary)" : "transparent"},
 		onClick: handleClick,
 	};
 	if (!hasChildren) {

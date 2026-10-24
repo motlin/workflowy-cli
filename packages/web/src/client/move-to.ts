@@ -132,3 +132,19 @@ export async function executeMoveTo({
 	const loaded = await loadTarget("id" in picked ? picked.id : picked.createdId);
 	return runMoveTo({...move, ...loaded});
 }
+
+/**
+ * Upstream routes the toast's View through `WF.Panes.handleCommand({command: "navigate_to_item"})` first: it zooms
+ * the pane that held the caret when Move To ran (`paneId`, null for the main outline), else the main outline.
+ */
+export function viewMovedTarget(
+	targetId: string,
+	paneId: string | null,
+	actions: {zoomPane: (paneId: string, targetId: string) => void; zoomMain: (targetId: string) => void},
+): void {
+	if (paneId === null) {
+		actions.zoomMain(targetId);
+	} else {
+		actions.zoomPane(paneId, targetId);
+	}
+}

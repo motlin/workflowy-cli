@@ -20,6 +20,7 @@ export interface RowState {
 	isSlidingDown: boolean;
 	dragHover: DropHover;
 	showCompleted: boolean;
+	alwaysVisibleControls: boolean;
 }
 
 /**
@@ -45,6 +46,7 @@ export function useRowState(nodeId: string, paneId: string): RowState {
 				isSlidingDown: state.slidingDownCompletedIds.has(nodeId),
 				dragHover: dropHoverOf(state.dropIndicator, nodeId),
 				showCompleted: state.showCompleted,
+				alwaysVisibleControls: state.alwaysVisibleControls,
 			};
 		}),
 	);

@@ -4,7 +4,7 @@ import type {BacklinkCrumb, NodeAttachment, NodeResponse} from "../../node-types
 import {getHoveredRowId, setHoveredRowId} from "../hovered-row.js";
 import {useIsRowHovered} from "../hooks/use-row-hover.js";
 import type {ReactNode} from "react";
-import {memo, useContext, useMemo, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {memo, useContext, useMemo, useEffect, useLayoutEffect, useState} from "react";
 import {childInstance, isCyclical} from "../../mirror-path.js";
 import {MirrorInstanceContext} from "../mirror-instance-context.js";
 import {browserSlideDeps, slideDown, slideUp} from "../animate.js";
@@ -21,7 +21,7 @@ import {useOutlineSearchFilter} from "../search-filter-context.js";
 import type {ClickPosition} from "../stores/outline.js";
 import {useRowState} from "../hooks/use-row-state.js";
 import {isSearchExpanded} from "../search-filter.js";
-import {expansionSlide} from "../children-slide.js";
+import {SLIDE_WAIT_MS, expansionSlide, pendingSlideAction} from "../children-slide.js";
 import {isSearchHalfExpanded, searchClasses, withClasses} from "../search-classes.js";
 import {FlatCrumbs, LeftCollapsingCrumbs} from "./breadcrumbs.js";
 import {EditableNote} from "./editable-note.js";
@@ -226,6 +226,10 @@ interface NodeNameProps {
 	editingClickPosition: ClickPosition | null;
 	isExpanded: boolean;
 	hasChildren: boolean;
+	/** The row's `.children` is sliding up, so upstream shows no bullet halo yet. */
+	collapsing: boolean;
+	/** The account's `always_visible_controls`. */
+	alwaysVisibleControls: boolean;
 	depth: number;
 	withEmbedder: boolean;
 	/** Whether a search is filtering the outline; the arrow then writes the search expansion. */
@@ -241,12 +245,21 @@ interface NodeNameProps {
  * an always-empty `.nameButtons`, the expand control, then the bullet-menu trigger,
  * which is mounted only while `.name` is hovered or its menu is open.
  */
+/** Upstream's arrow click leaves the caret at the start of the row's text (`WF.Caret.set(content, 0)` next frame). */
+function focusRowStart(id: string): void {
+	requestAnimationFrame(() => {
+		useOutlineStore.getState().focusName(id, 0);
+	});
+}
+
 function NodeName({
 	node,
 	isEditing,
 	editingClickPosition,
 	isExpanded,
 	hasChildren,
+	collapsing,
+	alwaysVisibleControls,
 	depth,
 	withEmbedder,
 	searching,
@@ -337,8 +350,11 @@ function NodeName({
 			{nodeBullet({
 				nodeId: node.id,
 				isMirror: node.isMirror === true,
-				showHalo: hasChildren && (!isExpanded || (search !== null && isSearchHalfExpanded(node.id, search))),
-				keepBullet: hasChildren && !isExpanded,
+				showHalo:
+					hasChildren &&
+					!collapsing &&
+					(!isExpanded || (search !== null && isSearchHalfExpanded(node.id, search))),
+				keepBullet: hasChildren && !collapsing && !isExpanded,
 				onMouseDown: handleBulletMouseDown,
 				onZoom: zoomIn,
 				isInSelection: () => bulletInSelection(queryClient, node.id),
@@ -372,6 +388,8 @@ function NodeName({
 				hasChildren,
 				isExpanded,
 				nodeId: node.id,
+				alwaysVisible: alwaysVisibleControls,
+				onFocusRow: focusRowStart,
 				onExpandAll: searching || cyclical ? undefined : expandAll,
 				onToggle: cyclical
 					? () => {}
@@ -405,12 +423,15 @@ function rowProjectClassName(
 	slidingDown: boolean,
 	moving: boolean,
 	animatingShowChildren: boolean,
+	collapsingChildren: boolean,
 	addedToSelection: boolean,
 	highlighted: boolean,
 	dragHover: DropHover,
 ): string {
 	return projectClassName({
 		hasChildren,
+		hasAnyChildren: node.hasChildren === true,
+		collapsingChildren,
 		expanded: isExpanded,
 		completed: node.completedAt !== null,
 		hasNote: Boolean(node.note),
@@ -482,6 +503,7 @@ export const OutlineRow = memo(function OutlineRow({
 		isSlidingDown,
 		dragHover,
 		showCompleted,
+		alwaysVisibleControls,
 	} = useRowState(node.id, paneId);
 	// A cyclical mirror instance renders collapsed whatever its id's expansion says (upstream's default-state
 	// pipe); until instances have their own expansion keys, a plain-id toggle would reopen it at every depth.
@@ -509,24 +531,31 @@ export const OutlineRow = memo(function OutlineRow({
 		setPrevExpansion(expansion);
 		setChildrenSlide(expansionSlide(prevExpansion, expansion));
 	}
-	const childrenRef = useRef<HTMLDivElement>(null);
+	// A state ref, not an object ref: a first expand fetches its rows, so `.children` mounts after the slide is due.
+	const [childrenEl, setChildrenEl] = useState<HTMLDivElement | null>(null);
 	useLayoutEffect(() => {
-		if (childrenSlide === null) {
-			return () => {};
-		}
 		const done = () => {
 			setChildrenSlide(null);
 		};
-		const el = childrenRef.current;
-		if (el === null) {
-			// Children not rendered yet (still loading) get no slide.
+		if (childrenSlide === null) {
+			return () => {};
+		}
+		const action = pendingSlideAction(childrenSlide, childrenEl !== null, 0);
+		if (action === "drop") {
 			const frame = requestAnimationFrame(done);
 			return () => {
 				cancelAnimationFrame(frame);
 			};
 		}
-		return (childrenSlide === "down" ? slideDown : slideUp)(el, browserSlideDeps(), done);
-	}, [childrenSlide]);
+		if (action === "wait" || childrenEl === null) {
+			// Slides once the children mount; gives up after SLIDE_WAIT_MS.
+			const timer = setTimeout(done, SLIDE_WAIT_MS);
+			return () => {
+				clearTimeout(timer);
+			};
+		}
+		return (childrenSlide === "down" ? slideDown : slideUp)(childrenEl, browserSlideDeps(), done);
+	}, [childrenSlide, childrenEl]);
 
 	// The slideUp's own transition ending hides the row; a child's transition does not.
 	const handleTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
@@ -548,6 +577,7 @@ export const OutlineRow = memo(function OutlineRow({
 					isSlidingDown,
 					isMoving,
 					childrenSlide === "down",
+					childrenSlide === "up",
 					isAddedToSelection,
 					isHighlighted,
 					dragHover,
@@ -563,6 +593,8 @@ export const OutlineRow = memo(function OutlineRow({
 				isEditing={isEditingName}
 				hasChildren={hasChildren}
 				isExpanded={isExpanded}
+				collapsing={childrenSlide === "up"}
+				alwaysVisibleControls={alwaysVisibleControls}
 				node={node}
 				searchNameClasses={rowSearchClasses.name}
 				searching={search !== null}
@@ -582,7 +614,7 @@ export const OutlineRow = memo(function OutlineRow({
 			</div>
 			{isExpanded || childrenSlide === "up" ? (
 				<MirrorInstanceContext.Provider value={nestedInstance}>
-					<OutlineChildren containerRef={childrenRef} depth={depth + 1} owner={node} parentId={node.id} />
+					<OutlineChildren containerRef={setChildrenEl} depth={depth + 1} owner={node} parentId={node.id} />
 				</MirrorInstanceContext.Provider>
 			) : null}
 		</div>

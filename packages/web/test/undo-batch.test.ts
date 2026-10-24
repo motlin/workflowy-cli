@@ -16,6 +16,7 @@ const notifications = vi.hoisted((): string[][] => []);
 const editingState = vi.hoisted(() => ({
 	editingId: null as string | null,
 	editingCaretOffset: null as number | null,
+	editingNoteId: null as string | null,
 	itemSelection: {
 		entries: [] as {id: string; leadOrder: number; subsumedIds: string[]}[],
 		pivotId: null,
@@ -29,7 +30,6 @@ vi.mock("../src/client/stores/outline.js", () => ({
 		getState: () => ({
 			zoomedNodeId: "zoom",
 			...editingState,
-			editingNoteId: null,
 			addErrorNotification(message: string, type = "error") {
 				notifications.push([message, type]);
 				return "id";
@@ -55,6 +55,7 @@ function fakeAdapter(overrides: Partial<UndoAdapter> = {}): {adapter: UndoAdapte
 		moveNode: record("moveNode"),
 		completeNode: record("completeNode"),
 		uncompleteNode: record("uncompleteNode"),
+		updateLayout: record("updateLayout"),
 		...overrides,
 	};
 	return {adapter, calls};
@@ -87,6 +88,7 @@ beforeEach(() => {
 	notifications.length = 0;
 	editingState.editingId = null;
 	editingState.editingCaretOffset = null;
+	editingState.editingNoteId = null;
 	editingState.itemSelection.entries = [];
 });
 
@@ -99,6 +101,36 @@ describe("captureOutlineView", () => {
 			editing: {nodeId: "a", field: "name", start: 7, end: 9},
 			selectedIds: [],
 		});
+	});
+
+	it("keeps the direction of a backwards selection", () => {
+		editingState.editingId = "a";
+		expect(captureOutlineView(() => ({start: 3, end: 7, reversed: true}))).toStrictEqual({
+			zoomedNodeId: "zoom",
+			editing: {nodeId: "a", field: "name", start: 3, end: 7, reversed: true},
+			selectedIds: [],
+		});
+	});
+
+	it("reads the live caret of the focused note, asking the reader for the note field", () => {
+		editingState.editingNoteId = "n";
+		const asked: [string, string][] = [];
+		expect(
+			captureOutlineView((nodeId, field) => {
+				asked.push([nodeId, field]);
+				return {start: 3, end: 3};
+			}),
+		).toStrictEqual({
+			zoomedNodeId: "zoom",
+			editing: {nodeId: "n", field: "note", start: 3, end: 3},
+			selectedIds: [],
+		});
+		expect(asked).toStrictEqual([["n", "note"]]);
+	});
+
+	it("records a note caret of 0 when the note is not rendered", () => {
+		editingState.editingNoteId = "n";
+		expect(captureOutlineView(() => null).editing).toStrictEqual({nodeId: "n", field: "note", start: 0, end: 0});
 	});
 
 	it("falls back to the stored caret when the editor is not rendered", () => {
@@ -288,6 +320,24 @@ describe("applyOps", () => {
 		const {adapter, calls} = fakeAdapter();
 		await applyOps((await recordAndUndo({kind: "create", nodeId: "X", parentId: "P", index: 2})).ops, adapter);
 		expect(calls).toStrictEqual([["deleteNode", "X"]]);
+	});
+
+	it("undoes a layout change by writing the before layout, bullets for none", async () => {
+		const {adapter, calls} = fakeAdapter();
+		const layout = {
+			kind: "layout",
+			nodeId: "alice",
+			before: {layoutMode: null, numberedStart: null},
+			after: {layoutMode: "h2", numberedStart: null},
+		} as const;
+		const undo = await recordAndUndo(layout);
+		await applyOps(undo.ops, adapter);
+		const redo = undoHistory.popRedo();
+		await applyOps(redo?.ops ?? [], adapter);
+		expect(calls).toStrictEqual([
+			["updateLayout", "alice", {layoutMode: "bullets", numberedStart: null}],
+			["updateLayout", "alice", {layoutMode: "h2", numberedStart: null}],
+		]);
 	});
 
 	it("redoes a create by restoring the same id at its slot", async () => {
