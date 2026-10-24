@@ -176,7 +176,10 @@ function ZoomRootRow({nodeId, children}: {nodeId: string | null; children: React
 		(state) => inActivePane && nodeId !== null && isEntry(state.itemSelection, nodeId),
 	);
 	const isMainTreeRoot = nodeId === null;
-	const isDragHoveredIn = useOutlineStore((state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT) === "in");
+	const paneId = usePaneId();
+	const isDragHoveredIn = useOutlineStore(
+		(state) => dropHoverOf(state.dropIndicator, nodeId ?? HOME_ROOT, paneId) === "in",
+	);
 	const isEditing = inActivePane && !isMainTreeRoot && editingId === nodeId;
 	const searchRootClasses = rootSearchClasses(useOutlineSearchFilter());
 	const nameHtml = isMainTreeRoot ? "" : (node?.name ?? "");

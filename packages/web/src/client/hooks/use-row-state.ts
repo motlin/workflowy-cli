@@ -44,7 +44,7 @@ export function useRowState(nodeId: string, paneId: string): RowState {
 				isAddedToSelection: inActivePane && isEntry(state.itemSelection, nodeId),
 				isHighlighted: state.itemMenuOpenId === nodeId,
 				isSlidingDown: state.slidingDownCompletedIds.has(nodeId),
-				dragHover: dropHoverOf(state.dropIndicator, nodeId),
+				dragHover: dropHoverOf(state.dropIndicator, nodeId, paneId),
 				showCompleted: state.showCompleted,
 				alwaysVisibleControls: state.alwaysVisibleControls,
 			};

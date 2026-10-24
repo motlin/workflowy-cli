@@ -4,6 +4,7 @@ import {
 	commandTargets,
 	contentMouseDownAction,
 	deleteCaretTarget,
+	dragRangeAt,
 	editorSelectAllTakesOver,
 	editorShiftArrowTakesOver,
 	emptySelection,
@@ -12,7 +13,6 @@ import {
 	isEntry,
 	leadId,
 	pivotTo,
-	rangeFromDrag,
 	removeIds,
 	selectIds,
 	selectionDeletePlan,
@@ -334,16 +334,37 @@ describe("selectionKeyAction", () => {
 	});
 });
 
-describe("rangeFromDrag", () => {
-	const ids = tree.visibleOrder.slice(1);
-	const parentOf = (id: string) => tree.parentOf(id);
-	it("selects the rows between the drag start and the pointer, dropping rows whose parent is in range", () => {
-		expect([
-			rangeFromDrag(ids, parentOf, "Bravo", "Delta"),
-			rangeFromDrag(ids, parentOf, "Delta", "A1"),
-			rangeFromDrag(ids, parentOf, "Bravo", "Bravo"),
-			rangeFromDrag(ids, parentOf, "Bravo", "missing"),
-		]).toStrictEqual([["Bravo", "Charlie", "Delta"], ["A1", "A2", "Bravo", "Charlie", "Delta"], [], []]);
+describe("dragRangeAt", () => {
+	const row = (id: string, top: number, height = 28, parentId: string | null = null) => ({id, top, height, parentId});
+	const rows = [
+		row("Alpha", 0),
+		row("A1", 28, 28, "Alpha"),
+		row("A2", 56, 28, "Alpha"),
+		row("Bravo", 84),
+		row("Charlie", 112, 56),
+		row("C1", 140, 28, "Charlie"),
+		row("Delta", 168),
+		row("Echo", 196),
+	];
+	const startName = {top: 84, height: 28};
+	const at = (y: number) => dragRangeAt(rows, 3, startName, y);
+
+	it("returns null inside the dead zone around the start name", () => {
+		expect([at(112), at(116)]).toStrictEqual([null, null]);
+	});
+
+	it("steps back a row near a row top below the start, as upstream does", () => {
+		expect([at(117), at(125), at(126), at(172), at(173)]).toStrictEqual([
+			["Bravo"],
+			["Bravo"],
+			["Bravo", "Charlie"],
+			["Bravo", "Charlie"],
+			["Bravo", "Charlie", "Delta"],
+		]);
+	});
+
+	it("selects upward rows and drops rows whose parent is in range", () => {
+		expect([at(74), at(30)]).toStrictEqual([["Bravo"], ["A1", "A2", "Bravo"]]);
 	});
 });
 

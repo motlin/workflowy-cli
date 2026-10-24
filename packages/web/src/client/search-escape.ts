@@ -19,3 +19,18 @@ export function escapeAction({searchQuery, searchInput, inputFocused}: SearchEsc
 	}
 	return inputFocused ? "blur" : "focus";
 }
+
+/**
+ * Where Escape returns the caret from the search box with nothing remembered: the zoom-root title when zoomed
+ * (upstream `WF.Focus.firstProject()`), else the first visible row, both at offset 0.
+ */
+export function escapeReturnTarget({
+	zoomedNodeId,
+	firstVisibleId,
+}: {
+	zoomedNodeId: string | null;
+	firstVisibleId: string | undefined;
+}): {id: string; offset: number} | null {
+	const id = zoomedNodeId ?? firstVisibleId;
+	return id === undefined ? null : {id, offset: 0};
+}

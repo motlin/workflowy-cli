@@ -12,7 +12,7 @@ import {
 import type {CaretTarget, FlatRow, SelectionKeyAction, SelectionState, TreeView} from "../item-selection.js";
 import {goToNode} from "../navigation.js";
 import {readChildren, readNode} from "../node-cache.js";
-import {activePaneView, activeZoomedId, useOutlineStore} from "../stores/outline.js";
+import {activePaneView, activeZoomedId, paneView, useOutlineStore} from "../stores/outline.js";
 import {rowContent} from "../caret-dom.js";
 import type {NavigateFn} from "../stores/outline.js";
 import {nextPotentiallyVisibleSibling} from "../tree-ops.js";
@@ -34,8 +34,9 @@ export interface SelectionView {
 	allIds: string[];
 }
 
-export function currentSelectionView(queryClient: QueryClient): SelectionView {
-	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} = activePaneView();
+export function currentSelectionView(queryClient: QueryClient, paneId?: string): SelectionView {
+	const {zoomedNodeId, expandedIds, showCompleted, animatingCompletionIds} =
+		paneId === undefined ? activePaneView() : paneView(paneId);
 	const visible = collectVisibleNodeIds(
 		queryClient,
 		zoomedNodeId,

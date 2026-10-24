@@ -80,15 +80,110 @@ export interface AutoscrollState {
 	scrollTop: number;
 	/** Signed px/s from `edgeAutoscrollSpeed`. */
 	speed: number;
-	lastFrameAt: number;
+	/** The previous frame's time, or null when the loop just (re)started, so the first step is 0. */
+	lastFrameAt: number | null;
 	haveScrolled: boolean;
 }
 
-/** One frame of upstream's autoscroll loop: move by `round(speed * secondsSinceLastFrame)`, never above the top. */
+/**
+ * One frame of upstream's autoscroll loop (`N92`): move by `round(speed * secondsSinceLastFrame)`, never above the
+ * top. Every executed tick arms `haveScrolled`, even when the position did not change.
+ */
 export function stepAutoscroll(state: AutoscrollState, now: number): {scrollTop: number; haveScrolled: boolean} {
-	const delta = Math.round((state.speed * (now - state.lastFrameAt)) / 1000);
-	const scrollTop = Math.max(0, state.scrollTop + delta);
-	return {scrollTop, haveScrolled: state.haveScrolled || scrollTop !== state.scrollTop};
+	const delta = state.lastFrameAt === null ? 0 : Math.round((state.speed * (now - state.lastFrameAt)) / 1000);
+	return {scrollTop: Math.max(0, state.scrollTop + delta), haveScrolled: true};
+}
+
+/** Upstream scrolls the nearest `.vertical-scrollable-container`, otherwise the page. */
+export function scrollerOf(element: Element): Element {
+	return element.closest(".vertical-scrollable-container") ?? document.scrollingElement ?? document.documentElement;
+}
+
+/** Re-pick the scroller from the element under the pointer, reporting whether it differs from `current`. */
+export function pickScroller(target: Element, current: Element): {scroller: Element; changed: boolean} {
+	const scroller = scrollerOf(target);
+	return {scroller, changed: scroller !== current};
+}
+
+export interface AutoscrollScroller {
+	getScrollTop(): number;
+	setScrollTop(value: number): void;
+	bounds(): {top: number; height: number};
+}
+
+export interface EdgeAutoscrollerOptions {
+	scroller: AutoscrollScroller;
+	startY: number;
+	mobile: boolean;
+	raf: (callback: (now: number) => void) => number;
+	cancelRaf: (handle: number) => void;
+	now: () => number;
+	/** Runs after a frame moved the scroller, so the drop target can follow the content under the pointer. */
+	afterScroll: () => void;
+}
+
+/** Upstream's pointer-edge autoscroll loop, with its scheduling and scroller injected. */
+export function createEdgeAutoscroller(options: EdgeAutoscrollerOptions) {
+	const {startY, mobile, raf, cancelRaf, now, afterScroll} = options;
+	let {scroller} = options;
+	const startOffset = startY - scroller.bounds().top;
+	let pointerY = startY;
+	let haveScrolled = false;
+	let frame: number | null = null;
+	let lastFrameAt: number | null = null;
+
+	const speed = () => {
+		const {top, height} = scroller.bounds();
+		return edgeAutoscrollSpeed({
+			pointerY,
+			scrollerTop: top,
+			scrollerHeight: height,
+			startY: startOffset,
+			haveScrolled,
+			mobile,
+		});
+	};
+
+	const stop = () => {
+		if (frame !== null) {
+			cancelRaf(frame);
+			frame = null;
+		}
+		lastFrameAt = null;
+	};
+
+	const tick = () => {
+		const current = speed();
+		if (current === 0) {
+			frame = null;
+			lastFrameAt = null;
+			return;
+		}
+		const time = now();
+		const before = scroller.getScrollTop();
+		const next = stepAutoscroll({scrollTop: before, speed: current, lastFrameAt, haveScrolled}, time);
+		lastFrameAt = time;
+		haveScrolled = next.haveScrolled;
+		if (next.scrollTop !== before) {
+			scroller.setScrollTop(next.scrollTop);
+			afterScroll();
+		}
+		frame = raf(tick);
+	};
+
+	return {
+		update(y: number, nextScroller?: AutoscrollScroller) {
+			pointerY = y;
+			if (nextScroller !== undefined) {
+				stop();
+				scroller = nextScroller;
+			}
+			if (frame === null && speed() !== 0) {
+				frame = raf(tick);
+			}
+		},
+		dispose: stop,
+	};
 }
 
 export interface LadderDropTarget {

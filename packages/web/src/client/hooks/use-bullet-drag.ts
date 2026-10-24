@@ -9,7 +9,11 @@ import {
 	dropBulletDrag,
 	dropClearsSelection,
 	dropIndicatorFor,
+	ghostCloneStyle,
+	hitX,
 	isFoundDateRow,
+	isOutsideViewport,
+	rotateOrigin,
 } from "../bullet-drag-state.js";
 import type {BulletDragAction, BulletDragState, DropPlan, DropTargetFacts} from "../bullet-drag-state.js";
 import {STRIP_DROP_EVENT, stripDropCellOf, stripDropKey} from "../calendar-strip-model.js";
@@ -18,8 +22,10 @@ import {emptySelection} from "../item-selection.js";
 import {readChildren, readNode, removeFoundDates} from "../node-cache.js";
 import {resolveDropTarget} from "../outline-drop-target.js";
 import type {DropRows} from "../outline-drop-target.js";
-import {edgeAutoscrollSpeed, stepAutoscroll} from "../pointer-drag.js";
-import {activePaneView, useOutlineStore} from "../stores/outline.js";
+import {createEdgeAutoscroller, pickScroller, scrollerOf} from "../pointer-drag.js";
+import type {AutoscrollScroller} from "../pointer-drag.js";
+import {MAIN_PANE_ID} from "../pane-ids.js";
+import {paneView, useOutlineStore} from "../stores/outline.js";
 import {rowHasChildren} from "../tree-ops.js";
 import {sortByPriority} from "../tree-position.js";
 import {leaveEditor} from "./use-drag-select.js";
@@ -29,8 +35,6 @@ import {HOME_ROOT, currentSelectionView} from "./use-selection-keymap.js";
 const GHOST_CLONE_LIMIT = 5;
 /** Half the 18px bullet: the ghost's bullet starts centered on the pointer. */
 const GHOST_OFFSET_PX = 9;
-/** The hit point stays this far inside the outline's horizontal edges. */
-const HIT_INSET_PX = 6;
 const ROW_BULLET = "a.bullet[data-item-id]:not(.bullet--backlink-root)";
 const ROTATE_ANIMATION_MS = 400;
 
@@ -40,9 +44,13 @@ function childIdsOf(queryClient: QueryClient, id: string): string[] {
 	return sortByPriority(readChildren(queryClient, id === HOME_ROOT ? null : id) ?? []).map((child) => child.id);
 }
 
-function outlineRows(queryClient: QueryClient, container: Element): {rows: DropRows; zoomRootId: string} {
-	const {tree} = currentSelectionView(queryClient);
-	const {expandedIds, showCompleted} = activePaneView();
+function outlineRows(
+	queryClient: QueryClient,
+	container: Element,
+	paneId: string,
+): {rows: DropRows; zoomRootId: string} {
+	const {tree} = currentSelectionView(queryClient, paneId);
+	const {expandedIds, showCompleted} = paneView(paneId);
 	const projectOf = (id: string): Element | null =>
 		id === tree.zoomRootId
 			? container.querySelector(".project.root")
@@ -66,24 +74,42 @@ function outlineRows(queryClient: QueryClient, container: Element): {rows: DropR
 }
 
 /**
- * The row whose content lies under the point: upstream takes the first element inside a `.name` or `.notes`,
- * or inside a `.project` but not inside its `.children`.
+ * The row whose content lies under the point, in whichever pane it renders: upstream takes the first element inside
+ * a `.name` or `.notes`, or inside a `.project` but not inside its `.children`.
  */
-function hitRowId(x: number, y: number, container: Element, zoomRootId: string): string | null {
+function hitRow(x: number, y: number): {rowId: string; paneId: string; container: Element; isRoot: boolean} | null {
 	for (const element of document.elementsFromPoint(x, y)) {
 		const project = element.closest(".project");
-		if (project === null || !container.contains(project)) {
+		if (project === null) {
 			continue;
 		}
 		const children = element.closest(".children");
 		const inContent = element.closest(".name, .notes") !== null;
 		if (inContent || children === null || !project.contains(children)) {
-			return project.classList.contains("root")
-				? zoomRootId
+			const container = project.closest(".page, .outline-tree-container") ?? document.body;
+			const paneId = project.closest<HTMLElement>("[data-pane-id]")?.dataset.paneId ?? MAIN_PANE_ID;
+			const isRoot = project.classList.contains("root");
+			const rowId = isRoot
+				? ""
 				: (project.querySelector(`:scope > .name > ${ROW_BULLET}`)?.getAttribute("data-item-id") ?? null);
+			if (rowId !== null) {
+				return {rowId, paneId, container, isRoot};
+			}
+			return null;
 		}
 	}
 	return null;
+}
+
+/** Upstream's `.pageContainer`: the span of every pane, or the whole window when no pane is open. */
+function pageBounds(): {left: number; right: number} {
+	const panes = [...document.querySelectorAll("[data-pane-id]")];
+	const first = panes[0];
+	const last = panes.at(-1);
+	if (first === undefined || last === undefined) {
+		return {left: 0, right: document.documentElement.clientWidth};
+	}
+	return {left: first.getBoundingClientRect().left, right: last.getBoundingClientRect().right};
 }
 
 /** The calendar strip card under the pointer, which takes the drop instead of the outline. */
@@ -114,19 +140,29 @@ function targetFacts(queryClient: QueryClient, parentId: string, collapsed: bool
  */
 function animateUnderParent(ghostRect: DOMRect, parentId: string): void {
 	const parentBullet = document.querySelector(`${ROW_BULLET}[data-item-id="${CSS.escape(parentId)}"]`);
-	if (parentBullet === null) {
+	if (!(parentBullet instanceof HTMLElement)) {
 		return;
 	}
 	const target = parentBullet.getBoundingClientRect();
-	const half = GHOST_OFFSET_PX;
-	const dx = target.left + target.width / 2 - (ghostRect.left + half);
-	const dy = target.top + target.height / 2 - (ghostRect.top + half);
+	const style = getComputedStyle(parentBullet);
+	const padding = (name: string): number => Number(style.getPropertyValue(name).replace("px", "")) || 0;
 	const rotate = document.createElement("div");
 	rotate.className = "moved-bullet-rotate";
 	Object.assign(rotate.style, {
-		left: `${ghostRect.left}px`,
-		top: `${ghostRect.top}px`,
-		transformOrigin: `${half + dx / 2}px ${half + dy / 2}px`,
+		position: "absolute",
+		left: `${ghostRect.left + globalThis.scrollX}px`,
+		top: `${ghostRect.top + globalThis.scrollY}px`,
+		backgroundColor: style.backgroundColor,
+		color: style.color,
+		transformOrigin: rotateOrigin(
+			{
+				left: target.left,
+				top: target.top,
+				contentWidth: parentBullet.clientWidth - padding("padding-left") - padding("padding-right"),
+				contentHeight: parentBullet.clientHeight - padding("padding-top") - padding("padding-bottom"),
+			},
+			ghostRect,
+		),
 	});
 	const svg = document.createElementNS(SVG_NS, "svg");
 	svg.setAttribute("width", "18");
@@ -149,30 +185,32 @@ function animateUnderParent(ghostRect: DOMRect, parentId: string): void {
  * Upstream's after-drop effects: expand a leaf, or keep a collapsed parent shut and flash it; flash the moved rows.
  * A drop out of Found Dates also clears the selection (`item.move-under.calendar_mirrors`).
  */
-function runDropEffects(plan: DropPlan, ghostRect: DOMRect | null, fromFoundDates: boolean): void {
-	const {move, expandId, flashParentId, animate} = plan;
-	if (move === null) {
+function runDropEffects(
+	plan: DropPlan,
+	ghostRect: DOMRect | null,
+	fromFoundDates: boolean,
+	parentId: string | null,
+): void {
+	const {move, expandId, flashParentId, animate, flashIds} = plan;
+	const {expand, flashMoving, setItemSelection} = useOutlineStore.getState();
+	if (move !== null) {
+		if (expandId !== null) {
+			expand(expandId);
+		}
+		if (dropClearsSelection(plan) || fromFoundDates) {
+			setTimeout(() => {
+				setItemSelection(emptySelection());
+			}, 0);
+		}
+		if (animate && ghostRect !== null) {
+			animateUnderParent(ghostRect, move.parentId);
+		}
+	}
+	if (flashIds.length === 0) {
 		return;
 	}
-	const {expand, flashMoving, setItemSelection} = useOutlineStore.getState();
-	if (expandId !== null) {
-		expand(expandId);
-	}
-	if (dropClearsSelection(plan) || fromFoundDates) {
-		setTimeout(() => {
-			setItemSelection(emptySelection());
-		}, 0);
-	}
-	if (animate && ghostRect !== null) {
-		animateUnderParent(ghostRect, move.parentId);
-	}
-	flashMoving(flashParentId === null ? move.ids : [flashParentId, ...move.ids]);
-	globalThis.dispatchEvent(new CustomEvent("moving.end", {detail: {itemIds: move.ids, parentId: move.parentId}}));
-}
-
-/** Upstream scrolls the nearest `.vertical-scrollable-container`, otherwise the page. */
-function scrollerOf(element: Element): Element {
-	return element.closest(".vertical-scrollable-container") ?? document.scrollingElement ?? document.documentElement;
+	flashMoving(flashParentId === null ? [...flashIds] : [flashParentId, ...flashIds]);
+	globalThis.dispatchEvent(new CustomEvent("moving.end", {detail: {itemIds: flashIds, parentId}}));
 }
 
 function scrollerBounds(scroller: Element): {top: number; height: number} {
@@ -183,59 +221,13 @@ function scrollerBounds(scroller: Element): {top: number; height: number} {
 	return {top, height: scroller instanceof HTMLElement ? scroller.offsetHeight : height};
 }
 
-/**
- * Upstream's pointer-edge autoscroll: while the pointer sits in an armed edge zone, a rAF loop scrolls by
- * speed x elapsed time and calls `afterScroll` so the drop target follows the content under the pointer.
- */
-function edgeAutoscroller(scroller: Element, startY: number, afterScroll: () => void) {
-	const startOffset = startY - scrollerBounds(scroller).top;
-	let pointerY = startY;
-	let haveScrolled = false;
-	let frame: number | null = null;
-	let lastFrameAt = 0;
-
-	const speed = () => {
-		const {top, height} = scrollerBounds(scroller);
-		return edgeAutoscrollSpeed({
-			pointerY,
-			scrollerTop: top,
-			scrollerHeight: height,
-			startY: startOffset,
-			haveScrolled,
-			mobile: document.body.classList.contains("is-mobile"),
-		});
-	};
-
-	const tick = (now: number) => {
-		const current = speed();
-		if (current === 0) {
-			frame = null;
-			return;
-		}
-		const next = stepAutoscroll({scrollTop: scroller.scrollTop, speed: current, lastFrameAt, haveScrolled}, now);
-		lastFrameAt = now;
-		haveScrolled = next.haveScrolled;
-		if (next.scrollTop !== scroller.scrollTop) {
-			scroller.scrollTop = next.scrollTop;
-			afterScroll();
-		}
-		frame = requestAnimationFrame(tick);
-	};
-
+function scrollerAdapter(scroller: Element): AutoscrollScroller {
 	return {
-		update(y: number) {
-			pointerY = y;
-			if (frame === null && speed() !== 0) {
-				lastFrameAt = performance.now();
-				frame = requestAnimationFrame(tick);
-			}
+		getScrollTop: () => scroller.scrollTop,
+		setScrollTop: (value) => {
+			scroller.scrollTop = value;
 		},
-		dispose() {
-			if (frame !== null) {
-				cancelAnimationFrame(frame);
-				frame = null;
-			}
-		},
+		bounds: () => scrollerBounds(scroller),
 	};
 }
 
@@ -269,13 +261,7 @@ function makeGhost(bullet: HTMLElement, x: number, y: number, count: number): HT
 			continue;
 		}
 		delete clone.dataset.preDragClick;
-		Object.assign(clone.style, {
-			left: "0",
-			top: `${index * 10}px`,
-			opacity: String(1 - index / GHOST_CLONE_LIMIT),
-			zIndex: String(GHOST_CLONE_LIMIT - index),
-			visibility: "visible",
-		});
+		Object.assign(clone.style, ghostCloneStyle(index));
 		ghost.append(clone);
 	}
 	return ghost;
@@ -303,7 +289,6 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 			if (event.altKey || event.shiftKey) {
 				return;
 			}
-			const container = bullet.closest(".page, .outline-tree-container") ?? document.body;
 			const sourceRow = bullet.closest(".project");
 			const node = readNode(queryClient, nodeId);
 			if (node === undefined || sourceRow === null) {
@@ -363,16 +348,16 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 					dispatch({type: "hover", target: null, indicator: null});
 					return;
 				}
-				const bounds = container.getBoundingClientRect();
-				const hitX = Math.min(Math.max(x, bounds.left + HIT_INSET_PX), bounds.right - HIT_INSET_PX);
+				const x2 = hitX(x, pageBounds());
 				const hitY = rowTop + (y - startY) - 1;
-				const {rows, zoomRootId} = outlineRows(queryClient, container);
-				const predecessorId = hitRowId(hitX, hitY, container, zoomRootId);
-				if (predecessorId === null) {
+				const hit = hitRow(x2, hitY);
+				if (hit === null) {
 					return;
 				}
+				const {rows, zoomRootId} = outlineRows(queryClient, hit.container, hit.paneId);
+				const predecessorId = hit.isRoot ? zoomRootId : hit.rowId;
 				const target = resolveDropTarget({
-					x: hitX,
+					x: x2,
 					rows,
 					predecessorId,
 					movingIds: new Set(state.draggingIds),
@@ -381,6 +366,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 				const indicator = dropIndicatorFor(
 					target,
 					target === null ? [] : childIdsOf(queryClient, target.parentId),
+					hit.paneId,
 				);
 				dispatch({type: "hover", target, indicator});
 			};
@@ -398,17 +384,43 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 					ghost.style.transform = state.ghostTransform ?? "";
 				}
 				pointer = {x: moveEvent.clientX, y: moveEvent.clientY};
-				hover(pointer.x, pointer.y);
-				autoscroll.update(pointer.y);
+				if (isOutsideViewport(pointer, {width: globalThis.innerWidth, height: globalThis.innerHeight})) {
+					dispatch({type: "leave"});
+				} else {
+					hover(pointer.x, pointer.y);
+				}
+				const picked = pickScroller(
+					moveEvent.target instanceof Element ? moveEvent.target : bullet,
+					currentScroller,
+				);
+				if (picked.changed) {
+					currentScroller = picked.scroller;
+					autoscroll.update(pointer.y, scrollerAdapter(currentScroller));
+				} else {
+					autoscroll.update(pointer.y);
+				}
 			};
 
-			const autoscroll = edgeAutoscroller(scrollerOf(bullet), startY, () => {
-				hover(pointer.x, pointer.y);
+			let currentScroller = scrollerOf(bullet);
+			const autoscroll = createEdgeAutoscroller({
+				scroller: scrollerAdapter(currentScroller),
+				startY,
+				mobile: document.body.classList.contains("is-mobile"),
+				raf: (callback) => requestAnimationFrame(callback),
+				cancelRaf: (handle) => {
+					cancelAnimationFrame(handle);
+				},
+				now: () => performance.now(),
+				afterScroll: () => {
+					hover(pointer.x, pointer.y);
+				},
 			});
 
+			// Upstream's window mouseleave keeps autoscrolling from the exit point and only clears the indicator.
 			const onLeaveWindow = (outEvent: MouseEvent) => {
-				if (outEvent.relatedTarget === null) {
-					autoscroll.dispose();
+				if (outEvent.relatedTarget === null && state.phase === "dragging") {
+					pointer = {x: outEvent.clientX, y: outEvent.clientY};
+					autoscroll.update(pointer.y);
 					dispatch({type: "leave"});
 				}
 			};
@@ -443,6 +455,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 					return;
 				}
 				const collapsed = state.target?.ambiguous === true;
+				const releasedParentId = state.target?.parentId ?? null;
 				const {plan} = dropBulletDrag(state, (targetId) => targetFacts(queryClient, targetId, collapsed));
 				const ghostRect = ghost?.querySelector(ROW_BULLET)?.getBoundingClientRect() ?? null;
 				if (state.phase === "dragging") {
@@ -460,7 +473,7 @@ export function useBulletDrag(nodeId: string): (event: React.MouseEvent<HTMLAnch
 						index: plan.move.index,
 					});
 				}
-				runDropEffects(plan, ghostRect, fromFoundDates);
+				runDropEffects(plan, ghostRect, fromFoundDates, releasedParentId);
 			};
 
 			const onKeyDown = (keyEvent: KeyboardEvent) => {

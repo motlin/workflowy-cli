@@ -757,8 +757,17 @@ export function outlineActions(): OutlineStore {
 
 /** The store's state as the active pane sees it: that pane's `zoomedNodeId` and `expandedIds`, for keyboard navigation. */
 export function activePaneView(): OutlineStore {
+	return paneView(useOutlineStore.getState().activePaneId);
+}
+
+/** The store's state as `paneId` sees it: that pane's `zoomedNodeId` and `expandedIds`. */
+export function paneView(paneId: string): OutlineStore {
 	const state = useOutlineStore.getState();
-	return {...state, zoomedNodeId: activeZoomedId(state), expandedIds: paneExpandedIds(state, state.activePaneId)};
+	return {
+		...state,
+		zoomedNodeId: activeZoomedId({...state, activePaneId: paneId}),
+		expandedIds: paneExpandedIds(state, paneId),
+	};
 }
 
 /** A modal popup is open, which keeps the selection toolbar from opening. */

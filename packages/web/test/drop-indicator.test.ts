@@ -80,16 +80,18 @@ function projectClass(indicator: DropIndicator | null): string {
 describe("drop indicator row classes", () => {
 	it("marks the row the line sits inside, the row it sits under, and no other", () => {
 		expect({
-			in: projectClass({kind: "in", parentId: "alice"}),
-			at: projectClass({kind: "at", rowId: "alice"}),
-			otherIn: projectClass({kind: "in", parentId: "bob"}),
-			otherAt: projectClass({kind: "at", rowId: "bob"}),
+			in: projectClass({kind: "in", parentId: "alice", paneId: "main"}),
+			at: projectClass({kind: "at", rowId: "alice", paneId: "main"}),
+			otherIn: projectClass({kind: "in", parentId: "bob", paneId: "main"}),
+			otherAt: projectClass({kind: "at", rowId: "bob", paneId: "main"}),
+			otherPane: projectClass({kind: "in", parentId: "alice", paneId: "p1"}),
 			none: projectClass(null),
 		}).toStrictEqual({
 			in: "font-custom project task drag-hovered-in",
 			at: "font-custom project task drag-hovered-at",
 			otherIn: "font-custom project task",
 			otherAt: "font-custom project task",
+			otherPane: "font-custom project task",
 			none: "font-custom project task",
 		});
 	});

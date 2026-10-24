@@ -434,27 +434,67 @@ export function selectionKeyAction(
 	return PLAIN_SELECTION_KEYS[key] ?? null;
 }
 
+export interface DragRangeRow {
+	readonly id: string;
+	readonly parentId: string | null;
+	readonly top: number;
+	readonly height: number;
+}
+
+/** Pixels around the start row's name inside which a drag selects nothing. */
+const DRAG_DEAD_ZONE_PX = 5;
+const DRAG_ROW_STEP_PX = 14;
+
 /**
- * Drag-select: the rows from the drag's start row to the row under the pointer, inclusive in display order, minus
- * rows whose parent is also in range (the parent's entry covers them). Empty while the pointer stays on the start row.
+ * Upstream's drag-select range (`aZ.getRangesBetweenPositionAndStartInclusive`): `rows` are the `.project` rects in
+ * display order. Null is the dead zone around the start name. Rows whose parent is in range are dropped, since the
+ * parent's entry covers them.
  */
-export function rangeFromDrag(
-	flattenedIds: readonly string[],
-	parentOf: (id: string) => string | null,
-	startId: string,
-	pointerId: string,
-): string[] {
-	const start = flattenedIds.indexOf(startId);
-	const pointer = flattenedIds.indexOf(pointerId);
-	if (start === -1 || pointer === -1 || start === pointer) {
-		return [];
+export function dragRangeAt(
+	rows: readonly DragRangeRow[],
+	startIndex: number,
+	startName: {readonly top: number; readonly height: number},
+	y: number,
+): string[] | null {
+	const start = rows[startIndex];
+	if (start === undefined) {
+		return null;
 	}
-	const range = flattenedIds.slice(Math.min(start, pointer), Math.max(start, pointer) + 1);
-	const inRange = new Set(range);
-	return range.filter((id) => {
-		const parent = parentOf(id);
-		return parent === null || !inRange.has(parent);
-	});
+	if (y >= startName.top - DRAG_DEAD_ZONE_PX && y < startName.top + startName.height + DRAG_DEAD_ZONE_PX) {
+		return null;
+	}
+	let hitIndex = 0;
+	for (const [index, row] of rows.entries()) {
+		const best = rows[hitIndex];
+		if (best !== undefined && Math.abs(row.top - y) < Math.abs(best.top - y)) {
+			hitIndex = index;
+		}
+	}
+	const n = hitIndex - startIndex;
+	const below = y >= startName.top + startName.height + DRAG_DEAD_ZONE_PX;
+	const hit = rows[hitIndex];
+	const previous = rows[hitIndex - 1];
+	if (hit !== undefined && below) {
+		if (y < hit.top + (DRAG_ROW_STEP_PX * Math.max(1 - n + 3, 0)) / 3 && previous !== undefined) {
+			hitIndex -= 1;
+		}
+	} else if (
+		hit !== undefined &&
+		y < hit.top - (DRAG_ROW_STEP_PX * Math.max(n + 3, 0)) / 3 &&
+		previous !== undefined &&
+		y < previous.top + previous.height
+	) {
+		hitIndex -= 1;
+	}
+	const edge = rows[hitIndex];
+	if (edge === undefined) {
+		return null;
+	}
+	const low = Math.min(edge.top, start.top);
+	const high = Math.max(edge.top, start.top);
+	const range = rows.filter((row) => row.top >= low && row.top <= high);
+	const inRange = new Set(range.map((row) => row.id));
+	return range.filter((row) => row.parentId === null || !inRange.has(row.parentId)).map((row) => row.id);
 }
 
 export type ContentMouseDownAction = "TOGGLE" | "PIVOT" | "DRAG";

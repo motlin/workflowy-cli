@@ -3,7 +3,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {useStableNavigate} from "./use-stable-navigate.js";
 import {caretTextOffset, editorElement} from "../caret-dom.js";
-import {escapeAction} from "../search-escape.js";
+import {escapeAction, escapeReturnTarget} from "../search-escape.js";
 import {isModalOpen, useOutlineStore} from "../stores/outline.js";
 import type {SearchReturn} from "../stores/outline.js";
 import {collectVisibleNodeIds} from "./use-visible-nodes.js";
@@ -32,8 +32,9 @@ function editFirstVisibleRow(queryClient: QueryClient): void {
 		animatingCompletionIds,
 		currentSearchFilter(queryClient, MAIN_PANE_ID),
 	);
-	if (firstId !== undefined) {
-		resumeEditing(firstId, 0);
+	const target = escapeReturnTarget({zoomedNodeId, firstVisibleId: firstId});
+	if (target !== null) {
+		resumeEditing(target.id, target.offset);
 	}
 }
 

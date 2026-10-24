@@ -20,13 +20,16 @@ export function isFoundDateRow(row: RowElement): boolean {
 	return row.parentElement?.closest(".project")?.classList.contains(FOUND_DATES_CLASS) === true;
 }
 
+/** The hit point stays this far inside the page's horizontal edges. */
+const HIT_INSET_PX = 6;
+
 /** A press becomes a drag once the pointer has moved this far (Euclidean) from the mousedown point. */
 const DRAG_START_THRESHOLD_PX = 3;
 
 /** Where the drop line goes: inside a parent (first slot) or under the row before the slot. */
 export type DropIndicator =
-	| {readonly kind: "in"; readonly parentId: string}
-	| {readonly kind: "at"; readonly rowId: string};
+	| {readonly kind: "in"; readonly parentId: string; readonly paneId: string}
+	| {readonly kind: "at"; readonly rowId: string; readonly paneId: string};
 
 interface Point {
 	readonly x: number;
@@ -186,9 +189,11 @@ export interface DropPlan {
 	readonly expandId: string | null;
 	readonly flashParentId: string | null;
 	readonly animate: boolean;
+	/** The dragged rows to flash `.moving`: upstream flashes them on every release with a target, even a no-op. */
+	readonly flashIds: readonly string[];
 }
 
-const NO_DROP: DropPlan = {move: null, expandId: null, flashParentId: null, animate: false};
+const NO_DROP: DropPlan = {move: null, expandId: null, flashParentId: null, animate: false, flashIds: []};
 
 /**
  * Plan a drop. The index counts every child, the dragged rows included, so any slot from the block's first row
@@ -210,10 +215,14 @@ export function planDrop({
 		target.parentId === home.parentId &&
 		index >= home.index &&
 		index <= home.index + draggingIds.length;
-	if (unchanged || draggingIds.length === 0) {
+	if (draggingIds.length === 0) {
 		return NO_DROP;
 	}
+	if (unchanged) {
+		return {...NO_DROP, flashIds: draggingIds};
+	}
 	return {
+		flashIds: draggingIds,
 		move: {ids: draggingIds, parentId: target.parentId, index},
 		expandId: wasLeaf ? target.parentId : null,
 		flashParentId: wasCollapsed ? target.parentId : null,
@@ -237,25 +246,69 @@ export function dropBulletDrag(
 }
 
 /** The indicator for a target: inside the parent for slot 0, else under the child before the slot. */
-export function dropIndicatorFor(target: DropTarget | null, childIds: readonly string[]): DropIndicator | null {
+export function dropIndicatorFor(
+	target: DropTarget | null,
+	childIds: readonly string[],
+	paneId: string,
+): DropIndicator | null {
 	if (target === null) {
 		return null;
 	}
 	if (target.index === 0) {
-		return {kind: "in", parentId: target.parentId};
+		return {kind: "in", parentId: target.parentId, paneId};
 	}
 	const rowId = childIds[target.index - 1];
-	return rowId === undefined ? null : {kind: "at", rowId};
+	return rowId === undefined ? null : {kind: "at", rowId, paneId};
 }
 
 /** How the drop line marks a row: `in` (inside, `.drag-hovered-in`), `at` (under, `.drag-hovered-at`), or not at all. */
 export type DropHover = "in" | "at" | null;
 
-export function dropHoverOf(indicator: DropIndicator | null, id: string): DropHover {
-	if (indicator?.kind === "in" && indicator.parentId === id) {
+export function dropHoverOf(indicator: DropIndicator | null, id: string, paneId: string): DropHover {
+	if (indicator?.paneId !== paneId) {
+		return null;
+	}
+	if (indicator.kind === "in" && indicator.parentId === id) {
 		return "in";
 	}
-	return indicator?.kind === "at" && indicator.rowId === id ? "at" : null;
+	return indicator.kind === "at" && indicator.rowId === id ? "at" : null;
+}
+
+/** Upstream `G92`: a pointer outside the window clears the indicator (the stored target survives). */
+export function isOutsideViewport(point: Point, size: {readonly width: number; readonly height: number}): boolean {
+	return point.x < 0 || point.x > size.width || point.y < 0 || point.y > size.height;
+}
+
+/** The hit point's x: the pointer clamped to the page, inset 6px from each edge. */
+export function hitX(pointerX: number, bounds: {readonly left: number; readonly right: number}): number {
+	return Math.min(Math.max(pointerX, bounds.left + HIT_INSET_PX), bounds.right - HIT_INSET_PX);
+}
+
+/** The ghost bullet's `transform-origin` for the rotate animation, from the parent bullet's content box. */
+export function rotateOrigin(
+	bullet: {
+		readonly left: number;
+		readonly top: number;
+		readonly contentWidth: number;
+		readonly contentHeight: number;
+	},
+	ghost: {readonly left: number; readonly top: number},
+): string {
+	const x = (bullet.left + bullet.contentWidth - ghost.left) / 2;
+	const y = (bullet.top + bullet.contentHeight - ghost.top) / 2;
+	return `${x}px ${y}px`;
+}
+
+const GHOST_CLONE_LIMIT = 5;
+
+/** Inline style of the `index`th stacked ghost bullet; the clone copies a visible bullet, so no `visibility`. */
+export function ghostCloneStyle(index: number): {left: string; top: string; opacity: string; zIndex: string} {
+	return {
+		left: "0",
+		top: `${index * 10}px`,
+		opacity: String(1 - index / GHOST_CLONE_LIMIT),
+		zIndex: String(GHOST_CLONE_LIMIT - index),
+	};
 }
 
 export interface DropRowsInput {

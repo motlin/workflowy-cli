@@ -2,13 +2,10 @@ import {useCallback} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import type {QueryClient} from "@tanstack/react-query";
 import {isMacPlatform} from "../editable-text-keys.js";
-import {contentMouseDownAction, isCovered, pivotTo, rangeFromDrag, toggleClick} from "../item-selection.js";
+import {contentMouseDownAction, dragRangeAt, isCovered, pivotTo, toggleClick} from "../item-selection.js";
 import {flushEditing, useOutlineStore} from "../stores/outline.js";
 import {currentSelectionView, freshSelection} from "./use-selection-keymap.js";
 import type {SelectionView} from "./use-selection-keymap.js";
-
-/** How far (px) past the start row's `.name` the pointer must travel before a press becomes a drag-select. */
-const DRAG_THRESHOLD_PX = 5;
 
 const DRAGGING_CLASS = "item-selection--dragging";
 
@@ -54,34 +51,44 @@ function dragScope(name: Element): Element {
 
 interface DragRow {
 	id: string;
+	parentId: string | null;
 	top: number;
+	height: number;
 }
 
-function rowsIn(scope: Element): DragRow[] {
+/** Each row's `.project` rect in display order, with its parent from the cached tree. */
+function rowsIn(scope: Element, parentOf: (id: string) => string | null): DragRow[] {
 	return [...scope.querySelectorAll(ROW_BULLET_SELECTOR)].flatMap((bullet) => {
 		const id = bullet.getAttribute("data-item-id");
-		const name = bullet.parentElement;
-		return id === null || name === null ? [] : [{id, top: name.getBoundingClientRect().top}];
+		const project = bullet.closest(".project");
+		if (id === null || project === null) {
+			return [];
+		}
+		const {top, height} = project.getBoundingClientRect();
+		return [{id, parentId: parentOf(id), top, height}];
 	});
 }
 
-/** The row whose `.name` starts at or above `clientY` (the first row when above them all). */
-function rowAtY(rows: readonly DragRow[], clientY: number): string | null {
-	let hit = rows[0]?.id ?? null;
-	for (const row of rows) {
-		if (row.top <= clientY) {
-			hit = row.id;
-		}
+const HIDE_SELECTION_CSS =
+	"\n    ::selection { background: transparent }\n    ::-moz-selection { background: transparent }\n  ";
+
+let selectionStyle: HTMLStyleElement | null = null;
+
+/** One module-level `<style>` whose text hides the native text selection while rows are selected. */
+function setNativeSelectionHidden(hidden: boolean): void {
+	if (selectionStyle === null) {
+		selectionStyle = document.createElement("style");
+		document.head.append(selectionStyle);
 	}
-	return hit;
+	selectionStyle.textContent = hidden ? HIDE_SELECTION_CSS : "";
 }
 
 /** Arm drag-select from `nodeId`'s `.name`: once the pointer leaves it, select every row between start and pointer. */
 function armDragSelect(nodeId: string, name: Element, queryClient: QueryClient): void {
-	const startRect = name.getBoundingClientRect();
+	const startName = name.getBoundingClientRect();
 	let dragging = false;
-	let style: HTMLStyleElement | null = null;
 	let rows: DragRow[] = [];
+	let startIndex = -1;
 	let view: SelectionView | null = null;
 
 	const onMove = (event: MouseEvent) => {
@@ -90,31 +97,20 @@ function armDragSelect(nodeId: string, name: Element, queryClient: QueryClient):
 			return;
 		}
 		if (!dragging) {
-			if (
-				event.clientY >= startRect.top - DRAG_THRESHOLD_PX &&
-				event.clientY <= startRect.bottom + DRAG_THRESHOLD_PX
-			) {
-				return;
-			}
 			dragging = true;
+			useOutlineStore.getState().clearItemSelection();
 			document.body.classList.add(DRAGGING_CLASS);
-			style = document.createElement("style");
-			style.textContent = "::selection{background:transparent}";
-			document.head.append(style);
-			rows = rowsIn(dragScope(name));
 			view = currentSelectionView(queryClient);
-		}
-		const pointerId = rowAtY(rows, event.clientY);
-		if (pointerId !== null && view !== null) {
 			const {tree} = view;
-			const ids = rangeFromDrag(
-				rows.map((row) => row.id),
-				(id) => tree.parentOf(id),
-				nodeId,
-				pointerId,
-			);
-			useOutlineStore.getState().setItemSelection(freshSelection(view, ids));
+			rows = rowsIn(dragScope(name), (id) => tree.parentOf(id));
+			startIndex = rows.findIndex((row) => row.id === nodeId);
 		}
+		if (view === null) {
+			return;
+		}
+		const ids = dragRangeAt(rows, startIndex, startName, event.clientY);
+		setNativeSelectionHidden(ids !== null);
+		useOutlineStore.getState().setItemSelection(freshSelection(view, ids ?? []));
 	};
 
 	const finish = () => {
@@ -124,9 +120,10 @@ function armDragSelect(nodeId: string, name: Element, queryClient: QueryClient):
 			return;
 		}
 		document.body.classList.remove(DRAGGING_CLASS);
-		style?.remove();
-		suppressNextClick();
+		setNativeSelectionHidden(false);
+		// A wobble inside the dead zone selects nothing and stays a click, which puts the caret in the row.
 		if (useOutlineStore.getState().itemSelection.entries.length > 0) {
+			suppressNextClick();
 			leaveEditor();
 		}
 	};

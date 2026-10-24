@@ -1,9 +1,12 @@
+// @vitest-environment happy-dom
 import {describe, expect, it} from "vite-plus/test";
 import {
 	DRAG_THRESHOLD_PX,
 	autoScrollBy,
 	edgeAutoscrollSpeed,
+	createEdgeAutoscroller,
 	isDragGesture,
+	pickScroller,
 	stepAutoscroll,
 } from "../src/client/pointer-drag.js";
 
@@ -67,26 +70,98 @@ describe("edgeAutoscrollSpeed", () => {
 });
 
 describe("stepAutoscroll", () => {
+	it("steps 0 on the first frame after a (re)start but arms haveScrolled", () => {
+		expect(
+			stepAutoscroll({scrollTop: 500, speed: -1250, lastFrameAt: null, haveScrolled: false}, 1000),
+		).toStrictEqual({scrollTop: 500, haveScrolled: true});
+	});
+
+	it("arms haveScrolled even when pinned at the top", () => {
+		expect(stepAutoscroll({scrollTop: 0, speed: -868, lastFrameAt: 1000, haveScrolled: false}, 1016)).toStrictEqual(
+			{scrollTop: 0, haveScrolled: true},
+		);
+	});
+
 	it("scrolls by the speed times the seconds since the last frame", () => {
 		const state = {scrollTop: 500, speed: -1250, lastFrameAt: 1000, haveScrolled: false};
 		expect(stepAutoscroll(state, 1100)).toStrictEqual({scrollTop: 375, haveScrolled: true});
 	});
 
-	it("rounds the step and leaves haveScrolled alone when nothing moved", () => {
-		const state = {scrollTop: 500, speed: 0, lastFrameAt: 1000, haveScrolled: false};
-		expect([
-			stepAutoscroll(state, 1016),
-			stepAutoscroll({...state, speed: 313}, 1016),
-			stepAutoscroll({...state, speed: 0, haveScrolled: true}, 1016),
-		]).toStrictEqual([
-			{scrollTop: 500, haveScrolled: false},
-			{scrollTop: 505, haveScrolled: true},
-			{scrollTop: 500, haveScrolled: true},
-		]);
+	it("rounds a sub-pixel step to zero", () => {
+		expect(stepAutoscroll({scrollTop: 500, speed: 35, lastFrameAt: 1000, haveScrolled: true}, 1008)).toStrictEqual({
+			scrollTop: 500,
+			haveScrolled: true,
+		});
 	});
 
 	it("does not scroll above the top", () => {
 		const state = {scrollTop: 50, speed: -1250, lastFrameAt: 1000, haveScrolled: true};
 		expect(stepAutoscroll(state, 1100)).toStrictEqual({scrollTop: 0, haveScrolled: true});
+	});
+});
+
+describe("createEdgeAutoscroller", () => {
+	function harness(initialScrollTop: number) {
+		const frames: ((now: number) => void)[] = [];
+		const scroller = {scrollTop: initialScrollTop};
+		let clock = 0;
+		const autoscroller = createEdgeAutoscroller({
+			scroller: {
+				getScrollTop: () => scroller.scrollTop,
+				setScrollTop: (value) => {
+					scroller.scrollTop = value;
+				},
+				bounds: () => ({top: 0, height: 800}),
+			},
+			startY: 400,
+			mobile: false,
+			raf: (callback) => frames.push(callback),
+			cancelRaf: () => {
+				frames.length = 0;
+			},
+			now: () => clock,
+			afterScroll: () => {},
+		});
+		const run = (at: number) => {
+			clock = at;
+			frames.shift()?.(at);
+		};
+		return {autoscroller, scroller, frames, run};
+	}
+
+	it("keeps scrolling with the pointer above the window until it returns", () => {
+		const {autoscroller, scroller, frames, run} = harness(300);
+		autoscroller.update(400);
+		autoscroller.update(-5);
+		run(0);
+		const afterFirst = scroller.scrollTop;
+		run(16);
+		run(116);
+		expect([afterFirst, scroller.scrollTop, frames.length]).toStrictEqual([300, 155, 1]);
+		autoscroller.update(400);
+		run(132);
+		expect(frames).toHaveLength(0);
+	});
+
+	it("cancels a pending frame on dispose", () => {
+		const {autoscroller, frames} = harness(300);
+		autoscroller.update(-5);
+		autoscroller.dispose();
+		expect(frames).toHaveLength(0);
+	});
+});
+
+describe("pickScroller", () => {
+	it("returns the pointer target's scroller and whether it changed", () => {
+		document.body.innerHTML =
+			'<div class="side-pane-scroller vertical-scrollable-container"><span id="t"></span></div>';
+		const target = document.querySelector("#t")!;
+		const pane = document.querySelector(".vertical-scrollable-container")!;
+		const page = document.scrollingElement ?? document.documentElement;
+		expect([
+			pickScroller(target, page).scroller === pane,
+			pickScroller(target, page).changed,
+			pickScroller(target, pane).changed,
+		]).toStrictEqual([true, true, false]);
 	});
 });

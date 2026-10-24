@@ -5,8 +5,13 @@ import {
 	buildDropRows,
 	bulletDragReducer,
 	dropBulletDrag,
+	ghostCloneStyle,
+	hitX,
+	isOutsideViewport,
+	rotateOrigin,
 	dragItems,
 	dropClearsSelection,
+	dropHoverOf,
 	dropIndicatorFor,
 	isFoundDateRow,
 	planDrop,
@@ -26,6 +31,60 @@ const armed: BulletDragState = bulletDragReducer(IDLE_BULLET_DRAG, {
 });
 
 const dragging: BulletDragState = bulletDragReducer(armed, {type: "move", x: 100, y: 203});
+
+describe("isOutsideViewport", () => {
+	it("is true past any window edge", () => {
+		const size = {width: 949, height: 710};
+		expect([
+			isOutsideViewport({x: 2000, y: 600}, size),
+			isOutsideViewport({x: 0, y: 0}, size),
+			isOutsideViewport({x: -1, y: 5}, size),
+		]).toStrictEqual([true, false, true]);
+	});
+
+	it("keeps the target when the indicator is cleared by leaving", () => {
+		const target = {parentId: "dnd", index: 2, ambiguous: false};
+		const hovering = bulletDragReducer(dragging, {
+			type: "hover",
+			target,
+			indicator: {kind: "at", rowId: "bravo", paneId: "p0"},
+		});
+		expect(bulletDragReducer(hovering, {type: "leave"})).toStrictEqual({...hovering, indicator: null});
+	});
+});
+
+describe("hitX", () => {
+	it("clamps the pointer to the page bounds inset by 6px", () => {
+		expect([hitX(10, {left: 0, right: 933}), hitX(2000, {left: 0, right: 933})]).toStrictEqual([10, 927]);
+	});
+});
+
+describe("rotateOrigin", () => {
+	it("uses the bullet content box and the ghost position", () => {
+		expect([
+			rotateOrigin({left: 81, top: 140, contentWidth: 18, contentHeight: 24}, {left: 121, top: 161}),
+			rotateOrigin({left: 81, top: 168, contentWidth: 18, contentHeight: 24}, {left: 121, top: 178}),
+		]).toStrictEqual(["-11px 1.5px", "-11px 7px"]);
+	});
+});
+
+describe("ghostCloneStyle", () => {
+	it("has no visibility override", () => {
+		expect(ghostCloneStyle(1)).toStrictEqual({left: "0", top: "10px", opacity: "0.8", zIndex: "4"});
+	});
+});
+
+describe("pane-aware drop indicator", () => {
+	it("marks only the row in the pane under the pointer", () => {
+		expect([
+			dropHoverOf({kind: "in", parentId: "alpha", paneId: "p1"}, "alpha", "p0"),
+			dropHoverOf({kind: "in", parentId: "alpha", paneId: "p1"}, "alpha", "p1"),
+		]).toStrictEqual([null, "in"]);
+		expect(
+			dropIndicatorFor({parentId: "dnd", index: 2, ambiguous: false}, ["alpha", "bravo", "charlie"], "p1"),
+		).toStrictEqual({kind: "at", rowId: "bravo", paneId: "p1"});
+	});
+});
 
 describe("bulletDragReducer", () => {
 	it("arms on mousedown without dragging anything", () => {
@@ -67,13 +126,13 @@ describe("bulletDragReducer", () => {
 		const hover = {
 			type: "hover",
 			target: {parentId: "charlie", index: 0, ambiguous: false},
-			indicator: {kind: "in", parentId: "charlie"},
+			indicator: {kind: "in", parentId: "charlie", paneId: "p0"},
 		} as const;
 		expect(bulletDragReducer(armed, hover)).toStrictEqual(armed);
 		expect(bulletDragReducer(dragging, hover)).toStrictEqual({
 			...dragging,
 			target: {parentId: "charlie", index: 0, ambiguous: false},
-			indicator: {kind: "in", parentId: "charlie"},
+			indicator: {kind: "in", parentId: "charlie", paneId: "p0"},
 		});
 	});
 
@@ -81,7 +140,7 @@ describe("bulletDragReducer", () => {
 		const hovered = bulletDragReducer(dragging, {
 			type: "hover",
 			target: {parentId: "charlie", index: 0, ambiguous: false},
-			indicator: {kind: "in", parentId: "charlie"},
+			indicator: {kind: "in", parentId: "charlie", paneId: "p0"},
 		});
 		expect(bulletDragReducer(hovered, {type: "leave"})).toStrictEqual({
 			...dragging,
@@ -166,13 +225,14 @@ describe("dropClearsSelection", () => {
 		expandId: null,
 		flashParentId,
 		animate: flashParentId !== null,
+		flashIds: ["bravo", "charlie"],
 	});
 
 	it("keeps the selection unless the rows dropped into a collapsed parent", () => {
 		expect([
 			dropClearsSelection(plan(null)),
 			dropClearsSelection(plan("alpha")),
-			dropClearsSelection({move: null, expandId: null, flashParentId: null, animate: false}),
+			dropClearsSelection({move: null, expandId: null, flashParentId: null, animate: false, flashIds: []}),
 		]).toStrictEqual([false, true, false]);
 	});
 });
@@ -181,7 +241,8 @@ describe("dropBulletDrag", () => {
 	const leafFacts = {childCount: 0, wasLeaf: true, wasCollapsed: false, defaultToBottom: false};
 	const dndFacts = {childCount: 5, wasLeaf: false, wasCollapsed: false, defaultToBottom: false};
 	const factsOf = (parentId: string) => (parentId === "dnd" ? dndFacts : leafFacts);
-	const nothing = {move: null, expandId: null, flashParentId: null, animate: false};
+	const nothing = {move: null, expandId: null, flashParentId: null, animate: false, flashIds: []};
+	const stays = {...nothing, flashIds: ["delta"]};
 	const dropOn = (parentId: string, index: number) =>
 		dropBulletDrag(
 			bulletDragReducer(dragging, {
@@ -194,8 +255,8 @@ describe("dropBulletDrag", () => {
 
 	it("moves nothing when the parent and index are unchanged", () => {
 		expect([dropOn("dnd", 3), dropOn("dnd", 4)]).toStrictEqual([
-			{state: IDLE_BULLET_DRAG, plan: nothing},
-			{state: IDLE_BULLET_DRAG, plan: nothing},
+			{state: IDLE_BULLET_DRAG, plan: stays},
+			{state: IDLE_BULLET_DRAG, plan: stays},
 		]);
 	});
 
@@ -208,6 +269,7 @@ describe("dropBulletDrag", () => {
 					expandId: null,
 					flashParentId: null,
 					animate: false,
+					flashIds: ["delta"],
 				},
 			},
 			{
@@ -217,6 +279,7 @@ describe("dropBulletDrag", () => {
 					expandId: "charlie",
 					flashParentId: null,
 					animate: false,
+					flashIds: ["delta"],
 				},
 			},
 		]);
@@ -232,7 +295,7 @@ describe("dropBulletDrag", () => {
 
 describe("planDrop", () => {
 	const facts = {childCount: 0, wasLeaf: false, wasCollapsed: false, defaultToBottom: false};
-	const nothing = {move: null, expandId: null, flashParentId: null, animate: false};
+	const nothing = {move: null, expandId: null, flashParentId: null, animate: false, flashIds: ["bravo", "charlie"]};
 
 	it("drops into a collapsed parent at the top, keeps it collapsed, flashes it and animates", () => {
 		expect(
@@ -249,6 +312,7 @@ describe("planDrop", () => {
 			expandId: null,
 			flashParentId: "alpha",
 			animate: true,
+			flashIds: ["delta"],
 		});
 	});
 
@@ -280,6 +344,7 @@ describe("planDrop", () => {
 			expandId: "charlie",
 			flashParentId: null,
 			animate: false,
+			flashIds: ["delta"],
 		});
 	});
 
@@ -297,6 +362,7 @@ describe("planDrop", () => {
 			expandId: null,
 			flashParentId: null,
 			animate: false,
+			flashIds: ["bravo", "charlie"],
 		});
 	});
 
@@ -318,21 +384,23 @@ describe("dropIndicatorFor", () => {
 	const children = ["alpha", "bravo", "charlie"];
 
 	it("draws the line inside the parent for the first slot", () => {
-		expect(dropIndicatorFor({parentId: "dnd", index: 0, ambiguous: false}, children)).toStrictEqual({
+		expect(dropIndicatorFor({parentId: "dnd", index: 0, ambiguous: false}, children, "p0")).toStrictEqual({
 			kind: "in",
+			paneId: "p0",
 			parentId: "dnd",
 		});
 	});
 
 	it("draws the line under the child before the slot", () => {
-		expect(dropIndicatorFor({parentId: "dnd", index: 2, ambiguous: false}, children)).toStrictEqual({
+		expect(dropIndicatorFor({parentId: "dnd", index: 2, ambiguous: false}, children, "p0")).toStrictEqual({
 			kind: "at",
+			paneId: "p0",
 			rowId: "bravo",
 		});
 	});
 
 	it("draws nothing without a target", () => {
-		expect(dropIndicatorFor(null, children)).toBeNull();
+		expect(dropIndicatorFor(null, children, "p0")).toBeNull();
 	});
 });
 
