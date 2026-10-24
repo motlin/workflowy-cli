@@ -157,7 +157,7 @@ export function captionSeed(name: string): string {
 	return name
 		.replaceAll(/<[^>]*>/gu, "")
 		.replaceAll(/&(amp|lt|gt|quot|#39);/gu, (entity) => ENTITIES[entity] ?? entity)
-		.replace(EMOJI_RE, "")
+		.replaceAll(EMOJI_RE, "")
 		.replaceAll(/[\u2018\u2019]/gu, "'")
 		.replaceAll(/[\u201C\u201D]/gu, '"')
 		.replace(/(\s*#[\w-]+)+\s*$/u, "")

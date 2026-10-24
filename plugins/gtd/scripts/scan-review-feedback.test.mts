@@ -203,7 +203,7 @@ const bashEcho = {
 			{
 				type: "tool_result",
 				tool_use_id: "b1",
-				content: '{"txt":"RESULT:The user answered: \\"something\\"=\\"else\\""}',
+				content: String.raw`{"txt":"RESULT:The user answered: \"something\"=\"else\""}`,
 			},
 		],
 	},

@@ -72,7 +72,7 @@ function stripEmptyTags(html: string): string {
 	let current = html;
 	do {
 		previous = current;
-		current = current.replace(EMPTY_PAIR, "");
+		current = current.replaceAll(EMPTY_PAIR, "");
 	} while (current !== previous);
 	return current;
 }
